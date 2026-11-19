@@ -1,16 +1,22 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Owner admin page: see every order and set its status, on the site itself
 
 Use this when the person wants to manage what visitors saved from a page of their own site: all orders with a status to set, every booking, every entry. It pairs with the records recipe (topic records): the same "orders" resource and table. For another resource, change the names.
 
 How it works:
-- The owner opens the admin page on the site's own address (its <site>.<handle>.simple-host.app or its own domain) and signs in with the same sign-in box visitors use, with the email of their Simple Host account. There, and only there, the page acts with owner rights for saved data: it reads every row and changes them as the preset's "owner" value allows. SH.me() then answers site_owner: true.
+- The owner opens the admin page on the site's own address (its <site>.<handle>.simple-host.app or its own domain) and signs in with the same sign-in box visitors use, with the email of their Simple Host account. There, and only there, the page acts with owner rights for saved data: it reads every row and changes them when the rules allow auth.role == "owner". SH.me() then answers site_owner: true.
 - It is never more than saved data: the page cannot change settings, deploys, domains, passcodes, named viewers, keys, versions, or delete the site. Those stay with these tools.
-- Anyone else who opens the page sees only what the preset gives them (with records, their own orders), so the page needs no secret and no key. Still, keep it off the site's menus.
+- Anyone else who opens the page sees only the rows their rules allow (in this example, their own orders), so the page needs no secret and no key. Still, keep it off the site's menus.
 - The trade-off, to tell the person: while they are signed in on their own site, a bug or a malicious script on that site's pages could act on that site's data with their rights. So the page below writes every visitor's text with textContent, never innerHTML, and loads no third-party scripts.
 
 ## 1. Owner setup
 
-Nothing new: the records recipe's resource is already right. Its preset (records: read own, add signed-in, edit owner, delete owner) lets the owner on the site read every order and edit the status. Check with storage_list_resources {"site": "{site}"}: orders shows preset records.
+Read storage_list_resources {"site": "{site}"} first. Preserve the existing resource rules and every table override when adding an admin page. If they already allow auth.role == "owner" to read and edit, no setup change is needed. Otherwise, ask for those owner permissions and add them to the existing policy sets without changing visitor permissions. In particular, an inbox must keep anonymous submissions and owner-only reads.
+
+Worked example for a NEW orders resource only: use get_page_recipe topic records to create its tables. The following rules let customers read their own orders and add orders, and let the owner manage all orders. Do not apply this replacement to an existing resource or to the inbox example; adapt only the page code to an existing resource's names:
+
+storage_set_resource {"site": "{site}", "name": "orders", "body": {"kind": "sqlite", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "visitor_id == auth.id"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 ## 2. The page (admin.html)
 
@@ -87,7 +93,7 @@ function start() {
   var who = document.getElementById("who");
   SH.me().then(function (me) {
     if (!me.signed_in) { who.textContent = "Sign in with your Simple Host account email to manage orders."; return; }
-    // Anyone else only ever sees what the preset gives them; say so instead of showing an empty table.
+    // Anyone else only ever sees what the rules allow them; say so instead of showing an empty table.
     if (!me.site_owner) { who.textContent = "This page is for the shop's owner."; document.getElementById("orders").textContent = ""; return; }
     who.textContent = "Signed in as " + me.email + " (owner).";
     return load(false);
@@ -107,7 +113,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 Notes on the page:
 - where: {status: "shipped"} filters on one column by equality (up to three columns); order and desc sort; after: next_after pages on.
-- A status the preset does not let the caller change answers 403, and the select goes back to the saved value.
+- A status the rules do not let the caller change answers 403, and the select goes back to the saved value.
 - Pages, the owner's admin page included, cannot make a change that cascades into other rows or tables (a foreign key with ON DELETE CASCADE, or a trigger that writes elsewhere); those go through storage_sql_execute.
 - Keep auth.js on the page: it tells the server when the page is framed by another site, and a framed page never gets owner rights.
 - The owner's account email is the one they sign in to Simple Host with: use the email they already use for Simple Host. Call who_am_i with include_email: true only if they ask which email is connected. Signing in with any other address makes them an ordinary visitor.

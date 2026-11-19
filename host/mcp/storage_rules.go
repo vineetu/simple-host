@@ -1,17 +1,12 @@
 package mcp
 
-import (
-	"os"
-	"strings"
-)
-
-func storageRulesEnabled() bool { return os.Getenv("STORAGE_RULES") == "on" }
+import "strings"
 
 const storageRulesInstructions = `SQLite/KV/files: ask who may read, add, edit and delete, then write rules. Deny by default: require a permissive policy and every restrictive policy. Owner tools bypass rules; owner pages need auth.role == "owner". Read storage_list_resources before changes; ask before widening access.`
 
 const storageRulesSetDescription = `Create a saved-data resource or set who may read, add, edit and delete. kind: kv (one JSON value per key), sqlite (tables), or files (uploads); it cannot change later.
 
-For SQLite, SQLite-stored key-value data and files, ask who should read and write which data, then supply rules: {version:1, policies:[...]}. Deny by default: without a permissive policy for the command, visitors cannot run it; an empty policies array denies every visitor. Permissive policies combine with OR; restrictive policies combine with AND and cannot grant access alone. Table rules replace the resource rules for that table; tables without an override inherit the resource rules. Send tables:{} when replacing existing table settings with one resource rule set. Do not combine rules with preset, read, add, edit, delete, write, write_mode or approve_first.
+For SQLite, SQLite-stored key-value data and files, ask who should read and write which data, then supply rules: {version:1, policies:[...]}. Deny by default: without a permissive policy for the command, visitors cannot run it; an empty policies array denies every visitor. Permissive policies combine with OR; restrictive policies combine with AND and cannot grant access alone. Table rules replace the resource rules for that table; tables without an override inherit the resource rules. Send tables:{} when replacing existing table settings with one resource rule set. Without rules, a new resource is owner-only and an existing one keeps its rules. Presets were removed and their fields are refused.
 
 Clause table (command | existing row using | new row check):
 read | required | refused
@@ -26,13 +21,13 @@ Three example rule sets:
 {"version":1,"policies":[{"name":"send","command":"add","check":"true"},{"name":"manage","command":"all","using":"auth.role == \"owner\"","check":"auth.role == \"owner\""}]}
 {"version":1,"policies":[{"name":"read","command":"read","using":"visitor_id == auth.id || auth.role == \"owner\""},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"manage","command":"all","using":"auth.role == \"owner\"","check":"auth.role == \"owner\""}]}
 
-For kind: "files", rules are written the same way: read lists and opens files, add uploads a new path, edit replaces an existing file, delete removes one. File rules cannot use auth.checked: uploads are never spam-checked. A file bucket saved earlier without rules keeps its preset fields until rules are saved.
+For kind: "files", rules are written the same way: read lists and opens files, add uploads a new path, edit replaces an existing file, delete removes one. Uploads are never spam-checked.
 
-For every resource kind, site_passcode applies alongside rules or presets: inherit requires the site's passcode; off exempts this resource. Omission defaults to inherit, so preserve an existing off exemption when saving.
+For every resource kind, site_passcode applies alongside rules: inherit requires the site's passcode; off exempts this resource. Omission defaults to inherit, so preserve an existing off exemption when saving.
 
 Create the resource with storage_set_resource, then create its tables with storage_sql_schema only for SQLite, before publishing the page. Ask before widening access.`
 
-const storageRulesListDescription = `List a site's saved-data resources with their names and kinds. Resources include rules_status (rules, preset or invalid). Resources with rules return rules, rules_errors when invalid, and per-table rules only for overrides. Missing table overrides inherit the resource rules; an empty policy set denies visitors. Unconverted resources (rules_status: "preset") retain their existing preset and access fields. Read this before changing saved data or access.
+const storageRulesListDescription = `List a site's saved-data resources with their names and kinds. Each resource returns rules, rules_status (rules or invalid), rules_errors when invalid, and per-table rules only for overrides. Missing table overrides inherit the resource rules; an empty policy set denies visitors. Read this before changing saved data or access.
 
 Uploads in a files resource are listed by storage_list_file_objects (through run_tool if absent from your tool list).`
 
@@ -40,17 +35,22 @@ const storageRulesQueryDescription = `Read rows from a SQLite resource with a SE
 
 const storageRulesSchemaDescription = `Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema with ` + sqlSchemaIntrospectionHint + ` (no PRAGMA) before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and created_at TEXT (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: the server ensures the indexed author column when rules reference visitor_id or allow ordinary visitors to add. If rules name approved_at, the server ensures that column for moderation. A table override replaces the resource rule set; install rules for a new table name before renaming a table with its own rules. A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.`
 
-// Apply wording after choosing a connection's inventory, so a running server
-// never keeps startup-time flag text in its cached declarations or search results.
+// storageRulesSpamCheckSentence is Simple Host's alone: withoutSpamCheck
+// takes it out where the spam check is not offered.
+const storageRulesSpamCheckSentence = ` For spam-checked adds, use auth.checked in an add check. To hold posts, add a restrictive read policy using auth.role == "owner" || approved_at is not null; approve them by setting approved_at as the owner.`
+
+// storageRulesTool gives a product connection's storage tools its wording of
+// who "owner" is, after choosing the connection's inventory. Simple Host's own
+// connections keep the registered text.
 func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
+	product := caller.Mode == CallerModeGroupSite || caller.Mode == CallerModeEvents || strings.HasPrefix(tool.Name, "hack_event_")
+	if !product {
+		return tool
+	}
 	name := strings.TrimPrefix(tool.Name, "hack_event_")
 	switch name {
 	case "storage_set_resource":
-		tool.Title = "Create a storage resource or set its rules"
 		tool.Description = storageRulesSetDescription
-		if !s.cfg.NoSpamCheck && caller.Mode != CallerModeEvents && caller.Mode != CallerModeGroupSite && !strings.HasPrefix(tool.Name, "hack_event_") {
-			tool.Description += ` For spam-checked adds, use auth.checked in an add check. To hold posts, add a restrictive read policy using auth.role == "owner" || approved_at is not null; approve them by setting approved_at as the owner.`
-		}
 	case "storage_list_resources":
 		tool.Description = storageRulesListDescription
 	case "storage_sql_query":
@@ -61,23 +61,19 @@ func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
 		return tool
 	}
 	if strings.HasPrefix(tool.Name, "hack_event_") {
-		if name == "storage_set_resource" {
-			tool.Title = "Event website: " + tool.Title
-		}
 		tool.Description = strings.ReplaceAll(tool.Description, "storage_", "hack_event_storage_")
 		tool.Description += ` Owner on this website means a current event organiser until the event ends. Organiser only on this event's custom website.`
-	} else if caller.Mode == CallerModeGroupSite || caller.Mode == CallerModeEvents {
+	} else {
 		tool.Description += ` Owner on a team site means a current approved teammate until the team's submission deadline, subject to stage and take-down checks; after that the teammate is an ordinary visitor.`
 	}
-	if caller.Mode == CallerModeGroupSite || caller.Mode == CallerModeEvents || strings.HasPrefix(tool.Name, "hack_event_") {
-		tool.Description = s.productInstructions(tool.Description)
-	} else {
-		tool.Description = instanceText(addressText(tool.Description))
-	}
+	tool.Description = s.productInstructions(tool.Description)
 	return tool
 }
 
 func (s *Server) storageRulesInventory(full, bare []Tool, byName map[string]Tool, c Caller) ([]Tool, []Tool, map[string]Tool) {
+	if c.Mode != CallerModeEvents && c.Mode != CallerModeGroupSite {
+		return full, bare, byName
+	}
 	rewrite := func(list []Tool) []Tool {
 		out := append([]Tool(nil), list...)
 		for i := range out {

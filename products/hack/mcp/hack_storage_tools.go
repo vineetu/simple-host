@@ -13,5 +13,5 @@ func hackStorageTools() []mcp.Tool {
 }
 
 func eventStorageTools() []mcp.Tool {
-	return mcp.EventStorageTools(hackEventOwnerSentence, hackPhotoWording)
+	return mcp.EventStorageTools(hackUsageWording)
 }

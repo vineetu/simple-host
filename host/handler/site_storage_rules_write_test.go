@@ -24,15 +24,14 @@ func (p *replayBindings) Values(context.Context, appstorage.BindingCall, []strin
 	return ruleengine.Values{"event.member": ruleengine.Bool(p.member), "event.before_deadline": ruleengine.Bool(p.deadline)}, nil
 }
 
-func saveWriteHTTPRules(t *testing.T, s presetSite, add, check string, status int) {
+func saveWriteHTTPRules(t *testing.T, s storageTestSite, add, check string, status int) {
 	t.Helper()
 	policies := []ruleengine.Policy{{Command: ruleengine.CmdRead, Using: "true"}, {Command: ruleengine.CmdAdd, Check: add}, {Command: ruleengine.CmdEdit, Using: "auth.signed_in", Check: check}, {Command: ruleengine.CmdDelete, Using: "auth.signed_in"}}
 	s.must(t, "PUT", "/resources/data", map[string]any{"kind": "sqlite", "rules": json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Policies: policies}))}, s.key, status)
 }
 
 func TestStorageRulesWriteReplay(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	p := &replayBindings{member: true, deadline: true}
 	s.a.sites.SetStorageBindings(p)
 	saveWriteHTTPRules(t, s, "auth.signed_in", "true", 201)
@@ -107,8 +106,7 @@ func TestStorageRulesWriteReplay(t *testing.T) {
 }
 
 func TestStorageRulesWriteFailedCheckMatchesMissing(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	saveWriteHTTPRules(t, s, "auth.signed_in", `status == "approved"`, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(status TEXT)"}, s.key, 200)
 	route := "/sqlite/data/tables/entries/rows"
@@ -125,51 +123,29 @@ func TestStorageRulesWriteFailedCheckMatchesMissing(t *testing.T) {
 }
 
 func TestStorageRulesWriteServerColumnSpelling(t *testing.T) {
-	for _, mode := range []string{"preset", "rules"} {
-		for _, flag := range []string{"off", "on"} {
-			t.Run(mode+"/"+flag, func(t *testing.T) {
-				t.Setenv("STORAGE_RULES", "on")
-				s := newPresetSite(t)
-				if mode == "rules" {
-					saveWriteHTTPRules(t, s, "auth.signed_in", "true", 201)
-				} else {
-					s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
-				}
-				s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT, visitor_id TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
-				t.Setenv("STORAGE_RULES", flag)
-				route := "/sqlite/data/tables/entries/rows"
-				count := 0
-				for _, name := range []string{"visitor_id", "written_by", "created_at", "updated_at"} {
-					for _, supplied := range []string{name, strings.ToUpper(name)} {
-						status := 200
-						if mode == "preset" && supplied != name {
-							status = 400
-						}
-						r := s.must(t, "POST", route, map[string]string{"body": "new", supplied: "forged"}, s.callers["alice"], status)
-						if status == 400 {
-							if r.json(t)["code"] != "invalid_rows" {
-								t.Fatal(string(r.body))
-							}
-							continue
-						}
-						count++
-					}
-				}
-				rows := s.must(t, "POST", "/sqlite/data/query", map[string]string{"sql": "SELECT visitor_id, created_at, updated_at FROM entries"}, s.key, 200).json(t)["rows"].([]any)
-				if len(rows) != count {
-					t.Fatalf("rows=%d want=%d; refused inserts must write nothing", len(rows), count)
-				}
-				for _, value := range rows {
-					row := value.([]any)
-					if row[0] != s.aliceID || row[2] != nil {
-						t.Fatalf("forged server values survived: %v", row)
-					}
-					stamp, ok := row[1].(string)
-					if _, err := time.Parse(time.RFC3339Nano, stamp); !ok || err != nil {
-						t.Fatalf("invalid creation timestamp: %v", row)
-					}
-				}
-			})
+	s := newStorageTestSite(t)
+	saveWriteHTTPRules(t, s, "auth.signed_in", "true", 201)
+	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT, visitor_id TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
+	route := "/sqlite/data/tables/entries/rows"
+	count := 0
+	for _, name := range []string{"visitor_id", "written_by", "created_at", "updated_at"} {
+		for _, supplied := range []string{name, strings.ToUpper(name)} {
+			s.must(t, "POST", route, map[string]string{"body": "new", supplied: "forged"}, s.callers["alice"], 200)
+			count++
+		}
+	}
+	rows := s.must(t, "POST", "/sqlite/data/query", map[string]string{"sql": "SELECT visitor_id, created_at, updated_at FROM entries"}, s.key, 200).json(t)["rows"].([]any)
+	if len(rows) != count {
+		t.Fatalf("rows=%d want=%d; refused inserts must write nothing", len(rows), count)
+	}
+	for _, value := range rows {
+		row := value.([]any)
+		if row[0] != s.aliceID || row[2] != nil {
+			t.Fatalf("forged server values survived: %v", row)
+		}
+		stamp, ok := row[1].(string)
+		if _, err := time.Parse(time.RFC3339Nano, stamp); !ok || err != nil {
+			t.Fatalf("invalid creation timestamp: %v", row)
 		}
 	}
 }

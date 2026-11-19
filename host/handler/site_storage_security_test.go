@@ -53,11 +53,19 @@ func (s securityShop) call(t *testing.T, method, path string, body any, headers 
 }
 func (s securityShop) resource(t *testing.T, name, kind, read, write, mode string) {
 	t.Helper()
-	if legacyStorageRules(kind, read, write, mode) {
-		insertLegacyStorage(t, s.a.sites, s.siteID, name, kind, read, write, mode, "")
-		return
+	// Every kind takes rules: the same access as the older fields.
+	rules := map[string]string{
+		"own/signed-in/add":    rulesRecords,
+		"anyone/anyone/add":    rulesOpenAdd,
+		"anyone/signed-in/add": rulesSignedInAdd,
+		// Anyone editing or deleting is not offered; these tests only add.
+		"anyone/anyone/full": rulesOpenAdd,
+		"anyone/owner/full":  rulesPublic,
+	}[read+"/"+write+"/"+mode]
+	if rules == "" {
+		t.Fatalf("no rules for %s/%s/%s", read, write, mode)
 	}
-	s.call(t, "PUT", "/resources/"+name, map[string]string{"kind": kind, "read": read, "write": write, "write_mode": mode}, s.key, 201)
+	s.call(t, "PUT", "/resources/"+name, storageRules(kind, rules), s.key, 201)
 }
 func (s securityShop) schema(t *testing.T, sql string) {
 	t.Helper()
@@ -105,7 +113,7 @@ func TestStorageSecurityReferencesCatalogAndOraclePOC(t *testing.T) {
 	// A reference needs a parent the visitor may read: the owner's rows in
 	// an own table are not, so the catalogue goes public.
 	s.add(t, "orders", map[string]any{"item": "catalog", "product_id": 7}, s.alice, 404)
-	s.call(t, "PUT", "/resources/db", map[string]any{"kind": "sqlite", "preset": "records", "tables": map[string]any{"products": map[string]string{"preset": "public"}}}, s.key, 200)
+	s.call(t, "PUT", "/resources/db", `{"kind":"sqlite","rules":`+rulesRecords+`,"tables":{"products":{"rules":`+rulesPublic+`}}}`, s.key, 200)
 	for _, id := range []int{7, 8} {
 		s.add(t, "orders", map[string]any{"item": "catalog", "product_id": id}, s.alice, 200)
 	}
@@ -140,56 +148,11 @@ func TestStorageSecurityReferencesCatalogAndOraclePOC(t *testing.T) {
 	if err = conn.Exec("CREATE TABLE catalog(id INTEGER PRIMARY KEY); CREATE TABLE child(id INTEGER PRIMARY KEY, parent INTEGER REFERENCES catalog, visitor_id TEXT); INSERT INTO catalog VALUES(1); INSERT INTO child VALUES(1,1,'alice')"); err != nil {
 		t.Fatal(err)
 	}
-	ownCall := storageCall{visitorID: "alice", resource: storageResource{Kind: "sqlite", Read: "own", Write: "signed-in", WriteMode: "add"}}
+	// The parent is read with an own read filter for alice.
 	if _, err = storage.CheckReferences(conn, "child", "rowid", 1, func(parent string) (ruleengine.Predicate, error) {
-		filter, ok := ownCall.storageMayRead(ownCall.resource.tableMatrix(parent).Read)
-		if !ok {
-			return ruleengine.Predicate{}, fmt.Errorf("referenced row not found")
-		}
-		return ruleengine.Predicate{SQL: `"visitor_id" COLLATE BINARY = ?`, Args: []ruleengine.Value{ruleengine.Text(filter)}}, nil
+		return ruleengine.Predicate{SQL: `"visitor_id" COLLATE BINARY = ?`, Args: []ruleengine.Value{ruleengine.Text("alice")}}, nil
 	}); err == nil {
 		t.Fatal("parent without visitor_id accepted")
-	}
-}
-
-func TestStorageSecurityPolicyConversionAndOmittedMode(t *testing.T) {
-	s := newSecurityShop(t)
-	s.resource(t, "db", "sqlite", "own", "signed-in", "add")
-	s.schema(t, "CREATE TABLE orders (id INTEGER PRIMARY KEY,item TEXT)")
-	for _, body := range []map[string]string{{"kind": "sqlite", "read": "own", "write": "signed-in"}, {"kind": "sqlite", "read": "anyone", "write": "signed-in", "site_passcode": "off"}} {
-		if r := s.call(t, "PUT", "/resources/db", body, s.key, 200); r.json(t)["write_mode"] != "add" {
-			t.Fatal("omitted mode reset add")
-		}
-	}
-	s.add(t, "orders", `{"item":"earlier"}`, s.alice, 200)
-	// The owner's own edits to visitor_id are the owner's choice; with a
-	// matrix no page can write visitor_id, so switching to own needs no
-	// empty database.
-	s.call(t, "POST", "/sqlite/db/execute", `{"sql":"UPDATE orders SET visitor_id='forged'"}`, s.key, 200)
-	s.call(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in"}, s.key, 200)
-	// A legacy database pages could write with SQL must be empty first.
-	if _, err := s.a.sites.database.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode) VALUES($1,'legacy','sqlite','anyone','signed-in','inherit','full')`, s.siteID); err != nil {
-		t.Fatal(err)
-	}
-	s.call(t, "POST", "/sqlite/legacy/schema", map[string]string{"sql": "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT, visitor_id TEXT)"}, s.key, 200)
-	s.call(t, "POST", "/sqlite/legacy/execute", `{"sql":"INSERT INTO notes(text, visitor_id) VALUES('forged by a page', 'someone-else')"}`, s.alice, 200)
-	s.call(t, "PUT", "/resources/legacy", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 400)
-	s.call(t, "POST", "/sqlite/legacy/execute", `{"sql":"DELETE FROM notes"}`, s.key, 200)
-	s.call(t, "PUT", "/resources/legacy", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 200)
-	s.call(t, "POST", "/sqlite/legacy/execute", `{"sql":"INSERT INTO notes(text) VALUES('x')"}`, s.alice, 403)
-	// Missing identity refuses even if a later cookie lookup could succeed.
-	req := httptest.NewRequest("GET", "https://"+s.host+"/", nil)
-	for k, v := range s.alice {
-		req.Header.Set(k, v)
-	}
-	c := storageCall{siteID: s.siteID, resource: storageResource{Read: "own", Write: "owner", WriteMode: "full", SitePasscode: "off"}}
-	w := httptest.NewRecorder()
-	if s.a.sites.storageAccess(w, req, &c, "read") || w.Code != 401 {
-		t.Fatal("own reads failed open")
-	}
-	c.owner = true
-	if !s.a.sites.storageAccess(httptest.NewRecorder(), req, &c, "read") || c.filter != "" {
-		t.Fatal("explicit owner should read all")
 	}
 }
 
@@ -247,11 +210,8 @@ func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 			body = "x"
 		}
 		s.call(t, "PUT", route+url.PathEscape("cafe\u0301"), body, s.alice, 200)
-		want := 200
-		if kind == "kv" {
-			want = 409
-		} // normalized add-only name already exists
-		s.call(t, "PUT", route+url.PathEscape("café"), body, s.alice, want)
+		// normalized add-only name already exists
+		s.call(t, "PUT", route+url.PathEscape("café"), body, s.alice, 409)
 		s.call(t, "GET", strings.TrimSuffix(route, "/")+"?prefix="+url.QueryEscape("cafe\u0301"), nil, s.alice, 200)
 	}
 	s.call(t, "PUT", "/files/public/objects/"+strings.Repeat("a/", 16)+"file", "", s.alice, 400)
@@ -321,7 +281,7 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 		t.Fatalf("overwritten creator: %s/%s vs %s", writer, value, winner)
 	}
 	// Full-mode overwrite tracks the last visitor; owner edits retain attribution.
-	s.call(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "read": "anyone", "write": "signed-in", "write_mode": "full"}, s.key, 200)
+	s.call(t, "PUT", "/resources/kv", storageRules("kv", rulesSignedInWrite), s.key, 200)
 	s.call(t, "PUT", "/kv/kv/keys/key", `{"value":2}`, s.bob, 200)
 	var before, after string
 	before = readStorageKVAuthor(t, s.a.sites, s.siteID, "kv", "key")
@@ -377,7 +337,7 @@ func TestStorageSecuritySlowBodiesDoNotHoldSiteLockPOC(t *testing.T) {
 	for _, tc := range []struct {
 		method, path, body string
 		owner              bool
-	}{{"POST", "/sqlite/db/query", `{"sql":"SELECT 1"}`, false}, {"POST", "/sqlite/db/tables/orders/rows", `{"item":"x"}`, false}, {"POST", "/sqlite/db/schema", `{"sql":"CREATE TABLE x(v)"}`, true}, {"PUT", "/kv/kv/keys/slow", `{"value":1}`, false}, {"PUT", "/files/files/objects/slow", "x", false}, {"PUT", "/resources/db", `{"kind":"sqlite","read":"anyone","write":"anyone"}`, true}} {
+	}{{"POST", "/sqlite/db/tables/orders/rows", `{"item":"x"}`, false}, {"POST", "/sqlite/db/schema", `{"sql":"CREATE TABLE x(v)"}`, true}, {"PUT", "/kv/kv/keys/slow", `{"value":1}`, false}, {"PUT", "/files/files/objects/slow", "x", false}, {"PUT", "/resources/db", storageRules("sqlite", rulesOpenAdd), true}} {
 		t.Run(tc.path, func(t *testing.T) {
 			b := &securitySlowBody{make(chan struct{}), make(chan struct{}), sync.Once{}, strings.NewReader(tc.body)}
 			req := httptest.NewRequest(tc.method, "https://"+s.host+"/v1/sites/shop/storage"+tc.path, b)

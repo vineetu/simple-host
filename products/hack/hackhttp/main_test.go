@@ -21,7 +21,7 @@ func TestMain(m *testing.M) { testdb.Main(m) }
 // isolateQueueTest gives queue consumers their own database under the
 // integration runner. Duplicated from host/handler/main_test.go
 // (cleanup 3.2 slice 3): hack_content_test.go, hack_notifications_test.go
-// and hack_storage_presets_test.go all moved with it.
+// and hack_storage_owner_test.go all moved with it.
 func isolateQueueTest(t *testing.T) {
 	t.Helper()
 	if os.Getenv("TESTDB_ISOLATE") == "1" && os.Getenv("DB_DSN") != "" {

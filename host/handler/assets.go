@@ -198,7 +198,7 @@ func (h *SiteHandler) DiskForTest() interface {
 // SetStorageIPLimiterForTest lift h's own rate limits for a test fixture
 // that sends many requests quickly (an opt-in browser-proof rehearsal, not
 // an automated test). Test hooks (cleanup 3.2 slice 3): the moved
-// hack_presets_browser_test.go assigned emailLimiter/visitorAuthLimiter/
+// Hack browser tests assigned emailLimiter/visitorAuthLimiter/
 // storageIPLimiter directly before the move; all three are unexported
 // fields of the handler-local *rateLimiter type, which a cross-package
 // caller can neither name nor build, so each hook takes the same

@@ -22,11 +22,11 @@ import (
 func TestSQLiteOpenAllowList(t *testing.T) {
 	root := filepath.Join("..", "..")
 	allowed := map[string]bool{
-		"host/storage/runtime_sqlite.go":      true,
-		"host/storage/runtime_sql_prepare.go": true,
-		"host/storage/runtime_matrix.go":      true,
-		"host/storage/export_sqlite.go":       true,
-		"host/storage/runtime_kv.go":          true,
+		"host/storage/runtime_sqlite.go":        true,
+		"host/storage/runtime_sql_prepare.go":   true,
+		"host/storage/runtime_prepare_rules.go": true,
+		"host/storage/export_sqlite.go":         true,
+		"host/storage/runtime_kv.go":            true,
 	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -150,7 +150,7 @@ func TestSQLiteOpenPathsPanicCleanup(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						_, got = PrepareMatrixDatabase(ctx, path, 256<<20, 1<<20, fi.Size(), fi.Size(), false, false, false, func(string) bool { return true }, func(string) bool { return false }, func(error) {}, func() { changed = true }, func(map[string]bool) { committed = true })
+						_, got = PrepareRulesDatabase(ctx, path, 256<<20, 1<<20, fi.Size(), fi.Size(), false, false, func(string) bool { return true }, func(string) bool { return false }, func(error) {}, func() { changed = true }, func(map[string]bool) { committed = true })
 					case "export":
 						got = CheckpointExportSQLite(ctx, path, 256<<20)
 					}
@@ -187,7 +187,6 @@ func TestSQLiteOpenPathsPanicCleanup(t *testing.T) {
 
 func TestSchemaPreparationStepPanicClosesStatements(t *testing.T) {
 	for _, query := range []string{
-		"SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=?",
 		"SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=? COLLATE NOCASE",
 		`PRAGMA index_info("sh_visitor_notes")`,
 		`UPDATE "notes" SET approved_at = ?`,
@@ -219,13 +218,11 @@ func TestSchemaPreparationStepPanicClosesStatements(t *testing.T) {
 				}()
 				switch {
 				case strings.Contains(query, "approved_at"):
-					err = EnsureHoldTables(conn, func(string) bool { return true })
+					err = ensureHoldTables(conn, func(string) bool { return true }, nil)
 				case strings.HasPrefix(query, "PRAGMA page") || query == "PRAGMA max_page_count":
 					err = SetLegacySQLiteLimit(conn, 1<<20)
-				case strings.HasSuffix(query, "COLLATE NOCASE"):
-					err = ensureOwnTables(conn, map[string]bool{"notes": true}, nil, true)
 				default:
-					err = EnsureOwnTables(conn, map[string]bool{"notes": true}, nil)
+					err = ensureOwnTables(conn, map[string]bool{"notes": true}, nil)
 				}
 			}()
 			if !hit {

@@ -439,7 +439,7 @@ func TestImageScanStorageFile(t *testing.T) {
 	olive := a.newPerson(t, "olive")
 	a.deploy(t, olive, "gallery")
 	okey := map[string]string{"X-API-Key": olive.key}
-	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/gallery/storage/resources/photos", map[string]string{"kind": "files", "read": "anyone", "write": "owner"}, okey); r.status != 201 {
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/gallery/storage/resources/photos", storageRules("files", rulesPublic), okey); r.status != 201 {
 		t.Fatalf("files resource: %d %s", r.status, r.body)
 	}
 	bad := testPNG(t)
@@ -934,11 +934,11 @@ func TestImageScanAutoReport(t *testing.T) {
 // the uploader and the address as they were at detection.
 func TestImageScanStorageUploader(t *testing.T) {
 	isolateQueueTest(t)
-	ps := newPresetSite(t)
+	ps := newStorageTestSite(t)
 	a := ps.a
 	f := newImageScanFixture(t, a, a.sites.disk)
 	a.sites.SetImageScan(f.scan)
-	ps.must(t, "PUT", "/resources/drop", map[string]string{"kind": "files", "preset": "inbox"}, ps.key, 201)
+	ps.must(t, "PUT", "/resources/drop", storageRules("files", rulesInbox), ps.key, 201)
 	anonPic, ownerPic := testPNG(t), testPNG(t)
 	f.markMatch(operations.ImageHash(anonPic))
 	f.markMatch(operations.ImageHash(ownerPic))

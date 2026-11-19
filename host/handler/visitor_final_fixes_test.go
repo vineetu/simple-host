@@ -12,7 +12,7 @@ import (
 
 func TestVisitorStructuralAccountSubstrings(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/notes", map[string]any{"kind": "kv", "preset": "public"}, f.key, 201)
+	f.must(t, "PUT", "/resources/notes", storageRules("kv", rulesPublic), f.key, 201)
 	other := "author_" + strings.ToUpper(f.ids["alice"]) + "_suffix"
 	ordinary := "author_01234567-89ab-cdef-0123-456789abcdef"
 	own := "author_" + f.ids["bob"]
@@ -40,7 +40,7 @@ func TestVisitorStructuralAccountSubstrings(t *testing.T) {
 	if call(args)["entries"] != nil {
 		t.Fatal("single entry with account key not omitted")
 	}
-	f.must(t, "PUT", "/resources/columns", map[string]any{"kind": "sqlite", "preset": "public"}, f.key, 201)
+	f.must(t, "PUT", "/resources/columns", storageRules("sqlite", rulesPublic), f.key, 201)
 	f.must(t, "POST", "/sqlite/columns/schema", map[string]any{"sql": `CREATE TABLE entries(id INTEGER PRIMARY KEY, email TEXT, "` + other + `" TEXT, "` + ordinary + `" INTEGER, "` + own + `" TEXT)`}, f.key, 200)
 	args = f.args("sqlite", "columns")
 	args["table"] = "entries"
@@ -67,7 +67,7 @@ func TestVisitorWriteNumbersAndIDsExact(t *testing.T) {
 		for _, kind := range []string{"kv", "sqlite"} {
 			t.Run(mode+"/"+kind, func(t *testing.T) {
 				f := newVisitorFixture(t)
-				f.must(t, "PUT", "/resources/numbers", map[string]any{"kind": kind, "preset": "personal"}, f.key, 201)
+				f.must(t, "PUT", "/resources/numbers", storageRules(kind, rulesPersonal), f.key, 201)
 				if kind == "sqlite" {
 					f.must(t, "POST", "/sqlite/numbers/schema", map[string]any{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, n INTEGER)"}, f.key, 200)
 					f.must(t, "POST", "/sqlite/numbers/execute", map[string]any{"sql": "INSERT INTO entries(id,n,visitor_id) VALUES(" + adjacent + ",7,?)", "params": []any{f.ids["bob"]}}, f.key, 200)
@@ -143,7 +143,7 @@ func TestVisitorEntryIDRejectsInexactOrInvalid(t *testing.T) {
 
 func TestVisitorResourceExistenceGated(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/exists", map[string]any{"kind": "kv", "preset": "personal"}, f.key, 201)
+	f.must(t, "PUT", "/resources/exists", storageRules("kv", rulesPersonal), f.key, 201)
 	f.named(t)
 	if _, err := f.a.database.Exec(`DELETE FROM site_viewers WHERE site_id=$1`, f.sid); err != nil {
 		t.Fatal(err)

@@ -23,8 +23,8 @@
  * SH.me() -> {signed_in, email, ...}; SH.signOut(); SH.signIn() starts the hop.
  * SH.email.request(email) / .verify(email, code) remain for cached pages.
  *
- * STORAGE (the owner creates resources first: row rules for SQLite and KV,
- * file-bucket presets for uploads; SQLite tables may replace the default set):
+ * STORAGE (the owner creates resources first, each with row rules: SQLite, KV
+ * and file buckets; SQLite tables may replace the default set):
  *   var orders = SH.storage.sqlite('shop').table('orders');
  *   await SH.requireSignIn(); var r = await orders.add({items: '...', total_cents: 700});
  *   var page = await orders.list({order: 'id', desc: 1, limit: 50, where: {status: 'received'}});
@@ -179,7 +179,6 @@
           var err = new Error((body && body.error) || "Request failed");
           err.status = r.status;
           err.code = body && body.code;
-          if (err.code === "rules_required") err.message = "The site owner needs to set access rules before this data can be used.";
           if (err.code === "rules_invalid") err.message = "The site owner needs to repair the access rules for this data.";
           if (err.code === "query_too_expensive") err.message = "This request took too much work. Try a smaller page or a narrower search.";
           if (err.code === "storage_failed") err.message = "The save or read could not finish. Check the current data before trying again.";
@@ -222,7 +221,7 @@
     return request(url, {method: method, headers: headers, body: JSON.stringify(body)});
   }
   function storageURL(path) { return API_BASE + "/storage/" + path; }
-  // The spam check (comments preset). Turnstile runs in a frame served from
+  // The spam check (adds whose rule checks auth.checked). Turnstile runs in a frame served from
   // the app's own address, so it works on every site host and own domain.
   // Messages are taken only from that frame's window and origin, and the
   // start message goes only to that origin; the token comes back the same
@@ -744,8 +743,8 @@
           table: function (table) {
             var rows = base + "/tables/" + storageSegment(table, "table name") + "/rows";
             return {
-              // options.for: the owner only, on a table whose preset reads
-              // own (records, personal): add this row for one signed-in
+              // options.for: the owner only, on a table whose rules give each
+              // visitor their own rows (records, personal): add this row for one signed-in
               // visitor (their visitor_id, or the email they signed in
               // with) instead of the owner's own write. Refused
               // (visitor_unknown) if they have never signed in on this
@@ -793,7 +792,7 @@
               delete: function (id) { return request(rows + "/" + storageRowID(id), {method: "DELETE", headers: {"X-SH-CSRF": "1"}}); }
             };
           },
-          // The owner's, or a legacy full-mode database saved before presets.
+          // The owner's only (visitors get 403 fixed_routes_required).
           // Pages use table(), never SQL.
           query: function (sql, params) { return write(base + "/query", "POST", {sql: sql, params: params || []}); },
           execute: function (sql, params) { return write(base + "/execute", "POST", {sql: sql, params: params || []}); }

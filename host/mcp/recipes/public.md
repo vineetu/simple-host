@@ -1,6 +1,8 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`. Key-value rules require a SQLite-stored namespace. Check storage_list_resources first; if this server returns rules_unavailable because the namespace is still on Postgres or new namespaces use Postgres, report that to the operator. The operator must configure SQLite for new namespaces or perform the documented key-value move for existing ones before this setup can run.
+
 # Public content: a menu, prices, opening hours, a catalogue the owner keeps
 
-Use this for anything the owner writes and everyone reads, and that changes without republishing the site: today's menu, prices, opening hours, an event schedule, FAQs, a product catalogue, a gallery the owner fills (files, same preset).
+Use this for anything the owner writes and everyone reads, and that changes without republishing the site: today's menu, prices, opening hours, an event schedule, FAQs, a product catalogue, a gallery the owner fills (a files resource with these same rules).
 
 Who signs in where:
 - Readers need no sign-in.
@@ -8,13 +10,13 @@ Who signs in where:
 
 ## 1. Owner setup (run these tools before publishing the page)
 
-Preset public (read anyone, add owner, edit owner, delete owner).
+The following rules implement this example.
 
-storage_set_resource {"site": "{site}", "name": "menu", "body": {"kind": "kv", "preset": "public", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "menu", "body": {"kind": "kv", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_put_kv {"site": "{site}", "name": "menu", "key": "today", "value": {"updated": "2026-10-10", "hours": "8:00 to 15:00", "dishes": [{"name": "Idli", "price_cents": 450}, {"name": "Masala dosa", "price_cents": 750}]}}
 
-To change the menu later, call storage_put_kv again with the new value; the page shows it on the next load. For a catalogue with many rows, use a SQLite resource with the same preset and a table (storage_sql_schema, then storage_sql_execute INSERTs); the page reads it with SH.storage.sqlite("catalog").table("products").list(). For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.
+To change the menu later, call storage_put_kv again with the new value; the page shows it on the next load. For a catalogue with many rows, use a SQLite resource with the same rules and a table (storage_sql_schema, then storage_sql_execute INSERTs); the page reads it with SH.storage.sqlite("catalog").table("products").list(). For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.
 
 ## 2. The page (index.html or a section of it)
 

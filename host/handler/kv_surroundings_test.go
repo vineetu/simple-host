@@ -17,7 +17,7 @@ import (
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
-func kvArchive(t *testing.T, s presetSite) map[string][]byte {
+func kvArchive(t *testing.T, s storageTestSite) map[string][]byte {
 	t.Helper()
 	r := s.a.at(t, "GET", pcSiteDomain, "/v1/sites/shop/export.tar.gz", nil, s.key)
 	if r.status != 200 {
@@ -48,9 +48,9 @@ func kvArchive(t *testing.T, s presetSite) map[string][]byte {
 }
 
 func TestKVExport(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	for _, name := range []string{"a", "z"} {
-		s.must(t, "PUT", "/resources/"+name, `{"kind":"kv","preset":"private"}`, s.key, 201)
+		s.must(t, "PUT", "/resources/"+name, map[string]string{"kind": "kv"}, s.key, 201)
 		for _, key := range []string{"a", "z", "é", "中", "A", "a%_"} {
 			s.must(t, "PUT", "/kv/"+name+"/keys/"+url.PathEscape(key), `{"value":{"text":"é","n":1.0e2}}`, s.key, 200)
 		}
@@ -65,7 +65,7 @@ func TestKVExport(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.must(t, "PUT", "/resources/uploads", `{"kind":"files","preset":"private"}`, s.key, 201)
+	s.must(t, "PUT", "/resources/uploads", `{"kind":"files"}`, s.key, 201)
 	s.must(t, "PUT", "/files/uploads/objects/keep.txt", "keep", s.key, 200)
 	// Ignore arbitrary leftover files.
 	root := filepath.Join(s.a.sites.disk.SiteDir(s.ownerID, "shop"), "runtime")
@@ -94,8 +94,8 @@ func TestKVExport(t *testing.T) {
 }
 
 func TestKVSQLitePeopleAndVisitorEmails(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/entries", `{"kind":"kv","preset":"personal"}`, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/entries", storageRules("kv", rulesPersonal), s.key, 201)
 	s.must(t, "PUT", "/kv/entries/keys/mine", `{"value":"hello"}`, s.callers["alice"], 200)
 	people := s.must(t, "GET", "/people", nil, s.key, 200)
 	if !strings.Contains(string(people.body), s.aliceID) || !strings.Contains(string(people.body), `"has_data":true`) {
@@ -115,8 +115,8 @@ func TestKVSQLitePeopleAndVisitorEmails(t *testing.T) {
 }
 
 func TestKVInvalidUTF8HTTPParity(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/entries", `{"kind":"kv","preset":"private"}`, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.key, 201)
 	r := s.must(t, "PUT", "/kv/entries/keys/%FF", `{"value":1}`, s.key, 500)
 	if r.json(t)["code"] != "internal_error" {
 		t.Fatalf("refusal changed: %s", r.body)
@@ -127,8 +127,8 @@ func TestKVInvalidUTF8HTTPParity(t *testing.T) {
 }
 
 func TestKVFileMissingAndUsageHTTP(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/entries", `{"kind":"kv","preset":"private"}`, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.key, 201)
 	root := filepath.Join(s.a.sites.disk.SiteDir(s.ownerID, "shop"), "runtime")
 	if err := os.Remove(runtime.RuntimeKVPath(root, "entries")); err != nil {
 		t.Fatal(err)
@@ -141,8 +141,8 @@ func TestKVFileMissingAndUsageHTTP(t *testing.T) {
 }
 
 func TestKVFileStatsWiringLiveAndTrashed(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/entries", `{"kind":"kv","preset":"private"}`, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.key, 201)
 	s.must(t, "PUT", "/kv/entries/keys/long-key", `{"value":"é"}`, s.key, 200)
 	check := func() {
 		t.Helper()
@@ -162,8 +162,8 @@ func TestKVFileStatsWiringLiveAndTrashed(t *testing.T) {
 }
 
 func TestKVUsageBusyHTTP(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/entries", `{"kind":"kv","preset":"private"}`, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.key, 201)
 	h := s.a.sites
 	h.sqliteSites = appstorage.NewSiteSlots(1, appstorage.NewSQLiteGate(1, time.Second), 20*time.Millisecond)
 	entered, release := make(chan struct{}), make(chan struct{})
@@ -183,10 +183,10 @@ func TestKVUsageBusyHTTP(t *testing.T) {
 }
 
 func TestKVQuotaBusySQLiteWritesHTTP(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/sqlite", `{"kind":"kv","preset":"private"}`, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/sqlite", map[string]string{"kind": "kv"}, s.key, 201)
 	s.must(t, "PUT", "/kv/sqlite/keys/one", `{"value":1}`, s.key, 200)
-	s.must(t, "PUT", "/resources/db", `{"kind":"sqlite","preset":"private"}`, s.key, 201)
+	s.must(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite"}, s.key, 201)
 	s.must(t, "POST", "/sqlite/db/schema", `{"sql":"CREATE TABLE items(id INTEGER PRIMARY KEY, v TEXT)"}`, s.key, 200)
 	s.must(t, "POST", "/sqlite/db/execute", `{"sql":"INSERT INTO items VALUES(1, 'original')"}`, s.key, 200)
 	h := s.a.sites

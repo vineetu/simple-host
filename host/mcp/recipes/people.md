@@ -1,6 +1,8 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # One page, two views: the owner works directly with each signed-in person
 
-Use this when the owner has many signed-in visitors they also work with one at a time — assigning something, replying, keeping notes — and wants one page that shows the right thing to each: the owner picks a person and sees and adds to their rows; everyone else sees only their own. This is the general shape behind a coach and clients, a tutor and students, a trainer and members, a teacher and a class: the example below is a gym coach and their clients, but the server knows only owner, visitor_id, and presets (records, personal) — rename "programs" and "messages" for any other job.
+Use this when the owner has many signed-in visitors they also work with one at a time — assigning something, replying, keeping notes — and wants one page that shows the right thing to each: the owner picks a person and sees and adds to their rows; everyone else sees only their own. This is the general shape behind a coach and clients, a tutor and students, a trainer and members, a teacher and a class: the example below is a gym coach and their clients, but the server uses trusted owner identity and visitor_id in the rules — rename "programs" and "messages" for any other job.
 
 Who signs in where:
 - Each client signs in on the site's own address with visitor sign-in (an emailed code or Google). No account, no password, nothing to store in the page.
@@ -9,15 +11,15 @@ Who signs in where:
 
 ## 1. Owner setup
 
-One resource, preset records (read own, add signed-in, edit owner, delete owner): each client reads only their own rows and can add messages; only the owner changes a program or a message's status.
+One resource with these rules: each client reads only their own rows and can add messages; only the owner changes a program or a message's status.
 
-storage_set_resource {"site": "{site}", "name": "coaching", "body": {"kind": "sqlite", "preset": "records", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "coaching", "body": {"kind": "sqlite", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "visitor_id == auth.id"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_sql_schema {"site": "{site}", "name": "coaching", "sql": "CREATE TABLE IF NOT EXISTS programs (id INTEGER PRIMARY KEY, title TEXT NOT NULL, weeks INTEGER NOT NULL, notes TEXT, created_at TEXT)"}
 
 storage_sql_schema {"site": "{site}", "name": "coaching", "sql": "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, body TEXT NOT NULL, created_at TEXT)"}
 
-The server adds the indexed visitor_id column to both tables itself (do not declare it): on a row a client adds, it is their own id; on a row the owner adds for a client (below), it is that client's id, and a second server-owned column, written_by, is "owner" instead of "" — visible on every read, so a client's own page can show "from your coach" without the page having to guess. Under personal instead of records, swap the preset to let the client edit or delete their own rows (including a program you assigned, document that if you use it for something a client should not be able to erase).
+The server adds the indexed visitor_id column to both tables itself (do not declare it): on a row a client adds, it is their own id; on a row the owner adds for a client (below), it is that client's id, and a second server-owned column, written_by, is "owner" instead of "" — visible on every read, so a client's own page can show "from your coach" without the page having to guess. Only if requested, add edit and delete policies using visitor_id == auth.id so clients can change their own rows, including programs you assigned; explain that before allowing it.
 
 ## 2. The page (index.html; adapt the templates, the look, and the two tables' columns)
 
@@ -127,7 +129,7 @@ function resetView() {
 }
 
 // -- Client view: table().list() already returns only this visitor's rows
-// under the records preset; no filtering in page code. --
+// under these rules; no filtering in page code. --
 function loadClientView(seq) {
   return Promise.all([
     programs.list({ order: "id", desc: 1 }).then(SH.storage.toObjects),

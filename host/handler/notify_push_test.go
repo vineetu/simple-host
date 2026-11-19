@@ -28,11 +28,11 @@ import (
 // account, and an "orders" personal-preset table alice can write her own
 // rows to and the owner can write (or edit) on her behalf, matching
 // SIM-360's two directions.
-func webPushFixture(t *testing.T) presetSite {
+func webPushFixture(t *testing.T) storageTestSite {
 	t.Helper()
 	s, _ := notificationFixture(t)
 	s.a.sites.SetWebPushAccounts(nil, true)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
@@ -166,7 +166,7 @@ func TestWebPushSubscribeScoping(t *testing.T) {
 // queued a pending web-push delivery for, confirming the EmitSiteEventFor
 // fan-out (repository/notifications) routed to exactly the right devices --
 // the hard privacy boundary SIM-360 depends on -- before any network send.
-func pendingPushSubscriptions(t *testing.T, s presetSite) []string {
+func pendingPushSubscriptions(t *testing.T, s storageTestSite) []string {
 	t.Helper()
 	waitNotificationEmits(t, s)
 	rows, err := s.a.database.Query(`SELECT d.subscription_id FROM site_event_deliveries d JOIN site_notifications n ON n.id=d.subscription_id WHERE n.kind='web-push' AND d.state='pending' ORDER BY d.subscription_id`)
@@ -343,7 +343,7 @@ func pushTestServer(t *testing.T) (*httptest.Server, *int32) {
 	return srv, &hits
 }
 
-func wirePushTestClient(t *testing.T, s presetSite, srv *httptest.Server) {
+func wirePushTestClient(t *testing.T, s storageTestSite, srv *httptest.Server) {
 	t.Helper()
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
@@ -393,7 +393,7 @@ func TestWebPushDeliversThroughProcessDelivery(t *testing.T) {
 // write at all.
 func TestWebPushOwnerWriteNeverReachesWebhook(t *testing.T) {
 	s, x := notificationFixture(t)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
@@ -558,7 +558,7 @@ func TestPushSWRouteReachableThroughSiteHostDispatch(t *testing.T) {
 func TestWebPushOwnerForReachesOnlyTargetVisitor(t *testing.T) {
 	s, x := notificationFixture(t)
 	s.a.sites.SetWebPushAccounts(nil, true)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
@@ -728,7 +728,7 @@ func TestWebPushSignOutOnlyDeletesThatSessionsDevice(t *testing.T) {
 func TestWebPushOwnerOnSiteNeverPushesBackToOwner(t *testing.T) {
 	s, x := notificationFixture(t)
 	s.a.sites.SetWebPushAccounts(nil, true)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
@@ -982,7 +982,7 @@ func TestWebPushBudgetsReserveBothOrNeither(t *testing.T) {
 // what reconnecting with an earlier cursor used to hand it anyway.
 func TestNotifyMCPReplayExcludesOwnerWrite(t *testing.T) {
 	s, x := notificationFixture(t)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)

@@ -12,8 +12,8 @@ import (
 // The toolkit's copies of the storage skills give the same access advice as
 // the platform's (host/webassets has the same check for its own copies).
 // Recipe topic names are stable. Check access advice, rather than banning words
-// such as "records" that are still valid recipe topics and file-bucket presets.
-func TestToolkitStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {
+// such as "records" that are still valid recipe topics.
+func TestToolkitStorageSkillsUseRules(t *testing.T) {
 	roots := []string{
 		"hack-toolkit/skills/website-deploy",
 		"hack-toolkit/skills/website-deploy-builder",
@@ -37,9 +37,6 @@ func TestToolkitStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {
 	)
 	choice := regexp.MustCompile("(?i)(?:presets?\\s+`(?:public|inbox|wall|comments|records|personal|board|private|custom)`|`(?:public|inbox|wall|comments|records|personal|board|private|custom)`\\s+preset|\"preset\"\\s*:)")
 	legacyChoice := regexp.MustCompile("(?i)(?:\\bread[\"`]?\\s*[:=]\\s*[\"`\\\\]*(?:own|owner|anyone|signed-in)\\b|whole.resource.{0,40}polic(?:y|ies)|(?:independent|separate|resource.wide).{0,40}read.{0,10}write.{0,10}polic(?:y|ies)|`read`/`write` policy)")
-	rowResource := regexp.MustCompile(`"kind"\s*:\s*"(?:sqlite|kv)"`)
-	rowKind := regexp.MustCompile(`(?i)\b(?:sqlite|kv|key.value)\b`)
-	fileChoice := regexp.MustCompile(`(?i)\b(?:files|file.bucket|photos)\b`)
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
 			data, err := os.ReadFile(path)
@@ -47,11 +44,11 @@ func TestToolkitStorageSkillsUseRulesAndKeepFilePresets(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, paragraph := range strings.Split(string(data), "\n\n") {
-				if choice.MatchString(paragraph) && (!fileChoice.MatchString(paragraph) || rowResource.MatchString(paragraph)) {
-					t.Errorf("SQLite/KV skill still offers a preset as an access choice:\n%s", paragraph)
+				if choice.MatchString(paragraph) {
+					t.Errorf("skill still offers a preset as an access choice:\n%s", paragraph)
 				}
-				if legacyChoice.MatchString(paragraph) && (!fileChoice.MatchString(paragraph) || rowResource.MatchString(paragraph) || rowKind.MatchString(paragraph)) {
-					t.Errorf("SQLite/KV skill still recommends legacy access fields:\n%s", paragraph)
+				if legacyChoice.MatchString(paragraph) {
+					t.Errorf("skill still recommends legacy access fields:\n%s", paragraph)
 				}
 			}
 		})

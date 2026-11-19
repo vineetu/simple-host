@@ -193,9 +193,9 @@ type Config struct {
 	// Visitor OAuth. A provider is enabled only when BOTH of its vars are set.
 	GoogleOAuthClientID     string
 	GoogleOAuthClientSecret string
-	// Cloudflare Turnstile, the spam check on the comments preset
+	// Cloudflare Turnstile, the spam check behind auth.checked in storage rules
 	// (TURNSTILE_SITE_KEY, TURNSTILE_SECRET or TURNSTILE_SECRET_FILE). Both
-	// empty: the preset is not offered.
+	// empty: the spam check is not offered.
 	TurnstileSiteKey        string
 	TurnstileSecret         string
 	GitHubOAuthClientID     string
@@ -821,21 +821,21 @@ func loadPhotoDNAKey() string {
 // loadTurnstile reads the Turnstile site key and secret. The secret comes
 // from TURNSTILE_SECRET or, preferred, the file TURNSTILE_SECRET_FILE names
 // (a systemd credential). Anything missing or unreadable turns the spam check
-// off, which also takes the comments preset off; it never prints the secret.
+// off, which also takes auth.checked out of storage rules; it never prints the secret.
 func loadTurnstile() (string, string) {
 	key := strings.TrimSpace(os.Getenv("TURNSTILE_SITE_KEY"))
 	secret := strings.TrimSpace(os.Getenv("TURNSTILE_SECRET"))
 	if path := strings.TrimSpace(os.Getenv("TURNSTILE_SECRET_FILE")); secret == "" && path != "" {
 		b, err := os.ReadFile(path)
 		if err != nil {
-			log.Printf("warning: TURNSTILE_SECRET_FILE cannot be read (%v); the spam check and the comments preset are off", err)
+			log.Printf("warning: TURNSTILE_SECRET_FILE cannot be read (%v); the spam check (auth.checked in storage rules) is off", err)
 			return "", ""
 		}
 		secret = strings.TrimSpace(string(b))
 	}
 	if key == "" || secret == "" {
 		if key != "" || secret != "" {
-			log.Printf("warning: Turnstile needs both TURNSTILE_SITE_KEY and a secret (TURNSTILE_SECRET or TURNSTILE_SECRET_FILE); the spam check and the comments preset are off")
+			log.Printf("warning: Turnstile needs both TURNSTILE_SITE_KEY and a secret (TURNSTILE_SECRET or TURNSTILE_SECRET_FILE); the spam check (auth.checked in storage rules) is off")
 		}
 		return "", ""
 	}

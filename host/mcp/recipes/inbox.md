@@ -1,3 +1,5 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Inbox: a form the owner reads (quote requests, contact, a waitlist, sign-ups, applications, feedback)
 
 Use this when visitors send something and only the owner reads it: a quote request, a contact or enquiry form, a waitlist, a volunteer or job application, feedback, a survey. Anyone can send it without signing in, and nobody else, not even the sender, reads it back. For a booking or reservation, where the customer later sees its status, use topic booking instead.
@@ -8,11 +10,11 @@ Who signs in where:
 
 ## 1. Owner setup (run these tools before publishing the page)
 
-Preset inbox (read owner, add anyone, edit owner, delete owner):
+The following rules implement this example.
 
-storage_set_resource {"site": "{site}", "name": "messages", "body": {"kind": "sqlite", "preset": "inbox"}}
+storage_set_resource {"site": "{site}", "name": "messages", "body": {"kind": "sqlite", "rules": {"version": 1, "policies": [{"name": "add", "command": "add", "check": "true"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
-Only if the person asks for verified senders (to cut spam), override add to signed-in: {"kind": "sqlite", "preset": "inbox", "add": "signed-in"}, and put SH.mount and SH.requireSignIn in the page as in topic booking.
+Only if the person asks for verified senders, replace the add check `true` with `auth.signed_in`, and put SH.mount and SH.requireSignIn in the page as in topic booking.
 
 storage_sql_schema {"site": "{site}", "name": "messages", "sql": "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT)"}
 

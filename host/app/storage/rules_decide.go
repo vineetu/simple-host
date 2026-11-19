@@ -32,18 +32,6 @@ func platformValues(c Call) ruleengine.Values {
 	}
 }
 
-func effectiveRules(c Call, table string) json.RawMessage {
-	if c.Resource.TableLookup != nil {
-		if own, ok := c.Resource.TableLookup(strings.ToLower(table)); ok {
-			return own.Rules
-		}
-	}
-	if own, ok := c.Resource.Tables[strings.ToLower(table)]; ok {
-		return own.Rules
-	}
-	return c.Resource.Rules
-}
-
 // A binding-only plan is compiled without opening SQLite or taking a lock.
 // Its catalog admits the identifiers in the rules; it is never used to build
 // SQL. Stage 2 recompiles against the actual catalog inside admission.
@@ -66,7 +54,7 @@ func (s *Service) compileCallRules(c *Call, table ruleengine.Table) error {
 	if err != nil {
 		return rulesInvalid()
 	}
-	set, errs := ruleengine.DecodeSet(effectiveRules(*c, table.Name))
+	set, errs := ruleengine.DecodeSet(c.Resource.EffectiveRules(table.Name))
 	if len(errs) != 0 {
 		return rulesInvalid()
 	}
@@ -145,11 +133,25 @@ func (s *Service) ruleDecision(c *Call, op ruleengine.Op) *Error {
 	return nil
 }
 
-func (s *Service) authorizeRuleRead(ctx context.Context, c *Call, table string) *Error {
-	return s.authorizeRuleOperation(ctx, c, table, ruleengine.OpRead)
+// authorize is the one answer to "may this caller do op on this resource",
+// for every kind (table "kv" for a namespace, "files" for a file bucket),
+// before locks and idempotent replay: the site gates, then the owner's own
+// tools (key, connector), which rules never limit, then the resource's rules
+// for everyone else, the owner signed in on the site included
+// (EffectiveRules: no stored rules means owner only). Statements and file
+// checks re-run the same plan on each row inside the lock.
+func (s *Service) authorize(ctx context.Context, c *Call, table string, op ruleengine.Op) *Error {
+	c.Context = ctx
+	if err := s.Gate(*c, op != ruleengine.OpRead); err != nil {
+		return err.(*Error)
+	}
+	if c.Owner {
+		return nil
+	}
+	return s.authorizeRuleOperation(ctx, c, table, op)
 }
 
-// authorizeRuleOperation is stage 1, before locks and idempotent replay.
+// authorizeRuleOperation is stage 1 of authorize for a caller that rules govern.
 func (s *Service) authorizeRuleOperation(ctx context.Context, c *Call, table string, op ruleengine.Op) *Error {
 	if err := s.compileBindingRules(c, table); err != nil {
 		return err.(*Error)
@@ -217,8 +219,8 @@ func (s *Service) ruleWritePlan(c *Call, table string, meta rowMetadata, op rule
 	return nil
 }
 
-// ruleWritePredicates includes read visibility of the stored row. The AI
-// constraint is shared with the preset-conversion oracle.
+// ruleWritePredicates includes read visibility of the stored row and the AI
+// author constraint.
 func ruleWritePredicates(c Call, op ruleengine.Op) (ruleengine.Predicate, ruleengine.Predicate, error) {
 	read, err := c.rulePlan.Using(ruleengine.OpRead, c.ruleValues)
 	if err != nil {
@@ -315,7 +317,7 @@ func (s *Service) ensureSchemaRules(conn *sqlite3.Conn, c Call, before map[strin
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		set, errs := ruleengine.DecodeSet(effectiveRules(c, name))
+		set, errs := ruleengine.DecodeSet(c.Resource.EffectiveRules(name))
 		if len(errs) != 0 {
 			notes = append(notes, "table "+name+": rules_invalid")
 			continue

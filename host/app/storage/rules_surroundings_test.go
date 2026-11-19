@@ -40,11 +40,12 @@ func TestRulesParentReferences(t *testing.T) {
 }
 
 func TestRulesForReadShapes(t *testing.T) {
-	converted := ruleengine.Convert(ruleengine.ConvertInput{Kind: "sqlite", Default: ruleengine.Matrix{Read: "own", Add: "signed-in", Edit: "owner", Delete: "owner"}})
-	if len(converted.Manual) != 0 {
-		t.Fatal(converted.Manual)
-	}
-	raw := json.RawMessage(ruleengine.EncodeSet(converted.Default))
+	raw := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
+		{Name: "read", Command: ruleengine.CmdRead, Using: `visitor_id == auth.id || auth.role == "owner"`},
+		{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.signed_in`},
+		{Name: "edit", Command: ruleengine.CmdEdit, Using: `auth.role == "owner"`},
+		{Name: "delete", Command: ruleengine.CmdDelete, Using: `auth.role == "owner"`},
+	}}))
 	for _, tc := range []struct {
 		name  string
 		rules *json.RawMessage
@@ -52,7 +53,7 @@ func TestRulesForReadShapes(t *testing.T) {
 	}{
 		{"single", saveSet(ruleengine.Policy{Command: ruleengine.CmdRead, Using: `visitor_id == auth.id || auth.role == "owner"`}, ruleengine.Policy{Command: ruleengine.CmdAdd, Check: `auth.role == "owner"`}), ""},
 		{"two", saveSet(ruleengine.Policy{Command: ruleengine.CmdRead, Using: `visitor_id == auth.id`}, ruleengine.Policy{Command: ruleengine.CmdRead, Using: `auth.role == "owner"`}, ruleengine.Policy{Command: ruleengine.CmdAdd, Check: `auth.role == "owner"`}), ""},
-		{"converted_records", &raw, ""},
+		{"records", &raw, ""},
 		{"signed_in", saveSet(ruleengine.Policy{Command: ruleengine.CmdRead, Using: `auth.signed_in`}, ruleengine.Policy{Command: ruleengine.CmdAdd, Check: `auth.role == "owner"`}), "for_requires_own"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -178,9 +178,9 @@ var knobDocs = map[string]knobDoc{
 	"SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS": {"storage", "Visitor SQLite query timeout.", false, true},
 	"RATE_LIMIT_STORAGE_IP":                 {"storage", "Visitor storage writes per site and client IP; owner credentials are exempt.", false, true},
 	"RATE_LIMIT_STORAGE_VISITOR":            {"storage", "Storage writes per site and signed-in visitor; limits add-only flooding.", false, true},
-	"RATE_LIMIT_SPAM_CHECKED_IP":            {"data", "Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site.", true, true},
-	"RATE_LIMIT_SPAM_CHECKED_SITE":          {"data", "Posts on comments-preset resources, per site from everyone together.", true, true},
-	"SPAM_CHECKED_POST_MAX_BYTES":           {"data", "Largest post someone not signed in may add to a comments-preset resource (the JSON of its values).", false, true},
+	"RATE_LIMIT_SPAM_CHECKED_IP":            {"data", "Posts that only the Turnstile spam check let in (auth.checked in storage rules), per address across every site.", true, true},
+	"RATE_LIMIT_SPAM_CHECKED_SITE":          {"data", "Posts that only the spam check let in, per site from everyone together.", true, true},
+	"SPAM_CHECKED_POST_MAX_BYTES":           {"data", "Largest post someone not signed in may add through the spam check (the JSON of its values).", false, true},
 	"SPAM_CHECKED_POST_MAX_LINKS":           {"data", "Links (http://, https://, www.) one such post may contain.", false, true},
 	"RATE_LIMIT_SITE_OPS":                   {"sites", "Deleting, changing and restoring sites, and admin sign-in tries, per address.", false, true},
 	"RATE_LIMIT_EXPORT":                     {"sites", "Site and account downloads per address.", false, true},
@@ -199,7 +199,6 @@ var knobDocs = map[string]knobDoc{
 // strictOrder is StrictOrder for the security-sensitive switches and choices
 // (a test fails when one is missing or does not list exactly Allowed).
 var strictOrder = map[string][]string{
-	"STORAGE_RULES":         {"off", "on"},
 	"OIDC_INSECURE_ALLOWED": {"false", "true"},
 }
 
@@ -214,7 +213,6 @@ var zeroIsNever = map[string]bool{
 // that were settings before the knobs existed.
 func otherSettings() []Setting {
 	return []Setting{
-		{Name: "STORAGE_RULES", Group: "storage", Type: "enum", Default: "off", Allowed: []string{"off", "on"}, SmallBox: true, Security: true, Description: "Accept owner-written row rules for SQLite databases and key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it."},
 		{Name: "SITE_DOMAIN", Group: "server", Type: "string", Basic: true, SmallBox: true, InstallFlag: "--host",
 			Description: "The domain this server lives at, like sites.example.com. Unset, the server starts in setup mode and asks for one."},
 		{Name: "CONTENT_HOST", Group: "server", Type: "string", Default: "sites.<SITE_DOMAIN>", SmallBox: true, InstallFlag: "--content",
@@ -325,7 +323,7 @@ func otherSettings() []Setting {
 		{Name: "GITHUB_OAUTH_CLIENT_ID", Group: "accounts", Type: "string",
 			Description: "An optional second visitor sign-in provider: its OAuth client ID. Set with the secret, or neither."},
 		{Name: "TURNSTILE_SITE_KEY", Group: "data", Type: "string",
-			Description: "The Cloudflare Turnstile site key for the spam check on the comments preset (anyone posts without signing in once the check passes). With no site key and secret, the preset is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame."},
+			Description: "The Cloudflare Turnstile site key for the spam check (auth.checked in storage rules: anyone posts without signing in once the check passes). With no site key and secret, the spam check is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame."},
 		{Name: "TURNSTILE_SECRET", Group: "data", Type: "secret", Security: true,
 			Description: "The Turnstile secret key that goes with TURNSTILE_SITE_KEY. Prefer TURNSTILE_SECRET_FILE."},
 		{Name: "TURNSTILE_SECRET_FILE", Group: "data", Type: "string", Security: true,

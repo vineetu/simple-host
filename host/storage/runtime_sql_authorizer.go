@@ -13,11 +13,11 @@ type LegacyAuthorizerState struct {
 	WriteAction                  sqlite3.AuthorizerActionCode
 }
 
-// LegacyAuthorizer installs the legacy SQL route's SQLite authorizer.
-func LegacyAuthorizer[T any](conn *sqlite3.Conn, mode, read, visitorID string, owner, rulesResource bool, state *LegacyAuthorizerState, deny func(T) sqlite3.AuthorizerReturnCode, authorizerDenial func(sqlite3.AuthorizerActionCode, string, string) T, visitorReadDenial func(string) T) error {
+// LegacyAuthorizer installs the SQLite authorizer of the owner's SQL tools.
+func LegacyAuthorizer[T any](conn *sqlite3.Conn, mode string, state *LegacyAuthorizerState, deny func(T) sqlite3.AuthorizerReturnCode, authorizerDenial func(sqlite3.AuthorizerActionCode, string, string) T) error {
 	alterMain := false
 	return conn.SetAuthorizer(func(a sqlite3.AuthorizerActionCode, n3, n4, schema, inner string) sqlite3.AuthorizerReturnCode {
-		if a == sqlite3.AUTH_ALTER_TABLE && n3 == "main" && owner && mode == "schema" && rulesResource {
+		if a == sqlite3.AUTH_ALTER_TABLE && n3 == "main" && mode == "schema" {
 			alterMain = true
 			state.DidSchema = true
 			// ALTER puts its database in n3; for DROP COLUMN, the driver
@@ -25,9 +25,9 @@ func LegacyAuthorizer[T any](conn *sqlite3.Conn, mode, read, visitorID string, o
 			return sqlite3.AUTH_OK
 		}
 		// ALTER checks and rewrites SQLite's temporary schema even when it has
-		// no objects. Let owner rules-schema changes reach the transactional
+		// no objects. Let owner schema changes reach the transactional
 		// rule-set rename guard, without allowing temp objects or direct access
-		// to their schema. Preset resources retain their existing refusal.
+		// to their schema.
 		if alterMain && schema == "temp" && n3 == "sqlite_temp_master" && inner == "" && (a == sqlite3.AUTH_READ || a == sqlite3.AUTH_UPDATE) {
 			return sqlite3.AUTH_OK
 		}
@@ -42,11 +42,6 @@ func LegacyAuthorizer[T any](conn *sqlite3.Conn, mode, read, visitorID string, o
 			return deny(authorizerDenial(a, mode, ""))
 		case sqlite3.AUTH_READ:
 			state.DidRead = true
-			if mode == "execute" && read != "anyone" && !owner {
-				if read == "owner" || visitorID == "" {
-					return deny(visitorReadDenial(read))
-				}
-			}
 		case sqlite3.AUTH_INSERT, sqlite3.AUTH_UPDATE, sqlite3.AUTH_DELETE:
 			state.DidWrite = true
 			if state.WriteTable == "" {

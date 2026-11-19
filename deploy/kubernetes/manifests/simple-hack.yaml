@@ -73,7 +73,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     helm.sh/chart: simple-hack-0.9.0
 data:
-  STORAGE_RULES: "off"
   SITE_STORAGE_SITE_INFLIGHT: "1"
   # The platform: the hackathon product on this hostname.
   SITE_DOMAIN: "hack.example.com"
@@ -173,7 +172,7 @@ spec:
         app.kubernetes.io/instance: simple-hack
       annotations:
         # A changed setting restarts the pod; the server reads them at start.
-        checksum/config: 5ef013b767c819e14a2d7c1ce5a1cc847deb690200b8bceb3989d89ee742524b
+        checksum/config: f3129e2eb01dcf81198a47891804255718903b2c4394d8ce20b362e2e1782135
     spec:
       automountServiceAccountToken: false
       securityContext:

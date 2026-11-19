@@ -58,7 +58,7 @@ func TestStorageRound2WriteBucketsPerSite(t *testing.T) {
 		t.Fatal(err)
 	}
 	otherAlice := browser(otherHost, s.a.session(t, person{email: aliceEmail}, otherID, otherHost))
-	r := s.a.at(t, "PUT", pcSiteDomain, "/v1/sites/other/storage/resources/kv", map[string]string{"kind": "kv", "read": "anyone", "write": "signed-in", "write_mode": "add"}, s.key)
+	r := s.a.at(t, "PUT", pcSiteDomain, "/v1/sites/other/storage/resources/kv", storageRules("kv", rulesSignedInAdd), s.key)
 	if r.status != 201 {
 		t.Fatalf("other resource: %d", r.status)
 	}
@@ -106,9 +106,20 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 	}()
 	// Same recursive query as the review. It must be refused before execution,
 	// for both owner and anonymous callers, with a short bounded wait.
-	for _, headers := range []map[string]string{s.key, browser(s.host, "")} {
+	// Pages read through the table rows routes (page SQL is refused).
+	for _, call := range []struct {
+		method, path, body string
+		headers            map[string]string
+	}{
+		{"POST", "/sqlite/db/query", `{"sql":"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT count(*) FROM c"}`, s.key},
+		{"GET", "/sqlite/db/tables/t/rows", "", browser(s.host, "")},
+	} {
 		start := time.Now()
-		r := s.call(t, "POST", "/sqlite/db/query", `{"sql":"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT count(*) FROM c"}`, headers, 503)
+		var body any
+		if call.body != "" {
+			body = call.body
+		}
+		r := s.call(t, call.method, call.path, body, call.headers, 503)
 		if r.header.Get("Retry-After") == "" || time.Since(start) > s.a.sites.limits.StorageAcquireWait+time.Second {
 			t.Fatal("SQLite queue did not return bounded retry response")
 		}

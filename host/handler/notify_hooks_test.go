@@ -15,7 +15,7 @@ import (
 // siteEventLog is a subscription to every site event (SIM-356) on the shop,
 // read in slices: next returns the events delivered since the last call.
 type siteEventLog struct {
-	s    presetSite
+	s    storageTestSite
 	x    *notificationReceiver
 	seen int
 }
@@ -54,7 +54,7 @@ func (l *siteEventLog) one(t *testing.T, name string) map[string]any {
 		t.Fatalf("want one %s, got %v", name, got)
 	}
 	data := got[0]
-	for _, k := range []string{"storage", "kind", "preset", "table", "fields", "untrusted"} {
+	for _, k := range []string{"storage", "kind", "table", "fields", "untrusted"} {
 		if _, has := data[k]; has {
 			t.Fatalf("%s carries %s: %v", name, k, data)
 		}

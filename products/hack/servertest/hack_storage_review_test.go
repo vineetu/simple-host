@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -28,7 +29,7 @@ func TestHackStorageScopedReview(t *testing.T) {
 	if r := a.deployTeam(t, team, key, "storage review"); r.status != 201 {
 		t.Fatalf("team deploy: %d %s", r.status, r.body)
 	}
-	resource := map[string]string{"kind": "kv", "read": "anyone", "write": "owner"}
+	resource := map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}
 	teamPath := "/v1/sites/" + team + "/storage/resources/review"
 	wantTS(t, "team create resource", a.api(t, "PUT", teamPath, resource, key), 201, "")
 	// A second event may use the same team slug; the host and holding account
@@ -71,7 +72,7 @@ func TestHackStorageScopedReview(t *testing.T) {
 		t.Fatalf("event host reached team storage: %d %s", r.status, r.body)
 	}
 	// A signed-in visitor's session is bound to this event site and host.
-	signed := map[string]string{"kind": "kv", "read": "signed-in", "write": "signed-in"}
+	signed := map[string]any{"kind": "kv", "rules": json.RawMessage(boardRules)}
 	wantTS(t, "event signed-in resource", a.api(t, "PUT", "/v1/hack/events/"+slug+"/website/storage/resources/signed", signed, organiser.key), 201, "")
 	var eventSiteID string
 	if err := a.database.QueryRow(`SELECT s.id FROM sites s JOIN events e ON e.account_id=s.user_id AND e.id::text=s.name WHERE e.slug=$1`, slug).Scan(&eventSiteID); err != nil {

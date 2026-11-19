@@ -704,7 +704,7 @@
 								<div class="sl-markdown-content"><p>Owner-declared KV, SQLite and durable file resources.</p>
 <h2 id="get-v1hackeventsslugwebsitestoragerest">GET /v1/hack/events/{slug}/website/storage/{rest}</h2>
 <div data-operation="GET /v1/hack/events/{slug}/website/storage/{rest}"></div>
-<p>Organiser-only alias for the matching /v1/sites/{sitename}/storage route, with {rest…} holding the resource path after /storage/. The event slug maps to the custom website’s immutable event-ID site. Read-only access continues after archive; a removed organiser loses access. Browser visitors instead use /v1/sites/{slug}/storage on the custom event website’s own origin, under the resource’s preset; an organiser signed in there has owner rights for saved data until the event ends.</p>
+<p>Organiser-only alias for the matching /v1/sites/{sitename}/storage route, with {rest…} holding the resource path after /storage/. The event slug maps to the custom website’s immutable event-ID site. Read-only access continues after archive; a removed organiser loses access. Browser visitors instead use /v1/sites/{slug}/storage on the custom event website’s own origin, under the resource’s rules; an organiser signed in there has owner rights for saved data until the event ends.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1528,7 +1528,7 @@
 </table>
 <h2 id="get-v1sitessitenamestorageresources">GET /v1/sites/{sitename}/storage/resources</h2>
 <div data-operation="GET /v1/sites/{sitename}/storage/resources"></div>
-<p>On Simple Host each resource carries preset (public, inbox, wall, comments, records, personal, board, private, custom with based_on, or legacy), access {read,add,edit,delete}, tables (SQLite, per-table preset and access), approve_first (SQLite), and the older read, write and write_mode whenever the matrix can be expressed in them. legacy marks a resource saved before presets that keeps its old rules until the owner saves a policy on it. Simple Hack answers with read, write, write_mode and site_passcode only.</p>
+<p>Every resource carries rules (StoragePolicySet), rules_status (rules or invalid), rules_errors and, for sqlite, tables ({table: {rules}}). A resource saved before rules, with no stored rules, is owner-only and is listed with the owner-only rule set.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1562,7 +1562,7 @@
 <tbody>
 <tr>
 <td>200</td>
-<td>resources: [{name,kind,preset,access:{read,add,edit,delete},tables,read,write,write_mode,site_passcode}]</td>
+<td>resources: [{name,kind,site_passcode,rules,rules_status,rules_errors,tables}] (tables for sqlite only)</td>
 </tr>
 <tr>
 <td>403</td>
@@ -1572,7 +1572,7 @@
 </table>
 <h2 id="put-v1sitessitenamestorageresourcesname">PUT /v1/sites/{sitename}/storage/resources/{name}</h2>
 <div data-operation="PUT /v1/sites/{sitename}/storage/resources/{name}"></div>
-<p>Kind is immutable. Simple Host: set preset (public, inbox, wall, comments, records, personal, board, private; default private) with optional single-action overrides read, add, edit, delete, or preset custom with all four. Each action takes nobody, owner, own, signed-in or anyone; add also takes checked (anyone who passes the Cloudflare Turnstile spam check: the comments preset, read anyone / add checked / edit owner / delete owner). The server refuses (400 invalid_access, with rule) edit or delete anyone (anonymous_change), add own (add_own), own anywhere with add anyone or checked (own_needs_sign_in), checked on read, edit or delete (checked_add_only), and edit or delete wider than read (change_wider_than_read). checked is refused on files resources, and with 400 spam_check_unavailable on a server without TURNSTILE_SITE_KEY and a secret (Simple Hack included). approve_first (SQLite, needs a checked add) holds posts added through the check: the server adds approved_at TEXT to those tables (rows already there count as approved), visitors see and reach only rows with approved_at set, and the owner approves with UPDATE … SET approved_at = datetime(‘now’). Omit approve_first to keep it. SQLite: the preset is the database default; tables sets a preset per table (omit to keep the current table presets, {} to clear). Tables whose preset uses own or lets visitors add get the server-owned visitor_id TEXT column and index. The older read, write and write_mode are still accepted and translated (write anyone with full is refused as anonymous_change; omitting write_mode on update keeps the mode); do not mix them with preset fields. Switching a legacy SQLite database pages wrote with SQL to a preset that uses own needs empty tables (visitor_id_required). Owner here means the owner’s tools and the owner signed in on the site’s own address through visitor sign-in; nobody means the owner’s tools only. Simple Hack accepts only read and write (anyone, signed-in, owner) with full mode, as before presets. With STORAGE_RULES=on, SQLite, SQLite-stored KV and files resources also accept rules (StoragePolicySet), without preset fields. File rules compile against files(path, visitor_id), visitor_id being the uploader; auth.checked is refused on files (400 invalid_rules). A rules save on a Postgres KV namespace returns 400 rules_unavailable. A body or table rules field with the flag off returns 400 rules_unavailable. Bodies over 256 KiB return 400 invalid_rules with clause size. Null rules are treated as absent; an empty policies array denies visitors. For SQLite, table rules override the default set; omit tables to keep overrides, or send tables {} to clear them. When moving from per-table presets, send rules for every override or tables {}. Preset fields and rules on the same body or table entry return 400 invalid_rules. A rules resource saved back to presets with table overrides requires explicit tables (otherwise 409 tables_present). A passcode-only save on a rules resource preserves rules. Rules responses omit preset fields and carry rules, rules_status and rules_errors. Preset responses remain unchanged with the flag off; with it on they also carry rules_status preset.</p>
+<p>Kind is immutable. Every kind takes rules (StoragePolicySet); sqlite also takes tables ({table: {rules}}), whose rules override the default set (omit tables to keep the overrides, send tables {} to clear them). Creating a resource without rules stores the owner-only rule set (read, add, edit and delete need auth.role == “owner”); saving an existing one without rules keeps its rules, so a site_passcode-only save preserves them. Presets were removed: preset, read, add, edit, delete, write, write_mode or approve_first on a body or table entry return 400 invalid_resource. Null rules are treated as absent; an empty policies array denies visitors. Bodies over 256 KiB return 400 invalid_rules with clause size. File rules compile against files(path, visitor_id), visitor_id being the uploader: read covers listing and opening, add a new path, edit replacing a file, delete removing one; auth.checked is refused on files (400 invalid_rules). Spam-checked adds use auth.checked in an add check (refused with 400 spam_check_unavailable on a server without TURNSTILE_SITE_KEY and a secret); holding posts until approved is a read policy such as auth.role == “owner” || approved_at is not null. Responses carry rules, rules_status and rules_errors. The owner’s tools bypass rules; the owner signed in on the site’s own address is a visitor whose auth.role is owner.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -1614,45 +1614,9 @@
 </thead>
 <tbody>
 <tr>
-<td>add</td>
-<td>string, one of <code>nobody</code>, <code>owner</code>, <code>signed-in</code>, <code>checked</code>, <code>anyone</code></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>approve_first</td>
-<td>boolean</td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>delete</td>
-<td>string, one of <code>nobody</code>, <code>owner</code>, <code>own</code>, <code>signed-in</code></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>edit</td>
-<td>string, one of <code>nobody</code>, <code>owner</code>, <code>own</code>, <code>signed-in</code></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
 <td>kind</td>
 <td>string, one of <code>kv</code>, <code>sqlite</code>, <code>files</code></td>
 <td>yes</td>
-<td></td>
-</tr>
-<tr>
-<td>preset</td>
-<td>string, one of <code>public</code>, <code>inbox</code>, <code>wall</code>, <code>comments</code>, <code>records</code>, <code>personal</code>, <code>board</code>, <code>private</code>, <code>custom</code></td>
-<td></td>
-<td></td>
-</tr>
-<tr>
-<td>read</td>
-<td>string, one of <code>nobody</code>, <code>owner</code>, <code>own</code>, <code>signed-in</code>, <code>anyone</code></td>
-<td></td>
 <td></td>
 </tr>
 <tr>
@@ -1671,19 +1635,7 @@
 <td>tables</td>
 <td>object</td>
 <td></td>
-<td></td>
-</tr>
-<tr>
-<td>write</td>
-<td>string, one of <code>anyone</code>, <code>signed-in</code>, <code>owner</code></td>
-<td></td>
-<td>older field</td>
-</tr>
-<tr>
-<td>write_mode</td>
-<td>string, one of <code>full</code>, <code>add</code></td>
-<td></td>
-<td>older field</td>
+<td>sqlite only; each table entry carries only rules</td>
 </tr>
 </tbody>
 </table>
@@ -1706,7 +1658,7 @@
 </tr>
 <tr>
 <td>400</td>
-<td>invalid_access (with rule), invalid_resource, visitor_id_required, invalid_rules (with rule_error and rules_errors), rules_unavailable</td>
+<td>invalid_resource (including any field of the removed presets), visitor_id_required, invalid_rules (with rule_error and rules_errors), spam_check_unavailable</td>
 </tr>
 <tr>
 <td>403</td>
@@ -1714,7 +1666,7 @@
 </tr>
 <tr>
 <td>409</td>
-<td>resource_kind_conflict, or tables_present (older fields on a database with per-table presets)</td>
+<td>resource_kind_conflict</td>
 </tr>
 </tbody>
 </table>
@@ -1771,7 +1723,7 @@
 </table>
 <h2 id="post-v1sitessitenamestoragesqlitenameexecute">POST /v1/sites/{sitename}/storage/sqlite/{name}/execute</h2>
 <div data-operation="POST /v1/sites/{sitename}/storage/sqlite/{name}/execute"></div>
-<p>Owner only on any database with a preset; visitors receive 403 fixed_routes_required. A legacy full-mode database saved before presets (and every Simple Hack database) keeps visitor SQL under its write policy. A statement that reads rows also needs read permission. Visitor writes require same-origin CSRF header. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).</p>
+<p>Owner only; visitors receive 403 fixed_routes_required and use the table rows routes. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1844,7 +1796,7 @@
 </tr>
 <tr>
 <td>403</td>
-<td>fixed_routes_required, or sql_visitor_rule (a legacy visitor statement reads rows the read rule does not allow; the message names the rule)</td>
+<td>fixed_routes_required (a visitor)</td>
 </tr>
 <tr>
 <td>409</td>
@@ -1858,7 +1810,7 @@
 </table>
 <h2 id="post-v1sitessitenamestoragesqlitenamequery">POST /v1/sites/{sitename}/storage/sqlite/{name}/query</h2>
 <div data-operation="POST /v1/sites/{sitename}/storage/sqlite/{name}/query"></div>
-<p>Owner only on any database with a preset; visitors receive 403 fixed_routes_required and use the table rows routes. A legacy full-mode database saved before presets (and every Simple Hack database) keeps visitor SQL under its read policy until the owner sets a preset. The SQLite engine authorizer enforces read-only access. Results are bounded, with columns and rows. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).</p>
+<p>Owner only; visitors receive 403 fixed_routes_required and use the table rows routes. The SQLite engine authorizer enforces read-only access. Results are bounded, with columns and rows. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1931,13 +1883,13 @@
 </tr>
 <tr>
 <td>403</td>
-<td>fixed_routes_required (visitor on a preset database)</td>
+<td>fixed_routes_required (a visitor)</td>
 </tr>
 </tbody>
 </table>
 <h2 id="post-v1sitessitenamestoragesqlitenameschema">POST /v1/sites/{sitename}/storage/sqlite/{name}/schema</h2>
 <div data-operation="POST /v1/sites/{sitename}/storage/sqlite/{name}/schema"></div>
-<p>New tables whose preset uses own or lets visitors add (every table of a legacy own database) receive visitor_id TEXT and its index; changes removing the column from such a table roll back. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).</p>
+<p>New tables whose rules name visitor_id or let visitors add receive visitor_id TEXT and its index; changes removing the column from such a table roll back. All SQLite executions share SITE_STORAGE_SQL_CONCURRENCY (0 selects CPU count); SITE_STORAGE_ACQUIRE_WAIT_MS (default 250) bounds queue waiting before 503 with Retry-After. Owner operations retain SITE_STORAGE_OWNER_TIMEOUT_MS (default 5000).</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Parameters:</strong></p>
 <table>
@@ -2011,13 +1963,13 @@
 </tr>
 <tr>
 <td>409</td>
-<td>table_preset_rename</td>
+<td>table_preset_rename (a table with its own rules is renamed before the new name has rules)</td>
 </tr>
 </tbody>
 </table>
 <h2 id="get-v1sitessitenamestoragesqlitenametablestablerows">GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows</h2>
 <div data-operation="GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows"></div>
-<p>Checked against the table’s read value (its own preset, or the database’s). Equality filters where.{column}=value (at most three, real columns only) are bound values. Visitors see their own visitor_id and null for other people’s, plus mine per row; visitor_id cannot be filtered or ordered by visitors. Own reads use WHERE visitor_id = ? with the stable site-session identity. Table and order columns are checked against real schema; values are bound. Default order is an unshadowed rowid alias ascending; ordinary rowid tables only. Cursor includes order value and rowid, bound on the next query with matching order/desc. Owner sees all. No visitor SQL accepted. HEAD is a read. Visitor tables are limited to 100 columns and the complete response to SITE_STORAGE_SQL_RESULT_MAX_BYTES; visitor queries time out after one second. Reads do not lock writes or deploys.</p>
+<p>Checked against the table’s read rules (its own rules, or the database’s). Equality filters where.{column}=value (at most three, real columns only) are bound values. Visitors see their own visitor_id and null for other people’s, plus mine per row; visitor_id cannot be filtered or ordered by visitors. Own reads use WHERE visitor_id = ? with the stable site-session identity. Table and order columns are checked against real schema; values are bound. Default order is an unshadowed rowid alias ascending; ordinary rowid tables only. Cursor includes order value and rowid, bound on the next query with matching order/desc. Owner sees all. No visitor SQL accepted. HEAD is a read. Visitor tables are limited to 100 columns and the complete response to SITE_STORAGE_SQL_RESULT_MAX_BYTES; visitor queries time out after one second. Reads do not lock writes or deploys.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -2117,7 +2069,7 @@
 </table>
 <h2 id="post-v1sitessitenamestoragesqlitenametablestablerows">POST /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows</h2>
 <div data-operation="POST /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows"></div>
-<p>Checked against the table’s add value. One JSON object of real column names and scalar values. The server builds INSERT OR ABORT with bound values; visitor-supplied primary keys and rowids are refused. SQLite assigns the IDs and RETURNING supplies the result. Visitor visitor_id, created_at and updated_at are ignored; visitor_id is filled from the site session and created_at with UTC time when the columns exist. Declared SQLite foreign keys must point at a row the visitor may read under the parent table’s read value (for own, a row they added), checked inside the insert transaction. Missing and unreadable parents both return 404 invalid_reference; the insert is rolled back. Optional references must be all NULL; partial composite NULLs are refused. A trigger or foreign-key action that writes another table refuses the insert (403). No visitor SQL accepted. Where add is checked (the comments preset), a caller other than the owner sends the one-time Turnstile token in X-SH-Turnstile (auth.js does it on its own); without one 403 spam_check_required, a failed, reused, expired or mismatched one 403 spam_check_failed, Cloudflare unreachable 403 spam_check_unavailable. The token must have been solved in the frame at GET /v1/turnstile/frame for this host and resource. Such a post is at most SPAM_CHECKED_POST_MAX_BYTES (413 post_too_large) with at most SPAM_CHECKED_POST_MAX_LINKS links (400 too_many_links), and RATE_LIMIT_SPAM_CHECKED_IP and RATE_LIMIT_SPAM_CHECKED_SITE apply (429). The same holds for adding a KV key. The query param for (owner, or the owner signed in on the site’s own address, only; SIM-358, 2026-11-06, review fixes 2026-11-06) adds this row for one other signed-in visitor instead of the caller, by their visitor_id or the email they signed in with, only on a table whose read is own (403 for_requires_own on any other table, checked on the table’s own matrix). It is refused (404 visitor_unknown) if they have never signed in on this site, or (400 visitor_email_ambiguous) if more than one signed-in person currently matches that email; there is no pre-sign-in email binding. The server ignores any visitor_id or written_by the caller sends and sets them itself, visitor_id to that visitor and written_by (added lazily, under the write lock, the first time a table is used this way; 409 written_by_blocked if a trigger or view appears to depend on the table) to owner, otherwise the empty string, which is also written_by’s value whenever for is absent, including a plain owner add. A row added this way does not fire record.added to the owner’s own subscriptions. Host only, 404 on Simple Hack and event storage.</p>
+<p>Checked against the table’s add rules. One JSON object of real column names and scalar values. The server builds INSERT OR ABORT with bound values; visitor-supplied primary keys and rowids are refused. SQLite assigns the IDs and RETURNING supplies the result. Visitor visitor_id, created_at and updated_at are ignored; visitor_id is filled from the site session and created_at with UTC time when the columns exist. Declared SQLite foreign keys must point at a row the visitor may read under the parent table’s read value (for own, a row they added), checked inside the insert transaction. Missing and unreadable parents both return 404 invalid_reference; the insert is rolled back. Optional references must be all NULL; partial composite NULLs are refused. A trigger or foreign-key action that writes another table refuses the insert (403). No visitor SQL accepted. Where the add check uses auth.checked (spam-checked adds), a caller other than the owner sends the one-time Turnstile token in X-SH-Turnstile (auth.js does it on its own); without one 403 spam_check_required, a failed, reused, expired or mismatched one 403 spam_check_failed, Cloudflare unreachable 403 spam_check_unavailable. The token must have been solved in the frame at GET /v1/turnstile/frame for this host and resource. Such a post is at most SPAM_CHECKED_POST_MAX_BYTES (413 post_too_large) with at most SPAM_CHECKED_POST_MAX_LINKS links (400 too_many_links), and RATE_LIMIT_SPAM_CHECKED_IP and RATE_LIMIT_SPAM_CHECKED_SITE apply (429). The same holds for adding a KV key. The query param for (owner, or the owner signed in on the site’s own address, only; SIM-358, 2026-11-06, review fixes 2026-11-06) adds this row for one other signed-in visitor instead of the caller, by their visitor_id or the email they signed in with, only on a table whose read rules limit rows to the row’s visitor or the owner (403 for_requires_own on any other table). It is refused (404 visitor_unknown) if they have never signed in on this site, or (400 visitor_email_ambiguous) if more than one signed-in person currently matches that email; there is no pre-sign-in email binding. The server ignores any visitor_id or written_by the caller sends and sets them itself, visitor_id to that visitor and written_by (added lazily, under the write lock, the first time a table is used this way; 409 written_by_blocked if a trigger or view appears to depend on the table) to owner, otherwise the empty string, which is also written_by’s value whenever for is absent, including a plain owner add. A row added this way does not fire record.added to the owner’s own subscriptions. Host only, 404 on Simple Hack and event storage.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>

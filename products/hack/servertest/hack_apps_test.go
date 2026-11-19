@@ -40,7 +40,7 @@ func newHackAppsFixture(t *testing.T) hackAppsFixture {
 	}
 	f.call(t, access, "hack_select_team", map[string]any{"team_id": teamID}, false)
 	for _, target := range []struct{ prefix, field, value string }{{"", "site", team}, {"hack_event_", "event", event}} {
-		args := map[string]any{target.field: target.value, "name": "inbox", "body": map[string]any{"kind": "sqlite", "preset": "inbox"}}
+		args := map[string]any{target.field: target.value, "name": "inbox", "body": map[string]any{"kind": "sqlite", "rules": json.RawMessage(inboxRules)}}
 		f.call(t, access, target.prefix+"storage_set_resource", args, false)
 		delete(args, "body")
 		args["sql"] = "CREATE TABLE entries (id INTEGER PRIMARY KEY, name TEXT, message TEXT, created_at TEXT)"

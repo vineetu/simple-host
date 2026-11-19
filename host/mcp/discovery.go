@@ -41,7 +41,7 @@ var toolAliases = map[string][]string{
 	"set_bio":                    {"bio", "biography", "profile description"},
 	"set_showcase_site":          {"pin", "showcase", "profile order"},
 	"keep_site":                  {"keep site", "renew", "expiry", "stop expiring", "never expire", "permanent"},
-	"storage_list_resources":     {"saved data", "presets", "who can read", "access", "resources", "database permissions", "visitors read"},
+	"storage_list_resources":     {"saved data", "rules", "who can read", "access", "resources", "database permissions", "visitors read"},
 	"storage_get_usage":          {"space", "usage", "quota", "full", "storage left"},
 	"storage_list_file_objects":  {"uploads", "uploaded photos", "files", "photos visitors uploaded", "pictures", "images", "show uploads"},
 	"storage_file_download_link": {"download a file", "get photo", "file link"},
@@ -330,16 +330,15 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	flat := caller.Mode != CallerModeEvents && caller.Mode != CallerModeGroupSite && flatListApp(caller.AppName)
 	context := s.offersAnalyticsContext(caller)
 	screen := s.passcodeScreenEnabled(caller)
-	if !flat && !context && !screen && !storageRulesEnabled() {
+	product := caller.Mode == CallerModeEvents || caller.Mode == CallerModeGroupSite
+	if !flat && !context && !screen && !product {
 		return search
 	}
 	copy := *search
 	copy.flat = flat
 	copy.tools = append([]searchableTool(nil), search.tools...)
 	for i := range copy.tools {
-		if storageRulesEnabled() {
-			copy.tools[i].tool = s.storageRulesTool(copy.tools[i].tool, caller)
-		}
+		copy.tools[i].tool = s.storageRulesTool(copy.tools[i].tool, caller)
 		if screen && copy.tools[i].tool.policy.listWithPasscode {
 			copy.tools[i].listed = true
 		}
@@ -350,18 +349,6 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 		if context {
 			copy.tools[i].tool = withAnalyticsContext(copy.tools[i].tool)
 		}
-	}
-	if storageRulesEnabled() {
-		tools := make([]Tool, len(copy.tools))
-		for i, entry := range copy.tools {
-			tools[i] = entry.tool
-		}
-		indexed := newToolSearch(tools)
-		indexed.flat = copy.flat
-		for i := range indexed.tools {
-			indexed.tools[i].listed = copy.tools[i].listed
-		}
-		return indexed
 	}
 	return &copy
 }

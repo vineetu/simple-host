@@ -289,7 +289,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"export_site", map[string]any{"site": "blog"}},
 		{"storage_list_resources", map[string]any{"site": "blog"}},
 		{"storage_get_usage", map[string]any{"site": "blog"}},
-		{"storage_set_resource", map[string]any{"site": "blog", "name": "store", "body": map[string]any{"kind": "kv", "read": "owner", "write": "owner", "site_passcode": "inherit"}}},
+		{"storage_set_resource", map[string]any{"site": "blog", "name": "store", "body": map[string]any{"kind": "kv", "rules": map[string]any{"version": 1, "policies": []any{map[string]any{"name": "read", "command": "read", "using": `auth.role == "owner"`}}}, "site_passcode": "inherit"}}},
 		{"storage_delete_resource", map[string]any{"site": "blog", "name": "store"}},
 		{"storage_list_kv_keys", map[string]any{"site": "blog", "name": "store", "prefix": "co"}},
 		{"storage_get_kv", map[string]any{"site": "blog", "name": "store", "key": "count"}},

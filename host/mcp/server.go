@@ -150,9 +150,9 @@ type Config struct {
 	// chosen group (a team) on the authenticated OAuth grant. Nil when the
 	// install has no group connections.
 	SelectTarget func(context.Context, Caller, string) error
-	// NoSpamCheck: this server has no Turnstile keys, so the comments
-	// preset is refused; its tools and instructions leave it out, as on
-	// Simple Hack. A self-hosted box starts this way.
+	// NoSpamCheck: this server has no Turnstile keys, so spam-checked adds
+	// (the comments recipe) are unavailable; its tools and instructions leave
+	// them out, as on Simple Hack. A self-hosted box starts this way.
 	NoSpamCheck bool
 	// SelfHosted: this is not simple-host.app. The reconnect steps name a
 	// custom connector, since Claude's directory and the plugin point at
@@ -266,9 +266,7 @@ func (s *Server) ListedTools() []Tool {
 // membership, or event data.
 func (s *Server) ProductListedTools() []Tool {
 	full, bare, byName := s.productPersonalInventory()
-	if storageRulesEnabled() {
-		full, _, _ = s.storageRulesInventory(full, bare, byName, Caller{Mode: CallerModeEvents})
-	}
+	full, _, _ = s.storageRulesInventory(full, bare, byName, Caller{Mode: CallerModeEvents})
 	return full
 }
 
@@ -336,9 +334,7 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			full = appToolMetadata(full, productScreens)
 			bare = appToolMetadata(bare, productScreens)
 		}
-		if storageRulesEnabled() {
-			full, bare, byName = s.storageRulesInventory(full, bare, byName, caller)
-		}
+		full, bare, byName = s.storageRulesInventory(full, bare, byName, caller)
 	}()
 	if caller.Mode == CallerModeEvents {
 		if caller.GrantID != "" {
@@ -389,7 +385,7 @@ func (s *Server) instructionsFor(caller Caller) string {
 }
 
 // hostInstructions fits the Simple Host instructions to this server: no
-// comments preset without the spam check, and custom connector steps off
+// comments recipe without the spam check, and custom connector steps off
 // simple-host.app.
 func (s *Server) hostInstructions(text string) string {
 	if s.cfg.NoSpamCheck {

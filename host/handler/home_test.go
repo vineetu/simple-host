@@ -86,7 +86,7 @@ func TestHomeSettingServingAndIsolation(t *testing.T) {
 	vic := a.newPerson(t, "homevisitor")
 	cookie := a.session(t, vic, id, host)
 	// Storage resources save on the home origin with the visitor cookie.
-	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/storage/resources/form", map[string]any{"kind": "kv", "read": "anyone", "write": "signed-in"}, headers); r.status != 201 {
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/storage/resources/form", storageRules("kv", rulesSignedInWrite), headers); r.status != 201 {
 		t.Fatalf("resource: %d %s", r.status, r.body)
 	}
 	save := "/v1/sites/home/storage/kv/form/keys/message"
@@ -213,7 +213,7 @@ func TestHomeBaseAndPasscode(t *testing.T) {
 		t.Fatal(err)
 	}
 	headers := map[string]string{"X-API-Key": owner.key}
-	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/storage/resources/notes", map[string]string{"kind": "kv", "preset": "public"}, headers); r.status/100 != 2 {
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/storage/resources/notes", storageRules("kv", rulesPublic), headers); r.status/100 != 2 {
 		t.Fatalf("storage resource: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/home/lock", map[string]any{"passcode": "123456"}, headers); r.status != 200 {

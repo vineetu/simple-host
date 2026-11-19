@@ -417,47 +417,42 @@ func productionHostRewrite(siteDomain string) func(string) string {
 }
 
 func TestInstructionsLength(t *testing.T) {
-	for _, flag := range []string{"off", "on"} {
-		t.Run(flag, func(t *testing.T) {
-			t.Setenv("STORAGE_RULES", flag)
-			defer NewServer(testConfig(Config{}))
-			// A long but realistic instance host (one full 63-character label).
-			longHost := strings.Repeat("a", 63) + ".sites.example-company.org"
-			for _, tc := range []struct {
-				name string
-				cfg  Config
-			}{
-				{"hosted", Config{}}, {"NoSpamCheck", Config{NoSpamCheck: true}}, {"SelfHosted", Config{SelfHosted: true}},
-				{"SelfHosted/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true}},
-				{"long hostname", Config{SelfHosted: true, Rewrite: productionHostRewrite(longHost)}},
-				{"long hostname/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: productionHostRewrite(longHost)}},
-				{"other instance", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: productionHostRewrite("websites.example.org"), SupportContact: "support@example.org"}},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					text := NewServer(testConfig(tc.cfg)).instructionsFor(Caller{})
-					t.Logf("instructions: %d characters (%d bytes)", len([]rune(text)), len(text))
-					if !strings.Contains(text, "photo picker in the chat") {
-						t.Error("missing photo handoff")
-					}
-					if n := len([]rune(text)); n >= 2000 {
-						t.Fatalf("instructions too long: %d", n)
-					}
-					if tc.cfg.Rewrite != nil && !strings.Contains(text, "/<handle>/<site>/") {
-						t.Error("missing production path address")
-					}
-					if strings.Contains(text, "{claude_reconnect}") || strings.Contains(text, "{deleted_retention}") {
-						t.Error("unfilled placeholder")
-					}
-					if strings.Contains(text, "comment") == tc.cfg.NoSpamCheck {
-						t.Error("comments topic does not match configuration")
-					}
-					if !strings.Contains(text, "Give the person each url exactly as returned.") {
-						t.Error("URL instructions changed")
-					}
-					if !strings.HasSuffix(text, "If a tool says the connection is signed out, ask the person to reconnect Simple Host in their app.") {
-						t.Error("missing signed-out advice")
-					}
-				})
+	defer NewServer(testConfig(Config{}))
+	// A long but realistic instance host (one full 63-character label).
+	longHost := strings.Repeat("a", 63) + ".sites.example-company.org"
+	for _, tc := range []struct {
+		name string
+		cfg  Config
+	}{
+		{"hosted", Config{}}, {"NoSpamCheck", Config{NoSpamCheck: true}}, {"SelfHosted", Config{SelfHosted: true}},
+		{"SelfHosted/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true}},
+		{"long hostname", Config{SelfHosted: true, Rewrite: productionHostRewrite(longHost)}},
+		{"long hostname/NoSpamCheck", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: productionHostRewrite(longHost)}},
+		{"other instance", Config{SelfHosted: true, NoSpamCheck: true, Rewrite: productionHostRewrite("websites.example.org"), SupportContact: "support@example.org"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := NewServer(testConfig(tc.cfg)).instructionsFor(Caller{})
+			t.Logf("instructions: %d characters (%d bytes)", len([]rune(text)), len(text))
+			if !strings.Contains(text, "photo picker in the chat") {
+				t.Error("missing photo handoff")
+			}
+			if n := len([]rune(text)); n >= 2000 {
+				t.Fatalf("instructions too long: %d", n)
+			}
+			if tc.cfg.Rewrite != nil && !strings.Contains(text, "/<handle>/<site>/") {
+				t.Error("missing production path address")
+			}
+			if strings.Contains(text, "{claude_reconnect}") || strings.Contains(text, "{deleted_retention}") {
+				t.Error("unfilled placeholder")
+			}
+			if strings.Contains(text, "comment") == tc.cfg.NoSpamCheck {
+				t.Error("comments topic does not match configuration")
+			}
+			if !strings.Contains(text, "Give the person each url exactly as returned.") {
+				t.Error("URL instructions changed")
+			}
+			if !strings.HasSuffix(text, "If a tool says the connection is signed out, ask the person to reconnect Simple Host in their app.") {
+				t.Error("missing signed-out advice")
 			}
 		})
 	}

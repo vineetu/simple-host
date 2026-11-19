@@ -92,7 +92,6 @@ func ReadOnly() map[string]any { return readOnly() }
 func Writes(destructive, idempotent, public bool) map[string]any {
 	return writes(destructive, idempotent, public)
 }
-func WithoutSpamCheck(tool Tool) Tool              { return withoutSpamCheck(tool) }
 func WithMeta(tool Tool, meta map[string]any) Tool { tool.Meta = meta; return tool }
 func WithRun(tool Tool, run func(*Call, map[string]any) (Output, error)) Tool {
 	tool.run = run
@@ -138,18 +137,14 @@ const AppMIME = appMIME
 func AppFiles() fs.ReadFileFS           { return appFiles }
 func AppFlag(value, handle string) bool { return appFlag(value, handle) }
 func FlatListApp(name string) bool      { return flatListApp(name) }
-func EventStorageTools(ownerSentence string, photoWording func(string) string) []Tool {
-	return storageToolsFor(true, ownerSentence, photoWording)
+func EventStorageTools(wording func(string) string) []Tool {
+	return storageToolsFor(true, wording)
 }
 
-const StorageOwnerSentence = storageOwnerSentence
-const StorageOwnerPhotos = storageOwnerPhotos
-const StorageGalleryLookalike = storageGalleryLookalike
 const DeployPhotoTip = deployPhotoTip
 const ArchiveUploadDescription = archiveUploadDescription
 
 func ReadRecipe(topic string) ([]byte, error) { return readRecipe(topic) }
-func StorageRulesEnabled() bool               { return storageRulesEnabled() }
 
 const StorageRulesInstructions = storageRulesInstructions
 

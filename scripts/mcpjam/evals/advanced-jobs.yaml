@@ -68,7 +68,7 @@ cases:
       - type: toolCalledWith
         toolName: site_analytics
         args: {mode: partial, args: {site: eval-cafe}}
-  - id: a_presets
+  - id: a_access
     title: says who can read and add saved data
     steps:
       - id: s1

@@ -298,7 +298,7 @@ func newPasscodeApp(t *testing.T) *passcodeApp {
 	if r.status != http.StatusCreated {
 		t.Fatalf("deploy: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/notes", map[string]string{"kind": "kv", "preset": "public"}, p.okey); r.status/100 != 2 {
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/notes", storageRules("kv", rulesPublic), p.okey); r.status/100 != 2 {
 		t.Fatalf("storage resource: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PUT", pcSiteDomain, passcodeData, map[string]any{"value": passcodeCanary}, p.okey); r.status != 200 {

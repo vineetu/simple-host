@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// A server without Turnstile keys (a self-hosted box by default) refuses the
-// comments preset, so its tools, recipe and instructions never offer it.
+// A server without Turnstile keys (a self-hosted box by default) has no
+// spam-checked adds, so its tools, recipe and instructions never offer them.
 func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 	rewrite := strings.NewReplacer("<site>.<handle>.simple-host.app", "sites.box.example/<handle>/<site>", "simple-host.app", "box.example").Replace
 	s := NewServer(testConfig(Config{APIHost: "box.example", ContentOrigin: "https://sites.box.example", NoSpamCheck: true, SelfHosted: true, Rewrite: rewrite, SupportContact: "ops@box.example"}))
@@ -41,7 +41,7 @@ func TestNoSpamCheckLeavesOutComments(t *testing.T) {
 			t.Errorf("instructions mention %q on a self-hosted server without the spam check", w)
 		}
 	}
-	for _, w := range []string{"portal (per-client pages), wall,", "find_tools", "run_tool"} {
+	for _, w := range []string{"portal, wall,", "find_tools", "run_tool"} {
 		if !strings.Contains(text, w) {
 			t.Errorf("instructions lack %q", w)
 		}

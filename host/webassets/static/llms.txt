@@ -62,7 +62,7 @@ Call `get_page_recipe` with the topic and site name, or read the matching recipe
 - [inbox](https://simple-host.app/recipes/inbox.md): quote requests, contact forms, waitlists, sign-ups, applications, and feedback; anyone sends without signing in, only the owner reads.
 - [public](https://simple-host.app/recipes/public.md): menus, prices, opening hours, and stock lists; the owner updates saved values without republishing.
 - [portal](https://simple-host.app/recipes/portal.md): client documents; one site per client, opened only to that client's email.
-- [comments](https://simple-host.app/recipes/comments.md): reviews, guestbooks, and questions without sign-in; use a spam check and optional `approve_first` moderation.
+- [comments](https://simple-host.app/recipes/comments.md): reviews, guestbooks, and questions without sign-in; use a spam check and optional moderation with a restrictive read rule on `approved_at`.
 - [wall](https://simple-host.app/recipes/wall.md): public posts with known authors; visitors sign in to add and remove their own entries.
 - [board](https://simple-host.app/recipes/board.md): shared lists signed-in people edit together; only the owner deletes.
 - [personal](https://simple-host.app/recipes/personal.md): each visitor's private notes, wishlist, or settings.
@@ -79,13 +79,13 @@ The owner creates KV (named JSON), SQLite (related records) or files (uploads)
 resources before pages use them. SQLite, KV and file buckets use version-1 row
 rules (file rules see path and visitor_id, the uploader). Follow this server's storage_set_resource description;
 if it does not accept rules, the server is older and its description says what to send.
-Existing presets work until the announced switch.
+A resource of any kind saved without rules is owner-only; presets were removed.
 
-PUT /v1/sites/<site>/storage/resources/<name> with kind sqlite or kv, rules:
+PUT /v1/sites/<site>/storage/resources/<name> with kind sqlite, kv or files, rules:
 {"version":1,"policies":[{"command":"read","using":"visitor_id == auth.id || auth.role == \"owner\""},{"command":"add","check":"auth.signed_in"},{"command":"edit","using":"auth.role == \"owner\""},{"command":"delete","using":"auth.role == \"owner\""}]}.
 This lets people add and read their own records, and the owner read/change all.
 A signed-in condition alone shares rows. SQLite tables.<name>.rules replaces the
-default; omit tables to keep sets, {} to clear. Do not mix rules and preset fields.
+default; omit tables to keep sets, {} to clear. Every kind refuses preset and read/add/edit/delete fields (400 invalid_resource).
 Permissive policies OR together; restrictive:true policies AND together; without an applicable permissive policy,
 access is denied. Read/delete require using, add requires
 check, edit requires using and inherits it as check when omitted. Every
@@ -100,13 +100,12 @@ rules name TEXT approved_at: visitors stamp NULL, owners stamp time and only
 owners edit it. A leftover column without a rule reference is ordinary data.
 A restrictive read requiring owner or approved_at is not null hides held posts.
 
-File buckets retain public, inbox, wall, records, personal, board and private
-presets with read/add/edit/delete overrides; for example
-{"kind":"files","preset":"wall","site_passcode":"inherit"} for visitor photos.
-Rules cannot be saved on files or on a KV namespace still stored in Postgres.
+File rules: read lists and opens files, add uploads a new path, edit replaces
+one, delete removes one; they cannot use auth.checked. Rules cannot be saved on
+a KV namespace still stored in Postgres.
 Rules responses include rules_status/rules_errors; invalid_rules includes a
 rule_error clause and position. Stored rules_invalid denies visitors, owner
-tools can repair it. Saving rules remains enforced if accepting new rules is off.
+tools can repair it.
 
 Owner connector tools storage_set_resource, storage_list_resources, storage_sql_schema,
 storage_sql_query, storage_sql_execute and the KV/files tools retain their routes.
@@ -123,7 +122,7 @@ Use auth.js on the same origin with the visitor's cookie:
 - SQLite: `SH.storage.sqlite(name).table(t).add({column: value, ...})` returns `{last_insert_id}`. Use `.list({order:'id', desc:1, limit:50, after:<next_after>, where:{status:'received'}})`, `.get(id)`, `.edit(id, {column: value})`, and `.delete(id)`. List results are `{columns, rows, items, next_after, mine}`: rows are arrays in column order; items are objects with a mine flag, also available through `SH.storage.toObjects(result)`. The result supports `result[0]`, `result.length`, and `result.forEach`. The where filter accepts equality on up to three columns.
 - Files: `SH.storage.files(name).put(path, file)` takes a File or Blob under 1,000,000 bytes. Use `await .url(path)` for an image or download address (it returns a promise), `.get(path)` for a Blob, `.list()` for `{items: [{path, size, content_type, mine}], next_after}`, and `.delete(path)`. To filter or page, use `.list(prefix, {after, limit})`, with the prefix first and `''` for none.
 
-Put `await SH.requireSignIn()` before any action whose rules require sign-in (file buckets follow their presets); otherwise it returns 401 sign_in_required.
+Put `await SH.requireSignIn()` before any action whose rules require sign-in; otherwise it returns 401 sign_in_required.
 
 Visitors never send SQL: on a rules database raw query/execute answer 403 fixed_routes_required. The server stamps visitor_id and created_at on every row a visitor adds, updated_at on every edit, and ignores anything the page sends for them; edits and deletes carry the read and operation predicates in the statement, so another person's row answers 404.
 
@@ -252,7 +251,7 @@ The person can do both under Settings, Sign-in on their page.
 ## SELF-CHECK BEFORE YOU PUBLISH
 
 - Load auth.js on every page that saves, show `SH.mount('#sh-auth')`, and await `SH.requireSignIn()` before a save that needs a signed-in visitor.
-- Create every resource and SQLite table the page uses, with the matching row rules: author-or-owner reads for personal records, owner-only reads for forms; keep file-bucket presets.
+- Create every resource and SQLite table the page uses, with the matching row rules: author-or-owner reads for personal records, owner-only reads for forms.
 - Keep `/v1/auth` and API keys out of the page.
 - Use relative links (`css/style.css`, never `/css/...`).
 - Keep the form visible after a failed write and show the error; never claim success.

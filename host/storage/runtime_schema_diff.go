@@ -2,12 +2,12 @@ package storage
 
 import "sort"
 
-// SchemaTableChanges returns added tables and whether a preset table disappeared.
-func SchemaTableChanges(before, after map[string]bool, hasPreset func(string) bool) (bool, []string) {
+// SchemaTableChanges returns added tables and whether a table with its own rules disappeared.
+func SchemaTableChanges(before, after map[string]bool, hasOwn func(string) bool) (bool, []string) {
 	var renamed bool
 	added := []string{}
 	for t := range before {
-		if hasPreset(t) && !after[t] {
+		if hasOwn(t) && !after[t] {
 			renamed = true
 		}
 	}

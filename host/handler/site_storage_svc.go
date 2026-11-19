@@ -9,7 +9,6 @@ import (
 
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	httpx "github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 )
 
 func (h *SiteHandler) storageSvc() *appstorage.Service {
@@ -47,7 +46,6 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		Bindings:             h.storageBindingProvider(),
 		BindingSchema:        h.storageBindingSchema,
 		ProductBindingSchema: h.storageProductBindingSchema,
-		RulesEnabled:         os.Getenv("STORAGE_RULES") == "on",
 		SpamCheckAvailable:   h.turnstile != nil,
 		SiteSlots:            h.siteSlotsFor(),
 		Locks:                &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
@@ -92,7 +90,7 @@ func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstor
 	}
 	deps.Recheck = func(ctx context.Context) bool {
 		current, err := h.loadStorageResource(ctx, c.siteID, c.resourceName)
-		return err == nil && current.fingerprint() == c.resource.fingerprint()
+		return err == nil && current.Fingerprint() == c.resource.Fingerprint()
 	}
 	deps.Committed = func(ctx context.Context) { paperRecorder(ctx).WriteCommitted(ctx) }
 	deps.FilePath = func(_ appstorage.Call, path string) string { return h.storageFilePath(c, path) }
@@ -113,9 +111,9 @@ func (h *SiteHandler) storageServiceCall(c storageCall) appstorage.Call {
 	return appstorage.Call{
 		SiteID: c.siteID, OwnerID: c.ownerID, SiteName: c.siteName, ResourceName: c.resourceName,
 		AccountID: c.accountID, Owner: c.owner, OwnerOnSite: c.ownerOnSite, VisitorAI: c.visitorAI,
-		VisitorID: c.visitorID, LinkScope: c.linkScope, Resource: c.resource.rulesResource(),
-		ActiveChecked: c.activeChecked, CurrentMatrix: model.AccessMatrix(c.currentMatrix),
-		Filter: c.filter, SpamCheck: c.spamCheck, CheckedPost: c.checkedPost,
+		VisitorID: c.visitorID, LinkScope: c.linkScope, Resource: c.resource,
+		ActiveChecked: c.activeChecked,
+		SpamCheck:     c.spamCheck, CheckedPost: c.checkedPost,
 		UploaderID: c.uploaderID, RuntimeDir: h.storageRuntimeDir(c),
 		VisitorSessionID: c.visitorSession.ID, VisitorSessionUserID: c.visitorSession.UserID,
 	}

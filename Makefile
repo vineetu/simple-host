@@ -79,7 +79,7 @@ check-release:
 
 # The browser checks, one after another; every one runs even after a failure.
 browser:
-	@fail=0; for name in hack-navigation hack-checklists hack-forms hack-presets storage-rules named-viewers signin-card owner-dashboard; do \
+	@fail=0; for name in hack-navigation hack-checklists hack-forms storage-rules named-viewers signin-card owner-dashboard; do \
 		bash scripts/split/browser-check.sh $$name || fail=1; \
 	done; exit $$fail
 

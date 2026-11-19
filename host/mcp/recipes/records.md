@@ -1,3 +1,5 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Each person's records: a shop with a cart, visitor sign-in at checkout, orders, and My orders
 
 Use this for a shop's orders, RSVPs, bookings, applications, support requests, or anything where each person adds records and sees only their own, while the owner sees all of them and sets a status. The example is a shop; rename the resource, tables, and columns for other jobs (bookings, applications, requests).
@@ -9,11 +11,11 @@ Who signs in where:
 
 ## 1. Owner setup (run these tools before publishing the page)
 
-One SQLite resource with preset records (read own, add signed-in, edit owner, delete owner): each signed-in person reads only the rows they added and can add rows, and nothing else; you see every row and change them.
+One SQLite resource with these rules: each signed-in person reads only the rows they added and can add rows, and nothing else; you see every row and change them.
 
-storage_set_resource {"site": "{site}", "name": "orders", "body": {"kind": "sqlite", "preset": "records", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "orders", "body": {"kind": "sqlite", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "visitor_id == auth.id"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
-Both tables below use the database's preset. To keep a catalogue in the same database that everyone reads, give that table its own preset: "tables": {"products": {"preset": "public"}}.
+Both tables below inherit the resource rules. To keep a catalogue in this database that everyone reads, give products a table rules override with a permissive read policy using true and an owner all policy using auth.role == "owner". A table override replaces the resource set, so include every permission that table needs.
 
 Two tables and one trigger, three storage_sql_schema calls on that resource (the server adds an indexed visitor_id TEXT column to each table itself; do not declare it):
 
@@ -216,4 +218,4 @@ Where web push is enabled for this account, the owner can get a push notificatio
 
 REST uses its existing visitor IDs, not connector references. With the owner's X-API-Key, GET /v1/sites/{site}/storage/visitors?id=<visitor_id> accepts up to 100 comma-separated ids and returns {visitors:[{visitor_id, email, found}]}. Only people who signed in on this site resolve. Owner KV and file listings also carry visitor_id. Never write the resolved email into a page or saved data.
 
-Read orders and order_changes separately, matching order_id; there is no include option. Linked rows preserve notes and cancellation requests; the owner applies or acknowledges them and updates status. Use this pattern for event sign-ups, homework submissions, revisitable survey answers, or a waitlist with a person's place in line. Put associated photos in a files resource: preset wall for everyone to see, or records for only the sender and owner.
+Read orders and order_changes separately, matching order_id; there is no include option. Linked rows preserve notes and cancellation requests; the owner applies or acknowledges them and updates status. Use this pattern for event sign-ups, homework submissions, revisitable survey answers, or a waitlist with a person's place in line. Put associated photos in a files resource with rules in the same words: read `true` for everyone to see, or `visitor_id == auth.id || auth.role == "owner"` for only the sender and owner.

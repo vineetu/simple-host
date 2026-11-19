@@ -359,7 +359,7 @@ func StoredVersionsOfAccount(ctx context.Context, q interface {
 
 // HackSiteOwnerOnSite reports whether userID counts as the owner of a Simple
 // Hack site for its saved data when signed in on the site itself (storage
-// presets, owner decision 2026-10-10): on a team site, an approved
+// access, owner decision 2026-10-10): on a team site, an approved
 // participant on that team while the team may still change its site (the
 // same conditions as TeamWriteState.WriteRefusal: event not taken down or
 // ended, site not taken down, deadline not passed); on an event's custom

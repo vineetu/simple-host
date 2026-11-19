@@ -1562,7 +1562,7 @@
     {
       "name": "RATE_LIMIT_SPAM_CHECKED_IP",
       "group": "data",
-      "description": "Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site.",
+      "description": "Posts that only the Turnstile spam check let in (auth.checked in storage rules), per address across every site.",
       "type": "rate",
       "default": "10,30s",
       "loosest": "40,7.5s",
@@ -1574,7 +1574,7 @@
     {
       "name": "RATE_LIMIT_SPAM_CHECKED_SITE",
       "group": "data",
-      "description": "Posts on comments-preset resources, per site from everyone together.",
+      "description": "Posts that only the spam check let in, per site from everyone together.",
       "type": "rate",
       "default": "60,10s",
       "loosest": "240,2.5s",
@@ -1586,7 +1586,7 @@
     {
       "name": "SPAM_CHECKED_POST_MAX_BYTES",
       "group": "data",
-      "description": "Largest post someone not signed in may add to a comments-preset resource (the JSON of its values).",
+      "description": "Largest post someone not signed in may add through the spam check (the JSON of its values).",
       "type": "int",
       "default": "4000",
       "min": 100,
@@ -1614,7 +1614,7 @@
     {
       "name": "TURNSTILE_SITE_KEY",
       "group": "data",
-      "description": "The Cloudflare Turnstile site key for the spam check on the comments preset (anyone posts without signing in once the check passes). With no site key and secret, the preset is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame.",
+      "description": "The Cloudflare Turnstile site key for the spam check (auth.checked in storage rules: anyone posts without signing in once the check passes). With no site key and secret, the spam check is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame.",
       "type": "string",
       "default": "",
       "security_sensitive": false,
@@ -2806,25 +2806,6 @@
       "type": "rate",
       "default": "60,200ms",
       "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": true
-    },
-    {
-      "name": "STORAGE_RULES",
-      "group": "storage",
-      "description": "Accept owner-written row rules for SQLite databases and key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it.",
-      "type": "enum",
-      "default": "off",
-      "allowed": [
-        "off",
-        "on"
-      ],
-      "strict_order": [
-        "off",
-        "on"
-      ],
-      "security_sensitive": true,
       "required": false,
       "basic": false,
       "small_box": true

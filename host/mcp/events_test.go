@@ -200,7 +200,7 @@ func TestEventsListSchemas(t *testing.T) {
 					t.Error("invalid input matches schema")
 				}
 			}
-			data := map[string]any{"v": 1, "site": "bakery", "site_url": "https://bakery.example/", "storage": "orders", "preset": "records", "visitor": nil, "untrusted": []string{}}
+			data := map[string]any{"v": 1, "site": "bakery", "site_url": "https://bakery.example/", "storage": "orders", "visitor": nil, "untrusted": []string{}}
 			if name == "file.uploaded" {
 				data["kind"], data["path"], data["size"], data["content_type"] = "files", "cake.jpg", 42, "image/jpeg"
 				if err := ValidateOutput(event["payloadSchema"], data, nil); err != nil {
@@ -241,7 +241,7 @@ func TestEventsListSchemas(t *testing.T) {
 			}
 		}
 		// Site events: the site argument only, and a payload without the
-		// storage, kind, preset, visitor-null or untrusted shape of record events.
+		// storage, kind, visitor-null or untrusted shape of record events.
 		samples := map[string]map[string]any{
 			"site.deployed":           {"version": 2, "previous_version": 1, "via": "deploy"},
 			"domain.status_changed":   {"domain": "shop.example", "status": "active", "previous_status": "pending", "reason": "", "cert": "live"},
@@ -277,7 +277,7 @@ func TestEventsListSchemas(t *testing.T) {
 			if err := ValidateOutput(event["payloadSchema"], data, nil); err != nil {
 				t.Errorf("%s payload: %v", name, err)
 			}
-			for _, extra := range []string{"storage", "kind", "preset", "untrusted"} {
+			for _, extra := range []string{"storage", "kind", "untrusted"} {
 				bad := map[string]any{}
 				for k, v := range data {
 					bad[k] = v

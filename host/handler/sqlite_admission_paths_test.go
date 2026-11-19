@@ -36,8 +36,8 @@ func init() {
 }
 
 func TestExportWaitsForOwnerQueryAdmission(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite", "preset": "private"}, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite"}, s.key, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}, s.key, 200)
 	h := s.a.sites
 	resource, err := h.loadStorageResource(context.Background(), s.sid, "data")
@@ -114,8 +114,8 @@ func TestExportWaitsForOwnerQueryAdmission(t *testing.T) {
 }
 
 func TestPeopleSkipsBusySQLiteResource(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/data", storageRules("sqlite", rulesPersonal), s.key, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/data/tables/notes/rows", map[string]string{"body": "saved"}, s.callers["alice"], 200)
 	if list := s.must(t, "GET", "/people", nil, s.key, 200).json(t)["people"].([]any); len(list) != 1 {
@@ -144,8 +144,8 @@ func TestPeopleSkipsBusySQLiteResource(t *testing.T) {
 }
 
 func TestResourceSaveAdmissionPanicStatus(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite", "preset": "private"}, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite"}, s.key, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}, s.key, 200)
 	for _, tc := range []struct {
 		panicValue any
@@ -165,7 +165,7 @@ func TestResourceSaveAdmissionPanicStatus(t *testing.T) {
 					return nil
 				})
 			})
-			req := httptest.NewRequest("PUT", "https://"+pcSiteDomain+"/v1/sites/shop/storage/resources/data", strings.NewReader(`{"kind":"sqlite","preset":"personal"}`)).WithContext(ctx)
+			req := httptest.NewRequest("PUT", "https://"+pcSiteDomain+"/v1/sites/shop/storage/resources/data", strings.NewReader(storageRules("sqlite", rulesPersonal))).WithContext(ctx)
 			req.Header.Set("X-API-Key", s.owner.key)
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
@@ -174,7 +174,7 @@ func TestResourceSaveAdmissionPanicStatus(t *testing.T) {
 				t.Fatalf("injected=%v response=%d %s", injected, rec.Code, rec.Body.String())
 			}
 			// The failure must release the write lock and admission for the next save.
-			s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite", "preset": "private"}, s.key, 200)
+			s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite"}, s.key, 200)
 		})
 	}
 }

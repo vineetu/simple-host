@@ -563,7 +563,7 @@
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="html"><code><span class="line"><span style="color:#E1E4E8">&lt;</span><span style="color:#85E89D">script</span><span style="color:#B392F0"> src</span><span style="color:#E1E4E8">=</span><span style="color:#9ECBFF">"https://simple-host.app/auth.js"</span><span style="color:#E1E4E8">&gt;&lt;/</span><span style="color:#85E89D">script</span><span style="color:#E1E4E8">&gt;</span></span></code></pre>
 <ol role="list" class="sl-steps">
 <li>
-<p>Create a SQLite resource named <code>notes</code>, a <code>notes</code> table with <code>id INTEGER PRIMARY KEY</code>, <code>visitor_id TEXT</code>, and <code>text TEXT</code>, and the <strong>personal</strong> preset through the owner API or connector. Follow <a href="/docs/guides/storage/">Storage and saved data</a>.</p>
+<p>Create a SQLite resource named <code>notes</code>, a <code>notes</code> table with <code>id INTEGER PRIMARY KEY</code>, <code>visitor_id TEXT</code>, and <code>text TEXT</code>, and rules that let each signed-in visitor read and change only their own rows (the <code>personal</code> recipe) through the owner API or connector. Follow <a href="/docs/guides/storage/">Storage and saved data</a>.</p>
 </li>
 <li>
 <p>Add <code>&#x3C;div id="sh-auth">&#x3C;/div></code> to the page and mount sign-in from your page’s JavaScript:</p>

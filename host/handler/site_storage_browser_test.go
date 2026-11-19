@@ -25,7 +25,7 @@ func TestStorageStoryBrowser(t *testing.T) {
 	sid := a.siteID(t, owner, "shop")
 	key := map[string]string{"X-API-Key": owner.key}
 	base := "/v1/sites/shop/storage"
-	if res := a.at(t, "PUT", pcSiteDomain, base+"/resources/orders", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"}, key); res.status != 201 {
+	if res := a.at(t, "PUT", pcSiteDomain, base+"/resources/orders", storageRules("sqlite", rulesRecords), key); res.status != 201 {
 		t.Fatalf("resource: %d", res.status)
 	}
 	if res := a.at(t, "POST", pcSiteDomain, base+"/sqlite/orders/schema", `{"sql":"CREATE TABLE orders (id INTEGER PRIMARY KEY,item TEXT NOT NULL,quantity INTEGER NOT NULL,status TEXT DEFAULT 'placed',created_at TEXT)"}`, key); res.status != 200 {
@@ -34,7 +34,7 @@ func TestStorageStoryBrowser(t *testing.T) {
 	if res := a.at(t, "POST", pcSiteDomain, base+"/sqlite/orders/schema", `{"sql":"CREATE TABLE order_changes (id INTEGER PRIMARY KEY,order_id INTEGER NOT NULL REFERENCES orders(id),kind TEXT CHECK(kind IN ('change','note','cancel_request')),details TEXT,created_at TEXT)"}`, key); res.status != 200 {
 		t.Fatalf("change schema: %d %s", res.status, res.body)
 	}
-	if res := a.at(t, "PUT", pcSiteDomain, base+"/resources/photos", map[string]string{"kind": "files", "read": "anyone", "write": "owner"}, key); res.status != 201 {
+	if res := a.at(t, "PUT", pcSiteDomain, base+"/resources/photos", storageRules("files", rulesPublic), key); res.status != 201 {
 		t.Fatalf("photos resource: %d", res.status)
 	}
 	photo, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")

@@ -242,7 +242,8 @@ func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
 	assertNotificationSealed(t, n.AuthHeaderValue, "Bearer receiver")
 	st := "/v1/sites/" + f.team + "/storage"
 	for name, kind := range map[string]string{"kv": "kv", "rows": "sqlite", "files": "files"} {
-		wantTS(t, "resource", a.api(t, "PUT", st+"/resources/"+name, map[string]string{"kind": kind, "preset": "inbox"}, f.key), 201, "")
+		body := map[string]any{"kind": kind, "rules": json.RawMessage(inboxRules)}
+		wantTS(t, "resource", a.api(t, "PUT", st+"/resources/"+name, body, f.key), 201, "")
 	}
 	wantTS(t, "schema", a.api(t, "POST", st+"/sqlite/rows/schema", map[string]string{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT)"}, f.key), 200, "")
 	// Owner credential writes do not emit.
@@ -428,7 +429,7 @@ func TestHackNotificationsMCPSelectedTeamAndOrganiser(t *testing.T) {
 	}
 	// Worker signs organiser visitor events; ended events skip further deliveries.
 	st := evBase + "/storage"
-	wantTS(t, "event inbox", a.api(t, "PUT", st+"/resources/rows", map[string]string{"kind": "sqlite", "preset": "inbox"}, f.org.key), 201, "")
+	wantTS(t, "event inbox", a.api(t, "PUT", st+"/resources/rows", map[string]any{"kind": "sqlite", "rules": json.RawMessage(inboxRules)}, f.org.key), 201, "")
 	wantTS(t, "event schema", a.api(t, "POST", st+"/sqlite/rows/schema", map[string]string{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT)"}, f.org.key), 200, "")
 	visitor := hackSession(t, a, "", n.SiteID, f.slug+"."+tsDomain)
 	before := len(f.x.snapshot())

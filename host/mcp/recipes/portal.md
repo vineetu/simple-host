@@ -1,3 +1,5 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Client portal: a private page for each client
 
 Use this for a client portal, a place where clients see the documents or project updates you prepare for them, or any page only one client (or one family, or one team) may open. Each client gets their own small site that only they and the owner can open: the client signs in on it with their email (an emailed 6-digit code or Google, no account, no password), and everyone else sees "This site is private". You see and change everything from this chat.
@@ -18,17 +20,17 @@ create_site takes no email: grant_site_viewer is the call that opens the site to
 
 Documents, in a files resource you add to from chat:
 
-storage_set_resource {"site": "client-patel-dental", "name": "documents", "body": {"kind": "files", "preset": "public"}}
+storage_set_resource {"site": "client-patel-dental", "name": "documents", "body": {"kind": "files", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_put_file {"site": "client-patel-dental", "name": "documents", "path": "2026-10/invoice-1042.pdf", "content_base64": "...", "content_type": "application/pdf"}
 
 Messages between the client and you:
 
-storage_set_resource {"site": "client-patel-dental", "name": "messages", "body": {"kind": "sqlite", "preset": "wall"}}
+storage_set_resource {"site": "client-patel-dental", "name": "messages", "body": {"kind": "sqlite", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "delete", "command": "delete", "using": "visitor_id == auth.id"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_sql_schema {"site": "client-patel-dental", "name": "messages", "sql": "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, author TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT)"}
 
-On a site opened only to named viewers, "anyone" means the client and the owner, so public and wall are right here; never use them for client data on a site that is not locked. Tell the person to send the client the site's address and to sign in with the email named here.
+On a site opened only to named viewers, "anyone" means the client and the owner, so the document and message rules above work here; never allow public reads of client data on a site that is not locked. Tell the person to send the client the site's address and to sign in with the email named here.
 
 ## 3. The page (index.html; adapt the name, the updates, and the look)
 

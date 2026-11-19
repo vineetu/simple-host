@@ -36,7 +36,7 @@ func TestSuspendSiteEndToEnd(t *testing.T) {
 	if r := a.at(t, "POST", apex, "/v1/sites/shop/domain", map[string]string{"domain": claimed}, okey); r.status != 200 {
 		t.Fatalf("claim: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", map[string]string{"kind": "kv", "preset": "public"}, okey); r.status/100 != 2 {
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", storageRules("kv", rulesPublic), okey); r.status/100 != 2 {
 		t.Fatalf("storage resource: %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "PUT", claimed, data, map[string]any{"value": map[string]int{"n": 1}}, okeyO); r.status != 200 {

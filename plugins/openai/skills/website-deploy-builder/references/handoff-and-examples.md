@@ -161,12 +161,13 @@ trusted owner dashboard/connector, or an admin page (`get_page_recipe` topic
 every order and sets a status with `table('orders').edit(id, {status})`; never
 put an owner key in a page.
 
-Create a `photos` file bucket. Choose preset `wall` for photos that visitors may
-view (authors can remove their own), or `records` for photos only the sender and
-the shop owner see:
+Create a `photos` file bucket with rules in the same words, over `path` and
+`visitor_id` (the uploader): these let visitors view the photos, signed-in
+visitors upload and authors remove their own; for photos only the sender and the
+shop owner see, make the read rule `visitor_id == auth.id || auth.role == "owner"`:
 
 ```json
-{"kind":"files","preset":"wall","site_passcode":"inherit"}
+{"kind":"files","site_passcode":"inherit","rules":{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"delete","command":"delete","using":"visitor_id == auth.id"},{"name":"owner","command":"all","using":"auth.role == \"owner\""}]}}
 ```
 
 ```js

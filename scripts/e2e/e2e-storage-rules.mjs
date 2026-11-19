@@ -4,8 +4,7 @@
 //   STORAGE_RULES_FIXTURE=/tmp/rules.json TEST_PKGS=./host/handler TEST_COUNT=1 bash scripts/test-integration.sh -run '^TestServeStorageRulesBrowser$' -timeout 35m
 // Then, in another shell:
 //   PLAYWRIGHT_DIR=/opt/pw/node_modules CHROMIUM=/usr/local/bin/chromium node scripts/e2e/e2e-storage-rules.mjs /tmp/rules.json --shots /tmp/rules-shots
-// TestServeStorageRulesBrowser sets STORAGE_RULES=on;
-// canonical person/site hosts, captured mail and all data are fixture-local.
+// Canonical person/site hosts, captured mail and all data are fixture-local.
 // This script creates its own site/resources and stops the fixture on exit
 // (use --keep to leave it running). It tests 390px and 1280px in light theme.
 import fs from 'node:fs';
@@ -62,9 +61,7 @@ try {
     await api('PUT', base + '/resources/converted', { kind: 'sqlite', rules, tables: { kept: { rules: own } } });
     await tool('storage_sql_schema', { site, name: 'converted', sql: 'CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, value TEXT)', params: [] });
     await api('PUT', base + '/resources/kv_rules', { kind: 'kv', rules });
-    await api('PUT', base + '/resources/unconverted', { kind: 'sqlite', preset: 'private' });
-    await api('PUT', base + '/resources/kv_presets', { kind: 'kv', preset: 'private' });
-    await api('PUT', base + '/resources/photos', { kind: 'files', preset: 'public' });
+    await api('PUT', base + '/resources/photos', { kind: 'files', rules: { policies: [{ name: 'read', command: 'read', using: 'true' }] } });
     const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: 'light',
       locale: width === 390 ? 'en-GB' : 'en-US', timezoneId: width === 390 ? 'Asia/Kolkata' : 'America/Los_Angeles' });
     await context.route('**/*', forward);
@@ -190,16 +187,16 @@ try {
     await card('kv_rules').getByLabel('Default rules', { exact: true }).fill(JSON.stringify(kvEdited));
     await save('kv_rules');
     assert.deepEqual((await api('GET', base + '/resources')).resources.find(r => r.name === 'kv_rules').rules.policies, kvEdited.policies);
-    // Files keep exactly the existing preset menu and save flow.
+    // Files use the same JSON editor.
     const files = card('photos');
-    assert(!/Presets end on|Visitors can't use this/.test(await files.innerText()));
-    assert.equal(await files.locator('textarea').count(), 0);
-    await files.getByLabel('Who can do what?').selectOption('private');
+    assert.equal(await files.locator('select[name="preset"]').count(), 0);
+    const filesEdited = { policies: [{ name: 'owner', command: 'all', using: 'auth.role == "owner"' }] };
+    await files.getByLabel('Default rules', { exact: true }).fill(JSON.stringify(filesEdited));
     await save('photos');
-    assert.equal((await api('GET', base + '/resources')).resources.find(r => r.name === 'photos').preset, 'private');
+    assert.deepEqual((await api('GET', base + '/resources')).resources.find(r => r.name === 'photos').rules.policies, filesEdited.policies);
     assert.deepEqual(errors, [], 'dashboard JavaScript errors');
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
-    console.log(`PASS storage rules: ${width}px light; policies, server error position, table add/remove, KV, conversion labels, file presets`);
+    console.log(`PASS storage rules: ${width}px light; policies, server error position, table add/remove, KV, files`);
     await context.close();
   }
 } finally {

@@ -7,9 +7,9 @@ import (
 	"errors"
 	"regexp"
 	"sort"
-	"strings"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/host/model"
 	repo "github.com/vsriram/simple-host/host/repository/storage"
 	rules "github.com/vsriram/simple-host/host/rules/storage"
 	runtime "github.com/vsriram/simple-host/host/storage"
@@ -38,25 +38,21 @@ func (s *Service) ListStorageResources(ctx context.Context, call Call) ([]Resour
 	return out, nil
 }
 
-// ResourceInput holds the decoded resource configuration.
+// ResourceInput holds the decoded resource configuration: rules for every
+// kind (and, for SQLite, Tables of rules). PresetFieldsPresent records any
+// field of the removed presets, which is refused.
 type ResourceInput struct {
-	Call       Call
-	Name, Kind string
-	rules.AccessRequest
-	Write, WriteMode, SitePasscode string
-	Rules                          *json.RawMessage
-	// PresetFieldsPresent also records explicitly supplied empty preset fields.
-	PresetFieldsPresent bool
-	Tables              *map[string]ResourceTableInput
-	ApproveFirst        *bool
+	Call                     Call
+	Name, Kind, SitePasscode string
+	Rules                    *json.RawMessage
+	PresetFieldsPresent      bool
+	Tables                   *map[string]ResourceTableInput
 }
 
-// ResourceTableInput is a table override in a resource save.
+// ResourceTableInput is a table override in a resource save: rules only.
+// PresetFieldsPresent records any preset field sent, which is refused.
 type ResourceTableInput struct {
-	rules.AccessRequest
 	Rules               *json.RawMessage
-	Write, WriteMode    string
-	ApproveFirst        *bool
 	PresetFieldsPresent bool
 }
 
@@ -70,14 +66,6 @@ type ResourceResult struct {
 
 var resourceTableNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 
-func accessResourceError(rule, hint string) *Error {
-	code := "invalid_access"
-	if rule == "invalid_value" || rule == "invalid_preset" {
-		code = "invalid_resource"
-	}
-	return &Error{Code: code, Message: hint, Rule: rule}
-}
-
 // PutStorageResource updates a resource while holding the site write lock.
 func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (ResourceResult, error) {
 	call := in.Call
@@ -90,7 +78,6 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	}
 	defer unlock()
 	name := in.Name
-	var ok bool
 	old, e := repo.LoadResource(ctx, s.db, call.SiteID, in.Name)
 	exists := e == nil
 	if e != nil && !errors.Is(e, sql.ErrNoRows) {
@@ -106,170 +93,43 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	if exists && old.Kind != x.Kind {
 		return ResourceResult{}, &Error{Code: "resource_kind_conflict", Message: "resource kind cannot change"}
 	}
-	x.ConvertedFrom = old.ConvertedFrom
-	rulesSave := hasRules(in.Rules)
-	hasSubmittedRules := rulesSave
-	if in.Tables != nil {
-		for _, table := range *in.Tables {
-			hasSubmittedRules = hasSubmittedRules || hasRules(table.Rules)
-		}
-	}
-	if hasSubmittedRules && !s.deps.RulesEnabled {
-		return ResourceResult{}, &Error{Code: "rules_unavailable", Message: "storage rules are unavailable"}
-	}
-	keepRules := !rulesSave && exists && old.Rules != nil && !in.hasPresetFields() && !in.hasTablePresetFields()
 	var warnings []string
 	var rulesErrors []ruleengine.RuleError
-	if keepRules {
+	ruleFailure := func(err error) error {
+		if e, ok := err.(*Error); ok {
+			return e
+		}
+		if errors.Is(err, runtime.ErrSQLiteBusy) {
+			return &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
+		}
+		return &Error{Code: "internal_error", Message: "internal server error"}
+	}
+	switch {
+	case in.hasPresetFields():
+		return ResourceResult{}, &Error{Code: "invalid_resource", Message: "presets were removed; send rules"}
+	case !hasRules(in.Rules) && in.Tables != nil:
+		return ResourceResult{}, invalidRules("shape", "", "table rules require resource rules")
+	case !hasRules(in.Rules) && exists:
+		// A save without rules (a site_passcode change) keeps the stored rules.
 		passcode := x.SitePasscode
 		x = old
 		x.SitePasscode = passcode
-		rulesErrors, err = s.retainedRulesErrors(ctx, call, x)
-		if err != nil {
-			var e *Error
-			if errors.As(err, &e) {
-				return ResourceResult{}, e
-			}
-			if errors.Is(err, runtime.ErrSQLiteBusy) {
-				return ResourceResult{}, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
-			}
-			return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
+		if rulesErrors, err = s.retainedRulesErrors(ctx, call, x); err != nil {
+			return ResourceResult{}, ruleFailure(err)
 		}
-	} else if rulesSave {
+	default:
+		if !hasRules(in.Rules) {
+			// A new resource without rules is owner only.
+			owner := model.OwnerOnlyRules
+			in.Rules = &owner
+		}
 		if err := s.configureRules(ctx, in, old, exists, &x); err != nil {
-			if e, ok := err.(*Error); ok {
-				return ResourceResult{}, e
+			if errors.Is(err, sqlite3.FULL) {
+				return ResourceResult{}, &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
 			}
-			if errors.Is(err, runtime.ErrSQLiteBusy) {
-				return ResourceResult{}, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
-			}
-			return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
+			return ResourceResult{}, ruleFailure(err)
 		}
-	} else {
-		if exists && old.Rules != nil && len(old.Tables) > 0 && in.Tables == nil {
-			return ResourceResult{}, &Error{Code: "tables_present", Message: "send tables with a preset for each table, or tables: {}"}
-		}
-		presetFields := in.Preset != "" || in.Add != "" || in.Edit != "" || in.Delete != "" || in.Tables != nil
-		if presetFields && (in.Write != "" || in.WriteMode != "") {
-			return ResourceResult{}, &Error{Code: "invalid_access", Message: "use preset (with read, add, edit, delete overrides), or the older write and write_mode, not both"}
-		}
-		var m rules.AccessMatrix
-		var base, code, hint string
-		if !presetFields && exists && len(old.Tables) > 0 {
-			// The older fields cannot say anything about per-table presets, so
-			// a client using them would think it set the whole database.
-			return ResourceResult{}, &Error{Code: "tables_present", Message: "this database has per-table presets; set it with preset and tables (storage_list_resources shows them)"}
-		}
-		if in.Write != "" || in.WriteMode != "" {
-			mode := in.WriteMode
-			if mode == "" && exists {
-				// An older client that leaves write_mode out keeps the mode.
-				mode = old.WriteMode
-				if old.Access != nil {
-					if _, _, oldMode, ok := rules.OldFields(*old.Access); ok {
-						mode = oldMode
-					}
-				}
-			}
-			m, code, hint = rules.TranslateOld(in.Read, in.Write, mode)
-			if base = rules.PresetName(m); base == "custom" {
-				base = ""
-			}
-		} else {
-			m, base, code, hint = in.AccessRequest.Matrix()
-		}
-		if code != "" {
-			return ResourceResult{}, accessResourceError(code, hint)
-		}
-		x.Access, x.PresetBase = &m, base
-		x.Tables = map[string]rules.TableRule{}
-		if in.Tables != nil {
-			if x.Kind != "sqlite" {
-				return ResourceResult{}, &Error{Code: "invalid_resource", Message: "tables apply to sqlite resources only"}
-			}
-			if len(*in.Tables) > 50 {
-				return ResourceResult{}, &Error{Code: "invalid_resource", Message: "at most 50 tables have their own rules"}
-			}
-			for table, q := range *in.Tables {
-				if !resourceTableNameRE.MatchString(table) || strings.HasPrefix(strings.ToLower(table), "sqlite_") {
-					return ResourceResult{}, &Error{Code: "invalid_resource", Message: "table names are letters, digits, and _, starting with a letter"}
-				}
-				// SQLite table names are case-insensitive: one rule per table.
-				table = strings.ToLower(table)
-				if _, dup := x.Tables[table]; dup {
-					return ResourceResult{}, &Error{Code: "invalid_resource", Message: "two rules name the same table"}
-				}
-				if hasRules(q.Rules) {
-					return ResourceResult{}, invalidRules("shape", table, "table rules require resource rules")
-				}
-				tm, tbase, tcode, thint := q.Matrix()
-				if tcode != "" {
-					return ResourceResult{}, accessResourceError(tcode, "table "+table+": "+thint)
-				}
-				x.Tables[table] = rules.TableRule{Matrix: tm, PresetBase: tbase}
-			}
-		} else if exists && old.Access != nil && old.Rules == nil {
-			x.Tables = old.Tables
-		}
-		if in.ApproveFirst != nil {
-			x.ApproveFirst = *in.ApproveFirst
-		} else if exists {
-			x.ApproveFirst = old.ApproveFirst
-		}
-		if x.HasChecked() {
-			if !s.deps.SpamCheckAvailable {
-				return ResourceResult{}, &Error{Code: "spam_check_unavailable", Message: "the comments preset (add checked) needs the spam check, which this server does not offer; use wall (people sign in to post) or inbox"}
-			}
-			if x.Kind == "files" {
-				return ResourceResult{}, &Error{Code: "invalid_access", Message: "checked (the comments preset) applies to kv and sqlite resources, not files; use wall for uploads"}
-			}
-		}
-		if x.ApproveFirst && !x.HasChecked() {
-			if in.ApproveFirst != nil {
-				return ResourceResult{}, &Error{Code: "invalid_access", Message: "approve_first holds posts added through the spam check, so it needs the comments preset (add checked) on this resource or one of its tables"}
-			}
-			x.ApproveFirst = false
-		}
-		if x.ApproveFirst && x.Kind != "sqlite" {
-			return ResourceResult{}, &Error{Code: "invalid_access", Message: "approve_first applies to sqlite resources only"}
-		}
-		x.Read, x.Write, x.WriteMode, ok = rules.OldFields(m)
-		if !ok {
-			x.Write, x.WriteMode = "owner", "add"
-		}
-		if x.Kind == "sqlite" {
-			// Every table gets the server-owned visitor_id column, so own works
-			// on any table later. Pages could write visitor_id freely on a legacy
-			// database that took visitor SQL; such rows cannot become "own".
-			usesOwn := m.UsesOwn()
-			for _, t := range x.Tables {
-				usesOwn = usesOwn || t.Matrix.UsesOwn()
-			}
-			pagesWroteSQL := exists && old.LegacyVisitorSQL() && old.Write != rules.WhoOwner
-			requireEmpty := usesOwn && pagesWroteSQL
-
-			// The first preset on a database pages wrote with SQL forgets every
-			// visitor_id a page could have forged, so no later own applies to it.
-			existing, err := s.prepareResourceMatrix(ctx, call, x, requireEmpty, pagesWroteSQL)
-			for table := range x.Tables {
-				if !existing[table] {
-					warnings = append(warnings, "table "+table+" does not exist yet; its preset applies once it is created")
-				}
-			}
-			if err != nil {
-				if e, ok := err.(*Error); ok {
-					return ResourceResult{}, e
-				}
-				if errors.Is(err, runtime.ErrSQLiteBusy) {
-					return ResourceResult{}, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
-				}
-				if errors.Is(err, sqlite3.FULL) {
-					return ResourceResult{}, &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
-				}
-				return ResourceResult{}, &Error{Code: "visitor_id_required", Message: "every table needs visitor_id TEXT, set by the server; a database pages could write with SQL must be empty before own applies"}
-			}
-		}
-	} // preset preparation
+	}
 	if !exists && x.Kind == "kv" {
 		if err := s.createKVSQLite(ctx, call, x.Name); err != nil {
 			var e *Error
@@ -282,10 +142,10 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	internal := &Error{Code: "internal_error", Message: "internal server error"}
 	// Before presets a visitor's overwrite in a full-mode KV or files
 	// resource recorded the overwriter, so a later own would hand them
-	// someone else's key. The first preset forgets those writers.
-	clearWriters := exists && old.Access == nil && old.WriteMode == "full" && old.Write != rules.WhoOwner
+	// someone else's key. The first rules forget those writers.
+	clearWriters := exists && x.Rules != nil && old.BeforePresets && old.WriteMode == "full" && old.Write != model.WhoOwner
 	// commitFile, when set, commits the same clearing in the namespace's
-	// SQLite file. It runs right before the Postgres commit, so a preset is
+	// SQLite file. It runs right before the Postgres commit, so a policy is
 	// never saved over writers that were not cleared.
 	save := func(commitFile func() error) error {
 		tx, err := s.db.BeginTx(ctx, nil)

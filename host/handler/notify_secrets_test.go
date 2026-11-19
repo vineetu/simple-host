@@ -28,7 +28,7 @@ func notificationKey(t *testing.T) *SiteHandler {
 	}
 	return h
 }
-func openedNotification(t *testing.T, s presetSite, id, stored string) string {
+func openedNotification(t *testing.T, s storageTestSite, id, stored string) string {
 	t.Helper()
 	plain, err := s.a.sites.passcode.openNotification(id, stored)
 	if err != nil {

@@ -5,6 +5,10 @@ const vm = require('node:vm');
 const context = vm.createContext({URL});
 vm.runInContext(fs.readFileSync('host/mcp/apps/my-sites.js', 'utf8'), context);
 const {renderEntry, node, badge, identifier} = context.SHSites;
+// Rule sets as storage_list_resources returns them.
+const OWNER = 'auth.role == "owner"';
+const INBOX = {version: 1, policies: [{name: 'add', command: 'add', check: 'true'}, {name: 'owner', command: 'all', using: OWNER}]};
+const PRIVATE = {version: 1, policies: [{name: 'read', command: 'read', using: OWNER}, {name: 'add', command: 'add', check: OWNER}, {name: 'edit', command: 'edit', using: OWNER}, {name: 'delete', command: 'delete', using: OWNER}]};
 // A DOM double rejects HTML parsing; tests exercise the production constructors.
 class Element {
   constructor(tag) { this.tag = tag; this.children = []; }
@@ -94,9 +98,9 @@ test('later tool errors and cancellations preserve the loaded list and dashboard
 test('dashboard normalizes own policies, discovers literal sqlite prefix, orders available columns, and isolates failures',async()=>{
  const m=mountSites(async(name,args)=>{
   if(name==='storage_list_resources')return {response:{resources:[
-   {kind:'sqlite',name:'broken-resource',preset:'inbox'},
-   {kind:'sqlite',name:'db',preset:'inbox',tables:{secrets:{preset:'private'}}},
-   {kind:'sqlite',name:'private-db',preset:'private',tables:{leads:{preset:'inbox'}}}
+   {kind:'sqlite',name:'broken-resource',rules:INBOX},
+   {kind:'sqlite',name:'db',rules:INBOX,tables:{secrets:{rules:PRIVATE}}},
+   {kind:'sqlite',name:'private-db',rules:PRIVATE,tables:{leads:{rules:INBOX}}}
   ]}};
   if(args.name==='broken-resource')throw Error('discovery failed');
   if(args.sql.includes('sqlite_master')){assert.match(args.sql,/NOT GLOB 'sqlite_\*'/);return {response:{columns:['name'],rows:args.name==='db'?[['Secrets'],['Broken'],['constructor'],['sqliteleads'],['Dates'],['Plain']]:[['Leads']]}};}
@@ -116,7 +120,7 @@ test('dashboard normalizes own policies, discovers literal sqlite prefix, orders
 test('dashboard SQL keeps the newest IDs when timestamps tie and supports missing columns',async()=>{
  for(const columns of [['created_at','id','name'],['created_at','name'],['id','name'],['name']]){
   const m=mountSites(async(name,args)=>{
-   if(name==='storage_list_resources')return {response:{resources:[{kind:'sqlite',name:'db',preset:'inbox'}]}};
+   if(name==='storage_list_resources')return {response:{resources:[{kind:'sqlite',name:'db',rules:INBOX}]}};
    if(args.sql.includes('sqlite_master'))return {response:{columns:['name'],rows:[['entries']]}};
    if(args.sql.endsWith('LIMIT 0'))return {response:{columns,rows:[]}};
    const order=columns.includes('created_at')?(columns.includes('id')?'created_at DESC, id DESC':'created_at DESC'):columns.includes('id')?'id DESC':'rowid DESC';
@@ -153,7 +157,7 @@ function hackFixture() {
    {slug:'judging',role:'judge'}, {slug:'spring',role:'participant'}]};
   if(name==='hack_get_event_website'){assert.equal(args.slug,'organised');return {has_custom_page:true,mode:'custom'};}
   if(name==='site_analytics')return {structuredContent:{totals:{person:{visitors:21}}},_meta:{'simple-host/daily':Array.from({length:7},(_,i)=>({day:'2026-10-'+(18+i),person:{visitors:i}}))}};
-  if(name.endsWith('storage_list_resources'))return {response:{resources:[{name:'inbox',kind:'sqlite',preset:'inbox'}]}};
+  if(name.endsWith('storage_list_resources'))return {response:{resources:[{name:'inbox',kind:'sqlite',rules:INBOX}]}};
   if(name.endsWith('storage_sql_query')) {
    if(args.sql.includes('sqlite_master'))return {response:{columns:['name'],rows:[['entries']]}};
    if(args.sql.endsWith('LIMIT 0'))return {response:{columns:['id','name','message','created_at'],rows:[]}};

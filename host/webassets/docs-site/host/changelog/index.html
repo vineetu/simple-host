@@ -573,6 +573,9 @@
 								<div class="sl-markdown-content"><h2 id="november-2026">November 2026</h2>
 <ul>
 <li>
+<p><strong>Nov 19:</strong> Storage uses rules only, for key-value, SQLite and files. Presets, the older read/write fields, <code>write_mode</code> and <code>approve_first</code> are removed and refused on every kind (<code>invalid_resource</code>); a resource with no stored rules, and a new one saved without rules, is owner-only. Pages can no longer send SQL to old databases. The <code>STORAGE_RULES</code> setting, the <code>migrate-rules</code> command and its conversion are removed, and save notifications no longer carry <code>preset</code>. Upload areas already moved onto rules answer as before (RL-D2).</p>
+</li>
+<li>
 <p><strong>Nov 19:</strong> File storage accepts rules in the same words as key-value rules: each file is a row with its <code>path</code> and <code>visitor_id</code> (who uploaded it). Upload areas without rules keep working as before, and existing ones are moved onto matching rules once at deploy; visitors see no change (FR-S1).</p>
 </li>
 <li>

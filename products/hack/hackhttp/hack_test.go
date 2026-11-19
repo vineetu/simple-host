@@ -252,46 +252,6 @@ func (a *hackApp) cleanupEvent(slug string) {
 	}
 }
 
-// mailbox captures sign-in codes and notices. Duplicated from
-// host/handler/account_email_test.go (cleanup 3.2 slice 3): no
-// handler-private dependency, used by hack_ink_browser_test.go and
-// hack_presets_browser_test.go.
-type mailbox struct {
-	mu      sync.Mutex
-	codes   map[string]string // address -> last sign-in code
-	notices []string          // "to|subject|text"
-}
-
-func (m *mailbox) SendSignInCode(to, code, _ string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.codes == nil {
-		m.codes = map[string]string{}
-	}
-	m.codes[to] = code
-	return nil
-}
-
-func (m *mailbox) SendNotice(to, subject, text string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.notices = append(m.notices, to+"|"+subject+"|"+text)
-	return nil
-}
-
-// to returns the notices sent to address.
-func (m *mailbox) to(address string) []string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var out []string
-	for _, n := range m.notices {
-		if strings.HasPrefix(n, address+"|") {
-			out = append(out, n)
-		}
-	}
-	return out
-}
-
 // tarGzOf is a gzipped tar holding index.html plus a file of n zero bytes:
 // a few KB on the wire, n bytes unpacked. Duplicated from
 // host/handler/sizeoverrides_test.go (cleanup 3.2 slice 3):

@@ -40,17 +40,6 @@ func hackSiteGetPageRecipe(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 	return tool
 }
 
-func hackSiteStorageSetResource(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
-	tool.Description = hackPhotoWording(strings.Replace(tool.Description, mcp.StorageOwnerSentence, hackTeamOwnerSentence, 1))
-	tool = mcp.WithoutSpamCheck(tool)
-	return tool
-}
-
-func hackSiteStorageSqlSchema(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
-	tool = mcp.WithoutSpamCheck(tool)
-	return tool
-}
-
 func hackSiteSetVisibility(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 	tool.Description = "Choose whether the team website appears on its account's public listing (public = listed, unlisted = not listed; new sites start unlisted). It does not affect search engines: every open site can be found by them. To keep it out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex. It does not make the site or any storage resource private."
 	return tool

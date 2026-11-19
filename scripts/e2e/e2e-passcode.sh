@@ -78,7 +78,7 @@ CUSTOM=trip-$(openssl rand -hex 3).example.org
 files="{\"files\":{\"index.html\":\"<h1>$CANARY</h1>\",\"app.js\":\"var c='$CANARY';\",\"data.json\":\"{\\\"c\\\":\\\"$CANARY\\\"}\",\"img.svg\":\"<svg xmlns='http://www.w3.org/2000/svg'><text>$CANARY</text></svg>\",\"days/index.html\":\"$CANARY\",\"404.html\":\"$CANARY\",\"sitemap.xml\":\"<urlset>$CANARY</urlset>\"}}"
 [ "$(code $DOMAIN /v1/sites/trip/files -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d "$files")" = 201 ] || fail "deploy"
 [ "$(code $DOMAIN /v1/sites/camp/files -H "X-API-Key: $KEY2" -H 'Content-Type: application/json' -d "$files")" = 201 ] || fail "deploy camp"
-req $DOMAIN /v1/sites/trip/storage/resources/notes -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{"kind":"kv","preset":"public"}' -o /dev/null
+req $DOMAIN /v1/sites/trip/storage/resources/notes -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{"kind":"kv","rules":{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"owner","command":"all","using":"auth.role == \"owner\""}]}}' -o /dev/null
 req $DOMAIN /v1/sites/trip/storage/kv/notes/keys/c -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d "{\"value\":\"$CANARY\"}" -o /dev/null
 
 lock() { req $DOMAIN "/v1/sites/$1/lock" -X PUT -H "X-API-Key: $2" -H 'Content-Type: application/json' -d "{\"passcode\":\"$3\"}" -w '%{http_code}' -o "$WORK/lock.json"; }

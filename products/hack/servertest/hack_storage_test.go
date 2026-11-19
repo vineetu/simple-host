@@ -2,6 +2,7 @@ package servertest
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -18,14 +19,11 @@ func TestHackStorageTeamAndEventScopes(t *testing.T) {
 	markReady(t, a.certDir, slug)
 	wantTS(t, "deploy team", a.deployTeam(t, team, key, "storage team"), 201, "")
 	base := "/v1/sites/" + team + "/storage"
-	resource := map[string]string{"kind": "kv", "read": "anyone", "write": "owner", "site_passcode": "inherit"}
-	for _, policy := range []map[string]string{
-		{"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"},
-		{"kind": "files", "read": "anyone", "write": "signed-in", "write_mode": "add"},
-	} {
-		// Older fields still work on Simple Hack, translated to a preset.
-		wantTS(t, "older fields", a.api(t, "PUT", base+"/resources/orders-"+policy["kind"], policy, key), 201, "")
-	}
+	resource := map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules), "site_passcode": "inherit"}
+	// The removed presets' older fields are refused on every kind.
+	wantTS(t, "older fields on files", a.api(t, "PUT", base+"/resources/orders-files", map[string]string{"kind": "files", "read": "anyone", "write": "signed-in", "write_mode": "add"}, key), 400, "invalid_resource")
+	wantTS(t, "older fields on sqlite", a.api(t, "PUT", base+"/resources/orders-sqlite", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"}, key), 400, "invalid_resource")
+	wantTS(t, "rules on sqlite", a.api(t, "PUT", base+"/resources/orders-sqlite", map[string]any{"kind": "sqlite", "rules": json.RawMessage(recordsRules)}, key), 201, "")
 	wantTS(t, "team create resource", a.api(t, "PUT", base+"/resources/prefs", resource, key), 201, "")
 	wantTS(t, "team write key", a.api(t, "PUT", base+"/kv/prefs/keys/theme", `{"value":"blue"}`, key), 200, "")
 	teamHost := team + "." + slug + "." + tsDomain

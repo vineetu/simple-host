@@ -1,6 +1,6 @@
 ---
 name: website-deploy
-description: Publish or update a site and its saved data on Simple Host (simple-host.app). Use when the person asks to put their files online, change an existing site, or configure forms and saved entries. Covers KV, SQLite, and files with row rules and file-bucket presets, visitor sign-in, domains, named viewers, versions, downloads, and visitor counts.
+description: Publish or update a site and its saved data on Simple Host (simple-host.app). Use when the person asks to put their files online, change an existing site, or configure forms and saved entries. Covers KV, SQLite, and files with row rules, visitor sign-in, domains, named viewers, versions, downloads, and visitor counts.
 ---
 
 <!-- Derived from simple-host-website/skills/website-deploy/SKILL.md and host/mcp/instructions.go. Keep in step. -->
@@ -112,7 +112,7 @@ the page that uses them. Then the page:
 |---|---|
 | Every tool by job, versions and previews, rollback, rename, offline, delete and restore, exports, visitor numbers | `references/operations.md` |
 | Publishing and changing a site in full, what is public, the two sign-ins, design guidance | `references/publishing.md` |
-| Row rules, per-table sets, file-bucket presets, the page helper, each person's records | `references/storage.md` |
+| Row rules, per-table sets, file rules, the page helper, each person's records | `references/storage.md` |
 | Home page, showcase and bio | `references/home-page.md` |
 | File, site, account and storage limits, keeping files small | `references/limits.md` |
 | Framework builds (Vite, Next.js, Astro) or a local folder | `references/frameworks-and-files.md` |

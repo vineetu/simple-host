@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/host/model"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
@@ -66,15 +67,17 @@ func readList(t *testing.T, s *Service, c Call, table string, q url.Values) Tabl
 }
 
 func TestRulesReadHiddenPagingAndFilters(t *testing.T) {
-	for _, converted := range []bool{false, true} {
-		t.Run(fmt.Sprint(converted), func(t *testing.T) {
+	for _, full := range []bool{false, true} {
+		t.Run(fmt.Sprint(full), func(t *testing.T) {
 			set := readSet(`visitor_id == auth.id || auth.role == "owner"`)
-			if converted {
-				conv := ruleengine.Convert(ruleengine.ConvertInput{Kind: "sqlite", Default: ruleengine.Matrix{Read: "own", Add: "signed-in", Edit: "own", Delete: "own"}})
-				if len(conv.Manual) != 0 {
-					t.Fatalf("personal preset conversion needs manual decisions: %v", conv.Manual)
-				}
-				raw := json.RawMessage(ruleengine.EncodeSet(conv.Default))
+			if full {
+				// The full personal-style set: own read, edit and delete, signed-in add.
+				raw := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
+					{Name: "read", Command: ruleengine.CmdRead, Using: `visitor_id == auth.id || auth.role == "owner"`},
+					{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.signed_in`},
+					{Name: "edit", Command: ruleengine.CmdEdit, Using: `visitor_id == auth.id || auth.role == "owner"`},
+					{Name: "delete", Command: ruleengine.CmdDelete, Using: `visitor_id == auth.id || auth.role == "owner"`},
+				}}))
 				set = &raw
 			}
 			s, c, _ := readFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT, visitor_id TEXT);`, set)
@@ -101,8 +104,6 @@ func TestRulesReadHiddenPagingAndFilters(t *testing.T) {
 			if len(out.Body["rows"].([][]any)) != 0 || out.Body["next_after"] != "" {
 				t.Fatal(out.Body)
 			}
-			// Saved rules remain enforced with the accepting-saves flag off.
-			s.deps.RulesEnabled = false
 			readGet(t, s, c, "entries", 1, "row_not_found")
 		})
 	}
@@ -241,12 +242,12 @@ func TestRulesReadOwnerRecheck(t *testing.T) {
 }
 
 func TestRulesReadInvalidAndOwnerRepair(t *testing.T) {
-	for _, broken := range []string{"fill", "column", "binding"} {
+	for _, broken := range []string{"table", "column", "binding"} {
 		t.Run(broken, func(t *testing.T) {
 			s, c, in := readFixture(t, `CREATE TABLE entries(body TEXT, other TEXT); INSERT INTO entries VALUES('ok','kept');`, readSet(`body == "ok"`))
 			switch broken {
-			case "fill":
-				c.Resource.PresetBase = "private"
+			case "table":
+				c.Resource.Tables = map[string]model.TableRule{"entries": {}}
 			case "column":
 				execReadFixture(t, s, `ALTER TABLE entries DROP COLUMN body;`)
 			case "binding":

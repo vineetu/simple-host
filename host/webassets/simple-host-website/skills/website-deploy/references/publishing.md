@@ -37,7 +37,7 @@ Use the signed-in Simple Host connector when available. If it is disconnected, a
 
 Website Deploy hosts static websites on simple-host.app. There is no server-side
 application execution. New Simple Host sites can add owner-declared JSON KV,
-SQLite resources with row rules, and file resources with access presets;
+SQLite and file resources, each with row rules;
 the page calls them through the hosted REST API.
 KV and SQLite share 10,000,000 bytes; files have a separate 10 MB allowance per website;
 check owner storage usage before large writes. For upload pages, compress phone
@@ -138,7 +138,7 @@ Typical combinations:
 - **Framework project:** frameworks → packaging and
   validation.
 - **New Simple Host site where visitors save something:** choose KV, SQLite or
-  files, define SQLite/KV row rules or a file-bucket preset, then read `references/storage.md`
+  files, define row rules, then read `references/storage.md`
   before writing the page.
 
 ## Two ways to deploy

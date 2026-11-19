@@ -2123,13 +2123,19 @@ function parseAnalyticsSummary(data) {
       } catch (e) { /* the old rows stay */ }
     }
 
-    // Read reach of a storage preset, narrowest first. custom/legacy: unknown.
-    function storageReadReach(preset) {
-      if (preset === 'private' || preset === 'inbox') return 0;
-      if (preset === 'records' || preset === 'personal') return 1;
-      if (preset === 'board') return 2;
-      if (preset === 'public' || preset === 'wall' || preset === 'comments') return 3;
-      return -1;
+    // Read reach of a rule set, narrowest first: 3 when a read policy lets
+    // anyone read, 2 signed-in visitors, 0 otherwise; -1 (unknown) when a
+    // restrictive read policy may narrow it.
+    function storageReadReach(rules) {
+      var reach = 0;
+      ((rules && rules.policies) || []).forEach(function(p) {
+        if (p.command !== 'read' && p.command !== 'all') return;
+        if (p.restrictive) { reach = -1; return; }
+        var using = String(p.using || '').trim();
+        if (reach >= 0 && using === 'true') reach = 3;
+        else if (reach >= 0 && reach < 2 && using === 'auth.signed_in') reach = 2;
+      });
+      return reach;
     }
     async function openStorage(name, moveFocus) {
       var panel = rowPanel(name, 'storage');
@@ -2141,22 +2147,6 @@ function parseAnalyticsSummary(data) {
         if (!answers[0].ok || !answers[1].ok) throw new Error('Could not load storage');
         var resources = (await answers[0].json()).resources, usage = await answers[1].json();
         function bytes(n) { return (Number(n) / 1000000).toLocaleString(undefined, {maximumFractionDigits: 3}) + ' MB'; }
-        // The access presets (read / add / edit / delete), as the server defines them.
-        var presets = {
-          'private': 'Private: only you (the default)',
-          'public': 'Public content: everyone reads, only you change it',
-          'inbox': 'Inbox: anyone sends, only you read',
-          'wall': 'Wall: everyone reads, signed-in people post and remove their own',
-          'records': 'Each person\u2019s records: people add and see only their own, you see all',
-          'personal': 'Personal data: each person reads, changes and deletes only their own',
-          'board': 'Shared board: signed-in people read, add and change, only you delete'
-        };
-        // Only where this server runs the spam check (TURNSTILE_SITE_KEY).
-        if (SHOWCASE.spamCheck) presets = Object.assign({}, {
-          'private': presets['private'], 'public': presets['public'], 'inbox': presets.inbox, 'wall': presets.wall,
-          'comments': 'Comments: everyone reads, anyone posts after a spam check, only you change or remove posts'
-        }, presets);
-        function matrixText(a) { return a ? 'read ' + a.read + ', add ' + a.add + ', edit ' + a.edit + ', delete ' + a.delete : ''; }
         function options(choices, value) { return Object.keys(choices).map(function(k) { return '<option value="' + escAttr(k) + '"' + (k === value ? ' selected' : '') + '>' + esc(choices[k]) + '</option>'; }).join(''); }
         var kinds = {kv: 'Key-value data', sqlite: 'Tables', files: 'Files'};
         panel.innerHTML = '<div class="panel-head"><h3>Storage</h3>' +
@@ -2164,21 +2154,16 @@ function parseAnalyticsSummary(data) {
           '<p class="panel-note">Saved data: ' + bytes(usage.used_bytes) + ' of ' + bytes(usage.limit_bytes) +
           ' · Files: ' + bytes(usage.files_used_bytes) + ' of ' + bytes(usage.files_limit_bytes) + '</p>' +
           '<p class="panel-note">Each one sets who can see and save its data. The server enforces it on every request from the site&#39;s pages.</p>' +
-          '<details class="panel-more"><summary>What do these mean?</summary><p>Shrink photos to about 1600 px WebP. You can read and manage everything. Signed in on the site itself with this account&#39;s email, your own pages can too (saved data only).</p><p><b>Each person&#39;s records:</b> people add records and see only their own status and history; you see and update all. Use the records preset, a status column and linked change rows.</p><p>Examples: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with &ldquo;my place in line&rdquo;.</p></details><div class="st-cards" data-storage-forms></div>' +
+          '<details class="panel-more"><summary>What do these mean?</summary><p>Shrink photos to about 1600 px WebP. You can read and manage everything. Signed in on the site itself with this account&#39;s email, your own pages can too (saved data only).</p><p><b>Each person&#39;s records:</b> people add records and see only their own status and history; you see and update all. Use the records recipe: a status column and linked change rows.</p><p>Examples: shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with &ldquo;my place in line&rdquo;.</p></details><div class="st-cards" data-storage-forms></div>' +
           (resources.length ? '<div class="panel-btns"><button type="button" class="btn-small btn-secondary" data-add-storage aria-expanded="false">Add storage</button></div>' : '');
         if (moveFocus) focusPanelHeading(panel);
         var box = panel.querySelector('[data-storage-forms]');
         var addBtn = panel.querySelector('[data-add-storage]');
-        resources.concat([{name: '', kind: 'sqlite', preset: 'private', site_passcode: 'inherit'}]).forEach(function(resource, i) {
+        resources.concat([{name: '', kind: 'sqlite', site_passcode: 'inherit'}]).forEach(function(resource, i) {
           var form = document.createElement('form'), id = 'storage-' + name + '-' + i;
-          var hasRules = resource.kind !== 'files' && resource.rules != null;
-          var choices = Object.assign({}, presets), current = resource.preset || 'private';
-          if (current === 'custom') choices = Object.assign({keep: 'Keep the custom rules (' + matrixText(resource.access) + ')'}, presets);
-          if (current === 'legacy') choices = Object.assign({keep: 'Saved before presets: keep its old rules (' + matrixText(resource.access) + ')'}, presets);
-          if (current === 'custom' || current === 'legacy') current = 'keep';
-          if (current === 'comments' && !choices.comments) choices = Object.assign({comments: 'Comments: everyone reads, anyone posts after a spam check'}, choices);
+          // Every saved resource is governed by its rules.
+          var hasRules = !!resource.name;
           var tables = resource.tables ? Object.keys(resource.tables) : [];
-          var tableNote = tables.length ? '<p class="panel-hint">Tables with their own preset: ' + tables.map(function(t) { return esc(t) + ' (' + esc(resource.tables[t].preset) + ')'; }).join(', ') + '. Saving here keeps them.</p>' : '';
           form.className = 'st-card';
           // An existing resource keeps its name and kind (the heading shows
           // them); a new one picks both.
@@ -2189,8 +2174,7 @@ function parseAnalyticsSummary(data) {
               '<div class="panel-field"><label for="' + id + '-name">Name</label><input type="text" id="' + id + '-name" name="resource" value="" required pattern="[a-z][a-z0-9_-]{0,63}" autocomplete="off" spellcheck="false" aria-describedby="' + id + '-name-hint"><span class="panel-hint" id="' + id + '-name-hint">Lowercase letters, numbers, - and _</span></div>' +
               '<div class="panel-field"><label for="' + id + '-kind">Storage</label><select id="' + id + '-kind" name="kind">' + options(kinds, resource.kind) + '</select></div>') +
             (hasRules ? '<p class="panel-note">Rules' + (resource.rules_status === 'invalid' ? ' · needs repair' : '') + '</p><div data-rule-editors></div>' :
-            '<div class="panel-field"><label for="' + id + '-preset">Who can do what?</label><select id="' + id + '-preset" name="preset">' + options(choices, current) + '</select>' + tableNote + '</div>') +
-            (!hasRules && SHOWCASE.spamCheck ? '<label class="panel-check" data-approve><input type="checkbox" name="approve" value="1"' + (resource.approve_first ? ' checked' : '') + '> Hold new posts until you approve them (Tables only; approve from your AI app, e.g. &ldquo;approve post 12&rdquo;)</label>' : '') +
+            '<p class="panel-hint">Only you can read and change it at first. Change who can do what with rules after saving, or ask your AI app.</p>') +
             '<div class="panel-field"><label for="' + id + '-pass">Site passcode</label><select id="' + id + '-pass" name="passcode">' + options({inherit:'Use the site passcode', off:'Skip the passcode (public resources stay accessible)'}, resource.site_passcode) + '</select></div>' +
             '<div class="panel-btns"><button type="submit" class="btn-small btn-primary" aria-label="' + (resource.name ? 'Save ' + escAttr(resource.name) : 'Save new storage') + '">Save</button>' +
             (resource.name || !resources.length ? '' : '<button type="button" class="btn-small btn-ghost" data-add-cancel>Cancel</button>') +
@@ -2294,14 +2278,9 @@ function parseAnalyticsSummary(data) {
               form.elements.resource.focus();
             });
             form.querySelector('[data-add-cancel]').addEventListener('click', function() {
-              form.reset(); syncApprove(); form.hidden = true; addBtn.hidden = false; addBtn.setAttribute('aria-expanded', 'false'); addBtn.focus();
+              form.reset(); form.hidden = true; addBtn.hidden = false; addBtn.setAttribute('aria-expanded', 'false'); addBtn.focus();
             });
           }
-          var approveRow = form.querySelector('[data-approve]');
-          function syncApprove() { if (approveRow) approveRow.style.display = (form.elements.preset.value === 'comments' && form.elements.kind.value === 'sqlite') ? '' : 'none'; }
-          if (form.elements.preset) form.elements.preset.addEventListener('change', syncApprove);
-          form.elements.kind.addEventListener('change', syncApprove);
-          syncApprove();
           form.addEventListener('submit', async function(e) {
             e.preventDefault();
             var message = form.querySelector('.panel-btns [aria-live]'), button = form.querySelector('button[type="submit"]');
@@ -2327,30 +2306,16 @@ function parseAnalyticsSummary(data) {
                 editing.error.textContent = err.message; editing.error.hidden = false;
                 editing.textarea.setAttribute('aria-invalid', 'true'); editing.textarea.focus(); return;
               }
-            } else {
-              body.preset = form.elements.preset.value;
-              if (body.preset === 'keep') {
-                if (resource.preset === 'legacy') { message.textContent = 'Pick a preset to change this resource; its old rules stay until you do.'; return; }
-                body.preset = 'custom'; body.read = resource.access.read; body.add = resource.access.add; body.edit = resource.access.edit; body.delete = resource.access.delete;
-              }
-              // approve_first goes with the comments preset on Tables; leaving
-              // the preset turns it off (the server refuses it without one),
-              // unless a table keeps its own comments preset.
-              var tableComments = tables.some(function(t) { return resource.tables[t].preset === 'comments'; });
-              if (body.kind === 'sqlite' && body.preset === 'comments' && form.elements.approve) body.approve_first = form.elements.approve.checked;
-              else if (resource.approve_first && body.preset !== 'custom' && !tableComments) body.approve_first = false;
-              if (resource.name && body.preset !== 'keep' && body.preset !== 'custom') {
-                var oldReach = storageReadReach(resource.preset || 'private');
-                var newReach = storageReadReach(body.preset);
-                if (oldReach >= 0 && newReach > oldReach && newReach >= 2) {
-                  var openTitle = newReach >= 3
-                    ? 'Open "' + resource.name + '" to everyone?'
-                    : 'Open "' + resource.name + '" to signed-in people?';
-                  var openBody = newReach >= 3
-                    ? 'Anyone will be able to read everything already saved here, not just new entries.'
-                    : 'Anyone who signs in on this site will be able to read everything already saved here, not just new entries.';
-                  if (!(await shConfirm({ title: openTitle, body: openBody, confirmLabel: 'Open it up', danger: true }))) return;
-                }
+              // Confirm before opening what is already saved to more people.
+              var oldReach = storageReadReach(resource.rules), newReach = storageReadReach(body.rules);
+              if (oldReach >= 0 && newReach > oldReach && newReach >= 2) {
+                var openTitle = newReach >= 3
+                  ? 'Open "' + resource.name + '" to everyone?'
+                  : 'Open "' + resource.name + '" to signed-in people?';
+                var openBody = newReach >= 3
+                  ? 'Anyone will be able to read everything already saved here, not just new entries.'
+                  : 'Anyone who signs in on this site will be able to read everything already saved here, not just new entries.';
+                if (!(await shConfirm({ title: openTitle, body: openBody, confirmLabel: 'Open it up', danger: true }))) return;
               }
             }
             button.disabled = true;

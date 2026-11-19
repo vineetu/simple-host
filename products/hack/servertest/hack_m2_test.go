@@ -3,6 +3,7 @@ package servertest
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"hash/crc32"
 	"net/http"
 	"net/url"
@@ -72,7 +73,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	wantTS(t, "alpha key on beta", a.deployTeam(t, beta, k1, "pwn"), 403, "team_site_only")
 	wantTS(t, "alpha key rollback beta", a.api(t, "PUT", "/v1/sites/"+beta+"/active-version", map[string]int{"version_number": 1}, k1), 403, "team_site_only")
 	wantTS(t, "alpha key preview beta", a.api(t, "POST", "/v1/sites/"+beta+"/versions/1/preview-link", nil, k1), 403, "team_site_only")
-	wantTS(t, "alpha key beta kind", a.api(t, "PUT", "/v1/sites/"+beta+"/storage/resources/votes", map[string]string{"kind": "kv", "read": "anyone", "write": "owner"}, k1), 403, "team_site_only")
+	wantTS(t, "alpha key beta kind", a.api(t, "PUT", "/v1/sites/"+beta+"/storage/resources/votes", map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, k1), 403, "team_site_only")
 	// On beta's own host, alpha's key naming alpha resolves nothing there.
 	if r := a.on(t, "GET", betaHost, "/v1/sites/"+beta+"/data", nil, k1); r.status/100 == 2 {
 		t.Fatalf("alpha key on beta host: %d %s", r.status, r.body)
@@ -104,7 +105,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 		wantTS(t, c.m+" "+c.p, a.api(t, c.m, c.p, map[string]any{}, k1), 403, "team_key_scope")
 	}
 	// Declaring an owner-only KV resource on its own site is allowed.
-	if r := a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]string{"kind": "kv", "read": "owner", "write": "owner"}, k1); r.status/100 != 2 {
+	if r := a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, k1); r.status/100 != 2 {
 		t.Fatalf("declare kind: %d %s", r.status, r.body)
 	}
 	// A team key cannot connect an app (consent resolves people only).
@@ -119,7 +120,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	}
 	wantTS(t, "deploy after deadline", a.deployTeam(t, alpha, k1, "late"), 409, "submissions_closed")
 	wantTS(t, "rollback after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/active-version", map[string]int{"version_number": 1}, k1), 409, "submissions_closed")
-	wantTS(t, "data write after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]string{"kind": "kv", "read": "owner", "write": "owner"}, k1), 409, "submissions_closed")
+	wantTS(t, "data write after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, k1), 409, "submissions_closed")
 	// Preview links still work (read-only).
 	if r := a.api(t, "POST", "/v1/sites/"+alpha+"/versions/2/preview-link", nil, k1); r.status != 200 {
 		t.Fatalf("preview after deadline: %d %s", r.status, r.body)

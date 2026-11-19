@@ -93,7 +93,6 @@ func BenchmarkSiteSlots(b *testing.B) {
 	deps.SiteSlots = NewSiteSlots(1, gate, 250*time.Millisecond)
 	services := make([]*Service, 1000)
 	calls := make([]Call, 1000)
-	matrix, _ := rules.PresetMatrix("wall")
 	for i := range services {
 		dir := filepath.Join(root, fmt.Sprint(i))
 		path := filepath.Join(dir, "sqlite", "data.sqlite")
@@ -106,7 +105,7 @@ func BenchmarkSiteSlots(b *testing.B) {
 		d := deps
 		d.SQLitePath = path
 		services[i] = New(db, d)
-		calls[i] = Call{Owner: true, SiteID: fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1), OwnerID: "bench-owner", SiteName: fmt.Sprint(i), ResourceName: "data", RuntimeDir: dir, Resource: rules.Resource{Name: "data", Access: &matrix}}
+		calls[i] = Call{Owner: true, SiteID: fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1), OwnerID: "bench-owner", SiteName: fmt.Sprint(i), ResourceName: "data", RuntimeDir: dir, Resource: rules.Resource{Name: "data", Kind: "sqlite"}}
 	}
 	var mu sync.Mutex
 	var openCaps, peakCaps int64

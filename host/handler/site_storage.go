@@ -19,25 +19,9 @@ import (
 
 var storageNameRE = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)
 
-// storageResource is one KV namespace, SQLite database or file bucket. Read,
-// Write and WriteMode are the older fields; Access
-// is the preset matrix, nil on a resource saved before presets (legacy
-// rules, storageLegacyMatrix). Tables are SQLite per-table matrices.
-type storageResource struct {
-	Rules, ConvertedFrom json.RawMessage
-	Name                 string
-	Kind                 string
-	Read                 string
-	Write                string
-	SitePasscode         string
-	WriteMode            string
-	Access               *storageAccessMatrix
-	PresetBase           string
-	Tables               map[string]storageTableRule
-	// ApproveFirst: SQLite posts added through the spam check (add
-	// checked) stay hidden from visitors until the owner approves them.
-	ApproveFirst bool
-}
+// storageResource is one KV namespace, SQLite database or file bucket; its
+// rules govern it (model.Resource.EffectiveRules).
+type storageResource = model.Resource
 
 type storageCall struct {
 	siteID, ownerID, siteName, resourceName string
@@ -52,10 +36,6 @@ type storageCall struct {
 	// (storageOwnerOnSite); owner rights for storage data only.
 	ownerOnSite   bool
 	activeChecked bool
-	currentMatrix storageAccessMatrix
-	// filter: "" or the visitor id every entry must carry for the action
-	// storageAccess allowed (own).
-	filter string
 	// spamCheck: the spam check's outcome for this request ("" none sent,
 	// "ok", or a refusal code); checkedPost: the add was allowed by it, so
 	// the post limits apply (turnstile.go).
@@ -266,7 +246,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	}
 	entries := make([]map[string]any, 0, len(out))
 	for _, item := range out {
-		entries = append(entries, storageResourceRulesJSON(fromRulesResource(item.Resource), item.RulesErrors))
+		entries = append(entries, storageResourceRulesJSON(item.Resource, item.RulesErrors))
 	}
 	writeJSON(w, 200, map[string]any{"resources": entries})
 }
@@ -282,14 +262,10 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var req struct {
-		Kind string `json:"kind"`
-		model.AccessRequest
+		Kind         string                      `json:"kind"`
 		Rules        *json.RawMessage            `json:"rules"`
-		Write        string                      `json:"write"`
-		WriteMode    string                      `json:"write_mode"`
 		SitePasscode string                      `json:"site_passcode"`
 		Tables       *map[string]json.RawMessage `json:"tables"`
-		ApproveFirst *bool                       `json:"approve_first"`
 	}
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 256<<10))
 	var tooLarge *http.MaxBytesError
@@ -308,35 +284,30 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 		mapped := map[string]appstorage.ResourceTableInput{}
 		for name, raw := range *req.Tables {
 			var table struct {
-				model.AccessRequest
 				Rules *json.RawMessage `json:"rules"`
 			}
 			if json.Unmarshal(raw, &table) != nil {
 				storageError(w, 400, "invalid_request", "invalid JSON body")
 				return
 			}
-			mapped[name] = appstorage.ResourceTableInput{AccessRequest: table.AccessRequest, Rules: table.Rules, PresetFieldsPresent: storagePresetFieldsPresent(raw)}
+			mapped[name] = appstorage.ResourceTableInput{Rules: table.Rules, PresetFieldsPresent: storagePresetFieldsPresent(raw)}
 		}
 		tables = &mapped
 	}
 	result, err := h.storageRequestSvc(r, c).PutStorageResource(r.Context(), appstorage.ResourceInput{
 		Call: call, Rules: req.Rules, PresetFieldsPresent: storagePresetFieldsPresent(data),
-		Name: name, Kind: req.Kind, AccessRequest: req.AccessRequest, Write: req.Write, WriteMode: req.WriteMode, SitePasscode: req.SitePasscode, Tables: tables, ApproveFirst: req.ApproveFirst,
+		Name: name, Kind: req.Kind, SitePasscode: req.SitePasscode, Tables: tables,
 	})
 	if err != nil {
 		e := err.(*appstorage.Error)
-		if e.Rule != "" {
-			storageAccessError(w, e.Rule, e.Message)
-			return
-		}
 		switch e.Code {
-		case "invalid_rules", "rules_unavailable":
+		case "invalid_rules":
 			writeStorageRulesError(w, e)
 		case "storage_busy":
 			storageBusy(w)
 		case "forbidden":
 			storageError(w, 403, e.Code, e.Message)
-		case "resource_kind_conflict", "tables_present":
+		case "resource_kind_conflict":
 			storageError(w, 409, e.Code, e.Message)
 		case "site_full":
 			storageError(w, 507, e.Code, e.Message)
@@ -353,14 +324,15 @@ func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request)
 	if result.Created {
 		status = 201
 	}
-	body := storageResourceRulesJSON(fromRulesResource(result.Resource), result.RulesErrors)
+	body := storageResourceRulesJSON(result.Resource, result.RulesErrors)
 	if len(result.Warnings) > 0 {
 		body["warnings"] = result.Warnings
 	}
 	writeJSON(w, status, body)
 }
 
-// Explicit empty or null preset fields still conflict with supplied rules.
+// storagePresetFieldsPresent: the body names a field of the removed presets,
+// even empty or null, which is refused (invalid_resource).
 func storagePresetFieldsPresent(data []byte) bool {
 	var fields map[string]json.RawMessage
 	_ = json.Unmarshal(data, &fields)
@@ -378,29 +350,9 @@ func writeStorageRulesError(w http.ResponseWriter, e *appstorage.Error) {
 	writeJSON(w, 400, errorResponse{Error: e.Message, Code: e.Code, RuleError: e.RuleError, RulesErrors: e.RulesErrors})
 }
 
-// storageAccessError refuses a matrix that breaks a rule (R1 to R4) or names
-// an unknown value.
-func storageAccessError(w http.ResponseWriter, rule, hint string) {
-	code := "invalid_access"
-	if rule == "invalid_value" || rule == "invalid_preset" {
-		code = "invalid_resource"
-	}
-	writeJSON(w, 400, map[string]any{"error": hint, "code": code, "rule": rule})
-}
-
 func (h *SiteHandler) listStorageResourceRows(ctx context.Context, siteID string) ([]storageResource, error) {
-	resources, err := h.storageSvc().ListResourceRecords(ctx, appstorage.ResourceListInput{SiteID: siteID})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]storageResource, 0, len(resources))
-	for _, resource := range resources {
-		out = append(out, fromRulesResource(resource))
-	}
-	return out, nil
+	return h.storageSvc().ListResourceRecords(ctx, appstorage.ResourceListInput{SiteID: siteID})
 }
-
-func validStoragePolicy(p string) bool { return p == "anyone" || p == "signed-in" || p == "owner" }
 
 func storageLimitBytes(raw string, fallback, max int64) int64 {
 	return appstorage.LimitBytes(raw, fallback, max)

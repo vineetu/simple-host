@@ -158,7 +158,7 @@ func TestCreateSpecificFirstRequest(t *testing.T) {
 			if r := p.at(t, "GET", pcSiteDomain, "/sitemap.xml", nil, nil); strings.Contains(string(r.body), host) {
 				t.Fatal("private site in sitemap")
 			}
-			if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/"+tc.name+"/storage/resources/menu", map[string]any{"kind": "kv", "read": "anyone", "write": "owner"}, p.okey); r.status/100 != 2 {
+			if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/"+tc.name+"/storage/resources/menu", storageRules("kv", rulesPublic), p.okey); r.status/100 != 2 {
 				t.Fatalf("resource %d %s", r.status, r.body)
 			}
 			if r := p.at(t, "GET", host, "/v1/sites/"+tc.name+"/storage/kv/menu/keys/today", nil, browser(host, "")); r.status != 403 {

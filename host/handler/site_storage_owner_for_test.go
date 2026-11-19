@@ -29,7 +29,7 @@ func colIndex(cols []any, name string) int {
 	return -1
 }
 
-func aliceEmailOf(t *testing.T, s presetSite) string {
+func aliceEmailOf(t *testing.T, s storageTestSite) string {
 	t.Helper()
 	var email string
 	if err := s.a.database.QueryRow(`SELECT username FROM users WHERE id = $1`, s.aliceID).Scan(&email); err != nil {
@@ -39,7 +39,7 @@ func aliceEmailOf(t *testing.T, s presetSite) string {
 }
 
 func TestStorageOwnerAddsForVisitor(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	aliceEmail := aliceEmailOf(t, s)
 	// carol has an account but has never signed in on this site: no
 	// visitor identity here yet (no pre-sign-in email binding).
@@ -52,7 +52,7 @@ func TestStorageOwnerAddsForVisitor(t *testing.T) {
 	// table (read anyone) must refuse it before it ever touches schema or
 	// data, so a row cannot be planted there, publicly readable and shown
 	// to the named visitor as mine.
-	s.must(t, "PUT", "/resources/board", map[string]string{"kind": "sqlite", "preset": "wall"}, s.key, 201)
+	s.must(t, "PUT", "/resources/board", storageRules("sqlite", rulesWall), s.key, 201)
 	s.must(t, "POST", "/sqlite/board/schema", map[string]string{"sql": "CREATE TABLE posts (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	if r := s.must(t, "POST", "/sqlite/board/tables/posts/rows?for="+s.aliceID, map[string]string{"note": "planted"}, s.key, 403); r.json(t)["code"] != "for_requires_own" {
 		t.Fatalf("for on a wall table: %s", r.body)
@@ -64,7 +64,7 @@ func TestStorageOwnerAddsForVisitor(t *testing.T) {
 
 	for _, preset := range []string{"records", "personal"} {
 		name := "coach-" + preset
-		s.must(t, "PUT", "/resources/"+name, map[string]string{"kind": "sqlite", "preset": preset}, s.key, 201)
+		s.must(t, "PUT", "/resources/"+name, storageRules("sqlite", map[string]string{"records": rulesRecords, "personal": rulesPersonal}[preset]), s.key, 201)
 		s.must(t, "POST", "/sqlite/"+name+"/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT, created_at TEXT)"}, s.key, 200)
 		rows := "/sqlite/" + name + "/tables/entries/rows"
 
@@ -149,7 +149,7 @@ func TestStorageOwnerAddsForVisitor(t *testing.T) {
 func TestStorageOwnerForDoesNotNotify(t *testing.T) {
 	s, x := notificationFixture(t)
 	subscribeNotification(t, s, x)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
@@ -187,7 +187,7 @@ func TestStorageOwnerForDoesNotNotify(t *testing.T) {
 }
 
 func TestStoragePeoplePickList(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	// carol signs in on the site (has an identity) but saves nothing and is
 	// not a named viewer: the privacy rule excludes her from the list.
 	carol := s.a.newPerson(t, "preset-carol")
@@ -203,7 +203,7 @@ func TestStoragePeoplePickList(t *testing.T) {
 
 	// alice gets saved data (the row_write test above exercises the write
 	// path; here a direct add is enough).
-	s.must(t, "PUT", "/resources/notes", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/notes", storageRules("sqlite", rulesPersonal), s.key, 201)
 	s.must(t, "POST", "/sqlite/notes/schema", map[string]string{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/notes/tables/entries/rows", map[string]string{"note": "hi"}, s.callers["alice"], 200)
 
@@ -257,9 +257,9 @@ func TestStorageOwnerForGroupRefused(t *testing.T) {
 	// site, to deploy at all) and switched to the Hack edition afterward —
 	// the same trick hack_flat_hosts_test.go uses — so only the for/people
 	// gate's own h.ed.Storage().EventOwners check is exercised.
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	s.a.sites.ed = groupTestEdition()
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	if r := s.must(t, "POST", "/sqlite/orders/tables/entries/rows?for="+s.aliceID, map[string]string{"note": "nope"}, s.key, 404); r.json(t)["code"] != "for_not_available" {
 		t.Fatalf("for on Simple Hack: %s", r.body)
@@ -276,8 +276,8 @@ func TestStorageOwnerForGroupRefused(t *testing.T) {
 // still set visitor_id directly, documented, left as is) must not be able
 // to forge written_by. Review fix item 9.
 func TestStorageOwnerForRawSQLWrittenByBlocked(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	// written_by is server-owned (never declared, the same as visitor_id);
 	// the schema route refuses even naming it, whether or not it exists.
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
@@ -305,12 +305,12 @@ func TestStorageOwnerForRawSQLWrittenByBlocked(t *testing.T) {
 // that id's email on the strength of a table's own content: only an id the
 // server itself recorded as signed in on this site. Review fix item 3.
 func TestStoragePeopleExcludesForgedVisitorID(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	// carol has a real account but has never signed in on this site.
 	carol := s.a.newPerson(t, "preset-carol")
 	carolID, _ := s.a.userID(t, carol)
 
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	// The owner's raw SQL plants carol's real account id as visitor_id,
 	// without her ever having signed in here.
@@ -331,7 +331,7 @@ func TestStoragePeopleExcludesForgedVisitorID(t *testing.T) {
 // username or OAuth-identity row match alone, and never a guess among more
 // than one match. Review fix item 2.
 func TestStorageOwnerForAmbiguousEmail(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	aliceEmail := aliceEmailOf(t, s)
 
 	// carol's own username does not look like an email, so her canonical
@@ -353,7 +353,7 @@ func TestStorageOwnerForAmbiguousEmail(t *testing.T) {
 	}
 	s.a.session(t, person{email: username, key: key}, s.sid, s.host)
 
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	if r := s.must(t, "POST", "/sqlite/orders/tables/entries/rows?for="+url.QueryEscape(aliceEmail), map[string]string{"note": "ambiguous"}, s.key, 400); r.json(t)["code"] != "visitor_email_ambiguous" {
 		t.Fatalf("ambiguous email: %s", r.body)
@@ -371,8 +371,8 @@ func TestStorageOwnerForAmbiguousEmail(t *testing.T) {
 // cannot itself observe what a trigger does), the insert is verified and
 // rolled back rather than committed.
 func TestStorageOwnerForTriggerTamperRolledBack(t *testing.T) {
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "records"}, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 
 	// The schema route itself refuses a trigger naming written_by,

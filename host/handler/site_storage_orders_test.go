@@ -27,7 +27,7 @@ func TestStorageOrderChangeReferences(t *testing.T) {
 		}
 		return r
 	}
-	check("PUT", pcSiteDomain, "/resources/orders", map[string]string{"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"}, key, 201)
+	check("PUT", pcSiteDomain, "/resources/orders", storageRules("sqlite", rulesRecords), key, 201)
 	schema := func(sql string) {
 		t.Helper()
 		check("POST", pcSiteDomain, "/sqlite/orders/schema", map[string]string{"sql": sql}, key, 200)

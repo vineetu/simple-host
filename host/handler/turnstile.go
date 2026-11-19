@@ -18,9 +18,8 @@ import (
 	"github.com/vsriram/simple-host/host/edition"
 )
 
-// The spam check behind the comments preset (owner decision 2026-10-14,
-// INTENT.md): anyone may add to a resource whose add is "checked" without
-// signing in, once Cloudflare Turnstile says the browser passed its check.
+// The spam check (owner decision 2026-10-14, INTENT.md): anyone may add to
+// a resource whose add rule uses auth.checked without signing in, once Cloudflare Turnstile says the browser passed its check.
 // The check is Cloudflare's, not ours.
 //
 // Sites live on many hostnames (site hosts, families, custom domains) and a
@@ -72,7 +71,7 @@ func newTurnstileVerifier(siteKey, secret, publicBaseURL string) *turnstileVerif
 		client: &http.Client{Timeout: turnstileTimeout}, used: map[string]time.Time{}, now: time.Now}
 }
 
-// SetTurnstile turns the spam check (and with it the comments preset) on.
+// SetTurnstile turns the spam check (auth.checked in storage rules) on.
 // Empty values leave it off.
 func (h *SiteHandler) SetTurnstile(siteKey, secret, publicBaseURL string) {
 	h.turnstile = newTurnstileVerifier(siteKey, secret, publicBaseURL)
@@ -82,7 +81,7 @@ func (h *SiteHandler) SetTurnstile(siteKey, secret, publicBaseURL string) {
 	}
 }
 
-// SpamCheckEnabled: the comments preset is offered on this server.
+// SpamCheckEnabled: storage rules may use auth.checked on this server.
 func (h *SiteHandler) SpamCheckEnabled() bool { return h.turnstile != nil }
 
 // turnstileCData binds a token to one host and one resource. Turnstile takes

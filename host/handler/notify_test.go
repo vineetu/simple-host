@@ -137,10 +137,10 @@ func notificationSettings(t *testing.T, change func(*config.Limits)) config.Limi
 	change(&l)
 	return l
 }
-func notificationFixture(t *testing.T, eds ...*edition.Edition) (presetSite, *notificationReceiver) {
+func notificationFixture(t *testing.T, eds ...*edition.Edition) (storageTestSite, *notificationReceiver) {
 	t.Helper()
 	isolateQueueTest(t)
-	s := newPresetSite(t, eds...)
+	s := newStorageTestSite(t, eds...)
 	t.Cleanup(s.a.sites.WaitNotifications)
 	x := newNotificationReceiver(t)
 	if err := s.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
@@ -152,7 +152,7 @@ func notificationFixture(t *testing.T, eds ...*edition.Edition) (presetSite, *no
 	s.a.sites.notifyEngine().perURL = newRateLimiter(100000, 0)
 	return s, x
 }
-func notificationRequest(t *testing.T, s presetSite, method, suffix string, body any, status int) resp {
+func notificationRequest(t *testing.T, s storageTestSite, method, suffix string, body any, status int) resp {
 	t.Helper()
 	r := s.a.at(t, method, pcSiteDomain, "/v1/sites/shop/notifications"+suffix, body, s.key)
 	if r.status != status {
@@ -160,19 +160,19 @@ func notificationRequest(t *testing.T, s presetSite, method, suffix string, body
 	}
 	return r
 }
-func subscribeNotification(t *testing.T, s presetSite, x *notificationReceiver) string {
+func subscribeNotification(t *testing.T, s storageTestSite, x *notificationReceiver) string {
 	t.Helper()
 	r := notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added", "record.changed", "file.uploaded"}, "secret": notifyTestSecret, "auth_header": map[string]string{"name": "Authorization", "value": "Bearer receiver"}}, 201)
 	return r.json(t)["notification"].(map[string]any)["id"].(string)
 }
-func notificationSQL(t *testing.T, s presetSite, query string, args ...any) {
+func notificationSQL(t *testing.T, s storageTestSite, query string, args ...any) {
 	t.Helper()
 	waitNotificationEmits(t, s)
 	if _, err := s.a.database.Exec(query, args...); err != nil {
 		t.Fatal(err)
 	}
 }
-func waitNotificationEmits(t *testing.T, s presetSite) {
+func waitNotificationEmits(t *testing.T, s storageTestSite) {
 	t.Helper()
 	deadline := time.Now().Add(6 * time.Second)
 	for len(s.a.sites.notifyEngine().emitting) != 0 {
@@ -182,7 +182,7 @@ func waitNotificationEmits(t *testing.T, s presetSite) {
 		time.Sleep(time.Millisecond)
 	}
 }
-func drainNotifications(t *testing.T, s presetSite) {
+func drainNotifications(t *testing.T, s storageTestSite) {
 	t.Helper()
 	waitNotificationEmits(t, s)
 	for i := 0; i < 100; i++ {
@@ -289,7 +289,7 @@ func TestNotifyHeaderAndSecretRules(t *testing.T) {
 func TestNotifyVisitorRoutes(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
@@ -309,7 +309,7 @@ func TestNotifyVisitorRoutes(t *testing.T) {
 	}
 	event := got[0].body
 	data := event["data"].(map[string]any)
-	if event["name"] != "record.added" || data["visitor"] != s.aliceID || data["table"] != "orders" || data["preset"] != "personal" || !strings.HasPrefix(data["site_url"].(string), "https://shop.") {
+	if event["name"] != "record.added" || data["visitor"] != s.aliceID || data["table"] != "orders" || !strings.HasPrefix(data["site_url"].(string), "https://shop.") {
 		t.Fatalf("event data: %v", data)
 	}
 	fields := data["fields"].(map[string]any)
@@ -327,7 +327,7 @@ func TestNotifyVisitorRoutes(t *testing.T) {
 	s.must(t, "POST", "/sqlite/orders/tables/orders/rows", map[string]string{"missing_column": "failed"}, s.callers["alice"], 400)
 	waitNotificationEmits(t, s)
 	for _, kind := range []string{"kv", "files"} {
-		s.must(t, "PUT", "/resources/"+kind, map[string]string{"kind": kind, "preset": "personal"}, s.key, 201)
+		s.must(t, "PUT", "/resources/"+kind, storageRules(kind, rulesPersonal), s.key, 201)
 		waitNotificationEmits(t, s)
 	}
 	s.must(t, "PUT", "/kv/kv/keys/order", `{"value":{"item":"bread"}}`, s.callers["alice"], 200)
@@ -356,6 +356,10 @@ func TestNotifyVisitorRoutes(t *testing.T) {
 		if r.body["name"] == "file.uploaded" && (d["size"] != float64(11) || d["fields"] != nil) {
 			t.Fatal("file fields")
 		}
+		// No event carries a preset any more.
+		if _, ok := d["preset"]; ok {
+			t.Fatalf("%s carries preset", r.body["name"])
+		}
 	}
 	if names["record.added"] != 3 || names["record.changed"] != 4 || names["file.uploaded"] != 1 {
 		t.Fatal(names)
@@ -377,7 +381,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 	mail := &mailbox{}
 	s.a.sites.mailer = mail
 	x.setStatus(500)
-	s.must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/kv", storageRules("kv", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "PUT", "/kv/kv/keys/one", `{"value":1}`, s.callers["alice"], 200)
 	waitNotificationEmits(t, s)
@@ -426,7 +430,7 @@ func TestNotifyCapsTruncationRotationAndControls(t *testing.T) {
 	s, x := notificationFixture(t, edition.Default(l))
 	id := subscribeNotification(t, s, x)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added"}}, 409)
-	s.must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/kv", storageRules("kv", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "PUT", "/kv/kv/keys/long", map[string]any{"value": map[string]string{"long": strings.Repeat("é", 2000)}}, s.callers["alice"], 200)
 	waitNotificationEmits(t, s)
@@ -485,7 +489,7 @@ func TestNotifyMCPChallengeRefreshReplay(t *testing.T) {
 		t.Fatal("refresh was not idempotent")
 	}
 	notificationRequest(t, s, "POST", "/"+result.ID+"/rotate-secret", nil, 409)
-	s.must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/kv", storageRules("kv", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "PUT", "/kv/kv/keys/one", `{"value":1}`, s.callers["alice"], 200)
 	waitNotificationEmits(t, s)
@@ -715,7 +719,7 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 func TestNotifyDailyCapAndNoSubscribers(t *testing.T) {
 	l := notificationSettings(t, func(l *config.Limits) { l.NotifyPerDay = 1 })
 	s, x := notificationFixture(t, edition.Default(l))
-	s.must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/kv", storageRules("kv", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "PUT", "/kv/kv/keys/no-subscriber", `{"value":1}`, s.callers["alice"], 200)
 	waitNotificationEmits(t, s)
@@ -1211,7 +1215,7 @@ func TestNotifyAcknowledgmentIgnoresBrokenBody(t *testing.T) {
 func TestNotifyEmitAfterStorageRelease(t *testing.T) {
 	s, x := notificationFixture(t)
 	subscribeNotification(t, s, x)
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT)"}, s.key, 200)
 	tx, err := s.a.database.Begin()
 	if err != nil {
@@ -1281,7 +1285,7 @@ func TestNotifyConnectorDeployScope(t *testing.T) {
 	}
 }
 
-func notificationGrant(t *testing.T, s presetSite, name string) string {
+func notificationGrant(t *testing.T, s storageTestSite, name string) string {
 	t.Helper()
 	client := name + "-" + s.ownerID
 	notificationSQL(t, s, `INSERT INTO oauth_clients(client_id,client_name,redirect_uris) VALUES($1,$2,ARRAY['https://example.test/cb'])`, client, name)
@@ -1465,7 +1469,7 @@ func TestNotifyOwnerHeaderAllowlist(t *testing.T) {
 	}
 }
 
-func saveWorkerNotification(t *testing.T, s presetSite, site, owner, url string) string {
+func saveWorkerNotification(t *testing.T, s storageTestSite, site, owner, url string) string {
 	t.Helper()
 	id := notifyRandom("sub_", 12)
 	n := model.Notification{ID: id, SiteID: site, OwnerID: owner, Source: "owner", URL: url, Events: []string{"record.added"}, Secret: notifyTestSecret}
@@ -1474,13 +1478,13 @@ func saveWorkerNotification(t *testing.T, s presetSite, site, owner, url string)
 	}
 	return id
 }
-func emitWorkerNotification(t *testing.T, s presetSite, site string) {
+func emitWorkerNotification(t *testing.T, s storageTestSite, site string) {
 	t.Helper()
 	if err := notificationsrepo.EmitSiteEvent(context.Background(), s.a.database, site, notifyEventID(), "record.added", "orders", []byte(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 }
-func checkDeferredNotification(t *testing.T, s presetSite, id string, attempts, window int) {
+func checkDeferredNotification(t *testing.T, s storageTestSite, id string, attempts, window int) {
 	t.Helper()
 	var gotAttempts, gotWindow, failures int
 	var state, category string

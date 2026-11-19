@@ -144,7 +144,7 @@ A coding agent with a configured owner credential uses REST (`X-API-Key`, and
 |---|---|
 | REST deploys, archives, CI, addresses, the two sign-ins, full rules and checks | `references/publishing.md` · https://simple-host.app/v1/skills/website-deploy/references/publishing.md |
 | Moving another existing site: crawl, convert, replace forms, publish, domain | `references/move-a-site.md` · https://simple-host.app/v1/skills/website-deploy/references/move-a-site.md |
-| Row rules, per-table sets, file-bucket presets, each person's records | `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
+| Row rules, per-table sets, file rules, each person's records | `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
 | Versions and previews, rollback, offline, delete and restore, exports, analytics, named viewers, passcode, handle | `references/operations.md` · https://simple-host.app/v1/skills/website-deploy/references/operations.md |
 | Home page, showcase and bio | `references/home-page.md` · https://simple-host.app/v1/skills/website-deploy/references/home-page.md |
 | File, site, account and storage limits, keeping files small | `references/limits.md` · https://simple-host.app/v1/skills/website-deploy/references/limits.md |

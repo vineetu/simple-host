@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -8,7 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/edition"
+	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
 func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
@@ -22,24 +28,27 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 	annHost := "notes." + ah + "." + pcSiteDomain
 	base := "/v1/sites/notes/storage"
 	owner := map[string]string{"X-API-Key": ann.key}
-	put := func(name, kind, read, write string) {
+	put := func(name, kind, rules string) {
 		t.Helper()
-		if legacyStorageRules(kind, read, write, "full") {
-			insertLegacyStorage(t, a.sites, a.siteID(t, ann, "notes"), name, kind, read, write, "full", "inherit")
-			return
+		body := `{"kind":"` + kind + `","site_passcode":"inherit"}`
+		if rules != "" {
+			body = `{"kind":"` + kind + `","site_passcode":"inherit","rules":` + rules + `}`
 		}
-		r := a.at(t, "PUT", pcSiteDomain, base+"/resources/"+name, map[string]string{"kind": kind, "read": read, "write": write, "site_passcode": "inherit"}, owner)
+		r := a.at(t, "PUT", pcSiteDomain, base+"/resources/"+name, body, owner)
 		if r.status != 201 {
 			t.Fatalf("resource %s: %d %s", name, r.status, r.body)
 		}
 	}
-	put("board", "kv", "anyone", "anyone")
-	put("private", "kv", "owner", "owner")
-	put("members", "kv", "signed-in", "signed-in")
-	put("sql", "sqlite", "anyone", "anyone")
-	put("writeonly", "sqlite", "owner", "anyone")
-	put("assets", "files", "anyone", "anyone")
-	insertLegacyStorage(t, a.sites, a.siteID(t, bob, "notes"), "bob-only", "kv", "anyone", "anyone", "full", "")
+	anyone := rulesOpenAdd
+	put("board", "kv", anyone)
+	put("private", "kv", "")
+	put("members", "kv", `{"version":1,"policies":[{"name":"read","command":"read","using":"auth.signed_in"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.signed_in"},{"name":"delete","command":"delete","using":"auth.signed_in"}]}`)
+	put("sql", "sqlite", anyone)
+	put("writeonly", "sqlite", rulesInbox)
+	put("assets", "files", anyone)
+	if r := a.at(t, "PUT", pcSiteDomain, base+"/resources/bob-only", storageRules("kv", anyone), map[string]string{"X-API-Key": bob.key}); r.status != 201 {
+		t.Fatalf("resource bob-only: %d %s", r.status, r.body)
+	}
 	if r := a.at(t, "GET", annHost, base+"/kv/bob-only/keys/k", nil, nil); r.status != 404 {
 		t.Fatalf("other site resource %d", r.status)
 	}
@@ -87,20 +96,27 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/sql/schema", `{"sql":"CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT)"}`, owner); r.status != 200 {
 		t.Fatalf("owner schema %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", annHost, base+"/sqlite/sql/execute", `{"sql":"INSERT INTO notes(text) VALUES(?)","params":["one"]}`, browser(annHost, "")); r.status != 200 {
-		t.Fatalf("open SQL write %d %s", r.status, r.body)
+	// Pages write and read through the table routes; page SQL is refused.
+	if r := a.at(t, "POST", annHost, base+"/sqlite/sql/execute", `{"sql":"INSERT INTO notes(text) VALUES(?)","params":["one"]}`, browser(annHost, "")); r.status != 403 || r.json(t)["code"] != "fixed_routes_required" {
+		t.Fatalf("page SQL write %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", annHost, base+"/sqlite/sql/query", `{"sql":"SELECT text FROM notes"}`, browser(annHost, "")); r.status != 200 || !strings.Contains(string(r.body), "one") {
-		t.Fatalf("open SQL read %d %s", r.status, r.body)
+	if r := a.at(t, "POST", annHost, base+"/sqlite/sql/query", `{"sql":"SELECT text FROM notes"}`, browser(annHost, "")); r.status != 403 || r.json(t)["code"] != "fixed_routes_required" {
+		t.Fatalf("page SQL read %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "POST", annHost, base+"/sqlite/sql/tables/notes/rows", `{"text":"one"}`, browser(annHost, "")); r.status != 200 {
+		t.Fatalf("open row write %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "GET", annHost, base+"/sqlite/sql/tables/notes/rows", nil, browser(annHost, "")); r.status != 200 || !strings.Contains(string(r.body), "one") {
+		t.Fatalf("open row read %d %s", r.status, r.body)
 	}
 	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/writeonly/schema", `{"sql":"CREATE TABLE items (n INTEGER)"}`, owner); r.status != 200 {
 		t.Fatalf("write-only schema %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", annHost, base+"/sqlite/writeonly/execute", `{"sql":"INSERT INTO items(n) VALUES(1)"}`, browser(annHost, "")); r.status != 200 {
+	if r := a.at(t, "POST", annHost, base+"/sqlite/writeonly/tables/items/rows", `{"n":1}`, browser(annHost, "")); r.status != 200 {
 		t.Fatalf("write-only insert %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "POST", annHost, base+"/sqlite/writeonly/execute", `{"sql":"INSERT INTO items(n) SELECT n FROM items"}`, browser(annHost, "")); r.status == 200 {
-		t.Fatal("write-only SQL read existing rows")
+	if r := a.at(t, "GET", annHost, base+"/sqlite/writeonly/tables/items/rows", nil, browser(annHost, "")); r.status == 200 {
+		t.Fatal("write-only table read existing rows")
 	}
 	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/sql/query", `{"sql":"ATTACH DATABASE '/etc/passwd' AS other"}`, owner); r.status == 200 {
 		t.Fatal("attach accepted")
@@ -151,7 +167,7 @@ func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet)
 	base := "/v1/sites/trip/storage"
 	for _, x := range []struct{ name, mode string }{{"locked", "inherit"}, {"open", "off"}} {
-		r := p.at(t, "PUT", pcSiteDomain, base+"/resources/"+x.name, map[string]string{"kind": "kv", "preset": "public", "add": "anyone", "site_passcode": x.mode}, p.okey)
+		r := p.at(t, "PUT", pcSiteDomain, base+"/resources/"+x.name, `{"kind":"kv","site_passcode":"`+x.mode+`","rules":`+rulesOpenAdd+`}`, p.okey)
 		if r.status != 201 {
 			t.Fatalf("resource %s: %d %s", x.name, r.status, r.body)
 		}
@@ -324,4 +340,196 @@ func TestSiteStorageSurvivesDeployRenameAndRestore(t *testing.T) {
 			t.Fatalf("%s after lifecycle: %d %s", tc.path, r.status, r.body)
 		}
 	}
+}
+
+// Shared storage fixtures: a site with the owner, two visitors (alice, bob),
+// someone signed out and the owner signed in on the site.
+type storageTestSite struct {
+	a                *privateApp
+	host, sid        string
+	key              map[string]string
+	ids              map[string]string // caller -> account id
+	callers          map[string]map[string]string
+	owner            person
+	aliceID, ownerID string
+}
+
+func newStorageTestSite(t *testing.T, eds ...*edition.Edition) storageTestSite {
+	t.Helper()
+	a, cert := newSiteApp(t, "canonical", eds...)
+	owner := a.newPerson(t, "preset-owner")
+	alice := a.newPerson(t, "preset-alice")
+	bob := a.newPerson(t, "preset-bob")
+	a.deploy(t, owner, "shop")
+	oid, handle := a.userID(t, owner)
+	aid, _ := a.userID(t, alice)
+	bid, _ := a.userID(t, bob)
+	markReady(t, cert, handle)
+	host := "shop." + handle + "." + pcSiteDomain
+	sid := a.siteID(t, owner, "shop")
+	// The grid sends hundreds of writes from one address.
+	a.sites.storageIPLimiter = newRateLimiter(100000, 0)
+	a.sites.storageVisitorLimiter = newRateLimiter(100000, 0)
+	return storageTestSite{
+		a: a, host: host, sid: sid, key: map[string]string{"X-API-Key": owner.key}, owner: owner,
+		ids: map[string]string{"alice": aid, "bob": bid, "owner-site": oid},
+		callers: map[string]map[string]string{
+			"alice":      browser(host, a.session(t, alice, sid, host)),
+			"bob":        browser(host, a.session(t, bob, sid, host)),
+			"anon":       browser(host, ""),
+			"owner-site": browser(host, a.session(t, owner, sid, host)),
+		},
+		aliceID: aid, ownerID: oid,
+	}
+}
+
+func (s storageTestSite) do(t *testing.T, method, path string, body any, headers map[string]string) resp {
+	t.Helper()
+	host := s.host
+	if headers["X-API-Key"] != "" {
+		host = pcSiteDomain
+	}
+	return s.a.at(t, method, host, "/v1/sites/shop/storage"+path, body, headers)
+}
+
+func (s storageTestSite) must(t *testing.T, method, path string, body any, headers map[string]string, status int) resp {
+	t.Helper()
+	r := s.do(t, method, path, body, headers)
+	if r.status != status {
+		t.Fatalf("%s %s: want %d got %d %s", method, path, status, r.status, r.body)
+	}
+	return r
+}
+
+// seed adds one entry by alice through the owner's tools and the database,
+// and returns its key, path or row id.
+func (s storageTestSite) seed(t *testing.T, kind, name, label string) string {
+	t.Helper()
+	switch kind {
+	case "kv":
+		seedStorageKV(t, s.a.sites, s.sid, name, label, `"seed"`, s.aliceID)
+		return label
+	case "files":
+		s.must(t, "PUT", "/files/"+name+"/objects/"+label, "seed", s.key, 200)
+		if _, err := s.a.database.Exec(`UPDATE site_storage_files SET writer_id=$4 WHERE site_id=$1 AND resource_name=$2 AND path=$3`, s.sid, name, label, s.aliceID); err != nil {
+			t.Fatal(err)
+		}
+		return label
+	}
+	r := s.must(t, "POST", "/sqlite/"+name+"/execute", map[string]any{"sql": "INSERT INTO items(v, visitor_id) VALUES(?, ?)", "params": []any{label, s.aliceID}}, s.key, 200)
+	return fmt.Sprint(r.json(t)["last_insert_id"])
+}
+
+func storageTestPaths(kind, name, entry string) (one, list string) {
+	switch kind {
+	case "kv":
+		return "/kv/" + name + "/keys/" + entry, "/kv/" + name + "/keys"
+	case "files":
+		return "/files/" + name + "/objects/" + entry, "/files/" + name + "/objects"
+	}
+	return "/sqlite/" + name + "/tables/items/rows/" + entry, "/sqlite/" + name + "/tables/items/rows"
+}
+
+func storageKVFixtureCall(t *testing.T, h *SiteHandler, siteID, resource string) storageCall {
+	t.Helper()
+	c := storageCall{siteID: siteID, resourceName: resource}
+	if err := h.database.QueryRow(`SELECT user_id,name FROM sites WHERE id=$1`, siteID).Scan(&c.ownerID, &c.siteName); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	c.resource, err = h.loadStorageResource(context.Background(), siteID, resource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func seedStorageKV(t *testing.T, h *SiteHandler, siteID, resource, key, value, writer string) {
+	t.Helper()
+	c := storageKVFixtureCall(t, h, siteID, resource)
+	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), resource), true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	if err = conn.Exec("BEGIN"); err != nil {
+		t.Fatal(err)
+	}
+	if err = runtime.RuntimeKVPut(conn, key, value, writer, false, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err = conn.Exec("COMMIT; PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readStorageKVAuthor(t *testing.T, h *SiteHandler, siteID, resource, key string) string {
+	t.Helper()
+	c := storageKVFixtureCall(t, h, siteID, resource)
+	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), resource), false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	item, err := runtime.RuntimeKVGet(conn, key, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return item.VisitorID
+}
+
+func insertStorageKVRace(t *testing.T, h *SiteHandler, c storageCall, key, value, writer string) (bool, error) {
+	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), c.resourceName), true, false)
+	if err != nil {
+		return false, err
+	}
+	defer done()
+	if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
+		return false, err
+	}
+	defer conn.Exec("ROLLBACK")
+	if err = runtime.RuntimeKVPut(conn, key, value, writer, false, 0); err != nil {
+		if errors.Is(err, sqlite3.CONSTRAINT) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, conn.Exec("COMMIT")
+}
+
+func readStorageKVValue(t *testing.T, h *SiteHandler, c storageCall, key string) string {
+	t.Helper()
+	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), c.resourceName), false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	item, err := runtime.RuntimeKVGet(conn, key, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(item.Value)
+}
+
+// Rule sets with the same access as the removed presets of the same name.
+const (
+	rulesPublic   = `{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.role == \"owner\""},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	rulesInbox    = `{"version":1,"policies":[{"name":"read","command":"read","using":"auth.role == \"owner\""},{"name":"add","command":"add","check":"true"},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	rulesWall     = `{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"visitor_id == auth.id || auth.role == \"owner\""}]}`
+	rulesRecords  = `{"version":1,"policies":[{"name":"read","command":"read","using":"visitor_id == auth.id || auth.role == \"owner\""},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	rulesPersonal = `{"version":1,"policies":[{"name":"read","command":"read","using":"visitor_id == auth.id || auth.role == \"owner\""},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"visitor_id == auth.id || auth.role == \"owner\""},{"name":"delete","command":"delete","using":"visitor_id == auth.id || auth.role == \"owner\""}]}`
+	rulesBoard    = `{"version":1,"policies":[{"name":"read","command":"read","using":"auth.signed_in"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.signed_in"},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	// Older read/write field pairs on key-value and SQLite, as rules.
+	rulesOpenAdd              = `{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"true"},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	rulesSignedInWrite        = `{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.signed_in"},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	rulesSignedInAdd          = `{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	rulesOwnerReadSignedInAdd = `{"version":1,"policies":[{"name":"read","command":"read","using":"auth.role == \"owner\""},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	rulesComments             = `{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.checked || auth.ai || auth.role == \"owner\""},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""}]}`
+	// comments with approve_first: visitors see a post once the owner approves it.
+	rulesCommentsApproveFirst = `{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"add","command":"add","check":"auth.checked || auth.ai || auth.role == \"owner\""},{"name":"edit","command":"edit","using":"auth.role == \"owner\""},{"name":"delete","command":"delete","using":"auth.role == \"owner\""},{"name":"approve_first","command":"read","using":"auth.role == \"owner\" || approved_at is not null","restrictive":true}]}`
+)
+
+// storageRules is a resource body with the given rule set.
+func storageRules(kind, rules string) string {
+	return `{"kind":"` + kind + `","rules":` + rules + `}`
 }

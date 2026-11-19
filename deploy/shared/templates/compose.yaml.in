@@ -71,7 +71,6 @@ services:
       # against one upload filling a disk, not a budget anyone is expected to
       # spend. /v1/admin/usage reports what is actually being used.
       MAX_ARCHIVE_MB: ${MAX_ARCHIVE_MB:-100}
-      STORAGE_RULES: ${STORAGE_RULES:-off}
       SITE_STORAGE_MAX_BYTES: ${SITE_STORAGE_MAX_BYTES:-10000000}
       SITE_STORAGE_SITE_INFLIGHT: ${SITE_STORAGE_SITE_INFLIGHT:-}
       SITE_STORAGE_SQL_CONCURRENCY: ${SITE_STORAGE_SQL_CONCURRENCY:-}
@@ -141,8 +140,8 @@ services:
       MAX_FILES_PER_SITE: ${MAX_FILES_PER_SITE:-}
       PREVIEW_LINK_TTL_MINUTES: ${PREVIEW_LINK_TTL_MINUTES:-}
       EXPORT_LINK_TTL_MINUTES: ${EXPORT_LINK_TTL_MINUTES:-}
-      # The comments preset's spam check (docs/advanced/saved-data.md): both
-      # keys from a Cloudflare Turnstile widget, or the preset is not offered.
+      # The spam check that rules use as auth.checked (docs/advanced/saved-data.md):
+      # both keys from a Cloudflare Turnstile widget, or auth.checked is not offered.
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
       PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:-}

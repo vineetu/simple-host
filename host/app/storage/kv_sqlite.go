@@ -104,18 +104,16 @@ func (s *Service) putKVSQLite(ctx context.Context, conn *sqlite3.Conn, a *Admiss
 		return &Error{Code: "invalid_value", Message: "invalid JSON value"}
 	}
 	overQuota := s.BudgetUsed(usage)-oldBytes+int64(len(key)+len(normalized)) > SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
-	if overQuota && !kvHasRules(call) {
-		return kvFull()
-	}
-	if !kvHasRules(call) {
-		if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
-			return err
-		}
-		defer conn.Exec("ROLLBACK")
-	}
-	if kvHasRules(call) {
+	if !call.Owner {
 		return s.putRuleKVSQLite(ctx, conn, a, call, key, normalized, exists, oldBytes, overQuota)
 	}
+	if overQuota {
+		return kvFull()
+	}
+	if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
+		return err
+	}
+	defer conn.Exec("ROLLBACK")
 	if err = runtime.RuntimeKVPut(conn, key, normalized, StampID(call.Owner, call.VisitorID), exists, oldBytes); err != nil {
 		return err
 	}
@@ -134,21 +132,18 @@ func (s *Service) commitKVSQLite(ctx context.Context, conn *sqlite3.Conn, a *Adm
 	return nil
 }
 
-func (s *Service) deleteKVSQLite(ctx context.Context, call Call, key, filter string) (n int64, writer string, err error) {
+func (s *Service) deleteKVSQLite(ctx context.Context, call Call, key string) (n int64, writer string, err error) {
 	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return 0, "", err
 	}
 	defer unlock()
 	err = s.withKV(ctx, call, true, func(ctx context.Context, conn *sqlite3.Conn, a *Admission) error {
-		if kvHasRules(call) {
+		if !call.Owner {
 			return s.deleteRuleKVSQLite(ctx, conn, a, &call, key, &n, &writer)
 		}
-		item, e := runtime.RuntimeKVGet(conn, key, filter)
+		item, e := runtime.RuntimeKVGet(conn, key, "")
 		if errors.Is(e, sql.ErrNoRows) {
-			if filter != "" {
-				return &Error{Code: "key_not_found", Message: "key not found"}
-			}
 			s.deps.Committed(ctx)
 			return nil
 		}
@@ -203,22 +198,6 @@ func (s *Service) KVFileStats(ctx context.Context, siteID, root string) (entries
 		bytes += b
 	}
 	return entries, bytes, nil
-}
-
-// Owner tools keep their unrestricted path; owner-on-site is a rule binding.
-func kvHasRules(c Call) bool { return !c.Owner && c.Resource.RulesStatus() != "preset" }
-
-func (s *Service) kvAccess(c *Call, action string, op ruleengine.Op) (string, error) {
-	if !kvHasRules(*c) {
-		return s.Access(c, action)
-	}
-	if err := s.Gate(*c, op != ruleengine.OpRead); err != nil {
-		return "", err
-	}
-	if err := s.authorizeRuleOperation(c.Context, c, "kv", op); err != nil {
-		return "", err
-	}
-	return "", nil
 }
 
 func (s *Service) compileKVRules(c *Call) error {
@@ -433,12 +412,12 @@ func (s *Service) deleteRuleKVSQLite(ctx context.Context, conn *sqlite3.Conn, a 
 	if conn.Changes() == 0 {
 		// A visitor's AI deletes only its author's keys (ruleAIConstraint), so
 		// like any other author-filtered delete it reports the key it could
-		// not remove, as the preset path does for a non-empty filter.
+		// not remove.
 		if c.VisitorAI || c.rulePlan.Partial(ruleengine.OpDelete, c.ruleValues) != ruleengine.True || c.rulePlan.Partial(ruleengine.OpRead, c.ruleValues) != ruleengine.True {
 			return &Error{Code: "key_not_found", Message: "key not found"}
 		}
 		// A delete that succeeds without removing anything still counts as a
-		// committed write, as on the preset path (R3-S5a ruling 5).
+		// committed write, as for the owner (R3-S5a ruling 5).
 		s.deps.Committed(ctx)
 		return nil
 	}

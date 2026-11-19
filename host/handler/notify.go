@@ -230,11 +230,6 @@ func (h *SiteHandler) storeNotificationContext(parent context.Context, c storage
 	data["site_url"] = siteURL
 	data["storage"] = c.resourceName
 	data["kind"] = c.resource.Kind
-	data["preset"] = c.resource.PresetBase
-	if c.resource.Rules != nil || c.resource.PresetBase == "rules" {
-		// The stored preset is a compatibility fill, not a public preset.
-		data["preset"] = ""
-	}
 	data["visitor"] = nil
 	if c.stampID() != "" {
 		data["visitor"] = c.stampID()

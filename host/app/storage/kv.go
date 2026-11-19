@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	rules "github.com/vsriram/simple-host/host/rules/storage"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	"io"
@@ -63,7 +62,7 @@ func validateKVPost(value json.RawMessage, maxBytes, maxLinks int) error {
 }
 
 // prepareKVWrite resolves the existing author and the action for a write.
-func (s *Service) prepareKVWrite(conn *sqlite3.Conn, key, requested string, taken bool) (string, bool, string, error) {
+func (s *Service) prepareKVWrite(conn *sqlite3.Conn, key, requested string) (string, bool, string, error) {
 	writer, err := kvWriter(conn, key)
 	exists := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -75,27 +74,11 @@ func (s *Service) prepareKVWrite(conn *sqlite3.Conn, key, requested string, take
 	if requested == "edit" && !exists {
 		return "", false, "", &Error{Code: "key_not_found", Message: "key not found"}
 	}
-	action, err := kvAction(exists, exists && taken)
-	return writer, exists, action, err
-}
-
-// kvAction chooses the action for a key and rejects an inaccessible existing key.
-func kvAction(exists, taken bool) (string, error) {
-	if !exists {
-		return "add", nil
+	action := "add"
+	if exists {
+		action = "edit"
 	}
-	if taken {
-		return "", &Error{Code: "key_exists", Message: "this key already exists"}
-	}
-	return "edit", nil
-}
-
-// checkKVAuthor rejects an edit hidden by the resolved author filter.
-func checkKVAuthor(exists bool, writer, filter string) error {
-	if exists && filter != "" && writer != filter {
-		return &Error{Code: "key_exists", Message: "this key already exists"}
-	}
-	return nil
+	return writer, exists, action, nil
 }
 
 // kvWriteNotification describes the notification for a successful write.
@@ -147,10 +130,10 @@ func (s *Service) ListVisibleKV(ctx context.Context, call Call, prefix, after st
 	err := s.withKV(ctx, call, false, func(ctx context.Context, conn *sqlite3.Conn, _ *Admission) error {
 		var err error
 		var items []runtime.KVEntry
-		if kvHasRules(call) {
-			items, err = s.listRuleKV(ctx, conn, &call, prefix, after, limit+1)
+		if call.Owner {
+			items, err = runtime.RuntimeKVList(conn, prefix, after, limit+1, "")
 		} else {
-			items, err = runtime.RuntimeKVList(conn, prefix, after, limit+1, call.Filter)
+			items, err = s.listRuleKV(ctx, conn, &call, prefix, after, limit+1)
 		}
 		if err != nil {
 			return err
@@ -178,7 +161,9 @@ func (s *Service) GetVisibleKV(ctx context.Context, call Call, key string) (Visi
 	var item runtime.KVEntry
 	err := s.withKV(ctx, call, false, func(ctx context.Context, conn *sqlite3.Conn, _ *Admission) error {
 		var err error
-		if kvHasRules(call) {
+		if call.Owner {
+			item, err = runtime.RuntimeKVGet(conn, key, "")
+		} else {
 			var items []runtime.KVEntry
 			items, err = s.getRuleKV(ctx, conn, &call, key)
 			if err == nil && len(items) == 0 {
@@ -187,8 +172,6 @@ func (s *Service) GetVisibleKV(ctx context.Context, call Call, key string) (Visi
 			if len(items) > 0 {
 				item = items[0]
 			}
-		} else {
-			item, err = runtime.RuntimeKVGet(conn, key, call.Filter)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			return &Error{Code: "key_not_found", Message: "key not found"}
@@ -216,16 +199,11 @@ type KVReadResult struct {
 
 // GetKV authorizes and reads a single key.
 func (s *Service) GetKV(ctx context.Context, in KVReadInput) (KVReadResult, error) {
-	in.Call.Context = ctx
-	filter, err := s.kvAccess(&in.Call, "read", ruleengine.OpRead)
 	result := KVReadResult{}
-	if err != nil {
-		result.Authorization = err.(*Error)
-		if !result.Authorization.Allowed {
-			return result, nil
-		}
+	if result.Authorization = s.authorize(ctx, &in.Call, "kv", ruleengine.OpRead); result.Authorization != nil {
+		return result, nil
 	}
-	in.Call.Filter = filter
+	var err error
 	result.Item, err = s.GetVisibleKV(ctx, in.Call, in.Key)
 	return result, err
 }
@@ -247,40 +225,16 @@ type KVListResult struct {
 
 // ListKV authorizes and reads a page of keys.
 func (s *Service) ListKV(ctx context.Context, in KVListInput) (KVListResult, error) {
-	in.Call.Context = ctx
-	filter, err := s.kvAccess(&in.Call, "read", ruleengine.OpRead)
 	result := KVListResult{}
-	if err != nil {
-		result.Authorization = err.(*Error)
-		if !result.Authorization.Allowed {
-			return result, nil
-		}
+	if result.Authorization = s.authorize(ctx, &in.Call, "kv", ruleengine.OpRead); result.Authorization != nil {
+		return result, nil
 	}
 	if !in.ValidLimit {
 		return result, &Error{Code: "invalid_limit", Message: "invalid limit"}
 	}
-	in.Call.Filter = filter
+	var err error
 	result.Items, result.Next, err = s.ListVisibleKV(ctx, in.Call, in.Prefix, in.After, in.Limit)
 	return result, err
-}
-
-func kvTaken(call Call) bool {
-	may := func(value string) bool {
-		if call.Owner {
-			return true
-		}
-		switch value {
-		case rules.WhoAnyone, rules.WhoChecked:
-			return true
-		case rules.WhoSignedIn, rules.WhoOwn:
-			return call.VisitorID != ""
-		case rules.WhoOwner:
-			return call.OwnerOnSite
-		}
-		return false
-	}
-	matrix := call.Resource.Matrix()
-	return !may(matrix.Edit) && may(matrix.Add)
 }
 
 // KVPutInput identifies a value and the caller requesting a write.
@@ -318,45 +272,27 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	defer unlock()
 	var writer string
 	var exists bool
-	var auth *Error
 	err = s.withKV(ctx, call, true, func(ctx context.Context, conn *sqlite3.Conn, admission *Admission) error {
-		var action string
-		if kvHasRules(call) {
-			if err := conn.Exec("BEGIN IMMEDIATE"); err != nil {
-				return err
-			}
-			defer conn.Exec("ROLLBACK")
-			// Resolve existence and the AI action before active-account checks.
-			writer, exists, action, err = s.prepareKVWrite(conn, in.Key, requested, false)
+		if call.Owner {
+			// The owner's tools are never limited by rules (authorize).
+			writer, exists, _, err = s.prepareKVWrite(conn, in.Key, requested)
 			if err != nil {
 				return err
 			}
-			call.Context = ctx
-			if err := s.prepareKVRuleWrite(&call, action, exists); err != nil {
-				return err
-			}
-			if call.CheckedPost {
-				if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
-					return err
-				}
-			}
 			return s.putKVSQLite(ctx, conn, admission, call, in.Key, value, exists)
 		}
-		writer, exists, action, err = s.prepareKVWrite(conn, in.Key, requested, kvTaken(call))
+		if err := conn.Exec("BEGIN IMMEDIATE"); err != nil {
+			return err
+		}
+		defer conn.Exec("ROLLBACK")
+		// Resolve existence and the AI action before active-account checks.
+		var action string
+		writer, exists, action, err = s.prepareKVWrite(conn, in.Key, requested)
 		if err != nil {
 			return err
 		}
 		call.Context = ctx
-		call.CurrentMatrix = call.Resource.Matrix()
-		filter, err := s.Allow(&call, action, call.CurrentMatrix.Value(action))
-		if err != nil {
-			auth = err.(*Error)
-			if !auth.Allowed {
-				return nil
-			}
-		}
-		call.Filter = filter
-		if err := checkKVAuthor(exists, writer, call.Filter); err != nil {
+		if err := s.prepareKVRuleWrite(&call, action, exists); err != nil {
 			return err
 		}
 		if call.CheckedPost {
@@ -367,10 +303,7 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 		return s.putKVSQLite(ctx, conn, admission, call, in.Key, value, exists)
 	})
 	if err != nil {
-		return nil, auth, err
-	}
-	if auth != nil && !auth.Allowed {
-		return nil, auth, nil
+		return nil, nil, err
 	}
 	name, data := finishKVWrite(unlock, in.Key, value, exists)
 	// writer is the key's own author (from prepareKVWrite, already read):
@@ -386,7 +319,7 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 		data["row_visitor_id"] = writer
 	}
 	s.deps.Notify(call, name, data)
-	return value, auth, nil
+	return value, nil, nil
 }
 
 // KVDeleteInput identifies a key and the caller requesting deletion.
@@ -397,36 +330,23 @@ type KVDeleteInput struct {
 
 // DeleteKV authorizes and deletes a key under the shared write lock.
 func (s *Service) DeleteKV(ctx context.Context, in KVDeleteInput) (*Error, error) {
-	in.Call.Context = ctx
-	filter, err := s.kvAccess(&in.Call, "delete", ruleengine.OpDelete)
-	var auth *Error
-	if err != nil {
-		auth = err.(*Error)
-		if !auth.Allowed {
-			return auth, nil
-		}
+	if auth := s.authorize(ctx, &in.Call, "kv", ruleengine.OpDelete); auth != nil {
+		return auth, nil
 	}
-	in.Call.Filter = filter
-	n, writer, err := s.deleteKVSQLite(ctx, in.Call, in.Key, filter)
+	n, writer, err := s.deleteKVSQLite(ctx, in.Call, in.Key)
 	if err != nil {
-		return auth, err
+		return nil, err
 	}
 	name, data := kvDeleteNotification(in.Key, n)
 	if name != "" {
 		// writer (captured under the write lock, just before the delete)
-		// is the deleted key's own author when filter=="" (an owner
-		// delete, D1's OwnerOnSite, or a shared signed_in/anyone delete
-		// grant may remove any visitor's key); for a filtered own-preset
-		// delete it is always the actor's own id already, so no lookup
-		// ran for it. This is what lets web-push target that visitor the
-		// way row_write.go's delete already does.
+		// is the deleted key's own author. This is what lets web-push
+		// target that visitor the way row_write.go's delete already does.
 		data["owner_write"] = in.Call.Owner
 		if writer != "" {
 			data["row_visitor_id"] = writer
-		} else if filter != "" {
-			data["row_visitor_id"] = in.Call.VisitorID
 		}
 		s.deps.Notify(in.Call, name, data)
 	}
-	return auth, nil
+	return nil, nil
 }

@@ -54,8 +54,8 @@ are extended by later `ALTER TABLE` statements in that same file; read those too
 | `site_viewers` | Named viewer emails keyed to the immutable site; distinct from listing visibility and storage access policy |
 | `address_families`, `family_cert_requests` | Claimed family addresses and certificate request accounting |
 | `domain_cert_requests`, `event_domains` | Custom-domain issuer daily cap and hackathon hostname bindings |
-| `site_storage_resources` | Site/name identifies a KV, SQLite or files resource, its legacy policy fields, access matrix, preset and passcode inheritance |
-| `site_storage_tables` | SQLite table-specific matrices; absent overrides use the resource default |
+| `site_storage_resources` | Site/name identifies a KV, SQLite or files resource, its rules and passcode inheritance (older policy columns are no longer read) |
+| `site_storage_tables` | SQLite table-specific rule sets; absent overrides use the resource default |
 | `site_storage_kv` | Unused since 2026-11-19 (key-value entries live in per-namespace SQLite files); the empty table and the `site_storage_resources.kv_store` column stay until a later schema step |
 | `site_storage_files` | Resource/path identifies file authorship metadata; bytes live on disk |
 | `collection_items`, `collection_settings` | Rows of the older saved data (lists, boards, Personal records, private submissions), kept after its removal on 2026-11-19; only account erasure still deletes from them |
@@ -185,9 +185,9 @@ Do not treat an upload mutex as a global filesystem lock across processes.
 | Migrations and delivery | Database locks/leases described below; these work across processes |
 
 Storage policy checks and quota checks belong to `host/app/storage`, not the
-HTTP/MCP caller. Presets store four actions and may have SQLite table overrides;
-owner tools bypass the page matrix, while owner visitor sessions receive only
-storage-data authority. See `access.go`, `matrix.go` and `rows.go` in that package.
+HTTP/MCP caller. Every kind (SQLite, key-value and files) is governed by rules
+(per-table sets on SQLite; no stored rules means owner-only). Owner tools bypass rules, while owner visitor sessions receive only
+storage-data authority. See `access.go`, `rules_decide.go` and `rows.go` in that package.
 
 `usage.go:MeasureSiteStorage` supplies both owner reports and mutation budgets:
 
@@ -330,10 +330,8 @@ instance database backup or all retained deployment versions. Evidence:
 
 The older saved data (state, collections, declared kinds) was removed on
 2026-11-19: its routes answer 404 and its rows stay in the database untouched.
-Grandfathered visitor raw SQL is a separate compatibility path in the current
-SQLite API, including Hack: an existing qualifying full-mode resource without a
-matrix can retain it until its policy changes. New matrices use fixed row routes.
-See `host/rules/storage` and `app/storage/legacy_sql.go`.
+Visitors never send SQL: the SQL route answers them 403 `fixed_routes_required`,
+and pages use the fixed row routes (`app/storage/legacy_sql.go`).
 
 Existing designs remain useful with these boundaries:
 
@@ -342,9 +340,8 @@ Existing designs remain useful with these boundaries:
 - [Site storage primitives](../designs/site-storage-primitives.md): resource
   isolation, runtime layout, export and size evidence remain useful. The early
   resource-wide policy/API sketches and shared Host pool are superseded by current
-  matrices, fixed row routes and separate Host file budget described above.
-- [Storage access presets](../designs/storage-access-presets.md): matrices,
-  per-table policy and compatibility explain the current model. Early statements
-  postponing Hack presets are superseded: Hack has presets too. The later
-  `checked` add policy/comments preset extends the original four-rule matrix;
-  `rules/storage` and `app/storage` are the current enforcement locations.
+  rules, fixed row routes and separate Host file budget described above.
+- [Storage access presets](../designs/storage-access-presets.md): history; presets
+  were removed for every kind, which now takes rules only
+  (`docs/designs/storage-rules.md`). `rules/storage` and `app/storage` are the current
+  enforcement locations.

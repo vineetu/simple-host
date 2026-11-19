@@ -21,56 +21,64 @@ import (
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	appsites "github.com/vsriram/simple-host/host/app/sites"
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	"github.com/vsriram/simple-host/host/model"
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
-func admissionPresetSite(t *testing.T) presetSite {
+func admissionPresetSite(t *testing.T) storageTestSite {
 	t.Helper()
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite", "preset": "private"}, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite"}, s.key, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/data/execute", map[string]string{"sql": "INSERT INTO notes(body) VALUES ('saved')"}, s.key, 200)
 	return s
 }
 
-// Observe actual closes, including a second no-op Close to distinguish a closed
-// connection from a failed SQLITE_BUSY close that also emits TRACE_CLOSE.
+// Observe actual closes of every connection the call opens (a rules save
+// reads the schema before it writes), including a second no-op Close to
+// distinguish a closed connection from a failed SQLITE_BUSY close that also
+// emits TRACE_CLOSE. One panic is injected, at the first time stage is reached.
 func admissionPanicContext(t *testing.T, stage string, value any) (context.Context, func()) {
 	t.Helper()
-	var conn *sqlite3.Conn
-	closes, hits := 0, 0
+	var conns []*sqlite3.Conn
+	closes := map[*sqlite3.Conn]int{}
+	hits := 0
 	ctx := context.WithValue(context.Background(), admissionSetupHookKey{}, func(c *sqlite3.Conn) error {
-		conn = c
-		return c.Trace(sqlite3.TRACE_CLOSE, func(sqlite3.TraceEvent, any, any) error { closes++; return nil })
+		conns = append(conns, c)
+		return c.Trace(sqlite3.TRACE_CLOSE, func(sqlite3.TraceEvent, any, any) error { closes[c]++; return nil })
 	})
 	ctx = runtime.WithSQLiteStageHook(ctx, func(at string) {
 		if at == stage {
 			hits++
-			panic(value)
+			if hits == 1 {
+				panic(value)
+			}
 		}
 	})
 	return ctx, func() {
 		t.Helper()
-		if hits != 1 || conn == nil {
-			t.Fatalf("panic hits=%d opened=%v", hits, conn != nil)
+		if hits == 0 || len(conns) == 0 {
+			t.Fatalf("panic hits=%d opened=%d", hits, len(conns))
 		}
-		for stmt := range conn.Stmts() {
-			t.Errorf("statement leaked: %s", stmt.SQL())
-			stmt.Close()
-		}
-		if closes != 1 {
-			t.Errorf("close attempts=%d, want 1", closes)
-		}
-		if err := conn.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if closes != 1 {
-			t.Fatal("connection was left open")
+		for _, conn := range conns {
+			for stmt := range conn.Stmts() {
+				t.Errorf("statement leaked: %s", stmt.SQL())
+				stmt.Close()
+			}
+			if closes[conn] != 1 {
+				t.Errorf("close attempts=%d, want 1", closes[conn])
+			}
+			if err := conn.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if closes[conn] != 1 {
+				t.Fatal("connection was left open")
+			}
 		}
 	}
 }
 
-func assertAdmissionReleased(t *testing.T, s presetSite) {
+func assertAdmissionReleased(t *testing.T, s storageTestSite) {
 	t.Helper()
 	h := s.a.sites
 	if n := len(h.sqliteGateFor().Slots); n != 0 {
@@ -88,17 +96,21 @@ func assertAdmissionReleased(t *testing.T, s presetSite) {
 	}
 }
 
-func TestPresetSaveAdmissionInjectedPanics(t *testing.T) {
+func TestRulesSaveAdmissionInjectedPanics(t *testing.T) {
 	for _, code := range []string{"storage_failed", "query_too_expensive"} {
 		for _, stage := range []string{"after_open", "after_prepare", "after_step", "before_commit", "after_commit", "close"} {
 			t.Run(code+"/"+stage, func(t *testing.T) {
 				s := admissionPresetSite(t)
+				before, err := s.a.sites.loadStorageResource(context.Background(), s.sid, "data")
+				if err != nil {
+					t.Fatal(err)
+				}
 				value := "injected"
 				if code == "query_too_expensive" {
 					value = "sqlite3: out of memory"
 				}
 				ctx, closed := admissionPanicContext(t, stage, value)
-				req := httptest.NewRequest("PUT", "https://"+pcSiteDomain+"/v1/sites/shop/storage/resources/data", strings.NewReader(`{"kind":"sqlite","preset":"personal","tables":{"notes":{"preset":"records"},"later":{"preset":"private"}}}`)).WithContext(ctx)
+				req := httptest.NewRequest("PUT", "https://"+pcSiteDomain+"/v1/sites/shop/storage/resources/data", strings.NewReader(`{"kind":"sqlite","rules":`+rulesPersonal+`,"tables":{"notes":{"rules":`+rulesRecords+`},"later":{"rules":`+string(model.OwnerOnlyRules)+`}}}`)).WithContext(ctx)
 				req.Header.Set("X-API-Key", s.owner.key)
 				req.Header.Set("Content-Type", "application/json")
 				rec := httptest.NewRecorder()
@@ -126,22 +138,18 @@ func TestPresetSaveAdmissionInjectedPanics(t *testing.T) {
 					t.Fatal(err)
 				}
 				if success {
-					if body["preset"] != "personal" || stored.PresetBase != "personal" || stored.Tables["notes"].PresetBase != "records" || stored.Tables["later"].PresetBase != "private" {
-						t.Fatalf("committed preset metadata lost: response=%v stored=%+v", body, stored)
+					if body["rules_status"] != "rules" || stored.RulesStatus() != "rules" || stored.Fingerprint() == before.Fingerprint() || stored.Tables["notes"].Rules == nil || stored.Tables["later"].Rules == nil {
+						t.Fatalf("committed rules lost: response=%v stored=%+v", body, stored)
 					}
-					warnings, _ := body["warnings"].([]any)
-					if len(warnings) != 1 || warnings[0] != "table later does not exist yet; its preset applies once it is created" {
-						t.Fatalf("committed table inventory lost: warnings=%v", warnings)
-					}
-				} else if body["code"] != code || stored.PresetBase != "private" || len(stored.Tables) != 0 {
-					t.Fatalf("failure changed preset: response=%v stored=%+v", body, stored)
+				} else if body["code"] != code || stored.Fingerprint() != before.Fingerprint() || len(stored.Tables) != 0 {
+					t.Fatalf("failure changed rules: response=%v stored=%+v", body, stored)
 				}
 				rows := s.must(t, "POST", "/sqlite/data/query", map[string]string{"sql": "SELECT id, body FROM notes"}, s.key, 200).json(t)["rows"].([]any)
 				if len(rows) != 1 || rows[0].([]any)[1] != "saved" {
 					t.Fatalf("saved data changed: %v", rows)
 				}
 				// A subsequent write takes both the site lock and admission again.
-				s.must(t, "PUT", "/resources/data", map[string]any{"kind": "sqlite", "preset": "private", "tables": map[string]any{}}, s.key, 200)
+				s.must(t, "PUT", "/resources/data", `{"kind":"sqlite","rules":`+string(model.OwnerOnlyRules)+`,"tables":{}}`, s.key, 200)
 			})
 		}
 	}
@@ -191,7 +199,7 @@ func TestExportAdmissionInjectedPanics(t *testing.T) {
 	}
 }
 
-func holdExportOwnerQuery(t *testing.T, s presetSite) func() {
+func holdExportOwnerQuery(t *testing.T, s storageTestSite) func() {
 	t.Helper()
 	h := s.a.sites
 	resource, err := h.loadStorageResource(context.Background(), s.sid, "data")

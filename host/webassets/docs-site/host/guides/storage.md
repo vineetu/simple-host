@@ -20,7 +20,7 @@ Send `PUT /v1/sites/{sitename}/storage/resources/notes` with the body below. Use
    ```
 
 
-Follow this server's `storage_set_resource` description: if it does not accept `rules`, the server is older and its description says what to send. KV namespaces still in Postgres cannot accept rules. Existing presets work until the announced switch; file buckets keep them afterwards. Saved rules remain enforced if accepting new rules is turned off.
+Follow this server's `storage_set_resource` description: if it does not accept `rules`, the server is older and its description says what to send. A resource of any kind saved without rules is owner-only until you save rules. Every kind refuses the old preset fields (`invalid_resource`).
 
 ## Write to storage from your own code
 [What this is](/features.html#storage-rows)
@@ -42,7 +42,7 @@ Use entirely `NULL` optional composite references, never partly `NULL`. Keep `vi
 <details>
 <summary>Existing resources and migration</summary>
 
-Review legacy identities before migration. Keep unattributed rows outside visitor-owned views. Omit `tables` to keep existing table sets, or send `{}` to remove them. Do not mix rules and preset fields in one save.
+Keep unattributed rows outside visitor-owned views. Omit `rules` to keep a resource's rules and `tables` to keep existing table sets, or send `tables: {}` to remove them.
 
 </details>
 
@@ -78,7 +78,6 @@ A table holds new posts only when its effective rules name TEXT `approved_at`. V
 | `row_conflict` (409) | Row cannot satisfy a table constraint | Check required fields, unique values, and check constraints |
 | `invalid_rules` (400) | Rules save is invalid | Use `rule_error` clause and position to repair it |
 | `rules_invalid` (403) | Stored rules no longer compile | Repair the schema or rules with owner tools |
-| `rules_unavailable` (400) | Server rules off or KV still in Postgres | Follow this server’s tool description |
 | `storage_busy` (503) | Storage is busy | Retry after a short wait; honor `Retry-After` when supplied |
 | `site_full` (507) | Storage allowance reached | Remove unused data |
 

@@ -1,14 +1,16 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`. Key-value rules require a SQLite-stored namespace. Check storage_list_resources first; if this server returns rules_unavailable because the namespace is still on Postgres or new namespaces use Postgres, report that to the operator. The operator must configure SQLite for new namespaces or perform the documented key-value move for existing ones before this setup can run.
+
 # Private: data only the owner sees (internal notes, inventory, drafts)
 
-Use this for data the site's pages never show to visitors: internal notes, stock counts, costings, drafts before they go public. private is the default preset for a new resource. Visitors get 403 for every action.
+Use this for data the site's pages never show to visitors: internal notes, stock counts, costings, drafts before they go public. The rules below grant only the owner access. Visitors get 403 for every action.
 
 Two ways the owner works with it:
 - Through these tools (storage_get_kv, storage_put_kv, storage_sql_query, storage_sql_execute). This always works.
-- From a page on the site itself, signed in with their account email (use their usual Simple Host sign-in email; only call who_am_i with include_email: true if they ask which email is connected) on the site's own address: the page acts with owner rights for saved data (SH.me() answers site_owner: true). Use preset custom with all four actions nobody instead of private when the data must never be reachable from any page, not even the owner's.
+- From a page on the site itself, signed in with their account email (use their usual Simple Host sign-in email; only call who_am_i with include_email: true if they ask which email is connected) on the site's own address: the page acts with owner rights for saved data (SH.me() answers site_owner: true). For data that must never be reachable from any page, including the owner's, save rules with an empty policies array instead.
 
 ## 1. Owner setup
 
-storage_set_resource {"site": "{site}", "name": "notes", "body": {"kind": "kv", "preset": "private", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "notes", "body": {"kind": "kv", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 ## 2. An owner-only page (notes.html), optional
 

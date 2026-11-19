@@ -3,6 +3,7 @@ package servertest
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http/httptest"
 	"reflect"
@@ -356,7 +357,7 @@ func TestStorageBindingsInstalledAfterBuild(t *testing.T) {
 	key := a.teamKey(t, slug, member)
 	wantTS(t, "deploy", a.deployTeam(t, team, key, "wired"), 201, "")
 	base := "/v1/sites/" + team + "/storage"
-	wantTS(t, "private resource", a.api(t, "PUT", base+"/resources/private", map[string]string{"kind": "kv", "preset": "private"}, key), 201, "")
+	wantTS(t, "private resource", a.api(t, "PUT", base+"/resources/private", map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, key), 201, "")
 	wantTS(t, "private value", a.api(t, "PUT", base+"/kv/private/keys/key", `{"value":"private value"}`, key), 200, "")
 	sid := hackSiteID(t, a, slug, team)
 	host := team + "." + slug + "." + tsDomain
@@ -371,11 +372,14 @@ func TestStorageBindingsInstalledAfterBuild(t *testing.T) {
 			}
 			before := provider.calls
 			got := asMember("GET", base+"/kv/private/keys/key", nil)
-			want := 200
+			// Rules ask twice: the request's owner-on-site lookup, then the
+			// fresh re-check inside the read; a failed lookup is never owner,
+			// so there is nothing to re-check.
+			want, calls := 200, 2
 			if fail {
-				want = 403
+				want, calls = 403, 1
 			}
-			if got.status != want || provider.calls != before+1 {
+			if got.status != want || provider.calls != before+calls {
 				t.Fatalf("%s storage fail=%v: %d calls=%d %s", transport, fail, got.status, provider.calls-before, got.body)
 			}
 			before = provider.calls

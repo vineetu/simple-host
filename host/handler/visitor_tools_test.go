@@ -14,18 +14,19 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/mcp"
+	"github.com/vsriram/simple-host/host/model"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	sitesrepo "github.com/vsriram/simple-host/host/repository/sites"
 )
 
 type visitorFixture struct {
-	presetSite
+	storageTestSite
 	token string
 }
 
 func newVisitorFixture(t *testing.T) visitorFixture {
 	t.Helper()
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	o := newTestOAuthHandler(s.a.database, accountapp.New(s.a.database), config.Config{PublicBaseURL: s.a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
 	o.SetPersonSiteResolver(s.a.sites.PersonReturnSite)
 	s.a.conn.SetVisitorTools(s.a.sites, o)
@@ -86,7 +87,8 @@ func (f visitorFixture) named(t *testing.T) {
 func TestVisitorMCPNamedViewerPresetsAndRemoval(t *testing.T) {
 	f := newVisitorFixture(t)
 	for _, preset := range []string{"records", "personal", "wall", "board", "private"} {
-		f.must(t, "PUT", "/resources/"+preset, map[string]any{"kind": "sqlite", "preset": preset}, f.key, 201)
+		rules := map[string]string{"records": rulesRecords, "personal": rulesPersonal, "wall": rulesWall, "board": rulesBoard, "private": string(model.OwnerOnlyRules)}[preset]
+		f.must(t, "PUT", "/resources/"+preset, storageRules("sqlite", rules), f.key, 201)
 		f.must(t, "POST", "/sqlite/"+preset+"/schema", map[string]any{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, text TEXT)"}, f.key, 200)
 	}
 	// Browser Alice's records must never appear in Bob's connector result.
@@ -162,7 +164,7 @@ func TestVisitorMCPNamedViewerPresetsAndRemoval(t *testing.T) {
 
 func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/notes", map[string]any{"kind": "kv", "preset": "personal"}, f.key, 201)
+	f.must(t, "PUT", "/resources/notes", storageRules("kv", rulesPersonal), f.key, 201)
 	args := f.args("kv", "notes")
 	args["key"] = "one"
 	args["value"] = "keep"
@@ -371,7 +373,7 @@ func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 func TestVisitorMCPConcurrentCap(t *testing.T) {
 	f := newVisitorFixture(t)
 	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 3 }, &f.a.sites.limitSet)
-	f.must(t, "PUT", "/resources/wall", map[string]any{"kind": "kv", "preset": "wall"}, f.key, 201)
+	f.must(t, "PUT", "/resources/wall", storageRules("kv", rulesWall), f.key, 201)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	success := 0
@@ -413,7 +415,7 @@ func TestVisitorDataMinimisation(t *testing.T) {
 func TestVisitorMCPCommentsOfflineAndVisitorLimits(t *testing.T) {
 	f := newVisitorFixture(t)
 	f.a.sites.SetTurnstile(turnstileTestSiteKey, turnstileTestSecret, f.a.srv.URL)
-	f.must(t, "PUT", "/resources/comments", map[string]any{"kind": "sqlite", "preset": "comments", "approve_first": true}, f.key, 201)
+	f.must(t, "PUT", "/resources/comments", storageRules("sqlite", rulesCommentsApproveFirst), f.key, 201)
 	f.must(t, "POST", "/sqlite/comments/schema", map[string]any{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY,text TEXT)"}, f.key, 200)
 	args := f.args("sqlite", "comments")
 	args["table"] = "entries"

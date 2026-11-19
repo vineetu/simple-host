@@ -33,12 +33,10 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 		return r
 	}
 	for _, kind := range []string{"sqlite", "kv", "files"} {
-		check("PUT", pcSiteDomain, "/resources/"+kind, map[string]string{"kind": kind, "read": "own", "write": "signed-in", "write_mode": "add"}, key, 201, "")
+		check("PUT", pcSiteDomain, "/resources/"+kind, storageRules(kind, rulesRecords), key, 201, "")
 		check("GET", host, map[string]string{"sqlite": "/sqlite/sqlite/tables/orders/rows", "kv": "/kv/kv/keys", "files": "/files/files/objects"}[kind], nil, nil, 401, "sign_in_required")
-		// Older fields that the presets model reads as personal data.
-		if r := check("PUT", pcSiteDomain, "/resources/personal-"+kind, map[string]string{"kind": kind, "read": "own", "write": "signed-in"}, key, 201, ""); r.json(t)["preset"] != "personal" {
-			t.Fatalf("own + signed-in full: %s", r.body)
-		}
+		// The removed presets' fields are refused on every kind.
+		check("PUT", pcSiteDomain, "/resources/personal-"+kind, map[string]string{"kind": kind, "read": "own", "write": "signed-in"}, key, 400, "invalid_resource")
 	}
 	check("PUT", pcSiteDomain, "/resources/invalid-mode", map[string]string{"kind": "kv", "write_mode": "upsert"}, key, 400, "invalid_resource")
 	check("POST", pcSiteDomain, "/sqlite/sqlite/schema", `{"sql":"CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT, status TEXT DEFAULT 'placed')"}`, key, 200, "")
@@ -126,17 +124,6 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 	check("GET", host, "/files/files/objects/interrupted", nil, ah, 404, "file_not_found")
 	check("GET", host, "/files/files/objects/interrupted", nil, bh, 200, "")
 
-	// A legacy database pages write with SQL keeps its raw routes until the
-	// owner sets a preset; own then needs it empty (a page could have
-	// forged visitor_id).
-	insertLegacyStorage(t, a.sites, sid, "legacy", "sqlite", "anyone", "anyone", "full", "")
-	check("POST", pcSiteDomain, "/sqlite/legacy/schema", `{"sql":"CREATE TABLE old (v TEXT)"}`, key, 200, "")
-	check("POST", host, "/sqlite/legacy/execute", `{"sql":"INSERT INTO old VALUES('old')"}`, browser(host, ""), 200, "")
-	check("POST", host, "/sqlite/legacy/execute", `{"sql":"UPDATE old SET v='updated'"}`, browser(host, ""), 200, "")
-	check("PUT", pcSiteDomain, "/resources/legacy", map[string]string{"kind": "sqlite", "read": "own"}, key, 400, "visitor_id_required")
-	check("POST", host, "/sqlite/legacy/execute", `{"sql":"DELETE FROM old"}`, browser(host, ""), 200, "")
-	check("PUT", pcSiteDomain, "/resources/legacy", map[string]string{"kind": "sqlite", "read": "own"}, key, 200, "")
-	check("POST", host, "/sqlite/legacy/execute", `{"sql":"INSERT INTO old VALUES('old')"}`, browser(host, ""), 403, "fixed_routes_required")
 	// Owner-defined triggers cannot turn add-only visitor inserts into edits.
 	for _, statement := range []string{"UPDATE orders SET status='changed'", "DELETE FROM orders", "INSERT INTO orders(item) VALUES('triggered')"} {
 		check("POST", pcSiteDomain, "/sqlite/sqlite/schema", map[string]string{"sql": "CREATE TRIGGER bad AFTER INSERT ON orders BEGIN " + statement + "; END"}, key, 200, "")
@@ -151,14 +138,18 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 	// Switching an existing indexed-capable table to own adds the identity index.
 	check("PUT", pcSiteDomain, "/resources/converted", map[string]string{"kind": "sqlite"}, key, 201, "")
 	check("POST", pcSiteDomain, "/sqlite/converted/schema", `{"sql":"CREATE TABLE entries (id INTEGER PRIMARY KEY,v TEXT,visitor_id TEXT)"}`, key, 200, "")
-	check("PUT", pcSiteDomain, "/resources/converted", map[string]string{"kind": "sqlite", "read": "own", "write": "anyone", "write_mode": "add"}, key, 200, "")
+	check("PUT", pcSiteDomain, "/resources/converted", storageRules("sqlite", rulesRecords), key, 200, "")
 	idx := check("POST", pcSiteDomain, "/sqlite/converted/query", `{"sql":"SELECT COUNT(*) FROM sqlite_schema WHERE type='index' AND tbl_name='entries'"}`, key, 200, "")
 	if !strings.Contains(string(idx.body), "[[1]]") {
 		t.Fatalf("missing identity index: %s", idx.body)
 	}
 	check("POST", host, "/sqlite/converted/tables/entries/rows", `{"v":"anonymous"}`, browser(host, ""), 401, "sign_in_required")
 	check("POST", host, "/sqlite/converted/tables/entries/rows", `{"v":"owned"}`, ah, 200, "")
-	check("POST", host, "/sqlite/converted/tables/entries/rows", `{"VISITOR_ID":"forged"}`, ah, 400, "invalid_rows")
+	// Rules stamp the server's identity whatever the spelling sent.
+	check("POST", host, "/sqlite/converted/tables/entries/rows", `{"VISITOR_ID":"forged"}`, ah, 200, "")
+	if forged := check("POST", pcSiteDomain, "/sqlite/converted/query", `{"sql":"SELECT COUNT(*) FROM entries WHERE visitor_id='forged'"}`, key, 200, ""); !strings.Contains(string(forged.body), "[[0]]") {
+		t.Fatalf("forged visitor_id stored: %s", forged.body)
+	}
 	check("POST", pcSiteDomain, "/sqlite/converted/schema", `{"sql":"CREATE TABLE without_id (v INTEGER,visitor_id INTEGER)"}`, key, 400, "visitor_id_required")
 	missing := check("POST", pcSiteDomain, "/sqlite/converted/query", `{"sql":"SELECT COUNT(*) FROM sqlite_schema WHERE name='without_id'"}`, key, 200, "")
 	if !strings.Contains(string(missing.body), "[[0]]") {
@@ -179,7 +170,7 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 				break
 			}
 		}
-		if count != 4 {
+		if count != 5 {
 			t.Fatalf("pagination desc=%s got %d", desc, count)
 		}
 	}
@@ -191,13 +182,13 @@ func TestStorageStoryShopAndRefusals(t *testing.T) {
 	}
 
 	// Add-only public SQLite permits anonymous inserts, but no raw SQL.
-	check("PUT", pcSiteDomain, "/resources/public", map[string]string{"kind": "sqlite", "read": "anyone", "write": "anyone", "write_mode": "add"}, key, 201, "")
+	check("PUT", pcSiteDomain, "/resources/public", storageRules("sqlite", rulesOpenAdd), key, 201, "")
 	check("POST", pcSiteDomain, "/sqlite/public/schema", `{"sql":"CREATE TABLE notes (v TEXT)"}`, key, 200, "")
 	check("POST", host, "/sqlite/public/tables/notes/rows", `{"v":"public"}`, browser(host, ""), 200, "")
 	check("GET", host, "/sqlite/public/tables/notes/rows", nil, nil, 200, "")
 	check("POST", host, "/sqlite/public/execute", `{"sql":"INSERT INTO notes VALUES('x')"}`, browser(host, ""), 403, "fixed_routes_required")
 	for _, kind := range []string{"kv", "files"} {
-		check("PUT", pcSiteDomain, "/resources/open-"+kind, map[string]string{"kind": kind, "read": "anyone", "write": "anyone", "write_mode": "add"}, key, 201, "")
+		check("PUT", pcSiteDomain, "/resources/open-"+kind, storageRules(kind, rulesOpenAdd), key, 201, "")
 		path := map[string]string{"kv": "/kv/open-kv/keys/x", "files": "/files/open-files/objects/x"}[kind]
 		body := any("x")
 		if kind == "kv" {

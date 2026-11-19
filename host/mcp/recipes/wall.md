@@ -1,6 +1,8 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Wall: a guestbook, comments, reviews, or a public "who's coming" list
 
-Use this when signed-in people post and everyone can read, and each author can take back their own post: a guestbook, comments, reviews, wedding wishes, a public RSVP list, community recommendations. For photos, use topic gallery (the same preset on a files resource).
+Use this when signed-in people post and everyone can read, and each author can take back their own post: a guestbook, comments, reviews, wedding wishes, a public RSVP list, community recommendations. For photos, use topic gallery (a files resource with these same rules).
 
 Who signs in where:
 - Readers need no sign-in. Posting needs visitor sign-in on the site's own address (an emailed code or Google, the SH.mount box), so every post has a known author.
@@ -8,9 +10,9 @@ Who signs in where:
 
 ## 1. Owner setup (run these tools before publishing the page)
 
-Preset wall (read anyone, add signed-in, edit owner, delete own): everyone reads, signed-in people add, authors delete their own, and only you edit or remove anyone's.
+The following rules implement this example.
 
-storage_set_resource {"site": "{site}", "name": "guestbook", "body": {"kind": "sqlite", "preset": "wall", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "guestbook", "body": {"kind": "sqlite", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "delete", "command": "delete", "using": "visitor_id == auth.id"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_sql_schema {"site": "{site}", "name": "guestbook", "sql": "CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL CHECK (length(name) <= 80), message TEXT NOT NULL CHECK (length(message) <= 1000), created_at TEXT)"}
 

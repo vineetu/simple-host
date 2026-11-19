@@ -52,28 +52,6 @@ func TestRunTableWrite(t *testing.T) {
 	}
 }
 
-func TestRowMayRead(t *testing.T) {
-	tests := []struct {
-		call    Call
-		policy  string
-		filter  string
-		allowed bool
-	}{
-		{Call{}, rules.WhoOwn, "", false},
-		{Call{VisitorID: "v"}, rules.WhoOwn, "v", true},
-		{Call{VisitorID: "v", OwnerOnSite: true}, rules.WhoOwn, "", true},
-		{Call{}, rules.WhoChecked, "", true},
-		{Call{}, rules.WhoOwner, "", false},
-		{Call{Owner: true}, rules.WhoOwner, "", true},
-	}
-	for _, tt := range tests {
-		filter, allowed := rowMayRead(tt.call, tt.policy)
-		if filter != tt.filter || allowed != tt.allowed {
-			t.Errorf("%+v %q: got %q, %v", tt.call, tt.policy, filter, allowed)
-		}
-	}
-}
-
 func TestCheckRowReferencesVisibility(t *testing.T) {
 	conn, err := sqlite3.Open(":memory:")
 	if err != nil {
@@ -86,38 +64,13 @@ func TestCheckRowReferencesVisibility(t *testing.T) {
 		INSERT INTO child VALUES (1, 1), (2, 2)`); err != nil {
 		t.Fatal(err)
 	}
-	matrix := rules.AccessMatrix{Read: rules.WhoOwn}
-	c := Call{VisitorID: "visitor", Resource: rules.Resource{Access: &matrix}}
+	own := rules.Resource{Kind: "sqlite", Rules: *readSet(`visitor_id == auth.id || auth.role == "owner"`)}
+	c := Call{Context: context.Background(), VisitorID: "visitor", ActiveChecked: true, Resource: own}
 	if err := (&Service{}).checkRowReferences(conn, c, "child", "id", 2); err != nil {
 		t.Fatalf("own parent: %v", err)
 	}
 	if err := (&Service{}).checkRowReferences(conn, c, "child", "id", 1); err == nil || err.(*Error).Code != "invalid_reference" {
 		t.Fatalf("other parent: %v", err)
-	}
-}
-
-func TestCheckRowReferencesPresetBlobAuthor(t *testing.T) {
-	conn, err := sqlite3.Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	if err := conn.Exec(`CREATE TABLE parent (id INTEGER PRIMARY KEY, visitor_id TEXT COLLATE NOCASE);
-		CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id));
-		INSERT INTO parent VALUES (1, CAST('caller' AS BLOB)), (2, CAST('other' AS BLOB)), (3, CAST('CALLER' AS BLOB));
-		INSERT INTO child VALUES (1, 1), (2, 2), (3, 3)`); err != nil {
-		t.Fatal(err)
-	}
-	c := Call{VisitorID: "caller", Resource: rules.Resource{Access: &rules.AccessMatrix{Read: rules.WhoOwn}}}
-	for _, id := range []int64{1, 2, 3} {
-		err := (&Service{}).checkRowReferences(conn, c, "child", "id", id)
-		if id == 1 {
-			if err != nil {
-				t.Fatalf("own BLOB author: %v", err)
-			}
-		} else if e, ok := err.(*Error); !ok || e.Code != "invalid_reference" {
-			t.Fatalf("other BLOB author %d: %v", id, err)
-		}
 	}
 }
 
@@ -150,8 +103,9 @@ func TestAddTableRowCommitAndRollback(t *testing.T) {
 	}
 	marks := 0
 	s := New(nil, Deps{MarkChanged: func() { marks++ }})
-	c := Call{VisitorID: "visitor", Resource: rules.Resource{Access: &rules.AccessMatrix{Read: rules.WhoOwn}}}
-	meta, err := tableMetadata(conn, c, "child", "")
+	own := rules.Resource{Kind: "sqlite", Rules: *readSet(`visitor_id == auth.id || auth.role == "owner"`)}
+	c := Call{Context: context.Background(), VisitorID: "visitor", ActiveChecked: true, Resource: own}
+	meta, err := tableMetadata(conn, c, "child")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +133,7 @@ func TestAddTableRowRejectsClientIDWithoutWriting(t *testing.T) {
 	marks := 0
 	s := New(nil, Deps{MarkChanged: func() { marks++ }})
 	c := Call{VisitorID: "visitor"}
-	meta, err := tableMetadata(conn, c, "notes", "")
+	meta, err := tableMetadata(conn, c, "notes")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +161,7 @@ func TestAddTableRowRejectsTriggerWritingAnotherTable(t *testing.T) {
 	marks := 0
 	s := New(nil, Deps{MarkChanged: func() { marks++ }})
 	c := Call{VisitorID: "visitor"}
-	meta, err := tableMetadata(conn, c, "notes", "")
+	meta, err := tableMetadata(conn, c, "notes")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +186,7 @@ func TestAddTableRowOwnerMayUseTrigger(t *testing.T) {
 	marks := 0
 	s := New(nil, Deps{MarkChanged: func() { marks++ }})
 	c := Call{Owner: true}
-	meta, err := tableMetadata(conn, c, "notes", "")
+	meta, err := tableMetadata(conn, c, "notes")
 	if err != nil {
 		t.Fatal(err)
 	}

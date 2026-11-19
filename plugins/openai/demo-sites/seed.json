@@ -4,9 +4,11 @@
       "rsvps": {
         "resource": {
           "kind": "sqlite",
-          "read": "own",
-          "write": "signed-in",
-          "write_mode": "add",
+          "rules": {"version": 1, "policies": [
+            {"name": "read", "command": "read", "using": "visitor_id == auth.id"},
+            {"name": "add", "command": "add", "check": "auth.signed_in"},
+            {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}
+          ]},
           "site_passcode": "inherit"
         },
         "schema": "CREATE TABLE rsvps (id INTEGER PRIMARY KEY, name TEXT NOT NULL, attending TEXT NOT NULL CHECK (attending IN ('yes','no')), guests INTEGER NOT NULL DEFAULT 0, dietary TEXT, created_at TEXT)",
@@ -27,9 +29,10 @@
       "responses": {
         "resource": {
           "kind": "sqlite",
-          "read": "owner",
-          "write": "signed-in",
-          "write_mode": "add",
+          "rules": {"version": 1, "policies": [
+            {"name": "add", "command": "add", "check": "auth.signed_in"},
+            {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}
+          ]},
           "site_passcode": "inherit"
         },
         "schema": "CREATE TABLE responses (id INTEGER PRIMARY KEY, visit TEXT, ordered TEXT, taste INTEGER, service INTEGER, wait TEXT, again TEXT, improve TEXT, created_at TEXT)",
@@ -51,9 +54,11 @@
       "orders": {
         "resource": {
           "kind": "sqlite",
-          "read": "own",
-          "write": "signed-in",
-          "write_mode": "add",
+          "rules": {"version": 1, "policies": [
+            {"name": "read", "command": "read", "using": "visitor_id == auth.id"},
+            {"name": "add", "command": "add", "check": "auth.signed_in"},
+            {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}
+          ]},
           "site_passcode": "inherit"
         },
         "schema": "CREATE TABLE orders (id INTEGER PRIMARY KEY, name TEXT NOT NULL, contact TEXT NOT NULL, items TEXT NOT NULL, total_cents INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'received', created_at TEXT)",

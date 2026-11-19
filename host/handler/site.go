@@ -124,7 +124,7 @@ type SiteHandler struct {
 	uploadLimiter         *rateLimiter
 	storageIPLimiter      *rateLimiter
 	storageVisitorLimiter *rateLimiter
-	// The spam check behind the comments preset (turnstile.go); nil: off.
+	// The spam check behind auth.checked (turnstile.go); nil: off.
 	turnstile          *turnstileVerifier
 	spamIPLimiter      *rateLimiter
 	spamSiteLimiter    *rateLimiter

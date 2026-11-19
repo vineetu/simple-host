@@ -9,19 +9,13 @@ import (
 )
 
 // hackRecipeFiles holds the one recipe that is Simple Hack's own: the
-// organiser's event website, in its preset and its rules wording.
+// organiser's event website.
 //
-//go:embed recipes/*.md recipes/rules/*.md
+//go:embed recipes/*.md
 var hackRecipeFiles embed.FS
 
-// readEventRecipe chooses at request time, as the tool server does for its
-// own recipes: switching the flag never changes the legacy file.
 func readEventRecipe() ([]byte, error) {
-	dir := "recipes/"
-	if mcp.StorageRulesEnabled() {
-		dir += "rules/"
-	}
-	return hackRecipeFiles.ReadFile(dir + "hack-event.md")
+	return hackRecipeFiles.ReadFile("recipes/hack-event.md")
 }
 
 // hackRecipeNote opens every recipe on Simple Hack: who "owner" is there and
@@ -54,7 +48,7 @@ func HackPageRecipe(topic, site string) (string, error) {
 	if topic == "portal" {
 		return "", fmt.Errorf("topic portal is not available on Simple Hack (it needs named viewers); use another topic")
 	}
-	// The comments preset needs the spam check, which Simple Hack does not
+	// The comments recipe needs the spam check, which Simple Hack does not
 	// run; people sign in to post there (wall).
 	if topic == "comments" || topic == "guestbook" {
 		return "", fmt.Errorf("topic %s is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post", topic)
@@ -70,17 +64,14 @@ func HackPageRecipe(topic, site string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	photoAdvice := "For photos, a files resource with the same preset and storage_put_file (under 1,000,000 bytes each; resize first)."
-	if mcp.StorageRulesEnabled() {
-		photoAdvice = "For photos, use a files resource with the same rules (read true; add, edit and delete auth.role == \"owner\") and storage_put_file (under 1,000,000 bytes each; resize first)."
-	}
+	photoAdvice := "For photos, use a files resource with the same rules (read true; add, edit and delete auth.role == \"owner\") and storage_put_file (under 1,000,000 bytes each; resize first)."
 	text = strings.NewReplacer(
 		"Pass returned visitor_id values directly in storage_sql_query or storage_sql_execute params for the same site.\n\n", "",
 		"each row's visitor_id in connector results is an opaque reference scoped to this site. Only when the owner asks who sent particular entries, storage_visitor_emails resolves their references to sign-in emails. References change after a server restart, so read the row again if needed.", "each row's visitor_id is the customer's sign-in, and storage_visitor_emails turns it into the email they signed in with.",
 		"REST uses its existing visitor IDs, not connector references. ", "",
 		"Stop first: if the person is adding their own photos (a menu, listing, portfolio, team), do not use this recipe or build an upload page. Call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them); then get_site and place the images/ files with update_site (keep_other_files: true).\n\n", "",
 		"For the owner's own photos (dishes, products), call create_upload_link: it shows a photo picker in the chat (or returns photos_url to give them) and saves them into images/; then add them to the page with update_site (keep_other_files: true). Never build an upload form for the owner.", photoAdvice,
-		" Photos never go into SQLite", " For a gallery only the owner fills, skip the upload form: use preset public on the files resource, upload with storage_put_file, and keep section 2's wall (topic public). Photos never go into SQLite",
+		" Photos never go into SQLite", " For a gallery only the owner fills, skip the upload form: give the files resource rules that let everyone read and only auth.role == \"owner\" add, edit and delete, upload with storage_put_file, and keep section 2's wall (topic public). Photos never go into SQLite",
 		"https://simple-host.app/auth.js", "https://simple-hack.app/auth.js",
 		"<site>.<handle>.simple-host.app", "<team>.<event>.simple-hack.app",
 		"Simple Host account email", "Simple Hack email",

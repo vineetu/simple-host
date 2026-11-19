@@ -56,15 +56,6 @@ func sqlAuthorizerDenial(a sqlite3.AuthorizerActionCode, mode, fn string) *sqlRe
 	return sqlRefuse("sql_not_available", "that is not available here")
 }
 
-// sqlVisitorReadDenial explains a visitor statement that reads rows it may
-// not read. It names the database's rule, never the rows.
-func sqlVisitorReadDenial(read string) *sqlRefusal {
-	if read == "owner" {
-		return sqlRefuse("sql_visitor_rule", "this database's read rule is owner, so a visitor's statement cannot read its rows (no WHERE, RETURNING or subquery on its tables): write without reading")
-	}
-	return sqlRefuse("sql_visitor_rule", "this database's read rule is "+read+": a visitor's statement that reads rows needs the visitor signed in on the site's own address first")
-}
-
 // sqlRouteMismatch explains a statement that compiled but belongs to another
 // route. It returns nil when the statement fits mode.
 func sqlRouteMismatch(mode, sql string, readOnly, didWrite, didSchema, noopCreate bool) *sqlRefusal {

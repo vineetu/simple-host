@@ -15,7 +15,6 @@ func commands(exts []*extension.Extension) []command {
 		{"prune-versions", runPruneVersions},
 		{"oauth-client", runOAuthClientCommand},
 		{"review-account", runReviewAccountCommand},
-		{"migrate-rules", func(args []string) int { return runMigrateRulesCommandWithExtensions(args, exts) }},
 		{"move-site-base", runMoveSiteBaseCommand},
 		{"geoip-verify", geoipVerify},
 		{"migrate", func(args []string) int { return runMigrateCommand(args, exts) }},

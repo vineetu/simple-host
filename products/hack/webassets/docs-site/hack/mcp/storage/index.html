@@ -661,7 +661,8 @@
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><h2 id="hack_event_storage_list_resources">hack_event_storage_list_resources</h2>
 <div data-tool="hack_event_storage_list_resources"></div>
-<p>List a site’s saved-data resources (KV, SQLite, files) with each one’s name, kind, preset, and access (who may read, add, edit, and delete), plus each SQLite table’s own preset. preset legacy marks a resource saved before presets that keeps its old rules until you set a preset on it. Call it before reading or changing saved data, to get the exact resource name. It does not list a files resource’s uploads: hack_event_storage_list_file_objects does (through run_tool if it is not in your tool list). Organiser only on this event’s custom website.</p>
+<p>List a site’s saved-data resources with their names and kinds. Each resource returns rules, rules_status (rules or invalid), rules_errors when invalid, and per-table rules only for overrides. Missing table overrides inherit the resource rules; an empty policy set denies visitors. Read this before changing saved data or access.</p>
+<p>Uploads in a files resource are listed by hack_event_storage_list_file_objects (through run_tool if absent from your tool list). Organiser only on this event’s custom website.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -705,7 +706,22 @@
 </table>
 <h2 id="hack_event_storage_set_resource">hack_event_storage_set_resource</h2>
 <div data-tool="hack_event_storage_set_resource"></div>
-<p>Create a saved-data resource on a site, or set who may read, add, edit, and delete in it. kind: kv (one JSON value per key), sqlite (tables), or files (uploads); it cannot change later. Pick a preset; the server enforces it on every request from the site’s pages, whatever the page code does. The presets (read / add / edit / delete): public (anyone / owner / owner / owner): menus, catalogues, price lists, opening hours, schedules, FAQs, a gallery you fill. inbox (owner / anyone / owner / owner): quote requests, contact forms, waitlists, sign-ups, applications, feedback; anyone sends without signing in, only you read. wall (anyone / signed-in / owner / own): guestbooks, comments, reviews, a public RSVP or who’s-coming list; authors can take back their own. records (own / signed-in / owner / owner): bookings, appointments, table reservations (even a “booking request”), orders, support tickets; the person signs in when they send, sees only their own and its status, you see all and set a status. personal (own / signed-in / own / own): profiles, saved settings, wishlists, notes, bookmarks, a cart that follows the person. board (signed-in / signed-in / signed-in / owner): potluck and sign-up sheets, shared task or shopping lists, a club roster; everyone signed in edits, only you delete. private (all owner, the default): admin data, inventory, internal notes, drafts. Lookalikes: a sign-up sheet people change is board, but one where each person adds and removes only their own entry is wall; a form only you read is inbox, but one where each person sees their own submissions is records; a wishlist only its owner sees is personal, but a wishlist others may view is wall; a gallery you fill is public on files, one visitors add to is wall on files. “own” means the signed-in person who added the entry; “owner” means the event’s organisers: these hack_event_storage_* tools, and an organiser signed in on the event website’s own address with the email they use on Simple Hack, where a page can act as an admin page (all questions, mark one answered). That stops when the event ends. “nobody” keeps data to these tools only. For sqlite, the preset is the database default and tables can each have their own: {“kind”:“sqlite”,“preset”:“private”,“tables”:{“products”:{“preset”:“public”},“orders”:{“preset”:“records”}}}. A preset takes single-action overrides, checked by the server, e.g. {“preset”:“inbox”,“add”:“signed-in”}; preset custom sets all four. The server refuses: edit or delete anyone; add own; own anywhere with add anyone; edit or delete wider than read. Create the resource, and its tables with hack_event_storage_sql_schema, before publishing the page that uses it; hack_get_page_recipe has a complete page for each job (booking, inbox, public, portal, and the rest). Ask the person before making data readable or changeable by more people. Organiser only on this event’s custom website.</p>
+<p>Create a saved-data resource or set who may read, add, edit and delete. kind: kv (one JSON value per key), sqlite (tables), or files (uploads); it cannot change later.</p>
+<p>For SQLite, SQLite-stored key-value data and files, ask who should read and write which data, then supply rules: {version:1, policies:[…]}. Deny by default: without a permissive policy for the command, visitors cannot run it; an empty policies array denies every visitor. Permissive policies combine with OR; restrictive policies combine with AND and cannot grant access alone. Table rules replace the resource rules for that table; tables without an override inherit the resource rules. Send tables:{} when replacing existing table settings with one resource rule set. Without rules, a new resource is owner-only and an existing one keeps its rules. Presets were removed and their fields are refused.</p>
+<p>Clause table (command | existing row using | new row check):
+read | required | refused
+add | refused | required
+edit | required | optional, defaults to using
+delete | required | refused
+all | required for read/edit/delete | optional for add/edit, defaults to using
+A command without a matching permissive policy is denied regardless of these clause defaults. Edit and delete also require read visibility. Anonymous edits and deletes are refused. Use fixed page methods SH.storage.sqlite(name).table(t).list/get/add/edit/delete; visitors never send SQL. Bindings are trusted server facts: auth.id, auth.signed_in, auth.role; visitor_id is the row’s author. KV rules use key, value and visitor_id; value is the whole JSON text, with no nested JSON access. File rules use path and visitor_id, the signed-in uploader. Owner tools bypass rules; the owner signed in on the site’s own address does not: include auth.role == “owner” when that page should act as an admin page.</p>
+<p>Three example rule sets:
+{“version”:1,“policies”:[{“name”:“read”,“command”:“read”,“using”:“true”},{“name”:“manage”,“command”:“all”,“using”:“auth.role == "owner"”,“check”:“auth.role == "owner"”}]}
+{“version”:1,“policies”:[{“name”:“send”,“command”:“add”,“check”:“true”},{“name”:“manage”,“command”:“all”,“using”:“auth.role == "owner"”,“check”:“auth.role == "owner"”}]}
+{“version”:1,“policies”:[{“name”:“read”,“command”:“read”,“using”:“visitor_id == auth.id || auth.role == "owner"”},{“name”:“add”,“command”:“add”,“check”:“auth.signed_in”},{“name”:“manage”,“command”:“all”,“using”:“auth.role == "owner"”,“check”:“auth.role == "owner"”}]}</p>
+<p>For kind: “files”, rules are written the same way: read lists and opens files, add uploads a new path, edit replaces an existing file, delete removes one. Uploads are never spam-checked.</p>
+<p>For every resource kind, site_passcode applies alongside rules: inherit requires the site’s passcode; off exempts this resource. Omission defaults to inherit, so preserve an existing off exemption when saving.</p>
+<p>Create the resource with hack_event_storage_set_resource, then create its tables with hack_event_storage_sql_schema only for SQLite, before publishing the page. Ask before widening access. Organiser only on this event’s custom website.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -721,7 +737,7 @@
 <td>body</td>
 <td>object</td>
 <td>yes</td>
-<td>The resource’s kind and preset, e.g. {“kind”: “sqlite”, “preset”: “records”}.</td>
+<td>The resource’s kind and access rules, e.g. {“kind”: “files”, “rules”: {…}}.</td>
 </tr>
 <tr>
 <td>event</td>
@@ -921,7 +937,7 @@
 </table>
 <h2 id="hack_event_storage_sql_query">hack_event_storage_sql_query</h2>
 <div data-tool="hack_event_storage_sql_query"></div>
-<p>Read rows from a SQLite resource with a SELECT, as the owner: it sees every person’s rows, whatever the preset. Read-only; put values in params with ? placeholders; on Simple Host, visitor_id values from results can be passed back as parameters. Use it to show the person their orders, entries, or messages. No PRAGMA: list tables and columns with SELECT name, sql FROM sqlite_schema. Organiser only on this event’s custom website.</p>
+<p>Read rows from a SQLite resource with a SELECT as the owner: owner tools see every person’s rows and bypass row rules. Read-only; put values in params with ? placeholders; on Simple Host, visitor_id values from results can be passed back as parameters. Use it to show the person their orders, entries, or messages. No PRAGMA: list tables and columns with SELECT name, sql FROM sqlite_schema. Organiser only on this event’s custom website.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>
@@ -1001,7 +1017,7 @@
 </table>
 <h2 id="hack_event_storage_sql_schema">hack_event_storage_sql_schema</h2>
 <div data-tool="hack_event_storage_sql_schema"></div>
-<p>Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema with SELECT name, sql FROM sqlite_schema (no PRAGMA) before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, records, personal, board) the server adds an indexed visitor_id column itself. A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data. Organiser only on this event’s custom website.</p>
+<p>Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema with SELECT name, sql FROM sqlite_schema (no PRAGMA) before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and created_at TEXT (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: the server ensures the indexed author column when rules reference visitor_id or allow ordinary visitors to add. If rules name approved_at, the server ensures that column for moderation. A table override replaces the resource rule set; install rules for a new table name before renaming a table with its own rules. A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data. Organiser only on this event’s custom website.</p>
 <p><strong>Parameters:</strong></p>
 <table>
 <thead>

@@ -10,8 +10,9 @@ site-scoped visitor sign-in; they never contain an owner key.
 
 Follow the description of `storage_set_resource` that this server gives. If it
 does not accept `rules`, the server is older and its description says what to
-send. A KV namespace still in Postgres cannot accept rules. File buckets take
-the same rules, over `path` and `visitor_id`; see the file section below.
+send. A KV namespace still in Postgres cannot accept rules. A resource of any
+kind saved without rules is owner-only. File buckets take the same rules, over
+`path` and `visitor_id`; see the file section below.
 
 Rules have `version: 1` and `policies`. A policy has a `command`, optional
 `name`, optional `restrictive: true` (default false), and these clauses:
@@ -68,9 +69,9 @@ policy and use add `check: "true"`. For personal editable notes use all
 it does not give per-person privacy.
 
 SQLite `tables: {"orders": {"rules": {...}}}` replaces the default set for that
-table. Omit `tables` to keep existing sets; `{}` removes them. When replacing
-old table access choices, send each table's rules or `{}`. Do not mix rules and
-preset fields in a single save. Saving only passcode inheritance keeps rules.
+table. Omit `tables` to keep existing sets; `{}` removes them. Every kind
+refuses preset and read/add/edit/delete fields (`invalid_resource`). Saving only
+passcode inheritance keeps rules.
 Rules responses have `rules_status`, `rules_errors` and table sets. Repair
 `invalid_rules` using `rule_error` clause and position; `rules_invalid` means a
 stored set no longer compiles. Do not widen access to fix a refusal.

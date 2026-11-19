@@ -29,7 +29,10 @@
     return (result.rows || []).map(row => Object.fromEntries(result.columns.map((key, i) => [key, row[i]])));
   }
   const identifier = value => '"' + String(value).replaceAll('"', '""') + '"';
-  const entryPreset = policy => ['inbox', 'records'].includes(policy?.preset) || ['inbox', 'records'].includes(policy?.based_on);
+  // Entries live in tables whose rules let visitors add rows (an inbox, records).
+  const ownerOnly = expression => /^\s*auth\.role\s*==\s*"owner"\s*$/.test(expression ?? '');
+  const visitorsAdd = rules => (rules?.policies || []).some(policy =>
+    !policy.restrictive && ['add', 'all'].includes(policy.command) && !ownerOnly(policy.check ?? policy.using));
   function renderEntry(document, entry) {
     const row = node(document, 'div', 'inquiry');
     row.append(node(document, 'strong', '', entry.name || entry.full_name || entry.email || 'Entry'));
@@ -105,17 +108,17 @@
       const entries = [], sources = [], failed = [];
       for (const resource of listing.response?.resources || []) {
         if (current !== generation) return;
-        if (resource.kind !== 'sqlite' || !(entryPreset(resource) || Object.values(resource.tables || {}).some(entryPreset))) continue;
+        if (resource.kind !== 'sqlite' || !(visitorsAdd(resource.rules) || Object.values(resource.tables || {}).some(table => visitorsAdd(table.rules)))) continue;
         const query = async sql => (await (hack ? hack.storage(site, 'storage_sql_query', {name: resource.name, sql, params: []}) : app.callTool('storage_sql_query', {site: site.name, name: resource.name, sql, params: []}))).response;
-        // Tables inherit the resource preset unless they have an explicit override.
+        // Tables use the resource rules unless they have their own set.
         let tables;
         try { tables = objects(await query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*' ORDER BY name")); }
         catch { failed.push(resource.name); continue; }
         for (const {name} of tables) {
           if (current !== generation) return;
           const key = name.toLowerCase();
-          const policy = Object.hasOwn(resource.tables || {}, key) ? resource.tables[key] : resource;
-          if (!entryPreset(policy)) continue;
+          const rules = Object.hasOwn(resource.tables || {}, key) ? resource.tables[key].rules : resource.rules;
+          if (!visitorsAdd(rules)) continue;
           const source = resource.name + (name === resource.name ? '' : ' / ' + name);
           try {
             const schema = await query('SELECT * FROM ' + identifier(name) + ' LIMIT 0');

@@ -2,8 +2,7 @@ package storage
 
 import ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 
-// rulePermission is the binding-level decision shared by the conversion oracle
-// and rules enforcement. Gates and the active-account check precede this helper;
+// rulePermission is the binding-level decision of rules enforcement. Gates and the active-account check precede this helper;
 // a permitted result still requires the statement's row predicates.
 func rulePermission(p *ruleengine.Plan, set ruleengine.PolicySet, op ruleengine.Op, v ruleengine.Values, spamCode string) (bool, string) {
 	partial := p.Partial(op, v)
@@ -54,7 +53,6 @@ func cloneRuleValues(v ruleengine.Values) ruleengine.Values {
 }
 
 // ruleAIConstraint supplies the mandatory author term for visitor-AI writes.
-// The same predicate feeds the oracle and R3-S1's statement builders.
 func ruleAIConstraint(op ruleengine.Op, c Call) ruleengine.Predicate {
 	if c.VisitorAI && (op == ruleengine.OpEdit || op == ruleengine.OpDelete) {
 		return ruleengine.Predicate{SQL: `"visitor_id" = ?`, Args: []ruleengine.Value{ruleengine.Text(c.VisitorID)}}

@@ -2,7 +2,7 @@
 
 Moved here from SKILL.md unchanged.
 
-Sites use SQLite/KV row rules and file-bucket presets. Author-or-owner reads keep personal data private; sign-in alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged storage reference explains the language and examples.
+Sites use row rules for SQLite, KV and files. Author-or-owner reads keep personal data private; sign-in alone shares access. Follow the description of `storage_set_resource` that this server gives; if it does not accept `rules`, the server is older and its description says what to send. The packaged storage reference explains the language and examples.
 
 [Open ChatGPT Plugins](https://chatgpt.com/plugins). Click **Add**, then choose **Add custom MCP server**. Name it **Simple Host**, paste `https://simple-host.app/mcp`, and save. In the sign-in window, sign in with Google or an email code, then choose **Allow**. In a chat, pick Simple Host from the **+** menu, or just ask.
 

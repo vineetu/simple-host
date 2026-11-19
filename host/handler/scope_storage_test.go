@@ -23,7 +23,7 @@ func TestDeployKeyStorageRefusedAtScopeLayer(t *testing.T) {
 		t.Fatalf("deploy shop: %d %s", r.status, r.body)
 	}
 	if r := a.do(t, "PUT", "/v1/sites/shop/storage/resources/vault", jsonBody(map[string]any{
-		"kind": "kv", "preset": "private",
+		"kind": "kv",
 	}), map[string]string{"X-API-Key": owner.key}); r.status != http.StatusCreated {
 		t.Fatalf("owner create resource: %d %s", r.status, r.body)
 	}
@@ -48,7 +48,7 @@ func TestDeployKeyStorageRefusedAtScopeLayer(t *testing.T) {
 		body         any
 	}{
 		{"GET", "/v1/sites/shop/storage/resources", nil},
-		{"PUT", "/v1/sites/shop/storage/resources/vault", map[string]any{"kind": "kv", "preset": "private"}},
+		{"PUT", "/v1/sites/shop/storage/resources/vault", map[string]any{"kind": "kv"}},
 		{"DELETE", "/v1/sites/shop/storage/resources/vault", nil},
 		{"GET", "/v1/sites/shop/storage/usage", nil},
 	} {

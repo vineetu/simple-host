@@ -34,7 +34,7 @@ replace the resource default. File buckets take the same rules, over `path` and 
 | a client portal | one site per client, opened only to that client's email (named viewers), recipe `portal` |
 | reviews, comments, a guestbook anyone may post to without signing in | checked add rules, recipe `comments`: a spam check instead of sign-in; the owner removes posts or approves each one first |
 | reviews, comments, a guestbook by people who sign in | recipe `wall`: everyone reads, people sign in to post |
-| photos visitors share | files preset `wall`, recipe `gallery` |
+| photos visitors share | files with public read and signed-in add rules, recipe `gallery` |
 | a shared sign-up sheet or task list | signed-in shared rules, recipe `board` |
 | things each visitor keeps for themselves | author-or-owner rules, recipe `personal` |
 | only some people may open the whole site | named viewers by email, or one shared passcode; ask which if they did not say |
@@ -48,7 +48,7 @@ replace the resource default. File buckets take the same rules, over `path` and 
 2. Decide whether it can run as a static site. Name any part that cannot (server code, payments
    processing, custom account systems, long-running jobs) and suggest a substitute or another
    service for that part.
-3. If visitors save anything, state each resource, its rules (file-bucket preset), and whether sign-in is needed,
+3. If visitors save anything, state each resource, its rules, and whether sign-in is needed,
    before designing the page. Personal details go in `inbox`, `records` or `personal`, never in a
    resource everyone signed in can read.
 4. Always pair a form with a way for the owner to read it back: from chat with
@@ -64,4 +64,4 @@ replace the resource default. File buckets take the same rules, over `path` and 
 |---|---|
 | What a site can be, what is not a fit, the full idea-to-plan map, what to say up front | `references/capabilities.md` |
 | The deploy handoff, home page, file sizes, each person's records worked example | `references/handoff-and-examples.md` |
-| Row rules, file-bucket presets and the page helper in full | the `website-deploy` skill's `references/storage.md` |
+| Row rules, file rules and the page helper in full | the `website-deploy` skill's `references/storage.md` |

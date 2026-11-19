@@ -262,8 +262,8 @@ var codeHints = map[string]string{
 	"email_unavailable":              "This server cannot send sign-in emails, so visitors cannot sign in by emailed code here. Tell the person; do not retry.",
 	"resource_not_found":             "No resource of that name on this site. storage_list_resources shows the exact names; storage_set_resource creates a new one.",
 	"resource_kind_conflict":         "A resource of that name already exists with a different kind, and a kind cannot change. Use another name, or (after the person confirms) storage_delete_resource first.",
-	"invalid_resource":               "The policy was refused. read is anyone, signed-in, own, or owner; write is anyone, signed-in, or owner; write_mode is full or add; read own with a visitor write policy needs write_mode add. Correct the body and call again.",
-	"visitor_id_required":            "This database already holds rows without visitor identity, so it cannot switch to read own. Keep its current read policy, or create a new resource for each person's records.",
+	"invalid_resource":               "The resource settings were refused. Access is set with rules only; presets were removed. Read storage_list_resources before changing settings.",
+	"visitor_id_required":            "Existing rows lack visitor identity. Keep the current rules or use a new resource for rows belonging to signed-in visitors; do not guess authors.",
 	"fixed_routes_required":          "Visitors cannot send SQL to this resource: a page uses SH.storage.sqlite(name).table(t).add and .list. SQL works only as the owner, through storage_sql_query and storage_sql_execute.",
 	"add_only":                       "This resource is add-only for visitors: a page can add rows, keys, or files but never change or delete them. The owner changes rows with storage_sql_execute.",
 	"invalid_sql":                    "SQLite refused the statement; the message above says why. Fix the statement (values go in params with ? placeholders) and call again.",
@@ -309,24 +309,19 @@ func codeHint(code string) string {
 }
 
 func resourceCodeHint(code, kind string) string {
-	if storageRulesEnabled() {
-		// Shared codes also occur on non-storage requests. Only replace their
-		// existing hints when the request is known to use data rules.
-		_, shared := codeHints[code]
-		if hint, ok := storageRulesCodeHints[code]; ok && (!shared || kind == "sqlite" || kind == "kv" || kind == "files") {
-			return hint
-		}
+	// Shared codes also occur on non-storage requests. Only replace their
+	// existing hints when the request is known to use data rules.
+	_, shared := codeHints[code]
+	if hint, ok := storageRulesCodeHints[code]; ok && (!shared || kind != "") {
+		return hint
 	}
 	return codeHints[code]
 }
 
 var storageRulesCodeHints = map[string]string{
-	"invalid_resource":      "The resource settings were refused. Supply rules for SQLite, key-value and file access, without preset access fields. Read storage_list_resources before changing settings.",
-	"invalid_rules":         "The rules save was refused. Correct the rules using the error message above, then save again. Do not combine rules with preset, read, add, edit, delete, write, write_mode or approve_first.",
-	"rules_unavailable":     "Rules are unavailable on this install or this namespace's store. Tell the owner; do not silently replace them with different access settings.",
-	"rules_required":        "This resource needs rules before visitors can use it. Ask the owner who should read and write which data, then save rules with storage_set_resource.",
+	"invalid_resource":      "The resource settings were refused. Access is set with rules only; presets were removed. Read storage_list_resources before changing settings.",
+	"invalid_rules":         "The rules save was refused. Correct the rules using the error message above, then save again.",
 	"rules_invalid":         "The stored rules no longer compile. The owner can inspect rules_errors with storage_list_resources and repair the named column, binding or clause; owner tools still work.",
-	"visitor_id_required":   "Existing rows lack visitor identity. Keep the current rules or use a new resource for rows belonging to signed-in visitors; do not guess authors.",
 	"invalid_reference":     "The referenced parent row is missing or hidden by its read rules. Read the visible parent rows before choosing a reference.",
 	"fixed_routes_required": "Visitors cannot send SQL: use SH.storage.sqlite(name).table(t).list/get/add/edit/delete. Owner tools storage_sql_query and storage_sql_execute bypass row rules.",
 	"query_too_expensive":   "The query exceeded its work limit. Narrow the filters or page size before trying again.",

@@ -17,7 +17,7 @@ import (
 
 // Save through the service: R3-S2b needs R2-S2, not the HTTP rules decoder
 // or visitor enforcement built by the parallel R3-S1 slices.
-func saveNotificationRules(t *testing.T, s presetSite, read string) storageResource {
+func saveNotificationRules(t *testing.T, s storageTestSite, read string) storageResource {
 	t.Helper()
 	h := s.a.sites
 	resource, err := h.loadStorageResource(context.Background(), s.sid, "orders")
@@ -42,13 +42,12 @@ func saveNotificationRules(t *testing.T, s presetSite, read string) storageResou
 	if result.Resource.RulesStatus() != "rules" {
 		t.Fatalf("saved resource status = %s", result.Resource.RulesStatus())
 	}
-	return fromRulesResource(result.Resource)
+	return result.Resource
 }
 
 func TestNotifyRulesEventPayloads(t *testing.T) {
 	for _, rules := range []bool{false, true} {
-		t.Run(fmt.Sprintf("rules=%t", rules), func(t *testing.T) {
-			t.Setenv("STORAGE_RULES", "on")
+		t.Run(fmt.Sprintf("saved=%t", rules), func(t *testing.T) {
 			s := webPushFixture(t)
 			x := newNotificationReceiver(t)
 			s.a.sites.notifyEngine().client = x.client()
@@ -67,13 +66,9 @@ func TestNotifyRulesEventPayloads(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			wantPreset := "personal"
 			if rules {
 				resource = saveNotificationRules(t, s, "true")
-				wantPreset = ""
 			}
-			// Saved rules apply independently of the save/UI flag.
-			t.Setenv("STORAGE_RULES", "off")
 			server := mcp.NewServer(mcp.Config{Events: backend})
 			listed := siteEventRPC(t, s, server, "events/list", nil)["result"].(map[string]any)["events"].([]any)
 			schemas := map[string]any{}
@@ -97,9 +92,6 @@ func TestNotifyRulesEventPayloads(t *testing.T) {
 				}
 				name := received.body["name"].(string)
 				data := received.body["data"].(map[string]any)
-				if data["preset"] != wantPreset {
-					t.Fatalf("%s preset = %v, want %q", name, data["preset"], wantPreset)
-				}
 				if err := mcp.ValidateOutput(schemas[name], data, nil); err != nil {
 					t.Fatalf("%s schema: %v", name, err)
 				}
@@ -128,7 +120,6 @@ func TestWebPushRulesQueuedDelivery(t *testing.T) {
 	} {
 		for _, after := range []string{"unchanged", "delete-row", "change-row", "change-rules", "none", "lookup-failure"} {
 			t.Run(policy.name+"/"+after, func(t *testing.T) {
-				t.Setenv("STORAGE_RULES", "on")
 				s := webPushFixture(t)
 				row := s.must(t, "POST", "/sqlite/orders/tables/orders/rows", map[string]string{"item": "original"}, s.callers["alice"], 200).json(t)["last_insert_id"]
 				waitNotificationEmits(t, s)
@@ -155,7 +146,6 @@ func TestWebPushRulesQueuedDelivery(t *testing.T) {
 				setPushRule("both", "no_such_column", 400)
 				setPushRule("both", "visitor_id", 400)
 				setPushRule("both", "item", 200)
-				t.Setenv("STORAGE_RULES", "off")
 				path := "/sqlite/orders/tables/orders/rows/" + fmt.Sprint(row)
 				s.must(t, "PATCH", path, map[string]string{"item": "owner's reply"}, s.key, 200)
 				if got := pendingPushSubscriptions(t, s); !reflect.DeepEqual(got, []string{devices["alice"]}) {
@@ -170,9 +160,7 @@ func TestWebPushRulesQueuedDelivery(t *testing.T) {
 					}
 					s.must(t, "POST", "/sqlite/orders/execute", map[string]string{"sql": sql}, s.key, 200)
 				case "change-rules":
-					t.Setenv("STORAGE_RULES", "on")
 					saveNotificationRules(t, s, "false")
-					t.Setenv("STORAGE_RULES", "off")
 				case "none":
 					setPushRule("none", "item", 200)
 				}

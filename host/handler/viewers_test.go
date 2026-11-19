@@ -278,7 +278,7 @@ func TestViewersGateEveryPath(t *testing.T) {
 
 	// Storage: a resource anyone may read stays closed to everyone but the
 	// listed, whatever its site_passcode says.
-	if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/menu", map[string]any{"kind": "kv", "read": "anyone", "write": "owner", "site_passcode": "off"}, p.okey); r.status/100 != 2 {
+	if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/menu", `{"kind":"kv","site_passcode":"off","rules":`+rulesPublic+`}`, p.okey); r.status/100 != 2 {
 		t.Fatalf("resource: %d %s", r.status, r.body)
 	}
 	p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/kv/menu/keys/today", map[string]any{"value": passcodeCanary}, p.okey)
@@ -510,9 +510,9 @@ func TestStorageVisitorEmails(t *testing.T) {
 	dadS := p.session(t, dad, p.siteID, p.host)
 	momID, _ := p.userID(t, mom)
 	dadID, _ := p.userID(t, dad)
-	for name, body := range map[string]map[string]any{
-		"orders": {"kind": "sqlite", "read": "own", "write": "signed-in", "write_mode": "add"},
-		"notes":  {"kind": "kv", "read": "owner", "write": "signed-in", "write_mode": "add"},
+	for name, body := range map[string]string{
+		"orders": storageRules("sqlite", rulesRecords),
+		"notes":  storageRules("kv", rulesOwnerReadSignedInAdd),
 	} {
 		if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/"+name, body, p.okey); r.status/100 != 2 {
 			t.Fatalf("%s: %d %s", name, r.status, r.body)
@@ -548,7 +548,7 @@ func TestStorageVisitorEmails(t *testing.T) {
 	}
 	// An id the owner wrote into their own table, or of someone who signed
 	// in only on another site, never resolves.
-	if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/box", map[string]any{"kind": "sqlite", "read": "owner", "write": "owner"}, p.okey); r.status/100 != 2 {
+	if r := p.at(t, "PUT", pcSiteDomain, "/v1/sites/trip/storage/resources/box", map[string]any{"kind": "sqlite"}, p.okey); r.status/100 != 2 {
 		t.Fatalf("box: %d %s", r.status, r.body)
 	}
 	p.at(t, "POST", pcSiteDomain, "/v1/sites/trip/storage/sqlite/box/schema", map[string]any{"sql": "CREATE TABLE t (visitor_id TEXT)"}, p.okey)

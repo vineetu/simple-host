@@ -13,6 +13,5 @@ func TestServeStorageRulesBrowser(t *testing.T) {
 	if file == "" {
 		t.Skip("STORAGE_RULES_FIXTURE unset")
 	}
-	t.Setenv("STORAGE_RULES", "on")
 	serveVisitorRecordsBrowser(t, file)
 }

@@ -754,7 +754,7 @@ turned them off (`PATCH /v1/me {"signin_alerts": false}`, own key only; `GET /v1
 
 The platform API contract and feature catalogue contain platform content only. Simple Hack owns authored API and feature parts; `make inventory` composes its public reference and preserves its existing output. The internal composed contract remains separate from the served reference for route coverage (D3-S3).
 
-2026-10-29 (SIM-338 phase 4): `visitor_read_site` lists sites shared with the caller's verified email when no address is given. With a browser address, claimed short name, or custom domain, it returns preset rights, readable KV values, table rows, and legacy collections; `page` optionally returns static page text. `visitor_add_entry` adds an entry, and `visitor_change_entry` edits or deletes only the caller's own entry where permitted. All take an optional `passcode`, checked with the browser unlock's rate limits and lockouts. Each call gets a server-only visitor pass for one site, revoked on return; named viewers, account status, offline status, and presets are checked afresh. The caller never gains owner powers, even on their own site. Other authors, emails, and account IDs are omitted; own entries carry `mine`. Visitor content is framed as data, not instructions. Known identity needs no Turnstile challenge. Existing visitor limits apply, plus `VISITOR_AI_WRITES_PER_DAY` (default 200 attempts per person and site, UTC day, across apps and restarts). Successful changes leave a non-restorable data-history marker with `via <app name>`; `storage_list_resources` includes the latest 20 markers for each resource. Discovery omits resources and tables without visitor rights and applies `limit` to each readable resource. Schema columns and ordinary UUID keys remain usable; KV entries whose keys contain another account ID are omitted, schema column names redact those account IDs, and KV cursors are encrypted for the site and resource. Direct and wrapped visitor writes preserve exact JSON numbers and entry IDs. Site access is checked before resource existence is disclosed. Storage audit markers have their own history kind, separate from collections. Page text reports truncation past 256 KiB. Passcode-exempt resources remain accessible without unlocking; page reads still require unlocking. AgentCat uses the ordinary arguments/results/intent path and drops passcodes and page file contents. The consent screen names visitor access. No owner switch. Connected apps show the last site used by a visitor tool. Simple Hack does not offer the tools.
+2026-10-29 (SIM-338 phase 4): `visitor_read_site` lists sites shared with the caller's verified email when no address is given. With a browser address, claimed short name, or custom domain, it returns access rights, readable KV values, table rows, and legacy collections; `page` optionally returns static page text. `visitor_add_entry` adds an entry, and `visitor_change_entry` edits or deletes only the caller's own entry where permitted. All take an optional `passcode`, checked with the browser unlock's rate limits and lockouts. Each call gets a server-only visitor pass for one site, revoked on return; named viewers, account status, offline status, and rules are checked afresh. The caller never gains owner powers, even on their own site. Other authors, emails, and account IDs are omitted; own entries carry `mine`. Visitor content is framed as data, not instructions. Known identity needs no Turnstile challenge. Existing visitor limits apply, plus `VISITOR_AI_WRITES_PER_DAY` (default 200 attempts per person and site, UTC day, across apps and restarts). Successful changes leave a non-restorable data-history marker with `via <app name>`; `storage_list_resources` includes the latest 20 markers for each resource. Discovery omits resources and tables without visitor rights and applies `limit` to each readable resource. Schema columns and ordinary UUID keys remain usable; KV entries whose keys contain another account ID are omitted, schema column names redact those account IDs, and KV cursors are encrypted for the site and resource. Direct and wrapped visitor writes preserve exact JSON numbers and entry IDs. Site access is checked before resource existence is disclosed. Storage audit markers have their own history kind, separate from collections. Page text reports truncation past 256 KiB. Passcode-exempt resources remain accessible without unlocking; page reads still require unlocking. AgentCat uses the ordinary arguments/results/intent path and drops passcodes and page file contents. The consent screen names visitor access. No owner switch. Connected apps show the last site used by a visitor tool. Simple Hack does not offer the tools.
 
 Review fixes (2026-10-28): Host `storage_sql_query` and `storage_sql_execute` accept returned visitor references in SQL parameters, resolving them within the same site. Hack `who_am_i` omits email unless `include_email: true`, and own-conflict filtering uses the account ID for both OAuth and API-key callers. MCP notification conversion preserves JSON number precision. Failed reviewer sign-ins log an HMAC of the IP using the connector process key.
 
@@ -777,7 +777,7 @@ and `chatgpt-app-submission.json` share five positive and three negative cases, 
 RSVP count without emails and an explicit single-submitter lookup. The submission lists 57
 tools with MCP Events enabled, including notification listing and removal, without discovery
 wrappers. A Go test compares the submitted names and annotations with ChatGPT `tools/list`.
-The privacy page explains current storage presets and owner reads; consent includes
+The privacy page explains storage rules and owner reads; consent includes
 private-data reads, downloads,
 visitor counts, and notification management. Live reviewer tests and the portal tool rescan
 are required before resubmission; package preparation is not a deployment record.
@@ -2476,7 +2476,7 @@ Apply `zj-hack-notifications.sql` on both databases before deployment. Enterpris
 | REST manage | `POST /v1/sites/{sitename}/notifications`; `PATCH /v1/sites/{sitename}/notifications/{id}` with paused true/false (false also resumes suspension); `DELETE /v1/sites/{sitename}/notifications/{id}`. Optional storage filter, label, supplied secret, and one custom header: Authorization or X- followed by 1 to 62 letters, digits, or hyphens, excluding X-Forwarded-*, X-Real-IP, X-MCP-*, X-Client-IP, and X-Originating-IP. |
 | REST delivery | `POST /v1/sites/{sitename}/notifications/{id}/test`; `POST /v1/sites/{sitename}/notifications/{id}/rotate-secret`; `GET /v1/sites/{sitename}/notifications/{id}/deliveries` (newest first, up to 200). Create and rotate show the secret once; lists never return it or the custom header value. MCP secrets rotate through refresh, not REST (409 client_secret). Test sends are for unexpired owner-made subscriptions only (409 client_subscription otherwise). |
 | MCP | `events/list`, `events/subscribe`, `events/unsubscribe`, webhook delivery only; `events: {}` and `extensions.io.modelcontextprotocol/events` capabilities. Client supplies the secret and echoes a signed challenge before activation. `list_notifications` and `remove_notification` tools share the REST engine; the list redacts URL paths and queries. Subscription identity includes the OAuth grant. Refresh renews expiry and resumes delivery; cursor replay covers retained events and reports truncation. `events/list` names the seven events on Simple Host and the three record events on Simple Hack; a site event's `arguments` are `{site}` only, and a `storage` argument on one is InvalidParams (-32602). |
-| Payload | Event ID, name, timestamp, cursor, site, site URL, storage, kind, preset, and visitor ID or null, never the visitor's account email. SQLite table/row ID/fields, KV key/fields, or file path/size/content type. `untrusted` names visitor-written fields; agents read full details with storage tools and resolve identity through `storage_visitor_emails` on Host. Strings over 2 KB are cut; bodies over 16 KB omit fields, with `truncated` naming omissions. Site events carry `v`, `site`, and `site_url` plus their own fields: `site.deployed` has `version` (the integer now live), `previous_version`, and `via` (`deploy` for a new upload, `active_version` for an existing version made live); `domain.status_changed` has `domain`, `status`, `previous_status`, `reason` (the check's own text, cut to 1,024 bytes, empty when none; it can name the addresses the domain resolves to), and `cert` (`pending`, `issuing`, `live`, `failed`, or empty on released); `viewer.access_requested` and `visitor.signed_up` have `visitor` (the person's visitor ID, the same stamp as record events; MCP deliveries turn it into the usual opaque reference). Site events carry no `storage`, `kind`, `preset`, or `untrusted` keys, and never a visitor's email, IP address, or user agent, or visitor-written text; the domain event's `reason` may name the addresses the domain points at. A subscription's storage filter narrows record and file events only; a site event reaches every subscription naming it, whatever its filter. |
+| Payload | Event ID, name, timestamp, cursor, site, site URL, storage, kind, and visitor ID or null, never the visitor's account email. SQLite table/row ID/fields, KV key/fields, or file path/size/content type. `untrusted` names visitor-written fields; agents read full details with storage tools and resolve identity through `storage_visitor_emails` on Host. Strings over 2 KB are cut; bodies over 16 KB omit fields, with `truncated` naming omissions. Site events carry `v`, `site`, and `site_url` plus their own fields: `site.deployed` has `version` (the integer now live), `previous_version`, and `via` (`deploy` for a new upload, `active_version` for an existing version made live); `domain.status_changed` has `domain`, `status`, `previous_status`, `reason` (the check's own text, cut to 1,024 bytes, empty when none; it can name the addresses the domain resolves to), and `cert` (`pending`, `issuing`, `live`, `failed`, or empty on released); `viewer.access_requested` and `visitor.signed_up` have `visitor` (the person's visitor ID, the same stamp as record events; MCP deliveries turn it into the usual opaque reference). Site events carry no `storage`, `kind` or `untrusted` keys, and never a visitor's email, IP address, or user agent, or visitor-written text; the domain event's `reason` may name the addresses the domain points at. A subscription's storage filter narrows record and file events only; a site event reaches every subscription naming it, whatever its filter. |
 | Signatures | Standard Webhooks `webhook-id`, `webhook-timestamp`, `webhook-signature`, and `X-MCP-Subscription-Id`; owner-made subscriptions also send matching `svix-*` headers and the optional custom header. HMAC-SHA256 over exact body bytes, timestamp, and ID; old and new secrets dual-sign for 24 hours after rotation; rotating again ends the previous secret's grace period. |
 | Delivery | HTTPS, public destination addresses only, no redirects, 5-second timeout. Five attempts at about 0, 30 seconds, 2 minutes, 5 minutes, and 7 minutes later. HTTP 410/413 and refused addresses are not retried. Offline/taken-down sites or suspended accounts skip deliveries. Paused and expired subscriptions receive no new deliveries and do not spend the event budget; suspended subscriptions queue for resume. Suspension holds pending deliveries after at least 100 attempts with more than 95% failures in an hour, or continuous failure for 3 days; one owner email, dashboard/REST resume or successful MCP refresh. |
 | Defaults and env | 10 subscriptions/site (`NOTIFY_MAX_PER_SITE`), about 60 events a minute (`NOTIFY_PER_MINUTE`) and 5,000 a day per site (`NOTIFY_PER_DAY`), with short bursts allowed, 7 days of history (`NOTIFY_HISTORY_DAYS`). Over-cap events are not stored. `NOTIFY_FIELD_MAX_BYTES`, `NOTIFY_BODY_MAX_BYTES`, `NOTIFY_TIMEOUT_MS`, `NOTIFY_ATTEMPTS`, `NOTIFY_SUSPEND_*`, `NOTIFY_WORKERS` (20), `NOTIFY_OWNER_CONCURRENCY` (5), `NOTIFY_PER_URL_PER_MINUTE` (120, shared token bucket), and `NOTIFY_DEFAULT_TTL_HOURS` (168) tune the other limits. Challenge and REST request limits are fixed. MCP TTL omitted means 7 days, null means no expiry with OAuth, and explicit TTL is at least 5 minutes. Without an OAuth grant, null and longer TTLs are capped at the default. Throttled deliveries wait about 2 seconds without spending an attempt. |
@@ -2522,7 +2522,7 @@ The three Host visitor tools are outside the core and listed individually for Op
 |---|---|---|
 | `visitor_read_site` | Optional `address`, `passcode`, `page`, `kind`, `resource`, `table`, `key`, `id`, `after`, and `limit` | Lists shared sites without an address; otherwise reads permitted data and rights. |
 | `visitor_add_entry` | `address`, `kind` (`kv`, `sqlite`, or `collection`), `resource`, `value`; optional `passcode`, `table`, and `key` | Adds a visitor entry. SQLite assigns the ID. |
-| `visitor_change_entry` | `address`, `kind`, `resource`, `action` (`edit` or `delete`); optional `passcode`, `table`, `key`, `id`, and `value` (required for edit) | Changes only the caller's own entry, subject to its preset; destructive annotation. |
+| `visitor_change_entry` | `address`, `kind`, `resource`, `action` (`edit` or `delete`); optional `passcode`, `table`, `key`, `id`, and `value` (required for edit) | Changes only the caller's own entry, subject to its rules; destructive annotation. |
 
 The original event tools remain in `products/hack/mcp/hack_event_tools.go`:
 
@@ -2617,14 +2617,20 @@ internal certificate checks.
 
 ## 23. Site storage primitives <a id="site-storage-primitives"></a>
 
-SQLite and key-value resources use owner-written row rules for reads, adds,
-edits and deletes, and so do file buckets. The API accepts resource and
+Every storage kind (SQLite, key-value and files) uses owner-written row rules
+for reads, adds, edits and deletes. The API accepts resource and
 per-table `rules`, with `rules_status`, `rules_errors` and structured `rule_error`
-diagnostics. Saves are limited to 256 KiB. Follow this server's
-`storage_set_resource` description on an older install without rules enabled.
-Existing presets continue until the announced switch. Saved rules stay enforced
-when accepting new rules is turned off. Public docs and skills for this change
-are held until R4-S2 activation.
+diagnostics. Saves are limited to 256 KiB. Rules are always on. A resource of
+any kind created without rules gets the owner-only set stored, and one saved
+before rules (no stored rules) behaves as that set: the owner's tools and the
+owner signed in on the site's own address. Saving without rules (for example a
+`site_passcode`-only change) keeps the stored rules. `storage_set_resource`
+refuses `preset`, `read`/`add`/`edit`/`delete`, `write`, `write_mode` and
+`approve_first` on every kind with 400 `invalid_resource` ("presets were
+removed; send rules"). The resource listing returns name, kind,
+`site_passcode`, `rules`, `rules_status` (`rules` or `invalid`), `rules_errors`
+and, for SQLite, `tables`. Save notifications and webhook payloads carry no
+`preset` field. Visitor SQL (`/query`, `/execute`) is gone (`403 fixed_routes_required`); those routes stay for owner tools.
 
 Routes: `/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}`.
 MCP: `storage_delete_file`, `storage_delete_kv`, `storage_delete_resource`, `storage_file_download_link`, `storage_get_usage`, `storage_list_file_objects`, `storage_list_kv_keys`.
@@ -2637,30 +2643,12 @@ log; reads report the missing file. Busy files return a retry response. A
 namespace is charged key bytes plus PostgreSQL-normalized JSON text. Lists use
 byte order and indexed bounds for literal prefixes and cursors.
 
-Maintenance commands that rewrite saved data are tied to one install. The
-server saves a random install identity in `DATA_DIR/.install-id` and in the
-`install_identity` table when neither has one; such a command refuses unless
-both exist and match, and the server logs a warning at start when they do not.
-Servers hold a shared data-directory maintenance lock and a shared Postgres
-advisory lock on their database; the command takes both exclusively, so it
-cannot run against a database a server is using from another directory. The
-identity cannot tell a data directory from a copy of it, and the lock covers a
-copy only while a server runs, so the operator checks `DATA_DIR` first. The
-command refuses when its user does not own `DATA_DIR`. A server opens the
-maintenance lock file read-only. See `docs/advanced/storage-and-backups.md`.
-
-The operator's `migrate-rules` command converts the preset on a SQLite database
-or key-value namespace into row rules that decide the same. Its dry run runs
-beside the server, changes nothing, compares every kind of caller and action,
-lists resources that need a person, and writes a plan. Apply needs the server
-stopped (the exclusive maintenance lock), converts only resources unchanged
-since the dry run, records their original settings and can be rerun after an
-interruption. Revert restores those settings unless the owner has changed the
-rules since. Plan-based apply and revert require a regular file owned by the
-command user or root, no group or other write permission, and no directory
-writable by others without the sticky bit. The plan must record the running
-program's commit. File buckets are never converted, and the command is not a route,
-an AI tool or a recipe (`docs/advanced/storage-and-backups.md`).
+The server saves a random install identity in `DATA_DIR/.install-id` and in
+the `install_identity` table when neither has one, and logs a warning at start
+when they do not match. Servers hold a shared data-directory maintenance lock and
+a shared Postgres advisory lock on their database, and refuse to start while
+either is held exclusively. A server opens the maintenance lock file read-only.
+See `docs/advanced/storage-and-backups.md`.
 
 SQLite table-row operations share a per-site concurrency limit across resources
 (default one, configurable from one to four). Waiting for the site slot and global
@@ -2668,8 +2656,8 @@ gate shares one timeout and returns `storage_busy` with `Retry-After` when full.
 Recoverable SQLite panics fail only that request; an already committed write keeps
 its success response and inserted row ID even if checkpointing or closing panics.
 
-**Row rules and file-bucket access (re-architecture decision 19).** <a id="storage-presets"></a>
-An owner saves a version-1 policy set on a SQLite or key-value resource, and may
+**Row rules (re-architecture decision 19).** <a id="storage-presets"></a>
+An owner saves a version-1 policy set on a resource of any kind, and may
 replace the default set for each SQLite table. Policies have a command (`read`,
 `add`, `edit`, `delete`, `all`), `using` for stored rows, `check` for written
 rows, and optional `restrictive: true`. Edit checks inherit using when absent.
@@ -2690,8 +2678,8 @@ remain limited to their author's rows. Identity-dependent permissive policies
 refuse suspended accounts; permissive `true` still grants public access.
 
 A SQLite table set replaces the default, not combines with it. Omit `tables`
-to retain existing sets; `{}` removes them. Rules cannot mix with preset fields
-in the same save. Invalid stored rules fail closed for visitors while owner
+to retain existing sets; `{}` removes them. Every kind refuses preset fields.
+Invalid stored rules fail closed for visitors while owner
 tools can repair them. The language, limits, save semantics and disclosures are
 in `docs/designs/storage-rules.md`. A global UNIQUE conflict can reveal a hidden
 row; a KV write permitted to attempt an add can reveal an existing key through
@@ -2702,12 +2690,9 @@ File buckets take rules in the same words, over a fixed table
 `files(path, visitor_id)` where `visitor_id` is the uploader: read covers
 listing, opening and downloading, add a new path, edit replacing a file, delete
 removing one; `auth.checked` is refused, uploads are never spam-checked. The
-indexed "own files" listing stays. A file bucket without rules keeps its preset
-(`public`, `inbox`, `wall`, `records`, `personal`, `board`, `private`, with
-single-action overrides) for now; existing ones are moved onto equivalent rules
-once, at deploy. Unconverted SQLite/KV resources retain their presets until the
-hard switch, labelled not converted in the Storage panel.
-Historical preset design: `docs/designs/storage-access-presets.md`.
+indexed "own files" listing stays. A file bucket without rules is owner-only,
+like every other resource. Presets were removed for every kind (historical
+design: `docs/designs/storage-access-presets.md`).
 
 On Simple Hack these rules sit under the existing team scope, membership,
 stage, deadline, offline/suspension and take-down gates and 1,000,000-byte pool.
@@ -2741,7 +2726,7 @@ Routes: `/v1/turnstile/frame`.
 
 **Page recipes (2026-10-10).** `get_page_recipe` (connector, read-only) and `GET /recipes/{topic}.md` <a id="storage-recipes"></a>
 (public, `GET /recipes/{topic}` with or without a `.md` suffix, same text with a placeholder site name) return the owner setup (`storage_*` calls) and a
-complete page for each everyday job, with row rules for SQLite/KV and presets for files: `booking` (a booking or reservation: the
+complete page for each everyday job, with row rules: `booking` (a booking or reservation: the
 customer signs in when they book and sees their bookings and status; the owner confirms; added
 2026-10-10 with `portal`, a private page per client opened to that client's email, and the aliases
 `reservation`, `appointment`, `quote`, `waitlist`, `contact`, `menu`), `public` (a menu the owner keeps), `inbox` (a form only the
@@ -2907,7 +2892,7 @@ separate accounting. Simple Hack keeps its existing 1,000,000-byte pool across
 all three kinds and its per-upload cap; on Hack the first three usage fields
 still describe that pool.
 
-Visitor routes: `POST /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows`, `GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows`. Browser helper `SH.storage.sqlite(name).table(table).add(values)` / `.list(options)`. The owner dashboard Storage panel lists policies and separate usage, with “Anyone can add”, “Only signed-in visitors can add”, “Each person sees only their own” and “Only you” choices.
+Visitor routes: `POST /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows`, `GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows`. Browser helper `SH.storage.sqlite(name).table(table).add(values)` / `.list(options)`. The owner dashboard Storage panel shows separate usage and the rules JSON editor for every resource, files included.
 Film scene 9: “Go back to an earlier version anytime.”
 
 
@@ -2928,7 +2913,7 @@ reports used, limit, remaining and KV/SQLite/files bytes. Phone-photo upload
 pages should resize/compress client-side before using raw-file storage.
 
 Route surface: `GET /v1/sites/{sitename}/storage/resources`, `PUT /v1/sites/{sitename}/storage/resources/{name}`, `DELETE /v1/sites/{sitename}/storage/resources/{name}`; `GET /v1/sites/{sitename}/storage/kv/{name}/keys`, `GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`, `DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}`; `POST /v1/sites/{sitename}/storage/sqlite/{name}/query`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/execute`, `POST /v1/sites/{sitename}/storage/sqlite/{name}/schema`; `GET /v1/sites/{sitename}/storage/files/{name}/objects`, `GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}`, `POST /v1/sites/{sitename}/storage/files/{name}/download-link`, and `GET /v1/storage-download`.
-Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/PATCH/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource's rules (file-bucket preset); unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
+Simple Hack team sites use these same routes with a current team key or selected-team connector. Team scope, membership and write-state checks still apply. Organisers use `GET/PUT/POST/PATCH/DELETE /v1/hack/events/{slug}/website/storage/{rest...}` or `hack_event_storage_*` MCP tools for the custom event website, scoped to the event ID and current organiser role. On the custom event host, visitor pages call `/v1/sites/{slug}/storage/...` under the resource's rules; unrelated `/v1/` routes stay closed. Team and organiser file links recheck current membership at download. The 1,000,000-byte pool is per team or custom event website.
 
 The earlier immutable ChatGPT routes `/simple-hack-skills-only-0.2.0.zip` through `/simple-hack-skills-only-0.2.5.zip` return 410 after withdrawal; `/simple-hack-skills-only-0.2.6.zip` serves the reviewed connector-only package. Historical bytes remain in Git history.
 
@@ -2977,14 +2962,6 @@ Own/add references may target this visitor's rows or owner-created catalog rows
 with NULL/empty `visitor_id`; another visitor's and missing parents both return
 404 `invalid_reference`. Optional links must be entirely NULL; partly NULL
 composite references are refused. Parents without `visitor_id TEXT` fail closed.
-
-Omitting `write_mode` on an existing resource preserves its mode. Switching a
-non-own SQLite database to own requires every application table to be empty,
-even if earlier rows already carry a `visitor_id`: raw full-mode identities are
-not trusted. Clear/migrate those rows deliberately through owner tools first.
-Existing own databases keep their stamped rows during policy edits. Unattributed
-KV/files remain owner-only under own reads; full-mode visitor overwrites record
-the latest writer, while owner overwrites preserve attribution.
 
 Visitor writes use `RATE_LIMIT_STORAGE_IP` (120,100ms) per site and client IP
 and `RATE_LIMIT_STORAGE_VISITOR` (60,200ms) per site and signed-in visitor.

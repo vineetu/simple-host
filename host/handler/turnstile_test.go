@@ -146,23 +146,23 @@ func TestTurnstileOffWithoutKeys(t *testing.T) {
 			t.Fatalf("on with key %v, secret %v", c[0] != "", c[1] != "")
 		}
 	}
-	s := newPresetSite(t)
-	r := s.must(t, "PUT", "/resources/guestbook", map[string]string{"kind": "sqlite", "preset": "comments"}, s.key, 400)
-	if !strings.Contains(string(r.body), "spam_check_unavailable") {
+	s := newStorageTestSite(t)
+	r := s.must(t, "PUT", "/resources/guestbook", storageRules("sqlite", rulesComments), s.key, 400)
+	// Rules: auth.checked is not a binding while the spam check is off.
+	if r.json(t)["code"] != "invalid_rules" || !strings.Contains(string(r.body), "auth.checked") {
 		t.Fatalf("off: %s", r.body)
 	}
-	s.must(t, "PUT", "/resources/guestbook", map[string]string{"kind": "sqlite", "preset": "inbox", "add": "checked"}, s.key, 400)
 	if r := s.a.at(t, "GET", s.a.appHost(), "/v1/turnstile/frame", nil, nil); r.status != 404 {
 		t.Fatalf("frame while off: %d", r.status)
 	}
 }
 
-// commentsSite is a preset site with the spam check on, a comments SQLite
+// commentsSite is a site with the spam check on, a comments-rules SQLite
 // resource "guestbook" with table entries, and siteverify answering
 // passing() for every token that starts with "ok-".
-func commentsSite(t *testing.T) (presetSite, *fakeSiteverify) {
+func commentsSite(t *testing.T) (storageTestSite, *fakeSiteverify) {
 	t.Helper()
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	app, _ := url.Parse(s.a.srv.URL)
 	f := newFakeSiteverify(t, func(token string) map[string]any {
 		if rest, ok := strings.CutPrefix(token, "ok-"); ok {
@@ -177,9 +177,9 @@ func commentsSite(t *testing.T) (presetSite, *fakeSiteverify) {
 	s.a.sites.SetTurnstile(turnstileTestSiteKey, turnstileTestSecret, s.a.srv.URL)
 	s.a.sites.spamIPLimiter = newRateLimiter(100000, 0)
 	s.a.sites.spamSiteLimiter = newRateLimiter(100000, 0)
-	put := s.must(t, "PUT", "/resources/guestbook", map[string]string{"kind": "sqlite", "preset": "comments"}, s.key, 201).json(t)
-	if put["preset"] != "comments" {
-		t.Fatalf("preset: %v", put["preset"])
+	put := s.must(t, "PUT", "/resources/guestbook", storageRules("sqlite", rulesComments), s.key, 201).json(t)
+	if put["rules_status"] != "rules" {
+		t.Fatalf("comments rules: %v", put)
 	}
 	s.must(t, "POST", "/sqlite/guestbook/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, name TEXT, message TEXT, created_at TEXT)"}, s.key, 200)
 	return s, f
@@ -187,7 +187,7 @@ func commentsSite(t *testing.T) (presetSite, *fakeSiteverify) {
 
 var tokenSeq int
 
-func (s presetSite) token(resource string) string {
+func (s storageTestSite) token(resource string) string {
 	tokenSeq++
 	return "ok-" + s.host + "|" + resource + "|" + strconv.Itoa(tokenSeq)
 }
@@ -201,7 +201,7 @@ func withToken(h map[string]string, token string) map[string]string {
 	return out
 }
 
-func TestCommentsPresetPolicy(t *testing.T) {
+func TestCommentsRulesPolicy(t *testing.T) {
 	s, f := commentsSite(t)
 	anon := s.callers["anon"]
 	rows := "/sqlite/guestbook/tables/entries/rows"
@@ -248,7 +248,7 @@ func TestCommentsPresetPolicy(t *testing.T) {
 	// The owner's own tools are not limited.
 	s.must(t, "POST", rows, big, s.key, 200)
 	// KV: anyone adds a new key with the check; nobody overwrites one.
-	s.must(t, "PUT", "/resources/notes", map[string]string{"kind": "kv", "preset": "comments"}, s.key, 201)
+	s.must(t, "PUT", "/resources/notes", storageRules("kv", rulesComments), s.key, 201)
 	s.must(t, "PUT", "/kv/notes/keys/k1", `{"value":"hello"}`, anon, 403)
 	s.must(t, "PUT", "/kv/notes/keys/k1", `{"value":"hello"}`, withToken(anon, s.token("notes")), 200)
 	if r := s.do(t, "PUT", "/kv/notes/keys/k1", `{"value":"over"}`, withToken(anon, s.token("notes"))); r.status < 400 {
@@ -257,10 +257,10 @@ func TestCommentsPresetPolicy(t *testing.T) {
 	s.must(t, "GET", "/kv/notes/keys/k1", nil, anon, 200)
 	s.must(t, "DELETE", "/kv/notes/keys/k1", nil, anon, 403)
 	s.must(t, "DELETE", "/kv/notes/keys/k1", nil, s.key, 200)
-	// Files never take checked; checked is add only; own never mixes with it.
-	s.must(t, "PUT", "/resources/pics", map[string]string{"kind": "files", "preset": "comments"}, s.key, 400)
-	s.must(t, "PUT", "/resources/x1", map[string]string{"kind": "kv", "preset": "custom", "read": "checked", "add": "checked", "edit": "owner", "delete": "owner"}, s.key, 400)
-	s.must(t, "PUT", "/resources/x2", map[string]string{"kind": "kv", "preset": "comments", "read": "own"}, s.key, 400)
+	// Files never take checked: uploads are never spam-checked.
+	if r := s.must(t, "PUT", "/resources/pics", storageRules("files", rulesComments), s.key, 400); r.json(t)["code"] != "invalid_rules" {
+		t.Fatalf("checked files: %s", r.body)
+	}
 	// Siteverify down: refused, nothing saved.
 	turnstileVerifyURL = "http://127.0.0.1:1/siteverify"
 	r = s.must(t, "POST", rows, post, withToken(anon, s.token("guestbook")), 403)
@@ -295,8 +295,8 @@ func TestCommentsApproveFirst(t *testing.T) {
 	rows := "/sqlite/guestbook/tables/entries/rows"
 	// Posts already there stay public when approve_first is turned on.
 	s.must(t, "POST", rows, `{"name":"Early","message":"first"}`, withToken(anon, s.token("guestbook")), 200)
-	put := s.must(t, "PUT", "/resources/guestbook", map[string]any{"kind": "sqlite", "preset": "comments", "approve_first": true}, s.key, 200).json(t)
-	if put["approve_first"] != true {
+	put := s.must(t, "PUT", "/resources/guestbook", storageRules("sqlite", rulesCommentsApproveFirst), s.key, 200).json(t)
+	if put["rules_status"] != "rules" {
 		t.Fatalf("approve_first: %v", put)
 	}
 	s.must(t, "POST", rows, `{"name":"Late","message":"held"}`, withToken(anon, s.token("guestbook")), 200)
@@ -332,9 +332,6 @@ func TestCommentsApproveFirst(t *testing.T) {
 	if !strings.Contains(string(s.must(t, "GET", rows, nil, anon, 200).body), "reply") {
 		t.Fatal("owner's post held")
 	}
-	// approve_first needs a checked add, and SQLite.
-	s.must(t, "PUT", "/resources/w", map[string]any{"kind": "sqlite", "preset": "wall", "approve_first": true}, s.key, 400)
-	s.must(t, "PUT", "/resources/k", map[string]any{"kind": "kv", "preset": "comments", "approve_first": true}, s.key, 400)
 }
 
 func TestTurnstileFrame(t *testing.T) {

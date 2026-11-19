@@ -40,7 +40,7 @@ var coreToolNames = []string{
 // Declared alongside the tool in its family registrar.
 type toolPolicy struct {
 	memberResult, organiserResult, visitorResult, accessResult, passcodeResult string
-	storageResource, visitorParams, pagedStorage                               bool
+	visitorParams, pagedStorage                                                bool
 	judgeParameter, includeEmails, recordsPins, screenshot, optionalBody       bool
 
 	groupSiteExcluded, personalExcluded, connectorHidden bool

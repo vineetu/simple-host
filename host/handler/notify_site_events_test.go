@@ -18,7 +18,7 @@ import (
 // emitSiteNotification from deploys, domain checks and sign-ins are covered
 // in notify_hooks_test.go.
 
-func siteEventCount(t *testing.T, s presetSite, name string) int {
+func siteEventCount(t *testing.T, s storageTestSite, name string) int {
 	t.Helper()
 	var n int
 	if err := s.a.database.QueryRow(`SELECT count(*) FROM site_events WHERE site_id=$1 AND name=$2`, s.sid, name).Scan(&n); err != nil {
@@ -58,7 +58,7 @@ func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 
 	// A storage filter narrows record events only: a site event reaches the
 	// subscription whatever its storage filter.
-	s.must(t, "PUT", "/resources/orders", map[string]string{"kind": "sqlite", "preset": "personal"}, s.key, 201)
+	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added", "site.deployed", "viewer.access_requested", "visitor.signed_up"}, "storage": "orders", "secret": notifyTestSecret}, 201)
 	s.a.sites.emitSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": "deploy"}, 0)
@@ -75,7 +75,7 @@ func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 	if data["version"] != float64(2) || data["previous_version"] != float64(1) || data["via"] != "deploy" {
 		t.Fatalf("site.deployed fields: %v", data)
 	}
-	for _, key := range []string{"storage", "kind", "preset", "visitor", "untrusted", "truncated"} {
+	for _, key := range []string{"storage", "kind", "visitor", "untrusted", "truncated"} {
 		if _, present := data[key]; present {
 			t.Fatalf("site event carries %s: %v", key, data)
 		}
@@ -123,7 +123,7 @@ func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 	}
 }
 
-func siteEventRPC(t *testing.T, s presetSite, server *mcp.Server, method string, params map[string]any) map[string]any {
+func siteEventRPC(t *testing.T, s storageTestSite, server *mcp.Server, method string, params map[string]any) map[string]any {
 	t.Helper()
 	if params == nil {
 		params = map[string]any{}

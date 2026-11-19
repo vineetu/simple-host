@@ -13,10 +13,10 @@ import (
 // These tools run as the site owner through the caller's existing credential;
 // visitor access remains on the site's own origin through REST.
 func storageTools() []Tool {
-	return storageToolsFor(false, "", nil)
+	return storageToolsFor(false, nil)
 }
 
-func storageToolsFor(event bool, ownerSentence string, photoWording func(string) string) []Tool {
+func storageToolsFor(event bool, wording func(string) string) []Tool {
 	type route struct {
 		name, title, description, method, suffix string
 		args                                     []string
@@ -25,19 +25,17 @@ func storageToolsFor(event bool, ownerSentence string, photoWording func(string)
 		policy                                   toolPolicy
 	}
 	routes := []route{
-		{name: "storage_list_resources", title: "List storage resources", description: "List a site's saved-data resources (KV, SQLite, files) with each one's name, kind, preset, and access (who may read, add, edit, and delete), plus each SQLite table's own preset. preset legacy marks a resource saved before presets that keeps its old rules until you set a preset on it. Call it before reading or changing saved data, to get the exact resource name. It does not list a files resource's uploads: storage_list_file_objects does (through run_tool if it is not in your tool list).", method: "GET", suffix: "/resources", args: nil, body: "", annotation: readOnly()},
+		{name: "storage_list_resources", title: "List storage resources", description: storageRulesListDescription, method: "GET", suffix: "/resources", args: nil, body: "", annotation: readOnly()},
 		{name: "storage_get_usage", title: "Read site storage usage", description: "Show how much of a site's saved-data allowance is used: KV and SQLite together (10,000,000 bytes) and files separately (10 MB). The site's own pages and images are counted elsewhere (list_sites).", method: "GET", suffix: "/usage", args: nil, body: "", annotation: readOnly()},
-		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck},
-			name: "storage_set_resource", title: "Create a storage resource or set its preset", description: storageSetResourceDescription, method: "PUT", suffix: "/resources/{name}", args: []string{"name"}, body: "resource", annotation: writes(true, true, true)},
+		{policy: toolPolicy{noSpamCheck: withoutSpamCheck}, name: "storage_set_resource", title: "Create a storage resource or set its rules", description: storageRulesSetDescription + storageRulesSpamCheckSentence, method: "PUT", suffix: "/resources/{name}", args: []string{"name"}, body: "resource", annotation: writes(true, true, true)},
 		{name: "storage_delete_resource", title: "Delete storage resource", description: "Remove a resource and everything saved in it, for good. Ask the person to confirm this exact resource first.", method: "DELETE", suffix: "/resources/{name}", args: []string{"name"}, body: "", annotation: writes(true, true, true)},
 		{policy: toolPolicy{pagedStorage: true, visitorResult: "items"}, name: "storage_list_kv_keys", title: "List KV keys", description: "List the keys in a KV resource, optionally only those starting with a prefix.", method: "GET", suffix: "/kv/{name}/keys", args: []string{"name"}, body: "", annotation: readOnly()},
 		{policy: toolPolicy{visitorResult: "item"}, name: "storage_get_kv", title: "Read KV value", description: "Read one key's JSON value from a KV resource. The answer is {key, value}.", method: "GET", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "", annotation: readOnly()},
 		{name: "storage_put_kv", title: "Set KV value", description: "Set one key in a KV resource to a JSON value, replacing what was there. It changes a page only when the page's code already reads that key (SH.storage.kv(name).get(key)); text written in the page itself is changed with update_site (edits), so read the page first. This is how the owner changes page info a page reads live (a menu, prices, opening hours, settings) without republishing the site. Ask before overwriting a value visitors wrote.", method: "PUT", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "value", annotation: writes(true, true, true)},
 		{name: "storage_delete_kv", title: "Delete KV value", description: "Delete one key and its value from a KV resource. Ask first.", method: "DELETE", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "", annotation: writes(true, true, true)},
-		{policy: toolPolicy{visitorParams: true, visitorResult: "rows"}, name: "storage_sql_query", title: "Query SQLite resource", description: "Read rows from a SQLite resource with a SELECT, as the owner: it sees every person's rows, whatever the preset. Read-only; put values in params with ? placeholders; on Simple Host, visitor_id values from results can be passed back as parameters. Use it to show the person their orders, entries, or messages. " + sqlNoPragmaHint, method: "POST", suffix: "/sqlite/{name}/query", args: []string{"name"}, body: "sql", annotation: readOnly()},
+		{policy: toolPolicy{visitorParams: true, visitorResult: "rows"}, name: "storage_sql_query", title: "Query SQLite resource", description: storageRulesQueryDescription, method: "POST", suffix: "/sqlite/{name}/query", args: []string{"name"}, body: "sql", annotation: readOnly()},
 		{policy: toolPolicy{visitorParams: true}, name: "storage_sql_execute", title: "Execute SQLite statement", description: "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status; on Simple Host, visitor_id values from results can be passed back as parameters. Ask before changing or deleting what visitors sent. Repeating a successful statement can add duplicate rows or apply a change again, so query the affected records before retrying after an uncertain result. " + sqlNoPragmaHint, method: "POST", suffix: "/sqlite/{name}/execute", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
-		{policy: toolPolicy{storageResource: true, noSpamCheck: withoutSpamCheck},
-			name: "storage_sql_schema", title: "Change SQLite schema", description: "Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE TRIGGER, ALTER TABLE, one statement per call. Use IF NOT EXISTS for supported CREATE statements. Check the current schema with " + sqlSchemaIntrospectionHint + " (no PRAGMA) before repeating ALTER TABLE. Use id INTEGER PRIMARY KEY and a created_at TEXT column (and updated_at TEXT where rows are edited); the server fills them. Do not declare visitor_id: on every table whose preset uses own or lets visitors add (inbox, wall, comments, records, personal, board) the server adds an indexed visitor_id column itself" + storageSchemaCommentsText + ". A foreign key with ON DELETE CASCADE stops pages deleting the parent row, since that would change another table; leave cascades out of tables pages delete from. Ask before a change that drops or reshapes data.", method: "POST", suffix: "/sqlite/{name}/schema", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
+		{name: "storage_sql_schema", title: "Change SQLite schema", description: storageRulesSchemaDescription, method: "POST", suffix: "/sqlite/{name}/schema", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
 		{policy: toolPolicy{pagedStorage: true, visitorResult: "items"}, name: "storage_list_file_objects", title: "List stored files", description: "List the files in a files resource, optionally only those under a path prefix.", method: "GET", suffix: "/files/{name}/objects", args: []string{"name"}, body: "", annotation: readOnly()},
 		{policy: toolPolicy{analytics: analyticsPolicy{fileData: true}},
 			name: "storage_put_file", title: "Upload stored file", description: "Upload one file into a files resource as the owner (base64, under 1 MiB; resize photos first): a gallery photo, a menu PDF, a download. A page shows it with SH.storage.files(name).url(path). Images that are part of the page's design go in create_site or update_site files_base64 instead. Ask before replacing an existing file.", method: "PUT", suffix: "/files/{name}/objects/{path...}", args: []string{"name", "path"}, body: "file", annotation: writes(true, true, true)},
@@ -59,8 +57,7 @@ func storageToolsFor(event bool, ownerSentence string, photoWording func(string)
 			r.title = "Event website: " + r.title
 			r.description = strings.ReplaceAll(r.description, "storage_", "hack_event_storage_")
 			r.description = strings.ReplaceAll(r.description, "get_page_recipe", "hack_get_page_recipe")
-			r.description = strings.Replace(r.description, storageOwnerSentence, ownerSentence, 1)
-			r.description = photoWording(r.description)
+			r.description = wording(r.description)
 			r.description = strings.Replace(r.description, "; text written in the page itself is changed with update_site (edits), so read the page first", "", 1)
 			r.description += " Organiser only on this event's custom website."
 		}
@@ -382,37 +379,6 @@ func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any, event
 	return output{Text: jsonText(structured), Structured: structured}, nil
 }
 
-const storageSetResourceDescription = "Create a saved-data resource on a site, or set who may read, add, edit, and delete in it. kind: kv (one JSON value per key), sqlite (tables), or files (uploads); it cannot change later. Pick a preset; the server enforces it on every request from the site's pages, whatever the page code does. " +
-	"The presets (read / add / edit / delete): " +
-	"public (anyone / owner / owner / owner): menus, catalogues, price lists, opening hours, schedules, FAQs" + storageOwnerPhotos + ". " +
-	"inbox (owner / anyone / owner / owner): quote requests, contact forms, waitlists, sign-ups, applications, feedback; anyone sends without signing in, only you read. " +
-	"wall (anyone / signed-in / owner / own): guestbooks, comments, reviews, a public RSVP or who's-coming list; authors can take back their own. " +
-	storageCommentsSentence +
-	"records (own / signed-in / owner / owner): bookings, appointments, table reservations (even a \"booking request\"), orders, support tickets; the person signs in when they send, sees only their own and its status, you see all and set a status. " +
-	"personal (own / signed-in / own / own): profiles, saved settings, wishlists, notes, bookmarks, a cart that follows the person. " +
-	"board (signed-in / signed-in / signed-in / owner): potluck and sign-up sheets, shared task or shopping lists, a club roster; everyone signed in edits, only you delete. " +
-	"private (all owner, the default): admin data, inventory, internal notes, drafts. " +
-	"Lookalikes: a sign-up sheet people change is board, but one where each person adds and removes only their own entry is wall; a form only you read is inbox, but one where each person sees their own submissions is records; a wishlist only its owner sees is personal, but a wishlist others may view is wall; " + storageGalleryLookalike + ". " +
-	storageOwnerSentence +
-	"For sqlite, the preset is the database default and tables can each have their own: {\"kind\":\"sqlite\",\"preset\":\"private\",\"tables\":{\"products\":{\"preset\":\"public\"},\"orders\":{\"preset\":\"records\"}}}. " +
-	"A preset takes single-action overrides, checked by the server, e.g. {\"preset\":\"inbox\",\"add\":\"signed-in\"}; preset custom sets all four. The server refuses: edit or delete anyone; add own; own anywhere with add anyone" + storageCheckedRule + "; edit or delete wider than read. " +
-	"Create the resource, and its tables with storage_sql_schema, before publishing the page that uses it; get_page_recipe has a complete page for each job (booking, inbox, public, portal, and the rest). Ask the person before making data readable or changeable by more people."
-
-// Simple Hack has no photo picker, so its copies keep the files-gallery wording.
-const (
-	storageOwnerPhotos      = " (the owner's own photos go through create_upload_link instead)"
-	storageGalleryLookalike = "photos the owner adds go through create_upload_link (a photo picker in the chat), photos visitors add are wall on files"
-)
-
-// The comments preset (add checked: the Turnstile spam check). Simple Hack
-// does not offer it, so withoutSpamCheck takes these out of its
-// tools.
-const storageCommentsSentence = "comments (anyone / checked / owner / owner): a guestbook, comments, reviews, or questions anyone posts without signing in; checked means anyone who passes a spam check (Cloudflare Turnstile, which auth.js runs on its own when the page saves). Only you edit or remove posts. With approve_first: true (sqlite only) new posts stay hidden from visitors until you set approved_at on the row. kv and sqlite only. "
-
-const storageCheckedRule = " or checked; checked anywhere but add"
-
-const storageSchemaCommentsText = ", and with approve_first an approved_at column"
-
 // sqlSchemaIntrospectionHint is how to read a table's columns and a table's
 // or index's exact SQL, since PRAGMA (and pragma_* table functions) are not
 // available here; said upfront in storage_sql_schema's own description so a
@@ -423,82 +389,23 @@ const sqlSchemaIntrospectionHint = "SELECT name, sql FROM sqlite_schema"
 // storage_sql_execute, whose own job is not introspection.
 const sqlNoPragmaHint = "No PRAGMA: list tables and columns with " + sqlSchemaIntrospectionHint + "."
 
-// withoutSpamCheck is a storage tool as Simple Hack offers it: no comments
-// preset, no checked value, no approve_first.
+// withoutSpamCheck is storage_set_resource where the spam check is not
+// offered (Simple Hack, or a server without Turnstile keys).
 func withoutSpamCheck(tool Tool) Tool {
-	tool.Description = strings.Replace(tool.Description, storageCommentsSentence, "", 1)
-	tool.Description = strings.Replace(tool.Description, storageCheckedRule, "", 1)
-	tool.Description = strings.Replace(tool.Description, "(inbox, wall, comments, records,", "(inbox, wall, records,", 1)
-	tool.Description = strings.Replace(tool.Description, storageSchemaCommentsText, "", 1)
-	props, _ := tool.InputSchema["properties"].(map[string]any)
-	if _, ok := props["body"]; ok && tool.policy.storageResource {
-		copied := make(map[string]any, len(props))
-		for k, v := range props {
-			copied[k] = v
-		}
-		copied["body"] = storageResourceBodyFor(false)
-		schema := make(map[string]any, len(tool.InputSchema))
-		for k, v := range tool.InputSchema {
-			schema[k] = v
-		}
-		schema["properties"] = copied
-		tool.InputSchema = schema
-	}
+	tool.Description = strings.Replace(tool.Description, storageRulesSpamCheckSentence, "", 1)
 	return tool
 }
 
-// Who "owner" is, in storage_set_resource: on Simple Host the site's owner;
-// on Simple Hack the team or the event's organisers (owner decision
-// 2026-10-10).
-const storageOwnerSentence = "\"own\" means the signed-in person who added the entry; \"owner\" means you: these tools, and you signed in on the site's own address through its sign-in box, where a page you write can act as an admin page (all orders, set a status). \"nobody\" keeps data to these tools only. "
-
-func storageWhoSchema(description string, values ...string) map[string]any {
-	return map[string]any{"type": "string", "enum": values, "description": description}
-}
-
+// storageResourceBody: every kind takes rules.
 func storageResourceBody() map[string]any {
-	return storageResourceBodyFor(true)
-}
-
-// storageResourceBodyFor: spamCheck false leaves out the comments preset,
-// checked, and approve_first (Simple Hack).
-func storageResourceBodyFor(spamCheck bool) map[string]any {
-	who := []string{"nobody", "owner", "own", "signed-in", "anyone"}
-	addWho := []string{"nobody", "owner", "signed-in", "checked", "anyone"}
-	presets := []string{"public", "inbox", "wall", "comments", "records", "personal", "board", "private", "custom"}
-	presetText := "public, inbox, wall, comments, records, personal, board, or private (the default); custom with all four actions set."
-	addText := "Optional override: who may add a new entry (never own; checked is anyone who passes the spam check)."
-	if !spamCheck {
-		addWho = []string{"nobody", "owner", "signed-in", "anyone"}
-		presets = []string{"public", "inbox", "wall", "records", "personal", "board", "private", "custom"}
-		presetText = "public, inbox, wall, records, personal, board, or private (the default); custom with all four actions set."
-		addText = "Optional override: who may add a new entry (never own)."
-	}
-	table := object(map[string]any{
-		"rules":  storageRulesSchema(),
-		"preset": storageWhoSchema("This table's preset.", presets...),
-		"read":   storageWhoSchema("Optional override for read.", who...),
-		"add":    storageWhoSchema("Optional override for add.", addWho...),
-		"edit":   storageWhoSchema("Optional override for edit.", who...),
-		"delete": storageWhoSchema("Optional override for delete.", who...),
-	})
-	table["description"] = "When specifying access, give exactly one of preset or rules; omitting both keeps the private default."
+	table := object(map[string]any{"rules": storageRulesSchema()})
 	body := object(map[string]any{
 		"rules":         storageRulesSchema(),
 		"kind":          map[string]any{"type": "string", "enum": []string{"kv", "sqlite", "files"}, "description": "kv (one JSON value per key), sqlite (tables), or files (uploads). Cannot change once created."},
-		"preset":        storageWhoSchema(presetText, presets...),
-		"read":          storageWhoSchema("Optional override: who may list and view.", who...),
-		"add":           storageWhoSchema(addText, addWho...),
-		"edit":          storageWhoSchema("Optional override: who may change an existing entry (never anyone).", who...),
-		"delete":        storageWhoSchema("Optional override: who may remove an entry (never anyone).", who...),
-		"tables":        map[string]any{"type": "object", "additionalProperties": table, "description": "sqlite only: a preset per table, e.g. {\"products\": {\"preset\": \"public\"}, \"orders\": {\"preset\": \"records\"}}. Tables not listed use the resource's preset. Omit to keep the current table presets; {} clears them."},
-		"approve_first": map[string]any{"type": "boolean", "description": "sqlite with the comments preset only: true holds each new post until you approve it (storage_sql_execute UPDATE <table> SET approved_at = datetime('now') WHERE id = ?); visitors see approved posts only. Setting it back to false shows every held post at once. Omit to keep the current setting."},
+		"tables":        map[string]any{"type": "object", "additionalProperties": table, "description": "sqlite only: rules per table, e.g. {\"orders\": {\"rules\": {...}}}. Tables not listed use the resource's rules. Omit to keep the current table rules; {} clears them."},
 		"site_passcode": map[string]any{"type": "string", "enum": []string{"inherit", "off"}, "description": "inherit (default): when the site has a passcode, visitors must have entered it before reading or writing here. off: public reads skip the passcode."},
 	}, "kind")
-	if !spamCheck {
-		delete(body["properties"].(map[string]any), "approve_first")
-	}
-	body["description"] = "The resource's kind and preset, e.g. {\"kind\": \"sqlite\", \"preset\": \"records\"}."
+	body["description"] = "The resource's kind and access rules, e.g. {\"kind\": \"files\", \"rules\": {...}}."
 	return body
 }
 
@@ -516,6 +423,6 @@ func storageRulesSchema() map[string]any {
 		"policies": map[string]any{"type": "array", "items": policy, "description": "At most 32 policies."},
 	}, "policies")
 	set["type"] = []string{"object", "null"}
-	set["description"] = "Optional row rules for SQLite, a SQLite-stored KV namespace or files; requires STORAGE_RULES=on. Do not combine with preset fields. An empty policies array denies visitors; null is treated as absent."
+	set["description"] = "Rules for who may read, add, edit and delete (kv, sqlite and files). An empty policies array denies visitors; null is treated as absent."
 	return set
 }

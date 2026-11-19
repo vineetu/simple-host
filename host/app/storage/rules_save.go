@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/vsriram/simple-host/host/model"
 	rules "github.com/vsriram/simple-host/host/rules/storage"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
@@ -24,26 +25,17 @@ func hasRules(raw *json.RawMessage) bool {
 	return raw != nil && !bytes.Equal(bytes.TrimSpace(*raw), []byte("null"))
 }
 
+// hasPresetFields: the body or a table entry names a field of the removed
+// presets.
 func (in ResourceInput) hasPresetFields() bool {
-	return in.PresetFieldsPresent || accessFields(in.AccessRequest) || in.Write != "" || in.WriteMode != "" || in.ApproveFirst != nil
-}
-
-func (in ResourceInput) hasTablePresetFields() bool {
 	if in.Tables != nil {
 		for _, table := range *in.Tables {
-			if table.hasPresetFields() {
+			if table.PresetFieldsPresent {
 				return true
 			}
 		}
 	}
-	return false
-}
-func (q ResourceTableInput) hasPresetFields() bool {
-	return q.PresetFieldsPresent || accessFields(q.AccessRequest) || q.Write != "" || q.WriteMode != "" || q.ApproveFirst != nil
-}
-
-func accessFields(q rules.AccessRequest) bool {
-	return q.Preset != "" || q.Read != "" || q.Add != "" || q.Edit != "" || q.Delete != ""
+	return in.PresetFieldsPresent
 }
 
 func rulesFailure(errs []ruleengine.RuleError) *Error {
@@ -77,9 +69,6 @@ func decodeRules(raw json.RawMessage, table string, schema ruleengine.BindingSch
 }
 
 func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rules.Resource, exists bool, x *rules.Resource) error {
-	if in.hasPresetFields() {
-		return invalidRules("shape", "", "rules cannot be combined with preset fields")
-	}
 	// Bound the serialized rules supplied to the service, including table names
 	// and wrappers. Raw bytes count before decoding/canonicalization.
 	size := len(*in.Rules) + len(`{"rules":}`)
@@ -101,9 +90,6 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 	if in.Tables != nil && (x.Kind != "sqlite" || len(*in.Tables) > 50) {
 		return invalidRules("shape", "", "at most 50 table sets apply to sqlite resources only")
 	}
-	if in.Tables == nil && old.Rules == nil && len(old.Tables) > 0 {
-		return invalidRules("shape", "", "send tables with rules for each table, or tables: {}")
-	}
 	schema, err := s.rulesSchema()
 	if err != nil {
 		return &Error{Code: "internal_error", Message: "invalid storage binding schema"}
@@ -113,9 +99,6 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 		return err
 	}
 	sets := map[string]ruleengine.PolicySet{}
-	deny := rules.AccessMatrix{Read: rules.WhoNobody, Add: rules.WhoNobody, Edit: rules.WhoNobody, Delete: rules.WhoNobody}
-	x.Access, x.PresetBase = &deny, "rules"
-	x.Read, x.Write, x.WriteMode = "owner", "owner", "add"
 	x.Rules = ruleengine.EncodeSet(def)
 	x.Tables = map[string]rules.TableRule{}
 	if in.Tables != nil {
@@ -133,7 +116,7 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 			if _, ok := sets[table]; ok {
 				return invalidRules("shape", table, "two rules name the same table")
 			}
-			if !hasRules(q.Rules) || q.hasPresetFields() {
+			if !hasRules(q.Rules) {
 				return invalidRules("shape", table, "each table entry must contain rules only")
 			}
 			set, err := decodeRules(*q.Rules, table, schema)
@@ -141,7 +124,7 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 				return err
 			}
 			sets[table] = set
-			x.Tables[table] = rules.TableRule{Rules: ruleengine.EncodeSet(set), Matrix: deny, PresetBase: "rules"}
+			x.Tables[table] = rules.TableRule{Rules: ruleengine.EncodeSet(set)}
 		}
 	} else if old.Rules != nil {
 		for table, q := range old.Tables {
@@ -150,7 +133,7 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 				return err
 			}
 			sets[table] = set
-			x.Tables[table] = rules.TableRule{Rules: ruleengine.EncodeSet(set), Matrix: deny, PresetBase: "rules"}
+			x.Tables[table] = rules.TableRule{Rules: ruleengine.EncodeSet(set)}
 		}
 	}
 	if x.Kind != "sqlite" {
@@ -198,7 +181,7 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 		referencesAuthor = referencesAuthor || probe.ReferencesColumn("visitor_id")
 	}
 
-	pagesWroteSQL := exists && old.LegacyVisitorSQL() && old.Write != rules.WhoOwner
+	pagesWroteSQL := exists && old.LegacyVisitorSQL() && old.Write != model.WhoOwner
 	_, err = s.prepareResourceTables(ctx, in.Call, *x, pagesWroteSQL && referencesAuthor, pagesWroteSQL, own, hold)
 	if err != nil {
 		if e, ok := err.(*Error); ok {
@@ -245,7 +228,6 @@ func (s *Service) inspectRulePlans(ctx context.Context, call Call, def ruleengin
 }
 
 // compileRulePlans compiles the sets against every table of an open database.
-// migrate-rules calls it on its own read-only connection.
 func compileRulePlans(i *Inspection, def ruleengine.PolicySet, sets map[string]ruleengine.PolicySet, schema ruleengine.BindingSchema, prospective bool) (rulePlans, error) {
 	plans := rulePlans{}
 	err := func() error {
@@ -376,7 +358,7 @@ func (s *Service) resourceRulesErrors(x rules.Resource) []ruleengine.RuleError {
 	return errs
 }
 
-// rulePlans are the rules equivalents of the preset preparation helpers.
+// rulePlans are the compiled plans a rules save prepares tables for.
 type rulePlans map[string]*ruleengine.Plan
 
 func (p rulePlans) OwnTables() func(string) bool {

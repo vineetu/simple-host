@@ -73,7 +73,7 @@ npx -y skills add https://github.com/vineetu/simple-host/tree/main/products/hack
 
 ### Saved data
 - Per-site storage: key-value (KV), SQLite and file resources that the site's own pages read and write.
-- Rules on each KV and SQLite resource decide who may read, add, edit and delete; file resources use access presets.
+- Rules on each KV, SQLite and file resource decide who may read, add, edit and delete.
 
 ### Visitor sign-in
 - Visitors sign in with Google or an emailed code on the site's own address.

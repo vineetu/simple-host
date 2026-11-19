@@ -24,21 +24,22 @@ import (
 // site_storage_files.writer_id, "" for the owner). It never becomes SQL.
 var fileRulesTable = ruleengine.Table{Name: "files", RowKey: "rowid", Columns: []ruleengine.Column{{Name: "path"}, {Name: "visitor_id"}}}
 
-// fileRule decides op on a files resource for a caller its rules govern
-// (kvHasRules): the site gate, then the decision key-value and SQLite use. The
-// returned check answers for one stored file, or for the new file on an add.
+// fileRule decides op on a files resource with authorize, the decision
+// key-value and SQLite use. The returned check answers for one stored file,
+// or for the new file on an add; it is nil for the owner's own tools, which
+// rules never limit.
 func (s *Service) fileRule(c *Call, op ruleengine.Op) (fileCheck, *Error) {
-	if err := s.Gate(*c, op != ruleengine.OpRead); err != nil {
-		return nil, err.(*Error)
+	err := s.authorize(c.Context, c, "files", op)
+	if err == nil && c.Owner {
+		return nil, nil
 	}
-	err := s.authorizeRuleOperation(c.Context, c, "files", op)
 	if err == nil {
 		if e := s.compileCallRules(c, fileRulesTable); e != nil {
 			err = e.(*Error)
 		}
 	}
 	if err != nil {
-		// As refusals, so the routes answer exactly as for the preset decision.
+		// As refusals, so the routes report every refusal in order.
 		return nil, &Error{Code: err.Code, Message: err.Message, Refusals: []*Error{err}}
 	}
 	plan, values, ai, visitor := c.rulePlan, c.ruleValues, c.VisitorAI, c.VisitorID
@@ -65,8 +66,12 @@ func (s *Service) fileRule(c *Call, op ruleengine.Op) (fileCheck, *Error) {
 // fileCheck answers a file rule for one file and its uploader.
 type fileCheck func(path, writer string) bool
 
-// stored answers the check for a file in the bucket, reading its uploader.
+// stored answers the check for a file in the bucket, reading its uploader. A
+// nil check (the owner's own tools) allows every file.
 func (check fileCheck) stored(ctx context.Context, s *Service, c Call, p string) (bool, error) {
+	if check == nil {
+		return true, nil
+	}
 	writer, err := repository.FileWriter(ctx, s.db, c.SiteID, c.ResourceName, p)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, err
@@ -114,78 +119,59 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 		return FilePutResult{}, nil, e
 	}
 	call.Context = ctx
-	var auth *Error
-	var filter string
-	var rule fileCheck
-	if op := ruleengine.OpAdd; kvHasRules(call) {
+	op := ruleengine.OpAdd
+	if existed {
+		op = ruleengine.OpEdit
+	}
+	rule, auth := s.fileRule(&call, op)
+	if auth != nil {
+		// Someone who may add but not change gets file_exists, as on kv.
+		add := in.Call
+		add.Context = ctx
 		if existed {
-			op = ruleengine.OpEdit
-		}
-		if rule, auth = s.fileRule(&call, op); auth != nil {
-			// Someone who may add but not change gets file_exists, as on kv.
-			add := in.Call
-			add.Context = ctx
-			if existed {
-				if _, e := s.fileRule(&add, ruleengine.OpAdd); e == nil {
-					return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
-				}
-			}
-			return FilePutResult{}, auth, nil
-		}
-		if !existed && !rule(in.Path, StampID(call.Owner, call.VisitorID)) {
-			return FilePutResult{}, &Error{Code: "forbidden", Message: "add is not open to this visitor here"}, nil
-		}
-	} else {
-		call.CurrentMatrix = call.Resource.Matrix()
-		action := "add"
-		if existed {
-			action = "edit"
-			if kvTaken(call) {
+			if _, e := s.fileRule(&add, ruleengine.OpAdd); e == nil {
 				return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
 			}
 		}
-		filter, err = s.Allow(&call, action, call.CurrentMatrix.Value(action))
-		if err != nil {
-			auth = err.(*Error)
-			if !auth.Allowed {
-				return FilePutResult{}, auth, nil
-			}
-		}
+		return FilePutResult{}, auth, nil
+	}
+	if rule != nil && !existed && !rule(in.Path, StampID(call.Owner, call.VisitorID)) {
+		return FilePutResult{}, &Error{Code: "forbidden", Message: "add is not open to this visitor here"}, nil
 	}
 	// rowVisitorID is this write's SIM-360 push-fan-out target: the
 	// existing file's own uploader when overwriting one (read under the
-	// write lock, right here, before the overwrite -- the own-preset
-	// check already needs this same lookup when filter!="", so that
-	// result is reused rather than queried twice), or the new file's own
-	// uploader (StampID below) when adding one.
+	// write lock, right here, before the overwrite -- the rule check on
+	// the stored file needs this same lookup, so that result is reused
+	// rather than queried twice), or the new file's own uploader (StampID
+	// below) when adding one.
 	rowVisitorID := ""
 	if existed {
 		writer, e := repository.FileWriter(ctx, s.db, call.SiteID, call.ResourceName, in.Path)
 		if e != nil && !errors.Is(e, sql.ErrNoRows) {
-			return FilePutResult{}, auth, e
+			return FilePutResult{}, nil, e
 		}
-		if filter != "" && writer != filter || rule != nil && !rule(in.Path, writer) {
-			return FilePutResult{}, auth, &Error{Code: "file_exists", Message: "this path already exists"}
+		if rule != nil && !rule(in.Path, writer) {
+			return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
 		}
 		rowVisitorID = writer
 	}
 	usage, err := s.MeasureSiteStorage(ctx, call.SiteID, call.RuntimeDir)
 	if err != nil {
-		return FilePutResult{}, auth, err
+		return FilePutResult{}, nil, err
 	}
 	if !existed && usage.FileObjects[call.ResourceName] >= s.deps.FileObjectsLimit {
-		return FilePutResult{}, auth, &Error{Code: "bucket_full", Message: "file bucket has too many objects; remove unused files"}
+		return FilePutResult{}, nil, &Error{Code: "bucket_full", Message: "file bucket has too many objects; remove unused files"}
 	}
 	used := usage.Files
 	if s.deps.CombinedPool {
 		used = usage.Total()
 	}
 	if used-oldBytes+int64(len(body)) > s.FilesLimitBytes() {
-		return FilePutResult{}, auth, &Error{Code: "site_full", Message: "file storage is full; shrink photos to about 1600 px WebP and remove unused files"}
+		return FilePutResult{}, nil, &Error{Code: "site_full", Message: "file storage is full; shrink photos to about 1600 px WebP and remove unused files"}
 	}
 	f, err := mechanics.StageFile(dest, body)
 	if err != nil {
-		return FilePutResult{}, auth, err
+		return FilePutResult{}, nil, err
 	}
 	defer os.Remove(f)
 	if existed {
@@ -194,7 +180,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 			err = os.Rename(f, dest)
 		}
 	} else if err = os.Link(f, dest); errors.Is(err, os.ErrExist) {
-		return FilePutResult{}, auth, &Error{Code: "file_exists", Message: "this path already exists"}
+		return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
 	} else if err == nil {
 		rowVisitorID = StampID(call.Owner, call.VisitorID)
 		err = repository.RecordFileAdd(ctx, s.db, call.SiteID, call.ResourceName, in.Path, rowVisitorID)
@@ -203,7 +189,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 		}
 	}
 	if err != nil {
-		return FilePutResult{}, auth, err
+		return FilePutResult{}, nil, err
 	}
 	s.deps.Committed(ctx)
 	s.deps.ScanFile(call, in.Path, body)
@@ -215,7 +201,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 		data["row_visitor_id"] = rowVisitorID
 	}
 	s.deps.Notify(call, "file.uploaded", data)
-	return result, auth, nil
+	return result, nil, nil
 }
 
 // FileLinkInput identifies the file for an owner download link.
@@ -252,51 +238,32 @@ type FileDeleteInput struct {
 func (s *Service) DeleteFile(ctx context.Context, in FileDeleteInput) (*Error, error) {
 	call := in.Call
 	call.Context = ctx
-	var auth *Error
-	var filter string
-	var rule fileCheck
-	var err error
-	if kvHasRules(call) {
-		if rule, auth = s.fileRule(&call, ruleengine.OpDelete); auth != nil {
-			return auth, nil
-		}
-	} else if filter, err = s.Access(&call, "delete"); err != nil {
-		auth = err.(*Error)
-		if !auth.Allowed {
-			return auth, nil
-		}
+	rule, auth := s.fileRule(&call, ruleengine.OpDelete)
+	if auth != nil {
+		return auth, nil
 	}
 	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
-		return auth, err
+		return nil, err
 	}
 	defer unlock()
-	if filter != "" {
-		mine, err := repository.FileOwned(ctx, s.db, call.SiteID, call.ResourceName, in.Path, filter)
-		if err != nil {
-			return auth, err
-		}
-		if !mine {
-			return auth, &Error{Code: "file_not_found", Message: "file not found"}
-		}
-	}
 	if rule != nil {
 		if ok, err := rule.stored(ctx, s, call, in.Path); err != nil {
-			return auth, err
+			return nil, err
 		} else if !ok {
-			return auth, &Error{Code: "file_not_found", Message: "file not found"}
+			return nil, &Error{Code: "file_not_found", Message: "file not found"}
 		}
 	}
 	if err := os.Remove(s.deps.FilePath(call, in.Path)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return auth, err
+		return nil, err
 	}
 	if err := repository.DeleteFile(ctx, s.db, call.SiteID, call.ResourceName, in.Path); err != nil {
-		return auth, err
+		return nil, err
 	}
 	s.deps.Committed(ctx)
 	s.deps.MarkChanged()
 	unlock()
-	return auth, nil
+	return nil, nil
 }
 
 // FileReadInput identifies the file and whether a validated link grants access.
@@ -310,11 +277,9 @@ type FileReadInput struct {
 func (s *Service) OpenFile(ctx context.Context, in FileReadInput) (*os.File, os.FileInfo, *Error, error) {
 	call := in.Call
 	call.Context = ctx
-	var auth *Error
-	filter := call.Filter
-	var rule fileCheck
-	if !in.LinkAuthorized && kvHasRules(call) {
-		if rule, auth = s.fileRule(&call, ruleengine.OpRead); auth != nil {
+	if !in.LinkAuthorized {
+		rule, auth := s.fileRule(&call, ruleengine.OpRead)
+		if auth != nil {
 			return nil, nil, auth, nil
 		}
 		if ok, err := rule.stored(ctx, s, call, in.Path); err != nil {
@@ -322,35 +287,17 @@ func (s *Service) OpenFile(ctx context.Context, in FileReadInput) (*os.File, os.
 		} else if !ok {
 			return nil, nil, nil, &Error{Code: "file_not_found", Message: "file not found"}
 		}
-	} else if !in.LinkAuthorized {
-		var err error
-		filter, err = s.Access(&call, "read")
-		if err != nil {
-			auth = err.(*Error)
-			if !auth.Allowed {
-				return nil, nil, auth, nil
-			}
-		}
-	}
-	if filter != "" {
-		allowed, err := repository.FileOwned(ctx, s.db, call.SiteID, call.ResourceName, in.Path, filter)
-		if err != nil {
-			return nil, nil, auth, err
-		}
-		if !allowed {
-			return nil, nil, auth, &Error{Code: "file_not_found", Message: "file not found"}
-		}
 	}
 	f, err := os.Open(s.deps.FilePath(call, in.Path))
 	if err != nil {
-		return nil, nil, auth, &Error{Code: "file_not_found", Message: "file not found"}
+		return nil, nil, nil, &Error{Code: "file_not_found", Message: "file not found"}
 	}
 	fi, err := f.Stat()
 	if err != nil || !fi.Mode().IsRegular() {
 		f.Close()
-		return nil, nil, auth, &Error{Code: "file_not_found", Message: "file not found"}
+		return nil, nil, nil, &Error{Code: "file_not_found", Message: "file not found"}
 	}
-	return f, fi, auth, nil
+	return f, fi, nil, nil
 }
 
 // FileListInput contains pagination and caller facts for listing files.
@@ -375,27 +322,20 @@ type FileItem struct {
 func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, string, *Error, error) {
 	call := in.Call
 	call.Context = ctx
-	var auth *Error
 	var filter string
-	var rule fileCheck
-	var err error
-	if kvHasRules(call) {
-		if rule, auth = s.fileRule(&call, ruleengine.OpRead); auth != nil {
-			return nil, "", auth, nil
-		}
+	rule, auth := s.fileRule(&call, ruleengine.OpRead)
+	if auth != nil {
+		return nil, "", auth, nil
+	}
+	if rule != nil {
 		if call.rulePlan.ReadIsOwnOrOwner() && !call.OwnerOnSite {
 			filter = call.VisitorID // the indexed lookup by uploader
 		} else if call.rulePlan.Partial(ruleengine.OpRead, call.ruleValues) == ruleengine.True {
 			rule = nil // every file is readable
 		}
-	} else if filter, err = s.Access(&call, "read"); err != nil {
-		auth = err.(*Error)
-		if !auth.Allowed {
-			return nil, "", auth, nil
-		}
 	}
 	if !in.Valid {
-		return nil, "", auth, &Error{Code: "invalid_limit", Message: "invalid limit"}
+		return nil, "", nil, &Error{Code: "invalid_limit", Message: "invalid limit"}
 	}
 	out := []FileItem{}
 	next := ""
@@ -432,14 +372,14 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 			return true, nil
 		})
 		if e != nil {
-			return nil, "", auth, e
+			return nil, "", nil, e
 		}
 		if !more {
 			next = ""
 		}
-		return out, next, auth, nil
+		return out, next, nil, nil
 	}
-	err = filepath.WalkDir(in.Root, func(fp string, d os.DirEntry, e error) error {
+	err := filepath.WalkDir(in.Root, func(fp string, d os.DirEntry, e error) error {
 		if errors.Is(e, os.ErrNotExist) {
 			return nil
 		}
@@ -486,7 +426,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 		return nil
 	})
 	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, "", auth, err
+		return nil, "", nil, err
 	}
 	if len(out) > in.Limit {
 		next = out[in.Limit-1].Path
@@ -499,7 +439,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 		}
 		writers, e := repository.FileWriters(ctx, s.db, call.SiteID, call.ResourceName, paths)
 		if e != nil {
-			return nil, "", auth, e
+			return nil, "", nil, e
 		}
 		for i := range out {
 			out[i].VisitorID = writers[out[i].Path]
@@ -510,7 +450,7 @@ func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, 
 			}
 		}
 	}
-	return out, next, auth, nil
+	return out, next, nil, nil
 }
 
 // DownloadFile validates a sealed link and opens its file for streaming.

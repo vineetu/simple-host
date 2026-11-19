@@ -13,10 +13,11 @@ import (
 
 // InstallLockKey is the session advisory lock that ties a database to the one
 // process family allowed to use it: every serving program holds it shared, and
-// migrate-rules --apply and --revert take it exclusive. The maintenance lock file
-// covers one data directory only, so without this a command pointed at a copy
-// of the data directory could rewrite a database a live server is using from
-// another directory. Any constant works as long as nothing else in this
+// a command that rewrites saved data takes it exclusive (none does since
+// migrate-rules was removed). The maintenance lock file covers one data
+// directory only, so without this a command pointed at a copy of the data
+// directory could rewrite a database a live server is using from another
+// directory. Any constant works as long as nothing else in this
 // database uses it (the migrate lock is 7461_2026_0927).
 const InstallLockKey = 7461_2026_1115
 

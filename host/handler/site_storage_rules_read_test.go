@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
-	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
 func TestStorageRulesInvalidHTTPResponses(t *testing.T) {
@@ -27,8 +25,7 @@ func TestStorageRulesInvalidHTTPResponses(t *testing.T) {
 }
 
 func TestStorageRulesReadTableOverride(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	s.must(t, "PUT", "/resources/data", `{"kind":"sqlite","rules":{"policies":[{"command":"read","using":"true"}]},"tables":{"closed":{"rules":{"policies":[]}}}}`, s.key, 201)
 	for _, table := range []string{"open", "closed"} {
 		s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE " + table + "(body TEXT)"}, s.key, 200)
@@ -47,11 +44,9 @@ func TestStorageRulesReadTableOverride(t *testing.T) {
 }
 
 func TestStorageRulesReadAuthenticationResponses(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/data", `{"kind":"sqlite","preset":"board"}`, s.key, 201)
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/data", storageRules("sqlite", rulesBoard), s.key, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT)"}, s.key, 200)
-	// Pin the existing preset bodies before conversion.
 	expected := map[string]resp{}
 	for _, suffix := range []string{"", "/1"} {
 		expected["anon"+suffix] = s.must(t, "GET", "/sqlite/data/tables/entries/rows"+suffix, nil, s.callers["anon"], 401)
@@ -62,11 +57,6 @@ func TestStorageRulesReadAuthenticationResponses(t *testing.T) {
 	for _, suffix := range []string{"", "/1"} {
 		expected["alice"+suffix] = s.must(t, "GET", "/sqlite/data/tables/entries/rows"+suffix, nil, s.callers["alice"], 403)
 	}
-	converted := ruleengine.Convert(ruleengine.ConvertInput{Kind: "sqlite", Default: ruleengine.Matrix{Read: "signed-in", Add: "signed-in", Edit: "signed-in", Delete: "owner"}})
-	if len(converted.Manual) != 0 {
-		t.Fatal(converted.Manual)
-	}
-	s.must(t, "PUT", "/resources/data", map[string]any{"kind": "sqlite", "rules": json.RawMessage(ruleengine.EncodeSet(converted.Default))}, s.key, 200)
 	for _, who := range []string{"anon", "alice"} {
 		for _, suffix := range []string{"", "/1"} {
 			want := expected[who+suffix]

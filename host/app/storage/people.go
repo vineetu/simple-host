@@ -142,7 +142,7 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 }
 
 // sqliteRowVisitors scans every SQLite resource's author-tracked tables
-// (as declared by its rules or preset) for distinct, nonempty visitor_id
+// (as declared by its rules) for distinct, nonempty visitor_id
 // values. Opened read-only, directly by site runtime path (not through
 // s.deps.SQLitePath, which is bound to one resource): the pick list spans
 // every resource on the site.
@@ -192,22 +192,12 @@ func (s *Service) distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]s
 	}
 	var out []string
 	for table := range tables {
-		tracked := r.TableMatrix(table).RecordsAuthor()
-		if r.RulesStatus() != "preset" {
-			c := Call{Resource: r}
-			if err := s.compileBindingRules(&c, table); err != nil {
-				continue
-			}
-			tracked = c.rulePlan.AuthorTracked()
-		}
-		if !tracked {
+		c := Call{Resource: r}
+		if err := s.compileBindingRules(&c, table); err != nil || !c.rulePlan.AuthorTracked() {
 			continue
 		}
 		cols, err := runtime.TableColumns(conn, table)
-		author := "visitor_id"
-		if r.RulesStatus() != "preset" {
-			author = declaredColumn(cols, author)
-		}
+		author := declaredColumn(cols, "visitor_id")
 		if err != nil || cols[author] != "TEXT" {
 			continue
 		}

@@ -147,7 +147,7 @@ func runtimeKVPrefixEnd(prefix string) string {
 	return ""
 }
 
-// RuntimeKVListQuery builds the indexed prefix/cursor range shared by preset and
+// RuntimeKVListQuery builds the indexed prefix/cursor range shared by the owner's and
 // rules lists. Callers append visibility predicates before ordering and limiting.
 func RuntimeKVListQuery(prefix, after string) (string, []string) {
 	// Use one effective lower bound so SQLite seeks straight to the prefix or

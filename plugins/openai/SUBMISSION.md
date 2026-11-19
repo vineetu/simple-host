@@ -65,7 +65,7 @@ first submission.
 
 Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.
 
-Each site can save key-value data (KV), SQLite tables, and files. Access presets control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.
+Each site can save key-value data (KV), SQLite tables, and files. Access rules control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.
 
 Update site files, preview a saved version, or restore an earlier version. The four latest site versions are kept by default, and deleted sites can be restored for 7 days. Current storage stays until you delete it or its site; it does not have automatic 30-day change history.
 
@@ -84,7 +84,7 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 - Publish websites, each at its own public address
 - Edit, rename, preview, roll back, and delete your sites
 - Save bookings, quote requests, waitlists, and orders
-- Choose who can read and add saved data, with simple presets
+- Choose who can read and add saved data, with simple rules
 - Let visitors sign in so each person sees only their own records
 - Lock a site with a passcode or open it only to named people
 - Connect your own domain or a short name.simple-host.app address

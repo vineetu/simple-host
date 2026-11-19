@@ -74,7 +74,7 @@ func (p *ownerBindingFixture) OwnerOnSite(context.Context, string, string) (bool
 }
 
 func TestStorageBindingRequestGuards(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	h := s.a.sites
 	h.ed = groupTestEdition()
 	p := &ownerBindingFixture{}
@@ -124,9 +124,9 @@ func TestStorageBindingRequestGuards(t *testing.T) {
 }
 
 func TestStorageBindingsNilPlatform(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	s.a.sites.SetStorageBindings(nil)
-	s.must(t, "PUT", "/resources/private", map[string]string{"kind": "kv", "preset": "private"}, s.key, 201)
+	s.must(t, "PUT", "/resources/private", map[string]string{"kind": "kv"}, s.key, 201)
 	s.must(t, "PUT", "/kv/private/keys/key", `{"value":"only owner"}`, s.key, 200)
 	for _, who := range []string{"owner-site", "alice"} {
 		owner := who == "owner-site"

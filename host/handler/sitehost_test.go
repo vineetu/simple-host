@@ -211,7 +211,7 @@ func TestSiteHostsCanonical(t *testing.T) {
 	}
 
 	// ---- sign-in is per site ------------------------------------------------------
-	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", map[string]string{"kind": "kv", "preset": "board"}, okey); r.status/100 != 2 {
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/notes", storageRules("kv", rulesBoard), okey); r.status/100 != 2 {
 		t.Fatalf("storage resource: %d %s", r.status, r.body)
 	}
 	save := "/v1/sites/shop/storage/kv/notes/keys/n"

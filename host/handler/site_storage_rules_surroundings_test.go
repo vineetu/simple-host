@@ -7,13 +7,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
 func TestRulesVisitorRightsList(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	s.must(t, "PUT", "/resources/data", `{"kind":"sqlite","rules":{"policies":[{"command":"read","using":"true"},{"command":"add","check":"auth.signed_in"},{"command":"edit","using":"auth.role == \"owner\""},{"command":"delete","using":"auth.role == \"owner\""}]},"tables":{"closed":{"rules":{"policies":[]}}}}`, s.key, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT)"}, s.key, 200)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE closed(secret TEXT)"}, s.key, 200)
@@ -44,7 +41,6 @@ func TestRulesVisitorRightsList(t *testing.T) {
 }
 
 func TestRulesVisitorMCP(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
 	f := newVisitorFixture(t)
 	f.must(t, "PUT", "/resources/data", `{"kind":"sqlite","rules":{"policies":[{"command":"read","using":"visitor_id == auth.id"},{"command":"add","check":"auth.signed_in"},{"command":"edit","using":"auth.signed_in"}]}}`, f.key, 201)
 	f.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT)"}, f.key, 200)
@@ -63,16 +59,10 @@ func TestRulesVisitorMCP(t *testing.T) {
 	}
 }
 
-func TestRulesOwnerOnSiteForConvertedRecordsHTTP(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	s := newPresetSite(t)
-	s.must(t, "PUT", "/resources/records", `{"kind":"sqlite","preset":"records"}`, s.key, 201)
+func TestRulesOwnerOnSiteForRecordsHTTP(t *testing.T) {
+	s := newStorageTestSite(t)
+	s.must(t, "PUT", "/resources/records", storageRules("sqlite", rulesRecords), s.key, 201)
 	s.must(t, "POST", "/sqlite/records/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT)"}, s.key, 200)
-	converted := ruleengine.Convert(ruleengine.ConvertInput{Kind: "sqlite", Default: ruleengine.Matrix{Read: "own", Add: "signed-in", Edit: "owner", Delete: "owner"}})
-	if len(converted.Manual) != 0 {
-		t.Fatal(converted.Manual)
-	}
-	s.must(t, "PUT", "/resources/records", map[string]any{"kind": "sqlite", "rules": json.RawMessage(ruleengine.EncodeSet(converted.Default))}, s.key, 200)
 	path := "/sqlite/records/tables/entries/rows"
 	added := s.must(t, "POST", path+"?for="+s.aliceID, `{"body":"from owner"}`, s.callers["owner-site"], 200)
 	id := fmt.Sprint(added.json(t)["last_insert_id"])
@@ -85,7 +75,6 @@ func TestRulesOwnerOnSiteForConvertedRecordsHTTP(t *testing.T) {
 }
 
 func TestRulesSpamCheckHook(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
 	s, fake := commentsSite(t)
 	// Only the table override has a checked add; default rules do not.
 	s.must(t, "PUT", "/resources/guestbook", `{"kind":"sqlite","rules":{"policies":[{"command":"read","using":"true"}]},"tables":{"entries":{"rules":{"policies":[{"command":"read","using":"true"},{"command":"add","check":"auth.checked"}]}}}}`, s.key, 200)

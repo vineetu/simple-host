@@ -20,7 +20,7 @@ customer's).
 6. `06-site-live.png`: a published site open in the browser at its HTTPS
    address, with a visitor filling its form.
 7. `07-saved-data.png`: the entries a visitor saved, read by the owner. The
-   site is a catering page with a quote request form (inbox preset) on its
+   site is a catering page with a quote request form (inbox recipe) on its
    own address; the dashboard sets who may read and add, and the owner reads
    the entries through the API (or their AI app).
 8. `08-motd.png`: the login message on a later login, showing the dashboard

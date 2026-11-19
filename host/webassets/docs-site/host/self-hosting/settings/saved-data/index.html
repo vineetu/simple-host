@@ -584,7 +584,7 @@
 	<div class="sl-container astro-a7po4psb">
 								<div class="sl-markdown-content"><p>Pages save to storage resources (KV, SQLite, files) — see
 <a href="/docs/self-hosting/settings/storage-and-backups/">storage-and-backups.md</a>. This group holds the settings for
-notifications about saved data and for the spam check on comments-preset resources.</p>
+notifications about saved data and for the spam check that rules use (<code>auth.checked</code>).</p>
 <!-- settings:group=data -->
 <table>
 <thead>
@@ -708,19 +708,19 @@ notifications about saved data and for the spam check on comments-preset resourc
 <td><code>RATE_LIMIT_SPAM_CHECKED_IP</code></td>
 <td><code>10,30s</code></td>
 <td>stricter freely; loosest <code>40,7.5s</code></td>
-<td>Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. <strong>Security-sensitive.</strong></td>
+<td>Posts that only the Turnstile spam check let in (auth.checked in storage rules), per address across every site. <strong>Security-sensitive.</strong></td>
 </tr>
 <tr>
 <td><code>RATE_LIMIT_SPAM_CHECKED_SITE</code></td>
 <td><code>60,10s</code></td>
 <td>stricter freely; loosest <code>240,2.5s</code></td>
-<td>Posts on comments-preset resources, per site from everyone together. <strong>Security-sensitive.</strong></td>
+<td>Posts that only the spam check let in, per site from everyone together. <strong>Security-sensitive.</strong></td>
 </tr>
 <tr>
 <td><code>SPAM_CHECKED_POST_MAX_BYTES</code></td>
 <td><code>4000</code></td>
 <td>100–65536 bytes</td>
-<td>Largest post someone not signed in may add to a comments-preset resource (the JSON of its values).</td>
+<td>Largest post someone not signed in may add through the spam check (the JSON of its values).</td>
 </tr>
 <tr>
 <td><code>SPAM_CHECKED_POST_MAX_LINKS</code></td>
@@ -732,7 +732,7 @@ notifications about saved data and for the spam check on comments-preset resourc
 <td><code>TURNSTILE_SITE_KEY</code></td>
 <td>none</td>
 <td>text</td>
-<td>The Cloudflare Turnstile site key for the spam check on the comments preset (anyone posts without signing in once the check passes). With no site key and secret, the preset is not offered. The widget’s hostnames must include this server’s own address (PUBLIC_BASE_URL), where the check runs in a small frame.</td>
+<td>The Cloudflare Turnstile site key for the spam check (auth.checked in storage rules: anyone posts without signing in once the check passes). With no site key and secret, the spam check is not offered. The widget’s hostnames must include this server’s own address (PUBLIC_BASE_URL), where the check runs in a small frame.</td>
 </tr>
 <tr>
 <td><code>TURNSTILE_SECRET</code></td>
@@ -810,10 +810,11 @@ notifications about saved data and for the spam check on comments-preset resourc
 </table>
 <!-- /settings -->
 <h2 id="recipes">Recipes</h2>
-<p><strong>Turn on the comments preset (anyone posts after a spam check).</strong> The preset needs a
-Cloudflare Turnstile widget, which is free. Without both keys the server refuses the preset
-(400 <code>spam_check_unavailable</code>), the dashboard and the connector leave it out, and
-<code>get_page_recipe</code> sends guestbooks and comments to <code>wall</code>, where people sign in to post.</p>
+<p><strong>Turn on the spam check (anyone posts after a spam check).</strong> Rules that let anyone add
+after the check (<code>auth.checked</code> in an add check, as the <code>comments</code> recipe writes) need a
+Cloudflare Turnstile widget, which is free. Without both keys the server does not offer
+<code>auth.checked</code> in rules, and <code>get_page_recipe</code> sends guestbooks and comments to <code>wall</code>,
+where people sign in to post.</p>
 <ol>
 <li>In the Cloudflare dashboard, open Turnstile, choose Add widget, name it, and add this
 server’s own address as the hostname: the host of <code>PUBLIC_BASE_URL</code> (on a small box,
@@ -824,12 +825,12 @@ installed with <code>install.sh</code>, add <code>TURNSTILE_SITE_KEY=...</code> 
 </ol>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>cd /opt/simple-host &amp;&amp; sudo docker compose up -d</span></span></code></pre>
 <ol start="3">
-<li>The boot log says <code>spam check: Turnstile on</code>. Your sites, Manage, Storage now offers Comments.
+<li>The boot log says <code>spam check: Turnstile on</code>. Rules may now use <code>auth.checked</code>, and
+<code>get_page_recipe</code> offers the comments topic.
 Under systemd, prefer <code>TURNSTILE_SECRET_FILE</code> with a credential over the plain secret.</li>
 </ol>
 <h2 id="spam-check-credentials">Spam-check credentials</h2>
-<p>Without the Turnstile site key and secret, the comments preset is refused with
-400 <code>spam_check_unavailable</code>. Its frame is <code>/v1/turnstile/frame</code> on
+<p>Without the Turnstile site key and secret, rules cannot use <code>auth.checked</code>. The check’s frame is <code>/v1/turnstile/frame</code> on
 <code>PUBLIC_BASE_URL</code>, whatever address the site uses. An unreadable
 <code>TURNSTILE_SECRET_FILE</code> turns the check off. A systemd credential can supply it:
 <code>LoadCredential=turnstile-secret:/etc/simple-host-secrets/turnstile-secret</code> and

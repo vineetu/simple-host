@@ -2,6 +2,8 @@
 
 ## November 2026
 
+- **Nov 19:** Storage uses rules only, for key-value, SQLite and files. Presets, the older read/write fields, `write_mode` and `approve_first` are removed and refused on every kind (`invalid_resource`); a resource with no stored rules, and a new one saved without rules, is owner-only. Pages can no longer send SQL to old databases. The `STORAGE_RULES` setting, the `migrate-rules` command and its conversion are removed, and save notifications no longer carry `preset`. Upload areas already moved onto rules answer as before (RL-D2).
+
 - **Nov 19:** File storage accepts rules in the same words as key-value rules: each file is a row with its `path` and `visitor_id` (who uploaded it). Upload areas without rules keep working as before, and existing ones are moved onto matching rules once at deploy; visitors see no change (FR-S1).
 
 - **Nov 19:** Activity records of the writes a visitor's AI app makes on a site are deleted after 30 days again, every 6 hours and at startup, as the privacy page now says; the old saved-data sweep that did this was removed with the older features. Nothing changes for pages or tools.

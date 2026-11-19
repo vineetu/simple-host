@@ -11,11 +11,11 @@ import (
 // site's own address with visitor sign-in and no API key. They exist so a chat
 // with the connector alone, and no skill files, builds the right thing.
 //
-//go:embed recipes/*.md recipes/rules/*.md
+//go:embed recipes/*.md
 var recipeFiles embed.FS
 
 // One recipe per everyday job first (booking, inbox, public, portal), then one
-// per remaining storage preset, the owner's admin page, the files gallery,
+// per remaining kind of saved data, the owner's admin page, the files gallery,
 // and the owner/visitor page on one site (people). The aliases are the plain
 // words people use for the same jobs; form is the earlier name of inbox.
 var recipeTopics = []string{"booking", "inbox", "public", "portal", "wall", "comments", "board", "personal", "private", "records", "admin", "people", "gallery",
@@ -43,13 +43,8 @@ func PageRecipe(topic, site string) (string, error) {
 	return addressText(strings.ReplaceAll(string(data), "{site}", site)), nil
 }
 
-// Choose at request time: switching the flag never changes the legacy files.
 func readRecipe(topic string) ([]byte, error) {
-	dir := "recipes/"
-	if storageRulesEnabled() {
-		dir += "rules/"
-	}
-	return recipeFiles.ReadFile(dir + topic + ".md")
+	return recipeFiles.ReadFile("recipes/" + topic + ".md")
 }
 
 // hostPageRecipe is PageRecipe for a Simple Host server, which names itself.

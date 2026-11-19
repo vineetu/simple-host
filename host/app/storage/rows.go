@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	rules "github.com/vsriram/simple-host/host/rules/storage"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
@@ -31,7 +30,6 @@ type TableInput struct {
 // TableAuthorization carries the decisions made before idempotency replay.
 type TableAuthorization struct {
 	call          Call
-	filter        string
 	Authorization *Error
 	allowed       bool
 	verified      bool
@@ -46,8 +44,8 @@ func (a TableAuthorization) CheckedPost() bool { return a.call.CheckedPost }
 
 // AuthorizeTableWrite checks the gates before the idempotency boundary.
 func (s *Service) AuthorizeTableWrite(ctx context.Context, in TableInput, action string) TableAuthorization {
-	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, action)
-	return TableAuthorization{call: c, filter: filter, Authorization: auth, allowed: allowed, verified: true, table: in.Table, action: action}
+	c, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, action)
+	return TableAuthorization{call: c, Authorization: auth, allowed: allowed, verified: true, table: in.Table, action: action}
 }
 
 // TableResult contains the response and any ordered authorization responses.
@@ -111,7 +109,7 @@ func declaredColumn(cols map[string]string, name string) string {
 	return ""
 }
 
-func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadata, error) {
+func tableMetadata(conn *sqlite3.Conn, c Call, table string) (rowMetadata, error) {
 	var m rowMetadata
 	var err error
 	if c.rulePlan != nil {
@@ -125,14 +123,8 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 	if !c.Owner && len(m.cols) > 100 {
 		return m, &Error{Code: "invalid_rows", Message: "too many columns"}
 	}
-	visitorColumn, writtenByColumn := "visitor_id", "written_by"
-	if c.Resource.Rules != nil {
-		visitorColumn = declaredColumn(m.cols, visitorColumn)
-		writtenByColumn = declaredColumn(m.cols, writtenByColumn)
-	}
-	if filter != "" && m.cols[visitorColumn] != "TEXT" {
-		return m, &Error{Code: "visitor_id_required", Message: "own needs the visitor_id TEXT column; set the policy again so the server adds it"}
-	}
+	visitorColumn := declaredColumn(m.cols, "visitor_id")
+	writtenByColumn := declaredColumn(m.cols, "written_by")
 	if c.OwnerFor != "" {
 		if m.cols[visitorColumn] != "TEXT" {
 			return m, &Error{Code: "visitor_id_required", Message: "adding for someone needs the visitor_id TEXT column; set the policy again so the server adds it"}
@@ -145,16 +137,12 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 	if err != nil {
 		return m, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 	}
-	m.hold = c.Resource.Holds(table)
-	approvalColumn := "approved_at"
-	if c.Resource.Rules != nil {
-		approvalColumn = declaredColumn(m.cols, approvalColumn)
-	}
+	approvalColumn := declaredColumn(m.cols, "approved_at")
 	if c.rulePlan != nil {
 		m.hold = c.rulePlan.ReferencesColumn("approved_at") && m.cols[approvalColumn] == "TEXT"
-	} else if c.Resource.Rules != nil {
+	} else {
 		// Owners bypass row rules but keep the same approval stamping.
-		set, errs := ruleengine.DecodeSet(effectiveRules(c, table))
+		set, errs := ruleengine.DecodeSet(c.Resource.EffectiveRules(table))
 		if len(errs) == 0 {
 			_, hold, err := ruleengine.RequiredColumns(set, PlatformSchema(true), ruleengine.DefaultLimits())
 			m.hold = err == nil && hold && m.cols[approvalColumn] == "TEXT"
@@ -166,48 +154,31 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table, filter string) (rowMetadat
 	return m, nil
 }
 
-// authorizeTable preserves the gate and matrix authorization order, including
-// ordered nonfatal refusals.
-func (s *Service) authorizeTable(ctx context.Context, c Call, table, action string) (Call, string, *Error, bool) {
-	c.Context = ctx
-	if err := s.Gate(c, action != "read"); err != nil {
-		return c, "", err.(*Error), false
-	}
-	if action == "read" && !c.Owner && c.Resource.RulesStatus() != "preset" {
-		err := s.authorizeRuleRead(ctx, &c, table)
-		return c, "", err, err == nil
-	}
-	c.CurrentMatrix = c.Resource.TableMatrix(table)
+// authorizeTable runs authorize for one table. An add for someone (OwnerFor)
+// first needs read rules that limit the table's rows to their visitor or the
+// owner.
+func (s *Service) authorizeTable(ctx context.Context, c Call, table, action string) (Call, *Error, bool) {
+	op := map[string]ruleengine.Op{"read": ruleengine.OpRead, "add": ruleengine.OpAdd, "edit": ruleengine.OpEdit, "delete": ruleengine.OpDelete}[action]
 	if c.OwnerFor != "" {
-		if c.Resource.RulesStatus() != "preset" {
-			if err := s.compileBindingRules(&c, table); err != nil {
-				return c, "", err.(*Error), false
-			}
-			if !c.rulePlan.ReadIsOwnOrOwner() {
-				return c, "", &Error{Code: "for_requires_own", Message: "for needs read rules limited to the row's visitor or owner"}, false
-			}
-			// Owner tools still bypass row rules after the structural check.
-			c.rulePlan = nil
-		} else if c.CurrentMatrix.Read != rules.WhoOwn {
-			return c, "", &Error{Code: "for_requires_own", Message: "for only adds a row on a table whose read is own (the records or personal presets); this table's read is " + c.CurrentMatrix.Read}, false
+		if err := s.Gate(c, true); err != nil {
+			return c, err.(*Error), false
 		}
+		if err := s.compileBindingRules(&c, table); err != nil {
+			return c, err.(*Error), false
+		}
+		if !c.rulePlan.ReadIsOwnOrOwner() {
+			return c, &Error{Code: "for_requires_own", Message: "for needs read rules limited to the row's visitor or owner"}, false
+		}
+		c.rulePlan = nil
 	}
-	if !c.Owner && c.Resource.RulesStatus() != "preset" {
-		op := map[string]ruleengine.Op{"add": ruleengine.OpAdd, "edit": ruleengine.OpEdit, "delete": ruleengine.OpDelete}[action]
-		err := s.authorizeRuleOperation(ctx, &c, table, op)
-		return c, "", err, err == nil
-	}
-	filter, err := s.Allow(&c, action, c.CurrentMatrix.Value(action))
-	if err != nil {
-		return c, filter, err.(*Error), err.(*Error).Allowed
-	}
-	return c, filter, nil, true
+	err := s.authorize(ctx, &c, table, op)
+	return c, err, err == nil
 }
 
 // TableGet authorizes and reads one SQLite table row.
 func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, error) {
 	var out TableResult
-	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
+	c, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
 	out.Authorization = auth
 	if !allowed {
 		return out, nil
@@ -222,17 +193,13 @@ func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, err
 		invalid := func(err error) error {
 			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
 		}
-		meta, err := tableMetadata(conn, c, in.Table, filter)
+		meta, err := tableMetadata(conn, c, in.Table)
 		if err != nil {
 			return err
 		}
 		order, rowid, hold := meta.order, meta.rowid, meta.hold
 		query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table) + " WHERE " + rowid + " = ?"
 		params := []any{in.ID}
-		if filter != "" {
-			query += " AND visitor_id = ?"
-			params = append(params, filter)
-		}
 		if hold && !c.Owner && !c.OwnerOnSite {
 			query += " AND approved_at IS NOT NULL"
 		}
@@ -303,7 +270,7 @@ func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, err
 // TableList authorizes and lists SQLite table rows.
 func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, error) {
 	var out TableResult
-	c, filter, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
+	c, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
 	out.Authorization = auth
 	if !allowed {
 		return out, nil
@@ -315,7 +282,7 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 		}
 		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
 		s.sqliteStage("after_open")
-		meta, err := tableMetadata(conn, c, in.Table, filter)
+		meta, err := tableMetadata(conn, c, in.Table)
 		if err != nil {
 			return err
 		}
@@ -364,10 +331,6 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 		where := []string{}
 		params := []json.RawMessage{}
 		bind := func(v any) { params = append(params, rowJSON(v)) }
-		if filter != "" {
-			where = append(where, "visitor_id = ?")
-			bind(filter)
-		}
 		if hold && !c.Owner && !c.OwnerOnSite {
 			where = append(where, "approved_at IS NOT NULL")
 		}

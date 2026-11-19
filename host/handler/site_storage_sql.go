@@ -10,7 +10,6 @@ import (
 	"time"
 
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
-	"github.com/vsriram/simple-host/host/model"
 )
 
 // storageInspection is the catalog surface needed by the visitor-tool transport.
@@ -54,22 +53,10 @@ func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	mode := strings.TrimPrefix(r.URL.Path, "/v1/sites/"+r.PathValue("sitename")+"/storage/sqlite/"+c.resourceName+"/")
 	call := h.storageServiceCall(c)
 	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
-	call.Resource.Tables = make(map[string]model.TableRule, len(c.resource.Tables))
-	for name, rule := range c.resource.Tables {
-		call.Resource.Tables[name] = model.TableRule{Matrix: model.AccessMatrix(rule.Matrix), PresetBase: rule.PresetBase, Rules: rule.Rules}
-	}
 	svc := h.storageRequestSvc(r, c)
 	result, err := svc.LegacySQL(r.Context(), appstorage.LegacySQLInput{Call: call, Mode: mode, ReadBody: func() ([]byte, error) { return io.ReadAll(io.LimitReader(r.Body, (64<<10)+1)) }, ResultLimit: storageResultLimitBytes()})
-	if len(result.Refusals) != 0 {
-		writeStorageRefusals(w, result.Refusals)
-	}
 	if err != nil {
-		e := err.(*appstorage.Error)
-		if len(e.Refusals) != 0 {
-			writeStorageRefusals(w, e.Refusals)
-		} else {
-			writeLegacySQLError(w, e)
-		}
+		writeLegacySQLError(w, err.(*appstorage.Error))
 		return
 	}
 	var body map[string]any

@@ -56,7 +56,7 @@ func TestHackStorageOnlyReview(t *testing.T) {
 	}
 	teamHost := team + "." + slug + "." + tsDomain
 	wantTS(t, "team-host removed read", a.on(t, "GET", teamHost, base+"/state", nil, ""), http.StatusNotFound, "")
-	wantTS(t, "team resource", a.api(t, "PUT", base+"/storage/resources/prefs", map[string]string{"kind": "kv", "read": "anyone"}, key), 201, "")
+	wantTS(t, "team resource", a.api(t, "PUT", base+"/storage/resources/prefs", map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, key), 201, "")
 	wantTS(t, "team KV write", a.api(t, "PUT", base+"/storage/kv/prefs/keys/color", map[string]any{"value": "blue"}, key), 200, "")
 	if r := a.on(t, "GET", teamHost, base+"/storage/kv/prefs/keys/color", nil, ""); r.status != 200 || !strings.Contains(string(r.body), "blue") {
 		t.Fatalf("team visitor KV: %d %s", r.status, r.body)

@@ -362,7 +362,7 @@ func TestFamilyAPIAndOrigins(t *testing.T) {
 		t.Error("another site resolved on a family address")
 	}
 	// A page on the family address may save; a page on a sibling may not.
-	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/voucher-meera/storage/resources/notes", map[string]string{"kind": "kv", "preset": "board"}, map[string]string{"X-API-Key": olive.key}); r.status/100 != 2 {
+	if r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/voucher-meera/storage/resources/notes", storageRules("kv", rulesBoard), map[string]string{"X-API-Key": olive.key}); r.status/100 != 2 {
 		t.Fatalf("storage resource: %d %s", r.status, r.body)
 	}
 	save := "/v1/sites/meera/storage/kv/notes/keys/n"

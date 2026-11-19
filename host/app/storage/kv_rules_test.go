@@ -17,14 +17,12 @@ import (
 func kvRulesFixture(t *testing.T, set *json.RawMessage) (*Service, Call) {
 	t.Helper()
 	s, c := kvFixture(t, false)
-	s.deps.RulesEnabled = true
 	s.deps.SpamCheckAvailable = true
 	s.deps.PasscodeAllows = func() bool { return true }
 	s.deps.ViewersAllow = func() bool { return true }
 	c.Resource = putRules(t, s, ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: set})
 	c.Owner, c.CSRFOK, c.ActiveChecked = false, true, true
 	c.VisitorID = "writer"
-	s.deps.RulesEnabled = false // Saved rules are enforced even with the save switch off.
 	return s, c
 }
 
@@ -286,11 +284,12 @@ func TestKVRulesFailedChecksRollbackAndKeepAuthor(t *testing.T) {
 }
 
 func TestKVRulesExistingCommentsBeforeSpamAndSuspension(t *testing.T) {
-	converted := ruleengine.Convert(ruleengine.ConvertInput{Kind: "kv", Default: ruleengine.Matrix{Read: "anyone", Add: "checked", Edit: "owner", Delete: "owner"}})
-	if len(converted.Manual) > 0 {
-		t.Fatal(converted.Manual)
-	}
-	raw := json.RawMessage(ruleengine.EncodeSet(converted.Default))
+	raw := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
+		{Name: "read", Command: ruleengine.CmdRead, Using: `true`},
+		{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.checked || auth.ai || auth.role == "owner"`},
+		{Name: "edit", Command: ruleengine.CmdEdit, Using: `auth.role == "owner"`},
+		{Name: "delete", Command: ruleengine.CmdDelete, Using: `auth.role == "owner"`},
+	}}))
 	s, c := kvRulesFixture(t, &raw)
 	c.SpamCheck = "ok"
 	s.deps.SpamCheckedMaxBytes = 100
@@ -350,7 +349,7 @@ func TestKVRulesCheckedPostLimitsAndMissingDelete(t *testing.T) {
 
 // R3-S5a ruling 5: a delete that succeeds without removing anything (a missing
 // key, by a caller whose read and delete rights do not depend on the row)
-// calls the committed hook once, as the preset path does, and changes nothing.
+// calls the committed hook once and changes nothing.
 func TestKVRulesIdleDeleteCallsCommitted(t *testing.T) {
 	own := `visitor_id == auth.id || auth.role == "owner"`
 	s, c := kvRulesFixture(t, kvRuleSet(own, "true", own, own, own))
@@ -408,7 +407,6 @@ func TestKVRulesRejectAnonymousChangeAtSave(t *testing.T) {
 	for _, op := range []ruleengine.Command{ruleengine.CmdEdit, ruleengine.CmdDelete} {
 		t.Run(string(op), func(t *testing.T) {
 			s, c := kvFixture(t, false)
-			s.deps.RulesEnabled = true
 			in := ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: saveSet(ruleengine.Policy{Command: op, Using: "true"})}
 			ruleRefusal(t, s, in, "anonymous_change")
 		})
@@ -421,7 +419,6 @@ func TestKVRulesWriteBindingSnapshot(t *testing.T) {
 		return ruleengine.Values{"event.member": ruleengine.Text("yes")}, nil
 	}}
 	s.deps.Bindings = SnapshotBindings(p)
-	s.deps.RulesEnabled = true
 	owner := c
 	owner.Owner = true
 	c.Resource = putRules(t, s, ResourceInput{Call: owner, Name: c.ResourceName, Kind: "kv", Rules: kvRuleSet("true", `event.member == "yes"`, `auth.signed_in && event.member == "yes"`, "auth.signed_in", "auth.signed_in")})

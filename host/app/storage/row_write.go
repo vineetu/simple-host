@@ -11,7 +11,6 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	rules "github.com/vsriram/simple-host/host/rules/storage"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
@@ -19,7 +18,7 @@ import (
 // addTableRowLocked owns the lock, connection and metadata checks for an
 // already-authorized insert. Idempotency replay must still happen after
 // authorization and before this workflow starts.
-func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput, filter string) (int64, error) {
+func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput) (int64, error) {
 	ctx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
 		return 0, err
@@ -36,22 +35,17 @@ func (s *Service) addTableRowLocked(ctx context.Context, c Call, in TableInput, 
 		s.sqliteStage("after_open")
 		if c.OwnerFor != "" {
 			// Lazy, same-locked-window upgrade (review fix, SIM-358): an
-			// existing records/personal table gets written_by on its first
-			// for use, not only on a resaved preset. authorizeTable already
-			// refused for on anything but an own-read table, so this never
-			// touches a wall/board/etc. table.
-			ensureWrittenBy := runtime.EnsureWrittenByColumn
-			if c.Resource.Rules != nil {
-				ensureWrittenBy = runtime.EnsureRuleWrittenByColumn
-			}
-			if err := ensureWrittenBy(conn, in.Table); err != nil {
+			// existing table gets written_by on its first for use.
+			// authorizeTable already refused for on any table whose read
+			// rules are not limited to the row's visitor or the owner.
+			if err := runtime.EnsureWrittenByColumn(conn, in.Table); err != nil {
 				if errors.Is(err, runtime.ErrWrittenBySchemaLocked) {
 					return &Error{Code: "written_by_blocked", Message: "a trigger or view on this table may depend on its exact columns; remove or recreate it before adding a row with for"}
 				}
 				return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 			}
 		}
-		meta, err := tableMetadata(conn, c, in.Table, filter)
+		meta, err := tableMetadata(conn, c, in.Table)
 		if err != nil {
 			return err
 		}
@@ -98,30 +92,6 @@ func runTableWrite(conn *sqlite3.Conn, table string, owner bool, kind sqlite3.Au
 	return id, nil
 }
 
-// rowMayRead mirrors the non-answering parent-row visibility check.
-func rowMayRead(c Call, value string) (string, bool) {
-	if c.Owner {
-		return "", true
-	}
-	switch value {
-	case rules.WhoAnyone, rules.WhoChecked:
-		return "", true
-	case rules.WhoSignedIn:
-		return "", c.VisitorID != ""
-	case rules.WhoOwn:
-		if c.VisitorID == "" {
-			return "", false
-		}
-		if c.OwnerOnSite {
-			return "", true
-		}
-		return c.VisitorID, true
-	case rules.WhoOwner:
-		return "", c.OwnerOnSite
-	}
-	return "", false
-}
-
 // checkRowReferences enforces the parent table's read policy on a row write.
 func (s *Service) checkRowReferences(conn *sqlite3.Conn, c Call, table, rowid string, id int64) error {
 	if c.Owner {
@@ -129,44 +99,21 @@ func (s *Service) checkRowReferences(conn *sqlite3.Conn, c Call, table, rowid st
 	}
 	_ = conn.SetAuthorizer(nil)
 	status, err := runtime.CheckReferences(conn, table, rowid, id, func(parent string) (ruleengine.Predicate, error) {
-		if c.Resource.RulesStatus() != "preset" {
-			parentCall := c
-			// Compile against the parent's actual columns and its own override.
-			cols, order, err := runtime.TableXInfo(conn, parent)
-			if err != nil {
-				return ruleengine.Predicate{}, err
-			}
-			key, err := runtime.RowID(conn, parent, cols)
-			if err != nil {
-				return ruleengine.Predicate{}, err
-			}
-			predicate, err := s.ruleReadPredicate(c.Context, &parentCall, parent, rowMetadata{cols: cols, order: order, rowid: key})
-			if e, ok := err.(*Error); ok && e.Code != "internal_error" && e.Code != "rules_invalid" {
-				return ruleengine.Predicate{}, &Error{Code: "invalid_reference", Message: "referenced row not found"}
-			}
-			return predicate, err
-		}
-		filter, ok := rowMayRead(c, c.Resource.TableMatrix(parent).Read)
-		cols, err := runtime.TableColumns(conn, parent)
+		parentCall := c
+		// Compile against the parent's actual columns and its own override.
+		cols, order, err := runtime.TableXInfo(conn, parent)
 		if err != nil {
 			return ruleengine.Predicate{}, err
 		}
-		if !ok || filter != "" && cols["visitor_id"] != "TEXT" {
+		key, err := runtime.RowID(conn, parent, cols)
+		if err != nil {
+			return ruleengine.Predicate{}, err
+		}
+		predicate, err := s.ruleReadPredicate(c.Context, &parentCall, parent, rowMetadata{cols: cols, order: order, rowid: key})
+		if e, ok := err.(*Error); ok && e.Code != "internal_error" && e.Code != "rules_invalid" {
 			return ruleengine.Predicate{}, &Error{Code: "invalid_reference", Message: "referenced row not found"}
 		}
-		predicate := ruleengine.Predicate{SQL: "1"}
-		if filter != "" {
-			// The preset check historically compared ColumnText, including BLOB authors.
-			predicate.SQL = `CAST("visitor_id" AS TEXT) COLLATE BINARY = ?`
-			predicate.Args = []ruleengine.Value{ruleengine.Text(filter)}
-		}
-		if c.Resource.Holds(parent) && !c.OwnerOnSite {
-			if cols["approved_at"] != "TEXT" {
-				return ruleengine.Predicate{}, &Error{Code: "invalid_reference", Message: "referenced row not found"}
-			}
-			predicate.SQL += ` AND "approved_at" IS NOT NULL`
-		}
-		return predicate, nil
+		return predicate, err
 	})
 	if e, ok := err.(*Error); ok {
 		return e
@@ -228,8 +175,8 @@ func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, err
 	if !in.Authorized.Allowed() || in.Authorized.table != in.Table || in.Authorized.action != "add" {
 		return TableResult{Authorization: in.Authorized.Authorization}, nil
 	}
-	c, filter := in.Authorized.call, in.Authorized.filter
-	id, err := s.addTableRowLocked(ctx, c, in, filter)
+	c := in.Authorized.call
+	id, err := s.addTableRowLocked(ctx, c, in)
 	if err != nil {
 		return TableResult{}, err
 	}
@@ -245,9 +192,6 @@ func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, err
 type InsertActor struct {
 	Owner, OwnerOnSite, Hold bool
 	StampID                  string
-	// Rules resources accept SQLite's case-insensitive server column names.
-	// Presets keep their existing exact-spelling validation.
-	Rules bool
 	// OwnerFor: set only when Owner (or OwnerOnSite) is adding this row for
 	// another, already-validated, signed-in visitor (ResolveOwnerFor). It
 	// is the one way an owner write ends up with a non-empty visitor_id.
@@ -264,23 +208,15 @@ type InsertActor struct {
 func stampInsertValues(cols map[string]string, values map[string]json.RawMessage, actor InsertActor) {
 	owner, ownerOnSite, hold, stampID := actor.Owner, actor.OwnerOnSite, actor.Hold, actor.StampID
 	encode := func(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
+	// SQLite column names are case-insensitive, and so are server columns.
 	discard := func(name string) {
-		if !actor.Rules {
-			delete(values, name)
-			return
-		}
 		for supplied := range values {
 			if strings.EqualFold(supplied, name) {
 				delete(values, supplied)
 			}
 		}
 	}
-	column := func(name string) string {
-		if actor.Rules {
-			return declaredColumn(cols, name)
-		}
-		return name
-	}
+	column := func(name string) string { return declaredColumn(cols, name) }
 	visitorID := column("visitor_id")
 	writtenByColumn := column("written_by")
 	createdAt := column("created_at")
@@ -344,7 +280,7 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 			return &Error{Code: "invalid_rows", Message: "the server assigns ids"}
 		}
 	}
-	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID), Rules: c.Resource.Rules != nil, OwnerFor: c.OwnerFor})
+	stampInsertValues(meta.cols, in.Values, InsertActor{Owner: c.Owner, OwnerOnSite: c.OwnerOnSite, Hold: meta.hold, StampID: StampID(c.Owner, c.VisitorID), OwnerFor: c.OwnerFor})
 	query, params, err := runtime.PrepareInsert(in.Table, meta.rowid, meta.cols, in.Values, !c.Owner)
 	if err != nil {
 		return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
@@ -412,7 +348,7 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 	if !in.Authorized.Allowed() || in.Authorized.table != in.Table || in.Authorized.action != "edit" {
 		return TableResult{Authorization: in.Authorized.Authorization}, nil
 	}
-	c, filter := in.Authorized.call, in.Authorized.filter
+	c := in.Authorized.call
 	values := in.Values
 	ctx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
@@ -428,7 +364,7 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 		}
 		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
 		s.sqliteStage("after_open")
-		meta, err := tableMetadata(conn, c, in.Table, filter)
+		meta, err := tableMetadata(conn, c, in.Table)
 		if err != nil {
 			return err
 		}
@@ -451,15 +387,12 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 			names = append(names, name)
 		}
 		sort.Strings(names)
-		updatedAt := "updated_at"
-		if c.Resource.Rules != nil {
-			updatedAt = declaredColumn(meta.cols, updatedAt)
-		}
+		updatedAt := declaredColumn(meta.cols, "updated_at")
 		if _, ok := meta.cols[updatedAt]; ok {
 			names = append(names, updatedAt)
 			values[updatedAt] = rowJSON(time.Now().UTC().Format(time.RFC3339Nano))
 		}
-		query, params := runtime.RowUpdateStatement(in.Table, meta.rowid, names, values, rowJSON(in.ID), filter, c.Owner, meta.hold && !c.Owner && !c.OwnerOnSite)
+		query, params := runtime.RowUpdateStatement(in.Table, meta.rowid, names, values, rowJSON(in.ID), c.Owner, meta.hold && !c.Owner && !c.OwnerOnSite)
 		if c.rulePlan != nil {
 			read, edit, err := ruleWritePredicates(c, ruleengine.OpEdit)
 			if err != nil {
@@ -501,21 +434,11 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 			return err
 		}
 		_ = conn.SetAuthorizer(nil)
-		// filter=="" means no per-actor ownership was enforced on this write:
-		// the owner's key/connector (filter is always "" for c.Owner), the
-		// owner signed in on their own site (D1, OwnerOnSite), or a visitor
-		// acting under a shared signed_in/anyone write grant that is not
-		// scoped to their own rows -- any of these may have touched a row
-		// that is not the actor's own, so it is looked up directly rather
-		// than assumed to be c.VisitorID. Only when filter actually named
-		// c.VisitorID (the own-preset case) is the actor known to be the
-		// row's own visitor_id for free, with no extra query. Editing
-		// visitor_id itself is disallowed above, so the value is the same
-		// before and after this write.
-		rowVisitorID := c.VisitorID
-		if filter == "" {
-			rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
-		}
+		// The edited row may be anyone's (the owner, or rules not limited to
+		// the actor's own rows), so its visitor_id is looked up directly.
+		// Editing visitor_id itself is disallowed above, so the value is the
+		// same before and after this write.
+		rowVisitorID := lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
 		out = TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(c, in.Table, "record.changed", "edited", in.ID, values, rowVisitorID)}
 		return s.finishTableWrite(conn, c, commit, a)
 	})
@@ -525,11 +448,8 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 	return out, nil
 }
 
-// lookupRowVisitorID reads one row's own visitor_id column directly: used
-// only for an owner's edit or delete of a row that might belong to a
-// visitor (SIM-360 push routing keys off this; a visitor's own edit/delete
-// already knows it without a query, since the own-preset filter means it
-// can only be c.VisitorID). Best-effort: any failure (no such column, row
+// lookupRowVisitorID reads one row's own visitor_id column directly, for an
+// edit or delete of a row that might belong to another visitor (SIM-360 push routing keys off this). Best-effort: any failure (no such column, row
 // already gone) yields "", which only means no push fan-out target was
 // found, never a write failure -- the write itself already committed or is
 // about to, independent of this lookup.
@@ -634,7 +554,7 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 	if !in.Authorized.Allowed() || in.Authorized.table != in.Table || in.Authorized.action != "delete" {
 		return TableResult{Authorization: in.Authorized.Authorization}, nil
 	}
-	c, filter := in.Authorized.call, in.Authorized.filter
+	c := in.Authorized.call
 	var out TableResult
 	ctx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
 	if err != nil {
@@ -649,25 +569,17 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 		}
 		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
 		s.sqliteStage("after_open")
-		meta, err := tableMetadata(conn, c, in.Table, filter)
+		meta, err := tableMetadata(conn, c, in.Table)
 		if err != nil {
 			return err
 		}
 		if err := s.ruleWritePlan(&c, in.Table, meta, ruleengine.OpDelete); err != nil {
 			return err
 		}
-		// Read before the row is gone: filter=="" (the owner's key/connector,
-		// D1's OwnerOnSite, or a visitor under a shared signed_in/anyone
-		// delete grant not scoped to their own rows) means this delete may
-		// have removed any visitor's row, not necessarily the actor's own, so
-		// it is looked up directly while the row still exists; only when
-		// filter actually named c.VisitorID is the actor known for free to be
-		// the row's own visitor_id.
-		rowVisitorID := c.VisitorID
-		if filter == "" {
-			rowVisitorID = lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
-		}
-		query, params := runtime.RowDeleteStatement(in.Table, meta.rowid, rowJSON(in.ID), filter, meta.hold && !c.Owner && !c.OwnerOnSite)
+		// Read before the row is gone: this delete may remove any visitor's
+		// row, so its visitor_id is looked up while the row still exists.
+		rowVisitorID := lookupRowVisitorID(conn, meta, in.Table, meta.rowid, in.ID)
+		query, params := runtime.RowDeleteStatement(in.Table, meta.rowid, rowJSON(in.ID), meta.hold && !c.Owner && !c.OwnerOnSite)
 		if c.rulePlan != nil {
 			read, del, err := ruleWritePredicates(c, ruleengine.OpDelete)
 			if err != nil {

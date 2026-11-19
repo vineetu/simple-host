@@ -204,7 +204,7 @@ func TestHackStorageRulesSchema(t *testing.T) {
 	for _, body := range []any{
 		map[string]any{"kind": "sqlite", "rules": nil},
 		map[string]any{"kind": "sqlite", "rules": map[string]any{"policies": []any{}}, "tables": map[string]any{"notes": map[string]any{"rules": map[string]any{"policies": []any{}}}}},
-		map[string]any{"kind": "sqlite", "preset": "private", "tables": map[string]any{"notes": map[string]any{}}},
+		map[string]any{"kind": "files", "rules": map[string]any{"policies": []any{}}},
 	} {
 		if err := mcp.ValidateOutput(tool.InputSchema, map[string]any{"event": "shop", "name": "notes", "body": body}, nil); err != nil {
 			t.Fatal(err)
@@ -220,8 +220,8 @@ func TestHackOrganiserConnectionHasEventStorage(t *testing.T) {
 	}
 }
 
-// Simple Hack does not offer the comments preset: its storage tools never
-// mention it, its checked value, or approve_first, while Simple Host's do.
+// Simple Hack runs no spam check: its storage tools never mention
+// auth.checked or the comments wording, while Simple Host's do.
 func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
 	s := newTestServer(nil)
 	schemaText := func(description string, schema map[string]any) string {
@@ -233,7 +233,7 @@ func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
 	}
 	_, hostTools := toolsAs(t, s, mcp.Caller{APIKey: "host"}, false)
 	host := schemaText(hostTools["storage_set_resource"].Description, hostTools["storage_set_resource"].InputSchema)
-	for _, want := range []string{`"comments"`, `"checked"`, `approve_first`} {
+	for _, want := range []string{`auth.checked`} {
 		if !strings.Contains(host, want) {
 			t.Errorf("Host storage_set_resource lacks %s", want)
 		}
@@ -256,32 +256,23 @@ func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
 		t.Fatalf("found %d Hack tools, want 4", len(hack))
 	}
 	for name, text := range hack {
-		for _, banned := range []string{`"comments"`, "comments (", "wall, comments", `"checked"`, "or checked", "approve_first", "spam check", "Turnstile"} {
+		for _, banned := range []string{`"comments"`, "comments (", "wall, comments", `"checked"`, "or checked", "approve_first", "auth.checked", "spam check", "Turnstile"} {
 			if strings.Contains(text, banned) {
 				t.Errorf("%s on Hack mentions %s", name, banned)
 			}
 		}
-		if strings.HasSuffix(name, "set_resource") && !strings.Contains(text, "Lookalikes") {
+		if strings.HasSuffix(name, "set_resource") && !strings.Contains(text, "Deny by default") {
 			t.Errorf("%s lost its other text", name)
 		}
 	}
 }
 
-// A refused hack_event_storage_set_resource gains the same data-rules hint
-// the site tool gains when rules are on, and none for a files resource.
+// A refused hack_event_storage_set_resource gains the same hint the site
+// tool gains.
 func TestHackStorageRulesRefusedResourceHints(t *testing.T) {
-	added := func(off, on string) string {
-		seen := map[string]bool{}
-		for _, line := range strings.Split(off, "\n") {
-			seen[line] = true
-		}
-		var lines []string
-		for _, line := range strings.Split(on, "\n") {
-			if !seen[line] {
-				lines = append(lines, line)
-			}
-		}
-		return strings.Join(lines, "\n")
+	hint := func(text string) string {
+		_, after, _ := strings.Cut(text, "\n")
+		return after
 	}
 	for _, kind := range []string{"files", "sqlite", "kv"} {
 		for _, code := range []string{"invalid_resource", "storage_busy", "invalid_rules"} {
@@ -295,8 +286,7 @@ func TestHackStorageRulesRefusedResourceHints(t *testing.T) {
 					"PUT /v1/sites/test/storage/resources/data":               refuse,
 					"PUT /v1/hack/events/test/website/storage/resources/data": refuse,
 				}})
-				render := func(flag string, event bool) string {
-					t.Setenv("STORAGE_RULES", flag)
+				render := func(event bool) string {
 					tool, caller, args := "storage_set_resource", mcp.Caller{APIKey: "test-key"}, map[string]any{"site": "test", "name": "data", "body": body}
 					if event {
 						tool, caller, args = "hack_event_storage_set_resource", mcp.Caller{APIKey: "test-key", Mode: mcp.CallerModeEvents}, map[string]any{"event": "test", "name": "data", "body": body}
@@ -307,59 +297,32 @@ func TestHackStorageRulesRefusedResourceHints(t *testing.T) {
 					}
 					return text
 				}
-				off, on := render("off", true), render("on", true)
-				siteHint := added(render("off", false), render("on", false))
-				if hint := added(off, on); hint == "" || hint != siteHint {
-					t.Fatalf("missing data rule hint: %s\nsite tool adds: %s", on, siteHint)
+				event, site := hint(render(true)), hint(render(false))
+				if event == "" || event != site {
+					t.Fatalf("event hint differs from the site tool's:\nevent: %s\nsite: %s", event, site)
 				}
 			})
 		}
 	}
 }
 
-// The rules wording is chosen at request time on Hack's connections too: the
-// storage tools' descriptions and the instructions switch with the flag, and
-// nothing else in the listing does.
-func TestHackStorageRulesTextAtRequestTime(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "off")
+// Hack's connections teach rules: the storage tools' descriptions and the
+// instructions.
+func TestHackStorageRulesText(t *testing.T) {
 	for _, noSpam := range []bool{false, true} {
 		product := Contribution()
 		s := mcp.NewServer(mcp.Config{Contribution: &product, NoSpamCheck: noSpam})
 		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeGroupSite, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "test", APIKey: "fixture"}} {
-			before, _ := toolsAs(t, s, caller, false)
-			old, _ := json.Marshal(before)
-			oldInstructions := instructionsAs(t, s, caller)
-			t.Setenv("STORAGE_RULES", "on")
 			after, _ := toolsAs(t, s, caller, false)
-			if len(before) != len(after) || len(after) == 0 {
-				t.Fatal("tool inventory shape changed")
-			}
 			changedTools := 0
-			for i, tool := range after {
+			for _, tool := range after {
 				name := strings.TrimPrefix(tool.Name, "hack_event_")
-				changed := name == "storage_set_resource" || name == "storage_list_resources" || name == "storage_sql_query" || name == "storage_sql_schema"
-				if !changed {
-					a, _ := json.Marshal(before[i])
-					b, _ := json.Marshal(tool)
-					if string(a) != string(b) {
-						t.Errorf("unrelated tool changed: %s", tool.Name)
-					}
+				if name != "storage_set_resource" && name != "storage_list_resources" && name != "storage_sql_query" && name != "storage_sql_schema" {
 					continue
 				}
 				changedTools++
-				if name != "storage_set_resource" && tool.Title != before[i].Title {
-					t.Errorf("unrelated title changed: %s", tool.Name)
-				}
 				if strings.Count(tool.Title, "Event website:") > 1 {
 					t.Errorf("duplicated event title: %s", tool.Title)
-				}
-				if tool.Description == before[i].Description {
-					t.Errorf("stale description: %s", tool.Name)
-				}
-				a, _ := json.Marshal(before[i].InputSchema)
-				b, _ := json.Marshal(tool.InputSchema)
-				if string(a) != string(b) {
-					t.Errorf("schema changed: %s", tool.Name)
 				}
 				if name == "storage_sql_schema" && !strings.Contains(tool.Description, "Do not declare visitor_id: the server ensures the indexed author column when rules reference visitor_id or allow ordinary visitors to add.") {
 					t.Errorf("%s lacks conditional author-column guidance", tool.Name)
@@ -402,14 +365,8 @@ func TestHackStorageRulesTextAtRequestTime(t *testing.T) {
 			if changedTools == 0 {
 				t.Errorf("no storage tool listed for %+v", caller)
 			}
-			if text := instructionsAs(t, s, caller); text == oldInstructions || !strings.Contains(text, "Deny by default") {
-				t.Errorf("stale instructions for %+v", caller)
-			}
-			t.Setenv("STORAGE_RULES", "off")
-			restored, _ := toolsAs(t, s, caller, false)
-			b, _ := json.Marshal(restored)
-			if string(b) != string(old) || instructionsAs(t, s, caller) != oldInstructions {
-				t.Error("cached inventory changed after flag toggled")
+			if text := instructionsAs(t, s, caller); !strings.Contains(text, "Deny by default") {
+				t.Errorf("instructions lack rules for %+v", caller)
 			}
 		}
 	}
@@ -467,34 +424,29 @@ func TestHackPhotoToolRemainsArchive(t *testing.T) {
 // --- instructions and the public inventory ----------------------------------
 
 func TestHackInstructionsLength(t *testing.T) {
-	for _, flag := range []string{"off", "on"} {
-		t.Run(flag, func(t *testing.T) {
-			t.Setenv("STORAGE_RULES", flag)
-			for _, host := range []string{"simple-hack.app", "hack.company.example", strings.Repeat("a", 63) + ".sites.example-company.org", strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)} {
-				for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "personal", APIKey: "fixture"}, {Mode: mcp.CallerModeGroupSite, APIKey: "fixture"}} {
-					t.Run(host+"/"+caller.Mode+"/"+caller.GrantID, func(t *testing.T) {
-						product := Contribution()
-						text := instructionsAs(t, mcp.NewServer(mcp.Config{Contribution: &product, APIHost: host, SelfHosted: host != "simple-hack.app"}), caller)
-						t.Logf("instructions: %d characters", len([]rune(text)))
-						if n := len([]rune(text)); n >= 2000 {
-							t.Fatalf("instructions too long: %d", n)
-						}
-						for _, want := range []string{host, "membership", "deadline", "Ask before"} {
-							if !strings.Contains(text, want) {
-								t.Errorf("missing %q", want)
-							}
-						}
-						if caller.Mode == mcp.CallerModeEvents {
-							for _, want := range []string{"organiser", "participant", "judge", "hack_select_team", "hack_event_storage_*", "code of conduct", "Archiving is final", "keep scores unless you confirm deletions", "Stage results does not publish"} {
-								if !strings.Contains(text, want) {
-									t.Errorf("missing %q", want)
-								}
-							}
-						}
-					})
+	for _, host := range []string{"simple-hack.app", "hack.company.example", strings.Repeat("a", 63) + ".sites.example-company.org", strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)} {
+		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "personal", APIKey: "fixture"}, {Mode: mcp.CallerModeGroupSite, APIKey: "fixture"}} {
+			t.Run(host+"/"+caller.Mode+"/"+caller.GrantID, func(t *testing.T) {
+				product := Contribution()
+				text := instructionsAs(t, mcp.NewServer(mcp.Config{Contribution: &product, APIHost: host, SelfHosted: host != "simple-hack.app"}), caller)
+				t.Logf("instructions: %d characters", len([]rune(text)))
+				if n := len([]rune(text)); n >= 2000 {
+					t.Fatalf("instructions too long: %d", n)
 				}
-			}
-		})
+				for _, want := range []string{host, "membership", "deadline", "Ask before"} {
+					if !strings.Contains(text, want) {
+						t.Errorf("missing %q", want)
+					}
+				}
+				if caller.Mode == mcp.CallerModeEvents {
+					for _, want := range []string{"organiser", "participant", "judge", "hack_select_team", "hack_event_storage_*", "code of conduct", "Archiving is final", "keep scores unless you confirm deletions", "Stage results does not publish"} {
+						if !strings.Contains(text, want) {
+							t.Errorf("missing %q", want)
+						}
+					}
+				}
+			})
+		}
 	}
 }
 
@@ -503,54 +455,45 @@ func TestHackInstructionsLength(t *testing.T) {
 // wording. tools/list leaves out the screen tools for a connection with no
 // screen support, so those are skipped on the public side.
 func TestHackPublicInventory(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "off")
 	product := Contribution()
 	s := mcp.NewServer(mcp.Config{Contribution: &product})
-	for _, flag := range []string{"off", "on"} {
-		t.Run(flag, func(t *testing.T) {
-			t.Setenv("STORAGE_RULES", flag)
-			var public []mcp.Tool
-			for _, tool := range s.ProductListedTools() {
-				if !strings.HasPrefix(tool.Name, "hack_app_") && !strings.HasPrefix(tool.Name, "hack_show_") {
-					public = append(public, tool)
-				}
+	var public []mcp.Tool
+	for _, tool := range s.ProductListedTools() {
+		if !strings.HasPrefix(tool.Name, "hack_app_") && !strings.HasPrefix(tool.Name, "hack_show_") {
+			public = append(public, tool)
+		}
+	}
+	personal, _ := toolsAs(t, s, mcp.Caller{Mode: mcp.CallerModeEvents, GrantID: "test", APIKey: "fixture"}, false)
+	if len(public) != len(personal) || len(public) == len(s.ProductListedTools()) {
+		t.Fatalf("public inventory %d (of %d) != personal %d", len(public), len(s.ProductListedTools()), len(personal))
+	}
+	for i, tool := range public {
+		if tool.Name != personal[i].Name || tool.Title != personal[i].Title || tool.Description != personal[i].Description {
+			t.Fatalf("tool %d differs", i)
+		}
+	}
+	for _, name := range []string{"storage_set_resource", "hack_event_storage_set_resource"} {
+		found := false
+		for _, tool := range public {
+			if tool.Name != name {
+				continue
 			}
-			personal, _ := toolsAs(t, s, mcp.Caller{Mode: mcp.CallerModeEvents, GrantID: "test", APIKey: "fixture"}, false)
-			if len(public) != len(personal) || len(public) == len(s.ProductListedTools()) {
-				t.Fatalf("public inventory %d (of %d) != personal %d", len(public), len(s.ProductListedTools()), len(personal))
+			found = true
+			want := "Create a storage resource or set its rules"
+			if strings.HasPrefix(name, "hack_event_") {
+				want = "Event website: " + want
 			}
-			for i, tool := range public {
-				if tool.Name != personal[i].Name || tool.Title != personal[i].Title || tool.Description != personal[i].Description {
-					t.Fatalf("tool %d differs", i)
-				}
+			if tool.Title != want {
+				t.Errorf("%s title = %q, want %q", name, tool.Title, want)
 			}
-			for _, name := range []string{"storage_set_resource", "hack_event_storage_set_resource"} {
-				found := false
-				for _, tool := range public {
-					if tool.Name != name {
-						continue
-					}
-					found = true
-					want := "Create a storage resource or set its preset"
-					if flag == "on" {
-						want = "Create a storage resource or set its rules"
-					}
-					if strings.HasPrefix(name, "hack_event_") {
-						want = "Event website: " + want
-					}
-					if tool.Title != want {
-						t.Errorf("%s title = %q, want %q", name, tool.Title, want)
-					}
-				}
-				if !found {
-					t.Errorf("missing public tool %s", name)
-				}
-			}
-			s.ProductListedTools()[0].Name = "changed"
-			if s.ProductListedTools()[0].Name == "changed" {
-				t.Fatal("returned slice aliases server inventory")
-			}
-		})
+		}
+		if !found {
+			t.Errorf("missing public tool %s", name)
+		}
+	}
+	s.ProductListedTools()[0].Name = "changed"
+	if s.ProductListedTools()[0].Name == "changed" {
+		t.Fatal("returned slice aliases server inventory")
 	}
 }
 
@@ -602,36 +545,22 @@ func TestHackRetiredJudgingLockNames(t *testing.T) {
 
 // --- page recipes --------------------------------------------------------------
 
-// The recipe tool re-reads the rules flag on each call, including a cached tool.
-func TestHackPageRecipeSwitchesAtRequestTime(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "off")
-	tool := hackPageRecipeTool()
+// The recipe tool teaches rules, with the same recipe in text and structured.
+func TestHackPageRecipeTool(t *testing.T) {
 	c := mcp.NewCall(newTestServer(nil), nil, mcp.Caller{})
-	args := map[string]any{"topic": "booking", "site": "shop"}
-	before, err := mcp.CallTool(tool, c, args)
+	out, err := mcp.CallTool(hackPageRecipeTool(), c, map[string]any{"topic": "booking", "site": "shop"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("STORAGE_RULES", "on")
-	on, err := mcp.CallTool(tool, c, args)
-	if err != nil {
-		t.Fatal(err)
+	if !strings.Contains(out.Text, `"policies"`) {
+		t.Error("recipe has no rules")
 	}
-	if on.Text == before.Text || !strings.Contains(on.Text, `"policies"`) {
-		t.Error("recipe did not switch at request time")
-	}
-	if on.Structured["recipe"] != on.Text {
+	if out.Structured["recipe"] != out.Text {
 		t.Error("structured recipe differs from text")
-	}
-	t.Setenv("STORAGE_RULES", "off")
-	after, err := mcp.CallTool(tool, c, args)
-	if err != nil || after.Text != before.Text {
-		t.Errorf("legacy response not restored: %v", err)
 	}
 }
 
 func TestRulesHackRecipes(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
 	for _, topic := range append(mcp.RecipeTopics(), "event") {
 		text, err := HackPageRecipe(topic, "my-event")
 		switch topic {
@@ -657,7 +586,6 @@ func TestRulesHackRecipes(t *testing.T) {
 }
 
 func TestRulesHackRecipeAdaptations(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
 	for _, topic := range []string{"public", "menu"} {
 		text, err := HackPageRecipe(topic, "my-event")
 		if err != nil {
@@ -667,15 +595,10 @@ func TestRulesHackRecipeAdaptations(t *testing.T) {
 			t.Errorf("%s has ambiguous file access advice", topic)
 		}
 	}
-	t.Setenv("STORAGE_RULES", "off")
-	text, err := HackPageRecipe("public", "my-event")
-	if err != nil || !strings.Contains(text, "files resource with the same preset") {
-		t.Fatalf("flag-off Hack photo advice changed: %v", err)
-	}
 }
 
-// The preset recipes and the event-website storage tools in Hack's wording.
-func TestHackStoragePresetRecipesAndTools(t *testing.T) {
+// The recipes and the event-website storage tools in Hack's wording.
+func TestHackStorageRecipesAndTools(t *testing.T) {
 	tools := hackEventStorageTools()
 	if len(tools) == 0 {
 		t.Fatal("no event-website storage tools")
@@ -684,7 +607,7 @@ func TestHackStoragePresetRecipesAndTools(t *testing.T) {
 		if strings.Contains(tool.Description, "write_mode") || strings.Contains(tool.Description, " storage_") {
 			t.Fatalf("%s keeps older or Host wording: %s", tool.Name, tool.Description)
 		}
-		if tool.Name == "hack_event_storage_set_resource" && (!strings.Contains(tool.Description, "organisers") || !strings.Contains(tool.Description, "Lookalikes")) {
+		if tool.Name == "hack_event_storage_set_resource" && (!strings.Contains(tool.Description, "Organiser only") || !strings.Contains(tool.Description, "Deny by default")) {
 			t.Fatalf("event set_resource: %s", tool.Description)
 		}
 	}
@@ -701,7 +624,7 @@ func TestHackStoragePresetRecipesAndTools(t *testing.T) {
 			continue
 		}
 		if topic == "comments" || topic == "guestbook" {
-			// Simple Hack runs no spam check, so the comments preset is
+			// Simple Hack runs no spam check, so the comments recipe is
 			// not offered there.
 			if _, err := HackPageRecipe(topic, "team"); err == nil || !strings.Contains(err.Error(), "topic wall") {
 				t.Fatalf("hack %s: want a refusal naming wall, got %v", topic, err)

@@ -151,8 +151,8 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	if err := checkProductSchema(context.Background(), db, exts); err != nil {
 		return nil, err
 	}
-	// The install lock (shared): migrate-rules --apply and --revert take it
-	// exclusive, so they cannot rewrite this database while any server uses it,
+	// The install lock (shared): a command that rewrites saved data takes it
+	// exclusive, so it cannot rewrite this database while any server uses it,
 	// from this data directory or another. Every request/worker pool connection
 	// also holds it shared, including new connections after a database restart.
 	installHold, err := storageapp.HoldInstallShared(context.Background(), cfg.DBDSN)
@@ -167,7 +167,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	// created once, when neither has one. A mismatch does not stop the server
 	// (it serves as before), but maintenance commands refuse until it is fixed.
 	if err := storageapp.EnsureInstallIdentity(context.Background(), db, cfg.DataDir); err != nil {
-		log.Printf("WARNING: INSTALL IDENTITY: %v. This server keeps serving; migrate-rules refuses to run on this database and data directory until they agree", err)
+		log.Printf("WARNING: INSTALL IDENTITY: %v. This server keeps serving", err)
 	}
 	// Hosted events (EVENTS=hosted, simple-hack.app): set before any route is
 	// registered, because the dashboard, the chrome and the host dispatch read it.
@@ -347,9 +347,9 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	siteHandler.SetPublicBaseURL(cfg.PublicBaseURL)
 	siteHandler.SetTurnstile(cfg.TurnstileSiteKey, cfg.TurnstileSecret, cfg.PublicBaseURL)
 	if siteHandler.SpamCheckEnabled() {
-		log.Printf("spam check: Turnstile on; the comments preset is offered")
+		log.Printf("spam check: Turnstile on; storage rules may use auth.checked")
 	} else {
-		log.Printf("spam check: off (no TURNSTILE_SITE_KEY and secret); the comments preset is not offered")
+		log.Printf("spam check: off (no TURNSTILE_SITE_KEY and secret); storage rules cannot use auth.checked")
 	}
 	if err := siteHandler.SetPasscodeKey(cfg.PasscodeEncKey); err != nil {
 		return nil, fmt.Errorf("config: %v", err)

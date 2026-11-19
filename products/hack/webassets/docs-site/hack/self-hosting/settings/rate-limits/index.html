@@ -691,13 +691,13 @@ limits trigger the <a href="/docs/self-hosting/settings/sites-and-versions/">sit
 <td><code>RATE_LIMIT_SPAM_CHECKED_IP</code></td>
 <td><code>10,30s</code></td>
 <td>stricter freely; loosest <code>40,7.5s</code></td>
-<td>Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. <strong>Security-sensitive.</strong></td>
+<td>Posts that only the Turnstile spam check let in (auth.checked in storage rules), per address across every site. <strong>Security-sensitive.</strong></td>
 </tr>
 <tr>
 <td><code>RATE_LIMIT_SPAM_CHECKED_SITE</code></td>
 <td><code>60,10s</code></td>
 <td>stricter freely; loosest <code>240,2.5s</code></td>
-<td>Posts on comments-preset resources, per site from everyone together. <strong>Security-sensitive.</strong></td>
+<td>Posts that only the spam check let in, per site from everyone together. <strong>Security-sensitive.</strong></td>
 </tr>
 <tr>
 <td><code>RATE_LIMIT_TLS_ASK</code></td>

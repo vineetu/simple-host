@@ -1,3 +1,5 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Shared board: a potluck or sign-up sheet, a team list, a shared shopping list
 
 Use this when everyone signed in sees the whole list, adds to it, and changes any entry (swapping who brings what, ticking off a task), and only the owner removes entries. If each person should remove only their own entry and nobody edits others', use topic wall instead.
@@ -8,9 +10,9 @@ Who signs in where:
 
 ## 1. Owner setup (run these tools before publishing the page)
 
-Preset board (read signed-in, add signed-in, edit signed-in, delete owner).
+The following rules implement this example.
 
-storage_set_resource {"site": "{site}", "name": "potluck", "body": {"kind": "sqlite", "preset": "board", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "potluck", "body": {"kind": "sqlite", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "auth.signed_in"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "edit", "command": "edit", "using": "auth.signed_in"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_sql_schema {"site": "{site}", "name": "potluck", "sql": "CREATE TABLE IF NOT EXISTS dishes (id INTEGER PRIMARY KEY, dish TEXT NOT NULL CHECK (length(dish) <= 120), who TEXT NOT NULL CHECK (length(who) <= 80), created_at TEXT, updated_at TEXT)"}
 

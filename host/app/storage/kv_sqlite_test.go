@@ -18,6 +18,7 @@ import (
 	repository "github.com/vsriram/simple-host/host/repository/storage"
 	rules "github.com/vsriram/simple-host/host/rules/storage"
 	runtime "github.com/vsriram/simple-host/host/storage"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
 func kvFixture(t *testing.T, combined bool) (*Service, Call) {
@@ -53,7 +54,7 @@ func kvFixture(t *testing.T, combined bool) (*Service, Call) {
 	}
 	s := New(db, Deps{CombinedPool: combined, SiteSlots: slots, Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: 30 * time.Second, SQLiteTimeout: 30 * time.Second, Committed: func(context.Context) {}, Notify: func(Call, string, map[string]any) {}, MarkChanged: func() {}})
 	c := Call{Owner: true, OwnerID: owner, SiteID: site, SiteName: "kv-test", ResourceName: "data", RuntimeDir: t.TempDir()}
-	result, err := s.PutStorageResource(context.Background(), ResourceInput{Call: c, Name: "data", Kind: "kv", AccessRequest: rules.AccessRequest{Preset: "private"}})
+	result, err := s.PutStorageResource(context.Background(), ResourceInput{Call: c, Name: "data", Kind: "kv"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestKVAdmissionBesideOtherStorage(t *testing.T) {
 	s, c := kvFixture(t, false)
 	ctx := context.Background()
 	kvPut(t, s, c, "key", "1", "")
-	// Owner SQL, row write budget and preset preparation each exercise their
+	// Owner SQL, row write budget and rules preparation each exercise their
 	// designated admission form while the site also has a KV file.
 	s.deps.SQLitePath = filepath.Join(c.RuntimeDir, "sqlite", "rows.sqlite")
 	rc := c
@@ -178,7 +179,7 @@ func TestKVAdmissionBesideOtherStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.PutStorageResource(ctx, ResourceInput{Call: rc, Name: "rows", Kind: "sqlite", AccessRequest: rules.AccessRequest{Preset: "personal"}})
+	_, err = s.PutStorageResource(ctx, ResourceInput{Call: rc, Name: "rows", Kind: "sqlite", Rules: saveSet(ruleengine.Policy{Name: "read", Command: ruleengine.CmdRead, Using: `visitor_id == auth.id || auth.role == "owner"`}, ruleengine.Policy{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.signed_in`}, ruleengine.Policy{Name: "edit", Command: ruleengine.CmdEdit, Using: `visitor_id == auth.id || auth.role == "owner"`}, ruleengine.Policy{Name: "delete", Command: ruleengine.CmdDelete, Using: `visitor_id == auth.id || auth.role == "owner"`})})
 	if err != nil {
 		t.Fatal(err)
 	}

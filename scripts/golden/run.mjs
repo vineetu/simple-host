@@ -35,8 +35,7 @@ for (const route of ['/hack-ink.css', '/og-hack.png', '/favicon-hack.svg', '/hac
   '/hack-watch-judge.mp3', '/hack-llms.txt', '/hack-directory.html', '/hack-voting.html',
   '/hack-connect-steps.json', '/hack-get-started-preview.png']) FIXED_GETS.add(route);
 const SCENARIOS = {
- 'converted': { env: { host: { STORAGE_RULES: 'on' }, hack: { STORAGE_RULES: 'on' } }, host: seedAndCallConverted, hack: seedAndCallConverted },
- 'rules-on': { env: { host: { STORAGE_RULES: 'on' }, hack: { STORAGE_RULES: 'on' } }, host: seedAndCallRulesOn, hack: seedAndCallRulesOn },
+ 'rules-on': { env: { host: {}, hack: {} }, host: seedAndCallRulesOn, hack: seedAndCallRulesOn },
  base: { env: { host: {}, hack: {} }, host: seedAndCallHost, hack: seedAndCallHack },
   'hosted-pages': {
     env: { host: { SITE_DOMAIN: 'simple-host.app' } },
@@ -597,8 +596,6 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
  if (saved.json?.rules_status !== 'rules') throw new Error('rules-on owner save did not return rules');
  const loaded = await at('read-rules', 'GET', `${base}/resources`, { apiKey: owner });
  if (loaded.json?.resources?.[0]?.rules_status !== 'rules') throw new Error('rules-on owner read did not return rules');
- const preset = await at('save-preset', 'PUT', `${base}/resources/preset`, { apiKey: owner, body: { kind: 'sqlite', preset: 'private' } });
- if (preset.json?.rules_status !== 'preset') throw new Error('rules-on preset status missing');
  await at('list-resources', 'GET', `${base}/resources`, { apiKey: owner });
  const rpc = (label, method, params) => at(label, 'POST', '/mcp', { apiKey: owner, body: { jsonrpc: '2.0', id: 10, method, params } });
  for (const screens of ['off', 'on']) {
@@ -708,77 +705,6 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   if (result && result.status !== status) throw new Error(`${label}: expected ${status}, got ${result.status} (${result.json?.code})`);
  }
 
-}
-
-// R3-S5a: the same public resource before and after Convert, side by side.
-// Exhaustive conversion/service comparisons live in equivalence_db_test.go.
-async function seedAndCallConverted({ instance, at, registerSecret }) {
- const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['converted-owner@example.com'] } });
- const owner = created.json.created[0].api_key;
- const name = 'golden-converted';
- let base;
- if (instance.tag === 'hack') {
-  const event = await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
-  for (const code of [event.json?.organiser?.join_code, event.json?.organiser?.judge_code]) {
-   if (code) registerSecret('code', code);
-  }
-  await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Converted storage</h1>' } } });
-  base = `/v1/hack/events/${name}/website/storage`;
- } else {
-  await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Converted storage</h1>' } } });
-  base = `/v1/sites/${name}/storage`;
- }
- // Convert(public), including policy names and the canonical version. Written
- // as JSON between the markers: TestGoldenConvertedScenarioRules
- // (host/app/storage) reads it and compares it with Convert's output.
- // golden-converted-rules:begin (JSON)
- const rules = { "version": 1, "policies": [
-  { "name": "read", "command": "read", "using": "true" },
-  { "name": "add", "command": "add", "check": "auth.role == \"owner\"" },
-  { "name": "edit", "command": "edit", "using": "auth.role == \"owner\"" },
-  { "name": "delete", "command": "delete", "using": "auth.role == \"owner\"" }
- ] };
- // golden-converted-rules:end
- for (const kind of ['sqlite', 'kv']) {
-  for (const twin of ['preset', 'converted']) {
-   const resource = `${kind}_${twin}`;
-   const saved = await at(`save-${resource}`, 'PUT', `${base}/resources/${resource}`, { apiKey: owner,
-    body: { kind, ...(twin === 'preset' ? { preset: 'public' } : { rules }) } });
-   if (saved.json?.rules_status !== (twin === 'preset' ? 'preset' : 'rules')) throw new Error(`converted scenario: ${resource} save failed`);
-   if (kind === 'sqlite') {
-    const schema = await at(`schema-${resource}`, 'POST', `${base}/sqlite/${resource}/schema`, { apiKey: owner,
-     body: { sql: 'CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT)' } });
-    if (schema.status !== 200) throw new Error(`converted scenario: ${resource} schema failed`);
-    const added = await at(`seed-${resource}`, 'POST', `${base}/sqlite/${resource}/tables/entries/rows`, { apiKey: owner, body: { body: 'same row' } });
-    if (added.status !== 200) throw new Error(`converted scenario: ${resource} seed failed`);
-   } else {
-    const added = await at(`seed-${resource}`, 'PUT', `${base}/kv/${resource}/keys/one`, { apiKey: owner, body: { value: 'same value' } });
-    if (added.status !== 200) throw new Error(`converted scenario: ${resource} seed failed`);
-   }
-  }
- }
- await at('list-twins', 'GET', `${base}/resources`, { apiKey: owner });
- const siteWhere = instance.tag === 'hack'
-  ? `sites s JOIN events e ON s.user_id=e.account_id AND s.name=e.id::text JOIN users u ON u.id=s.user_id WHERE e.slug='${name}'`
-  : `sites s JOIN users u ON u.id=s.user_id WHERE s.name='${name}'`;
- const handle = psql(instance.dbURL, `SELECT u.handle FROM ${siteWhere}`);
- const host = instance.tag === 'hack' ? `${name}.golden-hack.invalid` : `${name}.${handle}.golden-host.invalid`;
- const headers = { Host: host, Origin: `http://${host}`, 'Sec-Fetch-Site': 'same-origin', 'X-SH-CSRF': '1' };
- for (const kind of ['sqlite', 'kv']) {
-  for (const twin of ['preset', 'converted']) {
-   const resource = `${kind}_${twin}`;
-   const rows = `/v1/sites/${name}/storage/${kind}/${resource}/` + (kind === 'sqlite' ? 'tables/entries/rows' : 'keys');
-   for (const [action, method, suffix, body, status] of [
-    ['list', 'GET', '', undefined, 200],
-    ['get', 'GET', kind === 'sqlite' ? '/1' : '/one', undefined, 200],
-    ['missing', 'GET', kind === 'sqlite' ? '/99' : '/missing', undefined, 404],
-    ['add-refused', kind === 'sqlite' ? 'POST' : 'PUT', kind === 'sqlite' ? '' : '/new', kind === 'sqlite' ? { body: 'visitor' } : { value: 'visitor' }, 403],
-   ]) {
-    const response = await at(`${resource}-${action}`, method, rows+suffix, { headers, body });
-    if (response.status !== status) throw new Error(`converted scenario: ${resource} ${action} expected ${status}, got ${response.status}`);
-   }
-  }
- }
 }
 
 async function seedAndCallHost({ instance: host, calls, usedNames, at }) {

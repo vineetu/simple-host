@@ -15,9 +15,8 @@ type recipeSetup struct {
 	Name string `json:"name"`
 	SQL  string `json:"sql"`
 	Body struct {
-		Kind   string          `json:"kind"`
-		Preset string          `json:"preset"`
-		Rules  json.RawMessage `json:"rules"`
+		Kind  string          `json:"kind"`
+		Rules json.RawMessage `json:"rules"`
 	} `json:"body"`
 }
 
@@ -38,7 +37,6 @@ func recipeCalls(t *testing.T, text, tool string) []recipeSetup {
 }
 
 func TestRulesRecipeExamples(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
 	defer NewServer(testConfig(Config{}))
 	NewServer(testConfig(Config{}))
 	for _, topic := range recipeTopics {
@@ -61,8 +59,8 @@ func TestRulesRecipeExamples(t *testing.T) {
 				t.Fatal("recipe has no worked setup example")
 			}
 			for _, setup := range setups {
-				if setup.Body.Preset != "" {
-					t.Error("SQLite/KV access taught as a preset")
+				if len(setup.Body.Rules) == 0 {
+					t.Error("setup without rules")
 				}
 				set, errs := ruleengine.DecodeSet(setup.Body.Rules)
 				if len(errs) > 0 {
@@ -72,8 +70,11 @@ func TestRulesRecipeExamples(t *testing.T) {
 				if errs := ruleengine.ValidateSyntax(set, bindings, ruleengine.DefaultLimits()); len(errs) > 0 {
 					t.Fatal(errs)
 				}
-				if setup.Body.Kind == "kv" {
+				if setup.Body.Kind == "kv" || setup.Body.Kind == "files" {
 					table := ruleengine.Table{Name: setup.Name, RowKey: `"key"`, Columns: []ruleengine.Column{{Name: "key"}, {Name: "value"}, {Name: "visitor_id"}}}
+					if setup.Body.Kind == "files" {
+						table = ruleengine.Table{Name: setup.Name, RowKey: "rowid", Columns: []ruleengine.Column{{Name: "path"}, {Name: "visitor_id"}}}
+					}
 					if _, errs := ruleengine.Compile(set, table, bindings, ruleengine.DefaultLimits()); len(errs) > 0 {
 						t.Fatal(errs)
 					}
@@ -123,19 +124,15 @@ func TestRulesRecipeExamples(t *testing.T) {
 					}
 				}
 			}
-			// Presets describe files,
-			// never an access choice for data rows.
-			for _, line := range strings.Split(text, "\n") {
-				if strings.Contains(strings.ToLower(line), "preset") && !strings.Contains(strings.ToLower(line), "file") && topic != "gallery" {
-					t.Errorf("data access still names a preset: %s", line)
-				}
+			// Presets were removed: no recipe names one.
+			if strings.Contains(strings.ToLower(text), "preset") {
+				t.Error("recipe still names a preset")
 			}
 		})
 	}
 }
 
 func TestRulesRecipeAdaptations(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
 	defer NewServer(testConfig(Config{}))
 	NewServer(testConfig(Config{}))
 	admin, err := PageRecipe("admin", "shop")

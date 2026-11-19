@@ -133,7 +133,7 @@ func TestSiteOffline(t *testing.T) {
 	okey := map[string]string{"X-API-Key": olive.key}
 	shopID := a.siteID(t, olive, "shop")
 	cookie := a.session(t, vic, shopID, shop)
-	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/rsvps", map[string]string{"kind": "kv", "preset": "board"}, okey); r.status/100 != 2 {
+	if r := a.at(t, "PUT", apex, "/v1/sites/shop/storage/resources/rsvps", storageRules("kv", rulesBoard), okey); r.status/100 != 2 {
 		t.Fatalf("storage resource: %d %s", r.status, r.body)
 	}
 	data := "/v1/sites/shop/storage/kv/rsvps/keys/ann"

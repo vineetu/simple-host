@@ -1,5 +1,4 @@
-# R3-S6b: run against the local MCP fixture with STORAGE_RULES=on.
-# Existing core/advanced cases also remain valid with the flag off.
+# R3-S6b: run against the local MCP fixture.
 schemaVersion: "2"
 mode: agentWorkflow
 reportingMode: standard
@@ -73,7 +72,7 @@ cases:
       - type: toolNeverCalled
         toolName: storage_set_resource
   - id: r_gallery
-    title: keeps file presets for visitor photos
+    title: file rules for visitor photos
     steps:
       - id: s1
         kind: prompt
@@ -83,6 +82,6 @@ cases:
         toolName: get_page_recipe
         args: {mode: partial, args: {topic: gallery}}
       - type: responseMatches
-        pattern: '[Pp]reset.*wall|wall.*[Pp]reset'
+        pattern: 'visitor_id|auth\.signed_in'
       - type: toolNeverCalled
         toolName: storage_set_resource

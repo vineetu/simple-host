@@ -2,11 +2,13 @@ package handler
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"net/http"
 	"strings"
 	"testing"
+
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/mcp"
@@ -160,7 +162,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	// Storage resources: every owner connector adapter forwards to the same
 	// REST handlers and returns JSON/status without buffering file bytes.
 	for _, resource := range []struct{ name, kind string }{{"kvstore", "kv"}, {"sqldb", "sqlite"}, {"filestore", "files"}} {
-		call("storage_set_resource", map[string]any{"site": "shop", "name": resource.name, "body": map[string]any{"kind": resource.kind, "read": "owner", "write": "owner", "site_passcode": "inherit"}})
+		call("storage_set_resource", map[string]any{"site": "shop", "name": resource.name, "body": map[string]any{"kind": resource.kind, "site_passcode": "inherit"}})
 	}
 	call("storage_list_resources", map[string]any{"site": "shop"})
 	call("storage_get_usage", map[string]any{"site": "shop"})
@@ -177,7 +179,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	call("storage_delete_file", map[string]any{"site": "shop", "name": "filestore", "path": "note.txt"})
 	call("storage_delete_resource", map[string]any{"site": "shop", "name": "filestore"})
 	// These calls deliberately use the owner's connection with visitor rights.
-	call("storage_set_resource", map[string]any{"site": "shop", "name": "visitorrows", "body": map[string]any{"kind": "kv", "preset": "personal"}})
+	call("storage_set_resource", map[string]any{"site": "shop", "name": "visitorrows", "body": json.RawMessage(storageRules("kv", rulesPersonal))})
 	call("visitor_read_site", map[string]any{"address": "https://" + dom})
 	call("visitor_add_entry", map[string]any{"address": "https://" + dom, "kind": "kv", "resource": "visitorrows", "key": "mine", "value": "hello"})
 	call("visitor_change_entry", map[string]any{"address": "https://" + dom, "kind": "kv", "resource": "visitorrows", "key": "mine", "action": "delete"})

@@ -2,7 +2,7 @@
 
 Pages save to storage resources (KV, SQLite, files) — see
 [storage-and-backups.md](/docs/self-hosting/settings/storage-and-backups.md). This group holds the settings for
-notifications about saved data and for the spam check on comments-preset resources.
+notifications about saved data and for the spam check that rules use (`auth.checked`).
 
 <!-- settings:group=data -->
 | Setting | Default | Allowed | What it does |
@@ -25,11 +25,11 @@ notifications about saved data and for the spam check on comments-preset resourc
 | `NOTIFY_SUSPEND_DAYS` | `3` | 1–365 days | Days of continuous failures before a subscription is suspended. |
 | `NOTIFY_PUSH_PER_SITE_PER_DAY` | `2000` | 1–10000000 pushes | SIM-360: web-push sends allowed per site per day, on top of the general NOTIFY_PER_DAY event cap. |
 | `NOTIFY_PUSH_PER_PERSON_PER_DAY` | `200` | 1–100000 pushes | SIM-360: web-push sends allowed per recipient (owner or one visitor) per day across their own devices. |
-| `RATE_LIMIT_SPAM_CHECKED_IP` | `10,30s` | stricter freely; loosest `40,7.5s` | Posts on comments-preset resources (anyone posts after the Turnstile spam check), per address across every site. **Security-sensitive.** |
-| `RATE_LIMIT_SPAM_CHECKED_SITE` | `60,10s` | stricter freely; loosest `240,2.5s` | Posts on comments-preset resources, per site from everyone together. **Security-sensitive.** |
-| `SPAM_CHECKED_POST_MAX_BYTES` | `4000` | 100–65536 bytes | Largest post someone not signed in may add to a comments-preset resource (the JSON of its values). |
+| `RATE_LIMIT_SPAM_CHECKED_IP` | `10,30s` | stricter freely; loosest `40,7.5s` | Posts that only the Turnstile spam check let in (auth.checked in storage rules), per address across every site. **Security-sensitive.** |
+| `RATE_LIMIT_SPAM_CHECKED_SITE` | `60,10s` | stricter freely; loosest `240,2.5s` | Posts that only the spam check let in, per site from everyone together. **Security-sensitive.** |
+| `SPAM_CHECKED_POST_MAX_BYTES` | `4000` | 100–65536 bytes | Largest post someone not signed in may add through the spam check (the JSON of its values). |
 | `SPAM_CHECKED_POST_MAX_LINKS` | `2` | 0–50 links | Links (http://, https://, www.) one such post may contain. |
-| `TURNSTILE_SITE_KEY` | none | text | The Cloudflare Turnstile site key for the spam check on the comments preset (anyone posts without signing in once the check passes). With no site key and secret, the preset is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame. |
+| `TURNSTILE_SITE_KEY` | none | text | The Cloudflare Turnstile site key for the spam check (auth.checked in storage rules: anyone posts without signing in once the check passes). With no site key and secret, the spam check is not offered. The widget's hostnames must include this server's own address (PUBLIC_BASE_URL), where the check runs in a small frame. |
 | `TURNSTILE_SECRET` | none | secret | The Turnstile secret key that goes with TURNSTILE_SITE_KEY. Prefer TURNSTILE_SECRET_FILE. **Security-sensitive.** |
 | `TURNSTILE_SECRET_FILE` | none | text | A file holding the Turnstile secret key (read once at start, used when TURNSTILE_SECRET is empty), for example a systemd credential: LoadCredential=turnstile-secret:/path and TURNSTILE_SECRET_FILE=%d/turnstile-secret. **Security-sensitive.** |
 | `PHOTODNA_API_KEY` | none | secret | Subscription key for Microsoft PhotoDNA Cloud Service, which checks uploaded images against known abuse hash sets. Empty: image matching is off and nothing is queued. Prefer PHOTODNA_API_KEY_FILE. **Security-sensitive.** |
@@ -46,10 +46,11 @@ notifications about saved data and for the spam check on comments-preset resourc
 
 ## Recipes
 
-**Turn on the comments preset (anyone posts after a spam check).** The preset needs a
-Cloudflare Turnstile widget, which is free. Without both keys the server refuses the preset
-(400 `spam_check_unavailable`), the dashboard and the connector leave it out, and
-`get_page_recipe` sends guestbooks and comments to `wall`, where people sign in to post.
+**Turn on the spam check (anyone posts after a spam check).** Rules that let anyone add
+after the check (`auth.checked` in an add check, as the `comments` recipe writes) need a
+Cloudflare Turnstile widget, which is free. Without both keys the server does not offer
+`auth.checked` in rules, and `get_page_recipe` sends guestbooks and comments to `wall`,
+where people sign in to post.
 
 1. In the Cloudflare dashboard, open Turnstile, choose Add widget, name it, and add this
    server's own address as the hostname: the host of `PUBLIC_BASE_URL` (on a small box,
@@ -62,13 +63,13 @@ Cloudflare Turnstile widget, which is free. Without both keys the server refuses
 cd /opt/simple-host && sudo docker compose up -d
 ```
 
-3. The boot log says `spam check: Turnstile on`. Your sites, Manage, Storage now offers Comments.
+3. The boot log says `spam check: Turnstile on`. Rules may now use `auth.checked`, and
+   `get_page_recipe` offers the comments topic.
    Under systemd, prefer `TURNSTILE_SECRET_FILE` with a credential over the plain secret.
 
 ## Spam-check credentials
 
-Without the Turnstile site key and secret, the comments preset is refused with
-400 `spam_check_unavailable`. Its frame is `/v1/turnstile/frame` on
+Without the Turnstile site key and secret, rules cannot use `auth.checked`. The check's frame is `/v1/turnstile/frame` on
 `PUBLIC_BASE_URL`, whatever address the site uses. An unreadable
 `TURNSTILE_SECRET_FILE` turns the check off. A systemd credential can supply it:
 `LoadCredential=turnstile-secret:/etc/simple-host-secrets/turnstile-secret` and

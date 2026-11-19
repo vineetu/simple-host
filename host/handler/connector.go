@@ -252,7 +252,7 @@ func (h *ConnectorHandler) SetPreviewBases(bases []string) {
 }
 
 // OfferSpamCheck tells the connector whether this server runs the spam check
-// (SiteHandler.SpamCheckEnabled), so its tools offer the comments preset
+// (SiteHandler.SpamCheckEnabled), so its tools offer auth.checked
 // only where the server takes it. Call once at startup, before serving.
 func (h *ConnectorHandler) OfferSpamCheck(on bool) {
 	h.mcpConfig.NoSpamCheck = !on

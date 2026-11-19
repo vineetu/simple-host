@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	rules "github.com/vsriram/simple-host/host/rules/storage"
 	"github.com/vsriram/simple-host/host/storage"
 	"io"
 	"log"
@@ -36,39 +35,16 @@ type LegacySQLResult struct {
 	Changes      int64
 	LastInsertID int64
 	Notes        []string
-	Refusals     []*Error
 }
 
 // LegacySQL executes a single legacy SQLite request.
 func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result LegacySQLResult, resultErr error) {
-	var refusals []*Error
-	defer func() { result.Refusals = refusals }()
 	c, mode := in.Call, in.Mode
-	if !c.Owner && (c.Resource.RulesStatus() != "preset" || !c.Resource.LegacyVisitorSQL()) {
+	if !c.Owner {
 		return LegacySQLResult{}, &Error{Code: "fixed_routes_required", Message: "pages use the table rows routes (table().list, get, add, edit, delete); SQL is for the owner's tools"}
 	}
 	if mode != "query" && mode != "execute" && mode != "schema" {
 		return LegacySQLResult{}, &Error{Code: "not_found", Message: "not found"}
-	}
-	if mode == "schema" {
-		if !c.Owner {
-			return LegacySQLResult{}, &Error{Code: "forbidden", Message: "owner credential required"}
-		}
-	} else {
-		c.Context = ctx
-		action := "read"
-		if mode == "execute" {
-			action = "add"
-		}
-		filter, err := s.Access(&c, action)
-		c.Filter = filter
-		if err != nil {
-			e := err.(*Error)
-			if !e.Allowed {
-				return LegacySQLResult{}, err
-			}
-			refusals = e.Refusals
-		}
 	}
 	body, readErr := in.ReadBody()
 	var req struct {
@@ -161,12 +137,6 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 		var err error
 		result, err = func() (LegacySQLResult, error) {
 			timeout := s.deps.SQLiteTimeout
-			if !c.Owner {
-				timeout = s.deps.SQLiteTimeout
-				if mode != "query" {
-					timeout = s.deps.WriteTimeout
-				}
-			}
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			limit := SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
@@ -189,9 +159,8 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 				}
 			}
 			var before map[string]bool
-			// Every table that uses own (all of a legacy read-own database) keeps
-			// the server-owned visitor_id column.
-			ownSchema := mode == "schema" && (c.Resource.Read == "own" || c.Resource.Access != nil)
+			// A schema change keeps every column the rules need (ensureSchemaRules).
+			ownSchema := mode == "schema"
 			if ownSchema {
 				var e error
 				before, e = storage.SQLTables(conn)
@@ -211,7 +180,7 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 				}
 				return sqlite3.AUTH_DENY
 			}
-			err = storage.LegacyAuthorizer(conn, mode, c.Resource.Read, c.VisitorID, c.Owner, c.Resource.RulesStatus() != "preset", &authorizerState, deny, sqlAuthorizerDenial, sqlVisitorReadDenial)
+			err = storage.LegacyAuthorizer(conn, mode, &authorizerState, deny, sqlAuthorizerDenial)
 			if err != nil {
 				return LegacySQLResult{}, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 			}
@@ -301,59 +270,38 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (result Lega
 				if err = storage.CloseLegacyStatement(stmt); err == nil {
 					err = conn.SetAuthorizer(nil)
 				}
-				// A table with its own preset must not lose it to a rename: the new
-				// name would fall back to the database's preset, which may be wider.
+				// A table with its own rules must not lose them to a rename: the new
+				// name would fall back to the database's rules, which may be wider.
 				var after map[string]bool
-				if err == nil && c.Resource.Access != nil {
+				if err == nil {
 					if after, err = storage.SQLTables(conn); err == nil {
 						renamed, added := storage.SchemaTableChanges(before, after, func(t string) bool {
 							_, ruled := c.Resource.Tables[strings.ToLower(t)]
 							return ruled
 						})
-						if renamed && len(added) > 0 {
-							if c.Resource.RulesStatus() != "preset" {
-								for _, table := range added {
-									if _, own := c.Resource.Tables[strings.ToLower(table)]; !own {
-										return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own rules; give the new name its rules first (storage_set_resource tables), then rename"}
-									}
+						if renamed && len(added) > 0 && c.Resource.Rules != nil {
+							for _, table := range added {
+								if _, own := c.Resource.Tables[strings.ToLower(table)]; !own {
+									return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own rules; give the new name its rules first (storage_set_resource tables), then rename"}
 								}
-							} else {
-								return LegacySQLResult{}, &Error{Code: "table_preset_rename", Message: "this table has its own preset; give the new name its preset first (storage_set_resource tables), then rename"}
 							}
 						}
 						for _, t := range added {
-							if c.Resource.RulesStatus() != "preset" {
-								if _, own := c.Resource.Tables[strings.ToLower(t)]; own {
-									notes = append(notes, "new table "+t+" uses the rules saved for it")
-								} else {
-									notes = append(notes, "new table "+t+" uses the database rules; give it its own with storage_set_resource tables if it should be narrower")
-								}
-								continue
-							}
-							m := c.Resource.TableMatrix(t)
-							if _, ruled := c.Resource.Tables[strings.ToLower(t)]; ruled {
-								notes = append(notes, "new table "+t+" uses the preset saved for it ("+rules.PresetName(m)+")")
-							} else if m != (rules.AccessMatrix{Read: "owner", Add: "owner", Edit: "owner", Delete: "owner"}) {
-								notes = append(notes, "new table "+t+" uses the database's preset ("+rules.PresetName(m)+"); give it its own with storage_set_resource tables if it should be narrower")
+							if _, own := c.Resource.Tables[strings.ToLower(t)]; own && c.Resource.Rules != nil {
+								notes = append(notes, "new table "+t+" uses the rules saved for it")
+							} else {
+								notes = append(notes, "new table "+t+" uses the database rules; give it its own with storage_set_resource tables if it should be narrower")
 							}
 						}
 					}
 				}
-				if err == nil && c.Resource.RulesStatus() != "preset" {
+				if err == nil {
 					var ruleNotes []string
 					ruleNotes, err = s.ensureSchemaRules(conn, c, before)
 					notes = append(notes, ruleNotes...)
-				} else if err == nil {
-					err = storage.EnsureOwnTables(conn, before, c.Resource.OwnTables())
-				}
-				if err == nil && c.Resource.RulesStatus() == "preset" {
-					err = storage.EnsureHoldTables(conn, c.Resource.Holds)
 				}
 				if err != nil {
-					if c.Resource.RulesStatus() != "preset" {
-						return LegacySQLResult{}, &Error{Code: "visitor_id_required", Message: "every author-tracked rules table must keep its visitor_id TEXT column"}
-					}
-					return LegacySQLResult{}, &Error{Code: "visitor_id_required", Message: "every table whose preset uses own or lets visitors add must keep its visitor_id TEXT column; only new tables receive it automatically, so do not drop or rename it"}
+					return LegacySQLResult{}, &Error{Code: "visitor_id_required", Message: "every author-tracked rules table must keep its visitor_id TEXT column"}
 				}
 				result.Changes = conn.Changes()
 				result.Notes = notes

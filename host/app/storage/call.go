@@ -17,8 +17,7 @@ type Call struct {
 	VisitorID, LinkScope                    string
 	Resource                                rules.Resource
 	ActiveChecked                           bool
-	CurrentMatrix                           rules.AccessMatrix
-	Filter, SpamCheck                       string
+	SpamCheck                               string
 	CheckedPost                             bool
 	UploaderID, RuntimeDir                  string
 	VisitorSessionID                        []byte

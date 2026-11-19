@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/model"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
 )
 
@@ -25,10 +26,10 @@ func visitorJSON(t *testing.T, v any) string {
 
 func TestVisitorDiscoveryOmitsPrivateResources(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/secretdb", map[string]any{"kind": "sqlite", "preset": "private"}, f.key, 201)
+	f.must(t, "PUT", "/resources/secretdb", map[string]any{"kind": "sqlite"}, f.key, 201)
 	f.must(t, "POST", "/sqlite/secretdb/schema", map[string]any{"sql": "CREATE TABLE sensitive_customers(id INTEGER PRIMARY KEY, email TEXT)"}, f.key, 200)
-	f.must(t, "PUT", "/resources/secretkv", map[string]any{"kind": "kv", "preset": "private"}, f.key, 201)
-	f.must(t, "PUT", "/resources/mixed", map[string]any{"kind": "sqlite", "preset": "private", "tables": map[string]any{"visible": map[string]any{"preset": "public"}}}, f.key, 201)
+	f.must(t, "PUT", "/resources/secretkv", map[string]any{"kind": "kv"}, f.key, 201)
+	f.must(t, "PUT", "/resources/mixed", `{"kind":"sqlite","rules":`+string(model.OwnerOnlyRules)+`,"tables":{"visible":{"rules":`+rulesPublic+`}}}`, f.key, 201)
 	f.must(t, "POST", "/sqlite/mixed/schema", map[string]any{"sql": "CREATE TABLE visible(id INTEGER PRIMARY KEY)"}, f.key, 200)
 	f.must(t, "POST", "/sqlite/mixed/schema", map[string]any{"sql": "CREATE TABLE secret_table(id INTEGER PRIMARY KEY)"}, f.key, 200)
 	f.named(t)
@@ -55,7 +56,7 @@ func TestVisitorDiscoveryOmitsPrivateResources(t *testing.T) {
 
 func TestVisitorStorageHistorySeparated(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/notes", map[string]any{"kind": "kv", "preset": "wall"}, f.key, 201)
+	f.must(t, "PUT", "/resources/notes", storageRules("kv", rulesWall), f.key, 201)
 	const email = "legacy-person@example.com"
 	_, err := f.a.database.Exec(`INSERT INTO data_history(site_id,kind,name,op,actor_kind,actor_email) VALUES($1,'list','notes','edit','visitor',$2)`, f.sid, email)
 	if err != nil {
@@ -97,7 +98,7 @@ func TestVisitorRedactsEmbeddedAccountIDs(t *testing.T) {
 
 func TestVisitorKVIdentifiersRoundTrip(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/notes", map[string]any{"kind": "kv", "preset": "personal"}, f.key, 201)
+	f.must(t, "PUT", "/resources/notes", storageRules("kv", rulesPersonal), f.key, 201)
 	keys := []string{"00000000-1111-2222-3333-444444444444", "00000000-1111-2222-3333-555555555555"}
 	for _, key := range keys {
 		args := f.args("kv", "notes")
@@ -129,7 +130,7 @@ func TestVisitorKVIdentifiersRoundTrip(t *testing.T) {
 	delete(change, "value")
 	f.call(t, "visitor_change_entry", change, "")
 	// An actual other person's account ID is omitted, even when used as a key.
-	f.must(t, "PUT", "/resources/publicnotes", map[string]any{"kind": "kv", "preset": "public"}, f.key, 201)
+	f.must(t, "PUT", "/resources/publicnotes", storageRules("kv", rulesPublic), f.key, 201)
 	for _, key := range []string{f.ids["alice"], "zz-end"} {
 		f.must(t, "PUT", "/kv/publicnotes/keys/"+key, map[string]any{"value": "visible"}, f.key, 200)
 	}
@@ -164,7 +165,7 @@ func TestVisitorSchemaKeepsIdentityColumnNames(t *testing.T) {
 	}
 
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/contacts", map[string]any{"kind": "sqlite", "preset": "public"}, f.key, 201)
+	f.must(t, "PUT", "/resources/contacts", storageRules("sqlite", rulesPublic), f.key, 201)
 	f.must(t, "POST", "/sqlite/contacts/schema", map[string]any{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, email TEXT NOT NULL, user_id TEXT, by TEXT)"}, f.key, 200)
 	f.must(t, "POST", "/sqlite/contacts/execute", map[string]any{"sql": "INSERT INTO entries VALUES(1,'private@example.com','private-user','private-author')"}, f.key, 200)
 	args := f.args("sqlite", "contacts")
@@ -192,10 +193,10 @@ func TestVisitorPasscodeExemptResources(t *testing.T) {
 	}
 	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &f.a.sites.limitSet)
 	for _, kind := range []string{"kv", "sqlite"} {
-		f.must(t, "PUT", "/resources/"+kind, map[string]any{"kind": kind, "preset": "personal", "site_passcode": "off"}, f.key, 201)
+		f.must(t, "PUT", "/resources/"+kind, `{"kind":"`+kind+`","site_passcode":"off","rules":`+rulesPersonal+`}`, f.key, 201)
 	}
 	f.must(t, "POST", "/sqlite/sqlite/schema", map[string]any{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY,text TEXT)"}, f.key, 200)
-	f.must(t, "PUT", "/resources/inherited", map[string]any{"kind": "kv", "preset": "personal"}, f.key, 201)
+	f.must(t, "PUT", "/resources/inherited", storageRules("kv", rulesPersonal), f.key, 201)
 	if res := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key); res.status != 200 {
 		t.Fatalf("lock: %s", res.body)
 	}
@@ -223,7 +224,7 @@ func TestVisitorPasscodeExemptResources(t *testing.T) {
 
 func TestVisitorNumbersRemainExact(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/numbers", map[string]any{"kind": "kv", "preset": "public"}, f.key, 201)
+	f.must(t, "PUT", "/resources/numbers", storageRules("kv", rulesPublic), f.key, 201)
 	const exact = "9007199254740993"
 	seedStorageKV(t, f.a.sites, f.sid, "numbers", "big", `{"nested":[`+exact+`]}`, "")
 	response := f.a.rpc(t, f.token, "tools/call", map[string]any{"name": "visitor_read_site", "arguments": f.args("kv", "numbers")})
@@ -241,7 +242,7 @@ func TestVisitorNumbersRemainExact(t *testing.T) {
 
 func TestVisitorDiscoveryLimit(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.must(t, "PUT", "/resources/notes", map[string]any{"kind": "kv", "preset": "public"}, f.key, 201)
+	f.must(t, "PUT", "/resources/notes", storageRules("kv", rulesPublic), f.key, 201)
 	for _, key := range []string{"one", "two"} {
 		f.must(t, "PUT", "/kv/notes/keys/"+key, map[string]any{"value": key}, f.key, 200)
 	}

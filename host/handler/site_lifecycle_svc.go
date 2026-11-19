@@ -33,11 +33,7 @@ func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sit
 			}
 			resources := []map[string]any{}
 			for _, x := range list {
-				if x.rulesResource().RulesStatus() != "preset" {
-					resources = append(resources, storageResourceRulesJSON(x, nil))
-				} else {
-					resources = append(resources, storageResourceJSON(x))
-				}
+				resources = append(resources, storageResourceRulesJSON(x, nil))
 			}
 			return resources, nil
 		},

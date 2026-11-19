@@ -14,9 +14,9 @@ import (
 // and Origin: null on its writes. Fetch Metadata still says same-origin, so
 // the page reads and saves its own data; other origins stay refused.
 func TestNoReferrerPageUsesItsOwnData(t *testing.T) {
-	s := newPresetSite(t)
+	s := newStorageTestSite(t)
 	cookie := strings.TrimPrefix(s.callers["owner-site"]["Cookie"], visitorCookieHost+"=")
-	s.must(t, "PUT", "/resources/intake", map[string]string{"kind": "kv", "preset": "private"}, s.key, 201)
+	s.must(t, "PUT", "/resources/intake", map[string]string{"kind": "kv"}, s.key, 201)
 
 	get := browser(s.host, cookie, "Origin", "")
 	r := s.a.at(t, "GET", s.host, "/v1/sites/shop/me", nil, get)

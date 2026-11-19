@@ -84,7 +84,7 @@
       <li><strong>Profile details you choose.</strong> Your handle and display name, if you set them.</li>
       <li><strong>API keys and connection tokens.</strong> Used to prove requests come from you. We store them only as one-way hashes, so we cannot show you a key again.</li>
       <li><strong>Your sites.</strong> The files you upload, each version, the site name, and any domain or free <code>&lt;name&gt;.simple-host.app</code> address you connect.</li>
-      <li><strong>Data your sites save.</strong> Key-value data (KV), SQLite tables, and files, with access presets you choose. We keep named-viewer email addresses to control site access, and notification subscriptions and delivery records (including, where push is enabled, a device's push address and keys) to send the updates you configure.</li>
+      <li><strong>Data your sites save.</strong> Key-value data (KV), SQLite tables, and files, with the access rules you choose. We keep named-viewer email addresses to control site access, and notification subscriptions and delivery records (including, where push is enabled, a device's push address and keys) to send the updates you configure.</li>
       <li><strong>Request records.</strong> Times of requests and IP addresses, used for rate limits, security and investigating abuse. Our records of API calls keep only a shortened IP address (the network part); the web server's log keeps the full one. See <a href="#retention">how long we keep things</a>.</li>
     </ul>
 
@@ -92,8 +92,8 @@
     <p>Sites on Simple Host are made by their owners, not by us. The owner decides what the site shows and what it asks you for.</p>
     <h3>What the site asks you for</h3>
     <ul>
-      <li><strong>The site owner controls the data.</strong> Entries and uploads you submit are stored for that site. The owner can read visitor rows in owner-readable resources, including the records and personal presets. Ask the owner how they use entries or to delete them.</li>
-      <li><strong>New storage resources are private by default.</strong> Access presets control who may read, add, edit, and delete data. An inbox accepts entries that only the owner reads; records and personal presets let signed-in visitors read their own entries while owner tools can read them all. Public presets allow others to read entries. Check the site's explanation before submitting.</li>
+      <li><strong>The site owner controls the data.</strong> Entries and uploads you submit are stored for that site. The owner can read visitor rows in owner-readable resources, including records and personal data each visitor keeps for themselves. Ask the owner how they use entries or to delete them.</li>
+      <li><strong>New storage resources are private by default.</strong> Access rules control who may read, add, edit, and delete data. An inbox accepts entries that only the owner reads; records and personal data let signed-in visitors read their own entries while owner tools can read them all. Public data allows others to read entries. Check the site's explanation before submitting.</li>
       <li><strong>The operator may access stored data</strong> for moderation, security, support, or legal requirements.</li>
       <li><strong>Sign-in identifies submissions.</strong> When you save while signed in, the service can associate the entry with your account. The owner's connected AI sees a reference scoped to that site by default and can retrieve your sign-in email when the owner asks who sent an entry. An email or name you type into a form is also part of its saved content.</li>
       <li><strong>Retention depends on the storage used.</strong> Current KV, SQLite, and file data is kept until the owner deletes it or the site is deleted; a deleted site is purged after its retention period. Current storage does not keep an automatic 30-day history of every change.</li>

@@ -1,6 +1,8 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Bookings: appointments, table reservations, service bookings
 
-Use this for any booking, appointment, or reservation, including a "booking request" or a "reservation request": a salon appointment, a restaurant table, a car service slot, a cleaning visit. The customer signs in with their email at the moment they book, then sees their own bookings and each one's status. The owner sees every booking and confirms or declines it from this chat. This is the records preset.
+Use this for any booking, appointment, or reservation, including a "booking request" or a "reservation request": a salon appointment, a restaurant table, a car service slot, a cleaning visit. The customer signs in with their email at the moment they book, then sees their own bookings and each one's status. The owner sees every booking and confirms or declines it from this chat. The rules give each customer their own booking history.
 
 Who signs in where:
 - The customer signs in on the site's own address with visitor sign-in: an emailed 6-digit code or Google. No account and no password. The page asks only when they press Book, and keeps what they typed.
@@ -8,13 +10,13 @@ Who signs in where:
 
 ## 1. Owner setup (run these tools before publishing the page)
 
-storage_set_resource {"site": "{site}", "name": "bookings", "body": {"kind": "sqlite", "preset": "records"}}
+storage_set_resource {"site": "{site}", "name": "bookings", "body": {"kind": "sqlite", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "visitor_id == auth.id"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_sql_schema {"site": "{site}", "name": "bookings", "sql": "CREATE TABLE IF NOT EXISTS bookings (id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT, service TEXT NOT NULL, day TEXT NOT NULL, time TEXT NOT NULL, people INTEGER, note TEXT, status TEXT NOT NULL DEFAULT 'requested', created_at TEXT)"}
 
 storage_sql_schema {"site": "{site}", "name": "bookings", "sql": "CREATE TRIGGER IF NOT EXISTS bookings_start_requested BEFORE INSERT ON bookings WHEN NEW.status IS NOT 'requested' BEGIN SELECT RAISE(ABORT, 'status is set by the owner'); END"}
 
-Keep the column names; change only the labels and choices on the page (service is "Party size" or a table area for a restaurant, people is the number of guests). Preset records: each signed-in customer adds bookings and reads only their own; only you change a status. The server adds visitor_id and created_at itself; the trigger makes every new booking start as requested.
+Keep the column names; change only the labels and choices on the page (service is "Party size" or a table area for a restaurant, people is the number of guests). With these rules: each signed-in customer adds bookings and reads only their own; only you change a status. The server adds visitor_id and created_at itself; the trigger makes every new booking start as requested.
 
 ## 2. The page (index.html, or a section of it; adapt the services, wording, and look)
 
@@ -129,4 +131,4 @@ To be told when one arrives, subscribe to record.added for this storage if your 
 
 ## Linked booking requests
 
-For notes or cancellation requests with history, add a booking_changes table with id INTEGER PRIMARY KEY, booking_id REFERENCES bookings(id), kind, details, and created_at in the same records resource. Read bookings and booking_changes separately for the visitor's own status and history; the owner sees all and updates status. Follow the [records recipe](https://simple-host.app/recipes/records.md) for the linked-row setup and checks, using the booking table and column names above.
+For notes or cancellation requests with history, add a booking_changes table with id INTEGER PRIMARY KEY, booking_id REFERENCES bookings(id), kind, details, and created_at in the same resource with these rules. Read bookings and booking_changes separately for the visitor's own status and history; the owner sees all and updates status. Call get_page_recipe with topic records for the linked-row setup and checks, using the booking table and column names above.

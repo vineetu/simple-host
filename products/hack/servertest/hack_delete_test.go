@@ -2,6 +2,7 @@ package servertest
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,9 +37,9 @@ func TestHackDeleteBusyEvent(t *testing.T) {
 	wantTS(t, "entry", a.api(t, "PUT", base+"/entry", map[string]string{"title": "Busy entry"}, participant.key), 200, "")
 	wantTS(t, "custom site", a.api(t, "PUT", base+"/website/files?create=1", deployBody("delete custom"), org.key), 201, "")
 	for _, storage := range []struct{ base, key string }{{"/v1/sites/" + team + "/storage", key}, {base + "/website/storage", org.key}} {
-		wantTS(t, "resource", a.api(t, "PUT", storage.base+"/resources/prefs", map[string]string{"kind": "kv", "read": "anyone", "write": "owner"}, storage.key), 201, "")
+		wantTS(t, "resource", a.api(t, "PUT", storage.base+"/resources/prefs", map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, storage.key), 201, "")
 		wantTS(t, "value", a.api(t, "PUT", storage.base+"/kv/prefs/keys/theme", `{"value":"red"}`, storage.key), 200, "")
-		wantTS(t, "files resource", a.api(t, "PUT", storage.base+"/resources/photos", map[string]string{"kind": "files", "read": "owner", "write": "owner"}, storage.key), 201, "")
+		wantTS(t, "files resource", a.api(t, "PUT", storage.base+"/resources/photos", map[string]string{"kind": "files"}, storage.key), 201, "")
 	}
 	var teamID string
 	if err := a.database.QueryRow(`SELECT id FROM event_teams WHERE event_id=$1 AND slug=$2`, ev.ID, team).Scan(&teamID); err != nil {

@@ -27,7 +27,6 @@ func readSet(using string) *json.RawMessage {
 func rulesFixture(t *testing.T, schema string) (*Service, Call, ResourceInput) {
 	t.Helper()
 	s, c := kvFixture(t, false)
-	s.deps.RulesEnabled = true
 	c.ResourceName = "rows"
 	s.deps.SQLitePath = filepath.Join(c.RuntimeDir, "sqlite", "rows.sqlite")
 	if schema != "" {
@@ -135,31 +134,22 @@ func TestRulesSaveInvalidClauses(t *testing.T) {
 func TestRulesSaveRequestSemantics(t *testing.T) {
 	s, c, in := rulesFixture(t, "")
 	ctx := context.Background()
-	in.Rules = rawRules("null")
-	in.AccessRequest = rules.AccessRequest{Preset: "public"}
-	presets := map[string]ResourceTableInput{"notes": {AccessRequest: rules.AccessRequest{Preset: "private"}}}
-	in.Tables = &presets
-	putRules(t, s, in)
-	in.AccessRequest = rules.AccessRequest{}
-	in.Rules = readSet("true")
-	in.Tables = nil
-	ruleRefusal(t, s, in, "shape")
 	empty := map[string]ResourceTableInput{}
 	in.Tables = &empty
 	x := putRules(t, s, in)
 	if x.RulesStatus() != "rules" || len(x.Tables) != 0 {
 		t.Fatalf("%+v", x)
 	}
-	// Fill denies visitors through the old preset path, including table overrides.
-	deny := rules.AccessMatrix{Read: "nobody", Add: "nobody", Edit: "nobody", Delete: "nobody"}
-	if x.Matrix() != deny || x.Read != "owner" || x.Write != "owner" || x.WriteMode != "add" {
-		t.Fatalf("fill: %+v", x)
-	}
 	tableSets := map[string]ResourceTableInput{"Notes": {Rules: saveSet()}}
 	in.Tables = &tableSets
 	x = putRules(t, s, in)
-	if x.Tables["notes"].Matrix != deny {
-		t.Fatal("table fill")
+	// The older columns get the fill that makes an older program deny every
+	// visitor, on the resource and its table overrides.
+	var fill int
+	if err := s.db.QueryRow(`SELECT count(*) FROM site_storage_resources r JOIN site_storage_tables t ON t.site_id=r.site_id AND t.resource_name=r.name
+ WHERE r.site_id=$1 AND r.name=$2 AND r.read_policy='owner' AND r.write_policy='owner' AND r.write_mode='add' AND r.acc_read='nobody' AND r.acc_add='nobody' AND r.acc_edit='nobody' AND r.acc_delete='nobody' AND r.preset_base='rules' AND NOT r.approve_first
+ AND t.table_name='notes' AND t.acc_read='nobody' AND t.acc_add='nobody' AND t.acc_edit='nobody' AND t.acc_delete='nobody' AND t.preset_base='rules'`, c.SiteID, in.Name).Scan(&fill); err != nil || fill != 1 {
+		t.Fatalf("fill: %d %v", fill, err)
 	}
 	in.Tables = nil
 	in.Rules = saveSet()
@@ -171,55 +161,15 @@ func TestRulesSaveRequestSemantics(t *testing.T) {
 	if len(set.Policies) != 0 {
 		t.Fatal("explicit empty set lost")
 	}
-	// Table preset fields also select a return to presets when the default
-	// preset is omitted; the usual default remains private.
-	in.Rules = nil
-	in.Tables = &presets
-	x = putRules(t, s, in)
-	if x.RulesStatus() != "preset" || len(x.Tables) != 1 {
-		t.Fatal("table-only preset save was ignored")
-	}
-	in.Rules = saveSet()
-	in.Tables = &tableSets
-	putRules(t, s, in)
-	in.Tables = nil
-	// Null and a passcode-only save keep rules and overrides even with the flag off.
-	s.deps.RulesEnabled = false
+	// Null and a passcode-only save keep rules and overrides.
 	in.Rules = rawRules("null")
 	in.SitePasscode = "off"
 	x = putRules(t, s, in)
 	if x.RulesStatus() != "rules" || len(x.Tables) != 1 || x.SitePasscode != "off" {
 		t.Fatalf("passcode: %+v", x)
 	}
-	in.Rules = readSet("true")
-	_, err := s.PutStorageResource(ctx, in)
-	if e, ok := err.(*Error); !ok || e.Code != "rules_unavailable" {
-		t.Fatalf("flag off: %v", err)
-	}
-	s.deps.RulesEnabled = true
-	// The conversion record survives both manual directions.
-	history := `{"preset":"public"}`
-	if _, err := s.db.Exec(`UPDATE site_storage_resources SET rules_converted_from=$3 WHERE site_id=$1 AND name=$2`, c.SiteID, in.Name, history); err != nil {
-		t.Fatal(err)
-	}
-	in.Rules = nil
-	in.AccessRequest = rules.AccessRequest{Preset: "private"}
-	_, err = s.PutStorageResource(ctx, in)
-	if e, ok := err.(*Error); !ok || e.Code != "tables_present" {
-		t.Fatalf("rules to preset: %v", err)
-	}
-	in.Tables = &empty
-	x = putRules(t, s, in)
-	if x.Rules != nil || len(x.Tables) != 0 || x.RulesStatus() != "preset" || x.ConvertedFrom == nil {
-		t.Fatalf("preset again: %+v", x)
-	}
-	in.AccessRequest = rules.AccessRequest{}
-	in.Rules = readSet("true")
-	x = putRules(t, s, in)
-	if x.ConvertedFrom == nil || x.RulesStatus() != "rules" {
-		t.Fatalf("rules again: %+v", x)
-	}
-	// The pre-rules statement overwrites only the fill; a new reader marks it invalid.
+	var err error
+	// An older program's save overwrites only the fill; the status reads the rules alone.
 	if _, err := s.db.Exec(`INSERT INTO site_storage_resources(site_id,name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read,acc_add,acc_edit,acc_delete,preset_base,approve_first)
  VALUES($1,$2,'sqlite','anyone','owner','inherit','add','anyone','owner','owner','owner','public',false)
  ON CONFLICT(site_id,name) DO UPDATE SET read_policy=EXCLUDED.read_policy,write_policy=EXCLUDED.write_policy,site_passcode=EXCLUDED.site_passcode,write_mode=EXCLUDED.write_mode,acc_read=EXCLUDED.acc_read,acc_add=EXCLUDED.acc_add,acc_edit=EXCLUDED.acc_edit,acc_delete=EXCLUDED.acc_delete,preset_base=EXCLUDED.preset_base,approve_first=EXCLUDED.approve_first`, c.SiteID, in.Name); err != nil {
@@ -229,42 +179,31 @@ func TestRulesSaveRequestSemantics(t *testing.T) {
 		t.Fatal(err)
 	}
 	x, err = repo.LoadResource(ctx, s.db, c.SiteID, in.Name)
-	if err != nil || x.RulesStatus() != "invalid" {
+	if err != nil || x.RulesStatus() != "rules" || x.Rules == nil {
 		t.Fatalf("old save: %+v %v", x, err)
 	}
 }
 
 func TestRulesSaveShapes(t *testing.T) {
 	s, _, in := rulesFixture(t, "")
-	for _, field := range []string{"preset", "read", "add", "edit", "delete", "write", "write_mode", "approve_first"} {
-		t.Run(field, func(t *testing.T) {
-			q := in
-			switch field {
-			case "preset":
-				q.Preset = "public"
-			case "read":
-				q.Read = "anyone"
-			case "add":
-				q.Add = "signed-in"
-			case "edit":
-				q.Edit = "owner"
-			case "delete":
-				q.Delete = "owner"
-			case "write":
-				q.Write = "owner"
-			case "write_mode":
-				q.WriteMode = "add"
-			case "approve_first":
-				b := false
-				q.ApproveFirst = &b
-			}
-			ruleRefusal(t, s, q, "shape")
-		})
+	// A field of the removed presets is refused on every kind, before any
+	// rules are read.
+	for _, kind := range []string{"kv", "sqlite", "files"} {
+		q := in
+		q.Kind, q.Name, q.PresetFieldsPresent = kind, "preset-"+kind, true
+		if _, err := s.PutStorageResource(context.Background(), q); readCode(TableResult{}, err) != "invalid_resource" {
+			t.Fatalf("%s: want invalid_resource, got %v", kind, err)
+		}
 	}
-	for _, q := range []ResourceTableInput{{}, {Rules: rawRules("null")}, {Rules: saveSet(), Write: "owner"}, {Rules: saveSet(), WriteMode: "add"}, {Rules: saveSet(), PresetFieldsPresent: true}, {AccessRequest: rules.AccessRequest{Preset: "private"}, Rules: saveSet()}} {
+	for _, q := range []ResourceTableInput{{}, {Rules: rawRules("null")}} {
 		tables := map[string]ResourceTableInput{"notes": q}
 		in.Tables = &tables
 		ruleRefusal(t, s, in, "shape")
+	}
+	tables := map[string]ResourceTableInput{"notes": {Rules: saveSet(), PresetFieldsPresent: true}}
+	in.Tables = &tables
+	if _, err := s.PutStorageResource(context.Background(), in); readCode(TableResult{}, err) != "invalid_resource" {
+		t.Fatalf("table preset fields: want invalid_resource, got %v", err)
 	}
 	in.Tables = nil
 	files := in
@@ -282,7 +221,6 @@ func TestRulesSaveShapes(t *testing.T) {
 
 func TestRulesSaveKVAndBindings(t *testing.T) {
 	s, c := kvFixture(t, false)
-	s.deps.RulesEnabled = true
 	in := ResourceInput{Call: c, Name: "data", Kind: "kv", Rules: readSet(`visitor_id == auth.id`)}
 	x := putRules(t, s, in)
 	if x.RulesStatus() != "rules" {
@@ -470,64 +408,6 @@ func TestRulesSaveExistingMixedCaseSystemColumns(t *testing.T) {
 	}
 }
 
-func TestPresetSaveMixedCaseSystemColumnsFlagOff(t *testing.T) {
-	for _, tc := range []struct {
-		name, schema, preset string
-		hold                 bool
-	}{
-		{"wall author", `CREATE TABLE notes(body TEXT, VISITOR_ID TEXT)`, "wall", false},
-		{"board author", `CREATE TABLE notes(body TEXT, Visitor_Id TEXT)`, "board", false},
-		{"author index", `CREATE TABLE notes(body TEXT, visitor_id TEXT); CREATE INDEX SH_VISITOR_NOTES ON notes(visitor_id)`, "wall", false},
-		{"approval", `CREATE TABLE notes(body TEXT, approved_AT TEXT)`, "comments", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			s, c, in := rulesFixture(t, tc.schema)
-			s.deps.RulesEnabled = false
-			s.deps.SpamCheckAvailable = true
-			s.deps.PasscodeAllows = func() bool { return true }
-			s.deps.ViewersAllow = func() bool { return true }
-			in.Rules = nil
-			in.AccessRequest = rules.AccessRequest{Preset: "private"}
-			putRules(t, s, in)
-			in.Preset = tc.preset
-			in.ApproveFirst = &tc.hold
-			_, err := s.PutStorageResource(context.Background(), in)
-			if e, ok := err.(*Error); !ok || e.Code != "visitor_id_required" {
-				t.Fatalf("mixed-case preset save: %v", err)
-			}
-			x, err := s.LoadResource(context.Background(), ResourceReadInput{SiteID: c.SiteID, Name: in.Name})
-			if err != nil || x.PresetBase != "private" {
-				t.Fatalf("rejected save changed preset: %+v, %v", x, err)
-			}
-			c.Owner, c.VisitorID, c.Resource = false, "visitor", x
-			c.CSRFOK, c.ActiveChecked = true, true
-			add := TableInput{Call: c, Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"forged"`), "VISITOR_ID": json.RawMessage(`"another-person"`)}}
-			add.Authorized = s.AuthorizeTableWrite(context.Background(), add, "add")
-			out, err := s.TableAdd(context.Background(), add)
-			if err != nil || out.Authorization == nil || out.Authorization.Code != "forbidden" || out.Authorization.Allowed {
-				t.Fatalf("forgery attempt: %+v, %v", out, err)
-			}
-			conn, err := sqlite3.Open(s.deps.SQLitePath)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer conn.Close()
-			stmt, _, err := conn.Prepare(`SELECT count(*) FROM notes`)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer stmt.Close()
-			if !stmt.Step() || stmt.ColumnInt64(0) != 0 {
-				t.Fatalf("forgery inserted a row: %v", stmt.Err())
-			}
-			cols, err := runtime.TableColumns(conn, "notes")
-			if err != nil || len(cols) != 2 {
-				t.Fatalf("rejected save changed columns: %v, %v", cols, err)
-			}
-		})
-	}
-}
-
 func TestRulesSaveEnvelopeSizeBoundary(t *testing.T) {
 	for _, tables := range []string{"omitted", "empty", "populated"} {
 		for _, over := range []bool{false, true} {
@@ -671,7 +551,6 @@ func TestRulesSaveLegacyProvenance(t *testing.T) {
 	}
 	// Full-mode KV writers are cleared in their own SQLite transaction too.
 	s, c := kvFixture(t, false)
-	s.deps.RulesEnabled = true
 	kvPut(t, s, c, "old", `1`, "")
 	if err := s.withKV(context.Background(), c, true, func(_ context.Context, conn *sqlite3.Conn, _ *Admission) error {
 		return conn.Exec(`UPDATE kv SET visitor_id='forged' WHERE key='old'`)
@@ -790,7 +669,6 @@ func TestRulesPasscodeSaveMissingBindings(t *testing.T) {
 			}
 			before := putRules(t, s, in)
 			delete(s.deps.BindingSchema, "event.member")
-			s.deps.RulesEnabled = false
 			in.Rules, in.Tables, in.SitePasscode = rawRules("null"), nil, "off"
 			result, err := s.PutStorageResource(context.Background(), in)
 			if err != nil {
@@ -891,16 +769,11 @@ func TestRulesSaveTableReplacementAndPostPreparationFailure(t *testing.T) {
 	})
 }
 
-// R2-S3 exposes table rules at the transport boundary; flag refusal belongs
-// here so every transport gets the same answer even without a default set.
-func TestRulesSaveFlagOffTableOnly(t *testing.T) {
+// Table rules apply only beside resource rules, whatever the transport.
+func TestRulesSaveTableOnly(t *testing.T) {
 	s, _, in := rulesFixture(t, "")
-	s.deps.RulesEnabled = false
 	in.Rules = nil
 	table := map[string]ResourceTableInput{"notes": {Rules: saveSet()}}
 	in.Tables = &table
-	_, err := s.PutStorageResource(context.Background(), in)
-	if e, ok := err.(*Error); !ok || e.Code != "rules_unavailable" {
-		t.Fatalf("table-only rules with flag off: %v", err)
-	}
+	ruleRefusal(t, s, in, "shape")
 }

@@ -33,7 +33,7 @@ For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.ro
 | a client portal | one site per client, opened only to that client's email (named viewers), recipe `portal` |
 | reviews, comments, a guestbook anyone may post to without signing in | recipe `comments` with a checked add rule: a spam check instead of sign-in; the owner removes posts or approves each one first |
 | reviews, comments, a guestbook by people who sign in | recipe `wall`: everyone reads, people sign in to post |
-| photos visitors share | files preset `wall`, recipe `gallery` |
+| photos visitors share | files with public read and signed-in add rules, recipe `gallery` |
 | a shared sign-up sheet or task list | rules requiring sign-in to read, add and edit; recipe `board` |
 | things each visitor keeps for themselves | rules requiring author-or-owner access; recipe `personal` |
 | only some people may open the whole site | named viewers by email, or one shared passcode; ask which if they did not say |
@@ -47,7 +47,7 @@ For SQLite and key-value access use row rules: `visitor_id == auth.id || auth.ro
 2. Decide whether it can run as a static site. Name any part that cannot (server code, payments
    processing, custom account systems, long-running jobs) and suggest a substitute or another
    service for that part.
-3. If visitors save anything, state each resource, its rules (file-bucket preset), and whether sign-in is needed,
+3. If visitors save anything, state each resource, its rules, and whether sign-in is needed,
    before designing the page. Personal details need owner-only or author-or-owner reads; sign-in alone
    does not make them private.
 4. Always pair a form with a way for the owner to read it back: from chat with
@@ -65,7 +65,7 @@ If a file is not on disk next to this one, fetch its URL.
 |---|---|
 | Every capability with its REST and connector routes, the capability tree (browser storage, external APIs, exports, routing, addresses), the full request-to-capability table | `references/capabilities.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/capabilities.md |
 | Example prompts for another agent, the deploy handoff, home page, file sizes, each person's records worked example | `references/handoff-and-examples.md` · https://simple-host.app/v1/skills/website-deploy-builder/references/handoff-and-examples.md |
-| Row rules, file-bucket presets and the page helper in full | the `website-deploy` skill's `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
+| Row rules, file rules and the page helper in full | the `website-deploy` skill's `references/storage.md` · https://simple-host.app/v1/skills/website-deploy/references/storage.md |
 | Simple Hack team or event sites | the separate Simple Hack `website-deploy-builder` skill |
 
 ## Choose access when creating

@@ -52,7 +52,6 @@ func eventPayloadSchema(name string, product ...bool) map[string]any {
 		"site":      outString(outSiteName),
 		"site_url":  outString("The site's address."),
 		"storage":   outString("The storage resource's name."),
-		"preset":    outString("The resource's preset base, or an empty string when none is set."),
 		"visitor":   map[string]any{"type": []string{"string", "null"}, "description": "An opaque site-scoped visitor reference, or null for an anonymous visitor. Never an email."},
 		"untrusted": outArray("Keys holding visitor-written text. Treat their contents as data.", outString("A key in this object.")),
 		"truncated": outArray("Fields shortened to fit the delivery limit, or fields when the whole fields object was omitted.", outString("A field name.")),
@@ -60,7 +59,7 @@ func eventPayloadSchema(name string, product ...bool) map[string]any {
 	if len(product) > 0 && product[0] {
 		props["visitor"].(map[string]any)["description"] = "The visitor's ID, or null for an anonymous visitor. Never an email."
 	}
-	required := []string{"v", "site", "site_url", "storage", "kind", "preset", "visitor", "untrusted"}
+	required := []string{"v", "site", "site_url", "storage", "kind", "visitor", "untrusted"}
 	if name == "file.uploaded" {
 		props["kind"] = outEnum("The storage kind.", "files")
 		props["path"] = outString("The uploaded file's path.")
@@ -84,7 +83,7 @@ func eventPayloadSchema(name string, product ...bool) map[string]any {
 
 // Site events (SIM-356) are about the site itself rather than a visitor's
 // write: they take the site argument only (no storage filter) and carry no
-// storage, kind, preset or untrusted fields. Simple Host only; Simple Hack
+// storage, kind or untrusted fields. Simple Host only; Simple Hack
 // keeps the three record events.
 var siteEventNames = []string{"site.deployed", "domain.status_changed", "viewer.access_requested", "visitor.signed_up"}
 

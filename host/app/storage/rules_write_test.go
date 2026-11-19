@@ -117,7 +117,6 @@ func TestRulesWriteAuthorizerSideEffects(t *testing.T) {
 func TestRulesWriteConflictAbort(t *testing.T) {
 	s, c, _ := readFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT UNIQUE ON CONFLICT REPLACE); INSERT INTO entries VALUES(1,'first'),(2,'second');`, writeSet("true", "true", "auth.signed_in", "true"))
 	c.VisitorID, c.ActiveChecked = "caller", true
-	s.deps.RulesEnabled = false // Saved rules are enforced even with saves disabled.
 	before := ruleDBBytes(t, s)
 	mustRuleWrite(t, s, c, "add", 0, `{"body":"first"}`, "row_conflict")
 	mustRuleWrite(t, s, c, "edit", 2, `{"body":"first"}`, "row_conflict")
@@ -178,12 +177,14 @@ func TestRulesWriteServerColumnsAndApproval(t *testing.T) {
 	s.deps.PasscodeAllows = func() bool { return true }
 	s.deps.ViewersAllow = func() bool { return true }
 	s.deps.SpamCheckAvailable = true
-	converted := ruleengine.Convert(ruleengine.ConvertInput{Kind: "sqlite", Default: ruleengine.Matrix{Read: "anyone", Add: "checked", Edit: "owner", Delete: "owner"}, ApproveFirst: true})
-	if len(converted.Manual) != 0 {
-		t.Fatal(converted.Manual)
-	}
-	raw := json.RawMessage(ruleengine.EncodeSet(converted.Default))
-	in.Rules = &raw
+	comments := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
+		{Name: "read", Command: ruleengine.CmdRead, Using: `true`},
+		{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.checked || auth.ai || auth.role == "owner"`},
+		{Name: "edit", Command: ruleengine.CmdEdit, Using: `auth.role == "owner"`},
+		{Name: "delete", Command: ruleengine.CmdDelete, Using: `auth.role == "owner"`},
+		{Name: "approve_first", Command: ruleengine.CmdRead, Using: `auth.role == "owner" || approved_at is not null`, Restrictive: true},
+	}}))
+	in.Rules = &comments
 	c.Resource = putRules(t, s, in)
 	c.Owner = false
 	c.CSRFOK = true
@@ -221,16 +222,15 @@ func TestRulesWriteServerColumnsAndApproval(t *testing.T) {
 	in.Rules = writeSet("true", "true", "auth.signed_in", "true")
 	set, _ := ruleengine.DecodeSet(*in.Rules)
 	set.Policies = append(set.Policies, ruleengine.Policy{Command: ruleengine.CmdRead, Using: `approved_at is not null || auth.role == "owner"`, Restrictive: true})
-	raw = json.RawMessage(ruleengine.EncodeSet(set))
+	raw := json.RawMessage(ruleengine.EncodeSet(set))
 	in.Rules = &raw
 	c.Resource = putRules(t, s, in)
 	for _, name := range []string{"approved_at", "id", "visitor_id", "written_by", "created_at", "updated_at", "rowid", "_rowid_", "oid"} {
 		mustRuleWrite(t, s, c, "edit", id, fmt.Sprintf(`{%q:"forged"}`, name), "server_column")
 	}
 	mustRuleWrite(t, s, c, "add", 0, `{"id":42,"body":"id"}`, "invalid_rows")
-	// The converted comments policy itself retains owner-on-site approval.
-	raw = json.RawMessage(ruleengine.EncodeSet(converted.Default))
-	in.Rules = &raw
+	// The comments-style set itself retains owner-on-site approval.
+	in.Rules = &comments
 	c.Resource = putRules(t, s, in)
 	onSite := c
 	onSite.OwnerOnSite = true
@@ -291,11 +291,13 @@ func TestRulesWriteMixedCaseApproval(t *testing.T) {
 	s.deps.PasscodeAllows = func() bool { return true }
 	s.deps.ViewersAllow = func() bool { return true }
 	s.deps.SpamCheckAvailable = true
-	converted := ruleengine.Convert(ruleengine.ConvertInput{Kind: "sqlite", Default: ruleengine.Matrix{Read: "anyone", Add: "checked", Edit: "owner", Delete: "owner"}, ApproveFirst: true})
-	if len(converted.Manual) != 0 {
-		t.Fatal(converted.Manual)
-	}
-	raw := json.RawMessage(ruleengine.EncodeSet(converted.Default))
+	raw := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
+		{Name: "read", Command: ruleengine.CmdRead, Using: `true`},
+		{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.checked || auth.ai || auth.role == "owner"`},
+		{Name: "edit", Command: ruleengine.CmdEdit, Using: `auth.role == "owner"`},
+		{Name: "delete", Command: ruleengine.CmdDelete, Using: `auth.role == "owner"`},
+		{Name: "approve_first", Command: ruleengine.CmdRead, Using: `auth.role == "owner" || approved_at is not null`, Restrictive: true},
+	}}))
 	in.Rules = &raw
 	c.Resource = putRules(t, s, in)
 	c.Owner, c.CSRFOK, c.ActiveChecked = false, true, true
@@ -462,8 +464,12 @@ func TestRulesWriteRefusalOrderAndCheckedPost(t *testing.T) {
 		mustRuleWrite(t, s, c, action, 1, `{"body":"x"}`, "forbidden")
 	}
 	// Worked case 2: comments count checked add even without a spam token.
-	converted := ruleengine.Convert(ruleengine.ConvertInput{Kind: "sqlite", Default: ruleengine.Matrix{Read: "anyone", Add: "checked", Edit: "owner", Delete: "owner"}})
-	raw := json.RawMessage(ruleengine.EncodeSet(converted.Default))
+	raw := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
+		{Name: "read", Command: ruleengine.CmdRead, Using: `true`},
+		{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.checked || auth.ai || auth.role == "owner"`},
+		{Name: "edit", Command: ruleengine.CmdEdit, Using: `auth.role == "owner"`},
+		{Name: "delete", Command: ruleengine.CmdDelete, Using: `auth.role == "owner"`},
+	}}))
 	in.Rules = &raw
 	c.Resource = putRules(t, s, in)
 	for _, action := range []string{"edit", "delete"} {

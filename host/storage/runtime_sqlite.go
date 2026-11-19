@@ -35,15 +35,10 @@ func SQLTables(conn *sqlite3.Conn) (map[string]bool, error) {
 	return tables, stmt.Err()
 }
 
-// TableColumns provides the existing runtime storage helper.
+// TableColumns returns a table's columns as table_info lists them (without
+// generated and hidden columns; TableXInfo includes those).
 func TableColumns(conn *sqlite3.Conn, table string) (map[string]string, error) {
-	return tableColumns(conn, table, false)
-}
-
-// tableColumns keeps preset metadata unchanged while rules preparation includes
-// generated columns, which table_info omits.
-func tableColumns(conn *sqlite3.Conn, table string, rulesSave bool) (map[string]string, error) {
-	cols, _, err := tableColumnInfo(conn, table, rulesSave)
+	cols, _, err := tableColumnInfo(conn, table, false)
 	return cols, err
 }
 
@@ -93,12 +88,7 @@ func schemaColumn(cols map[string]string, name string) string {
 // Owner schema changes are transactional. Add the identity column only to newly
 // created tables, and refuse a change that removes it from an existing table.
 // need picks the tables that must carry it (nil: every table).
-// EnsureOwnTables provides the existing runtime storage helper.
-func EnsureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(string) bool) error {
-	return ensureOwnTables(conn, before, need, false)
-}
-
-func ensureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(string) bool, rulesSave bool) error {
+func ensureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(string) bool) error {
 	tables, err := SQLTables(conn)
 	if err != nil {
 		return err
@@ -107,14 +97,11 @@ func ensureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(strin
 		if need != nil && !need(table) {
 			continue
 		}
-		cols, e := tableColumns(conn, table, rulesSave)
+		cols, _, e := TableXInfo(conn, table)
 		if e != nil {
 			return e
 		}
-		column := "visitor_id"
-		if rulesSave {
-			column = schemaColumn(cols, column)
-		}
+		column := schemaColumn(cols, "visitor_id")
 		if _, found := cols[column]; !found && !before[table] {
 			if e = conn.Exec("ALTER TABLE " + Quote(table) + " ADD COLUMN visitor_id TEXT"); e != nil {
 				return e
@@ -129,24 +116,20 @@ func ensureOwnTables(conn *sqlite3.Conn, before map[string]bool, need func(strin
 			return e
 		}
 		// IF NOT EXISTS must not accept a same-named index on another column.
-		query := "SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=?"
-		if rulesSave {
-			query += " COLLATE NOCASE"
-		}
-		index, _, e := conn.Prepare(query)
+		index, _, e := conn.Prepare("SELECT tbl_name FROM sqlite_schema WHERE type='index' AND name=? COLLATE NOCASE")
 		if e != nil {
 			return e
 		}
 		defer index.Close()
 		_ = index.BindText(1, "sh_visitor_"+table)
-		correct := index.Step() && (index.ColumnText(0) == table || rulesSave && strings.EqualFold(index.ColumnText(0), table))
+		correct := index.Step() && strings.EqualFold(index.ColumnText(0), table)
 		index.Close()
 		info, _, e := conn.Prepare("PRAGMA index_info(" + Quote("sh_visitor_"+table) + ")")
 		if e != nil {
 			return e
 		}
 		defer info.Close()
-		correct = correct && info.Step() && (info.ColumnText(2) == column || rulesSave && strings.EqualFold(info.ColumnText(2), column))
+		correct = correct && info.Step() && strings.EqualFold(info.ColumnText(2), column)
 		info.Close()
 		if !correct {
 			return fmt.Errorf("visitor_id index required")
@@ -164,11 +147,11 @@ var ErrWrittenBySchemaLocked = fmt.Errorf("a trigger or view on this table may d
 
 // EnsureWrittenByColumn adds the server-owned written_by TEXT NOT NULL
 // DEFAULT ” column to table, lazily, the first time an owner add names
-// someone with for (SIM-358): unlike visitor_id (EnsureOwnTables, run at
-// preset-save time, on every table the preset's own/add rule needs), this
+// someone with for (SIM-358): unlike visitor_id (ensureOwnTables, run at
+// rules-save time, on every table the rules track an author on), this
 // runs under the write lock, within the same locked window as the insert
-// it is for, so an existing records/personal table works on its very first
-// for use without the owner having to resave its preset.
+// it is for, so an existing table works on its very first for use without
+// the owner having to resave its rules.
 //
 // ” (the default, including every row before this column existed) means
 // the visitor in visitor_id wrote the row themselves; "owner" means the
@@ -181,25 +164,13 @@ var ErrWrittenBySchemaLocked = fmt.Errorf("a trigger or view on this table may d
 // against every stored trigger and view, not a true dependency analysis.
 // A false positive only means the owner removes or recreates that trigger
 // or view before using for here; it never applies the ALTER.
+// SQLite column names are case-insensitive, and so is written_by.
 func EnsureWrittenByColumn(conn *sqlite3.Conn, table string) error {
-	return ensureWrittenByColumn(conn, table, false)
-}
-
-// EnsureRuleWrittenByColumn prepares the lazy author marker using SQLite's
-// case-insensitive column names for rules resources.
-func EnsureRuleWrittenByColumn(conn *sqlite3.Conn, table string) error {
-	return ensureWrittenByColumn(conn, table, true)
-}
-
-func ensureWrittenByColumn(conn *sqlite3.Conn, table string, rulesResource bool) error {
 	cols, err := TableColumns(conn, table)
 	if err != nil {
 		return err
 	}
-	column := "written_by"
-	if rulesResource {
-		column = schemaColumn(cols, column)
-	}
+	column := schemaColumn(cols, "written_by")
 	if cols[column] == "TEXT" {
 		return nil
 	}
@@ -234,16 +205,11 @@ func tableHasSchemaDependents(conn *sqlite3.Conn, table string) (bool, error) {
 	return false, stmt.Err()
 }
 
-// EnsureHoldTables gives each table that holds posts (need) the
+// ensureHoldTables gives each table that holds posts (need) the
 // server-owned approved_at TEXT column: NULL while a post waits for the
 // owner, a time once approved. Rows already in a table when the column is
 // added were public before, so they count as approved.
-// EnsureHoldTables provides the existing runtime storage helper.
-func EnsureHoldTables(conn *sqlite3.Conn, need func(string) bool) error {
-	return ensureHoldTables(conn, need, false, nil)
-}
-
-func ensureHoldTables(conn *sqlite3.Conn, need func(string) bool, rulesSave bool, before map[string]bool) error {
+func ensureHoldTables(conn *sqlite3.Conn, need func(string) bool, before map[string]bool) error {
 	tables, err := SQLTables(conn)
 	if err != nil {
 		return err
@@ -252,14 +218,11 @@ func ensureHoldTables(conn *sqlite3.Conn, need func(string) bool, rulesSave bool
 		if !need(table) {
 			continue
 		}
-		cols, e := tableColumns(conn, table, rulesSave)
+		cols, _, e := TableXInfo(conn, table)
 		if e != nil {
 			return e
 		}
-		column := "approved_at"
-		if rulesSave {
-			column = schemaColumn(cols, column)
-		}
+		column := schemaColumn(cols, "approved_at")
 		if _, found := cols[column]; !found {
 			if before[table] {
 				return fmt.Errorf("approved_at TEXT required")
@@ -537,24 +500,6 @@ func OpenTableConn(parent context.Context, dbPath string, write bool, timeout ti
 	return openTableConn(parent, dbPath, write, timeout, maxMemory, budget, "mode=ro")
 }
 
-var ErrInspectWAL = errors.New("cannot inspect a database with a nonempty WAL without risking sidecar changes; stop writers and checkpoint it before retrying")
-
-// OpenInspectConn reads a schema without writing any database or sidecar file.
-// Even mode=ro can create or reinitialize shared memory, so inspection always
-// uses immutable mode. A nonempty WAL is refused because immutable mode would
-// ignore it. A concurrent writer can make the schema stale; migrate-rules
-// revalidates under the maintenance lock before changing anything.
-func OpenInspectConn(parent context.Context, dbPath string, timeout time.Duration) (*sqlite3.Conn, func(), error) {
-	if fi, err := os.Stat(dbPath + "-wal"); err == nil {
-		if fi.Size() != 0 {
-			return nil, nil, ErrInspectWAL
-		}
-	} else if !os.IsNotExist(err) {
-		return nil, nil, err
-	}
-	return openTableConn(parent, dbPath, false, timeout, 0, nil, "mode=ro&immutable=1")
-}
-
 func openTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error), readQuery string) (*sqlite3.Conn, func(), error) {
 	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: readQuery}).String()
 	var remaining int64
@@ -710,8 +655,8 @@ func sqliteStage(ctx context.Context, stage string) {
 // EnsureRuleColumns applies the owner schema safeguards with SQLite's
 // case-insensitive column names, as rule saves do.
 func EnsureRuleColumns(conn *sqlite3.Conn, before map[string]bool, own, hold func(string) bool) error {
-	if err := ensureOwnTables(conn, before, own, true); err != nil {
+	if err := ensureOwnTables(conn, before, own); err != nil {
 		return err
 	}
-	return ensureHoldTables(conn, hold, true, before)
+	return ensureHoldTables(conn, hold, before)
 }

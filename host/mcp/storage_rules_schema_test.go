@@ -16,7 +16,7 @@ func TestStorageRulesSchemas(t *testing.T) {
 				for _, body := range []any{
 					map[string]any{"kind": "sqlite", "rules": nil},
 					map[string]any{"kind": "sqlite", "rules": map[string]any{"policies": []any{}}, "tables": map[string]any{"notes": map[string]any{"rules": map[string]any{"policies": []any{}}}}},
-					map[string]any{"kind": "sqlite", "preset": "private", "tables": map[string]any{"notes": map[string]any{}}},
+					map[string]any{"kind": "files", "rules": map[string]any{"policies": []any{}}},
 				} {
 					if err := ValidateOutput(tool.InputSchema, map[string]any{target: "shop", "name": "notes", "body": body}, nil); err != nil {
 						t.Fatal(err)

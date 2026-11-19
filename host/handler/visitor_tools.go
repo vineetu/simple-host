@@ -289,17 +289,6 @@ func (h *SiteHandler) visitorSharedSites(ctx context.Context, userID string) ([]
 	return out, nil
 }
 
-func visitorRights(m storageAccessMatrix) map[string]any {
-	allowed := func(v string) bool {
-		return v == storageWhoAnyone || v == storageWhoSignedIn || v == storageWhoOwn || v == storageWhoChecked
-	}
-	return map[string]any{"read": allowed(m.Read), "add": allowed(m.Add), "edit_own": allowed(m.Edit), "delete_own": allowed(m.Delete), "read_own_only": m.Read == storageWhoOwn}
-}
-
-func visitorHasRights(m storageAccessMatrix) bool {
-	return visitorRightsAny(visitorRights(m))
-}
-
 func visitorRightsAny(r map[string]any) bool {
 	return r["read"] == true || r["add"] == true || r["edit_own"] == true || r["delete_own"] == true
 }
@@ -358,23 +347,24 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 	}
 	list := []map[string]any{}
 	for _, x := range resources {
-		if resource != "" && resource != x.Name {
-			continue
-		}
-		accessible := visitorHasRights(x.matrix())
-		for _, rule := range x.Tables {
-			accessible = accessible || visitorHasRights(rule.Matrix)
-		}
-		if !accessible && x.rulesResource().RulesStatus() == "preset" {
+		if resource != "" && resource != x.Name || x.Kind == "files" {
 			continue
 		}
 		c := storageCall{siteID: siteID, ownerID: ownerID, siteName: siteName, resourceName: x.Name, resource: x}
-		isRules := x.rulesResource().RulesStatus() != "preset"
-		if isRules {
-			c.visitorAI = r.Header.Get(visitorPassHeader) != ""
-			if sess, ok := h.strictVisitorSession(r, siteID); ok {
-				c.visitorSession, c.visitorID = sess, sess.UserID
-				c.ownerOnSite = h.storageOwnerOnSite(r, c)
+		c.visitorAI = r.Header.Get(visitorPassHeader) != ""
+		if sess, ok := h.strictVisitorSession(r, siteID); ok {
+			c.visitorSession, c.visitorID = sess, sess.UserID
+			c.ownerOnSite = h.storageOwnerOnSite(r, c)
+		}
+		if x.Kind == "sqlite" && len(x.Tables) == 0 {
+			// With no table overrides the database rules decide every table:
+			// a database that gives this visitor nothing is never opened.
+			rights, err := h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), "")
+			if err != nil {
+				return nil, err
+			}
+			if !visitorRightsAny(rights) {
+				continue
 			}
 		}
 		if x.Kind == "sqlite" {
@@ -390,21 +380,14 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 				}
 				sort.Strings(names)
 				for _, table := range names {
-					m := x.tableMatrix(table)
-					rights := visitorRights(m)
-					if isRules {
-						rights, err = h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), table)
-						if err != nil {
-							return err
-						}
+					rights, err := h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), table)
+					if err != nil {
+						return err
 					}
 					if !visitorRightsAny(rights) {
 						continue
 					}
 					entry := map[string]any{"resource": x.Name, "kind": x.Kind, "table": table, "rights": rights}
-					if !isRules {
-						entry["preset"] = storagePresetName(m)
-					}
 					if rights["read"] == true || rights["add"] == true {
 						cols, _, err := storageTableInfo(conn, table)
 						if err != nil {
@@ -428,22 +411,14 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 				return nil, visitorResponseError(rec)
 			}
 		} else if x.Kind == "kv" {
-			m := x.matrix()
-			rights := visitorRights(m)
-			if isRules {
-				rights, err = h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), "")
-				if err != nil {
-					return nil, err
-				}
+			rights, err := h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), "")
+			if err != nil {
+				return nil, err
 			}
 			if !visitorRightsAny(rights) {
 				continue
 			}
-			entry := map[string]any{"resource": x.Name, "kind": x.Kind, "rights": rights}
-			if !isRules {
-				entry["preset"] = storagePresetName(m)
-			}
-			list = append(list, entry)
+			list = append(list, map[string]any{"resource": x.Name, "kind": x.Kind, "rights": rights})
 		}
 	}
 	// Discovery includes one bounded page of data for each readable resource.

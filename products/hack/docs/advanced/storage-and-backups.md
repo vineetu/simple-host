@@ -24,7 +24,6 @@ knows.
 | `SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS` | `1000` | 1–5000 milliseconds | Visitor SQLite query timeout. |
 | `RATE_LIMIT_STORAGE_IP` | `120,100ms` | any (warns past 10× looser) | Visitor storage writes per site and client IP; owner credentials are exempt. |
 | `RATE_LIMIT_STORAGE_VISITOR` | `60,200ms` | any (warns past 10× looser) | Storage writes per site and signed-in visitor; limits add-only flooding. |
-| `STORAGE_RULES` | `off` | `off` / `on` | Accept owner-written row rules for SQLite databases and key-value namespaces. Saved rules remain effective when this switch is off. Set the environment (Compose) or values file (Helm) and restart to change it. **Security-sensitive.** |
 | `DB_DSN` | none | secret | The Postgres connection string. install.sh sets it for the bundled database. **Required.** **Security-sensitive.** |
 | `DB_MAX_OPEN_CONNS` | `25` | at least 1 connections | Maximum open Postgres connections per server process; excess requests wait. |
 | `DB_MAX_IDLE_CONNS` | `5` | at least 0 connections | Maximum idle Postgres connections per server process; zero keeps none. |
@@ -58,26 +57,14 @@ entries to `storage/kv.json` and omit the internal `runtime/kv/` files.
 
 ## Maintenance locks and the install identity
 
-A maintenance command that rewrites saved data (`migrate-rules --apply` and
-`--revert`) requires every server using the data directory to be stopped.
-Servers hold a shared lock on `DATA_DIR/.maintenance.lock` for their lifetime;
-the command takes an exclusive lock without waiting and exits 2 if it cannot. A
-server also refuses to start while the command holds that lock. The kernel
-releases the lock if the process dies; leave the lock file in place. The file
-is empty and world-readable, and a server opens it read-only, so a lock file
-created by another user does not stop the server. If the server cannot read
-the file, its error gives the file's path, owner and mode.
-
-The command also requires every server using the **database** to be stopped,
-whichever data directory it serves from. A server holds a shared Postgres
-advisory lock on its database while it runs; the command takes that lock
-exclusively without waiting and exits 2 if it cannot, and a server refuses to
-start while a command holds it. Postgres releases the lock when the process's
-connection ends.
-
-The command refuses, changing nothing, when the user running it does not own
-`DATA_DIR`: files created by another user (root, for example) could not be
-opened by the server afterwards.
+Servers hold a shared lock on `DATA_DIR/.maintenance.lock` for their lifetime,
+and a shared Postgres advisory lock on their database while they run. A server
+refuses to start while something else holds either lock exclusively. The kernel
+releases the file lock if the process dies, and Postgres releases the advisory
+lock when the connection ends; leave the lock file in place. The file is empty
+and world-readable, and a server opens it read-only, so a lock file created by
+another user does not stop the server. If the server cannot read the file, its
+error gives the file's path, owner and mode.
 
 ### The database and the data directory must be the same install
 
@@ -87,19 +74,9 @@ The server creates both at start when neither exists, and never changes
 them. Back up and restore the database and the data directory together and
 the pair stays matched.
 
-The command refuses, changing nothing and exiting 1, unless both copies exist
-and are equal. This stops a command given one install's `DB_DSN` and a
-different install's `DATA_DIR` from changing data in the wrong place.
-
 The identity does **not** tell a data directory from a copy of it. A copy
-(a restored backup in another path) holds the same `.install-id` and passes the
-check. The database lock above stops a command pointed at a copy only while a
-server is running on that database; with the server stopped, nothing does.
-Before running the command, check that `DATA_DIR` in the env file it reads is
-the directory the server serves from, not a copy.
-
-When neither copy exists, start the server once on that database and data
-directory, stop it, and run the command again.
+(a restored backup in another path) holds the same `.install-id`. Check that
+`DATA_DIR` in the env file is the directory the server serves from, not a copy.
 
 When exactly one copy exists, or the two differ, the server writes a
 `WARNING: INSTALL IDENTITY` line to its log at each start and keeps serving.
@@ -109,99 +86,6 @@ points at another install. Only when you are certain the two belong together,
 with the server stopped, make them agree by hand: copy the id from the
 `install_identity` row into `DATA_DIR/.install-id` (one line, owned by the
 server's user), or the other way round.
-
-## Converting presets to row rules
-
-`migrate-rules` is a command for the person who runs the install. It turns the
-preset on a SQLite database or key-value namespace into row rules that decide
-the same, and can put the preset back. It is not offered to site owners: there
-is no API route, AI tool or recipe for it. File buckets are never read or
-changed by it.
-
-Run it with the installed program and that install's environment (`DB_DSN`,
-`DATA_DIR` and the spam-check settings), as the user the server runs as.
-
-```text
-simple-host migrate-rules --dry-run --plan rules-plan.json --account <handle>
-simple-host migrate-rules --dry-run --plan rules-plan.json --all
-simple-host migrate-rules --apply   --plan rules-plan.json
-simple-host migrate-rules --revert  --plan rules-plan.json
-simple-host migrate-rules --revert  --site <site id> --resource <name>
-```
-
-Repeat `--account` for several accounts. Sites in Recently deleted are included.
-
-Apply and revert with `--plan` require a regular file owned by the command's
-user or root, with no group or other write permission. Its directories must
-not be writable by others unless the sticky bit is set (as on `/tmp`). The
-plan must record the same commit as the running program. Use the same program
-for the dry run, apply and plan-based revert. A refused plan changes no resource.
-
-**Dry run.** The server may be running. Nothing is changed: Postgres is only
-read, each SQLite database is opened read-only, no saved row is read, and no
-request is sent. For every SQLite or key-value resource still on a preset it
-works out the rules the preset converts to, checks that they fit the tables
-that exist, and compares, for each kind of caller (not signed in, signed in,
-the author, the owner signed in on the site, a visitor's AI, each with and
-without a passed spam check) and each action, what the preset allows today
-with what the rules would allow. It prints one line for each answer that would
-change:
-
-```text
-account site resource table caller action old new
-```
-
-A resource with such a line is not converted. Neither is a resource that
-"needs a person", which is listed with the reason:
-
-- a database or namespace saved before presets that pages could write freely,
-  where saving rules would clear recorded authors or require an empty database;
-- a database that pages still read with their own SQL, which stops when a
-  resource has rules;
-- a setting that lets anyone edit or delete, which no rule may say;
-- converted rules that the existing tables cannot take, for example a
-  `visitor_id` or `approved_at` column that is not text.
-
-The owner of such a resource writes its rules by saving them in the ordinary
-way. The dry run writes the plan file, readable only by the user who ran it. For
-each resource to convert the plan holds a fingerprint of its settings, a digest
-of its table columns, its complete present settings, the rules it converts to
-and a SHA-256 of the entry. Exit codes: 0 when everything in scope can be
-converted, 3 when something would change or needs a person (the plan still
-lists what can be converted), 1 when a resource could not be examined (no plan
-is written).
-
-**Apply.** Stop the server first: apply takes the data directory's
-maintenance lock and exits 2 while a server or another maintenance command
-holds it. For each resource in the plan it checks again, before changing
-anything, that the settings and table columns are exactly what the dry run
-saw and that the rules it would write are the plan's. A resource that an owner
-saved, or whose tables changed, since the dry run is skipped as "changed since
-the dry run" with nothing recorded; run a new dry run for it. Then, in order:
-
-1. the present settings are recorded on the resource (`rules_converted_from`);
-2. the database gets the columns a rules save adds, the author column and its
-   index and the approval stamp where the rules name them, and nothing is
-   cleared or removed;
-3. in one transaction, the rules replace the preset.
-
-If the command stops after step 1 or step 2 the resource still works under its
-preset for everyone; run `--apply` again with the same plan. Applying a plan
-twice changes nothing. Exit 0 when every resource is converted, 1 when any was
-skipped or failed. The additive SQLite step is not held to the site's storage
-allowance.
-
-**Revert.** Also with the server stopped. For each resource the plan names, or
-the one named by `--site` and `--resource`, the recorded settings and table
-presets are restored in one transaction and the record is cleared. A resource
-whose rules are no longer the ones apply wrote (its owner saved different
-rules, or went back to a preset) is skipped as "rules were changed after
-conversion"; its owner decides by an ordinary save. Columns added to SQLite
-stay; presets use or ignore them as before.
-
-A program older than the one that first enforces rules must never be installed
-over converted resources: it would not apply their rules. Revert every
-converted resource before going back that far.
 
 
 **What fills the disk.** At the default allowances, 2,000 fully used hosted sites

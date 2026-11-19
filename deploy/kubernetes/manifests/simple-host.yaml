@@ -73,7 +73,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
     helm.sh/chart: simple-host-0.9.0
 data:
-  STORAGE_RULES: "off"
   SITE_STORAGE_SITE_INFLIGHT: "1"
   # The platform on this hostname.
   SITE_DOMAIN: "host.example.com"
@@ -171,7 +170,7 @@ spec:
         app.kubernetes.io/instance: simple-host
       annotations:
         # A changed setting restarts the pod; the server reads them at start.
-        checksum/config: 1396dcb78544298458e828e995b1ba20ce86c5a8bc62c484bce6e815293abca4
+        checksum/config: cf8536e3c82b85e0ce5d1e62a46301e2e106c09ad07c8f963bdd1a43f5f6dbd9
     spec:
       automountServiceAccountToken: false
       securityContext:

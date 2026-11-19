@@ -1,3 +1,5 @@
+Ask who should read, add, edit and delete which data before running setup. Write rules for those answers; the worked example below is a starting point, not permission to widen access. SQLite and key-value data deny every page operation without an applicable permissive policy; restrictive policies can only narrow it. Owner tools bypass rules. An owner signed in on the site is still a page caller, so the examples explicitly allow `auth.role == "owner"`.
+
 # Personal data: a wishlist, saved settings, notes, a profile
 
 Use this when each signed-in person keeps their own data that only they see and change, and that follows them to any device: a wishlist, bookmarks, a habit log, notes, a profile, a cart across devices. If others should see it too (a wishlist friends can view), use topic wall instead.
@@ -8,9 +10,9 @@ Who signs in where:
 
 ## 1. Owner setup (run these tools before publishing the page)
 
-Preset personal (read own, add signed-in, edit own, delete own): each person reads, changes, and deletes only what they added.
+The following rules implement this example.
 
-storage_set_resource {"site": "{site}", "name": "wishlist", "body": {"kind": "sqlite", "preset": "personal", "site_passcode": "inherit"}}
+storage_set_resource {"site": "{site}", "name": "wishlist", "body": {"kind": "sqlite", "site_passcode": "inherit", "rules": {"version": 1, "policies": [{"name": "own", "command": "all", "using": "visitor_id == auth.id"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}}
 
 storage_sql_schema {"site": "{site}", "name": "wishlist", "sql": "CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, title TEXT NOT NULL CHECK (length(title) <= 200), link TEXT, got INTEGER NOT NULL DEFAULT 0, created_at TEXT, updated_at TEXT)"}
 

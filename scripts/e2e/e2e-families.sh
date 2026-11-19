@@ -158,7 +158,7 @@ echo "main address: ok"
 st=$(ngx meera.$SUFFIX /v1/sites/meera/me -H "Origin: https://meera.$SUFFIX" -o /dev/null -w '%{http_code}')
 [ "$st" = 200 ] || fail "visitor read on the family host: $st"
 [ "$(ngx meera.$SUFFIX /v1/sites/voucher-anu/storage/resources -H "X-API-Key: $KEY" -o /dev/null -w '%{http_code}')" = 404 ] || fail "another site resolved on the family host"
-st=$(ngx meera.$SUFFIX /v1/sites/meera/storage/resources/notes -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{"kind":"kv","preset":"public"}' -o /dev/null -w '%{http_code}')
+st=$(ngx meera.$SUFFIX /v1/sites/meera/storage/resources/notes -X PUT -H "X-API-Key: $KEY" -H 'Content-Type: application/json' -d '{"kind":"kv","rules":{"version":1,"policies":[{"name":"read","command":"read","using":"true"},{"name":"owner","command":"all","using":"auth.role == \"owner\""}]}}' -o /dev/null -w '%{http_code}')
 [ "$st" = 200 ] || [ "$st" = 201 ] || fail "owner save through the family host: $st"
 st=$(ngx meera.$SUFFIX /v1/sites/meera/me -H "Origin: https://anu.$SUFFIX" -o /dev/null -w '%{http_code}')
 [ "$st" = 403 ] || fail "sibling origin read: $st"

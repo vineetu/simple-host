@@ -11,7 +11,7 @@ func (s *Service) compileBindingRules(c *Call, table string) error {
 	if c.Resource.RulesStatus() != "rules" {
 		return rulesInvalid()
 	}
-	set, errs := ruleengine.DecodeSet(effectiveRules(*c, table))
+	set, errs := ruleengine.DecodeSet(c.Resource.EffectiveRules(table))
 	if len(errs) != 0 {
 		return rulesInvalid()
 	}
@@ -51,11 +51,8 @@ func (s *Service) RuleRights(ctx context.Context, c Call, table string) (map[str
 }
 
 // HasChecked reports whether any add check on a resource needs the spam check.
-// Files and unconverted resources keep their preset behaviour.
+// Files never take the spam check.
 func (s *Service) HasChecked(c Call) bool {
-	if c.Resource.RulesStatus() == "preset" {
-		return c.Resource.HasChecked()
-	}
 	checked := func(table string) bool {
 		copy := c
 		return s.compileBindingRules(&copy, table) == nil && copy.rulePlan.ReferencesBinding(ruleengine.OpAdd, "auth.checked")
