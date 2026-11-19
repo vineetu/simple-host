@@ -1,8 +1,0 @@
-# MCP identifiers (go/types; production files only)
-# Regenerate: go run ./scripts/split/mcpidentifiers > scripts/split/reports/mcp-identifiers.txt
-
-## Platform identifiers used by Hack files
-
-## Hack identifiers used by platform files
-
-## Hack identifiers defined in a file not named for Hack

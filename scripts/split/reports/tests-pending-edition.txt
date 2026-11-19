@@ -1,1 +1,0 @@
-# D3-S4: cleared. Platform tests construct policy values with edition.FromPolicies; product tests use products/hack/edition.

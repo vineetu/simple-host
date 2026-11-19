@@ -176,5 +176,4 @@ must trust Static's address in `TRUSTED_PROXY_CIDRS`.
 SIGTERM stops acceptance, drains HTTP for at most ten seconds, cancels and joins
 the reloader, and exits successfully. Static remains off in all normal startup
 and deployment paths; switching the production front door requires its later
-approval. The golden harness's `--via-static` option replays through the extra
-hop without changing virtual hosts.
+approval.

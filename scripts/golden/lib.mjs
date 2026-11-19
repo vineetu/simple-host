@@ -1,5 +1,5 @@
-// Shared helpers for the golden-snapshot harness (run.mjs) and its diff tool
-// (diff.mjs). Node 22 built-ins only -- no npm dependencies.
+// Shared helpers for the recorder (run.mjs). Node 22 built-ins only -- no npm
+// dependencies.
 //
 // normalize() turns a captured HTTP exchange into something that compares
 // stable across two runs of the *same* binary (random ids/keys/tokens,

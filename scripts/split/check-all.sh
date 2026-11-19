@@ -5,9 +5,8 @@
 # red step, so one known failure used to hide every later one.
 #
 #   bash scripts/split/check-all.sh                # gate 1, under the 2G memory cap
-#   bash scripts/split/check-all.sh --golden --slice <slice id>  # gates 1+2
 #   bash scripts/split/check-all.sh --browser --list # browser steps and baseline
-#   --golden appends comparisons of every scenario; --slice IDS limits the golden diff (optional).
+#   --golden and --slice IDS are still accepted and do nothing: the golden comparison was removed.
 #   bash scripts/split/check-all.sh --list         # step ids and commands, runs nothing
 #   bash scripts/split/check-all.sh --only 'go vet' --only scripts/check-html.sh
 #   bash scripts/split/check-all.sh --skip scripts/test-integration.sh --skip scripts/check-fresh-install.sh   # everything that needs no database
@@ -21,13 +20,11 @@
 # This adds <name> to its failure identities when the step fails.
 # --no-cap (or CHECK_ALL_NO_CAP=1) disables the default cap; --cap is a no-op.
 # Logs, results.tsv and summary.tsv land in --out (default: a new temp dir).
-# See scripts/split/BASELINE.md for the measured times and the fast loop.
 set -u
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P) || exit 2
 cd "$repo" || exit 2
 steps_file= out= known_red="$repo/scripts/split/known-red.txt"
-quiet=0 list=0 cap=1 browser=0 golden=0 slice_set=0 red_set=0
-slice=
+quiet=0 list=0 cap=1 browser=0 red_set=0
 [[ ${CHECK_ALL_NO_CAP:-0} == 1 ]] && cap=0
 only=() skip=() args=()
 error() { echo "check-all: $*" >&2; exit 2; }
@@ -36,16 +33,16 @@ while (($#)); do
         --cap) shift ;;
         --no-cap) cap=0; shift ;;
         --browser) browser=1; args+=("$1"); shift ;;
-        --golden) golden=1; args+=("$1"); shift ;;
+        --golden) echo 'golden comparison removed' >&2; shift ;;
+        --slice) (($# >= 2)) || error "missing value for $1"; shift 2 ;;
         --quiet) quiet=1; args+=("$1"); shift ;;
         --list) list=1; args+=("$1"); shift ;;
-        --steps-file|--known-red|--out|--only|--skip|--slice)
+        --steps-file|--known-red|--out|--only|--skip)
             (($# >= 2)) || error "missing value for $1"
             args+=("$1" "$2")
             case $1 in
                 --steps-file) steps_file=$2 ;;
                 --known-red) known_red=$2; red_set=1 ;;
-                --slice) slice=$2; slice_set=1 ;;
                 --out) out=$2 ;;
                 --only) only+=("$2") ;;
                 --skip) skip+=("$2") ;;
@@ -56,19 +53,9 @@ while (($#)); do
 done
 (( ! ${#only[@]} || ! ${#skip[@]} )) || error '--skip cannot be combined with --only'
 if ((browser)); then
-    [[ -z $steps_file ]] && (( ! red_set && ! golden )) || error '--browser cannot be combined with --steps-file, --known-red or --golden'
+    [[ -z $steps_file ]] && (( ! red_set )) || error '--browser cannot be combined with --steps-file or --known-red'
     steps_file=$repo/scripts/split/browser-steps.txt
     known_red=$repo/scripts/split/browser-known-red.txt
-fi
-(( ! slice_set || golden )) || error '--slice requires --golden'
-# CHECK_ALL_GOLDEN_DIR is a test-only override for a stub golden harness.
-golden_dir=${CHECK_ALL_GOLDEN_DIR:-scripts/golden}
-if ((golden)); then
-    [[ -f $golden_dir/diff.mjs && -f $golden_dir/run.mjs ]] &&
-        grep -q -- '--host' "$golden_dir/run.mjs" ||
-        error '--golden needs the D0-S3a/D0-S3b golden harness (scripts/golden/run.mjs --host ...), which is not in this tree'
-    ref=${GOLDEN_REF_BIN:-/usr/local/bin/simple-host}
-    [[ -f $ref && -x $ref ]] || error "GOLDEN_REF_BIN is not an executable file: $ref"
 fi
 if [[ ! ${FRESH_DB+x} ]]; then
     hash=$(printf '%s' "$repo" | sha1sum)
@@ -78,7 +65,7 @@ if ((cap && ! list)); then
     cap_error='the memory cap needs passwordless sudo and systemd-run; run with --no-cap to go without it (not a gate result)'
     command -v systemd-run >/dev/null && sudo -n true || error "$cap_error"
     env_args=() preserve=()
-    for key in FRESH_DB TEST_COUNT TEST_PKGS TEST_WORKERS TMPDIR TEST_PG_URL PSQL PGPORT PGPASSWORD GOLDEN_REF_BIN GOLDEN_REF_HACK_BIN GOLDEN_HACK_BIN GOLDEN_PG_URL CHECK_ALL_GOLDEN_DIR BASE OWNER_KEY_FILE OTHER_KEY_FILE PLAYWRIGHT PLAYWRIGHT_DIR CHROMIUM NAVIGATION_SHOTS; do
+    for key in FRESH_DB TEST_COUNT TEST_PKGS TEST_WORKERS TMPDIR TEST_PG_URL PSQL PGPORT PGPASSWORD GOLDEN_PG_URL BASE OWNER_KEY_FILE OTHER_KEY_FILE PLAYWRIGHT PLAYWRIGHT_DIR CHROMIUM NAVIGATION_SHOTS; do
         if [[ -v $key ]]; then export "$key"; env_args+=(-E "$key"); preserve+=("$key"); fi
     done
     preserve_list=$(IFS=,; echo "${preserve[*]}")
@@ -91,7 +78,7 @@ fi
 # Python handles text formats; Bash owns shell execution and pipeline statuses.
 parse() {
 python3 - "$@" <<'PY'
-import sys, re, pathlib, shlex, os, json
+import sys, re, pathlib
 mode, *args = sys.argv[1:]
 # Read diagnostics as text, including invalid bytes from failed commands.
 def read(path):
@@ -235,7 +222,7 @@ def verify_results(out, plan):
 
 try:
     if mode == 'prepare':
-        source, is_file, dest, red, listing, golden, out, golden_dir, slice_set, slice_ids, skip_count, *selected = args
+        source, is_file, dest, red, listing, skip_count, *selected = args
         commands, pending = [], ''
         for line in read(source).splitlines():
             if not pending and (not line.strip() or (is_file == '1' and line.lstrip().startswith('#')) or
@@ -263,46 +250,6 @@ try:
             elif m := re.search(r'\b(?:bash|sh|python3|node)\s+([^-\s][^\s]*)', command): ident = m[1].strip('\'"')
             elif m := re.search(r'(?:\bmake|\$\(MAKE\))\s+([^\s]+)', command): ident = 'make ' + m[1]
             steps.append((ident, command))
-        if golden == '1':
-            root = out + '/golden'
-            candidate = root + '/simple-host'
-            candidate_hack = root + '/simple-hack'
-            def shell(words):
-                return shlex.join(words)
-            steps.append(('golden:build', 'CGO_ENABLED=0 ' + shell(['go', 'build', '-o', root + '/', './cmd/simple-host', './cmd/simple-hack'])))
-            # Both sides record every scenario. The reference skips the ones a
-            # named slice approves whole as added: its program cannot run them.
-            # Request additions likewise belong only to the candidate recording.
-            added = []
-            added_requests = []
-            for slice_id in slice_ids.split(',') if slice_set == '1' else []:
-                try:
-                    entries = json.loads(read(golden_dir + '/approved/' + slice_id + '.json'))['entries']
-                    added += [e['scenario'] for e in entries
-                              if e.get('change') == 'added' and isinstance(e.get('scenario'), str)]
-                    added_requests += [e['product'] + '/' + e['request'] for e in entries
-                                       if e.get('change') == 'added' and isinstance(e.get('request'), str)]
-                except (OSError, ValueError, KeyError, TypeError, AttributeError):
-                    pass  # diff.mjs reports a missing or damaged approval file
-            for side, host, hack, target in [
-                ('reference', os.environ.get('GOLDEN_REF_BIN') or '/usr/local/bin/simple-host', 'GOLDEN_REF_HACK_BIN', 'ref'),
-                ('candidate', candidate, 'GOLDEN_HACK_BIN', 'cand'),
-            ]:
-                words = ['node', golden_dir + '/run.mjs', '--host', host]
-                if os.environ.get(hack): words += ['--hack', os.environ[hack]]
-                elif side == 'candidate': words += ['--hack', candidate_hack]
-                elif side == 'reference' and not os.environ.get('GOLDEN_REF_BIN') and os.path.isfile('/usr/local/bin/simple-hack') and os.access('/usr/local/bin/simple-hack', os.X_OK):
-                    # Default to the installed pair after the split. An explicit
-                    # reference may still be an older combined program.
-                    words += ['--hack', '/usr/local/bin/simple-hack']
-                words += ['--out', root + '/' + target, '--scenario', 'all']
-                if side == 'reference' and added: words += ['--skip-scenario', ','.join(dict.fromkeys(added))]
-                if side == 'reference' and added_requests: words += ['--skip-request', ','.join(dict.fromkeys(added_requests))]
-                steps.append(('golden:' + side, shell(words)))
-            steps.append(('golden:coverage', shell(['node', golden_dir + '/coverage.mjs', root + '/cand'])))
-            words = ['node', golden_dir + '/diff.mjs', root + '/ref', root + '/cand']
-            if slice_set == '1': words += ['--slice', slice_ids]
-            steps.append(('golden:diff', shell(words)))
         steps = unique_steps(steps)
         unknown = set(selected) - {s[0] for s in steps}
         if unknown: raise ValueError('unknown step id: ' + ', '.join(sorted(unknown)))
@@ -365,15 +312,7 @@ else
     source=$work/steps; is_file=0
     make -n check >"$source" 2>"$work/make.err" || { cat "$work/make.err" >&2; error 'make -n check failed'; }
 fi
-if ((golden)); then
-    if ((list)); then
-        [[ -n $out ]] || out='<out>'
-    else
-        if [[ -z $out ]]; then out=$(mktemp -d "${TMPDIR:-/tmp}/check-all.XXXXXXXX") || exit 2; fi
-        mkdir -p -- "$out/golden" || exit 2
-    fi
-fi
-parse prepare "$source" "$is_file" "$work/plan" "$known_red" "$list" "$golden" "$out" "$golden_dir" "$slice_set" "$slice" "${#skip[@]}" "${only[@]}" "${skip[@]}" || exit 2
+parse prepare "$source" "$is_file" "$work/plan" "$known_red" "$list" "${#skip[@]}" "${only[@]}" "${skip[@]}" || exit 2
 ((list)) && exit 0
 if [[ -z $out ]]; then out=$(mktemp -d "${TMPDIR:-/tmp}/check-all.XXXXXXXX") || exit 2; fi
 mkdir -p -- "$out" || exit 2

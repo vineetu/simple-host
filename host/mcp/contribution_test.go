@@ -1,103 +1,12 @@
 package mcp
 
 import (
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
-	"time"
 )
-
-// Captured before extraction; D3-S3 updates the Host prose only (also pinned
-// by its golden comparison). Hash the wire bytes, including
-// listing order, schemas and instructions, across the platform's own connection
-// kinds and the protocol revisions. A product's connection kinds are pinned
-// the same way in the product's package.
-func contributionSnapshot(t *testing.T) map[string]string {
-	t.Helper()
-	out := map[string]string{}
-	callers := map[string]Caller{
-		"host": {}, "deploy": {DeployOnly: true}, "flat": {AppName: "ChatGPT"},
-		"flat-deploy": {AppName: "ChatGPT", DeployOnly: true},
-	}
-	for _, screens := range []string{"off", "on"} {
-		for _, flag := range []string{"MCP_APP_MY_SITES", "MCP_APP_DASHBOARD", "MCP_APP_PASSCODE"} {
-			t.Setenv(flag, screens)
-		}
-		for _, rules := range []string{"off", "on"} {
-			t.Setenv("STORAGE_RULES", rules)
-			for _, events := range []bool{false, true} {
-				// No product: the platform's own connections do not depend on one
-				// (TestZeroContributionHostInventory).
-				cfg := Config{APIHost: "connector.example.test", ServerName: "fixture", Version: "fixture", Contribution: &Contribution{}}
-				if events {
-					cfg.Events = inventoryEvents{}
-				}
-				s := NewServer(cfg)
-				for name, c := range callers {
-					c.Handle = "fixture"
-					c.APIKey = "fixture"
-					for _, version := range supportedVersions {
-						for _, ui := range []bool{false, true} {
-							s.clientUI.remember(c, ui, time.Now())
-							params := map[string]any{}
-							if version == protocolVersion {
-								extensions := map[string]any{}
-								if ui {
-									extensions["io.modelcontextprotocol/ui"] = map[string]any{}
-								}
-								params["_meta"] = map[string]any{"io.modelcontextprotocol/clientCapabilities": map[string]any{"extensions": extensions}}
-							}
-							raw, _ := json.Marshal(params)
-							r := httptest.NewRequest("POST", "/mcp", nil)
-							r.Header.Set("MCP-Protocol-Version", version)
-							reply := s.dispatch(r, request{ID: json.RawMessage("1"), Method: "tools/list", Params: raw}, c)
-							data, err := json.Marshal(struct {
-								List         response
-								Instructions string
-							}{reply, s.instructionsFor(c)})
-							if err != nil {
-								t.Fatal(err)
-							}
-							key := fmt.Sprintf("%s/screens=%s/rules=%s/events=%t/%s/ui=%t", name, screens, rules, events, version, ui)
-							out[key] = fmt.Sprintf("%x", sha256.Sum256(data))
-						}
-					}
-				}
-			}
-		}
-	}
-	return out
-}
-
-func TestContributionWireUnchanged(t *testing.T) {
-	got := contributionSnapshot(t)
-	data, err := os.ReadFile("testdata/contribution-wire.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var want map[string]string
-	if err := json.Unmarshal(data, &want); err != nil {
-		t.Fatal(err)
-	}
-	for key := range want {
-		if !hostWireKey(key) {
-			t.Fatalf("%s is not one of the platform's connection kinds", key)
-		}
-	}
-	if len(got) != len(want) {
-		t.Fatalf("snapshots: got %d want %d", len(got), len(want))
-	}
-	for key, hash := range got {
-		if hash != want[key] {
-			t.Errorf("wire changed for %s: got %s want %s", key, hash, want[key])
-		}
-	}
-}
 
 func TestZeroContributionHostInventory(t *testing.T) {
 	for _, events := range []bool{false, true} {

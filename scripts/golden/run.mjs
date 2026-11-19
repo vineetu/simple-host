@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Golden API snapshot harness -- see scripts/golden/README.md.
+// Recorder for the public-text boundary check (scripts/check-public-text.sh).
 //
 //   node scripts/golden/run.mjs --host BINARY [--hack BINARY] --out DIR
 //
@@ -30,7 +30,7 @@ for (const route of ['/setup/setup.js', '/setup/simple-hack.json']) FIXED_GETS.a
 // D3-S2a: one of each kind of Hack static file that left the platform's embed
 // (stylesheet, image, icon, script, audio, text, page, data). Before the move
 // Host's file server answered all of these but /hack-llms.txt with 200; now
-// Host answers 404 (pinned in approved/D3-S2a.json) and Hack is unchanged.
+// Host answers 404 and Hack is unchanged.
 for (const route of ['/hack-ink.css', '/og-hack.png', '/favicon-hack.svg', '/hack/app.js', '/hack/kit.css',
   '/hack-watch-judge.mp3', '/hack-llms.txt', '/hack-directory.html', '/hack-voting.html',
   '/hack-connect-steps.json', '/hack-get-started-preview.png']) FIXED_GETS.add(route);
@@ -55,7 +55,7 @@ function sleep(ms) {
 }
 
 // The proxy forwards only the mail-provider destination to this local sink.
-// It does not restrict transports that bypass proxy settings (see README).
+// It does not restrict transports that bypass proxy settings.
 async function localMailSink(addCleanup) {
   const folder = mkdtempSync(path.join(tmpdir(), 'golden-mail-'));
   addCleanup(() => rmSync(folder, { recursive: true, force: true }));

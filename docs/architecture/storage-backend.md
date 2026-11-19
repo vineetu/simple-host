@@ -73,8 +73,7 @@ do not read deploy contents and retain their existing accounting.
 ## Remaining `DataDir()` / `VersionDir()` uses
 
 Captured with `git grep -n -E 'DataDir\(\)|VersionDir\(' -- '*.go'`
-after the cut; the full classified output is attached in
-`scripts/split/reports/storage-path-users.txt`. Storage definitions/internal uses are backend implementation;
+after the cut. Storage definitions/internal uses are backend implementation;
 all test-only uses are fixture setup/assertions (content fixtures or local
 serving/link/marker/runtime assertions), never a production content reader.
 

@@ -1,7 +1,5 @@
 package mcp
 
-import "strings"
-
 // fixtureProduct is a small product for the tests of how the tool server
 // composes a contribution: one family with one tool, the platform's
 // notification tools as the product's own, and instructions for the two
@@ -50,10 +48,3 @@ func testConfig(cfg Config) Config {
 
 // newRegistry is the registry of a server built with testConfig.
 func newRegistry(cfg Config) *toolRegistry { return buildRegistry(testConfig(cfg), nil) }
-
-// hostWireKey reports whether a wire snapshot key is one of the platform's
-// own connection kinds (testdata/contribution-wire.json).
-func hostWireKey(key string) bool {
-	kind, _, _ := strings.Cut(key, "/")
-	return kind == "host" || kind == "deploy" || kind == "flat" || kind == "flat-deploy"
-}

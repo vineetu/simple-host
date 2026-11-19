@@ -1,1 +1,0 @@
-{"product":"host","step":"roll-back","surface":"api","response":{"status":500},"error":"host/roll-back/api: replay base: site3-set-active-v1: unsuccessful HTTP status 500"}

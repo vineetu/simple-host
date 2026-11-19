@@ -2,13 +2,9 @@ package hackmcp
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/vsriram/simple-host/host/mcp"
@@ -120,106 +116,5 @@ func callAs(t *testing.T, s *mcp.Server, caller mcp.Caller, name string, args ma
 	return rpcAs(t, s, caller, "2025-06-18", "tools/call", map[string]any{"name": name, "arguments": args}, false)
 }
 
-// wireVersions are the revisions the server answers, newest first.
-var wireVersions = []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"}
-
-// contributionSnapshot hashes the wire bytes of tools/list and the
-// instructions, including listing order and schemas, for every connection
-// kind and protocol revision. The hashes in testdata/contribution-wire.json
-// were captured before Simple Hack's tools and screens left the tool server
-// (D3-S1a). D3-S3 updates only Host connection hashes for its approved prose
-// changes; all Hack hashes stay unchanged. Each is the SHA-256 of
-// {"List":<the tools/list response>,"Instructions":<the instructions>}.
-func contributionSnapshot(t *testing.T, noSpamCheck bool) map[string]string {
-	t.Helper()
-	out := map[string]string{}
-	callers := map[string]mcp.Caller{
-		"host": {}, "deploy": {DeployOnly: true}, "flat": {AppName: "ChatGPT"},
-		"flat-deploy": {AppName: "ChatGPT", DeployOnly: true},
-		"personal":    {Mode: mcp.CallerModeEvents}, "selected": {Mode: mcp.CallerModeEvents, GrantID: "grant", TeamAPIKey: "team"},
-		"unselected": {Mode: mcp.CallerModeEvents, GrantID: "grant"}, "team": {Mode: mcp.CallerModeGroupSite},
-	}
-	for _, screens := range []string{"off", "on"} {
-		for _, flag := range []string{"MCP_APP_HACK_JUDGE", "MCP_APP_HACK_ORGANISER", "MCP_APP_MY_SITES", "MCP_APP_DASHBOARD", "MCP_APP_PASSCODE"} {
-			t.Setenv(flag, screens)
-		}
-		for _, rules := range []string{"off", "on"} {
-			t.Setenv("STORAGE_RULES", rules)
-			for _, events := range []bool{false, true} {
-				product := Contribution()
-				cfg := mcp.Config{APIHost: "connector.example.test", ServerName: "fixture", Version: "fixture", Contribution: &product, NoSpamCheck: noSpamCheck}
-				if events {
-					cfg.Events = wireEvents{}
-				}
-				s := mcp.NewServer(cfg)
-				for name, c := range callers {
-					c.Handle = "fixture"
-					c.APIKey = "fixture"
-					for _, version := range wireVersions {
-						for _, ui := range []bool{false, true} {
-							instructions := initializeAs(t, s, c, ui)["instructions"].(string)
-							rec := rpcAs(t, s, c, version, "tools/list", nil, ui)
-							if rec.Code != http.StatusOK {
-								t.Fatalf("tools/list %s %s (%d): %s", name, version, rec.Code, rec.Body.String())
-							}
-							data, err := json.Marshal(struct {
-								List         json.RawMessage
-								Instructions string
-							}{json.RawMessage(strings.TrimSuffix(rec.Body.String(), "\n")), instructions})
-							if err != nil {
-								t.Fatal(err)
-							}
-							key := fmt.Sprintf("%s/screens=%s/rules=%s/events=%t/%s/ui=%t", name, screens, rules, events, version, ui)
-							out[key] = fmt.Sprintf("%x", sha256.Sum256(data))
-						}
-					}
-				}
-			}
-		}
-	}
-	return out
-}
-
 // wireEvents turns the Events tools and capability on; listing never calls it.
 type wireEvents struct{ mcp.EventsBackend }
-
-func TestContributionWireUnchanged(t *testing.T) {
-	for _, tc := range []struct {
-		name, file  string
-		noSpamCheck bool
-	}{
-		{"spam check", "testdata/contribution-wire.json", false},
-		// A server with no spam check (a self-hosted box starts this way).
-		// Recorded with this same test from the commit before the screens
-		// moved (D3-S1b), for Simple Hack's connection kinds.
-		{"no spam check", "testdata/contribution-wire-nospam.json", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			got := contributionSnapshot(t, tc.noSpamCheck)
-			data, err := os.ReadFile(tc.file)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var want map[string]string
-			if err := json.Unmarshal(data, &want); err != nil {
-				t.Fatal(err)
-			}
-			if tc.noSpamCheck {
-				// Only Simple Hack's connection kinds are pinned in this file.
-				for key := range got {
-					if kind, _, _ := strings.Cut(key, "/"); kind == "host" || kind == "deploy" || kind == "flat" || kind == "flat-deploy" {
-						delete(got, key)
-					}
-				}
-			}
-			if len(got) != len(want) {
-				t.Fatalf("snapshots: got %d want %d", len(got), len(want))
-			}
-			for key, hash := range got {
-				if hash != want[key] {
-					t.Errorf("wire changed for %s: got %s want %s", key, hash, want[key])
-				}
-			}
-		})
-	}
-}

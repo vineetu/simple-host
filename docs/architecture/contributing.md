@@ -240,20 +240,6 @@ the other architecture. Set `RELEASE_PLATFORMS` to the native Linux platform
 for both image commands in a single-architecture rehearsal. Verification uses
 Skopeo and Docker.
 
-## Golden API comparisons
-
-[scripts/golden/README.md](../../scripts/golden/README.md) documents the
-folder-based REST/MCP recordings. The harness needs Node 22, psql, openssl and a
-disposable local Postgres. Record the supplied reference with
-`node scripts/golden/run.mjs --host /tmp/reference-host.bin --hack /tmp/reference-hack.bin --out /tmp/reference --scenario all` and
-the candidate with `node scripts/golden/run.mjs --host /tmp/candidate-host.bin --hack /tmp/candidate-hack.bin --out /tmp/candidate --scenario all`.
-For a reference from before the split, supply its combined program as `--host`
-and omit `--hack`; see the README for both build forms.
-Then run `node scripts/golden/coverage.mjs /tmp/candidate` and compare with
-`node scripts/golden/diff.mjs /tmp/reference /tmp/candidate --slice <slice id>`.
-There is no checked-in response baseline. Differences require investigation and
-review; the README documents normalization, scenarios and the real-inventory gate.
-
 ## Migration rules
 
 Update both `host/db/schema.sql` and a new `host/db/migrations/NNNN-name.sql`, using

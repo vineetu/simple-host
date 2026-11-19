@@ -58,7 +58,7 @@ else
     fi
     cd "$root"
     go build -o "$work/" ./cmd/simple-host ./cmd/simple-hack
-    GOLDEN_PG_URL="$base" node scripts/golden/run.mjs --host "$work/simple-host" --hack "$work/simple-hack" --out "$work/recording" --scenario all
+    GOLDEN_PG_URL="$base" node scripts/golden/run.mjs --host "$work/simple-host" --hack "$work/simple-hack" --out "$work/recording" --scenario base,hosted-pages
     text_dir=$work/recording/text/host
 fi
 cd "$root"

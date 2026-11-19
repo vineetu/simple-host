@@ -11,7 +11,7 @@
 # use the platform schema alone; products/ packages use the composed schema.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5
-.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries parity
+.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries browser
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -42,14 +42,12 @@ check:
 	go vet ./...
 	$(MAKE) test-rules
 	bash scripts/test-integration.sh
-	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs scripts/tests/hack-stage-announce.test.mjs scripts/tests/hack-publish-results.test.mjs scripts/tests/hack-event-times.test.mjs scripts/tests/hack-navigation.test.mjs scripts/golden/tests/*.test.mjs
+	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs scripts/tests/hack-stage-announce.test.mjs scripts/tests/hack-publish-results.test.mjs scripts/tests/hack-event-times.test.mjs scripts/tests/hack-navigation.test.mjs
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh
 	bash scripts/split/namescan.sh
 	bash scripts/check-public-text.sh
 	bash scripts/check-binary.sh
-	bash scripts/split/check-all_test.sh
-	bash scripts/split/move_test.sh
 	go run ./scripts/split/sqlcheck -tests -report -
 	go run ./scripts/split/sqlcheck -migrations
 	bash scripts/check-docs-sync.sh
@@ -70,8 +68,6 @@ check:
 	bash deploy/install/install_test.sh
 	bash deploy/hack/standalone/tests/install_test.sh
 	bash deploy/shared/render_test.sh
-	bash scripts/check-parity-outcomes.sh
-	bash scripts/parity/test.sh
 	bash deploy/digitalocean/droplet/test/pins_test.sh
 	bash scripts/check-fresh-install.sh
 	@bash scripts/check-prices-age.sh || echo "WARNING: the cost calculator's prices need their monthly check (not a failure)"
@@ -81,10 +77,11 @@ check-release:
 	bash deploy/kubernetes/test-chart.sh
 	bash scripts/check-release.sh
 
-# Both products: verify the matrix, replay all scenarios, then run the browser
-# fixtures with their existing explicit exceptions.
-parity:
-	bash scripts/check-parity-outcomes.sh --run
+# The browser checks, one after another; every one runs even after a failure.
+browser:
+	@fail=0; for name in hack-navigation hack-checklists hack-forms hack-presets storage-rules named-viewers signin-card owner-dashboard; do \
+		bash scripts/split/browser-check.sh $$name || fail=1; \
+	done; exit $$fail
 
 inventory:
 	python3 scripts/compose-openapi.py

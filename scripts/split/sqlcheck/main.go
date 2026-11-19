@@ -44,7 +44,7 @@ func run(root string, args []string, out, errs io.Writer) int {
 	fs.BoolVar(&o.Prose, "prose", false, "list ordinary-word prose")
 	fs.StringVar(&o.Objects, "objects", "scripts/split/hack-objects.txt", "authority file")
 	fs.StringVar(&o.Schema, "schema", "host/db/schema.sql", "schema file")
-	fs.StringVar(&o.Report, "report", "scripts/split/reports/platform-hack-queries.txt", "report path, or -")
+	fs.StringVar(&o.Report, "report", "-", "report path, or - for standard output")
 	prop := fs.Bool("propose-objects", false, "propose schema ownership")
 	mig := fs.Bool("migrations", false, "check migration ownership")
 	pm := fs.Bool("propose-migrations", false, "propose migration ownership")

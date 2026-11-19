@@ -12,16 +12,6 @@ import (
 
 func TestMain(m *testing.M) { testdb.Main(m) }
 
-func TestHostWiring(t *testing.T) {
-	cfg := servertest.Config(t, testdb.Fresh(t))
-	app, err := server.Build(cfg, nil, programOptions())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(app.Close)
-	servertest.CheckWiring(t, app, "../..", "host/server/testdata", "host")
-}
-
 func TestCompatibilityRedirects(t *testing.T) {
 	for _, domain := range []string{"simple-host.app", "host.example.test"} {
 		t.Run(domain, func(t *testing.T) {

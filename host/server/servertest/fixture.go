@@ -3,14 +3,6 @@ package servertest
 
 import (
 	"database/sql"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
@@ -72,59 +64,5 @@ func RecordProduct(t *testing.T, cfg config.Config, exts []*extension.Extension)
 	defer db.Close()
 	if _, err := db.Exec(`INSERT INTO install_product (product) VALUES ($1) ON CONFLICT ("only") DO UPDATE SET product=EXCLUDED.product`, product); err != nil {
 		t.Fatal(err)
-	}
-}
-
-// CheckWiring compares route registration and worker order with the original snapshots.
-func CheckWiring(t *testing.T, app *server.App, root, snapshots, product string) {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(root, "docs/generated/inventory.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var inventory struct {
-		Routes []struct{ Method, Path string }
-	}
-	if err := json.Unmarshal(data, &inventory); err != nil {
-		t.Fatal(err)
-	}
-	if len(inventory.Routes) == 0 {
-		t.Fatal("empty route inventory")
-	}
-	wildcard := regexp.MustCompile(`\{[^}]+\}`)
-	mux, set := app.Mux, app.Workers
-	var routes strings.Builder
-	for _, route := range inventory.Routes {
-		method := route.Method
-		if method == "ANY" {
-			method = http.MethodGet
-		}
-		path := wildcard.ReplaceAllString(strings.ReplaceAll(route.Path, "{$}", ""), "sample")
-		req := httptest.NewRequest(method, "https://wiring.example"+path, nil)
-		_, matched := mux.Handler(req)
-		fmt.Fprintf(&routes, "%s %s -> %q\n", route.Method, route.Path, matched)
-	}
-	checkWiringSnapshot(t, filepath.Join(root, snapshots), "routes-"+product+".txt", routes.String())
-	var names strings.Builder
-	names.WriteString("registration order\n")
-	for _, name := range set.Order() {
-		fmt.Fprintln(&names, name)
-	}
-	names.WriteString("\nsorted status names\n")
-	for _, status := range set.Status() {
-		fmt.Fprintln(&names, status.Name)
-	}
-	checkWiringSnapshot(t, filepath.Join(root, snapshots), "workers-"+product+".txt", names.String())
-}
-func checkWiringSnapshot(t *testing.T, root, name, got string) {
-	t.Helper()
-	path := filepath.Join(root, name)
-
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != string(want) {
-		t.Fatalf("%s changed\nwant:\n%s\ngot:\n%s", name, want, got)
 	}
 }

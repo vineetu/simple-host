@@ -1,1 +1,0 @@
-{"product":"host","step":"read-data","surface":"mcp","response":{"status":200,"body":{"jsonrpc":"2.0","result":{"isError":true,"content":[{"type":"text","text":"Read failed"}]}}},"error":"host/read-data/mcp: replay base: tools/call storage_get_kv: MCP isError"}
