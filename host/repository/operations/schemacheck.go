@@ -37,12 +37,16 @@ var requiredColumns = map[string][]string{
 	"site_storage_tables":    {"site_id", "resource_name", "table_name", "acc_read", "acc_add", "acc_edit", "acc_delete", "preset_base", "rules"},
 	"site_storage_kv":        {"site_id", "resource_name", "key", "value", "writer_id", "created_at"},
 	// 0021-install-identity.sql: the install's id, also in <DATA_DIR>/.install-id.
-	"install_identity":   {"id"},
+	"install_identity": {"id"},
+	// 0025-teams.sql adds users.is_team (in the users entry) and these three.
+	"team_members":       {"team_id", "user_id", "added_by", "added_at"},
+	"team_audit":         {"id", "team_id", "team_handle", "actor_id", "action", "subject_id", "invitation_id", "at"},
+	"team_invitations":   {"id", "team_id", "invited_by", "addressed_to", "created_at", "expires_at", "state"},
 	"site_storage_files": {"site_id", "resource_name", "path", "writer_id", "created_at"},
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.
 	// v075-signup-source.sql adds the signup_* columns; zf-signup-detail.sql signup_detail.
-	"users":         {"showcase_bio", "home_site_id", "id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason", "signin_alerts", "event_account", "signup_source", "signup_agent", "signup_method", "signup_inferred", "signup_detail"},
+	"users":         {"showcase_bio", "home_site_id", "id", "username", "is_admin", "handle", "display_name", "handle_changed_at", "suspended_at", "suspended_reason", "signin_alerts", "event_account", "is_team", "signup_source", "signup_agent", "signup_method", "signup_inferred", "signup_detail"},
 	"email_changes": {"user_id", "new_email", "code_hash", "old_code_hash", "attempts", "expires_at"},
 	// w2-signin-email-undo.sql adds old_code_hash above and this table.
 	"email_change_undos": {"token_hash", "user_id", "old_email", "new_email", "created_at", "expires_at", "used_at"},

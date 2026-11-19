@@ -19,6 +19,11 @@ func New(database *sql.DB) *Service { return &Service{database: database} }
 
 // GetUserByAPIKey resolves stored keys and in-process credentials without changing their scope.
 func (s *Service) GetUserByAPIKey(ctx context.Context, apiKey string, keyIdle time.Duration) (model.User, error) {
+	// A member acting for a team (owner=<team>, checked by ScopeGate for this
+	// request): every reader of this request's key sees the team's account.
+	if u, ok := actingFor(ctx, apiKey); ok {
+		return u, nil
+	}
 	if strings.HasPrefix(apiKey, "shint_") {
 		c, ok := repo.LookupInternalCred(apiKey)
 		if !ok || c.Visitor != nil {

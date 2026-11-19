@@ -31,21 +31,24 @@ func LockAccountForDelete(ctx context.Context, tx *sql.Tx, id string) (model.Acc
 	return a, err
 }
 
-// AccountSiteNames lists the names of every site of the account, live and
-// Recently deleted, so the caller can take each site's lock before erasing.
-func AccountSiteNames(ctx context.Context, database *sql.DB, userID string) ([]string, error) {
-	rows, err := database.QueryContext(ctx, `SELECT name FROM sites WHERE user_id::text = $1 ORDER BY name`, userID)
+// AccountSiteKeys lists the account id and name of every site of the
+// account and of the teams it belongs to, live and Recently deleted, so the
+// caller can take each site's lock before erasing (a team the account alone
+// belongs to goes with it).
+func AccountSiteKeys(ctx context.Context, database *sql.DB, userID string) ([][2]string, error) {
+	rows, err := database.QueryContext(ctx, `SELECT user_id::text, name FROM sites
+		WHERE user_id::text = $1 OR user_id IN (SELECT team_id FROM team_members WHERE user_id::text = $1)`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []string
+	var out [][2]string
 	for rows.Next() {
-		var n string
-		if err := rows.Scan(&n); err != nil {
+		var k [2]string
+		if err := rows.Scan(&k[0], &k[1]); err != nil {
 			return nil, err
 		}
-		out = append(out, n)
+		out = append(out, k)
 	}
 	return out, rows.Err()
 }

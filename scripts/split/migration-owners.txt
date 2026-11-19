@@ -133,3 +133,4 @@ zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_
 0021-install-identity.sql | platform | creates install_identity
 0022-platform-parts.sql | platform | creates shared paper_run provenance from the historical mixed migration
 0023-install-product.sql | platform | install product identity
+0025-teams.sql | platform | teams: users.is_team, team_members, team_invitations, team_audit and their guard triggers

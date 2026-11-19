@@ -120,7 +120,13 @@ func sitePathName(r *http.Request) (string, bool) {
 // longer change its site (the deadline, an ended or taken-down event, a site
 // the organiser took down; deploys check again under a lock, site.go), and
 // refuses a team key whose person is no longer on the team.
-func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle time.Duration) http.Handler {
+//
+// With teams on (the Host program), it also answers owner=<handle> on the
+// routes ownerRoutes accepts: a member of that team acts as the team's
+// account for this one request (accounts.ResolveOwner checks the membership
+// live), anyone else is refused, and every other route ignores owner as
+// before. owner is read from the query only.
+func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle time.Duration, teams bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key == "" {
@@ -128,6 +134,25 @@ func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle tim
 			return
 		}
 		_, pattern := mux.Handler(r)
+		if teams {
+			// Never inherit an outer request's owner (an MCP tool call
+			// replays REST requests on the /mcp request's context).
+			var actingUser *model.User
+			if owner := r.URL.Query().Get("owner"); owner != "" && ownerRoutes(pattern) {
+				user, refusal, err := accountService.ResolveOwner(r.Context(), key, owner, keyIdle, strings.Contains(pattern, "/analytics"))
+				if err != nil {
+					log.Printf("scope gate: owner: %v", err)
+					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+					return
+				}
+				if refusal != nil {
+					writeJSON(w, refusal.Status, errorResponse{Error: refusal.Message, Code: refusal.Code})
+					return
+				}
+				actingUser = user
+			}
+			r = r.WithContext(accounts.WithActingOwner(r.Context(), key, actingUser))
+		}
 		isTeam, live, id, err := accountService.TeamScopeOfKey(r.Context(), key)
 		if err != nil {
 			log.Printf("scope gate: team key: %v", err)
@@ -154,6 +179,14 @@ func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle tim
 		}
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// ownerRoutes are the routes that take owner=<handle>: every /v1/sites
+// route, the Recently deleted list and the site traffic summary.
+func ownerRoutes(pattern string) bool {
+	_, path, _ := strings.Cut(pattern, " ")
+	return path == "/v1/sites" || strings.HasPrefix(path, "/v1/sites/") ||
+		pattern == "GET /v1/me/deleted-sites" || pattern == "GET /v1/analytics/sites"
 }
 
 // teamGate serves a request made with a team credential, or refuses it.

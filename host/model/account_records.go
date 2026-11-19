@@ -36,6 +36,48 @@ type User struct {
 	// EventWebsite is set only while a trusted apex organiser route publishes
 	// the event holding account's custom page.
 	EventWebsite *EventWebsiteIdentity
+	// Member is set when a person named a team they belong to as the owner
+	// of the sites a request acts on (owner=<team>, auth.ScopeGate): this
+	// User is then the team's account, acting for Member.PersonID. The
+	// membership is checked again on every request.
+	Member *MemberIdentity
+}
+
+// MemberIdentity is the person behind a request that acts for a team.
+type MemberIdentity struct {
+	PersonID     string
+	PersonHandle string
+}
+
+// Team is a team as its members see it (GET /v1/teams).
+type Team struct {
+	ID        string    `json:"id"`
+	Handle    string    `json:"handle"`
+	Members   int       `json:"members"`
+	Sites     int       `json:"sites"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// TeamMember is one member of a team (GET /v1/teams/{team}/members). A
+// person's sign-in email is never shown to the other members.
+type TeamMember struct {
+	ID          string     `json:"id"`
+	Handle      string     `json:"handle,omitempty"`
+	DisplayName string     `json:"display_name,omitempty"`
+	AddedBy     string     `json:"added_by,omitempty"`
+	AddedAt     *time.Time `json:"added_at,omitempty"`
+}
+
+// TeamInvitation is a live invitation to join a team: shown to the team's
+// members (with AddressedTo, what the inviter typed) and to the person it is
+// addressed to (without it).
+type TeamInvitation struct {
+	ID          string    `json:"id"`
+	Team        string    `json:"team"`
+	AddressedTo string    `json:"addressed_to,omitempty"`
+	InvitedBy   string    `json:"invited_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
 }
 
 // TeamIdentity is a shared Hack record.

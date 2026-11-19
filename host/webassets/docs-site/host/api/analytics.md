@@ -16,6 +16,7 @@ Not under `/v1/sites/...` because that would collide with a site named "analytic
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | days | query | integer |  | Number of UTC days to include (default 30, clamp 1..365) |
 | all | query | string, one of `1` |  | Admins only — include every site on the instance. |
 
@@ -44,9 +45,9 @@ Owner-scoped view and visitor counts derived server-side from the access log (no
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | days | query | integer |  | Number of UTC days to include (default 30, clamp 1..365) |
-| owner | query | string |  | Handle of the account that owns the site. Omit it (or pass your own handle) for your own site. Any other handle is honoured for the platform admin only; for everyone else it answers 404, the same as a site that does not exist. |
 
 **Responses:**
 
@@ -75,9 +76,9 @@ Country is resolved on the server from a local IP-range table refreshed from a p
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | days | query | integer |  | Number of UTC days to include (default 30, clamp 1..365) |
-| owner | query | string |  | Handle of the account that owns the site. Omit it (or pass your own handle) for your own site. Any other handle is honoured for the platform admin only; for everyone else it answers 404, the same as a site that does not exist. |
 
 **Responses:**
 
@@ -100,9 +101,9 @@ The 20 most viewed pages (path on the site, without the query string or fragment
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | days | query | integer |  | Number of UTC days to include (default 30, clamp 1..365) |
-| owner | query | string |  | Handle of the account that owns the site (platform admin only; anyone else gets 404). |
 
 **Responses:**
 

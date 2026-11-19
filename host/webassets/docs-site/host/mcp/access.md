@@ -11,6 +11,7 @@ Connect a custom domain or claim a short simple-host.app address (optional: ever
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | domain | string | yes | The address without https://: a free `<name>.simple-host.app`, the person's own domain or subdomain, e.g. `rsvp.example.com`, or `*.<domain>` for an address family covering every site of the account. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string |  | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. Not used for a `*.<domain>` address family. |
 
 ## domain_status
@@ -24,6 +25,7 @@ Check whether a site's custom domain is connected: pending (the DNS records are 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | domain | string |  | Optional: `*.<domain>` to check an address family of the account. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string |  | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. Not used with a `*.<domain>` domain. |
 
 ## remove_domain
@@ -37,6 +39,7 @@ Disconnect a site's custom domain or free `<name>.simple-host.app` address. Only
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | confirm_domain | string | yes | The address being disconnected, typed out, as confirmation, e.g. `rsvp.example.com` or `*.trips.example.com`. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string |  | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. Not used for a `*.<domain>` address family. |
 
 ## get_site_passcode
@@ -49,6 +52,7 @@ Show whether a site has a passcode and when it was set. Never shows the passcode
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## set_site_passcode
@@ -62,6 +66,7 @@ Put one passcode on a whole site, or change the one it has: every address of it 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | generate | boolean |  | true: Simple Host sets a new numeric passcode. The person sees it on the passcode screen or at the reply's dashboard link, never in chat. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | passcode | string |  | Send only a passcode you already hold for the person's own use, at least this server's minimum length. Never ask for it in chat. Leave out to open the screen or use generate. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
@@ -76,6 +81,7 @@ ASK THE PERSON FIRST, before calling this: it takes the passcode off a site, so 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | confirm | boolean |  | The person agreed, in this conversation, to remove the passcode after being told anyone with the link will then be able to open the site. Omit or send false to ask first; nothing is removed until this is true. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## sign_out_site_visitors
@@ -88,6 +94,7 @@ Sign every visitor out of a passcode-protected site: each one sees "Enter the pa
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## set_site_access
@@ -101,6 +108,7 @@ Set who can open a whole site. access `specific`: only the owner and the named v
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | access | string, one of `anyone`, `specific` | yes | `specific`: only the owner and the named viewers. `anyone`: everyone with the address. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## list_site_viewers
@@ -113,6 +121,7 @@ Show who can open a site: its access (anyone or specific) and its named viewers.
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## grant_site_viewer
@@ -126,6 +135,7 @@ Add people, by the email they will sign in with, to a site's named viewers, and 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | emails | array of string | yes | The emails to add, exactly as the person gave them (e.g. ["mom@example.com", "dad@example.com"]). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## revoke_site_viewer
@@ -139,4 +149,5 @@ Remove one person, by email, from a site's named viewers: that person can no lon
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | email | string | yes | The email to remove, as list_site_viewers shows it. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |

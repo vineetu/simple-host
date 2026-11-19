@@ -68,6 +68,7 @@ Upload a `.tar.gz` or `.zip` (for framework builds, binary assets, large sites).
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | Idempotency-Key | header | string |  | Opaque key for a create request. For 24 hours, the same authenticated account, POST path and query, key and exact request body replay the original handler status and body, including errors, without executing it again. A different body under that key returns 409 idempotency_key_reused. Concurrent identical requests wait for the first response. Stored only in this server's memory; a restart clears it. Authentication and rate limiting still apply to replays. A replay does not extend a minted link's expiry; use a new key to request a new link. Storage row creates support owner credentials and signed-in visitors; anonymous writes ignore this header. Storage replay also checks current resource permissions and is scoped to the resolved site. |
 | author | query | string |  | Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions. |
@@ -98,6 +99,7 @@ Upload a new version of an existing site you own. Creates a new version and acti
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | publish | query | boolean |  | false stores the new version without making it live (updates only; a new site's first version always goes live: 400) |
 | create | query | string, one of `1`, `0`, `true`, `false` |  | 1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists |
@@ -131,6 +133,8 @@ The LLM-friendly deploy path — send every file inline in one request, no archi
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
+| If-Match | header | string |  | Optional. The site's active version you last read, in quotes. The deploy, update or rollback is refused with 412 version_changed when the active version is no longer that one (another member published), and with 400 invalid_if_match when malformed. Send it on sites other people also publish, such as a team's. |
 | sitename | path | string | yes |  |
 | Idempotency-Key | header | string |  | Opaque key for a create request. For 24 hours, the same authenticated account, POST path and query, key and exact request body replay the original handler status and body, including errors, without executing it again. A different body under that key returns 409 idempotency_key_reused. Concurrent identical requests wait for the first response. Stored only in this server's memory; a restart clears it. Authentication and rate limiting still apply to replays. A replay does not extend a minted link's expiry; use a new key to request a new link. Storage row creates support owner credentials and signed-in visitors; anonymous writes ignore this header. Storage replay also checks current resource permissions and is scoped to the resolved site. |
 | author | query | string |  | Who made this version: free text, trimmed, control characters removed, at most 80 characters. Stored on the version and returned as author by GET /v1/sites/{sitename}/versions. |
@@ -166,6 +170,8 @@ Same as POST, but for an existing site you own. Creates a new version and activa
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
+| If-Match | header | string |  | Optional. The site's active version you last read, in quotes. The deploy, update or rollback is refused with 412 version_changed when the active version is no longer that one (another member published), and with 400 invalid_if_match when malformed. Send it on sites other people also publish, such as a team's. |
 | sitename | path | string | yes |  |
 | publish | query | boolean |  | false stores the new version without making it live (updates only; a new site's first version always goes live: 400) |
 | create | query | string, one of `1`, `0`, `true`, `false` |  | 1 creates the site when you have none of that name (reserved names, the site quota and publish=false are refused as on POST), so one PUT deploys from CI whether or not the site exists |
@@ -205,6 +211,7 @@ The Add photos page at /photos prepares images on the person's device. Upload 1 
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | Idempotency-Key | header | string |  | Opaque key for a create request. For 24 hours, the same authenticated account, POST path and query, key and exact request body replay the original handler status and body, including errors, without executing it again. A different body under that key returns 409 idempotency_key_reused. Concurrent identical requests wait for the first response. Stored only in this server's memory; a restart clears it. Authentication and rate limiting still apply to replays. A replay does not extend a minted link's expiry; use a new key to request a new link. Storage row creates support owner credentials and signed-in visitors; anonymous writes ignore this header. Storage replay also checks current resource permissions and is scoped to the resolved site. |
 | X-Photo-Reconcile | header | string, one of `1` |  | Set to 1 after an uncertain save to check matching live photo bytes without writing a version. A missing match returns 409, never another upload. |

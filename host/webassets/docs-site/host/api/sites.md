@@ -120,6 +120,7 @@ Returns the authenticated account's own sites, newest edited first (updated_at d
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | query | query | string |  | Every word must match the name, domain or summary (case-insensitive substrings). |
 | created_after | query | string |  | Created on or after RFC3339 or YYYY-MM-DD (UTC midnight). |
 | created_before | query | string |  | Created on or before RFC3339 or YYYY-MM-DD (UTC whole day). |
@@ -151,6 +152,7 @@ One change per request. With {"offline": true} the site is taken offline: every 
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Request body:**
@@ -183,6 +185,7 @@ Takes the site offline at once, with every version, its saved state and collecti
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -205,6 +208,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). `
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -228,6 +232,7 @@ Owner only. `{"access": "specific"}`: every address of the site (its own address
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Request body:**
@@ -260,6 +265,7 @@ Returns a link that downloads the same archive as `export.tar.gz` without an API
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | Idempotency-Key | header | string |  | Opaque key for a create request. For 24 hours, the same authenticated account, POST path and query, key and exact request body replay the original handler status and body, including errors, without executing it again. A different body under that key returns 409 idempotency_key_reused. Concurrent identical requests wait for the first response. Stored only in this server's memory; a restart clears it. Authentication and rate limiting still apply to replays. A replay does not extend a minted link's expiry; use a new key to request a new link. Storage row creates support owner credentials and signed-in visitors; anonymous writes ignore this header. Storage replay also checks current resource permissions and is scoped to the resolved site. |
 | sitename | path | string | yes |  |
 
@@ -284,6 +290,7 @@ Streams the site's published files (`files/`) and its saved data (`storage/`: KV
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -306,6 +313,7 @@ Mark the site Keep (or clear the mark). Where the idle-site cleanup is on (simpl
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Request body:**
@@ -336,6 +344,7 @@ Every deploy stores a full copy of the site as a new version. keep_versions sets
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Request body:**
@@ -368,6 +377,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). S
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -391,6 +401,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Request body:**
@@ -424,6 +435,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -448,6 +460,7 @@ Owner only (the owner's key or connector token; a deploy-only key is refused). E
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -473,6 +486,7 @@ Brings a site back from Recently deleted under the same name and address, with e
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -497,6 +511,7 @@ Owner only. Adds each email (trimmed and lower-cased; letters, digits and `._%+-
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | Idempotency-Key | header | string |  | Opaque key for a create request. For 24 hours, the same authenticated account, POST path and query, key and exact request body replay the original handler status and body, including errors, without executing it again. A different body under that key returns 409 idempotency_key_reused. Concurrent identical requests wait for the first response. Stored only in this server's memory; a restart clears it. Authentication and rate limiting still apply to replays. A replay does not extend a minted link's expiry; use a new key to request a new link. Storage row creates support owner credentials and signed-in visitors; anonymous writes ignore this header. Storage replay also checks current resource permissions and is scoped to the resolved site. |
 
@@ -530,6 +545,7 @@ Owner only. The person's next request is refused. Access does not change: removi
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 | email | path | string | yes |  |
 
@@ -555,6 +571,7 @@ List on my profile: `public` = on, the site shows on the owner's profile page at
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Request body:**

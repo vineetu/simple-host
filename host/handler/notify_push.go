@@ -19,6 +19,7 @@ import (
 	"unicode"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
+	"github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/app/notifications"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/model"
@@ -708,7 +709,8 @@ func (h *SiteHandler) pushCallerIdentity(w http.ResponseWriter, r *http.Request,
 		return "", "", "", false
 	}
 	family = pushFamilyFor(sess)
-	if sess.UserID == c.ownerID && r.Header.Get("X-SH-Framed") == "" && !h.previewRefererFor(r, c.siteID) && h.storageOwnHost(r, c.siteID) {
+	if owner, err := accounts.ActsAsOwner(r.Context(), h.database, sess.UserID, c.ownerID); err == nil && owner &&
+		r.Header.Get("X-SH-Framed") == "" && !h.previewRefererFor(r, c.siteID) && h.storageOwnHost(r, c.siteID) {
 		// D1: the site's owner, signed in on their own site's own address
 		// (never framed, never a preview), gets owner rights here too,
 		// the same as for storage data -- a site-wide push device, not a
@@ -770,6 +772,15 @@ func (h *SiteHandler) pushSubscribeRoute(w http.ResponseWriter, r *http.Request)
 	}
 	if !allowed {
 		webPushNotOffered(w)
+		return
+	}
+	// A team's site sends nobody notifications (like its webhooks): refuse
+	// rather than keep a device that would never hear anything.
+	if team, err := h.storeAccounts().IsTeam(r.Context(), c.ownerID); err != nil {
+		notifyError(w, 500, "internal_error")
+		return
+	} else if team {
+		notifyError(w, 404, "not_offered")
 		return
 	}
 	if !h.requireNotifications(w) {

@@ -8,7 +8,7 @@ import (
 	accounts "github.com/vsriram/simple-host/host/repository/accounts"
 	"path/filepath"
 	"slices"
-	"sort"
+	"strings"
 )
 
 type AccountFileDeps struct {
@@ -17,6 +17,8 @@ type AccountFileDeps struct {
 	RefreshFamilies func(context.Context)
 }
 
+// LockAccountSites takes the lock of every site of the account and of the
+// teams it belongs to (accounts.AccountSiteKeys) before the account is erased.
 func (s *Service) LockAccountSites(ctx context.Context, userID string) (func(), error) {
 	var unlocks []func()
 	release := func() {
@@ -25,18 +27,24 @@ func (s *Service) LockAccountSites(ctx context.Context, userID string) (func(), 
 		}
 		unlocks = nil
 	}
-	names, err := accounts.AccountSiteNames(ctx, s.database, userID)
-	for try := 0; err == nil; try++ {
-		sort.Strings(names)
-		for _, n := range names {
-			unlocks = append(unlocks, s.deps.LockSite(userID, n))
+	byKey := func(a, b [2]string) int {
+		if c := strings.Compare(a[0], b[0]); c != 0 {
+			return c
 		}
-		var again []string
-		again, err = accounts.AccountSiteNames(ctx, s.database, userID)
+		return strings.Compare(a[1], b[1])
+	}
+	names, err := accounts.AccountSiteKeys(ctx, s.database, userID)
+	for try := 0; err == nil; try++ {
+		slices.SortFunc(names, byKey)
+		for _, n := range names {
+			unlocks = append(unlocks, s.deps.LockSite(n[0], n[1]))
+		}
+		var again [][2]string
+		again, err = accounts.AccountSiteKeys(ctx, s.database, userID)
 		if err != nil {
 			break
 		}
-		sort.Strings(again)
+		slices.SortFunc(again, byKey)
 		if slices.Equal(names, again) || try == 4 {
 			return release, nil
 		}

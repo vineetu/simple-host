@@ -10,6 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/httpx"
 
+	"github.com/vsriram/simple-host/host/app/accounts"
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 )
 
@@ -88,20 +89,16 @@ func (h *SiteHandler) storageSiteOwnerOnSite(r *http.Request, c storageCall) boo
 	if c.visitorAI || c.visitorID == "" {
 		return false
 	}
-	if !h.ed.Storage().EventOwners && c.visitorID != c.ownerID {
-		return false
-	}
 	if r.Header.Get("X-SH-Framed") != "" || h.previewRefererFor(r, c.siteID) {
 		return false
 	}
 	if !h.storageOwnHost(r, c.siteID) {
 		return false
 	}
-	if h.ed.Storage().EventOwners {
-		ok, err := h.storageBindingProvider().OwnerOnSite(r.Context(), c.siteID, c.visitorID)
-		return err == nil && ok
-	}
-	return true
+	// Simple Host: the account itself or a member of the team that holds
+	// the site (accounts.ActsAsOwner, through the default provider).
+	ok, err := h.storageBindingProvider().OwnerOnSite(r.Context(), c.siteID, c.visitorID)
+	return err == nil && ok
 }
 
 // ownerFrameGuard: a page the site's owner opens while signed in on this
@@ -135,7 +132,11 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 			return
 		}
 	} else if sess.UserID != ownerID {
-		return
+		// A member of the team that holds the site is an owner here too
+		// (accounts.ActsAsOwner); a failed lookup keeps the frame guard.
+		if ok, err := accounts.ActsAsOwner(r.Context(), h.database, sess.UserID, ownerID); err == nil && !ok {
+			return
+		}
 	}
 	setOwnerFrameHeaders(w)
 }

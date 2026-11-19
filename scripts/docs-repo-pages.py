@@ -484,11 +484,16 @@ def strip_tickets(text):
     return text.strip()
 
 
+# An entry that says "(Simple Host only)" is left out of the Simple Hack
+# changelog, as one that mentions Simple Hack is left out of Simple Host's.
+HOST_ONLY_MARK = '(Simple Host only)'
+
+
 def render_changelog(entries, drop_hack):
     out = []
     cur_key = None
     for year, month, day, body in entries:
-        if drop_hack and 'hack' in body.lower():
+        if (drop_hack and 'hack' in body.lower()) or (not drop_hack and HOST_ONLY_MARK in body):
             continue
         key = (year, month)
         if key != cur_key:

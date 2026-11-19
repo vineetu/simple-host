@@ -16,6 +16,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/model"
 )
@@ -96,8 +97,10 @@ func (h *SiteHandler) viewerAllowedCtx(ctx context.Context, row model.SitePassco
 	if susp, err := h.storeAccounts().UserSuspended(ctx, userID); err != nil || susp {
 		return false, "", err
 	}
-	if userID == row.UserID {
-		return true, "", nil
+	// The owner, or a member of the team that holds the site, always gets in
+	// (accounts.ActsAsOwner).
+	if owner, err := accounts.ActsAsOwner(ctx, h.database, userID, row.UserID); err != nil || owner {
+		return owner, "", err
 	}
 	email, err = visitorEmail(ctx, h.database, userID)
 	if err != nil {

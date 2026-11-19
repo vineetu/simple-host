@@ -436,9 +436,13 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 						resp.SiteOwner = oerr == nil && owner
 					}
 				} else {
-					if _, ownerID, _, oerr := h.sitesSvc().GetSiteOwner(r.Context(), siteID); oerr == nil && ownerID == sess.UserID {
-						if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == ownerID {
-							resp.SiteOwner = h.storageOwnHost(r, siteID)
+					// The account, or a member of the team that holds the
+					// site (accounts.ActsAsOwner).
+					if _, ownerID, _, oerr := h.sitesSvc().GetSiteOwner(r.Context(), siteID); oerr == nil {
+						if owner, aerr := accountapp.ActsAsOwner(r.Context(), h.database, sess.UserID, ownerID); aerr == nil && owner {
+							if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == sess.UserID {
+								resp.SiteOwner = h.storageOwnHost(r, siteID)
+							}
 						}
 					}
 				}

@@ -11,4 +11,5 @@ Opens a photo picker in the chat (apps that show MCP Apps); elsewhere returns ph
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | archive | boolean |  | Shell archive upload that replaces the whole site. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |

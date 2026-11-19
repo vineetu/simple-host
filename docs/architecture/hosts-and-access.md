@@ -128,6 +128,40 @@ Reviewer password sign-in is off unless configured (`handler/reviewer.go`);
 configured-only (`handler/openaichallenge.go:RegisterOpenAIAppsChallenge`). Instance asset hostname
 rewriting is `handler/instancehost.go`; `plugins/openai/` contains the ChatGPT package.
 
+### Teams: who may act as an account's owner
+
+One function answers "may this person act as the owner of this account's sites":
+`host/app/accounts/teams.go:ActsAsOwner` (the account is their own, or a team they belong
+to, read live from `team_members` on every call). Two doors reach it:
+
+- **A key, connection or sign-in naming `owner=<team>`** on a `/v1/sites` route,
+  `GET /v1/me/deleted-sites` or `GET /v1/analytics/sites`. `auth.ScopeGate` calls
+  `accounts.Service.ResolveOwner` before the mux, which refuses a non-member
+  (`404 owner_not_found`), a deploy-only key (`403 deploy_only_key`) or a one-site Hack
+  credential, and otherwise marks the request (`accounts.WithActingOwner`). From then on
+  `GetUserByAPIKey` answers the team's account for that request's key, so the auth
+  middleware, the storage owner check (`resolveWriterKey`), passcode and viewer bypasses and
+  every site, version, domain, export and storage handler act on the team's sites with no
+  change of their own. `model.User.Member` names the person (version author, image uploader).
+  Owner equal to the caller's handle, the admin key, and (on the analytics routes only) a
+  handle that is no team leave the request exactly as before. Only the Simple Host program
+  (`edition.Identity().PersonalSites`) reads `owner`, from the query only.
+- **A person signed in on the site's own address.** Storage's owner-on-site
+  (`storage.DefaultProvider.OwnerOnSite`, the default binding provider), the owner frame
+  guard, `site_owner` on `/v1/sites/{s}/me`, the push owner role and the named-viewer check
+  (`viewerAllowedCtx`) call `ActsAsOwner`, so `auth.role == "owner"` in storage rules is any
+  member. Simple Hack's provider keeps its own answer.
+
+Team management (`/v1/teams`, `host/app/sites/teams.go`) checks membership through the same
+function. Joining is by invitation only, to an email: inviting looks up no account and answers
+alike for any email; an invitation is shown to, and answered by, only the account whose sign-in
+email it is, verified (`visitorEmail`; a username that is no email matches nothing). Deleting
+the last member's account takes each such team with it, decided under the team's row lock, and
+is refused like the account's own deletion when that team is suspended or has a taken-down site. Paths that compare a person with the site's account directly and do not use it:
+`notify.go` (an owner's own on-site write sends no notification; teams cannot subscribe to
+notifications, being `event_account` rows) and `visitor_tools.go` (a visitor tool read by the
+owner's own connection; it never takes `owner`).
+
 ### Apex SSO and site sessions
 
 The apex cookie is `__Host-sh_sso`: host-only, HttpOnly, Secure, SameSite=Lax, Path=/; HTTP development

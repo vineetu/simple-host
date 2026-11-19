@@ -73,9 +73,10 @@ def compose(base, part):
             if name in target:
                 raise ValueError(f'component already exists: {section}/{name}')
             target[name] = copy.deepcopy(value)
+    drop_host_only(spec, part)
     for override in part.get('overrides', []):
         if 'component' in override:
-            change(spec['components'], override['component'], override['value'])
+            change(spec['components'], override['component'], override.get('value'), 'remove' in override)
         else:
             target = operation(spec, override['op'])
             change(target, override.get('set', override.get('remove')),
@@ -89,6 +90,29 @@ def compose(base, part):
     spec['tags'].extend(tags.values())
     validate_refs(spec)
     return spec
+
+
+def drop_host_only(spec, part):
+    """Leave out what the product does not offer: operations under a tag in
+    drop_tags (and the tag), and every use of the parameters in
+    drop_parameters (and the parameters)."""
+    tags = set(part.get('drop_tags', []))
+    params = set(part.get('drop_parameters', []))
+    for path, item in list(spec['paths'].items()):
+        for method in [m for m in item if m in METHODS]:
+            if tags & set(item[method].get('tags', [])):
+                del item[method]
+        if not any(m in METHODS for m in item):
+            del spec['paths'][path]
+            continue
+        for holder in [item] + [item[m] for m in item if m in METHODS]:
+            if 'parameters' in holder:
+                holder['parameters'] = [p for p in holder['parameters'] if p.get('$ref') not in params]
+                if not holder['parameters']:
+                    del holder['parameters']
+    spec['tags'] = [tag for tag in spec.get('tags', []) if tag['name'] not in tags]
+    for ref in params:
+        del pointer(spec, '/'.join(ref[1:].split('/')[:-1]))[ref.rsplit('/', 1)[1]]
 
 
 def validate_refs(spec):

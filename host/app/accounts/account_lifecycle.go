@@ -41,7 +41,10 @@ type DeleteAccountInput struct {
 	Operator             bool
 }
 type DeletedAccount struct {
-	Erased   model.ErasedAccount
+	Erased model.ErasedAccount
+	// Teams are the teams the account alone belonged to, deleted with it;
+	// their files are removed after the commit like the account's own.
+	Teams    []model.ErasedAccount
 	Username string
 }
 
@@ -65,11 +68,8 @@ func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (Del
 		return DeletedAccount{}, lifecycleFail(403, "an admin account cannot delete itself here", "admin_account")
 	}
 	if !in.Operator {
-		if acct.Suspended {
-			return DeletedAccount{}, lifecycleFail(403, "this account is suspended; write to support@simple-host.app about deleting it", "account_suspended")
-		}
-		if acct.TakenDown > 0 {
-			return DeletedAccount{}, lifecycleFail(403, "a site of this account was taken down; write to support@simple-host.app about deleting the account", "site_suspended")
+		if err := deletionHold(acct, "this account"); err != nil {
+			return DeletedAccount{}, err
 		}
 	}
 	if acct.EventClaims > 0 {
@@ -106,6 +106,11 @@ func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (Del
 	if h := groupHooks.Erasure; h != nil {
 		ops.Before, ops.Rows, ops.After = h.Before, h.Rows, h.After
 	}
+	// Teams this person alone belongs to go with the account, sites and all.
+	teams, err := eraseSoleMemberTeams(ctx, tx, acct.ID, in.Operator)
+	if err != nil {
+		return DeletedAccount{}, err
+	}
 	erased, err := repo.EraseAccount(ctx, tx, acct, ops)
 	if err == nil {
 		err = tx.Commit()
@@ -118,7 +123,20 @@ func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (Del
 		}
 		return DeletedAccount{}, err
 	}
-	return DeletedAccount{Erased: erased, Username: acct.Username}, nil
+	return DeletedAccount{Erased: erased, Teams: teams, Username: acct.Username}, nil
+}
+
+// deletionHold is why an account (a person's own, or a team they alone
+// belong to) may not be deleted except by the operator: it is suspended, or
+// one of its sites was taken down.
+func deletionHold(a model.AccountForDelete, what string) error {
+	if a.Suspended {
+		return lifecycleFail(403, what+" is suspended; write to support@simple-host.app about deleting it", "account_suspended")
+	}
+	if a.TakenDown > 0 {
+		return lifecycleFail(403, "a site of "+what+" was taken down; write to support@simple-host.app about deleting it", "site_suspended")
+	}
+	return nil
 }
 
 func issuedAPIKey() (string, error) {
@@ -194,6 +212,11 @@ func (s *Service) ReissueAccountKey(ctx context.Context, id, adminID string) (Re
 	}
 	if u.IsAdmin || u.ID == adminID {
 		return ReissuedAccount{}, lifecycleFail(400, "cannot reissue an admin account's key here", "")
+	}
+	if team, err := repo.IsTeamAccount(ctx, tx, u.ID); err != nil {
+		return ReissuedAccount{}, err
+	} else if team {
+		return ReissuedAccount{}, lifecycleFail(409, "a team has no key: its members act with their own", "team_account")
 	}
 	if u.Suspended {
 		return ReissuedAccount{}, lifecycleFail(409, "this account is suspended; re-enable it before giving it a new key", "account_suspended")

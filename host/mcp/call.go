@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -29,6 +30,12 @@ type call struct {
 	textOnlyClient bool
 	uiClient       bool // declared MCP Apps support (unknown is false)
 	wrapped        bool
+	// owner is the team handle a site or storage tool acts for (its owner
+	// argument, teams on); every /v1/sites request of the call carries it.
+	owner string
+	// ifMatch is update_site's or rollback_site's expected_version: sent as
+	// If-Match on the deploy or rollback request.
+	ifMatch int
 }
 
 // upstreamResult is one in-process REST answer.
@@ -43,11 +50,25 @@ func (u upstreamResult) ok() bool { return u.status >= 200 && u.status < 300 }
 
 // do serves one REST request into the application router as the caller.
 func (c *call) do(method, path string, body []byte, extra map[string]string) upstreamResult {
+	if c.owner != "" && method != http.MethodGet && !ownerPath(path) {
+		// A change outside the team's sites (an address family, the
+		// account's home page) never quietly lands on the caller's own
+		// account instead.
+		return upstreamResult{status: http.StatusBadRequest, body: []byte(`{"error":"this works on your own account only; call it again without owner","code":"owner_not_supported"}`)}
+	}
 	req, err := http.NewRequestWithContext(c.orig.Context(), method, path, bytes.NewReader(body))
 	if err != nil {
 		return upstreamResult{status: http.StatusInternalServerError, body: []byte(`{"error":"could not build request"}`)}
 	}
 	req.Host = c.server.cfg.APIHost
+	if c.owner != "" && ownerPath(path) {
+		q := req.URL.Query()
+		q.Set("owner", c.owner)
+		req.URL.RawQuery = q.Encode()
+	}
+	if c.ifMatch > 0 && (method == http.MethodPut || method == http.MethodPost) && ifMatchPath.MatchString(req.URL.Path) {
+		req.Header.Set("If-Match", strconv.Quote(strconv.Itoa(c.ifMatch)))
+	}
 	req.Header.Set("X-API-Key", c.caller.APIKey)
 	req.Header.Set("X-Skill-Version", c.server.cfg.SkillVersion)
 	if body != nil {
@@ -70,9 +91,31 @@ func (c *call) do(method, path string, body []byte, extra map[string]string) ups
 	return upstreamResult{status: rec.status, header: rec.header, body: rec.body.Bytes()}
 }
 
+// ownerPath reports whether a REST path takes owner=: the routes
+// auth.ScopeGate answers it on.
+func ownerPath(path string) bool {
+	path, _, _ = strings.Cut(path, "?")
+	return path == "/v1/sites" || strings.HasPrefix(path, "/v1/sites/") || path == "/v1/me/deleted-sites" || path == "/v1/analytics/sites"
+}
+
+// ifMatchPath is a deploy, file update or rollback request.
+var ifMatchPath = regexp.MustCompile(`^/v1/sites/[^/]+(/files|/active-version)?$`)
+
+// accountHandle is the handle whose sites the call acts on: the team named
+// by owner, else the caller's own.
+func (c *call) accountHandle() string {
+	if c.owner != "" {
+		return c.owner
+	}
+	return c.caller.Handle
+}
+
 // ownHandle is the caller's URL handle, read once per call. An account gets a
 // handle on its first deploy, so a brand-new one may not have it yet.
 func (c *call) ownHandle() (string, error) {
+	if c.owner != "" {
+		return c.owner, nil
+	}
 	if c.handle != "" {
 		return c.handle, nil
 	}

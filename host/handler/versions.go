@@ -131,7 +131,8 @@ const maxVersionAuthorRunes = 80
 // versionAuthor reads ?author= on a deploy route: who made the version, kept
 // on the row and shown in the version list. Spaces around it and control
 // characters are dropped and it is cut to maxVersionAuthorRunes whole runes;
-// "" when the deploy did not say.
+// "" when the deploy did not say. A team member's deploy that names no author
+// is credited to the member's handle, so the team sees who published it.
 func versionAuthor(r *http.Request) string {
 	s := strings.Map(func(c rune) rune {
 		if unicode.IsControl(c) {
@@ -143,6 +144,9 @@ func versionAuthor(r *http.Request) string {
 	if utf8.RuneCountInString(s) > maxVersionAuthorRunes {
 		runes := []rune(s)
 		s = strings.TrimSpace(string(runes[:maxVersionAuthorRunes]))
+	}
+	if u := auth.GetUser(r.Context()); s == "" && u != nil && u.Member != nil {
+		s = u.Member.PersonHandle
 	}
 	return s
 }

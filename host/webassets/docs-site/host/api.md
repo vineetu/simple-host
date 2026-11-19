@@ -8,6 +8,7 @@ Read the whole contract as [OpenAPI JSON](/openapi.json) or [OpenAPI YAML](/open
 | [Auth](/docs/api/auth.md) | Account sign-in by emailed code or Google, for Simple Host account owners and the agents working for them. It ends in an API key. It is never for a site's visitors: these routes answer only on the app's own address (403 account_auth_unavailable elsewhere), and an API key never belongs in a page. A page signs its visitors in with the Visitor sign-in routes through auth.js. | 9 |
 | [Account](/docs/api/account.md) | Account profile, credentials and connected apps. | 26 |
 | [Sites](/docs/api/sites.md) | List, inspect and manage websites. | 22 |
+| [Teams](/docs/api/teams.md) | Accounts that own sites, which people join by accepting an invitation. Members act on a team's sites with their own key and owner=&lt;team&gt;. | 8 |
 | [Deploy](/docs/api/deploy.md) | Publish inline JSON files or a tar.gz/zip archive. | 9 |
 | [Versions](/docs/api/versions.md) | Inspect retained deployments, preview and roll back. | 6 |
 | [Analytics](/docs/api/analytics.md) | Owner-scoped website traffic. | 4 |

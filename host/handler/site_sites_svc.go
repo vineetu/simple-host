@@ -106,6 +106,9 @@ func writeSitesError(w http.ResponseWriter, err error, siteName string) {
 		case "rollback_version_not_found":
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "version not found"})
 			return
+		case "version_changed":
+			writeJSON(w, http.StatusPreconditionFailed, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
+			return
 		case "version_live", "version_published":
 			writeJSON(w, http.StatusConflict, errorResponse{Error: siteErr.Message, Code: siteErr.Code})
 			return

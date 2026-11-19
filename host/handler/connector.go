@@ -216,6 +216,8 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		},
 		// main sets it from the server's Turnstile keys (OfferSpamCheck).
 		SelfHosted: siteDomain != canonicalSiteDomain,
+		// Teams are offered where accounts own their own sites.
+		Teams: ed.Identity().PersonalSites,
 	}
 	// Another Simple Host server names itself in the connector's text, with
 	// the rewriter its llms.txt and Get started use (SetInstanceHosts runs

@@ -10873,7 +10873,29 @@ components_add:
           schema:
             type: string
             format: binary
+# Teams, owner= and If-Match are Simple Host only (TM-S1): left out here.
+drop_tags:
+- Teams
+drop_parameters:
+- '#/components/parameters/owner'
+- '#/components/parameters/ifMatch'
 overrides:
+- op: getMe
+  remove: /responses/200/content/application~1json/schema/properties/teams
+- op: getMe
+  remove: /responses/200/content/application~1json/schema/properties/team_invitations
+- op: putSitesBySitenameActiveVersion
+  remove: /responses/412
+- component: /schemas/Site/properties/owner
+  remove: true
+- component: /schemas/Site/properties/access_role
+  remove: true
+- op: reissueEventAccountKey
+  set: /responses/409/description
+  value: 'account_suspended: re-enable the account first'
+- op: webPushSubscribe
+  set: /responses/404/description
+  value: site_not_found, or not_offered when the flag does not cover this account.
 - op: GET /
   set: /description
   value: 'The selected Host or Hack landing. Accept text/markdown negotiates Markdown; HTML is the default. Both

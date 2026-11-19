@@ -150,6 +150,9 @@ type Config struct {
 	// chosen group (a team) on the authenticated OAuth grant. Nil when the
 	// install has no group connections.
 	SelectTarget func(context.Context, Caller, string) error
+	// Teams: this program offers teams (the Simple Host program). The team
+	// tools are registered, and every site and storage tool takes owner.
+	Teams bool
 	// NoSpamCheck: this server has no Turnstile keys, so spam-checked adds
 	// (the comments recipe) are unavailable; its tools and instructions leave
 	// them out, as on Simple Hack. A self-hosted box starts this way.
@@ -947,6 +950,10 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		caller.APIKey = caller.TeamAPIKey
 	}
 	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
+	if err := c.takeTeamArguments(params.Arguments); err != nil {
+		record(codedError("invalid_argument", err.Error()))
+		return toolResult(req.ID, argumentMessage(err, tool), nil, true, modern)
+	}
 	if raw, present := params.Meta["io.modelcontextprotocol/clientCapabilities"]; modern && present {
 		var caps struct {
 			Extensions map[string]json.RawMessage `json:"extensions"`

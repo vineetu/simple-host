@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1mv7yst" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1iehts6" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -248,6 +248,11 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/teams/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Teams</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -612,11 +617,25 @@
 </thead>
 <tbody>
 <tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
+<tr>
 <td>sitename</td>
 <td>path</td>
 <td>string</td>
 <td>yes</td>
 <td></td>
+</tr>
+<tr>
+<td>If-Match</td>
+<td>header</td>
+<td>string</td>
+<td></td>
+<td>Optional. The site’s active version you last read, in quotes. The deploy, update or rollback is refused with 412 version_changed when the active version is no longer that one (another member published), and with 400 invalid_if_match when malformed. Send it on sites other people also publish, such as a team’s.</td>
 </tr>
 </tbody>
 </table>
@@ -660,6 +679,10 @@
 <td>404</td>
 <td>Not found</td>
 </tr>
+<tr>
+<td>412</td>
+<td>If-Match named a version that is no longer the active one (code version_changed)</td>
+</tr>
 </tbody>
 </table>
 <h2 id="get-v1sitessitenameversions">GET /v1/sites/{sitename}/versions</h2>
@@ -678,6 +701,13 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
 <tr>
 <td>sitename</td>
 <td>path</td>
@@ -733,6 +763,13 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
 <tr>
 <td>sitename</td>
 <td>path</td>
@@ -801,6 +838,13 @@
 </thead>
 <tbody>
 <tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
+<tr>
 <td>sitename</td>
 <td>path</td>
 <td>string</td>
@@ -859,6 +903,13 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
 <tr>
 <td>sitename</td>
 <td>path</td>
@@ -926,6 +977,13 @@
 </thead>
 <tbody>
 <tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
+<tr>
 <td>Idempotency-Key</td>
 <td>header</td>
 <td>string</td>
@@ -986,12 +1044,12 @@
 		
 	</div>
 	<div class="pagination-links print:hidden astro-b5raizh3" dir="ltr">
-	<a href="/docs/api/storage-resources/" rel="prev" class="astro-b5raizh3">
+	<a href="/docs/api/teams/" rel="prev" class="astro-b5raizh3">
 		<svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg>
 		<span class="astro-b5raizh3">
 			Previous
 			<br class="astro-b5raizh3">
-			<span class="link-title astro-b5raizh3">Storage resources</span>
+			<span class="link-title astro-b5raizh3">Teams</span>
 		</span>
 	</a>
 	<a href="/docs/api/visitor-sign-in/" rel="next" class="astro-b5raizh3">

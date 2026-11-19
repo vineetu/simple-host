@@ -426,7 +426,8 @@ func TestSSOStartGatesAndCookieIsolation(t *testing.T) {
 	}
 	a.database.Exec(`UPDATE users SET suspended_at=NULL WHERE id=$1`, uid)
 	a.database.Exec(`UPDATE api_keys SET scope='deploy' WHERE key_hash=$1`, accountsrepo.HashAPIKey(owner.key))
-	if r := a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": owner.key, "Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin"}); r.status != 401 {
+	// The scope gate answers 403 deploy_only_key first; the route itself 401.
+	if r := a.at(t, "POST", a.appHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": owner.key, "Origin": "https://" + a.appHost(), "Sec-Fetch-Site": "same-origin"}); r.status != 401 && r.status != 403 {
 		t.Fatal("deploy key bootstrapped SSO")
 	}
 	a.database.Exec(`UPDATE api_keys SET scope='full' WHERE key_hash=$1`, accountsrepo.HashAPIKey(owner.key))

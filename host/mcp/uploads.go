@@ -19,6 +19,7 @@ type uploadLink struct {
 	saves   int
 	busy    bool
 	owner   string
+	account string // the team named by owner=, "" for the caller's own sites
 	site    string
 	expires time.Time
 	team    bool
@@ -45,9 +46,12 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 		key := c.caller.APIKey
 		mint = func(context.Context, bool) (string, func(), error) { return key, func() {}, nil }
 	}
-	link := uploadLink{owner: owner, site: site, expires: now.Add(15 * time.Minute),
+	link := uploadLink{owner: owner, account: c.owner, site: site, expires: now.Add(15 * time.Minute),
 		team: c.caller.TeamAPIKey != "" && c.caller.APIKey == c.caller.TeamAPIKey, mint: mint}
 	link.photos = !archive
+	if link.photos && c.owner != "" {
+		return output{}, codedError("invalid_argument", "the photo picker adds photos to your own sites only; for a team's site pass archive: true and upload the site with its photos")
+	}
 	if link.photos {
 		link.expires = now.Add(time.Hour)
 		if c.caller.MintPhoto != nil {
@@ -157,7 +161,12 @@ func (s *Server) ServeUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer revoke()
-	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPut, "/v1/sites/"+url.PathEscape(link.site)+"?create=1", r.Body)
+	path := "/v1/sites/" + url.PathEscape(link.site) + "?create=1"
+	if link.account != "" {
+		// Checked again now: the uploader must still be a member.
+		path += "&owner=" + url.QueryEscape(link.account)
+	}
+	req, _ := http.NewRequestWithContext(r.Context(), http.MethodPut, path, r.Body)
 	req.Host = s.cfg.APIHost
 	req.Header.Set("X-API-Key", key)
 	req.Header.Set("X-Skill-Version", s.cfg.SkillVersion)

@@ -687,7 +687,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
 	a.sites.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))
-	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour)
+	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour, false)
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetTools(hackmcp.Contribution())

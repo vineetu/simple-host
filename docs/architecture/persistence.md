@@ -47,6 +47,7 @@ are extended by later `ALTER TABLE` statements in that same file; read those too
 |---|---|
 | `users` | Owners, visitors and admin share identities; handle and display name, event-account flag, suspension and sign-in alert preference live here |
 | `api_keys` | Several keys per user; only hex SHA-256 hashes are stored, with full/deploy scope and optional expiry |
+| `team_members`, `team_invitations`, `team_audit` | A team is a `users` row with `is_team` (and `event_account`, so no mail or idle cleanup); `team_members` links it to the people in it, who join only by accepting a `team_invitations` row (addressed to an email, lapsing after its `expires_at`, deleted when its inviter leaves); `team_audit` records creation, deletion, removals and invitations sent, cancelled, accepted and declined, and outlives the team. Triggers: a team holds no `api_keys` row, a membership links a team to a person, `is_team` cannot change while memberships point at the row (`0025-teams.sql`) |
 | `handle_aliases`, `legacy_hostnames` | Old handles and retired per-name hosts participate in the shared namespace |
 | `sites` | Belongs to a user; name, active version number, legacy state JSONB/version, domain/status, listing visibility and allowed origins |
 | `versions` | Upload records belonging to a site, with version number, disk path, status, archive hash and author |

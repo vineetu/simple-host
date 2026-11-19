@@ -107,7 +107,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	users.SetFileUsage(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
-	gated := http.Handler(mux)
+	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, ed.Identity().PersonalSites)
 	a.conn = NewConnectorHandler(database, base, adminKey, pcSiteDomain, pcContentHost, "1.0.0", gated, false, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetSignInAlerts(users.SignInAlerts())

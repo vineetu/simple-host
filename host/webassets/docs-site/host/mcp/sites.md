@@ -16,6 +16,7 @@ List this account's own sites (admins: pass all_accounts for every account's), n
 | limit | integer |  | Maximum results; default 200 with filters, capped at 500. |
 | offset | integer |  | Results to skip; default 0. |
 | order | string, one of `updated`, `created`, `name` |  | Sort key; default updated (last edited first). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | query | string |  | Words to find in the site's name, domain, title, description, headings or text; every word must match. |
 | updated_after | string |  | Updated on or after RFC3339 or YYYY-MM-DD (UTC). |
 | updated_before | string |  | Updated on or before RFC3339 or YYYY-MM-DD (whole UTC day). |
@@ -30,6 +31,7 @@ Show one site: its live address, active version, custom domain, and the list of 
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## read_site_file
@@ -42,6 +44,7 @@ Return the contents of one file of a site (path), or of up to 10 at once (paths)
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | path | string |  | Path of the file from the site root, e.g. `index.html` or `css/style.css`. |
 | paths | array of string |  | Several paths read in one call, instead of path. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
@@ -60,6 +63,7 @@ Publish a NEW website from files given inline, at its own address. Fails if this
 | access | string, one of `anyone`, `specific` |  | Default anyone: anyone with the address. specific: only the owner and named viewers; everyone else sees a sign-in page, from the first request. |
 | files | object | yes | Map of file path → text content, e.g. {"index.html": "&lt;!DOCTYPE html&gt;…", "css/style.css": "body{…}"}. Paths are relative, no leading slash, no `..`. |
 | files_base64 | object |  | Optional map of file path → base64 content, for binary files such as images. A path must not appear in both maps. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. Pick a short, descriptive name. |
 | viewers | array of string |  | Emails exactly as the person gave them; only with access specific. Added in the same create call. |
 
@@ -75,9 +79,11 @@ Replace the live files of an EXISTING site with a new version, at its public add
 | --- | --- | --- | --- |
 | author | string |  | Who made this version, shown in list_versions; free text, for example a person's name. |
 | edits | array of object |  | Small changes to live text files, instead of sending them whole; every other file is kept. |
+| expected_version | integer |  | The active version you read (get_site or list_sites). On a team's site send it: the change is refused with version_changed when another member published since, so nobody's work is overwritten unknowingly. |
 | files | object |  | Map of file path → text content, e.g. {"index.html": "&lt;!DOCTYPE html&gt;…", "css/style.css": "body{…}"}. Paths are relative, no leading slash, no `..`. |
 | files_base64 | object |  | Optional map of file path → base64 content, for binary files such as images. A path must not appear in both maps. |
 | keep_other_files | boolean |  | Keep unchanged files from the live version; default false. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | publish | boolean |  | Default true: the new version goes live at once. false stores it without making it live, and returns a preview link. |
 | remove_files | array of string |  | Paths to remove; only with keep_other_files. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
@@ -93,6 +99,7 @@ Set a site's version count; older versions are removed for good. Only accounts e
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | keep_versions | integer | yes | How many versions to keep (the live one included); 0 goes back to the account default. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## list_versions
@@ -105,6 +112,7 @@ List the versions kept for a site, newest first, with which one is live. Call th
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | pending | boolean |  | true lists only versions stored with publish: false that have never been live. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
@@ -118,6 +126,8 @@ Make one of a site's kept versions live (visitors see it immediately): an earlie
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| expected_version | integer |  | The active version you read (get_site or list_sites). On a team's site send it: the change is refused with version_changed when another member published since, so nobody's work is overwritten unknowingly. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 | version | integer | yes | The version number to make live, from list_versions. |
 
@@ -131,6 +141,7 @@ Make a preview link for one of a site's kept versions (from list_versions): the 
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 | version | integer | yes | The version number to preview, from list_versions. |
 
@@ -144,6 +155,7 @@ DESTRUCTIVE: removes, for good, a version stored with update_site `publish: fals
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 | version | integer | yes | The never-live version to discard, from list_versions (marked not_yet_live). |
 
@@ -158,6 +170,7 @@ DESTRUCTIVE: takes the site offline at once, with every version and all of its s
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | confirm_name | string | yes | The same site name again, typed out, as confirmation. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## list_deleted_sites
@@ -165,6 +178,12 @@ DESTRUCTIVE: takes the site offline at once, with every version and all of its s
 <div data-tool="list_deleted_sites"></div>
 
 List the account's sites in Recently deleted: each was deleted within the last 7 days and can be brought back with restore_site until its purge_at time, when it is removed for good.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 
 ## restore_site
 
@@ -176,6 +195,7 @@ Bring back a site from Recently deleted (see list_deleted_sites): same name, sam
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## rename_site
@@ -189,6 +209,7 @@ Give a site a new name, which changes its address. Links to the old address keep
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | new_name | string | yes | The new site name: lowercase letters, numbers and hyphens. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## set_home_page
@@ -201,6 +222,7 @@ Make one of the person's sites their home page, served at their personal address
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string or null | yes | Your site's name, or null for the showcase. |
 
 ## set_visibility
@@ -213,6 +235,7 @@ List on my profile: on shows the site on the owner's profile page (https://&lt;h
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 | visibility | string, one of `public`, `unlisted` | yes | List on my profile: `public` = on; `unlisted` = off. Does not affect search engines. |
 
@@ -227,6 +250,7 @@ Take a site offline (`offline: true`): every address of it shows a plain "This s
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | offline | boolean | yes | true takes the site offline; false puts it back online. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## keep_site
@@ -240,6 +264,7 @@ Mark a site Keep (or clear the mark). Simple Host emails the owner about a site 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | keep | boolean |  | true (default) keeps the site up for good; false lets it be flagged again when idle. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## site_analytics
@@ -253,6 +278,7 @@ Visits to a site over the last N days, split into people (not counting the owner
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | days | integer |  | Window in days (1–90, default 30). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 
 ## export_site
@@ -265,4 +291,5 @@ Make a download link for a copy of one of the person's sites: a .tar.gz holding 
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |

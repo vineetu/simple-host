@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1mv7yst" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1iehts6" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -248,6 +248,11 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/teams/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Teams</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -528,6 +533,30 @@
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#set_showcase_site" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">set_showcase_site</span></a>
 		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#create_team" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">create_team</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#list_teams" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">list_teams</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#list_team_members" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">list_team_members</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#add_team_member" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">add_team_member</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#cancel_team_invitation" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">cancel_team_invitation</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#answer_team_invitation" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">answer_team_invitation</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#remove_team_member" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">remove_team_member</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#delete_team" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">delete_team</span></a>
+		
 	</li>
 </ul></div>
 		</details>
@@ -553,6 +582,30 @@
 		
 	</li><li style="--depth: 0;" class="astro-jugkfwgx">
 		<a href="#set_showcase_site" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">set_showcase_site</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#create_team" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">create_team</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#list_teams" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">list_teams</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#list_team_members" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">list_team_members</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#add_team_member" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">add_team_member</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#cancel_team_invitation" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">cancel_team_invitation</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#answer_team_invitation" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">answer_team_invitation</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#remove_team_member" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">remove_team_member</span></a>
+		
+	</li><li style="--depth: 0;" class="astro-jugkfwgx">
+		<a href="#delete_team" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">delete_team</span></a>
 		
 	</li>
 </ul>
@@ -641,6 +694,12 @@
 <td>Manual position among the pinned or unpinned sites: smaller numbers come first.</td>
 </tr>
 <tr>
+<td>owner</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team’s other members see what you change.</td>
+</tr>
+<tr>
 <td>pinned</td>
 <td>boolean</td>
 <td></td>
@@ -651,6 +710,187 @@
 <td>string</td>
 <td>yes</td>
 <td>The site’s name as it appears in its address, e.g. <code>birthday-rsvp</code>: lowercase letters, numbers and hyphens.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="create_team">create_team</h2>
+<div data-tool="create_team"></div>
+<p>Create a team: an account that owns sites, which people join. You become its first member. Its name becomes its address, https://&lt;site&gt;.&lt;name&gt;.simple-host.app/, so it follows the address rules: lowercase letters, numbers and hyphens, no dots. A team cannot be renamed later. Ask the person for the name first.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>name</td>
+<td>string</td>
+<td>yes</td>
+<td>The team’s name and address: 1 to 39 lowercase letters, numbers or hyphens.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="list_teams">list_teams</h2>
+<div data-tool="list_teams"></div>
+<p>List the teams you belong to, with each team’s id and handle, and the invitations to join a team that wait for your answer. Pass a team’s handle as owner on site and storage tools to work on its sites.</p>
+<h2 id="list_team_members">list_team_members</h2>
+<div data-tool="list_team_members"></div>
+<p>List the members of a team you belong to (each one’s handle, name, who added them and when) and its invitations still waiting for an answer.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>team</td>
+<td>string</td>
+<td>yes</td>
+<td>The team’s handle, as list_teams shows it (the &lt;team&gt; in https://&lt;site&gt;.&lt;team&gt;.simple-host.app/).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="add_team_member">add_team_member</h2>
+<div data-tool="add_team_member"></div>
+<p>Invite a person to a team you belong to, by their email. Nobody becomes a member until they accept: they see the invitation when signed in with that email (who_am_i or list_teams) and accept or decline it. Nothing is sent to them, so tell them yourself. The answer is the same whether or not anyone has that email. Every member can publish, change and delete all the team’s sites and invite or remove members, so confirm the person and the team with the person you are helping first. Invitations lapse after 14 days; a team may have 20 waiting.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>email</td>
+<td>string</td>
+<td>yes</td>
+<td>The person’s sign-in email.</td>
+</tr>
+<tr>
+<td>team</td>
+<td>string</td>
+<td>yes</td>
+<td>The team’s handle, as list_teams shows it (the &lt;team&gt; in https://&lt;site&gt;.&lt;team&gt;.simple-host.app/).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cancel_team_invitation">cancel_team_invitation</h2>
+<div data-tool="cancel_team_invitation"></div>
+<p>Cancel an invitation of a team you belong to that is still waiting for an answer (its id from list_team_members).</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>invitation</td>
+<td>string</td>
+<td>yes</td>
+<td>The invitation’s id, from list_team_members.</td>
+</tr>
+<tr>
+<td>team</td>
+<td>string</td>
+<td>yes</td>
+<td>The team’s handle, as list_teams shows it (the &lt;team&gt; in https://&lt;site&gt;.&lt;team&gt;.simple-host.app/).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="answer_team_invitation">answer_team_invitation</h2>
+<div data-tool="answer_team_invitation"></div>
+<p>Accept or decline an invitation to join a team that waits for you (who_am_i or list_teams lists them). Accepting makes you a member: you can then publish, change and delete all the team’s sites with owner=&lt;team&gt;, as every member can. Ask the person which answer they want first.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>answer</td>
+<td>string, one of <code>accept</code>, <code>decline</code></td>
+<td>yes</td>
+<td>accept or decline.</td>
+</tr>
+<tr>
+<td>invitation</td>
+<td>string</td>
+<td>yes</td>
+<td>The invitation’s id.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="remove_team_member">remove_team_member</h2>
+<div data-tool="remove_team_member"></div>
+<p>Remove a member from a team you belong to (yourself included), by handle or account id. Their access to the team’s sites stops on their next request, and invitations they sent are withdrawn. The last member cannot leave: to end the team, delete its sites, then the team. Ask before removing anyone.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>person</td>
+<td>string</td>
+<td>yes</td>
+<td>The member’s handle or account id, from list_team_members.</td>
+</tr>
+<tr>
+<td>team</td>
+<td>string</td>
+<td>yes</td>
+<td>The team’s handle, as list_teams shows it (the &lt;team&gt; in https://&lt;site&gt;.&lt;team&gt;.simple-host.app/).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="delete_team">delete_team</h2>
+<div data-tool="delete_team"></div>
+<p>Delete a team you belong to. Only a team that owns no sites can be deleted (sites in Recently deleted count): delete its sites first. Its name is retired and never given out again. Ask the person before deleting.</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>team</td>
+<td>string</td>
+<td>yes</td>
+<td>The team’s handle, as list_teams shows it (the &lt;team&gt; in https://&lt;site&gt;.&lt;team&gt;.simple-host.app/).</td>
 </tr>
 </tbody>
 </table>

@@ -177,7 +177,7 @@ The following packages exist today; Hack-only packages live under `products/hack
 | `workers` | Standard-library lifecycle owners, cancellation, joins and progress/status tracking |
 | `httpx` | Shared HTTP responses, limits, signed links and route metadata |
 | `auth` | Account credential/context and scope middleware, with injected account authorization |
-| `app/accounts` | Principal/session resolution, scoped team authority and sign-in country decisions |
+| `app/accounts` | Principal/session resolution, scoped team authority, who may act as an account's owner (`ActsAsOwner`, `ResolveOwner`: [teams](docs/architecture/hosts-and-access.md#teams-who-may-act-as-an-accounts-owner)) and sign-in country decisions |
 | `products/hack/app/events` | Event lifecycle/content, organisers, settings and public directory |
 | `products/hack/app/teams` | Team lifecycle/admin/links and team finding |
 | `products/hack/app/members` | Registration, applications, tracks and leaving |

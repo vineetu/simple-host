@@ -240,6 +240,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		mux.HandleFunc("GET /index.md", markdown)
 		mux.HandleFunc("GET /llms.md", markdown)
 		mux.Handle("GET /dashboard", assets.adminUICSP(assets.serveStaticPage("index.html")))
+		// A person's teams: their sites and members (teams.go).
+		mux.Handle("GET /teams", assets.adminUICSP(assets.serveStaticPage("teams.html")))
 		mux.Handle("GET /{$}", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Vary", "Accept")
 			w.Header().Set("Link", HomepageLinks)

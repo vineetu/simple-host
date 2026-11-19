@@ -29,7 +29,7 @@ func NewServer(cfg Config) *Server { return newServer(cfg) }
 // Inventory returns the composed documentation inventory with Events enabled.
 func Inventory(product Contribution) []InventoryTool {
 	limits := DefaultLimits()
-	cfg := Config{Limits: &limits, Events: inventoryEvents{}, Contribution: &product}
+	cfg := Config{Limits: &limits, Events: inventoryEvents{}, Contribution: &product, Teams: true}
 	var apps AppContribution
 	if product.Apps != nil {
 		apps = product.Apps(AppContext{})

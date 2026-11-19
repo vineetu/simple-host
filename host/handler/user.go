@@ -172,6 +172,7 @@ func NewUserHandler(database *sql.DB, service *accounts.Service, mailer signInCo
 
 func (h *UserHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	h.registerPasswords(mux, authMiddleware, noticeMiddleware)
+	h.registerTeams(mux, authMiddleware, noticeMiddleware)
 	// Account sign-in answers only on the app's own address (accountauth.go);
 	// a hosted page's visitors use the visitor routes on the site's address.
 	mux.Handle("POST /v1/auth", accountAuthOnly(h.publicBaseURL, noticeMiddleware(rateLimitByIP(h.ipLimiter, http.HandlerFunc(h.requestSignIn)))))
@@ -473,6 +474,18 @@ func (h *UserHandler) me(w http.ResponseWriter, r *http.Request) {
 	if hasHome && h.ed.Identity().PersonalSites {
 		resp.HomeSite = &home.Name
 	}
+	if h.ed.Identity().PersonalSites && !user.IsAdmin {
+		teams, err := h.accounts.TeamsOf(r.Context(), user.ID)
+		if err != nil {
+			writeJSON(w, 500, errorResponse{Error: "internal server error"})
+			return
+		}
+		resp.Teams = teamsForMe(teams)
+		if resp.TeamInvitations, err = h.invitationsFor(r.Context(), user); err != nil {
+			writeJSON(w, 500, errorResponse{Error: "internal server error"})
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -511,6 +524,12 @@ type meResponse struct {
 	// (https://<site>.<handle>.<SITE_DOMAIN>/): ready, or waiting / failing
 	// with a rough time, while sites are at <handle>.<SITE_DOMAIN>/<site>/.
 	Address *addressState `json:"address,omitempty"`
+	// Teams are the teams this person belongs to: each one's id, which never
+	// changes, and its handle (owner=<handle> on the site routes).
+	Teams []map[string]string `json:"teams,omitempty"`
+	// TeamInvitations are the invitations to join a team waiting for this
+	// person's answer (POST /v1/me/team-invitations/{id}).
+	TeamInvitations []model.TeamInvitation `json:"team_invitations,omitempty"`
 }
 
 func isUniqueViolation(err error) bool {

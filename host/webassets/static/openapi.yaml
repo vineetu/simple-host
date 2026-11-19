@@ -52,6 +52,8 @@ tags:
   description: Account profile, credentials and connected apps.
 - name: Sites
   description: List, inspect and manage websites.
+- name: Teams
+  description: 'Accounts that own sites, which people join by accepting an invitation. Members act on a team''s sites with their own key and owner=<team>.'
 - name: Deploy
   description: Publish inline JSON files or a tar.gz/zip archive.
 - name: Versions
@@ -1177,6 +1179,14 @@ paths:
                   signin_alerts: { type: boolean, description: "Whether an email follows each sign-in or app connection (PATCH /v1/me to change)." }
                   has_password: { type: boolean, description: "Whether this account has a password set. Present only when PASSWORD_SIGNIN is on (self-hosted installs); absent on hosted services. POST /v1/me/password changes it." }
                   login: { type: string, description: "A password account's own login (account_passwords.login), present whenever has_password is true. A self sign-up's username above is a synthetic value, never shown to the person: show login instead whenever it is present." }
+                  teams:
+                    type: array
+                    description: "Present when you belong to teams: each team's id (it never changes; record it rather than the handle) and handle (owner=<handle> on /v1/sites routes)."
+                    items: { type: object, properties: { id: { type: string, format: uuid }, handle: { type: string } } }
+                  team_invitations:
+                    type: array
+                    description: "Present when invitations to join a team wait for your answer (POST /v1/me/team-invitations/{invitation}): those addressed to your verified sign-in email."
+                    items: { type: object, properties: { id: { type: string, format: uuid }, team: { type: string }, invited_by: { type: string }, created_at: { type: string, format: date-time }, expires_at: { type: string, format: date-time } } }
                   max_sites: { type: integer, description: "Sites this account may hold (sites in Recently deleted count; one more is 403 site_quota_reached): the instance's MAX_SITES_PER_ACCOUNT, or the account's own MAX_SITES_OVERRIDES entry. Absent for admins, who have no limit." }
                   file_usage: { type: object, properties: { used_bytes: { type: integer }, limit_mb: { type: integer, description: "0 means no account file cap" }, message: { type: string, example: "12.3 MB of 1 GB used" }, tips: { type: string } }, description: "Website files and kept versions including the live copy and Recently deleted sites; saved data and storage resources excluded" }
                   can_set_keep_versions: { type: boolean, description: "Account is allowed to change per-site retention" }
@@ -1200,7 +1210,8 @@ paths:
         <name>.simple-host.app addresses are retired, never given to anyone else; custom domains are
         released. A confirmation email goes to the account's address. Offer GET /v1/me/export.zip
         first. Refused for a suspended account or one holding a site the operator took down (the
-        operator handles those), an admin account, or one still holding event hostnames.
+        operator handles those), an admin account, or one still holding event hostnames. Each team
+        this person alone belongs to is deleted with the account, with all its sites.
       security: [{ apiKey: [] }]
       requestBody:
         required: true
@@ -1559,6 +1570,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /v1/me/deleted-sites:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Account"]
@@ -1716,7 +1728,146 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: No key with that id on this account, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
+  /v1/teams:
+    post:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: postTeams
+      summary: Create a team
+      description: >-
+        A team is an account that owns sites, which people join; you become its first member.
+        Its name is its handle and address (https://<site>.<name>.simple-host.app/): 1 to 39 lowercase letters,
+        numbers or hyphens, no dots, and it cannot be renamed. One role: every member may do everything to the
+        team's sites (owner=<team> on /v1/sites routes, with their own key), invite people and remove members, and
+        delete the team once it owns no sites. A person belongs to at most 10 teams. Needs a person's own full key
+        or connection.
+      security: [{ apiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [name], properties: { name: { type: string, example: design-team } } }
+      responses:
+        '201': { description: The new team, content: { application/json: { schema: { type: object, properties: { id: { type: string, format: uuid, description: "Never changes: record it rather than the handle." }, handle: { type: string }, members: { type: integer }, sites: { type: integer, description: Live sites }, created_at: { type: string, format: date-time } } } } } }
+        '400': { description: "invalid_name (dots, or not an address label)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: "forbidden (the admin key, a team) or deploy_only_key", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "name_taken (a person's or team's handle), name_conflict (a reserved or claimed address) or team_limit (10 teams)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    get:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: getTeams
+      summary: List your teams and your invitations
+      description: The teams you belong to, and the invitations to join a team that wait for your answer (POST /v1/me/team-invitations/{invitation}).
+      security: [{ apiKey: [] }]
+      responses:
+        '200': { description: Your teams and invitations, content: { application/json: { schema: { type: object, properties: { teams: { type: array, items: { type: object, properties: { id: { type: string, format: uuid, description: "Never changes: record it rather than the handle." }, handle: { type: string }, members: { type: integer }, sites: { type: integer, description: Live sites }, created_at: { type: string, format: date-time } } } }, invitations: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, team: { type: string, description: "The team's handle" }, invited_by: { type: string, description: Handle of the member who sent it }, created_at: { type: string, format: date-time }, expires_at: { type: string, format: date-time } } } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/teams/{team}:
+    delete:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: deleteTeam
+      summary: Delete a team
+      description: Any member may delete a team that owns no sites (sites in Recently deleted count). Its name is retired, never given out again.
+      security: [{ apiKey: [] }]
+      parameters: [ { name: team, in: path, required: true, schema: { type: string }, description: "The team's handle" } ]
+      responses:
+        '200': { description: Deleted, content: { application/json: { schema: { type: object, properties: { deleted: { type: string } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "team_not_found: no team of that name that you belong to", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: team_has_sites, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/teams/{team}/members:
+    get:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: getTeamMembers
+      summary: List a team's members and invitations
+      description: For members only. Sign-in emails are never shown; invitations show the email they were sent to.
+      security: [{ apiKey: [] }]
+      parameters: [ { name: team, in: path, required: true, schema: { type: string }, description: "The team's handle" } ]
+      responses:
+        '200': { description: The team, its members and its invitations waiting for an answer, content: { application/json: { schema: { type: object, properties: { team: { type: object, properties: { id: { type: string, format: uuid, description: "Never changes: record it rather than the handle." }, handle: { type: string }, members: { type: integer }, sites: { type: integer, description: Live sites }, created_at: { type: string, format: date-time } } }, members: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, handle: { type: string, description: Empty until they publish a site }, display_name: { type: string }, added_by: { type: string, description: Handle of the member whose invitation they accepted }, added_at: { type: string, format: date-time } } } }, invitations: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, team: { type: string }, addressed_to: { type: string, description: The email it was sent to }, invited_by: { type: string, description: Handle of the member who sent it }, created_at: { type: string, format: date-time }, expires_at: { type: string, format: date-time } } } } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: team_not_found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    post:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: postTeamMember
+      summary: Invite a person to a team
+      description: >-
+        Any member may invite a person, by email. This makes nobody a member: it records an invitation, which only
+        the account whose verified sign-in email it is sees when signed in (GET /v1/me team_invitations, GET
+        /v1/teams) and accepts or declines; an account whose username is no email matches none. Nothing is sent to
+        them. No account is looked up: the answer is the same, 202 with the same body, whether or not anyone has
+        that email. Invitations lapse after 14 days, or when the member who sent them leaves; a team may have 20
+        waiting.
+      security: [{ apiKey: [] }]
+      parameters: [ { name: team, in: path, required: true, schema: { type: string }, description: "The team's handle" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [email], properties: { email: { type: string, format: email, description: The person's sign-in email } } }
+      responses:
+        '202': { description: "Recorded. Always the same body: {\"invited\": true, \"expires_in_days\": 14, \"note\": ...}", content: { application/json: { schema: { type: object, properties: { invited: { type: boolean }, expires_in_days: { type: integer }, note: { type: string } } } } } }
+        '400': { description: "invalid_email (not an email address)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: team_not_found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "invitation_limit (20 waiting)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/teams/{team}/invitations/{invitation}:
+    delete:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: deleteTeamInvitation
+      summary: Cancel an invitation
+      description: Any member may cancel one of the team's invitations that waits for an answer.
+      security: [{ apiKey: [] }]
+      parameters: [ { name: team, in: path, required: true, schema: { type: string }, description: "The team's handle" }, { name: invitation, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses:
+        '200': { description: Cancelled, content: { application/json: { schema: { type: object, properties: { cancelled: { type: string } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "team_not_found or invitation_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/me/team-invitations/{invitation}:
+    post:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: answerTeamInvitation
+      summary: Accept or decline an invitation
+      description: >-
+        For the person the invitation is addressed to (their handle, or their verified sign-in email). Accepting makes
+        them a member, checked at that moment: the team still exists, the member who invited them still belongs to it,
+        and they are in fewer than 10 teams.
+      security: [{ apiKey: [] }]
+      parameters: [ { name: invitation, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [answer], properties: { answer: { type: string, enum: [accept, decline] } } }
+      responses:
+        '200': { description: Answered, content: { application/json: { schema: { type: object, properties: { team: { type: string }, answer: { type: string } } } } } }
+        '400': { description: invalid_request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "invitation_not_found (answered, cancelled, expired, not yours, or its sender left the team)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "team_limit (you are in 10 teams)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /v1/teams/{team}/members/{member}:
+    delete:
+      x-audience: ["public-host"]
+      tags: ["Teams"]
+      operationId: deleteTeamMember
+      summary: Remove a member, or leave
+      description: Any member may remove any member, themselves included. Access stops on the removed person's next request, and invitations they sent are withdrawn. The last member cannot leave (last_member); to end the team, delete its sites, then the team.
+      security: [{ apiKey: [] }]
+      parameters: [ { name: team, in: path, required: true, schema: { type: string }, description: "The team's handle" }, { name: member, in: path, required: true, schema: { type: string }, description: The member's handle or account id } ]
+      responses:
+        '200': { description: Removed, content: { application/json: { schema: { type: object, properties: { removed: { type: string } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "team_not_found or member_not_found", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: last_member, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+
   /v1/sites:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -1795,6 +1946,7 @@ paths:
         '429': { description: 'Rate limit or photo save capacity exceeded; Retry-After advises when to retry', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/photos:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Deploy"]
@@ -1853,6 +2005,7 @@ paths:
         '409': { description: A file or directory conflicts with the photo path, or reconciliation could not confirm all photos, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '429': { description: 'Deploy rate limit or photo save capacity exceeded; Retry-After advises when to retry', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/files:
+    parameters: [ { $ref: '#/components/parameters/owner' }, { $ref: '#/components/parameters/ifMatch' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Deploy"]
@@ -1880,7 +2033,7 @@ paths:
       summary: Update a site from inline JSON files
       description: "Same as POST, but for an existing site you own. Creates a new version and activates it; with ?publish=false the version is only stored (visitors keep seeing the live one) and the answer adds unpublished_version, preview_url and preview_expires_at. With ?create=1 a missing site is created instead (201, with the same checks as POST), so CI deploys in one call; without it a missing site is 404. With ?keep=1, send only changed files: other files in the live version are retained byte-for-byte, and remove_files drops listed relative paths. remove_files requires keep=1; index.html is not required in a patch. The merged version meets the ordinary file and storage caps. Choose `access: specific` at creation for only the owner and named viewers from the first request; omitted or `anyone` keeps the default (anyone with the address). Optional `viewers` emails require `specific`, are normalized and deduplicated, and respect SITE_VIEWERS_MAX. Named viewers require sign-in and the site's own address. With create=1, access/viewers apply when creating. On an existing site, specific refuses 409 access_differs unless it is already specific; viewers are not added. anyone never changes an existing site's access. Without create=1, access/viewers are 400 invalid_request; later use set_site_access / grant_site_viewer. JSON body fields: `access` and `viewers`."
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' }, { $ref: '#/components/parameters/author' }, { name: keep, in: query, schema: { type: integer, enum: [1] }, description: Keep unchanged files from the live version; merged files use ordinary unpacked-file caps } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/publish' }, { $ref: '#/components/parameters/create' }, { $ref: '#/components/parameters/author' }, { name: keep, in: query, schema: { type: integer, enum: [1] }, description: Keep unchanged files from the live version; merged files use ordinary unpacked-file caps }, { $ref: '#/components/parameters/ifMatch' } ]
       requestBody:
         required: true
         content:
@@ -1969,6 +2122,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     patch:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2071,6 +2225,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/restore:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2089,6 +2244,7 @@ paths:
         '409': { description: That site is live, not deleted, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/export.tar.gz:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2112,6 +2268,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/export-link:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2175,6 +2332,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/versions:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Versions"]
@@ -2208,6 +2366,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/versions/{version}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     delete:
       x-audience: ["public-host"]
       tags: ["Versions"]
@@ -2239,6 +2398,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/versions/{version}/files:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Versions"]
@@ -2274,6 +2434,7 @@ paths:
         '404': { description: Site not found or version not found (including pruned versions), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/versions/{version}/files/{path}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Versions"]
@@ -2304,6 +2465,7 @@ paths:
         '404': { description: Site not found, version not found, or file not found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/versions/{version}/preview-link:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Versions"]
@@ -2341,6 +2503,7 @@ paths:
         '409': { description: "No preview link (code preview_unavailable): the site has no address of its own yet, or the server gives sites none (every site on one shared address, as on a small box), which the message says", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/active-version:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     put:
       x-audience: ["public-host"]
       tags: ["Versions"]
@@ -2348,7 +2511,7 @@ paths:
       summary: Roll back to a version, or make a stored version live
       description: "Re-point the live site at an existing version number: an earlier one, or one stored with publish=false (which then counts as live)."
       security: [{ apiKey: [] }]
-      parameters: [ { $ref: '#/components/parameters/sitename' } ]
+      parameters: [ { $ref: '#/components/parameters/sitename' }, { $ref: '#/components/parameters/ifMatch' } ]
       requestBody:
         required: true
         content:
@@ -2361,8 +2524,10 @@ paths:
         '200': { description: Active version changed }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '412': { description: "If-Match named a version that is no longer the active one (code version_changed)", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/visibility:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     put:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2392,6 +2557,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/keep:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     put:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2428,6 +2594,7 @@ paths:
         '423': { description: The site is taken down by the operator, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/keep-versions:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     put:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2478,6 +2645,7 @@ paths:
         '429': { description: Too many site changes from this address; try again shortly, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/lock:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2569,6 +2737,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/lock/sign-out-everyone:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2591,6 +2760,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/access:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2647,6 +2817,7 @@ paths:
         '409': { description: "passcode_set (remove the passcode first), named_viewers_need_own_address (every site on this server shares one address), sign_in_unavailable (this server has no email codes or Google), or named_viewers_unavailable", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /v1/sites/{sitename}/viewers:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2680,6 +2851,7 @@ paths:
         '409': { description: "too_many_viewers (the list would pass SITE_VIEWERS_MAX), passcode_set, named_viewers_need_own_address, sign_in_unavailable or named_viewers_unavailable", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /v1/sites/{sitename}/viewers/{email}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     delete:
       x-audience: ["public-host"]
       tags: ["Sites"]
@@ -2879,6 +3051,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/analytics/sites:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Analytics"]
@@ -2928,6 +3101,7 @@ paths:
         '403': { description: '`all=1` requested by a non-admin', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/analytics:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Analytics"]
@@ -3014,6 +3188,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/analytics/geo:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Analytics"]
@@ -3084,6 +3259,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/analytics/top:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Analytics"]
@@ -3143,6 +3319,7 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /v1/sites/{sitename}/me:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Visitor sign-in"]
@@ -3256,6 +3433,7 @@ paths:
         '403': { $ref: '#/components/responses/OriginMismatchOrSiteLocked' }
 
   /v1/sites/{sitename}/allowed-origins:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     put:
       x-audience: ["public-host"]
       tags: ["Visitor sign-in"]
@@ -3297,6 +3475,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/domain:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Custom domains"]
@@ -3464,6 +3643,7 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /v1/sites/{sitename}/domain/check:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Custom domains"]
@@ -4275,6 +4455,7 @@ paths:
         '503': { description: Not ready, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/visitor/auth:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Visitor sign-in"]
@@ -4422,6 +4603,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
   /v1/sites/{sitename}/visitor/auth/verify:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Visitor sign-in"]
@@ -4903,7 +5085,7 @@ paths:
                   api_key: { type: string }
                   message: { type: string }
         '400': { description: Cannot reissue an admin account's key, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
-        '409': { description: "account_suspended: re-enable the account first", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: "account_suspended: re-enable the account first; team_account: a team has no key, its members use their own", content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -5304,6 +5486,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
 
   /v1/sites/{sitename}/storage/visitors:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5320,6 +5503,7 @@ paths:
         '400': { description: invalid_visitor_id, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: forbidden (not the owner), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/people:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5340,6 +5524,7 @@ paths:
         '200': { description: 'people: [{visitor_id?, email?, named_viewer, has_data, signed_in}]' }
         '403': { description: forbidden (not the owner), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/usage:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5352,6 +5537,7 @@ paths:
         '200': { description: '{used_bytes,limit_bytes,remaining_bytes,files_used_bytes,files_limit_bytes,files_remaining_bytes,breakdown:{kv_bytes,sqlite_bytes,files_bytes}}' }
         '403': { description: forbidden, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/resources:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5382,6 +5568,7 @@ paths:
         '200': { description: The frame page, text/html }
         '404': { description: Not the app's own address, or the spam check is off, content: { text/plain: { schema: { type: string } } }}
   /v1/sites/{sitename}/storage/resources/{name}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     put:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5437,6 +5624,7 @@ paths:
         '200': { description: 'deleted: true', content: { application/json: { schema: { $ref: '#/components/schemas/DeletedResponse' } } } }
         '403': { description: forbidden, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/kv/{name}/keys:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5448,6 +5636,7 @@ paths:
         '200': { description: 'items: [{key,value,mine|visitor_id}], next_after cursor' }
         '403': { description: forbidden or site_locked, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/kv/{name}/keys/{key}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5480,6 +5669,7 @@ paths:
         '200': { description: 'deleted: true', content: { application/json: { schema: { $ref: '#/components/schemas/DeletedResponse' } } } }
 
   /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5646,6 +5836,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
   /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5683,6 +5874,7 @@ paths:
         '404': { description: row_not_found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
 
   /v1/sites/{sitename}/storage/sqlite/{name}/query:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5696,6 +5888,7 @@ paths:
         '400': { description: 'Every SQL refusal says what happened and what to do, under a stable code (full list on the StorageSQL schema): sql_request, sql_params, sql_syntax, sql_multiple_statements, sql_param_count, sql_not_available, sql_use_query, sql_use_execute, sql_use_schema, sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_not_null_failed, sql_check_failed, sql_foreign_key_failed, sql_constraint_failed, sql_timeout, sql_value_too_large, sql_error, or result_too_large', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '403': { description: 'fixed_routes_required (a visitor)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/sqlite/{name}/execute:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5711,6 +5904,7 @@ paths:
         '409': { description: 'sql_unique_failed: a row with that unique value exists; the message names the column', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '507': { description: 'site_full or sqlite_full', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/sqlite/{name}/schema:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5725,6 +5919,7 @@ paths:
         '400': { description: 'Every SQL refusal says what happened and what to do, under a stable code (full list on the StorageSQL schema): sql_request, sql_params, sql_syntax, sql_multiple_statements, sql_param_count, sql_not_available, sql_use_query, sql_use_execute, sql_use_schema, sql_no_such_table, sql_no_such_column, sql_no_such_function, sql_not_null_failed, sql_check_failed, sql_foreign_key_failed, sql_constraint_failed, sql_timeout, sql_value_too_large, sql_error, visitor_id_required, or server_column (a CREATE TRIGGER/VIEW or ALTER naming written_by; SIM-358, 2026-11-06, a name match on the statement text, not a parser -- a positional INSERT elsewhere naming no column is unaffected, by design)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '409': { description: 'table_preset_rename (a table with its own rules is renamed before the new name has rules)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
   /v1/sites/{sitename}/storage/files/{name}/objects:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5735,6 +5930,7 @@ paths:
       responses:
         '200': { description: 'items: [{path,bytes,content_type,mine|visitor_id}], next_after cursor' }
   /v1/sites/{sitename}/storage/files/{name}/objects/{path}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5766,6 +5962,7 @@ paths:
       responses:
         '200': { description: 'deleted: true', content: { application/json: { schema: { $ref: '#/components/schemas/DeletedResponse' } } } }
   /v1/sites/{sitename}/storage/files/{name}/download-link:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: ["public-host"]
       tags: ["Storage resources"]
@@ -5903,6 +6100,7 @@ paths:
 
   /v1/sites/{sitename}/showcase:
     parameters:
+      - { $ref: '#/components/parameters/owner' }
       - { $ref: '#/components/parameters/sitename' }
     get:
       x-audience: ["public-host"]
@@ -6136,6 +6334,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/NotificationError'
   /v1/sites/{sitename}/notifications:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: [public-host]
       tags:
@@ -6229,6 +6428,7 @@ paths:
             schema:
               $ref: '#/components/schemas/NotificationCreate'
   /v1/sites/{sitename}/notifications/{id}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     patch:
       x-audience: [public-host]
       tags:
@@ -6308,6 +6508,7 @@ paths:
       parameters:
         [{"$ref": "#/components/parameters/sitename"}, {"name": "id", "in": "path", "required": true, "schema": {"type": "string"}, "description": "Subscription ID from the notification list."}, {"name": "event", "in": "query", "schema": {"type": "string"}, "description": "Optional group slug for a site notification."}]
   /v1/sites/{sitename}/notifications/{id}/test:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: [public-host]
       tags:
@@ -6357,6 +6558,7 @@ paths:
       parameters:
         [{"$ref": "#/components/parameters/sitename"}, {"name": "id", "in": "path", "required": true, "schema": {"type": "string"}, "description": "Subscription ID from the notification list."}, {"name": "event", "in": "query", "schema": {"type": "string"}, "description": "Optional group slug for a site notification."}]
   /v1/sites/{sitename}/notifications/{id}/rotate-secret:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience: [public-host]
       tags:
@@ -6401,6 +6603,7 @@ paths:
       parameters:
         [{"$ref": "#/components/parameters/sitename"}, {"name": "id", "in": "path", "required": true, "schema": {"type": "string"}, "description": "Subscription ID from the notification list."}, {"name": "event", "in": "query", "schema": {"type": "string"}, "description": "Optional group slug for a site notification."}]
   /v1/sites/{sitename}/notifications/{id}/deliveries:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience: [public-host]
       tags:
@@ -6481,6 +6684,7 @@ paths:
         '404':
           description: The embedded file is unexpectedly missing (install misconfiguration).
   /v1/sites/{sitename}/push/vapid-key:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience:
       - public-host
@@ -6510,6 +6714,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/sitename'
   /v1/sites/{sitename}/push/subscribe:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience:
       - public-host
@@ -6551,7 +6756,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: site_not_found, or not_offered when the flag does not cover this account.
+          description: site_not_found, or not_offered when the flag does not cover this account or the site is a team's (a team's sites send no notifications).
           content:
             application/json:
               schema:
@@ -6596,6 +6801,7 @@ paths:
                 label:
                   type: string
   /v1/sites/{sitename}/push/unsubscribe:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience:
       - public-host
@@ -6650,6 +6856,7 @@ paths:
                 id:
                   type: string
   /v1/sites/{sitename}/push/mute:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     post:
       x-audience:
       - public-host
@@ -6708,6 +6915,7 @@ paths:
                   items:
                     type: string
   /v1/sites/{sitename}/push/devices:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience:
       - public-host
@@ -6783,6 +6991,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/sitename'
   /v1/sites/{sitename}/push/devices/{id}:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     delete:
       x-audience:
       - public-host
@@ -6828,6 +7037,7 @@ paths:
           type: string
         description: Device ID from the device list or a subscribe response.
   /v1/sites/{sitename}/push/rules:
+    parameters: [ { $ref: '#/components/parameters/owner' } ]
     get:
       x-audience:
       - public-host
@@ -6940,6 +7150,26 @@ components:
             events: "Available when this server supports the operation."
 
   parameters:
+    owner:
+      name: owner
+      in: query
+      required: false
+      schema: { type: string, example: design-team }
+      description: >-
+        Act on the sites of this team (its handle, from GET /v1/teams) instead of your own:
+        every member may do here whatever the owner may. Checked on every request, so a removed member is refused
+        on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics
+        routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your
+        own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored.
+    ifMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema: { type: string, example: '"3"' }
+      description: >-
+        Optional. The site's active version you last read, in quotes. The deploy, update or rollback is refused
+        with 412 version_changed when the active version is no longer that one (another member published), and
+        with 400 invalid_if_match when malformed. Send it on sites other people also publish, such as a team's.
     createAccess:
       name: access
       in: query
@@ -7131,6 +7361,8 @@ components:
     Site:
       type: object
       properties:
+        owner: { type: string, description: "Present on GET /v1/sites?owner=<team>: the team's handle." }
+        access_role: { type: string, enum: [member], description: "Present on GET /v1/sites?owner=<team>: member (you hold these sites as one of the team's members)." }
         summary:
           type: object
           description: Compact content from the newest uploaded index.html; omitted when empty.

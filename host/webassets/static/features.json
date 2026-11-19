@@ -1728,7 +1728,8 @@
    ],
    "sections": [
     6,
-    7
+    7,
+    24
    ],
    "features": [
     {
@@ -2457,6 +2458,36 @@
      "covers": [
       "password-accounts"
      ]
+    },
+    {
+     "id": "teams",
+     "name": "Teams",
+     "line": "A team owns sites like a person does. Everyone in it publishes and manages those sites with their own sign-in.",
+     "who": "Colleagues, clubs and agencies who look after the same sites together.",
+     "how": "Create a team, invite people by email, then ask your AI app to publish with the team as the owner. Every member can change or delete any team site and add or remove members. Removing someone stops their access on their next request.",
+     "example": "A small design studio makes a team called studio; each designer publishes client pages at <site>.studio.simple-host.app from their own chat app.",
+     "where": "The Teams page, linked from your sites, and any AI app connected to Simple Host.",
+     "limits": "Up to 10 teams per person. A team keeps at least one member and can be deleted only once it owns no sites. Teams cannot be renamed.",
+     "editions": {
+      "host": "yes",
+      "enterprise": "yes",
+      "smallbox": "yes"
+     },
+     "editions_note": "",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "Deploy skill",
+       "href": "/skills/website-deploy/SKILL.md"
+      },
+      {
+       "label": "Docs",
+       "href": "/docs/guides/access/#share-sites-with-a-team"
+      }
+     ],
+     "covers": [],
+     "evidence": "FEATURES.md \u00a724 Teams; h/teams.go; host/mcp/team_tools.go; st/teams.html."
     }
    ]
   },

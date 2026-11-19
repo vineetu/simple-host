@@ -15,6 +15,7 @@ import (
 
 	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // maxAccountsBody bounds the request body, not the number of accounts. An
@@ -150,10 +151,12 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	erased := deleted.Erased
 
-	if err = h.eraseAccountFiles(r.Context(), erased); err != nil {
-		log.Printf("admin delete account %s: files: %v", id, err)
-		writeJSON(w, 500, errorResponse{Error: "account removed but its files could not be deleted"})
-		return
+	for _, e := range append([]model.ErasedAccount{erased}, deleted.Teams...) {
+		if err = h.eraseAccountFiles(r.Context(), e); err != nil {
+			log.Printf("admin delete account %s: files of %s: %v", id, e.UserID, err)
+			writeJSON(w, 500, errorResponse{Error: "account removed but its files could not be deleted"})
+			return
+		}
 	}
 	h.sweepOrphanTeamSites(r.Context(), erased.AffectedEventAccounts)
 	w.WriteHeader(http.StatusNoContent)

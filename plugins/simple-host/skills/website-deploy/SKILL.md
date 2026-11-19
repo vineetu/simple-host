@@ -56,6 +56,12 @@ rules, sign-in only where the row says, and a line telling the owner how they se
   kept; `remove_files` drops named paths). Without `keep_other_files` a publish replaces the
   whole site, so a file you leave out is gone. New hours or a new price on a plain page is just
   this page edit. When enabled, `list_sites` also opens My sites with a read-only dashboard.
+- **A team's site** ("our team's site", a site colleagues share). `list_teams`, then pass
+  `owner: "<team>"` to every site and storage tool; the person acts with their own sign-in. On
+  `update_site` and `rollback_site` also send `expected_version` (the active version you read): a
+  `version_changed` refusal means another member published meanwhile, so read again. Make a team
+  or invite someone only when asked (`create_team`, `add_team_member`): every member can delete
+  every team site. Invitations wait for the person to accept. More: `references/operations.md`.
 - **A request, quote, contact or waitlist form.** Topic `inbox`. No sign-in on the form. Tell the
   owner: "ask me: show my requests" (`storage_sql_query`).
 - **Bookings, reservations and orders.** Topic `booking` (orders: `records`). Sign-in happens when
@@ -136,7 +142,7 @@ the page that uses them. Then the page:
 ## 6. Without the connector
 
 A coding agent with a configured owner credential uses REST (`X-API-Key`, and
-`X-Skill-Version: 0.27.116` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
+`X-Skill-Version: 0.27.117` on every call) and the recipes at `https://simple-host.app/recipes/<topic>.md`.
 
 ## Advanced: open only when the job needs it (fetch the URL if the file is not on disk)
 

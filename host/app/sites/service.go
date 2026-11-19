@@ -778,9 +778,13 @@ type UpdateInput struct {
 	Remove                   []string
 	ExpectedID               string
 	CheckID                  bool
-	Budget                   int64
-	LimitOverride            bool
-	Limit                    int64
+	// IfMatch, when not 0, is the active version the caller last read
+	// (If-Match): the update is refused with version_changed when the site
+	// has moved on since, or does not exist.
+	IfMatch       int
+	Budget        int64
+	LimitOverride bool
+	Limit         int64
 }
 
 // Photo is an uploaded image to merge into the live site.
@@ -803,6 +807,9 @@ type UpdateResult struct {
 
 // Update writes a new version and publishes it when requested.
 func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, error) {
+	if in.IfMatch > 0 {
+		in.CreateIfMissing = false // If-Match names an existing version
+	}
 	if in.LimitOverride {
 		in.Budget = in.Limit
 	}
@@ -899,6 +906,9 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	liveBefore, err := repo.SiteActiveVersion(ctx, tx, site.ID)
 	if err != nil {
 		return UpdateResult{}, err
+	}
+	if in.IfMatch > 0 && liveBefore != in.IfMatch {
+		return UpdateResult{}, versionChanged(liveBefore)
 	}
 	if err := s.createGate(ctx, tx, in.User, in.Name); err != nil {
 		return UpdateResult{}, err
@@ -1060,6 +1070,8 @@ type RollbackInput struct {
 	Name, ExpectedID string
 	CheckID          bool
 	Version          int
+	// IfMatch, when not 0, is the active version the caller last read.
+	IfMatch int
 }
 
 // RollbackResult reports the site and whether it was already active.
@@ -1075,6 +1087,9 @@ func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResul
 	defer unlock()
 	if err != nil {
 		return RollbackResult{Site: site}, err
+	}
+	if in.IfMatch > 0 && site.ActiveVersion != in.IfMatch {
+		return RollbackResult{Site: site}, versionChanged(site.ActiveVersion)
 	}
 	if !unchanged {
 		site, err = s.rollbackTransaction(ctx, site, in.Version, in.User)
@@ -1332,3 +1347,9 @@ func (i publishedInfo) Mode() fs.FileMode  { return fs.FileMode(i) }
 func (i publishedInfo) ModTime() time.Time { return time.Time{} }
 func (i publishedInfo) IsDir() bool        { return fs.FileMode(i).IsDir() }
 func (i publishedInfo) Sys() any           { return nil }
+
+// versionChanged refuses a change whose If-Match names a version that is no
+// longer the active one: someone else published or rolled back meanwhile.
+func versionChanged(active int) error {
+	return &Error{Code: "version_changed", Message: fmt.Sprintf("the site changed since you read it: its active version is now %d; read it again and redo your change on that version", active)}
+}

@@ -82,8 +82,10 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 	}
 	erased := deleted.Erased
 
-	if err := h.eraseAccountFiles(r.Context(), erased); err != nil {
-		log.Printf("delete account %s: files: %v", user.ID, err)
+	for _, e := range append([]model.ErasedAccount{erased}, deleted.Teams...) {
+		if err := h.eraseAccountFiles(r.Context(), e); err != nil {
+			log.Printf("delete account %s: files of %s: %v", user.ID, e.UserID, err)
+		}
 	}
 	h.sweepOrphanTeamSites(r.Context(), erased.AffectedEventAccounts)
 	if strings.Contains(deleted.Username, "@") {

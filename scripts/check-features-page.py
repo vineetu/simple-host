@@ -83,7 +83,7 @@ def parse_features_md(path="docs/FEATURES.md"):
 
 def main():
     fails = []
-    data = runpy.run_path("scripts/build-features-page.py")["feature_data"]()[1]
+    base, data, _ = runpy.run_path("scripts/build-features-page.py")["feature_data"]()
     sections, leads = parse_features_md()
     if not sections or not leads:
         print("FAIL: FEATURES.md parse found %d sections and %d leads; the pattern needs updating" % (len(sections), len(leads)))
@@ -142,7 +142,9 @@ def main():
             not_shown_sections.add(item["section"])
 
     for n, title in sorted(sections.items()):
-        if n not in claimed_sections and n not in not_shown_sections:
+        # A section the Host page claims may be left off the product's page.
+        host_only = any(n in area.get("sections", []) for area in base["areas"])
+        if n not in claimed_sections and n not in not_shown_sections and not host_only:
             fails.append("FEATURES.md section %d (%s) is in no area's sections and not in not_shown" % (n, title))
     for n in claimed_sections:
         if n not in sections:

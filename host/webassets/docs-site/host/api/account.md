@@ -47,7 +47,7 @@ Changing the handle changes every address (https://&lt;handle&gt;.simple-host.ap
 
 <div data-operation="DELETE /v1/me"></div>
 
-Deletes the account at once and for good; nothing goes to Recently deleted and nothing can be restored. Removed: every site (including ones in Recently deleted) with its files, versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every entry this person sent to other people's lists while signed in; their address is taken off the changes they made to other people's page data (writes made without signing in and older public-list entries are not linked to anyone and stay; support@simple-host.app helps with those). The handle, old handles and claimed &lt;name&gt;.simple-host.app addresses are retired, never given to anyone else; custom domains are released. A confirmation email goes to the account's address. Offer GET /v1/me/export.zip first. Refused for a suspended account or one holding a site the operator took down (the operator handles those), an admin account, or one still holding event hostnames.
+Deletes the account at once and for good; nothing goes to Recently deleted and nothing can be restored. Removed: every site (including ones in Recently deleted) with its files, versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every entry this person sent to other people's lists while signed in; their address is taken off the changes they made to other people's page data (writes made without signing in and older public-list entries are not linked to anyone and stay; support@simple-host.app helps with those). The handle, old handles and claimed &lt;name&gt;.simple-host.app addresses are retired, never given to anyone else; custom domains are released. A confirmation email goes to the account's address. Offer GET /v1/me/export.zip first. Refused for a suspended account or one holding a site the operator took down (the operator handles those), an admin account, or one still holding event hostnames. Each team this person alone belongs to is deleted with the account, with all its sites.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
 
@@ -168,6 +168,12 @@ Revokes every token this account granted to the app. It has to be connected agai
 Sites this account deleted in the last 7 days. Each keeps its files, versions, saved data, collections and addresses, and its name stays taken, until purge_at; POST /v1/sites/{sitename}/restore brings it back until then.
 
 **Auth:** an API key (`X-API-Key` header, or a REST-audience connector token as `Authorization: Bearer`).
+
+**Parameters:**
+
+| Name | In | Type | Required | Description |
+| --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 
 **Responses:**
 
@@ -503,6 +509,7 @@ Owner key or connector only, never deploy-only keys. Available on hosted Simple 
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Responses:**
@@ -526,6 +533,7 @@ Send pinned and/or order; omitted fields stay unchanged. Pinned sites come first
 
 | Name | In | Type | Required | Description |
 | --- | --- | --- | --- | --- |
+| owner | query | string |  | Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an "owner" in a JSON body is ignored. |
 | sitename | path | string | yes |  |
 
 **Request body:**

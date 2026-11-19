@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1mv7yst" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1iehts6" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -248,6 +248,11 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/teams/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Teams</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -806,7 +811,7 @@
 </table>
 <h2 id="delete-v1me">DELETE /v1/me</h2>
 <div data-operation="DELETE /v1/me"></div>
-<p>Deletes the account at once and for good; nothing goes to Recently deleted and nothing can be restored. Removed: every site (including ones in Recently deleted) with its files, versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every entry this person sent to other people’s lists while signed in; their address is taken off the changes they made to other people’s page data (writes made without signing in and older public-list entries are not linked to anyone and stay; <a href="mailto:support@simple-host.app">support@simple-host.app</a> helps with those). The handle, old handles and claimed &lt;name&gt;.simple-host.app addresses are retired, never given to anyone else; custom domains are released. A confirmation email goes to the account’s address. Offer GET /v1/me/export.zip first. Refused for a suspended account or one holding a site the operator took down (the operator handles those), an admin account, or one still holding event hostnames.</p>
+<p>Deletes the account at once and for good; nothing goes to Recently deleted and nothing can be restored. Removed: every site (including ones in Recently deleted) with its files, versions, saved data, lists and analytics; keys; connected apps; visitor sign-ins; and every entry this person sent to other people’s lists while signed in; their address is taken off the changes they made to other people’s page data (writes made without signing in and older public-list entries are not linked to anyone and stay; <a href="mailto:support@simple-host.app">support@simple-host.app</a> helps with those). The handle, old handles and claimed &lt;name&gt;.simple-host.app addresses are retired, never given to anyone else; custom domains are released. A confirmation email goes to the account’s address. Offer GET /v1/me/export.zip first. Refused for a suspended account or one holding a site the operator took down (the operator handles those), an admin account, or one still holding event hostnames. Each team this person alone belongs to is deleted with the account, with all its sites.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
 <p><strong>Request body:</strong></p>
 <table>
@@ -1045,6 +1050,27 @@
 <div data-operation="GET /v1/me/deleted-sites"></div>
 <p>Sites this account deleted in the last 7 days. Each keeps its files, versions, saved data, collections and addresses, and its name stays taken, until purge_at; POST /v1/sites/{sitename}/restore brings it back until then.</p>
 <p><strong>Auth:</strong> an API key (<code>X-API-Key</code> header, or a REST-audience connector token as <code>Authorization: Bearer</code>).</p>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>In</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
+</tbody>
+</table>
 <p><strong>Responses:</strong></p>
 <table>
 <thead>
@@ -1746,6 +1772,13 @@
 </thead>
 <tbody>
 <tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
+<tr>
 <td>sitename</td>
 <td>path</td>
 <td>string</td>
@@ -1797,6 +1830,13 @@
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>owner</td>
+<td>query</td>
+<td>string</td>
+<td></td>
+<td>Act on the sites of this team (its handle, from GET /v1/teams) instead of your own: every member may do here whatever the owner may. Checked on every request, so a removed member is refused on their next one. 404 owner_not_found when you are not a member of a team of that name (the analytics routes keep their older meaning for any other handle); 403 deploy_only_key for a deploy-only key. Your own handle, or the admin key, changes nothing. Query string only: an “owner” in a JSON body is ignored.</td>
+</tr>
 <tr>
 <td>sitename</td>
 <td>path</td>

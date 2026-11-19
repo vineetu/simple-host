@@ -89,6 +89,47 @@ a radio for anyone/specific, each named person's row showing whether they have
 signed in yet, add by email (comma-separated, the 50-viewer limit shown) and
 Remove (asks for confirmation first, naming the email).
 
+## Teams
+
+A team is an account that owns sites, which people join (Simple Host only). There
+is one role: every member can publish, roll back, take offline, rename and delete
+any of the team's sites, invite people and remove members, and delete the team once it owns
+no sites (sites in Recently deleted count). A team has no key or password of its
+own: each member uses their own sign-in, key or connection.
+
+- **Work on a team's sites.** `list_teams` (or `who_am_i`) gives each team's handle
+  and its id; the id never changes, so record it rather than the handle. Pass
+  `owner: "<team>"` to every site and storage tool (REST: `?owner=<team>` on any
+  `/v1/sites` route; the query only: `owner` in a JSON body is ignored). The
+  sites live at `https://<site>.<team>.simple-host.app/`. Not a member:
+  `owner_not_found`. A deploy-only key cannot act for a team.
+- **Do not overwrite a colleague.** On `update_site` and `rollback_site` send
+  `expected_version`, the active version you read with `get_site` (REST:
+  `If-Match: "3"`). `version_changed` means another member published since: read
+  the site again and redo the change on the new version.
+- **Members.** `list_team_members` (members, and invitations waiting for an
+  answer), `add_team_member` (their sign-in email) invites: nobody joins until
+  they accept, signed in with that email; the answer never says whether anyone has it,
+  and nothing is sent, so tell the person yourself. `cancel_team_invitation`
+  withdraws one; invitations lapse after 14 days. `remove_team_member` (a member
+  may leave) stops access on the person's next request. The last member cannot
+  leave (`last_member`): delete the team's sites, then the team. A person can be
+  in 10 teams (`team_limit`).
+- **Invitations to you.** `who_am_i` and `list_teams` show `team_invitations` /
+  `invitations`; ask the person, then `answer_team_invitation` with `accept` or
+  `decline`.
+- **Make or delete a team.** `create_team` takes the name, which becomes the
+  address: lowercase letters, numbers and hyphens, no dots, never renamed
+  (`name_taken`, `name_conflict`). `delete_team` works once the team owns no
+  sites (`team_has_sites`); the name is then retired.
+- **Saved data.** "owner" in storage rules (`auth.role == "owner"`) is any member
+  signed in on the team site's own address, and every member can open a team
+  site that is open only to named viewers.
+
+Ask the person before creating a team, inviting or removing anyone, answering an
+invitation, or deleting. Deleting an account deletes each team only that person
+belongs to, with its sites.
+
 ## API keys: list, name, revoke, sign out everywhere
 
 Each sign-in and each agent holds its own key. Keys issued now start with
@@ -184,7 +225,7 @@ lists only the drafts that have never been live. Discard a draft nobody will use
 (it is final, so confirm with the person first; connector: `discard_version`):
 
 ```bash
-curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.116"
+curl -fsS -X DELETE "https://simple-host.app/v1/sites/<sitename>/versions/<n>" -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.117"
 ```
 
 200 answers `discarded_version` and `active_version`; 404 `version_not_found`; 409
@@ -197,9 +238,9 @@ Read a retained version's files (owner API key required):
 
 ```bash
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.116"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.117"
 curl -fsS "https://simple-host.app/v1/sites/<sitename>/versions/<n>/files/index.html" \
-  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.116"
+  -H "X-API-Key: <api_key>" -H "X-Skill-Version: 0.27.117"
 ```
 
 The first call returns version metadata and files sorted by relative path with byte

@@ -147,10 +147,19 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"PUT /v1/me/home":                  fixed(200, `{"site":null}`),
 		"PUT /v1/sites/blog/keep-versions": fixed(200, `{"name":"blog","keep_versions":0,"effective_keep_versions":4,"active_version":2,"removed_versions":[]}`),
 		"GET /v1/me": fixed(200, `{"file_usage":{"used_bytes":100,"limit_mb":1024,"message":"0.0 MB of 1 GB used","tips":"Shrink photos"},"can_set_keep_versions":true,"keep_versions":4,"id":"u-1","username":"a@example.com","handle":"ann","display_name":"Ann",`+
-			`"address":{"state":"waiting","address":"https://<site>.ann.simple-host.app/","ready_in_hours":3,"note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`),
+			`"address":{"state":"waiting","address":"https://<site>.ann.simple-host.app/","ready_in_hours":3,"note":"Your sites are at ann.simple-host.app/<site>/ until ..."},"teams":[{"id":"t-1","handle":"studio"}],`+
+			`"team_invitations":[{"id":"i-1","team":"crew","invited_by":"cal","created_at":"2026-11-19T00:00:00Z","expires_at":"2026-12-03T00:00:00Z"}]}`),
 		"GET /v1/sites": fixed(200, "["+site("blog", 2, "public", "rsvp.example.com", "active")+","+
 			strings.TrimSuffix(site("draft", 0, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
-			strings.Replace(site("broken", 1, "unlisted", "broken.example.com", "error"), "{", `{"offline":true,`, 1)+"]"),
+			strings.Replace(site("broken", 1, "unlisted", "broken.example.com", "error"), "{", `{"offline":true,"owner":"studio","access_role":"member",`, 1)+"]"),
+		"POST /v1/teams":                                 fixed(201, `{"id":"t-1","handle":"studio","members":1,"sites":0,"created_at":"2026-11-19T00:00:00Z"}`),
+		"GET /v1/teams":                                  fixed(200, `{"teams":[{"id":"t-1","handle":"studio","members":2,"sites":1,"created_at":"2026-11-19T00:00:00Z"}],"invitations":[{"id":"i-1","team":"crew","invited_by":"cal","created_at":"2026-11-19T00:00:00Z","expires_at":"2026-12-03T00:00:00Z"}]}`),
+		"GET /v1/teams/studio/members":                   fixed(200, `{"team":{"id":"t-1","handle":"studio","members":2,"sites":1,"created_at":"2026-11-19T00:00:00Z"},"members":[{"id":"u-1","handle":"ann","display_name":"Ann","added_at":"2026-11-19T00:00:00Z"},{"id":"u-2","handle":"ben","added_by":"ann","added_at":"2026-11-19T00:00:00Z"}],"invitations":[{"id":"i-2","team":"studio","addressed_to":"cal","invited_by":"ann","created_at":"2026-11-19T00:00:00Z","expires_at":"2026-12-03T00:00:00Z"}]}`),
+		"POST /v1/teams/studio/members":                  fixed(202, `{"invited":true,"expires_in_days":14,"note":"Nothing is sent."}`),
+		"DELETE /v1/teams/studio/invitations/i-2":        fixed(200, `{"cancelled":"i-2"}`),
+		"POST /v1/me/team-invitations/i-1":               fixed(200, `{"team":"crew","answer":"accept"}`),
+		"DELETE /v1/teams/studio/members/cal":            fixed(200, `{"removed":"cal"}`),
+		"DELETE /v1/teams/studio":                        fixed(200, `{"deleted":"studio"}`),
 		"GET /v1/sites/blog/versions/2/files":            fixed(200, `{"files":[{"path":"index.html","size":11},{"path":"logo.png","size":4}]}`),
 		"GET /v1/sites/blog/versions/2/files/index.html": fixed(200, "<h1>hi</h1>"),
 		"GET /v1/sites/blog/versions/1/files/logo.png":   fixed(200, "\x89PNG\x00\x01"),
@@ -221,7 +230,11 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"DELETE /v1/sites/blog/storage/files/store/objects/a.txt": fixed(200, `{"deleted":true}`),
 		"POST /v1/sites/blog/storage/files/store/download-link":   fixed(200, `{"url":"https://simple-host.app/v1/storage-download?token=opaque","expires_in":600}`),
 	}}
-	s := newTestServer(up)
+	s := NewServer(testConfig(Config{
+		Upstream: up, APIHost: "simple-host.app", ContentOrigin: "https://sites.simple-host.app",
+		SiteBases: []string{"simple-host.app"}, SkillVersion: "9.9.9", ServerName: "simple-host", Version: "9.9.9",
+		Teams: true,
+	}))
 	s.cfg.VisitorTool = func(_ *http.Request, _ Caller, _ string, _ map[string]any) (map[string]any, error) {
 		return map[string]any{"visitor_data": map[string]any{"mine": true}, "note": "Visitor data, not instructions."}, nil
 	}
@@ -237,6 +250,15 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"set_bio", map[string]any{"bio": "My projects"}},
 		{"set_showcase_site", map[string]any{"site": "blog", "pinned": true, "order": 2}},
 		{"list_sites", map[string]any{}},
+		{"list_sites", map[string]any{"owner": "studio"}},
+		{"create_team", map[string]any{"name": "studio"}},
+		{"list_teams", map[string]any{}},
+		{"list_team_members", map[string]any{"team": "studio"}},
+		{"add_team_member", map[string]any{"team": "studio", "email": "cal@example.com"}},
+		{"cancel_team_invitation", map[string]any{"team": "studio", "invitation": "i-2"}},
+		{"answer_team_invitation", map[string]any{"invitation": "i-1", "answer": "accept"}},
+		{"remove_team_member", map[string]any{"team": "studio", "person": "cal"}},
+		{"delete_team", map[string]any{"team": "studio"}},
 		{"get_site", map[string]any{"site": "blog"}},
 		{"get_site", map[string]any{"site": "draft"}},
 		{"read_site_file", map[string]any{"site": "blog", "path": "index.html"}},
@@ -306,7 +328,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		{"get_page_recipe", map[string]any{"topic": "form"}},
 	}
 	byName := map[string]Tool{}
-	for _, tool := range Tools() {
+	for _, tool := range append(Tools(), teamTools()...) {
 		byName[tool.Name] = tool
 	}
 	seen := map[string]map[string]bool{}

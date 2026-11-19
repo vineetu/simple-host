@@ -310,7 +310,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)
-	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry)
+	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, ed.Identity().PersonalSites)
 	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false, ed)
 	conn.Register(mux, authMW)
 	app.conn = conn

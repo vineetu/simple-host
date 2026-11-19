@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 func accountTools() []Tool {
@@ -28,6 +29,11 @@ func accountTools() []Tool {
 					"ready_in_hours": outInteger("Rough hours until the own address is ready. Present while waiting or failing."),
 					"note":           outString("Tell the person this while waiting or failing: where their sites are until then, and that visitors' sign-ins and browser-kept data start fresh when the address switches."),
 				}, "state", "address"), "The account's own site address. Present with handle on simple-host.app."),
+				"teams": outArray("Present when you belong to teams: each one's id (it never changes; record it rather than the handle) and handle (owner=<handle> on site tools).", outObject(map[string]any{
+					"id":     outString("The team's id."),
+					"handle": outString("The team's handle."),
+				}, "id", "handle")),
+				"team_invitations": outArray("Present when invitations to join a team wait for your answer: accept or decline each with answer_team_invitation, after asking the person.", invitationSchema(false)),
 			}, "email"),
 			Name:        "who_am_i",
 			Title:       "Who am I signed in as",
@@ -40,13 +46,15 @@ func accountTools() []Tool {
 					return output{}, restError("who_am_i", res)
 				}
 				var me struct {
-					Username           string         `json:"username"`
-					Handle             string         `json:"handle"`
-					HomeSite           *string        `json:"home_site"`
-					FileUsage          map[string]any `json:"file_usage"`
-					CanSetKeepVersions bool           `json:"can_set_keep_versions"`
-					KeepVersions       int            `json:"keep_versions"`
-					PublicPage         string         `json:"public_page"`
+					Username           string              `json:"username"`
+					Handle             string              `json:"handle"`
+					HomeSite           *string             `json:"home_site"`
+					FileUsage          map[string]any      `json:"file_usage"`
+					CanSetKeepVersions bool                `json:"can_set_keep_versions"`
+					KeepVersions       int                 `json:"keep_versions"`
+					PublicPage         string              `json:"public_page"`
+					Teams              []map[string]string `json:"teams"`
+					TeamInvitations    []map[string]any    `json:"team_invitations"`
 					Address            *struct {
 						State        string `json:"state"`
 						Address      string `json:"address"`
@@ -75,6 +83,26 @@ func accountTools() []Tool {
 					}
 					out["handle"], out["public_page"] = me.Handle, page
 					text += " Handle: " + me.Handle + ". Public page: " + page
+				}
+				if len(me.Teams) > 0 {
+					teams := make([]any, 0, len(me.Teams))
+					handles := make([]string, 0, len(me.Teams))
+					for _, t := range me.Teams {
+						teams = append(teams, map[string]any{"id": t["id"], "handle": t["handle"]})
+						handles = append(handles, t["handle"])
+					}
+					out["teams"] = teams
+					text += " Teams: " + strings.Join(handles, ", ") + " (pass owner=<team> on site tools to work on a team's sites)."
+				}
+				if len(me.TeamInvitations) > 0 {
+					invitations := make([]any, 0, len(me.TeamInvitations))
+					teams := make([]string, 0, len(me.TeamInvitations))
+					for _, v := range me.TeamInvitations {
+						invitations = append(invitations, v)
+						teams = append(teams, fmt.Sprint(v["team"]))
+					}
+					out["team_invitations"] = invitations
+					text += " Invitations to join: " + strings.Join(teams, ", ") + " (ask the person, then answer_team_invitation)."
 				}
 				if a := me.Address; a != nil && a.State != "" {
 					addr := map[string]any{"state": a.State, "address": a.Address}

@@ -97,7 +97,14 @@ func buildRegistry(cfg Config, appFamily func(base []Tool) FamilyTools) *toolReg
 		cfg.Contribution = &Contribution{}
 	}
 	r := &toolRegistry{}
-	r.addFamilies(editionHost, hostFamilies(*cfg.Limits), func(tools []Tool) []Tool { return instanceTools(addressTools(tools)) })
+	hostRewrite := func(tools []Tool) []Tool { return instanceTools(addressTools(tools)) }
+	if cfg.Teams {
+		hostRewrite = func(tools []Tool) []Tool { return ownerTools(instanceTools(addressTools(tools))) }
+	}
+	r.addFamilies(editionHost, hostFamilies(*cfg.Limits), hostRewrite)
+	if cfg.Teams {
+		r.add(editionHost, famAccounts, instanceTools(addressTools(teamTools())))
+	}
 	if cfg.Events != nil {
 		r.add(editionHost, famNotifications, instanceTools(addressTools(notificationTools())))
 	}

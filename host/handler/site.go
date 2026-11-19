@@ -291,7 +291,12 @@ type siteResponse struct {
 	DeployedAt    *time.Time `json:"deployed_at,omitempty"`
 	Visibility    string     `json:"visibility,omitempty"`
 	OwnerUsername string     `json:"owner_username,omitempty"`
-	Note          string     `json:"note,omitempty"`
+	// Owner and AccessRole: on GET /v1/sites?owner=<team>, the team's
+	// handle and member (the caller holds these sites as a member). Absent
+	// from a listing of your own sites, which is unchanged.
+	Owner      string `json:"owner,omitempty"`
+	AccessRole string `json:"access_role,omitempty"`
+	Note       string `json:"note,omitempty"`
 	// Suspended: the operator has taken the site down (by itself or with its
 	// owner's account). It keeps everything and refuses changes until restored.
 	Suspended       bool   `json:"suspended,omitempty"`
@@ -1230,6 +1235,11 @@ func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, 
 	access := creationAccess(r)
 	input.Access, input.Viewers, input.NamedViewersRefusal = access.Access, access.Viewers, access.NamedViewersRefusal
 	input.ExpectedID, input.CheckID = r.Context().Value(adminSiteKey{}).(string)
+	ifMatch, ok := h.ifMatchVersion(w, r)
+	if !ok {
+		return
+	}
+	input.IfMatch = ifMatch
 	result, err := h.sitesSvc().Update(r.Context(), input)
 	if result.Created != nil {
 		h.respondCreate(w, user, *result.Created, err)
@@ -1593,7 +1603,11 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expectedID, checkID := r.Context().Value(adminSiteKey{}).(string)
-	result, err := h.sitesSvc().Rollback(r.Context(), sites.RollbackInput{User: user, Name: siteName, ExpectedID: expectedID, CheckID: checkID, Version: req.VersionNumber})
+	ifMatch, ok := h.ifMatchVersion(w, r)
+	if !ok {
+		return
+	}
+	result, err := h.sitesSvc().Rollback(r.Context(), sites.RollbackInput{User: user, Name: siteName, ExpectedID: expectedID, CheckID: checkID, Version: req.VersionNumber, IfMatch: ifMatch})
 	if err != nil {
 		var gateErr *sites.GateError
 		if errors.As(err, &gateErr) {
@@ -1735,6 +1749,9 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		resp.Order = prefs[site.ID].Order
 		if user.Team != nil {
 			resp.UserID = "" // the event's internal account is nobody's business
+		}
+		if user.Member != nil {
+			resp.Owner, resp.AccessRole = user.Handle.String, "member"
 		}
 		if f, ok := flags[site.ID]; ok {
 			resp.Keep = f.Keep
@@ -2107,4 +2124,24 @@ func (h *SiteHandler) writeUnpublishedState(w http.ResponseWriter, user *model.U
 		resp.Note += " No preview link: " + h.noPreviewWhy() + "."
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// ifMatchVersion reads the optional If-Match header of a deploy, update or
+// rollback: the active version the caller last read, as "3" (or 3). It is
+// optional everywhere; agents send it on sites other people also publish (a
+// team's), so two members never overwrite each other unknowingly. 0 when
+// absent or *. A malformed value is refused (400 invalid_if_match). Read
+// only where teams are (the Simple Host program); elsewhere it is ignored as
+// before.
+func (h *SiteHandler) ifMatchVersion(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := strings.TrimSpace(r.Header.Get("If-Match"))
+	if raw == "" || raw == "*" || !h.ed.Identity().PersonalSites {
+		return 0, true
+	}
+	n, err := strconv.Atoi(strings.Trim(strings.TrimPrefix(raw, "W/"), `"`))
+	if err != nil || n < 1 {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `If-Match must be the site's active version in quotes, e.g. If-Match: "3"`, Code: "invalid_if_match"})
+		return 0, false
+	}
+	return n, true
 }

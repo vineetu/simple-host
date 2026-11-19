@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/vsriram/simple-host/host/app/accounts"
 	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
@@ -92,7 +93,9 @@ func PlatformSchema(spamCheckAvailable bool) ruleengine.BindingSchema {
 }
 
 // DefaultProvider is used when no product sets one: no extra bindings,
-// and OwnerOnSite is "userID is the account that holds the site".
+// and OwnerOnSite is "userID may act as the owner of the account that holds
+// the site" (accounts.ActsAsOwner: the account itself, or a member of the
+// team that holds it).
 type DefaultProvider struct {
 	NoBindings
 	DB *sql.DB
@@ -103,7 +106,10 @@ func (p DefaultProvider) OwnerOnSite(ctx context.Context, siteID, userID string)
 		return false, nil
 	}
 	_, ownerID, _, err := siterepo.GetSiteOwner(ctx, p.DB, siteID)
-	return err == nil && ownerID == userID, err
+	if err != nil {
+		return false, err
+	}
+	return accounts.ActsAsOwner(ctx, p.DB, userID, ownerID)
 }
 
 // MergeBindingSchema validates the startup contract and copies the product's

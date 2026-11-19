@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teams · simple-host</title>
+  <meta name="robots" content="noindex">
+  <!--sh:head-->
+  <style>
+    main { max-width: 860px; margin: 40px auto; padding: 0 20px; }
+    h1 { margin-bottom: 8px; }
+    h2 { margin: 32px 0 12px; font-size: 18px; }
+    p { line-height: 1.6; }
+    main a { color: var(--accent); }
+    .muted { color: var(--text-secondary); }
+    input, button { font: inherit; }
+    input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); min-width: 0; }
+    .btn { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; min-height: 40px; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
+    .btn-danger { color: var(--danger, #b42318); }
+    .row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .row .grow { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+    .row form, form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .versions { padding: 4px 0 12px 16px; }
+    .versions .row { padding: 6px 0; }
+    #status { min-height: 1.5em; }
+    [hidden] { display: none !important; }
+    @media (max-width: 480px) { main { margin-top: 24px; padding: 0 16px; } }
+  </style>
+</head>
+<body>
+  <!--sh:header-->
+  <main>
+    <h1>Teams</h1>
+    <p class="muted">A team owns sites, like a person does. Every member can publish, change and delete all of its sites, invite people and remove members, and delete the team once it owns no sites. People join by accepting an invitation. Members use their own sign-in; in your AI app, name the team as the owner of a site.</p>
+    <p id="signed-out" hidden>Sign in on <a href="/dashboard">your sites page</a> first.</p>
+    <p id="status" role="status" aria-live="polite"></p>
+
+    <section id="list-view" hidden>
+      <div id="invitations"></div>
+      <div id="teams"></div>
+      <h2>New team</h2>
+      <form class="inline" id="create-form">
+        <label for="create-name">Name</label>
+        <input id="create-name" maxlength="39" autocomplete="off" spellcheck="false" placeholder="design-team" required>
+        <button class="btn btn-primary" type="submit">Create team</button>
+      </form>
+      <p class="muted">The name becomes part of every team site's address, like your own handle. Lowercase letters, numbers and hyphens; no dots. It cannot be changed later.</p>
+    </section>
+
+    <section id="team-view" hidden>
+      <p><a href="/teams" id="back">All teams</a></p>
+      <h2 id="team-title"></h2>
+      <div id="sites"></div>
+      <h2>Members</h2>
+      <div id="members"></div>
+      <div id="pending"></div>
+      <form class="inline" id="add-form">
+        <label for="add-person">Invite a person</label>
+        <input id="add-person" autocomplete="off" spellcheck="false" type="email" placeholder="their email" required>
+        <button class="btn" type="submit">Invite</button>
+      </form>
+      <p class="muted">They join once they accept, signed in with that email; they find the invitation on this page. No email is sent, so tell them. Invitations lapse after 14 days.</p>
+      <h2>Delete this team</h2>
+      <p class="muted">Only a team that owns no sites can be deleted (sites in Recently deleted count). Its name is never given out again.</p>
+      <button class="btn btn-danger" type="button" data-act="deleteTeam">Delete team</button>
+    </section>
+  </main>
+  <!--sh:footer-->
+  <script>
+    (function () {
+      var apiKey = null;
+      try { apiKey = localStorage.getItem('apiKey'); } catch (e) {}
+      var team = decodeURIComponent(location.hash.slice(1));
+      var me = null;
+
+      function el(id) { return document.getElementById(id); }
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      function say(msg) { el('status').textContent = msg || ''; }
+      // The shared dialogs (partials/dialog.html, from the head partial).
+      function confirmIt(title, body) { return window.shConfirm({ title: title, body: body, confirmLabel: 'Yes', danger: true }); }
+      function askFor(title, value) { return window.shPrompt({ title: title, label: 'New name', value: value, confirmLabel: 'Rename' }); }
+      // Every site route acts on the team's sites when it names owner.
+      function sitePath(path) { return path + (path.indexOf('?') < 0 ? '?' : '&') + 'owner=' + encodeURIComponent(team); }
+      async function api(method, path, body) {
+        var opts = { method: method, headers: { 'X-API-Key': apiKey } };
+        if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+        var res = await fetch(path, opts);
+        var data = null;
+        try { data = await res.json(); } catch (e) {}
+        if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+        return data;
+      }
+
+      async function showList() {
+        el('team-view').hidden = true;
+        el('list-view').hidden = false;
+        var data = await api('GET', '/v1/teams');
+        var teams = data.teams || [];
+        var invitations = data.invitations || [];
+        el('invitations').innerHTML = invitations.length ? '<h2>Invitations</h2>' + invitations.map(function (v) {
+          return '<div class="row"><span class="grow"><b>' + esc(v.team) + '</b> <span class="muted">from ' + esc(v.invited_by) + '</span></span>' +
+            '<button class="btn btn-primary" type="button" data-act="answer" data-id="' + esc(v.id) + '" data-team="' + esc(v.team) + '" data-answer="accept">Join</button>' +
+            '<button class="btn" type="button" data-act="answer" data-id="' + esc(v.id) + '" data-team="' + esc(v.team) + '" data-answer="decline">Decline</button></div>';
+        }).join('') : '';
+        el('teams').innerHTML = teams.length ? teams.map(function (t) {
+          return '<div class="row"><span class="grow"><a href="#' + encodeURIComponent(t.handle) + '"><b>' + esc(t.handle) + '</b></a> <span class="muted">' +
+            t.members + (t.members === 1 ? ' member' : ' members') + ' · ' + t.sites + (t.sites === 1 ? ' site' : ' sites') + '</span></span></div>';
+        }).join('') : '<p class="muted">You are not in a team yet.</p>';
+      }
+
+      async function showTeam() {
+        el('list-view').hidden = true;
+        el('team-view').hidden = false;
+        el('team-title').textContent = 'Team ' + team;
+        var results = await Promise.all([api('GET', sitePath('/v1/sites')), api('GET', '/v1/teams/' + encodeURIComponent(team) + '/members')]);
+        var sites = Array.isArray(results[0]) ? results[0] : (results[0] && results[0].data) || [];
+        el('sites').innerHTML = sites.length ? sites.map(function (s) {
+          var n = esc(s.name);
+          return '<div class="row"><span class="grow"><b>' + n + '</b> <span class="muted">v' + esc(s.active_version) + (s.offline ? ' · offline' : '') + '</span><br>' +
+            (s.site_url ? '<a href="' + esc(s.site_url) + '" target="_blank" rel="noopener">' + esc(s.site_url) + '</a>' : '') + '</span>' +
+            '<button class="btn" type="button" data-act="versions" data-name="' + n + '">Versions</button>' +
+            '<button class="btn" type="button" data-act="offline" data-name="' + n + '" data-on="' + (s.offline ? '0' : '1') + '">' + (s.offline ? 'Put online' : 'Take offline') + '</button>' +
+            '<button class="btn" type="button" data-act="rename" data-name="' + n + '">Rename</button>' +
+            '<button class="btn btn-danger" type="button" data-act="deleteSite" data-name="' + n + '">Delete</button></div>' +
+            '<div class="versions" id="versions-' + n + '" hidden></div>';
+        }).join('') : '<p class="muted">No sites yet. Ask your AI app to make one with this team as the owner.</p>';
+        var members = results[1].members || [];
+        el('members').innerHTML = members.map(function (m) {
+          var who = m.handle || m.id;
+          var you = me && m.id === me.id;
+          return '<div class="row"><span class="grow"><b>' + esc(m.handle || '(no address yet)') + '</b>' + (m.display_name ? ' ' + esc(m.display_name) : '') + (you ? ' <span class="muted">(you)</span>' : '') +
+            (m.added_by ? ' <span class="muted">added by ' + esc(m.added_by) + '</span>' : '') + '</span>' +
+            '<button class="btn" type="button" data-act="removeMember" data-who="' + esc(who) + '">' + (you ? 'Leave' : 'Remove') + '</button></div>';
+        }).join('');
+        var pending = results[1].invitations || [];
+        el('pending').innerHTML = pending.map(function (v) {
+          return '<div class="row"><span class="grow">' + esc(v.addressed_to) + ' <span class="muted">invited by ' + esc(v.invited_by) + ', waiting for an answer</span></span>' +
+            '<button class="btn" type="button" data-act="cancelInvite" data-id="' + esc(v.id) + '" data-who="' + esc(v.addressed_to) + '">Cancel</button></div>';
+        }).join('');
+      }
+
+      async function render() {
+        say('');
+        try {
+          if (team) await showTeam(); else await showList();
+        } catch (e) { say(e.message); }
+      }
+
+      async function versions(name) {
+        var box = el('versions-' + name);
+        if (!box.hidden) { box.hidden = true; return; }
+        var list = await api('GET', sitePath('/v1/sites/' + encodeURIComponent(name) + '/versions'));
+        box.innerHTML = (list || []).map(function (v) {
+          return '<div class="row"><span class="grow">v' + esc(v.version_number) + ' <span class="muted">' + esc(new Date(v.created_at).toLocaleString()) + (v.author ? ' · by ' + esc(v.author) : '') + '</span></span>' +
+            (v.is_active ? '<span class="muted">live</span>' : '<button class="btn" type="button" data-act="rollback" data-name="' + esc(name) + '" data-version="' + esc(v.version_number) + '">Make live</button>') + '</div>';
+        }).join('');
+        box.hidden = false;
+      }
+
+      var actions = {
+        versions: function (d) { return versions(d.name); },
+        rollback: async function (d) {
+          if (!(await confirmIt('Make v' + d.version + ' of ' + d.name + ' live?'))) return;
+          await api('PUT', sitePath('/v1/sites/' + encodeURIComponent(d.name) + '/active-version'), { version_number: Number(d.version) });
+          say('v' + d.version + ' is live.');
+        },
+        offline: async function (d) {
+          var on = d.on === '1';
+          if (!(await confirmIt(on ? 'Take ' + d.name + ' offline?' : 'Put ' + d.name + ' back online?', on ? 'Every address shows "This site is offline" until it is put back.' : ''))) return;
+          await api('PATCH', sitePath('/v1/sites/' + encodeURIComponent(d.name)), { offline: on });
+        },
+        rename: async function (d) {
+          var next = await askFor('Rename ' + d.name + ' to:', d.name);
+          if (!next || next.trim() === d.name) return;
+          await api('PATCH', sitePath('/v1/sites/' + encodeURIComponent(d.name)), { name: next.trim() });
+        },
+        deleteSite: async function (d) {
+          if (!(await confirmIt('Delete ' + d.name + '?', 'It goes offline now and can be restored for 7 days.'))) return;
+          await api('DELETE', sitePath('/v1/sites/' + encodeURIComponent(d.name)));
+        },
+        answer: async function (d) {
+          if (d.answer === 'accept' && !(await confirmIt('Join ' + d.team + '?', 'Every member can publish, change and delete all of its sites.'))) return;
+          await api('POST', '/v1/me/team-invitations/' + encodeURIComponent(d.id), { answer: d.answer });
+          say(d.answer === 'accept' ? 'You joined ' + d.team + '.' : 'Invitation declined.');
+        },
+        cancelInvite: async function (d) {
+          if (!(await confirmIt('Cancel the invitation to ' + d.who + '?'))) return;
+          await api('DELETE', '/v1/teams/' + encodeURIComponent(team) + '/invitations/' + encodeURIComponent(d.id));
+        },
+        removeMember: async function (d) {
+          if (!(await confirmIt('Remove ' + d.who + ' from ' + team + '?', 'Their access to the team’s sites stops at once.'))) return;
+          await api('DELETE', '/v1/teams/' + encodeURIComponent(team) + '/members/' + encodeURIComponent(d.who));
+          if (me && (d.who === me.handle || d.who === me.id)) { location.hash = ''; }
+        },
+        deleteTeam: async function () {
+          if (!(await confirmIt('Delete the team ' + team + '?', 'Its name is never given out again.'))) return;
+          await api('DELETE', '/v1/teams/' + encodeURIComponent(team));
+          location.hash = '';
+        },
+      };
+
+      document.addEventListener('click', async function (e) {
+        var b = e.target.closest('[data-act]');
+        if (!b || !Object.prototype.hasOwnProperty.call(actions, b.dataset.act)) return;
+        try { await actions[b.dataset.act](b.dataset); if (b.dataset.act !== 'versions') await render(); } catch (err) { say(err.message); }
+      });
+      el('create-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try {
+          var t = await api('POST', '/v1/teams', { name: el('create-name').value.trim() });
+          location.hash = encodeURIComponent(t.handle);
+        } catch (err) { say(err.message); }
+      });
+      el('add-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try {
+          await api('POST', '/v1/teams/' + encodeURIComponent(team) + '/members', { email: el('add-person').value.trim() });
+          el('add-person').value = '';
+          await render();
+          say('Invitation recorded. Tell them to open Teams while signed in to accept it.');
+        } catch (err) { say(err.message); }
+      });
+      window.addEventListener('hashchange', function () { team = decodeURIComponent(location.hash.slice(1)); render(); });
+
+      if (!apiKey) { el('signed-out').hidden = false; return; }
+      api('GET', '/v1/me').then(function (m) { me = m; render(); }).catch(function (e) { el('signed-out').hidden = false; say(e.message); });
+    })();
+  </script>
+</body>
+</html>

@@ -46,7 +46,7 @@
 </button>
 		<script type="module" src="/docs/_scripts/b9c3df75873d14f22f6e.js"></script>
 		<script type="module" src="/docs/_scripts/84fe3cb14cb04c05f283.js"></script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba">
-			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1mv7yst" class="astro-ipdry5cl">
+			<div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="1iehts6" class="astro-ipdry5cl">
 	<script aria-hidden="true" src="/docs/_scripts/c17db23800de57e34c9e.js"></script>
 
 	<ul class="top-level astro-rmhv4bp6">
@@ -248,6 +248,11 @@
 	</li><li class="astro-rmhv4bp6">
 		<a href="/docs/api/storage-resources/" class="astro-rmhv4bp6">
 				<span class="astro-rmhv4bp6">Storage resources</span>
+				
+			</a>
+	</li><li class="astro-rmhv4bp6">
+		<a href="/docs/api/teams/" class="astro-rmhv4bp6">
+				<span class="astro-rmhv4bp6">Teams</span>
 				
 			</a>
 	</li><li class="astro-rmhv4bp6">
@@ -577,6 +582,9 @@
 </li>
 <li>
 <p><strong>Nov 19:</strong> The PhotoDNA image check is removed. It was never switched on (it needed a PhotoDNA key that was never approved), so nothing changes for uploads, sites or events: images were never checked. The check’s settings (<code>PHOTODNA_*</code>, <code>IMAGE_SCAN_*</code>), its background worker, the admin Image matches section and its <code>/v1/admin/image-scan</code> routes, and its runbook are gone; an environment file that still sets the old settings starts as before. The <code>image_scan_*</code> tables stay unused, with no migration.</p>
+</li>
+<li>
+<p><strong>Nov 19:</strong> Teams (Simple Host only). A team owns sites like a person does, at <code>&lt;site&gt;.&lt;team&gt;.simple-host.app</code>. People join only by accepting an invitation sent to their email: they see it when signed in with that verified email (the Teams page, <code>team_invitations</code> in <code>/v1/me</code> and <code>who_am_i</code>) and accept or decline it. Nothing is emailed, and inviting never shows whether anyone has that email. Each member publishes, rolls back, takes offline, renames and deletes the team’s sites with their own sign-in, key or AI app by naming the team as the owner (<code>owner=&lt;team&gt;</code>, in the query only), invites people and removes members; removing someone stops their access on their next request. Deleting your account deletes each team you alone belong to, with its sites, unless that team is suspended or one of its sites was taken down (then, as for your own account, write to support). New: the Teams page, <code>/v1/teams</code> routes, the AI tools <code>create_team</code>, <code>list_teams</code>, <code>list_team_members</code>, <code>add_team_member</code>, <code>cancel_team_invitation</code>, <code>answer_team_invitation</code>, <code>remove_team_member</code> and <code>delete_team</code>, <code>teams</code> in <code>/v1/me</code> and <code>who_am_i</code>, and an optional <code>If-Match</code> on deploys and rollbacks (<code>412 version_changed</code>) (TM-S1).</p>
 </li>
 <li>
 <p><strong>Nov 19:</strong> Storage uses rules only, for key-value, SQLite and files. Presets, the older read/write fields, <code>write_mode</code> and <code>approve_first</code> are removed and refused on every kind (<code>invalid_resource</code>); a resource with no stored rules, and a new one saved without rules, is owner-only. Pages can no longer send SQL to old databases. The <code>STORAGE_RULES</code> setting, the <code>migrate-rules</code> command and its conversion are removed, and save notifications no longer carry <code>preset</code>. Upload areas already moved onto rules answer as before (RL-D2).</p>

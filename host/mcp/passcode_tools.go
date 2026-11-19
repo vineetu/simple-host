@@ -171,8 +171,9 @@ func (c *call) passcodeOutput(tool, name string, res upstreamResult) (output, er
 }
 
 func (c *call) passcodeLink(name string) string {
-	if c.caller.Handle == "" {
-		// The admin key has no handle; its dashboard is one more click away.
+	if c.caller.Handle == "" || c.owner != "" {
+		// The admin key has no handle, and a team's sites are on the
+		// dashboard's team page: one more click away.
 		return "https://" + c.server.cfg.APIHost + "/dashboard"
 	}
 	return "https://" + c.server.cfg.APIHost + "/" + url.PathEscape(c.caller.Handle) + "?site=" + url.QueryEscape(name) + "&open=passcode"

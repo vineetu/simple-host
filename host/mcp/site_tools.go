@@ -23,7 +23,9 @@ func siteTools(limits Limits) []Tool {
 		{
 			OutputSchema: outObject(map[string]any{
 				"sites": outArray("Sites returned by the requested filters and page.", siteSummaryWith(map[string]any{
-					"offline": outBool("Present (true) only when the owner has taken the site offline: every address shows \"This site is offline\" and visitor saves are refused."),
+					"offline":     outBool("Present (true) only when the owner has taken the site offline: every address shows \"This site is offline\" and visitor saves are refused."),
+					"owner":       outString("Present when owner named a team: that team's handle."),
+					"access_role": outEnum("Present when owner named a team: member (you act on the team's sites as one of its members).", "owner", "member"),
 				})),
 				"count": outInteger("Number of sites returned."),
 			}, "sites", "count"),
@@ -79,6 +81,9 @@ func siteTools(limits Limits) []Tool {
 					item := s.summary()
 					if s.Offline {
 						item["offline"] = true
+					}
+					if c.owner != "" && s.AccessRole != "" {
+						item["owner"], item["access_role"] = s.Owner, s.AccessRole
 					}
 					items = append(items, item)
 				}
@@ -914,6 +919,8 @@ type restSite struct {
 	Access            string `json:"access"`
 	PasscodeProtected bool   `json:"passcode_protected"`
 	Suspended         bool   `json:"suspended"`
+	Owner             string `json:"owner"`
+	AccessRole        string `json:"access_role"`
 	// FamilyAddress is the site's address under its account's address
 	// family, when one serves it (the address handed out after a domain).
 	FamilyAddress string `json:"family_address"`

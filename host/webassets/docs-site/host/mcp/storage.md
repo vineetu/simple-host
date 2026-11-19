@@ -12,6 +12,7 @@ Uploads in a files resource are listed by storage_list_file_objects (through run
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
 ## storage_get_usage
@@ -24,6 +25,7 @@ Show how much of a site's saved-data allowance is used: KV and SQLite together (
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
 ## storage_set_resource
@@ -59,6 +61,7 @@ Create the resource with storage_set_resource, then create its tables with stora
 | --- | --- | --- | --- |
 | body | object | yes | The resource's kind and access rules, e.g. {"kind": "files", "rules": {...}}. |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
 ## storage_delete_resource
@@ -72,6 +75,7 @@ Remove a resource and everything saved in it, for good. Ask the person to confir
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
 ## storage_list_kv_keys
@@ -87,6 +91,7 @@ List the keys in a KV resource, optionally only those starting with a prefix.
 | after | string |  | Optional: the next_after value from the previous answer, to get the next page. |
 | limit | integer |  | Optional: at most this many results (the server caps it). |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | prefix | string |  | Optional: only keys or paths that start with this. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
@@ -102,6 +107,7 @@ Read one key's JSON value from a KV resource. The answer is {key, value}.
 | --- | --- | --- | --- |
 | key | string | yes | The key within the KV resource, e.g. menu or settings. |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
 ## storage_put_kv
@@ -116,6 +122,7 @@ Set one key in a KV resource to a JSON value, replacing what was there. It chang
 | --- | --- | --- | --- |
 | key | string | yes | The key within the KV resource, e.g. menu or settings. |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 | value | any | yes | The JSON value to store: a string, number, object, array, true, false, or null. |
 
@@ -131,6 +138,7 @@ Delete one key and its value from a KV resource. Ask first.
 | --- | --- | --- | --- |
 | key | string | yes | The key within the KV resource, e.g. menu or settings. |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
 ## storage_sql_query
@@ -144,6 +152,7 @@ Read rows from a SQLite resource with a SELECT as the owner: owner tools see eve
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | params | array of any or string |  | Values for the ? placeholders, in order, as an array or a JSON-encoded array. Omit or [] when there are none. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 | sql | string | yes | One SQLite statement, with ? placeholders for values. |
@@ -160,6 +169,7 @@ Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? 
 | --- | --- | --- | --- |
 | for | string |  | Optional: add this row for one signed-in visitor instead of running sql, on a table whose read is own (records, personal only; refused for_requires_own elsewhere) — a visitor reference (storage_visitor_emails, or a row's visitor_id) or the email they signed in with. Requires table and values in place of sql and params. Refused visitor_unknown if they have never signed in on this site (resolve or check first with storage_visitor_emails if unsure), or visitor_email_ambiguous if more than one signed-in person currently matches that email (use their reference instead). The row is stamped written by you, is visible to that visitor as yours rather than theirs, and does not notify your own subscriptions; a table's own trigger that fights that is caught and the whole add rolled back (written_by_tampered) rather than shipped half right. Available to account owners. |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | params | array of any or string |  | Values for the ? placeholders, in order, as an array or a JSON-encoded array. Omit or [] when there are none. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 | sql | string |  | One SQLite statement, with ? placeholders for values. |
@@ -177,6 +187,7 @@ Create or change tables in a SQLite resource: CREATE TABLE, CREATE INDEX, CREATE
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | params | array of any |  | Values for the ? placeholders, in order. Omit or [] when there are none. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 | sql | string | yes | One SQLite statement, with ? placeholders for values. |
@@ -194,6 +205,7 @@ List the files in a files resource, optionally only those under a path prefix.
 | after | string |  | Optional: the next_after value from the previous answer, to get the next page. |
 | limit | integer |  | Optional: at most this many results (the server caps it). |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | prefix | string |  | Optional: only keys or paths that start with this. |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
@@ -210,6 +222,7 @@ Upload one file into a files resource as the owner (base64, under 1 MiB; resize 
 | content_base64 | string | yes | The whole file in standard base64, at most 1 MiB decoded. |
 | content_type | string | yes | The file's MIME type, e.g. image/webp, image/jpeg, or application/pdf. |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | path | string | yes | The file's path within the files resource, e.g. photos/cake.webp (no leading slash). |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
@@ -224,6 +237,7 @@ Delete one file from a files resource. Ask first.
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | path | string | yes | The file's path within the files resource, e.g. photos/cake.webp (no leading slash). |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
@@ -238,6 +252,7 @@ Make a private link, good for ten minutes, to download one stored file in full, 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | name | string | yes | The resource's name (storage_list_resources shows the names; storage_set_resource creates one). |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | path | string | yes | The file's path within the files resource, e.g. photos/cake.webp (no leading slash). |
 | site | string | yes | The site's name, as in its address (list_sites shows the exact names). |
 
@@ -311,6 +326,7 @@ Turn visitor_id values from this site's saved data into the email each person si
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | emails | array of string or string |  | Email addresses to resolve to a visitor reference, as an array or a JSON-encoded array. Combine with visitor_ids, or give this alone. |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string | yes | The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens. |
 | visitor_ids | array of string or string |  | The visitor_id values from the requested rows, as an array or a JSON-encoded array. Omit when giving emails instead. |
 
@@ -324,5 +340,6 @@ Return the exact owner setup and a complete, working page for a common job, so y
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
+| owner | string |  | Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change. |
 | site | string |  | The site's name, so the page code comes back filled in. Optional before the site exists. |
 | topic | string, one of `booking`, `inbox`, `public`, `portal`, `wall`, `comments`, `board`, `personal`, `private`, `records`, `admin`, `people`, `gallery`, `reservation`, `appointment`, `quote`, `waitlist`, `contact`, `form`, `menu`, `guestbook` | yes | booking, inbox, public, portal, wall, comments, board, personal, private, records, admin, people, or gallery. reservation and appointment are booking; quote, waitlist, contact, and form are inbox; menu is public; guestbook is comments. |

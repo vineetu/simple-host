@@ -2086,6 +2086,14 @@
           "why": "A reliability fix to how AI agents already talk to the connector (clearer error codes, forgiving a sibling tool's name for the same argument), not a new user-facing capability to list on its own."
         }
       ]
+    },
+    {
+      "op": "remove",
+      "path": "/areas/3/features/21"
+    },
+    {
+      "op": "remove",
+      "path": "/areas/3/sections/2"
     }
   ]
 }
