@@ -10,7 +10,7 @@ import (
 
 func TestPickerPhotoLinkCapabilities(t *testing.T) {
 	for _, tc := range []struct {
-		name, flag, handle, mode            string
+		name, flag, handle                  string
 		modern, present, ui, archive, token bool
 	}{
 		{name: "legacy picker", flag: "on"},
@@ -21,7 +21,6 @@ func TestPickerPhotoLinkCapabilities(t *testing.T) {
 		{name: "account enabled", flag: "accounts:alice", handle: "alice"},
 		{name: "other account", flag: "accounts:alice", handle: "bob", token: true},
 		{name: "archive unchanged", flag: "on", archive: true, token: true},
-		{name: "Hack unchanged", flag: "on", mode: CallerModeGroupSite, token: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("MCP_APP_PHOTO_PICKER", tc.flag)
@@ -35,9 +34,6 @@ func TestPickerPhotoLinkCapabilities(t *testing.T) {
 				if wrapped {
 					params["name"] = "run_tool"
 					params["arguments"] = map[string]any{"name": "create_upload_link", "arguments": args}
-					if tc.mode != "" {
-						continue
-					}
 				}
 				if tc.present {
 					caps := map[string]any{}
@@ -48,7 +44,7 @@ func TestPickerPhotoLinkCapabilities(t *testing.T) {
 				}
 				raw, _ := json.Marshal(params)
 				before := len(s.uploads)
-				reply := s.callTool(httptest.NewRequest("POST", "/mcp", nil), request{Params: raw}, Caller{Handle: tc.handle, Mode: tc.mode}, tc.modern)
+				reply := s.callTool(httptest.NewRequest("POST", "/mcp", nil), request{Params: raw}, Caller{Handle: tc.handle}, tc.modern)
 				b, _ := json.Marshal(reply.Result)
 				var result map[string]any
 				json.Unmarshal(b, &result)
@@ -58,7 +54,7 @@ func TestPickerPhotoLinkCapabilities(t *testing.T) {
 				out := result["structuredContent"].(map[string]any)
 				// Hosts draw the picker only for the listed tool, so run_tool gets the link.
 				token := tc.token || wrapped
-				if tc.archive || tc.mode != "" {
+				if tc.archive {
 					if out["upload_url"] == nil || out["photos_url"] != nil {
 						t.Fatal("archive result changed")
 					}

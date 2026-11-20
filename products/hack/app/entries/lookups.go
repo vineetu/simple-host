@@ -2,6 +2,7 @@ package entries
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/host/app/sites"
 
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
@@ -62,7 +63,11 @@ func (s *Service) TrackPanels(ctx context.Context, eventID string) ([]entryrepo.
 
 // VoteFinalRankingLookup forwards the VoteFinalRanking lookup.
 func (s *Service) VoteFinalRankingLookup(ctx context.Context, eventID string, accountID string) ([]model.VoteOption, error) {
-	return entryrepo.VoteFinalRanking(ctx, s.db, eventID, accountID)
+	shown, err := sites.ShownSiteNames(ctx, s.db, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return entryrepo.VoteFinalRanking(ctx, s.db, eventID, shown)
 }
 
 // Check is the result of evaluating an entry.

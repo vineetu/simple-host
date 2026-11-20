@@ -8,7 +8,6 @@ type Contribution struct {
 	Instructions  func(mode string) string
 	Rewrite       func(text, apiHost string) string
 	StorageError  func(message string) string
-	NoTarget      func(tool string, listable bool) (text string, structured map[string]any, isError bool)
 	Apps          func(AppContext) AppContribution
 	// MutationNames answers a call to a mutation the product used to offer
 	// under that name and no longer does, by tool name. The call is refused

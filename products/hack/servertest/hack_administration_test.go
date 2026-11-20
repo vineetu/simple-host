@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/csv"
 	"io"
-	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -107,12 +106,9 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 	team1, _ := a.startTeam(t, slug, "Alpha", p1)
 	team2, _ := a.startTeam(t, slug, "Beta", p2)
 	team3, _ := a.startTeam(t, foreign, "Alpha", p3)
-	key1 := a.teamKey(t, slug, p1)
-	key2 := a.teamKey(t, slug, p2)
-	key3 := a.teamKey(t, foreign, p3)
-	wantTS(t, "project alpha", a.deployTeam(t, team1, key1, "alpha marker"), 201, "")
-	wantTS(t, "project beta", a.deployTeam(t, team2, key2, "beta marker"), 201, "")
-	wantTS(t, "foreign project", a.deployTeam(t, team3, key3, "foreign marker"), 201, "")
+	wantTS(t, "project alpha", a.deployTeam(t, slug, team1, p1.key, "alpha marker"), 201, "")
+	wantTS(t, "project beta", a.deployTeam(t, slug, team2, p2.key, "beta marker"), 201, "")
+	wantTS(t, "foreign project", a.deployTeam(t, foreign, team3, p3.key, "foreign marker"), 201, "")
 	base := "/v1/hack/events/" + slug
 	wantTS(t, "entry", a.api(t, "PUT", base+"/entry", map[string]any{"title": "=SUM(1,2)", "tagline": "Hello, world", "description": "two\nlines"}, p1.key), 200, "")
 	wantTS(t, "rename denied", a.api(t, "PATCH", base+"/teams/"+team1, map[string]string{"name": "No"}, p1.key), 404, "event_not_found")
@@ -124,7 +120,7 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 		t.Fatal("rename changed site address")
 	}
 	// Existing member keys keep working after a display-name change.
-	wantTS(t, "publish after rename", a.deployTeam(t, team1, key1, "alpha latest"), 200, "")
+	wantTS(t, "publish after rename", a.deployTeam(t, slug, team1, p1.key, "alpha latest"), 200, "")
 	ev, err := hackevents.GetEventBySlug(context.Background(), a.database, slug)
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +185,6 @@ func TestHackAdministrationExportsAndUsage(t *testing.T) {
 	}
 	wantTS(t, "all-team archive denied", a.api(t, "GET", base+"/export/projects.tar.gz", nil, p1.key), 404, "event_not_found")
 	wantTS(t, "foreign own-team denied", a.api(t, "GET", "/v1/hack/events/"+foreign+"/team/export.tar.gz", nil, p1.key), 404, "event_not_found")
-	wantTS(t, "team key cannot export event", a.api(t, "GET", base+"/export/projects.tar.gz", nil, key1), http.StatusForbidden, "")
 	usage := a.api(t, "GET", base+"/usage", nil, org.key)
 	wantTS(t, "usage", usage, 200, "")
 	u := usage.json(t)

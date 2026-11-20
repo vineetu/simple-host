@@ -54,7 +54,7 @@ func TestPhotoLinkFixedRequestAndCap(t *testing.T) {
 		w.WriteHeader(200)
 	})}))
 
-	token := mintPhoto(t, s, Caller{Owner: "owner", MintUpload: func(context.Context, bool) (string, func(), error) {
+	token := mintPhoto(t, s, Caller{Owner: "owner", MintUpload: func(context.Context) (string, func(), error) {
 		minted++
 		return "fresh", func() { revoked++ }, nil
 	}})
@@ -98,7 +98,7 @@ func TestPhotoLinkFailures(t *testing.T) {
 	if photoRequest(s, token, "GET").Code != 404 {
 		t.Fatal("expired accepted")
 	}
-	token = mintPhoto(t, s, Caller{MintUpload: func(context.Context, bool) (string, func(), error) { return "", nil, errors.New("revoked") }})
+	token = mintPhoto(t, s, Caller{MintUpload: func(context.Context) (string, func(), error) { return "", nil, errors.New("revoked") }})
 	if photoRequest(s, token, "POST").Code != 403 || photoRequest(s, token, "GET").Code != 404 {
 		t.Fatal("revoked sign-in accepted")
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/vsriram/simple-host/host/app/sites"
 	"regexp"
 	"time"
 
@@ -110,7 +111,11 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 	if !allowed {
 		return false, &Error{Code: "vote_ineligible", Message: "this account is not eligible to vote"}
 	}
-	teamID, err := repo.VoteTeamID(ctx, tx, id, account, team)
+	live, err := sites.LiveSiteNames(ctx, tx, account)
+	if err != nil {
+		return false, err
+	}
+	teamID, err := repo.VoteTeamID(ctx, tx, id, live, team)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, &Error{Code: "team_not_found", Message: "choose a live team project"}
 	}
@@ -205,12 +210,18 @@ func (s *Service) ReadPublicVote(ctx context.Context, ev hackmodel.Event, now fu
 	}
 	out.Status = VotingStatus(out.Event, out.Settings, now())
 	if out.Status != "disabled" {
-		out.Options, err = repo.VoteOptions(ctx, s.db, out.Event.ID, out.Event.AccountID)
+		var live []string
+		if live, err = sites.LiveSiteNames(ctx, s.db, out.Event.AccountID); err == nil {
+			out.Options, err = repo.VoteOptions(ctx, s.db, out.Event.ID, live)
+		}
 		if err != nil {
 			return out, err
 		}
 		if out.Status == "closed" {
-			out.Ranking, err = repo.VoteFinalRanking(ctx, s.db, out.Event.ID, out.Event.AccountID)
+			var shown []string
+			if shown, err = sites.ShownSiteNames(ctx, s.db, out.Event.AccountID); err == nil {
+				out.Ranking, err = repo.VoteFinalRanking(ctx, s.db, out.Event.ID, shown)
+			}
 		}
 	}
 	return out, err

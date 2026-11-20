@@ -29,6 +29,7 @@ import (
 	"github.com/vsriram/simple-host/host/geoip"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/mcp"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
@@ -381,7 +382,11 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	// Deploy-only keys are refused everywhere but the deploy routes, in this
 	// one gate (host/auth/scope.go). The MCP server calls back into the
 	// gated mux, so its tools follow the same table.
-	scoped := auth.ScopeGate(accountsService, mux, ed.Limits().KeyIdleExpiry, ed.Identity().PersonalSites)
+	// The product's write gate is known once the extension is wired below.
+	var writeGate sites.GroupGate
+	scoped := auth.ScopeGate(accountsService, mux, ed.Limits().KeyIdleExpiry, func(ctx context.Context, user *model.User, site string) (int, string, string, error) {
+		return sites.CheckWrite(ctx, db, writeGate, user, site)
+	})
 	gated := handler.APIErrors(mux, scoped, cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
@@ -423,17 +428,11 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 		}
 	}
 	connector.SetTools(parts.Tools)
-	if ed.Identity().TeamKeys && parts.Hooks.GroupGate == nil {
-		return nil, fmt.Errorf("team-key edition requires a group gate")
-	}
-	if ed.Storage().EventOwners && parts.Hooks.Storage == nil {
-		return nil, fmt.Errorf("event-owner edition requires storage bindings")
-	}
 	siteHandler.SetSitemapFilter(parts.Hooks.Sitemap)
 
-	siteHandler.SetNotificationGroups(parts.Hooks.Notifications)
 	siteHandler.SetGroupHosts(parts.Hooks.GroupHosts)
 	siteHandler.SetGroupGate(parts.Hooks.GroupGate)
+	writeGate = parts.Hooks.GroupGate
 	siteHandler.SetStorageBindings(parts.Hooks.Storage)
 
 	// Event hostnames for hackathon organisers. Off unless a DNS token and at

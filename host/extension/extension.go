@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/notifications"
 	"github.com/vsriram/simple-host/host/app/sites"
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	"github.com/vsriram/simple-host/host/config"
@@ -82,11 +81,10 @@ type Parts struct {
 }
 
 type Hooks struct {
-	Storage       appstorage.BindingProvider
-	Sitemap       sites.SitemapFilter
-	Notifications notifications.GroupSites
-	GroupHosts    handler.GroupHosts
-	GroupGate     sites.GroupGate
+	Storage    appstorage.BindingProvider
+	Sitemap    sites.SitemapFilter
+	GroupHosts handler.GroupHosts
+	GroupGate  sites.GroupGate
 }
 
 // Assets describes the product's file contribution. Replace is authoritative:

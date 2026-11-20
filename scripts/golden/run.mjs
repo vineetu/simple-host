@@ -542,14 +542,17 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
  const created = await at('create-owner', 'POST', '/v1/admin/users', { apiKey: instance.adminKey, body: { emails: ['rules-owner@example.com'] } });
  const owner = created.json.created[0].api_key;
  const name = 'golden-rules';
- let base;
+ let base, q = '';
  if (instance.tag === 'hack') {
   const event = await at('create-event', 'POST', '/v1/hack/events', { apiKey: owner, body: hackCreateBody(name) });
   for (const code of [event.json?.organiser?.join_code, event.json?.organiser?.judge_code]) {
    if (code) registerSecret('code', code);
   }
-  await at('create-site', 'PUT', `/v1/hack/events/${name}/website/files?create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Rules storage</h1>' } } });
-  base = `/v1/hack/events/${name}/website/storage`;
+  const site = (await at('event-website', 'GET', `/v1/hack/events/${name}/website`, { apiKey: owner })).json.site;
+  q = `?owner=${name}`;
+  await at('create-site', 'POST', `/v1/sites/${site}/files${q}&create=1`, { apiKey: owner, body: { files: { 'index.html': '<h1>Rules storage</h1>' } } });
+  await at('website-mode-custom', 'PATCH', `/v1/hack/events/${name}/website`, { apiKey: owner, body: { mode: 'custom' } });
+  base = `/v1/sites/${site}/storage`;
  } else {
   await at('create-site', 'POST', `/v1/sites/${name}/files`, { apiKey: owner, body: { files: { 'index.html': '<h1>Rules storage</h1>' } } });
   base = `/v1/sites/${name}/storage`;
@@ -558,11 +561,11 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   if (page.status !== 200 || !page.rawBody.includes('async function openStorage(')) throw new Error('showcase page unavailable');
  }
  const body = { kind: 'sqlite', rules: { policies: [{ name: 'read', command: 'read', using: 'true' }] }, tables: { notes: { rules: { policies: [] } } } };
- const saved = await at('save-rules', 'PUT', `${base}/resources/notes`, { apiKey: owner, body });
+ const saved = await at('save-rules', 'PUT', `${base}/resources/notes${q}`, { apiKey: owner, body });
  if (saved.json?.rules_status !== 'rules') throw new Error('rules-on owner save did not return rules');
- const loaded = await at('read-rules', 'GET', `${base}/resources`, { apiKey: owner });
+ const loaded = await at('read-rules', 'GET', `${base}/resources${q}`, { apiKey: owner });
  if (loaded.json?.resources?.[0]?.rules_status !== 'rules') throw new Error('rules-on owner read did not return rules');
- await at('list-resources', 'GET', `${base}/resources`, { apiKey: owner });
+ await at('list-resources', 'GET', `${base}/resources${q}`, { apiKey: owner });
  const rpc = (label, method, params) => at(label, 'POST', '/mcp', { apiKey: owner, body: { jsonrpc: '2.0', id: 10, method, params } });
  for (const screens of ['off', 'on']) {
   await instance.screens(screens);
@@ -570,12 +573,13 @@ async function seedAndCallRulesOn({ instance, at, registerSecret }) {
   await rpc(`initialize ${suffix}`, 'initialize', { protocolVersion: '2025-06-18', capabilities: { extensions: { 'io.modelcontextprotocol/ui': {} } }, clientInfo: { name: 'golden', version: '1' } });
   await rpc(`tools/list ${suffix}`, 'tools/list', {});
  }
- const prefix = instance.tag === 'hack' ? 'hack_event_storage_' : 'storage_';
- const scope = instance.tag === 'hack' ? { event: name } : { site: name };
- const result = await rpc(`tools/call ${prefix}set_resource`, 'tools/call', { name: `${prefix}set_resource`, arguments: { ...scope, name: 'notes', body } });
- if (result.json?.error || result.json?.result?.isError) throw new Error('rules-on tool save failed');
- const listed = await rpc(`tools/call ${prefix}list_resources`, 'tools/call', { name: `${prefix}list_resources`, arguments: scope });
- if (listed.json?.error || listed.json?.result?.isError) throw new Error('rules-on tool list failed');
+ // Hack's storage_* tools reach only OAuth connections, not this API key.
+ if (instance.tag === 'host') {
+  const result = await rpc('tools/call storage_set_resource', 'tools/call', { name: 'storage_set_resource', arguments: { site: name, name: 'notes', body } });
+  if (result.json?.error || result.json?.result?.isError) throw new Error('rules-on tool save failed');
+  const listed = await rpc('tools/call storage_list_resources', 'tools/call', { name: 'storage_list_resources', arguments: { site: name } });
+  if (listed.json?.error || listed.json?.result?.isError) throw new Error('rules-on tool list failed');
+ }
  // R3-S1a: seed only this scenario's disposable SQLite file after the
  // existing owner requests, so their request/response bytes remain unchanged.
  const siteWhere = instance.tag === 'hack'
@@ -1008,33 +1012,25 @@ async function seedAndCallHack({ instance: hack, calls, namer, exact, usedNames,
   await hack.mail.waitFor(messages => messages.some(m => m.to.includes('part-b@example.com') &&
     m.subject === 'Golden Harness Hack: entry received'), 'b entry receipt');
 
-  // Team Alpha's own site, deployed from the repo's sample tarball through
-  // the event (its first deploy, so ?create=1), which is what lets its
+  // Team Alpha's own site, deployed from the repo's sample tarball with a
+  // member's own key (its first deploy, so create=1), which is what lets its
   // entry above satisfy the one-video-or-a-live-site rule.
   const tarball = readFileSync(path.join(REPO_ROOT, 'scripts/golden/sample-site.tar.gz'));
-  await at('team-a-site-deploy', 'PUT', `/v1/hack/events/${slug}/site?create=1`, {
+  const owner = `?owner=${slug}`;
+  await at('team-a-site-deploy', 'PUT', `/v1/sites/${teamASlug}${owner}&create=1`, {
     apiKey: participants[0],
     raw: tarball,
     contentType: 'application/gzip',
   });
-  await at('sim449-team-b-deploy', 'PUT', `/v1/hack/events/${slug}/site?create=1`, {
+  await at('sim449-team-b-deploy', 'PUT', `/v1/sites/${teamBSlug}${owner}&create=1`, {
     apiKey: participants[1], raw: tarball, contentType: 'application/gzip',
   });
-  const bKey = await at('sim449-team-b-key', 'POST', `/v1/hack/events/${slug}/key`, { apiKey: participants[1] });
   await at('entry-a-submit', 'POST', `/v1/hack/events/${slug}/entry/submit`, { apiKey: participants[0] });
   // Content delivery runs on boot and once a minute. Restart to flush the receipt now.
   await hack.screens('off');
   await hack.mail.waitFor(messages => messages.some(m => m.to.includes('part-a@example.com') &&
     m.subject === 'Golden Harness Hack: entry received'), 'a entry receipt');
   await at('team-a-site-status', 'GET', `/v1/hack/events/${slug}/site`, { apiKey: participants[0] });
-  const teamKeyResult = await at('team-a-key-make', 'POST', `/v1/hack/events/${slug}/key`, { apiKey: participants[0] });
-  hack.teamKey = teamKeyResult.json.key;
-  await at('team-a-key-get', 'GET', `/v1/hack/events/${slug}/key`, { apiKey: participants[0] });
-  await at('tools/call get_site team-site', 'POST', '/mcp', {
-    apiKey: hack.teamKey,
-    body: { jsonrpc: '2.0', id: 10, method: 'tools/call',
-      params: { name: 'get_site', arguments: { site: teamASlug } } },
-  });
 
   await at('entries-list', 'GET', `/v1/hack/events/${slug}/entries`, { apiKey: organiser });
 
@@ -1044,13 +1040,12 @@ async function seedAndCallHack({ instance: hack, calls, namer, exact, usedNames,
   await at('organiser-message-read', 'GET', `/v1/hack/events/${slug}/teams/${teamASlug}/messages`, { apiKey: organiser });
   await at('announcement-create', 'POST', `/v1/hack/events/${slug}/announcements`, { apiKey: organiser, body: { title: 'Welcome', body: 'Build something useful.\nShare your idea.', pinned: true, email_participants: false } });
   await at('announcement-list', 'GET', `/v1/hack/events/${slug}/announcements`, { apiKey: participants[0] });
-  await at('team-key-other-site', 'GET', '/v1/sites/some-other-site/versions', { apiKey: hack.teamKey, qualifier: true });
 
-  await at('team-redirect-site-update', 'PUT', `/v1/sites/${teamASlug}/files`, { apiKey: hack.teamKey, body: { files: { 'index.html': '<h1>Team Alpha</h1>', 'about.html': '<p>Team project</p>', '_redirects': '/old /about 302\n' } } });
+  await at('team-redirect-site-update', 'PUT', `/v1/sites/${teamASlug}/files${owner}`, { apiKey: participants[0], body: { files: { 'index.html': '<h1>Team Alpha</h1>', 'about.html': '<p>Team project</p>', '_redirects': '/old /about 302\n' } } });
   const teamHost = `${teamASlug}.${slug}.golden-hack.invalid`;
   await at('team-redirect-old', 'GET', '/old', { headers: { Host: teamHost }, qualifier: true });
   await at('team-plain-address', 'GET', '/about', { headers: { Host: teamHost }, qualifier: true });
-  await at('team-profile-list-refused', 'PUT', `/v1/sites/${teamASlug}/visibility`, { apiKey: hack.teamKey, body: { visibility: 'public' } });
+  await at('team-profile-list-refused', 'PUT', `/v1/sites/${teamASlug}/visibility${owner}`, { apiKey: participants[0], body: { visibility: 'public' } });
 
   const cIdentity = await at('team-c-identity', 'GET', '/v1/me', { apiKey: participants[2], qualifier: true });
   await at('team-c-member-remove', 'DELETE', `/v1/hack/events/${slug}/teams/${teamC.json.slug}/members/${cIdentity.json.id}`, { apiKey: organiser });
@@ -1114,16 +1109,11 @@ async function seedAndCallHack({ instance: hack, calls, namer, exact, usedNames,
   await at('sim449-team-a-page-before-delete', 'GET', '/', { headers: { Host: `${teamASlug}.${slug}.golden-hack.invalid` }, qualifier: true });
   await at('sim449-team-a-delete', 'DELETE', `/v1/admin/sites/${teamSiteID}`, { apiKey: hack.adminKey });
   await at('sim449-team-a-takedown-while-deleted', 'POST', `/v1/hack/events/${slug}/teams/${teamASlug}/takedown`, { apiKey: organiser, body: { reason: 'Golden moderation check' } });
-  await at('taken-down-team-key-read', 'GET', `/v1/sites/${teamASlug}/versions`, { apiKey: hack.teamKey, qualifier: true });
-  await at('sim449-team-a-restore-from-deleted', 'POST', `/v1/sites/${teamASlug}/restore`, { apiKey: hack.teamKey });
-  await at('sim449-team-a-member-restore-from-deleted', 'POST', `/v1/sites/${teamASlug}/restore`, { apiKey: participants[0] });
-  await at('sim449-team-a-MCP-restore-from-deleted', 'POST', '/mcp', { apiKey: hack.teamKey,
-    body: { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'restore_site', arguments: { site: teamASlug } } } });
+  await at('taken-down-team-member-read', 'GET', `/v1/sites/${teamASlug}/versions${owner}`, { apiKey: participants[0], qualifier: true });
+  await at('sim449-team-a-restore-from-deleted', 'POST', `/v1/sites/${teamASlug}/restore${owner}`, { apiKey: participants[0] });
   await at('sim449-team-a-status-after-restore', 'GET', `/v1/hack/events/${slug}/site`, { apiKey: participants[0], qualifier: true });
   await at('sim449-team-a-page-after-restore', 'GET', '/', { headers: { Host: `${teamASlug}.${slug}.golden-hack.invalid` }, qualifier: true });
-  await at('error team-key-on-another-site REST versions', 'GET', '/v1/sites/another-site/versions', { apiKey: hack.teamKey });
-  await at('error team-key-on-another-site MCP list_versions', 'POST', '/mcp', { apiKey: hack.teamKey,
-    body: { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'list_versions', arguments: { site: 'another-site' } } } });
+  await at('error team-member-on-another-site REST versions', 'GET', `/v1/sites/${teamBSlug}/versions${owner}`, { apiKey: participants[0] });
   await at('sim449-team-b-takedown-live', 'POST', `/v1/hack/events/${slug}/teams/${teamBSlug}/takedown`, {
     apiKey: organiser, body: { reason: 'Golden mirror moderation' },
   });
@@ -1135,17 +1125,13 @@ async function seedAndCallHack({ instance: hack, calls, namer, exact, usedNames,
   });
   await at('sim449-team-b-delete', 'DELETE', `/v1/admin/sites/${mirrorID}`, { apiKey: hack.adminKey });
   await at('sim449-team-b-lift-while-deleted', 'POST', `/v1/hack/events/${slug}/teams/${teamBSlug}/restore`, { apiKey: organiser });
-  await at('sim449-team-b-restore-from-deleted', 'POST', `/v1/sites/${teamBSlug}/restore`, { apiKey: bKey.json.key });
-  await at('sim449-team-b-MCP-restore-from-deleted', 'POST', '/mcp', { apiKey: bKey.json.key,
-    body: { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'restore_site', arguments: { site: teamBSlug } } } });
+  await at('sim449-team-b-restore-from-deleted', 'POST', `/v1/sites/${teamBSlug}/restore${owner}`, { apiKey: participants[1] });
   await at('sim449-team-b-status-after-restore', 'GET', `/v1/hack/events/${slug}/site`, { apiKey: participants[1] });
   await at('sim449-team-b-page-after-restore', 'GET', '/', { headers: { Host: `${teamBSlug}.${slug}.golden-hack.invalid` }, qualifier: true });
   await widerCoverage(hack, calls, usedNames, organiser);
   const participantID = teamA.json.members?.[0]?.user_id || (await at('participant-identity', 'GET', '/v1/me', { apiKey: participants[0], qualifier: true })).json.id;
   await at('team-person-remove', 'DELETE', `/v1/hack/events/${slug}/people/${participantID}`, { apiKey: organiser });
-  await at('error inactive-team-key REST sites', 'GET', '/v1/sites', { apiKey: hack.teamKey, qualifier: true });
-  await at('error inactive-team-key MCP list_versions', 'POST', '/mcp', { apiKey: hack.teamKey,
-    body: { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'list_versions', arguments: { site: teamASlug } } } });
+  await at('error removed-team-member REST versions', 'GET', `/v1/sites/${teamASlug}/versions${owner}`, { apiKey: participants[0], qualifier: true });
   void createdEvent; // seeded above; its creation response is already recorded
 }
 
@@ -1202,7 +1188,6 @@ async function widerCoverage(instance, calls, usedNames, owner) {
     await at('error deploy-only-key REST account', 'GET', '/v1/me', { apiKey: deploy.json.api_key, qualifier: true });
   }
   if (deploy.json?.api_key) await rpc('error deploy-only-key MCP who_am_i', 'tools/call', { name: 'who_am_i', arguments: {} }, deploy.json.api_key);
-  if (instance.teamKey) connections.push(['team-site', instance.teamKey]);
   // Restart the same local instance to change process-only app flags.
   for (const screens of ['off', 'on']) {
     await instance.screens(screens);
@@ -1219,8 +1204,7 @@ async function widerCoverage(instance, calls, usedNames, owner) {
     ['storage_get_kv', { site: 'site-one', resource: 'settings', key: 'theme' }],
     ['passcode_screen', { action: 'begin', site: 'site-one' }], ['get_page_recipe', { topic: 'booking' }], ['list_notifications', {}],
   ] : [
-    ['hack_get_rubric', { slug: 'golden-hack' }], ['hack_get_event_website', { slug: 'golden-hack' }],
-    ['hack_event_storage_list_resources', { event: 'golden-hack' }], ['hack_show_organiser', { slug: 'golden-hack', view: 'overview' }], ['list_notifications', {}],
+    ['hack_get_rubric', { slug: 'golden-hack' }], ['hack_show_organiser', { slug: 'golden-hack', view: 'overview' }], ['list_notifications', {}],
   ];
   tools.push(['find_tools', { query: 'site' }], ['run_tool', { name: instance.tag === 'host' ? 'list_versions' : 'hack_list_events', arguments: instance.tag === 'host' ? { site: 'site-three' } : {} }]);
   for (const [name, args] of tools) await rpc(`tools/call ${name}${name === 'run_tool' ? ' ' + args.name : ''}`, 'tools/call', { name, arguments: args });

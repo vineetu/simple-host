@@ -321,11 +321,8 @@ func paperHackUser(r *http.Request, user *model.User) {
 		return
 	}
 	member := user.ID
-	if user.Team != nil {
-		member = user.Team.MemberID
-	}
-	if user.EventWebsite != nil {
-		member = user.EventWebsite.OrganiserID
+	if user.Member != nil {
+		member = user.Member.PersonID
 	}
 	paperRecorder(r.Context()).HackMember(r.Context(), member)
 }
@@ -1045,6 +1042,9 @@ func (h *HackHandler) eventView(ctx context.Context, ev hackmodel.Event, member 
 			exp = ev.ExpectedParticipants.Int64
 		}
 		body["organiser"] = map[string]any{
+			// The event website's site name: publish it with the site tools,
+			// owner set to the event's name.
+			"website_site":          ev.ID,
 			"organiser_name":        ev.OrganiserName,
 			"organisation":          ev.Organisation,
 			"contact_email":         ev.ContactEmail,
@@ -1174,16 +1174,6 @@ func (h *HackHandler) meView(ctx context.Context, ev hackmodel.Event, member hac
 		"coc_accepted_at": rfc3339UTC(member.CocAcceptedAt),
 		"team":            nil,
 	}
-	if member.Role == "participant" {
-		me["team_key"] = nil
-		if k, err := h.teamsSvc().TeamKey(ctx, ev.ID, member.UserID); err == nil {
-			me["team_key"] = map[string]any{
-				"last4":        k.Last4,
-				"created_at":   rfc3339Time(k.CreatedAt),
-				"last_used_at": rfc3339Ptr(k.LastUsedAt),
-			}
-		}
-	}
 	if member.Role != "participant" || !member.TeamID.Valid {
 		if member.Role == "participant" {
 			var notice string
@@ -1232,15 +1222,6 @@ func (h *HackHandler) meView(ctx context.Context, ev hackmodel.Event, member hac
 		"looking_for": lookingFor,
 		"members":     members,
 		"site":        h.teamSiteJSON(ctx, ev, team),
-	}
-	// site.connection: the Website screen's state strip, mirrored for MCP
-	// (hack_get_team_status) -- the caller's own connector/key status only
-	// (build plan §4.4). Best-effort: a lookup failure here must not break
-	// the whole team-status read.
-	if site, ok := t["site"].(map[string]any); ok {
-		if conn, err := h.connectionStatusJSON(ctx, ev.ID, team, member.UserID); err == nil {
-			site["connection"] = conn
-		}
 	}
 	// admin_successor: shown only when the caller is the team's one admin and
 	// others remain, so they know who takes over if they leave or step down

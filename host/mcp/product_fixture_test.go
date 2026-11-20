@@ -2,8 +2,7 @@ package mcp
 
 // fixtureProduct is a small product for the tests of how the tool server
 // composes a contribution: one family with one tool, the platform's
-// notification tools as the product's own, and instructions for the two
-// connection kinds a product has. It stands in for a real product; a real
+// notification tools as the product's own, and instructions for a product connection. It stands in for a real product; a real
 // product's own package tests its tools against this server.
 func fixtureProduct() *Contribution {
 	read := Tool{
@@ -20,16 +19,8 @@ func fixtureProduct() *Contribution {
 			switch mode {
 			case CallerModeEvents:
 				return "Fixture product: a personal connection."
-			case CallerModeGroupSite:
-				return "Fixture product: a group-site connection."
 			}
 			return ""
-		},
-		NoTarget: func(tool string, listable bool) (string, map[string]any, bool) {
-			if listable {
-				return "Fixture: nothing selected, nothing listed.", map[string]any{"sites": []any{}, "count": 0}, false
-			}
-			return "Fixture: select a target for " + tool + ".", nil, true
 		},
 		MutationNames: map[string]RetiredMutation{
 			"fixture_retired": {Message: "Fixture: this tool was retired. [fixture_retired]", Code: "fixture_retired"},

@@ -19,10 +19,3 @@ func LockUserRow(ctx context.Context, q *sql.Tx, userID string) error {
 	var one int
 	return q.QueryRowContext(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID).Scan(&one)
 }
-
-// AccountKeyCount is how many API keys the account holds (holding accounts must be 0).
-func AccountKeyCount(ctx context.Context, q sqlkit.Querier, userID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_keys WHERE user_id = $1`, userID).Scan(&n)
-	return n, err
-}

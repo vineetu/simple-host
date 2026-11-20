@@ -40,7 +40,6 @@ func TestStorageFileAnalyticsDataEditionBoundary(t *testing.T) {
 		want any
 	}{
 		{"storage_put_file", map[string]any{"removed": "file", "bytes": len(text), "type": "unknown"}},
-		{"hack_event_storage_put_file", text},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := dropAnalyticsValuesForPolicy(s.policy(tc.name), map[string]any{"data": text}).(map[string]any)["data"]

@@ -3,7 +3,9 @@
 # A !pattern excludes destinations from that row; other matching rows still apply.
 [final]
 # A product may import the platform and itself; no platform row may list a product.
-@/products/hack/** -> /** @/products/hack/** @/host/db @/host/db/migrations
+@/products/hack/** -> /** !repository/** @/products/hack/** @/host/db @/host/db/migrations
+# A product asks the platform through app/* (app/accounts/product.go, app/sites/product.go), never its repositories.
+@/products/hack/** -> repository/sqlkit
 server -> /** !testdb !geoip/geoiptest !server/servertest @/host/db @/host/db/migrations
 server -> extension
 @/host/db -> @/host/db/migrations
@@ -28,12 +30,12 @@ app/accounts -> repository/{accounts,sites} rules/auth oauth email geoip
 app/sites -> redirects pagepath app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball eventdns capacity
 app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
 app/storage -> @/host/storage/rules
-@/products/hack/app/storagebind -> app/storage @/products/hack/repository/hackevents repository/sqlkit @/host/storage/rules
+@/products/hack/app/storagebind -> app/{storage,accounts,sites} @/products/hack/repository/hackevents repository/sqlkit @/host/storage/rules
 app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rules/{storage,auth} sitelocks
-@/products/hack/app/events -> app/{accounts,sites,storage,notifications} @/products/hack/app/entries repository/{accounts,sites} @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/auth @/products/hack/rules/hackevents @/products/hack/rules/hackentries storage capacity llm
-@/products/hack/app/teams -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries repository/{accounts,sites} @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
-@/products/hack/app/members -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries repository/{accounts,sites} @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
-@/products/hack/app/entries -> app/{accounts,sites,storage,notifications} repository/sites @/products/hack/repository/hackentries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/rules/hackentries @/products/hack/rules/hackevents storage
+@/products/hack/app/events -> app/{accounts,sites,storage,notifications} @/products/hack/app/entries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/auth @/products/hack/rules/hackevents @/products/hack/rules/hackentries storage capacity llm
+@/products/hack/app/teams -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
+@/products/hack/app/members -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
+@/products/hack/app/entries -> app/{accounts,sites,storage,notifications} @/products/hack/repository/hackentries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/rules/hackentries @/products/hack/rules/hackevents storage
 app/notifications -> app/accounts repository/{notifications,accounts,legacy} email
 app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,legacy} storage analytics netusage papermetrics geoip email capacity buildinfo
 repository/{accounts,sites,storage,legacy,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage}
@@ -62,6 +64,7 @@ geoip -> workers
 @/scripts/inventory -> mcp webassets @/products/hack/mcp
 server/servertest -> server config extension
 [test]
+@/products/hack/** -> repository/**
 app/sites -> config
 handler -> @/host/storage/rules
 app/sites -> @/host/storage/rules

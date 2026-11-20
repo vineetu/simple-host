@@ -51,7 +51,7 @@ func TestProductToolsAfterBuild(t *testing.T) {
 				}
 			}
 			if product == "hack" {
-				for _, name := range []string{"hack_list_events", "hack_select_team", "hack_get_entries", "hack_event_storage_list_resources", "hack_get_event_website"} {
+				for _, name := range []string{"hack_list_events", "hack_get_entries", "hack_set_event_website_mode", "hack_get_page_recipe"} {
 					if !names[name] {
 						t.Errorf("agent card after Build lacks %s", name)
 					}

@@ -64,8 +64,8 @@ func TestHackVotingAndDirectory(t *testing.T) {
 		team string
 		p    person
 	}{{alpha, p1}, {beta, p2}} {
-		key := a.teamKey(t, slug, pair.p)
-		r := a.deployTeam(t, pair.team, key, pair.team)
+		key := pair.p.key
+		r := a.deployTeam(t, slug, pair.team, key, pair.team)
 		if r.status != 200 && r.status != 201 {
 			t.Fatalf("deploy %s: %d %s", pair.team, r.status, r.body)
 		}

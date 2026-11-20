@@ -17,10 +17,6 @@ func hackPublicReadOnly() map[string]any {
 func minimiseHackMemberResult(c *mcp.Call, out map[string]any) {
 	userID := accountUserID(c.Caller())
 	switch c.MemberResult() {
-	case "me":
-		if me, ok := out["me"].(map[string]any); ok {
-			delete(me, "team_key")
-		}
 	case "conflicts":
 		if rows, ok := out["conflicts"].([]any); ok {
 			own := make([]any, 0, len(rows))
@@ -84,12 +80,6 @@ func minimiseHackOrganiserResult(c *mcp.Call, includeEmails bool, out map[string
 				}
 			}
 			delete(out, field)
-		}
-	case "key":
-		if key, ok := out["key"].(map[string]any); ok {
-			delete(key, "last4")
-			delete(key, "created_at")
-			delete(key, "last_used_at")
 		}
 	case "judging":
 		hackOmitRowField(out["judges"], "judge_id")

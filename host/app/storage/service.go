@@ -39,7 +39,6 @@ type Deps struct {
 	FileObjectsLimit                         int
 	OpenFileToken                            func(string) ([]byte, error)
 	FileResourceExists                       func(context.Context, string, string) bool
-	EventOwners                              bool
 }
 
 // Service owns site storage workflows.

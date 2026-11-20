@@ -94,9 +94,11 @@ func (h *Service) ProcessDelivery(ctx context.Context, d model.NotificationDeliv
 			return true
 		}
 	}
-	if err == nil && ed.Notifications().EventScoped {
-		allowed, err = h.GroupNotificationAllowed(ctx, n.SiteID, n.OwnerID, false)
-		if err != nil {
+	if err == nil && !allowed && n.SubscriberRole != "visitor" {
+		// A member or editor's subscription lasts while they may act for
+		// the site.
+		if allowed, err = MayActOnSite(ctx, h.database, n.SiteID, n.OwnerID); err != nil {
+			deps.Tracker.Fail("check member access", err)
 			return true
 		}
 	}

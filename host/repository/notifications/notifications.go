@@ -56,11 +56,6 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 		return false, false, err
 	}
 	defer tx.Rollback()
-	if n.Product {
-		if err := access.LockNotificationMember(ctx, tx, n.SiteID, n.OwnerID); err != nil {
-			return false, false, model.ErrNotificationAccess
-		}
-	}
 	var site string
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, n.SiteID).Scan(&site); err != nil {
 		return false, false, err
@@ -79,7 +74,7 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 		return false, false, err
 	}
 	if n.Product {
-		ok, err := access.GroupNotificationAllowed(ctx, tx, n.SiteID, n.OwnerID, !exists)
+		ok, err := access.ActsOnSite(ctx, tx, n.SiteID, n.OwnerID)
 		if err != nil {
 			return false, false, err
 		}
@@ -875,7 +870,8 @@ func SetPushRule(ctx context.Context, q sqlkit.Querier, rule model.PushRule) err
 	return err
 }
 
+// AccessChecks rechecks, under the site lock, that a person saving a
+// subscription on an account's site may still act for it.
 type AccessChecks interface {
-	LockNotificationMember(context.Context, *sql.Tx, string, string) error
-	GroupNotificationAllowed(context.Context, sqlkit.Querier, string, string, bool) (bool, error)
+	ActsOnSite(ctx context.Context, q sqlkit.Querier, siteID, person string) (bool, error)
 }

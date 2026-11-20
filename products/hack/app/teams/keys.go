@@ -3,61 +3,15 @@ package teams
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 
 	"github.com/vsriram/simple-host/host/app/sites"
 	model "github.com/vsriram/simple-host/host/model"
-	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
-
-// MintTeamKey replaces a participant's key under the event and member locks.
-func (s *Service) MintTeamKey(ctx context.Context, event hackmodel.Event, userID, key string) (hackmodel.EventTeam, hackmodel.TeamKeyInfo, error) {
-	var team hackmodel.EventTeam
-	var k hackmodel.TeamKeyInfo
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return team, k, err
-	}
-	defer tx.Rollback()
-	// The event lock precedes the member lock, matching leave and avoiding a cycle.
-	if _, err = eventrepo.GetEventForShare(ctx, tx, event.ID); err != nil {
-		return team, k, err
-	}
-	teamID, err := hackteams.LockKeyMembership(ctx, tx, event.ID, userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return team, k, &Error{Code: "event_not_found"}
-	}
-	if err != nil {
-		return team, k, err
-	}
-	if !teamID.Valid {
-		return team, k, &Error{Code: "no_team"}
-	}
-	team, err = hackteams.GetEventTeamByID(ctx, tx, teamID.String)
-	if err != nil {
-		return team, k, err
-	}
-	st, err := hackteams.TeamWriteStateFor(ctx, tx, team.ID, false)
-	if err != nil {
-		return team, k, err
-	}
-	if code := st.WriteRefusal(); code != "" {
-		return team, k, &Error{Code: code}
-	}
-	k, err = hackteams.ReplaceTeamKey(ctx, tx, event.ID, team.ID, userID, key, "team "+team.Slug+" · "+event.Slug)
-	if err != nil {
-		return team, k, err
-	}
-	if err = tx.Commit(); err != nil {
-		return team, k, err
-	}
-	return team, k, nil
-}
 
 // SetDeadline changes the override and queues notices in the same transaction.
 func (s *Service) SetDeadline(ctx context.Context, eventID string, team hackmodel.EventTeam, t sql.NullTime) (hackmodel.EventTeam, error) {
@@ -221,36 +175,17 @@ func (s *Service) LoadTeamList(ctx context.Context, ev hackmodel.Event) (TeamLis
 	if tl.States, err = hackteams.TeamWriteStatesForEvent(ctx, s.db, ev.ID); err != nil {
 		return tl, err
 	}
-	sites, err := siterepo.ListSitesByUser(ctx, s.db, ev.AccountID)
+	list, err := sites.AccountSites(ctx, s.db, ev.AccountID)
 	if err != nil {
 		return tl, err
 	}
-	if tl.Versions, err = hackteams.StoredVersionsOfAccount(ctx, s.db, ev.AccountID); err != nil {
+	if tl.Versions, err = sites.StoredVersions(ctx, s.db, ev.AccountID); err != nil {
 		return tl, err
 	}
-	for _, site := range sites {
+	for _, site := range list {
 		tl.Sites[site.Name] = site
 	}
 	return tl, nil
-}
-
-// Key reads a participant's key metadata.
-func (s *Service) Key(ctx context.Context, eventID, userID string) (hackmodel.TeamKeyInfo, error) {
-	return hackteams.GetTeamKey(ctx, s.db, eventID, userID)
-}
-
-// RevokeKey revokes a participant's keys.
-func (s *Service) RevokeKey(ctx context.Context, eventID, userID string) error {
-	_, err := hackteams.RevokeTeamKeys(ctx, s.db, eventID, userID)
-	return err
-}
-
-// RevokePersonKey checks membership before revoking a key.
-func (s *Service) RevokePersonKey(ctx context.Context, eventID, userID string) error {
-	if _, err := eventrepo.GetEventMember(ctx, s.db, eventID, userID); err != nil {
-		return err
-	}
-	return s.RevokeKey(ctx, eventID, userID)
 }
 
 // TeamBySlug reads an event's team.
@@ -275,7 +210,7 @@ func (s *Service) MyTeams(ctx context.Context, userID string) ([]hackmodel.MyTea
 
 // PinDue pins teams whose deadline has passed.
 func (s *Service) PinDue(ctx context.Context, eventID string) error {
-	return hackteams.PinDueTeams(ctx, s.db, eventID)
+	return hackteams.PinDueTeams(ctx, s.db, eventID, liveVersion)
 }
 
 // RemoveOrphanTeamSites moves sites whose teams have gone to Recently deleted.
@@ -283,7 +218,7 @@ func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev hackmodel.Event,
 	if trash == nil {
 		return
 	}
-	orphans, err := hackteams.OrphanTeamSites(ctx, s.db, ev.AccountID)
+	orphans, err := hackteams.OrphanTeamSites(ctx, s.db, ev.AccountID, s.accountSites)
 	if err != nil {
 		log.Printf("hack: orphan sites: %v", err)
 		return
@@ -297,7 +232,7 @@ func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev hackmodel.Event,
 
 // ActiveSiteVersion reads the active version.
 func (s *Service) ActiveSiteVersion(ctx context.Context, siteID string) (model.Version, error) {
-	return siterepo.GetActiveSiteVersion(ctx, s.db, siteID)
+	return sites.ActiveSiteVersion(ctx, s.db, siteID)
 }
 
 // TeamSiteChanger updates the site's organiser takedown state.
@@ -317,4 +252,20 @@ func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger,
 		s.NoticeSiteChange(ctx, event.ID, team.ID, down, reason)
 	}
 	return nil
+}
+
+// siteEverNamed is the platform's answer to "has the event's account ever
+// had a site of this name".
+func siteEverNamed(ctx context.Context, q hackteams.Querier, accountID, name string) (bool, error) {
+	return sites.SiteEverNamed(ctx, q, accountID, name)
+}
+
+// liveVersion is the platform's live version of an account's site.
+func liveVersion(ctx context.Context, q hackteams.Querier, accountID, name string) (sql.NullInt64, error) {
+	return sites.LiveActiveVersion(ctx, q, accountID, name)
+}
+
+// accountSites is the platform's list of an account's live sites.
+func (s *Service) accountSites(ctx context.Context, accountID string) ([]model.Site, error) {
+	return sites.AccountSites(ctx, s.db, accountID)
 }

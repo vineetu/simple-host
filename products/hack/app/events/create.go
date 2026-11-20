@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/host/app/sites"
 	"time"
 
-	accounts "github.com/vsriram/simple-host/host/repository/accounts"
+	"github.com/vsriram/simple-host/host/app/accounts"
 	sqlkit "github.com/vsriram/simple-host/host/repository/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
@@ -54,19 +55,14 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	holding, err := accounts.CreateUser(ctx, tx, "event+"+eventID+"@events.invalid", "", false)
-	if err != nil {
-		return model.Event{}, model.EventMember{}, err
-	}
-	claimed, err := accounts.ClaimHandle(ctx, tx, holding.ID, slug)
+	// The event's account is a team whose members are the organisers
+	// (SyncAccess): its sites are the team sites and the event website.
+	accountID, claimed, err := accounts.CreateProductTeam(ctx, tx, "event+"+eventID+"@events.invalid", slug)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
 	if !claimed {
 		return model.Event{}, model.EventMember{}, &Error{"name_taken", "that name is already in use"}
-	}
-	if err := accounts.MarkEventAccount(ctx, tx, holding.ID); err != nil {
-		return model.Event{}, model.EventMember{}, err
 	}
 
 	var ev model.Event
@@ -84,7 +80,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 			ev, ierr = eventrepo.InsertEvent(ctx, tx, model.Event{
 				ID:                   eventID,
 				Slug:                 slug,
-				AccountID:            holding.ID,
+				AccountID:            accountID,
 				CreatedBy:            sql.NullString{String: userID, Valid: true},
 				Title:                title,
 				Stage:                "draft",
@@ -134,6 +130,9 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		}
 	}
 	if _, err := eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser"); err != nil {
+		return model.Event{}, model.EventMember{}, err
+	}
+	if err := SyncAccess(ctx, tx, ev.ID); err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -355,7 +354,7 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event,
 			}
 		}
 	}
-	return eventrepo.DeleteEventAndAccount(ctx, tx, ev)
+	return eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, sites.DeleteProductAccount)
 }
 
 // PatchEvent applies validated settings while holding the event lock.

@@ -8,7 +8,7 @@ import (
 
 type Notification struct {
 	Event           string     `json:"event,omitempty"` // organiser website slug, empty for team/Host sites
-	Product         bool       `json:"-"`               // checked under the membership lock when saving
+	Product         bool       `json:"-"`               // made by a member or editor: checked again under the site lock when saving
 	ID              string     `json:"id"`
 	SiteID          string     `json:"site_id"`
 	OwnerID         string     `json:"owner_id"`

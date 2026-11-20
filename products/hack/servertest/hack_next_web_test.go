@@ -26,12 +26,12 @@ func TestHackEventWebsiteAndPublicRead(t *testing.T) {
 	if r := a.api(t, "PATCH", path, map[string]string{"mode": "custom"}, org.key); r.status != 409 {
 		t.Fatalf("custom before upload: %d %s", r.status, r.body)
 	}
-	if r := a.api(t, "PUT", path+"/files?create=1", deployBody("outsider"), outsider.key); r.status != 404 {
-		t.Fatalf("outsider upload: %d %s", r.status, r.body)
-	}
-	if r := a.api(t, "PUT", path+"/files?create=1", deployBody("custom event site"), org.key); r.status != 201 {
+	site := eventSite(t, a, slug, org)
+	wantTS(t, "outsider upload", a.deployTeam(t, slug, site, outsider.key, "outsider"), 404, "owner_not_found")
+	if r := a.deployTeam(t, slug, site, org.key, "custom event site"); r.status != 201 {
 		t.Fatalf("website deploy: %d %s", r.status, r.body)
 	}
+	wantTS(t, "custom website", a.api(t, "PATCH", path, map[string]string{"mode": "custom"}, org.key), 200, "")
 	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 || !strings.Contains(string(r.body), "custom event site") {
 		t.Fatalf("custom event host: %d %s", r.status, r.body)
 	}

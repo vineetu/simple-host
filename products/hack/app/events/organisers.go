@@ -6,7 +6,6 @@ import (
 	"errors"
 	"time"
 
-	accounts "github.com/vsriram/simple-host/host/repository/accounts"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
@@ -18,7 +17,7 @@ func (s *Service) CreateOrganiserInvite(ctx context.Context, eventID, userID str
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	expiry, err := eventrepo.SetOrganiserInvite(ctx, s.db, eventID, userID, accounts.HashAPIKey(code))
+	expiry, err := eventrepo.SetOrganiserInvite(ctx, s.db, eventID, userID, hackevents.HashCode(code))
 	return code, expiry, err
 }
 
@@ -29,7 +28,7 @@ func (s *Service) RevokeOrganiserInvite(ctx context.Context, eventID string) err
 
 // OrganiserInvite finds an invitation's event.
 func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event, error) {
-	return eventrepo.OrganiserInviteEvent(ctx, s.db, accounts.HashAPIKey(hackevents.NormalizeCode(code)), false)
+	return eventrepo.OrganiserInviteEvent(ctx, s.db, hackevents.HashCode(hackevents.NormalizeCode(code)), false)
 }
 
 // AcceptOrganiserInvite joins through a reusable invitation, locking the event before the invite and member.
@@ -37,7 +36,7 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	var ev model.Event
 	var member model.EventMember
 	invalid := func() error { return &Error{"invalid_code", "invalid or expired invitation"} }
-	hash := accounts.HashAPIKey(hackevents.NormalizeCode(code))
+	hash := hackevents.HashCode(hackevents.NormalizeCode(code))
 	// Find the event before locking, then lock the event before the invite
 	// and inviter's member row, matching leave's lock order (SIM-340 2.4).
 	unlocked, err := eventrepo.OrganiserInviteEvent(ctx, s.db, hash, false)
@@ -88,6 +87,9 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	if err != nil {
 		return ev, member, err
 	}
+	if err = SyncAccess(ctx, tx, ev.ID); err != nil {
+		return ev, member, err
+	}
 	if err = tx.Commit(); err != nil {
 		return ev, member, err
 	}
@@ -110,6 +112,9 @@ func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorI
 		return err
 	}
 	if err = eventrepo.DeleteOrganiserInvite(ctx, tx, event.ID); err != nil {
+		return err
+	}
+	if err = SyncAccess(ctx, tx, event.ID); err != nil {
 		return err
 	}
 	return tx.Commit()

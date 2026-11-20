@@ -56,7 +56,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		NotifyUpdate: func(ctx context.Context, user *model.User, site model.Site, n, prev int, published bool, files map[string][]byte) {
 			if published {
 				h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)
-				if h.ed.Identity().PaperMetrics && user.Team != nil {
+				if h.ed.Identity().PaperMetrics && user.Member != nil {
 					paperRecorder(ctx).Deploy(ctx)
 				}
 			}
@@ -68,7 +68,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 			assignHandle(ctx, h.database, user.ID, handleSeed(user, h.siteDomain), h.ed.Identity().RandomHandles)
 		},
 		NotifyCreate: func(ctx context.Context, user *model.User, site model.Site, files map[string][]byte) {
-			if h.ed.Identity().PaperMetrics && user.Team != nil {
+			if h.ed.Identity().PaperMetrics && user.Member != nil {
 				paperRecorder(ctx).Deploy(ctx)
 			}
 		},
@@ -122,16 +122,12 @@ func writeSitesError(w http.ResponseWriter, err error, siteName string) {
 
 // writeRollbackGateError maps a transaction gate decision to its HTTP response.
 func writeRollbackGateError(w http.ResponseWriter, e *sites.GateError) {
-	status := http.StatusConflict
-	switch e.Code {
-	case "event_not_found":
-		status = http.StatusNotFound
-	case "event_taken_down", "team_site_only", "team_site_taken_down":
-		status = http.StatusForbidden
-	case "team_key_inactive":
-		status = http.StatusUnauthorized
-	case "":
+	status := e.Status
+	switch {
+	case e.Code == "":
 		status = http.StatusInternalServerError
+	case status == 0:
+		status = http.StatusConflict
 	}
 	writeJSON(w, status, errorResponse{Error: e.Message, Code: e.Code})
 }

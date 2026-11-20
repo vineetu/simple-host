@@ -169,7 +169,7 @@ func pendingParam(r *http.Request) bool {
 //
 // The live version and any version that has been live are refused (409):
 // those leave through retention (keep_versions), never by hand. A deploy-only
-// or team key cannot call this (auth/scope.go lists neither route). The admin
+// key or a site editor cannot call this (auth/scope.go lists neither route). The admin
 // mirror DELETE /v1/admin/sites/{id}/versions/{version} runs the same handler.
 func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())

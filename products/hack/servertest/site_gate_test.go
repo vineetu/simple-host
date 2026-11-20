@@ -9,15 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/model"
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	siterepo "github.com/vsriram/simple-host/host/repository/sites"
-	"github.com/vsriram/simple-host/host/server"
 	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
@@ -32,26 +29,6 @@ func (f siteGateFunc) Check(ctx context.Context, tx *sql.Tx, user *model.User, n
 
 func (f siteGateFunc) Suspension(context.Context, *sql.Tx, siterepo.Site) (string, string, error) {
 	return "", "", nil
-}
-
-func TestHackBuildRequiresGroupGate(t *testing.T) {
-	cfg := platformtest.Config(t, testdb.Fresh(t))
-	ext := hack.Extension()
-	wire := ext.Wire
-	ext.Wire = func(d extension.Deps) (extension.Parts, error) {
-		parts, err := wire(d)
-		parts.Hooks.GroupGate = nil
-		return parts, err
-	}
-	platformtest.RecordProduct(t, cfg, []*extension.Extension{ext})
-	app, err := server.Build(cfg, []*extension.Extension{ext})
-	if app != nil {
-		app.Close()
-		t.Fatal("Hack started without a group gate")
-	}
-	if err == nil || !strings.Contains(err.Error(), "requires a group gate") {
-		t.Fatalf("missing group gate error: %v", err)
-	}
 }
 
 func TestSiteGateInstalledAfterBuild(t *testing.T) {
@@ -107,14 +84,18 @@ func TestSiteGateInstalledAfterBuild(t *testing.T) {
 	if w.Code != 201 {
 		t.Fatalf("create event: %d %s", w.Code, w.Body.String())
 	}
+	var eventID string
+	if err := db.QueryRow(`SELECT id FROM events WHERE slug='gate-wiring'`).Scan(&eventID); err != nil {
+		t.Fatal(err)
+	}
 	for _, failure := range []bool{false, true} {
 		refuse = failure
 		for _, transport := range []string{"REST", "MCP"} {
 			before := calls
 			if transport == "REST" {
-				w = request("PUT", "/v1/hack/events/gate-wiring/website/files?create=1", `{"files":{"index.html":"gate test"}}`, false)
+				w = request("PUT", "/v1/sites/"+eventID+"/files?create=1&owner=gate-wiring", `{"files":{"index.html":"gate test"}}`, false)
 			} else {
-				w = request("POST", "/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"hack_publish_event_website","arguments":{"slug":"gate-wiring","files":{"index.html":"gate test"}}}}`, true)
+				w = request("POST", "/mcp", `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_site","arguments":{"site":"`+eventID+`","owner":"gate-wiring","files":{"index.html":"gate test"}}}}`, true)
 			}
 			if calls <= before {
 				t.Fatalf("%s did not reach gate: %d %s", transport, w.Code, w.Body.String())
@@ -139,18 +120,20 @@ func TestSiteGateInstalledAfterBuild(t *testing.T) {
 
 func TestSiteGateRechecksDuringWrite(t *testing.T) {
 	for _, operation := range []string{"create", "update", "rollback"} {
-		for _, change := range []string{"stage", "member"} {
+		// Removal from a team takes effect on the next request; a stage change
+		// reaches a write already let in.
+		for _, change := range []string{"stage"} {
 			t.Run(operation+"/"+change, func(t *testing.T) {
 				a := newTeamSiteApp(t)
 				org, member := a.newPerson(t, "org"), a.newPerson(t, "member")
 				slug := a.makeEvent(t, org)
 				a.join(t, slug, member, org)
 				team, _ := a.startTeam(t, slug, "Gate team", member)
-				key := a.teamKey(t, slug, member)
+				key := member.key
 				markReady(t, a.certDir, slug)
 				if operation != "create" {
-					wantTS(t, "first deploy", a.deployTeam(t, team, key, "v1"), 201, "")
-					wantTS(t, "second deploy", a.deployTeam(t, team, key, "v2"), 200, "")
+					wantTS(t, "first deploy", a.deployTeam(t, slug, team, key, "v1"), 201, "")
+					wantTS(t, "second deploy", a.deployTeam(t, slug, team, key, "v2"), 200, "")
 				}
 				gate := teams.SiteGate{TeamSitesReady: a.sites.TeamSitesReady, RequestCert: a.sites.RequestSiteCert, PaperSite: a.sites.RecordGateSite, PaperState: a.sites.RecordGateState}
 				reached, resume := make(chan struct{}), make(chan struct{})
@@ -162,9 +145,9 @@ func TestSiteGateRechecksDuringWrite(t *testing.T) {
 				done := make(chan resp, 1)
 				go func() {
 					if operation == "rollback" {
-						done <- a.api(t, "PUT", "/v1/sites/"+team+"/active-version", map[string]int{"version_number": 1}, key)
+						done <- a.api(t, "PUT", "/v1/sites/"+team+"/active-version?owner="+slug, map[string]int{"version_number": 1}, key)
 					} else {
-						done <- a.deployTeam(t, team, key, "forbidden")
+						done <- a.deployTeam(t, slug, team, key, "forbidden")
 					}
 				}()
 				select {
@@ -173,12 +156,7 @@ func TestSiteGateRechecksDuringWrite(t *testing.T) {
 					close(resume)
 					t.Fatal("write never reached gate")
 				}
-				var err error
-				if change == "stage" {
-					_, err = a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug)
-				} else {
-					_, err = a.database.Exec(`UPDATE event_members SET team_id=NULL WHERE user_id=$1 AND event_id=(SELECT id FROM events WHERE slug=$2)`, a.uid(t, member), slug)
-				}
+				_, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug)
 				close(resume)
 				if err != nil {
 					t.Fatal(err)
@@ -189,11 +167,7 @@ func TestSiteGateRechecksDuringWrite(t *testing.T) {
 				case <-time.After(10 * time.Second):
 					t.Fatal("write did not finish")
 				}
-				status, code := 409, "submissions_closed"
-				if change == "member" {
-					status, code = 404, "event_not_found"
-				}
-				wantTS(t, "changed authority", result, status, code)
+				wantTS(t, "changed authority", result, 409, "submissions_closed")
 				var active, versions int
 				err = a.database.QueryRow(`SELECT COALESCE(max(s.active_version),0), count(v.id) FROM sites s JOIN events e ON e.account_id=s.user_id LEFT JOIN versions v ON v.site_id=s.id WHERE e.slug=$1 AND s.name=$2`, slug, team).Scan(&active, &versions)
 				if err != nil {
@@ -211,71 +185,15 @@ func TestSiteGateRechecksDuringWrite(t *testing.T) {
 	}
 }
 
-func TestSiteGateHoldsMembershipAndTeamLocks(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, member := a.newPerson(t, "org"), a.newPerson(t, "member")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, member, org)
-	team, _ := a.startTeam(t, slug, "Locked team", member)
-	key := a.teamKey(t, slug, member)
-	ctx := context.Background()
-	user, err := accountapp.New(a.database).GetUserByAPIKey(ctx, key, 180*24*time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var callbacks []string
-	gate := teams.SiteGate{
-		PaperSite:      func(context.Context, *model.User, string) { callbacks = append(callbacks, "site") },
-		PaperState:     func(context.Context, *model.User, string) { callbacks = append(callbacks, "state") },
-		TeamSitesReady: func(string) bool { callbacks = append(callbacks, "ready"); return false },
-		RequestCert:    func(string) { callbacks = append(callbacks, "cert") },
-	}
-	tx, err := a.database.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	refusal := gate.Check(ctx, tx, &user, team)
-	if refusal == nil || refusal.Code != "team_sites_not_ready" {
-		t.Fatalf("readiness: %v", refusal)
-	}
-	if strings.Join(callbacks, ",") != "site,state,ready,cert" {
-		t.Fatalf("callback order: %v", callbacks)
-	}
-	for _, query := range []string{
-		`UPDATE event_members SET team_id=NULL WHERE user_id=$1`,
-		`UPDATE event_teams SET site_taken_down_reason='blocked' WHERE id=$1`,
-	} {
-		id := user.Team.MemberID
-		if strings.Contains(query, "event_teams") {
-			id = user.Team.TeamID
-		}
-		other, err := a.database.BeginTx(ctx, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := other.Exec(`SET LOCAL lock_timeout='100ms'`); err != nil {
-			other.Rollback()
-			t.Fatal(err)
-		}
-		_, err = other.Exec(query, id)
-		other.Rollback()
-		var pg *pq.Error
-		if !errors.As(err, &pg) || pg.Code != "55P03" {
-			t.Fatalf("gate did not retain row lock: %v", err)
-		}
-	}
-}
-
 func TestHeldSiteSuspensionOperatorPrecedenceAndRollback(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, member := a.newPerson(t, "org"), a.newPerson(t, "member")
 	slug := a.makeEvent(t, org)
 	a.join(t, slug, member, org)
 	team, _ := a.startTeam(t, slug, "Suspended team", member)
-	key := a.teamKey(t, slug, member)
+	key := member.key
 	markReady(t, a.certDir, slug)
-	wantTS(t, "deploy", a.deployTeam(t, team, key, "v1"), 201, "")
+	wantTS(t, "deploy", a.deployTeam(t, slug, team, key, "v1"), 201, "")
 	var siteID, accountID string
 	if err := a.database.QueryRow(`SELECT s.id,s.user_id FROM sites s JOIN events e ON e.account_id=s.user_id WHERE e.slug=$1 AND s.name=$2`, slug, team).Scan(&siteID, &accountID); err != nil {
 		t.Fatal(err)

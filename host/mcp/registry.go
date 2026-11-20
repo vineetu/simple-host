@@ -46,13 +46,12 @@ type toolPolicy struct {
 	groupSiteExcluded, personalExcluded, connectorHidden bool
 	notDeployOnly, unlisted, notSearchable               bool
 	listWithPasscode                                     bool
-	personalCredential, listWithoutTeam, preserveNumbers bool
+	preserveNumbers                                      bool
 	screenOnly, unwrap, discovery, notificationID        bool
 	screen                                               string
 	showAllowed                                          func(Caller, bool) bool
 	flatList                                             func(Tool) Tool
 	analytics                                            analyticsPolicy
-	groupSite                                            func(Tool, Limits) Tool
 	noSpamCheck                                          func(Tool) Tool
 }
 
@@ -78,7 +77,6 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 		if edition == editionProduct {
 			tool.policy.analytics.emailIdentity = true
 			tool.policy.analytics.contactEmail = true
-			tool.policy.personalCredential = true
 		}
 		for _, entry := range r.entries {
 			if entry.edition == edition && entry.tool.Name == tool.Name {
@@ -97,16 +95,13 @@ func buildRegistry(cfg Config, appFamily func(base []Tool) FamilyTools) *toolReg
 		cfg.Contribution = &Contribution{}
 	}
 	r := &toolRegistry{}
-	hostRewrite := func(tools []Tool) []Tool { return instanceTools(addressTools(tools)) }
-	if cfg.Teams {
-		hostRewrite = func(tools []Tool) []Tool { return ownerTools(instanceTools(addressTools(tools))) }
-	}
-	r.addFamilies(editionHost, hostFamilies(*cfg.Limits), hostRewrite)
+	r.addFamilies(editionHost, hostFamilies(*cfg.Limits), func(tools []Tool) []Tool { return ownerTools(instanceTools(addressTools(tools))) })
 	if cfg.Teams {
 		r.add(editionHost, famAccounts, instanceTools(addressTools(teamTools())))
+		r.add(editionHost, famAccounts, ownerTools(instanceTools(addressTools(editorTools()))))
 	}
 	if cfg.Events != nil {
-		r.add(editionHost, famNotifications, instanceTools(addressTools(notificationTools())))
+		r.add(editionHost, famNotifications, ownerTools(instanceTools(addressTools(notificationTools()))))
 	}
 	r.add(editionHost, famDiscovery, instanceTools(discoveryTools()))
 	families := cfg.Contribution.Families

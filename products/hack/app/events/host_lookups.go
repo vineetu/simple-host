@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/vsriram/simple-host/host/app/accounts"
+	"github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/repository/accounts"
-	"github.com/vsriram/simple-host/host/repository/sites"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
@@ -19,23 +19,23 @@ func (s *Service) UserByAPIKey(ctx context.Context, key string, idle time.Durati
 	return s.resolveKey(ctx, key, idle)
 }
 func (s *Service) UserByID(ctx context.Context, id string) (model.User, error) {
-	return accounts.GetUserByID(ctx, s.db, id)
+	return accounts.UserByID(ctx, s.db, id)
 }
 func (s *Service) AccountHandles(ctx context.Context, user *model.User) []string {
 	handles := []string{user.Handle.String}
-	if aliases, err := accounts.ListHandleAliases(ctx, s.db, user.ID); err == nil {
+	if aliases, err := accounts.HandleAliases(ctx, s.db, user.ID); err == nil {
 		handles = append(handles, aliases...)
 	}
 	return handles
 }
 func (s *Service) SiteByUser(ctx context.Context, accountID, name string) (model.Site, error) {
-	return sites.GetSiteByUser(ctx, s.db, accountID, name)
+	return sites.SiteByName(ctx, s.db, accountID, name)
 }
 func (s *Service) SiteVersions(ctx context.Context, siteID string) ([]model.Version, error) {
-	return sites.ListVersionsBySite(ctx, s.db, siteID)
+	return sites.SiteVersions(ctx, s.db, siteID)
 }
 func (s *Service) SitePasscode(ctx context.Context, siteID string) (model.SitePasscodeRow, error) {
-	return sites.GetSitePasscode(ctx, s.db, siteID)
+	return sites.SitePasscode(ctx, s.db, siteID)
 }
 func (s *Service) PendingContentMail(ctx context.Context) (int64, error) {
 	return hackevents.PendingContentMail(ctx, s.db)

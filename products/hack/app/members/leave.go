@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
@@ -149,7 +150,7 @@ func (s *Service) Leave(ctx context.Context, ev0 model.Event, userID, confirm, s
 		if err != nil {
 			return result, err
 		}
-		if err := teamrepo.RevokeStaleTeamKeys(ctx, tx, ev.ID); err != nil {
+		if err := eventapp.SyncAccess(ctx, tx, ev.ID); err != nil {
 			return result, err
 		}
 		// Leaving does not touch votes (build plan section 1): a vote cast

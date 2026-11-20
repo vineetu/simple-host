@@ -2,7 +2,6 @@ package accounts
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/vsriram/simple-host/host/model"
@@ -31,14 +30,10 @@ func (s *Service) GetOAuthClient(ctx context.Context, clientID string) (model.OA
 	return repo.GetOAuthClient(ctx, s.database, clientID)
 }
 func (s *Service) GetOAuthGrantByID(ctx context.Context, grantID string) (model.OAuthGrant, error) {
-	g, err := repo.GetOAuthGrantByID(ctx, s.database, grantID)
-	if err == nil && groupHooks.Target != nil {
-		g.SelectedTeamID, err = groupHooks.Target.Selected(ctx, s.database, grantID)
-	}
-	return g, err
+	return repo.GetOAuthGrantByID(ctx, s.database, grantID)
 }
 func (s *Service) GetOAuthToken(ctx context.Context, tokenHash string) (model.OAuthTokenGrant, error) {
-	return getOAuthToken(ctx, s.database, tokenHash)
+	return repo.GetOAuthToken(ctx, s.database, tokenHash)
 }
 func (s *Service) InsertOAuthClient(ctx context.Context, c model.OAuthClient) error {
 	return repo.InsertOAuthClient(ctx, s.database, c)
@@ -61,12 +56,6 @@ func (s *Service) ListOperatorOAuthClients(ctx context.Context) ([]model.OAuthCl
 func (s *Service) MarkRefreshTokenUsed(ctx context.Context, tokenHash string) (bool, error) {
 	return repo.MarkRefreshTokenUsed(ctx, s.database, tokenHash)
 }
-func (s *Service) SelectOAuthTeam(ctx context.Context, grantID string, userID string, teamID string) (bool, error) {
-	if groupHooks.Target == nil {
-		return false, nil
-	}
-	return groupHooks.Target.Select(ctx, s.database, grantID, userID, teamID)
-}
 func (s *Service) SetOAuthClientRedirectURIs(ctx context.Context, clientID string, uris []string) error {
 	return repo.SetOAuthClientRedirectURIs(ctx, s.database, clientID, uris)
 }
@@ -85,17 +74,7 @@ func (s *Service) TouchOAuthGrant(ctx context.Context, grantID string) error {
 func (s *Service) UpsertBuiltinOAuthClient(ctx context.Context, clientID string, name string, redirectURIs []string) error {
 	return repo.UpsertBuiltinOAuthClient(ctx, s.database, clientID, name, redirectURIs)
 }
-func (s *Service) ResolveTeamIdentity(ctx context.Context, member, team string) (model.TeamIdentity, error) {
-	if groupHooks.Keys == nil {
-		return model.TeamIdentity{}, sql.ErrNoRows
-	}
-	return groupHooks.Keys.Identity(ctx, s.database, member, team)
-}
-
-func (s *Service) InternalKeyFor(userID, teamID string) (string, func(), error) {
-	if teamID != "" {
-		return repo.IssueInternalTeamKey(userID, teamID)
-	}
+func (s *Service) InternalKeyFor(userID string) (string, func(), error) {
 	return repo.IssueInternalKey(userID)
 }
 
@@ -105,10 +84,3 @@ func (s *Service) PurgeExpiredAPIKeys(ctx context.Context, idle time.Duration) (
 
 // NamespaceDomains returns the namespace configured by the composition root.
 func (s *Service) NamespaceDomains() []string { return repo.PlatformDomains() }
-
-func (s *Service) OAuthConnectionTeams(ctx context.Context, userID string) (map[string][]model.OAuthConnectionTeam, error) {
-	if groupHooks.Target == nil {
-		return nil, nil
-	}
-	return groupHooks.Target.Labels(ctx, s.database, userID)
-}

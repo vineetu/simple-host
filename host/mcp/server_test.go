@@ -516,7 +516,7 @@ func TestStaleSchemaCallGetsCurrentSchema(t *testing.T) {
 }
 
 // The hosted create_site carries the photos link line. A product may swap it
-// for its own wording on its group-site connections (Contribution.SiteVariants).
+// for its own wording on its product connections (Contribution.SiteVariants).
 func TestHostedCreateSiteOffersPhotosLink(t *testing.T) {
 	s := newTestServer(&recordingUpstream{})
 	_, _, host := s.forCaller(Caller{})

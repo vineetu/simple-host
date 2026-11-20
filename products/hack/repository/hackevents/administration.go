@@ -56,13 +56,9 @@ func RenameEventTeam(ctx context.Context, q sqlkit.Querier, eventID, slug, name 
 	return err
 }
 
-// EventStorage counts this event's holding account only, including retained
-// site records. File bytes are measured separately by the storage handler.
-func EventStorage(ctx context.Context, q sqlkit.Querier, ev Event) (EventStorageUsage, error) {
-	var u EventStorageUsage
-	err := q.QueryRowContext(ctx, `SELECT count(*),
- (SELECT count(*) FROM versions v JOIN sites s ON s.id=v.site_id WHERE s.user_id=$1 AND v.status <> 'discarded'),
- (SELECT COALESCE(sum(octet_length(screenshot)),0) FROM event_entries WHERE event_id=$2)
- FROM sites WHERE user_id=$1`, ev.AccountID, ev.ID).Scan(&u.Sites, &u.Versions, &u.ScreenshotBytes)
-	return u, err
+// EventScreenshotBytes is the size of the event's entry screenshots.
+func EventScreenshotBytes(ctx context.Context, q sqlkit.Querier, eventID string) (int64, error) {
+	var n int64
+	err := q.QueryRowContext(ctx, `SELECT COALESCE(sum(octet_length(screenshot)),0) FROM event_entries WHERE event_id=$1`, eventID).Scan(&n)
+	return n, err
 }

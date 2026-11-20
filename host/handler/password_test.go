@@ -241,7 +241,7 @@ func TestSelfHostMarketingOnlyOnHostedServices(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			instanceIsHostedService = tc.hosted
 			p := testAssetPipeline(tc.kind, tc.base)
-			hosted := tc.hosted || tc.base == "https://simple-hack.app" && tc.kind.Identity().TeamKeys
+			hosted := tc.hosted
 			for _, page := range []struct{ name, marketing string }{
 				// A product's pages are tested with the product (products/hack/servertest).
 				{"features.html", `id="self-host"`}, {"host-story.html", "Self-host on one small server"},

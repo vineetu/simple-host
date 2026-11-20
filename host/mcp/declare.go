@@ -110,15 +110,11 @@ func JSONText(value any) string                         { return jsonText(value)
 func (c *call) Do(method, path string, body []byte, extra map[string]string) UpstreamResult {
 	return c.do(method, path, body, extra)
 }
-func (c *call) Caller() Caller         { return c.caller }
-func (c *call) Request() *http.Request { return c.orig }
-func (c *call) UICapable() bool        { return c.uiClient }
-func (c *call) MaxBodyBytes() int64    { return c.server.cfg.MaxBodyBytes }
-func (c *call) APIHost() string        { return c.server.cfg.APIHost }
-func (c *call) SelectTarget(team string) error {
-	return c.server.cfg.SelectTarget(c.orig.Context(), c.caller, team)
-}
-func (c *call) CanSelectTarget() bool               { return c.server.cfg.SelectTarget != nil }
+func (c *call) Caller() Caller                      { return c.caller }
+func (c *call) Request() *http.Request              { return c.orig }
+func (c *call) UICapable() bool                     { return c.uiClient }
+func (c *call) MaxBodyBytes() int64                 { return c.server.cfg.MaxBodyBytes }
+func (c *call) APIHost() string                     { return c.server.cfg.APIHost }
 func (c *call) MemberResult() string                { return c.policy.memberResult }
 func (c *call) OrganiserResult() string             { return c.policy.organiserResult }
 func (u upstreamResult) OK() bool                   { return u.ok() }
@@ -137,9 +133,6 @@ const AppMIME = appMIME
 func AppFiles() fs.ReadFileFS           { return appFiles }
 func AppFlag(value, handle string) bool { return appFlag(value, handle) }
 func FlatListApp(name string) bool      { return flatListApp(name) }
-func EventStorageTools(wording func(string) string) []Tool {
-	return storageToolsFor(true, wording)
-}
 
 const DeployPhotoTip = deployPhotoTip
 const ArchiveUploadDescription = archiveUploadDescription

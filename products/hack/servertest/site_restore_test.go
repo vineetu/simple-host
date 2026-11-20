@@ -14,7 +14,6 @@ import (
 	"github.com/vsriram/simple-host/host/extension"
 	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	platformtest "github.com/vsriram/simple-host/host/server/servertest"
-	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -139,9 +138,9 @@ func TestRestoreTrashedTeamKeepsTakedown(t *testing.T) {
 	slug := a.makeEvent(t, org)
 	a.join(t, slug, member, org)
 	team, _ := a.startTeam(t, slug, "Restore team", member)
-	key := a.teamKey(t, slug, member)
+	key := member.key
 	markReady(t, a.certDir, slug)
-	wantTS(t, "deploy", a.deployTeam(t, team, key, "restored team content"), 201, "")
+	wantTS(t, "deploy", a.deployTeam(t, slug, team, key, "restored team content"), 201, "")
 	ctx := context.Background()
 	var accountID string
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug=$1`, slug).Scan(&accountID); err != nil {
@@ -229,42 +228,35 @@ func (g restoreGate) Suspension(ctx context.Context, tx *sql.Tx, site siterepo.S
 	return g.suspension(ctx, tx, site)
 }
 
-func restoreSeed(t *testing.T) (*sql.DB, *restoreObservedDisk, siterepo.DeletedSite) {
+// restoreSeed is a team site in Recently deleted, made through the front
+// door, with the team's id and a person to own it when a case needs a
+// personal site.
+func restoreSeed(t *testing.T) (*sql.DB, *restoreObservedDisk, siterepo.DeletedSite, string, string) {
 	t.Helper()
-	db, err := sql.Open("postgres", testdb.Fresh(t))
+	a := newTeamSiteApp(t)
+	org, member := a.newPerson(t, "org"), a.newPerson(t, "member")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, member, org)
+	team, _ := a.startTeam(t, slug, "Trash", member)
+	markReady(t, a.certDir, slug)
+	wantTS(t, "deploy", a.deployTeam(t, slug, team, member.key, "trash content"), 201, "")
+	ctx := context.Background()
+	var accountID, teamID string
+	if err := a.database.QueryRow(`SELECT e.account_id, t.id FROM events e JOIN event_teams t ON t.event_id=e.id WHERE e.slug=$1 AND t.slug=$2`, slug, team).Scan(&accountID, &teamID); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.sites.TrashTeamSite(ctx, accountID, team); err != nil {
+		t.Fatal(err)
+	}
+	d, err := siterepo.GetDeletedSiteByUser(ctx, a.database, accountID, team)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
-	seed, err := os.ReadFile("../../../scripts/split/seed/seed.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(strings.TrimPrefix(string(seed), "\\set ON_ERROR_STOP on\n")); err != nil {
-		t.Fatal(err)
-	}
-	disk, err := storage.NewDiskStorage(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	d, err := siterepo.GetDeletedSiteByUser(context.Background(), db, "00000000-0000-4000-8000-000000000003", "seed-trash")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The seed carries SQL only. Supply the deleted site's real file tree.
-	dir := filepath.Join(disk.TrashDir(d.UserID, d.ID), "current")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("seed trash content"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	return db, &restoreObservedDisk{fixtureDisk: disk}, d
+	return a.database, &restoreObservedDisk{fixtureDisk: a.disk}, d, teamID, a.uid(t, member)
 }
 
 func TestRestoreTrashedSuspensionSeed(t *testing.T) {
 	const prefix = "Taken down by the event organiser"
-	const teamID = "00000000-0000-4000-8000-000000000012"
 	ctx := context.Background()
 	for _, tc := range []struct {
 		name, current, want                       string
@@ -280,11 +272,11 @@ func TestRestoreTrashedSuspensionSeed(t *testing.T) {
 		{name: "empty prefix has no opinion", current: prefix + ": old", noOpinion: true, want: prefix + ": old"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			db, disk, d := restoreSeed(t)
+			db, disk, d, teamID, person := restoreSeed(t)
 			if tc.personal {
 				// Make the deleted site personal, with no corresponding team.
 				oldUser := d.UserID
-				d.UserID = "00000000-0000-4000-8000-000000000001"
+				d.UserID = person
 				if _, err := db.Exec(`UPDATE sites SET user_id=$1 WHERE id=$2`, d.UserID, d.ID); err != nil {
 					t.Fatal(err)
 				}
@@ -350,7 +342,7 @@ func TestRestoreTrashedSuspensionFailure(t *testing.T) {
 	ctx := context.Background()
 	for _, failure := range []string{"hook", "row update", "marker"} {
 		t.Run(failure, func(t *testing.T) {
-			db, disk, d := restoreSeed(t)
+			db, disk, d, _, _ := restoreSeed(t)
 			injected := errors.New("restore suspension failed")
 			gate := restoreGate{suspension: func(ctx context.Context, tx *sql.Tx, site siterepo.Site) (string, string, error) {
 				if site.Deleted || site.ID != d.ID {
@@ -367,9 +359,12 @@ func TestRestoreTrashedSuspensionFailure(t *testing.T) {
 			}}
 			if failure == "row update" {
 				if _, err := db.Exec(`CREATE FUNCTION reject_restore_suspension() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected suspension update failure'; END $$;
-					CREATE TRIGGER reject_restore_suspension BEFORE UPDATE OF suspended_at ON sites FOR EACH ROW EXECUTE FUNCTION reject_restore_suspension()`); err != nil {
+					CREATE TRIGGER reject_restore_suspension BEFORE UPDATE OF suspended_at ON sites FOR EACH ROW WHEN (OLD.id = '` + d.ID + `') EXECUTE FUNCTION reject_restore_suspension()`); err != nil {
 					t.Fatal(err)
 				}
+				t.Cleanup(func() {
+					_, _ = db.Exec(`DROP TRIGGER reject_restore_suspension ON sites; DROP FUNCTION reject_restore_suspension()`)
+				})
 			}
 			if failure == "marker" {
 				disk.markerError = injected

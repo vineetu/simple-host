@@ -154,7 +154,7 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 	// OpenAI/Codex, UI declared (owner follow-up review, SIM-344 phase 2 --
 	// they used to be listed unconditionally, which this baseline call,
 	// declaring neither flag nor UI support, would otherwise still show).
-	hiddenHere := map[string]bool{"hack_create_team_key": true, "hack_show_judge": true, "hack_show_organiser": true}
+	hiddenHere := map[string]bool{"hack_show_judge": true, "hack_show_organiser": true}
 	for _, tool := range hack {
 		if strings.HasPrefix(tool.Name, "hack_app_") {
 			hiddenHere[tool.Name] = true
@@ -166,11 +166,17 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 			visibleHack = append(visibleHack, tool)
 		}
 	}
-	if len(events) != len(visibleHack) {
-		t.Fatalf("events list has %d tools, want %d", len(events), len(visibleHack))
+	// The person's connection lists the Hack tools, then the site tools it
+	// uses with owner set to the event.
+	if len(events) <= len(visibleHack) {
+		t.Fatalf("events list has %d tools, want more than %d", len(events), len(visibleHack))
 	}
 	for i, tool := range events {
-		if tool["name"] != visibleHack[i].Name {
+		if i >= len(visibleHack) {
+			if strings.HasPrefix(tool["name"].(string), "hack_") {
+				t.Errorf("events tool %d is %v, after the Hack tools", i, tool["name"])
+			}
+		} else if tool["name"] != visibleHack[i].Name {
 			t.Errorf("events tool %d is %v, want %s", i, tool["name"], visibleHack[i].Name)
 		}
 		if _, ok := tool["outputSchema"]; !ok {
@@ -198,7 +204,7 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 
 	init := decode(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, mcp.CallerModeEvents))
 	instructions := init["result"].(map[string]any)["instructions"].(string)
-	if !strings.Contains(instructions, "Simple Hack on simple-host.app") || !strings.Contains(instructions, "hack_select_team") || strings.Contains(instructions, "create_site") {
+	if !strings.Contains(instructions, "Simple Hack on simple-host.app") || !strings.Contains(instructions, "hack_get_my_teams") || strings.Contains(instructions, "create_site") {
 		t.Fatalf("events instructions: %s", instructions)
 	}
 	web := decode(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, nil, true))
@@ -207,12 +213,6 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 		t.Fatal("website instructions picked up the event inventory")
 	}
 
-	if msg := rpcMessage(t, sendMode(t, s, toolCall("list_sites", map[string]any{}), mcp.CallerModeEvents)); !strings.Contains(msg, "unknown tool") {
-		t.Fatalf("events caller list_sites: %s", msg)
-	}
-	if msg := rpcMessage(t, sendMode(t, s, toolCall("create_site", map[string]any{}), mcp.CallerModeEvents)); !strings.Contains(msg, "unknown tool") {
-		t.Fatalf("events caller create_site: %s", msg)
-	}
 	if msg := rpcMessage(t, send(t, s, toolCall("hack_list_events", map[string]any{}), nil, true)); !strings.Contains(msg, "unknown tool") {
 		t.Fatalf("website caller hack_list_events: %s", msg)
 	}
@@ -451,11 +451,6 @@ func TestHackToolDispatch(t *testing.T) {
 	if !isErr || structured != nil || !strings.Contains(text, "event_not_found") {
 		t.Fatalf("404 was not a tool error: %v %s", isErr, raw)
 	}
-	up.ans["GET /v1/hack/events"] = jsonReply(403, `{"error":"team key","code":"team_key_scope"}`)
-	text, structured, isErr, raw = call("hack_list_events", map[string]any{})
-	if !isErr || structured != nil || !strings.Contains(text, "team_key_scope") || !strings.Contains(text, "Manage my events") {
-		t.Fatalf("403 was not a tool error: %v %s", isErr, text)
-	}
 
 	for name, tool := range byName {
 		if seen[name] == nil {
@@ -478,7 +473,7 @@ func TestHackToolDispatch(t *testing.T) {
 // about the team's website, and that wording still names every required argument.
 func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
 	s := newTestServer(nil)
-	site := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeGroupSite))
+	site := listedTools(t, rpcAs(t, s, mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents, GrantID: "grant"}, "2025-06-18", "tools/list", nil, false))
 	if len(site) == 0 {
 		t.Fatal("no Hack website tools")
 	}

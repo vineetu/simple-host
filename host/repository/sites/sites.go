@@ -66,7 +66,11 @@ func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
 	return out, rows.Err()
 }
 
+// RenameSite renames a site; its editors (site_editors) move with it.
 func RenameSite(ctx context.Context, q Querier, siteID, name, siteURL string) error {
+	if _, err := q.ExecContext(ctx, `UPDATE site_editors e SET site_name = $2 FROM sites s WHERE s.id = $1 AND e.account_id = s.user_id AND e.site_name = s.name`, siteID, name); err != nil {
+		return err
+	}
 	res, err := q.ExecContext(ctx, `UPDATE sites SET name = $2, site_url = $3, updated_at = now() WHERE id = $1`, siteID, name, siteURL)
 	if err != nil {
 		return err
@@ -81,7 +85,11 @@ func RenameSite(ctx context.Context, q Querier, siteID, name, siteURL string) er
 	return nil
 }
 
+// DeleteSite removes a site for good, with its versions and its editors.
 func DeleteSite(ctx context.Context, db Querier, siteID string) error {
+	if _, err := db.ExecContext(ctx, `DELETE FROM site_editors e USING sites s WHERE s.id = $1 AND e.account_id = s.user_id AND e.site_name = s.name`, siteID); err != nil {
+		return err
+	}
 	if _, err := db.ExecContext(ctx, `DELETE FROM versions WHERE site_id = $1`, siteID); err != nil {
 		return err
 	}

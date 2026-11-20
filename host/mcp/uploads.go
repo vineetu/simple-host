@@ -22,8 +22,7 @@ type uploadLink struct {
 	account string // the team named by owner=, "" for the caller's own sites
 	site    string
 	expires time.Time
-	team    bool
-	mint    func(context.Context, bool) (string, func(), error)
+	mint    func(context.Context) (string, func(), error)
 }
 
 func createUploadLink(c *call, args map[string]any) (output, error) {
@@ -31,7 +30,7 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	if _, present := args["archive"]; present && !ok {
 		return output{}, errors.New("archive must be a boolean")
 	}
-	archive = archive || c.caller.Mode == CallerModeGroupSite || c.caller.Mode == CallerModeEvents
+	archive = archive || c.caller.Mode == CallerModeEvents
 	site, err := siteArg(args)
 	if err != nil {
 		return output{}, err
@@ -44,10 +43,9 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 	mint := c.caller.MintUpload
 	if mint == nil {
 		key := c.caller.APIKey
-		mint = func(context.Context, bool) (string, func(), error) { return key, func() {}, nil }
+		mint = func(context.Context) (string, func(), error) { return key, func() {}, nil }
 	}
-	link := uploadLink{owner: owner, account: c.owner, site: site, expires: now.Add(15 * time.Minute),
-		team: c.caller.TeamAPIKey != "" && c.caller.APIKey == c.caller.TeamAPIKey, mint: mint}
+	link := uploadLink{owner: owner, account: c.owner, site: site, expires: now.Add(15 * time.Minute), mint: mint}
 	link.photos = !archive
 	if link.photos && c.owner != "" {
 		return output{}, codedError("invalid_argument", "the photo picker adds photos to your own sites only; for a team's site pass archive: true and upload the site with its photos")
@@ -150,7 +148,7 @@ func (s *Server) ServeUpload(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	key, revoke, err := link.mint(r.Context(), link.team)
+	key, revoke, err := link.mint(r.Context())
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)

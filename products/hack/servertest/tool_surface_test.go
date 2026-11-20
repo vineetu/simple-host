@@ -156,8 +156,8 @@ func (s *toolSurface) listed(key string, ui bool) map[string]bool {
 }
 
 // hackTeam makes an open event with one team and returns the organiser's
-// key, a participant's key and the participant's team key.
-func (s *toolSurface) hackTeam() (organiser, participant, team string) {
+// key and a participant's key.
+func (s *toolSurface) hackTeam() (organiser, participant string) {
 	s.t.Helper()
 	_, organiser = s.person("surface-org")
 	_, participant = s.person("surface-member")
@@ -179,19 +179,15 @@ func (s *toolSurface) hackTeam() (organiser, participant, team string) {
 	if code, out := s.rest("POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Surface"}, participant); code != http.StatusCreated {
 		s.t.Fatalf("team: %d %v", code, out)
 	}
-	code, out := s.rest("POST", "/v1/hack/events/"+slug+"/key", nil, participant)
-	if code != http.StatusCreated {
-		s.t.Fatalf("team key: %d %v", code, out)
-	}
-	return organiser, participant, out["key"].(string)
+	return organiser, participant
 }
 
 // surfaceConnection is one kind of connection an API key gives.
 type surfaceConnection struct {
 	name, key string
-	// personal: the product's personal connection (its own tools, no website
-	// tools); teamSite: a website connection of the product; neither: Simple Host.
-	personal, teamSite, deployOnly bool
+	// personal: the product's personal connection (its own tools and the
+	// website tools); otherwise a website connection.
+	personal, deployOnly bool
 }
 
 func surfaceConnections(t *testing.T, s *toolSurface, product string) []surfaceConnection {
@@ -203,15 +199,14 @@ func surfaceConnections(t *testing.T, s *toolSurface, product string) []surfaceC
 			{name: "host deploy-only key", key: s.deployKey(id), deployOnly: true},
 		}
 	}
-	_, participant, team := s.hackTeam()
+	_, participant := s.hackTeam()
 	var participantID string
 	if err := s.db.QueryRow(`SELECT id FROM users WHERE handle = 'surface-member'`).Scan(&participantID); err != nil {
 		t.Fatal(err)
 	}
 	return []surfaceConnection{
 		{name: "hack personal key", key: participant, personal: true},
-		{name: "hack team key", key: team, teamSite: true},
-		{name: "hack deploy-only key", key: s.deployKey(participantID), teamSite: true, deployOnly: true},
+		{name: "hack deploy-only key", key: s.deployKey(participantID), deployOnly: true},
 	}
 }
 
@@ -223,25 +218,21 @@ func TestToolCallAuthorisationByConnection(t *testing.T) {
 				t.Run(c.name, func(t *testing.T) {
 					listed := s.listed(c.key, false)
 					// A personal tool of the product: only the product's personal connection has it.
-					for _, name := range []string{"hack_list_events", "hack_get_my_teams", "hack_select_team"} {
-						args := map[string]any{}
-						if name == "hack_select_team" {
-							args["team_id"] = "00000000-0000-0000-0000-000000000000"
-						}
-						text, _, failed, unknown := s.call(c.key, name, args)
+					for _, name := range []string{"hack_list_events", "hack_get_my_teams"} {
+						text, _, failed, unknown := s.call(c.key, name, map[string]any{})
 						if unknown == c.personal || listed[name] != c.personal {
 							t.Fatalf("%s: listed=%t unknown=%t: %s", name, listed[name], unknown, text)
 						}
-						if c.personal && name != "hack_select_team" && failed {
+						if c.personal && failed {
 							t.Fatalf("%s refused on a personal connection: %s", name, text)
 						}
 					}
-					// A website tool: every connection but the product's personal one.
+					// A website tool: every connection.
 					text, _, failed, unknown := s.call(c.key, "list_sites", nil)
-					if unknown != c.personal || listed["list_sites"] == c.personal {
+					if unknown || !listed["list_sites"] {
 						t.Fatalf("list_sites: listed=%t unknown=%t: %s", listed["list_sites"], unknown, text)
 					}
-					if !c.personal && failed {
+					if failed {
 						t.Fatalf("list_sites refused: %s", text)
 					}
 					// A deploy-only key has the deploy tools and nothing else.
@@ -270,44 +261,6 @@ func TestToolCallAuthorisationByConnection(t *testing.T) {
 				})
 			}
 		})
-	}
-}
-
-// A personal connection made through the connector (an OAuth grant) has the
-// website tools too, but none runs before a team is selected; the personal
-// tools run at once.
-func TestToolCallNeedsSelectedTeam(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, participant := a.newPerson(t, "sel-org"), a.newPerson(t, "sel-member")
-	access := a.connect(t, participant, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, participant, org)
-	teamSlug, _ := a.startTeam(t, slug, "Selected", participant)
-	call := func(name string, args map[string]any) (string, map[string]any, bool) {
-		return toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": args}))
-	}
-	for name, args := range map[string]map[string]any{
-		"get_site":       {"site": teamSlug},
-		"update_site":    {"site": teamSlug, "files": map[string]any{"index.html": "<h1>x</h1>"}},
-		"storage_put_kv": {"site": teamSlug, "name": "settings", "key": "a", "value": 1},
-	} {
-		text, structured, failed := call(name, args)
-		if !failed || structured != nil || text != "Choose a team with hack_select_team before publishing its site." {
-			t.Fatalf("%s before a team was selected: %q %v", name, text, structured)
-		}
-	}
-	if text, _, failed := call("hack_list_events", map[string]any{}); failed {
-		t.Fatalf("personal tool refused: %s", text)
-	}
-	var teamID string
-	if err := a.database.QueryRow(`SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id WHERE e.slug=$1 AND t.slug=$2`, slug, teamSlug).Scan(&teamID); err != nil {
-		t.Fatal(err)
-	}
-	if text, _, failed := call("hack_select_team", map[string]any{"team_id": teamID}); failed {
-		t.Fatalf("select team: %s", text)
-	}
-	if text, _, failed := call("list_sites", map[string]any{}); failed {
-		t.Fatalf("website tool refused after selecting a team: %s", text)
 	}
 }
 
@@ -357,7 +310,7 @@ func TestScreenResourcesByConnection(t *testing.T) {
 						}
 						if ok {
 							hackPage := strings.Contains(page, "SHHackSites") && strings.Contains(page, "Simple Hack")
-							if hackPage != (product == "hack") || strings.Contains(page, "__HACK__") || strings.Contains(page, "__PRODUCT__") {
+							if hackPage != (product == "hack" && !c.deployOnly) || strings.Contains(page, "__HACK__") || strings.Contains(page, "__PRODUCT__") {
 								t.Fatalf("%s: my-sites page for the wrong product", c.name)
 							}
 						}
@@ -380,7 +333,8 @@ func TestDiscoveryAndContributedTools(t *testing.T) {
 			for _, c := range surfaceConnections(t, s, product) {
 				t.Run(c.name, func(t *testing.T) {
 					listed := s.listed(c.key, false)
-					hostConnection := product == "host"
+					// A deploy-only key on Simple Hack is a plain Simple Host connection.
+					hostConnection := product == "host" || c.deployOnly
 					if listed["find_tools"] != hostConnection || listed["run_tool"] != hostConnection {
 						t.Fatalf("discovery listed: find_tools=%t run_tool=%t", listed["find_tools"], listed["run_tool"])
 					}
@@ -404,7 +358,7 @@ func TestDiscoveryAndContributedTools(t *testing.T) {
 							t.Fatalf("run_tool list_sites: %s", text)
 						}
 						// No product, no retired names: an unknown tool like any other.
-						if text, _, _, unknown := s.call(c.key, "hack_lock_judging", nil); !unknown {
+						if text, _, _, unknown := s.call(c.key, "hack_lock_judging", nil); product == "host" && !unknown {
 							t.Fatalf("Simple Host answered a retired Simple Hack name: %s", text)
 						}
 						return

@@ -19,7 +19,7 @@ func TestHackFlatHostsRealEventWins(t *testing.T) {
 	slug := a.makeEvent(t, org)
 	a.join(t, slug, member, org)
 	team, _ := a.startTeam(t, slug, "Alpha", member)
-	wantTS(t, "publish", a.deployTeam(t, team, a.teamKey(t, slug, member), "team content"), http.StatusCreated, "")
+	wantTS(t, "publish", a.deployTeam(t, slug, team, member.key, "team content"), http.StatusCreated, "")
 	flat := team + "--" + slug
 	r := a.on(t, "GET", flat+"."+tsDomain, "/", nil, "")
 	if r.status != 200 || !strings.Contains(string(r.body), "team content") {

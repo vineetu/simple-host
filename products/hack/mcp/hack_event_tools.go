@@ -559,7 +559,6 @@ func hackNameOutput(slug string, body []byte) (mcp.Output, error) {
 
 func hackEventTools() []mcp.Tool {
 	tools := hackBaseEventTools()
-	tools = append(tools, hackConnectionTools()...)
 	tools = append(tools, hackMemberEventTools()...)
 	tools = append(tools, hackOrganiserEventTools()...)
 	return append(tools, hackWebEventTools()...)

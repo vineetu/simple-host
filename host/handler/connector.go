@@ -47,7 +47,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/host/app/accounts"
-	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/edition"
 	httpx "github.com/vsriram/simple-host/host/httpx"
@@ -207,7 +206,6 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// (MAX_ARCHIVE_MB_OVERRIDES), since the account is not known yet; the
 		// deploy route then holds each account to its own.
 		MaxBodyBytes: h.largestSiteLimit()*4/3 + (1 << 20),
-		SelectTarget: h.selectConnectionTeam,
 		// host/mcp is a leaf package (check-layering.sh) and may not
 		// import host/papermetrics directly; this is the same hook it
 		// used to call inline from host/mcp/tools.go.
@@ -1075,11 +1073,6 @@ func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (
 	if user.Username == "admin" {
 		return model.User{}, http.StatusForbidden, "This account cannot connect apps. Sign in with a personal account."
 	}
-	// A team key acts as the event, not as a person: it never connects an
-	// app (hosted events).
-	if user.Team != nil {
-		return model.User{}, http.StatusForbidden, "A team key cannot connect apps. Sign in with your own account."
-	}
 	return user, 0, ""
 }
 
@@ -1294,40 +1287,15 @@ func (h *ConnectorHandler) revoke(w http.ResponseWriter, r *http.Request) {
 // userForAccessToken resolves an access token to its person. audiences lists
 // the grant resources acceptable where it is being presented.
 func (h *ConnectorHandler) userForAccessToken(ctx context.Context, token string, audiences ...string) (model.User, bool) {
-	u, _, ok := h.userForAccessTokenTeam(ctx, token, audiences...)
+	u, _, _, ok := h.tokenAccess(ctx, token, audiences...)
 	return u, ok
 }
 
-// userForAccessTokenTeam is userForAccessToken plus the team site the
-// connection is bound to ("" for none).
-func (h *ConnectorHandler) userForAccessTokenTeam(ctx context.Context, token string, audiences ...string) (model.User, string, bool) {
-	u, teamID, _, _, ok := h.tokenAccess(ctx, token, audiences...)
-	return u, teamID, ok
-}
-
-// tokenAccess resolves an access token. mode is mcp.CallerModeEvents for an
-// personal hosted grant and "" otherwise. A malformed hosted grant cannot
-// authenticate. The returned grant also carries the selected team, if any.
-func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (model.User, string, string, model.OAuthTokenGrant, bool) {
+// tokenAccess resolves an access token. mode is mcp.CallerModeEvents for a
+// product connection and "" otherwise. A malformed product grant cannot
+// authenticate.
+func (h *ConnectorHandler) tokenAccess(ctx context.Context, token string, audiences ...string) (model.User, string, model.OAuthTokenGrant, bool) {
 	return h.accountsSvc().ConnectorAccess(ctx, token, h.now, h.teamConnections, audiences...)
-}
-
-// selectConnectionTeam is the tool server's SelectTarget: it is called only by
-// the product's team-selection tool. A
-// grant cannot select a team unless its person is a current participant on it.
-func (h *ConnectorHandler) selectConnectionTeam(ctx context.Context, caller mcp.Caller, teamID string) error {
-	return appsites.New(h.database, nil, nil, 0, appsites.Deps{}).SelectConnectionTeam(ctx, h.teamConnections, caller.GrantID, caller.UserID, teamID)
-}
-
-// internalKeyFor mints the per-request credential for a connection: bound to
-// its team's site when teamID is set, otherwise the person's own account.
-// On the hackathon platform the person's own account is issued only for an
-// explicit events grant. That account still cannot publish a personal site.
-func (h *ConnectorHandler) internalKeyFor(userID, teamID string) (string, func(), error) {
-	if teamID != "" {
-		return h.accountsSvc().InternalKeyFor(userID, teamID)
-	}
-	return h.accountsSvc().InternalKeyFor(userID, "")
 }
 
 func bearerToken(r *http.Request) (string, bool) {
@@ -1355,7 +1323,7 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, teamID, ok := h.userForAccessTokenTeam(r.Context(), token, h.issuer)
+		user, ok := h.userForAccessToken(r.Context(), token, h.issuer)
 		if !ok && user.Suspended {
 			writeAccountSuspended(w)
 			return
@@ -1368,7 +1336,7 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			})
 			return
 		}
-		key, revoke, err := h.internalKeyFor(user.ID, teamID)
+		key, revoke, err := h.accountsSvc().InternalKeyFor(user.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -1412,13 +1380,13 @@ func (h *ConnectorHandler) mcpUnauthorized(w http.ResponseWriter, presented bool
 }
 
 func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
-	var apiKey, teamAPIKey, mode, grantID, userID, owner, oauthGrantID, appName, accountHandle string
+	var apiKey, mode, grantID, userID, owner, oauthGrantID, appName, accountHandle string
 	var deployOnly bool
 	var credentialExpiresAt time.Time
-	var mintUpload func(context.Context, bool) (string, func(), error)
-	var mintPhoto func(context.Context, bool) (string, func(), error)
+	var mintUpload func(context.Context) (string, func(), error)
+	var mintPhoto func(context.Context) (string, func(), error)
 	if token, ok := bearerToken(r); ok {
-		user, teamID, grantMode, grant, valid := h.tokenAccess(r.Context(), token, h.mcpResource, h.issuer)
+		user, grantMode, grant, valid := h.tokenAccess(r.Context(), token, h.mcpResource, h.issuer)
 		if !valid && user.Suspended {
 			writeAccountSuspended(w)
 			return
@@ -1427,7 +1395,7 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			h.mcpUnauthorized(w, true)
 			return
 		}
-		key, revoke, err := h.internalKeyFor(user.ID, teamID)
+		key, revoke, err := h.accountsSvc().InternalKeyFor(user.ID)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 			return
@@ -1447,46 +1415,24 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		appName = httpx.CleanClientName(client.Name)
-		mintPhoto = func(ctx context.Context, _ bool) (string, func(), error) {
+		mintPhoto = func(ctx context.Context) (string, func(), error) {
 			return h.accountsSvc().PhotoCredential(ctx, grant.GrantID, user.ID, grant.ClientID, h.mcpResource)
 		}
-		mintUpload = func(ctx context.Context, team bool) (string, func(), error) {
-			u, currentTeam, _, currentGrant, valid := h.tokenAccess(ctx, token, h.mcpResource, h.issuer)
+		mintUpload = func(ctx context.Context) (string, func(), error) {
+			u, _, _, valid := h.tokenAccess(ctx, token, h.mcpResource, h.issuer)
 			if !valid {
 				return "", nil, errors.New("upload sign-in ended")
 			}
-			if team {
-				if !currentGrant.SelectedTeamID.Valid {
-					return "", nil, errors.New("selected team no longer resolves")
-				}
-				currentTeam = currentGrant.SelectedTeamID.String
-				if _, err := h.accountsSvc().ResolveTeamIdentity(ctx, u.ID, currentTeam); err != nil {
-					return "", nil, err
-				}
-			}
-			return h.internalKeyFor(u.ID, currentTeam)
+			return h.accountsSvc().InternalKeyFor(u.ID)
 		}
 		if h.teamConnections && grantMode == mcp.CallerModeEvents {
 			grantID, userID = grant.GrantID, user.ID
-			if grant.SelectedTeamID.Valid {
-				if _, err := h.accountsSvc().ResolveTeamIdentity(r.Context(), user.ID, grant.SelectedTeamID.String); err == nil {
-					teamAPIKey, revoke, err = h.internalKeyFor(user.ID, grant.SelectedTeamID.String)
-					if err != nil {
-						writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-						return
-					}
-					defer revoke()
-				} else if !errors.Is(err, sql.ErrNoRows) {
-					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-					return
-				}
-			}
 		}
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
 		// Coding agents that already hold a key can use the endpoint too.
 		// The key's own scope is unchanged. On the hackathon platform a
 		// personal key is the same identity as an events grant, so it sees
-		// the event tools; a team key keeps the website tools.
+		// the event tools.
 		if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
 			if u, err := h.accountsSvc().GetUserByAPIKey(r.Context(), key, h.limits.KeyIdleExpiry); err != nil {
 				if errors.Is(err, model.ErrAccountSuspended) {
@@ -1510,13 +1456,13 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 					credentialExpiresAt = *u.KeyExpiresAt
 				}
 				deployOnly = u.KeyScope == "deploy"
-				if h.teamConnections && u.Team == nil && u.KeyScope != "deploy" {
+				if h.teamConnections && u.KeyScope != "deploy" {
 					mode = mcp.CallerModeEvents
 				}
 			}
 		}
 		apiKey = key
-		mintUpload = func(ctx context.Context, _ bool) (string, func(), error) {
+		mintUpload = func(ctx context.Context) (string, func(), error) {
 			if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) != 1 {
 				if _, err := h.accountsSvc().GetUserByAPIKey(ctx, key, h.limits.KeyIdleExpiry); err != nil {
 					return "", nil, err
@@ -1528,11 +1474,8 @@ func (h *ConnectorHandler) serveMCP(w http.ResponseWriter, r *http.Request) {
 		h.mcpUnauthorized(w, false)
 		return
 	}
-	if h.teamConnections && mode != mcp.CallerModeEvents {
-		mode = mcp.CallerModeGroupSite
-	}
 	h.mcp.ServeHTTP(w, r.WithContext(mcp.WithCaller(r.Context(), mcp.Caller{
-		APIKey: apiKey, TeamAPIKey: teamAPIKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
+		APIKey: apiKey, Mode: mode, GrantID: grantID, UserID: userID, Owner: owner, MintUpload: mintUpload,
 		OAuthGrantID: oauthGrantID, AppName: appName, DeployOnly: deployOnly,
 		CredentialExpiresAt: credentialExpiresAt, MintPhoto: mintPhoto, Handle: accountHandle,
 	})))
@@ -1566,14 +1509,6 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
 	}
-	teams := map[string][]model.OAuthConnectionTeam{}
-	if h.ed.Identity().TeamKeys {
-		teams, err = h.accountsSvc().OAuthConnectionTeams(r.Context(), user.ID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-	}
 	out := make([]map[string]any, 0, len(conns))
 	for _, c := range conns {
 		item := map[string]any{
@@ -1583,13 +1518,6 @@ func (h *ConnectorHandler) listConnections(w http.ResponseWriter, r *http.Reques
 			"last_used_at":      c.LastUsedAt,
 			"last_visitor_site": c.LastVisitorSite,
 			"device":            c.Device,
-		}
-		if h.ed.Identity().TeamKeys {
-			selected := teams[c.ClientID]
-			if selected == nil {
-				selected = []model.OAuthConnectionTeam{}
-			}
-			item["teams"] = selected
 		}
 		out = append(out, item)
 	}

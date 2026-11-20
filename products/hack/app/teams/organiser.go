@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
 	sqlkit "github.com/vsriram/simple-host/host/repository/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
@@ -61,7 +62,7 @@ func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) erro
 			return internalError(err)
 		}
 	}
-	if err = teamrepo.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
+	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
 		return internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
@@ -87,7 +88,7 @@ func (s *Service) MoveMember(ctx context.Context, eventID, userID, slug string, 
 			return team, internalError(err)
 		}
 	}
-	if err = teamrepo.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
+	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
 		return team, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
@@ -149,7 +150,7 @@ func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID
 	if err != nil {
 		return internalError(err)
 	}
-	if err = teamrepo.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
+	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
 		return internalError(err)
 	}
 	if err = tx.Commit(); err != nil {

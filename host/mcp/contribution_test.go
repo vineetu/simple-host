@@ -37,58 +37,6 @@ func TestZeroContributionHostInventory(t *testing.T) {
 	}
 }
 
-func TestContributionNoTarget(t *testing.T) {
-	for _, tc := range []struct {
-		name, flag, tool string
-		args             map[string]any
-		listable, zero   bool
-	}{
-		{name: "listable", flag: "on", tool: "list_sites", listable: true},
-		{name: "screen off", flag: "off", tool: "list_sites"},
-		{name: "other tool", flag: "on", tool: "get_site", args: map[string]any{"site": "fixture"}},
-		{name: "nil hook", flag: "on", tool: "list_sites", zero: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("MCP_APP_MY_SITES", tc.flag)
-			contribution := *fixtureProduct()
-			calls := 0
-			if tc.zero {
-				contribution = Contribution{}
-			} else {
-				original := contribution.NoTarget
-				contribution.NoTarget = func(tool string, listable bool) (string, map[string]any, bool) {
-					calls++
-					if tool != tc.tool || listable != tc.listable {
-						t.Fatalf("NoTarget(%q,%t)", tool, listable)
-					}
-					return original(tool, listable)
-				}
-			}
-			s := NewServer(testConfig(Config{Contribution: &contribution, Upstream: http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("no-target call reached REST") })}))
-			params, _ := json.Marshal(map[string]any{"name": tc.tool, "arguments": tc.args})
-			reply := s.dispatch(httptest.NewRequest("POST", "/mcp", nil), request{ID: json.RawMessage("1"), Method: "tools/call", Params: params}, Caller{Mode: CallerModeEvents, GrantID: "grant", APIKey: "person", Handle: "fixture"})
-			text := "Fixture: select a target for " + tc.tool + "."
-			var structured map[string]any
-			if tc.listable {
-				text = "Fixture: nothing selected, nothing listed."
-				structured = map[string]any{"sites": []any{}, "count": 0}
-			}
-			if tc.zero {
-				text = "No target selected."
-			}
-			want := toolResult(json.RawMessage("1"), text, structured, !tc.listable, false)
-			gotJSON, _ := json.Marshal(reply)
-			wantJSON, _ := json.Marshal(want)
-			if string(gotJSON) != string(wantJSON) {
-				t.Fatalf("got %s want %s", gotJSON, wantJSON)
-			}
-			if !tc.zero && calls != 1 {
-				t.Fatalf("NoTarget called %d times", calls)
-			}
-		})
-	}
-}
-
 func TestContributionAppsPerServer(t *testing.T) {
 	calls := 0
 	contribution := Contribution{Apps: func(ctx AppContext) AppContribution {
@@ -148,7 +96,7 @@ func TestContributionAppFamily(t *testing.T) {
 		t.Fatalf("registered %v in %v", names, families)
 	}
 	listed, _, byName := s.forCaller(Caller{Mode: CallerModeEvents})
-	if len(listed) != 4 || listed[1].Name != "fixture_app_read" || byName["fixture_app_read"].run == nil {
+	if len(listed) <= 4 || listed[1].Name != "fixture_app_read" || byName["fixture_app_read"].run == nil || byName["update_site"].run == nil {
 		t.Fatalf("personal connection lists %d tools", len(listed))
 	}
 	// The documentation inventory composes the same family.
@@ -195,7 +143,7 @@ func TestContributionSitesPage(t *testing.T) {
 	if strings.Contains(host, "__HACK__") || strings.Contains(host, "__PRODUCT__") {
 		t.Fatal("platform page left a placeholder")
 	}
-	for _, caller := range []Caller{{Mode: CallerModeGroupSite}, {Mode: CallerModeEvents, GrantID: "grant"}} {
+	for _, caller := range []Caller{{Mode: CallerModeEvents, GrantID: "grant"}} {
 		page := read(with, caller)
 		if !strings.Contains(page, "window.FIXTURE_PRODUCT_SCRIPT = true") || !strings.Contains(page, "Fixture Product") || strings.Contains(page, "__HACK__") {
 			t.Fatalf("product page not rendered for %+v", caller)
@@ -223,7 +171,7 @@ func TestContributionMutationNames(t *testing.T) {
 	const message = "Fixture: this tool was retired. [fixture_retired]"
 	s := NewServer(Config{Contribution: fixtureProduct(), Upstream: up})
 	want, _ := json.Marshal(toolResult(json.RawMessage("1"), message, nil, true, false))
-	for _, caller := range []Caller{{}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {Mode: CallerModeGroupSite}, {DeployOnly: true}} {
+	for _, caller := range []Caller{{}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {DeployOnly: true}} {
 		got, _ := json.Marshal(call(s, caller, "fixture_retired"))
 		if string(got) != string(want) {
 			t.Fatalf("as %+v: %s", caller, got)

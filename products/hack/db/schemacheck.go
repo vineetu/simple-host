@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 
-	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
+	operationrepo "github.com/vsriram/simple-host/host/app/operations"
 )
 
 // hackColumns are what EVENTS=hosted reads (hack1-events.sql, hack2-team-sites.sql). Checked only
 // on such an instance (VerifyHackSchema): every other database may lack them.
 var hackColumns = map[string][]string{
-	// 0020-hack-grant-teams.sql: the connector's selected team.
-	"hack_grant_teams":              {"grant_id", "team_id", "selected_at"},
 	"hack_account_preferences":      {"user_id", "theme", "organiser_walkthrough_done", "judge_walkthrough_done"},
 	"event_organiser_invites":       {"event_id", "token_hash", "created_by", "expires_at"},
 	"event_tracks":                  {"id", "event_id", "slug", "name", "challenge", "prize"},
@@ -60,7 +58,6 @@ var hackColumns = map[string][]string{
 		// zv-hack-entry-summary.sql
 		"problem", "audience", "tools", "maturity", "submitted_at", "submitted_by", "submit_auto",
 		"submit_settled_at", "excluded_at", "excluded_by"},
-	"event_team_keys": {"key_id", "event_id", "team_id", "user_id", "created_at"},
 	"event_members": {"looking", "looking_intro", "event_id", "user_id", "role", "team_id", "coc_accepted_at", "joined_at", "signup_answers", "approval_status", "approval_decided_at", "approval_decided_by",
 		// zp-hack-applications.sql
 		"joined_via", "city", "country", "age_range", "gender",

@@ -35,7 +35,6 @@ func TestHackAppsGatesAndUnchangedInventory(t *testing.T) {
 	for _, caller := range []mcp.Caller{
 		{Mode: mcp.CallerModeEvents, APIKey: "fixture"},
 		{Mode: mcp.CallerModeEvents, GrantID: "grant", Handle: "alice", APIKey: "fixture"},
-		{Mode: mcp.CallerModeGroupSite, Handle: "alice", APIKey: "fixture"},
 	} {
 		// The listing with the screens off is the original, undecorated tools/list contract.
 		t.Setenv("MCP_APP_MY_SITES", "off")
@@ -48,7 +47,7 @@ func TestHackAppsGatesAndUnchangedInventory(t *testing.T) {
 				// These must never expose the archive link or a preview to a Hack frame.
 				t.Setenv("MCP_APP_PHOTO_PICKER", "on")
 				t.Setenv("MCP_APP_SITE_PREVIEW", "on")
-				enabled := (caller.Mode == mcp.CallerModeGroupSite || caller.GrantID != "") && mcp.AppFlag(flag, caller.Handle)
+				enabled := caller.GrantID != "" && mcp.AppFlag(flag, caller.Handle)
 				if !enabled && listingBytes(t, s, caller) != baseline {
 					t.Fatal("disabled tools/list changed")
 				}
@@ -122,9 +121,8 @@ func TestHackAppsResultsOffAreByteIdentical(t *testing.T) {
 		_, _ = w.Write([]byte(`{"range_days":7,"totals":{},"last_24h":{},"daily":[]}`))
 	})
 	s := newTestServer(mux)
-	for _, mode := range []string{mcp.CallerModeEvents, mcp.CallerModeGroupSite} {
-		// A personal connection reaches the website tools through its selected team.
-		caller := mcp.Caller{Mode: mode, GrantID: "grant", Handle: "alice", APIKey: "fixture", TeamAPIKey: "team-fixture"}
+	for _, mode := range []string{mcp.CallerModeEvents} {
+		caller := mcp.Caller{Mode: mode, GrantID: "grant", Handle: "alice", APIKey: "fixture"}
 		for _, name := range []string{"list_sites", "site_analytics"} {
 			args := map[string]any{}
 			if name == "site_analytics" {
@@ -149,57 +147,5 @@ func TestHackAppsResultsOffAreByteIdentical(t *testing.T) {
 				}
 			}
 		}
-	}
-}
-
-func TestHackAppsUnselectedListNeverReplaysPersonalCredential(t *testing.T) {
-	requests := 0
-	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests++; w.WriteHeader(403) }))
-	caller := mcp.Caller{Mode: mcp.CallerModeEvents, GrantID: "grant", APIKey: "personal-fixture"}
-	t.Setenv("MCP_APP_MY_SITES", "off")
-	original := callAs(t, s, caller, "list_sites", nil).Body.String()
-	for _, flag := range []string{"on", "off", "unknown", ""} {
-		t.Setenv("MCP_APP_MY_SITES", flag)
-		got := callAs(t, s, caller, "list_sites", nil).Body.String()
-		if flag == "on" {
-			if strings.Contains(got, `"isError":true`) || !strings.Contains(got, `"sites":[]`) {
-				t.Fatal("unselected App entry point failed")
-			}
-		} else if got != original {
-			t.Fatal("unselected flags-off result changed")
-		}
-	}
-	if requests != 0 {
-		t.Fatal("unselected list replayed a site request")
-	}
-}
-
-// The two answers a personal connection with no team selected gets, word for
-// word (Contribution.NoTarget).
-func TestHackNoTeamSelectedAnswers(t *testing.T) {
-	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("no-team call reached REST") }))
-	caller := mcp.Caller{Mode: mcp.CallerModeEvents, GrantID: "grant", APIKey: "person", Handle: "fixture"}
-	for _, tc := range []struct {
-		name, flag, tool string
-		args             map[string]any
-		listable         bool
-	}{
-		{name: "listable", flag: "on", tool: "list_sites", listable: true},
-		{name: "screen off", flag: "off", tool: "list_sites"},
-		{name: "other tool", flag: "on", tool: "get_site", args: map[string]any{"site": "fixture"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("MCP_APP_MY_SITES", tc.flag)
-			text, structured, failed := resultOf(t, callAs(t, s, caller, tc.tool, tc.args))
-			if tc.listable {
-				if failed || text != "No team selected. Call hack_get_my_teams to choose a team, or hack_list_events for your event websites." || len(structured["sites"].([]any)) != 0 || structured["count"] != float64(0) {
-					t.Fatalf("listable answer: %q %v failed=%t", text, structured, failed)
-				}
-				return
-			}
-			if !failed || structured != nil || text != "Choose a team with hack_select_team before publishing its site." {
-				t.Fatalf("answer: %q %v failed=%t", text, structured, failed)
-			}
-		})
 	}
 }

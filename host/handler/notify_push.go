@@ -709,7 +709,7 @@ func (h *SiteHandler) pushCallerIdentity(w http.ResponseWriter, r *http.Request,
 		return "", "", "", false
 	}
 	family = pushFamilyFor(sess)
-	if owner, err := accounts.ActsAsOwner(r.Context(), h.database, sess.UserID, c.ownerID); err == nil && owner &&
+	if owner, err := accounts.ActsAsOwner(r.Context(), h.database, sess.UserID, c.ownerID, c.siteName); err == nil && owner &&
 		r.Header.Get("X-SH-Framed") == "" && !h.previewRefererFor(r, c.siteID) && h.storageOwnHost(r, c.siteID) {
 		// D1: the site's owner, signed in on their own site's own address
 		// (never framed, never a preview), gets owner rights here too,

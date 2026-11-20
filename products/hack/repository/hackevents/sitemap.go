@@ -4,45 +4,42 @@ import (
 	"context"
 
 	"github.com/lib/pq"
-	repo "github.com/vsriram/simple-host/host/repository/sites"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
 // FilterSitemapSites keeps only team sites that an organiser has not taken
 // down, preserving the platform's order and site metadata.
-func FilterSitemapSites(ctx context.Context, q sqlkit.Querier, sites []repo.Site) ([]repo.Site, error) {
+func FilterSitemapSites(ctx context.Context, q sqlkit.Querier, sites []model.Site) ([]model.Site, error) {
 	if len(sites) == 0 {
 		return sites, nil
 	}
-	ids := make([]string, len(sites))
+	accounts, names := make([]string, len(sites)), make([]string, len(sites))
 	for i, site := range sites {
-		ids[i] = site.ID
+		accounts[i], names[i] = site.UserID, site.Name
 	}
 	rows, err := queryContext(ctx, q, `
- SELECT s.id FROM sites s
- WHERE s.id = ANY($1)
-   AND NOT EXISTS (SELECT 1 FROM events e JOIN event_teams t ON t.event_id=e.id
-                   WHERE e.account_id=s.user_id AND t.slug=s.name AND t.site_taken_down_at IS NOT NULL)
-   AND EXISTS (SELECT 1 FROM events e JOIN event_teams t ON t.event_id=e.id
-               WHERE e.account_id=s.user_id AND t.slug=s.name)`, pq.Array(ids))
+ SELECT x.a || '/' || x.n FROM unnest($1::text[], $2::text[]) x(a, n)
+ WHERE EXISTS (SELECT 1 FROM events e JOIN event_teams t ON t.event_id = e.id
+               WHERE e.account_id::text = x.a AND t.slug = x.n AND t.site_taken_down_at IS NULL)`, pq.Array(accounts), pq.Array(names))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	allowed := make(map[string]bool)
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var key string
+		if err := rows.Scan(&key); err != nil {
 			return nil, err
 		}
-		allowed[id] = true
+		allowed[key] = true
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	var out []repo.Site
+	var out []model.Site
 	for _, site := range sites {
-		if allowed[site.ID] {
+		if allowed[site.UserID+"/"+site.Name] {
 			out = append(out, site)
 		}
 	}

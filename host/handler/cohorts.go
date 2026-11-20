@@ -35,7 +35,7 @@ func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 		return false
 	}
-	if !user.IsAdmin || user.Team != nil {
+	if !user.IsAdmin {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 		return false
 	}

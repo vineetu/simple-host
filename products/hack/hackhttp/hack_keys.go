@@ -10,25 +10,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
-	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
-// Team sites, member keys, per-team deadlines and the organiser's team-site
-// take-down (hosted events, M2; docs/designs/simple-hack-platform.md).
+// Team sites, per-team deadlines and the organiser's team-site take-down
+// (hosted events, M2; docs/designs/simple-hack-platform.md). A teammate
+// publishes the team's site with their own sign-in, naming the event as
+// owner (PUT /v1/sites/<team>?owner=<event>): they are an editor of it.
 
 func (h *HackHandler) registerTeamSites(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("PUT /v1/hack/events/{slug}/site", wrap(h.putTeamSiteArchive))
 	mux.Handle("GET /v1/hack/events/{slug}/site", wrap(h.getTeamSiteStatus))
-	mux.Handle("GET /v1/hack/events/{slug}/key", wrap(h.getTeamKey))
-	mux.Handle("POST /v1/hack/events/{slug}/key", wrap(h.makeTeamKey))
-	mux.Handle("DELETE /v1/hack/events/{slug}/key", wrap(h.deleteTeamKey))
-	mux.Handle("DELETE /v1/hack/events/{slug}/people/{user_id}/key", wrap(h.revokePersonKey))
 	mux.Handle("PUT /v1/hack/events/{slug}/teams/{team}/deadline", wrap(h.setTeamDeadline))
 	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/takedown", wrap(h.takeDownTeamSite))
 	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/restore", wrap(h.restoreTeamSite))
@@ -135,133 +129,6 @@ func (h *HackHandler) participantTeam(w http.ResponseWriter, r *http.Request, a 
 		return hackmodel.EventTeam{}, false
 	}
 	return team, true
-}
-
-func (h *HackHandler) keyJSON(ctx context.Context, a hackAccess) map[string]any {
-	out := map[string]any{
-		"key":                nil,
-		"team":               nil,
-		"site":               nil,
-		"api_base":           h.publicBaseURL,
-		"mcp_url":            h.publicBaseURL + "/mcp",
-		"upload_limit_bytes": h.websiteUploadLimit(ctx, a.event),
-		"upload_limits":      h.websiteUploadLimits(ctx, a.event),
-	}
-	if k, err := h.teamsSvc().Key(ctx, a.event.ID, a.user.ID); err == nil {
-		out["key"] = map[string]any{
-			"last4":        k.Last4,
-			"created_at":   rfc3339Time(k.CreatedAt),
-			"last_used_at": rfc3339Ptr(k.LastUsedAt),
-		}
-	}
-	if a.member.TeamID.Valid {
-		if team, err := h.teamsSvc().GetTeam(ctx, a.member.TeamID.String); err == nil {
-			out["team"] = map[string]any{"slug": team.Slug, "name": team.Name}
-			out["site"] = h.teamSiteJSON(ctx, a.event, team)
-		}
-	}
-	return out
-}
-
-func rfc3339Ptr(t *time.Time) any {
-	if t == nil {
-		return nil
-	}
-	return rfc3339Time(*t)
-}
-
-func (h *HackHandler) getTeamKey(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
-	if !ok {
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, h.keyJSON(r.Context(), a))
-}
-
-// makeTeamKey mints the person's key for their team's site (their earlier
-// one stops working). The key is shown once.
-func (h *HackHandler) makeTeamKey(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
-	if !ok {
-		return
-	}
-	if a.event.Stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "this event has ended")
-		return
-	}
-	if !h.codesUser.Allow(a.user.ID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
-		return
-	}
-	key, err := auth.GenerateAPIKey()
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	team, k, err := h.teamsSvc().MintTeamKey(r.Context(), a.event, a.user.ID, key)
-	if err != nil {
-		var e *teams.Error
-		if errors.As(err, &e) {
-			switch e.Code {
-			case "event_not_found":
-				writeEventNotFound(w)
-				return
-			case "no_team":
-				httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
-				return
-			default:
-				status, msg := hackevents.TeamRefusal(e.Code)
-				httpx.WriteError(w, status, e.Code, msg)
-				return
-			}
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	h.requestEventCert(a.event)
-	w.Header().Set("Cache-Control", "no-store")
-	httpx.WriteJSON(w, http.StatusCreated, map[string]any{
-		"key":        key,
-		"last4":      k.Last4,
-		"created_at": rfc3339Time(k.CreatedAt),
-		"site":       h.teamSiteJSON(r.Context(), a.event, team),
-		"api_base":   h.publicBaseURL,
-		"mcp_url":    h.publicBaseURL + "/mcp",
-	})
-}
-
-func (h *HackHandler) deleteTeamKey(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
-	if !ok {
-		return
-	}
-	if err := h.teamsSvc().RevokeKey(r.Context(), a.event.ID, a.user.ID); err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// revokePersonKey: the organiser turns off one person's team key.
-func (h *HackHandler) revokePersonKey(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
-	if !ok {
-		return
-	}
-	userID := r.PathValue("user_id")
-	if !sites.UUIDShape.MatchString(userID) {
-		writeEventNotFound(w)
-		return
-	}
-	if err := h.teamsSvc().RevokePersonKey(r.Context(), a.event.ID, userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeEventNotFound(w)
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 // organiserTeam loads {team} of the event for an organiser write.
@@ -519,40 +386,4 @@ func (h *HackHandler) pinnedLink(ev hackmodel.Event, team hackmodel.EventTeam, t
 		return "", false
 	}
 	return h.sites.TeamPreviewLinkFor(*site, ev.Slug, v)
-}
-
-// putTeamSiteArchive publishes for the signed-in participant without minting a key.
-func (h *HackHandler) putTeamSiteArchive(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
-	if !ok {
-		return
-	}
-	team, ok := h.participantTeam(w, r, a)
-	if !ok {
-		return
-	}
-	sites, ok := h.sites.(interface {
-		PublishTeamArchive(http.ResponseWriter, *http.Request, model.TeamIdentity, func(context.Context) (int, string, string, error))
-	})
-	if !ok {
-		httpx.WriteError(w, 503, "website_unavailable", "team website publishing is unavailable")
-		return
-	}
-	id, err := h.teamsSvc().SiteTeamIdentity(r.Context(), a.user.ID, team.ID)
-	if err != nil {
-		writeEventNotFound(w)
-		return
-	}
-	sites.PublishTeamArchive(w, r, id, func(ctx context.Context) (int, string, string, error) {
-		st, err := h.teamsSvc().WriteState(ctx, team.ID)
-		if err != nil {
-			return 0, "", "", err
-		}
-		code := st.WriteRefusal()
-		if code == "" {
-			return 0, "", "", nil
-		}
-		status, msg := hackevents.TeamRefusal(code)
-		return status, code, msg, nil
-	})
 }

@@ -3,6 +3,7 @@ package hackentries
 import (
 	"context"
 	"database/sql"
+	"github.com/lib/pq"
 	"time"
 
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
@@ -40,10 +41,10 @@ func SetDirectoryListed(ctx context.Context, q sqlkit.Querier, eventID string, l
 type VoteOption = model.VoteOption
 
 // VoteOptions uses the same live-site gate as the event gallery.
-func VoteOptions(ctx context.Context, q sqlkit.Querier, eventID, accountID string) ([]VoteOption, error) {
+func VoteOptions(ctx context.Context, q sqlkit.Querier, eventID string, live []string) ([]VoteOption, error) {
 	rows, err := queryContext(ctx, q, `SELECT t.id, t.slug, t.name,
 		COALESCE(e.title, ''), COALESCE(e.tagline, ''), 0
-		`+GalleryLiveFrom+` ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, accountID)
+		`+GalleryLiveFrom+` ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, pq.Array(live))
 	if err != nil {
 		return nil, err
 	}
@@ -61,15 +62,15 @@ func VoteOptions(ctx context.Context, q sqlkit.Querier, eventID, accountID strin
 
 // VoteFinalRanking retains the final tally after archived sites are removed
 // from the live gallery. Moderated teams and suspended sites stay hidden.
-func VoteFinalRanking(ctx context.Context, q sqlkit.Querier, eventID, accountID string) ([]VoteOption, error) {
+// shown is the event account's sites the platform has not taken down
+// (sites.ShownSiteNames), Recently deleted included.
+func VoteFinalRanking(ctx context.Context, q sqlkit.Querier, eventID string, shown []string) ([]VoteOption, error) {
 	rows, err := queryContext(ctx, q, `SELECT t.id, t.slug, t.name, '', '', COUNT(v.team_id)
 		FROM event_teams t
-		JOIN sites s ON s.user_id = $2 AND s.name = t.slug AND s.suspended_at IS NULL
-		JOIN users u ON u.id = s.user_id AND u.suspended_at IS NULL
 		LEFT JOIN event_votes v ON v.event_id = $1 AND v.team_id = t.id
-		WHERE t.event_id = $1 AND t.site_taken_down_at IS NULL
+		WHERE t.event_id = $1 AND t.site_taken_down_at IS NULL AND t.slug = ANY($2::text[])
 		GROUP BY t.id, t.slug, t.name
-		ORDER BY COUNT(v.team_id) DESC, t.slug`, eventID, accountID)
+		ORDER BY COUNT(v.team_id) DESC, t.slug`, eventID, pq.Array(shown))
 	if err != nil {
 		return nil, err
 	}
@@ -141,9 +142,9 @@ func VoteClock(ctx context.Context, q sqlkit.Querier) (time.Time, error) {
 }
 
 // VoteTeamID finds a live project by slug.
-func VoteTeamID(ctx context.Context, q sqlkit.Querier, eventID, accountID, teamSlug string) (string, error) {
+func VoteTeamID(ctx context.Context, q sqlkit.Querier, eventID string, live []string, teamSlug string) (string, error) {
 	var teamID string
-	err := q.QueryRowContext(ctx, `SELECT t.id `+GalleryLiveFrom+` AND t.slug = $3`, eventID, accountID, teamSlug).Scan(&teamID)
+	err := q.QueryRowContext(ctx, `SELECT t.id `+GalleryLiveFrom+` AND t.slug = $3`, eventID, pq.Array(live), teamSlug).Scan(&teamID)
 	return teamID, err
 }
 
@@ -193,14 +194,14 @@ func IneligibleVotes(ctx context.Context, q sqlkit.Querier, eventID, eligibility
 	return count, err
 }
 
-// GalleryLiveFrom selects the live projects shared by the gallery and voting.
+// GalleryLiveFrom selects the live projects shared by the gallery and voting:
+// teams the organiser has not taken down whose site is one of $2, the names
+// of the event account's live sites (sites.LiveSiteNames, the platform's
+// answer).
 const GalleryLiveFrom = `
   FROM event_teams t
-  JOIN sites s ON s.user_id = $2 AND s.name = t.slug
-              AND s.deleted_at IS NULL AND s.suspended_at IS NULL
-  JOIN users u ON u.id = s.user_id AND u.suspended_at IS NULL
   LEFT JOIN event_entries e ON e.team_id = t.id
- WHERE t.event_id = $1 AND t.site_taken_down_at IS NULL`
+ WHERE t.event_id = $1 AND t.site_taken_down_at IS NULL AND t.slug = ANY($2::text[])`
 
 func baseEmailSQL(col string) string {
 	return `regexp_replace(lower(` + col + `), '^([^+@]+)\+[^@]*@', '\1@')`

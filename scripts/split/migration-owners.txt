@@ -135,3 +135,5 @@ zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_
 0023-install-product.sql | platform | install product identity
 0025-teams.sql | platform | teams: users.is_team, team_members, team_invitations, team_audit and their guard triggers
 0026-drop-storage-presets-columns.sql | platform | drop unused storage presets columns
+0027-site-editors.sql | platform | creates site_editors
+0028-hack-team-keys-removed.sql | hack | drops event_team_keys and hack_grant_teams; drops oauth_grants.selected_team_id; deletes team-scope api_keys

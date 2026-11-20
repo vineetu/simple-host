@@ -46,12 +46,11 @@ func TestHackConnectorWholeEvent(t *testing.T) {
 		t.Fatalf("my teams: %v", teams)
 	}
 	teamID := teams[0].(map[string]any)["team_id"].(string)
-	call("participant", "hack_select_team", map[string]any{"team_id": teamID})
-	if text, _, bad := toolResultOf(t, a.rpc(t, tokens["participant"], "tools/call", map[string]any{"name": "create_site", "arguments": map[string]any{"site": teamSlug, "files": map[string]any{"index.html": "<h1>Connector project</h1>"}}})); !bad || !strings.Contains(text, "team_sites_not_ready") || strings.Contains(text, "already has a site") {
+	if text, _, bad := toolResultOf(t, a.rpc(t, tokens["participant"], "tools/call", map[string]any{"name": "create_site", "arguments": map[string]any{"site": teamSlug, "owner": slug, "files": map[string]any{"index.html": "<h1>Connector project</h1>"}}})); !bad || !strings.Contains(text, "team_sites_not_ready") || strings.Contains(text, "already has a site") {
 		t.Fatalf("create before team address ready: %s", text)
 	}
 	markReady(t, a.certDir, slug)
-	call("participant", "create_site", map[string]any{"site": teamSlug, "files": map[string]any{"index.html": "<h1>Connector project</h1>"}})
+	call("participant", "create_site", map[string]any{"site": teamSlug, "owner": slug, "files": map[string]any{"index.html": "<h1>Connector project</h1>"}})
 	for _, roleAndTool := range [][2]string{{"participant", "hack_export_own_team_archive"}, {"org", "hack_export_projects_archive"}} {
 		link := call(roleAndTool[0], roleAndTool[1], map[string]any{"slug": slug})["url"].(string)
 		u, err := url.Parse(link)

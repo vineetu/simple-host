@@ -13,10 +13,6 @@ import (
 // These tools run as the site owner through the caller's existing credential;
 // visitor access remains on the site's own origin through REST.
 func storageTools() []Tool {
-	return storageToolsFor(false, nil)
-}
-
-func storageToolsFor(event bool, wording func(string) string) []Tool {
 	type route struct {
 		name, title, description, method, suffix string
 		args                                     []string
@@ -46,23 +42,8 @@ func storageToolsFor(event bool, wording func(string) string) []Tool {
 	tools := make([]Tool, 0, len(routes))
 	for _, route := range routes {
 		r := route
-		siteField := "site"
-		siteDescription := "The site's name, as in its address (list_sites shows the exact names)."
-		if event {
-			siteField = "event"
-			siteDescription = "The event's name (slug) on Simple Hack."
-			// The file data telemetry summary belongs only to Host uploads.
-			r.policy.analytics.fileData = false
-			r.name = "hack_event_" + r.name
-			r.title = "Event website: " + r.title
-			r.description = strings.ReplaceAll(r.description, "storage_", "hack_event_storage_")
-			r.description = strings.ReplaceAll(r.description, "get_page_recipe", "hack_get_page_recipe")
-			r.description = wording(r.description)
-			r.description = strings.Replace(r.description, "; text written in the page itself is changed with update_site (edits), so read the page first", "", 1)
-			r.description += " Organiser only on this event's custom website."
-		}
-		props := map[string]any{siteField: str(siteDescription)}
-		required := []string{siteField}
+		props := map[string]any{"site": str("The site's name, as in its address (list_sites shows the exact names).")}
+		required := []string{"site"}
 		argDescriptions := map[string]string{
 			"name": "The resource's name (storage_list_resources shows the names; storage_set_resource creates one).",
 			"key":  "The key within the KV resource, e.g. menu or settings.",
@@ -87,7 +68,7 @@ func storageToolsFor(event bool, wording func(string) string) []Tool {
 		case "sql":
 			props["sql"] = str("One SQLite statement, with ? placeholders for values.")
 			props["params"] = map[string]any{"type": "array", "items": anyJSON("One value for a ? placeholder."), "description": "Values for the ? placeholders, in order. Omit or [] when there are none."}
-			if !event && r.policy.visitorParams {
+			if r.policy.visitorParams {
 				props["params"] = map[string]any{"anyOf": []any{props["params"], map[string]any{"type": "string"}}, "description": "Values for the ? placeholders, in order, as an array or a JSON-encoded array. Omit or [] when there are none."}
 			}
 			required = append(required, "sql")
@@ -104,40 +85,22 @@ func storageToolsFor(event bool, wording func(string) string) []Tool {
 			Annotations:  r.annotation,
 		}
 		tool.run = func(c *call, args map[string]any) (output, error) {
-			return runStorageRoute(c, r.method, r.suffix, r.name, r.args, r.body, args, event)
+			return runStorageRoute(c, r.method, r.suffix, r.name, r.args, r.body, args)
 		}
-		if event {
-			tool.OutputSchema = outObject(map[string]any{"response": anyJSON("Unchanged REST JSON response."), "status": outInteger("REST status code.")}, "response", "status")
-			tool = withoutSpamCheck(tool)
-		}
-		// for is Host only (review fix, SIM-358): named viewers and the
-		// canonical-email resolution it depends on are not a Simple Hack
-		// concept, so hack_event_storage_execute keeps its plain sql/params
-		// shape — one policy, matching the REST for gate and the people
-		// pick list's exclusion there.
-		if r.name == "storage_sql_execute" && !event {
-			tool = withOwnerForMode(tool, event)
+		if r.name == "storage_sql_execute" {
+			tool = withOwnerFor(tool)
 		}
 		tools = append(tools, tool)
 	}
 	return tools
 }
 
-func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string, bodyKind string, args map[string]any, event bool) (output, error) {
-	var site string
-	var err error
-	if event {
-		site, err = stringArg(args, "event")
-	} else {
-		site, err = siteArg(args)
-	}
+func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string, bodyKind string, args map[string]any) (output, error) {
+	site, err := siteArg(args)
 	if err != nil {
 		return output{}, err
 	}
 	path := "/v1/sites/" + url.PathEscape(site) + "/storage" + suffix
-	if event {
-		path = "/v1/hack/events/" + url.PathEscape(site) + "/website/storage" + suffix
-	}
 	for _, name := range pathArgs {
 		value, err := stringArg(args, name)
 		if err != nil {
@@ -198,7 +161,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 				params = list
 			}
 			body["params"] = params
-			if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite && c.policy.visitorParams {
+			if c.caller.Mode != CallerModeEvents && c.policy.visitorParams {
 				body["params"], e = c.storageVisitorParams(site, params)
 				if e != nil {
 					return output{}, e
@@ -254,7 +217,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 			return output{}, fmt.Errorf("%s: server returned invalid JSON: %w", toolName, err)
 		}
 	}
-	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite {
+	if c.caller.Mode != CallerModeEvents {
 		if err := c.storageVisitorRefs(site, response); err != nil {
 			return output{}, err
 		}
@@ -282,7 +245,7 @@ func runStorageRoute(c *call, method, suffix, toolName string, pathArgs []string
 // ordinary INSERT statement's SQL text, so for could stay inside sql/params
 // unchanged; table+values avoids that parsing risk entirely, at the cost of
 // this one tool accepting two mutually exclusive input shapes.
-func withOwnerForMode(tool Tool, event bool) Tool {
+func withOwnerFor(tool Tool) Tool {
 	props := map[string]any{}
 	for k, v := range tool.InputSchema["properties"].(map[string]any) {
 		props[k] = v
@@ -313,19 +276,13 @@ func withOwnerForMode(tool Tool, event bool) Tool {
 		if _, has := args["sql"]; has {
 			return output{}, fmt.Errorf("for replaces sql and params with table and values; send one pair or the other")
 		}
-		return runOwnerForAdd(c, name, suffix, args, event)
+		return runOwnerForAdd(c, name, suffix, args)
 	}
 	return tool
 }
 
-func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any, event bool) (output, error) {
-	var site string
-	var err error
-	if event {
-		site, err = stringArg(args, "event")
-	} else {
-		site, err = siteArg(args)
-	}
+func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any) (output, error) {
+	site, err := siteArg(args)
 	if err != nil {
 		return output{}, err
 	}
@@ -343,7 +300,7 @@ func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any, event
 	}
 	forRef, _ := args["for"].(string)
 	forRef = strings.TrimSpace(forRef)
-	if !event && c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite && strings.HasPrefix(forRef, "v_") {
+	if c.caller.Mode != CallerModeEvents && strings.HasPrefix(forRef, "v_") {
 		siteID, e := c.visitorSiteID(site)
 		if e != nil {
 			return output{}, e
@@ -358,9 +315,6 @@ func runOwnerForAdd(c *call, toolName, suffix string, args map[string]any, event
 		return output{}, err
 	}
 	base := "/v1/sites/" + url.PathEscape(site) + "/storage"
-	if event {
-		base = "/v1/hack/events/" + url.PathEscape(site) + "/website/storage"
-	}
 	path := base + strings.Replace(suffix, "{name}", url.PathEscape(resource), 1)
 	path = strings.Replace(path, "{table}", url.PathEscape(table), 1)
 	path += "?for=" + url.QueryEscape(forRef)

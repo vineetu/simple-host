@@ -30,7 +30,6 @@ func TestAnalyticsHackToolsKeepPrivateValuesOut(t *testing.T) {
 		args, structured map[string]any
 		text             string
 	}{
-		{"hack_create_team_key", map[string]any{"slug": "ordinary-site"}, map[string]any{"key": planted}, planted},
 		{"hack_create_event", map[string]any{"contact_email": planted}, map[string]any{"organiser": map[string]any{"contact_email": planted}}, planted},
 		{"hack_update_event", map[string]any{"contact_email": planted}, map[string]any{"organiser": map[string]any{"contact_email": planted}}, planted},
 		{"hack_get_event", nil, map[string]any{"organiser": map[string]any{"contact_email": planted}}, planted},
@@ -107,8 +106,8 @@ func TestAnalyticsHackGetApplicationsFieldsRemoved(t *testing.T) {
 	}
 }
 
-// --- argument aliases --------------------------------------------------
-
+// hack_get_page_recipe accepts kind as an alias for topic, and its result
+// matches its schema.
 func TestHackGetPageRecipeAcceptsKindAliasForTopic(t *testing.T) {
 	s := newTestServer(nil)
 	text, structured, isErr := resultOf(t, callAs(t, s, mcp.Caller{APIKey: "test", Mode: mcp.CallerModeEvents}, "hack_get_page_recipe", map[string]any{"kind": "inbox"}))
@@ -118,106 +117,14 @@ func TestHackGetPageRecipeAcceptsKindAliasForTopic(t *testing.T) {
 	if structured["topic"] != "inbox" {
 		t.Fatalf("topic = %v", structured["topic"])
 	}
-}
-
-// hack_event_storage_* tools share the storage_* builder, so the alias must
-// work on the organiser's event-website copies too.
-func TestHackEventStorageAliasAcceptsResourceForName(t *testing.T) {
-	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){
-		"PUT /v1/hack/events/weekend/website/storage/kv/settings/keys/feature": jsonReply(200, `{"key":"feature","value":true}`),
-	}}
-	product := Contribution()
-	s := mcp.NewServer(mcp.Config{Contribution: &product, Events: wireEvents{}, Upstream: up, APIHost: "simple-hack.app"})
-	caller := mcp.Caller{APIKey: "test", Mode: mcp.CallerModeEvents}
-	text, _, isErr := resultOf(t, callAs(t, s, caller, "hack_event_storage_put_kv", map[string]any{"event": "weekend", "resource": "settings", "key": "feature", "value": true}))
-	if isErr {
-		t.Fatalf("resource alias refused for hack_event_storage_put_kv: %s", text)
+	tool := toolNamed(t, "hack_get_page_recipe")
+	if _, ok := tool.InputSchema["properties"].(map[string]any)["kind"]; ok {
+		t.Error("hack_get_page_recipe advertises its alias kind")
 	}
-	if got := up.last().path; got != "/v1/hack/events/weekend/website/storage/kv/settings/keys/feature" {
-		t.Fatalf("alias did not resolve to name: %s", got)
-	}
-}
-
-// No Hack tool's advertised schema has grown the alias the server accepts
-// for it: "kind" for hack_get_page_recipe's topic, "resource" for a
-// hack_event_storage_* tool's name. If it had, the alias would have become a
-// second real argument, changing the frozen schema some clients cache.
-func TestHackArgumentAliasNeverAppearsInAnyAdvertisedSchema(t *testing.T) {
-	checked := 0
-	for _, tool := range Tools() {
-		canonical, alias := "", ""
-		switch {
-		case tool.Name == "hack_get_page_recipe":
-			canonical, alias = "topic", "kind"
-		case strings.HasPrefix(tool.Name, "hack_event_storage_"):
-			canonical, alias = "name", "resource"
-		default:
-			continue
-		}
-		checked++
-		props, _ := tool.InputSchema["properties"].(map[string]any)
-		if _, ok := props[alias]; ok {
-			t.Errorf("%s advertises %q, which is also this family's alias for %q", tool.Name, alias, canonical)
-		}
-	}
-	if checked < 2 {
-		t.Fatalf("checked %d tools", checked)
-	}
-}
-
-// --- storage tools -----------------------------------------------------
-
-// The event-website SQL tools say upfront that PRAGMA is not available and
-// what to use instead (SIM-359).
-func TestHackSQLToolDescriptionsNamePragmaAlternative(t *testing.T) {
-	want := map[string]bool{"hack_event_storage_sql_query": false, "hack_event_storage_sql_execute": false, "hack_event_storage_sql_schema": false}
-	for _, tool := range Tools() {
-		if _, tracked := want[tool.Name]; tracked {
-			if !strings.Contains(tool.Description, "PRAGMA") || !strings.Contains(tool.Description, "sqlite_schema") {
-				t.Errorf("%s description lacks the PRAGMA hint: %s", tool.Name, tool.Description)
-			}
-			want[tool.Name] = true
-		}
-	}
-	for name, seen := range want {
-		if !seen {
-			t.Errorf("%s not found in the tool inventory", name)
-		}
-	}
-}
-
-func hackEventStorageTools() []mcp.Tool {
-	var tools []mcp.Tool
-	for _, tool := range Tools() {
-		if strings.HasPrefix(tool.Name, "hack_event_storage_") {
-			tools = append(tools, tool)
-		}
-	}
-	return tools
-}
-
-func TestHackStorageRulesSchema(t *testing.T) {
-	tool := toolNamed(t, "hack_event_storage_set_resource")
-	if err := mcp.CheckOutputSchema(tool.InputSchema); err != nil {
+	if err := mcp.ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
 		t.Fatal(err)
 	}
-	for _, body := range []any{
-		map[string]any{"kind": "sqlite", "rules": nil},
-		map[string]any{"kind": "sqlite", "rules": map[string]any{"policies": []any{}}, "tables": map[string]any{"notes": map[string]any{"rules": map[string]any{"policies": []any{}}}}},
-		map[string]any{"kind": "files", "rules": map[string]any{"policies": []any{}}},
-	} {
-		if err := mcp.ValidateOutput(tool.InputSchema, map[string]any{"event": "shop", "name": "notes", "body": body}, nil); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-// An organiser's connection has the event-website storage tools.
-func TestHackOrganiserConnectionHasEventStorage(t *testing.T) {
-	_, byName := toolsAs(t, newTestServer(nil), mcp.Caller{APIKey: "person", Mode: mcp.CallerModeEvents}, false)
-	if _, ok := byName["hack_event_storage_sql_schema"]; !ok {
-		t.Fatal("organiser connection lost event website storage tool")
-	}
+	recordHackOutputValidated("hack_get_page_recipe")
 }
 
 // Simple Hack runs no spam check: its storage tools never mention
@@ -238,7 +145,7 @@ func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
 			t.Errorf("Host storage_set_resource lacks %s", want)
 		}
 	}
-	_, teamTools := toolsAs(t, s, mcp.Caller{APIKey: "team", Mode: mcp.CallerModeGroupSite}, false)
+	_, teamTools := toolsAs(t, s, mcp.Caller{APIKey: "person", Mode: mcp.CallerModeEvents, GrantID: "grant"}, false)
 	hack := map[string]string{}
 	for _, name := range []string{"storage_set_resource", "storage_sql_schema"} {
 		tool, ok := teamTools[name]
@@ -246,14 +153,6 @@ func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
 			t.Fatalf("team connection lost %s", name)
 		}
 		hack[name] = schemaText(tool.Description, tool.InputSchema)
-	}
-	for _, tool := range hackEventStorageTools() {
-		if tool.Name == "hack_event_storage_set_resource" || tool.Name == "hack_event_storage_sql_schema" {
-			hack[tool.Name] = schemaText(tool.Description, tool.InputSchema)
-		}
-	}
-	if len(hack) != 4 {
-		t.Fatalf("found %d Hack tools, want 4", len(hack))
 	}
 	for name, text := range hack {
 		for _, banned := range []string{`"comments"`, "comments (", "wall, comments", `"checked"`, "or checked", "approve_first", "auth.checked", "spam check", "Turnstile"} {
@@ -267,56 +166,17 @@ func TestHackStorageToolsOmitSpamCheck(t *testing.T) {
 	}
 }
 
-// A refused hack_event_storage_set_resource gains the same hint the site
-// tool gains.
-func TestHackStorageRulesRefusedResourceHints(t *testing.T) {
-	hint := func(text string) string {
-		_, after, _ := strings.Cut(text, "\n")
-		return after
-	}
-	for _, kind := range []string{"files", "sqlite", "kv"} {
-		for _, code := range []string{"invalid_resource", "storage_busy", "invalid_rules"} {
-			t.Run(kind+"/"+code, func(t *testing.T) {
-				body := map[string]any{"kind": kind, "site_passcode": "invalid"}
-				if code == "invalid_rules" {
-					body = map[string]any{"kind": kind, "rules": map[string]any{"version": 1, "policies": []any{}}}
-				}
-				refuse := jsonReply(400, fmt.Sprintf(`{"error":"settings refused","code":%q}`, code))
-				s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){
-					"PUT /v1/sites/test/storage/resources/data":               refuse,
-					"PUT /v1/hack/events/test/website/storage/resources/data": refuse,
-				}})
-				render := func(event bool) string {
-					tool, caller, args := "storage_set_resource", mcp.Caller{APIKey: "test-key"}, map[string]any{"site": "test", "name": "data", "body": body}
-					if event {
-						tool, caller, args = "hack_event_storage_set_resource", mcp.Caller{APIKey: "test-key", Mode: mcp.CallerModeEvents}, map[string]any{"event": "test", "name": "data", "body": body}
-					}
-					text, _, refused := resultOf(t, callAs(t, s, caller, tool, args))
-					if !refused || !strings.Contains(text, "["+code+"]") {
-						t.Fatalf("expected storage refusal: %s", text)
-					}
-					return text
-				}
-				event, site := hint(render(true)), hint(render(false))
-				if event == "" || event != site {
-					t.Fatalf("event hint differs from the site tool's:\nevent: %s\nsite: %s", event, site)
-				}
-			})
-		}
-	}
-}
-
 // Hack's connections teach rules: the storage tools' descriptions and the
 // instructions.
 func TestHackStorageRulesText(t *testing.T) {
 	for _, noSpam := range []bool{false, true} {
 		product := Contribution()
 		s := mcp.NewServer(mcp.Config{Contribution: &product, NoSpamCheck: noSpam})
-		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeGroupSite, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "test", APIKey: "fixture"}} {
+		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeEvents, GrantID: "test", APIKey: "fixture"}} {
 			after, _ := toolsAs(t, s, caller, false)
 			changedTools := 0
 			for _, tool := range after {
-				name := strings.TrimPrefix(tool.Name, "hack_event_")
+				name := tool.Name
 				if name != "storage_set_resource" && name != "storage_list_resources" && name != "storage_sql_query" && name != "storage_sql_schema" {
 					continue
 				}
@@ -335,11 +195,7 @@ func TestHackStorageRulesText(t *testing.T) {
 					}
 				}
 				if name == "storage_set_resource" {
-					prefix := ""
-					if strings.HasPrefix(tool.Name, "hack_event_") {
-						prefix = "hack_event_"
-					}
-					if !strings.Contains(tool.Description, "Create the resource with "+prefix+"storage_set_resource, then create its tables with "+prefix+"storage_sql_schema only for SQLite") {
+					if !strings.Contains(tool.Description, "Create the resource with storage_set_resource, then create its tables with storage_sql_schema only for SQLite") {
 						t.Errorf("incorrect resource creation instructions: %s", tool.Name)
 					}
 					count := 0
@@ -395,7 +251,7 @@ func TestHackCreateSiteHasNoNamedViewers(t *testing.T) {
 // Simple Hack has no photos link, so its deploy tools keep the compress line.
 func TestHackDeployToolsDoNotOfferPhotosLink(t *testing.T) {
 	s := newTestServer(nil)
-	for _, mode := range []string{mcp.CallerModeGroupSite, mcp.CallerModeEvents} {
+	for _, mode := range []string{mcp.CallerModeEvents} {
 		_, tools := toolsAs(t, s, mcp.Caller{Mode: mode, GrantID: "grant", APIKey: "owner"}, false)
 		for _, name := range []string{"create_site", "update_site"} {
 			d := tools[name].Description
@@ -408,8 +264,8 @@ func TestHackDeployToolsDoNotOfferPhotosLink(t *testing.T) {
 
 func TestHackPhotoToolRemainsArchive(t *testing.T) {
 	s := newTestServer(nil)
-	for _, mode := range []string{mcp.CallerModeGroupSite, mcp.CallerModeEvents} {
-		caller := mcp.Caller{Mode: mode, GrantID: "grant", APIKey: "owner", TeamAPIKey: "team"}
+	for _, mode := range []string{mcp.CallerModeEvents} {
+		caller := mcp.Caller{Mode: mode, GrantID: "grant", APIKey: "owner"}
 		_, tools := toolsAs(t, s, caller, false)
 		if tools["create_upload_link"].Description != mcp.ArchiveUploadDescription {
 			t.Fatal("Hack description changed")
@@ -425,7 +281,7 @@ func TestHackPhotoToolRemainsArchive(t *testing.T) {
 
 func TestHackInstructionsLength(t *testing.T) {
 	for _, host := range []string{"simple-hack.app", "hack.company.example", strings.Repeat("a", 63) + ".sites.example-company.org", strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)} {
-		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "personal", APIKey: "fixture"}, {Mode: mcp.CallerModeGroupSite, APIKey: "fixture"}} {
+		for _, caller := range []mcp.Caller{{Mode: mcp.CallerModeEvents, APIKey: "fixture"}, {Mode: mcp.CallerModeEvents, GrantID: "personal", APIKey: "fixture"}} {
 			t.Run(host+"/"+caller.Mode+"/"+caller.GrantID, func(t *testing.T) {
 				product := Contribution()
 				text := instructionsAs(t, mcp.NewServer(mcp.Config{Contribution: &product, APIHost: host, SelfHosted: host != "simple-hack.app"}), caller)
@@ -439,7 +295,7 @@ func TestHackInstructionsLength(t *testing.T) {
 					}
 				}
 				if caller.Mode == mcp.CallerModeEvents {
-					for _, want := range []string{"organiser", "participant", "judge", "hack_select_team", "hack_event_storage_*", "code of conduct", "Archiving is final", "keep scores unless you confirm deletions", "Stage results does not publish"} {
+					for _, want := range []string{"organiser", "participant", "judge", "hack_get_my_teams", "code of conduct", "Archiving is final", "keep scores unless you confirm deletions", "Stage results does not publish"} {
 						if !strings.Contains(text, want) {
 							t.Errorf("missing %q", want)
 						}
@@ -472,7 +328,7 @@ func TestHackPublicInventory(t *testing.T) {
 			t.Fatalf("tool %d differs", i)
 		}
 	}
-	for _, name := range []string{"storage_set_resource", "hack_event_storage_set_resource"} {
+	for _, name := range []string{"storage_set_resource"} {
 		found := false
 		for _, tool := range public {
 			if tool.Name != name {
@@ -480,9 +336,6 @@ func TestHackPublicInventory(t *testing.T) {
 			}
 			found = true
 			want := "Create a storage resource or set its rules"
-			if strings.HasPrefix(name, "hack_event_") {
-				want = "Event website: " + want
-			}
 			if tool.Title != want {
 				t.Errorf("%s title = %q, want %q", name, tool.Title, want)
 			}
@@ -529,7 +382,7 @@ func TestHackRetiredJudgingLockNames(t *testing.T) {
 	const want = "Judging locks when you finish judging (move to Results) and unlocks when you move the event back. [judging_lock_removed]"
 	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("a retired tool reached REST") }))
 	for _, name := range []string{"hack_lock_judging", "hack_unlock_judging"} {
-		for _, caller := range []mcp.Caller{{APIKey: "person", Mode: mcp.CallerModeEvents}, {APIKey: "team", Mode: mcp.CallerModeGroupSite}, {APIKey: "host"}} {
+		for _, caller := range []mcp.Caller{{APIKey: "person", Mode: mcp.CallerModeEvents}, {APIKey: "host"}} {
 			text, structured, failed := resultOf(t, callAs(t, s, caller, name, map[string]any{"slug": "weekend"}))
 			if !failed || structured != nil || text != want {
 				t.Fatalf("%s as %q: %q %v failed=%t", name, caller.Mode, text, structured, failed)
@@ -597,20 +450,8 @@ func TestRulesHackRecipeAdaptations(t *testing.T) {
 	}
 }
 
-// The recipes and the event-website storage tools in Hack's wording.
-func TestHackStorageRecipesAndTools(t *testing.T) {
-	tools := hackEventStorageTools()
-	if len(tools) == 0 {
-		t.Fatal("no event-website storage tools")
-	}
-	for _, tool := range tools {
-		if strings.Contains(tool.Description, "write_mode") || strings.Contains(tool.Description, " storage_") {
-			t.Fatalf("%s keeps older or Host wording: %s", tool.Name, tool.Description)
-		}
-		if tool.Name == "hack_event_storage_set_resource" && (!strings.Contains(tool.Description, "Organiser only") || !strings.Contains(tool.Description, "Deny by default")) {
-			t.Fatalf("event set_resource: %s", tool.Description)
-		}
-	}
+// The recipes in Hack's wording.
+func TestHackStorageRecipes(t *testing.T) {
 	for _, topic := range mcp.RecipeTopics() {
 		if topic == "portal" {
 			continue // refused on Simple Hack (TestHackRefusesPortalRecipe)

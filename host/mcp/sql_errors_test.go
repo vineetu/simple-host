@@ -58,7 +58,7 @@ func TestSiteNotFoundPointsSharedSitesToVisitorTools(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[{"name":"bakery"}]`))
 	})
-	for mode, want := range map[string]bool{"": true, CallerModeEvents: false, CallerModeGroupSite: false} {
+	for mode, want := range map[string]bool{"": true, CallerModeEvents: false} {
 		c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "k", Mode: mode}}
 		_, err := c.findSite("potluck")
 		if err == nil || !strings.Contains(err.Error(), "Sites here: bakery") {

@@ -54,8 +54,6 @@ const (
 
 	locksSQL7 = `SELECT 1 FROM event_teams WHERE id = $1 FOR UPDATE`
 
-	membershipSQL1 = `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE team_id = $1)`
-
 	membershipSQL2 = `UPDATE event_members SET team_removal_notice=$2 WHERE team_id=$1`
 
 	openSQL1 = `SELECT t.id,t.slug,t.name,t.looking_for,
@@ -190,11 +188,6 @@ func ReadMemberLooking(ctx context.Context, q sqlkit.Querier, eventID, userID st
 // ReadFindingTeamState reads the team’s lock and finding state and the member’s admin state.
 func ReadFindingTeamState(ctx context.Context, q sqlkit.Querier, teamID sql.NullString, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, openSQL6, teamID, eventID, userID)
-}
-
-// DeleteTeamAPIKeys deletes API keys belonging to a team.
-func DeleteTeamAPIKeys(ctx context.Context, q sqlkit.Querier, teamID string) (sql.Result, error) {
-	return q.ExecContext(ctx, membershipSQL1, teamID)
 }
 
 // SetTeamRemovalNotices sets the removal notice for team members.

@@ -25,21 +25,12 @@ func Contribution() mcp.Contribution {
 			"storage_sql_execute": hackSiteStorageSqlExecute, "storage_get_usage": hackSiteStorageGetUsage, "who_am_i": hackSiteWhoAmI,
 		},
 		Instructions: func(mode string) string {
-			switch mode {
-			case mcp.CallerModeEvents:
+			if mode == mcp.CallerModeEvents {
 				return HackInstructions()
-			case mcp.CallerModeGroupSite:
-				return HackSiteInstructions()
 			}
 			return ""
 		},
 		Rewrite: hackInstanceReplace, StorageError: hackStorageErrorMessage,
-		NoTarget: func(tool string, listable bool) (string, map[string]any, bool) {
-			if listable {
-				return "No team selected. Call hack_get_my_teams to choose a team, or hack_list_events for your event websites.", map[string]any{"sites": []any{}, "count": 0}, false
-			}
-			return "Choose a team with hack_select_team before publishing its site.", nil, true
-		},
 		Apps: hackApps,
 		MutationNames: map[string]mcp.RetiredMutation{
 			"hack_lock_judging":   judgingLockRemoved,

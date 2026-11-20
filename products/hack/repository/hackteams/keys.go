@@ -6,14 +6,6 @@ import (
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 )
 
-// LockKeyMembership reads the participant's team under a member lock.
-func LockKeyMembership(ctx context.Context, q *sql.Tx, eventID, userID string) (sql.NullString, error) {
-	var teamID sql.NullString
-	err := q.QueryRowContext(ctx, `
-		SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'participant' FOR UPDATE`, eventID, userID).Scan(&teamID)
-	return teamID, err
-}
-
 // LockEventDeadline locks and reads the event deadline.
 func LockEventDeadline(ctx context.Context, q *sql.Tx, eventID string) (sql.NullTime, error) {
 	var t sql.NullTime

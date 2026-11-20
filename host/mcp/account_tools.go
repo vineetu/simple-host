@@ -13,7 +13,7 @@ import (
 func accountTools() []Tool {
 	return []Tool{
 		{
-			policy: toolPolicy{personalCredential: true, analytics: analyticsPolicy{structuredText: true, emailIdentity: true}},
+			policy: toolPolicy{analytics: analyticsPolicy{structuredText: true, emailIdentity: true}},
 			OutputSchema: outObject(map[string]any{
 				"can_set_keep_versions": outBool("Whether the operator allows this account to set version counts."),
 				"keep_versions":         outInteger("Account default version count; 0 is unlimited."),

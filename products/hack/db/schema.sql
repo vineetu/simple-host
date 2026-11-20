@@ -1,15 +1,4 @@
 -- Hack schema: load after host/db/schema.sql.
--- The unused legacy column is retained so schema-built and migration-built
--- Hack databases agree; selected teams are read from hack_grant_teams.
-ALTER TABLE oauth_grants ADD COLUMN IF NOT EXISTS selected_team_id UUID;
-
--- Hack owns connected-app publishing selections. Deleted team IDs stay stored.
-CREATE TABLE IF NOT EXISTS hack_grant_teams (
-  grant_id UUID PRIMARY KEY REFERENCES oauth_grants(id) ON DELETE CASCADE,
-  team_id UUID NOT NULL,
-  selected_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 
 -- simple-hack.app hosted hackathons (EVENTS=hosted; docs/designs/simple-hack-platform.md,
 -- products/hack/db/migrations/hack1-events.sql).
@@ -194,20 +183,6 @@ CREATE TABLE IF NOT EXISTS event_entry_receipts (
 );
 CREATE INDEX IF NOT EXISTS event_entry_receipts_pending_idx
   ON event_entry_receipts (event_id, team_id) WHERE sent_at IS NULL;
-
--- A member's key for their team's site (api_keys.scope = 'team'). The key
--- belongs to the person (api_keys.user_id); it acts on the event's holding
--- account, on one site only, and only while that person is a participant on
--- that team (checked on every request). One per person per event.
-CREATE TABLE IF NOT EXISTS event_team_keys (
-  key_id     UUID PRIMARY KEY REFERENCES api_keys(id) ON DELETE CASCADE,
-  event_id   UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  team_id    UUID NOT NULL REFERENCES event_teams(id) ON DELETE CASCADE,
-  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (event_id, user_id)
-);
-CREATE INDEX IF NOT EXISTS event_team_keys_team_idx ON event_team_keys (team_id);
 
 -- Every event name and team name that ever had a team, kept when the event or
 -- team is deleted: a browser keeps an origin's service workers, storage and

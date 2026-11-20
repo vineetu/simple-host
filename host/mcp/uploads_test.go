@@ -107,7 +107,7 @@ func TestUploadExpiryLimitAndFailedDeploy(t *testing.T) {
 
 func TestUploadToolModes(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	for _, caller := range []Caller{{}, {Mode: CallerModeGroupSite}, {Mode: CallerModeEvents}} {
+	for _, caller := range []Caller{{}, {Mode: CallerModeEvents}} {
 		tools, _, _ := s.forCaller(caller)
 		names := map[string]bool{}
 		for _, tool := range tools {
@@ -116,25 +116,6 @@ func TestUploadToolModes(t *testing.T) {
 		if names["update_site"] != names["create_upload_link"] {
 			t.Fatal("tool mode mismatch")
 		}
-	}
-}
-
-func TestUploadLinkUsesSelectedTeamCredential(t *testing.T) {
-	up := &recordingUpstream{answers: map[string]func() (int, string){}}
-	s := newTestServer(up)
-	r := httptest.NewRequest("POST", "/mcp", strings.NewReader(toolCall("create_upload_link", map[string]any{"site": "blog", "archive": true})))
-	r.Header.Set("Content-Type", "application/json")
-	r = r.WithContext(WithCaller(r.Context(), Caller{APIKey: "person-key", TeamAPIKey: "team-key", Mode: CallerModeEvents, GrantID: "grant"}))
-	w := httptest.NewRecorder()
-	s.ServeHTTP(w, r)
-	_, out, failed := resultOf(t, w)
-	if failed {
-		t.Fatal("team mint failed")
-	}
-	u, _ := url.Parse(out["upload_url"].(string))
-	uploadRequest(s, strings.TrimPrefix(u.Path, "/v1/uploads/"))
-	if len(up.requests) != 1 || up.requests[0].Header.Get("X-API-Key") != "team-key" {
-		t.Fatal("upload did not use selected team's key")
 	}
 }
 
@@ -154,41 +135,30 @@ func TestUploadCapAcrossKeys(t *testing.T) {
 }
 
 func TestUploadMintAtUseAndRevoke(t *testing.T) {
-	for _, team := range []bool{false, true} {
-		t.Run(fmt.Sprint(team), func(t *testing.T) {
-			calls, revoked := 0, false
-			s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if calls != 1 || revoked || r.Header.Get("X-API-Key") != "fresh" {
-					t.Fatal("mint/revoke order or key")
-				}
-			}))
-			caller := Caller{APIKey: "person", TeamAPIKey: "team", MintUpload: func(ctx context.Context, got bool) (string, func(), error) {
-				calls++
-				if got != team {
-					t.Fatal("wrong team flag")
-				}
-				return "fresh", func() { revoked = true }, nil
-			}}
-			if team {
-				caller.APIKey = caller.TeamAPIKey
-			}
-			out, err := createForCaller(t, s, caller)
-			if err != nil || calls != 0 {
-				t.Fatal("mint ran at creation", err)
-			}
-			u, _ := url.Parse(out.Structured["upload_url"].(string))
-			uploadRequest(s, strings.TrimPrefix(u.Path, "/v1/uploads/"))
-			if calls != 1 || !revoked {
-				t.Fatal("mint/revoke missing")
-			}
-		})
+	calls, revoked := 0, false
+	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls != 1 || revoked || r.Header.Get("X-API-Key") != "fresh" {
+			t.Fatal("mint/revoke order or key")
+		}
+	}))
+	out, err := createForCaller(t, s, Caller{APIKey: "person", MintUpload: func(context.Context) (string, func(), error) {
+		calls++
+		return "fresh", func() { revoked = true }, nil
+	}})
+	if err != nil || calls != 0 {
+		t.Fatal("mint ran at creation", err)
+	}
+	u, _ := url.Parse(out.Structured["upload_url"].(string))
+	uploadRequest(s, strings.TrimPrefix(u.Path, "/v1/uploads/"))
+	if calls != 1 || !revoked {
+		t.Fatal("mint/revoke missing")
 	}
 }
 
 func TestUploadMintError(t *testing.T) {
 	up := &recordingUpstream{}
 	s := newTestServer(up)
-	out, err := createForCaller(t, s, Caller{APIKey: "old", MintUpload: func(context.Context, bool) (string, func(), error) { return "", nil, errors.New("ended") }})
+	out, err := createForCaller(t, s, Caller{APIKey: "old", MintUpload: func(context.Context) (string, func(), error) { return "", nil, errors.New("ended") }})
 	if err != nil {
 		t.Fatal(err)
 	}

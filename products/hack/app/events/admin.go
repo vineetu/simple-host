@@ -2,9 +2,10 @@ package events
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/host/app/sites"
 	"strings"
 
-	accounts "github.com/vsriram/simple-host/host/repository/accounts"
+	"github.com/vsriram/simple-host/host/app/accounts"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
@@ -35,7 +36,7 @@ func (s *Service) AdminModerate(ctx context.Context, ev model.Event, reason stri
 	if err != nil {
 		return model.Event{}, err
 	}
-	if err = accounts.SetUserSuspended(ctx, tx, ev.AccountID, reason); err != nil {
+	if err = accounts.SuspendAccount(ctx, tx, ev.AccountID, reason); err != nil {
 		return model.Event{}, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -54,7 +55,7 @@ func (s *Service) AdminDelete(ctx context.Context, ev model.Event, removeFiles f
 		return err
 	}
 	defer tx.Rollback()
-	if err = eventrepo.DeleteEventAndAccount(ctx, tx, ev); err != nil {
+	if err = eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, sites.DeleteProductAccount); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {

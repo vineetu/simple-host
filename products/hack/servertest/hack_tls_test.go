@@ -32,7 +32,7 @@ func TestHackOnDemandTLSNames(t *testing.T) {
 	ask("stranger."+slug+"."+tsDomain, http.StatusForbidden)
 	ask(team+"."+slug+"."+tsDomain, http.StatusForbidden)
 	markReady(t, a.certDir, slug)
-	wantTS(t, "publish", a.deployTeam(t, team, a.teamKey(t, slug, participant), "Published"), http.StatusCreated, "")
+	wantTS(t, "publish", a.deployTeam(t, slug, team, participant.key, "Published"), http.StatusCreated, "")
 	ask(team+"."+slug+"."+tsDomain, http.StatusOK)
 	wantTS(t, "archive", a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, org.key), http.StatusOK, "")
 	ask(team+"."+slug+"."+tsDomain, http.StatusOK)

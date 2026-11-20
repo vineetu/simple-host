@@ -25,10 +25,9 @@ func (h *SiteHandler) SetOwnerMarks(m *operations.OwnerMarks) { h.ownerMarks = m
 // list and the analytics reads same-origin, and browsers set Sec-Fetch-Site:
 // same-origin on those fetches themselves (a page cannot forge it). curl,
 // SDKs and the connector's internal calls never send it, so an agent reading
-// the list on the owner's behalf from some other machine marks nothing. A
-// team credential is the team's, not a person's, and is never marked.
+// the list on the owner's behalf from some other machine marks nothing.
 func (h *SiteHandler) noteOwnerBrowser(r *http.Request, user *model.User) {
-	if h.ownerMarks == nil || user == nil || user.Team != nil {
+	if h.ownerMarks == nil || user == nil {
 		return
 	}
 	if !strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "same-origin") {

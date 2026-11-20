@@ -125,7 +125,7 @@ func TestFlatInstructionsAndDescriptionIsolation(t *testing.T) {
 		if s.instructionsFor(Caller{AppName: "Claude"}) != instanceText(s.hostInstructions(Instructions())) {
 			t.Fatal("changed Claude instructions")
 		}
-		for _, mode := range []string{CallerModeEvents, CallerModeGroupSite} {
+		for _, mode := range []string{CallerModeEvents} {
 			before, _, _ := s.forCaller(Caller{Mode: mode})
 			after, _, _ := s.forCaller(Caller{Mode: mode, AppName: "ChatGPT"})
 			a, _ := json.Marshal(before)

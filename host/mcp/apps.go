@@ -52,7 +52,7 @@ var appScreens = []appScreen{
 }
 
 func (s *Server) mySitesEnabled(c Caller) bool {
-	return (c.Mode == "" || c.Mode == CallerModeGroupSite || (c.Mode == CallerModeEvents && c.GrantID != "")) && appFlag(os.Getenv("MCP_APP_MY_SITES"), c.Handle)
+	return (c.Mode == "" || (c.Mode == CallerModeEvents && c.GrantID != "")) && appFlag(os.Getenv("MCP_APP_MY_SITES"), c.Handle)
 }
 
 func (s *Server) dashboardEnabled(c Caller) bool {
@@ -196,7 +196,7 @@ func (s *Server) readApp(req request, caller Caller) response {
 		// On a product's connection the product supplies its own script and
 		// name for these screens (AppContribution.SitesPage).
 		productScript, product := "", "Simple Host"
-		if sitesPage := s.apps.SitesPage; sitesPage != nil && (caller.Mode == CallerModeEvents || caller.Mode == CallerModeGroupSite) {
+		if sitesPage := s.apps.SitesPage; sitesPage != nil && caller.Mode == CallerModeEvents {
 			productScript, product = sitesPage()
 		}
 		page := strings.NewReplacer(

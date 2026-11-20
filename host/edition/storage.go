@@ -14,9 +14,6 @@ type StoragePolicy struct {
 	// Photos enables the photo tools.
 	Photos bool
 
-	// Storage.
-	// EventOwners interprets owners through event and team membership.
-	EventOwners bool
 	// CombinedPool combines data and file storage allowances.
 	CombinedPool bool
 	// FileCaps applies per-site and account deployment caps.

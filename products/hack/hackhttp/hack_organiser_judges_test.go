@@ -113,9 +113,7 @@ func TestOrganiserJudgeMigrationBackfillsOnlyScoredCurrentOrganisers(t *testing.
 	w := newJudgingWorld(t, 1, 1)
 	id := w.a.userID(t, w.org)
 	co := w.a.newPerson(t, "migration-org")
-	if _, err := w.a.database.Exec(`INSERT INTO event_members(event_id,user_id,role) SELECT id,$2,'organiser' FROM events WHERE slug=$1`, w.slug, w.a.userID(t, co)); err != nil {
-		t.Fatal(err)
-	}
+	w.addOrganiser(t, w.a.key(co))
 
 	// Any partial score counts, irrespective of today's scoring eligibility.
 	_, err := w.a.database.Exec(`INSERT INTO event_scores(event_id,judge_id,team_id,criterion_id,points) SELECT event_id,$2,$3,id,1 FROM rubric_criteria WHERE event_id=(SELECT id FROM events WHERE slug=$1) LIMIT 1`, w.slug, id, w.teams[0].id)

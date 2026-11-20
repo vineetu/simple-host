@@ -1,7 +1,5 @@
 package mcp
 
-import "strings"
-
 const storageRulesInstructions = `SQLite/KV/files: ask who may read, add, edit and delete, then write rules. Deny by default: require a permissive policy and every restrictive policy. Owner tools bypass rules; owner pages need auth.role == "owner". Read storage_list_resources before changes; ask before widening access.`
 
 const storageRulesSetDescription = `Create a saved-data resource or set who may read, add, edit and delete. kind: kv (one JSON value per key), sqlite (tables), or files (uploads); it cannot change later.
@@ -43,12 +41,10 @@ const storageRulesSpamCheckSentence = ` For spam-checked adds, use auth.checked 
 // who "owner" is, after choosing the connection's inventory. Simple Host's own
 // connections keep the registered text.
 func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
-	product := caller.Mode == CallerModeGroupSite || caller.Mode == CallerModeEvents || strings.HasPrefix(tool.Name, "hack_event_")
-	if !product {
+	if caller.Mode != CallerModeEvents {
 		return tool
 	}
-	name := strings.TrimPrefix(tool.Name, "hack_event_")
-	switch name {
+	switch tool.Name {
 	case "storage_set_resource":
 		tool.Description = storageRulesSetDescription
 	case "storage_list_resources":
@@ -60,18 +56,13 @@ func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
 	default:
 		return tool
 	}
-	if strings.HasPrefix(tool.Name, "hack_event_") {
-		tool.Description = strings.ReplaceAll(tool.Description, "storage_", "hack_event_storage_")
-		tool.Description += ` Owner on this website means a current event organiser until the event ends. Organiser only on this event's custom website.`
-	} else {
-		tool.Description += ` Owner on a team site means a current approved teammate until the team's submission deadline, subject to stage and take-down checks; after that the teammate is an ordinary visitor.`
-	}
+	tool.Description += ` Owner on a team site means a current approved teammate until the team's submission deadline, subject to stage and take-down checks; after that the teammate is an ordinary visitor. On the event's own website it means a current organiser until the event ends.`
 	tool.Description = s.productInstructions(tool.Description)
 	return tool
 }
 
 func (s *Server) storageRulesInventory(full, bare []Tool, byName map[string]Tool, c Caller) ([]Tool, []Tool, map[string]Tool) {
-	if c.Mode != CallerModeEvents && c.Mode != CallerModeGroupSite {
+	if c.Mode != CallerModeEvents {
 		return full, bare, byName
 	}
 	rewrite := func(list []Tool) []Tool {

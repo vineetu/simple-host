@@ -430,7 +430,7 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				// strict same-origin session, the owner's account, one of
 				// the site's own hosts. On Simple Hack: a team member or an
 				// organiser while the site may change (the storage bindings provider).
-				if h.ed.Storage().EventOwners {
+				if h.storageBindings != nil {
 					if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == sess.UserID && h.storageOwnHost(r, siteID) {
 						owner, oerr := h.storageBindingProvider().OwnerOnSite(r.Context(), siteID, sess.UserID)
 						resp.SiteOwner = oerr == nil && owner
@@ -438,8 +438,8 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 				} else {
 					// The account, or a member of the team that holds the
 					// site (accounts.ActsAsOwner).
-					if _, ownerID, _, oerr := h.sitesSvc().GetSiteOwner(r.Context(), siteID); oerr == nil {
-						if owner, aerr := accountapp.ActsAsOwner(r.Context(), h.database, sess.UserID, ownerID); aerr == nil && owner {
+					if _, ownerID, name, oerr := h.sitesSvc().GetSiteOwner(r.Context(), siteID); oerr == nil {
+						if owner, aerr := accountapp.ActsAsOwner(r.Context(), h.database, sess.UserID, ownerID, name); aerr == nil && owner {
 							if strict, ok := h.strictVisitorSession(r, siteID); ok && strict.UserID == sess.UserID {
 								resp.SiteOwner = h.storageOwnHost(r, siteID)
 							}

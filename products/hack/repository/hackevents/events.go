@@ -359,22 +359,21 @@ func RestoreEvent(ctx context.Context, q sqlkit.Querier, eventID string) (Event,
 
 // DeleteEventAndAccount deletes the event (cascading members and teams) then
 // the holding account, which frees the handle/slug. One transaction.
-func DeleteEventAndAccount(ctx context.Context, q *sql.Tx, ev Event) error {
+// lockSites and deleteAccount are the platform's: the account's site rows
+// are locked in the deploy's order, and the account goes last.
+func DeleteEventAndAccount(ctx context.Context, q *sql.Tx, ev Event, lockSites, deleteAccount func(context.Context, *sql.Tx, string) error) error {
 	// Lock order: the event row (as PATCH, stage and extension changes
 	// take it), the holding account's sites, then the team rows (as a
-	// deploy takes them), and the members' team keys go with them.
+	// deploy takes them).
 	if _, err := q.ExecContext(ctx, `SELECT 1 FROM events WHERE id = $1 FOR UPDATE`, ev.ID); err != nil {
 		return err
 	}
 	// The holding account's site rows before the team rows: an update
 	// deploy holds its site row, then its team row.
-	if _, err := q.ExecContext(ctx, `SELECT 1 FROM sites WHERE user_id = $1 FOR UPDATE`, ev.AccountID); err != nil {
+	if err := lockSites(ctx, q, ev.AccountID); err != nil {
 		return err
 	}
 	if _, err := q.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, ev.ID); err != nil {
-		return err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE event_id = $1)`, ev.ID); err != nil {
 		return err
 	}
 	// Preserve names of legacy events with people but no team, too.
@@ -390,8 +389,7 @@ func DeleteEventAndAccount(ctx context.Context, q *sql.Tx, ev Event) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM events WHERE id = $1`, ev.ID); err != nil {
 		return err
 	}
-	_, err := q.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, ev.AccountID)
-	return err
+	return deleteAccount(ctx, q, ev.AccountID)
 }
 
 // ListEventsForUser is GET /v1/hack/events: every event the person is in.

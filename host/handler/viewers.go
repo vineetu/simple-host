@@ -97,9 +97,10 @@ func (h *SiteHandler) viewerAllowedCtx(ctx context.Context, row model.SitePassco
 	if susp, err := h.storeAccounts().UserSuspended(ctx, userID); err != nil || susp {
 		return false, "", err
 	}
-	// The owner, or a member of the team that holds the site, always gets in
+	// The owner, a member of the team that holds the site, or an editor of
+	// the site always gets in
 	// (accounts.ActsAsOwner).
-	if owner, err := accounts.ActsAsOwner(ctx, h.database, userID, row.UserID); err != nil || owner {
+	if owner, err := accounts.ActsAsOwner(ctx, h.database, userID, row.UserID, row.Name); err != nil || owner {
 		return owner, "", err
 	}
 	email, err = visitorEmail(ctx, h.database, userID)

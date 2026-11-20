@@ -239,7 +239,7 @@ func (s *Service) ReissueAccountKey(ctx context.Context, id, adminID string) (Re
 
 type SuspensionInput struct {
 	ID, AdminID, ActorID, Reason string
-	On, HoldingAccounts          bool
+	On                           bool
 	Marker                       func(model.Site) error
 }
 type SuspendedAccount struct {
@@ -248,13 +248,6 @@ type SuspendedAccount struct {
 }
 
 func (s *Service) SuspendAccount(ctx context.Context, in SuspensionInput) (SuspendedAccount, error) {
-	if in.HoldingAccounts {
-		if held, err := HoldingAccount(ctx, s.database, in.ID); err != nil {
-			return SuspendedAccount{}, err
-		} else if held {
-			return SuspendedAccount{}, lifecycleFail(409, HoldingText("suspend"), "event_account")
-		}
-	}
 	target, err := repo.GetUserByID(ctx, s.database, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SuspendedAccount{}, lifecycleFail(404, "not found", "")

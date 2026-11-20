@@ -2,24 +2,18 @@ package hackmcp
 
 import "github.com/vsriram/simple-host/host/mcp"
 
-// HackInstructions describes the one hosted personal connection. Event tools
-// use the person's identity and website tools use a selected team's scoped
-// publishing identity, checked against current membership on every request.
+// HackInstructions describes the one hosted personal connection. Every tool
+// acts as the person; site and storage tools name the event as owner, and
+// the platform checks membership, stage and deadline on every request.
 func HackInstructions() string {
 	return hackInstructionsText
-}
-
-// HackSiteInstructions is the website-only view used by older team
-// connections and platform administration on hosted Simple Hack.
-func HackSiteInstructions() string {
-	return `This connection manages websites on simple-hack.app. A team credential is scoped to its own event team site and remains subject to current membership, stage and deadline checks. Use the website tools for static files and the storage_* tools for the site's KV, SQLite and raw-file resources. ` + mcp.StorageRulesInstructions + ` Owner on a team site means a current approved teammate until the submission deadline, subject to stage and take-down checks. The old state, collections and declared-data APIs are unavailable on Simple Hack. Read the current website and resource settings before replacing them. Ask before first publication, deleting a resource, or making access public.`
 }
 
 const hackInstructionsText = `Simple Hack on simple-hack.app: one person's organiser, participant, and judge roles. Never ask for keys or sign-in codes. Start with hack_list_events. Read state before changes; relay refusals, never retry with another role or key.
 
 Preview invitations; ask acceptance of the code of conduct before joining. Participants find teams, fill entry cards, then hack_submit_entry, vote and read results. Judges, including organisers, read rubric IDs, queue and own scores; score/comment and declare conflicts. Organisers manage events, registration, teams, hack_set_entry_rules, judging and results; preview fill teams before confirming apply.
 
-Publish: hack_get_my_teams, then hack_select_team. Website/storage_* rechecks membership, stage and deadline; leaving stops access. Selection changes only publishing; older connections keep their team. Organisers use hack_event_storage_* with the event slug.
+Publish: website/storage_* tools take site (hack_get_my_teams) and owner (the event's name). Each call rechecks membership, stage and deadline. Organisers publish the event website (site: organiser.website_site, hack_get_event) and only read team sites.
 
 ` + mcp.StorageRulesInstructions + ` hack_get_page_recipe supplies setup/page code. Owner means teammates until the submission deadline, or event organisers until the event ends.
 

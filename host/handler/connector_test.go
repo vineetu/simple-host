@@ -29,7 +29,6 @@ import (
 	model "github.com/vsriram/simple-host/host/model"
 	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	operationsrepo "github.com/vsriram/simple-host/host/repository/operations"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/host/storage"
 )
 
@@ -310,7 +309,7 @@ func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	app.sites = sites
 	t.Cleanup(sites.WaitNotifications)
 	sites.Register(mux, authMW, noticeMW)
-	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, ed.Identity().PersonalSites)
+	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, nil)
 	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false, ed)
 	conn.Register(mux, authMW)
 	app.conn = conn
@@ -1280,72 +1279,5 @@ func TestConnectorUnknownClientHelp(t *testing.T) {
 		if d := page(id, testRedirect); d["muse_client_id"] != nil || !strings.Contains(d["error"].(string), "not known") {
 			t.Fatalf("%s: %v", id, d)
 		}
-	}
-}
-
-// This transport fixture supplies product labels through the platform hook.
-// The Hack repository tests exercise the actual distinct-team lookup.
-type connectionLabelsStub struct {
-	accountapp.ConnectorTarget
-	labels map[string][]model.OAuthConnectionTeam
-}
-
-func (h connectionLabelsStub) Labels(context.Context, sqlkit.Querier, string) (map[string][]model.OAuthConnectionTeam, error) {
-	return h.labels, nil
-}
-
-func TestConnectionsTeamsByEdition(t *testing.T) {
-	for _, kind := range []*edition.Edition{groupTestEdition(), platformTestEdition()} {
-		t.Run(kind.Presentation().ProductName, func(t *testing.T) {
-			a := newConnectorApp(t, kind)
-			p := a.newPerson(t, "connections")
-			var uid string
-			if err := a.database.QueryRow(`SELECT id FROM users WHERE username=$1`, p.email).Scan(&uid); err != nil {
-				t.Fatal(err)
-			}
-			bolt, claude := a.registerClient(t, testRedirect), a.registerClient(t, testRedirect)
-			// Two grants for one app and one for another: the product's labels
-			// arrive through the hook below, so no product row is seeded here.
-			for _, client := range []string{bolt, bolt, claude} {
-				if _, err := a.database.Exec(`INSERT INTO oauth_grants (user_id,client_id,scope,resource) VALUES ($1,$2,'sites events',$3)`, uid, client, a.srv.URL+"/mcp"); err != nil {
-					t.Fatal(err)
-				}
-			}
-			accountapp.SetGroupHooks(accountapp.GroupHooks{Target: connectionLabelsStub{labels: map[string][]model.OAuthConnectionTeam{bolt: {{Event: "Practice", Team: "P2"}}}}})
-			t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
-			r := a.do(t, "GET", "/v1/me/connections", nil, map[string]string{"X-API-Key": p.key})
-			if r.status != 200 {
-				t.Fatalf("connections: %d %s", r.status, r.body)
-			}
-			list := r.json(t)["connections"].([]any)
-			if len(list) != 2 {
-				t.Fatalf("connections: %v", list)
-			}
-			for _, item := range list {
-				c := item.(map[string]any)
-				raw, present := c["teams"]
-				if kind.Identity().PersonalSites {
-					if present {
-						t.Fatalf("Host returned teams: %v", c)
-					}
-					continue
-				}
-				teams, ok := raw.([]any)
-				if !ok {
-					t.Fatalf("teams must be an array: %v", c)
-				}
-				if c["client_id"] == bolt {
-					if len(teams) != 1 {
-						t.Fatalf("distinct teams: %v", c)
-					}
-					team := teams[0].(map[string]any)
-					if team["event"] != "Practice" || team["team"] != "P2" {
-						t.Fatalf("team names: %v", c)
-					}
-				} else if len(teams) != 0 {
-					t.Fatalf("no team must be []: %v", c)
-				}
-			}
-		})
 	}
 }

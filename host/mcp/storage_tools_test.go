@@ -55,11 +55,11 @@ func TestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 	}
 }
 
-func TestStorageToolsScopedToSelectedGroup(t *testing.T) {
+func TestStorageToolsOnProductConnection(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) }))
-	full, _, byName := s.forCaller(Caller{APIKey: "person", Mode: CallerModeEvents, GrantID: "grant", TeamAPIKey: "team"})
+	full, _, byName := s.forCaller(Caller{APIKey: "person", Mode: CallerModeEvents, GrantID: "grant"})
 	if len(full) == 0 || byName["storage_sql_schema"].Name == "" {
-		t.Fatal("selected team lost storage tools")
+		t.Fatal("product connection lost storage tools")
 	}
 	if _, ok := s.byName["storage_sql_schema"]; !ok {
 		t.Fatal("Host connection lost storage schema tool")

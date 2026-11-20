@@ -2,9 +2,7 @@
 package hackmcp
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/host/mcp"
 	"net/http"
@@ -19,95 +17,8 @@ func hackWebTools() []mcp.Tool {
 	generic := map[string]any{"type": "object", "additionalProperties": true}
 	return declare([]decl{
 		{
-			Name: "hack_get_event_website", Title: "Read event website mode",
-			Description: "Read whether the built-in or custom event website is live and list published versions and upload limits. Organiser only.",
-			InputSchema: mcp.Object(slug, "slug"), OutputSchema: generic, Annotations: mcp.ReadOnly(),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				path, err := hackWebPath(args, "/website")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				return hackWebJSON(c, "hack_get_event_website", http.MethodGet, path, nil, nil)
-			},
-		},
-		{
-			policy: toolPolicy{analytics: analyticsPolicy{fileArguments: true}},
-			Name:   "hack_publish_event_website", Title: "Publish event website files",
-			Description: "Publish a complete event website from inline files (include index.html, with optional files_base64 for assets) or one archive_base64 tar.gz. This replaces the custom site's files, keeps version history, and switches the event host to custom. Ask the organiser before publishing. Organiser only. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.",
-			InputSchema: mcp.Object(map[string]any{
-				"slug":           slug["slug"],
-				"files":          map[string]any{"type": "object", "description": "Map of site-relative path to UTF-8 file contents.", "additionalProperties": map[string]any{"type": "string"}},
-				"files_base64":   mcp.FilesBase64Schema(),
-				"archive_base64": mcp.Str("Optional base64-encoded tar.gz archive; use instead of files and files_base64."),
-			}, "slug"), OutputSchema: generic, Annotations: mcp.Writes(true, true, true),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				path, err := hackWebPath(args, "/website")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				files, err := mcp.StringMap(args, "files")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				binary, err := mcp.StringMap(args, "files_base64")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				archive, hasArchive, err := presentString(args, "archive_base64")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				if hasArchive && (len(files) > 0 || len(binary) > 0) {
-					return mcp.Output{}, errors.New("archive_base64 cannot be combined with files or files_base64")
-				}
-				if !hasArchive {
-					if _, ok := files["index.html"]; !ok {
-						if _, ok := binary["index.html"]; !ok {
-							return mcp.Output{}, errors.New("files must include index.html at the site root")
-						}
-					}
-				}
-				state := c.Do(http.MethodGet, path, nil, nil)
-				if !state.OK() {
-					return mcp.Output{}, hackRestError("hack_publish_event_website", state)
-				}
-				var current struct {
-					HasCustomPage bool `json:"has_custom_page"`
-				}
-				if err := json.Unmarshal(state.Body(), &current); err != nil {
-					return mcp.Output{}, errors.New("event website state could not be read")
-				}
-				var raw []byte
-				var headers map[string]string
-				if hasArchive {
-					if len(archive) > int(c.MaxBodyBytes()) {
-						return mcp.Output{}, errors.New("archive_base64 is too large for one connector request")
-					}
-					raw, err = base64.StdEncoding.DecodeString(archive)
-					if err != nil {
-						return mcp.Output{}, errors.New("archive_base64 must be valid base64 tar.gz bytes")
-					}
-					headers = map[string]string{"Content-Type": "application/gzip"}
-				} else {
-					payload := map[string]any{"files": files}
-					if len(binary) > 0 {
-						payload["files_base64"] = binary
-					}
-					raw, err = json.Marshal(payload)
-					if err != nil {
-						return mcp.Output{}, err
-					}
-					path += "/files"
-				}
-				if !current.HasCustomPage {
-					path += "?create=1"
-				}
-				return hackWebJSON(c, "hack_publish_event_website", http.MethodPut, path, raw, headers)
-			},
-		},
-		{
 			Name: "hack_set_event_website_mode", Title: "Choose event website",
-			Description:  "Switch the event host between builtin and custom. The custom website must have been published first; switching back preserves its files. Ask the organiser first. Organiser only.",
+			Description:  "Switch the event host between builtin and custom. Publish the custom website first with the ordinary site tools (update_site with site set to organiser.website_site from hack_get_event and owner set to the event's name). Switching back preserves its files. Ask the organiser first. Organiser only.",
 			InputSchema:  mcp.Object(map[string]any{"slug": slug["slug"], "mode": map[string]any{"type": "string", "enum": []string{"builtin", "custom"}, "description": "builtin: the event page Simple Hack renders itself; custom: the website the organiser published with the event website tools."}}, "slug", "mode"),
 			OutputSchema: generic, Annotations: mcp.Writes(true, true, true),
 			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {

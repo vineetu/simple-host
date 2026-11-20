@@ -98,7 +98,7 @@ func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 				// storage_visitor_emails's email direction: named viewers
 				// and this canonical-email resolution are not a Simple
 				// Hack concept.
-				if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event || h.ed.Storage().EventOwners {
+				if h.storageBindings != nil {
 					storageError(w, 404, "for_not_available", "for is not available on Simple Hack")
 					return
 				}

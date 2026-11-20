@@ -23,9 +23,8 @@ func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
 	if err != nil {
 		panic(err)
 	}
-	if p == nil {
-		p = appstorage.DefaultProvider{DB: h.database}
-	}
+	// Nil keeps the platform's own rules (storageBindingProvider); a product
+	// provider (Simple Hack) switches the product-only storage behaviour.
 	h.storageBindings = p
 	h.storageBindingSchema = schema
 	h.storageProductBindingSchema = appstorage.BindingSchema{}
@@ -59,7 +58,6 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 		resource, err := h.loadStorageResource(ctx, siteID, name)
 		return err == nil && resource.Kind == "files"
 	}
-	deps.EventOwners = h.ed.Storage().EventOwners
 	deps.FilePath = func(call appstorage.Call, path string) string {
 		return storageFileOnDisk(h.disk, call.OwnerID, call.SiteName, call.ResourceName, path)
 	}

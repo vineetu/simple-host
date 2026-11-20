@@ -13,8 +13,6 @@ import (
 // Regression tests for the Grok security review of SIM-340 (leave this
 // event). Each test is named after the finding it covers.
 
-// --- finding 1: same-user deadlock minting a team key while leaving -------
-
 // --- finding 2: delete-former-judge-scores skipped takedown and the ----
 // --- caller's current organiser status under its own lock --------------
 

@@ -10,6 +10,9 @@ func (e *Error) Error() string { return e.Message }
 
 // GateError describes a transaction-time team authorization refusal.
 type GateError struct {
+	// Status is the HTTP status the refusal answers (0: 409 Conflict, or
+	// 500 when Code is empty).
+	Status  int
 	Message string
 	Code    string
 }

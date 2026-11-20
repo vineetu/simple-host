@@ -21,7 +21,6 @@ const internalKeyTTL = 15 * time.Minute
 type InternalCred struct {
 	UserID  string
 	Visitor *InternalVisitorPass
-	TeamID  string // set: the person acts on their team's site only (hack_sites.go)
 	Expires time.Time
 }
 
@@ -30,22 +29,16 @@ var internalKeys sync.Map // key -> InternalCred
 // IssueInternalKey mints an in-process credential for userID. Call the
 // returned revoke when the request that needed it is done.
 func IssueInternalKey(userID string) (key string, revoke func(), err error) {
-	return issueInternal(userID, "", nil)
+	return issueInternal(userID, nil)
 }
 
-// IssueInternalTeamKey mints an in-process credential that acts like a team
-// key of userID for teamID (a connector connection bound to a team site).
-func IssueInternalTeamKey(userID, teamID string) (key string, revoke func(), err error) {
-	return issueInternal(userID, teamID, nil)
-}
-
-func issueInternal(userID, teamID string, visitor *InternalVisitorPass) (key string, revoke func(), err error) {
+func issueInternal(userID string, visitor *InternalVisitorPass) (key string, revoke func(), err error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", nil, err
 	}
 	key = internalKeyPrefix + hex.EncodeToString(b)
-	internalKeys.Store(key, InternalCred{UserID: userID, TeamID: teamID, Visitor: visitor, Expires: time.Now().Add(internalKeyTTL)})
+	internalKeys.Store(key, InternalCred{UserID: userID, Visitor: visitor, Expires: time.Now().Add(internalKeyTTL)})
 	sweepInternalKeys()
 	return key, func() { internalKeys.Delete(key) }, nil
 }
@@ -68,15 +61,6 @@ func LookupInternalCred(key string) (InternalCred, bool) {
 	return c, true
 }
 
-// LookupInternalTeamKey: key is a live internal credential bound to a team.
-func LookupInternalTeamKey(key string) (memberID, teamID string, ok bool) {
-	c, ok := LookupInternalCred(key)
-	if !ok || c.TeamID == "" {
-		return "", "", false
-	}
-	return c.UserID, c.TeamID, true
-}
-
 // sweepInternalKeys drops expired entries; a revoke that never ran (a panic)
 // must not leave a credential behind for long.
 func sweepInternalKeys() {
@@ -94,7 +78,7 @@ func sweepInternalKeys() {
 type InternalVisitorPass = model.InternalVisitorPass
 
 func IssueInternalVisitorKey(pass InternalVisitorPass) (string, func(), error) {
-	return issueInternal(pass.UserID, "", &pass)
+	return issueInternal(pass.UserID, &pass)
 }
 
 func LookupInternalVisitorKey(key string) (InternalVisitorPass, bool) {

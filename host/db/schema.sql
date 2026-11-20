@@ -118,6 +118,19 @@ CREATE TABLE team_audit (
 );
 CREATE INDEX team_audit_team_idx ON team_audit (team_id, at);
 
+-- Site editors (0027-site-editors.sql): a person who may publish, update and
+-- roll back one site of an account without belonging to it. Keyed by the
+-- site's name, so the grant survives a restore and an editor may create it.
+CREATE TABLE site_editors (
+  account_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  site_name  TEXT NOT NULL,
+  user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  added_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+  added_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (account_id, site_name, user_id)
+);
+CREATE INDEX site_editors_user_idx ON site_editors (user_id);
+
 -- An invitation to join a team: nobody becomes a member without accepting.
 -- addressed_to is an email in its sign-in form (trimmed, lower case). No
 -- account is looked up when it is made; it is offered to the signed-in

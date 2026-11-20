@@ -51,7 +51,7 @@ func teamPerson(next http.HandlerFunc) http.HandlerFunc {
 			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 			return
 		}
-		if user.Team != nil || user.EventWebsite != nil || user.Member != nil {
+		if user.Member != nil {
 			writeJSON(w, http.StatusForbidden, errorResponse{Error: "teams are managed with a person's own sign-in or key", Code: "forbidden"})
 			return
 		}

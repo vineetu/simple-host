@@ -35,7 +35,6 @@ func TestHackOrganiserResourceGating(t *testing.T) {
 		t.Setenv("MCP_APP_HACK_ORGANISER", flag)
 		for _, c := range []mcp.Caller{
 			organiserCaller("alice", ""),
-			{APIKey: "k", Mode: mcp.CallerModeGroupSite, Handle: "alice"},
 			{APIKey: "k", Handle: "alice"}, // Mode "": Simple Host, must never see this screen
 		} {
 			screenEnabled := c.Mode == mcp.CallerModeEvents && mcp.AppFlag(flag, c.Handle)
@@ -588,7 +587,6 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		{"hack_get_registration", map[string]any{"slug": "mockjam"}},
 		{"hack_set_registration", map[string]any{"slug": "mockjam", "body": map[string]any{"questions": []any{}, "approval_required": true}}},
 		{"hack_decide_application", map[string]any{"slug": "mockjam", "user_id": "u1", "body": map[string]any{"decision": "approved"}}},
-		{"hack_revoke_person_key", map[string]any{"slug": "mockjam", "user_id": "u1"}},
 		{"hack_remove_person", map[string]any{"slug": "mockjam", "user_id": "u1"}},
 		{"hack_remove_organiser", map[string]any{"slug": "mockjam", "user_id": "u1"}},
 		{"hack_create_organiser_invite", map[string]any{"slug": "mockjam"}},
@@ -611,7 +609,7 @@ func TestHackOrganiserRouteMapCoversCalls(t *testing.T) {
 		"GET /v1/hack/events/mockjam/people", "GET /v1/hack/events/mockjam/applications",
 		"POST /v1/hack/events/mockjam/codes/join", "GET /v1/hack/events/mockjam/registration",
 		"PUT /v1/hack/events/mockjam/registration", "POST /v1/hack/events/mockjam/applications/u1/decision",
-		"DELETE /v1/hack/events/mockjam/people/u1/key", "DELETE /v1/hack/events/mockjam/people/u1",
+		"DELETE /v1/hack/events/mockjam/people/u1",
 		"DELETE /v1/hack/events/mockjam/organisers/u1", "POST /v1/hack/events/mockjam/organiser-invite",
 		"DELETE /v1/hack/events/mockjam/organiser-invite", "GET /v1/hack/events/mockjam/rubric",
 		"PUT /v1/hack/events/mockjam/rubric", "GET /v1/hack/events/mockjam/judging/settings",

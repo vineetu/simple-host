@@ -5,63 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/host/model"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
-
-var ErrTeamKeyInactive = hackevents.ErrTeamKeyInactive
-
-type TeamIdentity = model.TeamIdentity
-type TeamKeyInfo = hackmodel.TeamKeyInfo
-
-// ResolveTeamIdentity checks that memberID is a participant on teamID right
-// now and returns what their team credential acts as. ErrTeamKeyInactive when
-// not.
-func ResolveTeamIdentity(ctx context.Context, q Querier, memberID, teamID string) (TeamIdentity, error) {
-	return hackevents.ResolveTeamIdentity(ctx, q, memberID, teamID)
-}
-
-// GetTeamKey returns the person's team key for the event, if any.
-func GetTeamKey(ctx context.Context, q Querier, eventID, userID string) (TeamKeyInfo, error) {
-	var k TeamKeyInfo
-	err := q.QueryRowContext(ctx, `
-		SELECT k.id, COALESCE(k.last4, ''), b.team_id, k.created_at, k.last_used_at
-		  FROM event_team_keys b JOIN api_keys k ON k.id = b.key_id
-		 WHERE b.event_id = $1 AND b.user_id = $2`, eventID, userID).
-		Scan(&k.KeyID, &k.Last4, &k.TeamID, &k.CreatedAt, &k.LastUsedAt)
-	return k, err
-}
-
-// RevokeTeamKeys deletes the person's team keys for the event ("" userID:
-// everyone's). Returns how many.
-func RevokeTeamKeys(ctx context.Context, q Querier, eventID, userID string) (int64, error) {
-	var res sql.Result
-	var err error
-	if userID == "" {
-		res, err = q.ExecContext(ctx, `
-			DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE event_id = $1)`, eventID)
-	} else {
-		res, err = q.ExecContext(ctx, `
-			DELETE FROM api_keys WHERE id IN (SELECT key_id FROM event_team_keys WHERE event_id = $1 AND user_id = $2)`, eventID, userID)
-	}
-	if err != nil {
-		return 0, err
-	}
-	return res.RowsAffected()
-}
-
-// RevokeStaleTeamKeys deletes the event's team keys whose person is no longer
-// a participant on the key's team (moved, taken off, removed). They already
-// stop working on their own; this keeps the lists honest.
-func RevokeStaleTeamKeys(ctx context.Context, q Querier, eventID string) error {
-	_, err := q.ExecContext(ctx, `
-		DELETE FROM api_keys WHERE id IN (
-			SELECT b.key_id FROM event_team_keys b
-			  LEFT JOIN event_members m ON m.event_id = b.event_id AND m.user_id = b.user_id
-			 WHERE b.event_id = $1 AND (m.user_id IS NULL OR m.role <> 'participant' OR m.team_id IS DISTINCT FROM b.team_id))`, eventID)
-	return err
-}
 
 // TeamWriteState is what decides whether a team may change its site or entry
 // now. Read with TeamWriteStateFor.
@@ -82,11 +28,18 @@ func TeamWriteStateFor(ctx context.Context, q Querier, teamID string, share bool
 	return hackevents.TeamWriteStateFor(ctx, q, teamID, share)
 }
 
+// TeamWriteStateBySlug is TeamWriteStateFor for the event's team whose site
+// is slug, holding the team's row FOR SHARE.
+func TeamWriteStateBySlug(ctx context.Context, tx *sql.Tx, eventID, slug string) (TeamWriteState, error) {
+	return scanTeamWriteState(tx.QueryRowContext(ctx, `SELECT `+teamWriteStateCols+`
+		  FROM event_teams t JOIN events e ON e.id = t.event_id
+		 WHERE e.id = $1::uuid AND t.slug = lower($2) FOR SHARE OF t`, eventID, slug))
+}
+
 // teamWriteStateCols over event_teams t and events e. A site the platform
-// took down (sites.suspended_at) counts as taken down too.
+// took down is refused by the platform itself.
 const teamWriteStateCols = `t.id, e.id, e.slug, t.slug, e.account_id, e.stage, e.taken_down_at IS NOT NULL,
-	(t.site_taken_down_at IS NOT NULL OR EXISTS (SELECT 1 FROM sites s WHERE s.user_id = e.account_id
-	   AND s.name = t.slug AND s.deleted_at IS NULL AND s.suspended_at IS NOT NULL)),
+	t.site_taken_down_at IS NOT NULL,
 	` + hackevents.EffectiveDeadlineSQL + `,
 	clock_timestamp(), t.pinned_at, t.pinned_version,
 	COALESCE(t.deadline_override > e.submission_deadline, false),
@@ -129,7 +82,8 @@ func TeamWriteStatesForEvent(ctx context.Context, q interface {
 // when it has no live site). eventID "" means every event. Each team is
 // pinned in its own transaction holding the team row FOR UPDATE, so a deploy
 // already let in (holding it FOR SHARE) finishes first.
-func PinDueTeams(ctx context.Context, database *sql.DB, eventID string, progress ...func()) error {
+// liveVersion is the platform's answer (sites.LiveActiveVersion).
+func PinDueTeams(ctx context.Context, database *sql.DB, eventID string, liveVersion func(context.Context, Querier, string, string) (sql.NullInt64, error), progress ...func()) error {
 	rows, err := database.QueryContext(ctx, `
 		SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id
 		 WHERE t.pinned_at IS NULL
@@ -152,14 +106,14 @@ func PinDueTeams(ctx context.Context, database *sql.DB, eventID string, progress
 		return err
 	}
 	for _, id := range ids {
-		if err := pinTeam(ctx, database, id, progress...); err != nil {
+		if err := pinTeam(ctx, database, id, liveVersion, progress...); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func pinTeam(ctx context.Context, database *sql.DB, teamID string, progress ...func()) error {
+func pinTeam(ctx context.Context, database *sql.DB, teamID string, liveVersion func(context.Context, Querier, string, string) (sql.NullInt64, error), progress ...func()) error {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -185,11 +139,8 @@ func pinTeam(ctx context.Context, database *sql.DB, teamID string, progress ...f
 	if !due {
 		return nil
 	}
-	var v sql.NullInt64
-	err = tx.QueryRowContext(ctx, `
-		SELECT active_version FROM sites WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL`,
-		accountID, slug).Scan(&v)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	v, err := liveVersion(ctx, tx, accountID, slug)
+	if err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -244,14 +195,14 @@ func HoldingAccountEvent(ctx context.Context, q Querier, accountID string) (Even
 }
 
 // TeamNameEverUsed: slug was a team of this event before (event_used_names)
-// or the holding account has or had a site by that name.
-func TeamNameEverUsed(ctx context.Context, q Querier, eventSlug, accountID, slug string) (bool, error) {
+// or the holding account has or had a site by that name (siteEverNamed, the
+// platform's answer).
+func TeamNameEverUsed(ctx context.Context, q Querier, eventSlug, accountID, slug string, siteEverNamed func(context.Context, Querier, string, string) (bool, error)) (bool, error) {
 	var used bool
-	err := q.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM event_used_names WHERE event_slug = $1 AND team_slug = $3)
-		    OR EXISTS (SELECT 1 FROM sites WHERE user_id = $2 AND lower(name) = lower($3))`,
-		eventSlug, accountID, slug).Scan(&used)
-	return used, err
+	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_used_names WHERE event_slug = $1 AND team_slug = $2)`, eventSlug, slug).Scan(&used); err != nil || used {
+		return used, err
+	}
+	return siteEverNamed(ctx, q, accountID, slug)
 }
 
 // RecordUsedTeamName keeps the event's name and a new team's name for good.
@@ -278,26 +229,6 @@ func DeleteEmptyOpenTeams(ctx context.Context, q Querier, progress ...func()) er
 		}
 	}
 	return err
-}
-
-// EventKeyHolders is the set of people with a team key for the event.
-func EventKeyHolders(ctx context.Context, q interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}, eventID string) (map[string]bool, error) {
-	rows, err := q.QueryContext(ctx, `SELECT user_id FROM event_team_keys WHERE event_id = $1`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]bool{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out[id] = true
-	}
-	return out, rows.Err()
 }
 
 // MyTeam is one team a person is on, for the connector's team choice.
@@ -332,39 +263,4 @@ func ListMyTeams(ctx context.Context, q interface {
 		out = append(out, m)
 	}
 	return out, rows.Err()
-}
-
-// StoredVersionsOfAccount is every stored (not uploading, not discarded) version of the
-// account's live sites, as "<site id>/<n>".
-func StoredVersionsOfAccount(ctx context.Context, q interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}, accountID string) (map[string]bool, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT v.site_id::text || '/' || v.version_number FROM versions v JOIN sites s ON s.id = v.site_id
-		 WHERE s.user_id = $1 AND s.deleted_at IS NULL AND v.status <> 'uploading' AND v.status <> 'discarded'`, accountID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]bool{}
-	for rows.Next() {
-		var k string
-		if err := rows.Scan(&k); err != nil {
-			return nil, err
-		}
-		out[k] = true
-	}
-	return out, rows.Err()
-}
-
-// HackSiteOwnerOnSite reports whether userID counts as the owner of a Simple
-// Hack site for its saved data when signed in on the site itself (storage
-// access, owner decision 2026-10-10): on a team site, an approved
-// participant on that team while the team may still change its site (the
-// same conditions as TeamWriteState.WriteRefusal: event not taken down or
-// ended, site not taken down, deadline not passed); on an event's custom
-// website, an organiser of that event while the event is not taken down or
-// ended.
-func HackSiteOwnerOnSite(ctx context.Context, q Querier, siteID, userID string) (bool, error) {
-	return hackevents.HackSiteOwnerOnSite(ctx, q, siteID, userID)
 }

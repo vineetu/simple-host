@@ -39,9 +39,11 @@ var requiredColumns = map[string][]string{
 	// 0021-install-identity.sql: the install's id, also in <DATA_DIR>/.install-id.
 	"install_identity": {"id"},
 	// 0025-teams.sql adds users.is_team (in the users entry) and these three.
-	"team_members":       {"team_id", "user_id", "added_by", "added_at"},
-	"team_audit":         {"id", "team_id", "team_handle", "actor_id", "action", "subject_id", "invitation_id", "at"},
-	"team_invitations":   {"id", "team_id", "invited_by", "addressed_to", "created_at", "expires_at", "state"},
+	"team_members":     {"team_id", "user_id", "added_by", "added_at"},
+	"team_audit":       {"id", "team_id", "team_handle", "actor_id", "action", "subject_id", "invitation_id", "at"},
+	"team_invitations": {"id", "team_id", "invited_by", "addressed_to", "created_at", "expires_at", "state"},
+	// 0027-site-editors.sql.
+	"site_editors":       {"account_id", "site_name", "user_id", "added_by", "added_at"},
 	"site_storage_files": {"site_id", "resource_name", "path", "writer_id", "created_at"},
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.

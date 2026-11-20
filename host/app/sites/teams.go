@@ -119,7 +119,7 @@ func memberTeam(ctx context.Context, q repo.Querier, personID, handle string) (m
 	if err != nil {
 		return model.User{}, err
 	}
-	ok, err := accounts.ActsAsOwner(ctx, q, personID, team.ID)
+	ok, err := accounts.ActsAsOwner(ctx, q, personID, team.ID, "")
 	if err != nil {
 		return model.User{}, err
 	}

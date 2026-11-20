@@ -70,6 +70,7 @@ run "event accounts" "SELECT display_name, handle, handle_changed_at, event_acco
 run "teams"                 "SELECT m.team_id, m.user_id, m.added_by, m.added_at, u.handle FROM team_members m JOIN users u ON u.id = m.team_id WHERE u.is_team AND m.user_id='$NIL'"
 run "team audit"            "SELECT team_id, team_handle, actor_id, action, subject_id, invitation_id, at FROM team_audit WHERE team_id='$NIL' ORDER BY at"
 run "team invitations"      "SELECT id, team_id, invited_by, addressed_to, created_at, expires_at, state FROM team_invitations WHERE addressed_to='x' AND state='pending'"
+run "site editors"          "SELECT e.user_id, e.added_by, e.added_at FROM site_editors e WHERE e.account_id='$NIL' AND e.site_name='x'"
 run "sign-up source"        "SELECT signup_source, signup_agent, signup_method, signup_inferred FROM users"
 run "hashed API keys"       "SELECT u.id FROM api_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash='x'"
 run "named API keys"        "SELECT id, name, last4, created_at, last_used_at FROM api_keys WHERE user_id='$NIL' ORDER BY created_at DESC"

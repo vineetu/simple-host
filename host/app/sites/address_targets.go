@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"strings"
 
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
@@ -51,25 +50,6 @@ func (s *Service) SuspensionGate(ctx context.Context, id string) error {
 	}
 	if held {
 		return &Error{Code: "event_account", Message: accountapp.HoldingText("address")}
-	}
-	return nil
-}
-
-// SelectConnectionTeam checks the connector context and identifier before changing its grant.
-func (s *Service) SelectConnectionTeam(ctx context.Context, enabled bool, grantID, userID, teamID string) error {
-	if !enabled || grantID == "" || userID == "" {
-		return errors.New("connect your personal account to select a team")
-	}
-	if !rules.UUIDShape.MatchString(teamID) {
-		return errors.New("team_id must be a team UUID")
-	}
-	ok, err := s.accounts.SelectOAuthTeam(ctx, grantID, userID, strings.ToLower(teamID))
-	if err != nil {
-		log.Printf("select connection team: %v", err)
-		return errors.New("could not select the team")
-	}
-	if !ok {
-		return errors.New("select a team you currently belong to")
 	}
 	return nil
 }

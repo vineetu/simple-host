@@ -130,18 +130,9 @@ func TestHackMemberConnectorParity(t *testing.T) {
 	if bad || queue["queue"] == nil {
 		t.Fatalf("judge queue: %s", text)
 	}
-	// Browser key status stays available while MCP omits its metadata.
-	_ = a.teamKey(t, slug, participant)
-	restState := a.api(t, "GET", base, nil, participant.key).json(t)
-	if restState["me"].(map[string]any)["team_key"] == nil {
-		t.Fatal("browser lost team key status")
-	}
 	teamStatus, text, bad := call(ptok, "hack_get_team_status", map[string]any{"slug": slug})
 	if bad || teamStatus["me"].(map[string]any)["team"].(map[string]any)["site"] == nil {
 		t.Fatalf("team site status: %s", text)
-	}
-	if _, exists := teamStatus["me"].(map[string]any)["team_key"]; exists || strings.Contains(text, `"team_key"`) {
-		t.Fatal("team status disclosed key metadata")
 	}
 	items := queue["queue"].([]any)
 	if len(items) != 1 {

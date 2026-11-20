@@ -21,8 +21,8 @@ func TestHackArchiveCleanupRealSites(t *testing.T) {
 	a.join(t, slug, participant, org)
 	team, _ := a.startTeam(t, slug, "Retained team", participant)
 	markReady(t, a.certDir, slug)
-	key := a.teamKey(t, slug, participant)
-	wantTS(t, "publish", a.deployTeam(t, team, key, "Keep this project"), http.StatusCreated, "")
+	key := participant.key
+	wantTS(t, "publish", a.deployTeam(t, slug, team, key, "Keep this project"), http.StatusCreated, "")
 	host := team + "." + slug + "." + tsDomain
 	wantTS(t, "site before archive", a.on(t, "GET", host, "/", nil, ""), http.StatusOK, "")
 	// A second event's actual files must survive the first event's cleanup.
@@ -30,7 +30,7 @@ func TestHackArchiveCleanupRealSites(t *testing.T) {
 	a.join(t, other, participant, org)
 	otherTeam, _ := a.startTeam(t, other, "Other project", participant)
 	markReady(t, a.certDir, other)
-	wantTS(t, "other publish", a.deployTeam(t, otherTeam, a.teamKey(t, other, participant), "Other event intact"), http.StatusCreated, "")
+	wantTS(t, "other publish", a.deployTeam(t, other, otherTeam, participant.key, "Other event intact"), http.StatusCreated, "")
 	path := "/v1/hack/events/" + slug
 	wantTS(t, "archive", a.api(t, "POST", path+"/stage", map[string]string{"stage": "archived"}, org.key), http.StatusOK, "")
 	var closed time.Time
@@ -39,7 +39,7 @@ func TestHackArchiveCleanupRealSites(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTS(t, "archived site remains", a.on(t, "GET", host, "/", nil, ""), http.StatusOK, "")
-	wantTS(t, "archived deploy refused", a.deployTeam(t, team, key, "Too late"), http.StatusConflict, "event_closed")
+	wantTS(t, "archived deploy refused", a.deployTeam(t, slug, team, key, "Too late"), http.StatusConflict, "event_closed")
 	mail := &replyMailer{}
 	a.hack.SetMailer(mail)
 	keep, warn := productconfig.DefaultLimits().EventSitesKeep, productconfig.DefaultLimits().EventRemovalWarn

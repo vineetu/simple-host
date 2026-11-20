@@ -15,11 +15,8 @@ func (SitePaperRecorder) Site(r *http.Request, account, site string, user *model
 	member := ""
 	if user != nil {
 		member = user.ID
-		if user.Team != nil {
-			member = user.Team.MemberID
-		}
-		if user.EventWebsite != nil {
-			member = user.EventWebsite.OrganiserID
+		if user.Member != nil {
+			member = user.Member.PersonID
 		}
 	}
 	p := r.URL.Path
@@ -34,11 +31,8 @@ func (SitePaperRecorder) User(ctx context.Context, user *model.User) {
 		return
 	}
 	member := user.ID
-	if user.Team != nil {
-		member = user.Team.MemberID
-	}
-	if user.EventWebsite != nil {
-		member = user.EventWebsite.OrganiserID
+	if user.Member != nil {
+		member = user.Member.PersonID
 	}
 	(metrics.RequestRecorder{}).Member(ctx, member)
 }

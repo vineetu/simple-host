@@ -13,7 +13,7 @@ import (
 
 func TestMain(m *testing.M) { testdb.Main(m) }
 
-func TestVerifyHackSchemaCatchesMissingGrantTeams(t *testing.T) {
+func TestVerifyHackSchemaCatchesMissingTable(t *testing.T) {
 	db, err := sql.Open("postgres", testdb.Fresh(t))
 	if err != nil {
 		t.Fatal(err)
@@ -23,15 +23,15 @@ func TestVerifyHackSchemaCatchesMissingGrantTeams(t *testing.T) {
 	if err := VerifyHackSchema(ctx, db); err != nil {
 		t.Fatalf("VerifyHackSchema on an up-to-date schema: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `DROP TABLE hack_grant_teams`); err != nil {
+	if _, err := db.ExecContext(ctx, `DROP TABLE hack_account_preferences`); err != nil {
 		t.Fatal(err)
 	}
 	err = VerifyHackSchema(ctx, db)
-	if err == nil || !strings.Contains(err.Error(), "hack_grant_teams (whole table)") {
-		t.Fatalf("VerifyHackSchema with missing grant teams: %v; want startup refusal naming the table", err)
+	if err == nil || !strings.Contains(err.Error(), "hack_account_preferences (whole table)") {
+		t.Fatalf("VerifyHackSchema with a missing table: %v; want startup refusal naming the table", err)
 	}
 	if err := operationrepo.VerifySchema(ctx, db); err != nil {
-		t.Fatalf("platform schema must not require Hack's grant teams: %v", err)
+		t.Fatalf("platform schema must not require Hack's tables: %v", err)
 	}
 }
 

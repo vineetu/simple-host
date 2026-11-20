@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	"strings"
 
 	"github.com/vsriram/simple-host/host/rules/sites"
@@ -51,7 +52,7 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, nam
 			continue
 		}
 		// Never reuse a site name: the new team must not inherit earlier work, data or visitors.
-		used, err := teamrepo.TeamNameEverUsed(ctx, tx, event.Slug, event.AccountID, slug)
+		used, err := teamrepo.TeamNameEverUsed(ctx, tx, event.Slug, event.AccountID, slug, siteEverNamed)
 		if err != nil {
 			return team, internalError(err)
 		}
@@ -93,6 +94,9 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, nam
 				return team, internalError(err)
 			}
 			if err = teamrepo.RecordUsedTeamName(ctx, tx, event.Slug, slug); err != nil {
+				return team, internalError(err)
+			}
+			if err = eventapp.SyncAccess(ctx, tx, event.ID); err != nil {
 				return team, internalError(err)
 			}
 			if err = tx.Commit(); err != nil {

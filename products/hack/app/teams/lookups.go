@@ -19,11 +19,6 @@ func (s *Service) TeamBySlugLookup(ctx context.Context, eventID string, slug str
 	return teamrepo.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 }
 
-// TeamKey forwards the GetTeamKey lookup.
-func (s *Service) TeamKey(ctx context.Context, eventID string, userID string) (model.TeamKeyInfo, error) {
-	return teamrepo.GetTeamKey(ctx, s.db, eventID, userID)
-}
-
 // EventTeams forwards the ListEventTeams lookup.
 func (s *Service) EventTeams(ctx context.Context, eventID string) ([]model.EventTeam, error) {
 	return teamrepo.ListEventTeams(ctx, s.db, eventID)

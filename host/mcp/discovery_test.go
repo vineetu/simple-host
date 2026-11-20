@@ -350,18 +350,9 @@ func TestDiscoveryCallerInventories(t *testing.T) {
 			}
 		}
 	}
-	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {Mode: CallerModeGroupSite}} {
+	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}} {
 		full, bare, byName := s.forCaller(caller)
-		expected := append([]Tool{}, s.productTools...)
-		if caller.Mode == CallerModeGroupSite {
-			expected = s.groupSiteTools
-		} else if caller.GrantID != "" {
-			for _, tool := range s.groupSiteTools {
-				if tool.Name != "get_page_recipe" {
-					expected = append(expected, tool)
-				}
-			}
-		}
+		expected := append(append([]Tool{}, s.productTools...), s.registry.view(s.cfg, editionHost, true, true, false).tools...)
 		if len(full) != len(expected) || len(bare) != len(expected) {
 			t.Fatal("Hack inventory count changed")
 		}

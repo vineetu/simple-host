@@ -8,17 +8,9 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// ListPeople reads event people and the set of key holders.
-func (s *Service) ListPeople(ctx context.Context, eventID string) ([]model.EventPerson, map[string]bool, error) {
-	people, err := eventrepo.ListEventPeople(ctx, s.db, eventID)
-	if err != nil {
-		return nil, nil, err
-	}
-	keyed, err := teamrepo.EventKeyHolders(ctx, s.db, eventID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return people, keyed, nil
+// ListPeople reads the event's people.
+func (s *Service) ListPeople(ctx context.Context, eventID string) ([]model.EventPerson, error) {
+	return eventrepo.ListEventPeople(ctx, s.db, eventID)
 }
 
 // ListTeams reads the event teams in their existing order.

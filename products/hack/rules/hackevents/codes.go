@@ -6,6 +6,8 @@ package hackevents
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 )
 
@@ -49,4 +51,10 @@ func NormalizeCode(s string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// HashCode is how a join or invitation code is stored: its SHA-256, in hex.
+func HashCode(code string) string {
+	sum := sha256.Sum256([]byte(code))
+	return hex.EncodeToString(sum[:])
 }

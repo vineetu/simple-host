@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/host/app/sites"
-	"github.com/vsriram/simple-host/host/auth"
 	"github.com/vsriram/simple-host/host/model"
 )
 
@@ -20,9 +19,9 @@ type GroupRef struct{ ID, Slug, AccountID string }
 //
 // A team's site is the site named after the team of the event's holding
 // account, served at <team>.<event>.<SITE_DOMAIN> once *.<event>.<SITE_DOMAIN>
-// has its certificate. Only a team credential (a member's team key, or a
-// connector connection bound to the team) acts on it, and only on that one
-// site (auth.ScopeGate holds the routes; these checks hold the handlers).
+// has its certificate. Its editors (the team's members, with their own
+// sign-in and owner=<event>) act on it, and only on that one site
+// (auth.ScopeGate holds the routes; the product's write gate the rest).
 // Every deploy, upload and rollback checks the team's deadline inside its
 // transaction, holding the team row FOR SHARE, so the deadline pin
 // (db.PinDueTeams) sees exactly what was let in before the deadline.
@@ -70,29 +69,6 @@ func (h *SiteHandler) TeamSiteFlatHostsOn() bool { return h.teamSiteFlatHostsOn(
 // is wired) calls the same function, so the format never scatters.
 func (h *SiteHandler) TeamSiteURL(eventSlug, teamSlug string) string {
 	return "https://" + h.siteHostFor(eventSlug, teamSlug) + "/"
-}
-
-// PublishEventWebsite sends an organiser's upload through the same validated,
-// versioned deploy path as a team site. The holding account is visible only to
-// this scoped internal request; the transaction gate rechecks membership at commit.
-func (h *SiteHandler) PublishEventWebsite(w http.ResponseWriter, r *http.Request, g GroupRef, organiserID string, files bool) {
-	if r.URL.Query().Get("publish") == "false" {
-		writeProductErr(w, http.StatusBadRequest, "invalid_request", "event website uploads go live when published")
-		return
-	}
-	holder, err := h.storeAccounts().GetUserByID(r.Context(), g.AccountID)
-	if err != nil || holder.Suspended {
-		heldSiteNotFound(w)
-		return
-	}
-	holder.EventWebsite = &model.EventWebsiteIdentity{EventID: g.ID, EventSlug: g.Slug, OrganiserID: organiserID}
-	r = r.WithContext(auth.WithUser(r.Context(), &holder))
-	r.SetPathValue("sitename", g.ID)
-	if files {
-		h.updateSiteFiles(w, r)
-	} else {
-		h.updateSite(w, r)
-	}
 }
 
 // TeamSite is a team site's state as the events API shows it. Moved to
@@ -194,28 +170,6 @@ func (h *SiteHandler) SyncAccountMarkers(ctx context.Context, accountID string) 
 		}
 	}
 	return first
-}
-
-func (h *SiteHandler) PublishTeamArchive(w http.ResponseWriter, r *http.Request, id model.TeamIdentity, refusal func(context.Context) (status int, code, msg string, err error)) {
-	holder, err := h.storeAccounts().GetUserByID(r.Context(), id.AccountID)
-	if err != nil || holder.Suspended {
-		heldSiteNotFound(w)
-		return
-	}
-	holder.IsAdmin = false
-	holder.Team = &id
-	r = r.WithContext(auth.WithUser(r.Context(), &holder))
-	r.SetPathValue("sitename", id.TeamSlug)
-	status, code, msg, err := refusal(r.Context())
-	if err != nil {
-		writeInternal(w)
-		return
-	}
-	if code != "" {
-		writeJSON(w, status, errorResponse{Error: msg, Code: code})
-		return
-	}
-	rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)).ServeHTTP(w, r)
 }
 
 // TeamSitesFrameBase is the domain team sites are served under

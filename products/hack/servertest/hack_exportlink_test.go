@@ -26,8 +26,8 @@ func TestHackArchiveLinksFullBytesAndRevocation(t *testing.T) {
 	a.join(t, slug, other, org)
 	teamSlug, _ := a.startTeam(t, slug, "Linked archive", part)
 	otherSlug, _ := a.startTeam(t, slug, "Other archive", other)
-	wantTS(t, "published", a.deployTeam(t, teamSlug, a.teamKey(t, slug, part), "private link bytes"), 201, "")
-	wantTS(t, "published other", a.deployTeam(t, otherSlug, a.teamKey(t, slug, other), "other private bytes"), 201, "")
+	wantTS(t, "published", a.deployTeam(t, slug, teamSlug, part.key, "private link bytes"), 201, "")
+	wantTS(t, "published other", a.deployTeam(t, slug, otherSlug, other.key, "other private bytes"), 201, "")
 	base := "/v1/hack/events/" + slug
 	link := func(kind, key string) string {
 		t.Helper()

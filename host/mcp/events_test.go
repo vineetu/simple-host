@@ -105,7 +105,7 @@ func eventErrorCode(t *testing.T, rec *httptest.ResponseRecorder, want int) map[
 
 func TestEventsCapabilitiesAndTools(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
-		for _, mode := range []string{"", CallerModeEvents, CallerModeGroupSite} {
+		for _, mode := range []string{"", CallerModeEvents} {
 			for _, modern := range []bool{false, true} {
 				t.Run(fmt.Sprintf("enabled=%v/mode=%s/modern=%v", enabled, mode, modern), func(t *testing.T) {
 					backend := &fakeEventsBackend{}
@@ -116,7 +116,7 @@ func TestEventsCapabilitiesAndTools(t *testing.T) {
 					s := NewServer(testConfig(cfg))
 					caller := eventTestCaller()
 					caller.Mode, caller.GrantID = mode, "selected-team-grant"
-					want := enabled && mode != CallerModeGroupSite
+					want := enabled
 					method := "initialize"
 					if modern {
 						method = "server/discover"

@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,7 +41,7 @@ func notificationLimitsSchema() map[string]any {
 func notificationTools() []Tool {
 	return []Tool{
 		{
-			policy: toolPolicy{personalCredential: true, groupSiteExcluded: true,
+			policy: toolPolicy{groupSiteExcluded: true,
 				notDeployOnly: true},
 			Name: "list_notifications", Title: "List notifications",
 			Description: "List webhook subscriptions and their delivery status for one site, or every site on the account. Includes subscriptions created by connected apps.",
@@ -83,7 +82,7 @@ func notificationTools() []Tool {
 					}
 					// Only public subscription fields belong in a tool result.
 					item := map[string]any{}
-					for _, key := range []string{"id", "site", "event", "url", "events", "storage", "label", "source", "app_name", "state", "created_at", "expires_at", "last_attempt_at", "last_success_at", "last_result", "failing_since", "auth_header_name"} {
+					for _, key := range []string{"id", "site", "url", "events", "storage", "label", "source", "app_name", "state", "created_at", "expires_at", "last_attempt_at", "last_success_at", "last_result", "failing_since", "auth_header_name"} {
 						if value, present := row[key]; present {
 							item[key] = value
 						}
@@ -108,7 +107,7 @@ func notificationTools() []Tool {
 			},
 		},
 		{
-			policy: toolPolicy{personalCredential: true, notificationID: true, groupSiteExcluded: true,
+			policy: toolPolicy{notificationID: true, groupSiteExcluded: true,
 				notDeployOnly: true},
 			Name: "remove_notification", Title: "Remove notification",
 			Description:  "Remove a webhook subscription from a site and stop its deliveries. Use the ID from list_notifications.",
@@ -131,40 +130,15 @@ func notificationTools() []Tool {
 }
 
 func notificationPath(c *call, args map[string]any, required bool) (string, error) {
-	site, event := "", ""
-	var err error
-	if _, ok := args["site"]; ok {
-		site, err = siteArg(args)
-		if err != nil {
-			return "", err
-		}
-	}
-	if _, ok := args["event"]; ok {
-		event, err = stringArg(args, "event")
-		if err != nil {
-			return "", err
-		}
-	}
-	if site != "" && event != "" || required && site == "" && event == "" {
-		return "", errors.New("use site or event")
-	}
-	scope := ""
-	if c.caller.Mode == CallerModeEvents && (site != "" || event != "") {
-		b, ok := c.server.cfg.Events.(interface {
-			NotificationSiteEvent(context.Context, Caller, string, string) (string, error)
-		})
-		if !ok {
-			return "", errors.New("notification access unavailable")
-		}
-		scope, err = b.NotificationSiteEvent(c.orig.Context(), c.caller, site, event)
-		if err != nil {
+	site := ""
+	if _, ok := args["site"]; ok || required {
+		var err error
+		if site, err = siteArg(args); err != nil {
 			return "", err
 		}
 	}
 	path := "/v1/notifications"
-	if event != "" {
-		path = "/v1/hack/events/" + url.PathEscape(event) + "/website/notifications"
-	} else if site != "" {
+	if site != "" {
 		path = "/v1/sites/" + url.PathEscape(site) + "/notifications"
 	}
 	if required {
@@ -173,9 +147,6 @@ func notificationPath(c *call, args map[string]any, required bool) (string, erro
 			return "", err
 		}
 		path += "/" + url.PathEscape(id)
-	}
-	if scope != "" && event == "" {
-		path += "?event=" + url.QueryEscape(scope)
 	}
 	return path, nil
 }

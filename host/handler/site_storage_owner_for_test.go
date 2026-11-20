@@ -247,18 +247,13 @@ func TestStoragePeoplePickList(t *testing.T) {
 	}
 }
 
-// TestStorageOwnerForHackRefused: for, and the people pick list, are Host
-// only (review fix): named viewers and the canonical-email resolution
-// behind for are not a Simple Hack concept. Same policy for REST and MCP
-// (storage_tools.go only wraps storage_sql_execute with the dual mode when
-// !event); this checks the REST side, which both reach.
+// TestStorageOwnerForGroupRefused: for, and the people pick list, are Host
+// only: named viewers and the canonical-email resolution behind for are not
+// a product concept, so both are refused once a product storage binding
+// provider is installed.
 func TestStorageOwnerForGroupRefused(t *testing.T) {
-	// Built as an ordinary Host site (Hack requires a team, not a personal
-	// site, to deploy at all) and switched to the Hack edition afterward —
-	// the same trick hack_flat_hosts_test.go uses — so only the for/people
-	// gate's own h.ed.Storage().EventOwners check is exercised.
 	s := newStorageTestSite(t)
-	s.a.sites.ed = groupTestEdition()
+	s.a.sites.SetStorageBindings(&ownerBindingFixture{})
 	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	if r := s.must(t, "POST", "/sqlite/orders/tables/entries/rows?for="+s.aliceID, map[string]string{"note": "nope"}, s.key, 404); r.json(t)["code"] != "for_not_available" {

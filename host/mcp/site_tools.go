@@ -25,11 +25,11 @@ func siteTools(limits Limits) []Tool {
 				"sites": outArray("Sites returned by the requested filters and page.", siteSummaryWith(map[string]any{
 					"offline":     outBool("Present (true) only when the owner has taken the site offline: every address shows \"This site is offline\" and visitor saves are refused."),
 					"owner":       outString("Present when owner named a team: that team's handle."),
-					"access_role": outEnum("Present when owner named a team: member (you act on the team's sites as one of its members).", "owner", "member"),
+					"access_role": outEnum("Present when owner named another account: member (you act on a team's sites as one of its members) or editor (you see and edit only the sites you edit).", "owner", "member", "editor"),
 				})),
 				"count": outInteger("Number of sites returned."),
 			}, "sites", "count"),
-			policy:      toolPolicy{listWithoutTeam: true, screen: "my-sites"},
+			policy:      toolPolicy{screen: "my-sites"},
 			Name:        "list_sites",
 			Title:       "List my sites",
 			Description: "List this account's own sites (admins: pass all_accounts for every account's), newest edited first. Call this before changing a site to get its exact name. Optionally filter with query, dates, order, and limit/offset for paging.",
@@ -98,7 +98,7 @@ func siteTools(limits Limits) []Tool {
 				text := jsonText(out)
 				// A Hack team connection is the team's, never marked, so the
 				// "not counting your own visits" line would not be true there.
-				if views := ownerViewsLine(sites); views != "" && c.caller.Mode != CallerModeGroupSite {
+				if views := ownerViewsLine(sites); views != "" {
 					text += "\n\n" + views
 				}
 				if c.server.mySitesEnabled(c.caller) {
@@ -154,7 +154,7 @@ func siteTools(limits Limits) []Tool {
 					}
 				}
 				answer := sitePreviewOutput(c, site, out)
-				if site.Views != nil && c.caller.Mode != CallerModeGroupSite {
+				if site.Views != nil {
 					answer.Text += "\n\nViews by people, not counting your own visits: " + strconv.FormatInt(site.Views.People7Days, 10) +
 						" in the last 7 days, " + strconv.FormatInt(site.Views.People30Days, 10) + " in the last 30 days." + ownVisitsCaveat
 				}
@@ -812,9 +812,7 @@ func siteTools(limits Limits) []Tool {
 					}
 				}
 				text := jsonText(out)
-				if c.caller.Mode != CallerModeGroupSite {
-					text += "\n\n" + ownVisitsLine(full["totals"])
-				}
+				text += "\n\n" + ownVisitsLine(full["totals"])
 				answer := output{Text: text, Structured: out}
 				if c.server.dashboardEnabled(c.caller) {
 					answer.Meta = map[string]any{"simple-host/daily": full["daily"]}
@@ -1005,7 +1003,7 @@ func (c *call) findSite(name string) (restSite, error) {
 		names = append(names, s.Name)
 	}
 	text := siteNotFoundText(name, names)
-	if c.caller.Mode != CallerModeEvents && c.caller.Mode != CallerModeGroupSite {
+	if c.caller.Mode != CallerModeEvents {
 		// Simple Hack lists no visitor tools.
 		text += "; for a site shared with you, call visitor_read_site with its address (through run_tool if it is not listed)"
 	}

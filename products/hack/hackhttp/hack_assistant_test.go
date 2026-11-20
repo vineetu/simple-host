@@ -231,9 +231,7 @@ func TestAssistantOrganisersOnly(t *testing.T) {
 	// organiser, loadMember returns a real member row with admin=false
 	// (the admin bypass fires only for a *missing* membership row), so it
 	// must NOT be 403'd here.
-	if _, err := w.a.database.Exec(`INSERT INTO event_members(event_id,user_id,role) SELECT e.id,u.id,'organiser' FROM events e CROSS JOIN users u WHERE e.slug=$1 AND u.is_admin ON CONFLICT DO NOTHING`, w.slug); err != nil {
-		t.Fatal(err)
-	}
+	w.addOrganiser(t, w.a.adminH())
 	r = w.a.at(t, "GET", w.path("/assistant"), nil, w.a.adminH())
 	if r.status != 200 {
 		t.Fatalf("admin (joined organiser) GET: %d %s", r.status, r.body)

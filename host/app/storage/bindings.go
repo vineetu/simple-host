@@ -93,9 +93,9 @@ func PlatformSchema(spamCheckAvailable bool) ruleengine.BindingSchema {
 }
 
 // DefaultProvider is used when no product sets one: no extra bindings,
-// and OwnerOnSite is "userID may act as the owner of the account that holds
-// the site" (accounts.ActsAsOwner: the account itself, or a member of the
-// team that holds it).
+// and OwnerOnSite is "userID may act as the owner of the site"
+// (accounts.ActsAsOwner: the account itself, a member of the team that holds
+// it, or an editor of the site).
 type DefaultProvider struct {
 	NoBindings
 	DB *sql.DB
@@ -105,11 +105,11 @@ func (p DefaultProvider) OwnerOnSite(ctx context.Context, siteID, userID string)
 	if userID == "" {
 		return false, nil
 	}
-	_, ownerID, _, err := siterepo.GetSiteOwner(ctx, p.DB, siteID)
+	_, ownerID, name, err := siterepo.GetSiteOwner(ctx, p.DB, siteID)
 	if err != nil {
 		return false, err
 	}
-	return accounts.ActsAsOwner(ctx, p.DB, userID, ownerID)
+	return accounts.ActsAsOwner(ctx, p.DB, userID, ownerID, name)
 }
 
 // MergeBindingSchema validates the startup contract and copies the product's

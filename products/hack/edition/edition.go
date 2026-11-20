@@ -47,7 +47,7 @@ func presentationFor(k Kind) PresentationPolicy {
 
 func identityFor(k Kind) IdentityPolicy {
 	if k == Hack {
-		return IdentityPolicy{RandomHandles: true, HoldingAccounts: true, TeamKeys: true, PaperMetrics: true}
+		return IdentityPolicy{RandomHandles: true, PaperMetrics: true}
 	}
 	return IdentityPolicy{PersonalSites: true}
 }
@@ -61,7 +61,6 @@ func storageFor(k Kind) StoragePolicy {
 		p.JudgePreviewFrames = true
 		p.EventVersionRetention = true
 		// Storage.
-		p.EventOwners = true
 		p.CombinedPool = true
 	} else {
 		p.Photos = true

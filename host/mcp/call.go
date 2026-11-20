@@ -342,8 +342,10 @@ var codeHints = map[string]string{
 	"scores_locked":                  "Judging is locked at Results. Move the event back to Judging for scores, or Entries closed for setup changes.",
 	"archive_needs_participants":     "Nobody has joined, so the event cannot be ended. Invite people first, or delete it from the event page.",
 	"event_taken_down":               "The operator has taken this event down. Tell the person; do not retry.",
-	"no_personal_sites":              "This connection manages events. It cannot publish a personal site or a team site. A team site needs a connection that chose that team.",
-	"team_key_scope":                 "This connection publishes one team's site. It cannot manage events. Reconnect and choose Manage my events.",
+	"no_personal_sites":              "There are no personal sites here. Publish your team's site with owner set to the event's name (hack_get_my_teams lists your team's site and event).",
+	"owner_not_found":                "You are not an organiser of that event, nor on the team whose site this is. Check the event's name and your team's site name with hack_get_my_teams.",
+	"editor_scope":                   "You publish only your own team's site. Organisers manage everything else of the event.",
+	"organiser_read_only":            "Organisers read team sites but do not change them. Take the site down or change the team's deadline instead.",
 	"unknown_tool":                   "No tool of that name exists on this connector. Call find_tools with the job, or pick one of the closest tools named above, instead of guessing the name again.",
 }
 

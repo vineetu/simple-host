@@ -4896,8 +4896,7 @@ ${(a.answers || []).map((q) => `<p><b>${esc2(q.prompt)}</b><br>${q.answer ? esc2
       if (p.primary_organiser) actions = '<span class="meta">Event creator</span>';
       else if (p.role === "organiser") actions = `<a href="${ui.esc(resolve2("o.organisers", ev.slug).href)}">Organisers</a>`;
       else {
-        const keyBtn = p.has_key ? `<button class="btn danger sm" type="button" data-turn-off-key="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" title="Their key stops working at once. They'd need to create a new one themselves.">Turn off publishing key</button>` : "";
-        actions = `<details><summary class="small muted">Actions</summary><button class="btn danger sm" type="button" data-remove-person="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" data-role="${ui.esc(p.role)}">Remove from event</button>${keyBtn}</details>`;
+        actions = `<details><summary class="small muted">Actions</summary><button class="btn danger sm" type="button" data-remove-person="${ui.esc(p.user_id)}" data-name="${ui.esc(p.display_name)}" data-role="${ui.esc(p.role)}">Remove from event</button></details>`;
       }
       return `<div class="r"><div class="main"><b>${ui.esc(p.display_name || "Someone")}</b><span>${ui.esc(bits.filter(Boolean).join(" \xB7 "))}</span></div>${actions}</div>`;
     }
@@ -5011,28 +5010,6 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
           const p2 = await api("GET", path + "/people");
           if (p2.ok) people = p2.data || [];
           setLive("Removed", "ok");
-          paint();
-        } catch (e) {
-          setLive("Cannot reach the server.", "err", btn);
-          btn.disabled = false;
-        }
-      }));
-      main.querySelectorAll("[data-turn-off-key]").forEach((btn) => btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-turn-off-key");
-        const name = btn.getAttribute("data-name") || "this person";
-        const ok = await ui.confirm({ title: "Turn off " + name + "'s key?", body: "Their key stops working at once. They'd need to create a new one themselves.", confirmLabel: "Turn off key", danger: true });
-        if (!ok) return;
-        btn.disabled = true;
-        try {
-          const r = await api("DELETE", path + "/people/" + encodeURIComponent(id) + "/key");
-          if (!r.ok) {
-            setLive(ui.errText(r), "err", btn);
-            btn.disabled = false;
-            return;
-          }
-          const p2 = await api("GET", path + "/people");
-          if (p2.ok) people = p2.data || [];
-          setLive("Key turned off", "ok");
           paint();
         } catch (e) {
           setLive("Cannot reach the server.", "err", btn);

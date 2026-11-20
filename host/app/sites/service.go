@@ -1101,8 +1101,8 @@ func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResul
 }
 
 func authorizePersonalSite(user *model.User, enabled bool) error {
-	if !enabled && !user.IsAdmin && user.Team == nil && user.EventWebsite == nil {
-		return &Error{Code: "no_personal_sites", Message: "team sites belong to an event: select your team in the Simple Hack connection before publishing"}
+	if !enabled && !user.IsAdmin && user.Member == nil {
+		return &Error{Code: "no_personal_sites", Message: "sites here belong to an event: name the event as owner (owner=<event>) to publish your team's site"}
 	}
 	return nil
 }
@@ -1148,7 +1148,9 @@ func (s *Service) CreatePreflight(ctx context.Context, in PreflightInput) error 
 	if err := authorizePersonalSite(user, s.deps.PersonalSitesEnabled); err != nil {
 		return err
 	}
-	if user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
+	// A product's accounts (a Simple Hack event) hold as many sites as the
+	// product allows, decided by its write gate.
+	if user.IsAdmin || (user.Member != nil && s.deps.GroupGate != nil) {
 		return nil
 	}
 	existing, err := repo.CountSitesByUser(ctx, s.database, user.ID)

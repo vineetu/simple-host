@@ -1,47 +1,37 @@
 package servertest
 
 import (
-	"context"
+	"strings"
 	"testing"
-
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	recording "github.com/vsriram/simple-host/host/testdb"
-	"github.com/vsriram/simple-host/products/hack/app/members"
-	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
-func TestAccountErasureSeededRehearsal(t *testing.T) {
-	db, _ := recording.OpenRecording(testdb.Fresh(t))
-	defer db.Close()
-	seedGroupKeys(t, db)
-	accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}})
-	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
-	out, err := accountapp.New(db).DeleteAccount(context.Background(), accountapp.DeleteAccountInput{ID: keyMember, Confirm: "seed-one"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(out.Erased.Sites) != 2 {
-		t.Fatalf("erased sites=%d", len(out.Erased.Sites))
-	}
+// Deleting a participant's account erases their own rows; the event's
+// account, its team site and the teammate stay.
+func TestAccountErasureKeepsEventData(t *testing.T) {
+	a := newTeamSiteApp(t)
+	org, member, mate := a.newPerson(t, "org"), a.newPerson(t, "member"), a.newPerson(t, "mate")
+	slug := a.makeEvent(t, org)
+	a.join(t, slug, member, org)
+	a.join(t, slug, mate, org)
+	team, code := a.startTeam(t, slug, "Erasure", member)
+	wantTS(t, "mate joins", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/join", map[string]string{"code": code}, mate.key), 200, "")
+	markReady(t, a.certDir, slug)
+	wantTS(t, "deploy", a.deployTeam(t, slug, team, member.key, "kept"), 201, "")
+	id := a.uid(t, member)
+	handle := strings.Split(member.email, "@")[0]
+	wantTS(t, "delete account", a.api(t, "DELETE", "/v1/me", map[string]string{"confirm": handle}, member.key), 204, "")
 	for _, q := range []string{
 		`SELECT count(*) FROM users WHERE id=$1`,
-		`SELECT count(*) FROM sites WHERE user_id=$1`,
 		`SELECT count(*) FROM event_members WHERE user_id=$1`,
-		`SELECT count(*) FROM oauth_grants WHERE user_id=$1`,
-		`SELECT count(*) FROM collection_items WHERE submitted_by=$1`,
-		`SELECT count(*) FROM event_checklist_acknowledgements WHERE subject_id=$1`,
+		`SELECT count(*) FROM site_editors WHERE user_id=$1`,
 	} {
 		var n int
-		if err := db.QueryRow(q, keyMember).Scan(&n); err != nil || n != 0 {
+		if err := a.database.QueryRow(q, id).Scan(&n); err != nil || n != 0 {
 			t.Fatalf("erasure rows=%d err=%v for %s", n, err, q)
 		}
 	}
-	var others int
-	if err := db.QueryRow(`SELECT count(*) FROM users WHERE id IN ($1,$2,$3)`, keyHolder, keyOrganiser, "00000000-0000-4000-8000-000000000002").Scan(&others); err != nil || others != 3 {
-		t.Fatalf("other accounts=%d err=%v", others, err)
+	if r := a.on(t, "GET", team+"."+slug+"."+tsDomain, "/", nil, ""); r.status != 200 || !strings.Contains(string(r.body), "kept") {
+		t.Fatalf("team site after erasure: %d %s", r.status, r.body)
 	}
-	var kind string
-	if err := db.QueryRow(`SELECT kind FROM site_storage_resources WHERE site_id=$1 AND name='settings'`, keySite).Scan(&kind); err != nil || kind != "kv" {
-		t.Fatalf("holding-account data=%q err=%v", kind, err)
-	}
+	wantTS(t, "teammate still publishes", a.deployTeam(t, slug, team, mate.key, "mate"), 200, "")
 }

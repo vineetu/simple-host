@@ -172,7 +172,7 @@ func (h *Connector) Refresh(ctx context.Context, in ConnectorTokenInput, client 
 		return ConnectorTokens{}, &ConnectorError{Code: "server_error", Description: "", Internal: true}
 	}
 	defer tx.Rollback()
-	tok, err := getOAuthToken(ctx, tx, tokenHash)
+	tok, err := repo.GetOAuthToken(ctx, tx, tokenHash)
 	if err != nil || tok.Kind != "refresh" {
 		return ConnectorTokens{}, &ConnectorError{Code: "invalid_grant", Description: "unknown refresh token", Internal: false}
 	}
@@ -183,7 +183,7 @@ func (h *Connector) Refresh(ctx context.Context, in ConnectorTokenInput, client 
 		return ConnectorTokens{}, &ConnectorError{Code: "invalid_grant", Description: "refresh token expired", Internal: false}
 	}
 	if h.TeamConnections {
-		if _, _, ok := authrules.GrantKind(tok.Scope); !ok {
+		if !authrules.EventsGrant(tok.Scope) {
 			// Not spent: the transaction rolls back. The person reconnects.
 			return ConnectorTokens{}, &ConnectorError{Code: "invalid_grant", Description: "this connection cannot be refreshed; reconnect and choose a team or Manage my events", Internal: false}
 		}

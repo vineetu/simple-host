@@ -397,8 +397,9 @@ func TestTeamsAbsentOnProductEdition(t *testing.T) {
 	if r := a.at(t, "GET", teamAPIHost, "/v1/teams", nil, teamKey(ann)); r.status != http.StatusNotFound {
 		t.Fatalf("team routes on the product program: %d %s", r.status, r.body)
 	}
-	if r := a.at(t, "GET", teamAPIHost, "/v1/sites?owner=someone-else", nil, teamKey(ann)); r.status != http.StatusOK {
-		t.Fatalf("owner is not read on the product program: %d %s", r.status, r.body)
+	// owner is resolved on every install.
+	if r := a.at(t, "GET", teamAPIHost, "/v1/sites?owner=someone-else", nil, teamKey(ann)); r.status != http.StatusNotFound || r.json(t)["code"] != "owner_not_found" {
+		t.Fatalf("owner on the product program: %d %s", r.status, r.body)
 	}
 	// If-Match is not read there either: even a malformed one goes on to the
 	// program's own answer.

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"hash/crc32"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,12 +14,12 @@ import (
 
 	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	"github.com/vsriram/simple-host/products/hack"
-	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
+	teamsapp "github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
-// M2: team sites, member keys, the deadline freeze, organiser moderation and
-// the connector bound to a team — wired the way cmd/server/main.go wires
-// hosted mode (scope gate, connector, host routing).
+// M2: team sites published with the member's own key and owner=<event>, the
+// deadline freeze, organiser moderation and the connector — wired the way
+// cmd/server/main.go wires hosted mode (scope gate, connector, host routing).
 
 func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	a := newTeamSiteApp(t)
@@ -38,26 +37,25 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 		t.Fatalf("join team: %d %s", r.status, r.body)
 	}
 	beta, _ := a.startTeam(t, slug, "Beta", p3)
-	k1, k2, k3 := a.teamKey(t, slug, p1), a.teamKey(t, slug, p2), a.teamKey(t, slug, p3)
+	k1, k2, k3 := p1.key, p2.key, p3.key
 
 	// Not ready: nothing lands anywhere.
-	wantTS(t, "deploy before ready", a.deployTeam(t, alpha, k1, "a1"), 409, "team_sites_not_ready")
+	wantTS(t, "deploy before ready", a.deployTeam(t, slug, alpha, k1, "a1"), 409, "team_sites_not_ready")
 	markReady(t, a.certDir, slug)
 
 	// A personal key owns no sites.
-	wantTS(t, "personal key", a.deployTeam(t, alpha, p1.key, "x"), 403, "no_personal_sites")
+	wantTS(t, "personal key", a.api(t, "PUT", "/v1/sites/"+alpha+"/files?create=1", deployBody("x"), p1.key), 403, "no_personal_sites")
 	// Members deploy to their team's site.
-	if r := a.deployTeam(t, alpha, k1, "alpha one"); r.status != 201 {
+	if r := a.deployTeam(t, slug, alpha, k1, "alpha one"); r.status != 201 {
 		t.Fatalf("p1 deploy: %d %s", r.status, r.body)
 	}
-	if r := a.deployTeam(t, alpha, k2, "alpha two"); r.status != 200 {
+	if r := a.deployTeam(t, slug, alpha, k2, "alpha two"); r.status != 200 {
 		t.Fatalf("p2 deploy: %d %s", r.status, r.body)
 	}
-	if r := a.deployTeam(t, beta, k3, "beta one"); r.status != 201 {
+	if r := a.deployTeam(t, slug, beta, k3, "beta one"); r.status != 201 {
 		t.Fatalf("p3 deploy: %d %s", r.status, r.body)
 	}
 	alphaHost := alpha + "." + slug + "." + tsDomain
-	betaHost := beta + "." + slug + "." + tsDomain
 	if r := a.on(t, "GET", alphaHost, "/", nil, ""); r.status != 200 || !strings.Contains(string(r.body), "alpha two") {
 		t.Fatalf("alpha site: %d %s", r.status, r.body)
 	}
@@ -69,48 +67,13 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 		t.Fatalf("event host /v1/: %d", r.status)
 	}
 
-	// Cross-team: a key never reaches another team's site.
-	wantTS(t, "alpha key on beta", a.deployTeam(t, beta, k1, "pwn"), 403, "team_site_only")
-	wantTS(t, "alpha key rollback beta", a.api(t, "PUT", "/v1/sites/"+beta+"/active-version", map[string]int{"version_number": 1}, k1), 403, "team_site_only")
-	wantTS(t, "alpha key preview beta", a.api(t, "POST", "/v1/sites/"+beta+"/versions/1/preview-link", nil, k1), 403, "team_site_only")
-	wantTS(t, "alpha key beta kind", a.api(t, "PUT", "/v1/sites/"+beta+"/storage/resources/votes", map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, k1), 403, "team_site_only")
-	// On beta's own host, alpha's key naming alpha resolves nothing there.
-	if r := a.on(t, "GET", betaHost, "/v1/sites/"+beta+"/data", nil, k1); r.status/100 == 2 {
-		t.Fatalf("alpha key on beta host: %d %s", r.status, r.body)
-	}
-	if r := a.on(t, "GET", betaHost, "/v1/sites/"+alpha+"/data", nil, k1); r.status/100 == 2 && !strings.Contains(string(r.body), `"site":"`+alpha+`"`) {
-		t.Fatalf("alpha key on beta host read another site: %d %s", r.status, r.body)
-	}
-	if r := a.api(t, "GET", "/v1/me", nil, k1); r.status != 200 || !strings.Contains(string(r.body), `"site":"`+alpha+`"`) || strings.Contains(string(r.body), "events.invalid") {
-		t.Fatalf("me as team: %d %s", r.status, r.body)
-	}
-	// Listing shows the team's own site only.
-	lr := a.api(t, "GET", "/v1/sites", nil, k1)
-	if lr.status != 200 || strings.Contains(string(lr.body), `"`+beta+`"`) || !strings.Contains(string(lr.body), alpha) {
-		t.Fatalf("list: %d %s", lr.status, lr.body)
-	}
-	// Scope: nothing but the team routes.
-	for _, c := range []struct{ m, p string }{
-		{"DELETE", "/v1/sites/" + alpha},
-		{"PATCH", "/v1/sites/" + alpha},
-		{"PUT", "/v1/sites/" + alpha + "/keep-versions"},
-		{"PUT", "/v1/sites/" + alpha + "/lock"},
-		{"POST", "/v1/sites/" + alpha + "/domain"},
-		{"GET", "/v1/hack/events"},
-		{"GET", "/v1/hack/events/" + slug},
-		{"POST", "/v1/me/keys"},
-		{"DELETE", "/v1/me"},
-		{"GET", "/v1/u/" + slug + "/sites/" + beta + "/storage/resources"},
-	} {
-		wantTS(t, c.m+" "+c.p, a.api(t, c.m, c.p, map[string]any{}, k1), 403, "team_key_scope")
-	}
+	// Cross-team: a member never reaches another team's site.
+	wantTS(t, "alpha member on beta", a.deployTeam(t, slug, beta, k1, "pwn"), 404, "owner_not_found")
+	// An editor changes only the site's deploys, storage and visits.
+	wantTS(t, "editor deletes site", a.api(t, "DELETE", "/v1/sites/"+alpha+"?owner="+slug, nil, k1), 403, "editor_scope")
 	// Declaring an owner-only KV resource on its own site is allowed.
-	if r := a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, k1); r.status/100 != 2 {
+	if r := a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups?owner="+slug, map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, k1); r.status/100 != 2 {
 		t.Fatalf("declare kind: %d %s", r.status, r.body)
-	}
-	// A team key cannot connect an app (consent resolves people only).
-	if u, status, _ := a.conn.ResolveConsentUserForTest(context.Background(), k1); status == 0 || u.ID != "" {
-		t.Fatalf("team key passed consent: %d", status)
 	}
 
 	// ---- deadline freeze ---------------------------------------------------
@@ -118,11 +81,11 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	if ev.status != 200 {
 		t.Fatalf("deadline: %d %s", ev.status, ev.body)
 	}
-	wantTS(t, "deploy after deadline", a.deployTeam(t, alpha, k1, "late"), 409, "submissions_closed")
-	wantTS(t, "rollback after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/active-version", map[string]int{"version_number": 1}, k1), 409, "submissions_closed")
-	wantTS(t, "data write after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups", map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, k1), 409, "submissions_closed")
+	wantTS(t, "deploy after deadline", a.deployTeam(t, slug, alpha, k1, "late"), 409, "submissions_closed")
+	wantTS(t, "rollback after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/active-version?owner="+slug, map[string]int{"version_number": 1}, k1), 409, "submissions_closed")
+	wantTS(t, "data write after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups?owner="+slug, map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, k1), 409, "submissions_closed")
 	// Preview links still work (read-only).
-	if r := a.api(t, "POST", "/v1/sites/"+alpha+"/versions/2/preview-link", nil, k1); r.status != 200 {
+	if r := a.api(t, "POST", "/v1/sites/"+alpha+"/versions/2/preview-link?owner="+slug, nil, k1); r.status != 200 {
 		t.Fatalf("preview after deadline: %d %s", r.status, r.body)
 	}
 	teams := a.api(t, "GET", "/v1/hack/events/"+slug+"/teams", nil, org.key).json(t)["teams"].([]any)
@@ -157,16 +120,16 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	if r := a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+alpha+"/deadline", map[string]string{"deadline": later}, org.key); r.status != 200 || r.json(t)["pinned_version"] != nil {
 		t.Fatalf("extend: %d %s", r.status, r.body)
 	}
-	if r := a.deployTeam(t, alpha, k1, "alpha three"); r.status != 200 {
+	if r := a.deployTeam(t, slug, alpha, k1, "alpha three"); r.status != 200 {
 		t.Fatalf("deploy with extension: %d %s", r.status, r.body)
 	}
-	wantTS(t, "beta still frozen", a.deployTeam(t, beta, k3, "late"), 409, "submissions_closed")
+	wantTS(t, "beta still frozen", a.deployTeam(t, slug, beta, k3, "late"), 409, "submissions_closed")
 	wantTS(t, "extension earlier than deadline", a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+beta+"/deadline", map[string]string{"deadline": "2020-01-01T00:00:00Z"}, org.key), 400, "deadline_not_later")
 
 	// Judging and results freeze even a team's future extension and pin its site.
 	for _, stage := range []string{"judging", "results"} {
 		wantTS(t, "stage "+stage, a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": stage}, org.key), 200, "")
-		wantTS(t, "extended deploy frozen "+stage, a.deployTeam(t, alpha, k1, "too late"), 409, "submissions_closed")
+		wantTS(t, "extended deploy frozen "+stage, a.deployTeam(t, slug, alpha, k1, "too late"), 409, "submissions_closed")
 		wantTS(t, "extended entry frozen "+stage, a.api(t, "PUT", "/v1/hack/events/"+slug+"/entry", map[string]string{"title": "Too late"}, p1.key), 409, "submissions_closed")
 		var pinned bool
 		if err := a.database.QueryRow(`SELECT pinned_at IS NOT NULL FROM event_teams WHERE slug=$1 AND event_id=(SELECT id FROM events WHERE slug=$2)`, alpha, slug).Scan(&pinned); err != nil || !pinned {
@@ -174,7 +137,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 		}
 	}
 	wantTS(t, "reopen building", a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key), 200, "")
-	wantTS(t, "extended deploy reopened", a.deployTeam(t, alpha, k1, "building again"), 200, "")
+	wantTS(t, "extended deploy reopened", a.deployTeam(t, slug, alpha, k1, "building again"), 200, "")
 
 	// ---- organiser moderation ---------------------------------------------
 	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/"+alpha+"/takedown", map[string]string{"reason": "spam"}, org.key); r.status != 200 {
@@ -183,7 +146,7 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	if r := a.on(t, "GET", alphaHost, "/", nil, ""); r.status == 200 && strings.Contains(string(r.body), "alpha") {
 		t.Fatalf("taken-down site still served: %d", r.status)
 	}
-	wantTS(t, "deploy taken down", a.deployTeam(t, alpha, k1, "x"), 403, "team_site_taken_down")
+	wantTS(t, "deploy taken down", a.deployTeam(t, slug, alpha, k1, "x"), 403, "team_site_taken_down")
 	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/"+alpha+"/restore", nil, org.key); r.status != 200 {
 		t.Fatalf("restore: %d %s", r.status, r.body)
 	}
@@ -206,34 +169,17 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	wantTS(t, "stranger takedown", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/"+alpha+"/takedown", nil, org2.key), 404, "event_not_found")
 	wantTS(t, "stranger extension", a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+alpha+"/deadline", map[string]string{"deadline": ""}, org2.key), 404, "event_not_found")
 
-	// ---- keys follow the person -------------------------------------------
-	// Removing a person ends their key at once.
+	// ---- access follows the person ---------------------------------------
+	// Removing a person ends their access at once.
 	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+a.uid(t, p2), nil, org.key); r.status != 204 {
 		t.Fatalf("remove: %d %s", r.status, r.body)
 	}
-	if r := a.deployTeam(t, alpha, k2, "x"); r.status != 401 {
-		t.Fatalf("removed person's key: %d %s", r.status, r.body)
-	}
-	// Moving a person to another team: the old key stops.
+	wantTS(t, "removed person", a.deployTeam(t, slug, alpha, k2, "x"), 404, "owner_not_found")
+	// Moving a person to another team: the old team's site stops.
 	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/"+beta+"/members", map[string]string{"user_id": a.uid(t, p1)}, org.key); r.status != 200 {
 		t.Fatalf("move: %d %s", r.status, r.body)
 	}
-	if r := a.deployTeam(t, alpha, k1, "x"); r.status != 401 {
-		t.Fatalf("moved person's old key: %d %s", r.status, r.body)
-	}
-	var n int
-	_ = a.database.QueryRow(`SELECT count(*) FROM event_team_keys b JOIN events e ON e.id = b.event_id WHERE e.slug = $1 AND b.user_id = $2`, slug, a.uid(t, p1)).Scan(&n)
-	if n != 0 {
-		t.Fatalf("stale key kept: %d", n)
-	}
-	// The organiser turns a key off.
-	k3b := k3
-	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+a.uid(t, p3)+"/key", nil, org.key); r.status != 204 {
-		t.Fatalf("revoke: %d", r.status)
-	}
-	if r := a.api(t, "GET", "/v1/sites", nil, k3b); r.status != 401 {
-		t.Fatalf("revoked key: %d", r.status)
-	}
+	wantTS(t, "moved person's old team", a.deployTeam(t, slug, alpha, k1, "x"), 404, "owner_not_found")
 
 	// ---- a removed team's site goes, and its name is never reused ----------
 	// Alpha emptied when its last member moved: it went, and its site too.
@@ -263,7 +209,9 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	}
 }
 
-func TestHackM2ConnectorBoundToTeam(t *testing.T) {
+// The person's own connection publishes their team's site by naming the
+// event as owner, never another team's, and stops when they leave the team.
+func TestHackM2ConnectorPublishesAsOwner(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, p1, p2 := a.newPerson(t, "org"), a.newPerson(t, "p1"), a.newPerson(t, "p2")
 	slug := a.makeEvent(t, org)
@@ -272,47 +220,9 @@ func TestHackM2ConnectorBoundToTeam(t *testing.T) {
 	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
 	beta, _ := a.startTeam(t, slug, "Beta", p2)
 	markReady(t, a.certDir, slug)
-	var alphaID, betaID string
-	_ = a.database.QueryRow(`SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1 AND t.slug = $2`, slug, alpha).Scan(&alphaID)
-	_ = a.database.QueryRow(`SELECT t.id FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1 AND t.slug = $2`, slug, beta).Scan(&betaID)
-
-	// my-teams lists the person's team.
-	mt := a.api(t, "GET", "/v1/hack/my-teams", nil, p1.key).json(t)["teams"].([]any)
-	if len(mt) != 1 || mt[0].(map[string]any)["team_id"] != alphaID {
-		t.Fatalf("my-teams: %v", mt)
-	}
 
 	client := a.registerClient(t, testRedirect)
-	verifier, challenge := newVerifier()
-	q := authorizeQuery(client, testRedirect, challenge)
-	q.Set("resource", a.srv.URL+"/mcp")
-	page := a.do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil)
-	m := connectDataRe.FindSubmatch(page.body)
-	if m == nil || !strings.Contains(string(m[1]), `"hack":true`) {
-		t.Fatalf("consent data: %s", m)
-	}
-	csrf := strings.Split(strings.Split(string(m[1]), `"csrf":"`)[1], `"`)[0]
-	decide := func(team string) resp {
-		return a.do(t, http.MethodPost, "/oauth/authorize/decision", jsonBody(map[string]string{
-			"query": q.Encode(), "csrf": csrf, "decision": "allow", "team_id": team,
-		}), map[string]string{"Content-Type": "application/json", "X-API-Key": p1.key, "Origin": a.srv.URL})
-	}
-	// An old consent page asking for a team must reload so its narrower
-	// approval is never silently upgraded to the new personal grant.
-	wantTS(t, "old team choice", decide(betaID), 409, "consent_updated")
-	r := decide("")
-	if r.status != 200 {
-		t.Fatalf("decide: %d %s", r.status, r.body)
-	}
-	code := codeFrom(t, r.json(t)["redirect_to"].(string))
-	tok := a.form(t, "/oauth/token", url.Values{
-		"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {testRedirect},
-		"client_id": {client}, "code_verifier": {verifier}, "resource": {a.srv.URL + "/mcp"},
-	}, nil)
-	if tok.status != 200 {
-		t.Fatalf("token: %d %s", tok.status, tok.body)
-	}
-	access := tok.json(t)["access_token"].(string)
+	access := a.connect(t, p1, client, testRedirect)["access_token"].(string)
 	call := func(name string, args map[string]any) (string, bool) {
 		rr := a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": args})
 		if rr.status != 200 {
@@ -321,32 +231,20 @@ func TestHackM2ConnectorBoundToTeam(t *testing.T) {
 		text, _, isErr := toolResultOf(t, rr)
 		return text, isErr
 	}
-	if text, isErr := call("create_site", map[string]any{"site": alpha, "files": map[string]string{"index.html": "x"}}); !isErr || !strings.Contains(text, "hack_select_team") {
-		t.Fatalf("website call before selection: %s", text)
-	}
-	if text, isErr := call("hack_select_team", map[string]any{"team_id": betaID}); !isErr || !strings.Contains(text, "currently belong") {
-		t.Fatalf("other team selected: %s", text)
-	}
-	if text, isErr := call("hack_select_team", map[string]any{"team_id": alphaID}); isErr {
-		t.Fatalf("select own team: %s", text)
-	}
-	if text, isErr := call("create_site", map[string]any{"site": alpha, "files": map[string]string{"index.html": "<h1>via connector</h1>"}}); isErr {
+	if text, isErr := call("create_site", map[string]any{"site": alpha, "owner": slug, "files": map[string]string{"index.html": "<h1>via connector</h1>"}}); isErr {
 		t.Fatalf("connector deploy: %s", text)
 	}
-	if text, isErr := call("create_site", map[string]any{"site": beta, "files": map[string]string{"index.html": "x"}}); !isErr || !strings.Contains(text, "team") {
+	if text, isErr := call("create_site", map[string]any{"site": beta, "owner": slug, "files": map[string]string{"index.html": "x"}}); !isErr || !strings.Contains(text, "owner_not_found") {
 		t.Fatalf("connector other team: %v %s", isErr, text)
 	}
-	if text, isErr := call("list_sites", map[string]any{}); isErr || strings.Contains(text, beta) {
-		t.Fatalf("mcp list: %v %s", isErr, text)
-	}
-	if text, isErr := call("delete_site", map[string]any{"site": alpha}); !isErr {
-		t.Fatalf("connector delete: %s", text)
+	if text, isErr := call("delete_site", map[string]any{"site": alpha, "owner": slug, "confirm_name": alpha}); !isErr || !strings.Contains(text, "editor_scope") {
+		t.Fatalf("connector delete: %v %s", isErr, text)
 	}
 	// Off the team, the connection stops publishing.
 	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/leave", nil, p1.key); r.status != 200 {
 		t.Fatalf("leave: %d %s", r.status, r.body)
 	}
-	if text, isErr := call("update_site", map[string]any{"site": alpha, "files": map[string]string{"index.html": "x"}}); !isErr {
+	if text, isErr := call("update_site", map[string]any{"site": alpha, "owner": slug, "files": map[string]string{"index.html": "x"}}); !isErr {
 		t.Fatalf("connector after leaving: %s", text)
 	}
 }
@@ -359,8 +257,8 @@ func TestHackM2DeadlineRace(t *testing.T) {
 	a.join(t, slug, p1, org)
 	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
 	markReady(t, a.certDir, slug)
-	k1 := a.teamKey(t, slug, p1)
-	if r := a.deployTeam(t, alpha, k1, "v1"); r.status != 201 {
+	k1 := p1.key
+	if r := a.deployTeam(t, slug, alpha, k1, "v1"); r.status != 201 {
 		t.Fatalf("deploy: %d %s", r.status, r.body)
 	}
 	// The deadline a moment away; deploy in a loop across it.
@@ -371,14 +269,14 @@ func TestHackM2DeadlineRace(t *testing.T) {
 	lastOK := 1
 	for i := 2; time.Now().Before(dl.Add(700 * time.Millisecond)); i++ {
 		time.Sleep(120 * time.Millisecond)
-		r := a.deployTeam(t, alpha, k1, "v")
+		r := a.deployTeam(t, slug, alpha, k1, "v")
 		if r.status == 200 {
 			lastOK = int(r.json(t)["active_version"].(float64))
 		} else if r.status != 409 {
 			t.Fatalf("deploy %d: %d %s", i, r.status, r.body)
 		}
 	}
-	if err := hackteams.PinDueTeams(context.Background(), a.database, ""); err != nil {
+	if err := teamsapp.New(a.database).PinDue(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	var pinned sql.NullInt64
@@ -398,8 +296,8 @@ func TestHackM2EventTakedownTakesTeamSitesDown(t *testing.T) {
 	a.join(t, slug, p1, org)
 	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
 	markReady(t, a.certDir, slug)
-	k1 := a.teamKey(t, slug, p1)
-	if r := a.deployTeam(t, alpha, k1, "up"); r.status != 201 {
+	k1 := p1.key
+	if r := a.deployTeam(t, slug, alpha, k1, "up"); r.status != 201 {
 		t.Fatalf("deploy: %d %s", r.status, r.body)
 	}
 	host := alpha + "." + slug + "." + tsDomain
@@ -409,10 +307,9 @@ func TestHackM2EventTakedownTakesTeamSitesDown(t *testing.T) {
 	if r := a.on(t, "GET", host, "/", nil, ""); r.status == 200 && strings.Contains(string(r.body), "up") {
 		t.Fatalf("team site served while the event is taken down")
 	}
-	wantTS(t, "deploy while taken down", a.deployTeam(t, alpha, k1, "x"), 403, "")
-	// Reads stop too: the team key is as suspended as the event.
-	wantTS(t, "read while taken down", a.api(t, "GET", "/v1/sites", nil, k1), 403, "account_suspended")
-	wantTS(t, "data while taken down", a.api(t, "GET", "/v1/sites/"+alpha+"/storage/resources", nil, k1), 404, "site_not_found")
+	wantTS(t, "deploy while taken down", a.deployTeam(t, slug, alpha, k1, "x"), 403, "")
+	// Reads stop too: the event's account is suspended.
+	wantTS(t, "data while taken down", a.api(t, "GET", "/v1/sites/"+alpha+"/storage/resources?owner="+slug, nil, k1), 403, "account_suspended")
 	if r := a.api(t, "POST", "/v1/admin/hack/events/"+slug+"/restore", nil, a.admin); r.status != 200 {
 		t.Fatalf("restore: %d %s", r.status, r.body)
 	}
@@ -431,16 +328,16 @@ func TestHackM2ReviewRound1(t *testing.T) {
 	a.join(t, slug, p2, org)
 	solo, _ := a.startTeam(t, slug, "Solo", p1)
 	markReady(t, a.certDir, slug)
-	k1 := a.teamKey(t, slug, p1)
-	if r := a.deployTeam(t, solo, k1, "mine"); r.status != 201 {
+	k1 := p1.key
+	if r := a.deployTeam(t, slug, solo, k1, "mine"); r.status != 201 {
 		t.Fatalf("deploy: %d %s", r.status, r.body)
 	}
 	// Anonymous bare names on the apex resolve nothing on this platform.
 	if r := a.api(t, "GET", "/v1/sites/"+solo+"/data", nil, ""); r.status/100 == 2 {
 		t.Fatalf("bare anonymous read: %d %s", r.status, r.body)
 	}
-	if r := a.api(t, "GET", "/v1/sites/"+solo+"/storage/resources", nil, k1); r.status != 200 {
-		t.Fatalf("team key bare read of its own site: %d %s", r.status, r.body)
+	if r := a.api(t, "GET", "/v1/sites/"+solo+"/storage/resources?owner="+slug, nil, k1); r.status != 200 {
+		t.Fatalf("member's read of the team site: %d %s", r.status, r.body)
 	}
 	// Extensions only extend: a later event deadline wins over an older one.
 	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
@@ -453,7 +350,7 @@ func TestHackM2ReviewRound1(t *testing.T) {
 		t.Fatalf("extension: %d %s", r.status, r.body)
 	}
 	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": soon.Add(24 * time.Hour).Format(time.RFC3339)}, org.key)
-	if r := a.deployTeam(t, solo, k1, "still open"); r.status != 200 {
+	if r := a.deployTeam(t, slug, solo, k1, "still open"); r.status != 200 {
 		t.Fatalf("older extension froze the team early: %d %s", r.status, r.body)
 	}
 	// After the deadline a solo team's only member cannot leave (and take
@@ -523,8 +420,8 @@ func TestHackM2ReviewRound2(t *testing.T) {
 	a.join(t, slug, p1, org)
 	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
 	markReady(t, a.certDir, slug)
-	k1 := a.teamKey(t, slug, p1)
-	if r := a.deployTeam(t, alpha, k1, "v1"); r.status != 201 {
+	k1 := p1.key
+	if r := a.deployTeam(t, slug, alpha, k1, "v1"); r.status != 201 {
 		t.Fatalf("deploy: %d %s", r.status, r.body)
 	}
 	a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key)
@@ -533,9 +430,7 @@ func TestHackM2ReviewRound2(t *testing.T) {
 	if r := a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"time_zone": "America/Los_Angeles"}, org.key); r.status != 200 {
 		t.Fatalf("zone: %d %s", r.status, r.body)
 	}
-	wantTS(t, "deploy after zone change", a.deployTeam(t, alpha, k1, "late"), 409, "submissions_closed")
-	// No new key once frozen.
-	wantTS(t, "key after deadline", a.api(t, "POST", "/v1/hack/events/"+slug+"/key", nil, p1.key), 409, "submissions_closed")
+	wantTS(t, "deploy after zone change", a.deployTeam(t, slug, alpha, k1, "late"), 409, "submissions_closed")
 	// Emptied after its deadline but before any pin: the team stays.
 	if _, err := a.database.Exec(`UPDATE event_teams t SET pinned_at = NULL, pinned_version = NULL FROM events e WHERE e.id = t.event_id AND e.slug = $1`, slug); err != nil {
 		t.Fatal(err)
@@ -590,13 +485,8 @@ func TestHackM2ReviewRound3(t *testing.T) {
 	a.join(t, slug, p1, org)
 	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
 	markReady(t, a.certDir, slug)
-	k1 := a.teamKey(t, slug, p1)
-	a.deployTeam(t, alpha, k1, "v1")
-	// A stored-not-published deploy never shows the event's account id.
-	r := a.api(t, "PUT", "/v1/sites/"+alpha+"/files?publish=false", deployBody("v2"), k1)
-	if r.status != 200 || r.json(t)["user_id"] != "" {
-		t.Fatalf("publish=false: %d %s", r.status, r.body)
-	}
+	k1 := p1.key
+	a.deployTeam(t, slug, alpha, k1, "v1")
 	// A wall-clock time the clocks skip is refused.
 	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"time_zone": "Europe/London"}, org.key)
 	wantTS(t, "dst gap", a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": "2027-03-28T01:30"}, org.key), 400, "invalid_submission_deadline")

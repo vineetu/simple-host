@@ -47,13 +47,8 @@ const latestInitializeVersion = "2025-11-25"
 var supportedVersions = []string{"2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"}
 
 // CallerModeEvents is a hosted personal connection. Its event tools act as
-// the person; when an OAuth grant has a selected team it also offers site
-// tools, which act through that team's separate scoped credential.
+// the person, and so do its site tools, which name the event as owner.
 const CallerModeEvents = "events"
-
-// CallerModeHackSite is a hosted Simple Hack team or admin website connection.
-// It keeps the website tools except the retired saved-data model.
-const CallerModeGroupSite = "hack_site"
 
 // Caller is the identity a request acts as. APIKey is the key the client
 // presented or, for a connector token, a per-request internal credential for
@@ -66,20 +61,18 @@ type Caller struct {
 	// Owner is the account user ID, independent of its request credential.
 	Owner string
 	// MintUpload re-checks sign-in and returns a credential for one upload.
-	MintUpload func(ctx context.Context, team bool) (key string, revoke func(), err error)
+	MintUpload func(ctx context.Context) (key string, revoke func(), err error)
 	// MintPhoto re-checks an OAuth grant instead of its access token. Photo links
 	// using it last one hour; archive uploads continue to use MintUpload.
-	MintPhoto func(ctx context.Context, team bool) (key string, revoke func(), err error)
+	MintPhoto func(ctx context.Context) (key string, revoke func(), err error)
 	// CredentialExpiresAt bounds photo links when MintUpload rechecks an API key.
 	// Zero means the credential has no known expiry.
 	CredentialExpiresAt time.Time
 	// Mode selects the tool inventory. See CallerModeEvents.
 	Mode string
-	// Hosted OAuth grants can choose a team for site publishing. The site
-	// credential is separate from APIKey, which remains the person's identity.
-	TeamAPIKey string
-	GrantID    string
-	UserID     string
+	// GrantID is a hosted product connection's OAuth grant ("" otherwise).
+	GrantID string
+	UserID  string
 	// OAuthGrantID is the OAuth grant behind this request in any mode, ""
 	// for an API key. Event subscriptions made through it end when the
 	// grant is revoked.
@@ -146,12 +139,9 @@ type Config struct {
 	// MaxBodyBytes bounds one message. Inline deploys travel in the body, so
 	// it sits above the per-site upload limit.
 	MaxBodyBytes int64
-	// SelectTarget validates the caller's current membership and saves the
-	// chosen group (a team) on the authenticated OAuth grant. Nil when the
-	// install has no group connections.
-	SelectTarget func(context.Context, Caller, string) error
-	// Teams: this program offers teams (the Simple Host program). The team
-	// tools are registered, and every site and storage tool takes owner.
+	// Teams: this program offers teams and site editors (the Simple Host
+	// program): their tools are registered. Every site and storage tool takes
+	// owner everywhere.
 	Teams bool
 	// NoSpamCheck: this server has no Turnstile keys, so spam-checked adds
 	// (the comments recipe) are unavailable; its tools and instructions leave
@@ -196,16 +186,11 @@ type Server struct {
 	search, deploySearch *toolSearch
 	// productTools is the contributed product's inventory. It is listed
 	// only when the caller mode is CallerModeEvents, so an ordinary instance
-	// and a group-site connection keep the website tools. groupSiteTools is
-	// the website inventory of a group-site connection, with the product's
-	// variants (Contribution.SiteVariants).
-	productTools    []Tool
-	productByName   map[string]Tool
-	productBare     []Tool
-	groupSiteTools  []Tool
-	groupSiteBare   []Tool
-	groupSiteByName map[string]Tool
-	apps            AppContribution
+	// keeps the website tools.
+	productTools  []Tool
+	productByName map[string]Tool
+	productBare   []Tool
+	apps          AppContribution
 }
 
 func newServer(cfg Config) *Server {
@@ -234,7 +219,6 @@ func newServer(cfg Config) *Server {
 	host := r.view(cfg, editionHost, false, false, false)
 	deploy := r.view(cfg, editionHost, false, false, true)
 	product := r.view(cfg, editionProduct, false, false, false)
-	site := r.view(cfg, editionHost, true, false, false)
 	core, coreBare := make([]Tool, 0, len(coreToolNames)), make([]Tool, 0, len(coreToolNames))
 	for _, name := range coreToolNames {
 		tool := host.byName[name]
@@ -252,7 +236,6 @@ func newServer(cfg Config) *Server {
 	s.productTools = productInstanceTools(product.tools, cfg.APIHost, cfg.Contribution.Rewrite)
 	s.productByName = productInstanceToolMap(product.byName, cfg.APIHost, cfg.Contribution.Rewrite)
 	s.productBare = productInstanceTools(product.bare, cfg.APIHost, cfg.Contribution.Rewrite)
-	s.groupSiteTools, s.groupSiteBare, s.groupSiteByName = site.tools, site.bare, site.byName
 	return s
 }
 
@@ -277,7 +260,7 @@ func (s *Server) productPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
 	// A selected group acts as owner of its own website resources.
 	all := append([]Tool{}, s.productTools...)
 	withoutSchemas := append([]Tool{}, s.productBare...)
-	byName := make(map[string]Tool, len(s.productByName)+len(s.groupSiteByName))
+	byName := make(map[string]Tool, len(s.productByName))
 	for name, tool := range s.productByName {
 		byName[name] = tool
 	}
@@ -291,8 +274,8 @@ func (s *Server) productPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
 	return all, withoutSchemas, byName
 }
 
-// forCaller is the tool inventory for this connection. Hosted personal OAuth
-// grants see event tools and site tools; site calls still need a selected team.
+// forCaller is the tool inventory for this connection. A product connection
+// sees its event tools and the site tools.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
 	defer func() {
 		if s.passcodeScreenEnabled(caller) {
@@ -340,13 +323,9 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 		full, bare, byName = s.storageRulesInventory(full, bare, byName, caller)
 	}()
 	if caller.Mode == CallerModeEvents {
-		if caller.GrantID != "" {
-			return s.productPersonalInventory()
-		}
-		return s.productTools, s.productBare, s.productByName
-	}
-	if caller.Mode == CallerModeGroupSite {
-		return s.groupSiteTools, s.groupSiteBare, s.groupSiteByName
+		// A product connection, OAuth or the person's own key: the product's
+		// tools and the site tools, which name the account as owner.
+		return s.productPersonalInventory()
 	}
 	if flatListApp(caller.AppName) {
 		allowed := s.byName
@@ -926,29 +905,6 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		}
 		return toolResult(req.ID, message, nil, true, modern)
 	}
-	// who_am_i reads only the signed-in person and names the selected team
-	// itself, so it needs no team. Notifications also use the person's
-	// credential. Other website tools use the team's scoped credential.
-	if caller.Mode == CallerModeEvents && caller.GrantID != "" && !tool.policy.personalCredential {
-		if caller.TeamAPIKey == "" {
-			// My sites can read the person's event websites through the existing
-			// hack_* tools without a team. Return no team data and never replay
-			// this request with the person's credential against /v1/sites.
-			listable := tool.policy.listWithoutTeam && s.mySitesEnabled(caller)
-			text, structured, isError := "No target selected.", map[string]any(nil), true
-			if s.cfg.Contribution != nil && s.cfg.Contribution.NoTarget != nil {
-				noTarget := s.cfg.Contribution.NoTarget
-				text, structured, isError = noTarget(params.Name, listable)
-			}
-			if listable && s.cfg.Contribution != nil && s.cfg.Contribution.NoTarget != nil {
-				record(nil)
-				return toolResult(req.ID, text, structured, isError, modern)
-			}
-			record(errors.New("no team selected"))
-			return toolResult(req.ID, text, structured, isError, modern)
-		}
-		caller.APIKey = caller.TeamAPIKey
-	}
 	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
 	if err := c.takeTeamArguments(params.Arguments); err != nil {
 		record(codedError("invalid_argument", err.Error()))
@@ -983,7 +939,7 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		// it comes back as a failed tool result it can read, not a protocol
 		// error that ends the turn.
 		message := err.Error()
-		if caller.Mode == CallerModeEvents || caller.Mode == CallerModeGroupSite {
+		if caller.Mode == CallerModeEvents {
 			if s.cfg.Contribution != nil && s.cfg.Contribution.StorageError != nil {
 				rewrite := s.cfg.Contribution.StorageError
 				message = rewrite(message)
@@ -1043,8 +999,7 @@ func unexpectedArgument(tool Tool, args map[string]any) error {
 }
 
 // argAliasFor names a one-off alias a model guesses from a sibling tool
-// family's word for the same concept: storage_* and hack_event_storage_*
-// tools call the saved-data resource "name", while visitor_read_site/
+// family's word for the same concept: storage_* tools call the saved-data resource "name", while visitor_read_site/
 // visitor_add_entry/visitor_change_entry call the same concept "resource";
 // find_tools's argument is "query", not the "task" a model familiar with
 // other search tools may send; get_page_recipe's is "topic", not the
@@ -1057,7 +1012,7 @@ func argAliasFor(name string) (canonical, alias string) {
 		return "topic", "kind"
 	case name == "visitor_read_site" || name == "visitor_add_entry" || name == "visitor_change_entry":
 		return "resource", "name"
-	case strings.HasPrefix(name, "storage_") || strings.HasPrefix(name, "hack_event_storage_"):
+	case strings.HasPrefix(name, "storage_"):
 		return "name", "resource"
 	}
 	return "", ""

@@ -38,24 +38,22 @@ type OAuthCode struct {
 
 // OAuthGrant is the connection, independent of its short-lived access tokens.
 type OAuthGrant struct {
-	SelectedTeamID sql.NullString
-	UserID         string
-	ClientID       string
-	Scope          string
-	Resource       string
+	UserID   string
+	ClientID string
+	Scope    string
+	Resource string
 }
 
 // OAuthTokenGrant is a token row joined to the grant it belongs to.
 type OAuthTokenGrant struct {
-	Kind           string
-	ExpiresAt      time.Time
-	UsedAt         sql.NullTime
-	GrantID        string
-	UserID         string
-	ClientID       string
-	Scope          string
-	Resource       string
-	SelectedTeamID sql.NullString
+	Kind      string
+	ExpiresAt time.Time
+	UsedAt    sql.NullTime
+	GrantID   string
+	UserID    string
+	ClientID  string
+	Scope     string
+	Resource  string
 }
 
 // OAuthConnection is one app a person has connected, for the "connected apps"
@@ -73,9 +71,3 @@ type OAuthConnection struct {
 // ErrOAuthCodeUsed is returned when a code has already been redeemed. The
 // caller revokes whatever the first redemption issued.
 var ErrOAuthCodeUsed = errors.New("authorization code already used")
-
-// OAuthConnectionTeam is a selected publishing destination for an app.
-type OAuthConnectionTeam struct {
-	Event string `json:"event"`
-	Team  string `json:"team"`
-}

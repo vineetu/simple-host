@@ -18,9 +18,6 @@ func TestInternalVisitorPassLifecycleAndNoOwner(t *testing.T) {
 	if _, ok := LookupInternalKey(key); ok {
 		t.Fatal("visitor pass resolved as owner key")
 	}
-	if _, _, ok := LookupInternalTeamKey(key); ok {
-		t.Fatal("visitor pass resolved as team key")
-	}
 
 	revoke()
 	if _, ok := LookupInternalVisitorKey(key); ok {

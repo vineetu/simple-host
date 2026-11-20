@@ -18,7 +18,7 @@ import (
 const teamArgDesc = "The team's handle, as list_teams shows it (the <team> in https://<site>.<team>.simple-host.app/)."
 
 // ownerArgDesc is the owner argument every site and storage tool takes.
-const ownerArgDesc = "Act on the sites of this team (its handle from list_teams) instead of your own. Leave it out for your own sites. You act with your own sign-in; the team's other members see what you change."
+const ownerArgDesc = "Act on the sites of this account instead of your own: a team you belong to (its handle from list_teams), or an account whose site you edit. Leave it out for your own sites. You act with your own sign-in; the account's other people see what you change."
 
 func teamSchema() map[string]any {
 	return outObject(map[string]any{
@@ -79,7 +79,7 @@ func teamCall(c *call, tool, method, path string, body any) (map[string]any, err
 }
 
 func teamTools() []Tool {
-	policy := toolPolicy{personalCredential: true, groupSiteExcluded: true, notDeployOnly: true}
+	policy := toolPolicy{groupSiteExcluded: true, notDeployOnly: true}
 	return []Tool{
 		{
 			policy:       policy,
@@ -307,9 +307,6 @@ func ownerTools(tools []Tool) []Tool {
 // takeTeamArguments moves owner and expected_version from a tool's arguments
 // onto the call. The tool's schema already allowed them (unexpectedArgument).
 func (c *call) takeTeamArguments(args map[string]any) error {
-	if !c.server.cfg.Teams {
-		return nil
-	}
 	if _, present := args["owner"]; present {
 		owner, err := optionalString(args, "owner")
 		if err != nil {
@@ -317,7 +314,7 @@ func (c *call) takeTeamArguments(args map[string]any) error {
 		}
 		delete(args, "owner")
 		if strings.ContainsAny(owner, "/?#&") {
-			return codedError("invalid_argument", "owner must be a handle from list_teams, e.g. design-team")
+			return codedError("invalid_argument", "owner must be an account's handle, e.g. design-team")
 		}
 		c.owner = strings.ToLower(owner)
 	}

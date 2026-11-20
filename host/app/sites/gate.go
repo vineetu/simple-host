@@ -3,6 +3,8 @@ package sites
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"net/http"
 
 	"github.com/vsriram/simple-host/host/model"
 	repo "github.com/vsriram/simple-host/host/repository/sites"
@@ -24,8 +26,33 @@ type GroupGate interface {
 }
 
 func (s *Service) createGate(ctx context.Context, tx *sql.Tx, user *model.User, siteName string) *GateError {
-	if s.deps.GroupGate == nil || (user.EventWebsite == nil && user.Team == nil) {
+	if s.deps.GroupGate == nil || user.Member == nil {
 		return nil
 	}
 	return s.deps.GroupGate.Check(ctx, tx, user, siteName)
+}
+
+// CheckWrite runs the product's gate for a change made for an account
+// (owner=<handle>) outside a deploy: saved data, a subscription, a rollback.
+// Deploys run it again under their own lock. Nil gate: every change passes.
+func CheckWrite(ctx context.Context, db *sql.DB, gate GroupGate, user *model.User, site string) (status int, code, msg string, err error) {
+	if gate == nil || user.Member == nil {
+		return 0, "", "", nil
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, "", "", err
+	}
+	defer tx.Rollback()
+	e := gate.Check(ctx, tx, user, site)
+	if e == nil {
+		return 0, "", "", nil
+	}
+	if e.Code == "" {
+		return 0, "", "", errors.New(e.Message)
+	}
+	if e.Status == 0 {
+		e.Status = http.StatusConflict
+	}
+	return e.Status, e.Code, e.Message, nil
 }

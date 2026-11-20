@@ -39,7 +39,6 @@ func TestHackRegistrationApprovalAndTracks(t *testing.T) {
 		t.Fatalf("status: %v", view["me"])
 	}
 	wantTS(t, "pending team denied", a.api(t, "POST", base+"/teams", map[string]string{"name": "Early"}, participant.key), 403, "approval_pending")
-	wantTS(t, "pending key denied", a.api(t, "POST", base+"/key", nil, participant.key), 403, "approval_pending")
 	wantTS(t, "pending cannot choose track", a.api(t, "PUT", base+"/team/track", map[string]string{"track": "climate"}, participant.key), 403, "approval_pending")
 	wantTS(t, "organiser cannot move pending", a.api(t, "POST", base+"/teams/no-team/members", map[string]string{"user_id": a.uid(t, participant)}, org.key), 404, "")
 	applications := a.api(t, "GET", base+"/applications", nil, org.key)
@@ -64,8 +63,8 @@ func TestHackRegistrationApprovalAndTracks(t *testing.T) {
 	if teamView["track"].(map[string]any)["slug"] != "climate" {
 		t.Fatal("own team track missing")
 	}
-	key := a.teamKey(t, slug, participant)
-	wantTS(t, "publish", a.deployTeam(t, team, key, "approved"), 201, "")
+	key := participant.key
+	wantTS(t, "publish", a.deployTeam(t, slug, team, key, "approved"), 201, "")
 	wantTS(t, "cross event choice denied", a.api(t, "PUT", "/v1/hack/events/"+other+"/team/track", map[string]string{"track": "climate"}, participant.key), 404, "event_not_found")
 	wantTS(t, "waiting applicant", join(stranger, "Let me in"), 200, "")
 	settings["approval_required"] = false

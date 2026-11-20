@@ -11,7 +11,7 @@ import (
 )
 
 func TestHackResultsLimitPersonalData(t *testing.T) {
-	const event = `{"slug":"spring","role":"participant","me":{"approval_status":"approved","team":{"slug":"builders","name":"Builders","members":[{"display_name":"Ada","you":true}]},"team_key":{"last4":"1234","created_at":"2026-10-01","last_used_at":"2026-10-02"}}}`
+	const event = `{"slug":"spring","role":"participant","me":{"approval_status":"approved","team":{"slug":"builders","name":"Builders","members":[{"display_name":"Ada","you":true}]}}}`
 	const eventWant = `{"slug":"spring","role":"participant","me":{"approval_status":"approved","team":{"slug":"builders","name":"Builders","members":[{"display_name":"Ada","you":true}]}}}`
 	const team = `{"id":"team-id","slug":"builders","name":"Builders","code":"private-invite","created_at":"2026-10-01","members":[{"user_id":"other-member","display_name":"Ada","email":"ada@example.test"}],"site":{"taken_down":true},"deadline":"2026-10-29","deadline_override":"2026-10-29","frozen":false,"extended":true,"pinned_version":null,"pinned_url":null,"track":null}`
 	const teamWant = `{"slug":"builders","name":"Builders","site":{"taken_down":true},"deadline":"2026-10-29","deadline_override":"2026-10-29","frozen":false,"extended":true,"pinned_version":null,"pinned_url":null}`
@@ -32,8 +32,6 @@ func TestHackResultsLimitPersonalData(t *testing.T) {
 		{"hack_restore_team_site", team, teamWant, true},
 		{"hack_get_my_conflicts", conflicts, `{"conflicts":[` + own + `]}`, false},
 		{"hack_declare_my_conflict", `{"judge_id":"caller","judge_name":"Organiser","team_id":"one","team_name":"One","declared_by":"judge"}`, own, false},
-		{"hack_get_team_key", `{"key":{"last4":"1234","created_at":"2026-10-01","last_used_at":null},"team":{"slug":"builders"}}`, `{"key":{},"team":{"slug":"builders"}}`, true},
-		{"hack_get_team_key", `{"key":null,"team":null}`, `{"key":null,"team":null}`, true},
 		{"hack_get_judging_dashboard", `{"judges":[{"judge_id":"caller","judge_name":"Organiser","done_count":1,"assigned_count":2}],"teams":[{"team_id":"one","team_name":"One"}]}`, `{"judges":[{"judge_name":"Organiser","done_count":1,"assigned_count":2}],"teams":[{"team_id":"one","team_name":"One"}]}`, true},
 		// Organiser administration still needs other judges' IDs and conflicts.
 		{"hack_get_conflicts", conflicts, conflicts, true},

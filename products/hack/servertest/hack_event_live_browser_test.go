@@ -29,8 +29,8 @@ func TestServeHackEventLiveBrowser(t *testing.T) {
 	}{{w.alphaP, "health"}, {w.betaP, "climate"}} {
 		wantTS(t, "track", a.api(t, "PUT", base+"/team/track", map[string]string{"track": team.track}, team.person.key), 200, "")
 	}
-	key := a.teamKey(t, w.slug, w.betaP)
-	r := a.deployTeam(t, w.betaSlug, key, "Beta site")
+	key := w.betaP.key
+	r := a.deployTeam(t, w.slug, w.betaSlug, key, "Beta site")
 	if r.status != 200 && r.status != 201 {
 		t.Fatalf("deploy beta: %d %s", r.status, r.body)
 	}

@@ -1,12 +1,10 @@
 package hackmcp
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"github.com/vsriram/simple-host/host/mcp"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"sort"
 	"sync"
@@ -35,10 +33,8 @@ import (
 // organiser/member tools via hack_results_test.go's assertHackResult, the
 // member tools in hack_member_tools_test.go; the app-only twins and show
 // tools in the screens tests (hack_app_only_tools_test.go,
-// hack_apps_*_test.go). What's left -- the connection tool, the two
-// website-mode tool families, the storage/recipe family and
-// hack_create_team_key (skipped by its own REST call in
-// TestHackOrganiserToolRoutes) -- is covered below.
+// hack_apps_*_test.go). What's left -- the two
+// website-mode tool families -- is covered below.
 //
 // That list is honest, not just asserted: every one of those call sites
 // (old and new) now also calls recordHackOutputValidated(name) right after
@@ -166,30 +162,6 @@ func TestWireOutputSchemaOpensOnlyOnTheWire(t *testing.T) {
 	}
 }
 
-func TestHackSelectTeamOutputMatchesSchema(t *testing.T) {
-	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
-	product := Contribution()
-	s := mcp.NewServer(mcp.Config{
-		Contribution: &product,
-		Upstream:     up, APIHost: "simple-host.app", ContentOrigin: "https://sites.simple-host.app",
-		SiteBases: []string{"simple-host.app"}, SkillVersion: "9.9.9", ServerName: "simple-host", Version: "9.9.9",
-		SelectTarget: func(_ context.Context, _ mcp.Caller, _ string) error { return nil },
-	})
-	tool := toolNamed(t, "hack_select_team")
-	call := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "personal-key", Mode: mcp.CallerModeEvents, GrantID: "grant-1", UserID: "user-1"})
-	out, err := mcp.CallTool(tool, call, map[string]any{"team_id": "11111111-1111-4111-8111-111111111111"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out.Structured["team_id"] != "11111111-1111-4111-8111-111111111111" {
-		t.Fatalf("team_id: %v", out.Structured)
-	}
-	if err := mcp.ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
-		t.Fatalf("structuredContent does not match outputSchema: %v", err)
-	}
-	recordHackOutputValidated("hack_select_team")
-}
-
 // TestHackWebEventToolsOutputMatchesSchema covers hackWebEventTools' five
 // tools (hack_event_tools.go): hack_set_event_icon, hack_clear_event_icon,
 // hack_get_public_event, hack_get_preferences, hack_set_preferences. Every
@@ -240,16 +212,13 @@ func TestHackWebEventToolsOutputMatchesSchema(t *testing.T) {
 	}
 }
 
-// TestHackWebsiteModeToolsOutputMatchesSchema covers famSites' three tools
-// (hack_web_tools.go): hack_get_event_website, hack_publish_event_website,
-// hack_set_event_website_mode. Same reasoning as the test above: the schema
+// TestHackWebsiteModeToolsOutputMatchesSchema covers famSites' tool
+// (hack_web_tools.go): hack_set_event_website_mode. Same reasoning as the test above: the schema
 // is the open generic one, so this is mainly a tripwire for a future
 // structured schema on one of these.
 func TestHackWebsiteModeToolsOutputMatchesSchema(t *testing.T) {
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){
-		"GET /v1/hack/events/spring/website":       jsonReply(200, `{"has_custom_page":true,"mode":"custom"}`),
-		"PATCH /v1/hack/events/spring/website":     jsonReply(200, `{"mode":"builtin"}`),
-		"PUT /v1/hack/events/spring/website/files": jsonReply(200, `{"active_version":2}`),
+		"PATCH /v1/hack/events/spring/website": jsonReply(200, `{"mode":"builtin"}`),
 	}}
 	s := newTestServer(up)
 	byName := map[string]mcp.Tool{}
@@ -260,8 +229,6 @@ func TestHackWebsiteModeToolsOutputMatchesSchema(t *testing.T) {
 		name string
 		args map[string]any
 	}{
-		{"hack_get_event_website", map[string]any{"slug": "spring"}},
-		{"hack_publish_event_website", map[string]any{"slug": "spring", "files": map[string]any{"index.html": "<h1>x</h1>"}}},
 		{"hack_set_event_website_mode", map[string]any{"slug": "spring", "mode": "builtin"}},
 	}
 	for _, tc := range cases {
@@ -280,129 +247,4 @@ func TestHackWebsiteModeToolsOutputMatchesSchema(t *testing.T) {
 			recordHackOutputValidated(tc.name)
 		})
 	}
-}
-
-// TestHackStorageAndRecipeToolsOutputMatchesSchema covers every one of
-// hackStorageTools()'s 16 tools: all 15 hack_event_storage_* tools plus
-// hack_get_page_recipe. hack_event_storage_*'s outputSchema is the same
-// low-risk {"response": <any>, "status": <int>} wrapper the organiser route
-// tools use (storage_tools.go's storageToolsFor), and hack_get_page_recipe
-// shares its OutputSchema object directly with Host's own get_page_recipe
-// (already exhaustively checked by TestEveryToolResultMatchesItsOutputSchema
-// and TestOutputSchemasMatchRealResults in host/handler) -- but SIM-384's
-// review round asked for every one exercised and recorded, not a sample, so
-// every REST shape (resource, kv, sql, file, link) gets its own call here.
-func TestHackStorageAndRecipeToolsOutputMatchesSchema(t *testing.T) {
-	const base = "/v1/hack/events/spring/website/storage"
-	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){
-		"GET " + base + "/resources":                    jsonReply(200, `{"resources":[]}`),
-		"GET " + base + "/usage":                        jsonReply(200, `{"used_bytes":0,"limit_bytes":1000000,"remaining_bytes":1000000,"breakdown":{"kv_bytes":0,"sqlite_bytes":0,"files_bytes":0}}`),
-		"PUT " + base + "/resources/store":              jsonReply(200, `{"name":"store","kind":"kv"}`),
-		"DELETE " + base + "/resources/store":           jsonReply(200, `{"deleted":true}`),
-		"GET " + base + "/kv/store/keys":                jsonReply(200, `{"keys":["count"]}`),
-		"GET " + base + "/kv/store/keys/count":          jsonReply(200, `{"key":"count","value":3}`),
-		"PUT " + base + "/kv/store/keys/count":          jsonReply(200, `{"key":"count","value":3}`),
-		"DELETE " + base + "/kv/store/keys/count":       jsonReply(200, `{"deleted":true}`),
-		"POST " + base + "/sqlite/store/query":          jsonReply(200, `{"columns":["n"],"rows":[[1]]}`),
-		"POST " + base + "/sqlite/store/execute":        jsonReply(200, `{"changes":1,"last_insert_id":2}`),
-		"POST " + base + "/sqlite/store/schema":         jsonReply(200, `{"changes":0}`),
-		"GET " + base + "/files/store/objects":          jsonReply(200, `{"objects":[{"path":"a.txt"}]}`),
-		"PUT " + base + "/files/store/objects/a.txt":    jsonReply(200, `{"path":"a.txt"}`),
-		"DELETE " + base + "/files/store/objects/a.txt": jsonReply(200, `{"deleted":true}`),
-		"POST " + base + "/files/store/download-link":   jsonReply(200, `{"url":"https://simple-host.app/v1/storage-download?token=opaque","expires_in":600}`),
-	}}
-	s := newTestServer(up)
-	byName := map[string]mcp.Tool{}
-	for _, tool := range hackStorageTools() {
-		byName[tool.Name] = tool
-	}
-	if _, ok := byName["hack_get_page_recipe"]; !ok {
-		t.Fatal("hack_get_page_recipe missing from hackStorageTools()")
-	}
-	cases := []struct {
-		name string
-		args map[string]any
-	}{
-		{"hack_event_storage_list_resources", map[string]any{"event": "spring"}},
-		{"hack_event_storage_get_usage", map[string]any{"event": "spring"}},
-		{"hack_event_storage_set_resource", map[string]any{"event": "spring", "name": "store", "body": map[string]any{"kind": "kv"}}},
-		{"hack_event_storage_list_kv_keys", map[string]any{"event": "spring", "name": "store"}},
-		{"hack_event_storage_get_kv", map[string]any{"event": "spring", "name": "store", "key": "count"}},
-		{"hack_event_storage_put_kv", map[string]any{"event": "spring", "name": "store", "key": "count", "value": 3}},
-		{"hack_event_storage_sql_query", map[string]any{"event": "spring", "name": "store", "sql": "SELECT n FROM t"}},
-		{"hack_event_storage_sql_execute", map[string]any{"event": "spring", "name": "store", "sql": "UPDATE t SET n=1"}},
-		{"hack_event_storage_sql_schema", map[string]any{"event": "spring", "name": "store", "sql": "CREATE TABLE t(n)"}},
-		{"hack_event_storage_list_file_objects", map[string]any{"event": "spring", "name": "store"}},
-		{"hack_event_storage_put_file", map[string]any{"event": "spring", "name": "store", "path": "a.txt", "content_base64": "aGk=", "content_type": "text/plain"}},
-		{"hack_event_storage_file_download_link", map[string]any{"event": "spring", "name": "store", "path": "a.txt"}},
-		// Delete calls last: they remove the key/file/resource the reads above depend on.
-		{"hack_event_storage_delete_file", map[string]any{"event": "spring", "name": "store", "path": "a.txt"}},
-		{"hack_event_storage_delete_kv", map[string]any{"event": "spring", "name": "store", "key": "count"}},
-		{"hack_event_storage_delete_resource", map[string]any{"event": "spring", "name": "store"}},
-	}
-	if len(cases) != 15 {
-		t.Fatalf("%d cases, want all 15 hack_event_storage_* tools", len(cases))
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			tool, ok := byName[tc.name]
-			if !ok {
-				t.Fatalf("%s missing from hackStorageTools()", tc.name)
-			}
-			text, structured, isErr := resultOf(t, sendMode(t, s, toolCall(tc.name, tc.args), mcp.CallerModeEvents))
-			if isErr || structured == nil {
-				t.Fatalf("%s: isErr=%v text=%s", tc.name, isErr, text)
-			}
-			if err := mcp.ValidateOutput(tool.OutputSchema, structured, nil); err != nil {
-				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.name, err)
-			}
-			recordHackOutputValidated(tc.name)
-		})
-	}
-
-	recipeTool := byName["hack_get_page_recipe"]
-	recipeCall := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "k", Mode: mcp.CallerModeEvents})
-	out, err := mcp.CallTool(recipeTool, recipeCall, map[string]any{"topic": "wall"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := mcp.ValidateOutput(recipeTool.OutputSchema, out.Structured, nil); err != nil {
-		t.Fatalf("hack_get_page_recipe: structuredContent does not match outputSchema: %v", err)
-	}
-	recordHackOutputValidated("hack_get_page_recipe")
-}
-
-// TestHackCreateTeamKeyOutputMatchesSchema covers hack_create_team_key.
-// policy.connectorHidden excludes it from s.hackByName entirely (registry.go's
-// view()), not just from tools/list, so it is unreachable through a real
-// connector call -- the key-creation flow is REST/UI only, by design ("the
-// connector never returns one into chat"). It is still a real, registered
-// Tool with a run function, so this gets it the same way
-// TestHackSetEntryExcludedTool and other hidden-tool tests do: from the raw
-// family function, run directly rather than through tools/call dispatch.
-// Its outputSchema is the same generic {"response","status"} wrapper every
-// other organiser route tool uses.
-func TestHackCreateTeamKeyOutputMatchesSchema(t *testing.T) {
-	var tool mcp.Tool
-	for _, candidate := range HackOrganiserTools() {
-		if candidate.Name == "hack_create_team_key" {
-			tool = candidate
-		}
-	}
-	if tool.Name == "" {
-		t.Fatal("hack_create_team_key missing from HackOrganiserTools()")
-	}
-	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){
-		"POST /v1/hack/events/spring/key": jsonReply(200, `{"key":"shk_test_0123456789abcdef"}`),
-	}}
-	s := newTestServer(up)
-	c := mcp.NewCall(s, httptest.NewRequest("POST", "/mcp", nil), mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents})
-	out, err := mcp.CallTool(tool, c, map[string]any{"slug": "spring"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := mcp.ValidateOutput(tool.OutputSchema, out.Structured, nil); err != nil {
-		t.Fatalf("structuredContent does not match outputSchema: %v", err)
-	}
-	recordHackOutputValidated("hack_create_team_key")
 }

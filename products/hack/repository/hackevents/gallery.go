@@ -28,12 +28,12 @@ const galleryHasShot = `COALESCE(e.screenshot_type, '') IN ('image/png', 'image/
 // ListGalleryCards returns the event's gallery cards. The sort key is the
 // card title — the entry title, or the team name when that is empty —
 // compared case-insensitively. The team slug breaks ties.
-func ListGalleryCards(ctx context.Context, q sqlkit.Querier, eventID, accountID string) ([]GalleryCard, error) {
+func ListGalleryCards(ctx context.Context, q sqlkit.Querier, eventID string, live []string) ([]GalleryCard, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.id, t.slug, t.name, COALESCE(e.title, ''), COALESCE(e.tagline, ''), COALESCE(e.tools, '{}'),
 		       (`+galleryHasShot+`)
 		`+galleryLiveFrom+`
-		 ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, accountID)
+		 ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, pq.Array(live))
 	if err != nil {
 		return nil, err
 	}
@@ -51,11 +51,11 @@ func ListGalleryCards(ctx context.Context, q sqlkit.Querier, eventID, accountID 
 
 // GalleryScreenshot returns that team's screenshot. sql.ErrNoRows when the
 // team is not on the gallery, or it qualifies but has no screenshot.
-func GalleryScreenshot(ctx context.Context, q sqlkit.Querier, eventID, accountID, teamSlug string) (data []byte, contentType string, err error) {
+func GalleryScreenshot(ctx context.Context, q sqlkit.Querier, eventID string, live []string, teamSlug string) (data []byte, contentType string, err error) {
 	err = q.QueryRowContext(ctx, `
 		SELECT e.screenshot, e.screenshot_type
 		`+galleryLiveFrom+`
-		   AND t.slug = $3 AND `+galleryHasShot, eventID, accountID, teamSlug).Scan(&data, &contentType)
+		   AND t.slug = $3 AND `+galleryHasShot, eventID, pq.Array(live), teamSlug).Scan(&data, &contentType)
 	if err != nil {
 		return nil, "", err
 	}

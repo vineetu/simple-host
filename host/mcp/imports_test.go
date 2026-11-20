@@ -8,7 +8,7 @@ import (
 
 func TestUpdateSiteKeepArgumentByCallerMode(t *testing.T) {
 	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	for _, caller := range []Caller{{Mode: CallerModeEvents}, {Mode: CallerModeGroupSite}} {
+	for _, caller := range []Caller{{Mode: CallerModeEvents}} {
 		tools, _, _ := s.forCaller(caller)
 		for _, tool := range tools {
 			if tool.Name == "update_site" {

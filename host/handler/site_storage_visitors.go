@@ -40,7 +40,7 @@ type storageVisitor struct {
 }
 
 func (h *SiteHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
-	if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event || h.ed.Storage().EventOwners {
+	if h.storageBindings != nil {
 		storageError(w, 404, "not_found", "storage route not found")
 		return
 	}
@@ -122,7 +122,7 @@ func (h *SiteHandler) storagePeople(w http.ResponseWriter, r *http.Request) {
 	// and storage_visitor_emails (email resolution, the other input) is
 	// already excluded there; keep this list Host-only too, the same as
 	// storageVisitors above.
-	if _, event := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); event || h.ed.Storage().EventOwners {
+	if h.storageBindings != nil {
 		storageError(w, 404, "not_found", "storage route not found")
 		return
 	}

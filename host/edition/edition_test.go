@@ -13,8 +13,8 @@ func TestDefaultAndPolicies(t *testing.T) {
 	}
 	limits := config.DefaultLimits()
 	limits.MaxFilesPerSite = 123
-	got := FromPolicies(RoutePolicy{HostedEvents: true}, PresentationPolicy{ProductName: "Test product"}, IdentityPolicy{TeamKeys: true}, StoragePolicy{CombinedPool: true}, NotificationPolicy{EventScoped: true}, limits)
-	if !got.Routes().HostedEvents || got.Presentation().ProductName != "Test product" || !got.Identity().TeamKeys || !got.Storage().CombinedPool || !got.Notifications().EventScoped || got.Limits().MaxFilesPerSite != 123 {
+	got := FromPolicies(RoutePolicy{HostedEvents: true}, PresentationPolicy{ProductName: "Test product"}, IdentityPolicy{PaperMetrics: true}, StoragePolicy{CombinedPool: true}, NotificationPolicy{EventScoped: true}, limits)
+	if !got.Routes().HostedEvents || got.Presentation().ProductName != "Test product" || !got.Identity().PaperMetrics || !got.Storage().CombinedPool || !got.Notifications().EventScoped || got.Limits().MaxFilesPerSite != 123 {
 		t.Fatal("policies or limits lost")
 	}
 }

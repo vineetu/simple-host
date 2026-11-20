@@ -3,6 +3,7 @@ package teams
 import (
 	"context"
 	"database/sql"
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -93,6 +94,9 @@ func (s *Service) CreateTeamRequest(ctx context.Context, event model.Event, acto
 	if err == nil {
 		err = noticeTeamRequest(ctx, tx, event.ID, team, userID, kind, state)
 	}
+	if err == nil && state == "joined" {
+		err = eventapp.SyncAccess(ctx, tx, event.ID)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -126,6 +130,9 @@ func (s *Service) ResolveTeamRequest(ctx context.Context, event model.Event, act
 			detail = "accepted"
 		}
 		err = eventrepo.NotifyUsers(ctx, tx, event.ID, eventrepo.NoticeRequestAnswered, answered.teamID, "", detail, answered.userID)
+	}
+	if err == nil {
+		err = eventapp.SyncAccess(ctx, tx, event.ID)
 	}
 	if err != nil {
 		return err
@@ -194,7 +201,7 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 	if _, err = teamrepo.LockEventTeamsForFill(ctx, tx, ev.ID); err != nil {
 		return nil, nil, 0, internalError(err)
 	}
-	plan, skipped, err := teamrepo.PlanFillTeams(ctx, tx, ev, size)
+	plan, skipped, err := teamrepo.PlanFillTeams(ctx, tx, ev, size, siteEverNamed)
 	if err != nil {
 		return nil, nil, 0, internalError(err)
 	}
@@ -219,6 +226,9 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 					return nil, nil, 0, err
 				}
 			}
+		}
+		if err = eventapp.SyncAccess(ctx, tx, ev.ID); err != nil {
+			return nil, nil, 0, internalError(err)
 		}
 	}
 	if err = tx.Commit(); err != nil {

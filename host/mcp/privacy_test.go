@@ -222,28 +222,19 @@ func TestVisitorReferenceSQLParameters(t *testing.T) {
 }
 
 func TestGroupSQLParametersKeepVisitorReferences(t *testing.T) {
-	for _, mode := range []string{CallerModeEvents, CallerModeGroupSite} {
-		for _, event := range []bool{false, true} {
-			s, up := privacyServer()
-			ref, _ := s.cfg.VisitorRefs.Encode(privacySite, privacyUser)
-			for _, operation := range []string{"query", "execute"} {
-				path := "/v1/sites/blog/storage/sqlite/orders/" + operation
-				name := "storage_sql_" + operation
-				if event {
-					path = "/v1/hack/events/blog/website/storage/sqlite/orders/" + operation
-					name = "hack_event_" + name
-				}
-				up.answers["POST "+path] = func() (int, string) { return 200, `{}` }
-				c := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "test", Mode: mode}}
-				c.policy = s.policy(name)
-				_, err := runStorageRoute(c, "POST", "/sqlite/{name}/"+operation, name, []string{"name"}, "sql", map[string]any{"site": "blog", "event": "blog", "name": "orders", "sql": "SELECT ?", "params": []any{ref}}, event)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if !strings.Contains(up.bodies[len(up.bodies)-1], ref) {
-					t.Fatal("Hack reference parameter changed")
-				}
-			}
+	s, up := privacyServer()
+	ref, _ := s.cfg.VisitorRefs.Encode(privacySite, privacyUser)
+	for _, operation := range []string{"query", "execute"} {
+		name := "storage_sql_" + operation
+		up.answers["POST /v1/sites/blog/storage/sqlite/orders/"+operation] = func() (int, string) { return 200, `{}` }
+		c := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "test", Mode: CallerModeEvents}}
+		c.policy = s.policy(name)
+		_, err := runStorageRoute(c, "POST", "/sqlite/{name}/"+operation, name, []string{"name"}, "sql", map[string]any{"site": "blog", "name": "orders", "sql": "SELECT ?", "params": []any{ref}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(up.bodies[len(up.bodies)-1], ref) {
+			t.Fatal("Hack reference parameter changed")
 		}
 	}
 }

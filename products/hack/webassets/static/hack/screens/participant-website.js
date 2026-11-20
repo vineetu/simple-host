@@ -51,21 +51,17 @@ export async function render (ctx) {
     if (er.ok) entry = er.data.entry
   } catch (e) { if (client.isSignedOut(e)) return }
 
-  const state = { tab: '', revealedKey: '', prevSnapshot: null, pollStartedAt: 0, pollTimer: 0, pollExpired: false }
+  const state = { tab: '', prevSnapshot: null, pollStartedAt: 0, pollTimer: 0, pollExpired: false }
 
   async function load () {
-    let keyR, siteR
+    let siteR
     try {
-      [keyR, siteR] = await Promise.all([
-        api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/key'),
-        api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/site')
-      ])
+      siteR = await api('GET', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/site')
     } catch (e) {
-      if (client.isSignedOut(e)) return null
       return null
     }
-    if (!keyR.ok || !siteR.ok) return null
-    return { keyData: keyR.data, siteData: siteR.data }
+    if (!siteR.ok) return null
+    return { keyData: siteR.data, siteData: siteR.data }
   }
 
   const first = await load()
@@ -130,18 +126,6 @@ function connStripHTML (ui, esc, site, conn, closedForPublish, teamName) {
     appLabel = 'Connected in ' + esc(joinedApps(conn))
     const mates = conn.teammates_connected || []
     appSub = 'Last used ' + agoText(conn.last_used_at) + (mates.length ? ' · ' + teammateText(esc, mates) : '')
-  } else if (conn.state === 'no_team') {
-    appCls = 'wait'
-    appLabel = esc(joinedApps(conn)) + (connApps(conn).length > 1 ? " are connected but haven't picked a team" : " is connected but hasn't picked a team")
-    appSub = (connApps(conn).length > 1 ? 'Ask them' : 'Ask it') + ' to publish to team ' + esc(teamName || '') + '.'
-  } else if (conn.state === 'other_team') {
-    appCls = 'wait'
-    appLabel = 'Connected in ' + esc(conn.app || 'your AI app') + ', set to another team'
-    appSub = conn.other_team ? ('Currently "' + esc(conn.other_team.team) + '" in ' + esc(conn.other_team.event) + '.') : 'Set to another team.'
-  } else if (conn.state === 'key') {
-    appCls = 'on'
-    appLabel = 'Publishing with a key'
-    appSub = conn.last_used_at ? ('Last used ' + agoText(conn.last_used_at) + '.') : 'Your key is in use.'
   } else {
     appLabel = 'Not connected yet'
     appSub = 'Follow the steps below once. It takes about two minutes.'
@@ -211,17 +195,10 @@ function publishCardHTML (ui, esc, doc, state, conn, email, promptText, publishe
   }
 
   // Ticked when this tab's app has a connector added and signed in.
-  const appConnected = ['connected', 'other_team', 'no_team'].includes(conn.state) && connApps(conn).some(name => name.toLowerCase() === app.label.toLowerCase())
-
-  // Shown whenever this tab's app is connected but pointed at a different
-  // team -- including once published, since "Publish again" would otherwise
-  // silently target the wrong team until the person switches.
-  const switchNote = (conn.state === 'other_team' && appConnected)
-    ? '<div class="note info">Paste this to switch: <span class="mono">Use my team "' + esc(state.teamName || '') + '" in ' + esc((conn.other_team && conn.other_team.event) || '') + ' on Simple Hack.</span></div>'
-    : ''
+  const appConnected = conn.state === 'connected' && connApps(conn).some(name => name.toLowerCase() === app.label.toLowerCase())
 
   if (published) {
-    return '<details class="card"><summary>Publish again, or from another AI app</summary>' + tabsHTML + switchNote +
+    return '<details class="card"><summary>Publish again, or from another AI app</summary>' + tabsHTML +
       '<p class="help">Ask ' + esc(app.label) + ' to change the site and publish again. Each publish makes a new version; the newest is live.</p></details>'
   }
 
@@ -267,7 +244,7 @@ function publishCardHTML (ui, esc, doc, state, conn, email, promptText, publishe
     ? "You're connected. Paste the prompt into " + esc(app.label) + ' and it publishes here.'
     : 'Describe your idea in ' + esc(app.label) + '. It builds the page and publishes it here. No key, no code.'
 
-  return '<section class="card"><h2>Publish from your AI app</h2><p class="sub">' + lede + '</p>' + tabsHTML + switchNote +
+  return '<section class="card"><h2>Publish from your AI app</h2><p class="sub">' + lede + '</p>' + tabsHTML +
     '<ol class="howto">' + lis + '</ol>' +
     '</section>'
 
@@ -339,18 +316,9 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
     publishHTML += publishCardHTML(ui, esc, steps, state, conn, email, promptText, site.exists)
     publishHTML += '<section class="card"><h2>Or upload a zip</h2><p class="sub">Static files only, index.html at the root. ' + esc(keyData.upload_limits || '') + '</p><div class="control-row"><input class="input" id="web-zip" type="file" accept=".zip" aria-label="Your site archive"><button type="button" class="btn" id="web-zip-go">Upload</button></div><p class="note" id="web-zip-status" hidden></p></section>'
 
-    const key = keyData.key
-    let adv = '<p>Publish from your command line.</p>'
-    if (state.revealedKey) {
-      adv += '<div class="field"><label for="web-key-val">Your key — shown once, copy it now</label><div class="copy"><input class="input mono" id="web-key-val" readonly value="' + esc(state.revealedKey) + '"></div></div>' +
-        '<p class="mono small" id="web-curl"></p>' +
-        '<div class="form-actions"><button type="button" class="btn" id="web-key-done">Done</button></div>'
-    } else {
-      adv += '<p class="mono small">curl -X PUT "' + esc((keyData.api_base || location.origin) + '/v1/hack/events/' + ev.slug + '/site?create=1') + '" -H "X-API-Key: YOUR_KEY" -H "Content-Type: application/zip" --data-binary @site.zip</p>'
-      adv += key ? '<p class="help">You have a key ending ' + esc(key.last4 || '') + '.</p>' : '<p class="help">No key yet.</p>'
-      adv += '<div class="form-actions"><button type="button" class="btn" id="web-key-get">' + (key ? 'Replace key' : 'Get my key') + '</button></div>'
-      if (key) adv += '<div class="danger-zone"><h2>Turn off key</h2><div class="setting"><div class="t"><span>Nothing can publish with this key any more.</span></div><button type="button" class="btn danger" id="web-key-off">Turn off key</button></div></div>'
-    }
+    const putURL = (keyData.api_base || location.origin) + '/v1/sites/' + encodeURIComponent(team.slug) + '?owner=' + encodeURIComponent(ev.slug) + '&create=1'
+    let adv = '<p>Publish from your command line with your own key (the Keys panel on your account page makes one).</p>'
+    adv += '<p class="mono small">curl -X PUT "' + esc(putURL) + '" -H "X-API-Key: YOUR_KEY" -H "Content-Type: application/zip" --data-binary @site.zip</p>'
     publishHTML += '<details class="card"><summary>Advanced: command line and API key</summary>' + adv + '</details>'
   }
 
@@ -365,9 +333,6 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
   const uploadBaseline = preservedUpload?.baseline ?? uploadForm?.snapshot()
   state.uploadTracking = uploadForm ? { root: $('web-zip').closest('section'), form: uploadForm, baseline: uploadBaseline } : null
   if ($('notif-url')) ui.trackForm(ctx, $('notif-url').closest('details.card'))
-  if (state.revealedKey && $('web-curl')) {
-    $('web-curl').textContent = 'curl -X PUT "' + ((keyData.api_base || location.origin) + '/v1/hack/events/' + ev.slug + '/site?create=1') + '" -H "X-API-Key: ' + state.revealedKey + '" -H "Content-Type: application/zip" --data-binary @site.zip'
-  }
 
   async function reload (next, poll = false) {
     Object.assign(state, next)
@@ -419,7 +384,7 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
     zipGo.disabled = true
     status.textContent = 'Uploading and publishing…'
     try {
-      const resp = await client.apiBytes('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/site?create=1', file, 'application/zip')
+      const resp = await client.apiBytes('PUT', '/v1/sites/' + encodeURIComponent(team.slug) + '?owner=' + encodeURIComponent(ev.slug) + '&create=1', file, 'application/zip')
       if (!resp.ok) { status.textContent = archiveErrorText(resp, 'Could not publish your site.'); zipGo.disabled = false; return }
       status.textContent = 'Published version ' + (resp.data && resp.data.active_version) + '.'
       await reload({})
@@ -427,39 +392,6 @@ async function paint (ctx, ev, team, keyData, siteData, entry, steps, state, loa
       if (!client.isSignedOut(e)) { status.textContent = 'Could not confirm the upload. Check your site before trying again.'; zipGo.disabled = false }
     }
   })
-
-  const keyGet = $('web-key-get')
-  if (keyGet) keyGet.addEventListener('click', async () => {
-    if (keyData.key) {
-      const ok = await ui.confirm({ title: 'Replace key?', body: 'Your old key stops working. Replace it?', confirmLabel: 'Replace key' })
-      if (!ok) return
-    }
-    keyGet.disabled = true
-    try {
-      const resp = await api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/key')
-      if (!resp.ok) {
-        if (isBlockedCode(resp.data && resp.data.code)) { ui.toast(errText(resp), main, true); await ctx.refresh(); return }
-        ui.toast(errText(resp), keyGet, true)
-        keyGet.disabled = false
-        return
-      }
-      await reload({ revealedKey: resp.data.key })
-    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', keyGet, true); keyGet.disabled = false } }
-  })
-  const keyOff = $('web-key-off')
-  if (keyOff) keyOff.addEventListener('click', async () => {
-    const ok = await ui.confirm({ title: 'Turn off your key?', body: 'Nothing can publish with this key any more. Turn it off?', confirmLabel: 'Turn off key', danger: true })
-    if (!ok) return
-    keyOff.disabled = true
-    try {
-      const resp = await api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/key')
-      if (!resp.ok) { ui.toast(errText(resp), keyOff, true); keyOff.disabled = false; return }
-      ui.toast('Key turned off', main)
-      await reload({ revealedKey: '' })
-    } catch (e) { if (!client.isSignedOut(e)) { ui.toast('Cannot reach the server.', keyOff, true); keyOff.disabled = false } }
-  })
-  const keyDone = $('web-key-done')
-  if (keyDone) keyDone.addEventListener('click', () => reload({ revealedKey: '' }))
 
   const download = $('web-download')
   if (download) download.addEventListener('click', () => client.downloadFile('/v1/hack/events/' + encodeURIComponent(ev.slug) + '/team/export.tar.gz', ev.slug + '-' + team.slug + '-site.tar.gz', download))

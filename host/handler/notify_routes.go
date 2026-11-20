@@ -24,13 +24,6 @@ func (h *SiteHandler) registerNotifications(mux *http.ServeMux, authMiddleware, 
 	mux.Handle("POST /v1/sites/{sitename}/notifications/{id}/test", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
 	mux.Handle("POST /v1/sites/{sitename}/notifications/{id}/rotate-secret", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
 	mux.Handle("GET /v1/sites/{sitename}/notifications/{id}/deliveries", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("GET /v1/hack/events/{slug}/website/notifications", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("POST /v1/hack/events/{slug}/website/notifications", authMiddleware(rateLimitByIP(limiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.notificationRoute))))))
-	mux.Handle("PATCH /v1/hack/events/{slug}/website/notifications/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("DELETE /v1/hack/events/{slug}/website/notifications/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("POST /v1/hack/events/{slug}/website/notifications/{id}/test", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("POST /v1/hack/events/{slug}/website/notifications/{id}/rotate-secret", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("GET /v1/hack/events/{slug}/website/notifications/{id}/deliveries", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
 }
 
 func (h *SiteHandler) notifyLimits() map[string]any {
@@ -53,10 +46,6 @@ func notificationView(n model.Notification) map[string]any {
 		out["subscriber_role"] = n.SubscriberRole
 		out["device_label"] = n.DeviceLabel
 		out["muted_resources"] = n.MutedResources
-	}
-	if n.Event != "" {
-		out["event"] = n.Event
-		out["site"] = n.Event
 	}
 	return out
 }
@@ -131,18 +120,26 @@ func (h *SiteHandler) validNotifyEvents(events []string) bool {
 	}
 	return true
 }
-func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) {
-	if !h.ed.Notifications().EventScoped && r.PathValue("slug") != "" {
-		notifyError(w, 404, "not_offered")
-		return
+
+// notificationPerson is who a notification request is for: the signed-in
+// person, also when they act for an account (a team they belong to, or a
+// site they edit), whose site the request then names.
+func notificationPerson(user *model.User) string {
+	if user.Member != nil {
+		return user.Member.PersonID
 	}
+	return user.ID
+}
+
+func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
-	if user == nil || user.Suspended || user.Team != nil || user.EventWebsite != nil || user.KeyScope == "deploy" {
+	if user == nil || user.Suspended || user.KeyScope == "deploy" {
 		notifyError(w, 403, "forbidden")
 		return
 	}
 	ctx := r.Context()
-	eventAccount, err := h.notificationsSvc().EventAccountFlag(ctx, user.ID)
+	person := notificationPerson(user)
+	eventAccount, err := h.notificationsSvc().EventAccountFlag(ctx, person)
 	if err != nil {
 		notifyError(w, 500, "internal_error")
 		return
@@ -152,24 +149,12 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var site model.Site
-	if name := r.PathValue("sitename"); name != "" || r.PathValue("slug") != "" {
-		if h.ed.Notifications().EventScoped {
-			site, err = h.notificationsSvc().GroupNotificationSite(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
-		} else {
-			site, err = h.sitesSvc().GetSiteByUser(ctx, user.ID, name)
-		}
-		if errors.Is(err, sql.ErrNoRows) && h.ed.Notifications().EventScoped && r.Method == http.MethodGet && r.PathValue("id") == "" {
-			allowed, checkErr := h.notificationsSvc().GroupNotificationContextExists(ctx, user.ID, name, r.PathValue("slug"), r.URL.Query().Get("event"))
-			if checkErr != nil {
-				notifyError(w, 500, "internal_error")
-				return
-			}
-			if allowed {
-				limits := h.notifyLimits()
-				limits["can_create"], limits["can_manage"] = false, false
-				writeJSON(w, 200, map[string]any{"notifications": []any{}, "limits": limits})
-				return
-			}
+	if name := r.PathValue("sitename"); name != "" {
+		site, err = h.sitesSvc().GetSiteByUser(ctx, user.ID, name)
+		if errors.Is(err, sql.ErrNoRows) && user.Member != nil && r.Method == http.MethodGet && r.PathValue("id") == "" {
+			// A site not published yet has no subscriptions.
+			writeJSON(w, 200, map[string]any{"notifications": []any{}, "limits": h.notifyLimits()})
+			return
 		}
 		if err != nil {
 			notifyError(w, 404, "not_found")
@@ -178,7 +163,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 	}
 	id := r.PathValue("id")
 	if id == "" && r.Method == http.MethodGet {
-		ns, err := h.notificationsSvc().ListNotifications(ctx, user.ID, site.ID)
+		ns, err := h.notificationsSvc().ListNotifications(ctx, person, site.ID)
 		if err != nil {
 			notifyError(w, 500, "internal_error")
 			return
@@ -188,20 +173,6 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 			out = append(out, notificationView(n))
 		}
 		limits := h.notifyLimits()
-		if h.ed.Notifications().EventScoped && site.ID != "" {
-			canCreate, e := h.notificationsSvc().GroupNotificationAllowed(ctx, site.ID, user.ID, true)
-			if e != nil {
-				notifyError(w, 500, "internal_error")
-				return
-			}
-			limits["can_create"] = canCreate && h.NotificationsReady()
-			canManage, e := h.notificationsSvc().GroupNotificationAllowed(ctx, site.ID, user.ID, false)
-			if e != nil {
-				notifyError(w, 500, "internal_error")
-				return
-			}
-			limits["can_manage"] = canManage
-		}
 		writeJSON(w, 200, map[string]any{"notifications": out, "limits": limits})
 		return
 	}
@@ -210,20 +181,9 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	n, err := h.notificationsSvc().GetNotification(ctx, id)
-	if err != nil || n.OwnerID != user.ID || n.SiteID != site.ID {
+	if err != nil || n.OwnerID != person || n.SiteID != site.ID {
 		notifyError(w, 404, "not_found")
 		return
-	}
-	if h.ed.Notifications().EventScoped && r.Method != http.MethodGet && r.Method != http.MethodDelete {
-		allowed, e := h.notificationsSvc().GroupNotificationAllowed(ctx, site.ID, user.ID, false)
-		if e != nil {
-			notifyError(w, 500, "internal_error")
-			return
-		}
-		if !allowed {
-			notifyError(w, 403, "notification_access_ended")
-			return
-		}
 	}
 	switch {
 	case r.Method == http.MethodDelete:
@@ -291,7 +251,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		}
 		ctx, cancel := context.WithTimeout(ctx, h.limits.NotifyTimeout)
 		defer cancel()
-		client, err := h.notifyChallengeClient(ctx, user.ID, n.URL)
+		client, err := h.notifyChallengeClient(ctx, person, n.URL)
 		if errors.Is(err, notifyFailure("rate_limited")) {
 			tooManyRequests(w)
 			return
@@ -347,17 +307,6 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 	if !h.requireNotifications(w) {
 		return
 	}
-	if h.ed.Notifications().EventScoped {
-		allowed, err := h.notificationsSvc().GroupNotificationAllowed(r.Context(), site.ID, auth.GetUser(r.Context()).ID, true)
-		if err != nil {
-			notifyError(w, 500, "internal_error")
-			return
-		}
-		if !allowed {
-			notifyError(w, 403, "notification_access_ended")
-			return
-		}
-	}
 	var req struct {
 		URL        string   `json:"url"`
 		Events     []string `json:"events"`
@@ -409,7 +358,8 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	now := time.Now()
-	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: auth.GetUser(r.Context()).ID, Product: h.ed.Notifications().EventScoped, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
+	user := auth.GetUser(r.Context())
+	n := model.Notification{ID: notifyRandom("sub_", 12), SiteID: site.ID, OwnerID: notificationPerson(user), Product: user.Member != nil, Source: "owner", URL: req.URL, Events: req.Events, Storage: req.Storage, Secret: req.Secret, Label: req.Label, AuthHeaderName: req.AuthHeader.Name, AuthHeaderValue: req.AuthHeader.Value, VerifiedAt: &now}
 	_, _, err := h.notificationsSvc().SaveNotification(ctx, n, h.limits.NotifyMaxPerSite, nil, h.limits.NotifyHistoryDays, h.notificationSecrets())
 	if errors.Is(err, model.ErrNotificationAccess) {
 		notifyError(w, 403, "notification_access_ended")

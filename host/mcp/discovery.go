@@ -327,10 +327,10 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	if caller.DeployOnly {
 		search = s.deploySearch
 	}
-	flat := caller.Mode != CallerModeEvents && caller.Mode != CallerModeGroupSite && flatListApp(caller.AppName)
+	flat := caller.Mode != CallerModeEvents && flatListApp(caller.AppName)
 	context := s.offersAnalyticsContext(caller)
 	screen := s.passcodeScreenEnabled(caller)
-	product := caller.Mode == CallerModeEvents || caller.Mode == CallerModeGroupSite
+	product := caller.Mode == CallerModeEvents
 	if !flat && !context && !screen && !product {
 		return search
 	}

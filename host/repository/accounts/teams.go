@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/host/model"
 	siterules "github.com/vsriram/simple-host/host/rules/sites"
 )
@@ -13,14 +14,6 @@ import (
 // Teams (0025-teams.sql): a team is a users row with is_team set; people
 // belong to it through team_members. Triggers keep keys off teams and keep
 // membership rows pointing from a team to a person.
-
-// IsTeamMember reports whether userID belongs to the team teamID. A row can
-// only exist for a team and a person (team_members_kinds).
-func IsTeamMember(ctx context.Context, q Querier, teamID, userID string) (bool, error) {
-	var ok bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM team_members WHERE team_id::text = $1 AND user_id::text = $2)`, teamID, userID).Scan(&ok)
-	return ok, err
-}
 
 // GetTeamByHandle loads the team whose handle is handle (sql.ErrNoRows when
 // no team has it, including when a person does). A value no handle could
@@ -277,4 +270,16 @@ func SetInvitationState(ctx context.Context, q Querier, teamID, id, state string
 	}
 	n, err := res.RowsAffected()
 	return n == 1, err
+}
+
+// ReplaceTeamMembers makes the team's members exactly persons (a product's
+// team, whose membership the product keeps).
+func ReplaceTeamMembers(ctx context.Context, q Querier, teamID string, persons []string) error {
+	if _, err := q.ExecContext(ctx, `DELETE FROM team_members WHERE team_id = $1 AND NOT (user_id::text = ANY($2::text[]))`, teamID, pq.Array(persons)); err != nil {
+		return err
+	}
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO team_members (team_id, user_id) SELECT $1, p::uuid FROM unnest($2::text[]) p
+		ON CONFLICT DO NOTHING`, teamID, pq.Array(persons))
+	return err
 }

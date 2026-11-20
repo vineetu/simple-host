@@ -30,8 +30,10 @@ type EventSubscribeRequest struct {
 	Name string
 	// Site is arguments.site, the site's name as the site tools use it.
 	Site string
-	// Event selects a Hack organiser website, instead of a selected team site.
-	Event string
+	// Owner is arguments.owner: the handle of the account that holds the
+	// site, when it is not the caller's own (a team they belong to, a site
+	// they edit, a Simple Hack event). "" for the caller's own site.
+	Owner string
 	// Storage is arguments.storage, "" for every storage resource on the site.
 	// Site events never carry one.
 	Storage string

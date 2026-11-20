@@ -1,17 +1,13 @@
-// famStorage registers event storage and the Hack page recipe.
+// famStorage registers the Hack page recipe.
 package hackmcp
 
 import "github.com/vsriram/simple-host/host/mcp"
 
+// hackStorageTools is the page recipe under its Hack name: organisers and
+// teammates build pages with it, then publish with the site and storage
+// tools naming the event as owner.
 func hackStorageTools() []mcp.Tool {
-	tools := eventStorageTools()
-	// Organisers need the page recipes for their event website without
-	// selecting a team; Hack tools are all hack_-prefixed.
 	recipe := hackPageRecipeTool()
 	recipe.Name = "hack_get_page_recipe"
-	return append(tools, recipe)
-}
-
-func eventStorageTools() []mcp.Tool {
-	return mcp.EventStorageTools(hackUsageWording)
+	return []mcp.Tool{recipe}
 }

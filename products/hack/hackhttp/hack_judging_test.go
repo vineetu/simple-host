@@ -145,6 +145,24 @@ func (w *judgingWorld) call(t *testing.T, method, rest string, body any, p perso
 	return w.a.at(t, method, w.path(rest), body, w.a.key(p))
 }
 
+// addOrganiser makes the caller identified by h a co-organiser through the
+// organiser-invite flow, so the platform team membership follows.
+func (w *judgingWorld) addOrganiser(t *testing.T, h map[string]string) {
+	t.Helper()
+	invite := w.call(t, "POST", "/organiser-invite", nil, w.org)
+	if invite.status != http.StatusCreated {
+		t.Fatalf("invite: %d %s", invite.status, invite.body)
+	}
+	u, err := url.Parse(invite.json(t)["url"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := w.a.at(t, "POST", "/v1/hack"+u.Path, map[string]any{"accept_coc": true, "display_name": "Co Organiser"}, h)
+	if joined.status != http.StatusOK || joined.json(t)["role"] != "organiser" {
+		t.Fatalf("co-organiser join: %d %s", joined.status, joined.body)
+	}
+}
+
 func (w *judgingWorld) countRows(t *testing.T, query string, args ...any) int {
 	t.Helper()
 	var n int
@@ -1275,18 +1293,7 @@ func TestHackOrganisersCanJudgeAndRemovedOrganiserScoresStopCounting(t *testing.
 	team := w.teams[0].id
 	criterionID := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)).Criteria[0].ID
 	co := w.a.newPerson(t, "cojudge")
-	invite := w.call(t, "POST", "/organiser-invite", nil, w.org)
-	if invite.status != http.StatusCreated {
-		t.Fatalf("invite: %d %s", invite.status, invite.body)
-	}
-	u, err := url.Parse(invite.json(t)["url"].(string))
-	if err != nil {
-		t.Fatal(err)
-	}
-	joined := w.a.at(t, "POST", "/v1/hack"+u.Path, map[string]any{"accept_coc": true, "display_name": "Co Judge"}, w.a.key(co))
-	if joined.status != http.StatusOK || joined.json(t)["role"] != "organiser" {
-		t.Fatalf("co-organiser join: %d %s", joined.status, joined.body)
-	}
+	w.addOrganiser(t, w.a.key(co))
 	w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org)
 	for _, who := range []person{w.org, co} {
 		queue := w.call(t, "GET", "/judge/queue", nil, who)

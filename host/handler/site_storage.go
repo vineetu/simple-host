@@ -43,36 +43,8 @@ type storageCall struct {
 	checkedPost bool
 }
 
-type eventStorageContextKey struct{}
-
-type eventStorageScope struct{ siteID, ownerID, eventID, organiserID string }
-
 func storageError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, errorResponse{Error: message, Code: code})
-}
-
-// ServeEventWebsiteStorage is called only after the Hack handler has checked
-// current organiser membership on the event. It maps the public event slug to
-// the holding account's immutable event-ID site before using the shared routes.
-func (h *SiteHandler) ServeEventWebsiteStorage(w http.ResponseWriter, r *http.Request, g GroupRef, organiserID string) {
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), g.AccountID, g.ID)
-	if err != nil {
-		storageError(w, 404, "site_not_found", "publish the custom event website first")
-		return
-	}
-	// A private mux keeps the route mapping identical to team and Host storage.
-	mux := http.NewServeMux()
-	h.registerStorageRoutes(mux)
-	prefix := "/v1/hack/events/" + g.Slug + "/website/storage/"
-	rest, ok := strings.CutPrefix(r.URL.Path, prefix)
-	if !ok || rest == "" {
-		storageError(w, 404, "not_found", "storage route not found")
-		return
-	}
-	copy := r.Clone(context.WithValue(r.Context(), eventStorageContextKey{}, eventStorageScope{site.ID, g.AccountID, g.ID, organiserID}))
-	copy.URL.Path = "/v1/sites/" + g.ID + "/storage/" + rest
-	copy.URL.RawPath = ""
-	mux.ServeHTTP(w, copy)
 }
 
 func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (storageCall, bool) {
@@ -81,13 +53,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 		storageError(w, 400, "invalid_site", "site name is required")
 		return storageCall{}, false
 	}
-	var id string
-	var err error
-	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
-		id = scope.siteID
-	} else {
-		id, err = h.resolveWriteSiteID(r, name)
-	}
+	id, err := h.resolveWriteSiteID(r, name)
 	if err != nil {
 		storageError(w, 404, "site_not_found", "site not found")
 		return storageCall{}, false
@@ -102,15 +68,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 	}
 	h.paperSite(r, ownerID, siteName, nil)
 	c := storageCall{siteID: id, ownerID: ownerID, siteName: siteName}
-	if scope, ok := r.Context().Value(eventStorageContextKey{}).(eventStorageScope); ok {
-		if !h.ed.Storage().EventOwners || scope.siteID != id || scope.ownerID != ownerID {
-			storageError(w, 403, "forbidden", "event website scope required")
-			return storageCall{}, false
-		}
-		c.owner = true
-		c.accountID = scope.organiserID
-		c.linkScope = "event:" + scope.eventID + ":" + scope.organiserID
-	} else if r.Header.Get(visitorPassHeader) != "" {
+	if r.Header.Get(visitorPassHeader) != "" {
 		if _, ok := h.internalVisitorSession(r, id); !ok {
 			storageError(w, 403, "forbidden", "visitor pass does not cover this site")
 			return storageCall{}, false
@@ -122,15 +80,13 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 			storageError(w, 500, "internal_error", "internal server error")
 			return storageCall{}, false
 		}
-		if ok && u.KeyScope != model.KeyScopeDeploy && (u.ID == ownerID || u.IsAdmin) &&
-			(u.Team == nil || (h.ed.Storage().EventOwners && u.Team.AccountID == ownerID && strings.EqualFold(u.Team.TeamSlug, siteName))) &&
-			(u.EventWebsite == nil || (h.ed.Storage().EventOwners && u.EventWebsite.EventID == siteName && u.EventWebsite.OrganiserID != "")) {
+		if ok && u.KeyScope != model.KeyScopeDeploy && (u.ID == ownerID || u.IsAdmin) {
 			c.owner = true
 			c.accountID = u.ID
-			if u.Team != nil {
-				c.linkScope = "team:" + u.Team.TeamID + ":" + u.Team.MemberID
-			} else if h.ed.Storage().EventOwners && u.IsAdmin {
-				c.linkScope = "admin"
+			if u.Member != nil {
+				// A file link made for a member or editor works only while
+				// they may still act for the site (fileLinkScopeCurrent).
+				c.linkScope = "as:" + u.Member.PersonID
 			}
 		}
 		paperRecorder(r.Context()).User(r.Context(), &u)

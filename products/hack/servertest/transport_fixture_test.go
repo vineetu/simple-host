@@ -30,6 +30,7 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"github.com/vsriram/simple-host/host/app/operations"
+	sitesapp "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/auth"
 
 	"github.com/vsriram/simple-host/host/edition"
@@ -48,8 +49,6 @@ import (
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
-	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
-	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 // Shared composition fixtures for tests spanning Host HTTP, Hack HTTP and MCP.
@@ -617,7 +616,7 @@ func newTeamSiteApp(t *testing.T) *teamSiteApp {
 // mailer (nil: an unconfigured sender, as in most tests).
 func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	t.Helper()
-	accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}, Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}})
+	accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}})
 	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
 	dsn := os.Getenv("DB_DSN")
 	if dsn == "" {
@@ -668,8 +667,8 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	a.disk = disk
 	a.sites = handler.NewSiteHandler(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
-	a.sites.SetNotificationGroups(hack.NotificationGroups{})
-	a.sites.SetGroupGate(teams.SiteGate{TeamSitesReady: a.sites.TeamSitesReady, RequestCert: a.sites.RequestSiteCert, PaperSite: a.sites.RecordGateSite, PaperState: a.sites.RecordGateState})
+	gate := teams.SiteGate{TeamSitesReady: a.sites.TeamSitesReady, RequestCert: a.sites.RequestSiteCert, PaperSite: a.sites.RecordGateSite, PaperState: a.sites.RecordGateState}
+	a.sites.SetGroupGate(gate)
 	a.sites.SetStorageBindings(storagebind.Provider{DB: database})
 	a.sites.SetOperationsReporting(operations.NewReporting(database))
 	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
@@ -687,7 +686,9 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
 	a.sites.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))
-	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour, false)
+	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour, func(ctx context.Context, user *model.User, site string) (int, string, string, error) {
+		return sitesapp.CheckWrite(ctx, database, gate, user, site)
+	})
 	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetTools(hackmcp.Contribution())
@@ -940,22 +941,15 @@ func (a *teamSiteApp) startTeam(t *testing.T, slug, name string, p person) (team
 	return m["slug"].(string), m["code"].(string)
 }
 
-func (a *teamSiteApp) teamKey(t *testing.T, slug string, p person) string {
-	t.Helper()
-	r := a.api(t, "POST", "/v1/hack/events/"+slug+"/key", nil, p.key)
-	if r.status != http.StatusCreated {
-		t.Fatalf("key: %d %s", r.status, r.body)
-	}
-	return r.json(t)["key"].(string)
-}
-
 func deployBody(text string) map[string]any {
 	return map[string]any{"files": map[string]string{"index.html": "<h1>" + text + "</h1>"}}
 }
 
-func (a *teamSiteApp) deployTeam(t *testing.T, site, key, text string) resp {
+// deployTeam publishes site (a team's slug, or the event's id) under event's
+// account with the person's own key: the platform checks they may act for it.
+func (a *teamSiteApp) deployTeam(t *testing.T, event, site, key, text string) resp {
 	t.Helper()
-	return a.api(t, "PUT", "/v1/sites/"+site+"/files?create=1", deployBody(text), key)
+	return a.api(t, "PUT", "/v1/sites/"+site+"/files?create=1&owner="+event, deployBody(text), key)
 }
 
 func wantTS(t *testing.T, what string, r resp, status int, code string) {
@@ -995,4 +989,14 @@ func installAssets(sh *handler.SiteHandler, mux *http.ServeMux) {
 type fixtureDisk interface {
 	storage.SiteFiles
 	storage.LocalServing
+}
+
+// eventIDOf is the event's id: the name of its website under the event's account.
+func eventIDOf(t *testing.T, a *teamSiteApp, slug string) string {
+	t.Helper()
+	var id string
+	if err := a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, slug).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

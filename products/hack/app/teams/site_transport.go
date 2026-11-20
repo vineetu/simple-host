@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/vsriram/simple-host/host/model"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	events "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -16,9 +15,6 @@ func (s *Service) SiteEventBySlug(ctx context.Context, slug string) (hackmodel.E
 func (s *Service) SiteEventByAccount(ctx context.Context, accountID string) (hackmodel.Event, error) {
 	return events.GetEventByAccount(ctx, s.db, accountID)
 }
-func (s *Service) SiteTeamIdentity(ctx context.Context, memberID, teamID string) (model.TeamIdentity, error) {
-	return repo.ResolveTeamIdentity(ctx, s.db, memberID, teamID)
-}
 func (s *Service) SitePinnedVersion(ctx context.Context, accountID, name string) (int, bool, error) {
 	return repo.PinnedVersionOfSite(ctx, s.db, accountID, name)
 }
@@ -29,13 +25,13 @@ func (s *Service) SiteTeams(ctx context.Context, eventID string) ([]hackmodel.Ev
 // SweepSites pins overdue teams before removing empty teams and orphan sites.
 // Progress callbacks retain the background owner's existing accounting.
 func (s *Service) SweepSites(ctx context.Context, trash func(context.Context, string, string) error, progress func(), failure func(string, error)) {
-	if err := repo.PinDueTeams(ctx, s.db, "", progress); err != nil {
+	if err := repo.PinDueTeams(ctx, s.db, "", liveVersion, progress); err != nil {
 		failure("pin due teams", err)
 	}
 	if err := repo.DeleteEmptyOpenTeams(ctx, s.db, progress); err != nil {
 		failure("delete empty open teams", err)
 	}
-	orphans, err := repo.OrphanTeamSites(ctx, s.db, "")
+	orphans, err := repo.OrphanTeamSites(ctx, s.db, "", s.accountSites)
 	if err != nil {
 		failure("list orphan team sites", err)
 		return

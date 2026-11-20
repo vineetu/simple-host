@@ -6,10 +6,6 @@ type IdentityPolicy struct {
 	RandomHandles bool
 	// PersonalSites permits accounts to own personal sites.
 	PersonalSites bool
-	// HoldingAccounts enables event holding accounts and their lifecycle rules.
-	HoldingAccounts bool
-	// TeamKeys enables team and event website credentials and their lifecycle rules.
-	TeamKeys bool
 	// PaperMetrics enables product account and site metrics.
 	PaperMetrics bool
 }

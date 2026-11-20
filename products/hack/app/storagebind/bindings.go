@@ -4,6 +4,10 @@ package storagebind
 import (
 	"context"
 	"database/sql"
+	"errors"
+
+	"github.com/vsriram/simple-host/host/app/accounts"
+	"github.com/vsriram/simple-host/host/app/sites"
 
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
@@ -29,8 +33,12 @@ func (Provider) Schema() ruleengine.BindingSchema {
 }
 
 func (p Provider) Values(ctx context.Context, c appstorage.BindingCall, needed []string) (ruleengine.Values, error) {
-	b, err := hackevents.ReadStorageBindings(ctx, p.DB, c.SiteID, c.UserID)
-	if err != nil {
+	var b hackevents.StorageBindings
+	accountID, name, err := sites.SiteOwner(ctx, p.DB, c.SiteID)
+	if err == nil {
+		b, err = hackevents.ReadStorageBindings(ctx, p.DB, accountID, name, c.UserID)
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	text := func(s sql.NullString) ruleengine.Value {
@@ -60,6 +68,22 @@ func (p Provider) Values(ctx context.Context, c appstorage.BindingCall, needed [
 	return values, nil
 }
 
+// OwnerOnSite: the platform's answer (accounts.ActsAsOwner: an organiser is
+// a member of the event's account, a teammate an editor of the team's site),
+// narrowed by the event's own rules (hackevents.OwnerOnSite).
 func (p Provider) OwnerOnSite(ctx context.Context, siteID, userID string) (bool, error) {
-	return hackevents.HackSiteOwnerOnSite(ctx, p.DB, siteID, userID)
+	accountID, name, err := sites.SiteOwner(ctx, p.DB, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if ok, err := accounts.ActsAsOwner(ctx, p.DB, userID, accountID, name); err != nil || !ok {
+		return false, err
+	}
+	if down, err := sites.SiteTakenDown(ctx, p.DB, siteID); err != nil || down {
+		return false, err
+	}
+	return hackevents.OwnerOnSite(ctx, p.DB, accountID, name, userID)
 }

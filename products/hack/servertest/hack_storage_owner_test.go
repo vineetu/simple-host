@@ -13,7 +13,6 @@ import (
 	"time"
 
 	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	hackteamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 // hackSession signs uid in on host (bound to siteID) and returns a request
@@ -116,26 +115,27 @@ func TestHackStorageOwnerTeamSite(t *testing.T) {
 	wantTS(t, "second member joins", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/join", map[string]string{"code": code}, member2.key), 200, "")
 	rivalTeam, _ := a.startTeam(t, slug, "Rivals", rival)
 	markReady(t, a.certDir, slug)
-	key, rivalKey := a.teamKey(t, slug, member), a.teamKey(t, slug, rival)
-	wantTS(t, "deploy team", a.deployTeam(t, team, key, "owners"), 201, "")
-	wantTS(t, "deploy rival", a.deployTeam(t, rivalTeam, rivalKey, "rival"), 201, "")
+	key, rivalKey := member.key, rival.key
+	wantTS(t, "deploy team", a.deployTeam(t, slug, team, key, "owners"), 201, "")
+	wantTS(t, "deploy rival", a.deployTeam(t, slug, rivalTeam, rivalKey, "rival"), 201, "")
 	host := team + "." + slug + "." + tsDomain
 	sid := hackSiteID(t, a, slug, team)
 	base := "/v1/sites/" + team + "/storage"
+	own := "?owner=" + slug
 
-	// The team key sets rules; the answer is the rules model.
-	r := a.api(t, "PUT", base+"/resources/orders", map[string]any{"kind": "sqlite", "rules": json.RawMessage(privateRules), "tables": map[string]any{"orders": map[string]any{"rules": json.RawMessage(recordsRules)}, "posts": map[string]any{"rules": json.RawMessage(wallRules)}}}, key)
+	// A teammate's own key sets rules; the answer is the rules model.
+	r := a.api(t, "PUT", base+"/resources/orders"+own, map[string]any{"kind": "sqlite", "rules": json.RawMessage(privateRules), "tables": map[string]any{"orders": map[string]any{"rules": json.RawMessage(recordsRules)}, "posts": map[string]any{"rules": json.RawMessage(wallRules)}}}, key)
 	wantTS(t, "team sets rules", r, 201, "")
 	if got := r.json(t); got["rules_status"] != "rules" || !strings.Contains(fmt.Sprint(got["tables"]), "visitor_id == auth.id") {
 		t.Fatalf("rules answer: %v", got)
 	}
-	wantTS(t, "older fields on Hack", a.api(t, "PUT", base+"/resources/open", map[string]string{"kind": "kv", "read": "anyone", "write": "anyone"}, key), 400, "invalid_resource")
-	wantTS(t, "schema orders", a.api(t, "POST", base+"/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT, status TEXT DEFAULT 'new', created_at TEXT)"}, key), 200, "")
-	wantTS(t, "schema posts", a.api(t, "POST", base+"/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE posts (id INTEGER PRIMARY KEY, body TEXT, created_at TEXT)"}, key), 200, "")
-	wantTS(t, "kv personal", a.api(t, "PUT", base+"/resources/prefs", map[string]any{"kind": "kv", "rules": json.RawMessage(personalRules)}, key), 201, "")
-	wantTS(t, "kv nobody", a.api(t, "PUT", base+"/resources/vault", map[string]any{"kind": "kv", "rules": json.RawMessage(nobodyRules)}, key), 201, "")
-	wantTS(t, "vault value", a.api(t, "PUT", base+"/kv/vault/keys/k", `{"value":"secret"}`, key), 200, "")
-	if list := a.api(t, "GET", base+"/resources", nil, key); !strings.Contains(string(list.body), `"name":"prefs"`) || !strings.Contains(string(list.body), `"rules_status":"rules"`) {
+	wantTS(t, "older fields on Hack", a.api(t, "PUT", base+"/resources/open"+own, map[string]string{"kind": "kv", "read": "anyone", "write": "anyone"}, key), 400, "invalid_resource")
+	wantTS(t, "schema orders", a.api(t, "POST", base+"/sqlite/orders/schema"+own, map[string]string{"sql": "CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT, status TEXT DEFAULT 'new', created_at TEXT)"}, key), 200, "")
+	wantTS(t, "schema posts", a.api(t, "POST", base+"/sqlite/orders/schema"+own, map[string]string{"sql": "CREATE TABLE posts (id INTEGER PRIMARY KEY, body TEXT, created_at TEXT)"}, key), 200, "")
+	wantTS(t, "kv personal", a.api(t, "PUT", base+"/resources/prefs"+own, map[string]any{"kind": "kv", "rules": json.RawMessage(personalRules)}, key), 201, "")
+	wantTS(t, "kv nobody", a.api(t, "PUT", base+"/resources/vault"+own, map[string]any{"kind": "kv", "rules": json.RawMessage(nobodyRules)}, key), 201, "")
+	wantTS(t, "vault value", a.api(t, "PUT", base+"/kv/vault/keys/k"+own, `{"value":"secret"}`, key), 200, "")
+	if list := a.api(t, "GET", base+"/resources"+own, nil, key); !strings.Contains(string(list.body), `"name":"prefs"`) || !strings.Contains(string(list.body), `"rules_status":"rules"`) {
 		t.Fatalf("list: %s", list.body)
 	}
 
@@ -180,11 +180,11 @@ func TestHackStorageOwnerTeamSite(t *testing.T) {
 	if me := asRival("GET", "/v1/sites/"+team+"/me", nil).json(t); me["site_owner"] == true {
 		t.Fatalf("rival me: %v", me)
 	}
-	// The other team's key never reaches this site's rows.
-	wantTS(t, "rival key on rows", a.api(t, "PATCH", base+"/sqlite/orders/tables/orders/rows/1", `{"status":"x"}`, rivalKey), 403, "team_site_only")
-	// The team key uses the row routes too.
-	wantTS(t, "team key reads a row", a.api(t, "GET", base+"/sqlite/orders/tables/orders/rows/2", nil, key), 200, "")
-	wantTS(t, "team key edits a row", a.api(t, "PATCH", base+"/sqlite/orders/tables/orders/rows/2", `{"status":"packed"}`, key), 200, "")
+	// Another team's member never reaches this site's rows.
+	wantTS(t, "rival key on rows", a.api(t, "PATCH", base+"/sqlite/orders/tables/orders/rows/1"+own, `{"status":"x"}`, rivalKey), 404, "owner_not_found")
+	// A teammate's key uses the row routes too.
+	wantTS(t, "team key reads a row", a.api(t, "GET", base+"/sqlite/orders/tables/orders/rows/2"+own, nil, key), 200, "")
+	wantTS(t, "team key edits a row", a.api(t, "PATCH", base+"/sqlite/orders/tables/orders/rows/2"+own, `{"status":"packed"}`, key), 200, "")
 
 	// Wall: signed-in visitors post, authors delete their own.
 	wantTS(t, "alice posts", asAlice("POST", base+"/sqlite/orders/tables/posts/rows", `{"body":"hello"}`), 200, "")
@@ -213,13 +213,13 @@ func TestHackStorageOwnerTeamSite(t *testing.T) {
 	// A framed page never has owner rights.
 	wantTS(t, "framed member", asMember("GET", base+"/sqlite/orders/tables/orders/rows/1", nil, "X-SH-Framed", "1"), 404, "")
 
-	// The deadline: the team's key stops, and a member on the site is an
+	// The deadline: a teammate's key stops, and a member on the site is an
 	// ordinary visitor again. Visitors still add what the rules let them.
 	if _, err := a.database.Exec(`UPDATE events SET submission_deadline = now() - interval '1 minute' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	wantTS(t, "team key frozen", a.api(t, "PATCH", base+"/sqlite/orders/tables/orders/rows/2", `{"status":"late"}`, key), 409, "submissions_closed")
-	wantTS(t, "team key resource frozen", a.api(t, "PUT", base+"/resources/prefs", map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, key), 409, "submissions_closed")
+	wantTS(t, "team key frozen", a.api(t, "PATCH", base+"/sqlite/orders/tables/orders/rows/2"+own, `{"status":"late"}`, key), 409, "submissions_closed")
+	wantTS(t, "team key resource frozen", a.api(t, "PUT", base+"/resources/prefs"+own, map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, key), 409, "submissions_closed")
 	if got := asMember("GET", base+"/sqlite/orders/tables/orders/rows", nil); got.status != 200 || strings.Contains(string(got.body), "tea") {
 		t.Fatalf("member after deadline: %d %s", got.status, got.body)
 	}
@@ -233,9 +233,7 @@ func TestHackStorageOwnerTeamSite(t *testing.T) {
 	}
 
 	// A member who leaves the team stops being the owner.
-	if _, err := a.database.Exec(`UPDATE event_members SET team_id = NULL WHERE user_id = $1`, a.uid(t, member2)); err != nil {
-		t.Fatal(err)
-	}
+	wantTS(t, "member2 leaves", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/leave", nil, member2.key), 200, "")
 	if got := asMember2("GET", base+"/sqlite/orders/tables/orders/rows", nil); strings.Contains(string(got.body), "tea") {
 		t.Fatalf("former member: %s", got.body)
 	}
@@ -248,32 +246,26 @@ func TestHackStorageOwnerTeamSite(t *testing.T) {
 	if got := asAlice("POST", base+"/sqlite/orders/tables/orders/rows", `{"item":"x"}`); got.status == 200 {
 		t.Fatalf("taken down, visitor add: %d %s", got.status, got.body)
 	}
-	if ok, err := hackteamrepo.HackSiteOwnerOnSite(context.Background(), a.database, sid, a.uid(t, member)); err != nil || ok {
-		t.Fatalf("owner on a taken-down site: %v %v", ok, err)
-	}
 }
 
-// Owner on an event's custom website is the organisers: their organiser
-// routes (hack_event_storage_*) and an organiser signed in on the event
-// website, while the event is neither ended nor taken down.
+// Owner on an event's custom website is the organisers: their own keys with
+// owner=<event> and an organiser signed in on the event website, while the event is neither ended nor taken down.
 func TestHackStorageOwnerEventWebsite(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, participant, visitor := a.newPerson(t, "hpe-org"), a.newPerson(t, "hpe-member"), a.newPerson(t, "hpe-visitor")
 	slug := a.makeEvent(t, org)
 	a.join(t, slug, participant, org)
-	eventBase := "/v1/hack/events/" + slug + "/website"
-	wantTS(t, "event site deploy", a.api(t, "PUT", eventBase+"/files?create=1", deployBody("event"), org.key), 201, "")
-	st := eventBase + "/storage"
-	wantTS(t, "inbox", a.api(t, "PUT", st+"/resources/questions", map[string]any{"kind": "sqlite", "rules": json.RawMessage(inboxRules)}, org.key), 201, "")
-	wantTS(t, "schema", a.api(t, "POST", st+"/sqlite/questions/schema", map[string]string{"sql": "CREATE TABLE questions (id INTEGER PRIMARY KEY, body TEXT, answered INTEGER DEFAULT 0, created_at TEXT)"}, org.key), 200, "")
-	wantTS(t, "participant cannot set rules", a.api(t, "PUT", st+"/resources/questions", map[string]any{"kind": "sqlite", "rules": json.RawMessage(publicRules)}, participant.key), 404, "event_not_found")
+	site := eventSite(t, a, slug, org)
+	wantTS(t, "event site deploy", a.deployTeam(t, slug, site, org.key, "event"), 201, "")
+	wantTS(t, "custom website", a.api(t, "PATCH", "/v1/hack/events/"+slug+"/website", map[string]string{"mode": "custom"}, org.key), 200, "")
+	st := "/v1/sites/" + site + "/storage"
+	own := "?owner=" + slug
+	wantTS(t, "inbox", a.api(t, "PUT", st+"/resources/questions"+own, map[string]any{"kind": "sqlite", "rules": json.RawMessage(inboxRules)}, org.key), 201, "")
+	wantTS(t, "schema", a.api(t, "POST", st+"/sqlite/questions/schema"+own, map[string]string{"sql": "CREATE TABLE questions (id INTEGER PRIMARY KEY, body TEXT, answered INTEGER DEFAULT 0, created_at TEXT)"}, org.key), 200, "")
+	wantTS(t, "participant cannot set rules", a.api(t, "PUT", st+"/resources/questions"+own, map[string]any{"kind": "sqlite", "rules": json.RawMessage(publicRules)}, participant.key), 404, "owner_not_found")
 
 	host := slug + "." + tsDomain
-	sid := hackSiteID(t, a, slug, func() string {
-		var id string
-		_ = a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, slug).Scan(&id)
-		return id
-	}())
+	sid := hackSiteID(t, a, slug, site)
 	path := "/v1/sites/" + slug + "/storage/sqlite/questions/tables/questions/rows"
 	anon := hackSession(t, a, "", sid, host)
 	asVisitor := hackSession(t, a, a.uid(t, visitor), sid, host)
@@ -295,23 +287,23 @@ func TestHackStorageOwnerEventWebsite(t *testing.T) {
 		t.Fatalf("participant me: %v", me)
 	}
 	wantTS(t, "organiser on site cannot change rules", asOrg("PUT", "/v1/sites/"+slug+"/storage/resources/questions", map[string]any{"kind": "sqlite", "rules": json.RawMessage(publicRules)}), 403, "")
-	// The organiser route reaches the row routes, PATCH included.
-	wantTS(t, "organiser route reads a row", a.api(t, "GET", st+"/sqlite/questions/tables/questions/rows/2", nil, org.key), 200, "")
-	wantTS(t, "organiser route edits a row", a.api(t, "PATCH", st+"/sqlite/questions/tables/questions/rows/2", `{"answered":1}`, org.key), 200, "")
-	wantTS(t, "organiser route deletes a row", a.api(t, "DELETE", st+"/sqlite/questions/tables/questions/rows/2", nil, org.key), 200, "")
-	wantTS(t, "participant cannot use the organiser route", a.api(t, "PATCH", st+"/sqlite/questions/tables/questions/rows/1", `{"answered":0}`, participant.key), 404, "event_not_found")
+	// The organiser's own key reaches the row routes, PATCH included.
+	wantTS(t, "organiser reads a row", a.api(t, "GET", st+"/sqlite/questions/tables/questions/rows/2"+own, nil, org.key), 200, "")
+	wantTS(t, "organiser edits a row", a.api(t, "PATCH", st+"/sqlite/questions/tables/questions/rows/2"+own, `{"answered":1}`, org.key), 200, "")
+	wantTS(t, "organiser deletes a row", a.api(t, "DELETE", st+"/sqlite/questions/tables/questions/rows/2"+own, nil, org.key), 200, "")
+	wantTS(t, "participant cannot change the event website", a.api(t, "PATCH", st+"/sqlite/questions/tables/questions/rows/1"+own, `{"answered":0}`, participant.key), 404, "owner_not_found")
 
-	// Ending the event: the organiser route stops changing, and an
+	// Ending the event: the organiser's key stops changing, and an
 	// organiser on the site is an ordinary visitor.
 	wantTS(t, "archive", a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, org.key), 200, "")
-	wantTS(t, "organiser route after the end", a.api(t, "PATCH", st+"/sqlite/questions/tables/questions/rows/1", `{"answered":0}`, org.key), 409, "event_closed")
+	wantTS(t, "organiser after the end", a.api(t, "PATCH", st+"/sqlite/questions/tables/questions/rows/1"+own, `{"answered":0}`, org.key), 409, "event_closed")
 	if got := asOrg("GET", path, nil); got.status == 200 {
 		t.Fatalf("organiser on site after the end: %d %s", got.status, got.body)
 	}
 }
 
-// The connector: the selected team's storage_set_resource takes rules and
-// get_page_recipe is offered; the event tools take rules too.
+// The connector: storage_set_resource with owner=<event> takes rules on the
+// team's site and on the event website, and hack_get_page_recipe is offered.
 func TestHackStorageOwnerConnector(t *testing.T) {
 	a := newTeamSiteApp(t)
 	org, member := a.newPerson(t, "hpc-org"), a.newPerson(t, "hpc-member")
@@ -319,9 +311,10 @@ func TestHackStorageOwnerConnector(t *testing.T) {
 	a.join(t, slug, member, org)
 	team, _ := a.startTeam(t, slug, "Connector", member)
 	markReady(t, a.certDir, slug)
-	key := a.teamKey(t, slug, member)
-	wantTS(t, "deploy", a.deployTeam(t, team, key, "c"), 201, "")
-	wantTS(t, "event site", a.api(t, "PUT", "/v1/hack/events/"+slug+"/website/files?create=1", deployBody("event"), org.key), 201, "")
+	key := member.key
+	wantTS(t, "deploy", a.deployTeam(t, slug, team, key, "c"), 201, "")
+	site := eventSite(t, a, slug, org)
+	wantTS(t, "event site", a.deployTeam(t, slug, site, org.key, "event"), 201, "")
 
 	clientID := a.registerClient(t, testRedirect)
 	call := func(access, name string, args map[string]any) (string, bool) {
@@ -329,21 +322,14 @@ func TestHackStorageOwnerConnector(t *testing.T) {
 		return text, failed
 	}
 	access := a.connect(t, member, clientID, testRedirect)["access_token"].(string)
-	var teamID string
-	if err := a.database.QueryRow(`SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id WHERE e.slug=$1 AND t.slug=$2`, slug, team).Scan(&teamID); err != nil {
-		t.Fatal(err)
-	}
-	if msg, failed := call(access, "hack_select_team", map[string]any{"team_id": teamID}); failed {
-		t.Fatalf("select: %s", msg)
-	}
-	if msg, failed := call(access, "storage_set_resource", map[string]any{"site": team, "name": "guestbook", "body": map[string]any{"kind": "sqlite", "rules": json.RawMessage(wallRules)}}); failed || !strings.Contains(msg, "auth.signed_in") || !strings.Contains(msg, "rules_status") {
+	if msg, failed := call(access, "storage_set_resource", map[string]any{"site": team, "owner": slug, "name": "guestbook", "body": map[string]any{"kind": "sqlite", "rules": json.RawMessage(wallRules)}}); failed || !strings.Contains(msg, "auth.signed_in") || !strings.Contains(msg, "rules_status") {
 		t.Fatalf("team rules: %v %s", failed, msg)
 	}
 	if msg, failed := call(access, "hack_get_page_recipe", map[string]any{"topic": "wall", "site": team}); failed || !strings.Contains(msg, "simple-hack") || strings.Contains(msg, "Simple Host account") {
 		t.Fatalf("hack recipe: %v %.300s", failed, msg)
 	}
 	orgAccess := a.connect(t, org, clientID, testRedirect)["access_token"].(string)
-	if msg, failed := call(orgAccess, "hack_event_storage_set_resource", map[string]any{"event": slug, "name": "questions", "body": map[string]any{"kind": "sqlite", "rules": json.RawMessage(inboxRules)}}); failed || !strings.Contains(msg, "questions") || !strings.Contains(msg, "rules_status") {
+	if msg, failed := call(orgAccess, "storage_set_resource", map[string]any{"site": site, "owner": slug, "name": "questions", "body": map[string]any{"kind": "sqlite", "rules": json.RawMessage(inboxRules)}}); failed || !strings.Contains(msg, "questions") || !strings.Contains(msg, "rules_status") {
 		t.Fatalf("event rules: %v %s", failed, msg)
 	}
 	tools := a.rpc(t, orgAccess, "tools/list", map[string]any{})

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log"
@@ -53,14 +54,14 @@ func DeployKeyAllows(pattern string) bool { return deployRoutes[pattern] }
 const DeployOnlyMessage = "this is a deploy-only key: it can create, update, roll back and list sites and make preview links, nothing else. " +
 	"Use a full key for this (the Keys panel on your Simple Host page makes one)."
 
-// teamRoutes is everything a member's team key (scope team, hosted
-// events) may call, and only on the team's own site: every {sitename} route
-// here must name it. Deploys, versions, rollback and preview links; the
-// site's storage as its owner; and its visit counts. Never deleting or
-// renaming the site, domains, passcodes, version retention, visibility or
-// anything of an account. GET /v1/sites lists the team's site only (site.go).
-var teamRoutes = map[string]bool{
-	"GET /v1/me":                                                                 true, // answers who the key acts for (user.go)
+// editorRoutes is everything an editor of one site of an account (not a
+// member of it) may call with owner=<account>, and only on that site: every
+// {sitename} route here must name it. Deploys, versions, rollback and preview
+// links; the site's storage as its owner; its visit counts; and their own
+// subscriptions to the site. Never
+// deleting or renaming the site, its editors, domains, passcodes, version
+// retention, visibility or anything of the account.
+var editorRoutes = map[string]bool{
 	"GET /v1/sites/{sitename}/analytics":                                         true,
 	"GET /v1/sites/{sitename}/analytics/top":                                     true,
 	"GET /v1/sites/{sitename}/analytics/geo":                                     true,
@@ -85,11 +86,26 @@ var teamRoutes = map[string]bool{
 	"PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}":            true,
 	"DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}":         true,
 	"POST /v1/sites/{sitename}/storage/files/{name}/download-link":               true,
+	// The editor's own subscriptions to the site's saves.
+	"GET /v1/sites/{sitename}/notifications":                     true,
+	"POST /v1/sites/{sitename}/notifications":                    true,
+	"PATCH /v1/sites/{sitename}/notifications/{id}":              true,
+	"DELETE /v1/sites/{sitename}/notifications/{id}":             true,
+	"POST /v1/sites/{sitename}/notifications/{id}/test":          true,
+	"POST /v1/sites/{sitename}/notifications/{id}/rotate-secret": true,
+	"GET /v1/sites/{sitename}/notifications/{id}/deliveries":     true,
 }
 
-// TeamKeyAllows reports whether a team key may call the route the mux
-// registered as pattern (on its own site; the gate checks the name).
-func TeamKeyAllows(pattern string) bool { return deployRoutes[pattern] || teamRoutes[pattern] }
+// EditorAllows reports whether an editor of one site may call the route the
+// mux registered as pattern (on that site; the gate checks the name).
+func EditorAllows(pattern string) bool {
+	return strings.Contains(pattern, "{sitename}") && (deployRoutes[pattern] || editorRoutes[pattern])
+}
+
+// WriteCheck is the product's write gate for a request that acts for an
+// account it does not own (owner=<handle>): a refusal has a non-empty code.
+// Nil on an install without a product gate.
+type WriteCheck func(ctx context.Context, user *model.User, site string) (status int, code, msg string, err error)
 
 // sitePathName is the {sitename} segment of a /v1/sites/{sitename}... path,
 // unescaped as the mux matches it.
@@ -109,24 +125,19 @@ func sitePathName(r *http.Request) (string, bool) {
 // ScopeGate refuses a deploy-only key on every route deployRoutes does not
 // list (403 deploy_only_key). It wraps the whole mux, so it sees every request
 // that carries X-API-Key: REST routes, the page-data routes that read the key
-// themselves, and the MCP server's calls back into the mux. The key is looked
-// up only when the route is not a deploy route, so deploys cost nothing extra.
-// Unknown, expired, admin and internal keys pass through untouched; whatever
-// the route does with them is unchanged.
+// themselves, and the MCP server's calls back into the mux. Unknown, expired,
+// admin and internal keys pass through untouched; whatever the route does
+// with them is unchanged.
 //
-// When a group-key hook is installed it also holds team keys to
-// teamRoutes and deployRoutes on their own team's site (403 team_key_scope,
-// 403 team_site_only), refuses them every change once the team may no
-// longer change its site (the deadline, an ended or taken-down event, a site
-// the organiser took down; deploys check again under a lock, site.go), and
-// refuses a team key whose person is no longer on the team.
-//
-// With teams on (the Host program), it also answers owner=<handle> on the
-// routes ownerRoutes accepts: a member of that team acts as the team's
-// account for this one request (accounts.ResolveOwner checks the membership
-// live), anyone else is refused, and every other route ignores owner as
-// before. owner is read from the query only.
-func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle time.Duration, teams bool) http.Handler {
+// It also answers owner=<handle> on the routes ownerRoutes accepts: a member
+// of that team, or an editor of the one site the route names, acts as that
+// account for this one request (accounts.ResolveOwner checks it live), anyone
+// else is refused, and every other route ignores owner as before. An editor
+// is held to EditorAllows on their own site (403 editor_scope). Every change
+// such a request makes passes the product's write check first, when there is
+// one (deploys check again under a lock, site.go). owner is read from the
+// query only.
+func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle time.Duration, writeCheck WriteCheck) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key == "" {
@@ -134,35 +145,43 @@ func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle tim
 			return
 		}
 		_, pattern := mux.Handler(r)
-		if teams {
-			// Never inherit an outer request's owner (an MCP tool call
-			// replays REST requests on the /mcp request's context).
-			var actingUser *model.User
-			if owner := r.URL.Query().Get("owner"); owner != "" && ownerRoutes(pattern) {
-				user, refusal, err := accountService.ResolveOwner(r.Context(), key, owner, keyIdle, strings.Contains(pattern, "/analytics"))
+		// Never inherit an outer request's owner (an MCP tool call replays
+		// REST requests on the /mcp request's context).
+		var actingUser *model.User
+		if owner := r.URL.Query().Get("owner"); owner != "" && ownerRoutes(pattern) {
+			site := ""
+			if strings.Contains(pattern, "{sitename}") {
+				site, _ = sitePathName(r)
+			}
+			user, refusal, err := accountService.ResolveOwner(r.Context(), key, owner, site, keyIdle, strings.Contains(pattern, "/analytics"), pattern == "GET /v1/sites")
+			if err != nil {
+				log.Printf("scope gate: owner: %v", err)
+				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
+				return
+			}
+			if refusal != nil {
+				writeJSON(w, refusal.Status, errorResponse{Error: refusal.Message, Code: refusal.Code})
+				return
+			}
+			if user != nil && (user.Member.Site != "" && !EditorAllows(pattern) || user.Member.Edits != nil && pattern != "GET /v1/sites") {
+				writeJSON(w, http.StatusForbidden, errorResponse{Error: "you edit only the site " + user.Member.Site + " of " + owner + ": publish, roll back, its versions, saved data and visits; nothing else of the account", Code: "editor_scope"})
+				return
+			}
+			if user != nil && writeCheck != nil && changes(r, pattern) {
+				status, code, msg, err := writeCheck(r.Context(), user, site)
 				if err != nil {
-					log.Printf("scope gate: owner: %v", err)
+					log.Printf("scope gate: write check: %v", err)
 					writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 					return
 				}
-				if refusal != nil {
-					writeJSON(w, refusal.Status, errorResponse{Error: refusal.Message, Code: refusal.Code})
+				if code != "" {
+					writeJSON(w, status, errorResponse{Error: msg, Code: code})
 					return
 				}
-				actingUser = user
 			}
-			r = r.WithContext(accounts.WithActingOwner(r.Context(), key, actingUser))
+			actingUser = user
 		}
-		isTeam, live, id, err := accountService.TeamScopeOfKey(r.Context(), key)
-		if err != nil {
-			log.Printf("scope gate: team key: %v", err)
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-			return
-		}
-		if isTeam {
-			teamGate(w, r, mux, accountService, pattern, live, id)
-			return
-		}
+		r = r.WithContext(accounts.WithActingOwner(r.Context(), key, actingUser))
 		if DeployKeyAllows(pattern) {
 			mux.ServeHTTP(w, r)
 			return
@@ -189,51 +208,14 @@ func ownerRoutes(pattern string) bool {
 		pattern == "GET /v1/me/deleted-sites" || pattern == "GET /v1/analytics/sites"
 }
 
-// teamGate serves a request made with a team credential, or refuses it.
-func teamGate(w http.ResponseWriter, r *http.Request, mux *http.ServeMux, accountService *accounts.Service, pattern string, live bool, id model.TeamIdentity) {
-	scopeOnly, inactive := accountService.GroupKeyMessages()
-	if !TeamKeyAllows(pattern) {
-		writeJSON(w, http.StatusForbidden, errorResponse{Error: scopeOnly, Code: "team_key_scope"})
-		return
-	}
-	if !live {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{
-			Error: inactive,
-			Code:  "team_key_inactive",
-		})
-		return
-	}
-	if strings.Contains(pattern, "{sitename}") {
-		name, ok := sitePathName(r)
-		if !ok || !strings.EqualFold(name, id.TeamSlug) {
-			writeJSON(w, http.StatusForbidden, errorResponse{
-				Error: "this team key works on your team's site only: " + id.TeamSlug,
-				Code:  "team_site_only",
-			})
-			return
-		}
-	}
+// changes reports whether a request changes something. A preview link, a
+// read-only SQL query or a stored-file link only opens existing data.
+func changes(r *http.Request, pattern string) bool {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
-	default:
-		// Every change stops with the team's deadline. A preview link,
-		// read-only SQL query or stored-file link only opens existing data;
-		// MCP calls come back through here as the REST call they stand for.
-		if pattern != "POST /v1/sites/{sitename}/versions/{version}/preview-link" &&
-			pattern != "POST /v1/sites/{sitename}/storage/sqlite/{name}/query" &&
-			pattern != "POST /v1/sites/{sitename}/storage/files/{name}/download-link" &&
-			!strings.HasSuffix(pattern, " /mcp") {
-			status, code, msg, err := accountService.GroupWriteRefusal(r.Context(), id.TeamID)
-			if err != nil {
-				log.Printf("scope gate: team state: %v", err)
-				writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
-				return
-			}
-			if code != "" {
-				writeJSON(w, status, errorResponse{Error: msg, Code: code})
-				return
-			}
-		}
+		return false
 	}
-	mux.ServeHTTP(w, r)
+	return pattern != "POST /v1/sites/{sitename}/versions/{version}/preview-link" &&
+		pattern != "POST /v1/sites/{sitename}/storage/sqlite/{name}/query" &&
+		pattern != "POST /v1/sites/{sitename}/storage/files/{name}/download-link"
 }

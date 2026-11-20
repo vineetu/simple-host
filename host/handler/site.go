@@ -13,13 +13,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/notifications"
 	"github.com/vsriram/simple-host/host/app/operations"
 	"github.com/vsriram/simple-host/host/app/sites"
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
@@ -81,9 +81,8 @@ type SiteHandler struct {
 	storageBindingSchema        appstorage.BindingSchema
 	storageProductBindingSchema appstorage.BindingSchema
 
-	notifyOnce         sync.Once
-	notifications      *notificationEngine
-	notificationGroups notifications.GroupSites
+	notifyOnce    sync.Once
+	notifications *notificationEngine
 
 	mailer         signInMailer
 	emailLimiter   *rateLimiter
@@ -454,6 +453,7 @@ func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
 
 func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	h.registerNotifications(mux, authMiddleware, noticeMiddleware)
+	h.registerEditors(mux, authMiddleware, noticeMiddleware)
 	h.registerWebPush(mux, authMiddleware, noticeMiddleware)
 	h.registerStorageRoutes(mux)
 	mux.HandleFunc("GET /v1/turnstile/frame", h.turnstileFrame)
@@ -517,8 +517,8 @@ func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddlew
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
 	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))
 	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
-	// Not in auth/scope.go deployRoutes or teamRoutes on purpose: a deploy-only
-	// or team key cannot remove a version.
+	// Not in auth/scope.go deployRoutes or editorRoutes on purpose: a
+	// deploy-only key or a site editor cannot remove a version.
 	mux.Handle("DELETE /v1/sites/{sitename}/versions/{version}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.discardVersion)))))
 	// An hour-long, owner-only preview address for one kept version (preview.go).
 	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createPreviewLink)))))
@@ -767,7 +767,7 @@ func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (strin
 	}
 	if h.ed.Storage().EventSites {
 		// On the hackathon platform every event has teams with the same
-		// names: a bare name means the caller's own site (a team key's), or
+		// names: a bare name means the caller's own site, or
 		// nothing, never whichever event's site is oldest.
 		if key := r.Header.Get("X-API-Key"); key != "" {
 			if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && u.ID != "" {
@@ -1674,17 +1674,16 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sites, err = h.sitesSvc().ListSitesByUser(r.Context(), user.ID)
 	}
-	// A team credential sees its team's site only, never the other teams'.
-	if err == nil && user.Team != nil {
+	if err == nil && user.Member != nil && user.Member.Edits != nil {
+		// An editor sees only the sites they edit.
 		kept := sites[:0]
 		for _, s := range sites {
-			if strings.EqualFold(s.Name, user.Team.TeamSlug) {
+			if slices.Contains(user.Member.Edits, strings.ToLower(s.Name)) {
 				kept = append(kept, s)
 			}
 		}
 		sites = kept
 	}
-
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal server error"})
 		return
@@ -1735,11 +1734,11 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		resp.FileBytes = footprint.Total()
 		resp.Pinned = prefs[site.ID].Pinned
 		resp.Order = prefs[site.ID].Order
-		if user.Team != nil {
-			resp.UserID = "" // the event's internal account is nobody's business
-		}
 		if user.Member != nil {
 			resp.Owner, resp.AccessRole = user.Handle.String, "member"
+			if user.Member.Edits != nil {
+				resp.AccessRole = "editor"
+			}
 		}
 		resp.Keep = kept[site.ID]
 		response = append(response, resp)
@@ -1963,8 +1962,7 @@ func (h *SiteHandler) siteResponseFromState(user *model.User, site model.Site, s
 	return h.siteResponseForCaller(user, resp)
 }
 
-// siteResponseFor is toSiteResponse for the caller: a team credential never
-// sees the event's internal account id.
+// siteResponseFor is toSiteResponse for the caller, with the site's file bytes.
 func (h *SiteHandler) siteResponseFor(user *model.User, site model.Site) siteResponse {
 	resp := h.toSiteResponse(site, "")
 	if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
@@ -1974,15 +1972,6 @@ func (h *SiteHandler) siteResponseFor(user *model.User, site model.Site) siteRes
 }
 
 func (h *SiteHandler) siteResponseForCaller(user *model.User, resp siteResponse) siteResponse {
-	if user != nil && user.Team != nil {
-		resp.UserID = ""
-	}
-	if user != nil && user.EventWebsite != nil {
-		resp.UserID = ""
-		resp.Name = user.EventWebsite.EventSlug
-		resp.SiteURL = "https://" + user.EventWebsite.EventSlug + "." + h.siteDomain + "/"
-		resp.AddressState = nil
-	}
 	return resp
 }
 
@@ -2095,9 +2084,6 @@ func (h *SiteHandler) writeUnpublishedState(w http.ResponseWriter, user *model.U
 		". Make it live with PUT /v1/sites/" + site.Name + "/active-version {\"version_number\": " + strconv.Itoa(n) + "}."
 	resp := h.toSiteResponseState(site, note, state)
 	resp.FileBytes = state.fileBytes
-	if user != nil && user.Team != nil {
-		resp.UserID = ""
-	}
 	resp.UnpublishedVersion = n
 	if link, exp, ok := state.previewURL, state.previewExpires, state.previewOK; ok {
 		resp.PreviewURL = link

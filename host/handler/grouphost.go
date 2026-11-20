@@ -131,9 +131,10 @@ func (h *SiteHandler) renderGroupNotFound(w http.ResponseWriter, r *http.Request
 }
 
 // noPersonalSites refuses a new site on the hackathon platform unless the
-// caller is a team credential (or the admin); false after writing the answer.
+// caller acts for an account (owner=<event>) or is the admin; false after
+// writing the answer.
 func (h *SiteHandler) noPersonalSites(w http.ResponseWriter, user *model.User) bool {
-	if h.ed.Identity().PersonalSites || user.IsAdmin || user.Team != nil || user.EventWebsite != nil {
+	if h.ed.Identity().PersonalSites || user.IsAdmin || user.Member != nil {
 		return true
 	}
 	writeJSON(w, http.StatusForbidden, errorResponse{
@@ -146,7 +147,7 @@ func (h *SiteHandler) noPersonalSites(w http.ResponseWriter, user *model.User) b
 // groupPinnedFloor lowers a prune threshold so a team's deadline version is
 // kept whatever the retention.
 func (h *SiteHandler) groupPinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
-	if !h.ed.Identity().TeamKeys || h.groupHosts == nil {
+	if h.groupHosts == nil {
 		return keepFrom
 	}
 	v, ok, err := h.groupHosts.PinnedVersion(ctx, userID, siteName)

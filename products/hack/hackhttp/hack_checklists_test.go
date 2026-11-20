@@ -42,8 +42,7 @@ func TestChecklistMarksAuthorityAndFacts(t *testing.T) {
 		}
 	}
 	org2 := w.a.newPerson(t, "ck2")
-	id2 := w.a.userID(t, org2)
-	sql(`INSERT INTO event_members(event_id,user_id,role) SELECT id,$2,'organiser' FROM events WHERE slug=$1`, w.slug, id2)
+	w.addOrganiser(t, w.a.key(org2))
 	get := func(p person) map[string]map[string]any {
 		rows, _ := checklistItems(t, w.call(t, "GET", "/checklist", nil, p))
 		return rows
@@ -104,7 +103,7 @@ func TestChecklistMarksAuthorityAndFacts(t *testing.T) {
 		t.Fatalf("inspection abilities: %v", can)
 	}
 	// Actual organiser membership wins over the platform-admin status.
-	sql(`INSERT INTO event_members(event_id,user_id,role) SELECT e.id,u.id,'organiser' FROM events e CROSS JOIN users u WHERE e.slug=$1 AND u.is_admin ON CONFLICT DO NOTHING`, w.slug)
+	w.addOrganiser(t, w.a.adminH())
 	checklistItems(t, w.a.at(t, "POST", w.path("/checklist/not-needed/o.faq"), nil, w.a.adminH()))
 	w.setStage(t, "archived")
 	if mark("POST", "o.faq", w.org).status != 409 {
@@ -434,11 +433,9 @@ func TestChecklistPersonalRemovalPaths(t *testing.T) {
 			p := w.judges[0].person
 			id := w.judges[0].id
 			if co {
-				if _, err := w.a.database.Exec(`UPDATE event_members SET role='organiser' WHERE user_id=$1`, id); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if co {
+				p = w.a.newPerson(t, "ckco")
+				id = w.a.userID(t, p)
+				w.addOrganiser(t, w.a.key(p))
 				w.setStage(t, "closed")
 				wantTS(t, "select organiser judges", w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org), 200, "")
 			}

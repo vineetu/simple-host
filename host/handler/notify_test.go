@@ -738,7 +738,7 @@ func TestNotifyDailyCapAndNoSubscribers(t *testing.T) {
 	}
 }
 
-func TestNotifyRESTOwnershipValidationAndGroup(t *testing.T) {
+func TestNotifyRESTOwnershipAndValidation(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	fullURL := x.server.URL + "/incoming/credential?token=private"
@@ -771,11 +771,6 @@ func TestNotifyRESTOwnershipValidationAndGroup(t *testing.T) {
 		}
 	}
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added"}, "storage": "missing"}, 404)
-	s.a.sites.ed = groupTestEdition()
-	notificationRequest(t, s, "GET", "", nil, 404)
-	if s.a.sites.EventsBackend() == nil {
-		t.Fatal("Hack backend missing")
-	}
 }
 
 func TestNotifyMCPRotationTTLAndChallengeLimit(t *testing.T) {

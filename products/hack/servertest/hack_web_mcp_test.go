@@ -1,9 +1,6 @@
 package servertest
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"encoding/base64"
 	"net/http"
 	"strings"
@@ -38,37 +35,18 @@ func TestHackWebMCPUsesRESTPermissions(t *testing.T) {
 			t.Fatalf("%s: wanted %s, got %s", name, code, text)
 		}
 	}
-	if state := wantOK(org.key, "hack_get_event_website", map[string]any{"slug": slug}); state["mode"] != "builtin" || state["has_custom_page"] != false {
-		t.Fatalf("default website: %v", state)
+	// The event website is the site named the event's id, published by an
+	// organiser with owner set to the event.
+	var site string
+	if err := a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, slug).Scan(&site); err != nil {
+		t.Fatal(err)
 	}
-	wantDenied(member.key, "hack_get_event_website", map[string]any{"slug": slug}, "event_not_found")
-	wantDenied(outsider.key, "hack_publish_event_website", map[string]any{"slug": slug, "files": map[string]any{"index.html": "<h1>out</h1>"}}, "event_not_found")
-	wantDenied(org.key, "hack_publish_event_website", map[string]any{"slug": slug, "files": map[string]any{"other.html": "no index"}}, "index.html")
+	page := map[string]any{"site": site, "owner": slug, "files": map[string]any{"index.html": "<h1>MCP event page</h1>"}}
+	wantDenied(member.key, "create_site", page, "owner_not_found")
+	wantDenied(outsider.key, "create_site", page, "owner_not_found")
 	wantDenied(org.key, "hack_set_event_website_mode", map[string]any{"slug": slug, "mode": "custom"}, "website_not_published")
-	published := wantOK(org.key, "hack_publish_event_website", map[string]any{"slug": slug, "files": map[string]any{"index.html": "<h1>MCP event page</h1>"}})
-	if published["name"] != slug {
-		t.Fatalf("website response: %v", published)
-	}
-	wantOK(org.key, "hack_publish_event_website", map[string]any{"slug": slug, "files": map[string]any{"index.html": "<h1>Version two</h1>"}})
-	var archive bytes.Buffer
-	gz := gzip.NewWriter(&archive)
-	tw := tar.NewWriter(gz)
-	page := []byte("<h1>Archived event page</h1>")
-	if err := tw.WriteHeader(&tar.Header{Name: "index.html", Mode: 0o644, Size: int64(len(page))}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tw.Write(page); err != nil {
-		t.Fatal(err)
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatal(err)
-	}
-	wantDenied(org.key, "hack_publish_event_website", map[string]any{"slug": slug, "archive_base64": base64.StdEncoding.EncodeToString(archive.Bytes()), "files": map[string]any{"index.html": "mixed"}}, "cannot be combined")
-	wantOK(org.key, "hack_publish_event_website", map[string]any{"slug": slug, "archive_base64": base64.StdEncoding.EncodeToString(archive.Bytes())})
-	if state := wantOK(org.key, "hack_get_event_website", map[string]any{"slug": slug}); state["mode"] != "custom" || state["has_custom_page"] != true {
+	wantOK(org.key, "create_site", page)
+	if state := wantOK(org.key, "hack_set_event_website_mode", map[string]any{"slug": slug, "mode": "custom"}); state["mode"] != "custom" {
 		t.Fatalf("custom website: %v", state)
 	}
 	wantDenied(member.key, "hack_set_event_website_mode", map[string]any{"slug": slug, "mode": "builtin"}, "event_not_found")
@@ -100,9 +78,5 @@ func TestHackWebMCPUsesRESTPermissions(t *testing.T) {
 	}
 	if pref := wantOK(member.key, "hack_get_preferences", map[string]any{}); pref["theme"] != "system" {
 		t.Fatalf("member pref isolation: %v", pref)
-	}
-	a.startTeam(t, slug, "MCP member team", member)
-	if names := mcpToolNames(t, a.mcpWithKey(t, a.teamKey(t, slug, member))); hasTool(names, "hack_publish_event_website") || hasTool(names, "hack_set_event_icon") {
-		t.Fatalf("team key exposes event tools: %v", names)
 	}
 }

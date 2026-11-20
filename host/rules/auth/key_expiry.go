@@ -30,4 +30,3 @@ const KeyExpiredFixed = "expired"
 const KeyExpiredIdle = "idle"
 
 const KeyScopeDeploy = "deploy"
-const KeyScopeTeam = "team"

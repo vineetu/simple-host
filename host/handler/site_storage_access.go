@@ -10,7 +10,6 @@ import (
 
 	"github.com/vsriram/simple-host/host/httpx"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
 	appstorage "github.com/vsriram/simple-host/host/app/storage"
 )
 
@@ -126,15 +125,16 @@ func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ow
 	if err != nil || !strings.EqualFold(sess.Host, requestHostName(r)) || time.Now().After(sess.ExpiresAt) {
 		return
 	}
-	if h.ed.Storage().EventOwners {
+	if h.storageBindings != nil {
 		paperRecorder(r.Context()).Member(r.Context(), sess.UserID)
 		if ok, err := h.storageBindingProvider().OwnerOnSite(r.Context(), sess.SiteID, sess.UserID); err != nil || !ok {
 			return
 		}
 	} else if sess.UserID != ownerID {
-		// A member of the team that holds the site is an owner here too
-		// (accounts.ActsAsOwner); a failed lookup keeps the frame guard.
-		if ok, err := accounts.ActsAsOwner(r.Context(), h.database, sess.UserID, ownerID); err == nil && !ok {
+		// A member of the team that holds the site, or an editor of it, is
+		// an owner here too (accounts.ActsAsOwner, through the default
+		// provider); a failed lookup keeps the frame guard.
+		if ok, err := h.storageBindingProvider().OwnerOnSite(r.Context(), sess.SiteID, sess.UserID); err == nil && !ok {
 			return
 		}
 	}
@@ -155,7 +155,7 @@ func (h *SiteHandler) storageOwnHost(r *http.Request, siteID string) bool {
 	}
 	// On Simple Hack the event's host is the holding account's person
 	// host, and it serves the event's custom website.
-	if _, person := h.personHostOwner(r.Context(), host); person && !h.ed.Storage().EventOwners {
+	if _, person := h.personHostOwner(r.Context(), host); person && h.storageBindings == nil {
 		return false
 	}
 	id, err := h.resolveSiteIDScoped(r, r.PathValue("sitename"))

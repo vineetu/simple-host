@@ -3,6 +3,7 @@ package servertest
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,19 +28,21 @@ func TestHackDeleteBusyEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := hackeventrepo.InsertEventMember(context.Background(), a.database, ev.ID, a.uid(t, co), "organiser"); err != nil {
-		t.Fatal(err)
-	}
+	invite := a.api(t, "POST", base+"/organiser-invite", nil, org.key)
+	wantTS(t, "invite", invite, 201, "")
+	inviteURL, _ := url.Parse(invite.json(t)["url"].(string))
+	wantTS(t, "co-organiser", a.api(t, "POST", "/v1/hack"+inviteURL.Path, map[string]any{"accept_coc": true, "display_name": "Co"}, co.key), 200, "")
 	team, _ := a.startTeam(t, slug, "Delete team", participant)
 	markReady(t, a.certDir, slug)
-	key := a.teamKey(t, slug, participant)
-	wantTS(t, "team deploy", a.deployTeam(t, team, key, "delete site"), 201, "")
+	key := participant.key
+	wantTS(t, "team deploy", a.deployTeam(t, slug, team, key, "delete site"), 201, "")
 	wantTS(t, "entry", a.api(t, "PUT", base+"/entry", map[string]string{"title": "Busy entry"}, participant.key), 200, "")
-	wantTS(t, "custom site", a.api(t, "PUT", base+"/website/files?create=1", deployBody("delete custom"), org.key), 201, "")
-	for _, storage := range []struct{ base, key string }{{"/v1/sites/" + team + "/storage", key}, {base + "/website/storage", org.key}} {
-		wantTS(t, "resource", a.api(t, "PUT", storage.base+"/resources/prefs", map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, storage.key), 201, "")
-		wantTS(t, "value", a.api(t, "PUT", storage.base+"/kv/prefs/keys/theme", `{"value":"red"}`, storage.key), 200, "")
-		wantTS(t, "files resource", a.api(t, "PUT", storage.base+"/resources/photos", map[string]string{"kind": "files"}, storage.key), 201, "")
+	wantTS(t, "custom site", a.deployTeam(t, slug, ev.ID, org.key, "delete custom"), 201, "")
+	for _, storage := range []struct{ site, key string }{{team, key}, {ev.ID, org.key}} {
+		at := func(path string) string { return "/v1/sites/" + storage.site + "/storage" + path + "?owner=" + slug }
+		wantTS(t, "resource", a.api(t, "PUT", at("/resources/prefs"), map[string]any{"kind": "kv", "rules": json.RawMessage(publicRules)}, storage.key), 201, "")
+		wantTS(t, "value", a.api(t, "PUT", at("/kv/prefs/keys/theme"), `{"value":"red"}`, storage.key), 200, "")
+		wantTS(t, "files resource", a.api(t, "PUT", at("/resources/photos"), map[string]string{"kind": "files"}, storage.key), 201, "")
 	}
 	var teamID string
 	if err := a.database.QueryRow(`SELECT id FROM event_teams WHERE event_id=$1 AND slug=$2`, ev.ID, team).Scan(&teamID); err != nil {
@@ -103,7 +106,7 @@ func TestHackDeleteBusyEvent(t *testing.T) {
 	for _, path := range []string{"/v1/hack/join/" + joinCode, "/v1/hack/judge/" + judgeCode} {
 		wantTS(t, "old invitation", a.api(t, "GET", path, nil, ""), 404, "invalid_code")
 	}
-	wantTS(t, "team key revoked", a.api(t, "GET", "/v1/sites", nil, key), 401, "")
+	wantTS(t, "teammate access gone", a.deployTeam(t, slug, team, key, "after deletion"), 404, "owner_not_found")
 	name := a.api(t, "GET", "/v1/hack/names/"+slug, nil, org.key).json(t)
 	if name["available"] != false || name["code"] != "name_taken" {
 		t.Fatalf("slug free: %v", name)

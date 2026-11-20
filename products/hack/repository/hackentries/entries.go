@@ -146,14 +146,6 @@ func GetEventScreenshot(ctx context.Context, q sqlkit.Querier, teamID string) ([
 	return data, mime, err
 }
 
-// TeamSiteLive reports whether the holding account has a live site of that
-// name (a row in Recently deleted does not count).
-func TeamSiteLive(ctx context.Context, q sqlkit.Querier, accountID, name string) (bool, error) {
-	var live bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sites WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL)`, accountID, name).Scan(&live)
-	return live, err
-}
-
 // EntryJudgeableSQL implements rules/hackentries.Judgeable over event_teams t; TestEntryJudgeableSQL checks the contract. It is true when a team's entry has
 // been decided one way (submitted, or settled as "not submitted") and an
 // organiser has not excluded it by hand. A team with no entry row is never

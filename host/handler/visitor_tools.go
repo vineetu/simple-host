@@ -45,7 +45,7 @@ func (h *SiteHandler) internalVisitorSession(r *http.Request, siteID string) (mo
 // connector token or owner credential reaches a visitor request.
 func (h *ConnectorHandler) SetVisitorTools(sites *SiteHandler, oauth *OAuthHandler) {
 	h.mcpConfig.VisitorTool = func(r *http.Request, caller mcp.Caller, name string, args map[string]any) (map[string]any, error) {
-		if sites.ed.Identity().TeamKeys || h.teamConnections || caller.Mode != "" || caller.DeployOnly {
+		if h.teamConnections || caller.Mode != "" || caller.DeployOnly {
 			return nil, fmt.Errorf("visitor tools are not available on this connection")
 		}
 		result, err := sites.visitorTool(r, caller, name, args, oauth)

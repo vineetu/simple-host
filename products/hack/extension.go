@@ -34,7 +34,6 @@ import (
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
-	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
@@ -86,7 +85,7 @@ func Extension() *extension.Extension {
 			return productedition.ForKindWithLimits(productedition.Hack, limits)
 		},
 		Early: func(d extension.EarlyDeps) extension.EarlyHooks {
-			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Erasure: members.AccountErasure{}, Keys: hackevents.GroupKeys{}, Target: hackteams.ConnectorTarget{}}}
+			return extension.EarlyHooks{Accounts: accountapp.GroupHooks{Erasure: members.AccountErasure{}}}
 		},
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition
@@ -116,9 +115,8 @@ func Extension() *extension.Extension {
 				log.Printf("hosted events: event names checked with %s", cfg.EventNamePeer)
 			}
 			hack.SetInstanceUsage(handler.DirUsage(cfg.DataDir))
-			// Team sites (M2): member keys act on one team site; the sweep pins
-			// teams at their deadline, removes sites of removed teams and asks
-			// for open events' certificates.
+			// Team sites (M2): the sweep pins teams at their deadline, removes
+			// sites of removed teams and asks for open events' certificates.
 			hack.SetSites(siteHandler)
 			d.Connector.SetTeamConnections(true)
 			// SIM-394 organiser assistant: off unless both are set. Built here
@@ -165,11 +163,10 @@ func Extension() *extension.Extension {
 				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
 				SiteSweep: NewSiteSweep(d.DB, siteHandler, siteSweep),
 				Hooks: extension.Hooks{
-					Storage:       storagebind.Provider{DB: d.DB},
-					Sitemap:       hackevents.FilterSitemapSites,
-					Notifications: NotificationGroups{},
-					GroupHosts:    groupHosts,
-					GroupGate:     teams.SiteGate{TeamSitesReady: siteHandler.TeamSitesReady, RequestCert: siteHandler.RequestSiteCert, PaperSite: siteHandler.RecordGateSite, PaperState: siteHandler.RecordGateState},
+					Storage:    storagebind.Provider{DB: d.DB},
+					Sitemap:    hackevents.FilterSitemapSites,
+					GroupHosts: groupHosts,
+					GroupGate:  teams.SiteGate{TeamSitesReady: siteHandler.TeamSitesReady, RequestCert: siteHandler.RequestSiteCert, PaperSite: siteHandler.RecordGateSite, PaperState: siteHandler.RecordGateState},
 				},
 				Tools: hackmcp.Contribution(),
 				ProductMetrics: func(paper *papermetrics.Collector) {

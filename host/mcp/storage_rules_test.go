@@ -157,7 +157,7 @@ func TestStorageRulesValidationRefusal(t *testing.T) {
 
 func TestStorageRulesDiscoveryIndexesDescriptions(t *testing.T) {
 	s := NewServer(testConfig(Config{}))
-	for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeGroupSite}, {Mode: CallerModeEvents}} {
+	for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {Mode: CallerModeEvents}} {
 		after := s.searchFor(caller)
 		for _, query := range []string{"restrictive", "permissive"} {
 			out := after.find(query, 1)

@@ -1181,14 +1181,17 @@ ${readOnly ? '' : '<div class="drop" id="drop-zone"><svg class="ico" viewBox="0 
     let buf
     try { buf = await fileAsArrayBuffer(file) } catch (e) { setLive('Could not read that file.', 'err'); return }
     try {
-      // ?create=1: the server's underlying site record for this event's
-      // website is created lazily on the first upload, same as a team
-      // site (host/handler/hack_uploads_test.go's own upload() helper
-      // always appends it); the old inline file input never did, so a
-      // brand-new event's very first website upload 404'd.
-      const r = await apiBytes('PUT', path + '/website?create=1', buf, 'application/zip')
+      // The event website is the event account's site named by the event's
+      // id: the organiser publishes it with their own sign-in, naming the
+      // event as owner (?create=1 makes it on the first upload), then
+      // switches the address to it.
+      const site = (cache.website && cache.website.site) || ev.id
+      const r = await apiBytes('PUT', '/v1/sites/' + encodeURIComponent(site) + '?owner=' + encodeURIComponent(ev.slug) + '&create=1', buf, 'application/zip')
       if (cacheStale(ctx, ev)) return
       if (!r.ok) { setLive(archiveErrorText(ui, r), 'err'); return }
+      const m = await api('PATCH', path + '/website', { mode: 'custom' })
+      if (cacheStale(ctx, ev)) return
+      if (!m.ok) { setLive(ui.errText(m), 'err'); return }
       const got = await api('GET', path + '/website')
       if (cacheStale(ctx, ev)) return
       if (got.ok) { cache.website = got.data; cache.websiteError = false }

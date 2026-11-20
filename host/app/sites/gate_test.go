@@ -33,14 +33,14 @@ func TestSuspendHeldSiteRejectsEmptyPrefix(t *testing.T) {
 }
 
 func TestCreateGateDispatch(t *testing.T) {
-	for _, identity := range []string{"personal", "team", "event"} {
+	for _, identity := range []string{"personal", "member", "editor"} {
 		t.Run(identity, func(t *testing.T) {
 			user := &model.User{ID: "holder"}
-			if identity == "team" {
-				user.Team = &model.TeamIdentity{}
+			if identity == "member" {
+				user.Member = &model.MemberIdentity{PersonID: "person"}
 			}
-			if identity == "event" {
-				user.EventWebsite = &model.EventWebsiteIdentity{}
+			if identity == "editor" {
+				user.Member = &model.MemberIdentity{PersonID: "person", Site: "site"}
 			}
 			svc := New(nil, nil, nil, 0, Deps{})
 			if err := svc.createGate(context.Background(), nil, user, "site"); err != nil {

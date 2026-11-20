@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Server) offersEvents(caller Caller) bool {
-	return s.cfg.Events != nil && s.eventsAvailability() == nil && !caller.DeployOnly && caller.Mode != CallerModeGroupSite
+	return s.cfg.Events != nil && s.eventsAvailability() == nil && !caller.DeployOnly
 }
 
 // A configured backend may be temporarily unavailable, for example without its
@@ -130,8 +130,7 @@ func siteEventPayloadSchema(name string) map[string]any {
 func eventDefinitions(product ...bool) []map[string]any {
 	schema := eventInputSchema()
 	if len(product) > 0 && product[0] {
-		schema = object(map[string]any{"site": str("Selected team site name; omit when using event."), "event": str("Event slug, as in hack_event_storage tools, for an organiser website; omit site."), "storage": str("Storage resource; omit for all.")})
-		schema["oneOf"] = []any{map[string]any{"required": []string{"site"}}, map[string]any{"required": []string{"event"}}}
+		schema = object(map[string]any{"site": str("The site's name: your team's site, or the event website's."), "owner": str("The event's name: the account that holds the site."), "storage": str("Storage resource; omit for all.")}, "site", "owner")
 	}
 	definitions := []map[string]any{}
 	for _, event := range []struct{ name, description string }{
@@ -165,7 +164,7 @@ func (s *Server) dispatchEvents(r *http.Request, req request, caller Caller, mod
 	if caller.DeployOnly {
 		return failure(req.ID, EventCodeForbidden, "Forbidden", nil)
 	}
-	if s.cfg.Events == nil || caller.Mode == CallerModeGroupSite {
+	if s.cfg.Events == nil {
 		return failure(req.ID, codeMethodNotFound, "unknown method: "+req.Method, nil)
 	}
 	if req.Method == "events/subscribe" {
@@ -251,7 +250,7 @@ func parseEventParams(raw json.RawMessage, subscribe bool, eventScoped bool) (Ev
 	}
 	for key, value := range args {
 		// A site event takes the site only: its storage filter would mean nothing.
-		if key != "site" && !(key == "storage" && !siteEvent) && !(key == "event" && eventScoped) {
+		if key != "site" && key != "owner" && !(key == "storage" && !siteEvent) {
 			return invalid()
 		}
 		if _, ok := value.(string); !ok {
@@ -260,8 +259,8 @@ func parseEventParams(raw json.RawMessage, subscribe bool, eventScoped bool) (Ev
 	}
 	req.Site, _ = args["site"].(string)
 	req.Storage, _ = args["storage"].(string)
-	req.Event, _ = args["event"].(string)
-	if (strings.TrimSpace(req.Site) == "") == (strings.TrimSpace(req.Event) == "") {
+	req.Owner, _ = args["owner"].(string)
+	if strings.TrimSpace(req.Site) == "" {
 		return invalid()
 	}
 	// encoding/json sorts map keys and removes insignificant whitespace.

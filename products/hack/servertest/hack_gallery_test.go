@@ -12,7 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/app/events"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 // shotShown is the PNG a gallery team stores. shotHidden is a different image
@@ -86,7 +87,7 @@ func TestHackEventGallery(t *testing.T) {
 	host := slug + "." + tsDomain
 	wantOrder := []string{slugOf["Aaa"], slugOf["Qqq"], slugOf["Mmm"], slugOf["Zzz"], slugOf["Same"]}
 
-	cards, err := hackevents.ListGalleryCards(context.Background(), a.database, eventID, accountID)
+	cards, err := events.New(a.database).GalleryCards(context.Background(), eventID, accountID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,12 +100,12 @@ func TestHackEventGallery(t *testing.T) {
 	if cards[1].Title != "bravo <script>alert(1)</script>" || !cards[1].HasScreenshot || cards[1].Tagline != `"><img src=x onerror=1>` {
 		t.Fatalf("script card: %+v", cards[1])
 	}
-	data, ctype, err := hackevents.GalleryScreenshot(context.Background(), a.database, eventID, accountID, slugOf["Qqq"])
+	data, ctype, err := events.New(a.database).GalleryScreenshotLookup(context.Background(), eventID, accountID, slugOf["Qqq"])
 	if err != nil || ctype != "image/png" || !bytes.Equal(data, shotShown) {
 		t.Fatalf("db screenshot: %q %v %v", ctype, err, data)
 	}
 	for _, name := range []string{"Aaa", "Nnn", "Sss", "Ttt", "Ddd"} {
-		_, _, err := hackevents.GalleryScreenshot(context.Background(), a.database, eventID, accountID, slugOf[name])
+		_, _, err := events.New(a.database).GalleryScreenshotLookup(context.Background(), eventID, accountID, slugOf[name])
 		if !errors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("%s screenshot err %v", name, err)
 		}
@@ -249,11 +250,11 @@ func TestHackEventGallery(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE users SET suspended_at = now() WHERE id = $1`, accountID); err != nil {
 		t.Fatal(err)
 	}
-	susp, err := hackevents.ListGalleryCards(context.Background(), a.database, eventID, accountID)
+	susp, err := events.New(a.database).GalleryCards(context.Background(), eventID, accountID)
 	if err != nil || len(susp) != 0 {
 		t.Fatalf("suspended account cards: %v %v", susp, err)
 	}
-	if _, _, err := hackevents.GalleryScreenshot(context.Background(), a.database, eventID, accountID, slugOf["Qqq"]); !errors.Is(err, sql.ErrNoRows) {
+	if _, _, err := events.New(a.database).GalleryScreenshotLookup(context.Background(), eventID, accountID, slugOf["Qqq"]); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("suspended account screenshot: %v", err)
 	}
 	held := a.on(t, "GET", host, "/", nil, "")
@@ -266,7 +267,7 @@ func TestHackEventGallery(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE users SET suspended_at = NULL WHERE id = $1`, accountID); err != nil {
 		t.Fatal(err)
 	}
-	back, err := hackevents.ListGalleryCards(context.Background(), a.database, eventID, accountID)
+	back, err := events.New(a.database).GalleryCards(context.Background(), eventID, accountID)
 	if err != nil || strings.Join(gallerySlugs(back), ",") != strings.Join(wantOrder, ",") {
 		t.Fatalf("after unsuspend: %v %v", gallerySlugs(back), err)
 	}
@@ -282,7 +283,7 @@ func TestHackEventGallery(t *testing.T) {
 	}
 }
 
-func gallerySlugs(cards []hackevents.GalleryCard) []string {
+func gallerySlugs(cards []hackmodel.GalleryCard) []string {
 	out := make([]string, len(cards))
 	for i, c := range cards {
 		out[i] = c.Slug

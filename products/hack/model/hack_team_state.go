@@ -49,12 +49,3 @@ func (s TeamWriteState) WriteRefusal() string {
 	}
 	return ""
 }
-
-// TeamKeyInfo is a shared Hack record.
-type TeamKeyInfo struct {
-	KeyID      string
-	Last4      string
-	TeamID     string
-	CreatedAt  time.Time
-	LastUsedAt *time.Time
-}

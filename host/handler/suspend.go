@@ -218,7 +218,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			return
 		}
 
-		out, err := h.storeAccounts().SuspendAccount(r.Context(), accounts.SuspensionInput{ID: id, AdminID: h.adminUserID, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, HoldingAccounts: false, Marker: h.syncSiteMarker})
+		out, err := h.storeAccounts().SuspendAccount(r.Context(), accounts.SuspensionInput{ID: id, AdminID: h.adminUserID, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, Marker: h.syncSiteMarker})
 		if err != nil {
 			var failure *accounts.LifecycleError
 			if errors.As(err, &failure) && failure.Code == "admin_account" {

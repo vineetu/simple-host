@@ -29,17 +29,11 @@ type User struct {
 	// Signup is where the account came from (see SetSignup). Loaded only by
 	// ListAllUsers, for the admin page.
 	Signup Signup
-	// Team is set when the request came with a team credential (hosted
-	// events, hack_sites.go): this User is then the event's holding account,
-	// acting on the one site Team.TeamSlug, for the person Team.MemberID.
-	Team *TeamIdentity
-	// EventWebsite is set only while a trusted apex organiser route publishes
-	// the event holding account's custom page.
-	EventWebsite *EventWebsiteIdentity
-	// Member is set when a person named a team they belong to as the owner
-	// of the sites a request acts on (owner=<team>, auth.ScopeGate): this
-	// User is then the team's account, acting for Member.PersonID. The
-	// membership is checked again on every request.
+	// Member is set when a person named an account they may act for as the
+	// owner of the sites a request acts on (owner=<handle>, auth.ScopeGate):
+	// a team they belong to, or an account with a site they edit. This User
+	// is then that account, acting for Member.PersonID. It is checked again
+	// on every request.
 	Member *MemberIdentity
 }
 
@@ -47,6 +41,12 @@ type User struct {
 type MemberIdentity struct {
 	PersonID     string
 	PersonHandle string
+	// Site is set when the person is an editor of this one site of the
+	// account rather than a member of it.
+	Site string
+	// Edits lists the sites the person edits, when they list the account's
+	// sites as an editor (GET /v1/sites): they see only those.
+	Edits []string
 }
 
 // Team is a team as its members see it (GET /v1/teams).
@@ -78,23 +78,6 @@ type TeamInvitation struct {
 	InvitedBy   string    `json:"invited_by"`
 	CreatedAt   time.Time `json:"created_at"`
 	ExpiresAt   time.Time `json:"expires_at"`
-}
-
-// TeamIdentity is a shared Hack record.
-type TeamIdentity struct {
-	EventID   string
-	EventSlug string
-	TeamID    string
-	TeamSlug  string // the one site name the credential may act on
-	AccountID string // the event's holding account (the site's owner)
-	MemberID  string // the person whose credential it is
-}
-
-// EventWebsiteIdentity records the account identity.
-type EventWebsiteIdentity struct {
-	EventID     string
-	EventSlug   string
-	OrganiserID string
 }
 
 // Signup is where an account came from, recorded once when it is created

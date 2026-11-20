@@ -24,9 +24,6 @@ func TestVisitorToolInventoriesAndTelemetry(t *testing.T) {
 		if _, ok := s.byName[name]; !ok {
 			t.Errorf("%s unavailable", name)
 		}
-		if _, ok := s.groupSiteByName[name]; ok {
-			t.Errorf("%s in Hack site tools", name)
-		}
 		if _, ok := s.productByName[name]; ok {
 			t.Errorf("%s in Hack personal tools", name)
 		}

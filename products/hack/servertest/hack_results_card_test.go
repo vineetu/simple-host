@@ -109,8 +109,8 @@ func newCardWorld(t *testing.T) *cardWorld {
 	// Alpha gets a real, live team site; Beta never does. Deploying is a
 	// generic Simple Host sites-API call, not gated by the hack event
 	// stage, so it happens before the stage move below.
-	key := a.teamKey(t, slug, alphaP)
-	if r := a.deployTeam(t, alphaSlug, key, "Alpha site"); r.status != http.StatusOK && r.status != http.StatusCreated {
+	key := alphaP.key
+	if r := a.deployTeam(t, slug, alphaSlug, key, "Alpha site"); r.status != http.StatusOK && r.status != http.StatusCreated {
 		t.Fatalf("deploy alpha site: %d %s", r.status, r.body)
 	}
 

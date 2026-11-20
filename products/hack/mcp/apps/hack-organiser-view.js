@@ -189,7 +189,6 @@
     route('GET', '/v1/hack/events/' + SEG + '/registration', 'hack_app_get_registration', ['slug'], { unwrap: true, appOnly: true }),
     route('PUT', '/v1/hack/events/' + SEG + '/registration', 'hack_set_registration', ['slug'], { wrap: true, unwrap: true, body: ['questions', 'approval_required', 'admit_pending'] }),
     route('POST', '/v1/hack/events/' + SEG + '/applications/' + SEG + '/decision', 'hack_decide_application', ['slug', 'user_id'], { wrap: true, unwrap: true, body: ['decision'] }),
-    route('DELETE', '/v1/hack/events/' + SEG + '/people/' + SEG + '/key', 'hack_revoke_person_key', ['slug', 'user_id'], { unwrap: true }),
     route('DELETE', '/v1/hack/events/' + SEG + '/people/' + SEG, 'hack_remove_person', ['slug', 'user_id'], { unwrap: true }),
     route('DELETE', '/v1/hack/events/' + SEG + '/organisers/' + SEG, 'hack_remove_organiser', ['slug', 'user_id'], { unwrap: true }),
     route('POST', '/v1/hack/events/' + SEG + '/organiser-invite', 'hack_app_create_organiser_invite', ['slug'], { unwrap: true, appOnly: true }),

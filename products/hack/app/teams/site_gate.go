@@ -8,8 +8,7 @@ import (
 
 	sites "github.com/vsriram/simple-host/host/app/sites"
 	model "github.com/vsriram/simple-host/host/model"
-	siterepo "github.com/vsriram/simple-host/host/repository/sites"
-	siterules "github.com/vsriram/simple-host/host/rules/sites"
+	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -25,7 +24,7 @@ var _ sites.GroupGate = SiteGate{}
 
 const organiserTakedownPrefix = "Taken down by the event organiser"
 
-func (g SiteGate) Suspension(ctx context.Context, tx *sql.Tx, site siterepo.Site) (string, string, error) {
+func (g SiteGate) Suspension(ctx context.Context, tx *sql.Tx, site model.Site) (string, string, error) {
 	down, reason, err := repo.LockTeamSiteSuspension(ctx, tx, site.UserID, site.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
@@ -43,45 +42,46 @@ func (g SiteGate) Suspension(ctx context.Context, tx *sql.Tx, site siterepo.Site
 	return organiserTakedownPrefix, full, nil
 }
 
+// Check decides, in the deploy's transaction (or the platform's write check
+// for saved data), whether a person acting for an event's account may change
+// its site now. The event website is the organisers' (the account's
+// members) until the event ends; a team's site is its teammates' (the site's
+// editors) while the team may still change it. Organisers read team sites
+// but never change them. The team's row is held FOR SHARE, so the deadline
+// pin waits for a deploy let in before the deadline and pins what it made
+// live.
 func (g SiteGate) Check(ctx context.Context, tx *sql.Tx, user *model.User, siteName string) *sites.GateError {
-	if user.EventWebsite != nil {
-		id := user.EventWebsite
-		if siteName != id.EventID || user.ID == "" {
-			return &sites.GateError{Code: "event_not_found", Message: "event not found"}
-		}
-		role, stage, takenDown, err := repo.LockEventOrganiser(ctx, tx, id.EventID, id.EventSlug, user.ID, id.OrganiserID)
-		if err != nil || role != "organiser" {
-			return &sites.GateError{Code: "event_not_found", Message: "event not found"}
-		}
-		if takenDown {
-			return &sites.GateError{Code: "event_taken_down", Message: "this event has been taken down"}
-		}
-		if stage == "archived" {
+	ev, err := eventrepo.GetEventByAccount(ctx, tx, user.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return &sites.GateError{Message: "internal server error"}
+	}
+	if strings.EqualFold(siteName, ev.ID) {
+		switch {
+		case ev.TakenDownAt.Valid:
+			return &sites.GateError{Status: 403, Code: "event_taken_down", Message: "this event has been taken down"}
+		case ev.Stage == "archived":
 			return &sites.GateError{Code: "event_closed", Message: "this event has ended"}
 		}
 		return nil
 	}
-	if user.Team == nil {
-		return nil
-	}
-	if !strings.EqualFold(siteName, user.Team.TeamSlug) {
-		return &sites.GateError{Message: "this team key works on your team's site only: " + user.Team.TeamSlug, Code: "team_site_only"}
-	}
-	if err := repo.LockApprovedTeamMember(ctx, tx, user.Team.MemberID, user.Team.TeamID); err != nil {
-		return &sites.GateError{Code: "event_not_found", Message: "event not found"}
+	if user.Member.Site == "" {
+		return &sites.GateError{Status: 403, Code: "organiser_read_only", Message: "organisers read team sites but do not change them; take a site down or change the team's deadline instead"}
 	}
 	g.PaperSite(ctx, user, siteName)
-	st, err := repo.TeamWriteStateFor(ctx, tx, user.Team.TeamID, true)
+	st, err := repo.TeamWriteStateBySlug(ctx, tx, ev.ID, siteName)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &sites.GateError{Status: 404, Code: "event_not_found", Message: "event not found"}
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &sites.GateError{Message: "this team key stopped working: its team is gone", Code: "team_key_inactive"}
-		}
 		return &sites.GateError{Message: "internal server error"}
 	}
 	g.PaperState(ctx, user, st.Stage)
 	if code := st.WriteRefusal(); code != "" {
-		msg := siterules.TeamRefusalMessage(code)
-		return &sites.GateError{Message: msg, Code: code}
+		status, msg := eventrepo.TeamRefusal(code)
+		return &sites.GateError{Status: status, Message: msg, Code: code}
 	}
 	if !g.TeamSitesReady(user.Handle.String) {
 		if !st.EventTakenDown && (st.Stage == "open" || st.Stage == "building" || st.Stage == "closed") {

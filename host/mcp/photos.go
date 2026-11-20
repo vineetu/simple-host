@@ -63,7 +63,7 @@ func (s *Server) ServePhotoLink(w http.ResponseWriter, r *http.Request) {
 			s.uploads[hash] = link
 		}
 	}()
-	key, revoke, err := link.mint(r.Context(), link.team)
+	key, revoke, err := link.mint(r.Context())
 	if err != nil {
 		ended = true
 		fail(403, "photo_link_signed_out", photoLinkExpired)

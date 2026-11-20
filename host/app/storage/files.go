@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/host/app/accounts"
 	model "github.com/vsriram/simple-host/host/model"
 	siterepo "github.com/vsriram/simple-host/host/repository/sites"
 	repository "github.com/vsriram/simple-host/host/repository/storage"
@@ -480,8 +481,6 @@ func (s *Service) DownloadFile(ctx context.Context, token string) (*os.File, os.
 		if err != nil || !s.fileLinkScopeCurrent(ctx, site, string(claim)) {
 			return invalid()
 		}
-	} else if s.deps.EventOwners {
-		return invalid()
 	}
 	if !s.deps.FileResourceExists(ctx, siteID, name) {
 		return invalid()
@@ -491,17 +490,13 @@ func (s *Service) DownloadFile(ctx context.Context, token string) (*os.File, os.
 	return f, fi, string(p), err
 }
 
+// fileLinkScopeCurrent: a link made for a member or editor ("as:<person>")
+// works only while that person may still act as the site's owner.
 func (s *Service) fileLinkScopeCurrent(ctx context.Context, site model.Site, scope string) bool {
-	if scope == "admin" {
-		return true
-	}
-	kind, rest, ok := strings.Cut(scope, ":")
+	personID, ok := strings.CutPrefix(scope, "as:")
 	if !ok {
 		return false
 	}
-	id, memberID, ok := strings.Cut(rest, ":")
-	if !ok || id == "" || memberID == "" {
-		return false
-	}
-	return s.accounts.FileLinkScopeAllows(ctx, site, kind, id, memberID)
+	allowed, err := accounts.ActsAsOwner(ctx, s.db, personID, site.UserID, site.Name)
+	return err == nil && allowed
 }

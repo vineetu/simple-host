@@ -61,7 +61,7 @@ func TestAppsPerCallerAndCache(t *testing.T) {
 		}
 	}
 	t.Setenv("MCP_APP_PHOTO_PICKER", "on")
-	for _, mode := range []string{CallerModeEvents, CallerModeGroupSite} {
+	for _, mode := range []string{CallerModeEvents} {
 		if len(s.enabledScreens(Caller{Mode: mode})) != 0 {
 			t.Fatal("Hack offered Apps")
 		}

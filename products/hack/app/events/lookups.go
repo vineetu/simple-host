@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/host/app/sites"
 
 	"github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -33,14 +34,26 @@ func (s *Service) EventSlugTakenLookup(ctx context.Context, slug string) (bool, 
 	return eventrepo.EventSlugTaken(ctx, s.db, slug)
 }
 
-// EventStorageLookup forwards the EventStorage lookup.
+// EventStorageLookup counts the event account's site records (Recently
+// deleted included) and kept versions, and its entry screenshots. File bytes
+// are measured separately by the storage handler.
 func (s *Service) EventStorageLookup(ctx context.Context, ev model.Event) (model.EventStorageUsage, error) {
-	return eventrepo.EventStorage(ctx, s.db, ev)
+	var u model.EventStorageUsage
+	var err error
+	if u.Sites, u.Versions, err = sites.AccountSiteCounts(ctx, s.db, ev.AccountID); err != nil {
+		return u, err
+	}
+	u.ScreenshotBytes, err = eventrepo.EventScreenshotBytes(ctx, s.db, ev.ID)
+	return u, err
 }
 
 // GalleryScreenshotLookup forwards the GalleryScreenshot lookup.
 func (s *Service) GalleryScreenshotLookup(ctx context.Context, eventID string, accountID string, teamSlug string) ([]byte, string, error) {
-	return eventrepo.GalleryScreenshot(ctx, s.db, eventID, accountID, teamSlug)
+	live, err := sites.LiveSiteNames(ctx, s.db, accountID)
+	if err != nil {
+		return nil, "", err
+	}
+	return eventrepo.GalleryScreenshot(ctx, s.db, eventID, live, teamSlug)
 }
 
 // DemoEvent forwards the GetDemoEvent lookup.
@@ -110,7 +123,11 @@ func (s *Service) EventsForUser(ctx context.Context, userID string) ([]model.Eve
 
 // GalleryCards forwards the ListGalleryCards lookup.
 func (s *Service) GalleryCards(ctx context.Context, eventID string, accountID string) ([]model.GalleryCard, error) {
-	return eventrepo.ListGalleryCards(ctx, s.db, eventID, accountID)
+	live, err := sites.LiveSiteNames(ctx, s.db, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return eventrepo.ListGalleryCards(ctx, s.db, eventID, live)
 }
 
 // SetEventIconLookup forwards the SetEventIcon lookup.

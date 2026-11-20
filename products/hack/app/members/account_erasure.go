@@ -3,6 +3,9 @@ package members
 import (
 	"context"
 	"database/sql"
+
+	"github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/repository/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -67,7 +70,9 @@ func (AccountErasure) After(ctx context.Context, tx *sql.Tx, adminTeamIDs []stri
 
 func (AccountErasure) Sweep(ctx context.Context, database *sql.DB, eventAccountIDs []string, trash func(context.Context, string, string) error) {
 	for _, accountID := range eventAccountIDs {
-		orphans, err := hackteams.OrphanTeamSites(ctx, database, accountID)
+		orphans, err := hackteams.OrphanTeamSites(ctx, database, accountID, func(ctx context.Context, id string) ([]model.Site, error) {
+			return sites.AccountSites(ctx, database, id)
+		})
 		if err != nil {
 			log.Printf("hack: orphan sites after account erasure: %v", err)
 			continue

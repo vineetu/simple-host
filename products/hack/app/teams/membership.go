@@ -2,6 +2,7 @@ package teams
 
 import (
 	"context"
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -9,7 +10,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
 
-// LeaveTeam removes a participant and revokes stale keys atomically.
+// LeaveTeam takes a participant off their team; they stop editing its site.
 func (s *Service) LeaveTeam(ctx context.Context, eventID, userID string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -19,7 +20,7 @@ func (s *Service) LeaveTeam(ctx context.Context, eventID, userID string) error {
 	if err = teamrepo.LeaveTeam(ctx, tx, eventID, userID, teamrepo.EnsureTeamAdmin); err != nil {
 		return err
 	}
-	if err = teamrepo.RevokeStaleTeamKeys(ctx, tx, eventID); err != nil {
+	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	if err = tx.Commit(); err != nil {
@@ -28,7 +29,8 @@ func (s *Service) LeaveTeam(ctx context.Context, eventID, userID string) error {
 	return nil
 }
 
-// DeleteTeam deletes a team and revokes its keys and queues member notices.
+// DeleteTeam deletes a team and queues member notices; its members stop
+// editing its site.
 func (s *Service) DeleteTeam(ctx context.Context, eventID, slug string) error {
 	team, err := teamrepo.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 	if err != nil {
@@ -40,9 +42,6 @@ func (s *Service) DeleteTeam(ctx context.Context, eventID, slug string) error {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	defer tx.Rollback()
-	if _, err = teamrepo.DeleteTeamAPIKeys(ctx, tx, team.ID); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
-	}
 	if _, err = teamrepo.SetTeamRemovalNotices(ctx, tx, team.ID, team.Name+" was removed by the organiser."); err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
@@ -50,6 +49,9 @@ func (s *Service) DeleteTeam(ctx context.Context, eventID, slug string) error {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	if err = teamrepo.DeleteEventTeam(ctx, tx, team.ID); err != nil {
+		return &Error{Code: "internal", Message: err.Error()}
+	}
+	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
 		return &Error{Code: "internal", Message: err.Error()}
 	}
 	if err = tx.Commit(); err != nil {
@@ -85,6 +87,9 @@ func (s *Service) JoinTeam(ctx context.Context, eventID, userID, code string, ma
 	}
 	if st.Frozen() {
 		return team, &Error{Code: "submissions_closed"}
+	}
+	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
+		return team, internalError(err)
 	}
 	if err = tx.Commit(); err != nil {
 		return team, internalError(err)

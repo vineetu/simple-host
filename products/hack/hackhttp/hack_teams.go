@@ -19,7 +19,7 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	people, keyed, err := h.teamsSvc().ListPeople(r.Context(), a.event.ID)
+	people, err := h.teamsSvc().ListPeople(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -43,9 +43,6 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 		}
 		if p.TeamSlug.Valid {
 			item["team"] = map[string]any{"slug": p.TeamSlug.String, "name": p.TeamName.String}
-		}
-		if p.Role == "participant" {
-			item["has_key"] = keyed[p.UserID]
 		}
 		out = append(out, item)
 	}

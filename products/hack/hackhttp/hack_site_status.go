@@ -2,6 +2,9 @@ package hackhttp
 
 import (
 	"context"
+	"time"
+
+	accountapp "github.com/vsriram/simple-host/host/app/accounts"
 	"log"
 	"net/http"
 	"strings"
@@ -12,9 +15,8 @@ import (
 )
 
 // Guided publishing, for the Website screen's state strip and polling (build
-// plan §4.4, slice 3). GET only: the caller's own team, never leaked to
-// anyone else (never client ids, grant ids, devices or tokens -- security
-// point 4).
+// plan §4.4, slice 3). GET only: the caller's own team. The member publishes
+// with their own sign-in, naming owner (the event) on the site routes.
 
 func (h *HackHandler) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
@@ -26,15 +28,21 @@ func (h *HackHandler) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ctx := r.Context()
-	conn, err := h.connectionStatusJSON(ctx, a.event.ID, team, a.user.ID)
+	conn, err := h.connectionStatusJSON(ctx, a.user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"site":       h.siteStatusJSON(ctx, a.event, team),
-		"connection": conn,
+		"site":               h.siteStatusJSON(ctx, a.event, team),
+		"connection":         conn,
+		"team":               map[string]any{"slug": team.Slug, "name": team.Name},
+		"owner":              a.event.Slug,
+		"api_base":           h.publicBaseURL,
+		"mcp_url":            h.publicBaseURL + "/mcp",
+		"upload_limit_bytes": h.websiteUploadLimit(ctx, a.event),
+		"upload_limits":      h.websiteUploadLimits(ctx, a.event),
 	})
 }
 
@@ -79,37 +87,26 @@ func (h *HackHandler) siteStatusJSON(ctx context.Context, ev hackmodel.Event, te
 	return out
 }
 
-// connectionStatusJSON is the Website screen's "AI app" state: the caller's
-// own connector or key status, plus which other CURRENT teammates have this
-// team selected (names only -- never their app, client id or grant id;
-// security point 4). A member who left the team is not in people, so their
-// old grant is never counted even if it is still pointed at this team.
-func (h *HackHandler) connectionStatusJSON(ctx context.Context, eventID string, team hackmodel.EventTeam, callerID string) (map[string]any, error) {
-	status, err := h.teamsSvc().ConnectionStatus(ctx, eventID, team.ID, callerID, []string{h.publicBaseURL + "/mcp", h.publicBaseURL})
+// connectionStatusJSON is the Website screen's "AI app" state: whether the
+// caller has connected an app (names only, never client ids, grants or
+// devices). A connected app publishes the team's site as the person, naming
+// the event as owner.
+func (h *HackHandler) connectionStatusJSON(ctx context.Context, userID string) (map[string]any, error) {
+	conns, err := accountapp.ConnectedApps(ctx, h.database, userID)
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]any{"state": status.State, "app": nil, "apps": []string{}, "last_used_at": nil, "other_team": nil, "teammates_connected": status.Teammates}
-	if status.State == "connected" || status.State == "other_team" || status.State == "no_team" {
-		apps := []string{}
-		seen := map[string]bool{}
-		for _, name := range status.Apps {
-			name = httpx.CleanClientName(name)
-			if !seen[name] {
-				apps = append(apps, name)
-				seen[name] = true
-			}
-		}
-		out["apps"] = apps
-		if len(apps) > 0 {
-			out["app"] = apps[0]
+	out := map[string]any{"state": "none", "app": nil, "apps": []string{}, "last_used_at": nil, "teammates_connected": []string{}}
+	apps := []string{}
+	var last time.Time
+	for _, c := range conns {
+		apps = append(apps, httpx.CleanClientName(c.ClientName))
+		if c.LastUsedAt.After(last) {
+			last = c.LastUsedAt
 		}
 	}
-	if status.LastUsedAt != nil {
-		out["last_used_at"] = rfc3339Time(*status.LastUsedAt)
-	}
-	if status.OtherTeam != nil {
-		out["other_team"] = map[string]any{"event": status.OtherTeam.Event, "team": status.OtherTeam.Team}
+	if len(apps) > 0 {
+		out["state"], out["app"], out["apps"], out["last_used_at"] = "connected", apps[0], apps, rfc3339Time(last)
 	}
 	return out, nil
 }

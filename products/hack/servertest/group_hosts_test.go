@@ -70,10 +70,18 @@ func TestGroupHostsInstalledAfterBuild(t *testing.T) {
 	if w.Code != 200 || hosts.accounts == 0 {
 		t.Fatalf("REST host: %d, hook calls=%d %s", w.Code, hosts.accounts, w.Body.String())
 	}
+	var eventID string
+	if err := db.QueryRow(`SELECT id FROM events WHERE slug='group-wiring'`).Scan(&eventID); err != nil {
+		t.Fatal(err)
+	}
 	for n := 1; n <= 3; n++ {
-		body := fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"hack_publish_event_website","arguments":{"slug":"group-wiring","files":{"index.html":"version %d"}}}}`, n)
+		tool := "update_site"
+		if n == 1 {
+			tool = "create_site"
+		}
+		body := fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":%q,"arguments":{"site":%q,"owner":"group-wiring","files":{"index.html":"version %d"}}}}`, tool, eventID, n)
 		w = request("POST", cfg.SiteDomain, "/mcp", body)
-		if w.Code != 200 || strings.Contains(w.Body.String(), `"isError":true`) {
+		if w.Code != 200 || strings.Contains(w.Body.String(), `"isError":true`) || !strings.Contains(w.Body.String(), `"result"`) {
 			t.Fatalf("MCP publish: %d %s", w.Code, w.Body.String())
 		}
 		if n == 1 {
