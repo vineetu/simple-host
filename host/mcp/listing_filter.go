@@ -5,8 +5,8 @@ package mcp
 func (s *Server) showToolsAllowed(c Caller, uiCapable bool) map[string]bool {
 	allowed := map[string]bool{}
 	for _, entry := range s.inventory() {
-		if entry.policy.showAllowed != nil {
-			allowed[entry.tool.Name] = entry.policy.showAllowed(c, uiCapable)
+		if entry.tool.policy.showAllowed != nil {
+			allowed[entry.tool.Name] = entry.tool.policy.showAllowed(c, uiCapable)
 		}
 	}
 	return allowed

@@ -63,7 +63,7 @@ type notificationEngine struct {
 // returned: the workers and sweeper (which stop when the context passed to
 // StartNotifications is cancelled) and any emit still storing an event.
 // Tests call it before closing the database; the server does not.
-func (h *SiteHandler) WaitNotifications() { h.NotificationOwner().Wait() }
+func (h *DataHandler) WaitNotifications() { h.NotificationOwner().Wait() }
 
 // SetNotifyClientForTest swaps h's webhook-delivery client for a test
 // double trusting roots (a local httptest.TLS server's certificate pool)
@@ -73,8 +73,8 @@ func (h *SiteHandler) WaitNotifications() { h.NotificationOwner().Wait() }
 // notify_test.go's notificationFixture does in-package, but notifyClient
 // is unexported, so a cross-package caller cannot build or assign one
 // itself.
-func (h *SiteHandler) SetNotifyClientForTest(roots *x509.CertPool) {
-	h.notifyEngine().client = notifyClient{secrets: &h.passcode, allowLoopback: true, roots: roots}
+func (h *DataHandler) SetNotifyClientForTest(roots *x509.CertPool) {
+	h.notifyEngine().client = notifyClient{secrets: h.passcode, allowLoopback: true, roots: roots}
 	h.notifyEngine().perURL = httpx.NewRateLimiter(100000, 0)
 }
 
@@ -82,15 +82,15 @@ func (h *SiteHandler) SetNotifyClientForTest(roots *x509.CertPool) {
 // webhook deliveries are in flight right now. Test hook (cleanup 3.2 slice
 // 3): the moved hack_notifications_test.go polls this waiting for delivery
 // to finish, the same way notify_test.go's own tests do in-package.
-func (h *SiteHandler) PendingNotificationsForTest() int {
+func (h *DataHandler) PendingNotificationsForTest() int {
 	return len(h.notifyEngine().emitting)
 }
 
-func (h *SiteHandler) notifyEngine() *notificationEngine {
+func (h *DataHandler) notifyEngine() *notificationEngine {
 	h.notifyOnce.Do(func() {
 		l := h.limits
 		// A one-attempt URL burst keeps the first minute within the configured rate.
-		h.notifications = &notificationEngine{ownerConcurrency: l.NotifyOwnerConcurrency, client: notifyClient{secrets: &h.passcode, timeout: l.NotifyTimeout}, minute: httpx.NewRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: httpx.NewRateLimiter(float64(l.NotifyPerDay), float64(l.NotifyPerDay)/86400), challenge: httpx.NewRateLimiter(10, 10.0/60), wake: make(chan struct{}, l.NotifyWorkers), emitting: make(chan struct{}, 64), verifying: make(chan struct{}, 10), rest: httpx.NewRateLimiter(60, 1), perURL: httpx.NewRateLimiter(1, float64(l.NotifyPerURLPerMinute)/60), owners: make(map[string]int), pushSiteDay: httpx.NewRateLimiter(float64(l.NotifyPushPerSitePerDay), float64(l.NotifyPushPerSitePerDay)/86400), pushPersonDay: httpx.NewRateLimiter(float64(l.NotifyPushPerPersonPerDay), float64(l.NotifyPushPerPersonPerDay)/86400)}
+		h.notifications = &notificationEngine{ownerConcurrency: l.NotifyOwnerConcurrency, client: notifyClient{secrets: h.passcode, timeout: l.NotifyTimeout}, minute: httpx.NewRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: httpx.NewRateLimiter(float64(l.NotifyPerDay), float64(l.NotifyPerDay)/86400), challenge: httpx.NewRateLimiter(10, 10.0/60), wake: make(chan struct{}, l.NotifyWorkers), emitting: make(chan struct{}, 64), verifying: make(chan struct{}, 10), rest: httpx.NewRateLimiter(60, 1), perURL: httpx.NewRateLimiter(1, float64(l.NotifyPerURLPerMinute)/60), owners: make(map[string]int), pushSiteDay: httpx.NewRateLimiter(float64(l.NotifyPushPerSitePerDay), float64(l.NotifyPushPerSitePerDay)/86400), pushPersonDay: httpx.NewRateLimiter(float64(l.NotifyPushPerPersonPerDay), float64(l.NotifyPushPerPersonPerDay)/86400)}
 
 		e := h.notifications
 		e.stopped = make(chan struct{})
@@ -179,7 +179,7 @@ func (e *notificationEngine) emit(fn func(context.Context)) {
 
 // Called only after a storage write commits. Notification trouble must never
 // change the response to a successful visitor save.
-func (h *SiteHandler) emitNotification(c storageCall, name string, data map[string]any) {
+func (h *DataHandler) emitNotification(c storageCall, name string, data map[string]any) {
 	if c.owner {
 		// An owner write with no associated visitor row/key stays silent,
 		// exactly as before SIM-360 (webhook/mcp-event subscribers were
@@ -198,10 +198,10 @@ func (h *SiteHandler) emitNotification(c storageCall, name string, data map[stri
 		h.storeNotificationContext(ctx, c, name, data)
 	})
 }
-func (h *SiteHandler) storeNotification(c storageCall, name string, data map[string]any) {
+func (h *DataHandler) storeNotification(c storageCall, name string, data map[string]any) {
 	h.storeNotificationContext(context.Background(), c, name, data)
 }
-func (h *SiteHandler) storeNotificationContext(parent context.Context, c storageCall, name string, data map[string]any) {
+func (h *DataHandler) storeNotificationContext(parent context.Context, c storageCall, name string, data map[string]any) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	yes, err := h.notificationsSvc().HasNotificationsFor(ctx, c.siteID, name)
@@ -217,13 +217,13 @@ func (h *SiteHandler) storeNotificationContext(parent context.Context, c storage
 		log.Printf("notifications: site %s event cap reached, dropped=%d", c.siteID, e.dropped.Add(1))
 		return
 	}
-	site, err := h.sitesSvc().GetSiteByID(ctx, c.siteID)
+	site, err := h.site.sitesSvc().GetSiteByID(ctx, c.siteID)
 	if err != nil {
 		e.emits.Fail("load event site", err)
 		return
 	}
 	data["v"] = 1
-	siteName, siteURL, err := h.notificationSiteInfo(ctx, site)
+	siteName, siteURL, err := h.site.notificationSiteInfo(ctx, site)
 	if err != nil {
 		return
 	}
@@ -286,7 +286,7 @@ func (h *SiteHandler) storeNotificationContext(parent context.Context, c storage
 // and site_url. A visitor-bearing event about the site's owner (signed in
 // on their own site) is dropped, and dedupe > 0 drops a repeat of the same
 // event for the same visitor inside that window.
-func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
+func (h *DataHandler) emitSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
 	if h.ed.Notifications().EventScoped {
 		return
 	}
@@ -295,10 +295,10 @@ func (h *SiteHandler) emitSiteNotification(siteID, name string, data map[string]
 		h.storeSiteNotificationContext(ctx, siteID, name, data, dedupe)
 	})
 }
-func (h *SiteHandler) storeSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
+func (h *DataHandler) storeSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
 	h.storeSiteNotificationContext(context.Background(), siteID, name, data, dedupe)
 }
-func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteID, name string, data map[string]any, dedupe time.Duration) {
+func (h *DataHandler) storeSiteNotificationContext(parent context.Context, siteID, name string, data map[string]any, dedupe time.Duration) {
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 	yes, err := h.notificationsSvc().HasNotificationsFor(ctx, siteID, name)
@@ -309,7 +309,7 @@ func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteI
 	if !yes {
 		return
 	}
-	site, err := h.sitesSvc().GetSiteByID(ctx, siteID)
+	site, err := h.site.sitesSvc().GetSiteByID(ctx, siteID)
 	if err != nil {
 		h.notifyEngine().emits.Fail("load event site", err)
 		return
@@ -330,7 +330,7 @@ func (h *SiteHandler) storeSiteNotificationContext(parent context.Context, siteI
 		return
 	}
 	data["v"] = 1
-	siteName, siteURL, err := h.notificationSiteInfo(ctx, site)
+	siteName, siteURL, err := h.site.notificationSiteInfo(ctx, site)
 	if err != nil {
 		return
 	}
@@ -431,7 +431,7 @@ func notifyFields(raw json.RawMessage) map[string]any {
 // A web-push subscription gets an entirely different, much smaller payload
 // (pushPayload): the generic/configured title and body a push service and
 // a lock screen actually show, never the full event envelope.
-func (h *SiteHandler) notificationBody(ctx context.Context, n model.Notification, d model.NotificationDelivery, cursor int64) []byte {
+func (h *DataHandler) notificationBody(ctx context.Context, n model.Notification, d model.NotificationDelivery, cursor int64) []byte {
 	if n.Kind == "web-push" {
 		return h.pushPayload(ctx, n, d)
 	}
@@ -443,7 +443,7 @@ func (h *SiteHandler) notificationBody(ctx context.Context, n model.Notification
 			return nil
 		}
 		if id, ok := data["visitor"].(string); ok && id != "" {
-			ref, err := mcp.NewVisitorReferences(h.visitorRefKey()).Encode(n.SiteID, id)
+			ref, err := mcp.NewVisitorReferences(h.access.visitorRefKey()).Encode(n.SiteID, id)
 			if err != nil {
 				return nil
 			}
@@ -483,7 +483,7 @@ func notifyBody(d model.NotificationDelivery, cursor int64, bodyMax int) []byte 
 }
 
 type notificationOwner struct {
-	h *SiteHandler
+	h *DataHandler
 	*workers.Runner
 }
 
@@ -512,10 +512,10 @@ func (o *notificationOwner) Status() []workers.Status {
 	e.emits.SetPending(int64(len(e.emitting)))
 	return append(o.Runner.Status(), e.emitRunner.Status()...)
 }
-func (h *SiteHandler) NotificationOwner() workers.Owner {
+func (h *DataHandler) NotificationOwner() workers.Owner {
 	return &notificationOwner{h, h.notifyEngine().runner}
 }
-func (h *SiteHandler) StartNotifications(ctx context.Context) { h.NotificationOwner().Start(ctx) }
+func (h *DataHandler) StartNotifications(ctx context.Context) { h.NotificationOwner().Start(ctx) }
 func (o *notificationOwner) Start(ctx context.Context) {
 	h := o.h
 	e := h.notifyEngine()
@@ -575,45 +575,29 @@ func (o *notificationOwner) Start(ctx context.Context) {
 // hook (cleanup 3.2 slice 3): the moved hack_notifications_test.go drains
 // the delivery queue directly, the same way notify_test.go's own tests do
 // in-package.
-func (h *SiteHandler) DeliverNotificationForTest(ctx context.Context) bool {
+func (h *DataHandler) DeliverNotificationForTest(ctx context.Context) bool {
 	return h.deliverNotification(ctx)
 }
 
-func (h *SiteHandler) deliverNotification(ctx context.Context) bool {
+func (h *DataHandler) deliverNotification(ctx context.Context) bool {
 	return h.notificationsSvc().Deliver(ctx, h.ed, h.notificationDeliveryDeps())
 }
-func (h *SiteHandler) processNotification(ctx context.Context, d model.NotificationDelivery) bool {
+func (h *DataHandler) processNotification(ctx context.Context, d model.NotificationDelivery) bool {
 	return h.notificationsSvc().ProcessDelivery(ctx, d, h.ed, h.notificationDeliveryDeps())
 }
-func (h *SiteHandler) notifySuspension(ctx context.Context, n model.Notification) {
+func (h *DataHandler) notifySuspension(ctx context.Context, n model.Notification) {
 	mailer, ok := h.mailer.(noticeSender)
 	if ok {
 		h.notificationsSvc().NotifySuspension(ctx, n, mailer, h.notifyEngine().retention)
 	}
 }
 
-func (h *SiteHandler) sweepNotifications(ctx context.Context) {
+func (h *DataHandler) sweepNotifications(ctx context.Context) {
 	mailer, _ := h.mailer.(noticeSender)
 	h.notificationsSvc().SweepSuspensionEmails(ctx, h.limits.NotifyHistoryDays, mailer, h.notifyEngine().retention)
 }
 
-// Hack's organiser website uses an internal UUID for storage; delivery payloads
-// use the event slug and public address, as the website tools do.
-func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site model.Site) (string, string, error) {
-	if !h.ed.Notifications().EventScoped {
-		return site.Name, h.siteURLFor(site), nil
-	}
-	ev, err := h.groupByAccount(ctx, site.UserID)
-	if err != nil {
-		return "", "", err
-	}
-	if site.Name == ev.ID {
-		return ev.Slug, "https://" + ev.Slug + "." + h.siteDomain + "/", nil
-	}
-	return site.Name, h.TeamSiteURL(ev.Slug, site.Name), nil
-}
-
-func (h *SiteHandler) notificationPending(ctx context.Context) {
+func (h *DataHandler) notificationPending(ctx context.Context) {
 	t := h.notifyEngine().delivery
 	n, err := h.notificationsSvc().PendingNotificationDeliveries(ctx)
 	if err != nil {
@@ -623,14 +607,18 @@ func (h *SiteHandler) notificationPending(ctx context.Context) {
 	t.SetPending(n)
 }
 
-func (h *SiteHandler) notificationDeliveryDeps() notifications.DeliveryDeps {
+func (h *DataHandler) notificationDeliveryDeps() notifications.DeliveryDeps {
 	e := h.notifyEngine()
 	mailer, _ := h.mailer.(noticeSender)
-	return notifications.DeliveryDeps{Tracker: e.delivery, Retention: e.retention, Mailer: mailer, AcquireOwner: e.acquireOwner, ReleaseOwner: e.releaseOwner, AllowURL: e.perURL.Allow, Body: h.notificationBody, Pending: h.notificationPending, VisitorAllowed: h.visitorStillWelcome, Send: func(ctx context.Context, n model.Notification, id string, body []byte) notifications.DeliveryResult {
+	return notifications.DeliveryDeps{Tracker: e.delivery, Retention: e.retention, Mailer: mailer, AcquireOwner: e.acquireOwner, ReleaseOwner: e.releaseOwner, AllowURL: e.perURL.Allow, Body: h.notificationBody, Pending: h.notificationPending, VisitorAllowed: h.access.visitorStillWelcome, Send: func(ctx context.Context, n model.Notification, id string, body []byte) notifications.DeliveryResult {
 		if n.Kind == "web-push" {
 			return h.sendPush(ctx, n, body)
 		}
 		result := e.client.send(ctx, n, id, body)
 		return notifications.DeliveryResult{Delivered: result.Delivered, Status: result.Status, Result: result.Result}
 	}}
+}
+
+func (h *DataHandler) notificationsSvc() *notifications.Service {
+	return notifications.New(h.database, h.site.sitesSvc())
 }

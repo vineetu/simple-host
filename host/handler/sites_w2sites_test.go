@@ -247,7 +247,7 @@ func TestSiteOffline(t *testing.T) {
 	if err := a.sites.disk.SetOffline(oliveID, "store", false); err != nil {
 		t.Fatal(err)
 	}
-	a.sites.SyncSuspendMarkers(context.Background())
+	a.access.SyncSuspendMarkers(context.Background())
 	isOffline("store."+person, "/")
 
 	// Back online.

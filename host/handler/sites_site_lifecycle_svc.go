@@ -23,10 +23,10 @@ func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sit
 		HasLiveFamilies: h.hasLiveFamilies, SyncRedirect: h.syncDomainRedirect,
 		RequestCert: h.RequestSiteCert, CancelDomainCert: h.cancelDomainCert,
 		AdmitSQLite: func(ctx context.Context, siteID string, fn func(context.Context) error) error {
-			return h.siteSlotsFor().Admit(ctx, siteID, func(ctx context.Context, _ *appstorage.Admission) error { return fn(ctx) })
+			return h.data.siteSlotsFor().Admit(ctx, siteID, func(ctx context.Context, _ *appstorage.Admission) error { return fn(ctx) })
 		},
 		ExportResources: func(ctx context.Context, siteID string) ([]map[string]any, error) {
-			list, err := h.listStorageResourceRows(ctx, siteID)
+			list, err := h.data.listStorageResourceRows(ctx, siteID)
 			if err != nil {
 				return nil, err
 			}

@@ -381,7 +381,7 @@ func TestHackEntryIsolation(t *testing.T) {
 func TestHackEntryScreenshot(t *testing.T) {
 	w := newHackEntryWorld(t)
 	a := w.a
-	a.hack.shotWrites = httpx.NewRateLimiter(1000, 1000) // this test uploads many times in a row
+	a.hack.participation.shotWrites = httpx.NewRateLimiter(1000, 1000) // this test uploads many times in a row
 	path := w.entryPath() + "/screenshot"
 	if r := a.at(t, "PUT", w.entryPath(), map[string]string{"title": "Kept"}, a.key(w.p1)); r.status != 200 {
 		t.Fatalf("title: %d %s", r.status, r.body)

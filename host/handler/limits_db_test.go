@@ -162,6 +162,7 @@ func TestDomainFailingEmailFollowsSetting(t *testing.T) {
 	a := newPersonApp(t, "serve", edition.Default(l))
 	m := &noticeMailer{}
 	a.sites.mailer = m
+	a.access.mailer, a.data.mailer = a.sites.mailer, a.sites.mailer
 	olive := a.newPerson(t, "lapsing")
 	a.deploy(t, olive, "shop")
 	a.sites.emailDomainFailing(context.Background(), model.BoundDomain{SiteID: a.siteID(t, olive, "shop"), Domain: "shop.example.test"}, "shop", "")

@@ -71,13 +71,6 @@ func nullInt(n sql.NullInt64) any {
 	return n.Int64
 }
 
-func nullStr(s sql.NullString) any {
-	if !s.Valid {
-		return nil
-	}
-	return s.String
-}
-
 func prefixedEventColumns(alias string) string {
 	parts := strings.Split(strings.ReplaceAll(EventColumns, "\n", " "), ",")
 	out := make([]string, 0, len(parts))
@@ -97,12 +90,6 @@ func scanEventRole(rows *sql.Rows) (Event, string, error) {
 	dest := append(ScanEventFields(&e), &role)
 	err := rows.Scan(dest...)
 	return e, role, err
-}
-
-func scanMemberRow(rows *sql.Rows) (EventMember, error) {
-	var m EventMember
-	err := rows.Scan(&m.EventID, &m.UserID, &m.Role, &m.DisplayName, &m.TeamID, &m.CocAcceptedAt, &m.JoinedAt)
-	return m, err
 }
 
 // GetEventBySlug loads an event by its slug.

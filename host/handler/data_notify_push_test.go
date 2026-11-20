@@ -31,7 +31,7 @@ import (
 func webPushFixture(t *testing.T) storageTestSite {
 	t.Helper()
 	s, _ := notificationFixture(t)
-	s.a.sites.SetWebPushAccounts(nil, true)
+	s.a.data.SetWebPushAccounts(nil, true)
 	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
@@ -84,7 +84,7 @@ func TestWebPushFlagGate(t *testing.T) {
 	if r.status != 404 {
 		t.Fatalf("flag off: subscribe status %d", r.status)
 	}
-	s.a.sites.SetWebPushAccounts(nil, true)
+	s.a.data.SetWebPushAccounts(nil, true)
 	r = s.a.at(t, "GET", pcSiteDomain, "/v1/sites/shop/push/vapid-key", nil, s.key)
 	if r.status != 200 || r.json(t)["public_key"] == "" {
 		t.Fatalf("flag on: vapid-key status %d body %s", r.status, r.body)
@@ -115,10 +115,10 @@ func TestWebPushSubscribeScoping(t *testing.T) {
 		t.Fatalf("visitor site-wide subscribe: %d %s", r.status, r.body)
 	}
 	siteWideID := r.json(t)["id"].(string)
-	if n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), siteWideID); err != nil || n.SubscriberRole != "visitor" || n.Storage != "" {
+	if n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), siteWideID); err != nil || n.SubscriberRole != "visitor" || n.Storage != "" {
 		t.Fatalf("visitor site-wide device: %+v, err %v", n, err)
 	}
-	s.a.sites.notificationsSvc().DeleteNotification(context.Background(), siteWideID)
+	s.a.data.notificationsSvc().DeleteNotification(context.Background(), siteWideID)
 
 	// Visitor: names a resource, and asks for a site-level event the
 	// server must never honour for a visitor device -- it is silently
@@ -131,7 +131,7 @@ func TestWebPushSubscribeScoping(t *testing.T) {
 		t.Fatalf("visitor subscribe: %d %s", r.status, r.body)
 	}
 	aliceDeviceID := r.json(t)["id"].(string)
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), aliceDeviceID)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), aliceDeviceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,18 +250,18 @@ func TestWebPushUnregisteredDeletesSubscription(t *testing.T) {
 	defer gone.Close()
 	roots := x509.NewCertPool()
 	roots.AddCert(gone.Certificate())
-	s.a.sites.SetNotifyClientForTest(roots)
+	s.a.data.SetNotifyClientForTest(roots)
 
 	id := s.a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, gone.URL, ""), s.key).json(t)["id"].(string)
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := s.a.sites.sendPush(context.Background(), n, []byte(`{"title":"t","body":"b"}`))
+	result := s.a.data.sendPush(context.Background(), n, []byte(`{"title":"t","body":"b"}`))
 	if result.Delivered || result.Result != "unregistered" {
 		t.Fatalf("unexpected result: %+v", result)
 	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err == nil {
+	if _, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id); err == nil {
 		t.Fatal("subscription was not deleted on 410")
 	}
 }
@@ -286,15 +286,15 @@ func TestWebPushVAPIDAuthorizationHeader(t *testing.T) {
 	defer capture.Close()
 	roots := x509.NewCertPool()
 	roots.AddCert(capture.Certificate())
-	s.a.sites.SetNotifyClientForTest(roots)
+	s.a.data.SetNotifyClientForTest(roots)
 
 	id := s.a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, capture.URL, ""), s.key).json(t)["id"].(string)
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	title := "a secret order just came in"
-	result := s.a.sites.sendPush(context.Background(), n, []byte(`{"title":"`+title+`","body":"generic"}`))
+	result := s.a.data.sendPush(context.Background(), n, []byte(`{"title":"`+title+`","body":"generic"}`))
 	if !result.Delivered {
 		t.Fatalf("send failed: %+v", result)
 	}
@@ -307,7 +307,7 @@ func TestWebPushVAPIDAuthorizationHeader(t *testing.T) {
 	if !strings.HasPrefix(gotAuth, "vapid t=") {
 		t.Fatalf("Authorization header: %q", gotAuth)
 	}
-	pub, _, err := s.a.sites.vapidKeys(context.Background())
+	pub, _, err := s.a.data.vapidKeys(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +347,7 @@ func wirePushTestClient(t *testing.T, s storageTestSite, srv *httptest.Server) {
 	t.Helper()
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
-	s.a.sites.SetNotifyClientForTest(roots)
+	s.a.data.SetNotifyClientForTest(roots)
 }
 
 // TestWebPushDeliversThroughProcessDelivery is the HIGH-1 regression test:
@@ -376,7 +376,7 @@ func TestWebPushDeliversThroughProcessDelivery(t *testing.T) {
 	if atomic.LoadInt32(hits) != 1 {
 		t.Fatalf("push endpoint received %d requests, want 1 (device %s)", atomic.LoadInt32(hits), aliceDevice)
 	}
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), aliceDevice)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), aliceDevice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +444,7 @@ func TestWebPushOwnerOnSiteSubscribesSiteWide(t *testing.T) {
 		t.Fatalf("owner-on-site subscribe: %d %s", r.status, r.body)
 	}
 	id := r.json(t)["id"].(string)
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -469,11 +469,11 @@ func TestWebPushRejectsRedirect(t *testing.T) {
 	defer srv.Close()
 	wirePushTestClient(t, s, srv)
 	id := s.a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, srv.URL, ""), s.key).json(t)["id"].(string)
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := s.a.sites.sendPush(context.Background(), n, []byte(`{"title":"t","body":"b"}`))
+	result := s.a.data.sendPush(context.Background(), n, []byte(`{"title":"t","body":"b"}`))
 	if result.Delivered || result.Result != "redirect" {
 		t.Fatalf("unexpected result: %+v", result)
 	}
@@ -512,7 +512,7 @@ func TestWebPushConcurrentSubscribeDedupes(t *testing.T) {
 			t.Fatalf("concurrent subscribes produced different ids: %v", ids)
 		}
 	}
-	devices, err := s.a.sites.notificationsSvc().ListVisitorPushDevices(context.Background(), s.sid, s.aliceID)
+	devices, err := s.a.data.notificationsSvc().ListVisitorPushDevices(context.Background(), s.sid, s.aliceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +539,7 @@ func TestPushSWRouteReachableThroughSiteHostDispatch(t *testing.T) {
 	// Flag-independent: unlike subscribe, the worker file itself (and
 	// unsubscribe/mute) must stay reachable even with WEB_PUSH_ACCOUNTS
 	// off for the account, since revocation is never gated.
-	s.a.sites.SetWebPushAccounts(nil, false)
+	s.a.data.SetWebPushAccounts(nil, false)
 	if r := s.a.at(t, "GET", s.host, "/v1/push/sw.js", nil, nil); r.status != 200 {
 		t.Fatalf("GET with the flag off: %d %s", r.status, r.body)
 	}
@@ -557,7 +557,7 @@ func TestPushSWRouteReachableThroughSiteHostDispatch(t *testing.T) {
 // not just the queued-row check.
 func TestWebPushOwnerForReachesOnlyTargetVisitor(t *testing.T) {
 	s, x := notificationFixture(t)
-	s.a.sites.SetWebPushAccounts(nil, true)
+	s.a.data.SetWebPushAccounts(nil, true)
 	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
@@ -572,7 +572,7 @@ func TestWebPushOwnerForReachesOnlyTargetVisitor(t *testing.T) {
 	roots.AddCert(x.server.Certificate())
 	roots.AddCert(ownerSrv.Certificate())
 	roots.AddCert(aliceSrv.Certificate())
-	s.a.sites.SetNotifyClientForTest(roots)
+	s.a.data.SetNotifyClientForTest(roots)
 
 	s.a.at(t, "POST", pcSiteDomain, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, ownerSrv.URL, ""), s.key)
 	s.a.at(t, "POST", s.host, "/v1/sites/shop/push/subscribe", pushSubscribeBody(t, aliceSrv.URL, "orders"), s.callers["alice"])
@@ -658,7 +658,7 @@ func TestWebPushServiceLayerViewerRemovalCleansUpPush(t *testing.T) {
 	if err != nil || !removed {
 		t.Fatalf("RemoveSiteViewer: removed=%v err=%v", removed, err)
 	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err == nil {
+	if _, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id); err == nil {
 		t.Fatal("push subscription survived app/sites.RemoveSiteViewer called directly")
 	}
 }
@@ -706,10 +706,10 @@ func TestWebPushSignOutOnlyDeletesThatSessionsDevice(t *testing.T) {
 	if r := s.a.at(t, "POST", s.host, "/v1/visitor/logout", nil, caller1); r.status != 200 && r.status != 204 {
 		t.Fatalf("sign-out: %d %s", r.status, r.body)
 	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id1); err == nil {
+	if _, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id1); err == nil {
 		t.Fatal("session1's device survived its own sign-out")
 	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id2); err != nil {
+	if _, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id2); err != nil {
 		t.Fatalf("session2's device was deleted by session1's sign-out: %v", err)
 	}
 }
@@ -727,7 +727,7 @@ func TestWebPushSignOutOnlyDeletesThatSessionsDevice(t *testing.T) {
 // incorrectly notify the very device that made it.
 func TestWebPushOwnerOnSiteNeverPushesBackToOwner(t *testing.T) {
 	s, x := notificationFixture(t)
-	s.a.sites.SetWebPushAccounts(nil, true)
+	s.a.data.SetWebPushAccounts(nil, true)
 	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
@@ -817,7 +817,7 @@ func TestWebPushOwnerRemovesVisitorDevice(t *testing.T) {
 	if r := s.a.at(t, "DELETE", pcSiteDomain, "/v1/sites/shop/push/devices/"+id, nil, s.key); r.status != 200 || r.json(t)["deleted"] != true {
 		t.Fatalf("owner-authorized device delete: %d %s", r.status, r.body)
 	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err == nil {
+	if _, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id); err == nil {
 		t.Fatal("visitor's device survived the owner's delete")
 	}
 
@@ -912,7 +912,7 @@ func TestWebPushBodyValueFallsBackWhenSensitive(t *testing.T) {
 		m["fields"] = map[string]any{"notes": value}
 		raw, _ := json.Marshal(m)
 		d := model.NotificationDelivery{Name: "record.added", Data: raw}
-		out := s.a.sites.pushPayload(context.Background(), n, d)
+		out := s.a.data.pushPayload(context.Background(), n, d)
 		var payload map[string]any
 		if err := json.Unmarshal(out, &payload); err != nil {
 			t.Fatalf("payload decode: %v (%s)", err, out)
@@ -943,7 +943,7 @@ func TestWebPushBudgetsReserveBothOrNeither(t *testing.T) {
 	defer srv.Close()
 	wirePushTestClient(t, s, srv)
 
-	e := s.a.sites.notifyEngine()
+	e := s.a.data.notifyEngine()
 	e.pushSiteDay = httpx.NewRateLimiter(2, 0)
 	e.pushPersonDay = httpx.NewRateLimiter(1, 0)
 
@@ -953,13 +953,13 @@ func TestWebPushBudgetsReserveBothOrNeither(t *testing.T) {
 	}
 	body := []byte(`{"title":"t","body":"b"}`)
 
-	if r := s.a.sites.sendPush(context.Background(), notification("alice-budget"), body); !r.Delivered {
+	if r := s.a.data.sendPush(context.Background(), notification("alice-budget"), body); !r.Delivered {
 		t.Fatalf("alice's first send: %+v", r)
 	}
-	if r := s.a.sites.sendPush(context.Background(), notification("alice-budget"), body); r.Delivered || r.Result != "push_rate_limited" {
+	if r := s.a.data.sendPush(context.Background(), notification("alice-budget"), body); r.Delivered || r.Result != "push_rate_limited" {
 		t.Fatalf("alice's second send should be person-limited: %+v", r)
 	}
-	if r := s.a.sites.sendPush(context.Background(), notification("bob-budget"), body); !r.Delivered {
+	if r := s.a.data.sendPush(context.Background(), notification("bob-budget"), body); !r.Delivered {
 		t.Fatalf("bob's send starved by alice's failed attempt (site budget not refunded): %+v", r)
 	}
 	if got := atomic.LoadInt32(hits); got != 2 {
@@ -987,7 +987,7 @@ func TestNotifyMCPReplayExcludesOwnerWrite(t *testing.T) {
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
 
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	caller := mcp.Caller{Owner: s.ownerID, AppName: "Test app"}
 	req := mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret}
 	if _, err := backend.Subscribe(context.Background(), caller, req); err != nil {
@@ -1032,8 +1032,8 @@ func TestWebPushViewerRemovalDeletesSubscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.a.sites.deletePushForEmail(context.Background(), s.sid, aliceEmail)
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id); err == nil {
+	s.a.data.deletePushForEmail(context.Background(), s.sid, aliceEmail)
+	if _, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id); err == nil {
 		t.Fatal("push subscription survived viewer removal cleanup")
 	}
 }

@@ -23,31 +23,26 @@ import (
 // later and the organiser decides again, with no extra machinery to stop
 // it. The earlier "rejected can never leave" rule is superseded.
 
-func (h *HackHandler) registerLeave(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/leave", wrap(h.previewLeaveEvent))
-	mux.Handle("POST /v1/hack/events/{slug}/leave", wrap(h.postLeaveEvent))
-}
-
 // loadLeaveSelf is GetEventBySlug plus the caller's own membership row, for
 // GET/POST .../leave: any role, any approval status. Unlike loadMember
 // there is no admin bypass -- a platform admin who never joined gets 404
 // event_not_found like anyone else (build plan 2.1: "Do not use
 // loadMember(..., write=false): it synthesises organiser access for the
 // admin key").
-func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug string) (hackmodel.Event, hackmodel.EventMember, string, *model.User, bool) {
+func (h *participationHTTP) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug string) (hackmodel.Event, hackmodel.EventMember, string, *model.User, bool) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return hackmodel.Event{}, hackmodel.EventMember{}, "", nil, false
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
-	ev, err := h.membersSvc().LeaveEvent(r.Context(), slug)
+	ev, err := h.members.LeaveEvent(r.Context(), slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
 	var member hackmodel.EventMember
 	var status string
 	if err == nil {
-		member, status, err = h.membersSvc().LookupLeaveSelf(r.Context(), ev.ID, user.ID)
+		member, status, err = h.members.LookupLeaveSelf(r.Context(), ev.ID, user.ID)
 	}
 	if err == nil {
 		paperHackKnownMember(r, ev, user.ID)
@@ -65,12 +60,12 @@ func (h *HackHandler) loadLeaveSelf(w http.ResponseWriter, r *http.Request, slug
 
 // previewLeaveEvent is GET .../leave: read-only, every case, never errors
 // for a member beyond 404 (build plan 2.1).
-func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) previewLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	ev, member, approvalStatus, user, ok := h.loadLeaveSelf(w, r, r.PathValue("slug"))
 	if !ok {
 		return
 	}
-	preview, err := h.membersSvc().PreviewLeave(r.Context(), ev, member, approvalStatus, user.ID)
+	preview, err := h.members.PreviewLeave(r.Context(), ev, member, approvalStatus, user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -200,7 +195,7 @@ func (h *HackHandler) previewLeaveEvent(w http.ResponseWriter, r *http.Request) 
 // postLeaveEvent is POST .../leave: every write the build plan's section
 // 2.3 transaction describes, under the event/member/team lock order every
 // hack writer uses.
-func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return
@@ -225,10 +220,10 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev0, err := h.membersSvc().LeaveEvent(r.Context(), slug)
+	ev0, err := h.members.LeaveEvent(r.Context(), slug)
 	if err == nil {
 		paperHackEvent(r, ev0)
-		err = h.membersSvc().LookupLeaveMember(r.Context(), ev0.ID, user.ID)
+		err = h.members.LookupLeaveMember(r.Context(), ev0.ID, user.ID)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
@@ -240,7 +235,7 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	result, err := h.membersSvc().Leave(ctx, ev0, user.ID, req.Confirm, req.SuccessorUserID, req.Close)
+	result, err := h.members.Leave(ctx, ev0, user.ID, req.Confirm, req.SuccessorUserID, req.Close)
 	if err != nil {
 		writeHackError(w, err)
 		return

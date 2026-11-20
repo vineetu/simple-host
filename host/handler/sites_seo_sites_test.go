@@ -108,6 +108,7 @@ func TestPlatformSitemapNoProductQueries(t *testing.T) {
 	db, recorder := testdb.OpenRecording(os.Getenv("DB_DSN"))
 	t.Cleanup(func() { db.Close() })
 	a.sites.database = db
+	a.access.database, a.data.database = a.sites.database, a.sites.database
 	sites, err := a.sites.sitesSvc().ListSitemapSites(t.Context())
 	if err != nil || len(sites) == 0 {
 		t.Fatalf("platform sitemap: %d sites, %v", len(sites), err)
@@ -224,7 +225,7 @@ func TestHostedSitemapSites(t *testing.T) {
 	sid, sh := a.userID(t, suspended)
 	markReady(t, certDir, sh)
 	exec(`UPDATE users SET suspended_at=now() WHERE id=$1`, sid)
-	a.sites.SyncSuspendMarkers(t.Context())
+	a.access.SyncSuspendMarkers(t.Context())
 	// Disk-only restrictions can precede a database update; honour them too.
 	for name, marker := range map[string]string{"marker-lock": "passcode", "marker-off": "offline", "marker-down": "suspended"} {
 		write(name, marker, "")
@@ -294,8 +295,10 @@ func TestHostedSitemapSites(t *testing.T) {
 	// A warm HEAD uses only cached bytes, even if the database is unavailable.
 	savedDB := a.sites.database
 	a.sites.database = nil
+	a.access.database, a.data.database = a.sites.database, a.sites.database
 	head := read("HEAD")
 	a.sites.database = savedDB
+	a.access.database, a.data.database = a.sites.database, a.sites.database
 	if head.Code != 200 || head.Body.Len() != 0 {
 		t.Fatal("HEAD cache miss")
 	}

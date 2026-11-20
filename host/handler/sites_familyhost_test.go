@@ -611,10 +611,10 @@ func TestFamilyLifecycle(t *testing.T) {
 // rewrite (/internal/passcode on the family host) and the unlock there.
 func TestFamilyPasscode(t *testing.T) {
 	a, siteDir, famDir, dns := newFamilyApp(t)
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &a.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &a.sites.limitSet, &a.access.limitSet, &a.data.limitSet)
 	olive := a.newPerson(t, "olive")
 	a.deploy(t, olive, "meera")
 	_, oh := a.userID(t, olive)

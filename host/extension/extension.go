@@ -63,6 +63,7 @@ type Deps struct {
 	Mail      *email.ResendSender
 	Accounts  *accountapp.Service
 	Site      *handler.SiteHandler
+	Data      *handler.DataHandler
 	Connector *handler.ConnectorHandler
 	AuthMW    func(http.Handler) http.Handler
 	Mux       *http.ServeMux

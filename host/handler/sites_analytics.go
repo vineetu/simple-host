@@ -8,7 +8,6 @@ import (
 
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/model"
-	operations "github.com/vsriram/simple-host/host/ops"
 )
 
 // getSiteAnalytics serves GET /v1/sites/{sitename}/analytics?days=30[&owner=<handle>]
@@ -40,11 +39,6 @@ func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, stats)
 }
-
-// countryStat is one row of the geo endpoint. The display name is resolved on
-// the way out rather than stored, so refreshing the IP dataset never means
-// rewriting aggregates.
-type countryStat = operations.CountryStat
 
 // getSiteGeoAnalytics serves GET /v1/sites/{sitename}/analytics/geo?days=30
 // Owner-scoped like getSiteAnalytics. Countries come back ordered by real
@@ -184,5 +178,3 @@ func (h *SiteHandler) getAnalyticsSummary(w http.ResponseWriter, r *http.Request
 		"sites":      summary,
 	})
 }
-
-func (h *SiteHandler) SetOperationsReporting(s *operations.Reporting) { h.reporting = s }

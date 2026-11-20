@@ -8,23 +8,12 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) registerRegistration(mux *http.ServeMux, wrap, optional func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/registration", wrap(h.getRegistration))
-	mux.Handle("PUT /v1/hack/events/{slug}/registration", wrap(h.putRegistration))
-	mux.Handle("GET /v1/hack/events/{slug}/applications", wrap(h.getApplications))
-	mux.Handle("POST /v1/hack/events/{slug}/applications/{user_id}/decision", wrap(h.decideApplication))
-	mux.Handle("GET /v1/hack/events/{slug}/tracks", wrap(h.getTracks))
-	mux.Handle("PUT /v1/hack/events/{slug}/tracks", wrap(h.putTracks))
-	mux.Handle("PUT /v1/hack/events/{slug}/team/track", wrap(h.chooseTrack))
-	mux.Handle("GET /v1/hack/events/{slug}/apply", optional(h.getApply))
-	mux.Handle("POST /v1/hack/events/{slug}/apply", wrap(h.postApply))
-}
-func (h *HackHandler) getRegistration(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getRegistration(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	q, approval, err := h.membersSvc().Registration(r.Context(), a.event.ID)
+	q, approval, err := h.members.Registration(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -33,7 +22,7 @@ func (h *HackHandler) getRegistration(w http.ResponseWriter, r *http.Request) {
 	// summary); it is changed from Settings (PATCH .../events/{slug}).
 	httpx.WriteJSON(w, 200, map[string]any{"questions": q, "approval_required": approval, "applications_open": a.event.ApplicationsOpen})
 }
-func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) putRegistration(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.administrationWrite(w, r)
 	if !ok {
 		return
@@ -46,30 +35,30 @@ func (h *HackHandler) putRegistration(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	questions, err := h.membersSvc().ValidateQuestions(req.Questions)
+	questions, err := h.members.ValidateQuestions(req.Questions)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	if err := h.membersSvc().SetRegistration(r.Context(), a.event.ID, a.user.ID, questions, req.ApprovalRequired, req.AdmitPending); err != nil {
+	if err := h.members.SetRegistration(r.Context(), a.event.ID, a.user.ID, questions, req.ApprovalRequired, req.AdmitPending); err != nil {
 		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"questions": questions, "approval_required": req.ApprovalRequired})
 }
-func (h *HackHandler) getApplications(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getApplications(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	list, err := h.membersSvc().Applications(r.Context(), a.event.ID)
+	list, err := h.members.Applications(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, 200, list)
 }
-func (h *HackHandler) decideApplication(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) decideApplication(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.administrationWrite(w, r)
 	if !ok {
 		return
@@ -85,29 +74,29 @@ func (h *HackHandler) decideApplication(w http.ResponseWriter, r *http.Request) 
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	if err := h.membersSvc().ValidateDecision(req.Decision); err != nil {
+	if err := h.members.ValidateDecision(req.Decision); err != nil {
 		writeHackError(w, err)
 		return
 	}
-	if err := h.membersSvc().DecideApplication(r.Context(), a.event.ID, id, a.user.ID, req.Decision); err != nil {
+	if err := h.members.DecideApplication(r.Context(), a.event.ID, id, a.user.ID, req.Decision); err != nil {
 		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"user_id": id, "status": req.Decision})
 }
-func (h *HackHandler) getTracks(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getTracks(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
 	if !ok {
 		return
 	}
-	tracks, err := h.membersSvc().Tracks(r.Context(), a.event.ID)
+	tracks, err := h.members.Tracks(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
 	httpx.WriteJSON(w, 200, tracks)
 }
-func (h *HackHandler) putTracks(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) putTracks(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.administrationWrite(w, r)
 	if !ok {
 		return
@@ -118,19 +107,19 @@ func (h *HackHandler) putTracks(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	tracks, err := h.membersSvc().ValidateTracks(req.Tracks)
+	tracks, err := h.members.ValidateTracks(req.Tracks)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	out, err := h.membersSvc().SetTracks(r.Context(), a.event.ID, tracks)
+	out, err := h.members.SetTracks(r.Context(), a.event.ID, tracks)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, out)
 }
-func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) chooseTrack(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {
 		return
@@ -145,13 +134,13 @@ func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
 	var team model.EventTeam
 	if a.member.Role == "organiser" {
 		var err error
-		team, err = h.teamsSvc().TeamBySlug(r.Context(), a.event.ID, req.Team)
+		team, err = h.teams.TeamBySlug(r.Context(), a.event.ID, req.Team)
 		if err != nil {
 			httpx.WriteError(w, 404, "team_not_found", "team not found")
 			return
 		}
 	} else {
-		if err := h.membersSvc().ValidateTrackStage(a.event.Stage); err != nil {
+		if err := h.members.ValidateTrackStage(a.event.Stage); err != nil {
 			writeHackError(w, err)
 			return
 		}
@@ -160,12 +149,12 @@ func (h *HackHandler) chooseTrack(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	slug, err := h.membersSvc().ValidateTrackChoice(req.Track)
+	slug, err := h.members.ValidateTrackChoice(req.Track)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	track, err := h.membersSvc().ChooseTrack(r.Context(), a.event.ID, team.ID, slug, a.member.Role == "organiser")
+	track, err := h.members.ChooseTrack(r.Context(), a.event.ID, team.ID, slug, a.member.Role == "organiser")
 	if err != nil {
 		writeHackError(w, err)
 		return

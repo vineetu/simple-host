@@ -161,7 +161,7 @@ func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 	s := newSecurityShop(t)
 	lim := config.DefaultLimits()
 	lim.StorageFileObjects = 2
-	s.a.sites.limitSet = newLimitSet(lim)
+	s.a.data.limitSet = newLimitSet(lim)
 	s.resource(t, "files", "files", "own", "signed-in", "add")
 	s.resource(t, "public", "files", "anyone", "anyone", "full")
 	s.resource(t, "kv", "kv", "own", "signed-in", "add")
@@ -170,7 +170,7 @@ func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 	s.call(t, "PUT", p+"b", "x", s.bob, 200)
 	s.call(t, "PUT", p+"c", "", s.alice, 507)
 	c := storageCall{ownerID: s.ownerID, siteName: "shop", resourceName: "files"}
-	blocked := filepath.Join(s.a.sites.storageFilesDir(c), "other-private")
+	blocked := filepath.Join(s.a.data.storageFilesDir(c), "other-private")
 	if err := os.MkdirAll(blocked, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestStorageSecurityFileObjectsListingsAndUnicode(t *testing.T) {
 	// Both public walks and metadata-backed own lists omit temporary objects.
 	for _, name := range []string{"files", "public"} {
 		c.resourceName = name
-		dir := s.a.sites.storageFilesDir(c)
+		dir := s.a.data.storageFilesDir(c)
 		os.MkdirAll(dir, 0700)
 		if err := os.WriteFile(filepath.Join(dir, ".upload-secret"), []byte("secret bytes"), 0600); err != nil {
 			t.Fatal(err)
@@ -245,7 +245,7 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "1000000")
 	// Exercise the actual save statement with concurrent independent connections,
 	// deliberately without lockSite or the existence preflight.
-	c := storageKVFixtureCall(t, s.a.sites, s.siteID, "kv")
+	c := storageKVFixtureCall(t, s.a.data, s.siteID, "kv")
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -258,7 +258,7 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 			<-start
 			cc := c
 			cc.visitorID = fmt.Sprintf("writer-%d", i)
-			inserted, err := insertStorageKVRace(t, s.a.sites, cc, "race", fmt.Sprint(i), cc.visitorID)
+			inserted, err := insertStorageKVRace(t, s.a.data, cc, "race", fmt.Sprint(i), cc.visitorID)
 			if err != nil {
 				t.Error(err)
 				return
@@ -276,8 +276,8 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	if wins != 1 {
 		t.Fatalf("%d concurrent creators succeeded", wins)
 	}
-	writer := readStorageKVAuthor(t, s.a.sites, s.siteID, "kv", "race")
-	value := readStorageKVValue(t, s.a.sites, c, "race")
+	writer := readStorageKVAuthor(t, s.a.data, s.siteID, "kv", "race")
+	value := readStorageKVValue(t, s.a.data, c, "race")
 	if writer != winner || writer != "writer-"+value {
 		t.Fatalf("overwritten creator: %s/%s vs %s", writer, value, winner)
 	}
@@ -285,9 +285,9 @@ func TestStorageSecurityKVKeyQuotaAndConcurrentCreate(t *testing.T) {
 	s.call(t, "PUT", "/resources/kv", storageRules("kv", rulesSignedInWrite), s.key, 200)
 	s.call(t, "PUT", "/kv/kv/keys/key", `{"value":2}`, s.bob, 200)
 	var before, after string
-	before = readStorageKVAuthor(t, s.a.sites, s.siteID, "kv", "key")
+	before = readStorageKVAuthor(t, s.a.data, s.siteID, "kv", "key")
 	s.call(t, "PUT", "/kv/kv/keys/key", `{"value":3}`, s.key, 200)
-	after = readStorageKVAuthor(t, s.a.sites, s.siteID, "kv", "key")
+	after = readStorageKVAuthor(t, s.a.data, s.siteID, "kv", "key")
 	if before == "" || before != after {
 		t.Fatal("writer attribution not preserved for owner")
 	}
@@ -299,8 +299,8 @@ func TestStorageSecurityVisitorRateLimits(t *testing.T) {
 	s.resource(t, "files", "files", "anyone", "anyone", "add")
 	s.resource(t, "db", "sqlite", "own", "signed-in", "add")
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")
-	s.a.sites.storageVisitorLimiter = httpx.NewRateLimiter(1, 0)
-	s.a.sites.storageIPLimiter = httpx.NewRateLimiter(100, 0)
+	s.a.data.storageVisitorLimiter = httpx.NewRateLimiter(1, 0)
+	s.a.data.storageIPLimiter = httpx.NewRateLimiter(100, 0)
 	s.call(t, "PUT", "/kv/kv/keys/a", `{"value":1}`, s.alice, 200)
 	s.call(t, "PUT", "/files/files/objects/a", "x", s.alice, 429)
 	s.add(t, "orders", `{"item":"x"}`, s.alice, 429)
@@ -309,7 +309,7 @@ func TestStorageSecurityVisitorRateLimits(t *testing.T) {
 	}
 	s.call(t, "PUT", "/kv/kv/keys/b", `{"value":1}`, s.bob, 200)
 	s.call(t, "PUT", "/kv/kv/keys/c", `{"value":1}`, s.key, 200)
-	s.a.sites.storageIPLimiter = httpx.NewRateLimiter(1, 0)
+	s.a.data.storageIPLimiter = httpx.NewRateLimiter(1, 0)
 	s.call(t, "PUT", "/kv/kv/keys/d", `{"value":1}`, browser(s.host, ""), 200)
 	s.call(t, "PUT", "/files/files/objects/d", "x", browser(s.host, ""), 429)
 	s.call(t, "GET", "/files/files/objects", nil, nil, 200)

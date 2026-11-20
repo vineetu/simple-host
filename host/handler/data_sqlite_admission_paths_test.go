@@ -39,7 +39,7 @@ func TestExportWaitsForOwnerQueryAdmission(t *testing.T) {
 	s := newStorageTestSite(t)
 	s.must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite"}, s.key, 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}, s.key, 200)
-	h := s.a.sites
+	h := s.a.data
 	resource, err := h.loadStorageResource(context.Background(), s.sid, "data")
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestExportWaitsForOwnerQueryAdmission(t *testing.T) {
 	catalog := make(chan struct{})
 	exported := false
 	go func() {
-		for entry, err := range h.lifecycleSvc().Export(context.Background(), appsites.ExportInput{SiteID: s.sid, Prefix: "shop", Files: runtime.FileVersion{UserID: s.ownerID, SiteName: "shop"}}) {
+		for entry, err := range h.site.lifecycleSvc().Export(context.Background(), appsites.ExportInput{SiteID: s.sid, Prefix: "shop", Files: runtime.FileVersion{UserID: s.ownerID, SiteName: "shop"}}) {
 			if err != nil {
 				exportDone <- err
 				return
@@ -121,7 +121,7 @@ func TestPeopleSkipsBusySQLiteResource(t *testing.T) {
 	if list := s.must(t, "GET", "/people", nil, s.key, 200).json(t)["people"].([]any); len(list) != 1 {
 		t.Fatalf("seeded people=%v", list)
 	}
-	h := s.a.sites
+	h := s.a.data
 	h.sqliteSites = appstorage.NewSiteSlots(1, h.sqliteGateFor(), 20*time.Millisecond)
 	entered, release := make(chan struct{}), make(chan struct{})
 	done := make(chan error, 1)

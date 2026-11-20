@@ -61,9 +61,8 @@ func TestSiteNotFoundCarriesAHint(t *testing.T) {
 	}{
 		{"JSON deploy", "PUT", "/v1/sites/ghost/files", files, "not_found",
 			"site not found: create it with POST, or add ?create=1 to this PUT to create it when missing",
-			[]string{"No site named ghost on your account.", "PUT /v1/sites/ghost/files?create=1", "POST /v1/sites/ghost/files."}},
-		{"versions", "GET", "/v1/sites/ghost/versions", nil, "site_not_found", "site not found",
-			[]string{"No site named ghost on your account.", "GET /v1/sites"}},
+			[]string{"PUT /v1/sites/ghost/files?create=1", "POST /v1/sites/ghost/files"}},
+		{"versions", "GET", "/v1/sites/ghost/versions", nil, "site_not_found", "site not found", []string{"GET /v1/sites"}},
 		{"version files", "GET", "/v1/sites/ghost/versions/1/files", nil, "site_not_found", "site not found", []string{"GET /v1/sites"}},
 		{"rollback", "PUT", "/v1/sites/ghost/active-version", map[string]int{"version_number": 1}, "site_not_found", "site not found", []string{"GET /v1/sites"}},
 	}

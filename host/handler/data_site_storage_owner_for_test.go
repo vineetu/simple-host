@@ -154,8 +154,8 @@ func TestStorageOwnerForDoesNotNotify(t *testing.T) {
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
 	ctx, cancel := context.WithCancel(context.Background())
-	s.a.sites.StartNotifications(ctx)
-	t.Cleanup(func() { cancel(); s.a.sites.WaitNotifications() })
+	s.a.data.StartNotifications(ctx)
+	t.Cleanup(func() { cancel(); s.a.data.WaitNotifications() })
 
 	rows := "/sqlite/orders/tables/orders/rows"
 	// Owner adds for alice, by API key: never notified (c.Owner already
@@ -253,7 +253,7 @@ func TestStoragePeoplePickList(t *testing.T) {
 // provider is installed.
 func TestStorageOwnerForGroupRefused(t *testing.T) {
 	s := newStorageTestSite(t)
-	s.a.sites.SetStorageBindings(&ownerBindingFixture{})
+	s.a.data.SetStorageBindings(&ownerBindingFixture{})
 	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesRecords), s.key, 201)
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE entries (id INTEGER PRIMARY KEY, note TEXT)"}, s.key, 200)
 	if r := s.must(t, "POST", "/sqlite/orders/tables/entries/rows?for="+s.aliceID, map[string]string{"note": "nope"}, s.key, 404); r.json(t)["code"] != "for_not_available" {

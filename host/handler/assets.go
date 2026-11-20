@@ -9,14 +9,13 @@ import (
 	"weak"
 
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/httpx"
 )
 
 // assetPipeline is everything the static asset and chrome pipeline reads that
 // depends on the product or the instance: which product's assets and copy it
 // serves, the hack chrome, the hack instance's own address, and the cache of
 // swapped embedded files. A SiteHandler owns one (h.assets), built from its
-// Edition in NewSiteHandler; the pipeline's methods read only these fields.
+// Edition in NewSiteHandlers; the pipeline's methods read only these fields.
 // Every field below is set once, in newAssetPipeline, and never changed: the
 // pipeline is immutable after construction.
 //
@@ -163,7 +162,7 @@ func NewPages(ed *edition.Edition, instanceURL string) *assetPipeline {
 // rewriting handler rather than the plain file server.
 func (p *assetPipeline) rewritten() bool { return instanceHosts != nil || p.limitsText != nil }
 
-// pipeline is h's asset pipeline. NewSiteHandler builds it; a bare
+// pipeline is h's asset pipeline. NewSiteHandlers builds it; a bare
 // &SiteHandler{} (tests) gets one for its edition on first use.
 func (h *SiteHandler) pipeline() *assetPipeline {
 	h.assetsOnce.Do(func() {
@@ -193,33 +192,14 @@ func (h *SiteHandler) DiskForTest() interface {
 	return h.disk
 }
 
-// SetEmailLimiterForTest, SetVisitorAuthLimiterForTest and
-// SetStorageIPLimiterForTest lift h's own rate limits for a test fixture
-// that sends many requests quickly (an opt-in browser-proof rehearsal, not
-// an automated test). Test hooks (cleanup 3.2 slice 3): the moved
-// Hack browser tests assigned emailLimiter/visitorAuthLimiter/
-// storageIPLimiter directly before the move; all three are unexported
-// fields of the handler-local *httpx.RateLimiter type, which a cross-package
-// caller can neither name nor build, so each hook takes the same
-// (capacity, perSecond) pair newRateLimiter itself does.
-func (h *SiteHandler) SetEmailLimiterForTest(capacity, perSecond float64) {
-	h.emailLimiter = httpx.NewRateLimiter(capacity, perSecond)
-}
-
-func (h *SiteHandler) SetVisitorAuthLimiterForTest(capacity, perSecond float64) {
-	h.visitorAuthLimiter = httpx.NewRateLimiter(capacity, perSecond)
-}
-
-func (h *SiteHandler) SetStorageIPLimiterForTest(capacity, perSecond float64) {
-	h.storageIPLimiter = httpx.NewRateLimiter(capacity, perSecond)
-}
-
 // SetEditionForTest swaps h's edition after construction. Test hook
 // (cleanup 3.2 slice 3): the moved hack_tls_test.go rebuilds a *SiteHandler
 // as the ordinary Host edition partway through, to check that an
 // unrecognised platform name still falls back to the small-box product's
 // existing allowlist; ed is an unexported field.
-func (h *SiteHandler) SetEditionForTest(ed *edition.Edition) { h.ed = ed }
+func (h *SiteHandler) SetEditionForTest(ed *edition.Edition) {
+	h.ed, h.access.ed, h.data.ed = ed, ed, ed
+}
 
 // staticFS is the embedded tree as this pipeline serves it.
 func (p *assetPipeline) staticFS() baseTextFS {

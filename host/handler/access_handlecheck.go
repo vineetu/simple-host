@@ -24,8 +24,6 @@ type handleVerdict = accounts.HandleVerdict
 // or the bare handle on an instance without a platform domain.
 func handleAddress(handle string) string { return accounts.HandleAddress(handle) }
 
-const handleFormatMsg = "Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen."
-
 // JudgeHandle checks the shape, the reserved names and who holds it. userID
 // is the asking account ("" for a new one): its own handle and old handles
 // count as its own. A claim still decides under the namespace lock; this is

@@ -47,7 +47,7 @@ func TestVisitorDiscoveryOmitsPrivateResources(t *testing.T) {
 	}
 	check()
 	// An inaccessible database must not even be opened during discovery.
-	path := f.a.sites.storageSQLPath(storageCall{ownerID: f.ownerID, siteName: "shop", resourceName: "secretdb"})
+	path := f.a.data.storageSQLPath(storageCall{ownerID: f.ownerID, siteName: "shop", resourceName: "secretdb"})
 	if err := os.WriteFile(path, []byte("not a SQLite database"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -188,10 +188,10 @@ func TestVisitorSchemaKeepsIdentityColumnNames(t *testing.T) {
 
 func TestVisitorPasscodeExemptResources(t *testing.T) {
 	f := newVisitorFixture(t)
-	if err := f.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := f.a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &f.a.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &f.a.sites.limitSet, &f.a.access.limitSet, &f.a.data.limitSet)
 	for _, kind := range []string{"kv", "sqlite"} {
 		f.must(t, "PUT", "/resources/"+kind, `{"kind":"`+kind+`","site_passcode":"off","rules":`+rulesPersonal+`}`, f.key, 201)
 	}
@@ -226,7 +226,7 @@ func TestVisitorNumbersRemainExact(t *testing.T) {
 	f := newVisitorFixture(t)
 	f.must(t, "PUT", "/resources/numbers", storageRules("kv", rulesPublic), f.key, 201)
 	const exact = "9007199254740993"
-	seedStorageKV(t, f.a.sites, f.sid, "numbers", "big", `{"nested":[`+exact+`]}`, "")
+	seedStorageKV(t, f.a.data, f.sid, "numbers", "big", `{"nested":[`+exact+`]}`, "")
 	response := f.a.rpc(t, f.token, "tools/call", map[string]any{"name": "visitor_read_site", "arguments": f.args("kv", "numbers")})
 	text, _, bad := toolResultOf(t, response)
 	if bad || !strings.Contains(text, exact) {

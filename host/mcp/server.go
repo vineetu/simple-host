@@ -19,12 +19,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"reflect"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -288,7 +285,7 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 			byName = copied
 			if !flatListApp(caller.AppName) {
 				for _, entry := range s.registry.entries {
-					if !entry.policy.listWithPasscode {
+					if !entry.tool.policy.listWithPasscode {
 						continue
 					}
 					tool, ok := byName[entry.tool.Name]
@@ -394,11 +391,7 @@ func productInstanceTools(tools []Tool, apiHost string, rewrite func(string, str
 	}
 	out := make([]Tool, len(tools))
 	for i, t := range tools {
-		t.Title = rewrite(t.Title, apiHost)
-		t.Description = rewrite(t.Description, apiHost)
-		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return rewrite(s, apiHost) })
-		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return rewrite(s, apiHost) })
-		out[i] = t
+		out[i] = productInstanceTool(t, apiHost, rewrite)
 	}
 	return out
 }
@@ -409,13 +402,17 @@ func productInstanceToolMap(m map[string]Tool, apiHost string, rewrite func(stri
 	}
 	out := make(map[string]Tool, len(m))
 	for name, t := range m {
-		t.Title = rewrite(t.Title, apiHost)
-		t.Description = rewrite(t.Description, apiHost)
-		t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return rewrite(s, apiHost) })
-		t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return rewrite(s, apiHost) })
-		out[name] = t
+		out[name] = productInstanceTool(t, apiHost, rewrite)
 	}
 	return out
+}
+
+func productInstanceTool(t Tool, apiHost string, rewrite func(string, string) string) Tool {
+	t.Title = rewrite(t.Title, apiHost)
+	t.Description = rewrite(t.Description, apiHost)
+	t.InputSchema = mapSchema(t.InputSchema, func(s string) string { return rewrite(s, apiHost) })
+	t.OutputSchema = mapSchema(t.OutputSchema, func(s string) string { return rewrite(s, apiHost) })
+	return t
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -600,33 +597,6 @@ func (s *Server) validate(r *http.Request, req request) (int, *rpcError) {
 	return http.StatusOK, nil
 }
 
-func (s *Server) parseCallParams(raw json.RawMessage) (callParams, error) {
-	var params callParams
-	if len(raw) == 0 {
-		return params, nil
-	}
-	var envelope struct {
-		Name      string                     `json:"name"`
-		Arguments map[string]json.RawMessage `json:"arguments"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return params, err
-	}
-	name := envelope.Name
-	if s.policy(name).unwrap {
-		_ = json.Unmarshal(envelope.Arguments["name"], &name)
-	}
-	if s.policy(name).preserveNumbers {
-		// Preserve entry values and IDs in both direct and wrapped calls.
-		dec := json.NewDecoder(bytes.NewReader(raw))
-		dec.UseNumber()
-		err := dec.Decode(&params)
-		return params, err
-	}
-	err := json.Unmarshal(raw, &params)
-	return params, err
-}
-
 func hasClientCapabilities(params json.RawMessage) bool {
 	if len(params) == 0 {
 		return false
@@ -707,9 +677,7 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		payload := map[string]any{"resources": append(s.appResources(caller), s.productAppResources(caller, productResourceAllowed)...)}
 		if modern && (len(s.enabledScreens(caller)) > 0 || (productResourceAllowed && len(s.productScreens(caller)) > 0)) {
-			payload["resultType"] = "complete"
-			payload["ttlMs"] = cacheTTLMillis
-			payload["cacheScope"] = "private"
+			markCached(payload)
 		}
 		return result(req.ID, payload)
 	case "resources/read":
@@ -724,18 +692,14 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 		}
 		if modern && reply.Error == nil {
 			payload := reply.Result.(map[string]any)
-			payload["resultType"] = "complete"
-			payload["ttlMs"] = cacheTTLMillis
-			payload["cacheScope"] = "private"
+			markCached(payload)
 		}
 		return reply
 	case "resources/templates/list":
 		productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
 		payload := map[string]any{"resourceTemplates": []any{}}
 		if modern && (len(s.enabledScreens(caller)) > 0 || (productResourceAllowed && len(s.productScreens(caller)) > 0)) {
-			payload["resultType"] = "complete"
-			payload["ttlMs"] = cacheTTLMillis
-			payload["cacheScope"] = "private"
+			markCached(payload)
 		}
 		return result(req.ID, payload)
 	case "prompts/list":
@@ -752,322 +716,14 @@ func (s *Server) dispatch(r *http.Request, req request, caller Caller) response 
 // cacheTTLMillis is how long a client may reuse a discovery or tool listing.
 const cacheTTLMillis = 300000
 
+// markCached marks a modern answer complete and privately reusable.
+func markCached(payload map[string]any) {
+	payload["resultType"], payload["ttlMs"], payload["cacheScope"] = "complete", cacheTTLMillis, "private"
+}
+
 func (s *Server) withMeta(payload map[string]any) map[string]any {
 	payload["_meta"] = map[string]any{"io.modelcontextprotocol/serverInfo": s.serverInfo()}
 	return payload
-}
-
-type callParams struct {
-	Meta      map[string]json.RawMessage `json:"_meta"`
-	Name      string                     `json:"name"`
-	Arguments map[string]any             `json:"arguments"`
-}
-
-func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bool) (reply response) {
-	params, err := s.parseCallParams(req.Params)
-	if err != nil {
-		return failure(req.ID, codeInvalidParams, "params could not be read", nil)
-	}
-	_, _, byName := s.forCaller(caller)
-	started := time.Now()
-	secretValues := analyticsSecretValues(s.policy(params.Name), params.Arguments, s.policy)
-	eventName := params.Name
-	intent, _ := takeAnalyticsContext(byName[params.Name], params.Arguments)
-	var recorded bool
-	var runError error
-	var completed time.Time
-	var parameters any
-	record := func(err error) {
-		recorded, runError, completed = true, err, time.Now()
-	}
-	defer func() {
-		if s.analytics != nil && recorded {
-			if s.policy(eventName).analytics.redactAll {
-				intent = "[removed]"
-			}
-			if parameters == nil {
-				parameters = analyticsParametersForPolicy(s.policy(eventName), params.Arguments)
-			}
-			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, runError,
-				redactAnalyticsSecrets(parameters, secretValues), redactAnalyticsSecrets(analyticsResponseForPolicy(s.policy(eventName), reply.Result), secretValues), capAnalyticsIntent(redactAnalyticsSecrets(intent, secretValues).(string)))
-		}
-	}()
-	// Unwrap before lookup so direct and wrapped calls share the same checks.
-	wrapped := byName[params.Name].policy.unwrap
-	if _, allowed := byName["run_tool"]; wrapped && allowed {
-		outer := params.Arguments
-		name, nameErr := stringArg(outer, "name")
-		innerArgs, objectArgs := outer["arguments"].(map[string]any)
-		if inner, present := takeAnalyticsContext(byName[name], innerArgs); present {
-			intent = inner
-		}
-		_, known := byName[name]
-		validTarget := known && !byName[name].policy.discovery
-		if validTarget {
-			eventName = name
-		}
-		if s.analytics != nil {
-			if _, present := outer["arguments"]; validTarget && (objectArgs || !present) {
-				parameters = analyticsParametersForPolicy(s.policy(name), innerArgs)
-			} else {
-				parameters = map[string]any{"arguments": "[removed]"}
-			}
-		}
-		if err := unexpectedArgument(byName["run_tool"], outer); err != nil {
-			record(err)
-			return toolResult(req.ID, err.Error(), nil, true, modern)
-		}
-		if nameErr != nil {
-			record(nameErr)
-			return toolResult(req.ID, nameErr.Error(), nil, true, modern)
-		}
-		if s.policy(name).screenOnly {
-			err := errors.New("passcode_screen is only for the passcode screen")
-			record(err)
-			return toolResult(req.ID, err.Error(), nil, true, modern)
-		}
-		if byName[name].policy.discovery {
-			err := errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
-			record(err)
-			return toolResult(req.ID, err.Error(), nil, true, modern)
-		}
-		params.Name = name
-		params.Arguments = nil
-		if raw, present := outer["arguments"]; present {
-			var ok bool
-			params.Arguments, ok = raw.(map[string]any)
-			if !ok {
-				err := errors.New("arguments must be an object")
-				record(err)
-				return toolResult(req.ID, argumentMessage(err, byName[name]), nil, true, modern)
-			}
-		}
-	} else {
-		wrapped = false
-	}
-	tool, known := byName[params.Name]
-	if inner, present := takeAnalyticsContext(tool, params.Arguments); present {
-		intent = inner
-	}
-	if !known {
-		var retiredMutations map[string]RetiredMutation
-		if s.cfg.Contribution != nil {
-			retiredMutations = s.cfg.Contribution.MutationNames
-		}
-		if retired, ok := retiredMutations[params.Name]; ok {
-			if wrapped {
-				record(codedError(retired.Code, retired.Message))
-			}
-			return toolResult(req.ID, retired.Message, nil, true, modern)
-		}
-		if wrapped {
-			message := "Unknown tool: " + params.Name + ". Call find_tools with the job."
-			if flatListApp(caller.AppName) {
-				message = "Unknown tool: " + params.Name + ". Choose a tool from the available tool list."
-			}
-			matches := s.searchFor(caller).rank(params.Name, 3)
-			if len(matches) > 0 {
-				names := make([]string, 0, len(matches))
-				for _, match := range matches {
-					names = append(names, match.tool.Name)
-				}
-				message += " Closest tools: " + strings.Join(names, ", ") + "."
-			}
-			message += " [unknown_tool]"
-			record(codedError("unknown_tool", message))
-			return toolResult(req.ID, message, nil, true, modern)
-		}
-		return failure(req.ID, codeInvalidParams, "unknown tool: "+params.Name, nil)
-	}
-	if params.Arguments == nil {
-		params.Arguments = map[string]any{}
-	}
-	argErr := resolveArgAlias(tool, params.Arguments)
-	if argErr == nil {
-		argErr = unexpectedArgument(tool, params.Arguments)
-	}
-	if argErr == nil && wrapped {
-		required, _ := tool.InputSchema["required"].([]string)
-		for _, name := range required {
-			if _, present := params.Arguments[name]; !present {
-				argErr = fmt.Errorf("%s is required", name)
-				break
-			}
-		}
-	}
-	if argErr != nil {
-		record(codedError("invalid_argument", argErr.Error()))
-		// Some apps (ChatGPT custom servers) keep the tool list from when the
-		// person connected, so a stale schema is common: give the current one.
-		message := argumentMessage(argErr, tool)
-		if !wrapped {
-			message += "\n" + staleToolsHint
-		}
-		return toolResult(req.ID, message, nil, true, modern)
-	}
-	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
-	if err := c.takeTeamArguments(params.Arguments); err != nil {
-		record(codedError("invalid_argument", err.Error()))
-		return toolResult(req.ID, argumentMessage(err, tool), nil, true, modern)
-	}
-	if raw, present := params.Meta["io.modelcontextprotocol/clientCapabilities"]; modern && present {
-		var caps struct {
-			Extensions map[string]json.RawMessage `json:"extensions"`
-		}
-		if json.Unmarshal(raw, &caps) == nil {
-			_, ui := caps.Extensions["io.modelcontextprotocol/ui"]
-			c.textOnlyClient = !ui
-			c.uiClient = ui
-		}
-	} else if ui, known := s.clientUI.lookup(caller, time.Now()); !modern && known {
-		c.textOnlyClient = !ui
-		c.uiClient = ui
-	}
-	// A host draws a screen for the tool it listed, never for run_tool.
-	if wrapped {
-		c.wrapped = true
-		c.textOnlyClient = true
-	}
-	if s.analytics != nil && parameters == nil {
-		parameters = analyticsParametersForPolicy(s.policy(eventName), params.Arguments)
-	}
-	started = time.Now()
-	out, err := tool.run(c, params.Arguments)
-	record(err)
-	if err != nil {
-		// A bad argument or a refused REST call is the model's to correct, so
-		// it comes back as a failed tool result it can read, not a protocol
-		// error that ends the turn.
-		message := err.Error()
-		if caller.Mode == CallerModeEvents {
-			if s.cfg.Contribution != nil && s.cfg.Contribution.StorageError != nil {
-				rewrite := s.cfg.Contribution.StorageError
-				message = rewrite(message)
-			}
-		} else {
-			var refusal *refusalError
-			if errors.As(err, &refusal) && (refusal.code == "key_expired" || refusal.code == "key_expired_idle" || refusal.code == "invalid_api_key" || refusal.status == http.StatusUnauthorized) {
-				message, _, _ = strings.Cut(message, "\n")
-				message += "\n" + instanceText(s.hostInstructions(reconnectText))
-			}
-		}
-		var refusal *refusalError
-		if wrapped && !errors.As(err, &refusal) {
-			message = argumentMessage(err, tool)
-		}
-		return toolResult(req.ID, message, nil, true, modern)
-	}
-	reply = toolResult(req.ID, out.Text, out.Structured, false, modern)
-	if out.Meta != nil {
-		reply.Result.(map[string]any)["_meta"] = out.Meta
-	}
-	return reply
-}
-
-const staleToolsHint = "Call again with only these arguments. If your copy of this tool shows other arguments, the app's tool list is out of date: ask the person to refresh Simple Host in the app's connector settings."
-
-func argumentMessage(err error, tool Tool) string {
-	if tool.InputSchema == nil {
-		return err.Error()
-	}
-	schema, _ := json.Marshal(tool.InputSchema)
-	return err.Error() + "\nInput schema for " + tool.Name + ": " + string(schema)
-}
-
-// unexpectedArgument refuses an argument the tool's schema does not declare.
-// Every schema is closed (additionalProperties: false), and ignoring a stray
-// argument would let a call quietly mean something other than what the model
-// asked (e.g. a mode it thought it was choosing).
-func unexpectedArgument(tool Tool, args map[string]any) error {
-	props, _ := tool.InputSchema["properties"].(map[string]any)
-	for key := range args {
-		if _, ok := props[key]; !ok {
-			// Name the fields the schema actually has: a near-miss guess
-			// (a plausible-but-wrong name borrowed from a sibling tool)
-			// deserves to be told what to use, not just that the call was
-			// refused; argumentMessage/staleToolsHint cover the separate
-			// case of a client whose cached copy of this tool is stale.
-			names := make([]string, 0, len(props))
-			for name := range props {
-				names = append(names, name)
-			}
-			sort.Strings(names)
-			return fmt.Errorf("unexpected argument %q for %s; it takes only %s", key, tool.Name, strings.Join(names, ", "))
-		}
-	}
-	return nil
-}
-
-// argAliasFor names a one-off alias a model guesses from a sibling tool
-// family's word for the same concept: storage_* tools call the saved-data resource "name", while visitor_read_site/
-// visitor_add_entry/visitor_change_entry call the same concept "resource";
-// find_tools's argument is "query", not the "task" a model familiar with
-// other search tools may send; get_page_recipe's is "topic", not the
-// "kind" a model familiar with the storage tools' kind argument may send.
-func argAliasFor(name string) (canonical, alias string) {
-	switch {
-	case name == "find_tools":
-		return "query", "task"
-	case name == "get_page_recipe" || name == "hack_get_page_recipe":
-		return "topic", "kind"
-	case name == "visitor_read_site" || name == "visitor_add_entry" || name == "visitor_change_entry":
-		return "resource", "name"
-	case strings.HasPrefix(name, "storage_"):
-		return "name", "resource"
-	}
-	return "", ""
-}
-
-// resolveArgAlias renames args[alias] to args[canonical] in place, before
-// the schema's additionalProperties check (unexpectedArgument) runs and
-// before the advertised InputSchema is ever consulted, so the alias is
-// accepted silently: it is never added to a tool's schema, which would
-// change the frozen tool list some clients cache (ChatGPT keeps the one
-// from the day it connected). Only applied when the tool's schema actually
-// declares canonical and does not itself declare alias as a real, distinct
-// argument (storage_get_usage has no "name", so is untouched either way; a
-// hypothetical tool that legitimately takes both a "name" and a "resource"
-// is also left alone, since the alias word is already spoken for there).
-func resolveArgAlias(tool Tool, args map[string]any) error {
-	canonical, alias := argAliasFor(tool.Name)
-	if canonical == "" {
-		return nil
-	}
-	props, _ := tool.InputSchema["properties"].(map[string]any)
-	if _, ok := props[canonical]; !ok {
-		return nil
-	}
-	if _, ok := props[alias]; ok {
-		return nil
-	}
-	a, hasAlias := args[alias]
-	if !hasAlias {
-		return nil
-	}
-	if c, hasCanonical := args[canonical]; hasCanonical {
-		if !reflect.DeepEqual(a, c) {
-			return fmt.Errorf("%s and %s were both given with different values; use %s", canonical, alias, canonical)
-		}
-		delete(args, alias)
-		return nil
-	}
-	args[canonical] = a
-	delete(args, alias)
-	return nil
-}
-
-func toolResult(id json.RawMessage, text string, structured map[string]any, isError, modern bool) response {
-	payload := map[string]any{
-		"content": []any{map[string]any{"type": "text", "text": text}},
-		"isError": isError,
-	}
-	if structured != nil {
-		payload["structuredContent"] = structured
-	}
-	if modern {
-		payload["resultType"] = "complete"
-	}
-	return result(id, payload)
 }
 
 func metaProtocolVersion(params json.RawMessage) string {

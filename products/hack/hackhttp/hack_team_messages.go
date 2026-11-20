@@ -16,13 +16,6 @@ import (
 // Organiser team messages (0003-hack-notices-judges-messages.sql): a notice
 // kind like any other, with a durable history row for the two read routes.
 
-func (h *HackHandler) registerTeamMessages(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("POST /v1/hack/events/{slug}/team-messages", wrap(h.postTeamMessages))
-	mux.Handle("GET /v1/hack/events/{slug}/teams/{team}/messages", wrap(h.getOrganiserTeamMessages))
-	mux.Handle("GET /v1/hack/events/{slug}/team/messages", wrap(h.getMyTeamMessages))
-	mux.Handle("POST /v1/hack/events/{slug}/team/messages", wrap(h.postMyTeamMessage))
-}
-
 func teamMessageJSON(m model.TeamMessage) map[string]any {
 	return map[string]any{
 		"id":          m.ID,
@@ -59,7 +52,7 @@ func checkTeamIDs(w http.ResponseWriter, raw []string) ([]string, bool) {
 	return raw, true
 }
 
-func (h *HackHandler) postTeamMessages(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) postTeamMessages(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -83,7 +76,7 @@ func (h *HackHandler) postTeamMessages(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	sent, err := h.eventsSvc().SendTeamMessage(r.Context(), a.event, teamIDs, text, a.user.ID, a.member.DisplayName)
+	sent, err := h.events.SendTeamMessage(r.Context(), a.event, teamIDs, text, a.user.ID, a.member.DisplayName)
 	if err != nil {
 		var rl *events.RateLimitError
 		if errors.As(err, &rl) {
@@ -103,12 +96,12 @@ func (h *HackHandler) postTeamMessages(w http.ResponseWriter, r *http.Request) {
 
 // getOrganiserTeamMessages is GET .../teams/{team}/messages: the organiser's
 // read of one team's message history.
-func (h *HackHandler) getOrganiserTeamMessages(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getOrganiserTeamMessages(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	team, err := h.teamsSvc().TeamBySlugLookup(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
+	team, err := h.teams.TeamBySlugLookup(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -117,14 +110,14 @@ func (h *HackHandler) getOrganiserTeamMessages(w http.ResponseWriter, r *http.Re
 		httpx.WriteInternal(w)
 		return
 	}
-	list, err := h.eventsSvc().ListTeamMessages(r.Context(), team.ID)
+	list, err := h.events.ListTeamMessages(r.Context(), team.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
 	// Reading the thread clears this organiser's Home line for the team.
 	if a.member.Role == "organiser" && !a.admin {
-		if err := h.eventsSvc().OrganiserOpenedThread(r.Context(), a.event.ID, a.user.ID, team.ID, list); err != nil {
+		if err := h.events.OrganiserOpenedThread(r.Context(), a.event.ID, a.user.ID, team.ID, list); err != nil {
 			httpx.WriteInternal(w)
 			return
 		}
@@ -135,7 +128,7 @@ func (h *HackHandler) getOrganiserTeamMessages(w http.ResponseWriter, r *http.Re
 // postMyTeamMessage is POST .../team/messages: a member of the team writes
 // to the event's organisers. Only the caller's own current team's thread is
 // ever written; there is no team id in the request.
-func (h *HackHandler) postMyTeamMessage(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) postMyTeamMessage(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -154,7 +147,7 @@ func (h *HackHandler) postMyTeamMessage(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	sent, err := h.eventsSvc().SendToOrganisers(r.Context(), a.event, a.user.ID, a.member.DisplayName, text)
+	sent, err := h.events.SendToOrganisers(r.Context(), a.event, a.user.ID, a.member.DisplayName, text)
 	if err != nil {
 		var rl *events.RateLimitError
 		if errors.As(err, &rl) {
@@ -170,7 +163,7 @@ func (h *HackHandler) postMyTeamMessage(w http.ResponseWriter, r *http.Request) 
 
 // getMyTeamMessages is GET .../team/messages: a participant's own team's
 // message history, empty when they are on no team.
-func (h *HackHandler) getMyTeamMessages(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getMyTeamMessages(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
@@ -182,8 +175,8 @@ func (h *HackHandler) getMyTeamMessages(w http.ResponseWriter, r *http.Request) 
 	h.writeTeamMessages(w, r, a.member.TeamID.String)
 }
 
-func (h *HackHandler) writeTeamMessages(w http.ResponseWriter, r *http.Request, teamID string) {
-	list, err := h.eventsSvc().ListTeamMessages(r.Context(), teamID)
+func (h *participationHTTP) writeTeamMessages(w http.ResponseWriter, r *http.Request, teamID string) {
+	list, err := h.events.ListTeamMessages(r.Context(), teamID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return

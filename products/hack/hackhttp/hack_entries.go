@@ -37,25 +37,7 @@ const hackScreenshotMax = 2 << 20
 // declare.
 const hackScreenshotMaxSide = 8000
 
-func (h *HackHandler) registerEntries(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/submissions", wrap(h.getSubmissions))
-	mux.Handle("GET /v1/hack/events/{slug}/submissions/{team}/screenshot", wrap(h.getSubmissionScreenshot))
-	mux.Handle("GET /v1/hack/events/{slug}/entry", wrap(h.getEntry))
-	mux.Handle("PUT /v1/hack/events/{slug}/entry", wrap(h.putEntry))
-	mux.Handle("POST /v1/hack/events/{slug}/entry/submit", wrap(h.submitEntry))
-	mux.Handle("POST /v1/hack/events/{slug}/entry/unsubmit", wrap(h.unsubmitEntry))
-	mux.Handle("GET /v1/hack/events/{slug}/entry/screenshot", wrap(h.getEntryScreenshot))
-	mux.Handle("PUT /v1/hack/events/{slug}/entry/screenshot", wrap(h.putEntryScreenshot))
-	mux.Handle("DELETE /v1/hack/events/{slug}/entry/screenshot", wrap(h.deleteEntryScreenshot))
-	mux.Handle("GET /v1/hack/events/{slug}/entry-rules", wrap(h.getEntryRules))
-	mux.Handle("PUT /v1/hack/events/{slug}/entry-rules", wrap(h.putEntryRules))
-	mux.Handle("GET /v1/hack/events/{slug}/teams/{team}/screenshot", wrap(h.getTeamScreenshot))
-	mux.Handle("GET /v1/hack/events/{slug}/entries", wrap(h.listEntries))
-	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/entry/exclude", wrap(h.excludeEntry))
-	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/entry/include", wrap(h.includeEntry))
-}
-
-func (h *HackHandler) getEntry(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getEntry(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
@@ -67,7 +49,7 @@ func (h *HackHandler) getEntry(w http.ResponseWriter, r *http.Request) {
 	h.writeOwnEntry(w, r, a.event, team.ID, a.user.ID)
 }
 
-func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) putEntry(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -184,7 +166,7 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 // draft to submitted, enforced against the event's rules. Idempotent -- a
 // second call on an already-submitted entry answers 200 and keeps the first
 // submitted_at.
-func (h *HackHandler) submitEntry(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) submitEntry(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -221,7 +203,7 @@ func (h *HackHandler) submitEntry(w http.ResponseWriter, r *http.Request) {
 // unsubmitEntry is POST .../entry/unsubmit: any current member can put the
 // entry back to draft before the deadline. entryWrite's own WriteRefusal
 // already answers 409 submissions_closed once the team is frozen.
-func (h *HackHandler) unsubmitEntry(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) unsubmitEntry(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -239,14 +221,14 @@ func (h *HackHandler) unsubmitEntry(w http.ResponseWriter, r *http.Request) {
 // excludeEntry and includeEntry are the organiser's hand exclude of a
 // flagged (or any) entry from judging, with a confirm on the client side
 // (coordinator decision 2026-11-02, INTENT.md).
-func (h *HackHandler) excludeEntry(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) excludeEntry(w http.ResponseWriter, r *http.Request) {
 	h.setEntryExcluded(w, r, true)
 }
-func (h *HackHandler) includeEntry(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) includeEntry(w http.ResponseWriter, r *http.Request) {
 	h.setEntryExcluded(w, r, false)
 }
 
-func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, excluded bool) {
+func (h *participationHTTP) setEntryExcluded(w http.ResponseWriter, r *http.Request, excluded bool) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -268,7 +250,7 @@ func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, e
 		httpx.WriteInternal(w)
 		return
 	}
-	tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
+	tracks, err := h.events.EventTracks(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -283,7 +265,7 @@ func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, e
 	httpx.WriteJSON(w, http.StatusOK, item)
 }
 
-func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) putEntryScreenshot(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -310,7 +292,7 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 
-func (h *HackHandler) deleteEntryScreenshot(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) deleteEntryScreenshot(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -329,7 +311,7 @@ func (h *HackHandler) deleteEntryScreenshot(w http.ResponseWriter, r *http.Reque
 	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 
-func (h *HackHandler) getEntryScreenshot(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getEntryScreenshot(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
@@ -341,12 +323,12 @@ func (h *HackHandler) getEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	h.serveTeamScreenshot(w, r, team.ID)
 }
 
-func (h *HackHandler) getTeamScreenshot(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getTeamScreenshot(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser", "judge")
 	if !ok {
 		return
 	}
-	team, err := h.teamsSvc().TeamBySlugLookup(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
+	team, err := h.teams.TeamBySlugLookup(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -379,7 +361,7 @@ func (h *HackHandler) getTeamScreenshot(w http.ResponseWriter, r *http.Request) 
 // listEntries is every team of the event with its entry, for organisers and
 // judges. Teams whose deadline has passed are pinned first, so the deadline
 // version in the answer is the one that was live when the deadline passed.
-func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) listEntries(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser", "judge")
 	if !ok {
 		return
@@ -390,7 +372,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	teams, err := h.teamsSvc().EventTeams(r.Context(), a.event.ID)
+	teams, err := h.teams.EventTeams(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entries %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -411,7 +393,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 	}
 	required := entryRequiredList(a.event.EntryRequired)
 	fields := entries.LoadRules(a.event.EntryRules)
-	tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
+	tracks, err := h.events.EventTracks(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entries %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -465,7 +447,7 @@ func (h *HackHandler) listEntries(w http.ResponseWriter, r *http.Request) {
 // its site: entries are closed for the event (closed, judging, results,
 // ended) or the team's own deadline has passed. Never while the team is
 // still building, even if it pressed Submit early.
-func (h *HackHandler) judgeSiteLinkGate(ctx context.Context, a hackAccess) (func(teamID string) bool, error) {
+func (h *hackBase) judgeSiteLinkGate(ctx context.Context, a hackAccess) (func(teamID string) bool, error) {
 	if a.admin || a.member.Role == "organiser" {
 		return func(string) bool { return true }, nil
 	}
@@ -477,7 +459,7 @@ func (h *HackHandler) judgeSiteLinkGate(ctx context.Context, a hackAccess) (func
 	if submissionsClosedStage(a.event.Stage) || a.event.Stage == "archived" || h.scoringStage(ctx, a.event) {
 		return func(teamID string) bool { return eligible[teamID] }, nil
 	}
-	states, err := h.teamsSvc().TeamWriteStatesForEventLookup(ctx, a.event.ID)
+	states, err := h.teams.TeamWriteStatesForEventLookup(ctx, a.event.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -501,7 +483,7 @@ func redactEntrySiteLinks(item map[string]any) {
 }
 
 // entryWrite maps service refusals to the existing participant responses.
-func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, req entries.WriteRequest) (string, bool) {
+func (h *participationHTTP) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, req entries.WriteRequest) (string, bool) {
 	req.Event, req.UserID = a.event, a.user.ID
 	id, missing, err := h.entries.Write(r.Context(), req)
 	if err == nil {
@@ -530,7 +512,7 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 	return "", false
 }
 
-func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev model.Event, teamID, userID string) {
+func (h *participationHTTP) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev model.Event, teamID, userID string) {
 	body, err := h.ownEntryJSON(r.Context(), ev, teamID, userID)
 	if err != nil {
 		log.Printf("hack: entry %s: %v", ev.Slug, err)
@@ -545,27 +527,27 @@ func (h *HackHandler) writeOwnEntry(w http.ResponseWriter, r *http.Request, ev m
 // sentence, completeness, and the Home progress checklist. editable and
 // refusal come from the team's write state, read outside the write
 // transaction.
-func (h *HackHandler) ownEntryJSON(ctx context.Context, ev model.Event, teamID, userID string) (map[string]any, error) {
+func (h *participationHTTP) ownEntryJSON(ctx context.Context, ev model.Event, teamID, userID string) (map[string]any, error) {
 	e, err := h.entries.Entry(ctx, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		e = model.EventEntry{}
 	} else if err != nil {
 		return nil, err
 	}
-	team, err := h.teamsSvc().TeamByID(ctx, teamID)
+	team, err := h.teams.TeamByID(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
-	st, err := h.teamsSvc().TeamWriteStateForLookup(ctx, teamID, false)
+	st, err := h.teams.TeamWriteStateForLookup(ctx, teamID, false)
 	if err != nil {
 		return nil, err
 	}
-	tracks, err := h.eventsSvc().EventTracks(ctx, ev.ID)
+	tracks, err := h.events.EventTracks(ctx, ev.ID)
 	if err != nil {
 		return nil, err
 	}
 	hasTracks := len(tracks) > 0
-	track, err := h.eventsSvc().TeamTrackLookup(ctx, teamID)
+	track, err := h.events.TeamTrackLookup(ctx, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -590,7 +572,7 @@ func (h *HackHandler) ownEntryJSON(ctx context.Context, ev model.Event, teamID, 
 	if track != nil {
 		trackJSON = map[string]any{"id": track.ID, "slug": track.Slug, "name": track.Name}
 	}
-	people, err := h.teamsSvc().TeamPeople(ctx, team.ID)
+	people, err := h.teams.TeamPeople(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -640,11 +622,11 @@ func nonNilStrings(s []string) []string {
 // (section 4.5): the summary card, status, missing and the video and site
 // evidence, with the embeddable video player (videoEmbed) and whether the
 // judge screen may frame the site (entrySiteView).
-func (h *HackHandler) entryListItem(ctx context.Context, ev model.Event, team model.EventTeam, e model.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
+func (h *hackBase) entryListItem(ctx context.Context, ev model.Event, team model.EventTeam, e model.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
 	st := tl.states[team.ID]
 	site := tl.site(team.Slug)
 	siteLive := entries.TeamSiteLive(site, st)
-	track, err := h.eventsSvc().TeamTrackLookup(ctx, team.ID)
+	track, err := h.events.TeamTrackLookup(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -725,7 +707,7 @@ func (h *HackHandler) entryListItem(ctx context.Context, ev model.Event, team mo
 // not ready, and on a server with no per-site hosts (no preview link);
 // not_frameable_why says which.
 // nil when the team has no site.
-func (h *HackHandler) entrySiteView(ctx context.Context, ev model.Event, team model.EventTeam, tl teamList, pinnedURL any) (any, error) {
+func (h *hackBase) entrySiteView(ctx context.Context, ev model.Event, team model.EventTeam, tl teamList, pinnedURL any) (any, error) {
 	site := tl.site(team.Slug)
 	if site == nil {
 		return nil, nil
@@ -750,7 +732,7 @@ func (h *HackHandler) entrySiteView(ctx context.Context, ev model.Event, team mo
 		why = "not_ready"
 	}
 	if why == "" {
-		row, err := h.eventsSvc().SitePasscode(ctx, site.ID)
+		row, err := h.events.SitePasscode(ctx, site.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, nil
@@ -918,7 +900,7 @@ func entryImageAllowed(mime string) bool {
 	}
 }
 
-func (h *HackHandler) serveTeamScreenshot(w http.ResponseWriter, r *http.Request, teamID string) {
+func (h *participationHTTP) serveTeamScreenshot(w http.ResponseWriter, r *http.Request, teamID string) {
 	data, mime, err := h.entries.Screenshot(r.Context(), teamID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -18,7 +18,7 @@ func TestCompatibilityRedirects(t *testing.T) {
 			cfg := servertest.Config(t, testdb.Fresh(t))
 			cfg.SiteDomain = domain
 			cfg.PublicBaseURL = "https://" + domain
-			app, err := server.Build(cfg, nil, programOptions())
+			app, err := server.Build(cfg, nil, compatibilityRedirects())
 			if err != nil {
 				t.Fatal(err)
 			}

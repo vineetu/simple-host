@@ -47,35 +47,35 @@ func storageError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, errorResponse{Error: message, Code: code})
 }
 
-func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (storageCall, bool) {
+func (h *DataHandler) storageSite(w http.ResponseWriter, r *http.Request) (storageCall, bool) {
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("sitename")))
 	if name == "" {
 		storageError(w, 400, "invalid_site", "site name is required")
 		return storageCall{}, false
 	}
-	id, err := h.resolveWriteSiteID(r, name)
+	id, err := h.site.resolveWriteSiteID(r, name)
 	if err != nil {
 		storageError(w, 404, "site_not_found", "site not found")
 		return storageCall{}, false
 	}
-	_, ownerID, siteName, err := h.sitesSvc().GetSiteOwner(r.Context(), id)
+	_, ownerID, siteName, err := h.site.sitesSvc().GetSiteOwner(r.Context(), id)
 	if err != nil {
 		storageError(w, 404, "site_not_found", "site not found")
 		return storageCall{}, false
 	}
-	if h.refuseSuspendedSiteID(w, r, id) {
+	if h.access.refuseSuspendedSiteID(w, r, id) {
 		return storageCall{}, false
 	}
-	h.paperSite(r, ownerID, siteName, nil)
+	h.site.paperSite(r, ownerID, siteName, nil)
 	c := storageCall{siteID: id, ownerID: ownerID, siteName: siteName}
 	if r.Header.Get(visitorPassHeader) != "" {
-		if _, ok := h.internalVisitorSession(r, id); !ok {
+		if _, ok := h.access.internalVisitorSession(r, id); !ok {
 			storageError(w, 403, "forbidden", "visitor pass does not cover this site")
 			return storageCall{}, false
 		}
 		c.visitorAI = true
 	} else if key := r.Header.Get("X-API-Key"); key != "" {
-		u, ok, e := h.resolveWriterKey(r.Context(), key)
+		u, ok, e := h.access.resolveWriterKey(r.Context(), key)
 		if errors.Is(e, model.ErrKeyExpired) || errors.Is(e, model.ErrKeyExpiredIdle) {
 			msg, code := auth.ExpiredKeyMessage(e, u.KeyExpiresAt, h.limits.KeyIdleExpiry)
 			storageError(w, 401, code, msg)
@@ -102,7 +102,7 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 		storageError(w, 403, "forbidden", "use this site's own address")
 		return storageCall{}, false
 	}
-	if !c.owner && h.refuseOffline(w, r, id) {
+	if !c.owner && h.site.refuseOffline(w, r, id) {
 		return storageCall{}, false
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -111,12 +111,12 @@ func (h *SiteHandler) storageSite(w http.ResponseWriter, r *http.Request) (stora
 
 // Browser storage is limited to the site's own address; direct unauthenticated
 // reads are allowed only when the host itself resolves to that site.
-func (h *SiteHandler) storageSameSiteRequest(r *http.Request, siteID string) bool {
+func (h *DataHandler) storageSameSiteRequest(r *http.Request, siteID string) bool {
 	host := requestHostName(r)
-	if h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
+	if h.access.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
 		return false
 	}
-	id, err := h.resolveSiteIDScoped(r, r.PathValue("sitename"))
+	id, err := h.site.resolveSiteIDScoped(r, r.PathValue("sitename"))
 	if err != nil || id != siteID {
 		return false
 	}
@@ -126,7 +126,7 @@ func (h *SiteHandler) storageSameSiteRequest(r *http.Request, siteID string) boo
 	return r.Method == http.MethodGet || r.Method == http.MethodHead
 }
 
-func (h *SiteHandler) storageOwner(w http.ResponseWriter, c storageCall) bool {
+func (h *DataHandler) storageOwner(w http.ResponseWriter, c storageCall) bool {
 	if c.owner {
 		return true
 	}
@@ -134,7 +134,7 @@ func (h *SiteHandler) storageOwner(w http.ResponseWriter, c storageCall) bool {
 	return false
 }
 
-func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request, kind string) (storageCall, bool) {
+func (h *DataHandler) storageResourceFor(w http.ResponseWriter, r *http.Request, kind string) (storageCall, bool) {
 	c, ok := h.storageSite(w, r)
 	if !ok {
 		return c, false
@@ -167,7 +167,7 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 			tooManyRequests(w)
 			return c, false
 		}
-		if sess, ok := h.strictVisitorSession(r, c.siteID); ok && sess.UserID != "" {
+		if sess, ok := h.access.strictVisitorSession(r, c.siteID); ok && sess.UserID != "" {
 			c.visitorSession = sess
 			c.visitorID = sess.UserID
 			if storageVisitorWrite(r) && !h.storageVisitorLimiter.Allow(c.siteID+"/"+c.visitorID) {
@@ -183,7 +183,7 @@ func (h *SiteHandler) storageResourceFor(w http.ResponseWriter, r *http.Request,
 	return c, true
 }
 
-func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) listStorageResources(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok {
 		return
@@ -200,7 +200,7 @@ func (h *SiteHandler) listStorageResources(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, 200, map[string]any{"resources": entries})
 }
 
-func (h *SiteHandler) putStorageResource(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) putStorageResource(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok || !h.storageOwner(w, c) {
 		return
@@ -277,7 +277,7 @@ func storagePresetFieldsPresent(data []byte) bool {
 	return false
 }
 
-func (h *SiteHandler) listStorageResourceRows(ctx context.Context, siteID string) ([]storageResource, error) {
+func (h *DataHandler) listStorageResourceRows(ctx context.Context, siteID string) ([]storageResource, error) {
 	return h.storageSvc().ListResourceRecords(ctx, appstorage.ResourceListInput{SiteID: siteID})
 }
 
@@ -293,11 +293,7 @@ func storageResultLimitBytes() int {
 
 type siteStorageUsage = appstorage.Usage
 
-func (h *SiteHandler) measureSiteStorage(ctx context.Context, c storageCall) (siteStorageUsage, error) {
-	return h.storageSvc().MeasureSiteStorage(ctx, c.siteID, h.storageRuntimeDir(c))
-}
-
-func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok || !h.storageOwner(w, c) {
 		return
@@ -310,7 +306,7 @@ func (h *SiteHandler) getStorageUsage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, result)
 }
 
-func (h *SiteHandler) deleteStorageResource(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) deleteStorageResource(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok || !h.storageOwner(w, c) {
 		return
@@ -332,7 +328,7 @@ func storagePage(r *http.Request) (string, string, int, bool) {
 	return q.Get("prefix"), q.Get("after"), limit, ok
 }
 
-func (h *SiteHandler) storageKV(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) storageKV(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageResourceFor(w, r, "kv")
 	if !ok {
 		return
@@ -410,7 +406,7 @@ func (c storageCall) stampID() string {
 	return appstorage.StampID(c.owner, c.visitorID)
 }
 
-func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c storageCall) {
+func (h *DataHandler) storageKVList(w http.ResponseWriter, r *http.Request, c storageCall) {
 	prefix, after, limit, ok := storagePage(r)
 	call := h.storageServiceCall(c)
 	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
@@ -438,16 +434,9 @@ func (h *SiteHandler) storageKVList(w http.ResponseWriter, r *http.Request, c st
 	}
 	writeJSON(w, 200, map[string]any{"items": out, "next_after": next})
 }
-func escapeStorageLike(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
-}
 
 // POST query and download-link routes only read; method alone is insufficient.
 func storageVisitorWrite(r *http.Request) bool {
 	return r.Method == http.MethodPut || r.Method == http.MethodDelete || r.Method == http.MethodPatch ||
 		r.Method == http.MethodPost && !strings.HasSuffix(r.URL.Path, "/query") && !strings.HasSuffix(r.URL.Path, "/download-link")
-}
-func storageBusy(w http.ResponseWriter) {
-	w.Header().Set("Retry-After", "1")
-	storageError(w, 503, "storage_busy", "storage is busy; retry shortly")
 }

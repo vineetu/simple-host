@@ -10,7 +10,7 @@ import (
 
 func TestBadProductSettingStopsStartup(t *testing.T) {
 	t.Setenv("HACK_EVENT_ICON_MAX_BYTES", "bad")
-	app, err := server.Build(config.Config{DataDir: t.TempDir()}, []*extension.Extension{Extension()})
+	app, err := server.Build(config.Config{DataDir: t.TempDir()}, []*extension.Extension{Extension()}, nil)
 	if app != nil {
 		app.Close()
 		t.Fatal("startup accepted bad product setting")

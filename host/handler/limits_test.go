@@ -37,14 +37,14 @@ func withLimits(t *testing.T, m map[string]string) config.Limits {
 // code never does this (each handler's snapshot is set once, at
 // construction, from its edition).
 func setAppLimits(a *privateApp, l config.Limits) {
-	a.sites.limitSet = newLimitSet(l)
+	a.sites.limitSet, a.access.limitSet, a.data.limitSet = newLimitSet(l), newLimitSet(l), newLimitSet(l)
 	a.users.limitSet = newLimitSet(l)
 	a.conn.limitSet = newLimitSet(l)
 }
 
 // setConnectorAppLimits is setAppLimits for the connectorApp fixture.
 func setConnectorAppLimits(a *connectorApp, l config.Limits) {
-	a.sites.limitSet = newLimitSet(l)
+	a.sites.limitSet, a.access.limitSet, a.data.limitSet = newLimitSet(l), newLimitSet(l), newLimitSet(l)
 	a.conn.limitSet = newLimitSet(l)
 	a.users.limitSet = newLimitSet(l)
 }

@@ -24,7 +24,7 @@ func TestHackMissingColumnStopsStartup(t *testing.T) {
 	platformtest.RecordProduct(t, cfg, exts)
 	// Record the current migrations before damaging the schema so migrating
 	// again cannot repair the missing column and hide a missing product check.
-	if code := server.Run([]string{"migrate", "-record-product"}, exts); code != 0 {
+	if code := server.Run([]string{"migrate", "-record-product"}, exts, nil); code != 0 {
 		t.Fatalf("migrate complete schema: exit %d", code)
 	}
 	if _, err := database.Exec(`ALTER TABLE events DROP COLUMN theme`); err != nil {
@@ -38,7 +38,7 @@ func TestHackMissingColumnStopsStartup(t *testing.T) {
 		t.Fatalf("product schema error = %v; want %s", err, want)
 	}
 	platformtest.RecordProduct(t, cfg, exts)
-	app, err := server.Build(cfg, exts)
+	app, err := server.Build(cfg, exts, nil)
 	if app != nil {
 		app.Close()
 		t.Fatal("Hack started with a missing column")
@@ -47,12 +47,12 @@ func TestHackMissingColumnStopsStartup(t *testing.T) {
 		t.Fatalf("startup error = %v; want %s", err, want)
 	}
 	for _, args := range [][]string{{"migrate"}, {"migrate", "-init"}} {
-		if code := server.Run(args, exts); code != 1 {
+		if code := server.Run(args, exts, nil); code != 1 {
 			t.Fatalf("%v with missing Hack column: exit %d; want 1", args, code)
 		}
 	}
 	cfg.MigrateOnStart = true
-	app, err = server.Build(cfg, exts)
+	app, err = server.Build(cfg, exts, nil)
 	if app != nil {
 		app.Close()
 		t.Fatal("Hack migrated and started with a missing column")

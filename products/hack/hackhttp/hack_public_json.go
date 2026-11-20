@@ -13,7 +13,7 @@ import (
 
 // PublicEventJSON is a credentialless, read-only feed for an event's custom
 // website. It exposes only the information already eligible for public pages.
-func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
 	w.Header().Set("Cache-Control", "no-store")
@@ -26,7 +26,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET only")
 		return
 	}
-	ev, err := h.eventsSvc().EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
+	ev, err := h.events.EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -69,13 +69,13 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	} else {
 		out["applications_open"] = false
 	}
-	if n, t, _, err := h.eventsSvc().CountEventMembersLookup(r.Context(), ev.ID); err == nil {
+	if n, t, _, err := h.events.CountEventMembersLookup(r.Context(), ev.ID); err == nil {
 		out["participants"], out["teams"] = n, t
 	} else {
 		httpx.WriteInternal(w)
 		return
 	}
-	tracks, err := h.eventsSvc().EventTracks(r.Context(), ev.ID)
+	tracks, err := h.events.EventTracks(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -107,7 +107,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out["fixed_schedule"] = fixed
-	announcements, err := h.eventsSvc().EventAnnouncements(r.Context(), ev.ID)
+	announcements, err := h.events.EventAnnouncements(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -118,7 +118,7 @@ func (h *HackHandler) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	out["announcements"] = aa
 	if h.sites != nil && hackGalleryPublic(ev, h.sites.TeamSitesReady) {
-		cards, err := h.eventsSvc().GalleryCards(r.Context(), ev.ID, ev.AccountID)
+		cards, err := h.events.GalleryCards(r.Context(), ev.ID, ev.AccountID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return

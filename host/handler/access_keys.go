@@ -19,8 +19,6 @@ import (
 // sign out (revoke the key the request came with). Rotate (user.go) stays the
 // "revoke everything" lever.
 
-const maxKeyNameLen = 60
-
 // normalizeKeyName trims a typed key name; "" means "use the default".
 func normalizeKeyName(name string) (string, error) { return accounts.NormalizeKeyName(name) }
 

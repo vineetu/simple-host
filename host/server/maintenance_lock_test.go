@@ -20,7 +20,7 @@ func TestMaintenanceServerLifetime(t *testing.T) {
 		t.Skip("DB_DSN unset")
 	}
 	cfg := servertest.Config(t, dsn)
-	app, err := server.Build(cfg, nil)
+	app, err := server.Build(cfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestMaintenanceServerLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lock.Close()
-	app, err = server.Build(cfg, nil)
+	app, err = server.Build(cfg, nil, nil)
 	if app != nil {
 		app.Close()
 	}
@@ -57,7 +57,7 @@ func TestInstallIdentityServerLifetime(t *testing.T) {
 	defer db.Close()
 	ctx := context.Background()
 	cfg := servertest.Config(t, dsn)
-	app, err := server.Build(cfg, nil)
+	app, err := server.Build(cfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestInstallIdentityServerLifetime(t *testing.T) {
 	app.Close()
 
 	// A second start changes neither copy.
-	app, err = server.Build(cfg, nil)
+	app, err = server.Build(cfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestInstallIdentityServerLifetime(t *testing.T) {
 	// The same database with another data directory: the server starts and
 	// logs, writes no identity there, and the maintenance check refuses.
 	other := servertest.Config(t, dsn)
-	app, err = server.Build(other, nil)
+	app, err = server.Build(other, nil, nil)
 	if err != nil {
 		t.Fatalf("identity mismatch stopped the server: %v", err)
 	}

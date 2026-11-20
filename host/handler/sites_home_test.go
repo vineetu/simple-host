@@ -201,7 +201,7 @@ func TestHomeBaseAndPasscode(t *testing.T) {
 	}
 	a.sites.SetSiteBase("simple-host.alt", "serve", "")
 	// Existing gate and generation cookies apply independently on the two hosts.
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	headers := map[string]string{"X-API-Key": owner.key}

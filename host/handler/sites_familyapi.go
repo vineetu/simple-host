@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/host/access/auth"
+	notifications "github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
@@ -778,7 +779,7 @@ func (h *SiteHandler) checkFamily(ctx context.Context, f model.AddressFamily, ou
 
 // emailFamilyNotice sends one plain notice to the family's owner.
 func (h *SiteHandler) emailFamilyNotice(ctx context.Context, f model.AddressFamily, subject, text string) bool {
-	return h.storeMail().FamilyNotice(ctx, f, subject, text)
+	return (&notifications.StoreMail{Mailer: h.mailer}).FamilyNotice(ctx, f, subject, text)
 }
 
 // --- Admin ---
@@ -940,25 +941,4 @@ func (h *SiteHandler) adminCheckFamily(w http.ResponseWriter, r *http.Request) {
 	resp := h.familyResponseFor(r.Context(), f, false)
 	resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 	writeJSON(w, http.StatusOK, resp)
-}
-
-// registerFamilyRoutes adds the family API to the mux.
-func (h *SiteHandler) registerFamilyRoutes(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	checkIP := h.familyCheckLimiter
-	if checkIP == nil {
-		checkIP = newRateLimiterFor(h.limits.RateFamilyCheck)
-	}
-	mux.Handle("POST /v1/me/address-families", noticeMiddleware(authMiddleware(http.HandlerFunc(h.createFamily))))
-	mux.Handle("GET /v1/me/address-families", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listFamilies))))
-	mux.Handle("GET /v1/me/address-families/{suffix}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getFamily))))
-	mux.Handle("PATCH /v1/me/address-families/{suffix}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.patchFamily))))
-	mux.Handle("DELETE /v1/me/address-families/{suffix}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteFamily))))
-	mux.Handle("POST /v1/me/address-families/{suffix}/check", noticeMiddleware(authMiddleware(rateLimitByIP(checkIP, http.HandlerFunc(h.checkFamilyNow)))))
-	mux.Handle("GET /v1/admin/address-families", authMiddleware(http.HandlerFunc(h.adminListFamilies)))
-	mux.Handle("POST /v1/admin/users/{id}/address-families", authMiddleware(http.HandlerFunc(h.adminCreateFamily)))
-	mux.Handle("PUT /v1/admin/address-families/{id}/cert-mode", authMiddleware(http.HandlerFunc(h.adminSetFamilyCert)))
-	mux.Handle("PUT /v1/admin/address-families/{id}/proof-exempt", authMiddleware(http.HandlerFunc(h.adminSetFamilyProofExempt)))
-	mux.Handle("POST /v1/admin/address-families/{id}/check", authMiddleware(http.HandlerFunc(h.adminCheckFamily)))
-	mux.Handle("DELETE /v1/admin/address-families/{id}", authMiddleware(http.HandlerFunc(h.adminDeleteFamily)))
-	mux.HandleFunc("GET /internal/family/{rest...}", h.familyPageHandler)
 }

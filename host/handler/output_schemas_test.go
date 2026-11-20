@@ -24,7 +24,7 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 	a := newPersonApp(t, "serve")
 	oauth := newTestOAuthHandler(a.database, accountapp.New(a.database), config.Config{PublicBaseURL: a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
 	oauth.SetPersonSiteResolver(a.sites.PersonReturnSite)
-	a.conn.SetVisitorTools(a.sites, oauth)
+	a.conn.SetVisitorTools(a.access, oauth)
 	olive, vic := a.newPerson(t, "olive"), a.newPerson(t, "vic")
 	token := a.connect(t, olive, a.registerClient(t, testRedirect), testRedirect)["access_token"].(string)
 	_, handle := a.userID(t, olive)
@@ -116,10 +116,10 @@ func TestOutputSchemasMatchRealResults(t *testing.T) {
 		t.Fatalf("set_site_offline back: %v", s)
 	}
 	// A passcode on the whole Site: set, read status, sign everyone out, remove.
-	if err := a.sites.SetPasscodeKey("q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80="); err != nil {
+	if err := a.access.SetPasscodeKey("q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80="); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet, &a.access.limitSet, &a.data.limitSet)
 	if s := call("set_site_passcode", map[string]any{"site": "shop", "passcode": "482915"}); s["passcode_protected"] != true || s["passcode"] != nil {
 		t.Fatalf("set_site_passcode set: %v", s)
 	}

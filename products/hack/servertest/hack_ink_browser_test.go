@@ -38,7 +38,7 @@ func TestServeHackInkBrowser(t *testing.T) {
 		markReady(t, a.certDir, r.PathValue("slug"))
 		w.WriteHeader(204)
 	})
-	a.mux.HandleFunc("GET /_fixture/takedown", a.sites.ServeTakedownForTest)
+	a.mux.HandleFunc("GET /_fixture/takedown", a.access.ServeTakedownForTest)
 	a.mux.HandleFunc("GET /_fixture/offline", a.sites.ServeOfflineForTest)
 	a.mux.HandleFunc("GET /_fixture/error", a.sites.RenderServiceErrorForTest)
 	stop := make(chan struct{})

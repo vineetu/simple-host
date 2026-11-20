@@ -77,11 +77,11 @@ func TestVisitorReadPageAddresses(t *testing.T) {
 // before it opened the page, must still keep the page from being read.
 func TestVisitorPageReadDuringPasscodeChange(t *testing.T) {
 	f := newVisitorFixture(t)
-	h := f.a.sites
+	h := f.a.access
 	if err := h.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &h.limitSet, &h.passcode.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &h.limitSet, &h.passcode.limitSet, &h.site.limitSet, &h.data.limitSet)
 	changed, err := h.passcode.seal(f.sid, "654321")
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestVisitorPageReadDuringPasscodeChange(t *testing.T) {
 			t.Fatal(r.status, string(r.body))
 		}
 		// The owner's change holds the site's lock, as the lock route does.
-		unlock := h.lockSite(f.ownerID, "shop")
+		unlock := h.site.lockSite(f.ownerID, "shop")
 		result := make(chan error, 1)
 		go func() {
 			_, err := f.a.conn.mcpConfig.VisitorTool(httptest.NewRequest("GET", "/mcp", nil), mcp.Caller{Owner: f.ids["bob"]}, "visitor_read_site", args)

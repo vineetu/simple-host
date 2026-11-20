@@ -26,24 +26,43 @@
 # name that could collide with another run or with something left over from
 # a prior failed one).
 #
+# Go's test cache: by default a package whose code, read files and read
+# environment are unchanged reports "(cached)" instead of running again. For
+# that the database URLs must be the same every run, so the Docker server
+# listens on a port derived from this checkout's path, uses one password kept
+# in ~/.cache/simple-host-tests, and the templates are named after a hash of
+# both schema files (a schema change re-runs every DB-backed package; a
+# migration or Go change re-runs the packages that embed or import it).
+# --full forces every package to run (-count=1): installs and CI use it.
+#
 # `go test -json ./...` output is summarised by
 # scripts/lib/summarize-go-test.py, which fails the run if any test skipped
 # for a DB-related reason (DB_DSN unset / postgres not reachable), in any
 # -count iteration, or if the output stream isn't real `go test -json`
 # output (e.g. -json got disabled). Other skips (e.g. "needs network") are
-# fine and just counted. The required -p N -count=N -json flags are placed
-# AFTER "$@" so an overriding flag in extra args can never disable them.
+# fine and just counted. The required -p N -json flags (and -count=N when
+# forced) are placed AFTER "$@" so extra args can never disable them.
 #
 # Usage:
 #   bash scripts/test-integration.sh                 # starts its own Postgres via Docker
+#   bash scripts/test-integration.sh --full          # run every package, ignoring the cache
 #   TEST_PG_URL=postgres://postgres:postgres@127.0.0.1:5432 bash scripts/test-integration.sh
 #   bash scripts/test-integration.sh -run '^TestFoo$' # extra args passed through to `go test`
 #   TEST_PKGS=./host/handler TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
-#     # packages via TEST_PKGS (default ./...), repeat count via TEST_COUNT (default 1);
+#     # packages via TEST_PKGS (default ./...), repeat count via TEST_COUNT (forces runs);
 #     # `make test-db PKGS=... RUN=... COUNT=...` wraps this.
 #   TEST_WORKERS=1 bash scripts/test-integration.sh  # serial packages (default 3)
 set -u
 cd "$(dirname "$0")/.."
+
+count_flag=()
+if [ "${1:-}" = "--full" ]; then
+  shift
+  count_flag=(-count=1)
+fi
+if [ -n "${TEST_COUNT:-}" ]; then
+  count_flag=(-count="$TEST_COUNT")
+fi
 
 test_workers="${TEST_WORKERS:-3}"
 if [[ ! "$test_workers" =~ ^[1-9][0-9]*$ ]]; then
@@ -110,10 +129,27 @@ if [ -n "${TEST_PG_URL:-}" ]; then
 elif command -v docker >/dev/null 2>&1; then
   echo "== starting throwaway postgres:16-alpine via Docker =="
   container_name="sh-it-$(od -An -N4 -tx4 /dev/urandom | tr -d ' \n')"
-  pgpass=$(openssl rand -hex 16)
-  started_id=$(docker run -d --name "$container_name" -e POSTGRES_PASSWORD="$pgpass" \
-      -p 127.0.0.1::5432 postgres:16-alpine 2>/tmp/sh-it-docker-run.$$)
-  run_status=$?
+  pass_file="${XDG_CACHE_HOME:-$HOME/.cache}/simple-host-tests/pg-password"
+  if [ ! -s "$pass_file" ]; then
+    mkdir -p "$(dirname "$pass_file")"
+    (umask 077 && openssl rand -hex 16 >"$pass_file")
+  fi
+  pgpass=$(cat "$pass_file")
+  # 20000-39999, steady per checkout; a busy port falls back to a random one.
+  stable_port=$(( 20000 + $(printf '%s' "$PWD" | cksum | cut -d' ' -f1) % 20000 ))
+  started_id=""
+  for publish in "127.0.0.1:${stable_port}:5432" "127.0.0.1::5432"; do
+    started_id=$(docker run -d --name "$container_name" -e POSTGRES_PASSWORD="$pgpass" \
+        -p "$publish" postgres:16-alpine 2>/tmp/sh-it-docker-run.$$)
+    run_status=$?
+    if [ "$run_status" -eq 0 ] && [ -n "$started_id" ]; then
+      break
+    fi
+    # A failed start can leave the container created under our random name.
+    docker rm -fv "$container_name" >/dev/null 2>&1
+    started_id=""
+    [ "$publish" = "127.0.0.1::5432" ] || echo "note: port $stable_port is busy; this run's results will not be cached" >&2
+  done
   if [ "$run_status" -ne 0 ] || [ -z "$started_id" ]; then
     echo "FAIL: could not start a disposable postgres container" >&2
     cat /tmp/sh-it-docker-run.$$ >&2 2>/dev/null
@@ -160,7 +196,13 @@ else
   exit 1
 fi
 
-dbname="sh_it_$$_$(openssl rand -hex 4)"
+if [ -n "$container_id" ]; then
+  # Our own server: a steady name keeps DB_DSN, and so the test cache, steady.
+  dbname="sh_it_$(cat host/db/schema.sql products/hack/db/schema.sql | sha256sum | cut -c1-12)"
+else
+  # A shared server may hold another run's templates.
+  dbname="sh_it_$$_$(openssl rand -hex 4)"
+fi
 admin_url="${base}/postgres?sslmode=disable"
 platform_url="${base}/${dbname}_platform?sslmode=disable"
 product_url="${base}/${dbname}_product?sslmode=disable"
@@ -201,7 +243,6 @@ for schema_set in platform product; do
 done
 
 test_pkgs="${TEST_PKGS:-./...}"
-test_count="${TEST_COUNT:-1}"
 platform_packages=()
 product_packages=()
 # Resolve patterns before selecting a database. An import path, ./..., or an
@@ -220,7 +261,7 @@ while read -r import_path package_dir; do
   esac
 done <<< "$package_list"
 
-echo "== running go test $test_pkgs (DB_DSN set; TESTDB_ISOLATE=1; forcing -p $test_workers -count=$test_count -json) =="
+echo "== running go test $test_pkgs (DB_DSN set; TESTDB_ISOLATE=1; forcing -p $test_workers ${count_flag[*]} -json) =="
 json_file=$(mktemp)
 go_test_exit=0
 for schema_set in platform product; do
@@ -244,7 +285,7 @@ for schema_set in platform product; do
   trap 'launch_signal=143' TERM
   DB_DSN="$target_url" MIGRATE_TEST_DSN= TESTDB_ISOLATE=1 \
     TESTDB_PLATFORM_DSN="$platform_url" TESTDB_PRODUCT_DSN="$product_url" \
-    go test "$@" -p "$test_workers" -count="$test_count" -json "${packages[@]}" >>"$json_file" 2>&1 &
+    go test "$@" -p "$test_workers" "${count_flag[@]}" -json "${packages[@]}" >>"$json_file" 2>&1 &
   go_test_pid=$!
   trap 'exit 130' INT
   trap 'exit 143' TERM

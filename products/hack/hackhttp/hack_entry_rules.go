@@ -2,7 +2,6 @@ package hackhttp
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"net/http"
 
@@ -32,15 +31,11 @@ func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, mi
 	httpx.WriteJSON(w, status, map[string]any{"error": msg, "code": code, "missing": missing})
 }
 
-func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.Event, st model.TeamWriteState, teamID string, e model.EventEntry) (entries.Check, error) {
-	return h.entries.EvaluateEntryTx(ctx, tx, ev, st, teamID, e)
-}
-
 // entrySiteState reads the team's site once for the entry view: whether it
 // exists at all, its live version (nil when it has none), and whether it
 // counts as the "site" rules field -- a live version, not taken down
 // (section 4.1): entries.TeamSiteLive, from the site-info row.
-func (h *HackHandler) entrySiteState(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
+func (h *hackBase) entrySiteState(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
 	if h.sites == nil {
 		return false, nil, false
 	}
@@ -57,7 +52,7 @@ func (h *HackHandler) entrySiteState(ctx context.Context, ev model.Event, teamSl
 
 // entrySiteLive is entrySiteState's third return, for callers (the sweep,
 // the rules dry run) that only need whether the site counts as filled.
-func (h *HackHandler) entrySiteLive(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) bool {
+func (h *hackBase) entrySiteLive(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) bool {
 	_, _, live := h.entrySiteState(ctx, ev, teamSlug, siteTakenDown)
 	return live
 }
@@ -75,12 +70,12 @@ func entryRulesView(ev model.Event, hasTracks, editable bool) map[string]any {
 	}
 }
 
-func (h *HackHandler) getEntryRules(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getEntryRules(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
+	tracks, err := h.events.EventTracks(r.Context(), a.event.ID)
 	if err != nil {
 		log.Printf("hack: entry rules %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -89,7 +84,7 @@ func (h *HackHandler) getEntryRules(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, entryRulesView(a.event, len(tracks) > 0, entries.RulesEditable(a.event.Stage)))
 }
 
-func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) putEntryRules(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -127,7 +122,7 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *HackHandler) entryProgressJSON(ctx context.Context, ev model.Event, team model.EventTeam, teammates []string, st model.TeamWriteState) (map[string]any, error) {
+func (h *hackBase) entryProgressJSON(ctx context.Context, ev model.Event, team model.EventTeam, teammates []string, st model.TeamWriteState) (map[string]any, error) {
 	p, err := h.entries.EntryProgress(ctx, ev, team, teammates, st)
 	if err != nil {
 		return nil, err

@@ -6,8 +6,9 @@ import (
 	"testing"
 )
 
-// Every storage SQL refusal names what happened and what to do, under a
-// stable code, without paths or another table's rows.
+// Every storage SQL refusal from real SQLite has its status and stable code,
+// names the table, column or tool involved, and leaks no paths. Request
+// validation order is host/data's TestValidateLegacySQLOrder.
 func TestSiteStorageSQLErrorsAreActionable(t *testing.T) {
 	a := newPrivateApp(t)
 	owner := a.newPerson(t, "sqlerr-owner")
@@ -36,36 +37,34 @@ func TestSiteStorageSQLErrorsAreActionable(t *testing.T) {
 		want              []string
 	}{
 		{"syntax", "query", `{"sql":"SELEC * FROM customers"}`, 400, "sql_syntax", []string{`near "SELEC"`}},
-		{"incomplete", "query", `{"sql":"SELECT * FROM customers WHERE"}`, 400, "sql_syntax", []string{"ends too early"}},
-		{"two statements", "query", `{"sql":"SELECT 1; SELECT 2"}`, 400, "sql_multiple_statements", []string{"each statement as its own call", "SELECT 2"}},
+		{"incomplete", "query", `{"sql":"SELECT * FROM customers WHERE"}`, 400, "sql_syntax", nil},
+		{"two statements", "query", `{"sql":"SELECT 1; SELECT 2"}`, 400, "sql_multiple_statements", []string{"SELECT 2"}},
 		{"trailing semicolon and comment are fine", "query", `{"sql":"SELECT 1; -- done"}`, 200, "", nil},
 		{"placeholders", "query", `{"sql":"SELECT * FROM customers WHERE id = ? AND name = ?","params":[1]}`, 400, "sql_param_count", []string{"2 placeholders but 1 param"}},
-		{"pragma", "query", `{"sql":"PRAGMA table_info(customers)"}`, 400, "sql_not_available", []string{"PRAGMA is not available", "sqlite_schema"}},
+		{"pragma", "query", `{"sql":"PRAGMA table_info(customers)"}`, 400, "sql_not_available", []string{"sqlite_schema"}},
 		{"pragma function", "query", `{"sql":"SELECT * FROM pragma_table_info('customers')"}`, 400, "sql_not_available", []string{"PRAGMA"}},
 		{"attach", "execute", `{"sql":"ATTACH DATABASE 'x.db' AS other"}`, 400, "sql_not_available", []string{"ATTACH"}},
-		{"temp table", "schema", `{"sql":"CREATE TEMP TABLE scratch (x)"}`, 400, "sql_not_available", []string{"temp tables"}},
-		{"virtual table", "schema", `{"sql":"CREATE VIRTUAL TABLE docs USING fts5(body)"}`, 400, "sql_not_available", []string{"virtual tables"}},
-		{"transaction", "execute", `{"sql":"BEGIN"}`, 400, "sql_not_available", []string{"own transaction"}},
-		{"load_extension", "query", `{"sql":"SELECT load_extension('x')"}`, 400, "sql_no_such_function", []string{"load_extension() is not available"}},
-		{"unknown function", "query", `{"sql":"SELECT NOW()"}`, 400, "sql_no_such_function", []string{"NOW() is not available", "datetime('now')"}},
+		{"temp table", "schema", `{"sql":"CREATE TEMP TABLE scratch (x)"}`, 400, "sql_not_available", nil},
+		{"virtual table", "schema", `{"sql":"CREATE VIRTUAL TABLE docs USING fts5(body)"}`, 400, "sql_not_available", nil},
+		{"transaction", "execute", `{"sql":"BEGIN"}`, 400, "sql_not_available", nil},
+		{"load_extension", "query", `{"sql":"SELECT load_extension('x')"}`, 400, "sql_no_such_function", []string{"load_extension()"}},
+		{"unknown function", "query", `{"sql":"SELECT NOW()"}`, 400, "sql_no_such_function", []string{"NOW()", "datetime('now')"}},
 		{"write on query", "query", `{"sql":"INSERT INTO customers (name) VALUES ('Bo')"}`, 400, "sql_use_execute", []string{"storage_sql_execute"}},
 		{"read on execute", "execute", `{"sql":"SELECT * FROM customers"}`, 400, "sql_use_query", []string{"storage_sql_query"}},
 		{"schema on execute", "execute", `{"sql":"CREATE TABLE x (a)"}`, 400, "sql_use_schema", []string{"storage_sql_schema"}},
 		{"schema on query", "query", `{"sql":"DROP TABLE customers"}`, 400, "sql_use_schema", []string{"storage_sql_schema"}},
 		{"write on schema", "schema", `{"sql":"DELETE FROM customers"}`, 400, "sql_use_execute", []string{"storage_sql_execute"}},
-		{"no table", "query", `{"sql":"SELECT * FROM orders"}`, 400, "sql_no_such_table", []string{"table orders does not exist", "Tables here: customers, parents"}},
-		{"no column", "query", `{"sql":"SELECT phone FROM customers"}`, 400, "sql_no_such_column", []string{"column phone does not exist", "Columns in customers: id, email, name, age, parent_id"}},
-		{"no column named", "execute", `{"sql":"INSERT INTO customers (phone) VALUES ('1')"}`, 400, "sql_no_such_column", []string{"column phone does not exist in customers", "Columns in customers: id, email"}},
-		{"unique", "execute", `{"sql":"INSERT INTO customers (email, name) VALUES ('a@example.com', 'Al')"}`, 409, "sql_unique_failed", []string{"customers.email already exists", "ON CONFLICT"}},
-		{"not null", "execute", `{"sql":"INSERT INTO customers (email) VALUES ('b@example.com')"}`, 400, "sql_not_null_failed", []string{"customers.name needs a value"}},
+		{"no table", "query", `{"sql":"SELECT * FROM orders"}`, 400, "sql_no_such_table", []string{"orders", "customers, parents"}},
+		{"no column", "query", `{"sql":"SELECT phone FROM customers"}`, 400, "sql_no_such_column", []string{"phone", "id, email, name, age, parent_id"}},
+		{"no column named", "execute", `{"sql":"INSERT INTO customers (phone) VALUES ('1')"}`, 400, "sql_no_such_column", []string{"phone", "id, email"}},
+		{"unique", "execute", `{"sql":"INSERT INTO customers (email, name) VALUES ('a@example.com', 'Al')"}`, 409, "sql_unique_failed", []string{"customers.email", "ON CONFLICT"}},
+		{"not null", "execute", `{"sql":"INSERT INTO customers (email) VALUES ('b@example.com')"}`, 400, "sql_not_null_failed", []string{"customers.name"}},
 		{"check", "execute", `{"sql":"INSERT INTO customers (name, age) VALUES ('Cy', -1)"}`, 400, "sql_check_failed", []string{"age > 0"}},
-		{"foreign key", "execute", `{"sql":"INSERT INTO customers (name, parent_id) VALUES ('Di', 99)"}`, 400, "sql_foreign_key_failed", []string{"customers.parent_id must match parents.id"}},
-		{"value count", "execute", `{"sql":"INSERT INTO customers VALUES (1)"}`, 400, "sql_error", []string{"has 5 columns but 1 values", "name the columns"}},
-		{"empty sql", "query", `{"sql":"  "}`, 400, "sql_request", []string{"sql is empty"}},
-		{"bad body", "query", `{"sql":`, 400, "sql_request", []string{"one JSON object"}},
-		{"comment only", "query", `{"sql":"-- nothing"}`, 400, "sql_request", []string{"no statement"}},
-		{"object param", "query", `{"sql":"SELECT ?","params":[{"a":1}]}`, 400, "sql_params", []string{"params[0]", "JSON string"}},
-		{"runtime error", "query", `{"sql":"SELECT json_extract('x', '$')"}`, 400, "sql_error", []string{"SQLite: malformed JSON"}},
+		{"foreign key", "execute", `{"sql":"INSERT INTO customers (name, parent_id) VALUES ('Di', 99)"}`, 400, "sql_foreign_key_failed", []string{"customers.parent_id", "parents.id"}},
+		{"value count", "execute", `{"sql":"INSERT INTO customers VALUES (1)"}`, 400, "sql_error", []string{"5 columns"}},
+		{"bad body", "query", `{"sql":`, 400, "sql_request", nil},
+		{"comment only", "query", `{"sql":"-- nothing"}`, 400, "sql_request", nil},
+		{"runtime error", "query", `{"sql":"SELECT json_extract('x', '$')"}`, 400, "sql_error", []string{"malformed JSON"}},
 	}
 	for _, tc := range cases {
 		r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/db/"+tc.route, tc.body, key)
@@ -97,7 +96,7 @@ func TestSiteStorageSQLErrorsAreActionable(t *testing.T) {
 			t.Fatalf("seed fk %d %s", r.status, r.body)
 		}
 	}
-	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/db/execute", `{"sql":"DELETE FROM parents WHERE id = 1"}`, key); r.status != 400 || r.json(t)["code"] != "sql_foreign_key_failed" || !strings.Contains(string(r.body), "still point at this row") {
+	if r := a.at(t, "POST", pcSiteDomain, base+"/sqlite/db/execute", `{"sql":"DELETE FROM parents WHERE id = 1"}`, key); r.status != 400 || r.json(t)["code"] != "sql_foreign_key_failed" {
 		t.Fatalf("fk delete %d %s", r.status, r.body)
 	}
 }

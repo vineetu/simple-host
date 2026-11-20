@@ -12,25 +12,18 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) registerChecklists(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/checklist", wrap(h.getChecklist))
-	mux.Handle("POST /v1/hack/events/{slug}/checklist/not-needed/{item}", wrap(h.setChecklistNotNeeded))
-	mux.Handle("DELETE /v1/hack/events/{slug}/checklist/not-needed/{item}", wrap(h.setChecklistNotNeeded))
-	mux.Handle("POST /v1/hack/events/{slug}/checklist/acknowledgements/{item}", wrap(h.acknowledgeChecklist))
-}
-
-func (h *HackHandler) checklistService() *events.ChecklistService {
+func (h *hackBase) checklistService() *events.ChecklistService {
 	return events.NewChecklist(h.database, h.entries, checklistTargets{h})
 }
 
-func (h *HackHandler) readChecklist(ctx context.Context, ev model.Event, m model.EventMember, role string) (events.Checklist, error) {
+func (h *hackBase) readChecklist(ctx context.Context, ev model.Event, m model.EventMember, role string) (events.Checklist, error) {
 	var forward *events.ChecklistNext
 	if m.Role == "organiser" && role != "judge" {
 		result, err := h.entries.EventResults(ctx, ev.ID)
 		if err != nil {
 			return events.Checklist{}, err
 		}
-		participants, _, _, err := h.eventsSvc().CountEventMembersLookup(ctx, ev.ID)
+		participants, _, _, err := h.events.CountEventMembersLookup(ctx, ev.ID)
 		if err != nil {
 			return events.Checklist{}, err
 		}
@@ -46,7 +39,7 @@ func (h *HackHandler) readChecklist(ctx context.Context, ev model.Event, m model
 }
 
 // checklistForView keeps the event-view integration to a single additive call.
-func (h *HackHandler) checklistForView(ctx context.Context, ev model.Event, m model.EventMember) any {
+func (h *hackBase) checklistForView(ctx context.Context, ev model.Event, m model.EventMember) any {
 	list, err := h.readChecklist(ctx, ev, m, "")
 	if err != nil {
 		log.Printf("hack: checklist %s: %v", ev.Slug, err)
@@ -66,7 +59,7 @@ func (h *HackHandler) getChecklist(w http.ResponseWriter, r *http.Request) {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.events.MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})
 }
 func (h *HackHandler) setChecklistNotNeeded(w http.ResponseWriter, r *http.Request) {
 	marked := r.Method == http.MethodPost
@@ -104,10 +97,10 @@ func (h *HackHandler) writeChecklist(w http.ResponseWriter, r *http.Request, ver
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.events.MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})
 }
 
-type checklistTargets struct{ h *HackHandler }
+type checklistTargets struct{ h *hackBase }
 
 func (t checklistTargets) Resolve(id, slug string, params map[string]string) (events.Link, bool) {
 	params["event_url"] = t.h.EventURL(slug)

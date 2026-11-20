@@ -11,13 +11,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
-func (h *HackHandler) eventsSvc() *events.Service {
-	if h.events == nil {
-		return events.New(h.database)
-	}
-	return h.events
-}
-
 // teamSentinels are the team repository's refusals and their wire codes.
 var teamSentinels = []struct {
 	err       error

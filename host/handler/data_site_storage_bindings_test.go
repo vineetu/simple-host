@@ -32,7 +32,7 @@ func TestSetStorageBindings(t *testing.T) {
 		{"auth.teams", ruleengine.TypeBool, true}, {"auth.teams", ruleengine.TypeTextList, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := &SiteHandler{}
+			h := &DataHandler{}
 			p := &storageBindingFixture{schema: ruleengine.BindingSchema{tc.name: {Type: tc.typ}}}
 			var panicked bool
 			func() { defer func() { panicked = recover() != nil }(); h.SetStorageBindings(p) }()
@@ -56,7 +56,7 @@ func TestSetStorageBindings(t *testing.T) {
 			}
 		})
 	}
-	h := &SiteHandler{}
+	h := &DataHandler{}
 	h.SetStorageBindings(nil)
 	if _, ok := h.storageDeps().Bindings.(appstorage.DefaultProvider); !ok {
 		t.Fatal("nil did not select platform provider")
@@ -75,11 +75,11 @@ func (p *ownerBindingFixture) OwnerOnSite(context.Context, string, string) (bool
 
 func TestStorageBindingRequestGuards(t *testing.T) {
 	s := newStorageTestSite(t)
-	h := s.a.sites
+	h := s.a.data
 	h.ed = groupTestEdition()
 	p := &ownerBindingFixture{}
 	h.SetStorageBindings(p)
-	preview := "https://" + s.host + "/__preview/1/" + h.signPreviewToken(s.sid, 1, time.Now().Add(time.Hour)) + "/"
+	preview := "https://" + s.host + "/__preview/1/" + h.site.signPreviewToken(s.sid, 1, time.Now().Add(time.Hour)) + "/"
 	for _, tc := range []struct {
 		name                string
 		ai, anonymous       bool
@@ -125,7 +125,7 @@ func TestStorageBindingRequestGuards(t *testing.T) {
 
 func TestStorageBindingsNilPlatform(t *testing.T) {
 	s := newStorageTestSite(t)
-	s.a.sites.SetStorageBindings(nil)
+	s.a.data.SetStorageBindings(nil)
 	s.must(t, "PUT", "/resources/private", map[string]string{"kind": "kv"}, s.key, 201)
 	s.must(t, "PUT", "/kv/private/keys/key", `{"value":"only owner"}`, s.key, 200)
 	for _, who := range []string{"owner-site", "alice"} {

@@ -141,12 +141,6 @@ func (x *notificationReceiver) snapshot() []receivedNotification {
 	return append([]receivedNotification(nil), x.requests...)
 }
 
-func (x *notificationReceiver) setStatus(status int) {
-	x.mu.Lock()
-	defer x.mu.Unlock()
-	x.status = status
-}
-
 type hackNotifyFixture struct {
 	a                          *teamSiteApp
 	x                          *notificationReceiver
@@ -159,15 +153,15 @@ func newHackNotifyFixture(t *testing.T) hackNotifyFixture {
 	t.Helper()
 	isolateQueueTest(t)
 	a := newTeamSiteApp(t)
-	t.Cleanup(a.sites.WaitNotifications)
+	t.Cleanup(a.data.WaitNotifications)
 	x := newNotificationReceiver(t)
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(x.server.Certificate())
-	a.sites.SetNotifyClientForTest(roots)
-	a.conn.SetEventsBackend(a.sites.EventsBackend())
+	a.data.SetNotifyClientForTest(roots)
+	a.conn.SetEventsBackend(a.data.EventsBackend())
 	org, member, other := a.newPerson(t, "hn-org"), a.newPerson(t, "hn-member"), a.newPerson(t, "hn-other")
 	slug := a.makeEvent(t, org)
 	a.join(t, slug, member, org)
@@ -199,14 +193,14 @@ func (f hackNotifyFixture) create(t *testing.T, base string, p person) string {
 func (f hackNotifyFixture) drain(t *testing.T) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
-	for f.a.sites.PendingNotificationsForTest() > 0 && time.Now().Before(deadline) {
+	for f.a.data.PendingNotificationsForTest() > 0 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
-	if f.a.sites.PendingNotificationsForTest() > 0 {
+	if f.a.data.PendingNotificationsForTest() > 0 {
 		t.Fatal("emit timeout")
 	}
 	for i := 0; i < 100; i++ {
-		if !f.a.sites.DeliverNotificationForTest(context.Background()) {
+		if !f.a.data.DeliverNotificationForTest(context.Background()) {
 			return
 		}
 	}
@@ -333,7 +327,7 @@ func TestHackNotificationsMembershipAndSecretGate(t *testing.T) {
 	f.gone(t, id)
 	// No encryption key: no new subscriptions, no capability, removal still works.
 	otherID := f.create(t, f.base+f.own, f.other)
-	if err := a.sites.SetPasscodeKey(""); err != nil {
+	if err := a.access.SetPasscodeKey(""); err != nil {
 		t.Fatal(err)
 	}
 	wantTS(t, "missing key", a.api(t, "POST", f.base+f.own, f.body(), f.other.key), 409, "notifications_not_enabled")
@@ -433,7 +427,7 @@ func TestHackNotificationEventAccountExcluded(t *testing.T) {
 	if err := f.a.database.QueryRow(`SELECT account_id FROM events WHERE slug=$1`, f.slug).Scan(&holder); err != nil {
 		t.Fatal(err)
 	}
-	_, err := f.a.sites.EventsBackend().Subscribe(context.Background(), mcp.Caller{Owner: holder, Mode: mcp.CallerModeEvents}, mcp.EventSubscribeRequest{Site: f.team})
+	_, err := f.a.data.EventsBackend().Subscribe(context.Background(), mcp.Caller{Owner: holder, Mode: mcp.CallerModeEvents}, mcp.EventSubscribeRequest{Site: f.team})
 	if err == nil {
 		t.Fatal("holding account accepted")
 	}
@@ -495,8 +489,8 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 	a := f.a
 	id := f.create(t, f.base+f.own, f.member)
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel(); a.sites.WaitNotifications() })
-	a.sites.StartNotifications(ctx)
+	t.Cleanup(func() { cancel(); a.data.WaitNotifications() })
+	a.data.StartNotifications(ctx)
 	f.emit(t)
 	deadline := time.Now().Add(5 * time.Second)
 	for len(f.x.snapshot()) == 0 && time.Now().Before(deadline) {
@@ -506,7 +500,7 @@ func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
 		t.Fatal("Hack worker did not deliver")
 	}
 	cancel()
-	a.sites.WaitNotifications()
+	a.data.WaitNotifications()
 	// Moving teams cannot leave a live subscription to the old team.
 	f.sql(t, `UPDATE event_members SET team_id=NULL WHERE user_id=$1`, a.uid(t, f.member))
 	f.gone(t, id)

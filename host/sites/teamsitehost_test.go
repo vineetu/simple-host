@@ -66,7 +66,7 @@ func TestLiveURLDuringDomainSwitch(t *testing.T) {
 }
 
 // An event name claim takes only what Simple Hack's own check takes.
-func TestNormalizeEventNameSharesHackShape(t *testing.T) {
+func TestNormalizeEventNameSharesProductShape(t *testing.T) {
 	for _, bad := range []string{"a--b", "ab", "abcdefghij-abcdefghij-abcdefghij-abcdefg"} {
 		if _, err := NormalizeEventName(bad); err == nil {
 			t.Fatal(bad)

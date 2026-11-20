@@ -119,9 +119,8 @@ func notificationTools() []Tool {
 				if err != nil {
 					return output{}, err
 				}
-				res := c.do(http.MethodDelete, path, nil, nil)
-				if !res.ok() {
-					return output{}, restError("remove_notification", res)
+				if err := c.doJSON("remove_notification", http.MethodDelete, path, nil, nil); err != nil {
+					return output{}, err
 				}
 				return output{Text: "Notification removed.", Structured: map[string]any{"deleted": true}}, nil
 			},

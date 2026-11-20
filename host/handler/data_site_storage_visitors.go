@@ -39,7 +39,7 @@ type storageVisitor struct {
 	Found bool `json:"found"`
 }
 
-func (h *SiteHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) storageVisitors(w http.ResponseWriter, r *http.Request) {
 	if h.storageBindings != nil {
 		storageError(w, 404, "not_found", "storage route not found")
 		return
@@ -113,7 +113,7 @@ type storagePerson struct {
 // people with saved data or named-viewer status, for the owner to pick
 // whom a new row is for (SIM-358). Owner credential, or the owner signed in
 // on the site's own address (SH.me().site_owner), only.
-func (h *SiteHandler) storagePeople(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) storagePeople(w http.ResponseWriter, r *http.Request) {
 	// Named viewers (one input to this list) are not a Simple Hack concept,
 	// and storage_visitor_emails (email resolution, the other input) is
 	// already excluded there; keep this list Host-only too, the same as
@@ -131,7 +131,7 @@ func (h *SiteHandler) storagePeople(w http.ResponseWriter, r *http.Request) {
 	// here, exactly as storageResourceFor does per resource, to let the
 	// owner signed in on the site's own address reach this too.
 	if !c.owner {
-		if sess, ok := h.strictVisitorSession(r, c.siteID); ok && sess.UserID != "" {
+		if sess, ok := h.access.strictVisitorSession(r, c.siteID); ok && sess.UserID != "" {
 			c.visitorSession = sess
 			c.visitorID = sess.UserID
 			c.ownerOnSite = h.storageSiteOwnerOnSite(r, c)

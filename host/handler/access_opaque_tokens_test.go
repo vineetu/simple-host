@@ -44,6 +44,7 @@ func assertOpaqueToken(t *testing.T, token string) {
 func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	key := newExportKey()
 	h := &SiteHandler{exportKey: key, limitSet: newLimitSet(config.DefaultLimits())}
+	d := &DataHandler{exportKey: key, limitSet: h.limitSet}
 	now := time.Now().Truncate(time.Second)
 	expiry := now.Add(time.Minute)
 	storage := storageCall{ownerID: opaqueOwner, siteID: opaqueSite, resourceName: "photos", linkScope: "team:" + opaqueTeam}
@@ -53,7 +54,7 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 	}{
 		{"export", exportLinkDomain, func() string { return h.signExportToken(opaqueOwner, opaqueSite, expiry) }},
 		{"preview", previewLinkDomain, func() string { return h.signPreviewToken(opaqueSite, 2, expiry) }},
-		{"file", "site storage file v1", func() string { return h.storageFileToken(storage, "a/photo.png", expiry) }},
+		{"file", "site storage file v1", func() string { return d.storageFileToken(storage, "a/photo.png", expiry) }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -98,9 +99,9 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 		}
 	}
 	// Invalid file tokens must fail before any database access.
-	for _, token := range []string{"bad", h.storageFileToken(storage, "a/photo.png", now.Add(-time.Minute)), h.storageFileToken(storage, "a/photo.png", now.Add(time.Hour))} {
+	for _, token := range []string{"bad", d.storageFileToken(storage, "a/photo.png", now.Add(-time.Minute)), d.storageFileToken(storage, "a/photo.png", now.Add(time.Hour))} {
 		w := httptest.NewRecorder()
-		h.downloadStorageFile(w, httptest.NewRequest("GET", "/v1/storage-download?token="+token, nil))
+		d.downloadStorageFile(w, httptest.NewRequest("GET", "/v1/storage-download?token="+token, nil))
 		if w.Code != 404 {
 			t.Errorf("invalid file link: %d", w.Code)
 		}
@@ -108,8 +109,8 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 }
 
 func TestMCPNotificationVisitorReferences(t *testing.T) {
-	h := &SiteHandler{exportKey: newExportKey(), limitSet: newLimitSet(config.DefaultLimits())}
-	refs := mcp.NewVisitorReferences(h.exportKey)
+	h := &DataHandler{access: &AccessHandler{exportKey: newExportKey()}, limitSet: newLimitSet(config.DefaultLimits())}
+	refs := mcp.NewVisitorReferences(h.access.exportKey)
 	expected, _ := refs.Encode(opaqueSite, opaqueOwner)
 	for _, name := range []string{"record.added", "record.changed", "file.uploaded"} {
 		for _, visitor := range []any{opaqueOwner, nil} {
@@ -158,7 +159,7 @@ func TestMCPNotificationVisitorReferences(t *testing.T) {
 }
 
 func TestConnectorUsesSiteVisitorKey(t *testing.T) {
-	h := &SiteHandler{exportKey: newExportKey()}
+	h := &AccessHandler{exportKey: newExportKey()}
 	connector := &ConnectorHandler{}
 	connector.SetVisitorReferences(h)
 	ref, err := connector.mcpConfig.VisitorRefs.Encode(opaqueSite, opaqueOwner)

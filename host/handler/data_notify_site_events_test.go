@@ -40,7 +40,7 @@ func siteEventDeliveries(x *notificationReceiver, name string) []map[string]any 
 
 func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 	s, x := notificationFixture(t)
-	all := s.a.sites.notifyEventNames()
+	all := s.a.data.notifyEventNames()
 	if len(all) != 7 {
 		t.Fatalf("event names: %v", all)
 	}
@@ -62,7 +62,7 @@ func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 	s.must(t, "PUT", "/resources/orders", storageRules("sqlite", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added", "site.deployed", "viewer.access_requested", "visitor.signed_up"}, "storage": "orders", "secret": notifyTestSecret}, 201)
-	s.a.sites.emitSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": "deploy"}, 0)
+	s.a.data.emitSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": "deploy"}, 0)
 	waitNotificationEmits(t, s)
 	drainNotifications(t, s)
 	got := siteEventDeliveries(x, "site.deployed")
@@ -91,21 +91,21 @@ func TestNotifySiteEventsRESTAndDelivery(t *testing.T) {
 	}
 
 	// The owner signing in on their own site is not an event.
-	s.a.sites.emitSiteNotification(s.sid, "visitor.signed_up", map[string]any{"visitor": s.ownerID}, 0)
+	s.a.data.emitSiteNotification(s.sid, "visitor.signed_up", map[string]any{"visitor": s.ownerID}, 0)
 	waitNotificationEmits(t, s)
 	if siteEventCount(t, s, "visitor.signed_up") != 0 {
 		t.Fatal("owner event stored")
 	}
 	// Once per person per site inside the dedupe window.
 	for i := 0; i < 2; i++ {
-		s.a.sites.emitSiteNotification(s.sid, "viewer.access_requested", map[string]any{"visitor": s.aliceID}, 24*time.Hour)
+		s.a.data.emitSiteNotification(s.sid, "viewer.access_requested", map[string]any{"visitor": s.aliceID}, 24*time.Hour)
 		waitNotificationEmits(t, s)
 	}
 	if siteEventCount(t, s, "viewer.access_requested") != 1 {
 		t.Fatal("repeat access request stored")
 	}
 	// Another person inside the same window is their own event.
-	s.a.sites.emitSiteNotification(s.sid, "viewer.access_requested", map[string]any{"visitor": s.ids["bob"]}, 24*time.Hour)
+	s.a.data.emitSiteNotification(s.sid, "viewer.access_requested", map[string]any{"visitor": s.ids["bob"]}, 24*time.Hour)
 	waitNotificationEmits(t, s)
 	if siteEventCount(t, s, "viewer.access_requested") != 2 {
 		t.Fatal("second person's access request dropped")
@@ -147,7 +147,7 @@ func siteEventRPC(t *testing.T, s storageTestSite, server *mcp.Server, method st
 
 func TestNotifySiteEventsMCP(t *testing.T) {
 	s, x := notificationFixture(t)
-	server := mcp.NewServer(mcp.Config{Events: s.a.sites.EventsBackend()})
+	server := mcp.NewServer(mcp.Config{Events: s.a.data.EventsBackend()})
 	listed := siteEventRPC(t, s, server, "events/list", nil)["result"].(map[string]any)["events"].([]any)
 	if len(listed) != 7 {
 		t.Fatalf("events/list: %d definitions", len(listed))
@@ -172,18 +172,18 @@ func TestNotifySiteEventsMCP(t *testing.T) {
 	if result == nil {
 		t.Fatalf("subscribe: %v", out)
 	}
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), result["id"].(string))
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), result["id"].(string))
 	if err != nil || n.Storage != "" || n.Source != "mcp" || len(n.Events) != 1 || n.Events[0] != "visitor.signed_up" || n.ArgsCanonical != `{"site":"shop"}` {
 		t.Fatalf("stored MCP site subscription: %+v %v", n, err)
 	}
-	s.a.sites.emitSiteNotification(s.sid, "visitor.signed_up", map[string]any{"visitor": s.aliceID}, 0)
+	s.a.data.emitSiteNotification(s.sid, "visitor.signed_up", map[string]any{"visitor": s.aliceID}, 0)
 	waitNotificationEmits(t, s)
 	drainNotifications(t, s)
 	got := siteEventDeliveries(x, "visitor.signed_up")
 	if len(got) != 1 {
 		t.Fatalf("want one visitor.signed_up delivery, got %d", len(got))
 	}
-	expected, err := mcp.NewVisitorReferences(s.a.sites.visitorRefKey()).Encode(s.sid, s.aliceID)
+	expected, err := mcp.NewVisitorReferences(s.a.access.visitorRefKey()).Encode(s.sid, s.aliceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,9 +209,9 @@ func TestNotifySiteEventsMCP(t *testing.T) {
 func TestNotifySiteEventsUnsubscribedFree(t *testing.T) {
 	s, x := notificationFixture(t)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added"}, "secret": notifyTestSecret}, 201)
-	engine := s.a.sites.notifyEngine()
+	engine := s.a.data.notifyEngine()
 	engine.minute = httpx.NewRateLimiter(1, 0)
-	s.a.sites.storeSiteNotification(s.sid, "visitor.signed_up", map[string]any{"visitor": s.aliceID}, 0)
+	s.a.data.storeSiteNotification(s.sid, "visitor.signed_up", map[string]any{"visitor": s.aliceID}, 0)
 	if n := siteEventCount(t, s, "visitor.signed_up"); n != 0 {
 		t.Fatalf("unsubscribed site event stored: %d", n)
 	}
@@ -225,9 +225,9 @@ func TestNotifySiteEventsUnsubscribedFree(t *testing.T) {
 func TestNotifyRecordEventsUnsubscribedFree(t *testing.T) {
 	s, x := notificationFixture(t)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"site.deployed"}, "secret": notifyTestSecret}, 201)
-	engine := s.a.sites.notifyEngine()
+	engine := s.a.data.notifyEngine()
 	engine.minute = httpx.NewRateLimiter(1, 0)
-	s.a.sites.storeNotification(storageCall{siteID: s.sid}, "record.added", map[string]any{"visitor": s.aliceID})
+	s.a.data.storeNotification(storageCall{siteID: s.sid}, "record.added", map[string]any{"visitor": s.aliceID})
 	if n := siteEventCount(t, s, "record.added"); n != 0 {
 		t.Fatalf("unsubscribed record event stored: %d", n)
 	}
@@ -250,7 +250,7 @@ func TestNotifySiteEventsDedupeUnderLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 2; i++ {
-		s.a.sites.emitSiteNotification(s.sid, "viewer.access_requested", map[string]any{"visitor": s.aliceID}, 24*time.Hour)
+		s.a.data.emitSiteNotification(s.sid, "viewer.access_requested", map[string]any{"visitor": s.aliceID}, 24*time.Hour)
 	}
 	// Both emissions passed the cheap check and now wait on the lock.
 	deadline := time.Now().Add(3 * time.Second)
@@ -286,11 +286,11 @@ func TestNotifySiteEventsBodyTooLarge(t *testing.T) {
 	s, x := notificationFixture(t)
 	notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"site.deployed"}, "secret": notifyTestSecret}, 201)
 	big := strings.Repeat("x", s.a.sites.limits.NotifyBodyMaxBytes+1)
-	s.a.sites.storeSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": big}, 0)
+	s.a.data.storeSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": big}, 0)
 	if n := siteEventCount(t, s, "site.deployed"); n != 0 {
 		t.Fatalf("oversized site event stored: %d", n)
 	}
-	s.a.sites.storeSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": "deploy"}, 0)
+	s.a.data.storeSiteNotification(s.sid, "site.deployed", map[string]any{"version": 2, "previous_version": 1, "via": "deploy"}, 0)
 	if n := siteEventCount(t, s, "site.deployed"); n != 1 {
 		t.Fatalf("normal site event not stored: %d", n)
 	}

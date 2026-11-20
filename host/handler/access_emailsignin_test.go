@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -64,18 +63,7 @@ func TestVerifyEmailCodeOff_EmailShapeRefused(t *testing.T) {
 // whether or not EMAIL_SIGNIN is on. Needs DB_DSN: redeeming a real token
 // touches the database.
 func TestVerifyEmailCodeOff_TokenShapeStillWorks(t *testing.T) {
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
+	database := testDB(t)
 	withEmailSignIn(t, false)
 	ctx := context.Background()
 	stamp := strconv.FormatInt(time.Now().UnixNano(), 10)

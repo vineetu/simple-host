@@ -73,7 +73,7 @@ func newTurnstileVerifier(siteKey, secret, publicBaseURL string) *turnstileVerif
 
 // SetTurnstile turns the spam check (auth.checked in storage rules) on.
 // Empty values leave it off.
-func (h *SiteHandler) SetTurnstile(siteKey, secret, publicBaseURL string) {
+func (h *DataHandler) SetTurnstile(siteKey, secret, publicBaseURL string) {
 	h.turnstile = newTurnstileVerifier(siteKey, secret, publicBaseURL)
 	if h.turnstile != nil {
 		h.httpCaches.Rate("http.site.spamIPLimiter", h.spamIPLimiter, 10*time.Minute, 30*time.Minute)
@@ -82,7 +82,7 @@ func (h *SiteHandler) SetTurnstile(siteKey, secret, publicBaseURL string) {
 }
 
 // SpamCheckEnabled: storage rules may use auth.checked on this server.
-func (h *SiteHandler) SpamCheckEnabled() bool { return h.turnstile != nil }
+func (h *DataHandler) SpamCheckEnabled() bool { return h.turnstile != nil }
 
 // turnstileCData binds a token to one host and one resource. Turnstile takes
 // up to 255 letters, digits, _ and -, so it is a hash.
@@ -166,7 +166,7 @@ var turnstileMessages = map[string]string{
 // storageSpamCheck runs the check once per request, before any lock, on a
 // visitor's write to a resource some add of which is checked. The result
 // waits on c for storageAllow.
-func (h *SiteHandler) storageSpamCheck(w http.ResponseWriter, r *http.Request, c *storageCall) bool {
+func (h *DataHandler) storageSpamCheck(w http.ResponseWriter, r *http.Request, c *storageCall) bool {
 	token := r.Header.Get(turnstileHeader)
 	// Without CSRF the gate refuses the write anyway: no Cloudflare call.
 	if token == "" || c.owner || !storageVisitorWrite(r) || !h.storageSvc().HasChecked(h.storageServiceCall(*c)) || r.Header.Get("X-SH-CSRF") != "1" {
@@ -186,21 +186,6 @@ func (h *SiteHandler) storageSpamCheck(w http.ResponseWriter, r *http.Request, c
 	}
 	c.spamCheck = "ok"
 	return true
-}
-
-// storageCheckedAllow decides a checked add for someone other than the
-// owner.
-func storageCheckedAllow(w http.ResponseWriter, c *storageCall) bool {
-	code := c.spamCheck
-	switch code {
-	case "ok":
-		c.checkedPost = true
-		return true
-	case "":
-		code = "spam_check_required"
-	}
-	storageError(w, 403, code, turnstileMessages[code])
-	return false
 }
 
 // storagePostLimits keeps a post from someone not signed in small and
@@ -247,7 +232,7 @@ func storagePostLimits(w http.ResponseWriter, raw []byte, lim edition.Limits) bo
 // It is the one page with Cloudflare's script, and the one page any origin
 // may frame (frame-ancestors *, which browsers obey over the proxy's
 // X-Frame-Options). It holds no session and reads no cookie.
-func (h *SiteHandler) turnstileFrame(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) turnstileFrame(w http.ResponseWriter, r *http.Request) {
 	if h.turnstile == nil || !strings.EqualFold(requestHostName(r), h.turnstile.hostname) {
 		http.NotFound(w, r)
 		return

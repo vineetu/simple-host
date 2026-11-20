@@ -75,10 +75,6 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 
 func validateHandle(handle string) error { return accounts.CheckNewHandle(handle) }
 
-// errReservedName: a new handle, claimed name or site name that is reserved
-// (the new-claim policy in app/sites).
-var errReservedName = accounts.ErrReservedHandle
-
 func normalizeDisplayName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if utf8.RuneCountInString(name) > 100 {
@@ -87,7 +83,9 @@ func normalizeDisplayName(name string) (string, error) {
 	return name, nil
 }
 
-func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) storeAccounts() *accounts.Service { return accounts.New(h.database) }
+
+func (h *AccessHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
@@ -115,7 +113,7 @@ func (h *SiteHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 // deleteAccount handles DELETE /v1/admin/users/{id}: the same immediate,
 // final erasure as DELETE /v1/me (account_data.go), started by the operator.
 // A suspended account can be deleted here; an admin account cannot.
-func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
@@ -148,7 +146,7 @@ func (h *SiteHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 // reissueAccountKey handles POST /v1/admin/users/{id}/key: the organiser's
 // answer to "I lost my key". Every key the account holds is replaced by one
 // new key, returned once. Sites, data and connected apps are untouched.
-func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
@@ -165,7 +163,7 @@ func (h *SiteHandler) reissueAccountKey(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
 		writeJSON(w, 401, errorResponse{Error: "unauthorized"})
@@ -202,7 +200,7 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "turning sign-in alerts on or off needs one of the account's own API keys (X-API-Key), not the admin key or a connected app", Code: "not_an_account_key"})
 		return
 	}
-	updated, alertsOn, err := h.sitesSvc().UpdateProfile(r.Context(), appsites.ProfileInput{UserID: user.ID, DisplayName: req.DisplayName, Handle: req.Handle, SignInAlerts: req.SignInAlerts, RenameEvery: h.handleRenameEvery()})
+	updated, alertsOn, err := h.site.sitesSvc().UpdateProfile(r.Context(), appsites.ProfileInput{UserID: user.ID, DisplayName: req.DisplayName, Handle: req.Handle, SignInAlerts: req.SignInAlerts, RenameEvery: h.handleRenameEvery()})
 	if err != nil {
 		var failure *accounts.LifecycleError
 		if errors.As(err, &failure) {
@@ -220,7 +218,7 @@ func (h *SiteHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String, PublicPage: h.PersonPageURL(updated.Handle.String), SignInAlerts: &alertsOn})
+	writeJSON(w, 200, meResponse{ID: updated.ID, Username: updated.Username, IsAdmin: updated.IsAdmin, Handle: updated.Handle.String, DisplayName: updated.DisplayName.String, PublicPage: h.site.PersonPageURL(updated.Handle.String), SignInAlerts: &alertsOn})
 }
 
 type profileRequest struct {

@@ -47,13 +47,13 @@ func TestProductIdentityRefusesOtherDatabase(t *testing.T) {
 			}
 			before := identitySnapshot(t, cfg.DBDSN)
 			for _, args := range [][]string{{"migrate"}, {"migrate", "-init"}, {"migrate", "-record-product"}, {"migrate", "-mark", "0023-install-product.sql"}} {
-				if code := server.Run(args, exts); code != 3 {
+				if code := server.Run(args, exts, nil); code != 3 {
 					t.Fatalf("%v exit=%d", args, code)
 				}
 			}
 			for _, onStart := range []bool{false, true} {
 				cfg.MigrateOnStart = onStart
-				app, err := server.Build(cfg, exts)
+				app, err := server.Build(cfg, exts, nil)
 				if app != nil {
 					app.Close()
 					t.Fatal("wrong program started")
@@ -62,7 +62,7 @@ func TestProductIdentityRefusesOtherDatabase(t *testing.T) {
 					t.Fatalf("startup: %v", err)
 				}
 				t.Setenv("MIGRATE_ON_START", map[bool]string{false: "false", true: "true"}[onStart])
-				if code := server.Run(nil, exts); code != 3 {
+				if code := server.Run(nil, exts, nil); code != 3 {
 					t.Fatalf("start exit=%d", code)
 				}
 			}
@@ -99,7 +99,7 @@ func TestRecordProductContradictingEvidence(t *testing.T) {
 			}
 			before := identitySnapshot(t, cfg.DBDSN)
 			for _, args := range [][]string{{"migrate", "-record-product"}, {"migrate", "-init", "-record-product"}} {
-				if code := server.Run(args, exts); code != 3 {
+				if code := server.Run(args, exts, nil); code != 3 {
 					t.Fatalf("%v exit=%d", args, code)
 				}
 			}
@@ -122,7 +122,7 @@ func TestHackExplicitProductRecording(t *testing.T) {
 	}
 	exts := []*extension.Extension{hack.Extension()}
 	for i := 0; i < 2; i++ {
-		if code := server.Run([]string{"migrate", "-init", "-record-product"}, exts); code != 0 {
+		if code := server.Run([]string{"migrate", "-init", "-record-product"}, exts, nil); code != 0 {
 			t.Fatalf("record/repeat exit=%d", code)
 		}
 	}

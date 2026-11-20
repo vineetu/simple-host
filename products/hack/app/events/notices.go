@@ -272,11 +272,11 @@ func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n mod
 	if count == 0 || !ev.JudgingEndsAt.Valid || !ev.JudgingEndsAt.Time.After(time.Now()) {
 		return "", false, nil
 	}
-	if reminderOffsetStale(ev.ReminderOffsets, n.Detail, ev.JudgingEndsAt.Time, ev.JudgingEndsAt.Time.Sub(time.Now())) {
+	if reminderOffsetStale(ev.ReminderOffsets, n.Detail, ev.JudgingEndsAt.Time, time.Until(ev.JudgingEndsAt.Time)) {
 		return "", false, nil
 	}
 	have := "You still have " + teams(count) + " to score."
-	return "Judging closes " + hackNoticeTime(ev.JudgingEndsAt.Time, zone) + " (" + ReminderIn(ev.JudgingEndsAt.Time.Sub(time.Now())) + "). " + have, true, nil
+	return "Judging closes " + hackNoticeTime(ev.JudgingEndsAt.Time, zone) + " (" + ReminderIn(time.Until(ev.JudgingEndsAt.Time)) + "). " + have, true, nil
 }
 
 // sendNoticeBatch handles one person and kind. more=false when nothing was due.

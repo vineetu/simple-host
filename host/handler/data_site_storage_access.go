@@ -47,7 +47,7 @@ func storageResourceRulesJSON(x storageResource, diagnostics []httpx.RuleError) 
 	return out
 }
 
-func (h *SiteHandler) loadStorageResource(ctx context.Context, siteID, name string) (storageResource, error) {
+func (h *DataHandler) loadStorageResource(ctx context.Context, siteID, name string) (storageResource, error) {
 	return h.storageSvc().LoadResource(ctx, appstorage.ResourceReadInput{SiteID: siteID, Name: name})
 }
 
@@ -72,7 +72,7 @@ func (h *SiteHandler) loadStorageResource(ctx context.Context, siteID, name stri
 // Never from a page framed by another origin (auth.js sends X-SH-Framed: 1
 // there; it covers custom domains and families, whose pages nginx serves
 // without ownerFrameGuard) or from a preview of an earlier version.
-func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
+func (h *DataHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
 	if c.resource.BeforePresets {
 		return false // a resource saved before presets never had an owner on the site
 	}
@@ -82,11 +82,11 @@ func (h *SiteHandler) storageOwnerOnSite(r *http.Request, c storageCall) bool {
 // storageSiteOwnerOnSite is storageOwnerOnSite without the one-resource
 // check, for a site-level storage endpoint that names no resource
 // (the people pick list, SIM-358).
-func (h *SiteHandler) storageSiteOwnerOnSite(r *http.Request, c storageCall) bool {
+func (h *DataHandler) storageSiteOwnerOnSite(r *http.Request, c storageCall) bool {
 	if c.visitorAI || c.visitorID == "" {
 		return false
 	}
-	if r.Header.Get("X-SH-Framed") != "" || h.previewRefererFor(r, c.siteID) {
+	if r.Header.Get("X-SH-Framed") != "" || h.access.previewRefererFor(r, c.siteID) {
 		return false
 	}
 	if !h.storageOwnHost(r, c.siteID) {
@@ -108,14 +108,14 @@ func (h *SiteHandler) storageSiteOwnerOnSite(r *http.Request, c storageCall) boo
 // On Simple Hack the owner is the team's members or the event's organisers
 // (storageOwnerOnSite), and sibling team sites share one registrable domain
 // the same way.
-func (h *SiteHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ownerID string) {
+func (h *DataHandler) ownerFrameGuard(w http.ResponseWriter, r *http.Request, ownerID string) {
 	// A copy cached without the cookie must not stand in for one with it.
 	w.Header().Add("Vary", "Cookie")
 	switch r.Header.Get("Sec-Fetch-Dest") {
 	case "empty", "image", "script", "style", "font", "audio", "video", "track", "manifest", "worker", "sharedworker", "serviceworker":
 		return // never framed (empty: fetch and XHR); no database lookup per subresource
 	}
-	sess, err := h.cookieSession(r, "")
+	sess, err := h.access.cookieSession(r, "")
 	if err != nil {
 		return
 	}
@@ -142,27 +142,16 @@ func setOwnerFrameHeaders(w http.ResponseWriter) {
 	}
 }
 
-func (h *SiteHandler) storageOwnHost(r *http.Request, siteID string) bool {
+func (h *DataHandler) storageOwnHost(r *http.Request, siteID string) bool {
 	host := requestHostName(r)
-	if host == "" || h.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
+	if host == "" || h.access.isVisitorApexHost(host) || strings.EqualFold(host, h.contentHost) {
 		return false
 	}
 	// On Simple Hack the event's host is the holding account's person
 	// host, and it serves the event's custom website.
-	if _, person := h.personHostOwner(r.Context(), host); person && h.storageBindings == nil {
+	if _, person := h.site.personHostOwner(r.Context(), host); person && h.storageBindings == nil {
 		return false
 	}
-	id, err := h.resolveSiteIDScoped(r, r.PathValue("sitename"))
+	id, err := h.site.resolveSiteIDScoped(r, r.PathValue("sitename"))
 	return err == nil && id == siteID
-}
-
-// storageVisitorActive keeps the session alive (a suspended account has no
-// session: accounts.VisitorSession).
-func (h *SiteHandler) storageVisitorActive(w http.ResponseWriter, r *http.Request, c *storageCall) bool {
-	if c.activeChecked {
-		return true
-	}
-	_ = h.storeAccounts().TouchVisitorSession(r.Context(), c.visitorSession.ID, h.limits.VisitorSessionIdle)
-	c.activeChecked = true
-	return true
 }

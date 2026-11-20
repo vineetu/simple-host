@@ -2,12 +2,9 @@ package handler
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"log"
-	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -20,10 +17,6 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
-)
-
-const (
-	maxCodeAttempts = 3
 )
 
 type UserHandler struct {
@@ -48,7 +41,7 @@ type UserHandler struct {
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
 	fileUsage  func(context.Context, *model.User) (*accountFileUsage, error)
-	siteFiles  *SiteHandler
+	siteFiles  *AccessHandler
 	// addressState reports the account's own-address certificate state
 	// (SiteHandler.AddressState).
 	addressState func(handle string) *addressState
@@ -511,46 +504,8 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pqErr) && pqErr.Code == "23505"
 }
 
-func generateNumericCode(digits int) (string, error) {
-	max := big.NewInt(1)
-	for i := 0; i < digits; i++ {
-		max.Mul(max, big.NewInt(10))
-	}
-	n, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		return "", err
-	}
-	s := n.String()
-	for len(s) < digits {
-		s = "0" + s
-	}
-	return s, nil
-}
-
-func generateLinkToken(bytes int) (string, error) {
-	buf := make([]byte, bytes)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(buf), nil
-}
-
-// subtleConstantTimeEqual returns 1 if a == b, else 0. Avoids timing
-// side-channels on the code comparison.
-func subtleConstantTimeEqual(a, b string) int {
-	if len(a) != len(b) {
-		return 0
-	}
-	var v byte
-	for i := 0; i < len(a); i++ {
-		v |= a[i] ^ b[i]
-	}
-	if v == 0 {
-		return 1
-	}
-	return 0
-}
-
 // SetSites wires the site handler's file usage and its site locks and file
 // removal (deleting a team).
-func (h *UserHandler) SetSites(s *SiteHandler) { h.fileUsage, h.siteFiles = s.accountFileUsage, s }
+func (h *UserHandler) SetSites(s *SiteHandler) {
+	h.fileUsage, h.siteFiles = s.accountFileUsage, s.access
+}

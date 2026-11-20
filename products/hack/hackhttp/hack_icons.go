@@ -14,27 +14,21 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) hackIconLimit() int64 {
+func (h *publicEventHTTP) hackIconLimit() int64 {
 	return int64(h.limits.HackEventIconMaxBytes)
 }
 
-func (h *HackHandler) iconURL(ev model.Event) string {
+func (h *hackBase) iconURL(ev model.Event) string {
 	return h.iconURLSlug(ev.Slug)
 }
 
-func (h *HackHandler) iconURLSlug(slug string) string {
+func (h *hackBase) iconURLSlug(slug string) string {
 	return strings.TrimRight(h.publicBaseURL, "/") + "/v1/hack/events/" + slug + "/icon"
 }
 
-func (h *HackHandler) registerEventIcon(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/icon", http.HandlerFunc(h.getEventIcon))
-	mux.Handle("PUT /v1/hack/events/{slug}/icon", wrap(h.putEventIcon))
-	mux.Handle("DELETE /v1/hack/events/{slug}/icon", wrap(h.deleteEventIcon))
-}
-
-func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) getEventIcon(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	ev, err := h.eventsSvc().EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
+	ev, err := h.events.EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -50,7 +44,7 @@ func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	typ, body, err := h.eventsSvc().EventIcon(r.Context(), ev.ID)
+	typ, body, err := h.events.EventIcon(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -75,7 +69,7 @@ func (h *HackHandler) getEventIcon(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-func (h *HackHandler) putEventIcon(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) putEventIcon(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -104,7 +98,7 @@ func (h *HackHandler) putEventIcon(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_icon", "Content-Type must match the image")
 		return
 	}
-	if err := h.eventsSvc().SetEventIconLookup(r.Context(), a.event.ID, typ, raw); err != nil {
+	if err := h.events.SetEventIconLookup(r.Context(), a.event.ID, typ, raw); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -112,7 +106,7 @@ func (h *HackHandler) putEventIcon(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"icon_url": h.iconURL(a.event), "content_type": typ, "bytes": len(raw)})
 }
 
-func (h *HackHandler) deleteEventIcon(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) deleteEventIcon(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -121,7 +115,7 @@ func (h *HackHandler) deleteEventIcon(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "event_closed", "this event has ended")
 		return
 	}
-	if err := h.eventsSvc().SetEventIconLookup(r.Context(), a.event.ID, "", nil); err != nil {
+	if err := h.events.SetEventIconLookup(r.Context(), a.event.ID, "", nil); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}

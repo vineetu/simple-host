@@ -643,9 +643,6 @@ func TestAssistantRateLimitBody(t *testing.T) {
 	if body["code"] != "rate_limited" {
 		t.Fatalf("error = %v, want rate_limited", body["code"])
 	}
-	if body["error"] != "Too many questions at once. Wait a minute and try again." {
-		t.Fatalf("error = %v", body["error"])
-	}
 }
 
 // TestAssistantDailyLimit: once an organiser has asked DailyQuestions

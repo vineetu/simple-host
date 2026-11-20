@@ -25,7 +25,7 @@ import (
 // visitor_id = caller, so another person's row answers 404 like a missing
 // one. id, visitor_id, created_at and updated_at belong to the server.
 
-func (h *SiteHandler) storageRows(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) storageRows(w http.ResponseWriter, r *http.Request) {
 	var after func()
 	defer func() {
 		if after != nil {

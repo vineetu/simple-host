@@ -146,7 +146,7 @@ func builtHackApp(t *testing.T, wire func(extension.Deps, *extension.Parts)) *te
 	inner := ext.Wire
 	ext.Wire = func(d extension.Deps) (extension.Parts, error) {
 		parts, err := inner(d)
-		a.database, a.sites, a.conn, a.disk = d.DB, d.Site, d.Connector, d.Disk
+		a.database, a.sites, a.data, a.conn, a.disk = d.DB, d.Site, d.Data, d.Connector, d.Disk
 		if wire != nil {
 			wire(d, &parts)
 		}
@@ -194,7 +194,7 @@ func TestHackStorageBindingsAfterBuildAndDatabaseError(t *testing.T) {
 	if err := broken.Close(); err != nil {
 		t.Fatal(err)
 	}
-	a.sites.SetStorageBindings(storagebind.Provider{DB: broken})
+	a.data.SetStorageBindings(storagebind.Provider{DB: broken})
 	check("GET", path, "", "", 500, "internal_error")
 }
 

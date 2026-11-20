@@ -19,7 +19,7 @@ import (
 // or visitor enforcement built by the parallel R3-S1 slices.
 func saveNotificationRules(t *testing.T, s storageTestSite, read string) storageResource {
 	t.Helper()
-	h := s.a.sites
+	h := s.a.data
 	resource, err := h.loadStorageResource(context.Background(), s.sid, "orders")
 	if err != nil {
 		t.Fatal(err)
@@ -50,10 +50,10 @@ func TestNotifyRulesEventPayloads(t *testing.T) {
 		t.Run(fmt.Sprintf("saved=%t", rules), func(t *testing.T) {
 			s := webPushFixture(t)
 			x := newNotificationReceiver(t)
-			s.a.sites.notifyEngine().client = x.client()
-			s.a.sites.notifyEngine().client.secrets = &s.a.sites.passcode
+			s.a.data.notifyEngine().client = x.client()
+			s.a.data.notifyEngine().client.secrets = &s.a.access.passcode
 			subscribeNotification(t, s, x)
-			backend := s.a.sites.EventsBackend()
+			backend := s.a.data.EventsBackend()
 			for _, name := range []string{"record.added", "record.changed"} {
 				_, err := backend.Subscribe(context.Background(), mcp.Caller{Owner: s.ownerID, AppName: "Test app"}, mcp.EventSubscribeRequest{
 					Name: name, Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret,
@@ -62,7 +62,7 @@ func TestNotifyRulesEventPayloads(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			resource, err := s.a.sites.loadStorageResource(context.Background(), s.sid, "orders")
+			resource, err := s.a.data.loadStorageResource(context.Background(), s.sid, "orders")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -82,7 +82,7 @@ func TestNotifyRulesEventPayloads(t *testing.T) {
 				if name == "record.changed" {
 					data["change"] = "edited"
 				}
-				s.a.sites.storeNotification(c, name, data)
+				s.a.data.storeNotification(c, name, data)
 			}
 			drainNotifications(t, s)
 			seen := map[string]int{}
@@ -164,7 +164,7 @@ func TestWebPushRulesQueuedDelivery(t *testing.T) {
 				case "none":
 					setPushRule("none", "item", 200)
 				}
-				h := s.a.sites
+				h := s.a.data
 				deps := h.notificationDeliveryDeps()
 				body := deps.Body
 				deps.Body = func(ctx context.Context, n model.Notification, d model.NotificationDelivery, cursor int64) []byte {

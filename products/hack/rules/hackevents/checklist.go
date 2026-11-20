@@ -151,79 +151,21 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		return out
 	}
 	_ = now // Evaluation timestamps are supplied in facts; never read an ambient clock.
-	var earlier, current, optional, history []ChecklistItem
+	groups := map[string][]ChecklistItem{}
 	for _, d := range ChecklistCatalogue() {
-		if string(d.ID[0]) != string(in.Role[0]) {
+		d, ok := checklistDefinition(d, in)
+		if !ok {
 			continue
-		}
-		if d.ID == "o.assignments" && in.AssignmentMode == "open" {
-			continue
-		}
-		if (d.ID == "j.invite" || d.ID == "j.coc") && in.MembershipRole == "organiser" {
-			continue
-		}
-		if d.ID == "o.assignments" && in.AssignmentMode == "automatic" {
-			d.Label = fmt.Sprintf("Enough judges for %d per team", in.JudgesPerTeam)
-			d.Target = "o.judges"
 		}
 		f := in.Facts[d.ID]
-		if d.ID == "o.judges-short" {
-			if in.Stage != "judging" || f.Count == nil || *f.Count == 0 {
-				continue
-			}
-			d.Label = fmt.Sprintf("%d teams have fewer judges than the target", *f.Count)
-			if *f.Count == 1 {
-				d.Label = "1 team has fewer judges than the target"
-			}
-		}
-		target := d.Target
-		if f.TargetID != "" {
-			target = f.TargetID
-		}
-		item := ChecklistItem{ID: d.ID, Label: d.Label, State: ChecklistState(f.Done, in.Marks[d.ID] && d.Optional && in.Role == "organiser", d.Optional), Optional: d.Optional, CanDismiss: !f.Done && d.Optional && in.Role == "organiser" && !in.ReadOnly && in.Stage != "archived", OriginStage: d.Stage, Group: "current", Actionable: (f.Done || !in.Marks[d.ID]) && !in.ReadOnly && in.Stage != "archived" && f.BlockedReason == "", TargetID: target, Detail: f.Detail, Count: f.Count, Total: f.Total, Settled: f.Settled, Version: f.Version}
-		if f.Done && (d.ID == "o.lock" || d.ID == "o.ties" || d.ID == "j.rubric" || d.ID == "p.submit") {
-			item.Actionable = false
-		}
-		if d.ID == "o.scores" || d.ID == "j.invite" || d.ID == "j.coc" || d.ID == "j.closes" {
-			item.Actionable = false
-		}
-		if f.BlockedReason != "" {
-			reason := f.BlockedReason
-			item.BlockedReason = &reason
-		}
-		if in.Role != "organiser" {
-			current = append(current, item)
-			continue
-		}
-		isCurrent := d.Stage == in.Stage || (in.Stage == "building" && d.Stage == "open") || (in.Stage == "results" && (d.ID == "o.scores" || d.ID == "o.lock"))
-		if in.Stage != "archived" && !isCurrent && stageIndex(d.Stage) < stageIndex(in.Stage) && !f.Done && f.BlockedReason != "" {
-			continue
-		}
-		if in.Stage == "archived" {
-			item.Actionable = false
-			item.CanDismiss = false
-			if d.ID == "o.end" || (d.ID == "o.publish" && f.Done) {
-				current = append(current, item)
-			} else {
-				item.Group = "history"
-				history = append(history, item)
-			}
-		} else if isCurrent {
-			current = append(current, item)
-		} else if stageIndex(d.Stage) < stageIndex(in.Stage) {
-			if d.Optional || !f.Done && !item.Actionable {
-				item.Group = "earlier_optional"
-				optional = append(optional, item)
-			} else if !f.Done {
-				item.Group = "earlier_required"
-				earlier = append(earlier, item)
-			}
+		item := checklistItem(d, f, in)
+		if item.Group = checklistGroup(d, f, item, in); item.Group != "" {
+			groups[item.Group] = append(groups[item.Group], item)
 		}
 	}
-	out.Items = append(out.Items, earlier...)
-	out.Items = append(out.Items, current...)
-	out.Items = append(out.Items, optional...)
-	out.Items = append(out.Items, history...)
+	for _, g := range []string{"earlier_required", "current", "earlier_optional", "history"} {
+		out.Items = append(out.Items, groups[g]...)
+	}
 	if in.ReadOnly || in.Stage == "archived" {
 		return out
 	}
@@ -234,37 +176,7 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 		if in.Role == "participant" && it.ID != "p."+in.ParticipantNext {
 			continue
 		}
-		n := &ChecklistNext{Kind: "link", ItemID: it.ID, TargetID: it.TargetID, Label: it.Label}
-		switch it.ID {
-		case "o.lock":
-			if in.Stage == "judging" {
-				n.Kind = "stage"
-				n.Stage = "results"
-				n.ConfirmationRequired = true
-			}
-		case "o.end":
-			n.Kind = "end_event"
-			n.Stage = "archived"
-			n.ConfirmationRequired = true
-			if in.Forward != nil {
-				n.BlockedReason = in.Forward.BlockedReason
-			}
-		case "o.publish":
-			if it.TargetID == "o.lock" {
-				n.Kind = "link"
-				n.Label = "Finish judging"
-				break
-			}
-			n.Kind = "publish_results"
-			n.ConfirmationRequired = true
-		case "p.submit":
-			n.Kind = "submit_entry"
-			n.ConfirmationRequired = true
-		}
-		if in.Forward != nil {
-			n.Cue = in.Forward.Cue
-		}
-		out.Next = n
+		out.Next = checklistNext(it, in)
 		return out
 	}
 	if in.Role == "organiser" {
@@ -276,8 +188,115 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 			out.Next = &ChecklistNext{Kind: "link", ItemID: "j.scores", TargetID: "j.queue", Label: "Review my scores"}
 		}
 	}
-
 	return out
+}
+
+// checklistDefinition is d as this role, mode and stage show it; false
+// leaves it out.
+func checklistDefinition(d ChecklistDefinition, in ChecklistInput) (ChecklistDefinition, bool) {
+	switch {
+	case d.ID[0] != in.Role[0]:
+		return d, false
+	case d.ID == "o.assignments" && in.AssignmentMode == "open":
+		return d, false
+	case (d.ID == "j.invite" || d.ID == "j.coc") && in.MembershipRole == "organiser":
+		return d, false
+	case d.ID == "o.assignments" && in.AssignmentMode == "automatic":
+		d.Label = fmt.Sprintf("Enough judges for %d per team", in.JudgesPerTeam)
+		d.Target = "o.judges"
+	case d.ID == "o.judges-short":
+		f := in.Facts[d.ID]
+		if in.Stage != "judging" || f.Count == nil || *f.Count == 0 {
+			return d, false
+		}
+		d.Label = fmt.Sprintf("%d teams have fewer judges than the target", *f.Count)
+		if *f.Count == 1 {
+			d.Label = "1 team has fewer judges than the target"
+		}
+	}
+	return d, true
+}
+
+// Items that never offer an action once done, and items that never do.
+var (
+	checklistDoneInert = map[string]bool{"o.lock": true, "o.ties": true, "j.rubric": true, "p.submit": true}
+	checklistInert     = map[string]bool{"o.scores": true, "j.invite": true, "j.coc": true, "j.closes": true}
+)
+
+func checklistItem(d ChecklistDefinition, f ChecklistFact, in ChecklistInput) ChecklistItem {
+	target := d.Target
+	if f.TargetID != "" {
+		target = f.TargetID
+	}
+	organiser, open := in.Role == "organiser", !in.ReadOnly && in.Stage != "archived"
+	item := ChecklistItem{ID: d.ID, Label: d.Label, State: ChecklistState(f.Done, in.Marks[d.ID] && d.Optional && organiser, d.Optional), Optional: d.Optional, CanDismiss: !f.Done && d.Optional && organiser && open, OriginStage: d.Stage, Actionable: (f.Done || !in.Marks[d.ID]) && open && f.BlockedReason == "", TargetID: target, Detail: f.Detail, Count: f.Count, Total: f.Total, Settled: f.Settled, Version: f.Version}
+	if f.Done && checklistDoneInert[d.ID] || checklistInert[d.ID] {
+		item.Actionable = false
+	}
+	if f.BlockedReason != "" {
+		reason := f.BlockedReason
+		item.BlockedReason = &reason
+	}
+	return item
+}
+
+// checklistGroup places an item; "" leaves it out. Only organisers see
+// earlier stages and history. An archived event's items are never
+// actionable (checklistItem), so its last rows stay current as plain records.
+func checklistGroup(d ChecklistDefinition, f ChecklistFact, item ChecklistItem, in ChecklistInput) string {
+	if in.Role != "organiser" {
+		return "current"
+	}
+	isCurrent := d.Stage == in.Stage || (in.Stage == "building" && d.Stage == "open") || (in.Stage == "results" && (d.ID == "o.scores" || d.ID == "o.lock"))
+	switch {
+	case in.Stage == "archived" && (d.ID == "o.end" || (d.ID == "o.publish" && f.Done)):
+		return "current"
+	case in.Stage == "archived":
+		return "history"
+	case isCurrent:
+		return "current"
+	case stageIndex(d.Stage) >= stageIndex(in.Stage), !f.Done && f.BlockedReason != "":
+		return ""
+	case d.Optional || !f.Done && !item.Actionable:
+		return "earlier_optional"
+	case !f.Done:
+		return "earlier_required"
+	}
+	return ""
+}
+
+// checklistNext is the next step for the first actionable required item.
+func checklistNext(it ChecklistItem, in ChecklistInput) *ChecklistNext {
+	n := &ChecklistNext{Kind: "link", ItemID: it.ID, TargetID: it.TargetID, Label: it.Label}
+	switch it.ID {
+	case "o.lock":
+		if in.Stage == "judging" {
+			n.Kind = "stage"
+			n.Stage = "results"
+			n.ConfirmationRequired = true
+		}
+	case "o.end":
+		n.Kind = "end_event"
+		n.Stage = "archived"
+		n.ConfirmationRequired = true
+		if in.Forward != nil {
+			n.BlockedReason = in.Forward.BlockedReason
+		}
+	case "o.publish":
+		if it.TargetID == "o.lock" {
+			n.Label = "Finish judging"
+			break
+		}
+		n.Kind = "publish_results"
+		n.ConfirmationRequired = true
+	case "p.submit":
+		n.Kind = "submit_entry"
+		n.ConfirmationRequired = true
+	}
+	if in.Forward != nil {
+		n.Cue = in.Forward.Cue
+	}
+	return n
 }
 
 // RubricFingerprint ignores unrelated event settings and includes ordered criterion identity and content.

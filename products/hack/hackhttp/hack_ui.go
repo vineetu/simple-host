@@ -16,9 +16,6 @@ import (
 // sitesBase is the domain team sites are served under (team.event.<base>),
 // or "" when this server gives sites no hosts of their own; the judge
 // route's CSP (hackAppCSP) may frame them.
-//
-// Takes the hackPages interface, not *SiteHandler (cleanup 3.2 slice 2a):
-// this only ever called sh.pipeline().
 func RegisterHackUI(mux *http.ServeMux, pages hackPages, sitesBase string) {
 	assets := pages
 	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

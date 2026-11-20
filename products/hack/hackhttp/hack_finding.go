@@ -9,7 +9,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
-func (h *HackHandler) findingAccess(w http.ResponseWriter, r *http.Request, write bool) (hackAccess, bool) {
+func (h *participationHTTP) findingAccess(w http.ResponseWriter, r *http.Request, write bool) (hackAccess, bool) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), write, "participant", "organiser")
 	if !ok {
 		return a, false
@@ -25,7 +25,7 @@ func (h *HackHandler) findingAccess(w http.ResponseWriter, r *http.Request, writ
 	return a, true
 }
 
-func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant", "organiser")
 	if !ok {
 		return
@@ -35,7 +35,7 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, 200, out)
 		return
 	}
-	directory, err := h.teamsSvc().ListOpenTeams(r.Context(), a.event.ID, a.user.ID, a.member)
+	directory, err := h.teams.ListOpenTeams(r.Context(), a.event.ID, a.user.ID, a.member)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -63,7 +63,7 @@ func (h *HackHandler) listOpenTeams(w http.ResponseWriter, r *http.Request) {
 // setTeamFinding is the deprecated PUT .../team/finding (replaced by PATCH
 // .../team): admin only now, writes only looking_for, ignores open. Kept
 // for one release so an older cached tool call still works.
-func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.findingAccess(w, r, true)
 	if !ok {
 		return
@@ -83,14 +83,14 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := h.teamsSvc().SetTeamFinding(r.Context(), a.event.ID, a.user.ID, note)
+	err := h.teams.SetTeamFinding(r.Context(), a.event.ID, a.user.ID, note)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true, "deprecated": "use PATCH /v1/hack/events/{slug}/team"})
 }
-func (h *HackHandler) setLooking(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) setLooking(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.findingAccess(w, r, true)
 	if !ok {
 		return
@@ -110,14 +110,14 @@ func (h *HackHandler) setLooking(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	err := h.teamsSvc().SetLooking(r.Context(), a.event.ID, a.user.ID, req.Looking, intro)
+	err := h.teams.SetLooking(r.Context(), a.event.ID, a.user.ID, req.Looking, intro)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
 }
-func (h *HackHandler) createTeamRequest(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) createTeamRequest(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.findingAccess(w, r, true)
 	if !ok {
 		return
@@ -138,14 +138,14 @@ func (h *HackHandler) createTeamRequest(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		userID = req.UserID
-		t, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
+		t, err := h.teams.GetTeam(r.Context(), a.member.TeamID.String)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
 		}
 		team = t.Slug
 	}
-	state, err := h.teamsSvc().CreateTeamRequest(r.Context(), a.event, a.user.ID, team, userID, kind)
+	state, err := h.teams.CreateTeamRequest(r.Context(), a.event, a.user.ID, team, userID, kind)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -156,7 +156,7 @@ func (h *HackHandler) createTeamRequest(w http.ResponseWriter, r *http.Request) 
 	}
 	httpx.WriteJSON(w, status, map[string]any{"ok": true, "state": state})
 }
-func (h *HackHandler) resolveTeamRequest(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) resolveTeamRequest(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.findingAccess(w, r, true)
 	if !ok {
 		return
@@ -174,7 +174,7 @@ func (h *HackHandler) resolveTeamRequest(w http.ResponseWriter, r *http.Request)
 		writeEventNotFound(w)
 		return
 	}
-	err := h.teamsSvc().ResolveTeamRequest(r.Context(), a.event, a.user.ID, id, action)
+	err := h.teams.ResolveTeamRequest(r.Context(), a.event, a.user.ID, id, action)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -182,7 +182,7 @@ func (h *HackHandler) resolveTeamRequest(w http.ResponseWriter, r *http.Request)
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
 }
 
-func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) fillTeams(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -198,7 +198,7 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	plan, skipped, size, err := h.teamsSvc().FillTeams(r.Context(), a.event.ID, a.user.ID, req.Size, req.Apply)
+	plan, skipped, size, err := h.teams.FillTeams(r.Context(), a.event.ID, a.user.ID, req.Size, req.Apply)
 	if err != nil {
 		writeHackError(w, err)
 		return

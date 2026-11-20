@@ -122,7 +122,7 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	if _, err := database.Exec(`DELETE FROM schema_migrations WHERE name=$1`, name); err != nil {
 		t.Fatal(err)
 	}
-	if code := Run([]string{"migrate", "-mark", name}, exts); code != 0 {
+	if code := Run([]string{"migrate", "-mark", name}, exts, nil); code != 0 {
 		t.Fatalf("mark product exit = %d", code)
 	}
 	var count int
@@ -135,7 +135,7 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	if _, err := database.Exec(`DELETE FROM instance_config WHERE key='catalog-product'`); err != nil {
 		t.Fatal(err)
 	}
-	if code := Run([]string{"migrate"}, exts); code != 0 {
+	if code := Run([]string{"migrate"}, exts, nil); code != 0 {
 		t.Fatalf("migrate product exit = %d", code)
 	}
 	var value string
@@ -147,7 +147,7 @@ func TestMigrateCommandUsesProductCatalog(t *testing.T) {
 	if err := migrateDatabase(context.Background(), database, nil, true, t.Logf, false); err != nil {
 		t.Fatal(err)
 	}
-	if code := Run([]string{"migrate", "-mark", name}, nil); code != 1 {
+	if code := Run([]string{"migrate", "-mark", name}, nil, nil); code != 1 {
 		t.Fatalf("platform accepted absent product file: exit %d", code)
 	}
 	product.FS.(fstest.MapFS)["catalog-failure.sql"] = &fstest.MapFile{Data: []byte("SELECT no_such_catalog_function()")}

@@ -110,6 +110,7 @@ func installAccessDB(t *testing.T, p *passcodeApp, before, after func(string) er
 	database := sql.OpenDB(accessConnector{connector, before, after})
 	original := p.sites.database
 	p.sites.database = database
+	p.access.database, p.data.database = p.sites.database, p.sites.database
 	t.Cleanup(func() { p.sites.database = original; database.Close() })
 }
 
@@ -207,6 +208,7 @@ func TestAccessMarkerFailures(t *testing.T) {
 					return nil
 				}
 				p.sites.disk = disk
+				p.access.disk, p.data.disk = p.sites.disk, p.sites.disk
 				attempted := false
 				isWrite := func(q string) bool {
 					return strings.Contains(q, "UPDATE sites SET passcode_") || strings.Contains(q, "UPDATE sites SET access =")
@@ -271,7 +273,8 @@ func TestAccessMarkerFailures(t *testing.T) {
 				}
 				// Repair a leftover removal failure with the ordinary startup/sweep path.
 				p.sites.disk = disk.SiteDisk
-				p.sites.SyncSuspendMarkers(context.Background())
+				p.access.disk, p.data.disk = p.sites.disk, p.sites.disk
+				p.access.SyncSuspendMarkers(context.Background())
 				assertAccessInvariant(t, p)
 			})
 		}
@@ -338,7 +341,7 @@ func TestAccessMarkerStaleSync(t *testing.T) {
 		t.Fatal(r.status)
 	}
 	assertAccessInvariant(t, p)
-	p.sites.SyncSuspendMarkers(context.Background())
+	p.access.SyncSuspendMarkers(context.Background())
 	assertAccessInvariant(t, p)
 	// Account take-down repair must likewise ignore an old unsuspended row.
 	if _, err := p.database.Exec(`UPDATE users SET suspended_at=now() WHERE id=$1`, uid); err != nil {
@@ -599,6 +602,7 @@ func TestAccessMarkerRestoreAndRenameRepair(t *testing.T) {
 		t.Run(access, func(t *testing.T) {
 			p := newPasscodeApp(t)
 			p.sites.disk = &accessMoveDisk{p.sites.disk, t}
+			p.access.disk, p.data.disk = p.sites.disk, p.sites.disk
 			uid, _ := p.userID(t, p.olive)
 			if access == "passcode" {
 				if r := p.lock(t, "test-passcode"); r.status != 200 {
@@ -644,6 +648,7 @@ func TestAccessMarkerRepublishMissingDirectory(t *testing.T) {
 	// The archive import and JSON update converge on Service.Update.
 	disk := &createAccessDisk{SiteDisk: p.sites.disk, t: t}
 	p.sites.disk = disk
+	p.access.disk, p.data.disk = p.sites.disk, p.sites.disk
 	r := accessRequest(t, p, "PUT", "/v1/sites/trip/files", map[string]any{"files": map[string]string{"index.html": passcodeCanary}})
 	if r.status != 200 || !disk.marked {
 		t.Fatalf("republish: %d %s", r.status, r.body)
@@ -701,7 +706,7 @@ func TestAccessMarkerProtectionRowMustMatchDirectory(t *testing.T) {
 				}
 				w := httptest.NewRecorder()
 				r := httptest.NewRequest("GET", "https://"+p.host+"/", nil)
-				if !p.sites.siteGateRoot(w, r, root, uid, "trip", "/") {
+				if !p.access.siteGateRoot(w, r, root, uid, "trip", "/") {
 					content, err := root.OpenRoot("current")
 					if err != nil {
 						t.Fatal(err)

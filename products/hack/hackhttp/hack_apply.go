@@ -20,11 +20,6 @@ import (
 // its own rules (the organiser's switch, and an application is always
 // pending — D1).
 
-// hackAgeRangeOrder/hackAgeRangeLabels and hackGenderOrder/hackGenderLabels
-// moved to host/rules/hackevents (AgeRangeOrder/AgeRangeLabels,
-// GenderOrder/GenderLabels) in cleanup 3.2 slice 1c: fixed product choices,
-// no handler dependency.
-
 // hackUnder18Note is plain prose for non-browser consumers of GET .../apply;
 // the public-apply.js form itself never renders this string -- it builds
 // the same sentence with "Terms" as a real link to /terms (review item 6:
@@ -32,10 +27,6 @@ import (
 // text either, since a client showing it verbatim would repeat the same
 // mistake).
 const hackUnder18Note = "If you're under 18, a parent or guardian needs to agree to Simple Hack's Terms for you."
-
-// hackApplicationsOpenNow moved to host/rules/hackevents
-// (ApplicationsOpenNow) in cleanup 3.2 slice 4: fixed product decision, no
-// handler dependency.
 
 func hackApplyFields() map[string]any {
 	ageRanges := make([]map[string]string, 0, len(events.AgeRangeOrder))
@@ -58,7 +49,7 @@ func hackApplyFields() map[string]any {
 // getApply is GET /v1/hack/events/{slug}/apply. Signed out allowed; a valid
 // X-API-Key meters the account instead of the shared network address, as
 // getCodeInfo does for join/judge links.
-func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getApply(w http.ResponseWriter, r *http.Request) {
 	caller := ""
 	accountName := ""
 	if u := auth.GetUser(r.Context()); u != nil {
@@ -71,7 +62,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev, err := h.membersSvc().ApplyEvent(r.Context(), slug)
+	ev, err := h.members.ApplyEvent(r.Context(), slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -111,7 +102,7 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	// signed-in caller -- not to every account for every non-draft slug.
 	// `me` stays available to a member either way, open or closed.
 	if caller != "" {
-		questions, status, err := h.membersSvc().ApplyDetails(r.Context(), ev, caller, openNow)
+		questions, status, err := h.members.ApplyDetails(r.Context(), ev, caller, openNow)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -135,10 +126,6 @@ func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
-// hackCountryName and hackJoinedViaLabel moved to host/rules/hackevents
-// (CountryName, JoinedViaLabel) in cleanup 3.2 slice 1c: pure lookups, no
-// handler dependency.
-
 type postApplyReq struct {
 	AcceptCoC   *bool             `json:"accept_coc"`
 	DisplayName string            `json:"display_name"`
@@ -151,7 +138,7 @@ type postApplyReq struct {
 
 // postApply is POST /v1/hack/events/{slug}/apply: D1, every application is
 // pending whatever approval_required says, and always joined_via='application'.
-func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) postApply(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return
@@ -163,14 +150,14 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	input, err := h.membersSvc().ValidateApplication(req.AcceptCoC, members.ApplicationInput{Display: req.DisplayName, City: req.City, Country: req.Country, AgeRange: req.AgeRange, Gender: req.Gender, Answers: req.Answers})
+	input, err := h.members.ValidateApplication(req.AcceptCoC, members.ApplicationInput{Display: req.DisplayName, City: req.City, Country: req.Country, AgeRange: req.AgeRange, Gender: req.Gender, Answers: req.Answers})
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
 
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev, err := h.membersSvc().ApplyEvent(r.Context(), slug)
+	ev, err := h.members.ApplyEvent(r.Context(), slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -188,7 +175,7 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	member, existingView, err := h.membersSvc().Apply(ctx, ev, user.ID, input, h.limits.EventApplyPendingPerEvent, func(existing model.EventMember) any {
+	member, existingView, err := h.members.Apply(ctx, ev, user.ID, input, h.limits.EventApplyPendingPerEvent, func(existing model.EventMember) any {
 		return h.eventView(ctx, ev, existing, false)
 	})
 	if err != nil {

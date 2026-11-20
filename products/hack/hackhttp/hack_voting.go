@@ -26,7 +26,7 @@ func votingSettingsJSON(s entries.VotingConfig) map[string]any {
 	}
 }
 
-func (h *HackHandler) getVotingSettings(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) getVotingSettings(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
@@ -42,7 +42,7 @@ func (h *HackHandler) getVotingSettings(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, 200, out)
 }
 
-func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) putVotingSettings(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -67,13 +67,13 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 	}
 	var opens, closes sql.NullTime
 	if strings.TrimSpace(req.OpensAt) != "" {
-		opens, ok = parseEventTime(w, req.OpensAt, loc, "opens_at", true)
+		opens, ok = parseEventTime(w, req.OpensAt, loc, "opens_at")
 		if !ok {
 			return
 		}
 	}
 	if strings.TrimSpace(req.ClosesAt) != "" {
-		closes, ok = parseEventTime(w, req.ClosesAt, loc, "closes_at", true)
+		closes, ok = parseEventTime(w, req.ClosesAt, loc, "closes_at")
 		if !ok {
 			return
 		}
@@ -98,7 +98,7 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, 200, out)
 }
 
-func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) patchDirectoryListed(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
@@ -124,7 +124,7 @@ func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Reques
 	httpx.WriteJSON(w, 200, map[string]any{"listed": *req.Listed})
 }
 
-func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) getVote(w http.ResponseWriter, r *http.Request) {
 	ev, loaded, err := h.entries.VotingEvent(r.Context(), r.PathValue("slug"))
 	if loaded {
 		paperHackEvent(r, ev)
@@ -169,7 +169,7 @@ func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, out)
 }
 
-func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) getMyVote(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return
@@ -190,7 +190,7 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"team": selected, "eligible": eligible})
 }
 
-func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) putVote(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return
@@ -225,13 +225,9 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"team": req.Team, "changed": !created})
 }
 
-// getDirectory serves the public directory groups. The grouping and the
-// applications_open rule now live in host/app/hack/events (Directory)
-// and the rules it calls; this handler keeps transport: it calls the
-// service, then builds the exact same JSON, including the url/icon_url/
-// color/apply_url fields it computes from its own config (cleanup 3.2
-// slice 4).
-func (h *HackHandler) getDirectory(w http.ResponseWriter, r *http.Request) {
+// getDirectory serves the public directory groups (events.Directory), with
+// the url/icon_url/color/apply_url fields from this instance's config.
+func (h *judgingHTTP) getDirectory(w http.ResponseWriter, r *http.Request) {
 	dir, err := h.events.Directory(r.Context(), time.Now)
 	if err != nil {
 		httpx.WriteInternal(w)
@@ -248,7 +244,7 @@ func (h *HackHandler) getDirectory(w http.ResponseWriter, r *http.Request) {
 // hackDirectoryRows builds getDirectory's JSON rows for one group: the
 // service's typed Row plus the url/icon_url/color/apply_url fields only the
 // transport can compute.
-func hackDirectoryRows(h *HackHandler, rows []events.Row) []map[string]any {
+func hackDirectoryRows(h *judgingHTTP, rows []events.Row) []map[string]any {
 	out := []map[string]any{}
 	for _, ev := range rows {
 		row := map[string]any{

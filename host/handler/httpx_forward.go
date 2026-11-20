@@ -7,34 +7,21 @@ import (
 	"github.com/vsriram/simple-host/host/workers"
 )
 
-// Transitional (cleanup 3.2): callers move to httpx in 4.x.
-//
-// This file re-exposes host/httpx's protocol helpers under the names
-// host/handler used before the move, so the hundreds of existing call
-// sites (including host/handler/hack*.go, owned by a parallel worker in
-// this step) keep compiling unchanged.
-
-// errorResponse is httpx.ErrorResponse. A type alias (not a new type) so
-// existing composite literals (errorResponse{...}) keep compiling and
-// satisfy httpx.WriteJSON's type switch.
-type errorResponse = httpx.ErrorResponse
-
-var (
-	writeJSON       = httpx.WriteJSON
-	writeProductErr = httpx.WriteError
-	writeInternal   = httpx.WriteInternal
-	acceptsMarkdown = httpx.AcceptsMarkdown
-	csvSafe         = httpx.CSVSafe
+// The host/httpx protocol helpers under this package's short names. The
+// type aliases keep errorResponse{...} literals and the CSP nonce context key
+// identical to httpx's own.
+type (
+	errorResponse = httpx.ErrorResponse
+	cspNonceKey   = httpx.NonceKey
 )
 
-// cspNonceKey is httpx.NonceKey. A type alias, not a redefinition, so the
-// context value adminUICSP (ui.go) sets and the one httpx.StampNonce reads
-// are exactly the same key.
-type cspNonceKey = httpx.NonceKey
-
-var stampNonce = httpx.StampNonce
-
 var (
+	writeJSON         = httpx.WriteJSON
+	writeProductErr   = httpx.WriteError
+	writeInternal     = httpx.WriteInternal
+	acceptsMarkdown   = httpx.AcceptsMarkdown
+	csvSafe           = httpx.CSVSafe
+	stampNonce        = httpx.StampNonce
 	clientIP          = httpx.ClientIP
 	tooManyRequests   = httpx.TooManyRequests
 	SetTrustedProxies = httpx.SetTrustedProxies

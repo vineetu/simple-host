@@ -73,6 +73,7 @@ def main():
     non_json_lines = []
 
     packages = {}  # package -> last pass/fail/skip action seen at package level
+    elapsed = {}  # package -> seconds the package's test binary ran
     pkg_output = {}  # package -> [output str, ...] (package-level "output" events only)
     build_output = {}  # ImportPath -> [output str, ...] (build-output events)
     build_failed = set()  # ImportPath with a build-fail event
@@ -133,6 +134,7 @@ def main():
                     pkg_output.setdefault(pkg, []).append(rec.get("Output", ""))
                 elif action in ("pass", "fail", "skip"):
                     packages[pkg] = action
+                    elapsed[pkg] = rec.get("Elapsed", 0)
 
     # ---- guard against a stream that isn't real `go test -json` output ----
     if events_parsed == 0:
@@ -193,7 +195,8 @@ def main():
             # failure where only the .test-suffixed ImportPath got a
             # build-fail event) -- treat as failing, not silently omitted.
             label = "FAIL"
-        print(f"{label} {pkg}")
+        timing = "(cached)" if "(cached)" in "".join(pkg_output.get(pkg, [])) else f"{elapsed.get(pkg, 0):.1f}s"
+        print(f"{label} {pkg} {timing}")
 
     if build_failed or build_output:
         print()

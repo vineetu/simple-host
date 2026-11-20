@@ -40,25 +40,25 @@ var takedownPage = themed(`<!doctype html>
 // ServeTakedownForTest is serveTakedown, exported as a test hook (cleanup
 // 3.2 slice 3): the moved hack_ink_browser_test.go (an opt-in Playwright
 // rehearsal fixture) mounts it at a debug path.
-func (h *SiteHandler) ServeTakedownForTest(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) ServeTakedownForTest(w http.ResponseWriter, r *http.Request) {
 	h.serveTakedown(w, r)
 }
 
 // serveTakedown writes the take-down page. 410 so it is not cached as the
 // site's content; no-store so a restore takes effect on the next load.
-func (h *SiteHandler) serveTakedown(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) serveTakedown(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex")
 	w.WriteHeader(http.StatusGone)
 	if r.Method != http.MethodHead {
-		_, _ = w.Write(h.pipeline().hostedStatusPage(takedownPage))
+		_, _ = w.Write(h.site.pipeline().hostedStatusPage(takedownPage))
 	}
 }
 
 // suspendedPage answers /internal/suspended, where nginx and Caddy send a
 // request for a site whose folder carries the marker.
-func (h *SiteHandler) suspendedPage(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) suspendedPage(w http.ResponseWriter, r *http.Request) {
 	h.serveTakedown(w, r)
 }
 
@@ -82,8 +82,8 @@ func refuseSuspendedSite(w http.ResponseWriter, site model.Site) bool {
 
 // refuseSuspendedSiteID is refuseSuspendedSite for handlers that hold only
 // the site id. A lookup error refuses too (fail closed).
-func (h *SiteHandler) refuseSuspendedSiteID(w http.ResponseWriter, r *http.Request, siteID string) bool {
-	susp, reason, err := h.sitesSvc().SiteSuspension(r.Context(), siteID)
+func (h *AccessHandler) refuseSuspendedSiteID(w http.ResponseWriter, r *http.Request, siteID string) bool {
+	susp, reason, err := h.site.sitesSvc().SiteSuspension(r.Context(), siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
 		return true
@@ -123,24 +123,26 @@ func readSuspendReason(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 // syncSiteMarker makes the disk marker match the site's effective state.
-func (h *SiteHandler) syncSiteMarker(site model.Site) error {
-	return h.sitesSvc().SyncSiteSuspensionMarker(site)
+func (h *AccessHandler) syncSiteMarker(site model.Site) error {
+	return h.site.sitesSvc().SyncSiteSuspensionMarker(site)
 }
 
 // SyncSuspendMarkers makes every site's disk marker match the database. Run
 // once at boot so a marker lost to a failed write, a restore from backup or a
 // hand-applied migration cannot leave a taken-down site serving (or a
 // restored one dark).
-func (h *SiteHandler) SyncSuspendMarkers(ctx context.Context) { h.sitesSvc().SyncSuspendMarkers(ctx) }
+func (h *AccessHandler) SyncSuspendMarkers(ctx context.Context) {
+	h.site.sitesSvc().SyncSuspendMarkers(ctx)
+}
 
 // adminSiteJSON is how the admin calls report a site after a change.
-func (h *SiteHandler) adminSiteJSON(s model.Site) map[string]any {
+func (h *AccessHandler) adminSiteJSON(s model.Site) map[string]any {
 	return map[string]any{
 		"id":               s.ID,
 		"name":             s.Name,
 		"owner":            s.OwnerUsername,
 		"handle":           s.OwnerHandle,
-		"site_url":         h.siteURLFor(s),
+		"site_url":         h.site.siteURLFor(s),
 		"suspended":        s.Suspended(),
 		"suspended_reason": s.SuspendedReason(),
 		"suspended_by":     suspendedBy(s),
@@ -160,7 +162,7 @@ func suspendedBy(s model.Site) string {
 
 // setSiteSuspension is POST /v1/admin/sites/{id}/suspend (on) and
 // /v1/admin/sites/{id}/restore (off).
-func (h *SiteHandler) setSiteSuspension(on bool) http.HandlerFunc {
+func (h *AccessHandler) setSiteSuspension(on bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !auth.Admin(w, r) {
 			return
@@ -172,7 +174,7 @@ func (h *SiteHandler) setSiteSuspension(on bool) http.HandlerFunc {
 				return
 			}
 		}
-		site, err := h.sitesSvc().SuspendSite(r.Context(), r.PathValue("id"), reason, auth.GetUser(r.Context()).ID, on)
+		site, err := h.site.sitesSvc().SuspendSite(r.Context(), r.PathValue("id"), reason, auth.GetUser(r.Context()).ID, on)
 		if writeLifecycleFailure(w, err) {
 			return
 		}
@@ -184,7 +186,7 @@ func (h *SiteHandler) setSiteSuspension(on bool) http.HandlerFunc {
 // /v1/admin/users/{id}/enable (off). Suspending keeps the account's keys,
 // connected apps and sites; every check that authenticates refuses them while
 // the flag is set, and every site of theirs is taken down.
-func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
+func (h *AccessHandler) setUserSuspension(on bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !auth.Admin(w, r) {
 			return
@@ -197,7 +199,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			}
 		}
 		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
-		if err := h.sitesSvc().SuspensionGate(r.Context(), id); err != nil {
+		if err := h.site.sitesSvc().SuspensionGate(r.Context(), id); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				writeJSON(w, http.StatusNotFound, errorResponse{Error: "not found"})
 			} else if e, ok := err.(*appsites.Error); ok && e.Code == "event_account" {
@@ -208,7 +210,7 @@ func (h *SiteHandler) setUserSuspension(on bool) http.HandlerFunc {
 			return
 		}
 
-		out, err := h.sitesSvc().SuspendAccount(r.Context(), appsites.SuspensionInput{ID: id, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, Marker: h.syncSiteMarker})
+		out, err := h.site.sitesSvc().SuspendAccount(r.Context(), appsites.SuspensionInput{ID: id, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, Marker: h.syncSiteMarker})
 		if err != nil {
 			var failure *accounts.LifecycleError
 			if errors.As(err, &failure) && failure.Code == "admin_account" {

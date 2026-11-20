@@ -146,7 +146,7 @@ func TestKVFileStatsWiringLiveAndTrashed(t *testing.T) {
 	s.must(t, "PUT", "/kv/entries/keys/long-key", `{"value":"é"}`, s.key, 200)
 	check := func() {
 		t.Helper()
-		n, b, err := s.a.sites.KVFileStats(context.Background(), s.sid)
+		n, b, err := s.a.data.KVFileStats(context.Background(), s.sid)
 		if err != nil || n != 1 || b != 4 {
 			t.Fatalf("file stats %d/%d: %v", n, b, err)
 		}
@@ -164,7 +164,7 @@ func TestKVFileStatsWiringLiveAndTrashed(t *testing.T) {
 func TestKVUsageBusyHTTP(t *testing.T) {
 	s := newStorageTestSite(t)
 	s.must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.key, 201)
-	h := s.a.sites
+	h := s.a.data
 	h.sqliteSites = appstorage.NewSiteSlots(1, appstorage.NewSQLiteGate(1, time.Second), 20*time.Millisecond)
 	entered, release := make(chan struct{}), make(chan struct{})
 	done := make(chan error, 1)
@@ -189,7 +189,7 @@ func TestKVQuotaBusySQLiteWritesHTTP(t *testing.T) {
 	s.must(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite"}, s.key, 201)
 	s.must(t, "POST", "/sqlite/db/schema", `{"sql":"CREATE TABLE items(id INTEGER PRIMARY KEY, v TEXT)"}`, s.key, 200)
 	s.must(t, "POST", "/sqlite/db/execute", `{"sql":"INSERT INTO items VALUES(1, 'original')"}`, s.key, 200)
-	h := s.a.sites
+	h := s.a.data
 	h.sqliteSites = appstorage.NewSiteSlots(4, appstorage.NewSQLiteGate(4, time.Second), time.Second)
 	root := filepath.Join(h.disk.SiteDir(s.ownerID, "shop"), "runtime")
 	err := h.siteSlotsFor().Admit(context.Background(), s.sid, func(ctx context.Context, _ *appstorage.Admission) error {

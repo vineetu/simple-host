@@ -364,43 +364,45 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event,
 }
 
 // PatchEvent applies validated settings while holding the event lock.
-func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(*model.Event) (bool, bool, error)) (model.Event, error) {
+// PatchEvent applies p to the event row under its lock. deadlineChanged
+// reports that the submission deadline was sent.
+func (s *Service) PatchEvent(ctx context.Context, eventID string, p EventPatch) (updated model.Event, deadlineChanged bool, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.Event{}, err
+		return model.Event{}, false, err
 	}
 	defer tx.Rollback()
 	// Re-read under the lock: the event loaded before the transaction may be stale.
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
-		return model.Event{}, err
+		return model.Event{}, false, err
 	}
-	deadlineChanged, entryRequiredChanged, validationErr := validate(&ev)
+	deadlineChanged, entryRequiredChanged, validationErr := p.apply(&ev)
 	if validationErr != nil {
-		return model.Event{}, validationErr
+		return model.Event{}, false, validationErr
 	}
 	stage := ev.Stage
 	if deadlineChanged {
 		if stage == "archived" {
-			return model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+			return model.Event{}, false, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 		}
 		// Submissions closed means the deadline has passed; reopening them
 		// is moving the event back to Building, or one team's extension.
 		var dbNow time.Time
 		if err := eventrepo.DatabaseNow(ctx, tx).Scan(&dbNow); err != nil {
-			return model.Event{}, err
+			return model.Event{}, false, err
 		}
 		if hackevents.SubmissionsClosedStage(stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
-			return model.Event{}, &Error{Code: "submissions_closed_stage", Message: "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
+			return model.Event{}, false, &Error{Code: "submissions_closed_stage", Message: "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
 		}
 	}
-	updated, err := eventrepo.UpdateEventPatch(ctx, tx, ev)
+	updated, err = eventrepo.UpdateEventPatch(ctx, tx, ev)
 	if err != nil {
-		return model.Event{}, err
+		return model.Event{}, false, err
 	}
 	updated, err = eventrepo.UpdateEventEntrySettings(ctx, tx, ev.ID, ev.SubmissionDeadline, ev.EntryRequired, ev.GalleryOpen)
 	if err != nil {
-		return model.Event{}, err
+		return model.Event{}, false, err
 	}
 	// Deprecated entry_required alias (section 4.2): maps to "required" for
 	// the listed fields, leaves every other field's mode as it is, and
@@ -418,28 +420,28 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 		}
 		updated, err = eventrepo.UpdateEventEntryRules(ctx, tx, ev.ID, "custom", hackentries.MarshalRules(fields), updated.JudgeFirst, ev.EntryRequired)
 		if err != nil {
-			return model.Event{}, err
+			return model.Event{}, false, err
 		}
 	}
 	if deadlineChanged {
 		// Lock every team row: a deploy let in before the old deadline
 		// holds its team FOR SHARE and finishes first.
 		if _, err := eventrepo.LockEventTeams(ctx, tx, ev.ID); err != nil {
-			return model.Event{}, err
+			return model.Event{}, false, err
 		}
 		if err := teamrepo.UnpinReopened(ctx, tx, ev.ID); err != nil {
-			return model.Event{}, err
+			return model.Event{}, false, err
 		}
 		// A deadline pushed later reopens drafts the sweep had already
 		// settled as not submitted (section 7, "Unsettle").
 		if err := entryrepo.UnsettleEventDrafts(ctx, tx, ev.ID); err != nil {
-			return model.Event{}, err
+			return model.Event{}, false, err
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return model.Event{}, err
+		return model.Event{}, false, err
 	}
-	return updated, nil
+	return updated, deadlineChanged, nil
 }
 
 // savepoint rolls back a failed attempt so a unique violation does not abort

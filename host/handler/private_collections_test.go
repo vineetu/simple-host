@@ -2,14 +2,12 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -21,8 +19,6 @@ import (
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
-	operations "github.com/vsriram/simple-host/host/ops"
-	operationsrepo "github.com/vsriram/simple-host/host/ops/repo"
 	"github.com/vsriram/simple-host/host/storage"
 )
 
@@ -35,12 +31,9 @@ const (
 	pcContentHost = "sites.simple-host.test"
 )
 
-type privateApp struct {
-	*connectorApp
-	sites *SiteHandler
-	users *UserHandler
-	mux   *http.ServeMux
-}
+// privateApp is the server with the host routing of cmd/server/main.go in
+// front, as hosted pages see it.
+type privateApp struct{ *connectorApp }
 
 func newPrivateApp(t *testing.T, eds ...*edition.Edition) *privateApp {
 	t.Helper()
@@ -63,21 +56,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	} else {
 		ed = edition.Default(config.DefaultLimits())
 	}
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
-	if err := operationsrepo.VerifySchema(context.Background(), database); err != nil {
-		t.Fatalf("test database is behind the schema: %v", err)
-	}
+	database := testDB(t)
 	disk, err := storage.NewDiskStorage(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +67,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	a := &privateApp{connectorApp: &connectorApp{database: database, admin: adminKey}, mux: mux}
+	a := &privateApp{&connectorApp{database: database, admin: adminKey, mux: mux}}
 	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
 	var root http.Handler
 	a.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
@@ -99,11 +78,9 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	users := NewUserHandler(database, accountapp.New(database), mailer, base, ed)
 	users.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	a.users = users
-	a.sites = NewSiteHandler(ed, "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
-	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
-	a.sites.SetOperationsReporting(operations.NewReporting(database))
+	a.sites, a.access, a.data = NewSiteHandlers(ed, "", database, disk, pcSiteDomain, pcContentHost, "cname."+pcSiteDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
-	t.Cleanup(a.sites.WaitNotifications)
+	t.Cleanup(a.data.WaitNotifications)
 	users.SetSites(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)

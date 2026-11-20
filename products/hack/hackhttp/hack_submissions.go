@@ -106,14 +106,14 @@ func submissionCards(ctx context.Context, db *sql.DB, ev model.Event, siteURL fu
 	return out, nil
 }
 
-func (h *HackHandler) submissionSiteURL() func(string, string) string {
+func (h *hackBase) submissionSiteURL() func(string, string) string {
 	if h.sites == nil {
 		return nil
 	}
 	return h.sites.TeamSiteURL
 }
 
-func (h *HackHandler) getSubmissions(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getSubmissions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
 	if !ok {
@@ -135,7 +135,7 @@ func (h *HackHandler) getSubmissions(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"submissions": cards})
 }
 
-func (h *HackHandler) getSubmissionScreenshot(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getSubmissionScreenshot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
 	if !ok {

@@ -67,7 +67,7 @@ func hackGalleryPublic(ev hackmodel.Event, ready func(string) bool) bool {
 // (hack_mode.go): user is the host's account; false when it holds no event.
 // teamSiteURL and ready are SiteHandler.TeamSiteURL and TeamSitesReady.
 // pages is the hack-event.html template cache (HackEventPages), built once
-// by the caller and passed in explicitly (cleanup 3.2 slice 4).
+// by the caller.
 func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool, pages *HackEventPages) func(w http.ResponseWriter, r *http.Request, user model.User) bool {
 	return func(w http.ResponseWriter, r *http.Request, user model.User) bool {
 		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)

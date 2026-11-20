@@ -12,10 +12,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 	accounts "github.com/vsriram/simple-host/host/access"
@@ -51,13 +49,13 @@ var pushSWModTime = time.Now()
 // cfg.WebPushAccountsAll): the accounts allowed to use web push, or "every
 // account" when all is true. Called once at startup, like
 // UserHandler.SetPreviewAccounts.
-func (h *SiteHandler) SetWebPushAccounts(accounts map[string]bool, all bool) {
+func (h *DataHandler) SetWebPushAccounts(accounts map[string]bool, all bool) {
 	h.webPushAccounts = accounts
 	h.webPushAccountsAll = all
 }
 
 // webPushEnabledForHandle reports whether handle's sites may use web push.
-func (h *SiteHandler) webPushEnabledForHandle(handle string) bool {
+func (h *DataHandler) webPushEnabledForHandle(handle string) bool {
 	if h.webPushAccountsAll {
 		return true
 	}
@@ -72,14 +70,14 @@ func (h *SiteHandler) webPushEnabledForHandle(handle string) bool {
 // DB hiccup must retry, not finalize the delivery as cleanly skipped
 // (FIX 13: a lookup failure used to collapse to false, indistinguishable
 // from a conclusive "off").
-func (h *SiteHandler) webPushAllowed(ctx context.Context, siteID string) (bool, error) {
+func (h *DataHandler) webPushAllowed(ctx context.Context, siteID string) (bool, error) {
 	// Simple Host only for this first pass (FEATURES.md §19):
 	// Simple Hack and Enterprise have not ported web push. Not a lookup
 	// failure: the edition is known at startup, not looked up per call.
 	if h.ed.Notifications().EventScoped {
 		return false, nil
 	}
-	handle, _, _, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
+	handle, _, _, err := h.site.sitesSvc().GetSiteOwner(ctx, siteID)
 	if err != nil {
 		return false, err
 	}
@@ -102,7 +100,7 @@ const (
 // that already protects notification signing secrets). The private key is
 // never logged; the public key is served to pages so the browser's
 // PushManager.subscribe() can use it as applicationServerKey.
-func (h *SiteHandler) vapidKeys(ctx context.Context) (pub, priv string, err error) {
+func (h *DataHandler) vapidKeys(ctx context.Context) (pub, priv string, err error) {
 	h.webPushVapidMu.Lock()
 	defer h.webPushVapidMu.Unlock()
 	if h.webPushVapidReady {
@@ -116,7 +114,7 @@ func (h *SiteHandler) vapidKeys(ctx context.Context) (pub, priv string, err erro
 	return pub, priv, nil
 }
 
-func (h *SiteHandler) loadOrGenerateVAPIDKeys(ctx context.Context) (string, string, error) {
+func (h *DataHandler) loadOrGenerateVAPIDKeys(ctx context.Context) (string, string, error) {
 	if !h.NotificationsReady() {
 		return "", "", errors.New("PASSCODE_ENC_KEY not configured; web push needs it to protect the VAPID private key")
 	}
@@ -202,221 +200,6 @@ func vapidConfigInsertIfAbsent(ctx context.Context, db *sql.DB, pub, sealed stri
 	return tx.Commit()
 }
 
-// ------------------------------------------------------------- the payload
-
-// pushPushSkip is the sentinel Body (deps.Body) returns for a delivery that
-// must not actually be sent: muted by this device, or ruled out by the
-// owner's recipients control for this resource. sendPush recognises it and
-// reports a clean, non-retried, non-failing outcome.
-var pushPushSkip = []byte("null")
-
-// pushPayload builds the small, generic-by-default payload a push service
-// and a lock screen show -- never the row's own content unless the owner
-// named one column for this resource, and the dashboard says so. It also
-// carries the mute and recipients gates, since both need the event's own
-// resource (data["storage"]) together with n, which only this function
-// (not sendPush, which only sees the rendered body) has at hand.
-// pushPayloadDefer is the sentinel Body (deps.Body) returns on a genuine
-// failure (decode error, a push-rule lookup that could not be answered):
-// the delivery must be retried, never silently delivered with recipients
-// wider than configured. nil, not pushPushSkip, so ProcessDelivery leaves
-// the claim to expire and be retried rather than finishing it as handled.
-var pushPayloadDefer []byte
-
-func (h *SiteHandler) pushPayload(ctx context.Context, n model.Notification, d model.NotificationDelivery) []byte {
-	var data map[string]any
-	dec := json.NewDecoder(bytes.NewReader(d.Data))
-	dec.UseNumber()
-	if dec.Decode(&data) != nil {
-		return pushPushSkip
-	}
-	resource, _ := data["storage"].(string)
-	siteName, _ := data["site"].(string)
-	siteURL, _ := data["site_url"].(string)
-	// A mute applies to the event's own resource regardless of what this
-	// device's own subscription filter is scoped to: a site-wide device
-	// can mute one table without unsubscribing from the rest.
-	for _, muted := range n.MutedResources {
-		if muted == resource {
-			return pushPushSkip
-		}
-	}
-	rule, err := h.notificationsSvc().GetPushRule(ctx, n.SiteID, resource)
-	if err != nil {
-		// A real lookup failure must defer, never silently fall back to
-		// "both" -- that would widen recipients past whatever the owner
-		// configured (possibly "none") for as long as the failure lasts.
-		return pushPayloadDefer
-	}
-	switch rule.Recipients {
-	case "none":
-		return pushPushSkip
-	case "owner":
-		if n.SubscriberRole == "visitor" {
-			return pushPushSkip
-		}
-	case "row_owner":
-		if n.SubscriberRole != "visitor" {
-			return pushPushSkip
-		}
-	}
-	title := strings.TrimSpace(rule.Title)
-	if title == "" {
-		title = "New activity"
-		if siteName != "" {
-			title = siteName + " has an update"
-		}
-	}
-	body := "Something was added or changed."
-	if rule.BodyColumn != "" && pushBodyColumnAllowed(rule.BodyColumn) {
-		if fields, ok := data["fields"].(map[string]any); ok {
-			// Even a permitted column's actual value falls back to
-			// generic text if it looks like an email or IP address
-			// (adversary review, item A, binding): the owner chose the
-			// column, but a user-typed "notes" or "message" field can
-			// still happen to contain one, and the blacklist above only
-			// ever looks at the column's name, never its content.
-			if s, ok := pushScalarString(fields[rule.BodyColumn]); ok && s != "" && !pushValueLooksSensitive(s) {
-				body = notifyCut(s, 200)
-			}
-		}
-	}
-	payload := map[string]any{"title": notifyCut(title, 120), "body": body, "url": siteURL, "tag": d.Name}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return pushPushSkip
-	}
-	return raw
-}
-
-// pushForbiddenBodyColumns are exact (case-insensitive) column names a
-// push rule's body_column may never name: identity and network fields
-// that must never reach a lock screen, even though the owner's own
-// dashboard only offers columns that exist on the resource (defense in
-// depth: this is re-checked here, at render time, not only at save time).
-// Kept for names pushSplitColumnWords would not otherwise catch (no
-// separator at all, e.g. "ipaddress"); pushForbiddenBodyColumnWords
-// below is what actually catches most real-world variants.
-var pushForbiddenBodyColumns = map[string]bool{
-	"email": true, "emails": true, "visitor_email": true, "visitor_emails": true,
-	"contact_email": true, "owner_email": true,
-	"ip": true, "ip_address": true, "ipaddress": true, "remote_ip": true, "client_ip": true,
-	"visitor_id": true, "visitorid": true, "owner_id": true, "user_id": true, "userid": true,
-	"password": true, "passcode": true, "secret": true, "token": true, "api_key": true, "apikey": true,
-	"auth": true, "session": true, "session_id": true, "cookie": true,
-	"ssn": true, "phone": true, "phone_number": true, "address": true,
-}
-
-// pushForbiddenBodyColumnWords blocks a column name that contains any of
-// these as a whole underscore/hyphen/camelCase-separated word, not only
-// an exact match (adversary review, item A: "email_address",
-// "customerEmail" and "ip_addr" all slipped past the exact-name
-// blacklist above, since none of them equal "email" or "ip" exactly).
-// Harmless names like "description" or "note" are unaffected: they
-// contain none of these words.
-var pushForbiddenBodyColumnWords = map[string]bool{
-	"email": true, "mail": true, "ip": true, "phone": true, "tel": true,
-	"telephone": true, "address": true, "ssn": true,
-	"password": true, "passcode": true, "secret": true, "token": true,
-	"apikey": true, "api": true, "auth": true, "session": true, "cookie": true,
-}
-
-// pushForbiddenBodyColumnIDPhrases: paired with a following "id" word
-// (visitor_id, ownerID, user-id, ...), these name a specific person, not
-// a harmless reference like "order_id" or "team_id". "id" alone is too
-// common a column name to block outright.
-var pushForbiddenBodyColumnIDPhrases = map[string]bool{
-	"visitor": true, "owner": true, "user": true, "client": true,
-	"account": true, "customer": true, "person": true,
-}
-
-// pushSplitColumnWords splits a column name into lowercase words on
-// underscores, hyphens, spaces and camelCase boundaries: "email_address",
-// "emailAddress" and "EmailAddress" all split to ["email", "address"].
-func pushSplitColumnWords(name string) []string {
-	var words []string
-	var cur []rune
-	flush := func() {
-		if len(cur) > 0 {
-			words = append(words, strings.ToLower(string(cur)))
-			cur = nil
-		}
-	}
-	runes := []rune(name)
-	for i, r := range runes {
-		switch {
-		case r == '_' || r == '-' || r == ' ':
-			flush()
-		case unicode.IsUpper(r) && i > 0 && !unicode.IsUpper(runes[i-1]):
-			flush()
-			cur = append(cur, r)
-		default:
-			cur = append(cur, r)
-		}
-	}
-	flush()
-	return words
-}
-
-func pushBodyColumnAllowed(name string) bool {
-	trimmed := strings.TrimSpace(name)
-	if pushForbiddenBodyColumns[strings.ToLower(trimmed)] {
-		return false
-	}
-	// pushSplitColumnWords needs the original case to find camelCase
-	// boundaries ("customerEmail"); lowercasing first (as the exact-name
-	// check above does) would destroy exactly the signal it looks for.
-	words := pushSplitColumnWords(trimmed)
-	for i, w := range words {
-		if pushForbiddenBodyColumnWords[w] {
-			return false
-		}
-		if w == "id" && i > 0 && pushForbiddenBodyColumnIDPhrases[words[i-1]] {
-			return false
-		}
-	}
-	return true
-}
-
-// pushEmailLikePattern/pushIPv4LikePattern/pushIPv6LikePattern are cheap,
-// deliberately loose checks (adversary review, item A, binding rule): a
-// permitted column's actual value still falls back to generic text if it
-// looks like an email address or an IP, regardless of what the column is
-// named -- a free-text "notes"/"message" field can contain one even when
-// its own name is perfectly innocuous.
-var (
-	pushEmailLikePattern = regexp.MustCompile(`[^\s@]+@[^\s@]+\.[^\s@]+`)
-	pushIPv4LikePattern  = regexp.MustCompile(`\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`)
-	pushIPv6LikePattern  = regexp.MustCompile(`[0-9a-fA-F]{1,4}:[0-9a-fA-F:]{2,}[0-9a-fA-F]`)
-)
-
-func pushValueLooksSensitive(s string) bool {
-	return pushEmailLikePattern.MatchString(s) || pushIPv4LikePattern.MatchString(s) || pushIPv6LikePattern.MatchString(s)
-}
-
-// pushScalarString returns v's displayable text, ok only for a JSON
-// scalar (string, number, bool); an object or array is refused rather
-// than stringified, since a structured value could carry fields the
-// owner never intended to show (SIM-360 privacy guardrail: the push
-// payload never carries more than the one named column's plain value).
-func pushScalarString(v any) (string, bool) {
-	switch t := v.(type) {
-	case nil:
-		return "", false
-	case string:
-		return t, true
-	case json.Number:
-		return t.String(), true
-	case bool:
-		if t {
-			return "true", true
-		}
-		return "false", true
-	default:
-		return "", false
-	}
-}
-
 // ---------------------------------------------------------------- sending
 
 // sendPush is the web-push dispatch inside notificationDeliveryDeps().Send.
@@ -428,7 +211,7 @@ func pushScalarString(v any) (string, bool) {
 // leave this process; the subscription row itself (endpoint, keys) never
 // does. A 404 or 410 from the push service means the browser dropped the
 // subscription: delete it so nothing retries against a dead endpoint.
-func (h *SiteHandler) sendPush(ctx context.Context, n model.Notification, body []byte) notifications.DeliveryResult {
+func (h *DataHandler) sendPush(ctx context.Context, n model.Notification, body []byte) notifications.DeliveryResult {
 	if bytes.Equal(body, pushPushSkip) {
 		return notifications.DeliveryResult{Delivered: true, Result: "filtered"}
 	}
@@ -585,7 +368,7 @@ var pushSWBytes = func() []byte {
 // controlling a page), so the worker never needs, and never takes, the
 // wider scope a site's own root-scoped service worker (if it has one)
 // still exclusively owns.
-func (h *SiteHandler) pushSWRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushSWRoute(w http.ResponseWriter, r *http.Request) {
 	if len(pushSWBytes) == 0 {
 		http.NotFound(w, r)
 		return
@@ -598,46 +381,11 @@ func (h *SiteHandler) pushSWRoute(w http.ResponseWriter, r *http.Request) {
 
 // ----------------------------------------------------------------- routes
 
-func (h *SiteHandler) registerWebPush(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	limiter := h.notifyEngine().rest
-	// Unauthenticated and ungated by WEB_PUSH_ACCOUNTS, like the file it
-	// serves (see pushSWRoute): no site, host or /v1/sites/{sitename}
-	// path segment at all, so there is nothing here for the flag to
-	// gate in the first place, and registration/unregistration must
-	// keep working regardless of the flag the same way unsubscribe/mute
-	// already do.
-	mux.HandleFunc("GET /v1/push/sw.js", h.pushSWRoute)
-	mux.HandleFunc("HEAD /v1/push/sw.js", h.pushSWRoute)
-	// The visitor-facing routes go through passcodeGate like every other
-	// visitor read/write: a passcode-locked or named-viewer-only site
-	// must refuse an uninvited visitor's push subscribe/unsubscribe/mute
-	// and the VAPID key fetch exactly as it refuses any other visitor
-	// route (TestPasscodeRouteTable enforces this for every
-	// /v1/sites/{sitename}/... route). The owner's own calls (API key or
-	// an owner cookie) pass the gate as the owner already does elsewhere.
-	mux.Handle("GET /v1/sites/{sitename}/push/vapid-key", h.passcodeGate(rateLimitByIP(limiter, http.HandlerFunc(h.pushVAPIDKeyRoute))))
-	mux.Handle("POST /v1/sites/{sitename}/push/subscribe", h.passcodeGate(rateLimitByIP(limiter, http.HandlerFunc(h.pushSubscribeRoute))))
-	mux.Handle("POST /v1/sites/{sitename}/push/unsubscribe", h.passcodeGate(rateLimitByIP(limiter, http.HandlerFunc(h.pushUnsubscribeRoute))))
-	mux.Handle("POST /v1/sites/{sitename}/push/mute", h.passcodeGate(rateLimitByIP(limiter, http.HandlerFunc(h.pushMuteRoute))))
-	// Owner-only device/rule management: account auth, not the passcode.
-	mux.Handle("GET /v1/sites/{sitename}/push/devices", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.pushDevicesRoute)))))
-	mux.Handle("DELETE /v1/sites/{sitename}/push/devices", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.pushDevicesRoute)))))
-	// One device, including a visitor's own: the generic DELETE
-	// /notifications/{id} requires n.OwnerID==the caller's own account
-	// id, which a visitor-role push row never satisfies even for the
-	// site's owner (FIX 12/adversary review, Codex round 2) -- this is
-	// the owner-authorized path the dashboard's per-row Remove uses for
-	// any push device on their site.
-	mux.Handle("DELETE /v1/sites/{sitename}/push/devices/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.pushDeviceDeleteRoute)))))
-	mux.Handle("GET /v1/sites/{sitename}/push/rules", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.pushRulesRoute)))))
-	mux.Handle("PUT /v1/sites/{sitename}/push/rules", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.pushRulesRoute)))))
-}
-
 // pushVAPIDKeyRoute hands the page the one public key every subscribe()
 // call needs for PushManager.subscribe({applicationServerKey}). Flag-gated:
 // 404 off, like every push route, so a page can tell push is unavailable
 // rather than silently failing.
-func (h *SiteHandler) pushVAPIDKeyRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushVAPIDKeyRoute(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok {
 		return
@@ -671,7 +419,7 @@ func (h *SiteHandler) pushVAPIDKeyRoute(w http.ResponseWriter, r *http.Request) 
 // skips this; every cookie-based caller (an ordinary visitor, or the
 // owner signed in on their own site as a visitor, D1) must pass it,
 // before pushCallerIdentity ever resolves which of those two it is.
-func (h *SiteHandler) pushCookieRequestOK(c storageCall, r *http.Request, w http.ResponseWriter) bool {
+func (h *DataHandler) pushCookieRequestOK(c storageCall, r *http.Request, w http.ResponseWriter) bool {
 	if c.owner {
 		return true
 	}
@@ -701,18 +449,18 @@ func (h *SiteHandler) pushCookieRequestOK(c storageCall, r *http.Request, w http
 // pushFamilyFor. "" for a true owner API key, which is not a browser
 // session at all and so is never reached by a sign-out's family-scoped
 // delete (consistent with every push row an API key creates today).
-func (h *SiteHandler) pushCallerIdentity(w http.ResponseWriter, r *http.Request, c storageCall) (role, ownerID, family string, ok bool) {
+func (h *DataHandler) pushCallerIdentity(w http.ResponseWriter, r *http.Request, c storageCall) (role, ownerID, family string, ok bool) {
 	if c.owner {
 		return "owner", c.ownerID, "", true
 	}
-	sess, signedIn := h.strictVisitorSession(r, c.siteID)
+	sess, signedIn := h.access.strictVisitorSession(r, c.siteID)
 	if !signedIn || sess.UserID == "" {
 		storageError(w, 403, "forbidden", "sign in on this site first")
 		return "", "", "", false
 	}
 	family = pushFamilyFor(sess)
 	if owner, err := accounts.ActsAsOwner(r.Context(), h.database, sess.UserID, c.ownerID, c.siteName); err == nil && owner &&
-		r.Header.Get("X-SH-Framed") == "" && !h.previewRefererFor(r, c.siteID) && h.storageOwnHost(r, c.siteID) {
+		r.Header.Get("X-SH-Framed") == "" && !h.access.previewRefererFor(r, c.siteID) && h.storageOwnHost(r, c.siteID) {
 		// D1: the site's owner, signed in on their own site's own address
 		// (never framed, never a preview), gets owner rights here too,
 		// the same as for storage data -- a site-wide push device, not a
@@ -759,7 +507,7 @@ type pushSubscribeRequest struct {
 // (the ticket's "mute per resource" covers the rest). A visitor's events
 // are always forced to exactly the record/file events, never a site-level
 // one, by construction, regardless of what the request body asks for.
-func (h *SiteHandler) pushSubscribeRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushSubscribeRoute(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok {
 		return
@@ -778,7 +526,7 @@ func (h *SiteHandler) pushSubscribeRoute(w http.ResponseWriter, r *http.Request)
 	}
 	// A team's site sends nobody notifications (like its webhooks): refuse
 	// rather than keep a device that would never hear anything.
-	if team, err := h.storeAccounts().IsTeam(r.Context(), c.ownerID); err != nil {
+	if team, err := h.site.storeAccounts().IsTeam(r.Context(), c.ownerID); err != nil {
 		notifyError(w, 500, "internal_error")
 		return
 	} else if team {
@@ -880,7 +628,7 @@ type pushIDRequest struct {
 // subscribing does not, the same asymmetry a removed consent must always
 // have. They still 404 the same way when the site itself cannot be
 // resolved at all.
-func (h *SiteHandler) pushUnsubscribeRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushUnsubscribeRoute(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok {
 		return
@@ -916,7 +664,7 @@ type pushMuteRequest struct {
 
 // pushMuteRoute replaces one device's per-resource mute list; ownership is
 // checked the same way unsubscribe is.
-func (h *SiteHandler) pushMuteRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushMuteRoute(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageSite(w, r)
 	if !ok {
 		return
@@ -957,7 +705,7 @@ func (h *SiteHandler) pushMuteRoute(w http.ResponseWriter, r *http.Request) {
 // Owner-only (authMiddleware): never discloses one visitor's device to
 // another, and the visitor's own device list is reached by the visitor's
 // own subscribe response/local storage, not this route.
-func (h *SiteHandler) pushDevicesRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushDevicesRoute(w http.ResponseWriter, r *http.Request) {
 	site, ok := h.ownerSiteOr404(w, r)
 	if !ok {
 		return
@@ -1002,7 +750,7 @@ func (h *SiteHandler) pushDevicesRoute(w http.ResponseWriter, r *http.Request) {
 // webhook/MCP-event row) and to this site, the same two checks
 // DeleteNotificationForOwner's own site+visitor scoping makes for the
 // visitor-facing unsubscribe route.
-func (h *SiteHandler) pushDeviceDeleteRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushDeviceDeleteRoute(w http.ResponseWriter, r *http.Request) {
 	site, ok := h.ownerSiteOr404(w, r)
 	if !ok {
 		return
@@ -1023,7 +771,7 @@ func (h *SiteHandler) pushDeviceDeleteRoute(w http.ResponseWriter, r *http.Reque
 // pushRulesRoute lists (GET) or upserts (PUT) the owner's per-resource push
 // routing and payload controls (which events push and to whom, and the
 // optional named body column).
-func (h *SiteHandler) pushRulesRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) pushRulesRoute(w http.ResponseWriter, r *http.Request) {
 	site, ok := h.ownerSiteOr404(w, r)
 	if !ok {
 		return
@@ -1102,7 +850,7 @@ func pushPlainText(s string) bool {
 // and a column that happens not to be present yet simply falls back to
 // the generic payload at render time, exactly like an owner-named column
 // on an empty SQLite table already does.
-func (h *SiteHandler) pushRuleBodyColumnValid(r *http.Request, site model.Site, resource storageResource, column string) bool {
+func (h *DataHandler) pushRuleBodyColumnValid(r *http.Request, site model.Site, resource storageResource, column string) bool {
 	if column == "" {
 		return true
 	}
@@ -1139,10 +887,10 @@ func (h *SiteHandler) pushRuleBodyColumnValid(r *http.Request, site model.Site, 
 // ownerSiteOr404 resolves {sitename} for an authMiddleware-wrapped owner
 // route (X-API-Key or account cookie) and answers like a missing route
 // when the flag is off, same as every other push route.
-func (h *SiteHandler) ownerSiteOr404(w http.ResponseWriter, r *http.Request) (model.Site, bool) {
+func (h *DataHandler) ownerSiteOr404(w http.ResponseWriter, r *http.Request) (model.Site, bool) {
 	user := auth.GetUser(r.Context())
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("sitename")))
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name)
+	site, err := h.site.sitesSvc().GetSiteByUser(r.Context(), user.ID, name)
 	if err != nil {
 		storageError(w, 404, "site_not_found", "site not found")
 		return model.Site{}, false
@@ -1170,8 +918,8 @@ func (h *SiteHandler) ownerSiteOr404(w http.ResponseWriter, r *http.Request) (mo
 // and silent: a resolution failure, an expired session, or no push
 // subscriptions at all are all fine outcomes, and none of them may block
 // or fail sign-out.
-func (h *SiteHandler) deleteVisitorPushOnSignOut(r *http.Request) {
-	sess, err := h.cookieSession(r, "")
+func (h *DataHandler) deleteVisitorPushOnSignOut(r *http.Request) {
+	sess, err := h.access.cookieSession(r, "")
 	if err != nil || sess.UserID == "" || sess.SiteID == "" {
 		return
 	}
@@ -1198,7 +946,7 @@ func (h *SiteHandler) deleteVisitorPushOnSignOut(r *http.Request) {
 // runs this for every caller of that service method, not only the HTTP
 // handler that used to call it separately; the returned error is logged
 // by that caller, never surfaced as a reason the removal itself failed.
-func (h *SiteHandler) deletePushForEmail(ctx context.Context, siteID, email string) error {
+func (h *DataHandler) deletePushForEmail(ctx context.Context, siteID, email string) error {
 	devices, err := h.notificationsSvc().ListPushDevices(ctx, siteID)
 	if err != nil {
 		return err

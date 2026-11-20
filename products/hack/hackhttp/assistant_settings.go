@@ -120,7 +120,7 @@ func assistantOffsetLabel(m int64) string {
 }
 
 // assistantCurrentSettings builds the CURRENT SETTINGS block for one event.
-func (h *HackHandler) assistantCurrentSettings(ctx context.Context, ev model.Event) string {
+func (h *assistantHTTP) assistantCurrentSettings(ctx context.Context, ev model.Event) string {
 	var b strings.Builder
 	line := func(format string, args ...any) {
 		b.WriteString("- ")
@@ -129,7 +129,7 @@ func (h *HackHandler) assistantCurrentSettings(ctx context.Context, ev model.Eve
 	}
 
 	// Sign-up and teams (Settings > Sign-up, Teams).
-	if questions, approval, err := h.membersSvc().Registration(ctx, ev.ID); err != nil {
+	if questions, approval, err := h.members.Registration(ctx, ev.ID); err != nil {
 		log.Printf("hack: assistant settings registration %s: %v", ev.Slug, err)
 		line("Sign-up: unavailable")
 	} else {

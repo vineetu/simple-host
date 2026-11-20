@@ -15,7 +15,7 @@ import (
 // RegisterHackPublic serves the trusted, stable built-in event page on the
 // apex, whether or not an organiser has published a custom event website.
 // pages is the hack-event.html template cache (HackEventPages), built once
-// by the caller and passed in explicitly (cleanup 3.2 slice 4).
+// by the caller.
 func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 	teamSiteURL func(string, string) string, ready func(string) bool, pages *HackEventPages, owners ...*HackHandler) {
 	perIP := screenshotLimiter(owners)

@@ -46,7 +46,7 @@ type deleteMeRequest struct {
 }
 
 // deleteMe handles DELETE /v1/me.
-func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
 		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
@@ -101,8 +101,8 @@ func (h *SiteHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 // between listing and locking changes the names, so the list is read again
 // under the locks and the locks retaken until it holds still (a few tries;
 // the account row lock in the erasure then stops anything new).
-func (h *SiteHandler) lockAccountSites(ctx context.Context, userID string) (func(), error) {
-	return h.sitesSvc().LockAccountSites(ctx, userID)
+func (h *AccessHandler) lockAccountSites(ctx context.Context, userID string) (func(), error) {
+	return h.site.sitesSvc().LockAccountSites(ctx, userID)
 }
 
 // eraseAccountFiles removes on disk what the account service removed from the
@@ -114,8 +114,8 @@ func (h *SiteHandler) lockAccountSites(ctx context.Context, userID string) (func
 // its certificate request is withdrawn only then and while no other site has
 // taken the domain up since the commit. The take-down markers live in the
 // site folders and go with them.
-func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e model.ErasedAccount) error {
-	return h.sitesSvc().EraseAccountFiles(ctx, e, appsites.AccountFileDeps{CancelDomain: h.cancelDomainCert, RemoveFamily: func(suffix string) { h.removeFamilyRequest(suffix) }, RefreshFamilies: h.refreshFamilies})
+func (h *AccessHandler) eraseAccountFiles(ctx context.Context, e model.ErasedAccount) error {
+	return h.site.sitesSvc().EraseAccountFiles(ctx, e, appsites.AccountFileDeps{CancelDomain: h.site.cancelDomainCert, RemoveFamily: func(suffix string) { h.site.removeFamilyRequest(suffix) }, RefreshFamilies: h.site.refreshFamilies})
 }
 
 // sweepOrphanTeamSites removes (to Recently deleted) any team site left
@@ -126,11 +126,11 @@ func (h *SiteHandler) eraseAccountFiles(ctx context.Context, e model.ErasedAccou
 // (not HackHandler) runs it because it already holds the site-trashing
 // capability itself (Grok security review, 2026-11-01). Logs and
 // continues on error, the same as the ordinary per-event sweep.
-func (h *SiteHandler) sweepOrphanTeamSites(ctx context.Context, ids []string) {
-	h.storeAccounts().SweepErasedGroups(ctx, ids, h.TrashTeamSite)
+func (h *AccessHandler) sweepOrphanTeamSites(ctx context.Context, ids []string) {
+	h.storeAccounts().SweepErasedGroups(ctx, ids, h.site.TrashTeamSite)
 }
 
-func (h *SiteHandler) emailAccountDeleted(to string) {
+func (h *AccessHandler) emailAccountDeleted(to string) {
 	mailer, ok := h.mailer.(noticeSender)
 	if !ok {
 		return
@@ -155,7 +155,7 @@ Simple Host
 // exportMe handles GET /v1/me/export.zip (and the older
 // /v1/me/export.tar.gz address, which serves the same zip): streamed, like the per-site
 // export, so a large account never sits in memory.
-func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 	// Only the person's own key, as for delete: a connected app must not be
 	// able to pull the whole account in one archive.
 	user := accountKeyUser(w, r, "downloading all your data")
@@ -176,12 +176,12 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 		writeInternal(w)
 		return
 	}
-	sites, err := h.sitesSvc().ListSitesByUser(ctx, me.ID)
+	sites, err := h.site.sitesSvc().ListSitesByUser(ctx, me.ID)
 	if err != nil {
 		writeInternal(w)
 		return
 	}
-	deleted, err := h.sitesSvc().ListDeletedSitesByUser(ctx, me.ID)
+	deleted, err := h.site.sitesSvc().ListDeletedSitesByUser(ctx, me.ID)
 	if err != nil {
 		writeInternal(w)
 		return
@@ -204,7 +204,7 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, s := range sites {
 		files := appsites.FileVersion{UserID: s.UserID, SiteName: s.Name}
-		if err := h.writeSiteArchive(ctx, put, root+"/sites/"+s.Name, s.ID, files); err != nil {
+		if err := h.site.writeSiteArchive(ctx, put, root+"/sites/"+s.Name, s.ID, files); err != nil {
 			panic(http.ErrAbortHandler)
 		}
 	}
@@ -219,7 +219,7 @@ func (h *SiteHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 			panic(http.ErrAbortHandler)
 		}
 		files := appsites.FileVersion{UserID: d.UserID, SiteName: d.Name, TrashID: d.ID}
-		if err := h.writeSiteArchive(ctx, put, prefix, d.ID, files); err != nil {
+		if err := h.site.writeSiteArchive(ctx, put, prefix, d.ID, files); err != nil {
 			panic(http.ErrAbortHandler)
 		}
 	}
@@ -235,7 +235,72 @@ type exportDoc struct {
 
 // accountDocuments builds README.txt, account.json, keys.json,
 // connected_apps.json and visitor.json.
-func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]exportDoc, error) {
+func (h *AccessHandler) accountDocuments(ctx context.Context, me model.User) ([]exportDoc, error) {
+	account, err := h.accountExport(ctx, me)
+	if err != nil {
+		return nil, err
+	}
+	keys, err := h.storeAccounts().ListAPIKeys(ctx, me.ID)
+	if err != nil {
+		return nil, err
+	}
+	conns, err := h.storeAccounts().ListOAuthConnections(ctx, me.ID)
+	if err != nil {
+		return nil, err
+	}
+	visitor, err := h.visitorExport(ctx, me.ID)
+	if err != nil {
+		return nil, err
+	}
+	type key struct {
+		Name       string     `json:"name"`
+		Last4      string     `json:"last4,omitempty"`
+		Scope      string     `json:"scope"`
+		CreatedAt  time.Time  `json:"created_at"`
+		LastUsedAt *time.Time `json:"last_used_at"`
+		ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	}
+	keyList := []key{}
+	for _, k := range keys {
+		name := k.Name
+		if name == "" {
+			name = "Earlier key"
+		}
+		keyList = append(keyList, key{Name: name, Last4: k.Last4, Scope: k.Scope, CreatedAt: k.CreatedAt.UTC(), LastUsedAt: k.LastUsedAt, ExpiresAt: k.ExpiresAt})
+	}
+
+	type app struct {
+		Name        string    `json:"name"`
+		Device      string    `json:"device,omitempty"`
+		ConnectedAt time.Time `json:"connected_at"`
+		LastUsedAt  time.Time `json:"last_used_at"`
+	}
+	apps := []app{}
+	for _, c := range conns {
+		apps = append(apps, app{Name: c.ClientName, Device: c.Device, ConnectedAt: c.ConnectedAt.UTC(), LastUsedAt: c.LastUsedAt.UTC()})
+	}
+
+	out := []exportDoc{{name: "README.txt", body: []byte(exportReadme())}}
+	for _, d := range []struct {
+		name string
+		v    any
+	}{
+		{"account.json", account},
+		{"keys.json", keyList},
+		{"connected_apps.json", apps},
+		{"visitor.json", visitor},
+	} {
+		b, err := json.MarshalIndent(d.v, "", "  ")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, exportDoc{name: d.name, body: b})
+	}
+	return out, nil
+}
+
+// accountExport is account.json: the handles, addresses and sign-in methods.
+func (h *AccessHandler) accountExport(ctx context.Context, me model.User) (map[string]any, error) {
 	aliases, err := h.storeAccounts().ListHandleAliases(ctx, me.ID)
 	if err != nil {
 		return nil, err
@@ -252,23 +317,6 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 	if err != nil {
 		return nil, err
 	}
-	keys, err := h.storeAccounts().ListAPIKeys(ctx, me.ID)
-	if err != nil {
-		return nil, err
-	}
-	conns, err := h.storeAccounts().ListOAuthConnections(ctx, me.ID)
-	if err != nil {
-		return nil, err
-	}
-	signIns, err := h.storeAccounts().ListVisitorSignIns(ctx, me.ID)
-	if err != nil {
-		return nil, err
-	}
-	changes, err := h.storeAccounts().ListChangesElsewhere(ctx, me.ID)
-	if err != nil {
-		return nil, err
-	}
-
 	type claimed struct {
 		Name    string `json:"name"`
 		Site    string `json:"site,omitempty"`
@@ -290,7 +338,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 			if d == a.Previous {
 				status = "earlier address, still served while the new one is pending"
 			}
-			if h.isFreeName(d) {
+			if h.site.isFreeName(d) {
 				claimedNames = append(claimedNames, claimed{Name: d, Site: a.Site})
 			} else {
 				customDomains = append(customDomains, domain{Domain: d, Site: a.Site, Status: status})
@@ -322,7 +370,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 		"sign_in_methods": ids,
 	}
 	// The account's address families (*.<domain> for every site).
-	if fams, err := h.sitesSvc().ListFamiliesByUser(ctx, me.ID); err == nil {
+	if fams, err := h.site.sitesSvc().ListFamiliesByUser(ctx, me.ID); err == nil {
 		out := []map[string]any{}
 		for _, f := range fams {
 			m := map[string]any{"family": "*." + f.Suffix, "site_prefix": f.SitePrefix, "status": f.Status,
@@ -349,38 +397,23 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 	} else if has {
 		account["login"] = login
 	}
-	if p := h.PersonPageURL(me.Handle.String); p != "" {
+	if p := h.site.PersonPageURL(me.Handle.String); p != "" {
 		account["address"] = p
 	}
+	return account, nil
+}
 
-	type key struct {
-		Name       string     `json:"name"`
-		Last4      string     `json:"last4,omitempty"`
-		Scope      string     `json:"scope"`
-		CreatedAt  time.Time  `json:"created_at"`
-		LastUsedAt *time.Time `json:"last_used_at"`
-		ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+// visitorExport is visitor.json: the sites signed in to, and the changes
+// made there to other people's saved data.
+func (h *AccessHandler) visitorExport(ctx context.Context, userID string) (map[string]any, error) {
+	signIns, err := h.storeAccounts().ListVisitorSignIns(ctx, userID)
+	if err != nil {
+		return nil, err
 	}
-	keyList := []key{}
-	for _, k := range keys {
-		name := k.Name
-		if name == "" {
-			name = "Earlier key"
-		}
-		keyList = append(keyList, key{Name: name, Last4: k.Last4, Scope: k.Scope, CreatedAt: k.CreatedAt.UTC(), LastUsedAt: k.LastUsedAt, ExpiresAt: k.ExpiresAt})
+	changes, err := h.storeAccounts().ListChangesElsewhere(ctx, userID)
+	if err != nil {
+		return nil, err
 	}
-
-	type app struct {
-		Name        string    `json:"name"`
-		Device      string    `json:"device,omitempty"`
-		ConnectedAt time.Time `json:"connected_at"`
-		LastUsedAt  time.Time `json:"last_used_at"`
-	}
-	apps := []app{}
-	for _, c := range conns {
-		apps = append(apps, app{Name: c.ClientName, Device: c.Device, ConnectedAt: c.ConnectedAt.UTC(), LastUsedAt: c.LastUsedAt.UTC()})
-	}
-
 	type signIn struct {
 		Site        string    `json:"site"`
 		FirstSignIn time.Time `json:"first_sign_in"`
@@ -391,7 +424,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 		if a, ok := addrCache[siteID]; ok {
 			return a
 		}
-		a, ok := h.siteAddressFor(ctx, siteID, "")
+		a, ok := h.site.siteAddressFor(ctx, siteID, "")
 		if !ok {
 			a = fallback
 		}
@@ -419,25 +452,7 @@ func (h *SiteHandler) accountDocuments(ctx context.Context, me model.User) ([]ex
 		}
 		changeList = append(changeList, change{Site: siteAddr(c.SiteID, "(a site that has since been deleted)"), What: what, ItemID: c.ItemID, Change: c.Op, At: c.At.UTC()})
 	}
-	visitor := map[string]any{"signed_in_to": signInList, "changed": changeList}
-
-	out := []exportDoc{{name: "README.txt", body: []byte(exportReadme())}}
-	for _, d := range []struct {
-		name string
-		v    any
-	}{
-		{"account.json", account},
-		{"keys.json", keyList},
-		{"connected_apps.json", apps},
-		{"visitor.json", visitor},
-	} {
-		b, err := json.MarshalIndent(d.v, "", "  ")
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, exportDoc{name: d.name, body: b})
-	}
-	return out, nil
+	return map[string]any{"signed_in_to": signInList, "changed": changeList}, nil
 }
 
 // supportText puts this install's contact (auth.SupportContact) where s

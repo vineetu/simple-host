@@ -156,6 +156,7 @@ func TestSiteHostPartsFlatHosts(t *testing.T) {
 
 func asGroupFlat(a *privateApp) {
 	a.sites.ed = groupTestEdition()
+	a.access.ed, a.data.ed = a.sites.ed, a.sites.ed
 	a.sites.SetTeamSiteFlatHosts(true)
 }
 

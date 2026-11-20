@@ -236,11 +236,12 @@ func TestStorageStorySeparateAllowances(t *testing.T) {
 	call("GET", "/kv/kv/keys/full", nil, 404)
 	// Files default is decimal 10 MB, and Hack keeps its old pool.
 	t.Setenv("SITE_STORAGE_FILES_MAX_BYTES", "")
-	if a.sites.storageFilesLimitBytes() != 10000000 {
+	if a.data.storageSvc().FilesLimitBytes() != 10000000 {
 		t.Fatal("file default")
 	}
 	a.sites.ed = groupTestEdition()
-	if a.sites.storageFilesLimitBytes() != 16384 || a.sites.storageBudgetUsed(siteStorageUsage{KV: 1, SQLite: 2, Files: 3}) != 6 {
+	a.access.ed, a.data.ed = a.sites.ed, a.sites.ed
+	if a.data.storageSvc().FilesLimitBytes() != 16384 || a.data.storageSvc().BudgetUsed(siteStorageUsage{KV: 1, SQLite: 2, Files: 3}) != 6 {
 		t.Fatal("Hack allowance changed")
 	}
 }

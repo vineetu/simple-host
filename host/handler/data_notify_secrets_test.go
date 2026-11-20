@@ -20,9 +20,9 @@ import (
 	model "github.com/vsriram/simple-host/host/model"
 )
 
-func notificationKey(t *testing.T) *SiteHandler {
+func notificationKey(t *testing.T) *AccessHandler {
 	t.Helper()
-	h := &SiteHandler{}
+	h := &AccessHandler{site: &SiteHandler{}}
 	if err := h.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func notificationKey(t *testing.T) *SiteHandler {
 }
 func openedNotification(t *testing.T, s storageTestSite, id, stored string) string {
 	t.Helper()
-	plain, err := s.a.sites.passcode.openNotification(id, stored)
+	plain, err := s.a.access.passcode.openNotification(id, stored)
 	if err != nil {
 		t.Fatal("could not open stored notification value")
 	}
@@ -193,7 +193,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
-	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	n, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 		t.Fatal("new row has previous secret")
 	}
 	notificationRequest(t, s, "POST", "/"+id+"/rotate-secret", nil, 200)
-	n, err = s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	n, err = s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,14 +212,14 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 		t.Fatal("rotation lost previous secret")
 	}
 
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	req := mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret}
 	caller := mcp.Caller{Owner: s.ownerID}
 	result, err := backend.Subscribe(ctx, caller, req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := s.a.sites.notificationsSvc().GetNotification(ctx, result.ID)
+	first, err := s.a.data.notificationsSvc().GetNotification(ctx, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	if _, err = backend.Subscribe(ctx, caller, req); err != nil {
 		t.Fatal(err)
 	}
-	same, err := s.a.sites.notificationsSvc().GetNotification(ctx, result.ID)
+	same, err := s.a.data.notificationsSvc().GetNotification(ctx, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	if _, err = backend.Subscribe(ctx, caller, req); err != nil {
 		t.Fatal(err)
 	}
-	changed, err := s.a.sites.notificationsSvc().GetNotification(ctx, result.ID)
+	changed, err := s.a.data.notificationsSvc().GetNotification(ctx, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestNotificationStoredSecretsAndRefresh(t *testing.T) {
 	if _, err = backend.Subscribe(ctx, caller, req); err != nil {
 		t.Fatal(err)
 	}
-	refreshed, err := s.a.sites.notificationsSvc().GetNotification(ctx, result.ID)
+	refreshed, err := s.a.data.notificationsSvc().GetNotification(ctx, result.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,16 +265,16 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	ctx := context.Background()
 	id := subscribeNotification(t, s, x)
 	untouched := subscribeNotification(t, s, x)
-	before, err := s.a.sites.notificationsSvc().GetNotification(ctx, untouched)
+	before, err := s.a.data.notificationsSvc().GetNotification(ctx, untouched)
 	if err != nil {
 		t.Fatal(err)
 	}
 	notificationSQL(t, s, `UPDATE site_notifications SET secret=$2,prev_secret=$2,auth_header_value=$3 WHERE id=$1`, id, notifyTestSecret, "Bearer legacy")
-	count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database)
+	count, err := s.a.data.SealNotificationSecrets(ctx, s.a.database)
 	if err != nil || count != 1 {
 		t.Fatal("sweep did not seal one legacy row")
 	}
-	after, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	after, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,11 +288,11 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	if openedNotification(t, s, id+":header", after.AuthHeaderValue) != "Bearer legacy" {
 		t.Fatal("sweep changed header")
 	}
-	other, err := s.a.sites.notificationsSvc().GetNotification(ctx, untouched)
+	other, err := s.a.data.notificationsSvc().GetNotification(ctx, untouched)
 	if err != nil || other.Secret != before.Secret || other.AuthHeaderValue != before.AuthHeaderValue || other.PrevSecret != "" {
 		t.Fatal("sweep changed sealed or empty fields")
 	}
-	if count, err = s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 0 {
+	if count, err = s.a.data.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 0 {
 		t.Fatal("rerun was not a no-op")
 	}
 	// A concurrent writer holds the row while the sweep skips it without waiting.
@@ -307,28 +307,28 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 	}
 	bounded, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	if count, err := s.a.sites.SealNotificationSecrets(bounded, s.a.database); err != nil || count != 0 {
+	if count, err := s.a.data.SealNotificationSecrets(bounded, s.a.database); err != nil || count != 0 {
 		t.Fatal("sweep did not skip the locked row")
 	}
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	if count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 1 {
+	if count, err := s.a.data.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 1 {
 		t.Fatal("next sweep did not seal the skipped row")
 	}
-	concurrent, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	concurrent, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil || openedNotification(t, s, id+":header", concurrent.AuthHeaderValue) != "concurrent-value" {
 		t.Fatal("sweep lost the concurrent write")
 	}
-	if count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 0 {
+	if count, err := s.a.data.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 0 {
 		t.Fatal("rerun was not a no-op after the concurrent write")
 	}
 	// Only a legacy header also qualifies; sealed secrets stay byte-for-byte intact.
 	notificationSQL(t, s, `UPDATE site_notifications SET secret=$2,prev_secret='',auth_header_value='legacy-header' WHERE id=$1`, id, after.Secret)
-	if count, err := s.a.sites.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 1 {
+	if count, err := s.a.data.SealNotificationSecrets(ctx, s.a.database); err != nil || count != 1 {
 		t.Fatal("header-only row was not sealed")
 	}
-	final, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	final, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil || final.Secret != after.Secret || final.PrevSecret != "" {
 		t.Fatal("mixed row changed sealed or empty values")
 	}
@@ -337,7 +337,7 @@ func TestSealNotificationSecretsSweep(t *testing.T) {
 func TestNotificationMissingKey(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
-	if err := s.a.sites.SetPasscodeKey(""); err != nil {
+	if err := s.a.access.SetPasscodeKey(""); err != nil {
 		t.Fatal(err)
 	}
 	response := notificationRequest(t, s, "POST", "", map[string]any{"url": x.server.URL, "events": []string{"record.added"}}, 409).json(t)
@@ -349,14 +349,14 @@ func TestNotificationMissingKey(t *testing.T) {
 	if limits["enabled"] != false {
 		t.Fatal("limits advertise notifications without key")
 	}
-	_, err := s.a.sites.EventsBackend().Subscribe(context.Background(), mcp.Caller{Owner: s.ownerID}, mcp.EventSubscribeRequest{})
+	_, err := s.a.data.EventsBackend().Subscribe(context.Background(), mcp.Caller{Owner: s.ownerID}, mcp.EventSubscribeRequest{})
 	var eventErr *mcp.EventError
 	if !errors.As(err, &eventErr) || eventErr.Data["reason"] != "notifications_not_enabled" {
 		t.Fatal("missing-key MCP error unclear")
 	}
 	emitWorkerNotification(t, s, s.sid)
 	drainNotifications(t, s)
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil || n.LastResult != "secret_unreadable" || len(x.snapshot()) != 0 {
 		t.Fatal("unreadable delivery not recorded safely")
 	}
@@ -369,7 +369,7 @@ func TestNotificationMissingKey(t *testing.T) {
 }
 
 func TestNotificationMissingKeyMCPDiscovery(t *testing.T) {
-	h := &SiteHandler{}
+	h := &DataHandler{passcode: &passcodeState{}}
 	server := mcp.NewServer(mcp.Config{Events: h.EventsBackend()})
 	for _, method := range []string{"server/discover", "events/subscribe"} {
 		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": map[string]any{"_meta": map[string]any{"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": map[string]any{}}}})
@@ -419,15 +419,15 @@ func TestNotificationLegacyWrites(t *testing.T) {
 			if operation == "rotate" {
 				notificationRequest(t, s, "POST", "/"+id+"/rotate-secret", nil, 200)
 			} else {
-				n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+				n, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
+				if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.data.notificationSecrets()); err != nil {
 					t.Fatal(err)
 				}
 			}
-			n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+			n, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -446,8 +446,8 @@ func TestNotificationLegacyWrites(t *testing.T) {
 
 func TestNotificationKeyDoesNotEnableSharedOriginPasscodes(t *testing.T) {
 	h := notificationKey(t)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &h.limitSet)
-	if !h.SharedOrigin() || !h.NotificationsReady() || h.PasscodesReady() {
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &h.limitSet, &h.site.limitSet)
+	if !h.site.SharedOrigin() || !(&DataHandler{passcode: &h.passcode}).NotificationsReady() || h.PasscodesReady() {
 		t.Fatal("notification key enabled shared-origin passcodes")
 	}
 }
@@ -455,7 +455,7 @@ func TestNotificationKeyDoesNotEnableSharedOriginPasscodes(t *testing.T) {
 func TestNotificationPurposeBinding(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +467,7 @@ func TestNotificationPurposeBinding(t *testing.T) {
 			} else {
 				copied.AuthHeaderValue = n.Secret
 			}
-			if r := s.a.sites.notifyEngine().client.send(context.Background(), copied, "evt_swap", []byte(`{}`)); r.Delivered || r.Result != "secret_unreadable" {
+			if r := s.a.data.notifyEngine().client.send(context.Background(), copied, "evt_swap", []byte(`{}`)); r.Delivered || r.Result != "secret_unreadable" {
 				t.Fatal("ciphertext from a different purpose was accepted")
 			}
 		})
@@ -482,14 +482,14 @@ func TestNotificationRotateUnreadableSecret(t *testing.T) {
 	id := subscribeNotification(t, s, x)
 	// No custom header: changing the key also makes a stored header unreadable.
 	notificationSQL(t, s, `UPDATE site_notifications SET auth_header_name='',auth_header_value='',prev_secret=secret,prev_secret_until=now()+interval '24 hours' WHERE id=$1`, id)
-	if err := s.a.sites.SetPasscodeKey(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))); err != nil {
+	if err := s.a.access.SetPasscodeKey(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))); err != nil {
 		t.Fatal(err)
 	}
 	out := notificationRequest(t, s, "POST", "/"+id+"/rotate-secret", nil, 200).json(t)
 	if out["previous_valid_until"] != nil {
 		t.Fatal("unreadable previous secret has a grace period")
 	}
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -497,14 +497,14 @@ func TestNotificationRotateUnreadableSecret(t *testing.T) {
 		t.Fatal("rotation retained an unreadable secret or lost its replacement")
 	}
 	x.keys = []string{out["secret"].(string)}
-	if r := s.a.sites.notifyEngine().client.send(context.Background(), n, "evt_rotated", []byte(`{}`)); !r.Delivered {
+	if r := s.a.data.notifyEngine().client.send(context.Background(), n, "evt_rotated", []byte(`{}`)); !r.Delivered {
 		t.Fatal("rotated notification could not deliver")
 	}
 }
 
 func TestNotificationMissingKeyMCPUnsubscribe(t *testing.T) {
 	s, x := notificationFixture(t)
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	caller := mcp.Caller{Owner: s.ownerID, APIKey: s.key["X-API-Key"]}
 	sub, err := backend.Subscribe(context.Background(), caller, mcp.EventSubscribeRequest{
 		Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret,
@@ -512,7 +512,7 @@ func TestNotificationMissingKeyMCPUnsubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.a.sites.SetPasscodeKey(""); err != nil {
+	if err := s.a.access.SetPasscodeKey(""); err != nil {
 		t.Fatal(err)
 	}
 	server := mcp.NewServer(mcp.Config{Events: backend})
@@ -533,7 +533,7 @@ func TestNotificationMissingKeyMCPUnsubscribe(t *testing.T) {
 			t.Fatal("keyless unsubscribe failed")
 		}
 	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), sub.ID); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := s.a.data.notificationsSvc().GetNotification(context.Background(), sub.ID); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("keyless unsubscribe did not remove the subscription")
 	}
 }
@@ -546,36 +546,36 @@ func TestSealNotificationSecretsTimeout(t *testing.T) {
 	defer cancel()
 	seal := func(id, plain string) (string, error) {
 		<-ctx.Done()
-		return s.a.sites.passcode.sealNotification(id, plain)
+		return s.a.access.passcode.sealNotification(id, plain)
 	}
 	if count, err := notificationsrepo.SealNotificationSecrets(ctx, s.a.database, seal); err == nil || count != 0 {
 		t.Fatal("expired sweep did not stop")
 	}
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil || n.Secret != notifyTestSecret {
 		t.Fatal("expired sweep changed the row")
 	}
-	if count, err := s.a.sites.SealNotificationSecrets(context.Background(), s.a.database); err != nil || count != 1 {
+	if count, err := s.a.data.SealNotificationSecrets(context.Background(), s.a.database); err != nil || count != 1 {
 		t.Fatal("sweep did not release the row after timeout")
 	}
 }
 
 func TestNotificationMCPResubscribeAfterKeyChange(t *testing.T) {
 	s, x := notificationFixture(t)
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	caller := mcp.Caller{Owner: s.ownerID, APIKey: s.key["X-API-Key"]}
 	req := mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret}
 	sub, err := backend.Subscribe(context.Background(), caller, req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.a.sites.SetPasscodeKey(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))); err != nil {
+	if err := s.a.access.SetPasscodeKey(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := backend.Subscribe(context.Background(), caller, req); err != nil {
 		t.Fatalf("re-subscribe after a key change failed: %v", err)
 	}
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), sub.ID)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), sub.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

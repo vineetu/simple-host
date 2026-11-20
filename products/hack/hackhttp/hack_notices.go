@@ -17,11 +17,6 @@ import (
 // (hack_get_my_todos, hack_get_team_status) always say the same thing.
 // Storage and the email queue: host/repository/hackevents/notices.go and notice_delivery.go.
 
-func (h *HackHandler) registerNotices(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/todos", wrap(h.getTodos))
-	mux.Handle("POST /v1/hack/events/{slug}/notices/seen", wrap(h.markNoticesSeen))
-}
-
 // getTodos is GET /v1/hack/todos: what waits on the person in every event
 // they are in. Events with nothing waiting are left out.
 func (h *HackHandler) getTodos(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +24,7 @@ func (h *HackHandler) getTodos(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	todos, on, possible, err := h.eventsSvc().Todos(r.Context(), user.ID, h.entryEvaluator())
+	todos, on, possible, err := h.events.Todos(r.Context(), user.ID, h.entryEvaluator())
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -68,7 +63,7 @@ func (h *HackHandler) markNoticesSeen(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	n, err := h.eventsSvc().MarkNewsSeen(r.Context(), a.event.ID, a.user.ID, req.IDs)
+	n, err := h.events.MarkNewsSeen(r.Context(), a.event.ID, a.user.ID, req.IDs)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -87,14 +82,6 @@ func (h *HackHandler) noticePolicy() noticeMailPolicy {
 	return noticeMailPolicy{delay: delay, window: window}
 }
 
-// deliverNoticeMail sends what is due: per person and kind, one email that
-// carries everything of that kind still true now, at most one every 15
-// minutes. Runs on the content-mail ticker.
-func (h *HackHandler) deliverNoticeMail(ctx context.Context) {
-	h.eventsSvc().PruneNotices(ctx)
-	h.deliverNoticeMailOnly(ctx)
-}
-
 func (h *HackHandler) deliverNoticeMailOnly(ctx context.Context) (int64, error) {
 	sender, ok := h.mailer.(interface {
 		SendNotice(string, string, string) error
@@ -106,18 +93,18 @@ func (h *HackHandler) deliverNoticeMailOnly(ctx context.Context) (int64, error) 
 		return 0, nil
 	}
 	pol := h.noticePolicy()
-	return h.eventsSvc().DeliverNoticeMail(ctx, sender, pol.delay, pol.window, h.publicBaseURL, h.entries)
+	return h.events.DeliverNoticeMail(ctx, sender, pol.delay, pol.window, h.publicBaseURL, h.entries)
 }
 
-func (h *HackHandler) needsYou(ctx context.Context, ev model.Event, m model.EventMember) []map[string]any {
-	return needsYouView(h.eventsSvc().NeedsYou(ctx, ev, m, h.entryEvaluator()))
+func (h *hackBase) needsYou(ctx context.Context, ev model.Event, m model.EventMember) []map[string]any {
+	return needsYouView(h.events.NeedsYou(ctx, ev, m, h.entryEvaluator()))
 }
 
 // entryEvaluator is h.entries as a true nil events.EntryEvaluator when
 // h.entries itself is nil (a bare &HackHandler{} test fixture): a nil
 // *entries.Service boxed in a non-nil interface would panic on first call,
 // not compare equal to nil.
-func (h *HackHandler) entryEvaluator() events.EntryEvaluator {
+func (h *hackBase) entryEvaluator() events.EntryEvaluator {
 	if h.entries == nil {
 		return nil
 	}

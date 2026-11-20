@@ -44,7 +44,7 @@ func TestStorageRound2WriteBucketsPerSite(t *testing.T) {
 	otherID := s.a.siteID(t, owner, "other")
 	var aliceID string
 	// Resolve Alice exactly; both users have sessions in the original site.
-	sess, ok := s.a.sites.strictVisitorSession(func() *http.Request {
+	sess, ok := s.a.access.strictVisitorSession(func() *http.Request {
 		r := httptest.NewRequest("GET", "https://"+s.host+"/", nil)
 		for k, v := range s.alice {
 			r.Header.Set(k, v)
@@ -65,11 +65,11 @@ func TestStorageRound2WriteBucketsPerSite(t *testing.T) {
 		t.Fatalf("other resource: %d", r.status)
 	}
 	for _, visitorCap := range []bool{false, true} {
-		s.a.sites.storageIPLimiter = httpx.NewRateLimiter(1, 0)
-		s.a.sites.storageVisitorLimiter = httpx.NewRateLimiter(100, 0)
+		s.a.data.storageIPLimiter = httpx.NewRateLimiter(1, 0)
+		s.a.data.storageVisitorLimiter = httpx.NewRateLimiter(100, 0)
 		if visitorCap {
-			s.a.sites.storageIPLimiter = httpx.NewRateLimiter(100, 0)
-			s.a.sites.storageVisitorLimiter = httpx.NewRateLimiter(1, 0)
+			s.a.data.storageIPLimiter = httpx.NewRateLimiter(100, 0)
+			s.a.data.storageVisitorLimiter = httpx.NewRateLimiter(1, 0)
 		}
 		key := fmt.Sprintf("key-%v", visitorCap)
 		s.call(t, "PUT", "/kv/kv/keys/"+key, `{"value":1}`, s.alice, 200)
@@ -88,14 +88,14 @@ func TestStorageRound2SQLiteConcurrencyPOC(t *testing.T) {
 	// Occupy every slot of this handler's own gate, independent of this
 	// site/identity. s.a.sites is the SiteHandler under test, so this must be
 	// the same gate instance its storage routes acquire from.
-	initRelease, err := s.a.sites.sqlite.Acquire(context.Background())
+	initRelease, err := s.a.data.sqlite.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	initRelease()
 	var releases []func()
-	for i := 0; i < cap(s.a.sites.sqlite.Slots); i++ {
-		release, err := s.a.sites.sqlite.Acquire(context.Background())
+	for i := 0; i < cap(s.a.data.sqlite.Slots); i++ {
+		release, err := s.a.data.sqlite.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,10 +170,10 @@ func TestStorageRound2LegacyNFDNamesPOC(t *testing.T) {
 		t.Fatal("KV did not normalize new name")
 	}
 	c := storageCall{ownerID: s.ownerID, siteName: "shop", resourceName: "photos"}
-	if err := os.WriteFile(filepath.Join(s.a.sites.storageFilesDir(c), nfd), []byte("legacy"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(s.a.data.storageFilesDir(c), nfd), []byte("legacy"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	seedStorageKV(t, s.a.sites, s.siteID, "kv", nfd, "2", "")
+	seedStorageKV(t, s.a.data, s.siteID, "kv", nfd, "2", "")
 	for _, kind := range []string{"files", "kv"} {
 		route := "/files/photos/objects/"
 		field := "path"
@@ -204,7 +204,7 @@ func TestStorageRound2OwnListStalePagination(t *testing.T) {
 	}
 	c := storageCall{ownerID: s.ownerID, siteName: "shop", resourceName: "photos"}
 	for _, name := range []string{"a", "b"} {
-		if err := os.Remove(s.a.sites.storageFilePath(c, name)); err != nil {
+		if err := os.Remove(s.a.data.storageFilePath(c, name)); err != nil {
 			t.Fatal(err)
 		}
 	}

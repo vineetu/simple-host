@@ -20,16 +20,8 @@ import (
 // publishes the team's site with their own sign-in, naming the event as
 // owner (PUT /v1/sites/<team>?owner=<event>): they are an editor of it.
 
-func (h *HackHandler) registerTeamSites(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/site", wrap(h.getTeamSiteStatus))
-	mux.Handle("PUT /v1/hack/events/{slug}/teams/{team}/deadline", wrap(h.setTeamDeadline))
-	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/takedown", wrap(h.takeDownTeamSite))
-	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/restore", wrap(h.restoreTeamSite))
-	mux.Handle("GET /v1/hack/my-teams", wrap(h.myTeams))
-}
-
 // teamSiteJSON is a team's site as the events API shows it.
-func (h *HackHandler) teamSiteJSON(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) map[string]any {
+func (h *hackBase) teamSiteJSON(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) map[string]any {
 	var site *model.Site
 	if h.sites != nil {
 		info, st, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug)
@@ -43,7 +35,7 @@ func (h *HackHandler) teamSiteJSON(ctx context.Context, ev hackmodel.Event, team
 }
 
 // teamSiteJSONFrom is teamSiteJSON with the site already read (nil: none).
-func (h *HackHandler) teamSiteJSONFrom(ev hackmodel.Event, team hackmodel.EventTeam, site *model.Site, ready bool) map[string]any {
+func (h *hackBase) teamSiteJSONFrom(ev hackmodel.Event, team hackmodel.EventTeam, site *model.Site, ready bool) map[string]any {
 	out := map[string]any{
 		"name":              team.Slug,
 		"url":               h.teamSiteURL(ev.Slug, team.Slug),
@@ -73,10 +65,10 @@ type teamList struct {
 	ready    bool
 }
 
-func (h *HackHandler) loadTeamList(ctx context.Context, ev hackmodel.Event) (teamList, error) {
+func (h *hackBase) loadTeamList(ctx context.Context, ev hackmodel.Event) (teamList, error) {
 	h.pinDue(ctx, ev.ID)
 	ready := h.teamSitesReady(ev.Slug)
-	data, err := h.teamsSvc().LoadTeamList(ctx, ev)
+	data, err := h.teams.LoadTeamList(ctx, ev)
 	return teamList{states: data.States, members: data.Members, versions: data.Versions, sites: data.Sites, ready: ready}, err
 
 }
@@ -89,12 +81,12 @@ func (tl teamList) site(name string) *model.Site {
 }
 
 // teamDeadlineJSON adds the team's effective deadline fields to obj.
-func (h *HackHandler) teamDeadlineJSON(ctx context.Context, team hackmodel.EventTeam, obj map[string]any) {
+func (h *hackBase) teamDeadlineJSON(ctx context.Context, team hackmodel.EventTeam, obj map[string]any) {
 	obj["deadline"] = nil
 	obj["frozen"] = false
 	obj["extended"] = false
 	obj["pinned_version"] = nil
-	st, err := h.teamsSvc().WriteState(ctx, team.ID)
+	st, err := h.teams.WriteState(ctx, team.ID)
 	if err != nil {
 		return
 	}
@@ -102,7 +94,7 @@ func (h *HackHandler) teamDeadlineJSON(ctx context.Context, team hackmodel.Event
 }
 
 // teamStateJSON fills the deadline fields from a team's write state.
-func (h *HackHandler) teamStateJSON(st hackmodel.TeamWriteState, obj map[string]any) {
+func (h *hackBase) teamStateJSON(st hackmodel.TeamWriteState, obj map[string]any) {
 	obj["extended"] = st.HasOverride
 	obj["deadline"] = rfc3339UTC(st.Deadline)
 	obj["frozen"] = st.Frozen()
@@ -113,12 +105,12 @@ func (h *HackHandler) teamStateJSON(st hackmodel.TeamWriteState, obj map[string]
 
 // participantTeam loads the caller's team for a participant route: ok=false
 // after writing the answer (409 no_team when on none).
-func (h *HackHandler) participantTeam(w http.ResponseWriter, r *http.Request, a hackAccess) (hackmodel.EventTeam, bool) {
+func (h *hackBase) participantTeam(w http.ResponseWriter, r *http.Request, a hackAccess) (hackmodel.EventTeam, bool) {
 	if !a.member.TeamID.Valid {
 		httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
 		return hackmodel.EventTeam{}, false
 	}
-	team, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
+	team, err := h.teams.GetTeam(r.Context(), a.member.TeamID.String)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusConflict, "no_team", "join or start a team first")
 		return hackmodel.EventTeam{}, false
@@ -131,7 +123,7 @@ func (h *HackHandler) participantTeam(w http.ResponseWriter, r *http.Request, a 
 }
 
 // organiserTeam loads {team} of the event for an organiser write.
-func (h *HackHandler) organiserTeam(w http.ResponseWriter, r *http.Request) (hackAccess, hackmodel.EventTeam, bool) {
+func (h *participationHTTP) organiserTeam(w http.ResponseWriter, r *http.Request) (hackAccess, hackmodel.EventTeam, bool) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return a, hackmodel.EventTeam{}, false
@@ -140,7 +132,7 @@ func (h *HackHandler) organiserTeam(w http.ResponseWriter, r *http.Request) (hac
 		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return a, hackmodel.EventTeam{}, false
 	}
-	team, err := h.teamsSvc().TeamBySlug(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
+	team, err := h.teams.TeamBySlug(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return a, hackmodel.EventTeam{}, false
@@ -154,21 +146,21 @@ func (h *HackHandler) organiserTeam(w http.ResponseWriter, r *http.Request) (hac
 
 // teamOrganiserFull is the organiser's view of a team with its site and
 // deadline.
-func (h *HackHandler) teamOrganiserFull(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) (map[string]any, error) {
+func (h *participationHTTP) teamOrganiserFull(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) (map[string]any, error) {
 	tl, err := h.loadTeamList(ctx, ev)
 	if err != nil {
 		return nil, err
 	}
-	if fresh, err := h.teamsSvc().GetTeam(ctx, team.ID); err == nil {
+	if fresh, err := h.teams.GetTeam(ctx, team.ID); err == nil {
 		team = fresh
 	}
 	return h.teamOrganiserFrom(ctx, ev, team, tl)
 }
 
 // teamOrganiserFrom is the organiser's view of one team from a teamList.
-func (h *HackHandler) teamOrganiserFrom(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam, tl teamList) (map[string]any, error) {
+func (h *participationHTTP) teamOrganiserFrom(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam, tl teamList) (map[string]any, error) {
 	obj := teamOrganiserJSONFrom(team, tl.members[team.ID], h.teamLinkURL(team.Code))
-	track, err := h.teamsSvc().Track(ctx, team.ID)
+	track, err := h.teams.Track(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +181,7 @@ func (h *HackHandler) teamOrganiserFrom(ctx context.Context, ev hackmodel.Event,
 }
 
 // setTeamDeadline gives one team until a later time (or takes that back).
-func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 	a, team, ok := h.organiserTeam(w, r)
 	if !ok {
 		return
@@ -210,13 +202,13 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			loc = time.UTC
 		}
-		parsed, ok := parseEventTime(w, *req.Deadline, loc, "deadline", true)
+		parsed, ok := parseEventTime(w, *req.Deadline, loc, "deadline")
 		if !ok {
 			return
 		}
 		t = parsed
 	}
-	team, err := h.teamsSvc().SetDeadline(r.Context(), a.event.ID, team, t)
+	team, err := h.teams.SetDeadline(r.Context(), a.event.ID, team, t)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -225,7 +217,7 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 	h.writeTeamFull(w, r, a.event, team)
 }
 
-func (h *HackHandler) writeTeamFull(w http.ResponseWriter, r *http.Request, ev hackmodel.Event, team hackmodel.EventTeam) {
+func (h *participationHTTP) writeTeamFull(w http.ResponseWriter, r *http.Request, ev hackmodel.Event, team hackmodel.EventTeam) {
 	obj, err := h.teamOrganiserFull(r.Context(), ev, team)
 	if err != nil {
 		httpx.WriteInternal(w)
@@ -234,7 +226,7 @@ func (h *HackHandler) writeTeamFull(w http.ResponseWriter, r *http.Request, ev h
 	httpx.WriteJSON(w, http.StatusOK, obj)
 }
 
-func (h *HackHandler) takeDownTeamSite(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) takeDownTeamSite(w http.ResponseWriter, r *http.Request) {
 	a, team, ok := h.organiserTeam(w, r)
 	if !ok {
 		return
@@ -253,7 +245,7 @@ func (h *HackHandler) takeDownTeamSite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	if err := h.teamsSvc().SetSiteTakenDown(r.Context(), h.sites, a.event, team, true, reason); err != nil {
+	if err := h.teams.SetSiteTakenDown(r.Context(), h.sites, a.event, team, true, reason); err != nil {
 		log.Printf("hack: take down %s/%s: %v", a.event.Slug, team.Slug, err)
 		httpx.WriteInternal(w)
 		return
@@ -261,7 +253,7 @@ func (h *HackHandler) takeDownTeamSite(w http.ResponseWriter, r *http.Request) {
 	h.writeTeamFull(w, r, a.event, team)
 }
 
-func (h *HackHandler) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
 	a, team, ok := h.organiserTeam(w, r)
 	if !ok {
 		return
@@ -270,7 +262,7 @@ func (h *HackHandler) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	err := h.teamsSvc().SetSiteTakenDown(r.Context(), h.sites, a.event, team, false, "")
+	err := h.teams.SetSiteTakenDown(r.Context(), h.sites, a.event, team, false, "")
 	if errors.Is(err, model.ErrNotOrganiserTakedown) {
 		httpx.WriteError(w, http.StatusConflict, "platform_takedown", "Simple Hack took this site down; only the platform can put it back")
 		return
@@ -284,12 +276,12 @@ func (h *HackHandler) restoreTeamSite(w http.ResponseWriter, r *http.Request) {
 }
 
 // myTeams lists the caller's teams, for the connector's choice of site.
-func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) myTeams(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return
 	}
-	teams, err := h.teamsSvc().MyTeams(r.Context(), user.ID)
+	teams, err := h.teams.MyTeams(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -307,7 +299,7 @@ func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
 	}
 	// Teams the person is on that cannot publish now (deadline passed, site
 	// taken down), so the consent page can say why instead of "join one".
-	blocked, err := h.teamsSvc().BlockedTeamCount(r.Context(), user.ID, len(out))
+	blocked, err := h.teams.BlockedTeamCount(r.Context(), user.ID, len(out))
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -316,29 +308,29 @@ func (h *HackHandler) myTeams(w http.ResponseWriter, r *http.Request) {
 }
 
 // pinDue pins the event's teams whose deadline has passed.
-func (h *HackHandler) pinDue(ctx context.Context, eventID string) {
-	if err := h.teamsSvc().PinDue(ctx, eventID); err != nil {
+func (h *hackBase) pinDue(ctx context.Context, eventID string) {
+	if err := h.teams.PinDue(ctx, eventID); err != nil {
 		log.Printf("hack: pin %s: %v", eventID, err)
 	}
 }
 
 // removeOrphanTeamSites moves the event's sites whose team is gone to
 // Recently deleted (the hourly sweep catches anything missed here).
-func (h *HackHandler) removeOrphanTeamSites(ctx context.Context, ev hackmodel.Event) {
+func (h *hackBase) removeOrphanTeamSites(ctx context.Context, ev hackmodel.Event) {
 	var trash func(context.Context, string, string) error
 	if h.sites != nil {
 		trash = h.sites.TrashTeamSite
 	}
-	h.teamsSvc().RemoveOrphanTeamSites(ctx, ev, trash)
+	h.teams.RemoveOrphanTeamSites(ctx, ev, trash)
 }
 
 // requestEventCert asks for *.<event>.<SITE_DOMAIN> once the event opens.
-func (h *HackHandler) requestEventCert(ev hackmodel.Event) {
+func (h *hackBase) requestEventCert(ev hackmodel.Event) {
 	var request func(string)
 	if h.sites != nil {
 		request = h.sites.RequestSiteCert
 	}
-	h.teamsSvc().RequestEventCert(ev, request)
+	h.teams.RequestEventCert(ev, request)
 }
 
 // RequestOpenEventCerts asks for the certificate of every event that is
@@ -348,7 +340,7 @@ func (h *HackHandler) RequestOpenEventCerts(ctx context.Context) {
 	if h.sites == nil {
 		return
 	}
-	if err := h.teamsSvc().OpenEventSlugs(ctx, func(handle string) {
+	if err := h.teams.OpenEventSlugs(ctx, func(handle string) {
 		if s, ok := h.sites.(interface{ RequestSiteCertContext(context.Context, string) }); ok {
 			s.RequestSiteCertContext(ctx, handle)
 		} else {
@@ -362,7 +354,7 @@ func (h *HackHandler) RequestOpenEventCerts(ctx context.Context) {
 
 // pinnedLink is the deadline version's preview link from a teamList: none
 // for a site taken down (by the organiser or the platform) or gone.
-func (h *HackHandler) pinnedLink(ev hackmodel.Event, team hackmodel.EventTeam, tl teamList, v int) (string, bool) {
+func (h *hackBase) pinnedLink(ev hackmodel.Event, team hackmodel.EventTeam, tl teamList, v int) (string, bool) {
 	site := tl.site(team.Slug)
 	if h.sites == nil || !tl.ready || site == nil || site.Suspended() || team.SiteTakenDownAt.Valid {
 		return "", false

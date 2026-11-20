@@ -33,7 +33,7 @@ func saveWriteHTTPRules(t *testing.T, s storageTestSite, add, check string, stat
 func TestStorageRulesWriteReplay(t *testing.T) {
 	s := newStorageTestSite(t)
 	p := &replayBindings{member: true, deadline: true}
-	s.a.sites.SetStorageBindings(p)
+	s.a.data.SetStorageBindings(p)
 	saveWriteHTTPRules(t, s, "auth.signed_in", "true", 201)
 	s.must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(status TEXT)"}, s.key, 200)
 	route := "/sqlite/data/tables/entries/rows"

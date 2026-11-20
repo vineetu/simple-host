@@ -6,12 +6,10 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/vsriram/simple-host/host/config"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -24,12 +22,8 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/email"
 	httpx "github.com/vsriram/simple-host/host/httpx"
 	model "github.com/vsriram/simple-host/host/model"
-	operations "github.com/vsriram/simple-host/host/ops"
-	operationsrepo "github.com/vsriram/simple-host/host/ops/repo"
-	"github.com/vsriram/simple-host/host/storage"
 )
 
 // ---- pure rules (no database) ---------------------------------------------------
@@ -250,71 +244,16 @@ type connectorApp struct {
 	admin    string
 	conn     *ConnectorHandler
 	sites    *SiteHandler
+	access   *AccessHandler
+	data     *DataHandler
 	users    *UserHandler
 	mux      *http.ServeMux
 }
 
-// newConnectorApp wires the server the way cmd/server/main.go does. It needs
-// DB_DSN pointing at a database with host/db/schema.sql applied.
+// newConnectorApp is the server of cmd/server/main.go (newPrivateApp).
 func newConnectorApp(t *testing.T, eds ...*edition.Edition) *connectorApp {
 	t.Helper()
-	var ed *edition.Edition
-	if len(eds) > 0 {
-		ed = eds[0]
-	} else {
-		ed = edition.Default(config.DefaultLimits())
-	}
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
-	if err := operationsrepo.VerifySchema(context.Background(), database); err != nil {
-		t.Fatalf("test database is behind the schema: %v", err)
-	}
-	disk, err := storage.NewDiskStorage(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	adminKey, _ := auth.GenerateAPIKey()
-	adminID, err := accountsrepo.EnsureAdminUser(context.Background(), database)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mux := http.NewServeMux()
-	app := &connectorApp{database: database, admin: adminKey, mux: mux}
-	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
-	noticeMW := NoticeMiddleware("1.0.0")
-	mailer := email.NewResendSender("", "test@example.com")
-
-	// The issuer has to be the test server's own URL, so start it first and
-	// hand it the finished handler afterwards.
-	var root http.Handler
-	app.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
-	t.Cleanup(app.srv.Close)
-
-	users := NewUserHandler(database, accountapp.New(database), mailer, app.srv.URL, ed)
-	users.Register(mux, authMW, noticeMW)
-	app.users = users
-	sites := NewSiteHandler(ed, "", database, disk, "simple-host.test", "sites.simple-host.test", "cname.simple-host.test", "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
-	sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
-	sites.SetOperationsReporting(operations.NewReporting(database))
-	app.sites = sites
-	t.Cleanup(sites.WaitNotifications)
-	sites.Register(mux, authMW, noticeMW)
-	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, nil)
-	conn := NewConnectorHandler(database, app.srv.URL, adminKey, "simple-host.test", "sites.simple-host.test", "1.0.0", gated, false, ed)
-	conn.Register(mux, authMW)
-	app.conn = conn
-	root = CORS(conn.BearerAuth(gated))
-	return app
+	return newPrivateApp(t, eds...).connectorApp
 }
 
 type person struct{ email, key string }

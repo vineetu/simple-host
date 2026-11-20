@@ -93,7 +93,7 @@ func TestVisitorWriteNumbersAndIDsExact(t *testing.T) {
 					var err error
 					switch kind {
 					case "kv":
-						got = strings.TrimSuffix(strings.TrimPrefix(readStorageKVValue(t, f.a.sites, storageKVFixtureCall(t, f.a.sites, f.sid, "numbers"), "big"), `{"n": `), "}")
+						got = strings.TrimSuffix(strings.TrimPrefix(readStorageKVValue(t, f.a.data, storageKVFixtureCall(t, f.a.data, f.sid, "numbers"), "big"), `{"n": `), "}")
 					case "sqlite":
 						res := f.must(t, "POST", "/sqlite/numbers/query", map[string]any{"sql": "SELECT CAST(n AS TEXT) FROM entries WHERE id=" + exact}, f.key, 200)
 						got = res.json(t)["rows"].([]any)[0].([]any)[0].(string)
@@ -187,14 +187,14 @@ func TestVisitorResourceExistenceGated(t *testing.T) {
 	if _, err := f.a.database.Exec(`UPDATE sites SET access='anyone' WHERE id=$1`, f.sid); err != nil {
 		t.Fatal(err)
 	}
-	if err := f.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := f.a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	withPasscodeLimits(t, func(l *config.Limits) {
 		l.SitePasscodes = true
 		l.RatePasscodeSite.Burst = 100
 		l.RatePasscodeIP.Burst = 100
-	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
+	}, &f.a.sites.limitSet, &f.a.access.limitSet, &f.a.data.limitSet, &f.a.access.passcode.limitSet)
 	if res := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key); res.status != 200 {
 		t.Fatalf("lock: %s", res.body)
 	}

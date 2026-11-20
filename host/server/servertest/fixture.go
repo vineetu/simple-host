@@ -7,6 +7,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/extension"
+	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/server"
 )
 
@@ -15,11 +16,13 @@ import (
 func Build(t *testing.T, cfg config.Config, exts []*extension.Extension) *server.App {
 	t.Helper()
 	RecordProduct(t, cfg, exts)
-	app, err := server.Build(cfg, exts)
+	app, err := server.Build(cfg, exts, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(app.Close)
+	// Build points the process-wide asset host rewriting at the fixture's domain.
+	t.Cleanup(func() { handler.SetInstanceHosts("simple-host.app", "", "") })
 	return app
 }
 

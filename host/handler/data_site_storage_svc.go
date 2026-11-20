@@ -13,13 +13,13 @@ import (
 	httpx "github.com/vsriram/simple-host/host/httpx"
 )
 
-func (h *SiteHandler) storageSvc() *appstorage.Service {
+func (h *DataHandler) storageSvc() *appstorage.Service {
 	return appstorage.New(h.database, h.storageDeps())
 }
 
 // SetStorageBindings is called once at startup. A malformed product schema is a
 // programming/configuration error and stops startup before any request is served.
-func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
+func (h *DataHandler) SetStorageBindings(p appstorage.BindingProvider) {
 	declaration := appstorage.SnapshotBindings(p)
 	schema, err := appstorage.MergeBindingSchema(h.turnstile != nil, declaration)
 	if err != nil {
@@ -35,21 +35,21 @@ func (h *SiteHandler) SetStorageBindings(p appstorage.BindingProvider) {
 	}
 }
 
-func (h *SiteHandler) storageBindingProvider() appstorage.BindingProvider {
+func (h *DataHandler) storageBindingProvider() appstorage.BindingProvider {
 	if h.storageBindings != nil {
 		return h.storageBindings
 	}
 	return appstorage.DefaultProvider{DB: h.database}
 }
 
-func (h *SiteHandler) storageDeps() appstorage.Deps {
+func (h *DataHandler) storageDeps() appstorage.Deps {
 	deps := appstorage.Deps{
 		Bindings:             h.storageBindingProvider(),
 		BindingSchema:        h.storageBindingSchema,
 		ProductBindingSchema: h.storageProductBindingSchema,
 		SpamCheckAvailable:   h.turnstile != nil,
 		SiteSlots:            h.siteSlotsFor(),
-		Locks:                &h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
+		Locks:                h.uploadLocks, CombinedPool: h.ed.Storage().CombinedPool,
 		SiteLimit: os.Getenv("SITE_STORAGE_MAX_BYTES"), FilesLimit: os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"),
 		SpamCheckedMaxBytes: h.limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.limits.SpamCheckedMaxLinks,
 		VisitorSessionIdle: h.limits.VisitorSessionIdle,
@@ -67,11 +67,11 @@ func (h *SiteHandler) storageDeps() appstorage.Deps {
 }
 
 // storageRequestSvc configures request-dependent checks for the ordered gate.
-func (h *SiteHandler) storageRequestSvc(r *http.Request, c storageCall) *appstorage.Service {
+func (h *DataHandler) storageRequestSvc(r *http.Request, c storageCall) *appstorage.Service {
 	return appstorage.New(h.database, h.storageRequestDeps(r, c))
 }
 
-func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstorage.Deps {
+func (h *DataHandler) storageRequestDeps(r *http.Request, c storageCall) appstorage.Deps {
 	deps := h.storageDeps()
 	deps.Disk = h.disk
 	deps.SpamCheckAvailable = h.turnstile != nil
@@ -81,8 +81,8 @@ func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstor
 	if c.owner {
 		deps.SQLiteTimeout = h.limits.StorageOwnerTimeout
 	}
-	deps.PasscodeAllows = func() bool { return h.PasscodeLetsIn(r, c.siteID) }
-	deps.ViewersAllow = func() bool { return h.ViewersLetIn(r, c.siteID) }
+	deps.PasscodeAllows = func() bool { return h.access.PasscodeLetsIn(r, c.siteID) }
+	deps.ViewersAllow = func() bool { return h.access.ViewersLetIn(r, c.siteID) }
 	deps.WriteLockWait = h.limits.StorageWriteLockWait
 	deps.WriteTimeout = h.limits.StorageVisitorWriteTimeout
 	if c.owner {
@@ -104,7 +104,7 @@ func (h *SiteHandler) storageRequestDeps(r *http.Request, c storageCall) appstor
 }
 
 // storageServiceCall converts resolved handler state to plain service values.
-func (h *SiteHandler) storageServiceCall(c storageCall) appstorage.Call {
+func (h *DataHandler) storageServiceCall(c storageCall) appstorage.Call {
 	return appstorage.Call{
 		SiteID: c.siteID, OwnerID: c.ownerID, SiteName: c.siteName, ResourceName: c.resourceName,
 		AccountID: c.accountID, Owner: c.owner, OwnerOnSite: c.ownerOnSite, VisitorAI: c.visitorAI,
@@ -158,7 +158,7 @@ func storageRefused(w http.ResponseWriter, a *appstorage.Error) bool {
 	return !a.Allowed
 }
 
-func (h *SiteHandler) siteSlotsFor() *appstorage.SiteSlots {
+func (h *DataHandler) siteSlotsFor() *appstorage.SiteSlots {
 	h.sqliteSitesOnce.Do(func() {
 		h.sqliteSites = appstorage.NewSiteSlots(h.limits.StorageSiteInflight, h.sqliteGateFor(), h.limits.StorageAcquireWait)
 	})
@@ -167,8 +167,8 @@ func (h *SiteHandler) siteSlotsFor() *appstorage.SiteSlots {
 
 // KVFileStats shares request admission with the paper collector. Trashed sites
 // retain their namespaces until permanent deletion, just as Postgres rows do.
-func (h *SiteHandler) KVFileStats(ctx context.Context, siteID string) (int64, int64, error) {
-	site, err := h.lifecycleSvc().GetSiteByID(ctx, siteID)
+func (h *DataHandler) KVFileStats(ctx context.Context, siteID string) (int64, int64, error) {
+	site, err := h.site.lifecycleSvc().GetSiteByID(ctx, siteID)
 	if err != nil {
 		return 0, 0, err
 	}

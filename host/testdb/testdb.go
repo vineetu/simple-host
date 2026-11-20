@@ -8,6 +8,7 @@
 //	func TestMain(m *testing.M) { testdb.Main(m) }
 //
 // A package with its own TestMain may instead call Fresh for each DB test.
+// DB hands every test the package database's one pool.
 //
 // With TESTDB_ISOLATE=1 (set by scripts/test-integration.sh) and DB_DSN
 // set, Main runs `CREATE DATABASE <clone> TEMPLATE <db from DB_DSN>`,
@@ -26,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/lib/pq"
@@ -36,6 +38,57 @@ import (
 const templateEnv = "TESTDB_TEMPLATE_DSN"
 
 func isolating() bool { return os.Getenv("TESTDB_ISOLATE") == "1" }
+
+// shared is the pool on the package database, the DB_DSN Main ran tests with.
+var shared struct {
+	dsn  string
+	once sync.Once
+	db   *sql.DB
+	err  error
+}
+
+// DB returns a pool on the test's DB_DSN, skipping when there is none or it
+// does not answer. Tests on the package database share one pool, opened on
+// first use; a test that moved DB_DSN to its own clone gets its own pool,
+// closed when the test ends.
+func DB(t *testing.T) *sql.DB {
+	t.Helper()
+	dsn := os.Getenv("DB_DSN")
+	if dsn == "" {
+		t.Skip("DB_DSN unset")
+	}
+	if dsn == shared.dsn {
+		shared.once.Do(func() { shared.db, shared.err = open(dsn) })
+		if shared.err != nil {
+			t.Skipf("postgres not reachable: %v", shared.err)
+		}
+		return shared.db
+	}
+	database, err := open(dsn)
+	if err != nil {
+		t.Skipf("postgres not reachable: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	return database
+}
+
+func open(dsn string) (*sql.DB, error) {
+	database, err := sql.Open("postgres", dsn)
+	if err == nil {
+		err = database.Ping()
+	}
+	return database, err
+}
+
+// run runs the tests on the package database in DB_DSN, then closes its pool.
+func run(m *testing.M) int {
+	shared.dsn = os.Getenv("DB_DSN")
+	code := m.Run()
+	if shared.db != nil {
+		shared.db.Close()
+	}
+	return code
+}
 
 // Main runs the package's tests, inside a per-process clone of the DB_DSN
 // database when TESTDB_ISOLATE=1. It never returns.
@@ -52,7 +105,7 @@ func MainWithSchema(m *testing.M, template string) {
 		dsn = os.Getenv("DB_DSN")
 	}
 	if !isolating() || os.Getenv("DB_DSN") == "" {
-		os.Exit(m.Run())
+		os.Exit(run(m))
 	}
 	cloneDSN, drop, err := clone(dsn)
 	if err != nil {
@@ -61,7 +114,7 @@ func MainWithSchema(m *testing.M, template string) {
 	}
 	os.Setenv(templateEnv, dsn)
 	os.Setenv("DB_DSN", cloneDSN)
-	code := m.Run()
+	code := run(m)
 	if err := drop(); err != nil {
 		fmt.Fprintf(os.Stderr, "testdb: %v\n", err)
 		if code == 0 {

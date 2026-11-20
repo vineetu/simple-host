@@ -9,6 +9,8 @@
 # them a disposable Postgres (TEST_PG_URL, or Docker if that's unset) and
 # fails if any of them still skip -- that's what `check` runs. Platform packages
 # use the platform schema alone; products/ packages use the composed schema.
+# Packages whose inputs did not change answer from Go's test cache; FULL=1
+# (`make check FULL=1`, what installs and CI run) runs every package.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5
 .PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries browser
@@ -27,7 +29,7 @@ test-rules:
 	cd host/storage/rules && go vet ./... && go test ./...
 
 test-integration:
-	bash scripts/test-integration.sh
+	bash scripts/test-integration.sh $(if $(FULL),--full)
 
 PKGS ?= ./...
 COUNT ?= 1
@@ -41,7 +43,7 @@ check:
 	cd host/storage/rules && go build ./...
 	go vet ./...
 	$(MAKE) test-rules
-	bash scripts/test-integration.sh
+	bash scripts/test-integration.sh $(if $(FULL),--full)
 	node --test scripts/tests/arrival.test.cjs scripts/tests/photo-process.test.cjs scripts/tests/my-sites.test.cjs scripts/tests/site-preview.test.cjs scripts/tests/hack-stage-announce.test.mjs scripts/tests/hack-publish-results.test.mjs scripts/tests/hack-event-times.test.mjs scripts/tests/hack-navigation.test.mjs
 	bash scripts/check-html.sh
 	bash scripts/check-layering.sh

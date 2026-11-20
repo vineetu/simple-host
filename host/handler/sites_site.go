@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,9 +18,7 @@ import (
 	"sync"
 	"time"
 
-	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
-	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
@@ -55,6 +52,8 @@ func init() {
 }
 
 type SiteHandler struct {
+	data            *DataHandler
+	access          *AccessHandler
 	sitemaps        sitemapCache
 	sitemapFilter   sites.SitemapFilter
 	httpCaches      httpx.Caches
@@ -70,29 +69,13 @@ type SiteHandler struct {
 	assets            *assetPipeline
 	assetsOnce        sync.Once
 	createIdempotency *createIdempotencyStore
-	// sqlite is this handler's SQLite concurrency gate (site_storage_sql.go),
-	// sized from h.limits. NewSiteHandler builds it; a bare &SiteHandler{}
-	// (tests) gets one on first use via sqliteGateFor, matching pipeline()'s
-	// lazy-build pattern.
-	sqlite                      *sqliteGate
-	sqliteOnce                  sync.Once
-	sqliteSites                 *appstorage.SiteSlots
-	sqliteSitesOnce             sync.Once
-	storageBindings             appstorage.BindingProvider
-	storageBindingSchema        appstorage.BindingSchema
-	storageProductBindingSchema appstorage.BindingSchema
-
-	notifyOnce    sync.Once
-	notifications *notificationEngine
-
-	mailer         signInMailer
-	emailLimiter   *httpx.RateLimiter
-	database       *sql.DB
-	disk           SiteDisk
-	siteDomain     string
-	contentHost    string // shared v3 content host, e.g. sites.simple-host.app
-	cnameTarget    string // CNAME target for custom domains, e.g. cname.simple-host.app
-	customDomainIP string // box public IPv4 for APEX custom-domain A records
+	mailer            signInMailer
+	database          *sql.DB
+	disk              SiteDisk
+	siteDomain        string
+	contentHost       string // shared v3 content host, e.g. sites.simple-host.app
+	cnameTarget       string // CNAME target for custom domains, e.g. cname.simple-host.app
+	customDomainIP    string // box public IPv4 for APEX custom-domain A records
 	// customDomainIPAlso: earlier public IPv4s still accepted, never handed out.
 	customDomainIPAlso []string
 	deployScript       string
@@ -116,14 +99,7 @@ type SiteHandler struct {
 
 	// uploadLimiter throttles create/update uploads per client IP. See
 	// ratelimit.go.
-	uploadLimiter         *httpx.RateLimiter
-	storageIPLimiter      *httpx.RateLimiter
-	storageVisitorLimiter *httpx.RateLimiter
-	// The spam check behind auth.checked (turnstile.go); nil: off.
-	turnstile          *turnstileVerifier
-	spamIPLimiter      *httpx.RateLimiter
-	spamSiteLimiter    *httpx.RateLimiter
-	visitorAuthLimiter *httpx.RateLimiter
+	uploadLimiter      *httpx.RateLimiter
 	domainCheckLimiter *httpx.RateLimiter
 	// domainCheckUserLimiter: "Check again" per account.
 	domainCheckUserLimiter *httpx.RateLimiter
@@ -132,28 +108,6 @@ type SiteHandler struct {
 	// expires after previewTTL and is removed by the background sweep. Empty =off.
 	previewAccounts map[string]bool
 	previewTTL      time.Duration
-
-	// webPushAccounts/webPushAccountsAll gate SIM-360 (WEB_PUSH_ACCOUNTS):
-	// empty map and false = web push off everywhere. Set once at startup
-	// via SetWebPushAccounts, like UserHandler.SetPreviewAccounts.
-	webPushAccounts    map[string]bool
-	webPushAccountsAll bool
-
-	// webPushVapid* cache the one VAPID keypair for this install, generated
-	// on first use and persisted sealed in instance_config (see
-	// notify_push.go vapidKeys). Only a success is cached: a transient
-	// failure (a canceled request's context, a momentary DB error) must
-	// not poison this process forever the way sync.Once would.
-	webPushVapidMu    sync.Mutex
-	webPushVapidReady bool
-	webPushVapidPub   string
-	webPushVapidPriv  string
-
-	// adminAPIKey / adminUserID recognize owner/admin X-API-Key callers on
-	// routes that are not wrapped with auth.Middleware (the site storage
-	// routes).
-	adminAPIKey string
-	adminUserID string
 
 	// personHosts is PERSON_HOSTS (personhost.go).
 	personHosts personHostMode
@@ -189,46 +143,13 @@ type SiteHandler struct {
 	// process, used for nothing else. publicBaseURL is the apex they point at.
 	exportKey []byte
 
-	// passcode is the site-passcode key and wrong-try counters (passcode.go).
-	passcode      passcodeState
 	publicBaseURL string
-	ssoStart      http.Handler
-	ssoBaseURL    string
 
 	// showcaseLimiter bounds public showcase reads per account and address
 	// (60 burst, 30 a second).
 	showcaseLimiter *httpx.RateLimiter
-	// noVisitorSignIn: this install has no way for a visitor to sign in (no
-	// email codes, no Google/GitHub). noEmail: it sends no email. Both false
-	// unless SetVisitorSignIn says.
-	noVisitorSignIn, noEmail bool
-	groupHosts               GroupHosts
-	groupGate                sites.GroupGate
-
-	// geoBlock gates a visitor's email-code sign-in on a site by the
-	// request's country (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See
-	// signupgeo.go.
-	geoBlock signupGeoBlock
-}
-
-// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
-// (host/geoip, GEOIP_DIR) so every visitor email-code sign-in or sign-up
-// attempt from a blocked country is refused before anything is created or
-// emailed — a new account and an existing one alike. geo may be nil;
-// countries may be empty — either turns this off.
-func (h *SiteHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
-	h.geoBlock = guard
-}
-
-// SetVisitorSignIn records how visitors can sign in on this install: email
-// codes (email) and the OAuth providers configured (providers).
-func (h *SiteHandler) SetVisitorSignIn(email bool, providers []string) {
-	h.noEmail = !email
-	h.noVisitorSignIn = !email && len(providers) == 0
-	viewerGoogle = false
-	for _, p := range providers {
-		viewerGoogle = viewerGoogle || p == "google"
-	}
+	groupHosts      GroupHosts
+	groupGate       sites.GroupGate
 }
 
 // lockSite acquires the per-site upload mutex for one account's site name and
@@ -241,109 +162,9 @@ func (h *SiteHandler) lockSite(userID, name string) func() {
 	return m.Unlock
 }
 
-type siteSummaryFields struct {
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	Headings    string `json:"headings,omitempty"`
-	Text        string `json:"text,omitempty"`
-}
-
-type siteResponse struct {
-	Pinned        bool      `json:"pinned"`
-	Order         int       `json:"order"`
-	ID            string    `json:"id"`
-	UserID        string    `json:"user_id"`
-	Name          string    `json:"name"`
-	ActiveVersion int       `json:"active_version"`
-	SiteURL       string    `json:"site_url"`
-	LiveURL       string    `json:"live_url"` // sites.LiveURL: the address to hand out
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	CustomDomain  string    `json:"custom_domain,omitempty"`
-	DomainStatus  string    `json:"domain_status,omitempty"`
-	// Only in the site list: compact content from the latest uploaded index.
-	Summary *siteSummaryFields `json:"summary,omitempty"`
-	// Only in the site list, on every item when the analytics log is read:
-	// views by people over the rolling
-	// last 7 and 30 days, the owner's own visits excluded (operations.SiteViews).
-	Views *operations.SiteViews `json:"views,omitempty"`
-	// Only in the site list: what is wrong with a domain that is not active
-	// yet, the DNS record it needs, and when an unproven binding lapses.
-	DomainLastError string     `json:"domain_last_error,omitempty"`
-	DomainDNS       *dnsRecord `json:"domain_dns,omitempty"`
-	// DomainDNSTXT is the ownership record the domain also needs (TXT
-	// _simple-host.<domain> = the site's token).
-	DomainDNSTXT    *dnsRecord `json:"domain_dns_txt,omitempty"`
-	DomainExpiresAt *time.Time `json:"domain_expires_at,omitempty"`
-	// DomainCertStatus is the pending domain's certificate (pending, issuing,
-	// live, failed) and PreviousDomain the earlier address the site keeps
-	// answering at until the new domain is live.
-	DomainCertStatus string `json:"domain_certificate_status,omitempty"`
-	PreviousDomain   string `json:"previous_domain,omitempty"`
-	// DomainPartner is the custom domain's www / bare partner, a
-	// redirect-only host (see GET /domain: partner_domain and friends).
-	DomainPartner       string     `json:"domain_partner,omitempty"`
-	DomainPartnerDNS    *dnsRecord `json:"domain_partner_dns,omitempty"`
-	DomainPartnerStatus string     `json:"domain_partner_status,omitempty"`
-	DomainPartnerNote   string     `json:"domain_partner_note,omitempty"`
-	// DeployedAt is when the newest version went live (site list only).
-	DeployedAt    *time.Time `json:"deployed_at,omitempty"`
-	Visibility    string     `json:"visibility,omitempty"`
-	OwnerUsername string     `json:"owner_username,omitempty"`
-	// Owner and AccessRole: on GET /v1/sites?owner=<team>, the team's
-	// handle and member (the caller holds these sites as a member). Absent
-	// from a listing of your own sites, which is unchanged.
-	Owner      string `json:"owner,omitempty"`
-	AccessRole string `json:"access_role,omitempty"`
-	Note       string `json:"note,omitempty"`
-	// Suspended: the operator has taken the site down (by itself or with its
-	// owner's account). It keeps everything and refuses changes until restored.
-	Suspended       bool   `json:"suspended,omitempty"`
-	SuspendedReason string `json:"suspended_reason,omitempty"`
-	// Offline: its owner has taken it offline (every address shows "This
-	// site is offline", visitor saves are refused; nothing is deleted).
-	Offline bool `json:"offline,omitempty"`
-	// PasscodeProtected: the site asks visitors for a passcode on every
-	// address (passcode.go). The passcode itself is only in GET .../lock.
-	PasscodeProtected bool `json:"passcode_protected,omitempty"`
-	// Access: who can open the site, "anyone" or "specific" (named viewers; viewers.go).
-	Access       string `json:"access,omitempty"`
-	OpenToAnyone bool   `json:"open_to_anyone"` // model.Site.OpenToAnyone
-	// Only on a deploy with publish=false: the version it stored (not live)
-	// and an hour-long, owner-only preview link for it (preview.go).
-	UnpublishedVersion int        `json:"unpublished_version,omitempty"`
-	PreviewURL         string     `json:"preview_url,omitempty"`
-	PreviewExpiresAt   *time.Time `json:"preview_expires_at,omitempty"`
-	// AddressState: present while the site is handed out at its interim
-	// address (<handle>.<SITE_DOMAIN>/<site>/) because its owner's
-	// certificate is not ready yet — waiting or failing, with a rough time.
-	AddressState *addressState `json:"address_state,omitempty"`
-	// Keep: the owner marked the site to stay up for good; it is never
-	// removed as idle (site list only).
-	Keep bool `json:"keep,omitempty"`
-	// KeepVersions: how many deploys of this site are kept, when the owner
-	// set it (PUT .../keep-versions); absent = the instance setting.
-	KeepVersions int   `json:"keep_versions,omitempty"`
-	FileBytes    int64 `json:"file_bytes"`
-	// FamilyAddress is the site's address under its account's most specific
-	// live address family (the one handed out: its main address unless it
-	// has a domain of its own); FamilyAddresses every family address it
-	// answers at. site_url stays the site's own Simple Host address.
-	FamilyAddress   string   `json:"family_address,omitempty"`
-	FamilyAddresses []string `json:"family_addresses,omitempty"`
-}
-
-type versionResponse struct {
-	VersionNumber int       `json:"version_number"`
-	Status        string    `json:"status"`
-	Author        string    `json:"author"` // who made it (?author= on the deploy), "" when unset
-	CreatedAt     time.Time `json:"created_at"`
-	IsActive      bool      `json:"is_active"`
-}
-
 // hackInstanceURL is this instance's own public address, used only when ed is
 // the Hack edition (the pipeline's inkBaseURL; "" takes canonicalHackBaseURL).
-func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sql.DB, disk SiteDisk, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, adminUserID string, mailer signInMailer, emailLimiter *httpx.RateLimiter) *SiteHandler {
+func NewSiteHandlers(ed *edition.Edition, productInstanceURL string, database *sql.DB, disk SiteDisk, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, adminUserID string, mailer signInMailer, emailLimiter *httpx.RateLimiter) (*SiteHandler, *AccessHandler, *DataHandler) {
 	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
 	// (a browser app may persist state on each interaction).
 	lim := ed.Limits()
@@ -359,7 +180,6 @@ func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sq
 		ed:                     ed,
 		limitSet:               newLimitSet(lim),
 		mailer:                 mailer,
-		emailLimiter:           emailLimiter,
 		database:               database,
 		disk:                   disk,
 		siteDomain:             siteDomain,
@@ -368,23 +188,23 @@ func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sq
 		customDomainIP:         customDomainIP,
 		deployScript:           deployScript,
 		uploadLimiter:          uploadLimiter,
-		storageIPLimiter:       storageIPLimiter,
-		storageVisitorLimiter:  storageVisitorLimiter,
-		spamIPLimiter:          newRateLimiterFor(lim.RateSpamCheckedIP),
-		spamSiteLimiter:        newRateLimiterFor(lim.RateSpamCheckedSite),
-		visitorAuthLimiter:     visitorAuthLimiter,
 		domainCheckLimiter:     domainCheckLimiter,
 		domainCheckUserLimiter: domainCheckUserLimiter,
 		previewAccounts:        previewAccounts,
 		previewTTL:             previewTTL,
-		adminAPIKey:            adminAPIKey,
-		adminUserID:            adminUserID,
 		exportKey:              newExportKey(),
+		network:                operations.NewNetworkUsage(database, ed),
+		reporting:              operations.NewReporting(database),
 	}
 	h.assets = newAssetPipeline(ed, productInstanceURL)
-	h.sqlite = newSQLiteGate(lim.StorageSQLConcurrency, lim.StorageAcquireWait)
-	h.passcode.limitSet = newLimitSet(lim)
 	h.createIdempotency = newCreateIdempotencyStore(lim)
+	h.access = &AccessHandler{site: h, ed: ed, limitSet: h.limitSet, database: database, disk: disk, mailer: mailer, emailLimiter: emailLimiter, visitorAuthLimiter: visitorAuthLimiter,
+		siteDomain: siteDomain, contentHost: contentHost, exportKey: h.exportKey, uploadLocks: &h.uploadLocks, adminAPIKey: adminAPIKey, adminUserID: adminUserID}
+	h.access.passcode.limitSet = h.limitSet
+	h.data = &DataHandler{site: h, access: h.access, ed: ed, limitSet: h.limitSet, database: database, disk: disk, mailer: mailer, siteDomain: siteDomain, contentHost: contentHost,
+		exportKey: h.exportKey, createIdempotency: h.createIdempotency, httpCaches: &h.httpCaches, passcode: &h.access.passcode, uploadLocks: &h.uploadLocks,
+		sqlite: newSQLiteGate(lim.StorageSQLConcurrency, lim.StorageAcquireWait), storageIPLimiter: storageIPLimiter, storageVisitorLimiter: storageVisitorLimiter,
+		spamIPLimiter: newRateLimiterFor(lim.RateSpamCheckedIP), spamSiteLimiter: newRateLimiterFor(lim.RateSpamCheckedSite)}
 	h.httpCaches.Add("http.site.idempotency", time.Hour, h.createIdempotency.evictExpired)
 	h.showcaseLimiter = httpx.NewRateLimiter(60, 30)
 	h.httpCaches.Rate("http.site.showcaseLimiter", h.showcaseLimiter, 10*time.Minute, 30*time.Minute)
@@ -408,225 +228,15 @@ func NewSiteHandler(ed *edition.Edition, productInstanceURL string, database *sq
 	h.httpCaches.Rate("http.site.domainCheckUserLimiter", domainCheckUserLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.Rate("http.site.visitorAuthLimiter", visitorAuthLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.Rate("http.site.uploadLimiter", uploadLimiter, 10*time.Minute, 30*time.Minute)
-	return h
+	h.access.data = h.data
+	return h, h.access, h.data
 }
 
-// startExpirySweep periodically deletes sites whose expires_at has passed
-// (DB rows + on-disk files), keeping the platform free of stale preview sites.
-func (h *SiteHandler) startExpirySweep(every time.Duration) {
-	o := h.siteLoop("sites.preview_expiry")
-	o.once.Do(func() {
-		if o.enabled() {
-			h.startExpirySweepContext(context.Background(), every)
-		}
-	})
-}
 func (h *SiteHandler) startExpirySweepContext(ctx context.Context, every time.Duration) {
 	o := h.siteLoop("sites.preview_expiry")
 	o.periodic(ctx, 30*time.Second, every, func(ctx context.Context) { h.sitesSvc().SweepExpiredSites(ctx) })
 }
 func (h *SiteHandler) sweepExpiredSites() { h.sitesSvc().SweepExpiredSites(context.Background()) }
-
-func (h *SiteHandler) registerStorageRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/resources", h.listStorageResources)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/usage", h.getStorageUsage)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/visitors", h.storageVisitors)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/people", h.storagePeople)
-	mux.HandleFunc("PUT /v1/sites/{sitename}/storage/resources/{name}", h.putStorageResource)
-	mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/resources/{name}", h.deleteStorageResource)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/kv/{name}/keys", h.storageKV)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/kv/{name}/keys/{key}", h.storageKV)
-	mux.HandleFunc("PUT /v1/sites/{sitename}/storage/kv/{name}/keys/{key}", h.storageKV)
-	mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/kv/{name}/keys/{key}", h.storageKV)
-	mux.HandleFunc("POST /v1/sites/{sitename}/storage/sqlite/{name}/query", h.storageSQL)
-	mux.HandleFunc("POST /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows", h.storageRows)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows", h.storageRows)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}", h.storageRows)
-	mux.HandleFunc("PATCH /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}", h.storageRows)
-	mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}", h.storageRows)
-	mux.HandleFunc("POST /v1/sites/{sitename}/storage/sqlite/{name}/execute", h.storageSQL)
-	mux.HandleFunc("POST /v1/sites/{sitename}/storage/sqlite/{name}/schema", h.storageSQL)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/files/{name}/objects", h.storageFiles)
-	mux.HandleFunc("GET /v1/sites/{sitename}/storage/files/{name}/objects/{path...}", h.storageFiles)
-	mux.HandleFunc("PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}", h.storageFiles)
-	mux.HandleFunc("DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}", h.storageFiles)
-	mux.HandleFunc("POST /v1/sites/{sitename}/storage/files/{name}/download-link", h.createStorageFileLink)
-	mux.HandleFunc("GET /v1/storage-download", h.downloadStorageFile)
-}
-
-func (h *SiteHandler) Register(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	h.registerNotifications(mux, authMiddleware, noticeMiddleware)
-	h.registerEditors(mux, authMiddleware, noticeMiddleware)
-	h.registerWebPush(mux, authMiddleware, noticeMiddleware)
-	h.registerStorageRoutes(mux)
-	mux.HandleFunc("GET /v1/turnstile/frame", h.turnstileFrame)
-	mux.Handle("POST /v1/sites/{sitename}", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSite))))))
-	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSite)))))
-	// Delete, rename and restore each take per-site locks: rate-limited so a
-	// loop cannot pile up locks or disk moves.
-	siteOpLimiter := newRateLimiterFor(h.limits.RateSiteOps)
-	h.httpCaches.Rate("http.site.siteOpLimiter", siteOpLimiter, 10*time.Minute, 30*time.Minute)
-	mux.Handle("DELETE /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSite)))))
-	mux.Handle("PATCH /v1/sites/{sitename}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.patchSite)))))
-	mux.Handle("POST /v1/sites/{sitename}/restore", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.restoreSite)))))
-	mux.Handle("GET /v1/u/{handle}/showcase.json", http.HandlerFunc(h.showcaseFeed))
-	mux.Handle("GET /v1/me/bio", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseBio))))
-	mux.Handle("PUT /v1/me/bio", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseBio))))
-	mux.Handle("GET /v1/sites/{sitename}/showcase", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseSite))))
-	mux.Handle("PUT /v1/sites/{sitename}/showcase", noticeMiddleware(authMiddleware(http.HandlerFunc(h.showcaseSite))))
-	mux.Handle("GET /v1/me/home", noticeMiddleware(authMiddleware(http.HandlerFunc(h.homeSetting))))
-	mux.Handle("PUT /v1/me/home", noticeMiddleware(authMiddleware(http.HandlerFunc(h.homeSetting))))
-	mux.Handle("GET /v1/me/deleted-sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listDeletedSites))))
-	mux.Handle("GET /v1/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSites))))
-	mux.Handle("POST /v1/admin/users", authMiddleware(http.HandlerFunc(h.createAccounts)))
-	mux.Handle("DELETE /v1/admin/users/{id}", authMiddleware(http.HandlerFunc(h.deleteAccount)))
-	mux.Handle("POST /v1/admin/users/{id}/key", authMiddleware(http.HandlerFunc(h.reissueAccountKey)))
-	mux.Handle("PATCH /v1/me", authMiddleware(http.HandlerFunc(h.patchMe)))
-	// Download my data / delete my account and all data (account_data.go).
-	// Owner downloads are heavy (a tar of every site): RATE_LIMIT_EXPORT per
-	// address, like the signed export link.
-	exportLimiter := newRateLimiterFor(h.limits.RateExport)
-	h.httpCaches.Rate("http.site.exportLimiter", exportLimiter, 10*time.Minute, 30*time.Minute)
-	mux.Handle("GET /v1/me/export.zip", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
-	// The address before the download became a .zip; serves the same zip.
-	mux.Handle("GET /v1/me/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportMe))))
-	mux.Handle("DELETE /v1/me", authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteMe))))
-	mux.Handle("GET /v1/admin/sites", authMiddleware(http.HandlerFunc(h.adminSites)))
-	// The limiter sits outside auth so wrong keys typed at /admin count too.
-	mux.Handle("GET /v1/admin/users", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminUsers))))
-	mux.Handle("GET /v1/admin/signups", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminSignups))))
-	mux.Handle("GET /v1/admin/signups.csv", rateLimitByIP(siteOpLimiter, authMiddleware(http.HandlerFunc(h.adminSignupsCSV))))
-	// Operator take-down (suspend.go): a site, or a person and all their
-	// sites, without deleting anything; restore / enable reverses it.
-	mux.Handle("POST /v1/admin/sites/{id}/suspend", authMiddleware(h.setSiteSuspension(true)))
-	mux.Handle("POST /v1/admin/sites/{id}/restore", authMiddleware(h.setSiteSuspension(false)))
-	mux.Handle("POST /v1/admin/users/{id}/suspend", authMiddleware(h.setUserSuspension(true)))
-	mux.Handle("POST /v1/admin/users/{id}/enable", authMiddleware(h.setUserSuspension(false)))
-	// Versions, Make active, Data, domain and Delete on anyone's site, by id,
-	// run as its owner (adminsite.go).
-	h.registerAdminSiteActions(mux, authMiddleware)
-	// Every site on the instance in one archive (export.go).
-	mux.Handle("GET /v1/admin/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportAll)))
-	// What the disk is actually holding, and how much is left.
-	mux.Handle("GET /v1/admin/usage", authMiddleware(http.HandlerFunc(h.adminUsage)))
-	// Take your work with you. An event box is destroyed when the event ends and
-	// nothing is backed up, so the only honest answer is to make leaving easy.
-	mux.Handle("GET /v1/sites/{sitename}/export.tar.gz", authMiddleware(rateLimitByIP(exportLimiter, http.HandlerFunc(h.exportSite))))
-	// The same export behind a 10-minute signed link, for people with no API
-	// key (chat-app connector users): minted by the owner, opened by a click.
-	mux.Handle("POST /v1/sites/{sitename}/export-link", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createExportLink)))))
-	mux.Handle("GET /v1/export", rateLimitByIP(exportLimiter, http.HandlerFunc(h.downloadExport)))
-	mux.Handle("GET /v1/sites/{sitename}/versions", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersions))))
-	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listVersionFiles))))
-	mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getVersionFile))))
-	mux.Handle("PUT /v1/sites/{sitename}/active-version", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setActiveVersion))))
-	// Not in auth/scope.go deployRoutes or editorRoutes on purpose: a
-	// deploy-only key or a site editor cannot remove a version.
-	mux.Handle("DELETE /v1/sites/{sitename}/versions/{version}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.discardVersion)))))
-	// An hour-long, owner-only preview address for one kept version (preview.go).
-	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createPreviewLink)))))
-	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
-	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
-	analyticsLimiter := newRateLimiterFor(h.limits.RateAnalytics)
-	h.httpCaches.Rate("http.site.analyticsLimiter", analyticsLimiter, 10*time.Minute, 30*time.Minute)
-	mux.Handle("GET /v1/sites/{sitename}/analytics/top", noticeMiddleware(authMiddleware(rateLimitByIP(analyticsLimiter, http.HandlerFunc(h.getSiteTopAnalytics)))))
-	// Deliberately not /v1/sites/analytics: that would collide with a site
-	// actually named "analytics".
-	mux.Handle("GET /v1/analytics/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getAnalyticsSummary))))
-	mux.Handle("PUT /v1/sites/{sitename}/visibility", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setVisibility))))
-	// Idle-site cleanup (idle.go): the Keep flag and the admin dry run.
-	mux.Handle("PUT /v1/sites/{sitename}/keep", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setSiteKeep))))
-	// Deploys kept for this site (0 = the instance's KEEP_VERSIONS); setting
-	// it prunes at once, and every later deploy prunes to it (versions.go).
-	mux.Handle("PUT /v1/sites/{sitename}/keep-versions", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.setKeepVersions)))))
-	mux.Handle("GET /v1/admin/idle-sites", authMiddleware(http.HandlerFunc(h.adminIdleSites)))
-
-	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
-	// rate-limit chain as the archive upload; CORS preflight is handled by the
-	// CORS middleware.
-	mux.Handle("POST /v1/sites/{sitename}/files", authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.createSiteFiles))))))
-	mux.Handle("PUT /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(rateLimitByIP(h.uploadLimiter, http.HandlerFunc(h.updateSiteFiles)))))
-	photos := h.ed.Storage().Photos
-	mux.Handle("POST /v1/sites/{sitename}/photos", photosHostOnly(photos, authMiddleware(rateLimitByIP(h.uploadLimiter, h.createIdempotency.wrap(http.HandlerFunc(h.addPhotos))))))
-
-	// The page origins allowed to call this site's API (visitor sign-in reads
-	// them). Event and team sites never take extra origins.
-	if !h.ed.Storage().EventSites {
-		mux.Handle("PUT /v1/sites/{sitename}/allowed-origins", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setAllowedOrigins))))
-	}
-
-	// Custom domain (one per site): owner binds a hostname, gets a CNAME record
-	// to create; Caddy on-demand TLS asks /internal/tls-ask before issuing a cert.
-	mux.Handle("POST /v1/sites/{sitename}/domain", authMiddleware(h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.bindDomain)))))
-	mux.Handle("GET /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDomain))))
-	mux.Handle("DELETE /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteDomain))))
-	// "Check again": re-verify this site's pending domain now instead of
-	// waiting for the next background pass.
-	mux.Handle("POST /v1/sites/{sitename}/domain/check", noticeMiddleware(authMiddleware(rateLimitByIP(h.domainCheckLimiter, http.HandlerFunc(h.checkDomainNow)))))
-	tlsAskLimiter := newRateLimiterFor(h.limits.RateTLSAsk)
-	h.httpCaches.Rate("http.site.tlsAskLimiter", tlsAskLimiter, 10*time.Minute, 30*time.Minute)
-	mux.Handle("GET /internal/tls-ask", rateLimitByIP(tlsAskLimiter, http.HandlerFunc(h.tlsAsk)))
-	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}", h.domainRedirect)
-	mux.HandleFunc("GET /internal/domain-redirect/{handle}/{sitename}/{rest...}", h.domainRedirect)
-
-	// Per-user public showcase + branded 404s, reached only via the content-host
-	// nginx block (single-segment /<handle> -> showcase; file misses -> notfound).
-	mux.HandleFunc("GET /internal/showcase/{handle}", h.showcase)
-	// Old content-host addresses, once nginx hands them over (personhost.go).
-	mux.HandleFunc("GET /internal/site-redirect/{handle}", h.contentHostRedirect)
-	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}", h.contentHostRedirect)
-	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}/{rest...}", h.contentHostRedirect)
-	mux.HandleFunc("GET /internal/notfound", h.notFound)
-	// Where nginx and Caddy send a request for a site whose folder carries the
-	// take-down marker (suspend.go).
-	mux.HandleFunc("GET /internal/suspended", h.suspendedPage)
-	// ... and for a site its owner took offline (offline.go).
-	mux.HandleFunc("GET /internal/offline", h.offlinePageHandler)
-	// ... and for a site with a passcode (passcode.go): the gate, the file,
-	// or the site's own address.
-	mux.HandleFunc("GET /internal/passcode/{rest...}", h.passcodePageHandler)
-	// Address families (familyapi.go): the API and the lives-elsewhere page.
-	h.registerFamilyRoutes(mux, authMiddleware, noticeMiddleware)
-	// Site passcodes (passcode.go): the owner's switch, and the gate's form.
-	mux.Handle("GET /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSitePasscode))))
-	mux.Handle("PUT /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSitePasscode)))))
-	mux.Handle("DELETE /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.deleteSitePasscode)))))
-	mux.Handle("POST /v1/sites/{sitename}/lock/sign-out-everyone", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.signOutEveryone)))))
-	unlockLimiter := newRateLimiterFor(h.limits.RateVisitor)
-	h.httpCaches.Rate("http.site.unlockLimiter", unlockLimiter, 10*time.Minute, 30*time.Minute)
-	h.httpCaches.Add("http.site.passcodes", 5*time.Minute, h.passcode.evict)
-	mux.Handle("POST /v1/site-unlock", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.unlockSite)))
-	// Named viewers (viewers.go): who can open the site, and the gate's own
-	// sign-in and sign-out forms.
-	mux.Handle("GET /v1/sites/{sitename}/access", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAccess))))
-	mux.Handle("PUT /v1/sites/{sitename}/access", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSiteAccess)))))
-	mux.Handle("POST /v1/sites/{sitename}/viewers", authMiddleware(rateLimitByIP(siteOpLimiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.addSiteViewers))))))
-	mux.Handle("DELETE /v1/sites/{sitename}/viewers/{email}", noticeMiddleware(authMiddleware(rateLimitByIP(siteOpLimiter, http.HandlerFunc(h.removeSiteViewer)))))
-	mux.Handle("POST /v1/site-signin", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignIn)))
-	mux.Handle("POST /v1/site-signout", rateLimitByIP(unlockLimiter, http.HandlerFunc(h.viewerSignOut)))
-
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/me", h.optionsSiteRoute)
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth", h.optionsSiteRoute)
-	mux.HandleFunc("OPTIONS /v1/sites/{sitename}/visitor/auth/verify", h.optionsSiteRoute)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/me", h.optionsSiteRoute)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth", h.optionsSiteRoute)
-	mux.HandleFunc("OPTIONS /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.optionsSiteRoute)
-	mux.Handle("GET /v1/sites/{sitename}/me", h.signInGate(http.HandlerFunc(h.getVisitorMe)))
-	mux.Handle("POST /v1/sites/{sitename}/visitor/auth", h.signInGate(http.HandlerFunc(h.requestVisitorEmail)))
-	mux.Handle("POST /v1/sites/{sitename}/visitor/auth/verify", h.signInGate(http.HandlerFunc(h.verifyVisitorEmail)))
-
-	// The same sign-in routes under the person's address: {handle} names the site exactly.
-	mux.Handle("GET /v1/u/{handle}/sites/{sitename}/me", h.signInGate(http.HandlerFunc(h.getVisitorMe)))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth", h.signInGate(http.HandlerFunc(h.requestVisitorEmail)))
-	mux.Handle("POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify", h.signInGate(http.HandlerFunc(h.verifyVisitorEmail)))
-
-	// Visitor session cookie is issued here (content host / custom domain),
-	// never on the apex OAuth callback.
-	visitorLimiter := newRateLimiterFor(h.limits.RateVisitor)
-	h.httpCaches.Rate("http.site.visitorLimiter", visitorLimiter, 10*time.Minute, 30*time.Minute)
-	mux.Handle("GET /v1/visitor/establish", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.establishVisitor)))
-	mux.Handle("POST /v1/visitor/logout", rateLimitByIP(visitorLimiter, http.HandlerFunc(h.logoutVisitor)))
-}
 
 // renameSite renames the caller's site oldName to newName (PATCH with
 // {"name": ...}, see patchSite).
@@ -722,360 +332,7 @@ func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"site": siteName, "allowed_origins": clean})
 }
 
-// resolveSiteID resolves the target site's id. When the route carries a {handle} path
-// value (the v3 user-scoped routes), it resolves handle->user_id then (user_id,name)->site
-// so the lookup is unambiguous even after UNIQUE(name) is dropped; an old handle kept as
-// an alias still resolves. The request's host binds the lookup: on a person host
-// (<handle>.<SITE_DOMAIN>) only that person's sites exist, and on a site's own domain
-// only that site does. Elsewhere (apex, content host) a bare name falls back to the
-// legacy global lookup. Returns sql.ErrNoRows if not found (caller maps to 404).
-func (h *SiteHandler) resolveSiteID(r *http.Request, siteName string) (string, error) {
-	id, _, err := h.resolveSiteIDBare(r, siteName)
-	return id, err
-}
-
-// resolveWriteSiteID is resolveSiteID for the page-facing storage routes. A
-// bare name on the API or shared host
-// otherwise means the oldest same-named site; when the caller's key owns a
-// site of that name, it means theirs. Everything else is unchanged, and the
-// storage gate still decides whether the caller may write.
-func (h *SiteHandler) resolveWriteSiteID(r *http.Request, siteName string) (string, error) {
-	return h.resolveWriteSiteIDBare(r, siteName)
-}
-
-// resolveWriteSiteIDBare also serves speculative access-gate lookups, which
-// must not become evidence that the operation selected a site.
-func (h *SiteHandler) resolveWriteSiteIDBare(r *http.Request, siteName string) (string, error) {
-	id, bare, err := h.resolveSiteIDBare(r, siteName)
-	key := r.Header.Get("X-API-Key")
-	if !bare || key == "" {
-		return id, err
-	}
-	u, ok, kerr := h.resolveWriterKey(r.Context(), key)
-	if kerr != nil || !ok || u.ID == "" {
-		return id, err
-	}
-	if s, serr := h.sitesSvc().GetSiteByUser(r.Context(), u.ID, siteName); serr == nil {
-		return s.ID, nil
-	}
-	return id, err
-}
-
-// resolveSiteIDBare resolves like resolveSiteID and reports whether the name
-// was looked up bare (no handle, no site/person host, no own domain).
-func (h *SiteHandler) resolveSiteIDBare(r *http.Request, siteName string) (string, bool, error) {
-	id, err := h.resolveSiteIDScoped(r, siteName)
-	if !errors.Is(err, errBareSiteName) {
-		return id, false, err
-	}
-	if h.ed.Storage().EventSites {
-		// On the hackathon platform every event has teams with the same
-		// names: a bare name means the caller's own site, or
-		// nothing, never whichever event's site is oldest.
-		if key := r.Header.Get("X-API-Key"); key != "" {
-			if u, ok, kerr := h.resolveWriterKey(r.Context(), key); kerr == nil && ok && u.ID != "" {
-				if s, serr := h.sitesSvc().GetSiteByUser(r.Context(), u.ID, siteName); serr == nil {
-					h.paperSite(r, s.UserID, s.Name, &u)
-					return s.ID, true, nil
-				}
-			}
-		}
-		return "", true, sql.ErrNoRows
-	}
-	id, err = h.sitesSvc().GetSiteIDByName(r.Context(), siteName)
-	return id, true, err
-}
-
 var errBareSiteName = errors.New("bare site name")
-
-func (h *SiteHandler) resolveSiteIDScoped(r *http.Request, siteName string) (string, error) {
-	host := requestHostName(r)
-	handle := strings.TrimSpace(r.PathValue("handle"))
-	// A site host (<site>.<handle>.<SITE_DOMAIN>) is one site's own origin:
-	// only that site resolves there, under its name (what auth.js derives
-	// from the first host label) or its owner's handle route. Any other name
-	// — another site of the same person included — does not exist there.
-	if h.isSiteHostName(r.Context(), host) {
-		site, owner, ok, err := h.siteHostSite(r.Context(), host)
-		if err != nil {
-			return "", err
-		}
-		if !ok || site.Name != siteName {
-			return "", sql.ErrNoRows
-		}
-		if handle != "" {
-			u, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
-			if err != nil {
-				return "", err
-			}
-			if u.ID != owner.ID {
-				return "", sql.ErrNoRows
-			}
-		}
-		h.paperSite(r, site.UserID, site.Name, auth.GetUser(r.Context()))
-		return site.ID, nil
-	}
-	// On a family address (<label>.<family>) the host names the site too:
-	// its full name or the label (what auth.js derives from the host) is
-	// that site, under its owner's handle route as well; nothing else
-	// resolves there.
-	// (A custom domain bound here under the family is that domain's.)
-	if h.isFamilyHostName(host) && !h.isBoundDomain(r.Context(), host) {
-		m, ok, err := h.familySiteForHost(r.Context(), host)
-		if err != nil {
-			return "", err
-		}
-		if !ok || (siteName != m.Site.Name && siteName != m.Label) {
-			return "", sql.ErrNoRows
-		}
-		if handle != "" {
-			u, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
-			if err != nil {
-				return "", err
-			}
-			if u.ID != m.Site.UserID {
-				return "", sql.ErrNoRows
-			}
-		}
-		return m.Site.ID, nil
-	}
-	owner, onPerson := h.personHostOwner(r.Context(), host)
-	if onPerson && !h.ed.Storage().EventSites {
-		home, has, err := h.sitesSvc().HomeSite(r.Context(), owner.ID)
-		if err != nil {
-			return "", err
-		}
-		if has {
-			if home.Name != siteName && owner.Handle.String != siteName {
-				return "", sql.ErrNoRows
-			}
-			if handle != "" {
-				u, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
-				if err != nil || u.ID != owner.ID {
-					return "", sql.ErrNoRows
-				}
-			}
-			return home.ID, nil
-		}
-	}
-	if handle != "" {
-		u, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
-		if err != nil {
-			return "", err
-		}
-		if onPerson && u.ID != owner.ID {
-			return "", sql.ErrNoRows
-		}
-		s, err := h.sitesSvc().GetSiteByUser(r.Context(), u.ID, siteName)
-		if err != nil {
-			return "", err
-		}
-		return s.ID, nil
-	}
-	if onPerson {
-		if h.ed.Storage().EventSites {
-			ev, err := h.groupByAccount(r.Context(), owner.ID)
-			if err != nil || ev.Slug != siteName || !ev.CustomWebsite || ev.TakenDown {
-				return "", sql.ErrNoRows
-			}
-			s, err := h.sitesSvc().GetSiteByUser(r.Context(), owner.ID, ev.ID)
-			if err != nil {
-				return "", err
-			}
-			return s.ID, nil
-		}
-		s, err := h.sitesSvc().GetSiteByUser(r.Context(), owner.ID, siteName)
-		if err != nil {
-			return "", err
-		}
-		return s.ID, nil
-	}
-	// On a site's own domain (custom or a claimed <name>.<SITE_DOMAIN>) the
-	// host names the site: /v1/sites/<its name> there is that site (as is the
-	// claimed name itself, which is what auth.js derives from the host), and
-	// no other name resolves there.
-	if host != "" && !strings.EqualFold(host, h.contentHost) && !h.isVisitorApexHost(host) {
-		if info, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host); err == nil {
-			label, _, isPlatform := h.userHostLabel(host)
-			if info.Name == siteName || (isPlatform && label == siteName) {
-				return info.SiteID, nil
-			}
-			return "", sql.ErrNoRows
-		}
-	}
-	return "", errBareSiteName
-}
-
-// originAllowedForSiteID reports whether the owner has whitelisted this exact
-// origin (scheme://host) for the given site_id's API.
-func (h *SiteHandler) originAllowedForSiteID(ctx context.Context, siteID, origin string) bool {
-	origins, err := h.sitesSvc().GetAllowedOriginsByID(ctx, siteID)
-	if err != nil || len(origins) == 0 {
-		return false
-	}
-	o := strings.ToLower(strings.TrimRight(origin, "/"))
-	for _, a := range origins {
-		a = strings.ToLower(strings.TrimRight(a, "/"))
-		if a == o || h.sameOriginAcrossBases(a, o) {
-			return true
-		}
-	}
-	return false
-}
-
-// sameOriginAcrossBases: two origins that differ only in the base domain of
-// a person, site or claimed-name host (sitebase.go), same scheme and port.
-// An owner who allowed https://x.simple-host.app keeps it working at
-// https://x.simple-host.site without their data being rewritten.
-func (h *SiteHandler) sameOriginAcrossBases(a, b string) bool {
-	if !h.baseSplit() {
-		return false
-	}
-	ua, err := url.Parse(a)
-	if err != nil || ua.Host == "" {
-		return false
-	}
-	ub, err := url.Parse(b)
-	if err != nil || ub.Host == "" {
-		return false
-	}
-	if ua.Scheme != ub.Scheme || ua.Port() != ub.Port() {
-		return false
-	}
-	t := h.twinHost(ua.Hostname())
-	return t != "" && strings.EqualFold(t, ub.Hostname())
-}
-
-// originIsBoundDomainID reports whether host is this site's own custom_domain
-// (same-origin state on a connected domain). Keyed by site_id so a domain bound
-// to one same-named site cannot authorize writes to another.
-func (h *SiteHandler) originIsBoundDomainID(ctx context.Context, siteID, host string) bool {
-	info, ok, err := h.sitesSvc().GetSiteDomainInfo(ctx, siteID)
-	if err != nil || !ok {
-		return false
-	}
-	// Also the earlier address it still serves at while a new one is pending.
-	// A claimed name answers under either base while the base moves.
-	return h.sameUserHost(info.Domain, host) || (info.PreviousDomain != "" && h.sameUserHost(info.PreviousDomain, host))
-}
-
-// originIsPersonHostID reports whether host is the person address of the
-// site's owner: a page served there may use the site's API from anywhere
-// (the apex, the content host, or its own host), like a bound domain.
-func (h *SiteHandler) originIsPersonHostID(ctx context.Context, siteID, host string) bool {
-	if !h.personHostsOn() {
-		return false
-	}
-	if h.isHomeSiteHost(ctx, siteID, host) {
-		return true
-	}
-	owner, ok := h.personHostOwner(ctx, host)
-	if ok {
-		_, has, err := h.sitesSvc().HomeSite(ctx, owner.ID)
-		if err != nil || has {
-			return false
-		}
-	}
-	handle, _, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
-	if err != nil || !h.personAddressFor(handle, name) || (!h.ed.Storage().EventSites && h.siteHostCanonicalOn(handle, name, h.hostBase(ctx, host))) {
-		return false
-	}
-	// Its person host under any base that serves it.
-	return h.sameUserHost(h.personHostFor(handle), host)
-}
-
-// originIsSiteHostID reports whether host is the site's own site host
-// (<site>.<handle>.<SITE_DOMAIN>) while that host serves it.
-func (h *SiteHandler) originIsSiteHostID(ctx context.Context, siteID, host string) bool {
-	if !h.siteHostsOn() || !h.isSiteHostName(ctx, host) {
-		return false
-	}
-	handle, _, name, err := h.sitesSvc().GetSiteOwner(ctx, siteID)
-	if err != nil || !h.siteHostLiveOn(handle, name, h.hostBase(ctx, host)) {
-		return false
-	}
-	return h.sameUserHost(h.siteHostFor(handle, name), host)
-}
-
-// originIsFamilyHostID reports whether the origin is one of the site's
-// family addresses (https, default port) while the family serves it.
-func (h *SiteHandler) originIsFamilyHostID(ctx context.Context, siteID string, origin *url.URL) bool {
-	if origin.Scheme != "https" || origin.Port() != "" || !h.isFamilyHostName(origin.Hostname()) {
-		return false
-	}
-	m, ok, err := h.familySiteForHost(ctx, origin.Hostname())
-	return err == nil && ok && m.Site.ID == siteID
-}
-
-// authorizeStateOrigin checks Origin/Referer and, on a match, sets the CORS
-// headers that allow the calling site to read the response. Returns true if
-// the request is allowed. The gate is keyed to the same site_id that the data
-// handlers resolve (via resolveSiteID), so two same-named sites cannot widen
-// each other's allowed_origins or bound custom_domain.
-func (h *SiteHandler) authorizeStateOrigin(w http.ResponseWriter, r *http.Request, siteName string) bool {
-	// Resolve once; if we can't attribute the request to a real site, deny.
-	// Key-aware, so the origin is checked against the same site a keyed
-	// write or read targets (the caller's own same-named site on a bare name).
-	siteID, err := h.resolveWriteSiteID(r, siteName)
-	if err != nil {
-		return false
-	}
-
-	origin := requestOrigin(r)
-	if origin == "" {
-		return false
-	}
-
-	parsed, err := url.Parse(origin)
-	if err != nil || parsed.Host == "" {
-		return false
-	}
-	// Accept the shared v3 content host (sites.<SITE_DOMAIN> — all path-model
-	// pages share this Origin), this site's owner's person address, this
-	// site's own bound custom domain, OR any origin the owner has explicitly
-	// allowed for THIS site_id. A browser cannot forge Origin, so this is the
-	// same attribution-grade gate, just widened to owner-approved origins, the
-	// co-tenant content host, and the site's own hosts. (The retired
-	// <name>.<SITE_DOMAIN> host only redirects, so it serves no page to trust.)
-	//
-	// The content host is every path-model site's origin at once, so it is
-	// trusted only for requests to a shared host (the content host itself or
-	// the apex), where no visitor session or passcode unlock is ever valid. A
-	// site's own host, person host, family host or domain answers only its own
-	// addresses: a co-tenant page never gets a credentialed read of another
-	// site's visitor (SIM-348).
-	if !(strings.EqualFold(parsed.Host, h.contentHost) && h.sharedHost(requestHostName(r))) &&
-		!h.originIsSiteHostID(r.Context(), siteID, parsed.Host) &&
-		!h.originIsFamilyHostID(r.Context(), siteID, parsed) &&
-		!h.originIsPersonHostID(r.Context(), siteID, parsed.Host) &&
-		!h.originIsBoundDomainID(r.Context(), siteID, parsed.Host) &&
-		// An owner cannot list the content host back in either.
-		!(h.originAllowedForSiteID(r.Context(), siteID, origin) && !strings.EqualFold(parsed.Host, h.contentHost)) {
-		return false
-	}
-
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	// Allow credentials so the page can send its cookies (the visitor
-	// session, and a passcode site's unlock) with the request (ACAO is the
-	// specific origin above, never "*", as credentials require).
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	// Expose ETag so the page's JS can read the state version for optimistic
-	// concurrency (ETag is not a CORS-safelisted response header).
-	w.Header().Set("Access-Control-Expose-Headers", "ETag")
-	w.Header().Set("Vary", "Origin")
-	return true
-}
-
-// writeOriginRefused is the 403 for a request from a page that is not one of
-// the site's own addresses (or that names no page and holds no key of the
-// site's owner).
-func writeOriginRefused(w http.ResponseWriter) {
-	writeJSON(w, http.StatusForbidden, errorResponse{
-		Error: "this request comes from a page that is not one of this site's own addresses, so it cannot use the site's saved data. " +
-			"A page saves from the site itself; an agent or script sends the site owner's X-API-Key and no Origin header",
-		Code: "origin_not_allowed",
-	})
-}
 
 func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
@@ -1247,18 +504,6 @@ func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, 
 	respond(h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState)))
 }
 
-// filesRequest is the JSON deploy body: a map of relative path -> file contents.
-// This is the LLM-friendly path — a web LLM can emit one copy-paste request with
-// the file contents inline, no archiving step. For binary assets or large sites,
-// use the archive upload (POST/PUT /v1/sites/{name}).
-type filesRequest struct {
-	Access      *string           `json:"access"`
-	Viewers     []string          `json:"viewers"`
-	Files       map[string]string `json:"files"`
-	FilesBase64 map[string]string `json:"files_base64"`
-	RemoveFiles []string          `json:"remove_files"`
-}
-
 func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Request, siteName string, input sites.UpdateInput, err error) {
 	var siteErr *sites.Error
 	var gateErr *sites.GateError
@@ -1290,121 +535,6 @@ func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
-// SAME path/secret/size guards as archive extraction (sites.SanitizeFiles +
-// ValidateExtensions). Returns the file map and a content digest for the version
-// row. On any error it has already written the HTTP response.
-func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	raw, _, limit, override, err := h.decodeJSONFiles(w, r)
-	if err != nil {
-		return nil, "", err
-	}
-	return h.finishJSONFiles(w, raw, limit, override)
-}
-
-func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request) (map[string][]byte, []string, int64, bool, error) {
-	limit, override := h.siteLimitFor(r.Context(), h.database, auth.GetUser(r.Context()))
-	// The files themselves are held to the limit once decoded.
-	bodyLimit := sites.JSONBodyLimit(limit)
-	r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
-
-	rc := http.NewResponseController(w)
-	_ = rc.SetReadDeadline(time.Now().Add(bodyReadTimeout(bodyLimit)))
-	defer rc.SetReadDeadline(time.Time{})
-	var req filesRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var requestErr *sites.Error
-		if errors.As(err, &requestErr) {
-			writeJSON(w, 400, errorResponse{Code: requestErr.Code, Error: requestErr.Message})
-			return nil, nil, limit, override, err
-		}
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			writeTooLarge(w, limit, "")
-			return nil, nil, limit, override, err
-		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON body"})
-		return nil, nil, limit, override, err
-	}
-	if !h.readCreateAccess(w, r, req.Access, req.Viewers) {
-		return nil, nil, limit, override, errors.New("invalid creation access")
-	}
-	keep := r.Method == http.MethodPut && r.URL.Query().Get("keep") == "1"
-	if req.RemoveFiles != nil && !keep {
-		err := errors.New("remove_files requires keep=1")
-		writeJSON(w, 400, errorResponse{Error: err.Error()})
-		return nil, nil, limit, override, err
-	}
-	if len(req.Files) == 0 && !keep {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "files object is required and must be non-empty"})
-		return nil, nil, limit, override, errors.New("empty files")
-	}
-
-	raw := make(map[string][]byte, len(req.Files)+len(req.FilesBase64))
-	for path, contents := range req.Files {
-		raw[path] = []byte(contents)
-	}
-	for path, contents := range req.FilesBase64 {
-		if _, exists := req.Files[path]; exists {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("path %q is present in both files and files_base64", path)})
-			return nil, nil, limit, override, errors.New("duplicate text and base64 path")
-		}
-		decoded, err := base64.StdEncoding.DecodeString(contents)
-		if err != nil {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: fmt.Sprintf("invalid base64 for %q", path)})
-			return nil, nil, limit, override, err
-		}
-		raw[path] = decoded
-	}
-
-	if keep && len(raw) > 0 {
-		clean, _, err := h.sitesSvc().PrepareFiles(sites.FilePreparationInput{Files: raw, Limit: limit, Override: override, Patch: true})
-		if err != nil {
-			h.writePreparationError(w, err, limit, false)
-			return nil, nil, limit, override, err
-		}
-		raw = clean
-	}
-	return raw, req.RemoveFiles, limit, override, nil
-}
-
-func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, raw map[string][]byte, limit int64, override bool) (map[string][]byte, string, error) {
-	files, digest, err := h.sitesSvc().PrepareFiles(sites.FilePreparationInput{Files: raw, Limit: limit, Override: override})
-	if err != nil {
-		h.writePreparationError(w, err, limit, false)
-		return nil, "", err
-	}
-	return files, digest, nil
-}
-
-// createSiteFiles is the JSON create path. Mirrors createSite's pre-checks, then
-// shares commitNewSite.
-func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return
-	}
-
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-	if !writeCreatePreflight(w, h.sitesSvc().CreatePreflight(r.Context(), sites.PreflightInput{
-		User: user, Name: siteName, CheckName: true, Publish: r.URL.Query().Get("publish"),
-	})) {
-		return
-	}
-
-	files, digest, err := h.readJSONFiles(w, r, siteName)
-	if err != nil {
-		return
-	}
-
-	h.commitCreate(w, r, user, siteName, files, digest, false)
-}
-
 // writeCreatePreflight maps the upload eligibility decision to its HTTP response.
 func writeCreatePreflight(w http.ResponseWriter, err error) bool {
 	if err == nil {
@@ -1423,85 +553,6 @@ func writeCreatePreflight(w http.ResponseWriter, err error) bool {
 	}
 	writeInternal(w)
 	return false
-}
-
-// writeDeploySiteNotFound answers a deploy (PUT) to a site the account does
-// not have. The error text and code stay what clients already read; the hint
-// names the exact call that creates it.
-func writeDeploySiteNotFound(w http.ResponseWriter, r *http.Request, siteName string) {
-	name := hintName(siteName)
-	path := "/v1/sites/" + name
-	if strings.HasSuffix(r.URL.Path, "/files") {
-		path += "/files"
-	}
-	writeJSON(w, http.StatusNotFound, errorResponse{
-		Error: "site not found: create it with POST, or add ?create=1 to this PUT to create it when missing",
-		Code:  "not_found",
-		Hint:  "No site named " + name + " on your account. To create it, add ?create=1 (PUT " + path + "?create=1) or POST " + path + ".",
-	})
-}
-
-// writeSiteNotFound answers a call about a site the account does not have
-// (versions, rollback, settings). Same "site not found" text as before, plus
-// a code and a hint that points at the list of the account's sites.
-func writeSiteNotFound(w http.ResponseWriter, siteName string) {
-	writeJSON(w, http.StatusNotFound, errorResponse{
-		Error: "site not found",
-		Code:  "site_not_found",
-		Hint:  "No site named " + hintName(siteName) + " on your account. GET /v1/sites lists the sites on your account; to create one, POST /v1/sites/<name>/files.",
-	})
-}
-
-// hintName is a site name as echoed in a hint: trimmed and at most 63
-// characters (the longest valid name), so the answer stays small.
-func hintName(s string) string {
-	r := []rune(strings.TrimSpace(s))
-	if len(r) > 63 {
-		r = r[:63]
-	}
-	return string(r)
-}
-
-// updateSiteFiles is the JSON update path. Mirrors updateSite's pre-checks, then
-// shares commitSiteUpdate.
-func (h *SiteHandler) updateSiteFiles(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
-		return
-	}
-
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
-		return
-	}
-	preflight, err := h.sitesSvc().UpdatePreflight(r.Context(), sites.UpdatePreflightInput{
-		User: user, Name: siteName, Publish: r.URL.Query().Get("publish"), Create: r.URL.Query().Get("create"),
-	})
-	if !writeCreatePreflight(w, err) {
-		return
-	}
-	publish, create := preflight.Publish, preflight.Create
-
-	raw, remove, limit, override, err := h.decodeJSONFiles(w, r)
-	if err != nil {
-		return
-	}
-	keep := r.URL.Query().Get("keep") == "1"
-	if keep {
-		h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: raw, Author: versionAuthor(r), Publish: publish, CreateIfMissing: create, Keep: true, Remove: remove, LimitOverride: override, Limit: limit}, func(site siteResponse) { writeJSON(w, http.StatusOK, site) })
-		return
-	}
-	files, digest, err := h.finishJSONFiles(w, raw, limit, override)
-	if err != nil {
-		return
-	}
-	if create {
-		h.createOrUpdateSite(w, r, user, siteName, files, digest, publish)
-	} else {
-		h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
-	}
 }
 
 // listVersions returns the full version history of a site for the
@@ -1901,183 +952,6 @@ func archiveFilename(siteName string, body []byte) string {
 	}
 
 	return siteName + ".tar.gz"
-}
-
-type siteResponseState struct {
-	siteURL         string
-	familyAddresses []string
-	familyAddress   string
-	addressState    *addressState
-	partner         *partnerInfo
-	fileBytes       int64
-	previewURL      string
-	previewExpires  time.Time
-	previewOK       bool
-}
-
-func (h *SiteHandler) captureSiteResponseState(site model.Site, version int, preview, footprint bool) siteResponseState {
-	state := siteResponseState{siteURL: h.siteURLFor(site)}
-	for _, a := range h.siteFamilyAddrs(site.UserID, site.Name) {
-		state.familyAddresses = append(state.familyAddresses, "https://"+a.Host+"/")
-	}
-	if host, ok := h.siteFamilyAddress(site.UserID, site.Name); ok {
-		state.familyAddress = "https://" + host + "/"
-	}
-	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
-		state.addressState = h.siteAddressStateFor(site.OwnerHandle, site.Name)
-	}
-	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
-		state.partner = h.partnerInfoFor(site.CustomDomain.String, site.ID)
-	}
-	if footprint {
-		if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
-			state.fileBytes = f.Total()
-		}
-	}
-	if preview {
-		state.previewURL, state.previewExpires, state.previewOK = h.previewLink(site, version)
-	}
-	return state
-}
-
-func (h *SiteHandler) siteResponseFromState(user *model.User, site model.Site, state siteResponseState) siteResponse {
-	resp := h.toSiteResponseState(site, "", state)
-	resp.FileBytes = state.fileBytes
-	return h.siteResponseForCaller(user, resp)
-}
-
-// siteResponseFor is toSiteResponse for the caller, with the site's file bytes.
-func (h *SiteHandler) siteResponseFor(user *model.User, site model.Site) siteResponse {
-	resp := h.toSiteResponse(site, "")
-	if f, err := h.disk.SiteFootprint(site.UserID, site.Name); err == nil {
-		resp.FileBytes = f.Total()
-	}
-	return h.siteResponseForCaller(user, resp)
-}
-
-func (h *SiteHandler) siteResponseForCaller(user *model.User, resp siteResponse) siteResponse {
-	return resp
-}
-
-func (h *SiteHandler) toSiteResponse(site model.Site, note string) siteResponse {
-	return h.toSiteResponseState(site, note, h.captureSiteResponseState(site, 0, false, false))
-}
-
-func (h *SiteHandler) toSiteResponseState(site model.Site, note string, state siteResponseState) siteResponse {
-	visibility := site.Visibility
-	if visibility == "" {
-		visibility = "unlisted" // never guess "public"
-	}
-	resp := siteResponse{
-		ID:                site.ID,
-		UserID:            site.UserID,
-		Name:              site.Name,
-		ActiveVersion:     site.ActiveVersion,
-		SiteURL:           state.siteURL,
-		LiveURL:           sites.LiveURL(site, state.familyAddress, state.siteURL),
-		CreatedAt:         site.CreatedAt,
-		UpdatedAt:         site.UpdatedAt,
-		CustomDomain:      site.CustomDomain.String,
-		DomainStatus:      site.DomainStatus.String,
-		Visibility:        visibility,
-		OwnerUsername:     site.OwnerUsername,
-		Note:              note,
-		Suspended:         site.Suspended(),
-		Offline:           site.Offline,
-		SuspendedReason:   site.SuspendedReason(),
-		PasscodeProtected: site.Passcode,
-		Access:            siteAccessOf(site),
-		OpenToAnyone:      site.OpenToAnyone(),
-		KeepVersions:      site.KeepVersions,
-	}
-	if site.SummaryTitle != "" || site.SummaryDescription != "" || site.SummaryHeadings != "" || site.SummaryText != "" {
-		resp.Summary = &siteSummaryFields{Title: site.SummaryTitle, Description: site.SummaryDescription, Headings: site.SummaryHeadings, Text: site.SummaryText}
-	}
-	if site.LastDeployedAt.Valid {
-		t := site.LastDeployedAt.Time
-		resp.DeployedAt = &t
-	}
-	resp.FamilyAddresses = state.familyAddresses
-	resp.FamilyAddress = state.familyAddress
-	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
-		resp.AddressState = state.addressState
-	}
-	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
-		if p := state.partner; p != nil {
-			resp.DomainPartner, resp.DomainPartnerDNS, resp.DomainPartnerStatus, resp.DomainPartnerNote = p.Domain, p.DNS, p.Status, p.Note
-		}
-	}
-	if site.CustomDomain.Valid && site.CustomDomain.String != "" && site.DomainStatus.String != "active" {
-		resp.DomainLastError = site.DomainLastError.String
-		if !h.isPlatformSubdomainHost(site.CustomDomain.String) {
-			rec := h.dnsRecordFor(site.CustomDomain.String)
-			resp.DomainDNS = &rec
-			resp.DomainDNSTXT = proofRecordFor(site.CustomDomain.String, site.DomainToken)
-		}
-		resp.DomainCertStatus = site.DomainCertStatus
-		resp.PreviousDomain = site.PreviousDomain
-		// A binding whose DNS already points here (certificate past
-		// "pending") does not lapse while it waits.
-		if site.DomainBoundAt.Valid && !site.DomainVerifiedAt.Valid && (site.DomainCertStatus == "" || site.DomainCertStatus == "pending") {
-			t := site.DomainBoundAt.Time.Add(h.limits.DomainUnprovenTTL)
-			resp.DomainExpiresAt = &t
-		}
-	}
-	return resp
-}
-
-func (h *SiteHandler) adminSiteRow(s model.Site) map[string]any {
-	var deployed any
-	if s.LastDeployedAt.Valid {
-		deployed = s.LastDeployedAt.Time
-	}
-	vis := s.Visibility
-	if vis == "" {
-		vis = "unlisted"
-	}
-	m := map[string]any{
-		"id":               s.ID,
-		"name":             s.Name,
-		"site_url":         h.siteURLFor(s),
-		"active_version":   s.ActiveVersion,
-		"custom_domain":    s.CustomDomain.String,
-		"domain_status":    s.DomainStatus.String,
-		"created_at":       s.CreatedAt,
-		"deployed_at":      deployed,
-		"visibility":       vis,
-		"offline":          s.Offline,
-		"passcode":         s.Passcode,
-		"access":           siteAccessOf(s),
-		"suspended":        s.Suspended(),
-		"suspended_reason": s.SuspendedReason(),
-		"suspended_by":     suspendedBy(s),
-	}
-	if host, ok := h.siteFamilyAddress(s.UserID, s.Name); ok {
-		m["family_address"] = "https://" + host + "/"
-	}
-	if addrs := h.siteFamilyAddrs(s.UserID, s.Name); len(addrs) > 0 {
-		list := make([]string, 0, len(addrs))
-		for _, a := range addrs {
-			list = append(list, "https://"+a.Host+"/")
-		}
-		m["family_addresses"] = list
-	}
-	return m
-}
-
-func (h *SiteHandler) writeUnpublishedState(w http.ResponseWriter, user *model.User, site model.Site, n int, state siteResponseState) {
-	note := "Stored as version " + strconv.Itoa(n) + " without making it live; visitors still see version " + strconv.Itoa(site.ActiveVersion) +
-		". Make it live with PUT /v1/sites/" + site.Name + "/active-version {\"version_number\": " + strconv.Itoa(n) + "}."
-	resp := h.toSiteResponseState(site, note, state)
-	resp.FileBytes = state.fileBytes
-	resp.UnpublishedVersion = n
-	if link, exp, ok := state.previewURL, state.previewExpires, state.previewOK; ok {
-		resp.PreviewURL = link
-		resp.PreviewExpiresAt = &exp
-	} else {
-		resp.Note += " No preview link: " + h.noPreviewWhy() + "."
-	}
-	writeJSON(w, http.StatusOK, resp)
 }
 
 // ifMatchVersion reads the optional If-Match header of a deploy, update or

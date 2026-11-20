@@ -22,7 +22,7 @@ import (
 // patchTeam is PATCH /v1/hack/events/{slug}/team: the caller's own team,
 // admin only. name and looking_for are each optional; send only what
 // changes.
-func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) patchTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -61,7 +61,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	if req.LookingFor != nil {
 		noteArg = &lookingFor
 	}
-	team, err := h.teamsSvc().PatchTeam(r.Context(), a.event.ID, a.user.ID, nameArg, noteArg)
+	team, err := h.teams.PatchTeam(r.Context(), a.event.ID, a.user.ID, nameArg, noteArg)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -78,7 +78,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 // team, admin only. Locking clears the team's pending requests and invites
 // and reports the counts; unlocking a team kept after its last member left
 // is refused.
-func (h *HackHandler) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -93,7 +93,7 @@ func (h *HackHandler) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	requests, invites, err := h.teamsSvc().ParticipantLock(r.Context(), a.event.ID, a.user.ID, req.Locked)
+	requests, invites, err := h.teams.ParticipantLock(r.Context(), a.event.ID, a.user.ID, req.Locked)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -111,7 +111,7 @@ func (h *HackHandler) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
 // composition write, not pure bookkeeping, and the organiser's equivalent
 // keeps its own separate override (no stage/deadline check, matching every
 // other organiser team write).
-func (h *HackHandler) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -131,7 +131,7 @@ func (h *HackHandler) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request)
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	err := h.teamsSvc().ParticipantAdmin(r.Context(), a.event.ID, a.user.ID, userID, req.Admin)
+	err := h.teams.ParticipantAdmin(r.Context(), a.event.ID, a.user.ID, userID, req.Admin)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -141,7 +141,7 @@ func (h *HackHandler) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request)
 
 // newMyTeamLink is POST /v1/hack/events/{slug}/team/link: the caller's own
 // team, admin only. The old code and link stop working at once.
-func (h *HackHandler) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -150,7 +150,7 @@ func (h *HackHandler) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
-	fresh, err := h.teamsSvc().ParticipantLink(r.Context(), a.event.ID, a.user.ID)
+	fresh, err := h.teams.ParticipantLink(r.Context(), a.event.ID, a.user.ID)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -162,7 +162,7 @@ func (h *HackHandler) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
 // needs to be its admin, and is gated by organiserTeamStages (not archived)
 // rather than the participant team-building stages or the frozen check. ---
 
-func (h *HackHandler) lockOrganiserTeam(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) lockOrganiserTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -178,7 +178,7 @@ func (h *HackHandler) lockOrganiserTeam(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	requests, invites, err := h.teamsSvc().OrganiserLock(r.Context(), a.event.ID, teamSlug, a.user.ID, req.Locked)
+	requests, invites, err := h.teams.OrganiserLock(r.Context(), a.event.ID, teamSlug, a.user.ID, req.Locked)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -190,7 +190,7 @@ func (h *HackHandler) lockOrganiserTeam(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"locked": req.Locked, "cleared": map[string]any{"requests": requests, "invites": invites}})
 }
 
-func (h *HackHandler) setOrganiserTeamAdmin(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) setOrganiserTeamAdmin(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -211,7 +211,7 @@ func (h *HackHandler) setOrganiserTeamAdmin(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	err := h.teamsSvc().OrganiserAdmin(r.Context(), a.event.ID, teamSlug, userID, req.Admin)
+	err := h.teams.OrganiserAdmin(r.Context(), a.event.ID, teamSlug, userID, req.Admin)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -223,7 +223,7 @@ func (h *HackHandler) setOrganiserTeamAdmin(w http.ResponseWriter, r *http.Reque
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user_id": userID, "admin": req.Admin})
 }
 
-func (h *HackHandler) newOrganiserTeamLink(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) newOrganiserTeamLink(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -233,7 +233,7 @@ func (h *HackHandler) newOrganiserTeamLink(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	fresh, err := h.teamsSvc().OrganiserLink(r.Context(), a.event.ID, teamSlug)
+	fresh, err := h.teams.OrganiserLink(r.Context(), a.event.ID, teamSlug)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return

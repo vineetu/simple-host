@@ -182,14 +182,14 @@ func TestSSORedteamPendingCap(t *testing.T) {
 
 func TestVisitorRedteamPasscodeIsolation(t *testing.T) {
 	f := newVisitorFixture(t)
-	if err := f.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := f.a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	withPasscodeLimits(t, func(l *config.Limits) {
 		l.SitePasscodes = true
 		l.RatePasscodeIP = config.Rate{Burst: 2, Every: time.Hour}
 		l.RatePasscodeSite = config.Rate{Burst: 5, Every: time.Hour}
-	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
+	}, &f.a.sites.limitSet, &f.a.access.limitSet, &f.a.data.limitSet, &f.a.access.passcode.limitSet)
 	if r := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key); r.status != 200 {
 		t.Fatal(r.status)
 	}
@@ -209,7 +209,7 @@ func TestVisitorRedteamPasscodeIsolation(t *testing.T) {
 			defer undo()
 			req.Header.Set(visitorPassHeader, pass)
 		}
-		wait, ok, err := f.a.sites.checkVisitorPasscode(req, row, code)
+		wait, ok, err := f.a.access.checkVisitorPasscode(req, row, code)
 		if err != nil {
 			t.Fatal(err)
 		}

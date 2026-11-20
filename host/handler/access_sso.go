@@ -361,7 +361,7 @@ var ssoSignedOutPage = themed(`<!doctype html><html><head><meta charset="utf-8">
 
 // SetSSOHop enables the gate's automatic hop only on an instance with an
 // account apex. Path-only installs without one retain their visitor sign-in.
-func (h *SiteHandler) SetSSOHop(o *OAuthHandler) {
+func (h *AccessHandler) SetSSOHop(o *OAuthHandler) {
 	if publicBaseHost(o.cfg.PublicBaseURL) == "" {
 		return
 	}
@@ -369,7 +369,7 @@ func (h *SiteHandler) SetSSOHop(o *OAuthHandler) {
 	h.ssoStart = ssoNavigationFirst(o.pipeline(), rateLimitByIP(o.ipLimiter, http.HandlerFunc(o.startSSO)))
 	h.ssoBaseURL = strings.TrimRight(o.cfg.PublicBaseURL, "/")
 }
-func (h *SiteHandler) startGateSSO(w http.ResponseWriter, r *http.Request) bool {
+func (h *AccessHandler) startGateSSO(w http.ResponseWriter, r *http.Request) bool {
 	if h.ssoStart == nil {
 		return false
 	}
@@ -388,7 +388,7 @@ func (h *SiteHandler) startGateSSO(w http.ResponseWriter, r *http.Request) bool 
 
 // endSiteSSO never reads the apex cookie. Every site logout with an account
 // apex returns a one-use navigation, including absent, expired and legacy sessions.
-func (h *SiteHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next string) (string, error) {
+func (h *AccessHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next string) (string, error) {
 	sess, err := h.cookieSession(r, "")
 	if err != nil && err != sql.ErrNoRows {
 		return "", err

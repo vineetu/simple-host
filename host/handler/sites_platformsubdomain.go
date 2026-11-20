@@ -187,7 +187,7 @@ func (h *SiteHandler) serveSiteFileWithProbe(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if probe != nil && (h.siteGate(w, r, userID, siteName, rel) || probe()) {
+	if probe != nil && (h.access.siteGate(w, r, userID, siteName, rel) || probe()) {
 		return
 	}
 	// Keep the directory we checked even if its name is reused mid-request.
@@ -197,10 +197,10 @@ func (h *SiteHandler) serveSiteFileWithProbe(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	defer siteRoot.Close()
-	if h.siteGateRoot(w, r, siteRoot, userID, siteName, rel) {
+	if h.access.siteGateRoot(w, r, siteRoot, userID, siteName, rel) {
 		return
 	}
-	h.ownerFrameGuard(w, r, userID)
+	h.data.ownerFrameGuard(w, r, userID)
 	if h.applyRootRedirect(w, r, siteRoot, rel, publicPath) {
 		return
 	}

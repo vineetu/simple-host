@@ -12,11 +12,6 @@ import (
 // per event drives both audiences: entry reminders to participants and
 // judging reminders to judges.
 
-func (h *HackHandler) registerReminders(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/reminders", wrap(h.getReminderSettings))
-	mux.Handle("PUT /v1/hack/events/{slug}/reminders", wrap(h.putReminderSettings))
-}
-
 func reminderSettingsJSON(ev model.Event) map[string]any {
 	offsets := ev.ReminderOffsets
 	if offsets == nil {
@@ -63,7 +58,7 @@ func (h *HackHandler) putReminderSettings(w http.ResponseWriter, r *http.Request
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_offsets", "offsets_minutes is required ([] turns reminders off)")
 		return
 	}
-	updated, err := h.eventsSvc().SetReminderOffsets(r.Context(), a.event.ID, a.user.ID, *req.OffsetsMinutes)
+	updated, err := h.events.SetReminderOffsets(r.Context(), a.event.ID, a.user.ID, *req.OffsetsMinutes)
 	if err != nil {
 		writeHackError(w, err)
 		return

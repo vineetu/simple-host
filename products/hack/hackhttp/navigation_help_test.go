@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 
 func TestNavigationHelpPresentationEnums(t *testing.T) {
@@ -50,12 +52,12 @@ func TestNavigationHelpPresentationEnums(t *testing.T) {
 	}
 	title := func(value string) string { return strings.ToUpper(value[:1]) + value[1:] }
 	styles := []string{"Classic"}
-	for _, theme := range hackThemes {
+	for _, theme := range events.Themes {
 		styles = append(styles, title(theme))
 	}
 	check("look.style", styles)
 	colours := []string{"Automatic"}
-	for _, crayon := range hackCrayons {
+	for _, crayon := range events.Crayons {
 		colours = append(colours, title(crayon.Name))
 	}
 	check("look.colour", colours)

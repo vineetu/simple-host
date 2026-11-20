@@ -142,15 +142,15 @@ func notificationFixture(t *testing.T, eds ...*edition.Edition) (storageTestSite
 	t.Helper()
 	isolateQueueTest(t)
 	s := newStorageTestSite(t, eds...)
-	t.Cleanup(s.a.sites.WaitNotifications)
+	t.Cleanup(s.a.data.WaitNotifications)
 	x := newNotificationReceiver(t)
-	if err := s.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := s.a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	s.a.sites.notifyEngine().client = x.client()
-	s.a.sites.notifyEngine().client.secrets = &s.a.sites.passcode
+	s.a.data.notifyEngine().client = x.client()
+	s.a.data.notifyEngine().client.secrets = &s.a.access.passcode
 	// Delivery tests drain synchronously; rate-limit tests use the real URL bucket.
-	s.a.sites.notifyEngine().perURL = httpx.NewRateLimiter(100000, 0)
+	s.a.data.notifyEngine().perURL = httpx.NewRateLimiter(100000, 0)
 	return s, x
 }
 func notificationRequest(t *testing.T, s storageTestSite, method, suffix string, body any, status int) resp {
@@ -176,7 +176,7 @@ func notificationSQL(t *testing.T, s storageTestSite, query string, args ...any)
 func waitNotificationEmits(t *testing.T, s storageTestSite) {
 	t.Helper()
 	deadline := time.Now().Add(6 * time.Second)
-	for len(s.a.sites.notifyEngine().emitting) != 0 {
+	for len(s.a.data.notifyEngine().emitting) != 0 {
 		if time.Now().After(deadline) {
 			t.Fatal("notification emit did not finish")
 		}
@@ -187,7 +187,7 @@ func drainNotifications(t *testing.T, s storageTestSite) {
 	t.Helper()
 	waitNotificationEmits(t, s)
 	for i := 0; i < 100; i++ {
-		if !s.a.sites.deliverNotification(context.Background()) {
+		if !s.a.data.deliverNotification(context.Background()) {
 			return
 		}
 	}
@@ -295,8 +295,8 @@ func TestNotifyVisitorRoutes(t *testing.T) {
 	s.must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": "CREATE TABLE orders(id INTEGER PRIMARY KEY, item TEXT, created_at TEXT, updated_at TEXT)"}, s.key, 200)
 	waitNotificationEmits(t, s)
 	ctx, cancel := context.WithCancel(context.Background())
-	s.a.sites.StartNotifications(ctx)
-	t.Cleanup(func() { cancel(); s.a.sites.WaitNotifications() })
+	s.a.data.StartNotifications(ctx)
+	t.Cleanup(func() { cancel(); s.a.data.WaitNotifications() })
 	r := s.must(t, "POST", "/sqlite/orders/tables/orders/rows", map[string]string{"item": "Chocolate cake"}, s.callers["alice"], 200)
 	waitNotificationEmits(t, s)
 	row := fmt.Sprint(r.json(t)["last_insert_id"])
@@ -381,6 +381,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 	id := subscribeNotification(t, s, x)
 	mail := &mailbox{}
 	s.a.sites.mailer = mail
+	s.a.access.mailer, s.a.data.mailer = s.a.sites.mailer, s.a.sites.mailer
 	x.setStatus(500)
 	s.must(t, "PUT", "/resources/kv", storageRules("kv", rulesPersonal), s.key, 201)
 	waitNotificationEmits(t, s)
@@ -390,7 +391,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 		notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1`, id)
 		drainNotifications(t, s)
 	}
-	n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil || n.State != "suspended" {
 		t.Fatalf("not suspended: %s %v", n.State, err)
 	}
@@ -398,7 +399,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 	if len(got) != 3 || !got[1].duplicate || !got[2].duplicate {
 		t.Fatal("retry id dedup failed")
 	}
-	s.a.sites.notifySuspension(context.Background(), n)
+	s.a.data.notifySuspension(context.Background(), n)
 	if len(mail.to(s.owner.email)) != 1 {
 		t.Fatal("suspension must send one notice")
 	}
@@ -409,7 +410,7 @@ func TestNotifyRetriesSuspensionAndResume(t *testing.T) {
 	x.setStatus(200)
 	notificationRequest(t, s, "PATCH", "/"+id, map[string]bool{"paused": false}, 200)
 	drainNotifications(t, s)
-	n, err = s.a.sites.notificationsSvc().GetNotification(context.Background(), id)
+	n, err = s.a.data.notificationsSvc().GetNotification(context.Background(), id)
 	if err != nil || n.State != "active" || n.LastSuccessAt == nil {
 		t.Fatal("resume did not deliver")
 	}
@@ -471,7 +472,7 @@ func TestNotifyCapsTruncationRotationAndControls(t *testing.T) {
 
 func TestNotifyMCPChallengeRefreshReplay(t *testing.T) {
 	s, x := notificationFixture(t)
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	caller := mcp.Caller{Owner: s.ownerID, AppName: "Test app"}
 	req := mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret}
 	result, err := backend.Subscribe(context.Background(), caller, req)
@@ -626,7 +627,7 @@ func TestNotifyLeaseCursorExpiryAndSweep(t *testing.T) {
 	if err = s.a.database.QueryRow(`SELECT (SELECT count(*) FROM site_events WHERE site_id=$1),(SELECT count(*) FROM site_event_deliveries WHERE subscription_id=$2)`, s.sid, id).Scan(&events, &deliveries); err != nil || events != 0 || deliveries != 0 {
 		t.Fatal("history sweep did not cascade")
 	}
-	if _, err = s.a.sites.notificationsSvc().GetNotification(ctx, id); !errors.Is(err, sql.ErrNoRows) {
+	if _, err = s.a.data.notificationsSvc().GetNotification(ctx, id); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("expired subscription not swept")
 	}
 }
@@ -680,7 +681,7 @@ func TestNotifyUnavailableHeldAndEventAccounts(t *testing.T) {
 	}
 	notificationSQL(t, s, `UPDATE users SET event_account=true WHERE id=$1`, s.ownerID)
 	c := storageCall{siteID: s.sid, ownerID: s.ownerID, siteName: "shop", resourceName: "orders", resource: storageResource{Kind: "kv"}}
-	s.a.sites.emitNotification(c, "record.added", map[string]any{"key": "event-website"})
+	s.a.data.emitNotification(c, "record.added", map[string]any{"key": "event-website"})
 	drainNotifications(t, s)
 	if len(x.snapshot()) != 1 {
 		t.Fatal("event website emitted")
@@ -700,7 +701,7 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	drainNotifications(t, s)
-	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	n, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil || n.State != "active" {
 		t.Fatal("expired failures caused suspension")
 	}
@@ -711,7 +712,7 @@ func TestNotifyWindowAndContinuousFailure(t *testing.T) {
 	notificationSQL(t, s, `UPDATE site_notifications SET failing_since=now()-interval '4 days' WHERE id=$1`, id)
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1`, id)
 	drainNotifications(t, s)
-	n, err = s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	n, err = s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil || n.State != "suspended" {
 		t.Fatal("continuous failure did not suspend")
 	}
@@ -776,7 +777,7 @@ func TestNotifyRESTOwnershipAndValidation(t *testing.T) {
 
 func TestNotifyMCPRotationTTLAndChallengeLimit(t *testing.T) {
 	s, x := notificationFixture(t)
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	caller := mcp.Caller{Owner: s.ownerID}
 	ctx := context.Background()
 	short := time.Second
@@ -801,7 +802,7 @@ func TestNotifyMCPRotationTTLAndChallengeLimit(t *testing.T) {
 	x.keys = append(x.keys, secret)
 	x.mu.Unlock()
 	notificationRequest(t, s, "POST", "/"+first.ID+"/test", nil, 409)
-	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, first.ID)
+	n, err := s.a.data.notificationsSvc().GetNotification(ctx, first.ID)
 	if err != nil || openedNotification(t, s, n.ID, n.PrevSecret) != notifyTestSecret || openedNotification(t, s, n.ID, n.Secret) != secret {
 		t.Fatal("MCP refresh did not rotate secret")
 	}
@@ -867,12 +868,12 @@ func TestNotifyRefusedAddressAndPermanentHTTPDoNotRetry(t *testing.T) {
 		x.setStatus(status)
 		emit()
 		drainNotifications(t, s)
-		n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+		n, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 		if err != nil || n.State != "active" {
 			t.Fatal("permanent HTTP result changed subscription")
 		}
 	}
-	s.a.sites.notifyEngine().client.allowLoopback = false
+	s.a.data.notifyEngine().client.allowLoopback = false
 	emit()
 	drainNotifications(t, s)
 	var state, category string
@@ -892,7 +893,7 @@ func TestNotifyConcurrentSubscriptionCapAndFilters(t *testing.T) {
 	errs := make(chan error, 2)
 	for i := 0; i < 2; i++ {
 		go func() {
-			_, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, model.Notification{ID: notifyRandom("sub_", 12), SiteID: s.sid, OwnerID: s.ownerID, Source: "owner", URL: x.server.URL, Events: []string{"record.added"}, Storage: "orders", Secret: notifyTestSecret}, 1, nil, 7, s.a.sites.notificationSecrets())
+			_, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, model.Notification{ID: notifyRandom("sub_", 12), SiteID: s.sid, OwnerID: s.ownerID, Source: "owner", URL: x.server.URL, Events: []string{"record.added"}, Storage: "orders", Secret: notifyTestSecret}, 1, nil, 7, s.a.data.notificationSecrets())
 			errs <- err
 		}()
 	}
@@ -965,12 +966,12 @@ func TestNotifyRefreshPreservesLeaseAndBackoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	notificationSQL(t, s, `UPDATE site_event_deliveries SET next_attempt_at=now()+interval '1 hour' WHERE subscription_id=$1`, id)
-	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	n, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	n.Secret = notifyTestSecret
-	if _, _, err = notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
+	if _, _, err = notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.data.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	var held, deferred bool
@@ -1006,12 +1007,12 @@ func TestNotifyCrashBudgetAndStaleWorker(t *testing.T) {
 		}
 		notificationSQL(t, s, `UPDATE site_event_deliveries SET lease_until=now()-interval '1 second' WHERE subscription_id=$1`, id)
 	}
-	s.a.sites.processNotification(ctx, first)
+	s.a.data.processNotification(ctx, first)
 	if len(x.snapshot()) != 0 {
 		t.Fatal("worker sent without its lease")
 	}
 	first.LeaseUntil = time.Now().Add(-time.Second)
-	s.a.sites.processNotification(ctx, first)
+	s.a.data.processNotification(ctx, first)
 	if len(x.snapshot()) != 0 {
 		t.Fatal("worker sent after lease deadline")
 	}
@@ -1037,13 +1038,13 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 		t.Fatal("claimed expired history")
 	}
 	notificationSQL(t, s, `DELETE FROM site_event_deliveries WHERE subscription_id=$1`, id)
-	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, id)
+	n, err := s.a.data.notificationsSvc().GetNotification(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
 	zero := int64(0)
 	n.Secret = notifyTestSecret
-	if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, &zero, 7, s.a.sites.notificationSecrets()); err != nil {
+	if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, &zero, 7, s.a.data.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	var count int
@@ -1051,15 +1052,15 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 		t.Fatal("replayed expired history")
 	}
 	run, cancel := context.WithCancel(ctx)
-	s.a.sites.StartNotifications(run)
+	s.a.data.StartNotifications(run)
 	cancel()
-	s.a.sites.WaitNotifications()
+	s.a.data.WaitNotifications()
 	if err := s.a.database.QueryRow(`SELECT count(*) FROM site_events WHERE site_id=$1`, s.sid).Scan(&count); err != nil || count != 0 {
 		t.Fatal("startup did not sweep history")
 	}
 	notificationSQL(t, s, `UPDATE sites SET deleted_at=now() WHERE id=$1`, s.sid)
 	for _, site := range []string{"", s.sid} {
-		ns, err := s.a.sites.notificationsSvc().ListNotifications(ctx, s.ownerID, site)
+		ns, err := s.a.data.notificationsSvc().ListNotifications(ctx, s.ownerID, site)
 		if err != nil || len(ns) != 0 {
 			t.Fatal("listed deleted site's notifications")
 		}
@@ -1069,7 +1070,7 @@ func TestNotifyHistoryAndDeletedListings(t *testing.T) {
 func TestNotifyMCPValidationAndSiteReplacement(t *testing.T) {
 	s, x := notificationFixture(t)
 	ctx := context.Background()
-	b := s.a.sites.EventsBackend()
+	b := s.a.data.EventsBackend()
 	c := mcp.Caller{Owner: s.ownerID}
 	req := mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret}
 	for _, raw := range []string{"http://example.com/", "https://user@example.com/", "https://example.com/#frag", "://bad"} {
@@ -1105,19 +1106,19 @@ func TestNotifyMCPValidationAndSiteReplacement(t *testing.T) {
 	if err != nil || next.Refreshed || next.ID != first.ID || len(x.snapshot()) != count+1 {
 		t.Fatalf("new site did not require fresh verification: %v", err)
 	}
-	n, err := s.a.sites.notificationsSvc().GetNotification(ctx, next.ID)
+	n, err := s.a.data.notificationsSvc().GetNotification(ctx, next.ID)
 	if err != nil || n.SiteID != replacement {
 		t.Fatal("subscription remained on old site")
 	}
 	n.SiteID = s.sid
 	n.Secret = notifyTestSecret
-	if _, _, err = notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.sites.notificationSecrets()); !errors.Is(err, model.ErrNotificationSite) {
+	if _, _, err = notifyapp.New(s.a.database, nil).SaveNotification(ctx, n, 10, nil, 7, s.a.data.notificationSecrets()); !errors.Is(err, model.ErrNotificationSite) {
 		t.Fatal("upsert crossed sites")
 	}
 }
 
 func TestNotifyChallengeBudgetsAndBusy(t *testing.T) {
-	h := &SiteHandler{}
+	h := &DataHandler{}
 	h.notifyEngine().client.resolver = func(context.Context, string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP("8.8.8.8")}, {IP: net.ParseIP("8.8.4.4")}}, nil
 	}
@@ -1130,7 +1131,7 @@ func TestNotifyChallengeBudgetsAndBusy(t *testing.T) {
 	if _, err := h.notifyChallengeClient(ctx, "another", "https://alias.example/"); !errors.Is(err, notifyFailure("rate_limited")) {
 		t.Fatal("aliases bypassed IP budget")
 	}
-	h = &SiteHandler{}
+	h = &DataHandler{}
 	h.notifyEngine().client.resolver = func(_ context.Context, host string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP(host)}}, nil
 	}
@@ -1145,13 +1146,13 @@ func TestNotifyChallengeBudgetsAndBusy(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	for i := 0; i < 10; i++ {
-		s.a.sites.notifyEngine().verifying <- struct{}{}
+		s.a.data.notifyEngine().verifying <- struct{}{}
 	}
 	r := notificationRequest(t, s, "POST", "/"+id+"/test", nil, 503)
 	if r.json(t)["code"] != "busy" {
 		t.Fatal("busy test category")
 	}
-	_, err := s.a.sites.EventsBackend().Subscribe(ctx, mcp.Caller{Owner: s.ownerID}, mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", URL: x.server.URL, Secret: notifyTestSecret})
+	_, err := s.a.data.EventsBackend().Subscribe(ctx, mcp.Caller{Owner: s.ownerID}, mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", URL: x.server.URL, Secret: notifyTestSecret})
 	var ee *mcp.EventError
 	if !errors.As(err, &ee) || ee.Data["reason"] != "timeout" {
 		t.Fatal("busy verification category")
@@ -1160,7 +1161,7 @@ func TestNotifyChallengeBudgetsAndBusy(t *testing.T) {
 		t.Fatal("busy send contacted receiver")
 	}
 	for i := 0; i < 10; i++ {
-		<-s.a.sites.notifyEngine().verifying
+		<-s.a.data.notifyEngine().verifying
 	}
 	notificationSQL(t, s, `UPDATE site_notifications SET expires_at=now()-interval '1 second' WHERE id=$1`, id)
 	if notificationRequest(t, s, "POST", "/"+id+"/test", nil, 409).json(t)["code"] != "client_subscription" {
@@ -1175,15 +1176,17 @@ func TestNotifySuspensionEmailRetry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s.a.sites.mailer = cancellingNoticeMailer{cancel: cancel}
-	s.a.sites.sweepNotifications(ctx)
+	s.a.access.mailer, s.a.data.mailer = s.a.sites.mailer, s.a.sites.mailer
+	s.a.data.sweepNotifications(ctx)
 	var emailed sql.NullTime
 	if err := s.a.database.QueryRow(`SELECT suspend_emailed_at FROM site_notifications WHERE id=$1`, id).Scan(&emailed); err != nil || emailed.Valid {
 		t.Fatal("failed email was not released")
 	}
 	mail := &mailbox{}
 	s.a.sites.mailer = mail
-	s.a.sites.sweepNotifications(context.Background())
-	s.a.sites.sweepNotifications(context.Background())
+	s.a.access.mailer, s.a.data.mailer = s.a.sites.mailer, s.a.sites.mailer
+	s.a.data.sweepNotifications(context.Background())
+	s.a.data.sweepNotifications(context.Background())
 	if len(mail.to(s.owner.email)) != 1 {
 		t.Fatal("email sweep did not retry exactly once")
 	}
@@ -1236,12 +1239,12 @@ func TestNotifyEmitAfterStorageRelease(t *testing.T) {
 	if len(x.snapshot()) != 2 {
 		t.Fatal("transient Postgres delay lost committed events")
 	}
-	e := s.a.sites.notifyEngine()
+	e := s.a.data.notifyEngine()
 	for i := 0; i < cap(e.emitting); i++ {
 		e.emitting <- struct{}{}
 	}
 	before := e.dropped.Load()
-	s.a.sites.emitNotification(storageCall{siteID: s.sid}, "record.added", map[string]any{})
+	s.a.data.emitNotification(storageCall{siteID: s.sid}, "record.added", map[string]any{})
 	if e.dropped.Load() != before+1 {
 		t.Fatal("full emit queue did not drop")
 	}
@@ -1252,10 +1255,10 @@ func TestNotifyEmitAfterStorageRelease(t *testing.T) {
 
 func TestNotifyConnectorDeployScope(t *testing.T) {
 	a := newConnectorApp(t)
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	a.conn.SetEventsBackend(a.sites.EventsBackend())
+	a.conn.SetEventsBackend(a.data.EventsBackend())
 	p := a.newPerson(t, "notify-deploy")
 	u, err := accountapp.New(a.database).GetUserByAPIKey(context.Background(), p.key, 180*24*time.Hour)
 	if err != nil {
@@ -1296,7 +1299,7 @@ func notificationGrant(t *testing.T, s storageTestSite, name string) string {
 func TestNotifyMCPAPIKeyTTL(t *testing.T) {
 	l := notificationSettings(t, func(l *config.Limits) { l.NotifyDefaultTTL = time.Hour })
 	s, x := notificationFixture(t, edition.Default(l))
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	grant := notificationGrant(t, s, "ttl")
 	short, long := 10*time.Minute, 2*time.Hour
 	for _, tc := range []struct {
@@ -1336,7 +1339,7 @@ func TestNotifyMCPAPIKeyTTL(t *testing.T) {
 				} else if result.RefreshBefore == nil || result.RefreshBefore.Before(before.Add(want)) || result.RefreshBefore.After(time.Now().Add(want)) {
 					t.Fatal("refreshBefore does not reflect granted TTL")
 				}
-				n, err := s.a.sites.notificationsSvc().GetNotification(context.Background(), result.ID)
+				n, err := s.a.data.notificationsSvc().GetNotification(context.Background(), result.ID)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1350,7 +1353,7 @@ func TestNotifyMCPAPIKeyTTL(t *testing.T) {
 
 func TestNotifyMCPGrantIdentity(t *testing.T) {
 	s, x := notificationFixture(t)
-	backend := s.a.sites.EventsBackend()
+	backend := s.a.data.EventsBackend()
 	ctx := context.Background()
 	callers := []mcp.Caller{{Owner: s.ownerID, OAuthGrantID: notificationGrant(t, s, "app-a")}, {Owner: s.ownerID, OAuthGrantID: notificationGrant(t, s, "app-b")}, {Owner: s.ownerID}}
 	req := mcp.EventSubscribeRequest{Name: "record.added", Site: "shop", CanonicalArgs: `{"site":"shop"}`, URL: x.server.URL, Secret: notifyTestSecret}
@@ -1381,7 +1384,7 @@ func TestNotifyMCPGrantIdentity(t *testing.T) {
 		}
 	}
 	for i, result := range results {
-		n, err := s.a.sites.notificationsSvc().GetNotification(ctx, result.ID)
+		n, err := s.a.data.notificationsSvc().GetNotification(ctx, result.ID)
 		if err != nil || openedNotification(t, s, n.ID, n.Secret) != secrets[i] || n.PrevSecret != "" {
 			t.Fatal("another app replaced a subscription secret")
 		}
@@ -1393,11 +1396,11 @@ func TestNotifyMCPGrantIdentity(t *testing.T) {
 	if err := backend.Unsubscribe(ctx, callers[1], unsub); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.a.sites.notificationsSvc().GetNotification(ctx, results[1].ID); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := s.a.data.notificationsSvc().GetNotification(ctx, results[1].ID); !errors.Is(err, sql.ErrNoRows) {
 		t.Fatal("unsubscribe did not remove its grant's subscription")
 	}
 	for _, i := range []int{0, 2} {
-		if _, err := s.a.sites.notificationsSvc().GetNotification(ctx, results[i].ID); err != nil {
+		if _, err := s.a.data.notificationsSvc().GetNotification(ctx, results[i].ID); err != nil {
 			t.Fatal("unsubscribe removed another grant's subscription")
 		}
 	}
@@ -1407,7 +1410,7 @@ func TestNotifyPausedAndExpiredEmission(t *testing.T) {
 	s, x := notificationFixture(t)
 	id := subscribeNotification(t, s, x)
 	ctx := context.Background()
-	engine := s.a.sites.notifyEngine()
+	engine := s.a.data.notifyEngine()
 	call := storageCall{siteID: s.sid, ownerID: s.ownerID, siteName: "shop", resourceName: "orders", resource: storageResource{Kind: "kv"}}
 	for _, state := range []string{"paused", "expired", "active", "suspended"} {
 		t.Run(state, func(t *testing.T) {
@@ -1427,7 +1430,7 @@ func TestNotifyPausedAndExpiredEmission(t *testing.T) {
 			}
 			engine.minute = httpx.NewRateLimiter(1, 0)
 			engine.day = httpx.NewRateLimiter(1, 0)
-			s.a.sites.storeNotification(call, "record.added", map[string]any{"key": "one"})
+			s.a.data.storeNotification(call, "record.added", map[string]any{"key": "one"})
 			var count int
 			if err := s.a.database.QueryRow(`SELECT count(*) FROM site_events WHERE site_id=$1`, s.sid).Scan(&count); err != nil || (count == 1) != want {
 				t.Fatal("ineligible subscription stored an event")
@@ -1469,7 +1472,7 @@ func saveWorkerNotification(t *testing.T, s storageTestSite, site, owner, url st
 	t.Helper()
 	id := notifyRandom("sub_", 12)
 	n := model.Notification{ID: id, SiteID: site, OwnerID: owner, Source: "owner", URL: url, Events: []string{"record.added"}, Secret: notifyTestSecret}
-	if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(context.Background(), n, 10, nil, 7, s.a.sites.notificationSecrets()); err != nil {
+	if _, _, err := notifyapp.New(s.a.database, nil).SaveNotification(context.Background(), n, 10, nil, 7, s.a.data.notificationSecrets()); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -1525,7 +1528,7 @@ func TestNotifyOwnerConcurrency(t *testing.T) {
 	})
 	for _, site := range []string{s.sid, second} {
 		emitWorkerNotification(t, s, site)
-		go func() { done <- s.a.sites.deliverNotification(context.Background()) }()
+		go func() { done <- s.a.data.deliverNotification(context.Background()) }()
 		select {
 		case <-entered:
 		case <-time.After(3 * time.Second):
@@ -1534,11 +1537,11 @@ func TestNotifyOwnerConcurrency(t *testing.T) {
 	}
 	emitWorkerNotification(t, s, s.sid)
 	emitWorkerNotification(t, s, third)
-	if !s.a.sites.deliverNotification(context.Background()) {
+	if !s.a.data.deliverNotification(context.Background()) {
 		t.Fatal("over-cap claim was not processed")
 	}
 	checkDeferredNotification(t, s, one, 0, 1)
-	if !s.a.sites.deliverNotification(context.Background()) || len(x.snapshot()) != 1 {
+	if !s.a.data.deliverNotification(context.Background()) || len(x.snapshot()) != 1 {
 		t.Fatal("busy owner blocked another owner's delivery")
 	}
 	select {
@@ -1562,7 +1565,7 @@ func TestNotifyOwnerConcurrency(t *testing.T) {
 	if len(x.snapshot()) != 4 {
 		t.Fatal("deferred delivery did not resume")
 	}
-	engine := s.a.sites.notifyEngine()
+	engine := s.a.data.notifyEngine()
 	engine.ownersMu.Lock()
 	defer engine.ownersMu.Unlock()
 	if len(engine.owners) != 0 {
@@ -1581,8 +1584,8 @@ func TestNotifyURLRateAcrossSitesAndSubscriptions(t *testing.T) {
 	saveWorkerNotification(t, s, s.sid, s.ownerID, x.server.URL)
 	limited := saveWorkerNotification(t, s, otherSite, otherID, x.server.URL)
 	saveWorkerNotification(t, s, otherSite, otherID, x.server.URL+"/different")
-	engine := s.a.sites.notifyEngine()
-	engine.perURL = (&SiteHandler{limitSet: newLimitSet(l)}).notifyEngine().perURL
+	engine := s.a.data.notifyEngine()
+	engine.perURL = (&DataHandler{limitSet: newLimitSet(l)}).notifyEngine().perURL
 	now := time.Now()
 	engine.perURL.Now = func() time.Time { return now }
 	emitWorkerNotification(t, s, s.sid)
@@ -1653,7 +1656,7 @@ func TestNotifyDeferredClaimLease(t *testing.T) {
 
 func TestNotifyURLMinuteBudget(t *testing.T) {
 	l := notificationSettings(t, func(l *config.Limits) { l.NotifyPerURLPerMinute = 120 })
-	engine := (&SiteHandler{limitSet: newLimitSet(l)}).notifyEngine()
+	engine := (&DataHandler{limitSet: newLimitSet(l)}).notifyEngine()
 	now := time.Now()
 	engine.perURL.Now = func() time.Time { return now }
 	for minute := 0; minute < 2; minute++ {
@@ -1673,7 +1676,7 @@ func TestNotifyURLMinuteBudget(t *testing.T) {
 }
 
 func TestNotificationOwnerStopBeforeStart(t *testing.T) {
-	h := &SiteHandler{}
+	h := &DataHandler{}
 	owner := h.NotificationOwner()
 	owner.Stop()
 	owner.Stop()
@@ -1707,7 +1710,7 @@ func TestNotificationOwnerDrainsAcceptedEmits(t *testing.T) {
 	for _, parentCancel := range []bool{false, true} {
 		t.Run(fmt.Sprint(parentCancel), func(t *testing.T) {
 			s, _ := notificationFixture(t)
-			h := s.a.sites
+			h := s.a.data
 			e := h.notifyEngine()
 			owner := h.NotificationOwner()
 			ctx, cancel := context.WithCancel(context.Background())

@@ -13,12 +13,12 @@ import (
 func TestStorageSQLRefusalPassesThroughWithoutGenericHint(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){
 		"POST /v1/sites/blog/storage/sqlite/report/query": func() (int, string) {
-			return 400, `{"error":"table orders does not exist. Tables here: customers, parents","code":"sql_no_such_table"}`
+			return 400, `{"error":"upstream refusal text","code":"sql_no_such_table"}`
 		},
 	}}
 	s := newTestServer(up)
 	text, _, isErr := resultOf(t, send(t, s, toolCall("storage_sql_query", map[string]any{"site": "blog", "name": "report", "sql": "SELECT * FROM orders"}), nil, true))
-	if !isErr || !strings.Contains(text, "Tables here: customers, parents") || !strings.Contains(text, "[sql_no_such_table]") {
+	if !isErr || !strings.Contains(text, "upstream refusal text") || !strings.Contains(text, "[sql_no_such_table]") {
 		t.Fatalf("refusal lost: %s", text)
 	}
 	if strings.Contains(text, "rejected as invalid") || strings.Contains(text, "\n") {

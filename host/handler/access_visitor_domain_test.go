@@ -12,7 +12,7 @@ import (
 )
 
 func TestSharedHostVisitorEndpointsIgnoreCookie(t *testing.T) {
-	h := &SiteHandler{contentHost: "sites.simple-host.app"}
+	h := &AccessHandler{contentHost: "sites.simple-host.app"}
 	for _, tc := range []struct {
 		name    string
 		handler http.HandlerFunc

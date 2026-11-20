@@ -119,19 +119,6 @@ func (h *SiteHandler) previewLink(site model.Site, n int) (string, time.Time, bo
 	return base + strconv.Itoa(n) + "/" + h.signPreviewToken(site.ID, n, expires) + "/", expires, true
 }
 
-// publishParam reads ?publish= on a deploy: true (the default) makes the new
-// version live, false only stores it. ok=false after writing a 400.
-func publishParam(w http.ResponseWriter, r *http.Request) (publish, ok bool) {
-	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("publish"))) {
-	case "", "true", "1", "yes":
-		return true, true
-	case "false", "0", "no":
-		return false, true
-	}
-	writeJSON(w, http.StatusBadRequest, errorResponse{Error: "publish must be true or false", Code: "invalid_request"})
-	return false, false
-}
-
 // createPreviewLink is POST /v1/sites/{sitename}/versions/{version}/preview-link:
 // the owner mints an hour-long preview address for one kept version.
 func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +206,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		return
 	}
 	if h.disk.IsSuspended(site.UserID, site.Name) {
-		h.serveTakedown(w, r)
+		h.access.serveTakedown(w, r)
 		return
 	}
 	kept, err := h.sitesSvc().VersionKept(r.Context(), site.ID, n)
@@ -232,7 +219,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		h.renderPreviewExpired(w, r)
 		return
 	}
-	h.ownerFrameGuard(w, r, site.UserID)
+	h.data.ownerFrameGuard(w, r, site.UserID)
 	if h.ed.Storage().JudgePreviewFrames && !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors") {
 		// The judge's scoring screen on the app origin frames the submitted
 		// version of a team site (hackAppCSP, entryListItem's frameable).

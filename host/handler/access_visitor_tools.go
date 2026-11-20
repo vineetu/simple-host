@@ -29,7 +29,7 @@ import (
 
 const visitorPassHeader = "X-SH-Visitor-Pass"
 
-func (h *SiteHandler) internalVisitorSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
+func (h *AccessHandler) internalVisitorSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
 	pass, ok := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
 	if !ok || pass.SiteID != siteID || pass.Host != requestHostName(r) || !sameOriginRequest(r) {
 		return model.VisitorSession{}, false
@@ -43,7 +43,7 @@ func (h *SiteHandler) internalVisitorSession(r *http.Request, siteID string) (mo
 
 // SetVisitorTools uses the same address validator as browser sign-in. No
 // connector token or owner credential reaches a visitor request.
-func (h *ConnectorHandler) SetVisitorTools(sites *SiteHandler, oauth *OAuthHandler) {
+func (h *ConnectorHandler) SetVisitorTools(sites *AccessHandler, oauth *OAuthHandler) {
 	h.mcpConfig.VisitorTool = func(r *http.Request, caller mcp.Caller, name string, args map[string]any) (map[string]any, error) {
 		if h.teamConnections || caller.Mode != "" || caller.DeployOnly {
 			return nil, fmt.Errorf("visitor tools are not available on this connection")
@@ -86,7 +86,7 @@ const (
 	visitorSiteLocked = "site_locked: this site asks for a passcode; the person can open it in their browser and enter it there, or call again with passcode set if they already gave it to you"
 )
 
-func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool string, args map[string]any, oauth *OAuthHandler) (map[string]any, error) {
+func (h *AccessHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool string, args map[string]any, oauth *OAuthHandler) (map[string]any, error) {
 	user, err := h.storeAccounts().GetUserByID(orig.Context(), caller.Owner)
 	if err != nil || user.Suspended {
 		return nil, fmt.Errorf("this connection is signed out or suspended")
@@ -115,7 +115,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	if err != nil || !id.Valid || purpose != "site" {
 		return nil, mcp.CodedError("site_not_found", "site_not_found: use the site's browser address, claimed short name, or verified custom domain")
 	}
-	_, ownerID, siteName, err := h.sitesSvc().GetSiteOwner(orig.Context(), id.String)
+	_, ownerID, siteName, err := h.site.sitesSvc().GetSiteOwner(orig.Context(), id.String)
 	if err != nil {
 		return nil, mcp.CodedError("site_not_found", visitorSiteGone)
 	}
@@ -139,7 +139,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 	if err := h.visitorSiteOpen(req, id.String); err != nil {
 		return nil, err
 	}
-	row, err := h.sitesSvc().GetSitePasscode(req.Context(), id.String)
+	row, err := h.site.sitesSvc().GetSitePasscode(req.Context(), id.String)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 		return nil, err
 	}
 	if resource != "" && page == "" {
-		x, err := h.loadStorageResource(req.Context(), id.String, resource)
+		x, err := h.data.loadStorageResource(req.Context(), id.String, resource)
 		if err != nil && row.Enc == nil {
 			return nil, fmt.Errorf("resource not found")
 		}
@@ -202,9 +202,9 @@ func (h *SiteHandler) visitorTool(orig *http.Request, caller mcp.Caller, tool st
 }
 
 // visitorSiteOpen: the site is up and lets this visitor in, its passcode aside.
-func (h *SiteHandler) visitorSiteOpen(req *http.Request, siteID string) error {
+func (h *AccessHandler) visitorSiteOpen(req *http.Request, siteID string) error {
 	gate := httptest.NewRecorder()
-	if h.refuseSuspendedSiteID(gate, req, siteID) || h.refuseOffline(gate, req, siteID) {
+	if h.refuseSuspendedSiteID(gate, req, siteID) || h.site.refuseOffline(gate, req, siteID) {
 		return visitorResponseError(gate)
 	}
 	if !h.ViewersLetIn(req, siteID) {
@@ -213,13 +213,13 @@ func (h *SiteHandler) visitorSiteOpen(req *http.Request, siteID string) error {
 	return nil
 }
 
-func (h *SiteHandler) recordVisitorSite(r *http.Request, caller mcp.Caller, siteID string) {
+func (h *AccessHandler) recordVisitorSite(r *http.Request, caller mcp.Caller, siteID string) {
 	if caller.OAuthGrantID != "" {
-		address, ok := h.siteAddressFor(r.Context(), siteID, "")
+		address, ok := h.site.siteAddressFor(r.Context(), siteID, "")
 		if !ok {
 			return
 		}
-		_ = h.sitesSvc().RecordVisitorSite(r.Context(), sites.RecordVisitorSiteInput{Address: address, GrantID: caller.OAuthGrantID, UserID: caller.Owner})
+		_ = h.site.sitesSvc().RecordVisitorSite(r.Context(), sites.RecordVisitorSiteInput{Address: address, GrantID: caller.OAuthGrantID, UserID: caller.Owner})
 	}
 }
 
@@ -265,23 +265,23 @@ func visitorInvoke(base *http.Request, method string, body any, fn http.HandlerF
 	return result, nil
 }
 
-func (h *SiteHandler) visitorSharedSites(ctx context.Context, userID string) ([]map[string]any, error) {
+func (h *AccessHandler) visitorSharedSites(ctx context.Context, userID string) ([]map[string]any, error) {
 	email, err := visitorEmail(ctx, h.database, userID)
 	if err != nil {
 		return nil, err
 	}
-	list, err := h.sitesSvc().VisitorSharedSites(ctx, strings.ToLower(email))
+	list, err := h.site.sitesSvc().VisitorSharedSites(ctx, strings.ToLower(email))
 	if err != nil {
 		return nil, err
 	}
 	out := []map[string]any{}
 	for _, x := range list {
-		site, err := h.sitesSvc().GetSiteByUser(ctx, x.Owner, x.Name)
+		site, err := h.site.sitesSvc().GetSiteByUser(ctx, x.Owner, x.Name)
 		if err != nil {
 			return nil, err
 		}
-		address := h.siteURLFor(site)
-		if canonical, ok := h.siteAddressFor(ctx, x.ID, ""); ok {
+		address := h.site.siteURLFor(site)
+		if canonical, ok := h.site.siteAddressFor(ctx, x.ID, ""); ok {
 			address = canonical
 		}
 		out = append(out, map[string]any{"name": x.Name, "address": address})
@@ -313,7 +313,7 @@ func visitorEntryID(v any) (int64, error) {
 	return n, nil
 }
 
-func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName string, args map[string]any) (map[string]any, error) {
+func (h *AccessHandler) visitorRead(r *http.Request, siteID, ownerID, siteName string, args map[string]any) (map[string]any, error) {
 	resource, err := visitorString(args, "resource")
 	if err != nil {
 		return nil, err
@@ -341,7 +341,7 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 		}
 		out["entries"] = data
 	}
-	resources, err := h.listStorageResourceRows(r.Context(), siteID)
+	resources, err := h.data.listStorageResourceRows(r.Context(), siteID)
 	if err != nil {
 		return nil, err
 	}
@@ -354,12 +354,12 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 		c.visitorAI = r.Header.Get(visitorPassHeader) != ""
 		if sess, ok := h.strictVisitorSession(r, siteID); ok {
 			c.visitorSession, c.visitorID = sess, sess.UserID
-			c.ownerOnSite = h.storageOwnerOnSite(r, c)
+			c.ownerOnSite = h.data.storageOwnerOnSite(r, c)
 		}
 		if x.Kind == "sqlite" && len(x.Tables) == 0 {
 			// With no table overrides the database rules decide every table:
 			// a database that gives this visitor nothing is never opened.
-			rights, err := h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), "")
+			rights, err := h.data.storageRequestSvc(r, c).RuleRights(r.Context(), h.data.storageServiceCall(c), "")
 			if err != nil {
 				return nil, err
 			}
@@ -369,7 +369,7 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 		}
 		if x.Kind == "sqlite" {
 			rec := httptest.NewRecorder()
-			ok := h.inspectStorage(rec, r, c, false, func(conn storageInspection) error {
+			ok := h.data.inspectStorage(rec, r, c, false, func(conn storageInspection) error {
 				tables, err := storageSQLTables(conn)
 				if err != nil {
 					return err
@@ -380,7 +380,7 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 				}
 				sort.Strings(names)
 				for _, table := range names {
-					rights, err := h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), table)
+					rights, err := h.data.storageRequestSvc(r, c).RuleRights(r.Context(), h.data.storageServiceCall(c), table)
 					if err != nil {
 						return err
 					}
@@ -411,7 +411,7 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 				return nil, visitorResponseError(rec)
 			}
 		} else if x.Kind == "kv" {
-			rights, err := h.storageRequestSvc(r, c).RuleRights(r.Context(), h.storageServiceCall(c), "")
+			rights, err := h.data.storageRequestSvc(r, c).RuleRights(r.Context(), h.data.storageServiceCall(c), "")
 			if err != nil {
 				return nil, err
 			}
@@ -444,7 +444,7 @@ func (h *SiteHandler) visitorRead(r *http.Request, siteID, ownerID, siteName str
 	return out, nil
 }
 
-func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string]any, action string) (any, error) {
+func (h *AccessHandler) visitorResourceRequest(base *http.Request, args map[string]any, action string) (any, error) {
 	r := base.Clone(base.Context())
 	resource, err := visitorString(args, "resource")
 	if err != nil {
@@ -506,7 +506,7 @@ func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string
 		if action == "add" || action == "edit" {
 			method = "PUT"
 		}
-		result, err := visitorInvoke(r, method, map[string]any{"value": value}, h.storageKV)
+		result, err := visitorInvoke(r, method, map[string]any{"value": value}, h.data.storageKV)
 		if err != nil {
 			return nil, err
 		}
@@ -535,7 +535,7 @@ func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string
 		if (action == "edit" || action == "delete") && r.PathValue("id") == "" {
 			return nil, fmt.Errorf("id is required")
 		}
-		result, err := visitorInvoke(r, method, value, h.storageRows)
+		result, err := visitorInvoke(r, method, value, h.data.storageRows)
 		if obj, ok := result.(map[string]any); ok {
 			// Column names describe the schema; only row values are private data.
 			if cols, ok := obj["columns"].([]any); ok {
@@ -568,7 +568,7 @@ func (h *SiteHandler) visitorResourceRequest(base *http.Request, args map[string
 	}
 }
 
-func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool string, args map[string]any) (any, error) {
+func (h *AccessHandler) visitorWrite(r *http.Request, siteID, userID, app, tool string, args map[string]any) (any, error) {
 	action := "add"
 	if tool == "visitor_change_entry" {
 		var err error
@@ -582,7 +582,7 @@ func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool st
 	}
 	resource, _ := visitorString(args, "resource")
 	kind, _ := visitorString(args, "kind")
-	return h.storageSvc().VisitorToolWrite(r.Context(), appstorage.VisitorToolWriteInput{
+	return h.data.storageSvc().VisitorToolWrite(r.Context(), appstorage.VisitorToolWriteInput{
 		SiteID: siteID, UserID: userID, App: app, Action: action,
 		Resource: resource, Kind: kind, Cap: h.limits.VisitorAIWritesPerDay,
 		Write: func(action string) (any, error) {
@@ -595,16 +595,16 @@ func (h *SiteHandler) visitorWrite(r *http.Request, siteID, userID, app, tool st
 // the site's own address serves it. A passcode change, rename, take-down or
 // publish holds the site's lock, so the access decided earlier is confirmed
 // again and the file opened under that lock: none of them can land between.
-func (h *SiteHandler) openVisitorPage(r *http.Request, siteID, ownerID, siteName, page string) (*os.File, string, error) {
-	unlock := h.lockSite(ownerID, siteName)
+func (h *AccessHandler) openVisitorPage(r *http.Request, siteID, ownerID, siteName, page string) (*os.File, string, error) {
+	unlock := h.site.lockSite(ownerID, siteName)
 	defer unlock()
-	if _, owner, name, err := h.sitesSvc().GetSiteOwner(r.Context(), siteID); err != nil || owner != ownerID || name != siteName {
+	if _, owner, name, err := h.site.sitesSvc().GetSiteOwner(r.Context(), siteID); err != nil || owner != ownerID || name != siteName {
 		return nil, "", mcp.CodedError("site_not_found", visitorSiteGone)
 	}
 	if err := h.visitorSiteOpen(r, siteID); err != nil {
 		return nil, "", err
 	}
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
+	row, err := h.site.sitesSvc().GetSitePasscode(r.Context(), siteID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -627,7 +627,7 @@ func (h *SiteHandler) openVisitorPage(r *http.Request, siteID, ownerID, siteName
 	return f, found.File, nil
 }
 
-func (h *SiteHandler) visitorPageText(r *http.Request, siteID, ownerID, siteName, page string) (string, bool, error) {
+func (h *AccessHandler) visitorPageText(r *http.Request, siteID, ownerID, siteName, page string) (string, bool, error) {
 	f, filename, err := h.openVisitorPage(r, siteID, ownerID, siteName, page)
 	if err != nil {
 		return "", false, err
@@ -701,13 +701,13 @@ func visitorIdentityField(name string) bool {
 
 // Structural names retain ordinary UUIDs and the caller's own ID. Only UUID
 // substrings identifying another real account are replaced.
-func (h *SiteHandler) visitorStructuralName(r *http.Request, name string) (string, error) {
+func (h *AccessHandler) visitorStructuralName(r *http.Request, name string) (string, error) {
 	pass, _ := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
 	for _, id := range visitorAccountPattern.FindAllString(name, -1) {
 		if strings.EqualFold(id, pass.UserID) {
 			continue
 		}
-		other, err := h.sitesSvc().VisitorAccountExists(r.Context(), id)
+		other, err := h.site.sitesSvc().VisitorAccountExists(r.Context(), id)
 		if err != nil {
 			return "", err
 		}
@@ -718,7 +718,7 @@ func (h *SiteHandler) visitorStructuralName(r *http.Request, name string) (strin
 	return name, nil
 }
 
-func (h *SiteHandler) visitorKVResult(r *http.Request, resource string, result any) (any, error) {
+func (h *AccessHandler) visitorKVResult(r *http.Request, resource string, result any) (any, error) {
 	pass, _ := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader))
 	obj, _ := result.(map[string]any)
 	protectKey := func(entry map[string]any) (bool, error) {

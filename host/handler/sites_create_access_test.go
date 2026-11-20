@@ -196,7 +196,7 @@ func TestCreateSpecificFirstRequest(t *testing.T) {
 
 func TestCreateAccessRefusalsAndDefault(t *testing.T) {
 	p := newPasscodeApp(t)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SiteViewersMax = 1 }, &p.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SiteViewersMax = 1 }, &p.sites.limitSet, &p.access.limitSet, &p.data.limitSet)
 	uid, _ := p.userID(t, p.olive)
 	for i, fields := range []map[string]any{{"access": "invalid"}, {"viewers": []string{"a@example.com"}}, {"access": "anyone", "viewers": []string{}}, {"access": "specific", "viewers": []string{"bad"}}, {"access": "specific", "viewers": []string{"a@example.com", "b@example.com"}}} {
 		name := []string{"badaccess", "badviewers", "badanyone", "bademail", "toomany"}[i]
@@ -228,12 +228,13 @@ func TestCreateAccessRefusalsAndDefault(t *testing.T) {
 	assertNoCreateAccessSite(t, p, uid, "sharedprivate")
 	p.sites.SetPersonHosts("canonical")
 	p.sites.SetSiteHosts("canonical", "")
-	p.sites.SetVisitorSignIn(false, nil)
+	p.access.SetVisitorSignIn(false, nil)
 	if r := p.at(t, "POST", pcSiteDomain, "/v1/sites/refused/files", body, p.okey); r.status != 409 || r.json(t)["code"] != "sign_in_unavailable" {
 		t.Fatalf("refusal %d %s", r.status, r.body)
 	}
 	assertNoCreateAccessSite(t, p, uid, "refused")
 	p.sites.ed = groupTestEdition()
+	p.access.ed, p.data.ed = p.sites.ed, p.sites.ed
 	adminKey := map[string]string{"X-API-Key": p.admin}
 	admin := p.at(t, "GET", pcSiteDomain, "/v1/me", nil, adminKey).json(t)["id"].(string)
 	if r := p.at(t, "POST", pcSiteDomain, "/v1/sites/hackprivate/files", body, adminKey); r.status != 409 || r.json(t)["code"] != "named_viewers_unavailable" {
@@ -300,6 +301,7 @@ func TestCreateAccessDiskFailures(t *testing.T) {
 		p := newPasscodeApp(t)
 		d := &createAccessDisk{SiteDisk: p.sites.disk, t: t, failMarker: failure == "missing-marker", failAfterMarker: failure == "after-marker", failCurrent: failure == "promotion"}
 		p.sites.disk = d
+		p.access.disk, p.data.disk = p.sites.disk, p.sites.disk
 		r := p.at(t, "POST", pcSiteDomain, "/v1/sites/failure/files", map[string]any{"files": map[string]string{"index.html": passcodeCanary}, "access": "specific"}, p.okey)
 		if r.status != 500 || !d.marked {
 			t.Fatalf("failure %d %s", r.status, r.body)

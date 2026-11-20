@@ -14,12 +14,12 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) listPeople(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	people, err := h.teamsSvc().ListPeople(r.Context(), a.event.ID)
+	people, err := h.teams.ListPeople(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -49,7 +49,7 @@ func (h *HackHandler) listPeople(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
-func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) removePerson(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -63,7 +63,7 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	err := h.teamsSvc().RemovePerson(r.Context(), a.event.ID, userID)
+	err := h.teams.RemovePerson(r.Context(), a.event.ID, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -80,12 +80,12 @@ func (h *HackHandler) removePerson(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) listTeams(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	teams, err := h.teamsSvc().ListTeams(r.Context(), a.event.ID)
+	teams, err := h.teams.ListTeams(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -104,7 +104,7 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 		}
 		teamObjs = append(teamObjs, obj)
 	}
-	none, err := h.teamsSvc().ListParticipantsOnNoTeam(r.Context(), a.event.ID)
+	none, err := h.teams.ListParticipantsOnNoTeam(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -124,8 +124,8 @@ func (h *HackHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *HackHandler) teamOrganiserJSON(ctx context.Context, team model.EventTeam) (map[string]any, error) {
-	people, err := h.teamsSvc().TeamPeople(ctx, team.ID)
+func (h *participationHTTP) teamOrganiserJSON(ctx context.Context, team model.EventTeam) (map[string]any, error) {
+	people, err := h.teams.TeamPeople(ctx, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func teamOrganiserJSONFrom(team model.EventTeam, people []model.EventPerson, lin
 	}
 }
 
-func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) createTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -184,7 +184,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	team, err := h.teamsSvc().CreateTeam(r.Context(), a.event, a.user.ID, name, note, h.teamSiteFlatHostsOn(), eventNameReserved)
+	team, err := h.teams.CreateTeam(r.Context(), a.event, a.user.ID, name, note, h.teamSiteFlatHostsOn(), eventNameReserved)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -197,7 +197,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, obj)
 }
 
-func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) joinTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -220,7 +220,7 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
 	}
-	team, err := h.teamsSvc().JoinTeam(r.Context(), a.event.ID, a.user.ID, code, a.event.TeamSizeMax)
+	team, err := h.teams.JoinTeam(r.Context(), a.event.ID, a.user.ID, code, a.event.TeamSizeMax)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -233,7 +233,7 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, obj)
 }
 
-func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) leaveTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
@@ -245,7 +245,7 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
-	if err := h.teamsSvc().LeaveTeam(r.Context(), a.event.ID, a.user.ID); err != nil {
+	if err := h.teams.LeaveTeam(r.Context(), a.event.ID, a.user.ID); err != nil {
 		if errors.Is(err, teams.ErrTeamFrozen) {
 			httpx.WriteError(w, http.StatusConflict, "submissions_closed", "your team's deadline has passed, so the team can't change; ask the organiser")
 		} else if errors.Is(err, sql.ErrNoRows) {
@@ -259,7 +259,7 @@ func (h *HackHandler) leaveTeam(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) moveMember(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -279,7 +279,7 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	team, err := h.teamsSvc().MoveMember(r.Context(), a.event.ID, req.UserID, teamSlug, a.event.TeamSizeMax)
+	team, err := h.teams.MoveMember(r.Context(), a.event.ID, req.UserID, teamSlug, a.event.TeamSizeMax)
 	if errors.Is(err, teams.ErrTeamNotFound) {
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
@@ -309,7 +309,7 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, obj)
 }
 
-func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser", "participant")
 	if !ok {
 		return
@@ -331,7 +331,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 			writeHackError(w, teams.ErrFindingForbidden)
 			return
 		}
-		team, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
+		team, err := h.teams.GetTeam(r.Context(), a.member.TeamID.String)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -343,7 +343,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 		teamSlug = team.Slug
 		teamName = team.Name
 	}
-	err := h.teamsSvc().RemoveTeamMember(r.Context(), a.event.ID, a.user.ID, userID, teamSlug, teamName, participant)
+	err := h.teams.RemoveTeamMember(r.Context(), a.event.ID, a.user.ID, userID, teamSlug, teamName, participant)
 	switch {
 	case errors.Is(err, teams.ErrTeamAdminOnly):
 		httpx.WriteError(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
@@ -365,7 +365,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) deleteTeam(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -375,7 +375,7 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	if err := h.teamsSvc().DeleteTeam(r.Context(), a.event.ID, teamSlug); err != nil {
+	if err := h.teams.DeleteTeam(r.Context(), a.event.ID, teamSlug); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		} else {
@@ -391,8 +391,8 @@ func (h *HackHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 // anyone's email or account id. Re-reads the team row fresh (never trusting
 // a value the caller already had before its own write), so a rename or a
 // link rotation just committed by this same request shows up.
-func (h *HackHandler) teamParticipantJSON(ctx context.Context, team model.EventTeam, userID string) (map[string]any, error) {
-	team, people, lookingFor, err := h.teamsSvc().ParticipantTeam(ctx, team)
+func (h *participationHTTP) teamParticipantJSON(ctx context.Context, team model.EventTeam, userID string) (map[string]any, error) {
+	team, people, lookingFor, err := h.teams.ParticipantTeam(ctx, team)
 	if err != nil {
 		return nil, err
 	}
@@ -411,6 +411,3 @@ func (h *HackHandler) teamParticipantJSON(ctx context.Context, team model.EventT
 		"looking_for": lookingFor, "members": members,
 	}, nil
 }
-
-// stripInvisible moved to host/rules/hackevents.StripInvisible in
-// cleanup 3.2 slice 1c: pure text normalization, no handler dependency.

@@ -24,7 +24,7 @@ func newSSOApp(t *testing.T) (*privateApp, string, *OAuthHandler) {
 	a, dir := newSiteApp(t, "canonical")
 	o := a.withOAuth(t)
 	o.cfg.PublicBaseURL = a.srv.URL
-	a.sites.SetSSOHop(o)
+	a.access.SetSSOHop(o)
 	return a, dir, o
 }
 func responseCookie(t *testing.T, r resp, name string) string {
@@ -370,7 +370,7 @@ func TestSSOStartGatesAndCookieIsolation(t *testing.T) {
 			t.Fatal("non-navigation hop")
 		}
 	}
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	if r := a.at(t, "PUT", a.appHost(), "/v1/sites/gated/lock", map[string]string{"passcode": "secret-passcode"}, key); r.status != 200 {

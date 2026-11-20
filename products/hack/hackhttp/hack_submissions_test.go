@@ -143,7 +143,7 @@ func TestHackSubmissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	exec(`INSERT INTO sites (user_id,name,site_url,active_version) VALUES ($1,$2,'https://example.test/',1)`, accountID, w.alpha)
-	ev, err := a.hack.eventsSvc().EventBySlug(context.Background(), w.slug)
+	ev, err := a.hack.events.EventBySlug(context.Background(), w.slug)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,14 +16,9 @@ import (
 	"github.com/vsriram/simple-host/host/geoip"
 )
 
-// Options supplies program-specific registration data from the composition root.
-type Options struct {
-	// Redirects maps mux patterns to targets for legacy 302 responses.
-	Redirects map[string]string
-}
-
-// Run is the whole program. Failures return a code without exiting the process.
-func Run(args []string, exts []*extension.Extension, options ...Options) int {
+// Run is the whole program; redirects are Build's legacy 302 routes. Failures
+// return a code without exiting the process.
+func Run(args []string, exts []*extension.Extension, redirects map[string]string) int {
 	if len(exts) > 1 {
 		log.Print("at most one extension is supported")
 		return 1
@@ -41,7 +36,7 @@ func Run(args []string, exts []*extension.Extension, options ...Options) int {
 		log.Printf("load config: %v", err)
 		return 1
 	}
-	app, err := Build(cfg, exts, options...)
+	app, err := Build(cfg, exts, redirects)
 	if err != nil {
 		log.Print(err)
 		return productExitCode(err)

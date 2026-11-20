@@ -82,7 +82,7 @@ func TestHackWatchNarration(t *testing.T) {
 
 func TestHackWatchHostedOnly(t *testing.T) {
 	a := newHackApp(t)
-	sh := handler.NewSiteHandler(edition.Default(config.DefaultLimits()), "", a.database, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+	sh, _, _ := handler.NewSiteHandlers(edition.Default(config.DefaultLimits()), "", a.database, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	mux := http.NewServeMux()
 	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	for _, path := range []string{"/watch", "/hack-watch.html", "/v1/hack/demo", "/demo/join", "/demo/judge"} {

@@ -31,17 +31,17 @@ func storageObjectPath(p string) bool {
 	}
 	return true
 }
-func (h *SiteHandler) storageFilesDir(c storageCall) string {
+func (h *DataHandler) storageFilesDir(c storageCall) string {
 	return filepath.Join(h.storageRuntimeDir(c), "files", c.resourceName)
 }
-func (h *SiteHandler) storageFilePath(c storageCall, p string) string {
+func (h *DataHandler) storageFilePath(c storageCall, p string) string {
 	return storageFileOnDisk(h.disk, c.ownerID, c.siteName, c.resourceName, p)
 }
 func storageFileOnDisk(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, p string) string {
 	return filepath.Join(disk.SiteDir(ownerID, siteName), "runtime", "files", resourceName, filepath.FromSlash(p))
 }
 
-func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageResourceFor(w, r, "files")
 	if !ok {
 		return
@@ -92,7 +92,7 @@ func (h *SiteHandler) storageFiles(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c storageCall) {
+func (h *DataHandler) storageFileList(w http.ResponseWriter, r *http.Request, c storageCall) {
 	prefix, after, limit, valid := storagePage(r)
 	call := h.storageServiceCall(c)
 	call.CSRFOK = r.Header.Get("X-SH-CSRF") == "1"
@@ -107,7 +107,7 @@ func (h *SiteHandler) storageFileList(w http.ResponseWriter, r *http.Request, c 
 	writeJSON(w, 200, map[string]any{"items": items, "next_after": next})
 }
 
-func (h *SiteHandler) serveStorageFile(w http.ResponseWriter, r *http.Request, c storageCall, p string, linkAuthorized bool) {
+func (h *DataHandler) serveStorageFile(w http.ResponseWriter, r *http.Request, c storageCall, p string, linkAuthorized bool) {
 	call := h.storageServiceCall(c)
 	f, fi, auth, err := h.storageRequestSvc(r, c).OpenFile(r.Context(), appstorage.FileReadInput{Call: call, Path: p, LinkAuthorized: linkAuthorized})
 	if storageRefused(w, auth) {
@@ -139,14 +139,14 @@ func streamStorageFile(w http.ResponseWriter, r *http.Request, f *os.File, fi os
 	}
 }
 
-func (h *SiteHandler) storageFileToken(c storageCall, p string, expires time.Time) string {
+func (h *DataHandler) storageFileToken(c storageCall, p string, expires time.Time) string {
 	payload := c.ownerID + "." + c.siteID + "." + c.resourceName + "." + base64.RawURLEncoding.EncodeToString([]byte(p)) + "." + strconv.FormatInt(expires.Unix(), 10)
 	if c.linkScope != "" {
 		payload += "." + base64.RawURLEncoding.EncodeToString([]byte(c.linkScope))
 	}
 	return httpx.SealLink(h.exportKey, "site storage file v1", []byte(payload))
 }
-func (h *SiteHandler) createStorageFileLink(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) createStorageFileLink(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageResourceFor(w, r, "files")
 	if !ok || !h.storageOwner(w, c) {
 		return
@@ -164,11 +164,11 @@ func (h *SiteHandler) createStorageFileLink(w http.ResponseWriter, r *http.Reque
 			writeStorageError(w, err, http.StatusNotFound)
 			return
 		}
-		writeJSON(w, 200, map[string]any{"url": h.exportLinkBase() + "/v1/storage-download?token=" + url.QueryEscape(link.Token), "expires_at": link.Expires.UTC().Format(time.RFC3339)})
+		writeJSON(w, 200, map[string]any{"url": h.site.exportLinkBase() + "/v1/storage-download?token=" + url.QueryEscape(link.Token), "expires_at": link.Expires.UTC().Format(time.RFC3339)})
 	})).ServeHTTP(w, r)
 }
 
-func (h *SiteHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) downloadStorageFile(w http.ResponseWriter, r *http.Request) {
 	f, fi, p, err := h.storageSvc().DownloadFile(r.Context(), r.URL.Query().Get("token"))
 	if err != nil {
 		var e *appstorage.Error

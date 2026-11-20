@@ -24,7 +24,7 @@ func TestCreateSitePrivateInputs(t *testing.T) {
 	if body["access"] != "specific" || len(body["viewers"].([]any)) != 2 {
 		t.Fatalf("body: %v", body)
 	}
-	for _, tool := range siteTools(Limits{SiteViewersMax: 3}) {
+	for _, tool := range siteDeployTools(Limits{SiteViewersMax: 3}) {
 		if tool.Name != "create_site" {
 			continue
 		}

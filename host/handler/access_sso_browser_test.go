@@ -29,7 +29,7 @@ func TestServeSSOBrowser(t *testing.T) {
 	dir := t.TempDir()
 	os.Mkdir(dir+"/ready", 0755)
 	a.sites.SetSiteHosts("canonical", dir)
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	owner := a.newPerson(t, "ssobrowser")
@@ -38,11 +38,11 @@ func TestServeSSOBrowser(t *testing.T) {
 	o := a.withOAuth(t)
 	o.cfg.EmailEnabled = true
 	// Registered middleware holds the limiter pointer; adjust it in place.
-	for _, limiter := range []*httpx.RateLimiter{a.users.ipLimiter, a.users.emailLimiter, a.sites.emailLimiter, a.sites.visitorAuthLimiter, o.ipLimiter} {
+	for _, limiter := range []*httpx.RateLimiter{a.users.ipLimiter, a.users.emailLimiter, a.access.emailLimiter, a.access.visitorAuthLimiter, o.ipLimiter} {
 		limiter.Reset(10000, 0)
 	}
 	o.signIn = accounts.NewProviderSignIn(o.accounts, nil)
-	a.sites.SetSSOHop(o)
+	a.access.SetSSOHop(o)
 	RegisterUIRoutes(a.mux, apex, a.sites)
 	// Production nginx serves custom-domain files at the host root. Reuse
 	// the same Go file gate here, retaining the actual API and cookie paths.

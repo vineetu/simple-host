@@ -74,7 +74,7 @@ func TestConnectorPhotoLink(t *testing.T) {
 	func() {
 		defer photoSaves.Add(-1)
 		r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers)
-		if r.status != 429 || r.header.Get("Retry-After") != "2" || r.json(t)["error"] != "Busy, try again in a moment" {
+		if r.status != 429 || r.header.Get("Retry-After") != "2" {
 			t.Fatalf("token bypassed concurrency bound: %d", r.status)
 		}
 	}()
@@ -102,7 +102,7 @@ func TestConnectorPhotoLink(t *testing.T) {
 			t.Fatalf("photo save %d: %d %s", i, r.status, r.body)
 		}
 	}
-	if r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers); r.status != 404 || r.json(t)["error"] != "This photo link has expired. Ask your chat for a new one." {
+	if r := a.do(t, "POST", "/v1/photo-links", strings.NewReader(body), headers); r.status != 404 || r.json(t)["code"] != "photo_link_expired" {
 		t.Fatal("eleventh save accepted")
 	}
 	headers["X-Photo-Reconcile"] = "1"

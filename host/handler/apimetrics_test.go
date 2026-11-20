@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,26 +15,11 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	model "github.com/vsriram/simple-host/host/model"
 	operations "github.com/vsriram/simple-host/host/ops"
-	operationsrepo "github.com/vsriram/simple-host/host/ops/repo"
 )
 
 func growthTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
-	if err := operationsrepo.VerifySchema(context.Background(), database); err != nil {
-		t.Fatalf("test database is behind the schema: %v", err)
-	}
+	database := testDB(t)
 	clear := func() {
 		for _, q := range []string{`DELETE FROM api_growth_daily`, `DELETE FROM api_request_daily`, `DELETE FROM api_ip_daily`, `DELETE FROM api_self_daily`} {
 			if _, err := database.Exec(q); err != nil {

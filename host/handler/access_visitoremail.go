@@ -13,7 +13,7 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (string, bool) {
+func (h *AccessHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		writeProductErr(w, http.StatusBadRequest, "custom_domain_required", "sign in on the site's own address, not the shared address")
 		return "", false
@@ -23,16 +23,16 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 	// page there could sign a visitor in as someone else (login CSRF).
 	// The same on a family address (<label>.<family>): all of them, and the
 	// family owner's other names, are one "site" to the browser.
-	if host := requestHostName(r); (h.isPlatformSubdomainHost(host) || h.isSiteHostName(r.Context(), host) || h.isFamilyHostName(host)) && !sameOriginRequest(r) {
+	if host := requestHostName(r); (h.site.isPlatformSubdomainHost(host) || h.site.isSiteHostName(r.Context(), host) || h.site.isFamilyHostName(host)) && !sameOriginRequest(r) {
 		writeJSON(w, http.StatusForbidden, errorResponse{Error: "forbidden"})
 		return "", false
 	}
 	name := strings.TrimSpace(r.PathValue("sitename"))
-	if !h.authorizeStateOrigin(w, r, name) {
+	if !h.site.authorizeStateOrigin(w, r, name) {
 		writeOriginRefused(w)
 		return "", false
 	}
-	id, err := h.resolveSiteID(r, name)
+	id, err := h.site.resolveSiteID(r, name)
 	if err != nil {
 		status, message := http.StatusInternalServerError, "internal server error"
 		if errors.Is(err, sql.ErrNoRows) {
@@ -45,17 +45,17 @@ func (h *SiteHandler) visitorEmailSite(w http.ResponseWriter, r *http.Request) (
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "not available on this host"})
 		return "", false
 	}
-	if domain, elsewhere := h.livesOnDomainElsewhere(r, id); elsewhere {
+	if domain, elsewhere := h.site.livesOnDomainElsewhere(r, id); elsewhere {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this site signs visitors in on its own domain", "code": "use_custom_domain", "domain": domain})
 		return "", false
 	}
-	if h.refuseOffline(w, r, id) || h.refuseSuspendedSiteID(w, r, id) {
+	if h.site.refuseOffline(w, r, id) || h.refuseSuspendedSiteID(w, r, id) {
 		return "", false
 	}
 	return id, true
 }
 
-func (h *SiteHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request) {
 	siteID, ok := h.visitorEmailSite(w, r)
 	if !ok {
 		return
@@ -83,7 +83,7 @@ func (h *SiteHandler) requestVisitorEmail(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusAccepted, authChallengeResponse{Message: signInCodeSentMessage(address), Email: address, ExpiresIn: expires})
 }
 
-func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request) {
 	siteID, ok := h.visitorEmailSite(w, r)
 	if !ok {
 		return
@@ -135,7 +135,7 @@ func (h *SiteHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Request)
 		writeInternal(w)
 		return
 	}
-	h.visitorSignedIn(r, siteID, user.ID, first)
+	h.site.visitorSignedIn(r, siteID, user.ID, first)
 	setVisitorSessionCookie(w, r, hex.EncodeToString(id), h.visitorCookieMaxAge())
 	w.Header().Set("Cache-Control", "private, no-store")
 	writeJSON(w, http.StatusOK, h.visitorSignedInResponse(r, idle, user.Username, "email"))

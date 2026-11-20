@@ -80,7 +80,7 @@ func admissionPanicContext(t *testing.T, stage string, value any) (context.Conte
 
 func assertAdmissionReleased(t *testing.T, s storageTestSite) {
 	t.Helper()
-	h := s.a.sites
+	h := s.a.data
 	if n := len(h.sqliteGateFor().Slots); n != 0 {
 		t.Fatalf("global slots held=%d", n)
 	}
@@ -101,7 +101,7 @@ func TestRulesSaveAdmissionInjectedPanics(t *testing.T) {
 		for _, stage := range []string{"after_open", "after_prepare", "after_step", "before_commit", "after_commit", "close"} {
 			t.Run(code+"/"+stage, func(t *testing.T) {
 				s := admissionPresetSite(t)
-				before, err := s.a.sites.loadStorageResource(context.Background(), s.sid, "data")
+				before, err := s.a.data.loadStorageResource(context.Background(), s.sid, "data")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -133,7 +133,7 @@ func TestRulesSaveAdmissionInjectedPanics(t *testing.T) {
 				if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 					t.Fatal(err)
 				}
-				stored, err := s.a.sites.loadStorageResource(context.Background(), s.sid, "data")
+				stored, err := s.a.data.loadStorageResource(context.Background(), s.sid, "data")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -201,7 +201,7 @@ func TestExportAdmissionInjectedPanics(t *testing.T) {
 
 func holdExportOwnerQuery(t *testing.T, s storageTestSite) func() {
 	t.Helper()
-	h := s.a.sites
+	h := s.a.data
 	resource, err := h.loadStorageResource(context.Background(), s.sid, "data")
 	if err != nil {
 		t.Fatal(err)
@@ -242,7 +242,7 @@ func (w flushExportWriter) Write(b []byte) (int, error) {
 
 func TestExportAdmissionTimeoutAbortsHTTP(t *testing.T) {
 	s := admissionPresetSite(t)
-	h := s.a.sites
+	h := s.a.data
 	h.sqliteSites = appstorage.NewSiteSlots(1, h.sqliteGateFor(), 250*time.Millisecond)
 	// ZIP buffers compressed entries. An incompressible file in a site the
 	// account export writes first (the most recently updated) makes it emit
@@ -262,7 +262,7 @@ func TestExportAdmissionTimeoutAbortsHTTP(t *testing.T) {
 		zip             bool
 	}{
 		{"site", "/v1/sites/shop/export.tar.gz", s.owner.key, false},
-		{"link", "/v1/export?token=" + h.signExportToken(s.ownerID, s.sid, time.Now().Add(time.Minute)), "", false},
+		{"link", "/v1/export?token=" + h.site.signExportToken(s.ownerID, s.sid, time.Now().Add(time.Minute)), "", false},
 		{"account", "/v1/me/export.zip", s.owner.key, true},
 		{"admin", "/v1/admin/export.tar.gz", s.a.admin, false},
 		{"event", "/event", "", false},
@@ -274,7 +274,7 @@ func TestExportAdmissionTimeoutAbortsHTTP(t *testing.T) {
 				// checks a broken HTTP body rather than only a pre-header EOF.
 				w = flushExportWriter{w}
 				if tc.name == "event" {
-					h.ExportEventProjects(w, r, GroupRef{ID: ev.ID, Slug: ev.Slug, AccountID: ev.AccountID}, []string{"shop"}, "")
+					h.site.ExportEventProjects(w, r, GroupRef{ID: ev.ID, Slug: ev.Slug, AccountID: ev.AccountID}, []string{"shop"}, "")
 				} else {
 					s.a.srv.Config.Handler.ServeHTTP(w, r)
 				}

@@ -1,25 +1,23 @@
 package hackhttp
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	productconfig "github.com/vsriram/simple-host/products/hack/config"
-	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	platformtestdb "github.com/vsriram/simple-host/host/testdb"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
@@ -90,18 +88,6 @@ func (m *failingReplyMailer) SendNoticeReplyTo(to, replyTo, subject, text string
 	return errors.New("mail server down")
 }
 
-// last returns the newest mail about site, or "".
-func (m *replyMailer) last(site string) string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for i := len(m.sent) - 1; i >= 0; i-- {
-		if strings.Contains(m.sent[i], "Your site "+site+" ") {
-			return m.sent[i]
-		}
-	}
-	return ""
-}
-
 type hackApp struct {
 	database *sql.DB
 	admin    string
@@ -111,33 +97,14 @@ type hackApp struct {
 }
 
 func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
-	return newHackAppDatabase(t, nil, eds...)
-}
-func newHackAppDatabase(t *testing.T, database *sql.DB, eds ...*edition.Edition) *hackApp {
+	t.Helper()
 	accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}})
 	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
-	t.Helper()
-	var ed *edition.Edition
+	ed := productedition.ForKind(productedition.Hack)
 	if len(eds) > 0 {
 		ed = eds[0]
-	} else {
-		ed = productedition.ForKind(productedition.Hack)
 	}
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	var err error
-	if database == nil {
-		database, err = sql.Open("postgres", dsn)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
+	database := platformtestdb.DB(t)
 	adminKey, _ := auth.GenerateAPIKey()
 	adminID, err := accountrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
@@ -245,33 +212,6 @@ func (a *hackApp) cleanupEvent(slug string) {
 	if accountID != "" {
 		_, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, accountID)
 	}
-}
-
-// tarGzOf is a gzipped tar holding index.html plus a file of n zero bytes:
-// a few KB on the wire, n bytes unpacked. Duplicated from
-// host/handler/sizeoverrides_test.go (cleanup 3.2 slice 3):
-// hack_upload_link_test.go, its only mover, needs it; no handler-private
-// dependency.
-func tarGzOf(t *testing.T, n int) string {
-	t.Helper()
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	tw := tar.NewWriter(gz)
-	for name, body := range map[string][]byte{"index.html": []byte("<h1>big</h1>"), "big.bin": make([]byte, n)} {
-		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(body)), Typeflag: tar.TypeReg}); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tw.Write(body); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := tw.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return buf.String()
 }
 
 // wantCode is kinds_test.go's own (host/handler), duplicated (cleanup

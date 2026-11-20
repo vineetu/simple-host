@@ -16,15 +16,7 @@ func nullableString(v sql.NullString) any {
 	return nil
 }
 
-func (h *HackHandler) registerJudgingOptions(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/assignments", wrap(h.getManualAssignments))
-	mux.Handle("PUT /v1/hack/events/{slug}/assignments", wrap(h.putManualAssignments))
-	mux.Handle("GET /v1/hack/events/{slug}/judging/panels", wrap(h.getTrackPanels))
-	mux.Handle("PUT /v1/hack/events/{slug}/judging/panels", wrap(h.putTrackPanels))
-	mux.Handle("GET /v1/hack/events/{slug}/judging/preview", wrap(h.previewJudging))
-}
-
-func (h *HackHandler) previewJudging(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) previewJudging(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
@@ -40,7 +32,7 @@ func (h *HackHandler) previewJudging(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"results": resultsSnapshotJSON(rows, nil), "deciding_mode": a.event.ScoreMode})
 }
 
-func (h *HackHandler) getManualAssignments(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) getManualAssignments(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
@@ -53,7 +45,7 @@ func (h *HackHandler) getManualAssignments(w http.ResponseWriter, r *http.Reques
 	httpx.WriteJSON(w, 200, map[string]any{"assignments": rows})
 }
 
-func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) putManualAssignments(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -76,7 +68,7 @@ func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Reques
 	httpx.WriteJSON(w, 200, map[string]any{"assignments": rows})
 }
 
-func (h *HackHandler) getTrackPanels(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) getTrackPanels(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
@@ -89,7 +81,7 @@ func (h *HackHandler) getTrackPanels(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"panels": rows})
 }
 
-func (h *HackHandler) putTrackPanels(w http.ResponseWriter, r *http.Request) {
+func (h *judgingHTTP) putTrackPanels(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return

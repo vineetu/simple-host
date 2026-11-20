@@ -117,7 +117,7 @@ func TestSuspendSiteEndToEnd(t *testing.T) {
 
 	// A lost marker is put back from the database at boot.
 	_ = a.sites.disk.SetSuspended(oliveID, "shop", false)
-	a.sites.SyncSuspendMarkers(t.Context())
+	a.access.SyncSuspendMarkers(t.Context())
 	if !a.sites.disk.IsSuspended(oliveID, "shop") {
 		t.Fatal("marker sync did not restore the marker")
 	}

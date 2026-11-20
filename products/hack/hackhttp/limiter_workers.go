@@ -10,7 +10,7 @@ import (
 // LimiterWorkers evicts the hack limiters' idle buckets.
 func (h *HackHandler) LimiterWorkers() workers.Owner {
 	h.limitersOnce.Do(func() {
-		for _, l := range []*httpx.RateLimiter{h.codesIP, h.codesUser, h.namesUser, h.entryWrites, h.shotWrites, h.applyIP, h.applyUser, h.assistantWrites, h.screenshotsIP} {
+		for _, l := range []*httpx.RateLimiter{h.codesIP, h.codesUser, h.namesUser, h.participation.entryWrites, h.participation.shotWrites, h.participation.applyIP, h.participation.applyUser, h.assistant.writes, h.screenshotsIP} {
 			h.caches.Rate("http.hack.limiters", l, 10*time.Minute, 30*time.Minute)
 		}
 	})

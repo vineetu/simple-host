@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -59,13 +58,6 @@ func span(d time.Duration) string {
 		return "one " + unit
 	}
 	return strconv.Itoa(n) + " " + unit + "s"
-}
-
-// spanAdj is span as an adjective: "30-day", "one-day".
-func spanAdj(d time.Duration) string {
-	n, unit, _ := strings.Cut(span(d), " ")
-	unit = strings.TrimSuffix(unit, "s")
-	return n + "-" + unit
 }
 
 // Span is span, exported for that test.

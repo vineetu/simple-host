@@ -18,23 +18,6 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 )
 
-func signInTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
-	return database
-}
-
 func TestIssueEmailCodeInvalidEmail(t *testing.T) {
 	limiter := httpx.NewRateLimiter(1000, 1000)
 	_, _, status, body := issueEmailCode(context.Background(), nil, &mailbox{}, limiter, "not-an-email", "", "dashboard", sql.NullString{}, sql.NullString{}, "203.0.113.5", signupGeoBlock{}, 15*time.Minute)
@@ -51,7 +34,7 @@ func TestIssueEmailCodeRateLimited(t *testing.T) {
 	if dsn == "" {
 		t.Skip("DB_DSN unset")
 	}
-	database := signInTestDB(t)
+	database := testDB(t)
 	addr := "signin-rl-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 	limiter := httpx.NewRateLimiter(1, 0)
 	m := &mailbox{}
@@ -70,7 +53,7 @@ func TestIssueEmailCodeRateLimited(t *testing.T) {
 }
 
 func TestVerifyEmailCodeReasons(t *testing.T) {
-	database := signInTestDB(t)
+	database := testDB(t)
 	ctx := context.Background()
 	stamp := strconv.FormatInt(time.Now().UnixNano(), 10)
 	limiter := httpx.NewRateLimiter(1000, 1000)

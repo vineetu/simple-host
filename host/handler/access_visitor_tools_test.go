@@ -30,7 +30,7 @@ func newVisitorFixture(t *testing.T) visitorFixture {
 	s := newStorageTestSite(t)
 	o := newTestOAuthHandler(s.a.database, accountapp.New(s.a.database), config.Config{PublicBaseURL: s.a.srv.URL, SiteDomain: pcSiteDomain, ContentHost: pcContentHost, CNAMETarget: "cname." + pcSiteDomain})
 	o.SetPersonSiteResolver(s.a.sites.PersonReturnSite)
-	s.a.conn.SetVisitorTools(s.a.sites, o)
+	s.a.conn.SetVisitorTools(s.a.access, o)
 	// These fixtures use an already verified account, then exercise the real
 	// OAuth authorization and MCP boundary as a different person from the owner.
 	u, err := accountsrepo.GetUserByID(context.Background(), s.a.database, s.ids["bob"])
@@ -181,7 +181,7 @@ func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	delete(args, "value")
 	f.call(t, "visitor_change_entry", args, "key_not_found")
 	var app string
-	author := readStorageKVAuthor(t, f.a.sites, f.sid, "notes", "one")
+	author := readStorageKVAuthor(t, f.a.data, f.sid, "notes", "one")
 	if author != f.ids["bob"] {
 		t.Fatalf("author %q", author)
 	}
@@ -200,7 +200,7 @@ func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 	if !strings.Contains(got["note"].(string), "Use the owner tools") {
 		t.Fatal("no owner guidance")
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 2 }, &f.a.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 2 }, &f.a.sites.limitSet, &f.a.access.limitSet, &f.a.data.limitSet)
 	if _, err := f.a.database.Exec(`DELETE FROM visitor_ai_daily WHERE site_id=$1`, f.sid); err != nil {
 		t.Fatal(err)
 	}
@@ -226,14 +226,14 @@ func TestVisitorMCPKVOwnerIsolationAuditAndCap(t *testing.T) {
 
 func TestVisitorMCPPasscodeAndBrowserLockout(t *testing.T) {
 	f := newVisitorFixture(t)
-	if err := f.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := f.a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	withPasscodeLimits(t, func(l *config.Limits) {
 		l.SitePasscodes = true
 		l.RatePasscodeSite = config.Rate{Burst: 3, Every: time.Hour}
 		l.RatePasscodeIP = config.Rate{Burst: 20, Every: time.Hour}
-	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
+	}, &f.a.sites.limitSet, &f.a.access.limitSet, &f.a.data.limitSet, &f.a.access.passcode.limitSet)
 	r := f.a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, f.key)
 	if r.status != 200 {
 		t.Fatalf("lock: %s", r.body)
@@ -252,7 +252,7 @@ func TestVisitorMCPPasscodeAndBrowserLockout(t *testing.T) {
 	request.Header.Set("Origin", "https://"+f.host)
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
-	f.a.sites.unlockSite(rec, request)
+	f.a.access.unlockSite(rec, request)
 	if strings.Contains(rec.Body.String(), "Too many tries") {
 		t.Fatal("AI tries locked browser")
 	}
@@ -269,14 +269,14 @@ func TestVisitorMCPPasscodeAndBrowserLockout(t *testing.T) {
 // text either way) is the only way to see whether the code survived.
 func TestVisitorToolBridgePreservesRefusalCode(t *testing.T) {
 	f := newVisitorFixture(t)
-	if err := f.a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := f.a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	withPasscodeLimits(t, func(l *config.Limits) {
 		l.SitePasscodes = true
 		l.RatePasscodeSite = config.Rate{Burst: 2, Every: time.Hour}
 		l.RatePasscodeIP = config.Rate{Burst: 20, Every: time.Hour}
-	}, &f.a.sites.limitSet, &f.a.sites.passcode.limitSet)
+	}, &f.a.sites.limitSet, &f.a.access.limitSet, &f.a.data.limitSet, &f.a.access.passcode.limitSet)
 	call := func(args map[string]any) error {
 		r := httptest.NewRequest("POST", "https://"+f.host+"/mcp", nil)
 		_, err := f.a.conn.mcpConfig.VisitorTool(r, mcp.Caller{Owner: f.ids["bob"], AppName: "Test"}, "visitor_read_site", args)
@@ -344,11 +344,11 @@ func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 	r.Header.Set("Origin", "https://"+f.host)
 	r.Header.Set(visitorPassHeader, pass)
 	r.SetPathValue("sitename", "shop")
-	if _, ok := f.a.sites.internalVisitorSession(r, otherID); ok {
+	if _, ok := f.a.access.internalVisitorSession(r, otherID); ok {
 		t.Fatal("pass accepted for other site")
 	}
 	rec := httptest.NewRecorder()
-	f.a.sites.listStorageResources(rec, r)
+	f.a.data.listStorageResources(rec, r)
 	if rec.Code != 403 {
 		t.Fatalf("owner storage accepted visitor: %d", rec.Code)
 	}
@@ -360,20 +360,20 @@ func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 	}
 	r.SetPathValue("sitename", "other")
 	rec = httptest.NewRecorder()
-	f.a.sites.listStorageResources(rec, r)
+	f.a.data.listStorageResources(rec, r)
 	if rec.Code == 200 {
 		t.Fatal("cross-site name accepted")
 	}
 	r.SetPathValue("sitename", "shop")
 	undo()
-	if _, ok := f.a.sites.strictVisitorSession(r, f.sid); ok {
+	if _, ok := f.a.access.strictVisitorSession(r, f.sid); ok {
 		t.Fatal("revoked pass accepted")
 	}
 }
 
 func TestVisitorMCPConcurrentCap(t *testing.T) {
 	f := newVisitorFixture(t)
-	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 3 }, &f.a.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.VisitorAIWritesPerDay = 3 }, &f.a.sites.limitSet, &f.a.access.limitSet, &f.a.data.limitSet)
 	f.must(t, "PUT", "/resources/wall", storageRules("kv", rulesWall), f.key, 201)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -415,7 +415,7 @@ func TestVisitorDataMinimisation(t *testing.T) {
 
 func TestVisitorMCPCommentsOfflineAndVisitorLimits(t *testing.T) {
 	f := newVisitorFixture(t)
-	f.a.sites.SetTurnstile(turnstileTestSiteKey, turnstileTestSecret, f.a.srv.URL)
+	f.a.data.SetTurnstile(turnstileTestSiteKey, turnstileTestSecret, f.a.srv.URL)
 	f.must(t, "PUT", "/resources/comments", storageRules("sqlite", rulesCommentsApproveFirst), f.key, 201)
 	f.must(t, "POST", "/sqlite/comments/schema", map[string]any{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY,text TEXT)"}, f.key, 200)
 	args := f.args("sqlite", "comments")
@@ -443,7 +443,7 @@ func TestVisitorMCPCommentsOfflineAndVisitorLimits(t *testing.T) {
 	if err := sitesrepo.SetSiteOffline(context.Background(), f.a.database, f.sid, false); err != nil {
 		t.Fatal(err)
 	}
-	f.a.sites.storageVisitorLimiter = httpx.NewRateLimiter(1, 0)
+	f.a.data.storageVisitorLimiter = httpx.NewRateLimiter(1, 0)
 	delete(args, "id")
 	delete(args, "action")
 	args["value"] = map[string]any{"text": "once"}

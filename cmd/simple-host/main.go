@@ -15,11 +15,7 @@ func run(args []string) int {
 		log.Print("this program does not include an events product; unset EVENTS")
 		return 1
 	}
-	return server.Run(args, nil, programOptions())
-}
-
-func programOptions() server.Options {
-	return server.Options{Redirects: compatibilityRedirects()}
+	return server.Run(args, nil, compatibilityRedirects())
 }
 
 func compatibilityRedirects() map[string]string {

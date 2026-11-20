@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -121,47 +122,7 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			rubricFact.Version = version
 			facts["o.rubric"] = rubricFact
 		} else {
-			closed := ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "results" || ev.Stage == "archived"
-			queueOpen := ev.Stage == "judging" && !closed
-			facts["j.invite"] = rules.ChecklistFact{Done: !member.JoinedAt.IsZero(), BlockedReason: "informational"}
-			facts["j.coc"] = rules.ChecklistFact{Done: member.CocAcceptedAt.Valid, BlockedReason: "conduct_record_only"}
-			facts["j.rubric"] = rules.ChecklistFact{Done: (version != "" && acks["j.rubric"] == version) || (judging.OwnTotal > 0 && judging.OwnDone == judging.OwnTotal), Version: version}
-			if version == "" && !facts["j.rubric"].Done {
-				facts["j.rubric"] = rules.ChecklistFact{Detail: "The organiser hasn't added a rubric yet", BlockedReason: "no_rubric"}
-			}
-			_, conflictAck := acks["j.conflicts"]
-			facts["j.conflicts"] = rules.ChecklistFact{Done: judging.OwnConflicts > 0 || conflictAck}
-			if !queueOpen {
-				f := facts["j.conflicts"]
-				f.BlockedReason = "judging_not_open"
-				facts["j.conflicts"] = f
-			}
-			score := rules.ChecklistFact{Done: judging.OwnTotal > 0 && judging.OwnDone == judging.OwnTotal, Detail: fmt.Sprintf("%d of %d %s scored", judging.OwnDone, judging.OwnTotal, checklistPlural(judging.OwnTotal, "team")), Count: intPointer(judging.OwnDone), Total: intPointer(judging.OwnTotal)}
-			if judging.FirstUnfinished == "" {
-				score.TargetID = "j.queue"
-			}
-			if judging.OwnTotal == 0 {
-				score.TargetID = "j.queue"
-				score.BlockedReason = "nothing_assigned"
-				score.Detail = "No teams are in your queue yet."
-				if judging.OwnCandidates > 0 {
-					score.Done = true
-					score.Detail = "All your teams have declared conflicts; nothing to score."
-				}
-			}
-			if !queueOpen {
-				score.BlockedReason = "judging_closed"
-				if !closed {
-					score.BlockedReason = "judging_not_open"
-				}
-			}
-			facts["j.scores"] = score
-			params["team"] = judging.FirstUnfinished
-			detail := "No time set"
-			if ev.JudgingEndsAt.Valid {
-				detail = ev.JudgingEndsAt.Time.In(eventLocation(ev)).Format("Mon 2 Jan, 15:04")
-			}
-			facts["j.closes"] = rules.ChecklistFact{Done: ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "archived", Detail: detail, BlockedReason: "informational"}
+			judgeFacts(ev, member, judging, version, acks, facts, params)
 		}
 	}
 	if ev.TakenDown() {
@@ -186,6 +147,51 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 	return out, nil
 }
 
+// judgeFacts fills a judge's checklist facts and the queue's first team.
+func judgeFacts(ev model.Event, member model.EventMember, judging entries.ChecklistJudgingFacts, version string, acks map[string]string, facts map[string]rules.ChecklistFact, params map[string]string) {
+	closed := ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "results" || ev.Stage == "archived"
+	queueOpen := ev.Stage == "judging" && !closed
+	facts["j.invite"] = rules.ChecklistFact{Done: !member.JoinedAt.IsZero(), BlockedReason: "informational"}
+	facts["j.coc"] = rules.ChecklistFact{Done: member.CocAcceptedAt.Valid, BlockedReason: "conduct_record_only"}
+	facts["j.rubric"] = rules.ChecklistFact{Done: (version != "" && acks["j.rubric"] == version) || (judging.OwnTotal > 0 && judging.OwnDone == judging.OwnTotal), Version: version}
+	if version == "" && !facts["j.rubric"].Done {
+		facts["j.rubric"] = rules.ChecklistFact{Detail: "The organiser hasn't added a rubric yet", BlockedReason: "no_rubric"}
+	}
+	_, conflictAck := acks["j.conflicts"]
+	facts["j.conflicts"] = rules.ChecklistFact{Done: judging.OwnConflicts > 0 || conflictAck}
+	if !queueOpen {
+		f := facts["j.conflicts"]
+		f.BlockedReason = "judging_not_open"
+		facts["j.conflicts"] = f
+	}
+	score := rules.ChecklistFact{Done: judging.OwnTotal > 0 && judging.OwnDone == judging.OwnTotal, Detail: fmt.Sprintf("%d of %d %s scored", judging.OwnDone, judging.OwnTotal, checklistPlural(judging.OwnTotal, "team")), Count: intPointer(judging.OwnDone), Total: intPointer(judging.OwnTotal)}
+	if judging.FirstUnfinished == "" {
+		score.TargetID = "j.queue"
+	}
+	if judging.OwnTotal == 0 {
+		score.TargetID = "j.queue"
+		score.BlockedReason = "nothing_assigned"
+		score.Detail = "No teams are in your queue yet."
+		if judging.OwnCandidates > 0 {
+			score.Done = true
+			score.Detail = "All your teams have declared conflicts; nothing to score."
+		}
+	}
+	if !queueOpen {
+		score.BlockedReason = "judging_closed"
+		if !closed {
+			score.BlockedReason = "judging_not_open"
+		}
+	}
+	facts["j.scores"] = score
+	params["team"] = judging.FirstUnfinished
+	detail := "No time set"
+	if ev.JudgingEndsAt.Valid {
+		detail = ev.JudgingEndsAt.Time.In(eventLocation(ev)).Format("Mon 2 Jan, 15:04")
+	}
+	facts["j.closes"] = rules.ChecklistFact{Done: ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "archived", Detail: detail, BlockedReason: "informational"}
+}
+
 func intPointer(n int) *int { return &n }
 func eventLocation(ev model.Event) *time.Location {
 	loc, err := time.LoadLocation(ev.TimeZone)
@@ -197,6 +203,19 @@ func eventLocation(ev model.Event) *time.Location {
 
 func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, rubric []model.RubricCriterion, j entries.ChecklistJudgingFacts, f map[string]rules.ChecklistFact) error {
 	set := func(id string, done bool) { f[id] = rules.ChecklistFact{Done: done} }
+	// block marks ids blocked for reason; a later reason replaces an earlier one.
+	block := func(reason string, ids ...string) {
+		for _, id := range ids {
+			v := f[id]
+			v.BlockedReason = reason
+			f[id] = v
+		}
+	}
+	target := func(id, to string) {
+		v := f[id]
+		v.TargetID = to
+		f[id] = v
+	}
 	validRules := true
 	var stored struct {
 		Fields map[string]string `json:"fields"`
@@ -205,13 +224,7 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 		validRules = false
 	}
 	for field, mode := range stored.Fields {
-		known := false
-		for _, key := range hackentries.RuleFields {
-			if key == field {
-				known = true
-			}
-		}
-		if !known || !hackentries.RuleModeOK[mode] || mode == "one_of" && !hackentries.OneOfFields[field] {
+		if !slices.Contains(hackentries.RuleFields, field) || !hackentries.RuleModeOK[mode] || mode == "one_of" && !hackentries.OneOfFields[field] {
 			validRules = false
 		}
 	}
@@ -224,75 +237,47 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 		return err
 	}
 	// Stored content uses snake_case timestamps.
-	var rows []struct {
+	type scheduleRow struct {
 		Title   string `json:"title"`
 		StartAt string `json:"start_at"`
 		EndAt   string `json:"end_at"`
 		Fixed   bool   `json:"fixed"`
 	}
+	var rows []scheduleRow
 	_ = json.Unmarshal(content.Schedule, &rows)
-	good := false
-	for _, r := range rows {
+	set("o.schedule", slices.ContainsFunc(rows, func(r scheduleRow) bool {
 		a, e1 := time.Parse(time.RFC3339, r.StartAt)
 		b, e2 := time.Parse(time.RFC3339, r.EndAt)
 		_, ve := rules.Line(r.Title, "schedule", 1, 120)
-		if !r.Fixed && ve == nil && e1 == nil && e2 == nil && b.After(a) {
-			good = true
-		}
-	}
-	set("o.schedule", good)
+		return !r.Fixed && ve == nil && e1 == nil && e2 == nil && b.After(a)
+	}))
 	var faq []struct{ Question, Answer string }
 	_ = json.Unmarshal(content.FAQ, &faq)
-	good = false
-	for _, r := range faq {
-		if strings.TrimSpace(r.Question) != "" && strings.TrimSpace(r.Answer) != "" {
-			good = true
-		}
-	}
-	set("o.faq", good)
+	set("o.faq", slices.ContainsFunc(faq, func(r struct{ Question, Answer string }) bool {
+		return strings.TrimSpace(r.Question) != "" && strings.TrimSpace(r.Answer) != ""
+	}))
 	var sponsors []struct{ Name string }
 	_ = json.Unmarshal(content.Sponsors, &sponsors)
-	good = false
-	for _, r := range sponsors {
-		if strings.TrimSpace(r.Name) != "" {
-			good = true
-		}
-	}
-	set("o.sponsors", good)
+	set("o.sponsors", slices.ContainsFunc(sponsors, func(r struct{ Name string }) bool { return strings.TrimSpace(r.Name) != "" }))
 	tracks, err := eventrepo.ListEventTracks(ctx, s.db, ev.ID)
 	if err != nil {
 		return err
 	}
-	good = false
-	for _, t := range tracks {
-		if _, e := rules.Tracks([]model.EventTrack{t}); e == nil {
-			good = true
-		}
-	}
-	set("o.tracks", good)
+	set("o.tracks", slices.ContainsFunc(tracks, func(t model.EventTrack) bool {
+		_, e := rules.Tracks([]model.EventTrack{t})
+		return e == nil
+	}))
 	set("o.rubric", entries.ChecklistRubricValid(rubric))
 	mode := ev.JudgeAssignmentMode
 	set("o.mode", mode == "open" || (mode == "automatic" || mode == "manual" || mode == "panel") && ev.JudgesPerTeam >= 1 && ev.JudgesPerTeam <= 20)
-	good = false
-	for _, c := range rubric {
-		if ev.TieCriterionID.Valid && ev.TieCriterionID.String == c.ID {
-			good = true
-		}
-	}
-	set("o.tie-break", good)
+	set("o.tie-break", ev.TieCriterionID.Valid && slices.ContainsFunc(rubric, func(c model.RubricCriterion) bool { return ev.TieCriterionID.String == c.ID }))
 	set("o.judging-closes", ev.JudgingEndsAt.Valid)
 	if ev.Stage == "results" || ev.Stage == "archived" {
-		v := f["o.judging-closes"]
-		v.BlockedReason = "judging_over"
-		f["o.judging-closes"] = v
+		block("judging_over", "o.judging-closes")
 	}
-	good = false
-	for _, offset := range ev.ReminderOffsets {
-		if offset >= ReminderOffsetMin && offset <= ReminderOffsetMax {
-			good = true
-		}
-	}
-	set("o.reminders", good)
+	set("o.reminders", slices.ContainsFunc(ev.ReminderOffsets, func(offset int64) bool {
+		return offset >= ReminderOffsetMin && offset <= ReminderOffsetMax
+	}))
 	announcements, err := eventrepo.ListEventAnnouncements(ctx, s.db, ev.ID)
 	if err != nil {
 		return err
@@ -300,14 +285,9 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	f["o.announcement"] = rules.ChecklistFact{Done: len(announcements) > 0, Detail: fmt.Sprintf("%d posted", len(announcements)), Count: intPointer(len(announcements))}
 	set("o.deadline", ev.SubmissionDeadline.Valid)
 	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: judgeSelectionDetail(j.Judges + j.Organisers)}
-	f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail}
-	assignment := f["o.assignments"]
-	assignment.TargetID = j.Coverage.FixTarget
-	f["o.assignments"] = assignment
+	f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail, TargetID: j.Coverage.FixTarget}
 	if ev.Stage == "results" || ev.Stage == "archived" || ev.JudgingLockedAt.Valid {
-		v := f["o.judges"]
-		v.BlockedReason = "judging_setup_locked"
-		f["o.judges"] = v
+		block("judging_setup_locked", "o.judges")
 	}
 	f["o.judges-short"] = rules.ChecklistFact{Count: intPointer(j.TeamsShort)}
 	f["o.scores"] = rules.ChecklistFact{Done: j.Judgeable > 0 && j.JudgesRequired > 0 && j.JudgesDone == j.JudgesRequired, Detail: fmt.Sprintf("%d of %d %s done", j.JudgesDone, j.JudgesRequired, checklistPlural(j.JudgesRequired, "judge")), Count: intPointer(j.JudgesDone), Total: intPointer(j.JudgesRequired)}
@@ -323,9 +303,7 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	}
 	set("o.publish", j.Published)
 	if !ev.JudgingLockedAt.Valid {
-		v := f["o.publish"]
-		v.TargetID = "o.lock"
-		f["o.publish"] = v
+		target("o.publish", "o.lock")
 	}
 	set("o.end", ev.Stage == "archived")
 	participants, _, _, err := eventrepo.CountEventMembers(ctx, s.db, ev.ID)
@@ -333,41 +311,24 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 		return err
 	}
 	if participants == 0 {
-		v := f["o.end"]
-		v.BlockedReason = "informational"
-		f["o.end"] = v
+		block("informational", "o.end")
 	}
-	v := f["o.scores"]
-	v.BlockedReason = "informational"
-	f["o.scores"] = v
-	if ev.Stage == "judging" || ev.Stage == "results" {
-		for _, id := range []string{"o.rubric", "o.mode", "o.tie-break", "o.assignments"} {
-			v := f[id]
-			v.BlockedReason = "judging_setup_locked"
-			f[id] = v
-		}
+	block("informational", "o.scores")
+	judgingSetupClosed := ev.Stage == "judging" || ev.Stage == "results"
+	if judgingSetupClosed {
+		block("judging_setup_locked", "o.rubric", "o.mode", "o.tie-break", "o.assignments")
 	}
-	if len(rubric) == 0 && ev.Stage != "judging" && ev.Stage != "results" {
-		v := f["o.tie-break"]
-		v.TargetID = "o.rubric"
-		f["o.tie-break"] = v
+	if len(rubric) == 0 && !judgingSetupClosed {
+		target("o.tie-break", "o.rubric")
 	}
 	if !hackentries.RulesEditable(ev.Stage) {
-		v := f["o.entry-rules"]
-		v.BlockedReason = "entry_rules_closed"
-		f["o.entry-rules"] = v
+		block("entry_rules_closed", "o.entry-rules")
 	}
-	if ev.Stage == "judging" || ev.Stage == "results" {
-		v := f["o.tie-break"]
-		v.BlockedReason = "tie_rule_closed"
-		f["o.tie-break"] = v
+	if judgingSetupClosed {
+		block("tie_rule_closed", "o.tie-break")
 	}
 	if ev.JudgingLockedAt.Valid {
-		for _, id := range []string{"o.rubric", "o.mode", "o.assignments", "o.scores"} {
-			v := f[id]
-			v.BlockedReason = "scores_locked"
-			f[id] = v
-		}
+		block("scores_locked", "o.rubric", "o.mode", "o.assignments", "o.scores")
 	}
 	return nil
 }

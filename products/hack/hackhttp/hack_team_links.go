@@ -13,7 +13,7 @@ import (
 // GET /v1/hack/join/{code}; never writes, never joins on GET (a link
 // preview or an unfurl must not act). No member names, no emails -- only
 // the team's own name and counts, and the caller's own status.
-func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getTeamLink(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, caller := auth.GetUser(ctx), ""
 	if user != nil {
@@ -27,7 +27,7 @@ func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "team_link_not_found", "that link or code doesn't match a team in this event")
 		return
 	}
-	preview, err := h.teamsSvc().GetTeamLink(ctx, code, caller)
+	preview, err := h.teams.GetTeamLink(ctx, code, caller)
 	if err != nil {
 		writeHackError(w, err)
 		return

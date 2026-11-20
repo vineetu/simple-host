@@ -51,7 +51,7 @@ func (h *SiteHandler) readCreateAccess(w http.ResponseWriter, r *http.Request, a
 		return false
 	}
 	in.NamedViewersRefusal = func(handle, name string) (string, string) {
-		return h.namedViewersRefusal(model.Site{OwnerHandle: handle, Name: name}, model.SitePasscodeRow{})
+		return h.access.namedViewersRefusal(model.Site{OwnerHandle: handle, Name: name}, model.SitePasscodeRow{})
 	}
 	*r = *r.WithContext(context.WithValue(r.Context(), createAccessKey{}, in))
 	return true

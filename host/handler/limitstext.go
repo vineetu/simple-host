@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"strconv"
 	"strings"
 	"time"
@@ -44,17 +43,6 @@ func limitCommas(n int) string {
 		s = s[:i] + "," + s[i:]
 	}
 	return s
-}
-
-// perEvery words a rate's refill the way architecture.html does: "+1 per 10 s".
-func perEvery(r struct {
-	Burst int
-	Every time.Duration
-}) string {
-	if r.Every%time.Second == 0 && r.Every < time.Minute {
-		return "+1 per " + limitNum(int(r.Every/time.Second)) + " s"
-	}
-	return "+1 per " + r.Every.String()
 }
 
 func phrase(text string, env []string, say func(l *edition.Limits) string) limitPhrase {
@@ -327,20 +315,4 @@ func limitSpanUnit(d time.Duration) (int, string) {
 	default:
 		return int(d / time.Second), "second"
 	}
-}
-
-// Docs use the same storage byte allowances as pricing, whose settings live
-// outside edition.Limits. Keep readable defaults in the source search index.
-func (p *assetPipeline) docsStorageLimits(body []byte) []byte {
-	numbers := pricingNumbers(p.hostedEvents, p.limits)
-	for phrase, value := range map[string]string{
-		"Up to 10,000,000 bytes for KV and SQLite":              "Up to " + numbers["__STORAGE_DB_BYTES__"] + " bytes for KV and SQLite",
-		"Up to 1,000,000 bytes shared by KV, SQLite, and files": "Up to " + numbers["__STORAGE_DB_BYTES__"] + " bytes shared by KV, SQLite, and files",
-		"Up to 10,000,000 bytes for files":                      "Up to " + numbers["__STORAGE_FILES_BYTES__"] + " bytes for files",
-		"Up to 1,000,000 bytes per file":                        "Up to " + numbers["__STORAGE_FILE_BYTES__"] + " bytes per file",
-		"Up to 1,000,000 bytes per query result":                "Up to " + limitCommas(storageResultLimitBytes()) + " bytes per query result",
-	} {
-		body = bytes.ReplaceAll(body, []byte(phrase), []byte(value))
-	}
-	return body
 }

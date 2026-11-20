@@ -108,13 +108,13 @@ func TestProductRecordStates(t *testing.T) {
 			}
 			before := productSnapshot(t, dsn)
 			for _, args := range [][]string{{"migrate"}, {"migrate", "-init"}, {"migrate", "-mark", "0023-install-product.sql"}} {
-				if code := Run(args, nil); code != 3 {
+				if code := Run(args, nil, nil); code != 3 {
 					t.Fatalf("%v exit %d", args, code)
 				}
 			}
 			for _, onStart := range []bool{false, true} {
 				cfg.MigrateOnStart = onStart
-				app, err := Build(cfg, nil)
+				app, err := Build(cfg, nil, nil)
 				if app != nil {
 					app.Close()
 					t.Fatal("unexpected startup")
@@ -123,25 +123,25 @@ func TestProductRecordStates(t *testing.T) {
 					t.Fatalf("migrateOnStart=%v: %v", onStart, err)
 				}
 				t.Setenv("MIGRATE_ON_START", fmt.Sprint(onStart))
-				if code := Run(nil, nil); code != 3 {
+				if code := Run(nil, nil, nil); code != 3 {
 					t.Fatalf("start exit %d", code)
 				}
 			}
 			if after := productSnapshot(t, dsn); after != before {
 				t.Fatal("refusal changed data, ledger or schema")
 			}
-			if code := Run([]string{"migrate", "-status"}, nil); code != 0 {
+			if code := Run([]string{"migrate", "-status"}, nil, nil); code != 0 {
 				t.Fatalf("status exit %d", code)
 			}
 			if state == "other" {
-				if code := Run([]string{"migrate", "-record-product"}, nil); code != 3 {
+				if code := Run([]string{"migrate", "-record-product"}, nil, nil); code != 3 {
 					t.Fatalf("adopting another product exit %d", code)
 				}
 			} else {
-				if code := Run([]string{"migrate", "-init", "-record-product"}, nil); code != 0 {
+				if code := Run([]string{"migrate", "-init", "-record-product"}, nil, nil); code != 0 {
 					t.Fatalf("explicit adoption exit %d", code)
 				}
-				if code := Run([]string{"migrate", "-record-product"}, nil); code != 0 {
+				if code := Run([]string{"migrate", "-record-product"}, nil, nil); code != 0 {
 					t.Fatalf("repeat adoption exit %d", code)
 				}
 			}
@@ -193,7 +193,7 @@ func TestConcurrentFirstStarts(t *testing.T) {
 			for _, e := range [][]*extension.Extension{nil, exts} {
 				go func(exts []*extension.Extension) {
 					<-start
-					app, err := Build(cfg, exts)
+					app, err := Build(cfg, exts, nil)
 					results <- result{app, err}
 				}(e)
 			}

@@ -9,17 +9,12 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) registerHackPreferences(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/preferences", wrap(h.getHackPreferences))
-	mux.Handle("PATCH /v1/hack/preferences", wrap(h.patchHackPreferences))
-}
-
 func (h *HackHandler) getHackPreferences(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return
 	}
-	p, err := h.eventsSvc().HackPreferences(r.Context(), user.ID)
+	p, err := h.events.HackPreferences(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -54,7 +49,7 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	p, err := h.eventsSvc().HackPreferences(r.Context(), user.ID)
+	p, err := h.events.HackPreferences(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -75,7 +70,7 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 	if req.EmailUpdates != nil {
 		p.EmailUpdates = *req.EmailUpdates
 	}
-	if err := h.eventsSvc().SetHackPreferencesLookup(r.Context(), user.ID, p); err != nil {
+	if err := h.events.SetHackPreferencesLookup(r.Context(), user.ID, p); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}

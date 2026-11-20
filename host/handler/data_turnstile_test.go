@@ -176,9 +176,9 @@ func commentsSite(t *testing.T) (storageTestSite, *fakeSiteverify) {
 		}
 		return map[string]any{"success": false, "error-codes": []string{"invalid-input-response"}}
 	})
-	s.a.sites.SetTurnstile(turnstileTestSiteKey, turnstileTestSecret, s.a.srv.URL)
-	s.a.sites.spamIPLimiter = httpx.NewRateLimiter(100000, 0)
-	s.a.sites.spamSiteLimiter = httpx.NewRateLimiter(100000, 0)
+	s.a.data.SetTurnstile(turnstileTestSiteKey, turnstileTestSecret, s.a.srv.URL)
+	s.a.data.spamIPLimiter = httpx.NewRateLimiter(100000, 0)
+	s.a.data.spamSiteLimiter = httpx.NewRateLimiter(100000, 0)
 	put := s.must(t, "PUT", "/resources/guestbook", storageRules("sqlite", rulesComments), s.key, 201).json(t)
 	if put["rules_status"] != "rules" {
 		t.Fatalf("comments rules: %v", put)

@@ -16,19 +16,7 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-func (h *SiteHandler) registerNotifications(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	limiter := h.notifyEngine().rest
-	mux.Handle("GET /v1/notifications", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("GET /v1/sites/{sitename}/notifications", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("POST /v1/sites/{sitename}/notifications", authMiddleware(rateLimitByIP(limiter, h.createIdempotency.wrap(noticeMiddleware(http.HandlerFunc(h.notificationRoute))))))
-	mux.Handle("PATCH /v1/sites/{sitename}/notifications/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("DELETE /v1/sites/{sitename}/notifications/{id}", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("POST /v1/sites/{sitename}/notifications/{id}/test", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("POST /v1/sites/{sitename}/notifications/{id}/rotate-secret", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-	mux.Handle("GET /v1/sites/{sitename}/notifications/{id}/deliveries", noticeMiddleware(authMiddleware(rateLimitByIP(limiter, http.HandlerFunc(h.notificationRoute)))))
-}
-
-func (h *SiteHandler) notifyLimits() map[string]any {
+func (h *DataHandler) notifyLimits() map[string]any {
 	l := h.limits
 	return map[string]any{"enabled": h.NotificationsReady(), "per_site": l.NotifyMaxPerSite, "per_minute": l.NotifyPerMinute, "per_day": l.NotifyPerDay, "history_days": l.NotifyHistoryDays}
 }
@@ -84,13 +72,13 @@ func validNotifyHeader(name, value string) bool {
 
 // notifyEventNames are the events a subscription may name (mcp's lists):
 // Simple Hack offers the record events only for now.
-func (h *SiteHandler) notifyEventNames() []string {
+func (h *DataHandler) notifyEventNames() []string {
 	if h.ed.Notifications().EventScoped {
 		return mcp.RecordEventNames
 	}
 	return append(append([]string{}, mcp.RecordEventNames...), mcp.SiteEventNames...)
 }
-func (h *SiteHandler) validNotifyEvents(events []string) bool {
+func (h *DataHandler) validNotifyEvents(events []string) bool {
 	names := h.notifyEventNames()
 	if len(events) < 1 || len(events) > len(names) {
 		return false
@@ -124,11 +112,11 @@ func notificationPerson(user *model.User) string {
 // notifyRefusal is the one "who may subscribe" rule for REST and MCP: a
 // person's own key or sign-in (never a deploy-only key), on an active account
 // that is not a hackathon's (not_offered). "" lets them.
-func (h *SiteHandler) notifyRefusal(ctx context.Context, person string, deployOnly bool) (string, error) {
+func (h *DataHandler) notifyRefusal(ctx context.Context, person string, deployOnly bool) (string, error) {
 	if person == "" || deployOnly {
 		return "forbidden", nil
 	}
-	if user, err := h.storeAccounts().GetUserByID(ctx, person); err != nil || user.Suspended {
+	if user, err := h.site.storeAccounts().GetUserByID(ctx, person); err != nil || user.Suspended {
 		return "forbidden", nil
 	}
 	if event, err := h.notificationsSvc().EventAccountFlag(ctx, person); err != nil || event {
@@ -137,7 +125,7 @@ func (h *SiteHandler) notifyRefusal(ctx context.Context, person string, deployOn
 	return "", nil
 }
 
-func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) notificationRoute(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	ctx := r.Context()
 	if user == nil {
@@ -156,7 +144,7 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 	}
 	var site model.Site
 	if name := r.PathValue("sitename"); name != "" {
-		site, err = h.sitesSvc().GetSiteByUser(ctx, user.ID, name)
+		site, err = h.site.sitesSvc().GetSiteByUser(ctx, user.ID, name)
 		if errors.Is(err, sql.ErrNoRows) && user.Member != nil && r.Method == http.MethodGet && r.PathValue("id") == "" {
 			// A site not published yet has no subscriptions.
 			writeJSON(w, 200, map[string]any{"notifications": []any{}, "limits": h.notifyLimits()})
@@ -244,72 +232,78 @@ func (h *SiteHandler) notificationRoute(w http.ResponseWriter, r *http.Request) 
 		}
 		writeJSON(w, 200, map[string]any{"deliveries": deliveries})
 	case strings.HasSuffix(r.URL.Path, "/test"):
-		if n.Source == "mcp" || n.ExpiresAt != nil && !n.ExpiresAt.After(time.Now()) {
-			notifyError(w, 409, "client_subscription")
-			return
-		}
-		select {
-		case h.notifyEngine().verifying <- struct{}{}:
-			defer func() { <-h.notifyEngine().verifying }()
-		default:
-			notifyError(w, 503, "busy")
-			return
-		}
-		ctx, cancel := context.WithTimeout(ctx, h.limits.NotifyTimeout)
-		defer cancel()
-		client, err := h.notifyChallengeClient(ctx, person, n.URL)
-		if errors.Is(err, notifyFailure("rate_limited")) {
-			tooManyRequests(w)
-			return
-		}
-		if err != nil {
-			writeJSON(w, 200, notifyResult{Result: notifyCategory(err)})
-			return
-		}
-		if !site.Live() {
-			writeJSON(w, 200, notifyResult{Result: "site_unavailable"})
-			return
-		}
-		name, siteURL, err := h.notificationSiteInfo(ctx, site)
-		if err != nil {
-			notifyError(w, 500, "internal_error")
-			return
-		}
-		event := model.NotificationDelivery{EventID: notifyRandom("evt_test_", 16), Name: "notification.test", CreatedAt: time.Now(), Data: storageJSON(map[string]any{"v": 1, "site": name, "site_url": siteURL, "test": true})}
-		if n.Kind == "web-push" {
-			// A plain signed webhook POST (client.send) would put an
-			// unencrypted JSON body on a push endpoint expecting RFC 8291
-			// aes128gcm and a VAPID Authorization header: dispatch through
-			// the same kind-aware path real delivery uses, with a fixed
-			// generic payload (a test send always confirms the device
-			// works, regardless of the owner's push rules for any one
-			// resource).
-			payload, _ := json.Marshal(map[string]any{"title": "Test notification", "body": "Your push notification is working.", "url": siteURL, "tag": "notification.test"})
-			result := h.sendPush(ctx, n, payload)
-			// notifications.DeliveryResult carries no JSON tags (it is an
-			// internal delivery-engine type, not a response shape); convert
-			// to the same lowercase {delivered,status,result} the webhook
-			// test path (notifyResult, above) already answers with, which
-			// is what the dashboard's test-send handler reads.
-			writeJSON(w, 200, notifyResult{Delivered: result.Delivered, Status: result.Status, Result: result.Result})
-			return
-		}
-		cursor, err := h.notificationsSvc().NotificationCursor(ctx, n.ID, n.SiteID)
-		if err != nil {
-			notifyError(w, 500, "internal_error")
-			return
-		}
-		writeJSON(w, 200, client.send(ctx, n, event.EventID, notifyBody(event, cursor, h.limits.NotifyBodyMaxBytes)))
+		h.testNotification(w, r, person, n, site)
 	}
 }
-func (h *SiteHandler) requireNotifications(w http.ResponseWriter) bool {
+
+// testNotification sends one test event to n through its real delivery path.
+func (h *DataHandler) testNotification(w http.ResponseWriter, r *http.Request, person string, n model.Notification, site model.Site) {
+	ctx := r.Context()
+	if n.Source == "mcp" || n.ExpiresAt != nil && !n.ExpiresAt.After(time.Now()) {
+		notifyError(w, 409, "client_subscription")
+		return
+	}
+	select {
+	case h.notifyEngine().verifying <- struct{}{}:
+		defer func() { <-h.notifyEngine().verifying }()
+	default:
+		notifyError(w, 503, "busy")
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, h.limits.NotifyTimeout)
+	defer cancel()
+	client, err := h.notifyChallengeClient(ctx, person, n.URL)
+	if errors.Is(err, notifyFailure("rate_limited")) {
+		tooManyRequests(w)
+		return
+	}
+	if err != nil {
+		writeJSON(w, 200, notifyResult{Result: notifyCategory(err)})
+		return
+	}
+	if !site.Live() {
+		writeJSON(w, 200, notifyResult{Result: "site_unavailable"})
+		return
+	}
+	name, siteURL, err := h.site.notificationSiteInfo(ctx, site)
+	if err != nil {
+		notifyError(w, 500, "internal_error")
+		return
+	}
+	event := model.NotificationDelivery{EventID: notifyRandom("evt_test_", 16), Name: "notification.test", CreatedAt: time.Now(), Data: storageJSON(map[string]any{"v": 1, "site": name, "site_url": siteURL, "test": true})}
+	if n.Kind == "web-push" {
+		// A plain signed webhook POST (client.send) would put an
+		// unencrypted JSON body on a push endpoint expecting RFC 8291
+		// aes128gcm and a VAPID Authorization header: dispatch through
+		// the same kind-aware path real delivery uses, with a fixed
+		// generic payload (a test send always confirms the device
+		// works, regardless of the owner's push rules for any one
+		// resource).
+		payload, _ := json.Marshal(map[string]any{"title": "Test notification", "body": "Your push notification is working.", "url": siteURL, "tag": "notification.test"})
+		result := h.sendPush(ctx, n, payload)
+		// notifications.DeliveryResult carries no JSON tags (it is an
+		// internal delivery-engine type, not a response shape); convert
+		// to the same lowercase {delivered,status,result} the webhook
+		// test path (notifyResult, above) already answers with, which
+		// is what the dashboard's test-send handler reads.
+		writeJSON(w, 200, notifyResult{Delivered: result.Delivered, Status: result.Status, Result: result.Result})
+		return
+	}
+	cursor, err := h.notificationsSvc().NotificationCursor(ctx, n.ID, n.SiteID)
+	if err != nil {
+		notifyError(w, 500, "internal_error")
+		return
+	}
+	writeJSON(w, 200, client.send(ctx, n, event.EventID, notifyBody(event, cursor, h.limits.NotifyBodyMaxBytes)))
+}
+func (h *DataHandler) requireNotifications(w http.ResponseWriter) bool {
 	if h.NotificationsReady() {
 		return true
 	}
 	storageError(w, http.StatusConflict, "notifications_not_enabled", "The server has no PASSCODE_ENC_KEY; new notifications are unavailable.")
 	return false
 }
-func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request, site model.Site) {
+func (h *DataHandler) createNotification(w http.ResponseWriter, r *http.Request, site model.Site) {
 	if !h.requireNotifications(w) {
 		return
 	}
@@ -385,3 +379,5 @@ func (h *SiteHandler) createNotification(w http.ResponseWriter, r *http.Request,
 	}
 	writeJSON(w, 201, map[string]any{"notification": notificationView(n), "secret": req.Secret})
 }
+
+func storageJSON(v any) json.RawMessage { b, _ := json.Marshal(v); return b }

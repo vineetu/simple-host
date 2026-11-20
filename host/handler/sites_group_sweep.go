@@ -25,7 +25,7 @@ func (h *SiteHandler) startGroupSweep(ctx context.Context, every time.Duration, 
 		defer t.Stop()
 		for n := 0; ; n++ {
 			o.tracker.Attempt()
-			groupSweepPass(ctx, n, sweep, h.SyncSuspendMarkers)
+			groupSweepPass(ctx, n, sweep, h.access.SyncSuspendMarkers)
 			select {
 			case <-ctx.Done():
 				return

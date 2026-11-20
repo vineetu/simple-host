@@ -13,13 +13,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// registerAssistant wires SIM-394's organiser assistant chat. Refusals use
-// the shared {"error", "code"} body.
-func (h *HackHandler) registerAssistant(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/assistant", wrap(h.getAssistant))
-	mux.Handle("POST /v1/hack/events/{slug}/assistant", wrap(h.postAssistant))
-}
-
 // assistantSecretKeyWords: any event-view JSON key whose lowercased name
 // contains one of these is dropped before the view reaches the prompt. The
 // contract (api-contract.md) lists the first seven; "url" is added here
@@ -83,7 +76,7 @@ func sanitizeAssistantEventView(v any) any {
 // nested value into exactly the shapes the sanitiser walks (object,
 // array, string, number, bool, null), so nothing with a secret-looking
 // field name can hide behind a concrete Go type.
-func (h *HackHandler) sanitizedAssistantEventView(ctx context.Context, ev model.Event, member model.EventMember) (json.RawMessage, error) {
+func (h *assistantHTTP) sanitizedAssistantEventView(ctx context.Context, ev model.Event, member model.EventMember) (json.RawMessage, error) {
 	view := h.eventView(ctx, ev, member, true)
 	// entry_required is the legacy six-field list (kept one release for
 	// old clients): it cannot say "One of" and has no website, so next to
@@ -124,7 +117,7 @@ func sanitizeAssistantEventViewJSON(v any) (json.RawMessage, error) {
 // event_not_found), the contract is explicit that this route always
 // answers 403 here, so the check is done by hand instead of passed to
 // loadMember as a roles filter.
-func (h *HackHandler) assistantAccess(w http.ResponseWriter, r *http.Request) (hackAccess, bool) {
+func (h *assistantHTTP) assistantAccess(w http.ResponseWriter, r *http.Request) (hackAccess, bool) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
 	if !ok {
 		return hackAccess{}, false
@@ -146,16 +139,16 @@ func (h *HackHandler) assistantAccess(w http.ResponseWriter, r *http.Request) (h
 	return a, true
 }
 
-func (h *HackHandler) getAssistant(w http.ResponseWriter, r *http.Request) {
+func (h *assistantHTTP) getAssistant(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.assistantAccess(w, r)
 	if !ok {
 		return
 	}
-	if h.assistant == nil || !h.assistant.Enabled() {
+	if h.service == nil || !h.service.Enabled() {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"enabled": false})
 		return
 	}
-	status, err := h.assistant.Status(r.Context(), a.user.ID)
+	status, err := h.service.Status(r.Context(), a.user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -223,16 +216,16 @@ func assistantRefusalBody(refusal *events.AssistantRefusal) map[string]any {
 	return body
 }
 
-func (h *HackHandler) postAssistant(w http.ResponseWriter, r *http.Request) {
+func (h *assistantHTTP) postAssistant(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.assistantAccess(w, r)
 	if !ok {
 		return
 	}
-	if h.assistant == nil || !h.assistant.Enabled() {
+	if h.service == nil || !h.service.Enabled() {
 		httpx.WriteError(w, http.StatusNotFound, "assistant_off", "The assistant is not set up on this server.")
 		return
 	}
-	if !h.assistantWrites.Allow(a.user.ID) {
+	if !h.writes.Allow(a.user.ID) {
 		httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "Too many questions at once. Wait a minute and try again.")
 		return
 	}
@@ -246,7 +239,7 @@ func (h *HackHandler) postAssistant(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	canJudge := h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member).Judge
+	canJudge := h.events.MemberAbilities(r.Context(), a.event.ID, a.member).Judge
 
 	// http.NewResponseController, not a w.(http.Flusher) type assertion:
 	// in production w is never the bare ResponseWriter the server handed
@@ -285,7 +278,7 @@ func (h *HackHandler) postAssistant(w http.ResponseWriter, r *http.Request) {
 		Screen:    req.Screen,
 		Tab:       req.Tab,
 	}
-	result, askErr := h.assistant.Ask(r.Context(), a.user.ID, in, req.Messages, func(delta string) {
+	result, askErr := h.service.Ask(r.Context(), a.user.ID, in, req.Messages, func(delta string) {
 		sendHeaders()
 		writeSSE(map[string]any{"delta": delta})
 	})

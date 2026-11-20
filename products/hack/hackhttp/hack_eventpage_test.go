@@ -3,7 +3,6 @@ package hackhttp
 import (
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/products/hack/app/events"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/products/hack/app/events"
 
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 )
@@ -1345,18 +1346,6 @@ func TestHackEventPageNotFoundIsFriendly(t *testing.T) {
 	assertStrictScriptCSP(t, "event not found", rec)
 }
 
-const dashHrefBaselineJS = `      // "Your sites" goes straight to the account's own page when this browser
-      // knows its handle (sh-owner-handle, kept by the owner page and the
-      // dashboard after /v1/me), skipping the /dashboard hop.
-      var dashHref = dash.getAttribute('href');
-      var acctLink = acctMenu.querySelector('a');
-      var sitesHref = function (on) {
-        var h = '';
-        try { h = on ? localStorage.getItem('sh-owner-handle') || '' : ''; } catch (e) {}
-        return /^[a-z0-9-]+$/.test(h) ? '{{.Base}}/' + h : dashHref;
-      };
-`
-
 // SIM-379: the public page's date line shows a time only when the start or
 // end carries one. A date-only boundary -- local midnight, Basics' and the
 // API's own default for both Starts and Ends (hack_create_event: "A date
@@ -1424,7 +1413,7 @@ func TestOverallPrizesValidation(t *testing.T) {
 		{[]string{"a\nb"}, nil, true}, {[]string{"a\rb"}, nil, true},
 		{[]string{strings.Repeat("賞", 61)}, nil, true},
 	} {
-		got, err := checkOverallPrizesValue(tc.in)
+		got, err := events.EventOverallPrizes(tc.in)
 		if tc.invalid {
 			var coded *events.Error
 			if !errors.As(err, &coded) || coded.Code != "invalid_overall_prizes" {

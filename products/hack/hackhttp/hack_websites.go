@@ -13,13 +13,8 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) registerEventWebsite(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("GET /v1/hack/events/{slug}/website", wrap(h.getEventWebsite))
-	mux.Handle("PATCH /v1/hack/events/{slug}/website", wrap(h.patchEventWebsite))
-}
-
-func (h *HackHandler) eventWebsiteState(ctx context.Context, ev hackmodel.Event) (map[string]any, error) {
-	site, err := h.eventsSvc().SiteByUser(ctx, ev.AccountID, ev.ID)
+func (h *publicEventHTTP) eventWebsiteState(ctx context.Context, ev hackmodel.Event) (map[string]any, error) {
+	site, err := h.events.SiteByUser(ctx, ev.AccountID, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": []any{},
 			"custom_url": h.EventURL(ev.Slug), "builtin_url": h.publicBaseURL + "/e/" + ev.Slug, "site": ev.ID, "owner": ev.Slug}, nil
@@ -27,7 +22,7 @@ func (h *HackHandler) eventWebsiteState(ctx context.Context, ev hackmodel.Event)
 	if err != nil {
 		return nil, err
 	}
-	versions, err := h.eventsSvc().SiteVersions(ctx, site.ID)
+	versions, err := h.events.SiteVersions(ctx, site.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +37,7 @@ func (h *HackHandler) eventWebsiteState(ctx context.Context, ev hackmodel.Event)
 		"active_version": site.ActiveVersion}, nil
 }
 
-func (h *HackHandler) getEventWebsite(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) getEventWebsite(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
@@ -55,7 +50,7 @@ func (h *HackHandler) getEventWebsite(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, state)
 }
 
-func (h *HackHandler) patchEventWebsite(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) patchEventWebsite(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -75,7 +70,7 @@ func (h *HackHandler) patchEventWebsite(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if req.Mode == "custom" {
-		if _, err := h.eventsSvc().SiteByUser(r.Context(), a.event.AccountID, a.event.ID); err != nil {
+		if _, err := h.events.SiteByUser(r.Context(), a.event.AccountID, a.event.ID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				httpx.WriteError(w, http.StatusConflict, "website_not_published", "publish an event website first")
 			} else {
@@ -84,7 +79,7 @@ func (h *HackHandler) patchEventWebsite(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	ev, err := h.eventsSvc().SetEventWebsiteModeLookup(r.Context(), a.event.ID, a.user.ID, req.Mode)
+	ev, err := h.events.SetEventWebsiteModeLookup(r.Context(), a.event.ID, a.user.ID, req.Mode)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeEventNotFound(w)
@@ -101,7 +96,7 @@ func (h *HackHandler) patchEventWebsite(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, http.StatusOK, state)
 }
 
-func (h *HackHandler) websiteSitesSvc() *appsites.Service {
+func (h *hackBase) websiteSitesSvc() *appsites.Service {
 	return appsites.New(h.database, nil, nil, 0, appsites.Deps{
 		WebsiteArchiveDefault: h.siteArchiveDefault,
 		WebsiteLimit: func(ctx context.Context, user *model.User) (int64, bool) {
@@ -111,11 +106,11 @@ func (h *HackHandler) websiteSitesSvc() *appsites.Service {
 	})
 }
 
-func (h *HackHandler) websiteUploadLimit(ctx context.Context, ev hackmodel.Event) int64 {
+func (h *hackBase) websiteUploadLimit(ctx context.Context, ev hackmodel.Event) int64 {
 	return h.websiteSitesSvc().WebsiteUploadLimit(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
 
-func (h *HackHandler) websiteUploadLimits(ctx context.Context, ev hackmodel.Event) string {
+func (h *hackBase) websiteUploadLimits(ctx context.Context, ev hackmodel.Event) string {
 	return h.websiteSitesSvc().WebsiteUploadLimits(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
 

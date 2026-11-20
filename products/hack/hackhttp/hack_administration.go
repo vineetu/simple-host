@@ -20,25 +20,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) registerAdministration(mux *http.ServeMux, wrap, optional func(http.HandlerFunc) http.Handler) {
-	mux.Handle("POST /v1/hack/events/{slug}/organiser-invite", wrap(h.createOrganiserInvite))
-	mux.Handle("DELETE /v1/hack/events/{slug}/organiser-invite", wrap(h.revokeOrganiserInvite))
-	mux.Handle("DELETE /v1/hack/events/{slug}/organisers/{user_id}", wrap(h.removeOrganiser))
-	mux.Handle("GET /v1/hack/organiser/{code}", optional(h.getOrganiserInvite))
-	mux.Handle("POST /v1/hack/organiser/{code}", wrap(h.acceptOrganiserInvite))
-	mux.Handle("PATCH /v1/hack/events/{slug}/teams/{team}", wrap(h.renameTeam))
-	mux.Handle("GET /v1/hack/events/{slug}/export/participants.csv", wrap(h.exportAdministrationCSV))
-	mux.Handle("GET /v1/hack/events/{slug}/export/teams.csv", wrap(h.exportAdministrationCSV))
-	mux.Handle("GET /v1/hack/events/{slug}/export/entries.csv", wrap(h.exportAdministrationCSV))
-	mux.Handle("GET /v1/hack/events/{slug}/export/projects.tar.gz", wrap(h.exportProjects))
-	mux.Handle("GET /v1/hack/events/{slug}/team/export.tar.gz", wrap(h.exportOwnTeam))
-	mux.Handle("POST /v1/hack/events/{slug}/export/projects-link", wrap(h.createHackArchiveLink))
-	mux.Handle("POST /v1/hack/events/{slug}/export/own-team-link", wrap(h.createHackArchiveLink))
-	mux.Handle("GET /v1/hack/archive", http.HandlerFunc(h.downloadHackArchive))
-	mux.Handle("GET /v1/hack/events/{slug}/usage", wrap(h.eventUsage))
-}
-
-func (h *HackHandler) administrationWrite(w http.ResponseWriter, r *http.Request) (hackAccess, bool) {
+func (h *hackBase) administrationWrite(w http.ResponseWriter, r *http.Request) (hackAccess, bool) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if ok && a.event.Stage == "archived" {
 		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
@@ -52,7 +34,7 @@ func (h *HackHandler) createOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	code, expires, err := h.eventsSvc().CreateOrganiserInvite(r.Context(), a.event.ID, a.user.ID)
+	code, expires, err := h.events.CreateOrganiserInvite(r.Context(), a.event.ID, a.user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -66,7 +48,7 @@ func (h *HackHandler) revokeOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if err := h.eventsSvc().RevokeOrganiserInvite(r.Context(), a.event.ID); err != nil {
+	if err := h.events.RevokeOrganiserInvite(r.Context(), a.event.ID); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -81,7 +63,7 @@ func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request)
 	if h.rateLimited(w, r, caller) {
 		return
 	}
-	ev, err := h.eventsSvc().OrganiserInvite(r.Context(), r.PathValue("code"))
+	ev, err := h.events.OrganiserInvite(r.Context(), r.PathValue("code"))
 	if errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteError(w, 404, "invalid_code", "invalid or expired invitation")
 		return
@@ -118,7 +100,7 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	name := req.DisplayName
-	ev, member, err := h.eventsSvc().AcceptOrganiserInvite(r.Context(), r.PathValue("code"), user.ID, name)
+	ev, member, err := h.events.AcceptOrganiserInvite(r.Context(), r.PathValue("code"), user.ID, name)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -136,7 +118,7 @@ func (h *HackHandler) removeOrganiser(w http.ResponseWriter, r *http.Request) {
 		writeEventNotFound(w)
 		return
 	}
-	if err := h.eventsSvc().RemoveOrganiser(r.Context(), a.event, a.user.ID, id); err != nil {
+	if err := h.events.RemoveOrganiser(r.Context(), a.event, a.user.ID, id); err != nil {
 		writeHackError(w, err)
 		return
 	}
@@ -159,7 +141,7 @@ func (h *HackHandler) renameTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := r.PathValue("team")
-	err := h.teamsSvc().RenameEventTeamLookup(r.Context(), a.event.ID, slug, name)
+	err := h.teams.RenameEventTeamLookup(r.Context(), a.event.ID, slug, name)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeEventNotFound(w)
 		return
@@ -184,7 +166,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 	kind := filepath.Base(r.URL.Path)
 	switch kind {
 	case "participants.csv":
-		people, err := h.eventsSvc().EventPeople(r.Context(), a.event.ID)
+		people, err := h.events.EventPeople(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -204,12 +186,12 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 			}
 		}
 	case "teams.csv":
-		teams, err := h.teamsSvc().EventTeams(r.Context(), a.event.ID)
+		teams, err := h.teams.EventTeams(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
 		}
-		people, err := h.eventsSvc().EventPeople(r.Context(), a.event.ID)
+		people, err := h.events.EventPeople(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -230,7 +212,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 			httpx.WriteInternal(w)
 			return
 		}
-		teams, err := h.teamsSvc().EventTeams(r.Context(), a.event.ID)
+		teams, err := h.teams.EventTeams(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -240,7 +222,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 			byID[t.ID] = t
 		}
 		fields := entryapp.LoadRules(a.event.EntryRules)
-		tracks, err := h.eventsSvc().EventTracks(r.Context(), a.event.ID)
+		tracks, err := h.events.EventTracks(r.Context(), a.event.ID)
 		if err != nil {
 			httpx.WriteInternal(w)
 			return
@@ -252,7 +234,7 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 			"status", "submitted_at", "submit_auto", "problem", "audience", "track", "tools", "maturity", "missing", "excluded"})
 		for _, e := range entries {
 			t := byID[e.TeamID]
-			track, err := h.eventsSvc().TeamTrackLookup(r.Context(), e.TeamID)
+			track, err := h.events.TeamTrackLookup(r.Context(), e.TeamID)
 			if err != nil {
 				httpx.WriteInternal(w)
 				return
@@ -327,7 +309,7 @@ func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	u, err := h.eventsSvc().EventStorageLookup(r.Context(), a.event)
+	u, err := h.events.EventStorageLookup(r.Context(), a.event)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -347,7 +329,7 @@ func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 
 // exportEventProjects resolves product-owned team names after authorization.
 func (h *HackHandler) exportEventProjects(w http.ResponseWriter, r *http.Request, sites hackAdministrationSites, ev model.Event, ownSlug string) {
-	teams, err := h.teamsSvc().SiteTeams(r.Context(), ev.ID)
+	teams, err := h.teams.SiteTeams(r.Context(), ev.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return

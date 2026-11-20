@@ -54,7 +54,7 @@ const (
 // live session for this site and host. Unlike strictVisitorSession it also
 // counts on a navigation from elsewhere (a link in an email): the cookie is
 // SameSite=Lax and host-only, and siteGate refuses cross-site subresources.
-func (h *SiteHandler) viewerSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
+func (h *AccessHandler) viewerSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
 	if r.Header.Get(visitorPassHeader) != "" {
 		return h.internalVisitorSession(r, siteID)
 	}
@@ -66,7 +66,7 @@ func (h *SiteHandler) viewerSession(r *http.Request, siteID string) (model.Visit
 // or a named viewer by the address the account signs in with (visitorEmail,
 // the address other people's sites see). A suspended account never is. email
 // is that address ("" for the owner).
-func (h *SiteHandler) viewerAllowed(r *http.Request, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
+func (h *AccessHandler) viewerAllowed(r *http.Request, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
 	return h.viewerAllowedCtx(r.Context(), row, userID)
 }
 
@@ -75,7 +75,7 @@ func (h *SiteHandler) viewerAllowed(r *http.Request, row model.SitePasscodeRow, 
 // request, so an async caller (SIM-360 push delivery, which has no request
 // at all) can run the exact same named-viewers decision a live HTTP
 // request would.
-func (h *SiteHandler) viewerAllowedCtx(ctx context.Context, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
+func (h *AccessHandler) viewerAllowedCtx(ctx context.Context, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
 	if susp, err := h.storeAccounts().UserSuspended(ctx, userID); err != nil || susp {
 		return false, "", err
 	}
@@ -93,7 +93,7 @@ func (h *SiteHandler) viewerAllowedCtx(ctx context.Context, row model.SitePassco
 	if !valid {
 		return false, email, nil
 	}
-	listed, err := h.sitesSvc().IsSiteViewer(ctx, row.SiteID, norm)
+	listed, err := h.site.sitesSvc().IsSiteViewer(ctx, row.SiteID, norm)
 	return listed, email, err
 }
 
@@ -113,8 +113,8 @@ func (h *SiteHandler) viewerAllowedCtx(ctx context.Context, row model.SitePassco
 // an async delivery never has. A site with no passcode row at all, or one
 // not in named-viewers mode, is unconditionally welcome (unchanged from
 // before SIM-360), matching ViewersLetIn's own early returns exactly.
-func (h *SiteHandler) visitorStillWelcome(ctx context.Context, siteID, userID string) (bool, error) {
-	row, err := h.sitesSvc().GetSitePasscode(ctx, siteID)
+func (h *AccessHandler) visitorStillWelcome(ctx context.Context, siteID, userID string) (bool, error) {
+	row, err := h.site.sitesSvc().GetSitePasscode(ctx, siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true, nil
 	}
@@ -132,9 +132,9 @@ func (h *SiteHandler) visitorStillWelcome(ctx context.Context, siteID, userID st
 // not open it, and reports whether it did. Signed out: the sign-in page (401).
 // Signed in but not on the list: the private page (403). A cross-site
 // subresource never gets in. The caller has set the private-cache headers.
-func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row model.SitePasscodeRow) bool {
+func (h *AccessHandler) viewerGate(w http.ResponseWriter, r *http.Request, row model.SitePasscodeRow) bool {
 	if crossSiteSubresource(r) || framedElsewhere(r) {
-		writeOAuthHTMLError(h.pipeline(), w, http.StatusForbidden)
+		writeOAuthHTMLError(h.site.pipeline(), w, http.StatusForbidden)
 		return true
 	}
 	sess, ok := h.viewerSession(r, row.SiteID)
@@ -148,14 +148,14 @@ func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row mod
 	allowed, email, err := h.viewerAllowed(r, row, sess.UserID)
 	if err != nil {
 		log.Printf("viewers: site %s: %v", row.SiteID, err)
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return true
 	}
 	if !allowed {
 		// The owner hears about it once a day per person, for a page visit
 		// only (a stray subresource is not someone asking to be let in).
 		if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
-			h.emitSiteNotification(row.SiteID, "viewer.access_requested", map[string]any{"visitor": sess.UserID}, 24*time.Hour)
+			h.data.emitSiteNotification(row.SiteID, "viewer.access_requested", map[string]any{"visitor": sess.UserID}, 24*time.Hour)
 		}
 		h.serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "", h.ssoBaseURL)
 		return true
@@ -171,7 +171,7 @@ func (h *SiteHandler) viewerGate(w http.ResponseWriter, r *http.Request, row mod
 // first), a read from a preview page, or a same-origin request from the
 // owner or a named viewer signed in on this host. Not a named-viewers site:
 // true.
-func (h *SiteHandler) viewersLetIn(r *http.Request, row model.SitePasscodeRow) (bool, error) {
+func (h *AccessHandler) viewersLetIn(r *http.Request, row model.SitePasscodeRow) (bool, error) {
 	if !row.NamedViewers {
 		return true, nil
 	}
@@ -207,8 +207,8 @@ func framedElsewhere(r *http.Request) bool {
 
 // ViewersLetIn is viewersLetIn for a site id, for storage (site_storage.go):
 // errors count as no.
-func (h *SiteHandler) ViewersLetIn(r *http.Request, siteID string) bool {
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
+func (h *AccessHandler) ViewersLetIn(r *http.Request, siteID string) bool {
+	row, err := h.site.sitesSvc().GetSitePasscode(r.Context(), siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true
 	}
@@ -245,7 +245,7 @@ var viewerGateHead = strings.Replace(strings.Replace(passcodeGateHead, "<title>P
 // bar. next "" leaves the forms out (a shared host, or a subresource). Like
 // the passcode gate, a request that is not a page gets a short plain answer
 // and /robots.txt says "Disallow: /".
-func (h *SiteHandler) serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, next, email, msg string, apex ...string) {
+func (h *AccessHandler) serveViewerPage(w http.ResponseWriter, r *http.Request, page viewerPage, next, email, msg string, apex ...string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
 	w.Header().Set("Referrer-Policy", "same-origin")
@@ -276,7 +276,7 @@ func (h *SiteHandler) serveViewerPage(w http.ResponseWriter, r *http.Request, pa
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
-	if !h.pipeline().chromeProduct {
+	if !h.site.pipeline().chromeProduct {
 		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
 	}
 	if len(apex) > 0 && publicBaseOrigin(apex[0]) != nil {
@@ -289,13 +289,13 @@ func (h *SiteHandler) serveViewerPage(w http.ResponseWriter, r *http.Request, pa
 	_, _ = w.Write([]byte(h.viewerPageHTML(r, page, next, email, msg)))
 }
 
-func (h *SiteHandler) viewerPageHTML(r *http.Request, page viewerPage, next, email, msg string) string {
+func (h *AccessHandler) viewerPageHTML(r *http.Request, page viewerPage, next, email, msg string) string {
 	host := requestHostName(r)
 	var b strings.Builder
-	if h.pipeline().chromeProduct {
+	if h.site.pipeline().chromeProduct {
 		b.WriteString(viewerGateHead)
 	} else {
-		b.Write(h.pipeline().hostedStatusPage(viewerGateHead))
+		b.Write(h.site.pipeline().hostedStatusPage(viewerGateHead))
 	}
 	b.WriteString(`<body><main class="gate"`)
 	if page == viewerPageCode {
@@ -348,7 +348,7 @@ func (h *SiteHandler) viewerPageHTML(r *http.Request, page viewerPage, next, ema
 	default:
 		b.WriteString(`<h1>This site is private</h1>`)
 		b.WriteString(`<p class="lead">Only people the owner named can open it. Sign in with the email they added.</p>`)
-		if viewerGoogle && strings.HasPrefix(next, "/") {
+		if h.viewerGoogle && strings.HasPrefix(next, "/") {
 			scheme := "http://"
 			if requestIsHTTPS(r) {
 				scheme = "https://"
@@ -410,20 +410,16 @@ func visitorGmailURL(ua string) string {
 	return "https://mail.google.com/mail/"
 }
 
-// viewerGoogle: Google sign-in is set up on this install (SetVisitorSignIn),
-// so the sign-in page offers it next to the emailed code.
-var viewerGoogle bool
-
 // --- Signing in and out from the pages ---
 
 // viewerSiteForForm finds the named-viewers site a form on this host is
 // for (as the passcode form does). ok=false: nothing to sign in to here.
-func (h *SiteHandler) viewerSiteForForm(r *http.Request, next string) (model.SitePasscodeRow, bool, error) {
+func (h *AccessHandler) viewerSiteForForm(r *http.Request, next string) (model.SitePasscodeRow, bool, error) {
 	userID, name, ok, err := h.passcodeSiteForHost(r.Context(), requestHostName(r), next)
 	if err != nil || !ok {
 		return model.SitePasscodeRow{}, false, err
 	}
-	row, err := h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, name)
+	row, err := h.site.sitesSvc().GetSitePasscodeByName(r.Context(), userID, name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return row, false, nil
 	}
@@ -441,7 +437,7 @@ func (h *SiteHandler) viewerSiteForForm(r *http.Request, next string) (model.Sit
 // this site on this host and 303 back to next. Only from a page on this very
 // host (login CSRF), only for the site this host names. Everyone gets a code,
 // listed or not, so the form never says who is on the list.
-func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 	if err := r.ParseForm(); err != nil {
 		writeProductErr(w, http.StatusBadRequest, "invalid_request", "bad request")
@@ -455,7 +451,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 	row, ok, err := h.viewerSiteForForm(r, next)
 	if err != nil {
 		log.Printf("viewers sign-in %s: %v", requestHostName(r), err)
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return
 	}
 	if !ok {
@@ -501,16 +497,16 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := randomRaw(32)
 	if err != nil {
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return
 	}
 	now := time.Now()
 	first, err := h.storeAccounts().InsertVisitorSession(r.Context(), id, user.ID, row.SiteID, requestHostName(r), now.Add(h.visitorSessionTTL()), now.Add(h.visitorSessionIdle()))
 	if err != nil {
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return
 	}
-	h.visitorSignedIn(r, row.SiteID, user.ID, first)
+	h.site.visitorSignedIn(r, row.SiteID, user.ID, first)
 	setVisitorSessionCookie(w, r, hex.EncodeToString(id), h.visitorCookieMaxAge())
 	log.Printf("viewers_sign_in site_id=%s user_id=%s", row.SiteID, user.ID)
 	w.Header().Set("Cache-Control", "no-store")
@@ -520,7 +516,7 @@ func (h *SiteHandler) viewerSignIn(w http.ResponseWriter, r *http.Request) {
 // viewerSignOut is POST /v1/site-signout, the private page's buttons: ends
 // this host's visitor session and 303s back to next, which then shows the
 // sign-in page. Only from a page on this very host.
-func (h *SiteHandler) viewerSignOut(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) viewerSignOut(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 	if err := r.ParseForm(); err != nil {
 		writeProductErr(w, http.StatusBadRequest, "invalid_request", "bad request")
@@ -533,7 +529,7 @@ func (h *SiteHandler) viewerSignOut(w http.ResponseWriter, r *http.Request) {
 	}
 	back, err := h.endSiteSSO(w, r, next)
 	if err != nil {
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return
 	}
 	if back != "" {
@@ -560,12 +556,12 @@ type siteAccessResponse struct {
 	Note              string             `json:"note,omitempty"`
 }
 
-func (h *SiteHandler) siteAccessState(r *http.Request, site model.Site) (siteAccessResponse, error) {
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
+func (h *AccessHandler) siteAccessState(r *http.Request, site model.Site) (siteAccessResponse, error) {
+	row, err := h.site.sitesSvc().GetSitePasscode(r.Context(), site.ID)
 	if err != nil {
 		return siteAccessResponse{}, err
 	}
-	viewers, err := h.sitesSvc().ListSiteViewers(r.Context(), site.ID)
+	viewers, err := h.site.sitesSvc().ListSiteViewers(r.Context(), site.ID)
 	if err != nil {
 		return siteAccessResponse{}, err
 	}
@@ -576,7 +572,7 @@ func (h *SiteHandler) siteAccessState(r *http.Request, site model.Site) (siteAcc
 	return siteAccessResponse{Site: site.Name, Access: access, Viewers: viewers, ViewerLimit: h.limits.SiteViewersMax, PasscodeProtected: row.Enc != nil}, nil
 }
 
-func (h *SiteHandler) writeSiteAccess(w http.ResponseWriter, r *http.Request, site model.Site, resp siteAccessResponse) {
+func (h *AccessHandler) writeSiteAccess(w http.ResponseWriter, r *http.Request, site model.Site, resp siteAccessResponse) {
 	state, err := h.siteAccessState(r, site)
 	if err != nil {
 		writeSiteLookupError(w, err)
@@ -589,9 +585,9 @@ func (h *SiteHandler) writeSiteAccess(w http.ResponseWriter, r *http.Request, si
 
 // getSiteAccess is GET /v1/sites/{sitename}/access: who can open the site
 // (access "anyone" or "specific") and its named viewers.
-func (h *SiteHandler) getSiteAccess(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) getSiteAccess(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, strings.TrimSpace(r.PathValue("sitename")))
+	site, err := h.site.sitesSvc().GetSiteByUser(r.Context(), user.ID, strings.TrimSpace(r.PathValue("sitename")))
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
@@ -601,13 +597,13 @@ func (h *SiteHandler) getSiteAccess(w http.ResponseWriter, r *http.Request) {
 
 // namedViewersRefusal is why named viewers cannot be turned on for a site
 // here, as the 409 to write; "" when they can.
-func (h *SiteHandler) namedViewersRefusal(site model.Site, row model.SitePasscodeRow) (code, msg string) {
+func (h *AccessHandler) namedViewersRefusal(site model.Site, row model.SitePasscodeRow) (code, msg string) {
 	switch {
 	case h.ed.Storage().EventSites:
 		return "named_viewers_unavailable", "named viewers are not available on Simple Hack; event and team sites have their own access rules"
 	case h.noVisitorSignIn:
 		return "sign_in_unavailable", "named viewers sign in with an emailed code or Google, and this server has neither set up"
-	case h.SharedOrigin() || contentHostOnlySites[site.OwnerHandle+"/"+site.Name] || !h.personAddressFor(site.OwnerHandle, site.Name):
+	case h.site.SharedOrigin() || contentHostOnlySites[site.OwnerHandle+"/"+site.Name] || !h.site.personAddressFor(site.OwnerHandle, site.Name):
 		return "named_viewers_need_own_address", "named viewers need the site to have an address of its own, and this site is served on an address every site shares"
 	case row.Enc != nil:
 		return "passcode_set", "this site has a passcode; a site has a passcode or named viewers, not both. Remove the passcode first (remove_site_passcode, or DELETE /v1/sites/{sitename}/lock), after the person agrees"
@@ -617,7 +613,7 @@ func (h *SiteHandler) namedViewersRefusal(site model.Site, row model.SitePasscod
 
 // turnOnNamedViewers sets access to specific: the marker first, then the
 // database, so a failure in between leaves the site closed, never open.
-func (h *SiteHandler) turnOnNamedViewers(w http.ResponseWriter, r *http.Request, site model.Site, row model.SitePasscodeRow) bool {
+func (h *AccessHandler) turnOnNamedViewers(w http.ResponseWriter, r *http.Request, site model.Site, row model.SitePasscodeRow) bool {
 	if row.NamedViewers {
 		return true
 	}
@@ -625,7 +621,7 @@ func (h *SiteHandler) turnOnNamedViewers(w http.ResponseWriter, r *http.Request,
 		writeJSON(w, http.StatusConflict, errorResponse{Error: msg, Code: code})
 		return false
 	}
-	if err := h.sitesSvc().SetSiteAccess(r.Context(), site, row, accessSpecific); err != nil {
+	if err := h.site.sitesSvc().SetSiteAccess(r.Context(), site, row, accessSpecific); err != nil {
 		writeAccessMutationError(w, err)
 		return false
 	}
@@ -638,7 +634,7 @@ func (h *SiteHandler) turnOnNamedViewers(w http.ResponseWriter, r *http.Request,
 // "specific"}. specific: only the owner and the named viewers can open the
 // site (with none named yet, only the owner). anyone: open to everyone with
 // the address again; the list is kept for next time.
-func (h *SiteHandler) putSiteAccess(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) putSiteAccess(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Access string `json:"access"`
 	}
@@ -654,7 +650,7 @@ func (h *SiteHandler) putSiteAccess(w http.ResponseWriter, r *http.Request) {
 	if refuseSuspendedSite(w, site) {
 		return
 	}
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
+	row, err := h.site.sitesSvc().GetSitePasscode(r.Context(), site.ID)
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
@@ -667,7 +663,7 @@ func (h *SiteHandler) putSiteAccess(w http.ResponseWriter, r *http.Request) {
 		note = "Only you and the named viewers can open the site now; everyone else sees a sign-in page. Viewers sign in on the site with the email you named."
 	} else {
 		if row.NamedViewers {
-			if err := h.sitesSvc().SetSiteAccess(r.Context(), site, row, accessAnyone); err != nil {
+			if err := h.site.sitesSvc().SetSiteAccess(r.Context(), site, row, accessAnyone); err != nil {
 				writeAccessMutationError(w, err)
 				return
 			}
@@ -681,7 +677,7 @@ func (h *SiteHandler) putSiteAccess(w http.ResponseWriter, r *http.Request) {
 
 // addSiteViewers is POST /v1/sites/{sitename}/viewers {"emails": [...]}: names
 // viewers and sets access to specific (one call: "only mom and dad").
-func (h *SiteHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Emails []string `json:"emails"`
 	}
@@ -715,7 +711,7 @@ func (h *SiteHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 	if refuseSuspendedSite(w, site) {
 		return
 	}
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
+	row, err := h.site.sitesSvc().GetSitePasscode(r.Context(), site.ID)
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
@@ -726,7 +722,7 @@ func (h *SiteHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	have, err := h.sitesSvc().CountSiteViewers(r.Context(), site.ID)
+	have, err := h.site.sitesSvc().CountSiteViewers(r.Context(), site.ID)
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
@@ -734,7 +730,7 @@ func (h *SiteHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 	var fresh []string
 	var already []string
 	for _, e := range emails {
-		if listed, err := h.sitesSvc().IsSiteViewer(r.Context(), site.ID, e); err != nil {
+		if listed, err := h.site.sitesSvc().IsSiteViewer(r.Context(), site.ID, e); err != nil {
 			writeSiteLookupError(w, err)
 			return
 		} else if listed {
@@ -750,7 +746,7 @@ func (h *SiteHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 	// The list first, then the gate: a failure in between leaves the site as
 	// it was, with the names ready.
 	for _, e := range fresh {
-		if _, err := h.sitesSvc().AddSiteViewer(r.Context(), site.ID, e); err != nil {
+		if _, err := h.site.sitesSvc().AddSiteViewer(r.Context(), site.ID, e); err != nil {
 			writeSiteLookupError(w, err)
 			return
 		}
@@ -766,7 +762,7 @@ func (h *SiteHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 // removeSiteViewer is DELETE /v1/sites/{sitename}/viewers/{email}: takes one
 // person off the list; their next request is refused. Access stays as it is:
 // removing the last viewer leaves the site open only to its owner.
-func (h *SiteHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request) {
 	e, ok := authrules.NormalEmail(r.PathValue("email"))
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "not an email address", Code: "invalid_email"})
@@ -777,7 +773,7 @@ func (h *SiteHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	removed, err := h.sitesSvc().RemoveSiteViewer(r.Context(), site.ID, e)
+	removed, err := h.site.sitesSvc().RemoveSiteViewer(r.Context(), site.ID, e)
 	if err != nil {
 		writeSiteLookupError(w, err)
 		return
@@ -801,4 +797,24 @@ func siteAccessOf(s model.Site) string {
 		return accessSpecific
 	}
 	return accessAnyone
+}
+
+// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
+// (host/geoip, GEOIP_DIR) so every visitor email-code sign-in or sign-up
+// attempt from a blocked country is refused before anything is created or
+// emailed — a new account and an existing one alike. geo may be nil;
+// countries may be empty — either turns this off.
+func (h *AccessHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
+	h.geoBlock = guard
+}
+
+// SetVisitorSignIn records how visitors can sign in on this install: email
+// codes (email) and the OAuth providers configured (providers).
+func (h *AccessHandler) SetVisitorSignIn(email bool, providers []string) {
+	h.noEmail = !email
+	h.noVisitorSignIn = !email && len(providers) == 0
+	h.viewerGoogle = false
+	for _, p := range providers {
+		h.viewerGoogle = h.viewerGoogle || p == "google"
+	}
 }

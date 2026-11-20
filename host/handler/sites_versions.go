@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -59,17 +58,6 @@ const maxSiteKeepVersions = 1000
 // KEEP_VERSIONS. 0 means keep every version.
 func effectiveKeepVersions(siteKeep int) int {
 	return sites.EffectiveKeepVersions(siteKeep, keepVersions)
-}
-
-// pruneVersions drops deploy history beyond the site's retention (its own
-// keep_versions, else the instance setting). Called after the deploy has
-// committed and been promoted, never before: this is cleanup, and it must not
-// be able to fail a deploy that has already succeeded. It is also what
-// PUT /v1/sites/{sitename}/keep-versions runs to apply a new setting at once.
-// Rows go first, then the folders: once the row is gone nothing can serve
-// or roll back to that version. It returns the version numbers removed.
-func (h *SiteHandler) pruneVersions(ctx context.Context, siteID, userID, siteName string, activeVersion, siteKeep int) []int {
-	return h.sitesSvc().PruneVersions(ctx, sites.PruneInput{SiteID: siteID, UserID: userID, SiteName: siteName, ActiveVersion: activeVersion, SiteKeep: siteKeep})
 }
 
 // setKeepVersions sets how many deploys of one site are kept and applies it at

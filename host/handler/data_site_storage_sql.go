@@ -25,7 +25,7 @@ func storageTableInfo(c storageInspection, table string) (map[string]string, []s
 }
 
 // inspectStorage runs catalog work while the storage service holds admission.
-func (h *SiteHandler) inspectStorage(w http.ResponseWriter, r *http.Request, c storageCall, write bool, fn func(storageInspection) error) bool {
+func (h *DataHandler) inspectStorage(w http.ResponseWriter, r *http.Request, c storageCall, write bool, fn func(storageInspection) error) bool {
 	err := h.storageRequestSvc(r, c).Inspect(r.Context(), h.storageServiceCall(c), write, func(i *appstorage.Inspection) error { return fn(i) })
 	if err == nil {
 		return true
@@ -34,14 +34,14 @@ func (h *SiteHandler) inspectStorage(w http.ResponseWriter, r *http.Request, c s
 	return false
 }
 
-func (h *SiteHandler) storageRuntimeDir(c storageCall) string {
+func (h *DataHandler) storageRuntimeDir(c storageCall) string {
 	return filepath.Join(h.disk.SiteDir(c.ownerID, c.siteName), "runtime")
 }
-func (h *SiteHandler) storageSQLPath(c storageCall) string {
+func (h *DataHandler) storageSQLPath(c storageCall) string {
 	return filepath.Join(h.storageRuntimeDir(c), "sqlite", c.resourceName+".sqlite")
 }
 
-func (h *SiteHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
+func (h *DataHandler) storageSQL(w http.ResponseWriter, r *http.Request) {
 	c, ok := h.storageResourceFor(w, r, "sqlite")
 	if !ok {
 		return
@@ -87,11 +87,11 @@ type sqliteGate = appstorage.SQLiteGate
 
 func newSQLiteGate(n int, wait time.Duration) *sqliteGate { return appstorage.NewSQLiteGate(n, wait) }
 
-// sqliteGateFor is h's SQLite concurrency gate. NewSiteHandler builds one
-// from h.limits up front; a bare &SiteHandler{} (some test fixtures) has no
+// sqliteGateFor is h's SQLite concurrency gate. NewSiteHandlers builds one
+// from h.limits up front; a bare &DataHandler{} (some test fixtures) has no
 // gate yet, so this builds one lazily from the same limits snapshot rather
-// than requiring every such fixture to call NewSiteHandler.
-func (h *SiteHandler) sqliteGateFor() *sqliteGate {
+// than requiring every such fixture to call NewSiteHandlers.
+func (h *DataHandler) sqliteGateFor() *sqliteGate {
 	h.sqliteOnce.Do(func() {
 		if h.sqlite == nil {
 			h.sqlite = newSQLiteGate(h.limits.StorageSQLConcurrency, h.limits.StorageAcquireWait)

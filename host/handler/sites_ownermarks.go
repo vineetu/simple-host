@@ -44,10 +44,14 @@ func (h *SiteHandler) noteOwnerBrowser(r *http.Request, user *model.User) {
 // the response.
 func (h *SiteHandler) visitorSignedIn(r *http.Request, siteID, userID string, first bool) {
 	if first {
-		h.emitSiteNotification(siteID, "visitor.signed_up", map[string]any{"visitor": userID}, 0)
+		h.data.emitSiteNotification(siteID, "visitor.signed_up", map[string]any{"visitor": userID}, 0)
 	}
 	if h.ownerMarks == nil || siteID == "" || userID == "" {
 		return
 	}
 	h.ownerMarkSvc().NoteOwnerVisitorSignIn(r.Context(), sites.OwnerMarkInput{SiteID: siteID, UserID: userID, IP: clientIP(r)})
+}
+
+func (h *SiteHandler) ownerMarkSvc() *sites.Service {
+	return sites.New(h.database, nil, nil, 0, sites.Deps{OwnerMarks: sites.OwnerMarkDeps{Mark: h.ownerMarks.Mark}})
 }

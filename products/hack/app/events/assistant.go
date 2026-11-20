@@ -399,7 +399,7 @@ func assistantScreenLabel(nav rules.NavigationMap, screen, tab string) string {
 		}
 		return label
 	}
-	for _, r := range []rune(tab) {
+	for _, r := range tab {
 		if !(r == '-' || r == '_' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
 			return label
 		}

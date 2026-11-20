@@ -45,8 +45,7 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			warns = append(warns, "Not working yet, fix it and publish again: "+fmt.Sprintf(format, a...))
 		}
 	}
-	type use struct{ kind, name string }
-	uses := map[use]map[string]bool{}
+	uses := map[storageUse]map[string]bool{}
 	paths := make([]string, 0, len(files))
 	for p := range files {
 		paths = append(paths, p)
@@ -64,28 +63,8 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 		}
 		code := text
 		if isHTML {
-			// The page's own scripts, inline and local files it loads.
-			var b strings.Builder
-			for _, m := range inlineScript.FindAllStringSubmatch(text, -1) {
-				attrs := strings.ToLower(m[1])
-				if srcAttr.MatchString(attrs) || (strings.Contains(attrs, "type=") && !strings.Contains(attrs, "javascript") && !strings.Contains(attrs, "module")) {
-					continue
-				}
-				b.WriteString(m[2])
-				b.WriteString("\n")
-			}
-			code = b.String()
-			// The page's own local scripts, each once and only if small.
-			local := code
-			seen := map[string]bool{}
-			for _, m := range scriptSrc.FindAllStringSubmatch(text, -1) {
-				src := strings.TrimPrefix(strings.SplitN(m[1], "?", 2)[0], "./")
-				src = strings.TrimPrefix(src, "/")
-				if js, ok := files[src]; ok && !seen[src] && len(js) <= maxPageCheckBytes && len(local)+len(js) <= 2*maxPageCheckBytes {
-					seen[src] = true
-					local += "\n" + js
-				}
-			}
+			var local string
+			code, local = pageScripts(text, files)
 			tag := authTag.FindString(text)
 			if shUse.MatchString(local) && tag == "" {
 				add(instanceText(`%s uses SH but never loads auth.js, so nothing on it can sign in or save. Add <script src="https://simple-host.app/auth.js"></script> in the head, before the page's own scripts.`), p)
@@ -93,8 +72,6 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			if t := strings.ToLower(tag); (strings.Contains(t, "defer") || strings.Contains(t, "async")) && shUse.MatchString(code) && !waitsForLoaded.MatchString(code) {
 				add(`%s loads auth.js with defer or async, but its script calls SH straight away, before auth.js has run ("SH is not defined"). Load auth.js with a plain script tag in the head, without defer.`, p)
 			}
-		}
-		if isHTML {
 			// Text after </html> means a splice went wrong (SIM-331: a JavaScript
 			// replace with "$'" in it pasted the file's tail into a script), so
 			// the script breaks and its code shows on the page.
@@ -121,7 +98,7 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			add(`%s has a script with literal \n sequences between statements: it was sent double-escaped and will not run. Send the file with real line breaks.`, p)
 		}
 		for _, m := range storageRef.FindAllStringSubmatch(code, -1) {
-			u := use{m[1], m[2]}
+			u := storageUse{m[1], m[2]}
 			if uses[u] == nil {
 				uses[u] = map[string]bool{}
 			}
@@ -130,7 +107,7 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			}
 		}
 		// .table("t") on a variable: credit it to the page's only SQLite resource.
-		var sqlite []use
+		var sqlite []storageUse
 		for u := range uses {
 			if u.kind == "sqlite" && (strings.Contains(code, `"`+u.name+`"`) || strings.Contains(code, `'`+u.name+`'`)) {
 				sqlite = append(sqlite, u)
@@ -142,13 +119,48 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			}
 		}
 	}
-	if len(uses) == 0 || len(warns) >= maxPageWarnings {
-		return warns
+	if len(uses) > 0 && len(warns) < maxPageWarnings {
+		storageWarnings(c, site, uses, add)
 	}
+	return warns
+}
+
+// pageScripts returns an HTML page's own inline scripts (code) and those
+// scripts plus the small local script files it loads, each once (local).
+func pageScripts(text string, files map[string]string) (code, local string) {
+	var b strings.Builder
+	for _, m := range inlineScript.FindAllStringSubmatch(text, -1) {
+		attrs := strings.ToLower(m[1])
+		if srcAttr.MatchString(attrs) || (strings.Contains(attrs, "type=") && !strings.Contains(attrs, "javascript") && !strings.Contains(attrs, "module")) {
+			continue
+		}
+		b.WriteString(m[2])
+		b.WriteString("\n")
+	}
+	code = b.String()
+	local = code
+	seen := map[string]bool{}
+	for _, m := range scriptSrc.FindAllStringSubmatch(text, -1) {
+		src := strings.TrimPrefix(strings.SplitN(m[1], "?", 2)[0], "./")
+		src = strings.TrimPrefix(src, "/")
+		if js, ok := files[src]; ok && !seen[src] && len(js) <= maxPageCheckBytes && len(local)+len(js) <= 2*maxPageCheckBytes {
+			seen[src] = true
+			local += "\n" + js
+		}
+	}
+	return code, local
+}
+
+// storageUse is one storage resource a page names, by kind.
+type storageUse struct{ kind, name string }
+
+// storageWarnings compares the resources (and SQLite tables) the pages use
+// with what the site has.
+func storageWarnings(c *call, site string, uses map[storageUse]map[string]bool, add func(string, ...any)) {
 	base := "/v1/sites/" + url.PathEscape(site) + "/storage"
 	res := c.do(http.MethodGet, base+"/resources", nil, nil)
 	if !res.ok() {
-		return warns
+		return
 	}
 	var listed struct {
 		Resources []struct {
@@ -157,13 +169,13 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 		} `json:"resources"`
 	}
 	if json.Unmarshal(res.body, &listed) != nil {
-		return warns
+		return
 	}
 	kinds := map[string]string{}
 	for _, r := range listed.Resources {
 		kinds[r.Name] = r.Kind
 	}
-	keys := make([]use, 0, len(uses))
+	keys := make([]storageUse, 0, len(uses))
 	for u := range uses {
 		keys = append(keys, u)
 	}
@@ -216,5 +228,4 @@ func pageWarnings(c *call, site string, files map[string]string) []string {
 			}
 		}
 	}
-	return warns
 }

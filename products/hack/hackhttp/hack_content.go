@@ -56,23 +56,13 @@ type hackContentView struct {
 	FixedSchedule []hackFixedRow `json:"fixed_schedule"`
 }
 
-func (h *HackHandler) contentView(ctx context.Context, a hackAccess, c hackContent) (hackContentView, error) {
+func (h *publicEventHTTP) contentView(ctx context.Context, a hackAccess, c hackContent) (hackContentView, error) {
 	organiser := a.member.Role == "organiser" || a.admin
 	if !organiser {
 		c.Schedule = hackPublicSchedule(c.Schedule)
 	}
 	fixed, err := h.fixedScheduleFor(ctx, a.event, &a.member, organiser)
 	return hackContentView{hackContent: c, FixedSchedule: fixed}, err
-}
-
-func (h *HackHandler) registerContent(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
-	mux.Handle("PUT /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
-	mux.Handle("DELETE /v1/hack/events/{slug}/announcements/{announcement}", wrap(h.changeAnnouncement))
-	mux.Handle("GET /v1/hack/events/{slug}/content", wrap(h.getContent))
-	mux.Handle("PUT /v1/hack/events/{slug}/content", wrap(h.putContent))
-	mux.Handle("GET /v1/hack/events/{slug}/announcements", wrap(h.getAnnouncements))
-	mux.Handle("POST /v1/hack/events/{slug}/announcements", wrap(h.postAnnouncement))
-	mux.Handle("POST /v1/hack/events/{slug}/announcements/preview", wrap(h.previewAnnouncement))
 }
 
 func readHackContent(ctx context.Context, q *sql.DB, eventID string) (hackContent, error) {
@@ -91,7 +81,7 @@ func readHackContent(ctx context.Context, q *sql.DB, eventID string) (hackConten
 	return c, err
 }
 
-func (h *HackHandler) getContent(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) getContent(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
 	if !ok {
 		return
@@ -125,7 +115,7 @@ func cleanLogo(s string) bool {
 	return err == nil && len(b) > 0 && len(b) <= 128<<10 && http.DetectContentType(b) == "image/"+s[len(prefix):i]
 }
 
-func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) putContent(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -193,11 +183,11 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 		if s.Description, valid = checkHackText(w, s.Description, "schedule description", 0, 500); !valid {
 			return
 		}
-		start, valid := parseEventTime(w, s.StartAt, loc, "start_at", true)
+		start, valid := parseEventTime(w, s.StartAt, loc, "start_at")
 		if !valid {
 			return
 		}
-		end, valid := parseEventTime(w, s.EndAt, loc, "end_at", true)
+		end, valid := parseEventTime(w, s.EndAt, loc, "end_at")
 		if !valid {
 			return
 		}
@@ -214,7 +204,7 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	sponsors, _ := json.Marshal(c.Sponsors)
 	faq, _ := json.Marshal(c.FAQ)
 	schedule, _ := json.Marshal(c.Schedule)
-	if err := h.eventsSvc().PutContent(r.Context(), a.event.ID, model.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
+	if err := h.events.PutContent(r.Context(), a.event.ID, model.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
 		writeHackError(w, err)
 		return
 	}
@@ -226,12 +216,12 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, view)
 }
 
-func (h *HackHandler) getAnnouncements(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) getAnnouncements(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
 	if !ok {
 		return
 	}
-	items, err := h.eventsSvc().ListAnnouncements(r.Context(), a.event.ID)
+	items, err := h.events.ListAnnouncements(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -239,7 +229,7 @@ func (h *HackHandler) getAnnouncements(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"announcements": items})
 }
 
-func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
@@ -276,7 +266,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	item, queued, organiserCopied, err := h.eventsSvc().PostAnnouncement(r.Context(), a.event.ID, req.Title, req.Body, req.EmailParticipants, req.Pinned, a.user.ID)
+	item, queued, organiserCopied, err := h.events.PostAnnouncement(r.Context(), a.event.ID, req.Title, req.Body, req.EmailParticipants, req.Pinned, a.user.ID)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -286,7 +276,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 
 // previewAnnouncement renders announcement text exactly as participants will
 // see it, so the composer never carries a second renderer. Nothing is stored.
-func (h *HackHandler) previewAnnouncement(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) previewAnnouncement(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser"); !ok {
 		return
 	}
@@ -309,8 +299,8 @@ func (h *HackHandler) previewAnnouncement(w http.ResponseWriter, r *http.Request
 // second submit, never sends another one (the receipt table's primary key
 // (event_id, team_id) caps it at one per team -- section 4.1: "moves from
 // 'first time complete' to 'submitted'").
-func (h *HackHandler) queueReceipt(ctx context.Context, ev model.Event, teamID, userID string) {
-	h.eventsSvc().QueueReceipt(ctx, ev, teamID, userID)
+func (h *hackBase) queueReceipt(ctx context.Context, ev model.Event, teamID, userID string) {
+	h.events.QueueReceipt(ctx, ev, teamID, userID)
 }
 
 type contentDeliveryOwner struct {
@@ -327,7 +317,6 @@ func (h *HackHandler) ContentDeliveryOwner() workers.Owner {
 	})
 	return h.contentOwner
 }
-func (h *HackHandler) StartContentDelivery(ctx context.Context) { h.ContentDeliveryOwner().Start(ctx) }
 func (o *contentDeliveryOwner) Start(ctx context.Context) {
 	o.once.Do(func() {
 		o.Go(ctx, func(ctx context.Context) {
@@ -345,7 +334,7 @@ func (o *contentDeliveryOwner) Start(ctx context.Context) {
 	})
 }
 func (o *contentDeliveryOwner) pending(ctx context.Context) (int64, bool) {
-	n, err := o.h.eventsSvc().PendingContentMail(ctx)
+	n, err := o.h.events.PendingContentMail(ctx)
 	if err != nil {
 		o.tracker.Fail("count pending mail", err)
 		return 0, false
@@ -358,9 +347,8 @@ func (o *contentDeliveryOwner) run(ctx context.Context) {
 	o.pending(ctx)
 	// Only replace the mail dependency in this local handler view. The service
 	// still controls transactions, retries, and the order of all three phases.
-	h := &HackHandler{database: o.h.database, mailer: o.h.mailer,
-		siteDomain: o.h.siteDomain, publicBaseURL: o.h.publicBaseURL,
-		noticeTiming: o.h.noticeTiming, entries: o.h.entries, events: o.h.eventsSvc()}
+	base := *o.h.hackBase
+	h := &HackHandler{hackBase: &base, noticeTiming: o.h.noticeTiming}
 	if sender, ok := h.mailer.(interface {
 		SendNotice(string, string, string) error
 	}); ok {
@@ -368,11 +356,11 @@ func (o *contentDeliveryOwner) run(ctx context.Context) {
 	}
 	n, err := h.deliverContentMail(ctx)
 	o.record("deliver content mail", n, err)
-	n, err = h.eventsSvc().QueueEntryReminders(ctx)
+	n, err = h.events.QueueEntryReminders(ctx)
 	o.record("queue entry reminders", n, err)
-	n, err = h.eventsSvc().QueueJudgeReminders(ctx, h.entries)
+	n, err = h.events.QueueJudgeReminders(ctx, h.entries)
 	o.record("queue judge reminders", n, err)
-	n, err = h.eventsSvc().PruneNotices(ctx)
+	n, err = h.events.PruneNotices(ctx)
 	o.record("prune notices", n, err)
 	n, err = h.deliverNoticeMailOnly(ctx)
 	o.record("deliver notice mail", n, err)
@@ -395,11 +383,11 @@ func (h *HackHandler) deliverContentMail(ctx context.Context) (int64, error) {
 	if !ok {
 		return 0, nil
 	}
-	return h.eventsSvc().DeliverContentMail(ctx, sender, h.siteDomain, h.publicBaseURL)
+	return h.events.DeliverContentMail(ctx, sender, h.siteDomain, h.publicBaseURL)
 }
 
 // Editing an announcement changes the page only, without queueing mail.
-func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request) {
+func (h *publicEventHTTP) changeAnnouncement(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.administrationWrite(w, r)
 	if !ok {
 		return
@@ -437,7 +425,7 @@ func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
-	if err := h.eventsSvc().ChangeAnnouncement(r.Context(), a.event.ID, id, title, body, req.Pinned, r.Method == http.MethodDelete); err != nil {
+	if err := h.events.ChangeAnnouncement(r.Context(), a.event.ID, id, title, body, req.Pinned, r.Method == http.MethodDelete); err != nil {
 		writeHackError(w, err)
 		return
 	}

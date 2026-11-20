@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -23,18 +22,7 @@ import (
 // 2026-10-01: no carve-out); an unresolved country is allowed; and an empty
 // block list is a no-op.
 func TestIssueEmailCodeGeoBlock(t *testing.T) {
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
+	database := testDB(t)
 	ctx := context.Background()
 	stamp := strconv.FormatInt(time.Now().UnixNano(), 10)
 	const blockedIP = "198.51.100.9"

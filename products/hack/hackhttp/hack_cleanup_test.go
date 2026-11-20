@@ -219,7 +219,7 @@ If you need more time, write to support@simple-host.app.
 
 Simple Hack
 `, removeOn)
-	wantMail := "harbour@example.com|" + a.hack.idleReplyTo() + "|" + subject + "|" + text
+	wantMail := "harbour@example.com|" + a.hack.limits.IdleReplyTo + "|" + subject + "|" + text
 	msgs := mail.messages()
 	if len(msgs) != 1 || msgs[0] != wantMail {
 		t.Fatalf("warning email:\n got %q\nwant %q", msgs, wantMail)

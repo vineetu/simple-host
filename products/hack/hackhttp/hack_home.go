@@ -9,19 +9,14 @@ import (
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
-// homepageLinks is the homepage's Link header value. Duplicated from
-// discovery.go's HomepageLinks (host/handler, cleanup 3.2 slice 3): pure
-// data with no instance dependency, so a copy here is simpler than an
-// injected value for the one call site that reads it.
+// homepageLinks is the homepage's Link header value (a copy of host/handler's
+// HomepageLinks: pure data, simpler than an injected value).
 const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"`
 
 // RegisterHackHome serves the simple-hack.app product page at /. The
 // integrator calls this when EVENTS=hosted in place of the Simple Host
 // homepage. The canonical instance uses the video page; self-hosted installs
 // keep the drawn film so it can show their own address.
-//
-// Takes the hackPages interface, not *SiteHandler (cleanup 3.2 slice 2a):
-// this only ever called sh.pipeline().
 func RegisterHackHome(mux *http.ServeMux, pages hackPages, product *Assets) {
 	assets := pages
 	registerHackathons(mux, pages)

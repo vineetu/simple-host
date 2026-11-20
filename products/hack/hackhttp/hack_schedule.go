@@ -70,11 +70,6 @@ func hackEventLoc(ev model.Event) *time.Location {
 	return loc
 }
 
-// hackEventOver and hackMidnight moved to host/rules/hackevents
-// (EventOver, Midnight) in cleanup 3.2 slice 4: pure, no DB/HTTP/clock, and
-// EventOver is also the directory's past-group decision now in
-// host/app/hack/events.
-
 // hackFixedSchedule builds the fixed rows, sorted by time. Prompts are only
 // filled in for organisers.
 func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
@@ -261,7 +256,7 @@ func hackScheduleCue(step map[string]any, free []hackScheduleItem, fixed []hackF
 
 // scheduleCue loads what the organiser's cue needs. Errors leave it out:
 // the next step itself never depends on the schedule.
-func (h *HackHandler) scheduleCue(ctx context.Context, ev model.Event, step map[string]any) map[string]any {
+func (h *hackBase) scheduleCue(ctx context.Context, ev model.Event, step map[string]any) map[string]any {
 	content, err := readHackContent(ctx, h.database, ev.ID)
 	if err != nil {
 		return nil
@@ -273,7 +268,7 @@ func (h *HackHandler) scheduleCue(ctx context.Context, ev model.Event, step map[
 
 // fixedScheduleFor is the fixed rows for one reader: the organiser (with
 // prompts), a participant (with their team's own deadline) or the public.
-func (h *HackHandler) fixedScheduleFor(ctx context.Context, ev model.Event, member *model.EventMember, organiser bool) ([]hackFixedRow, error) {
+func (h *publicEventHTTP) fixedScheduleFor(ctx context.Context, ev model.Event, member *model.EventMember, organiser bool) ([]hackFixedRow, error) {
 	in := hackFixedInputs{Event: ev, Organiser: organiser, Now: time.Now()}
 	voting, err := h.entries.VotingSettings(ctx, ev.ID)
 	if err != nil {
@@ -284,7 +279,7 @@ func (h *HackHandler) fixedScheduleFor(ctx context.Context, ev model.Event, memb
 		return nil, err
 	}
 	if member != nil && member.Role == "participant" && member.TeamID.Valid {
-		if st, err := h.teamsSvc().TeamWriteStateForLookup(ctx, member.TeamID.String, false); err == nil {
+		if st, err := h.teams.TeamWriteStateForLookup(ctx, member.TeamID.String, false); err == nil {
 			in.Team = &st
 		}
 	}

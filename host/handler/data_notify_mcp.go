@@ -23,9 +23,9 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-type notificationBackend struct{ h *SiteHandler }
+type notificationBackend struct{ h *DataHandler }
 
-func (h *SiteHandler) EventsBackend() mcp.EventsBackend {
+func (h *DataHandler) EventsBackend() mcp.EventsBackend {
 	return notificationBackend{h}
 }
 
@@ -45,7 +45,7 @@ func notifyMCPID(owner, grant, url, name, args string) string {
 	sum := sha256.Sum256(raw)
 	return "sub_" + hex.EncodeToString(sum[:12])
 }
-func (h *SiteHandler) notifyChallengeClient(ctx context.Context, owner, raw string) (notifyClient, error) {
+func (h *DataHandler) notifyChallengeClient(ctx context.Context, owner, raw string) (notifyClient, error) {
 	e := h.notifyEngine()
 	c := e.client
 	u, err := url.Parse(raw)
@@ -80,7 +80,7 @@ func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, stora
 	// the caller belongs to, or a site of it they edit (accounts.ActsAsOwner).
 	accountID := c.Owner
 	if owner != "" {
-		acct, err := b.h.storeAccounts().AccountByHandle(ctx, owner)
+		acct, err := b.h.site.storeAccounts().AccountByHandle(ctx, owner)
 		if err != nil {
 			return model.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 		}
@@ -89,7 +89,7 @@ func (b notificationBackend) site(ctx context.Context, c mcp.Caller, name, stora
 		}
 		accountID = acct.ID
 	}
-	site, err := b.h.sitesSvc().GetSiteByUser(ctx, accountID, name)
+	site, err := b.h.site.sitesSvc().GetSiteByUser(ctx, accountID, name)
 	if err != nil {
 		return model.Site{}, notifyMCPError(mcp.EventCodeForbidden, "kind", "site")
 	}

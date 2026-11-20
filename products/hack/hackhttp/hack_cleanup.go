@@ -39,5 +39,5 @@ func (h *HackHandler) runEventCleanupTracked(ctx context.Context, now time.Time,
 	if report != nil {
 		reports = append(reports, report)
 	}
-	h.events.RunEventCleanup(ctx, now, h.limits.EventSitesKeep, h.limits.EventRemovalWarn, trash, send, h.idleReplyTo(), reports...)
+	h.events.RunEventCleanup(ctx, now, h.limits.EventSitesKeep, h.limits.EventRemovalWarn, trash, send, h.limits.IdleReplyTo, reports...)
 }

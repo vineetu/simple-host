@@ -23,7 +23,8 @@ func WithPolicy(tool Tool, options ...Policy) Tool {
 	for _, option := range options {
 		option(&policy)
 	}
-	return withToolPolicy(tool, policy)
+	tool.policy = policy
+	return tool
 }
 func MemberResult(kind string) Policy { return func(p *toolPolicy) { p.memberResult = kind } }
 func OrganiserResult(kind string) Policy {
@@ -62,11 +63,8 @@ func ApplicationAnswers() AnalyticsOption {
 func Object(properties map[string]any, required ...string) map[string]any {
 	return object(properties, required...)
 }
-func Str(description string) map[string]any { return str(description) }
-func NoArgs() map[string]any                { return noArgs() }
-func StringMap(args map[string]any, key string) (map[string]string, error) {
-	return stringMap(args, key)
-}
+func Str(description string) map[string]any     { return str(description) }
+func NoArgs() map[string]any                    { return noArgs() }
 func AnyJSON(description string) map[string]any { return anyJSON(description) }
 func OutObject(properties map[string]any, required ...string) map[string]any {
 	return outObject(properties, required...)
@@ -80,7 +78,6 @@ func OutInteger(description string) map[string]any { return outInteger(descripti
 func WithDescription(schema map[string]any, description string) map[string]any {
 	return withDescription(schema, description)
 }
-func FilesBase64Schema() map[string]any { return filesBase64Schema() }
 func WholeNumber(args map[string]any, key string, required bool, min, max int) (int, bool, error) {
 	return wholeNumber(args, key, required, min, max)
 }
@@ -92,7 +89,6 @@ func ReadOnly() map[string]any { return readOnly() }
 func Writes(destructive, idempotent, public bool) map[string]any {
 	return writes(destructive, idempotent, public)
 }
-func WithMeta(tool Tool, meta map[string]any) Tool { tool.Meta = meta; return tool }
 func WithRun(tool Tool, run func(*Call, map[string]any) (Output, error)) Tool {
 	tool.run = run
 	return tool
@@ -113,7 +109,6 @@ func (c *call) Do(method, path string, body []byte, extra map[string]string) Ups
 func (c *call) Caller() Caller                      { return c.caller }
 func (c *call) Request() *http.Request              { return c.orig }
 func (c *call) UICapable() bool                     { return c.uiClient }
-func (c *call) MaxBodyBytes() int64                 { return c.server.cfg.MaxBodyBytes }
 func (c *call) APIHost() string                     { return c.server.cfg.APIHost }
 func (c *call) MemberResult() string                { return c.policy.memberResult }
 func (c *call) OrganiserResult() string             { return c.policy.organiserResult }
@@ -136,8 +131,6 @@ func FlatListApp(name string) bool      { return flatListApp(name) }
 
 const DeployPhotoTip = deployPhotoTip
 const ArchiveUploadDescription = archiveUploadDescription
-
-func ReadRecipe(topic string) ([]byte, error) { return readRecipe(topic) }
 
 const StorageRulesInstructions = storageRulesInstructions
 

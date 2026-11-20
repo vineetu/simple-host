@@ -147,17 +147,6 @@ func (s limitSet) domainCheckInterval() time.Duration { return s.limits.DomainCh
 func (s limitSet) domainLapseWarnAfter() time.Duration { return s.limits.DomainLapseWarnAfter }
 func (s limitSet) domainLapseAfter() time.Duration     { return s.limits.DomainLapseAfter }
 
-// eventTTL is how long a claimed event name lives before the sweep removes it;
-// maxClaimsPerAccount caps how many one account can hold at once.
-func (s limitSet) eventTTL() time.Duration  { return s.limits.EventTTL }
-func (s limitSet) maxClaimsPerAccount() int { return s.limits.EventMaxClaims }
-
-func (s limitSet) idleAfter() time.Duration { return s.limits.IdleAfter }
-func (s limitSet) idleGrace() time.Duration { return s.limits.IdleGrace }
-func (s limitSet) idleReplyTo() string      { return s.limits.IdleReplyTo }
-
-func (s limitSet) metricsRetentionDays() int { return s.limits.APIMetricsRetention }
-
 // newRateLimiterFor builds a limiter from a configured rate.
 func newRateLimiterFor(r struct {
 	Burst int

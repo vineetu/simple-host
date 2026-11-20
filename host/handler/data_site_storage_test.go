@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -165,7 +164,7 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 
 func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 	p := newPasscodeApp(t)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet, &p.access.limitSet, &p.data.limitSet)
 	base := "/v1/sites/trip/storage"
 	for _, x := range []struct{ name, mode string }{{"locked", "inherit"}, {"open", "off"}} {
 		r := p.at(t, "PUT", pcSiteDomain, base+"/resources/"+x.name, `{"kind":"kv","site_passcode":"`+x.mode+`","rules":`+rulesOpenAdd+`}`, p.okey)
@@ -369,8 +368,8 @@ func newStorageTestSite(t *testing.T, eds ...*edition.Edition) storageTestSite {
 	host := "shop." + handle + "." + pcSiteDomain
 	sid := a.siteID(t, owner, "shop")
 	// The grid sends hundreds of writes from one address.
-	a.sites.storageIPLimiter = httpx.NewRateLimiter(100000, 0)
-	a.sites.storageVisitorLimiter = httpx.NewRateLimiter(100000, 0)
+	a.data.storageIPLimiter = httpx.NewRateLimiter(100000, 0)
+	a.data.storageVisitorLimiter = httpx.NewRateLimiter(100000, 0)
 	return storageTestSite{
 		a: a, host: host, sid: sid, key: map[string]string{"X-API-Key": owner.key}, owner: owner,
 		ids: map[string]string{"alice": aid, "bob": bid, "owner-site": oid},
@@ -402,36 +401,7 @@ func (s storageTestSite) must(t *testing.T, method, path string, body any, heade
 	return r
 }
 
-// seed adds one entry by alice through the owner's tools and the database,
-// and returns its key, path or row id.
-func (s storageTestSite) seed(t *testing.T, kind, name, label string) string {
-	t.Helper()
-	switch kind {
-	case "kv":
-		seedStorageKV(t, s.a.sites, s.sid, name, label, `"seed"`, s.aliceID)
-		return label
-	case "files":
-		s.must(t, "PUT", "/files/"+name+"/objects/"+label, "seed", s.key, 200)
-		if _, err := s.a.database.Exec(`UPDATE site_storage_files SET writer_id=$4 WHERE site_id=$1 AND resource_name=$2 AND path=$3`, s.sid, name, label, s.aliceID); err != nil {
-			t.Fatal(err)
-		}
-		return label
-	}
-	r := s.must(t, "POST", "/sqlite/"+name+"/execute", map[string]any{"sql": "INSERT INTO items(v, visitor_id) VALUES(?, ?)", "params": []any{label, s.aliceID}}, s.key, 200)
-	return fmt.Sprint(r.json(t)["last_insert_id"])
-}
-
-func storageTestPaths(kind, name, entry string) (one, list string) {
-	switch kind {
-	case "kv":
-		return "/kv/" + name + "/keys/" + entry, "/kv/" + name + "/keys"
-	case "files":
-		return "/files/" + name + "/objects/" + entry, "/files/" + name + "/objects"
-	}
-	return "/sqlite/" + name + "/tables/items/rows/" + entry, "/sqlite/" + name + "/tables/items/rows"
-}
-
-func storageKVFixtureCall(t *testing.T, h *SiteHandler, siteID, resource string) storageCall {
+func storageKVFixtureCall(t *testing.T, h *DataHandler, siteID, resource string) storageCall {
 	t.Helper()
 	c := storageCall{siteID: siteID, resourceName: resource}
 	if err := h.database.QueryRow(`SELECT user_id,name FROM sites WHERE id=$1`, siteID).Scan(&c.ownerID, &c.siteName); err != nil {
@@ -445,7 +415,7 @@ func storageKVFixtureCall(t *testing.T, h *SiteHandler, siteID, resource string)
 	return c
 }
 
-func seedStorageKV(t *testing.T, h *SiteHandler, siteID, resource, key, value, writer string) {
+func seedStorageKV(t *testing.T, h *DataHandler, siteID, resource, key, value, writer string) {
 	t.Helper()
 	c := storageKVFixtureCall(t, h, siteID, resource)
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), resource), true, false)
@@ -464,7 +434,7 @@ func seedStorageKV(t *testing.T, h *SiteHandler, siteID, resource, key, value, w
 	}
 }
 
-func readStorageKVAuthor(t *testing.T, h *SiteHandler, siteID, resource, key string) string {
+func readStorageKVAuthor(t *testing.T, h *DataHandler, siteID, resource, key string) string {
 	t.Helper()
 	c := storageKVFixtureCall(t, h, siteID, resource)
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), resource), false, false)
@@ -479,7 +449,7 @@ func readStorageKVAuthor(t *testing.T, h *SiteHandler, siteID, resource, key str
 	return item.VisitorID
 }
 
-func insertStorageKVRace(t *testing.T, h *SiteHandler, c storageCall, key, value, writer string) (bool, error) {
+func insertStorageKVRace(t *testing.T, h *DataHandler, c storageCall, key, value, writer string) (bool, error) {
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), c.resourceName), true, false)
 	if err != nil {
 		return false, err
@@ -498,7 +468,7 @@ func insertStorageKVRace(t *testing.T, h *SiteHandler, c storageCall, key, value
 	return true, conn.Exec("COMMIT")
 }
 
-func readStorageKVValue(t *testing.T, h *SiteHandler, c storageCall, key string) string {
+func readStorageKVValue(t *testing.T, h *DataHandler, c storageCall, key string) string {
 	t.Helper()
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.storageRuntimeDir(c), c.resourceName), false, false)
 	if err != nil {

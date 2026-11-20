@@ -266,6 +266,7 @@ func TestLapsedDomainLetsGo(t *testing.T) {
 	a := newPersonApp(t, "canonical")
 	mail := &noticeMailer{}
 	a.sites.mailer = mail
+	a.access.mailer, a.data.mailer = a.sites.mailer, a.sites.mailer
 	olive, oscar := a.newPerson(t, "olive"), a.newPerson(t, "oscar")
 	a.deploy(t, olive, "shop")
 	a.deploy(t, oscar, "mine")

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
@@ -16,7 +17,7 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		Sitemap:        h.sitemapFilter,
 		SiteViewersMax: h.limits.SiteViewersMax, ContentHost: h.contentHost, SiteDomain: h.siteDomain, PersonalSitesEnabled: h.ed.Identity().PersonalSites,
 		LockSite:         h.lockSite,
-		DeleteViewerPush: h.deletePushForEmail,
+		DeleteViewerPush: h.data.deletePushForEmail,
 		ResponseState: func(site model.Site, version int, preview, footprint bool) any {
 			return h.captureSiteResponseState(site, version, preview, footprint)
 		},
@@ -55,14 +56,14 @@ func (h *SiteHandler) sitesSvc() *sites.Service {
 		GroupGate:   h.groupGate,
 		NotifyUpdate: func(ctx context.Context, user *model.User, site model.Site, n, prev int, published bool, files map[string][]byte) {
 			if published {
-				h.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)
+				h.data.emitSiteNotification(site.ID, "site.deployed", map[string]any{"version": n, "previous_version": prev, "via": "deploy"}, 0)
 				if h.ed.Identity().PaperMetrics && user.Member != nil {
 					paperRecorder(ctx).Deploy(ctx)
 				}
 			}
 		},
 		NotifyRollback: func(siteID string, version, prev int) {
-			h.emitSiteNotification(siteID, "site.deployed", map[string]any{"version": version, "previous_version": prev, "via": "active_version"}, 0)
+			h.data.emitSiteNotification(siteID, "site.deployed", map[string]any{"version": version, "previous_version": prev, "via": "active_version"}, 0)
 		},
 		Assign: func(ctx context.Context, user *model.User) {
 			assignHandle(ctx, h.database, user.ID, handleSeed(user, h.siteDomain), h.ed.Identity().RandomHandles)
@@ -113,3 +114,9 @@ func writeRollbackGateError(w http.ResponseWriter, e *sites.GateError) {
 	}
 	writeJSON(w, status, errorResponse{Error: e.Message, Code: e.Code})
 }
+
+func (h *SiteHandler) opsSitesSvc() *sites.Service {
+	return h.sitesSvc().WithPlatformDomains(h.storeAccounts().NamespaceDomains())
+}
+
+func (h *SiteHandler) storeAccounts() *accountapp.Service { return accountapp.New(h.database) }

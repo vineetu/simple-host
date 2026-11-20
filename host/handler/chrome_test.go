@@ -591,7 +591,7 @@ func TestServeChromeForScreenshots(t *testing.T) {
 	})))
 	mux.Handle("GET /_404", assets.adminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.renderNotFound(w, r, "/nothing-here.html") })))
 	mux.HandleFunc("GET /_offline", h.serveOffline)
-	mux.HandleFunc("GET /_takendown", h.serveTakedown)
+	mux.HandleFunc("GET /_takendown", (&AccessHandler{site: h}).serveTakedown)
 	mux.Handle("GET /_wizard", assets.serveStaticPage("setup.html"))
 	srv := &http.Server{Addr: addr, Handler: mux}
 	go srv.ListenAndServe()

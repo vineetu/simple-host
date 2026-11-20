@@ -495,7 +495,7 @@ func TestAssistantEval(t *testing.T) {
 		PriceOutputPerMTokUSD: 2.0,
 	}, evalDocsText))
 	// The per-account abuse limiter (burst 40) is not under test either.
-	a.hack.assistantWrites = httpx.NewRateLimiter(1e6, 1e6)
+	a.hack.assistant.writes = httpx.NewRateLimiter(1e6, 1e6)
 
 	only := os.Getenv("ASSISTANT_EVAL_ONLY")
 	var cases []assistantEvalCase

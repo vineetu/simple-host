@@ -11,12 +11,9 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"log"
-	"math"
 	"math/big"
 	"net/http"
 	"net/url"
@@ -29,7 +26,6 @@ import (
 	"unicode/utf8"
 
 	accounts "github.com/vsriram/simple-host/host/access"
-	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 )
@@ -81,8 +77,8 @@ const passcodeMaxLength = 128
 // passcodeState is the server key and the brute-force counters.
 type passcodeState struct {
 	// limitSet is the handler's own snapshot (h.limits), copied in once at
-	// construction (NewSiteHandler) since the rate-limit methods below have
-	// no SiteHandler of their own; embedded (not a named field) so a test
+	// construction (NewSiteHandlers) since the rate-limit methods below have
+	// no AccessHandler of their own; embedded (not a named field) so a test
 	// can retarget it the same way as any other handler's limitSet. Zero in
 	// a bare notifyClient{secrets: &passcodeState{}} test literal, which
 	// never calls wrongTry/sweep.
@@ -105,7 +101,7 @@ type passcodeState struct {
 // SetPasscodeKey reads PASSCODE_ENC_KEY (32 bytes, standard base64). Empty
 // leaves passcodes unavailable; anything else malformed is an error, so a
 // typo stops startup instead of silently turning passcodes off.
-func (h *SiteHandler) SetPasscodeKey(b64 string) error {
+func (h *AccessHandler) SetPasscodeKey(b64 string) error {
 	b64 = strings.TrimSpace(b64)
 	if b64 == "" {
 		h.passcode.aead, h.passcode.macKey, h.passcode.refKey = nil, nil, nil
@@ -135,7 +131,7 @@ func (h *SiteHandler) SetPasscodeKey(b64 string) error {
 // visitorRefKey keys the connector's per-site visitor references. It comes
 // from PASSCODE_ENC_KEY so a reference in a notification still resolves after
 // a restart; without that key it falls back to the process-local export key.
-func (h *SiteHandler) visitorRefKey() []byte {
+func (h *AccessHandler) visitorRefKey() []byte {
 	if h.passcode.refKey != nil {
 		return h.passcode.refKey
 	}
@@ -144,8 +140,8 @@ func (h *SiteHandler) visitorRefKey() []byte {
 
 // PasscodesReady reports whether a passcode can be set on this server:
 // SITE_PASSCODES is on, the key is set and sites have addresses of their own.
-func (h *SiteHandler) PasscodesReady() bool {
-	return h.limits.SitePasscodes && h.passcode.aead != nil && !h.SharedOrigin()
+func (h *AccessHandler) PasscodesReady() bool {
+	return h.limits.SitePasscodes && h.passcode.aead != nil && !h.site.SharedOrigin()
 }
 
 func (p *passcodeState) clock() time.Time {
@@ -266,7 +262,7 @@ func (p *passcodeState) cookieMAC(siteID, host string, exp int64, gen int) strin
 }
 
 // setUnlockCookie lets this browser into the site on this host.
-func (h *SiteHandler) setUnlockCookie(w http.ResponseWriter, r *http.Request, siteID string, gen int) {
+func (h *AccessHandler) setUnlockCookie(w http.ResponseWriter, r *http.Request, siteID string, gen int) {
 	exp := h.passcode.clock().Add(passcodeCookieMaxAge).Unix()
 	value := "v1." + strconv.FormatInt(exp, 10) + "." + strconv.Itoa(gen) + "." + h.passcode.cookieMAC(siteID, requestHostName(r), exp, gen)
 	http.SetCookie(w, &http.Cookie{
@@ -282,7 +278,7 @@ func (h *SiteHandler) setUnlockCookie(w http.ResponseWriter, r *http.Request, si
 
 // unlocked reports whether the request carries a valid unlock cookie for
 // this site, on this host, for the passcode's current generation.
-func (h *SiteHandler) unlocked(r *http.Request, siteID string, gen int) bool {
+func (h *AccessHandler) unlocked(r *http.Request, siteID string, gen int) bool {
 	if h.passcode.macKey == nil {
 		return false
 	}
@@ -320,11 +316,11 @@ func crossSiteSubresource(r *http.Request) bool {
 // one applies, and reports whether it did. Every Go path to a site's files
 // goes through it (serveSiteFile); a passcode-protected site that lets the
 // request in gets its private-cache headers here.
-func (h *SiteHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, siteName, rel string) bool {
+func (h *AccessHandler) siteGate(w http.ResponseWriter, r *http.Request, userID, siteName, rel string) bool {
 	return h.siteGateMarkers(w, r, nil, userID, siteName, rel, h.disk.IsSuspended(userID, siteName), h.disk.IsOffline(userID, siteName), h.disk.HasPasscodeMarker(userID, siteName))
 }
 
-func (h *SiteHandler) siteGateRoot(w http.ResponseWriter, r *http.Request, root *os.Root, userID, siteName, rel string) bool {
+func (h *AccessHandler) siteGateRoot(w http.ResponseWriter, r *http.Request, root *os.Root, userID, siteName, rel string) bool {
 	present := func(name string) bool { _, err := root.Lstat(name); return err == nil }
 	return h.siteGateMarkers(w, r, root, userID, siteName, rel, present("suspended"), present("offline"), present("passcode"))
 }
@@ -332,7 +328,7 @@ func (h *SiteHandler) siteGateRoot(w http.ResponseWriter, r *http.Request, root 
 // siteProtectionRow binds the by-name lookup to the directory being served.
 // Rename and deletion hold this same lock while moving the directory and row;
 // neither may change the binding between the identity check and the query.
-func (h *SiteHandler) siteProtectionRow(r *http.Request, root *os.Root, userID, siteName string) (model.SitePasscodeRow, error) {
+func (h *AccessHandler) siteProtectionRow(r *http.Request, root *os.Root, userID, siteName string) (model.SitePasscodeRow, error) {
 	if root != nil {
 		// Exports and publication share this mutex. Bound the visitor's wait
 		// without leaving a goroutine behind to acquire it after cancellation.
@@ -371,16 +367,16 @@ func (h *SiteHandler) siteProtectionRow(r *http.Request, root *os.Root, userID, 
 			return model.SitePasscodeRow{}, sql.ErrNoRows
 		}
 	}
-	return h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, siteName)
+	return h.site.sitesSvc().GetSitePasscodeByName(r.Context(), userID, siteName)
 }
 
-func (h *SiteHandler) siteGateMarkers(w http.ResponseWriter, r *http.Request, root *os.Root, userID, siteName, rel string, suspended, offline, access bool) bool {
+func (h *AccessHandler) siteGateMarkers(w http.ResponseWriter, r *http.Request, root *os.Root, userID, siteName, rel string, suspended, offline, access bool) bool {
 	if suspended {
 		h.serveTakedown(w, r)
 		return true
 	}
 	if offline {
-		h.serveOffline(w, r)
+		h.site.serveOffline(w, r)
 		return true
 	}
 	if !access {
@@ -398,7 +394,7 @@ func (h *SiteHandler) siteGateMarkers(w http.ResponseWriter, r *http.Request, ro
 		// Fail closed: the marker says protected and the database cannot
 		// say otherwise.
 		log.Printf("passcode: site %s/%s: %v", userID, siteName, err)
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return true
 	}
 	if row.Enc == nil && !row.NamedViewers {
@@ -435,24 +431,24 @@ func (h *SiteHandler) siteGateMarkers(w http.ResponseWriter, r *http.Request, ro
 
 // sharedHost: a host every site shares (the content host, the apex). A
 // passcode is never entered there: the cookie would be every site's.
-func (h *SiteHandler) sharedHost(host string) bool {
+func (h *AccessHandler) sharedHost(host string) bool {
 	return (h.contentHost != "" && strings.EqualFold(host, h.contentHost)) || h.isVisitorApexHost(host)
 }
 
 // passcodeElsewhere answers a protected site's file on a shared host: a 302
 // to the same path on the site's own address, or, when it has none, the
 // plain protected page without a form.
-func (h *SiteHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, row model.SitePasscodeRow, rel string) {
+func (h *AccessHandler) passcodeElsewhere(w http.ResponseWriter, r *http.Request, row model.SitePasscodeRow, rel string) {
 	escRel := "/" + strings.TrimLeft((&url.URL{Path: rel}).EscapedPath(), "/")
 	query := ""
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
 	target := ""
-	if info, has, err := h.siteOwnAddress(r.Context(), row.SiteID); err == nil && has {
+	if info, has, err := h.site.siteOwnAddress(r.Context(), row.SiteID); err == nil && has {
 		target = "https://" + strings.ToLower(info.Domain) + escRel
-	} else if handle, _, name, err := h.sitesSvc().GetSiteOwner(r.Context(), row.SiteID); err == nil && handle != "" && h.personAddressFor(handle, name) {
-		target = h.siteAddressWithPath(handle, name, escRel)
+	} else if handle, _, name, err := h.site.sitesSvc().GetSiteOwner(r.Context(), row.SiteID); err == nil && handle != "" && h.site.personAddressFor(handle, name) {
+		target = h.site.siteAddressWithPath(handle, name, escRel)
 	}
 	if target != "" {
 		w.Header().Set("Cache-Control", "no-store")
@@ -519,305 +515,7 @@ func safeNext(p string) string {
 	return p
 }
 
-// passcodeGateCSS is the gate's only style; its hash is in the page's CSP.
-// It draws the same card as the sign-in mock (ink colours, wobble, Caveat
-// when the host status font is on the page). Selectors beat host-status.css,
-// which hostedStatusPage appends after this block. No page theme of its own:
-// light and dark follow html[data-theme] from the shared theme script.
-const passcodeGateCSS = `html:root{color-scheme:light}html:root[data-theme=dark]{color-scheme:dark}` +
-	`html:root body{margin:0;min-height:100vh;padding:36px 16px 48px;background:#f6f4e9;color:#103f49;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;text-align:left}` +
-	`html:root[data-theme=dark] body{background:#0b1222;color:#f6f4e9}` +
-	`html:root main.gate{box-sizing:border-box;width:100%;max-width:400px;margin:0 auto;padding:28px 26px 22px;background:#fffdf5;color:#103f49;border:1.5px solid #45646a;border-radius:255px 18px 225px 18px / 18px 225px 18px 255px;box-shadow:2px 3px 0 #c9d7cd}` +
-	`html:root[data-theme=dark] main.gate{background:#172332;color:#f6f4e9;border-color:#334155;box-shadow:2px 3px 0 #020617}` +
-	`html:root main.gate *{box-sizing:border-box}` +
-	`html:root main.gate .eyebrow{font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#526c70;margin:0 0 6px;overflow-wrap:anywhere}` +
-	`html:root[data-theme=dark] main.gate .eyebrow{color:#adc5c2}` +
-	`html:root main.gate h1{font-family:Caveat,"Segoe Print","Bradley Hand",cursive;font-size:40px;font-weight:700;line-height:1.15;margin:0 0 6px;color:inherit;text-align:left}` +
-	`html:root main.gate .lead{margin:0 0 20px;color:#45646a;font-size:15.5px;line-height:1.5}` +
-	`html:root main.gate .lead b{color:#103f49;font-weight:700;overflow-wrap:anywhere}` +
-	`html:root[data-theme=dark] main.gate .lead{color:#c4d9d0}` +
-	`html:root[data-theme=dark] main.gate .lead b{color:#f6f4e9}` +
-	`html:root main.gate label{display:block;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:600;font-size:14px;color:inherit;margin:0 0 6px;text-align:left}` +
-	`html:root main.gate input{display:block;width:100%;max-width:100%;height:48px;min-height:44px;padding:0 14px;margin:0;background:#f6f4e9;color:#103f49;border:1.5px solid #c9d7cd;border-radius:10px;font:16px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:left}` +
-	`html:root[data-theme=dark] main.gate input{background:#0b1222;color:#f6f4e9;border-color:#334155}` +
-	`html:root main.gate input.code{height:60px;text-align:center;font:600 30px/1 ui-monospace,monospace;letter-spacing:.42em;padding-left:.42em}` +
-	`html:root main.gate input.bad{border-color:#a33f31}` +
-	`html:root[data-theme=dark] main.gate input.bad{border-color:#f39da0}` +
-	`html:root main.gate button.primary{display:block;width:100%;height:48px;margin-top:12px;border:0;border-radius:255px 18px 225px 18px / 18px 225px 18px 255px;background:#116b77;color:#fffdf5;font-family:Caveat,"Segoe Print",cursive;font-size:22px;font-weight:700;cursor:pointer}` +
-	`html:root[data-theme=dark] main.gate button.primary{background:#9edacf;color:#0b1222}` +
-	`html:root main.gate button.secondary{display:block;width:100%;height:46px;margin-top:10px;border:1.5px solid #c9d7cd;border-radius:255px 18px 225px 18px / 18px 225px 18px 255px;background:#fffdf5;color:#103f49;font-family:Caveat,"Segoe Print",cursive;font-size:20px;cursor:pointer}` +
-	`html:root[data-theme=dark] main.gate button.secondary{background:#172332;color:#f6f4e9;border-color:#334155}` +
-	`html:root main.gate button[disabled]{opacity:.55;cursor:default}` +
-	`html:root main.gate a.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:46px;border-radius:23px;background:#fff;border:1px solid #747775;color:#1f1f1f;font:500 15px/20px Roboto,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.1px;text-decoration:none;padding:0 12px}` +
-	`html:root main.gate a.gbtn svg{width:20px;height:20px;flex:none}` +
-	`html:root[data-theme=dark] main.gate a.gbtn{background:#131314;border-color:#8e918f;color:#e3e3e3}` +
-	`html:root main.gate .or{display:flex;align-items:center;gap:12px;margin:18px 0;color:#526c70;font-size:14px}` +
-	`html:root main.gate .or::before,html:root main.gate .or::after{content:"";flex:1;border-top:1px solid #c9d7cd}` +
-	`html:root[data-theme=dark] main.gate .or{color:#adc5c2}` +
-	`html:root[data-theme=dark] main.gate .or::before,html:root[data-theme=dark] main.gate .or::after{border-top-color:#334155}` +
-	`html:root main.gate .fine{margin:16px 0 0;font-size:13px;line-height:1.5;color:#526c70}` +
-	`html:root[data-theme=dark] main.gate .fine{color:#adc5c2}` +
-	`html:root main.gate .err{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;color:#a33f31;font-size:14px;line-height:1.45;text-align:left}` +
-	`html:root main.gate .err svg{flex:none;width:16px;height:16px;margin-top:2px}` +
-	`html:root[data-theme=dark] main.gate .err{color:#f39da0}` +
-	`html:root main.gate .who{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #c9d7cd;border-radius:10px;background:#f6f4e9;margin:0 0 16px;font-size:14.5px}` +
-	`html:root main.gate .who .av{width:30px;height:30px;border-radius:50%;background:#e7f2f3;color:#116b77;display:grid;place-items:center;font-weight:700;flex:none}` +
-	`html:root main.gate .who b{overflow-wrap:anywhere}` +
-	`html:root[data-theme=dark] main.gate .who{background:#0b1222;border-color:#334155}` +
-	`html:root[data-theme=dark] main.gate .who .av{background:#134e4a;color:#9edacf}` +
-	`html:root main.gate .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}` +
-	`html:root main.gate button.link,html:root main.gate a.link{display:inline-flex;align-items:center;background:none;border:0;padding:0;margin:0;color:#116b77;font:14px/1.4 system-ui,sans-serif;text-decoration:underline;min-height:44px;cursor:pointer;border-radius:0;box-shadow:none}` +
-	`html:root[data-theme=dark] main.gate button.link,html:root[data-theme=dark] main.gate a.link{color:#9edacf}` +
-	`html:root main.gate form{margin:0}` +
-	`html:root main.gate form.inline{display:inline}` +
-	`@media (max-width:360px){html:root main.gate h1{font-size:34px}html:root main.gate input.code{font-size:22px;letter-spacing:.24em;padding-left:.24em}}`
-
-// gateAssistJS runs only on the private-site code page. It submits the code
-// form once six digits are in the box, and holds "Send a new code" for 30s
-// after a send. Its hash is added to the gate CSP; there is no other script.
-const gateAssistJS = `(function(){var root=document.querySelector("main.gate");var code=document.querySelector("input[name=code]");if(code&&code.form){var sent=false;code.addEventListener("input",function(){var d=String(code.value||"").replace(/\D/g,"").slice(0,6);if(code.value!==d)code.value=d;if(d.length===6&&!sent){sent=true;code.form.submit();}});}var btn=document.querySelector("[data-sh-resend]");if(!btn||!root)return;var fresh=root.getAttribute("data-sh-sent")==="1";var key="sh-gate-resend";var now=Date.now();var until=0;try{until=parseInt(sessionStorage.getItem(key)||"0",10)||0;}catch(e){}if(fresh){until=now+30000;try{sessionStorage.setItem(key,String(until));}catch(e){}}else if(!until||until<=now){return;}function tick(){var left=Math.ceil((until-Date.now())/1000);if(left<=0){btn.disabled=false;btn.textContent="Send a new code";return;}btn.disabled=true;btn.textContent="Send a new code in 0:"+(left<10?"0":"")+left;setTimeout(tick,1000);}tick();})();`
-
-const gateAssistTag = "<script>" + gateAssistJS + "</script>"
-
-const gateInfoSVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 4.2v4.6M8 10.9v.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`
-
-const gateGoogleSVG = `<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`
-
-// passcodeGateHead is the gate's head with the site-wide theme script
-// (partials/theme.html, like the offline page), built once.
-var passcodeGateHead = themed(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><meta name="referrer" content="same-origin"><!--sh:theme-->
-<title>Protected site</title><meta property="og:title" content="Protected site">
-<style>` + passcodeGateCSS + `</style></head>`)
-
-var passcodeGateCSP = func() string {
-	css := sha256.Sum256([]byte(passcodeGateCSS))
-	csp := "default-src 'none'; style-src 'sha256-" + base64.StdEncoding.EncodeToString(css[:]) + "'"
-	var hashes []string
-	if i := strings.Index(passcodeGateHead, "<script>"); i >= 0 {
-		body := passcodeGateHead[i+len("<script>"):]
-		body = body[:strings.Index(body, "</script>")]
-		js := sha256.Sum256([]byte(body))
-		hashes = append(hashes, "'sha256-"+base64.StdEncoding.EncodeToString(js[:])+"'")
-	}
-	assist := sha256.Sum256([]byte(gateAssistJS))
-	hashes = append(hashes, "'sha256-"+base64.StdEncoding.EncodeToString(assist[:])+"'")
-	csp += "; script-src " + strings.Join(hashes, " ")
-	return csp + "; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
-}()
-
-// Host's self-contained handwriting changes only font/style sources. The
-// gate's script hash, form action and every access rule are unchanged.
-var hostPasscodeGateCSP = func() string {
-	css := sha256.Sum256([]byte(hostStatusCSS))
-	return strings.Replace(passcodeGateCSP, "style-src ", "style-src 'sha256-"+base64.StdEncoding.EncodeToString(css[:])+"' ", 1) + "; font-src data:"
-}()
-
-// servePasscodeGate writes the protected page: 401, never stored, never
-// indexed, nothing of the site in it (no title, no owner, no preview image;
-// the only name on it is the host already in the address bar). next ""
-// leaves the form out (a shared host, where no passcode is entered). A
-// request that is not a page (a script, an image, a fetch) gets a short
-// plain 401. /robots.txt answers "Disallow: /" with 200, so crawlers stop
-// asking.
-func (h *SiteHandler) servePasscodeGate(w http.ResponseWriter, r *http.Request, next, msg string, retryAfter time.Duration) {
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
-	w.Header().Set("Referrer-Policy", "same-origin")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-	w.Header().Del("Vary")
-	w.Header().Del("Last-Modified")
-	w.Header().Del("ETag")
-	if r.URL.Path == "/robots.txt" && retryAfter == 0 && msg == "" {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		if r.Method != http.MethodHead {
-			_, _ = w.Write([]byte("User-agent: *\nDisallow: /\n"))
-		}
-		return
-	}
-	status := http.StatusUnauthorized
-	if retryAfter > 0 {
-		status = http.StatusTooManyRequests
-		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
-	}
-	if dest := r.Header.Get("Sec-Fetch-Dest"); dest != "" && dest != "document" {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(status)
-		if r.Method != http.MethodHead {
-			_, _ = w.Write([]byte("This site is protected.\n"))
-		}
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Content-Security-Policy", passcodeGateCSP)
-	if !h.pipeline().chromeProduct {
-		w.Header().Set("Content-Security-Policy", hostPasscodeGateCSP)
-	}
-	w.WriteHeader(status)
-	if r.Method == http.MethodHead {
-		return
-	}
-	_, _ = w.Write([]byte(h.passcodeGateHTML(requestHostName(r), next, msg)))
-}
-
-func (h *SiteHandler) passcodeGateHTML(host, next, msg string) string {
-	var b strings.Builder
-	if h.pipeline().chromeProduct {
-		b.WriteString(passcodeGateHead)
-	} else {
-		b.Write(h.pipeline().hostedStatusPage(passcodeGateHead))
-	}
-	b.WriteString(`<body><main class="gate">`)
-	b.WriteString(`<p class="eyebrow">` + html.EscapeString(host) + `</p>`)
-	b.WriteString(`<h1>Enter the passcode</h1>`)
-	if next == "" {
-		b.WriteString(`<p class="lead">Open it at its own address to enter the passcode.</p>`)
-	} else {
-		b.WriteString(`<p class="lead">The owner protected this site with a passcode. They will have given it to you.</p>`)
-		b.WriteString(`<form method="post" action="/v1/site-unlock"><input type="hidden" name="next" value="` + html.EscapeString(next) + `">`)
-		b.WriteString(`<label for="sh-pass">Passcode</label>`)
-		bad := ""
-		if msg != "" {
-			bad = ` class="bad" aria-describedby="sh-pass-err"`
-		}
-		b.WriteString(`<input id="sh-pass" name="passcode" type="password" aria-label="Passcode" autocomplete="current-password" autofocus required maxlength="1024"` + bad + `>`)
-		if msg != "" {
-			b.WriteString(`<p class="err" id="sh-pass-err" role="alert">` + gateInfoSVG + `<span>` + html.EscapeString(msg) + `</span></p>`)
-		}
-		b.WriteString(`<button type="submit" class="primary">Open site</button></form>`)
-	}
-	b.WriteString(`</main></body></html>
-`)
-	return b.String()
-}
-
-// passcodePageHandler answers /internal/passcode/{rest...}, where nginx and
-// Caddy send a request for a site whose folder carries the passcode marker.
-// On a custom domain, a claimed name or a family address the host names the
-// site: the gate, or the file once unlocked (a family address of a site
-// that lives on a domain of its own redirects there first). On the content host the path does
-// (/<handle>/<site>/...): that site's own address. Anything else — a
-// hand-made vhost the app does not know — gets the protected page with no
-// form: closed, never the file.
-func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request) {
-	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
-	host := requestHostName(r)
-	if h.sharedHost(host) {
-		handle, tail, _ := strings.Cut(strings.TrimPrefix(rest, "/"), "/")
-		name, after, _ := strings.Cut(tail, "/")
-		if handle == "" || name == "" {
-			h.notFound(w, r)
-			return
-		}
-		r.SetPathValue("handle", handle)
-		r.SetPathValue("sitename", name)
-		r.SetPathValue("rest", after)
-		h.contentHostRedirect(w, r)
-		return
-	}
-	// From here the host names the site: everything below (the gate's
-	// next, /robots.txt) sees the path the visitor asked for, not the
-	// rewrite.
-	r = withVisitorPath(r)
-	// A binding still waiting for its proof is served too: nginx serves the
-	// same domain straight from disk when the site has no marker, and the
-	// proof itself fetches this page.
-	info, err := h.siteFacts().GetSiteByCustomDomain(r.Context(), host)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			log.Printf("passcode: domain %s: %v", host, err)
-		}
-		// A family address (familyhost.go): the host names the site too.
-		if m, ok, ferr := h.familySiteForHost(r.Context(), host); ferr == nil && ok {
-			h.serveFamilyFile(w, r, m, rest, (&url.URL{Path: rest}).EscapedPath())
-			return
-		} else if ferr != nil {
-			log.Printf("passcode: family host %s: %v", host, ferr)
-			h.renderServiceError(w, r)
-			return
-		}
-		h.servePasscodeGate(w, r, "", "", 0)
-		return
-	}
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	h.serveSiteFile(w, r, info.UserID, info.Name, rest, r.URL.EscapedPath())
-}
-
-// withVisitorPath is r with nginx's or Caddy's /internal/passcode rewrite
-// taken off its URL: the path the visitor asked for, query kept.
-func withVisitorPath(r *http.Request) *http.Request {
-	escaped := stripPasscodeRewrite(r.URL.EscapedPath())
-	path := stripPasscodeRewrite(r.URL.Path)
-	if escaped == r.URL.EscapedPath() && path == r.URL.Path {
-		return r
-	}
-	r2 := r.Clone(r.Context())
-	r2.URL.Path = path
-	r2.URL.RawPath = ""
-	if escaped != (&url.URL{Path: path}).EscapedPath() {
-		r2.URL.RawPath = escaped
-	}
-	r2.RequestURI = r2.URL.RequestURI()
-	return r2
-}
-
 // --- Unlocking ---
-
-// passcodeSiteForHost finds the protected site a visitor is unlocking: the
-// one the host names (its site host, custom domain or claimed name), or on
-// a person host the one the path's first segment names. Never on a shared
-// host.
-func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string) (userID, name string, ok bool, err error) {
-	if host == "" || h.sharedHost(host) {
-		return "", "", false, nil
-	}
-	if h.isSiteHostName(ctx, host) {
-		site, _, ok, err := h.siteHostSite(ctx, host)
-		if err != nil || !ok {
-			return "", "", false, err
-		}
-		return site.UserID, site.Name, true, nil
-	}
-	if owner, onPerson := h.personHostOwner(ctx, host); onPerson {
-		if !h.ed.Storage().EventSites {
-			home, has, err := h.sitesSvc().HomeSite(ctx, owner.ID)
-			if err != nil {
-				return "", "", false, err
-			}
-			if has {
-				return home.UserID, home.Name, home.Live(), nil
-			}
-		}
-		seg, _, _ := strings.Cut(strings.TrimPrefix(next, "/"), "/")
-		seg, _, _ = strings.Cut(seg, "?")
-		site, err := h.sitesSvc().AddressedSite(ctx, owner.ID, seg)
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", "", false, nil
-		}
-		if err != nil {
-			return "", "", false, err
-		}
-		return site.UserID, site.Name, true, nil
-	}
-	// A family address names its site (a custom domain bound under the
-	// family is not one: familySiteForHost leaves it to the lookup below).
-	if m, ok, err := h.familySiteForHost(ctx, host); err != nil {
-		return "", "", false, err
-	} else if ok {
-		return m.Site.UserID, m.Site.Name, true, nil
-	}
-	info, err := h.sitesSvc().GetSiteByCustomDomain(ctx, host)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", false, nil
-	}
-	if err != nil {
-		return "", "", false, err
-	}
-	return info.UserID, info.Name, true, nil
-}
 
 // unlockSite is POST /v1/site-unlock: the gate's form (passcode, next). It
 // works only from a page on this very host, for the site this host (or, on
@@ -825,7 +523,7 @@ func (h *SiteHandler) passcodeSiteForHost(ctx context.Context, host, next string
 // 303s back to next, a wrong one shows the gate again with the reason.
 // Wrong tries are limited per site and address and per site (section
 // "brute force" in passcode.go's settings). The passcode is never logged.
-func (h *SiteHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
 	if err := r.ParseForm(); err != nil {
 		writeProductErr(w, http.StatusBadRequest, "invalid_request", "bad request")
@@ -840,15 +538,15 @@ func (h *SiteHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
 	userID, name, ok, err := h.passcodeSiteForHost(r.Context(), host, next)
 	if err != nil {
 		log.Printf("passcode unlock %s: %v", host, err)
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return
 	}
 	var row model.SitePasscodeRow
 	if ok {
-		row, err = h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, name)
+		row, err = h.site.sitesSvc().GetSitePasscodeByName(r.Context(), userID, name)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("passcode unlock %s: %v", host, err)
-			h.renderServiceError(w, r)
+			h.site.renderServiceError(w, r)
 			return
 		}
 	}
@@ -862,7 +560,7 @@ func (h *SiteHandler) unlockSite(w http.ResponseWriter, r *http.Request) {
 	// never stored either.
 	wait, matched, err := h.checkVisitorPasscode(r, row, r.PostForm.Get("passcode"))
 	if err != nil {
-		h.renderServiceError(w, r)
+		h.site.renderServiceError(w, r)
 		return
 	}
 	if wait > 0 {
@@ -974,18 +672,18 @@ func (p *passcodeState) sweep(now time.Time) int {
 // pass untouched (the route's own checks still run). The unlock cookie is
 // never an owner power: it only gets a visitor as far as the route lets any
 // visitor go.
-func (h *SiteHandler) passcodeGate(next http.Handler) http.Handler {
+func (h *AccessHandler) passcodeGate(next http.Handler) http.Handler {
 	return h.siteDataGate(next, true)
 }
 
 // signInGate is passcodeGate for the visitor sign-in routes (me, visitor/auth,
 // verify): the passcode still applies, named viewers do not, since signing in
 // is how a named viewer gets in (viewers.go).
-func (h *SiteHandler) signInGate(next http.Handler) http.Handler {
+func (h *AccessHandler) signInGate(next http.Handler) http.Handler {
 	return h.siteDataGate(next, false)
 }
 
-func (h *SiteHandler) siteDataGate(next http.Handler, viewers bool) http.Handler {
+func (h *AccessHandler) siteDataGate(next http.Handler, viewers bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
@@ -996,10 +694,10 @@ func (h *SiteHandler) siteDataGate(next http.Handler, viewers bool) http.Handler
 		// site): both sites must let the request in.
 		siteName := strings.TrimSpace(r.PathValue("sitename"))
 		ids := map[string]bool{}
-		if id, _, err := h.resolveSiteIDBare(r, siteName); err == nil {
+		if id, _, err := h.site.resolveSiteIDBare(r, siteName); err == nil {
 			ids[id] = true
 		}
-		if id, err := h.resolveWriteSiteIDBare(r, siteName); err == nil {
+		if id, err := h.site.resolveWriteSiteIDBare(r, siteName); err == nil {
 			ids[id] = true
 		}
 		allowed, private, gated := true, false, false
@@ -1041,7 +739,7 @@ func writeSiteLocked(w http.ResponseWriter) {
 // PasscodeLetsIn reports whether a request may act on site siteID as a
 // visitor: the site has no passcode, or the request passes it (see
 // passcodeAllows). Errors count as no.
-func (h *SiteHandler) PasscodeLetsIn(r *http.Request, siteID string) bool {
+func (h *AccessHandler) PasscodeLetsIn(r *http.Request, siteID string) bool {
 	ok, err := h.passcodeAllows(r, siteID)
 	return err == nil && ok
 }
@@ -1050,7 +748,7 @@ func (h *SiteHandler) PasscodeLetsIn(r *http.Request, siteID string) bool {
 // has no passcode, or the request carries the owner's or the admin's key
 // (the admin's use is logged), this host's unlock cookie, or (reads only)
 // comes from a preview page of this site.
-func (h *SiteHandler) passcodeAllows(r *http.Request, siteID string) (bool, error) {
+func (h *AccessHandler) passcodeAllows(r *http.Request, siteID string) (bool, error) {
 	ok, _, _, err := h.siteAccessAllows(r, siteID, false)
 	return ok, err
 }
@@ -1059,8 +757,8 @@ func (h *SiteHandler) passcodeAllows(r *http.Request, siteID string) (bool, erro
 // rule (viewers.go): the owner's or admin's key, a preview read, or the owner
 // or a named viewer signed in on this host. private reports a refusal by the
 // named-viewers rule.
-func (h *SiteHandler) siteAccessAllows(r *http.Request, siteID string, viewers bool) (ok, private, gated bool, err error) {
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
+func (h *AccessHandler) siteAccessAllows(r *http.Request, siteID string, viewers bool) (ok, private, gated bool, err error) {
+	row, err := h.site.sitesSvc().GetSitePasscode(r.Context(), siteID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true, false, false, nil
 	}
@@ -1086,7 +784,7 @@ func (h *SiteHandler) siteAccessAllows(r *http.Request, siteID string, viewers b
 // ownerOrAdminKey: the request carries the key (or connector token) of
 // someone who acts as the site's owner (accounts.ActsAsOwner) or of the
 // admin; the admin's use is logged.
-func (h *SiteHandler) ownerOrAdminKey(r *http.Request, row model.SitePasscodeRow) bool {
+func (h *AccessHandler) ownerOrAdminKey(r *http.Request, row model.SitePasscodeRow) bool {
 	key := r.Header.Get("X-API-Key")
 	if key == "" {
 		return false
@@ -1105,7 +803,7 @@ func (h *SiteHandler) ownerOrAdminKey(r *http.Request, row model.SitePasscodeRow
 }
 
 // passcodeRowAllows is the passcode rule for a site that has one.
-func (h *SiteHandler) passcodeRowAllows(r *http.Request, row model.SitePasscodeRow) (bool, error) {
+func (h *AccessHandler) passcodeRowAllows(r *http.Request, row model.SitePasscodeRow) (bool, error) {
 	if h.ownerOrAdminKey(r, row) {
 		return true, nil
 	}
@@ -1118,7 +816,7 @@ func (h *SiteHandler) passcodeRowAllows(r *http.Request, row model.SitePasscodeR
 // previewRefererFor: the request comes from a preview page of this site on
 // this host whose token still holds (a preview reads the site's data the
 // way the live site would).
-func (h *SiteHandler) previewRefererFor(r *http.Request, siteID string) bool {
+func (h *AccessHandler) previewRefererFor(r *http.Request, siteID string) bool {
 	if !previewReferer(r) {
 		return false
 	}
@@ -1137,228 +835,15 @@ func (h *SiteHandler) previewRefererFor(r *http.Request, siteID string) bool {
 	if err != nil {
 		return false
 	}
-	id, v, err := h.checkPreviewToken(token, time.Now())
+	id, v, err := h.site.checkPreviewToken(token, time.Now())
 	return err == nil && id == siteID && v == n
 }
 
 // --- Owner API ---
 
-// passcodeResponse is what the owner routes answer.
-type passcodeResponse struct {
-	Site              string     `json:"site"`
-	PasscodeProtected bool       `json:"passcode_protected"`
-	Passcode          string     `json:"passcode,omitempty"`
-	PasscodeSetAt     *time.Time `json:"passcode_set_at,omitempty"`
-	Note              string     `json:"note,omitempty"`
-}
-
-// ownerSiteForPasscode loads the caller's site by {sitename} under its lock
-// for a change. ok=false after writing the answer.
-func (h *SiteHandler) ownerSiteForPasscode(w http.ResponseWriter, r *http.Request) (model.Site, func(), bool) {
-	user := auth.GetUser(r.Context())
-	name := strings.TrimSpace(r.PathValue("sitename"))
-	if _, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name); err != nil {
-		writeSiteLookupError(w, err)
-		return model.Site{}, nil, false
-	}
-	unlock := h.lockSite(user.ID, name)
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, name)
-	if err != nil {
-		unlock()
-		writeSiteLookupError(w, err)
-		return model.Site{}, nil, false
-	}
-	if adminSiteMismatch(r, site.ID) {
-		unlock()
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
-		return model.Site{}, nil, false
-	}
-	return site, unlock, true
-}
-
-func writeSiteLookupError(w http.ResponseWriter, err error) {
-	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found", Code: "site_not_found"})
-		return
-	}
-	writeInternal(w)
-}
-
-// getSitePasscode is GET /v1/sites/{sitename}/lock: whether the site has a
-// passcode, since when, and the passcode itself (owner only; the admin's
-// routes never read it).
-func (h *SiteHandler) getSitePasscode(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, strings.TrimSpace(r.PathValue("sitename")))
-	if err != nil {
-		writeSiteLookupError(w, err)
-		return
-	}
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
-	if err != nil {
-		writeSiteLookupError(w, err)
-		return
-	}
-	resp := passcodeResponse{Site: site.Name, PasscodeProtected: row.Enc != nil}
-	if row.Enc != nil {
-		code, err := h.passcode.open(site.ID, row.Enc)
-		if err != nil {
-			log.Printf("passcode read site_id=%s: %v", site.ID, err)
-			resp.Note = "The passcode is set but cannot be read on this server (its key changed). Set a new one."
-		} else {
-			resp.Passcode = code
-		}
-		if row.SetAt.Valid {
-			t := row.SetAt.Time.UTC()
-			resp.PasscodeSetAt = &t
-		}
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, resp)
-}
-
-// putSitePasscode is PUT /v1/sites/{sitename}/lock with {"passcode": "..."}
-// or {"generate": true}: sets or changes the passcode. A change signs
-// everyone out; the same passcode again changes nothing.
-func (h *SiteHandler) putSitePasscode(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Passcode *string `json:"passcode"`
-		Generate bool    `json:"generate"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || (req.Passcode == nil) == !req.Generate {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: `invalid JSON body (expected {"passcode":"..."} or {"generate":true})`, Code: "invalid_request"})
-		return
-	}
-	if !h.limits.SitePasscodes {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "site passcodes are not enabled on this server yet", Code: "passcodes_not_enabled"})
-		return
-	}
-	if h.passcode.aead == nil {
-		writeJSON(w, http.StatusConflict, errorResponse{Error: "site passcodes are not enabled on this server (it has no PASSCODE_ENC_KEY)", Code: "passcodes_not_enabled"})
-		return
-	}
-	var code string
-	var err error
-	if req.Generate {
-		code, err = generatePasscode(h.limits.PasscodeMinLength)
-		if err != nil {
-			writeInternal(w)
-			return
-		}
-	} else if code, err = normalizePasscode(*req.Passcode, h.limits.PasscodeMinLength); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "invalid_passcode"})
-		return
-	}
-	site, unlock, ok := h.ownerSiteForPasscode(w, r)
-	if !ok {
-		return
-	}
-	defer unlock()
-	if refuseSuspendedSite(w, site) {
-		return
-	}
-	if site.NamedViewers {
-		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: "this site is open only to named viewers; a site has named viewers or a passcode, not both. Set who can open it back to anyone first (set_site_access access anyone, or PUT /v1/sites/{sitename}/access), after the person agrees",
-			Code:  "named_viewers_set",
-		})
-		return
-	}
-	if h.SharedOrigin() || contentHostOnlySites[site.OwnerHandle+"/"+site.Name] || !h.personAddressFor(site.OwnerHandle, site.Name) {
-		writeJSON(w, http.StatusConflict, errorResponse{
-			Error: "a passcode needs the site to have an address of its own, and this site is served on an address every site shares",
-			Code:  "passcode_needs_own_address",
-		})
-		return
-	}
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
-	if err != nil {
-		writeSiteLookupError(w, err)
-		return
-	}
-	if row.Enc != nil {
-		if cur, oerr := h.passcode.open(site.ID, row.Enc); oerr == nil && cur == code {
-			resp := passcodeResponse{Site: site.Name, PasscodeProtected: true, Passcode: code, Note: "That is already this site's passcode; nothing changed."}
-			if row.SetAt.Valid {
-				t := row.SetAt.Time.UTC()
-				resp.PasscodeSetAt = &t
-			}
-			w.Header().Set("Cache-Control", "no-store")
-			writeJSON(w, http.StatusOK, resp)
-			return
-		}
-	}
-	enc, err := h.passcode.seal(site.ID, code)
-	if err != nil {
-		writeInternal(w)
-		return
-	}
-	now, err := h.sitesSvc().SetSitePasscode(r.Context(), site, row, enc)
-	if err != nil {
-		writeAccessMutationError(w, err)
-		return
-	}
-
-	changed := row.Enc != nil
-	log.Printf("site_passcode set=true changed=%t generated=%t site_id=%s name=%s by=%s", changed, req.Generate, site.ID, site.Name, auth.GetUser(r.Context()).ID)
-	note := "Every address of the site now asks for this passcode. Anyone you give it to can open the site and pass it on."
-	if changed {
-		note = "The passcode is changed: everyone who had entered the old one must enter the new one."
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	writeJSON(w, http.StatusOK, passcodeResponse{Site: site.Name, PasscodeProtected: true, Passcode: code, PasscodeSetAt: &now, Note: note})
-}
-
-// deleteSitePasscode is DELETE /v1/sites/{sitename}/lock: the site opens to
-// everyone again. Also the admin's (moderation), through asSiteOwner.
-func (h *SiteHandler) deleteSitePasscode(w http.ResponseWriter, r *http.Request) {
-	site, unlock, ok := h.ownerSiteForPasscode(w, r)
-	if !ok {
-		return
-	}
-	defer unlock()
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
-	if err != nil {
-		writeSiteLookupError(w, err)
-		return
-	}
-	if err := h.sitesSvc().ClearSitePasscode(r.Context(), site); err != nil {
-		writeAccessMutationError(w, err)
-		return
-	}
-
-	log.Printf("site_passcode set=false had=%t site_id=%s name=%s by=%s", row.Enc != nil, site.ID, site.Name, auth.GetUser(r.Context()).ID)
-	note := "The passcode is removed: every address of the site is open to everyone again."
-	if row.Enc == nil {
-		// Say so, so no one reports taking off a passcode that was never set.
-		note = "This site had no passcode, so nothing changed."
-	}
-	writeJSON(w, http.StatusOK, passcodeResponse{Site: site.Name, PasscodeProtected: false, Note: note})
-}
-
-// signOutEveryone is POST /v1/sites/{sitename}/lock/sign-out-everyone:
-// everyone who entered the passcode must enter it again.
-func (h *SiteHandler) signOutEveryone(w http.ResponseWriter, r *http.Request) {
-	site, unlock, ok := h.ownerSiteForPasscode(w, r)
-	if !ok {
-		return
-	}
-	defer unlock()
-	if _, err := h.sitesSvc().BumpSitePasscodeGeneration(r.Context(), site.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "this site has no passcode", Code: "no_passcode"})
-			return
-		}
-		writeInternal(w)
-		return
-	}
-	log.Printf("site_passcode sign_out_everyone site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
-	writeJSON(w, http.StatusOK, passcodeResponse{Site: site.Name, PasscodeProtected: true, Note: "Everyone is signed out: each visitor must enter the passcode again."})
-}
-
 // checkVisitorPasscode is shared by the browser unlock and visitor tools.
 // AI calls use a person bucket and a separate site budget. Browsers use IPs.
-func (h *SiteHandler) checkVisitorPasscode(r *http.Request, row model.SitePasscodeRow, supplied string) (time.Duration, bool, error) {
+func (h *AccessHandler) checkVisitorPasscode(r *http.Request, row model.SitePasscodeRow, supplied string) (time.Duration, bool, error) {
 	siteBucket := row.SiteID
 	ipKey := row.SiteID + "|" + clientIP(r)
 	if pass, ok := h.storeAccounts().LookupInternalVisitorKey(r.Header.Get(visitorPassHeader)); ok && pass.SiteID == row.SiteID {
@@ -1380,4 +865,21 @@ func (h *SiteHandler) checkVisitorPasscode(r *http.Request, row model.SitePassco
 		return wait, false, nil
 	}
 	return 0, true, nil
+}
+
+// storeSpan formats durations for messages and emails.
+func storeSpan(d time.Duration) string {
+	n, unit := int(d/time.Second), "second"
+	switch {
+	case d >= 24*time.Hour && d%(24*time.Hour) == 0:
+		n, unit = int(d/(24*time.Hour)), "day"
+	case d >= time.Hour && d%time.Hour == 0:
+		n, unit = int(d/time.Hour), "hour"
+	case d >= time.Minute && d%time.Minute == 0:
+		n, unit = int(d/time.Minute), "minute"
+	}
+	if n == 1 {
+		return "one " + unit
+	}
+	return strconv.Itoa(n) + " " + unit + "s"
 }

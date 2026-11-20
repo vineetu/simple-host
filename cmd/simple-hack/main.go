@@ -8,12 +8,4 @@ import (
 	"github.com/vsriram/simple-host/products/hack"
 )
 
-func main() { os.Exit(server.Run(os.Args[1:], programExtensions(), programOptions())) }
-
-func programExtensions() []*extension.Extension {
-	return []*extension.Extension{hack.Extension()}
-}
-
-func programOptions() server.Options {
-	return server.Options{}
-}
+func main() { os.Exit(server.Run(os.Args[1:], []*extension.Extension{hack.Extension()}, nil)) }

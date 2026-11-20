@@ -45,7 +45,7 @@ func serveVisitorRecordsBrowser(t *testing.T, file string) {
 	}
 	a.sites.SetSiteHosts("canonical", certDir)
 	// Passcodes on, as on the hosted service, so set_site_passcode works here.
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
 	// A fixed handle, so a browser without a host-resolver flag (WebKit) can
@@ -60,9 +60,9 @@ func serveVisitorRecordsBrowser(t *testing.T, file string) {
 	}
 	markReady(t, certDir, handle)
 	// One browser run signs the same people in on many sites from one address.
-	a.sites.emailLimiter = httpx.NewRateLimiter(1000, 0)
-	a.sites.visitorAuthLimiter = httpx.NewRateLimiter(1000, 0)
-	a.sites.storageIPLimiter = httpx.NewRateLimiter(100000, 0)
+	a.access.emailLimiter = httpx.NewRateLimiter(1000, 0)
+	a.access.visitorAuthLimiter = httpx.NewRateLimiter(1000, 0)
+	a.data.storageIPLimiter = httpx.NewRateLimiter(100000, 0)
 	RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
 	// A mailer is wired (the mailbox above), so provider discovery must say so.
 	oauth := newTestOAuthHandler(a.database, accountapp.New(a.database), config.Config{PublicBaseURL: a.srv.URL, ResendAPIKey: "test-mail-sink"})

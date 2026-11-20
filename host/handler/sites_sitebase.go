@@ -139,16 +139,6 @@ func (h *SiteHandler) servedBases() []string {
 	return []string{d}
 }
 
-// isServedBase: b is one of servedBases.
-func (h *SiteHandler) isServedBase(b string) bool {
-	for _, s := range h.servedBases() {
-		if strings.EqualFold(s, b) {
-			return true
-		}
-	}
-	return false
-}
-
 // userHostLabel is platformSubdomainLabel under any served base.
 func (h *SiteHandler) userHostLabel(host string) (label, base string, ok bool) {
 	for _, b := range h.servedBases() {

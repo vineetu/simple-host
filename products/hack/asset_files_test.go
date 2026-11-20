@@ -16,7 +16,7 @@ import (
 )
 
 func TestStoragePanelSharesNoticeGate(t *testing.T) {
-	sh := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", nil, nil)
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", nil, nil)
 	assets := Extension().Assets(sh)
 	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
 	page, err := sh.Pages().ChromePage(httptest.NewRequest(http.MethodGet, "/owner", nil), "showcase.html")
@@ -102,7 +102,7 @@ func TestSkillsVersionRoutes(t *testing.T) {
 		{productedition.Hack, "0.27.20"},
 	} {
 		t.Run(tc.kind.String(), func(t *testing.T) {
-			sh := handler.NewSiteHandler(productedition.ForKind(tc.kind), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+			sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(tc.kind), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 			mux := http.NewServeMux()
 			if tc.kind == productedition.Hack {
 				assets := Extension().Assets(sh)
@@ -128,7 +128,7 @@ func TestSkillsVersionRoutes(t *testing.T) {
 // Hack's one file route answers every own name that is served by its file
 // name, at that name; a page-only name gets no address of its own.
 func TestOwnFilesAreServedByTheFileRoute(t *testing.T) {
-	sh := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	assets := Extension().Assets(sh)
 	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
 	mux := http.NewServeMux()

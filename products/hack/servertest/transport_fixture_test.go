@@ -11,10 +11,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	productconfig "github.com/vsriram/simple-host/products/hack/config"
-	productedition "github.com/vsriram/simple-host/products/hack/edition"
-	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,9 +24,12 @@ import (
 	"testing"
 	"time"
 
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
+	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
-	operations "github.com/vsriram/simple-host/host/ops"
 	sitesapp "github.com/vsriram/simple-host/host/sites"
 
 	accountrepo "github.com/vsriram/simple-host/host/access/repo"
@@ -46,7 +45,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
-	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
@@ -92,24 +90,6 @@ func (m *replyMailer) SendNoticeReplyTo(to, replyTo, subject, text string) error
 	return nil
 }
 
-type failingReplyMailer struct{ replyMailer }
-
-func (m *failingReplyMailer) SendNoticeReplyTo(to, replyTo, subject, text string) error {
-	return errors.New("mail server down")
-}
-
-// last returns the newest mail about site, or "".
-func (m *replyMailer) last(site string) string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for i := len(m.sent) - 1; i >= 0; i-- {
-		if strings.Contains(m.sent[i], "Your site "+site+" ") {
-			return m.sent[i]
-		}
-	}
-	return ""
-}
-
 type hackApp struct {
 	database *sql.DB
 	admin    string
@@ -126,18 +106,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	} else {
 		ed = productedition.ForKind(productedition.Hack)
 	}
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
+	database := testDB(t)
 	adminKey, _ := auth.GenerateAPIKey()
 	adminID, err := accountrepo.EnsureAdminUser(context.Background(), database)
 	if err != nil {
@@ -273,19 +242,6 @@ func (m *mailbox) SendNotice(to, subject, text string) error {
 	return nil
 }
 
-// to returns the notices sent to address.
-func (m *mailbox) to(address string) []string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var out []string
-	for _, n := range m.notices {
-		if strings.HasPrefix(n, address+"|") {
-			out = append(out, n)
-		}
-	}
-	return out
-}
-
 func tarGzOf(t *testing.T, n int) string {
 	t.Helper()
 	var buf bytes.Buffer
@@ -323,8 +279,6 @@ func wantCode(t *testing.T, what string, r resp, status int, code string) {
 		}
 	}
 }
-
-func waitBlocked() { time.Sleep(300 * time.Millisecond) }
 
 func uniqueSlug() string {
 	var b [6]byte
@@ -378,36 +332,6 @@ func (a *hackApp) openEvent(t *testing.T, p person, slug string) {
 	}
 }
 
-// giveSubmittedEntry writes (or updates) a minimal, already-decided entry
-// for teamID directly via SQL: submitted_at and submit_settled_at both set.
-// Entries and participant journey slice 1 (zv-hack-entry-summary.sql) made
-// judging eligibility depend on EntryJudgeableSQL -- a submitted or settled
-// entry, not excluded -- so a team with no entry row at all is never
-// judgeable. Many tests outside the entries package score a team directly
-// to exercise leave/removal/judging behaviour rather than the entries API
-// itself; this is their fixture, the same direct INSERT newJudgingWorld
-// uses (hack_judging_test.go). It never touches title/tagline/etc, so it is
-// safe to call after an entry already exists (e.g. via PUT .../entry).
-func (a *hackApp) giveSubmittedEntry(t *testing.T, slug, teamID string) {
-	t.Helper()
-	if _, err := a.database.Exec(`
-		INSERT INTO event_entries (team_id, event_id, submitted_at, submit_settled_at)
-		VALUES ($1, (SELECT id FROM events WHERE slug = $2), now(), now())
-		ON CONFLICT (team_id) DO UPDATE SET submitted_at = now(), submit_settled_at = now()`,
-		teamID, slug); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func jsonArr(t *testing.T, r resp) []map[string]any {
-	t.Helper()
-	var out []map[string]any
-	if err := json.Unmarshal(r.body, &out); err != nil {
-		t.Fatalf("not array (%d): %s", r.status, r.body)
-	}
-	return out
-}
-
 // createEvent creates a draft event without opening it (hackApp's own
 // semantics, duplicated here).
 func (a *teamSiteApp) createEvent(t *testing.T, p person, slug string, extra map[string]any) resp {
@@ -454,7 +378,7 @@ func chromeTestHandler(kind productedition.Kind) *handler.SiteHandler {
 }
 
 func chromeTestHandlerWithBase(kind productedition.Kind, base string) *handler.SiteHandler {
-	sh := handler.NewSiteHandler(productedition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	if kind == productedition.Hack {
 		installAssets(sh, nil)
 	}
@@ -597,6 +521,8 @@ type teamSiteApp struct {
 	mux        *http.ServeMux
 	conn       *handler.ConnectorHandler
 	sites      *handler.SiteHandler
+	access     *handler.AccessHandler
+	data       *handler.DataHandler
 	users      *handler.UserHandler
 	hack       *hackhttp.HackHandler
 	certDir    string
@@ -615,21 +541,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	t.Helper()
 	accountapp.SetGroupHooks(accountapp.GroupHooks{Erasure: members.AccountErasure{}})
 	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN unset")
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { database.Close() })
-	if err := database.Ping(); err != nil {
-		t.Skipf("postgres not reachable: %v", err)
-	}
-	if err := hackdb.VerifyHackSchema(context.Background(), database); err != nil {
-		t.Fatalf("test database is behind the schema: %v", err)
-	}
+	database := testDB(t)
 	disk, err := storage.NewDiskStorage(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -663,14 +575,12 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	a.users = users
 	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
 	a.disk = disk
-	a.sites = handler.NewSiteHandler(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
+	a.sites, a.access, a.data = handler.NewSiteHandlers(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
 	gate := teams.SiteGate{TeamSitesReady: a.sites.TeamSitesReady, RequestCert: a.sites.RequestSiteCert, PaperSite: a.sites.RecordGateSite, PaperState: a.sites.RecordGateState}
 	a.sites.SetGroupGate(gate)
-	a.sites.SetStorageBindings(storagebind.Provider{DB: database})
-	a.sites.SetOperationsReporting(operations.NewReporting(database))
-	a.sites.SetOperationsNetwork(operations.NewNetworkUsage(database, ed))
+	a.data.SetStorageBindings(storagebind.Provider{DB: database})
 	a.sites.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
-	t.Cleanup(a.sites.WaitNotifications)
+	t.Cleanup(a.data.WaitNotifications)
 	a.sites.SetPersonHosts("canonical")
 	a.sites.SetSiteHosts("canonical", certDir)
 	a.hack = hackhttp.NewHackHandler(database, a.srv.URL, tsDomain)

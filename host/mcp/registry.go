@@ -67,8 +67,6 @@ type toolEntry struct {
 	tool    Tool
 	family  toolFamily
 	edition toolEdition
-	policy  toolPolicy
-	feature string
 }
 type toolRegistry struct{ entries []toolEntry }
 
@@ -83,7 +81,7 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 				panic("mcp: duplicate tool: " + tool.Name)
 			}
 		}
-		r.entries = append(r.entries, toolEntry{tool: tool, family: family, edition: edition, policy: tool.policy, feature: string(family)})
+		r.entries = append(r.entries, toolEntry{tool: tool, family: family, edition: edition})
 	}
 }
 
@@ -119,8 +117,10 @@ func buildRegistry(cfg Config, appFamily func(base []Tool) FamilyTools) *toolReg
 	r.add(editionScreen, famAccess, []Tool{passcodeScreenTool()})
 	for i := range r.entries {
 		entry := &r.entries[i]
-		if entry.edition == editionHost && cfg.NoSpamCheck && entry.policy.noSpamCheck != nil {
-			entry.tool = entry.policy.noSpamCheck(entry.tool)
+		if entry.edition == editionHost && cfg.NoSpamCheck && entry.tool.policy.noSpamCheck != nil {
+			policy := entry.tool.policy
+			entry.tool = policy.noSpamCheck(entry.tool)
+			entry.tool.policy = policy
 		}
 	}
 	for _, name := range coreToolNames {
@@ -154,20 +154,20 @@ type registryView struct {
 func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, deploy bool) registryView {
 	v := registryView{byName: map[string]Tool{}}
 	for _, entry := range r.entries {
-		if entry.edition != edition || entry.policy.connectorHidden || (deploy && entry.policy.notDeployOnly) {
+		tool, p := entry.tool, entry.tool.policy
+		if entry.edition != edition || p.connectorHidden || (deploy && p.notDeployOnly) {
 			continue
 		}
-		if site && (entry.policy.groupSiteExcluded || entry.policy.unlisted || (personal && entry.policy.personalExcluded)) {
+		if site && (p.groupSiteExcluded || p.unlisted || (personal && p.personalExcluded)) {
 			continue
 		}
-		tool := entry.tool
 		if site && cfg.Contribution != nil && cfg.Contribution.SiteVariants[tool.Name] != nil {
 			variant := cfg.Contribution.SiteVariants[tool.Name]
 			tool = variant(tool, *cfg.Limits)
-			tool.policy = entry.policy
+			tool.policy = p
 		}
 		v.byName[tool.Name] = tool
-		if entry.policy.unlisted {
+		if p.unlisted {
 			continue
 		}
 		v.tools = append(v.tools, tool)
@@ -176,9 +176,6 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, dep
 	}
 	return v
 }
-
-// withToolPolicy attaches policy to a declaration produced by an adapter.
-func withToolPolicy(tool Tool, policy toolPolicy) Tool { tool.policy = policy; return tool }
 
 // inventoryEvents marks Events enabled for the documentation inventory.
 // Inventory assembly never calls backend methods.
@@ -194,7 +191,7 @@ func (r *toolRegistry) policyIndex() map[string]toolPolicy {
 	policies := make(map[string]toolPolicy, len(r.entries))
 	for _, entry := range r.entries {
 		if _, exists := policies[entry.tool.Name]; !exists || entry.edition == editionHost {
-			policies[entry.tool.Name] = entry.policy
+			policies[entry.tool.Name] = entry.tool.policy
 		}
 	}
 	return policies
@@ -249,8 +246,8 @@ func inventoryTools(cfg Config, appFamily func(base []Tool) FamilyTools) []Inven
 		}
 		out = append(out, InventoryTool{
 			Name: entry.tool.Name, Family: string(entry.family), Edition: edition,
-			Listed: !entry.policy.unlisted && !entry.policy.connectorHidden,
-			Hidden: entry.policy.connectorHidden,
+			Listed: !entry.tool.policy.unlisted && !entry.tool.policy.connectorHidden,
+			Hidden: entry.tool.policy.connectorHidden,
 			Title:  entry.tool.Title, Description: entry.tool.Description, InputSchema: entry.tool.InputSchema,
 		})
 	}

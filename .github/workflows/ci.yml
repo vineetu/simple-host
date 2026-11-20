@@ -56,7 +56,7 @@ jobs:
           # platform-only and composed throwaway templates on this server.
           # Package paths select the schema, including for narrowed TEST_PKGS runs.
           TEST_PG_URL: postgres://postgres:postgres@127.0.0.1:${{ job.services.postgres.ports[5432] }}
-        run: make check
+        run: make check FULL=1
 
       - name: make check-release
         run: make check-release

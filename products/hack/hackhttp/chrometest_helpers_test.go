@@ -1,24 +1,11 @@
 package hackhttp
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
 )
-
-// Shared HTTP recording and CSP assertions for Hack-only tests.
-func get(t *testing.T, h http.Handler, host, path string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
-	if host != "" {
-		req.Host = host
-	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	return rec
-}
 
 func assertStrictScriptCSP(t *testing.T, label string, rec *httptest.ResponseRecorder) {
 	t.Helper()

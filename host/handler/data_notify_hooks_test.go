@@ -145,6 +145,7 @@ func TestNotifyHooksVisitorSignedUp(t *testing.T) {
 	s := l.s
 	mail := &codeMailer{}
 	s.a.sites.mailer = mail
+	s.a.access.mailer, s.a.data.mailer = s.a.sites.mailer, s.a.sites.mailer
 	hdr := browser(s.host, "")
 	signIn := func(email string) {
 		t.Helper()
@@ -213,6 +214,7 @@ func TestNotifyHooksViewerAccessRequested(t *testing.T) {
 	// dave signs in through the site's own form (the named-viewers path).
 	mail := &codeMailer{}
 	s.a.sites.mailer = mail
+	s.a.access.mailer, s.a.data.mailer = s.a.sites.mailer, s.a.sites.mailer
 	form := map[string]string{"Origin": "https://" + s.host, "Content-Type": "application/x-www-form-urlencoded", "Sec-Fetch-Site": "same-origin"}
 	if r := s.a.at(t, "POST", s.host, "/v1/site-signin", "email="+dave.email+"&next=/", form); r.status != 401 {
 		t.Fatalf("code page: %d %s", r.status, r.body)
@@ -353,12 +355,14 @@ func TestNotifyHooksGroupModeSilent(t *testing.T) {
 	l.deployShop(t, "<h1>v2</h1>")
 	l.one(t, "site.deployed")
 	l.s.a.sites.ed = groupTestEdition()
+	l.s.a.access.ed, l.s.a.data.ed = l.s.a.sites.ed, l.s.a.sites.ed
 	l.activate(t, 1)
 	l.none(t, "rollback in hack mode")
-	if n := len(l.s.a.sites.notifyEngine().emitting); n != 0 {
+	if n := len(l.s.a.data.notifyEngine().emitting); n != 0 {
 		t.Fatalf("emit queued in hack mode: %d", n)
 	}
 	l.s.a.sites.ed = edition.Default(config.DefaultLimits())
+	l.s.a.access.ed, l.s.a.data.ed = l.s.a.sites.ed, l.s.a.sites.ed
 	l.activate(t, 2)
 	if data := l.one(t, "site.deployed"); data["version"] != float64(2) || data["previous_version"] != float64(1) {
 		t.Fatalf("after hack mode: %v", data)

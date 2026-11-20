@@ -1,5 +1,7 @@
 package mcp
 
+import "slices"
+
 // hostFamilies returns the Simple Host tool families in registration order.
 func hostFamilies(limits Limits) []familyTools {
 	access := domainTools(limits)
@@ -13,7 +15,7 @@ func hostFamilies(limits Limits) []familyTools {
 	storage = append(storage, recipe)
 	families := []familyTools{
 		{Family: famAccounts, Tools: accountTools()},
-		{Family: famSites, Tools: siteTools(limits)},
+		{Family: famSites, Tools: slices.Concat(siteReadTools(), siteDeployTools(limits), siteVersionTools(limits), siteLifecycleTools(limits), siteReportingTools(limits))},
 		{Family: famImports, Tools: importTools()},
 		{Family: famAccess, Tools: access},
 		{Family: famStorage, Tools: storage},

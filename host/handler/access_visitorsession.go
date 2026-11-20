@@ -34,13 +34,6 @@ func requestIsHTTPS(r *http.Request) bool {
 	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
-func visitorCookieName(r *http.Request) string {
-	if requestIsHTTPS(r) {
-		return visitorCookieHost
-	}
-	return visitorCookieHTTP
-}
-
 func requestHostName(r *http.Request) string {
 	host := r.Host
 	if h, _, err := net.SplitHostPort(host); err == nil {
@@ -82,13 +75,13 @@ func hasVisitorCSRF(r *http.Request) bool {
 	return err == nil && media == "application/json"
 }
 
-func (h *SiteHandler) isVisitorApexHost(host string) bool {
+func (h *AccessHandler) isVisitorApexHost(host string) bool {
 	host = strings.ToLower(host)
 	if host == strings.ToLower(h.siteDomain) || host == "www."+strings.ToLower(h.siteDomain) {
 		return true
 	}
 	// The base's apex and www (sitebase.go) are the app's, never a site's.
-	if b := strings.ToLower(h.siteBase); h.baseSplit() && (host == b || host == "www."+b) {
+	if b := strings.ToLower(h.site.siteBase); h.site.baseSplit() && (host == b || host == "www."+b) {
 		return true
 	}
 	raw := os.Getenv("PUBLIC_BASE_URL")
@@ -111,7 +104,7 @@ func (h *SiteHandler) isVisitorApexHost(host string) bool {
 // (no nonce cookie, or another one) or on the wrong host cannot be retried.
 // Only the __Host- nonce cookie counts over HTTPS: a sibling host under the
 // same parent domain can plant a plain cookie, never a __Host- one.
-func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 	host := requestHostName(r)
 	once := strings.TrimSpace(r.URL.Query().Get("once"))
 	// Try again restarts sign-in at the site's own address, as a fresh
@@ -179,9 +172,9 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		fail(400, "return_host")
 		return
 	}
-	boundID, ok := h.PersonReturnSite(r.Context(), host, target.Path)
+	boundID, ok := h.site.PersonReturnSite(r.Context(), host, target.Path)
 	if !ok {
-		info, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host)
+		info, err := h.site.sitesSvc().GetSiteByCustomDomain(r.Context(), host)
 		if err != nil || !info.VerifiedAt.Valid {
 			fail(400, "site_unbound")
 			return
@@ -193,11 +186,11 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if sess.SSOPassHash.Valid {
-		if off, err := h.sitesSvc().SiteOffline(r.Context(), sess.SiteID); err != nil || off {
+		if off, err := h.site.sitesSvc().SiteOffline(r.Context(), sess.SiteID); err != nil || off {
 			fail(403, "site_offline")
 			return
 		}
-		if susp, _, err := h.sitesSvc().SiteSuspension(r.Context(), sess.SiteID); err != nil || susp {
+		if susp, _, err := h.site.sitesSvc().SiteSuspension(r.Context(), sess.SiteID); err != nil || susp {
 			fail(403, "site_suspended")
 			return
 		}
@@ -213,7 +206,7 @@ func (h *SiteHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	activated = true
-	h.visitorSignedIn(r, sess.SiteID, sess.UserID, first)
+	h.site.visitorSignedIn(r, sess.SiteID, sess.UserID, first)
 	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), h.visitorCookieMaxAge())
 	setVisitorNonceCookie(w, r, "", -1)
 	w.Header().Set("Cache-Control", "no-store")
@@ -253,7 +246,7 @@ var signInFailedPage = themed(`<!doctype html><html><head><meta charset="utf-8">
 
 // writeSignInFailed is the establish failure page: what happened, and a Try
 // again link that restarts sign-in for this site in this browser.
-func (h *SiteHandler) writeSignInFailed(w http.ResponseWriter, status int, reason, retry string) {
+func (h *AccessHandler) writeSignInFailed(w http.ResponseWriter, status int, reason, retry string) {
 	action := `<p class="fine">Close this tab and open the site again.</p>`
 	if retry != "" {
 		action = `<a class="primary" href="` + html.EscapeString(retry) + `">Try again</a><p class="fine">Try again signs you in to this site in this browser.</p>`
@@ -262,12 +255,12 @@ func (h *SiteHandler) writeSignInFailed(w http.ResponseWriter, status int, reaso
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_, _ = w.Write(h.pipeline().hostedStatusPage(page))
+	_, _ = w.Write(h.site.pipeline().hostedStatusPage(page))
 }
 
 // logoutVisitor handles POST /v1/visitor/logout: delete this session and clear
 // the cookie. Requires X-SH-CSRF: 1 or Content-Type: application/json.
-func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 	if !hasVisitorCSRF(r) {
 		writeJSON(w, http.StatusForbidden, struct {
 			Error string `json:"error"`
@@ -287,7 +280,7 @@ func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 	// destroyed here too and delete that visitor's push rows for this
 	// site server-side, so a blocked or racing client call can never
 	// leave one behind. Best-effort: never blocks or fails the sign-out.
-	h.deleteVisitorPushOnSignOut(r)
+	h.data.deleteVisitorPushOnSignOut(r)
 	back, err := h.endSiteSSO(w, r, "/")
 	if err != nil {
 		writeJSON(w, 500, errorResponse{Error: "sign-out unavailable"})
@@ -302,7 +295,7 @@ func (h *SiteHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (model.User, bool, error) {
+func (h *AccessHandler) resolveWriterKey(ctx context.Context, key string) (model.User, bool, error) {
 	if subtle.ConstantTimeCompare([]byte(key), []byte(h.adminAPIKey)) == 1 {
 		return model.User{ID: h.adminUserID, Username: "admin", IsAdmin: true}, true, nil
 	}
@@ -319,18 +312,18 @@ func (h *SiteHandler) resolveWriterKey(ctx context.Context, key string) (model.U
 }
 
 // getVisitorMe reports the current site session without extending its lifetime.
-func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	if siteName == "" {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "site name is required"})
 		return
 	}
-	if !h.authorizeStateOrigin(w, r, siteName) {
+	if !h.site.authorizeStateOrigin(w, r, siteName) {
 		writeOriginRefused(w)
 		return
 	}
-	siteID, err := h.resolveSiteID(r, siteName)
+	siteID, err := h.site.resolveSiteID(r, siteName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, errorResponse{Error: "site not found"})
@@ -343,19 +336,19 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	// site has its own domain, say so, so the page can send the visitor there.
 	if strings.EqualFold(requestHostName(r), h.contentHost) {
 		resp := map[string]any{"signed_in": false, "sign_in_available": false, "code": "custom_domain_required"}
-		if info, ok, _ := h.siteOwnAddress(r.Context(), siteID); ok && info.Domain != "" {
+		if info, ok, _ := h.site.siteOwnAddress(r.Context(), siteID); ok && info.Domain != "" {
 			resp["code"] = "use_custom_domain"
 			resp["domain"] = info.Domain
-		} else if h.personHostsCanonical() {
+		} else if h.site.personHostsCanonical() {
 			// The site's own address, where visitors sign in.
-			if handle, _, name, err := h.sitesSvc().GetSiteOwner(r.Context(), siteID); err == nil && h.personAddressFor(handle, name) {
-				resp["address"] = h.SiteURL(handle, name)
+			if handle, _, name, err := h.site.sitesSvc().GetSiteOwner(r.Context(), siteID); err == nil && h.site.personAddressFor(handle, name) {
+				resp["address"] = h.site.SiteURL(handle, name)
 			}
 		}
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	if domain, elsewhere := h.livesOnDomainElsewhere(r, siteID); elsewhere {
+	if domain, elsewhere := h.site.livesOnDomainElsewhere(r, siteID); elsewhere {
 		writeJSON(w, http.StatusOK, map[string]any{"signed_in": false, "sign_in_available": false, "code": "use_custom_domain", "domain": domain})
 		return
 	}
@@ -390,8 +383,8 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	// account or a member of the team that holds the site (ActsAsOwner;
 	// on Simple Hack the storage bindings provider), on one of the site's
 	// own hosts.
-	if h.storageOwnHost(r, siteID) {
-		owner, oerr := h.storageBindingProvider().OwnerOnSite(r.Context(), siteID, sess.UserID)
+	if h.data.storageOwnHost(r, siteID) {
+		owner, oerr := h.data.storageBindingProvider().OwnerOnSite(r.Context(), siteID, sess.UserID)
 		resp.SiteOwner = oerr == nil && owner
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -400,13 +393,13 @@ func (h *SiteHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 // optionsSiteRoute is the one preflight for the per-site credentialed
 // routes (visitor sign-in and /me): only the site's own origins
 // (authorizeStateOrigin) get it.
-func (h *SiteHandler) optionsSiteRoute(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) optionsSiteRoute(w http.ResponseWriter, r *http.Request) {
 	siteName := strings.TrimSpace(r.PathValue("sitename"))
 	if siteName == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if !h.authorizeStateOrigin(w, r, siteName) {
+	if !h.site.authorizeStateOrigin(w, r, siteName) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -427,7 +420,7 @@ type visitorMeResponse struct {
 	SiteOwner bool `json:"site_owner,omitempty"`
 }
 
-func (h *SiteHandler) visitorSignedInResponse(r *http.Request, expires time.Time, email, provider string) visitorMeResponse {
+func (h *AccessHandler) visitorSignedInResponse(r *http.Request, expires time.Time, email, provider string) visitorMeResponse {
 	resp := visitorMeResponse{SignedIn: true, ExpiresAt: expires.Format(time.RFC3339)}
 	if !strings.EqualFold(requestHostName(r), h.contentHost) {
 		resp.Email, resp.Provider = email, provider
@@ -519,7 +512,7 @@ func strictVisitorCookie(r *http.Request) string {
 
 // cookieSession is the visitor this request's __Host- cookie names on this
 // host (accounts.VisitorSession decides; siteID "" for any site here).
-func (h *SiteHandler) cookieSession(r *http.Request, siteID string) (model.VisitorSession, error) {
+func (h *AccessHandler) cookieSession(r *http.Request, siteID string) (model.VisitorSession, error) {
 	id, err := hex.DecodeString(strictVisitorCookie(r))
 	if err != nil || len(id) != 32 {
 		return model.VisitorSession{}, sql.ErrNoRows
@@ -529,7 +522,7 @@ func (h *SiteHandler) cookieSession(r *http.Request, siteID string) (model.Visit
 
 // strictVisitorSession returns the visitor signed in to siteID on this host,
 // for a same-origin request carrying the __Host- cookie. ok=false otherwise.
-func (h *SiteHandler) strictVisitorSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
+func (h *AccessHandler) strictVisitorSession(r *http.Request, siteID string) (model.VisitorSession, bool) {
 	if r.Header.Get(visitorPassHeader) == "" && !sameOriginRequest(r) {
 		return model.VisitorSession{}, false
 	}

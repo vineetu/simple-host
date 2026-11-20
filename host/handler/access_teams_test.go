@@ -651,7 +651,7 @@ func TestTeamHasNoKeyToReissue(t *testing.T) {
 
 func TestTeamSiteOffersNoPush(t *testing.T) {
 	a, _ := newSiteApp(t, "canonical")
-	a.sites.SetWebPushAccounts(nil, true)
+	a.data.SetWebPushAccounts(nil, true)
 	ann := a.newPerson(t, "team-push")
 	team := newTeam(t, a, ann, "push")
 	if r := teamDeploy(t, a, ann, team, "shop"); r.status >= 300 {

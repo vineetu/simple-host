@@ -13,10 +13,8 @@ import (
 
 // Event archive links follow the site's export-link pattern. Their signature
 // is process-local, and live event membership is checked again at download.
+// The shared EXPORT_LINK_TTL_MINUTES knob (limits.ExportLinkTTL) sets their life.
 const HackArchiveLinkDomain = "simple-hack event archive v1"
-
-// The shared EXPORT_LINK_TTL_MINUTES knob also controls event archive links.
-func (h *HackHandler) hackArchiveLinkTTL() time.Duration { return h.exportLinkTTL() }
 
 type HackArchiveClaim struct {
 	UserID  string `json:"u"`
@@ -39,7 +37,7 @@ func (h *HackHandler) CheckHackArchiveClaim(token string, now time.Time) (HackAr
 		return c, false
 	}
 	left := time.Unix(c.Expiry, 0).Sub(now)
-	if left <= 0 || left > h.hackArchiveLinkTTL() || !sites.UUIDShape.MatchString(c.UserID) || !sites.UUIDShape.MatchString(c.EventID) ||
+	if left <= 0 || left > h.limits.ExportLinkTTL || !sites.UUIDShape.MatchString(c.UserID) || !sites.UUIDShape.MatchString(c.EventID) ||
 		(c.Kind != "projects" && c.Kind != "own-team") || (c.Kind == "own-team") != (c.TeamID != "") ||
 		(c.TeamID != "" && !sites.UUIDShape.MatchString(c.TeamID)) || c.Slug == "" {
 		return c, false
@@ -59,12 +57,12 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 	}
 	// loadMember grants a platform admin read access to any event. An archive
 	// link is private data, so only actual event membership may mint it.
-	if _, err := h.eventsSvc().EventMember(r.Context(), a.event.ID, a.user.ID); err != nil {
+	if _, err := h.events.EventMember(r.Context(), a.event.ID, a.user.ID); err != nil {
 		writeEventNotFound(w)
 		return
 	}
 	claim := HackArchiveClaim{UserID: a.user.ID, EventID: a.event.ID, Slug: a.event.Slug, Kind: kind,
-		Expiry: time.Now().Add(h.hackArchiveLinkTTL()).Truncate(time.Second).Unix()}
+		Expiry: time.Now().Add(h.limits.ExportLinkTTL).Truncate(time.Second).Unix()}
 	if kind == "own-team" {
 		team, ok := h.participantTeam(w, r, a)
 		if !ok {
@@ -76,7 +74,7 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"url":        h.publicBaseURL + "/v1/hack/archive?token=" + url.QueryEscape(h.SignHackArchiveClaim(claim)),
 		"expires_at": time.Unix(claim.Expiry, 0).UTC().Format(time.RFC3339),
-		"expires_in": int(h.hackArchiveLinkTTL().Seconds()),
+		"expires_in": int(h.limits.ExportLinkTTL.Seconds()),
 	})
 }
 
@@ -91,7 +89,7 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 		invalid()
 		return
 	}
-	ev, err := h.eventsSvc().EventBySlug(r.Context(), c.Slug)
+	ev, err := h.events.EventBySlug(r.Context(), c.Slug)
 	if err == nil {
 		paperHackEvent(r, ev)
 	}
@@ -99,7 +97,7 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 		invalid()
 		return
 	}
-	m, err := h.eventsSvc().EventMember(r.Context(), ev.ID, c.UserID)
+	m, err := h.events.EventMember(r.Context(), ev.ID, c.UserID)
 	if err != nil {
 		invalid()
 		return
@@ -115,12 +113,12 @@ func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request
 			invalid()
 			return
 		}
-		status, err := h.membersSvc().MemberApprovalStatusLookup(r.Context(), ev.ID, c.UserID)
+		status, err := h.members.MemberApprovalStatusLookup(r.Context(), ev.ID, c.UserID)
 		if err != nil || status != "approved" {
 			invalid()
 			return
 		}
-		team, err := h.teamsSvc().TeamByID(r.Context(), c.TeamID)
+		team, err := h.teams.TeamByID(r.Context(), c.TeamID)
 		if err != nil || team.EventID != ev.ID {
 			invalid()
 			return

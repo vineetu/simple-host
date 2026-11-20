@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"net/http"
 	"time"
 
 	"github.com/vsriram/simple-host/host/model"
@@ -157,7 +156,7 @@ func (h *SiteHandler) SyncAccountMarkers(ctx context.Context, accountID string) 
 	}
 	var first error
 	for _, s := range sites {
-		if err := h.syncSiteMarker(s); err != nil && first == nil {
+		if err := h.access.syncSiteMarker(s); err != nil && first == nil {
 			first = err
 		}
 	}
@@ -177,7 +176,18 @@ func (h *SiteHandler) TeamSitesFrameBase() string {
 	return h.handoutBase()
 }
 
-// heldSiteNotFound preserves the event API response for an unavailable holding account.
-func heldSiteNotFound(w http.ResponseWriter) {
-	writeJSON(w, http.StatusNotFound, errorResponse{Error: "event not found", Code: "event_not_found"})
+// Hack's organiser website uses an internal UUID for storage; delivery payloads
+// use the event slug and public address, as the website tools do.
+func (h *SiteHandler) notificationSiteInfo(ctx context.Context, site model.Site) (string, string, error) {
+	if !h.ed.Notifications().EventScoped {
+		return site.Name, h.siteURLFor(site), nil
+	}
+	ev, err := h.groupByAccount(ctx, site.UserID)
+	if err != nil {
+		return "", "", err
+	}
+	if site.Name == ev.ID {
+		return ev.Slug, "https://" + ev.Slug + "." + h.siteDomain + "/", nil
+	}
+	return site.Name, h.TeamSiteURL(ev.Slug, site.Name), nil
 }

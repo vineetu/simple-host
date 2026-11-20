@@ -22,7 +22,7 @@ func TestRulesVisitorRightsList(t *testing.T) {
 		for k, v := range s.callers[who] {
 			r.Header.Set(k, v)
 		}
-		out, err := s.a.sites.visitorRead(r, s.sid, s.ownerID, "shop", map[string]any{})
+		out, err := s.a.access.visitorRead(r, s.sid, s.ownerID, "shop", map[string]any{})
 		if err != nil {
 			t.Fatalf("%s: %v", who, err)
 		}

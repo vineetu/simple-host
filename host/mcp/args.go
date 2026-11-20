@@ -171,34 +171,6 @@ func stringMap(args map[string]any, key string) (map[string]string, error) {
 	return out, nil
 }
 
-// idArg reads an optional id (a JSON number or a string of digits); "" when
-// it is absent.
-func idArg(args map[string]any, key string) (string, error) {
-	raw, present := args[key]
-	if !present || raw == nil {
-		return "", nil
-	}
-	var id string
-	switch v := raw.(type) {
-	case float64:
-		if v != math.Trunc(v) || v <= 0 {
-			return "", fmt.Errorf("%s must be an id from an earlier answer", key)
-		}
-		id = strconv.FormatInt(int64(v), 10)
-	case string:
-		id = strings.TrimSpace(v)
-	default:
-		return "", fmt.Errorf("%s must be an id from an earlier answer", key)
-	}
-	if id == "" {
-		return "", nil
-	}
-	if n, err := strconv.ParseInt(id, 10, 64); err != nil || n <= 0 {
-		return "", fmt.Errorf("%s must be an id from an earlier answer", key)
-	}
-	return id, nil
-}
-
 const siteDesc = "The site's name as it appears in its address, e.g. `birthday-rsvp`: lowercase letters, numbers and hyphens."
 
 // listArg reads a list argument. A client whose copy of the tool list predates

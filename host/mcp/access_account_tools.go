@@ -41,10 +41,6 @@ func accountTools() []Tool {
 			InputSchema: object(map[string]any{"include_email": map[string]any{"type": "boolean", "description": "Set true only when the person asks which email they are signed in with."}}),
 			Annotations: readOnly(),
 			run: func(c *call, args map[string]any) (output, error) {
-				res := c.do(http.MethodGet, "/v1/me", nil, nil)
-				if !res.ok() {
-					return output{}, restError("who_am_i", res)
-				}
 				var me struct {
 					Username           string              `json:"username"`
 					Handle             string              `json:"handle"`
@@ -62,7 +58,9 @@ func accountTools() []Tool {
 						Note         string `json:"note"`
 					} `json:"address"`
 				}
-				_ = json.Unmarshal(res.body, &me)
+				if err := c.doJSON("who_am_i", http.MethodGet, "/v1/me", nil, &me); err != nil {
+					return output{}, err
+				}
 				out := map[string]any{"email": "", "home_site": me.HomeSite}
 				out["can_set_keep_versions"], out["keep_versions"] = me.CanSetKeepVersions, me.KeepVersions
 				if me.FileUsage != nil {
@@ -133,12 +131,10 @@ func accountTools() []Tool {
 					return output{}, fmt.Errorf("bio must be a string")
 				}
 				body, _ := json.Marshal(map[string]any{"bio": bio})
-				res := c.do(http.MethodPut, "/v1/me/bio", body, nil)
-				if !res.ok() {
-					return output{}, restError("set_bio", res)
-				}
 				var result map[string]any
-				_ = json.Unmarshal(res.body, &result)
+				if err := c.doJSON("set_bio", http.MethodPut, "/v1/me/bio", body, &result); err != nil {
+					return output{}, err
+				}
 				return output{Text: "Showcase bio updated.", Structured: result}, nil
 			},
 		},
@@ -165,12 +161,10 @@ func accountTools() []Tool {
 					return output{}, fmt.Errorf("supply pinned and/or order")
 				}
 				body, _ := json.Marshal(payload)
-				res := c.do(http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/showcase", body, nil)
-				if !res.ok() {
-					return output{}, restError("set_showcase_site", res)
-				}
 				var result map[string]any
-				_ = json.Unmarshal(res.body, &result)
+				if err := c.doJSON("set_showcase_site", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/showcase", body, &result); err != nil {
+					return output{}, err
+				}
 				return output{Text: "Showcase pin and order updated.", Structured: result}, nil
 			},
 		},

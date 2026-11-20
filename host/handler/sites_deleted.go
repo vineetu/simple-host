@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
@@ -81,10 +80,6 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *SiteHandler) trashSite(ctx context.Context, site model.Site, also func(tx *sql.Tx) error) error {
-	return h.lifecycleSvcWithTransaction(also).Trash(ctx, sites.TrashInput{Site: site})
 }
 
 // listDeletedSites: GET /v1/me/deleted-sites.

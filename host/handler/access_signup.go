@@ -89,11 +89,6 @@ var arrivalSources = map[string]arrivalSource{
 	model.SignupAgentCon:    {Label: "Agent Con", Where: "Agent Con, San Jose"},
 }
 
-// arrivalUTM are the link parameters carried with a from value.
-var arrivalUTM = [...]struct{ param, key string }{
-	{"utm_source", "us"}, {"utm_medium", "um"}, {"utm_campaign", "uc"}, {"utm_term", "ut"}, {"utm_content", "ux"},
-}
-
 // arrivalFrom accepts a from value: lower-case letters, digits and hyphens,
 // at most 40 characters.
 func arrivalFrom(s string) (string, bool) {

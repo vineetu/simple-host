@@ -29,7 +29,7 @@ func groupLabel(groups []signupGroup, key string) string {
 
 // adminSignups is GET /v1/admin/signups?group=<key>: the accounts in one
 // sign-up source group, what each did after joining, and the group's funnel.
-func (h *SiteHandler) adminSignups(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) adminSignups(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
@@ -49,7 +49,7 @@ func (h *SiteHandler) adminSignups(w http.ResponseWriter, r *http.Request) {
 
 // adminSignupsCSV is GET /v1/admin/signups.csv?group=<key>: the same accounts
 // as a spreadsheet, every cell through csvSafe like the other exports.
-func (h *SiteHandler) adminSignupsCSV(w http.ResponseWriter, r *http.Request) {
+func (h *AccessHandler) adminSignupsCSV(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
@@ -123,8 +123,8 @@ func signupGroupOf(source string) string { return operations.SignupGroupOf(sourc
 func signupGroups(present map[string]bool) []signupGroup {
 	return operations.SignupGroups(present, cohortSources())
 }
-func (h *SiteHandler) cohort(r *http.Request, group string) ([]operations.CohortAccount, operations.CohortFunnel, []signupGroup, error) {
-	return h.reporting.Cohort(r.Context(), group, cohortSources())
+func (h *AccessHandler) cohort(r *http.Request, group string) ([]operations.CohortAccount, operations.CohortFunnel, []signupGroup, error) {
+	return h.site.reporting.Cohort(r.Context(), group, cohortSources())
 }
 
 // formatRFC3339 is hack.go's rfc3339Time, kept here for cohorts.go's signup

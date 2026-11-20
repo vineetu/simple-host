@@ -26,7 +26,6 @@ type call struct {
 	policy         toolPolicy // resolved caller-visible tool policy
 	orig           *http.Request
 	caller         Caller
-	handle         string
 	textOnlyClient bool
 	uiClient       bool // declared MCP Apps support (unknown is false)
 	wrapped        bool
@@ -91,6 +90,17 @@ func (c *call) do(method, path string, body []byte, extra map[string]string) ups
 	return upstreamResult{status: rec.status, header: rec.header, body: rec.body.Bytes()}
 }
 
+// doJSON serves one REST request and decodes a successful answer into into,
+// when into is not nil.
+func (c *call) doJSON(tool, method, path string, body []byte, into any) error {
+	res := c.do(method, path, body, nil)
+	if !res.ok() {
+		return restError(tool, res)
+	}
+	_ = json.Unmarshal(res.body, into)
+	return nil
+}
+
 // ownerPath reports whether a REST path takes owner=: the routes
 // auth.ScopeGate answers it on.
 func ownerPath(path string) bool {
@@ -100,39 +110,6 @@ func ownerPath(path string) bool {
 
 // ifMatchPath is a deploy, file update or rollback request.
 var ifMatchPath = regexp.MustCompile(`^/v1/sites/[^/]+(/files|/active-version)?$`)
-
-// accountHandle is the handle whose sites the call acts on: the team named
-// by owner, else the caller's own.
-func (c *call) accountHandle() string {
-	if c.owner != "" {
-		return c.owner
-	}
-	return c.caller.Handle
-}
-
-// ownHandle is the caller's URL handle, read once per call. An account gets a
-// handle on its first deploy, so a brand-new one may not have it yet.
-func (c *call) ownHandle() (string, error) {
-	if c.owner != "" {
-		return c.owner, nil
-	}
-	if c.handle != "" {
-		return c.handle, nil
-	}
-	me := c.do(http.MethodGet, "/v1/me", nil, nil)
-	if !me.ok() {
-		return "", restError("who_am_i", me)
-	}
-	var body struct {
-		Handle string `json:"handle"`
-	}
-	_ = json.Unmarshal(me.body, &body)
-	if body.Handle == "" {
-		return "", errors.New("this account has no sites yet, so it has no site data to read or change; publish a site first with create_site")
-	}
-	c.handle = body.Handle
-	return c.handle, nil
-}
 
 // capture is a minimal buffering ResponseWriter.
 type capture struct {

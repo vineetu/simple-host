@@ -32,8 +32,8 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	wantTS(t, "custom event website", a.api(t, "PATCH", "/v1/hack/events/"+event+"/website", map[string]string{"mode": "custom"}, organiser.key), 200, "")
 	o := handler.NewOAuthHandler(a.database, accountapp.New(a.database), server.OAuthSettings(config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain}, accountapp.New(a.database)), productedition.ForKind(productedition.Hack))
 	o.SetPersonSiteResolver(a.sites.PersonReturnSite)
-	o.SetPasscodeCheck(a.sites.PasscodeLetsIn)
-	a.sites.SetSSOHop(o)
+	o.SetPasscodeCheck(a.access.PasscodeLetsIn)
+	a.access.SetSSOHop(o)
 	o.Register(a.mux)
 	pa := &composedSSOApp{a}
 	pass := pa.ssoPass(t, member.key)

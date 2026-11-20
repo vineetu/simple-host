@@ -301,10 +301,10 @@ func TestSiteBaseMatrix(t *testing.T) {
 						t.Fatalf("%s: %d %q", h, r.status, r.header.Get("Location"))
 					}
 				}
-				if !a.sites.isVisitorApexHost(sbBase) || !a.sites.isVisitorApexHost("www."+sbBase) {
+				if !a.access.isVisitorApexHost(sbBase) || !a.access.isVisitorApexHost("www."+sbBase) {
 					t.Fatal("base apex is not the app's")
 				}
-			} else if a.sites.isVisitorApexHost(sbBase) {
+			} else if a.access.isVisitorApexHost(sbBase) {
 				t.Fatal("base apex while off")
 			}
 

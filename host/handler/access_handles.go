@@ -8,11 +8,6 @@ import (
 	appsites "github.com/vsriram/simple-host/host/sites"
 )
 
-// sanitizeHandleBase turns an email into a URL-safe handle base from its local-part:
-// lowercase, non-[a-z0-9-] → '-', collapse dashes, trim, truncate to 30 chars.
-// Empty result becomes "user".
-func sanitizeHandleBase(email string) string { return accounts.SanitizeHandleBase(email) }
-
 // handleSeed is what a first handle is derived from: the account's username
 // (its email), except for the instance's own admin row (username "admin",
 // which is reserved and would come out as admin-2). The admin gets the first

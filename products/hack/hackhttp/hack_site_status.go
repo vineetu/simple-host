@@ -18,7 +18,7 @@ import (
 // plan §4.4, slice 3). GET only: the caller's own team. The member publishes
 // with their own sign-in, naming owner (the event) on the site routes.
 
-func (h *HackHandler) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) {
+func (h *participationHTTP) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
@@ -49,7 +49,7 @@ func (h *HackHandler) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) 
 // siteStatusJSON is the Website screen's richer site object: the existing
 // /key fields plus when and how the live version went live, and when the
 // deadline pin was taken.
-func (h *HackHandler) siteStatusJSON(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) map[string]any {
+func (h *participationHTTP) siteStatusJSON(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) map[string]any {
 	var site *model.Site
 	if h.sites != nil {
 		if info, st, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug); err != nil {
@@ -63,7 +63,7 @@ func (h *HackHandler) siteStatusJSON(ctx context.Context, ev hackmodel.Event, te
 	out["published_via"] = nil
 	out["pinned_version"] = nil
 	out["pinned_at"] = nil
-	if st, err := h.teamsSvc().WriteState(ctx, team.ID); err == nil {
+	if st, err := h.teams.WriteState(ctx, team.ID); err == nil {
 		if st.PinnedVersion.Valid {
 			out["pinned_version"] = st.PinnedVersion.Int64
 		}
@@ -72,7 +72,7 @@ func (h *HackHandler) siteStatusJSON(ctx context.Context, ev hackmodel.Event, te
 		}
 	}
 	if site != nil {
-		if v, err := h.teamsSvc().ActiveSiteVersion(ctx, site.ID); err == nil {
+		if v, err := h.teams.ActiveSiteVersion(ctx, site.ID); err == nil {
 			out["published_at"] = rfc3339Time(v.CreatedAt)
 			// published_via: whatever the live deploy's ?author= recorded
 			// (SIM-152), passed through as-is. Most deploys never set it, so
@@ -91,7 +91,7 @@ func (h *HackHandler) siteStatusJSON(ctx context.Context, ev hackmodel.Event, te
 // caller has connected an app (names only, never client ids, grants or
 // devices). A connected app publishes the team's site as the person, naming
 // the event as owner.
-func (h *HackHandler) connectionStatusJSON(ctx context.Context, userID string) (map[string]any, error) {
+func (h *participationHTTP) connectionStatusJSON(ctx context.Context, userID string) (map[string]any, error) {
 	conns, err := accountapp.ConnectedApps(ctx, h.database, userID)
 	if err != nil {
 		return nil, err

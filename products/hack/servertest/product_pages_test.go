@@ -177,7 +177,7 @@ func TestSelfHostedHackNamesNoHostedDomain(t *testing.T) {
 	}
 	// The 404 page names the install's own domain, so the handler is built
 	// with it (the shared fixture's site domain is the hosted one).
-	self := handler.NewSiteHandler(productedition.ForKind(productedition.Hack), "https://hack.example.test", nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", nil, nil)
+	self, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "https://hack.example.test", nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", nil, nil)
 	selfMux := http.NewServeMux()
 	installAssets(self, selfMux)
 	handler.RegisterUIRoutes(selfMux, "https://hack.example.test", self)
@@ -215,10 +215,7 @@ func TestHackProductIcons(t *testing.T) {
 	}
 }
 
-var (
-	docsScriptTagRE = regexp.MustCompile(`<script\b([^>]*)>`)
-	docsScriptSrcRE = regexp.MustCompile(`\bsrc="`)
-)
+var ()
 
 // Each Hack chrome page, as served, carries the shared theme script exactly
 // once, in <head> before any stylesheet of its own. This is the Hack half of

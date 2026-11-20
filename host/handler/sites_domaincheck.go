@@ -116,24 +116,10 @@ var nonPublicPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("fec0::/10"),
 }
 
-// startDomainChecks re-verifies bound custom domains in the background, so
-// domain_status reflects what the domain actually does rather than what was
-// hoped for at bind time.
-func (h *SiteHandler) startDomainChecks(every time.Duration) {
-	o := h.siteLoop("sites.domain_checks")
-	o.once.Do(func() {
-		if o.enabled() {
-			h.startDomainChecksContext(context.Background(), every)
-		}
-	})
-}
 func (h *SiteHandler) startDomainChecksContext(ctx context.Context, every time.Duration) {
 	h.siteLoop("sites.domain_checks").periodic(ctx, 30*time.Second, every, h.checkBoundDomainsContext)
 }
 
-func (h *SiteHandler) checkBoundDomains() {
-	h.checkBoundDomainsContext(context.Background())
-}
 func (h *SiteHandler) checkBoundDomainsContext(parent context.Context) {
 	ctx, cancel := context.WithTimeout(parent, domainPassTimeout)
 	defer cancel()
@@ -273,7 +259,7 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d model.BoundDomain,
 	// this domain), and against the status read under the row lock, so two
 	// overlapping checks notify once.
 	if check.UserID != "" && check.PreviousStatus != status {
-		h.emitSiteNotification(d.SiteID, "domain.status_changed", map[string]any{"domain": d.Domain, "status": status, "previous_status": check.PreviousStatus, "reason": notifyCut(reason, 1024), "cert": cert}, 0)
+		h.data.emitSiteNotification(d.SiteID, "domain.status_changed", map[string]any{"domain": d.Domain, "status": status, "previous_status": check.PreviousStatus, "reason": notifyCut(reason, 1024), "cert": cert}, 0)
 	}
 	if status == "active" {
 		if !d.Verified || d.PreviousDomain != "" {
@@ -304,7 +290,7 @@ func (h *SiteHandler) applyDomainCheck(ctx context.Context, d model.BoundDomain,
 			h.cancelDomainCert(d.Domain)
 			h.syncDomainRedirect(ctx, d.SiteID)
 			log.Printf("domain %s: failing for %s; released from %s", d.Domain, failing.Round(time.Hour), check.Name)
-			h.emitSiteNotification(d.SiteID, "domain.status_changed", map[string]any{"domain": d.Domain, "status": "released", "previous_status": status, "reason": notifyCut(reason, 1024), "cert": ""}, 0)
+			h.data.emitSiteNotification(d.SiteID, "domain.status_changed", map[string]any{"domain": d.Domain, "status": "released", "previous_status": status, "reason": notifyCut(reason, 1024), "cert": ""}, 0)
 		}
 	case failing >= h.domainLapseWarnAfter() && !check.Notified:
 		h.emailDomainFailing(ctx, d, check.Name, reason)

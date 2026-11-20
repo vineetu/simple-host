@@ -23,7 +23,7 @@ const testPasscodeKey = "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=" // 32 byt
 
 // withPasscodeLimits changes config.Limits for the rest of the test on every
 // handler's own snapshot (targets, each a pointer to a *SiteHandler's
-// embedded limitSet field, e.g. &a.sites.limitSet), seeded from the first
+// embedded limitSet field, e.g. &a.sites.limitSet, &a.access.limitSet, &a.data.limitSet), seeded from the first
 // target's current values, and restores each afterwards. There is no global
 // left to mutate, so every target that matters to the test must be named.
 func withPasscodeLimits(t *testing.T, change func(l *config.Limits), targets ...*limitSet) {
@@ -81,7 +81,7 @@ func TestNormalizePasscode(t *testing.T) {
 }
 
 func TestPasscodeSealAndCookie(t *testing.T) {
-	h := &SiteHandler{}
+	h := &AccessHandler{}
 	if err := h.SetPasscodeKey("not base64!"); err == nil {
 		t.Fatal("bad key accepted")
 	}
@@ -156,7 +156,7 @@ func TestPasscodeSealAndCookie(t *testing.T) {
 	}
 	// Another key: every cookie made under the old one stops working.
 	now = time.Unix(1_800_000_000, 0)
-	h2 := &SiteHandler{}
+	h2 := &AccessHandler{}
 	_ = h2.SetPasscodeKey(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32)))
 	h2.passcode.now = h.passcode.now
 	if h2.unlocked(with("shop.olive.example.app", c.Name, c.Value), "site-a", 3) {
@@ -248,7 +248,7 @@ func TestPasscodeRouteTable(t *testing.T) {
 			}
 			n++
 			ownerOnly := strings.Contains(line, "authMiddleware(") || strings.Contains(line, "wrap(") && strings.Contains(string(b), "return noticeMiddleware(authMiddleware(f))")
-			if !ownerOnly && !strings.Contains(line, "h.passcodeGate(") && !strings.Contains(line, "h.signInGate(") && !(strings.Contains(m[2], "/storage/") && (strings.Contains(line, "h.storage") || strings.Contains(line, "h.listStorageResources") || strings.Contains(line, "h.getStorageUsage") || strings.Contains(line, "h.putStorageResource") || strings.Contains(line, "h.deleteStorageResource") || strings.Contains(line, "h.createStorageFileLink"))) {
+			if !ownerOnly && !strings.Contains(line, ".passcodeGate(") && !strings.Contains(line, ".signInGate(") && !(strings.Contains(m[2], "/storage/") && (strings.Contains(line, ".storage") || strings.Contains(line, ".listStorageResources") || strings.Contains(line, ".getStorageUsage") || strings.Contains(line, ".putStorageResource") || strings.Contains(line, ".deleteStorageResource") || strings.Contains(line, ".createStorageFileLink"))) {
 				t.Errorf("%s: %s %s is neither owner-only nor behind the passcode gate", f, m[1], m[2])
 			}
 		}
@@ -279,10 +279,10 @@ const passcodeData = "/v1/sites/trip/storage/kv/notes/keys/c"
 func newPasscodeApp(t *testing.T) *passcodeApp {
 	t.Helper()
 	a, dir := newSiteApp(t, "canonical")
-	if err := a.sites.SetPasscodeKey(testPasscodeKey); err != nil {
+	if err := a.access.SetPasscodeKey(testPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet, &a.access.limitSet, &a.data.limitSet)
 	p := &passcodeApp{privateApp: a, olive: a.newPerson(t, "olive"), canary: passcodeCanary}
 	_, p.handle = a.userID(t, p.olive)
 	markReady(t, dir, p.handle)
@@ -344,14 +344,14 @@ func TestPasscodeOwnerAPI(t *testing.T) {
 	p := newPasscodeApp(t)
 
 	// Off: refused with a clear 409, nothing changes.
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = false }, &p.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = false }, &p.sites.limitSet, &p.access.limitSet, &p.data.limitSet)
 	if r := p.lock(t, "123456"); r.status != http.StatusConflict || r.json(t)["code"] != "passcodes_not_enabled" {
 		t.Fatalf("off: %d %s", r.status, r.body)
 	}
 	if _, err := os.Stat(filepath.Join(p.pageDir, "passcode")); err == nil {
 		t.Fatal("off: marker written")
 	}
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.sites.limitSet, &p.access.limitSet, &p.data.limitSet)
 
 	if r := p.lock(t, "12345"); r.status != http.StatusBadRequest || r.json(t)["code"] != "invalid_passcode" {
 		t.Fatalf("short: %d %s", r.status, r.body)
@@ -442,8 +442,8 @@ func TestPasscodeOwnerAPI(t *testing.T) {
 // A shared-origin server (no person or site hosts) refuses a passcode.
 func TestPasscodeNeedsOwnAddress(t *testing.T) {
 	a := newPersonApp(t, "off")
-	_ = a.sites.SetPasscodeKey(testPasscodeKey)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &a.sites.limitSet)
+	_ = a.access.SetPasscodeKey(testPasscodeKey)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &a.sites.limitSet, &a.access.limitSet, &a.data.limitSet)
 	olive := a.newPerson(t, "olive")
 	a.deploy(t, olive, "shop")
 	r := a.at(t, "PUT", pcSiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, map[string]string{"X-API-Key": olive.key})
@@ -807,7 +807,7 @@ func TestPasscodeBruteForce(t *testing.T) {
 		l.RatePasscodeSite = config.Rate{Burst: 5, Every: time.Hour}
 		l.PasscodeLockout = 15 * time.Minute
 		l.PasscodeSiteLockout = 15 * time.Minute
-	}, &p.sites.passcode.limitSet)
+	}, &p.access.passcode.limitSet)
 	ip := func(n string) map[string]string { return map[string]string{"X-Forwarded-For": "203.0.113." + n} }
 	for i := 0; i < 2; i++ {
 		if r := p.unlock(t, p.host, "wrong", "/", ip("1")); r.status != 401 {
@@ -835,7 +835,7 @@ func TestPasscodeBruteForce(t *testing.T) {
 	}
 	// ... and the clock moves on.
 	later := time.Now().Add(16 * time.Minute)
-	p.sites.passcode.now = func() time.Time { return later }
+	p.access.passcode.now = func() time.Time { return later }
 	if r := p.unlock(t, p.host, code, "/", ip("5")); r.status != http.StatusSeeOther {
 		t.Fatalf("after the lockout: %d", r.status)
 	}
@@ -850,7 +850,7 @@ func TestPasscodeMarkerLifecycle(t *testing.T) {
 	if err := os.Remove(marker); err != nil {
 		t.Fatal(err)
 	}
-	p.sites.SyncSuspendMarkers(context.Background())
+	p.access.SyncSuspendMarkers(context.Background())
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatalf("boot sync did not restore the marker: %v", err)
 	}
@@ -882,7 +882,7 @@ func TestPasscodeMarkerLifecycle(t *testing.T) {
 	if r := p.at(t, "GET", "voyage."+p.person, "/", nil, nil); r.status != 200 {
 		t.Fatalf("database says open: %d", r.status)
 	}
-	p.sites.SyncSuspendMarkers(context.Background())
+	p.access.SyncSuspendMarkers(context.Background())
 	if p.sites.disk.HasPasscodeMarker(uid, "voyage") {
 		t.Fatal("stale marker kept")
 	}
@@ -893,8 +893,8 @@ func TestPasscodeMarkerLifecycle(t *testing.T) {
 // disk, so a protected site's file there 302s to its own address instead.
 func TestPasscodeContentHostServeMode(t *testing.T) {
 	a := newPersonApp(t, "serve")
-	_ = a.sites.SetPasscodeKey(testPasscodeKey)
-	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet)
+	_ = a.access.SetPasscodeKey(testPasscodeKey)
+	withPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true; l.PasscodeMinLength = 6 }, &a.sites.limitSet, &a.access.limitSet, &a.data.limitSet)
 	olive := a.newPerson(t, "olive")
 	if r := a.at(t, "POST", pcSiteDomain, "/v1/sites/trip/files", map[string]any{"files": map[string]string{"index.html": passcodeCanary, "a.js": passcodeCanary}}, map[string]string{"X-API-Key": olive.key}); r.status != http.StatusCreated {
 		t.Fatal(r.status)
@@ -950,11 +950,11 @@ func TestPasscodeKeyIsActsAsOwner(t *testing.T) {
 	}
 	req := httptest.NewRequest("GET", "https://"+p.host+"/", nil)
 	req.Header.Set("X-API-Key", m.key)
-	if !p.sites.ownerOrAdminKey(req, model.SitePasscodeRow{UserID: teamID, Name: "site"}) {
+	if !p.access.ownerOrAdminKey(req, model.SitePasscodeRow{UserID: teamID, Name: "site"}) {
 		t.Fatal("team member's own key refused at the team's gate")
 	}
 	uid, _ := p.userID(t, p.olive)
-	if p.sites.ownerOrAdminKey(req, model.SitePasscodeRow{UserID: uid, Name: "trip"}) {
+	if p.access.ownerOrAdminKey(req, model.SitePasscodeRow{UserID: uid, Name: "trip"}) {
 		t.Fatal("member key passed someone else's gate")
 	}
 	if _, err := p.database.Exec(`UPDATE api_keys SET expires_at = now() - interval '1 second' WHERE user_id = $1`, uid); err != nil {
