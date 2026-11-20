@@ -377,6 +377,7 @@ type hackEventView struct {
 		JoinURL              string `json:"join_url"`
 		JudgeCode            string `json:"judge_code"`
 		JudgeURL             string `json:"judge_url"`
+		WebsiteSite          string `json:"website_site"`
 		Counts               struct {
 			Participants int `json:"participants"`
 			Teams        int `json:"teams"`
@@ -471,6 +472,7 @@ func hackEventOutput(verb string, body []byte) (mcp.Output, error) {
 			"join_url":              o.JoinURL,
 			"judge_code":            o.JudgeCode,
 			"judge_url":             o.JudgeURL,
+			"website_site":          o.WebsiteSite,
 			"counts": map[string]any{
 				"participants": o.Counts.Participants,
 				"teams":        o.Counts.Teams,
@@ -722,13 +724,14 @@ func hackEventSchemas() hackEventSchemaSet {
 			"join_url":              mcp.OutString("Link participants use to join. Give this to the person exactly."),
 			"judge_code":            mcp.OutString("Code in the judge link."),
 			"judge_url":             mcp.OutString("Link judges use to join. Give this to the person exactly."),
+			"website_site":          mcp.OutString("The event website's site name, for the site and storage tools with owner set to the event's name."),
 			"counts": mcp.OutObject(map[string]any{
 				"participants": mcp.OutInteger("Participants, not counting organisers or judges."),
 				"teams":        mcp.OutInteger("Teams."),
 				"judges":       mcp.OutInteger("Judges."),
 				"on_no_team":   mcp.OutInteger("Participants who have not joined a team."),
 			}, "participants", "teams", "judges", "on_no_team"),
-		}, "organiser_name", "organisation", "contact_email", "purpose", "expected_participants", "join_code", "join_url", "judge_code", "judge_url", "counts"), "Present only when this person is the organiser."),
+		}, "organiser_name", "organisation", "contact_email", "purpose", "expected_participants", "join_code", "join_url", "judge_code", "judge_url", "website_site", "counts"), "Present only when this person is the organiser."),
 	}, "slug", "title", "tagline", "about", "rules", "prizes", "overall_prizes", "submissions_public", "coc_text", "theme", "stage", "role", "url", "time_zone", "team_size_max", "taken_down", "stages_offered", "starts_at", "ends_at", "judging_ends_at")
 	listItem := mcp.OutObject(map[string]any{
 		"slug":       mcp.OutString("The event name."),
