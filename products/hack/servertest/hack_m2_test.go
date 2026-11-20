@@ -237,6 +237,9 @@ func TestHackM2ConnectorPublishesAsOwner(t *testing.T) {
 	if text, isErr := call("create_site", map[string]any{"site": beta, "owner": slug, "files": map[string]string{"index.html": "x"}}); !isErr || !strings.Contains(text, "owner_not_found") {
 		t.Fatalf("connector other team: %v %s", isErr, text)
 	}
+	if text, isErr := call("get_site", map[string]any{"site": alpha, "owner": slug}); isErr || !strings.Contains(text, "index.html") {
+		t.Fatalf("connector get_site: %v %s", isErr, text)
+	}
 	if text, isErr := call("delete_site", map[string]any{"site": alpha, "owner": slug, "confirm_name": alpha}); !isErr || !strings.Contains(text, "editor_scope") {
 		t.Fatalf("connector delete: %v %s", isErr, text)
 	}

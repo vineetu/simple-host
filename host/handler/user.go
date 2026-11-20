@@ -50,6 +50,7 @@ type UserHandler struct {
 	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
 	publicPage func(handle string) string
 	fileUsage  func(context.Context, *model.User) (*accountFileUsage, error)
+	siteFiles  *SiteHandler
 	// addressState reports the account's own-address certificate state
 	// (SiteHandler.AddressState).
 	addressState func(handle string) *addressState
@@ -560,4 +561,6 @@ func subtleConstantTimeEqual(a, b string) int {
 	return 0
 }
 
-func (h *UserHandler) SetFileUsage(s *SiteHandler) { h.fileUsage = s.accountFileUsage }
+// SetSites wires the site handler's file usage and its site locks and file
+// removal (deleting a team).
+func (h *UserHandler) SetSites(s *SiteHandler) { h.fileUsage, h.siteFiles = s.accountFileUsage, s }

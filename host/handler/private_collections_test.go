@@ -104,7 +104,7 @@ func newPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	a.sites.SetOperationsReporting(operations.NewReporting(database))
 	a.sites.Register(mux, authMW, NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.sites.WaitNotifications)
-	users.SetFileUsage(a.sites)
+	users.SetSites(a.sites)
 	users.SetPublicPage(a.sites.PersonPageURL)
 	users.SetAddressState(a.sites.AddressState)
 	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, nil)

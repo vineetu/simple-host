@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Simple Host API
-  description: Static website hosting with a light per-site backend.
+  description: 'Static website hosting with a light per-site backend. Every /v1/sites route, GET /v1/me/deleted-sites and GET /v1/analytics/sites take ?owner=<handle> to act, with your own key or sign-in, on the sites of a team you belong to or the one site of an account you edit (403 editor_scope outside that site''s deploys, versions, saved data, visits and your own notifications).'
   version: 2.0.0
 servers:
 - {url: 'https://simple-host.app', description: 'Production API (agents, with an API key).'}
@@ -11,6 +11,7 @@ tags:
   description: 'Account sign-in by emailed code or Google, for Simple Host account owners and the agents working for them. Errors: 403 account_auth_unavailable.'
 - {name: Account, description: 'Account profile, credentials and connected apps.'}
 - {name: Sites, description: 'List, inspect and manage websites.'}
+- {name: Teams, description: 'Accounts that own sites and that people join by an invitation to their email; members act with ?owner=<team>.'}
 - {name: Deploy, description: Publish inline JSON files or a tar.gz/zip archive.}
 - {name: Versions, description: 'Inspect retained deployments, preview and roll back.'}
 - {name: Analytics, description: Owner-scoped website traffic.}
@@ -2261,7 +2262,7 @@ paths:
       tags: [Sites]
       operationId: putSitesBySitenameKeep
       summary: Keep a site up for good
-      description: Mark the site Keep (or clear the mark). An idle site with no new version for 90 days gets its owner a warning; 30 days later with nothing done it moves to Recently deleted.
+      description: Mark the site Keep (or clear the mark). An idle site not marked Keep moves to Recently deleted.
       security:
       - {apiKey: []}
       parameters:
@@ -2693,108 +2694,6 @@ paths:
           content:
             application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
         '403': {$ref: '#/components/responses/OriginMismatch'}
-  /v1/idle/keep:
-    get:
-      x-audience: [public-host]
-      tags: [Sites]
-      operationId: getIdleKeep
-      summary: '"Keep it" link from an idle-site email (confirmation page)'
-      description: Opened from the idle-site email; no sign-in, the token is the authorization.
-      security: []
-      parameters:
-      - name: t
-        in: query
-        required: false
-        schema: {type: string}
-        description: The token from an older email
-      responses:
-        '200': {description: HTML confirmation page with the button}
-        '403':
-          description: HTML page; the site is taken down
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '404':
-          description: HTML page; the link was used or has expired
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '429': {$ref: '#/components/responses/TooManyRequests'}
-    post:
-      x-audience: [public-host]
-      tags: [Sites]
-      operationId: postIdleKeep
-      summary: '"Keep it" button'
-      description: The confirmation page's button (with `peek=1`, only the confirmation page).
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required: [t]
-              properties:
-                t: {type: string}
-                peek: {type: string, enum: ['1']}
-      responses:
-        '200': {description: HTML page confirming the site stays up}
-        '403':
-          description: HTML page; the site is taken down
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '404':
-          description: HTML page; the link was used or has expired
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '429': {$ref: '#/components/responses/TooManyRequests'}
-  /v1/idle/restore:
-    get:
-      x-audience: [public-host]
-      tags: [Sites]
-      operationId: getIdleRestore
-      summary: '"Restore it" link from an idle-site removal email (confirmation page)'
-      description: Shows a page with a "Restore it" button for a site the idle-site cleanup moved to Recently deleted, and changes nothing.
-      security: []
-      parameters:
-      - {name: t, in: query, required: false, schema: {type: string}}
-      responses:
-        '200': {description: HTML confirmation page with the button}
-        '403':
-          description: HTML page; the site is taken down
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '404':
-          description: HTML page; the link was used or has expired
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '429': {$ref: '#/components/responses/TooManyRequests'}
-    post:
-      x-audience: [public-host]
-      tags: [Sites]
-      operationId: postIdleRestore
-      summary: '"Restore it" button'
-      description: Brings the site back exactly as it was (versions, saved data, names), with a fresh idle clock, while it is still in Recently deleted.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              type: object
-              required: [t]
-              properties:
-                t: {type: string}
-                peek: {type: string, enum: ['1']}
-      responses:
-        '200': {description: HTML page confirming the site is back}
-        '403':
-          description: HTML page; the site is taken down
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '404':
-          description: HTML page; the link was used or has expired
-          content:
-            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
-        '429': {$ref: '#/components/responses/TooManyRequests'}
   /v1/analytics/sites:
     get:
       x-audience: [public-host]
@@ -6875,6 +6774,207 @@ paths:
                 recipients: {type: string, enum: [owner, row_owner, both, none]}
                 title: {type: string}
                 body_column: {type: string}
+  /v1/teams:
+    post:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: postTeams
+      summary: Create a team
+      description: 'You become its first member. The name is its address and follows the address rules. 409 name_taken, name_conflict, team_limit.'
+      security:
+      - {apiKey: []}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+      responses:
+        '201': {description: Created}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    get:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: getTeams
+      summary: List my teams
+      description: 'Your teams and the invitations waiting for your answer.'
+      security:
+      - {apiKey: []}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /v1/teams/{team}:
+    delete:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: deleteTeam
+      summary: Delete a team
+      description: 'Refused with 409 team_has_sites while it owns live sites; its sites in Recently deleted go for good with it. The name is never given out again.'
+      security:
+      - {apiKey: []}
+      parameters:
+      - {name: team, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/teams/{team}/members:
+    get:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: getTeamMembers
+      summary: List a teams members
+      description: 'Members and waiting invitations.'
+      security:
+      - {apiKey: []}
+      parameters:
+      - {name: team, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: postTeamMembers
+      summary: Invite someone by email
+      description: 'The same answer whether or not an account has that email; nothing is sent. Whoever signs in with it sees the invitation.'
+      security:
+      - {apiKey: []}
+      parameters:
+      - {name: team, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: {type: string}
+      responses:
+        '202': {description: Invitation recorded}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/teams/{team}/members/{member}:
+    delete:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: deleteTeamMember
+      summary: Remove a member, or leave
+      description: '409 last_member: a team keeps one member.'
+      security:
+      - {apiKey: []}
+      parameters:
+      - {name: team, in: path, required: true, schema: {type: string}}
+      - {name: member, in: path, required: true, description: 'The member''s handle.', schema: {type: string}}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /v1/teams/{team}/invitations/{invitation}:
+    delete:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: deleteTeamInvitation
+      summary: Cancel an invitation
+      security:
+      - {apiKey: []}
+      parameters:
+      - {name: team, in: path, required: true, schema: {type: string}}
+      - {name: invitation, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/me/team-invitations/{invitation}:
+    post:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: postMeTeamInvitation
+      summary: Answer an invitation
+      security:
+      - {apiKey: []}
+      parameters:
+      - {name: invitation, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answer]
+              properties:
+                answer: {type: string, enum: [accept, decline]}
+      responses:
+        '200': {description: OK}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/sites/{sitename}/editors:
+    get:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: getSiteEditors
+      summary: List a sites editors
+      description: 'Editors publish, roll back and use the saved data of this one site with their own sign-in and ?owner=<account>.'
+      security:
+      - {apiKey: []}
+      parameters:
+      - {$ref: '#/components/parameters/sitename'}
+      - {$ref: '#/components/parameters/owner'}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: postSiteEditors
+      summary: Add an editor
+      security:
+      - {apiKey: []}
+      parameters:
+      - {$ref: '#/components/parameters/sitename'}
+      - {$ref: '#/components/parameters/owner'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [person]
+              properties:
+                person: {type: string, description: 'Their handle.'}
+      responses:
+        '200': {description: OK}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /v1/sites/{sitename}/editors/{person}:
+    delete:
+      x-audience: [public-host]
+      tags: [Teams]
+      operationId: deleteSiteEditor
+      summary: Remove an editor
+      security:
+      - {apiKey: []}
+      parameters:
+      - {$ref: '#/components/parameters/sitename'}
+      - {name: person, in: path, required: true, description: 'The editor''s handle.', schema: {type: string}}
+      - {$ref: '#/components/parameters/owner'}
+      responses:
+        '200': {description: OK}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
 components:
   securitySchemes:
     apiKey: {type: apiKey, in: header, name: X-API-Key}
@@ -6890,6 +6990,12 @@ components:
             sites: Publish and manage your sites and their data
             events: Available when this server supports the operation.
   parameters:
+    owner:
+      name: owner
+      in: query
+      required: false
+      description: Handle of the team or account to act for (see the API description).
+      schema: {type: string}
     createAccess:
       name: access
       in: query

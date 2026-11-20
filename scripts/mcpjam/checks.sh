@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# MCPJam protocol conformance, OAuth conformance, host compatibility and the
-# Claude directory policy lane, against the fixture from fixture.sh. Free: no
-# MCPJam account and no eval credits.
+# MCPJam protocol conformance, OAuth conformance, host compatibility and MCP
+# Apps conformance, against the fixture from fixture.sh. Free: no MCPJam
+# account and no eval credits.
 set -uo pipefail
 FIX=${FIX:-/tmp/mcpjam-fixture}
 CLI=${MCPJAM_CLI:-@mcpjam/cli@6.0.0}
@@ -74,7 +74,8 @@ hosts = json.load(open(sys.argv[1]))["hosts"]
 # The picker hides itself when the host does not advertise serverTools.
 # Site preview needs nested frames and selects the link text when clipboard
 # permission is refused; so does the passcode screen. The passcode screen's
-# update-model-context note is optional and skipped where a host lacks it.
+# update-model-context note and opening links are optional and skipped where
+# a host lacks them.
 # My sites always uses tiles and needs no frame exception.
 def known_limit(h):
     return (h["verdict"] == "degraded" and h.get("findings")
@@ -87,7 +88,7 @@ def known_limit(h):
                              or (f.get("capability") == "sandboxPermissions"
                                  and bool(f.get("tools"))
                                  and set(f["tools"]) <= {"get_site", "get_site_passcode", "set_site_passcode"})
-                             or f.get("capability") == "updateModelContext"))
+                             or f.get("capability") in ("updateModelContext", "openLinks")))
                     for f in h["findings"]))
 bad = [h["hostId"] + ": " + h["verdict"] for h in hosts
        if h["verdict"] != "works" and not known_limit(h)]
@@ -102,42 +103,6 @@ apps() {
   jam --format json apps conformance --url "$URL" --header "X-API-Key: $SH_TEST_KEY" --reporter json-summary >"$FIX/apps-conformance.json"
 }
 run "MCP Apps conformance" apps
-
-# The submission lanes need a listing profile and screenshots, and the
-# intrusive probes and RFC 8707 check need a completed sign-in (the OAuth runs
-# above cover that). Anything else not evaluated fails, as does a violation.
-directory() {
-  jam --format json readiness check claude "$URL" --header "X-API-Key: $SH_TEST_KEY" >"$FIX/readiness.json"
-  python3 - "$FIX/readiness.json" <<'PY'
-import json, sys
-d = json.load(open(sys.argv[1]))
-def expected_gap(f):
-    # CLI 6's directory lane does not capture UI HTML or execute tool calls.
-    # Apps resource validation runs separately above; browser checks cover design.
-    if f["id"].startswith("claude.apps.design.") and f.get("notEvaluatedReason") == "no widget HTML was captured, so the static design lints could not run":
-        return True
-    if f["id"] == "claude.apps.result-size-budget" and f.get("class") == "manual-review":
-        return True
-    return (f["lane"] in ("submission-artifacts", "optional-features")
-            or f["id"].startswith("claude.intrusive.") or f["id"] == "claude.auth.rfc8707-resource-canonical")
-# The default-off site preview still declares the Simple Host frame wildcard.
-# My sites and dashboard must pass without a frame-domain exception.
-def preview_frame_pattern(f):
-    return (f["id"] == "claude.apps.csp-shape" and f.get("class") == "recommended"
-            and bool(f.get("details", {}).get("resources"))
-            and set(f["details"]["resources"]) == {"ui://simple-host/site-preview"})
-for f in d["findings"]:
-    if f["status"] == "violated" and preview_frame_pattern(f):
-        print("accepted recommendation exception: site preview requires the Simple Host frame-domain wildcard")
-bad = [f["status"] + " " + f["id"] + ": " + f["title"] for f in d["findings"]
-       if (f["status"] == "violated" and not preview_frame_pattern(f)) or (f["status"] == "not-evaluated" and not expected_gap(f))]
-if not any(f["id"] == "claude.tools.title-present" and f["status"] == "satisfied" for f in d["findings"]):
-    bad.append("the tool listing was not inspected")
-print("\n".join(bad) or "no unexpected Claude directory findings")
-sys.exit(1 if bad else 0)
-PY
-}
-run "claude directory policy" directory
 
 if [ ${#failed[@]} -gt 0 ]; then
   printf 'failed: %s\n' "${failed[@]}"

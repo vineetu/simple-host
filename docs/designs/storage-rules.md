@@ -212,8 +212,7 @@ Key-value data uses one SQLite file **per namespace** under the site. PostgreSQL
 remains the JSON normalizer. Cutover deletes the moved namespace's Postgres rows
 when its store marker changes. Exports, attribution, notifications and quotas
 continue across the move. The operator's maintenance commands require the server
-stopped and the data-directory exclusive lock. `migrate-rules` is operator-only,
-including on self-hosted installs; site owners are not offered a conversion tool.
+stopped and the data-directory exclusive lock.
 
 Older programs see deny-visitor fill values on a rules resource, including for
 owner-on-site. Saving through that older program overwrites the fill and can

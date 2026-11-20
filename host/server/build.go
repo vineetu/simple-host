@@ -303,7 +303,7 @@ func Build(cfg config.Config, exts []*extension.Extension, options ...Options) (
 	siteHandler.SetOperationsNetwork(operations.NewNetworkUsage(db, ed))
 	siteHandler.SetOperationsReporting(operations.NewReporting(db))
 	userHandler.ShareAssets(siteHandler)
-	userHandler.SetFileUsage(siteHandler)
+	userHandler.SetSites(siteHandler)
 	siteHandler.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	siteHandler.SetPersonHosts(cfg.PersonHosts)
 	siteHandler.SetCustomDomainIPAlso(cfg.CustomDomainIPAlso)

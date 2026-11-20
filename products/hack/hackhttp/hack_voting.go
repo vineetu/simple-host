@@ -194,7 +194,7 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	_, selected, eligible, err := h.entries.ReadMyVote(r.Context(), ev, user.Username, user.IsAdmin)
+	_, selected, eligible, err := h.entries.ReadMyVote(r.Context(), ev, user.Username)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -207,7 +207,7 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	if !entries.CanCastVote(user.Username, user.IsAdmin) {
+	if !entries.CanCastVote(user.Username) {
 		httpx.WriteError(w, 403, "vote_ineligible", "sign in with a personal account to vote")
 		return
 	}

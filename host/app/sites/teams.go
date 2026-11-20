@@ -18,7 +18,7 @@ import (
 // Teams (owner decisions 2026-11-19): a team is an account that owns sites
 // and that people join. There is one role: any member may do everything to
 // the team's sites (with their own sign-in and owner=<team>), invite people
-// and remove members, and delete the team once it owns no sites. Nobody
+// and remove members, and delete the team once it owns no live sites. Nobody
 // joins without accepting an invitation (owner decision A, 2026-11-19). A
 // team always keeps at least one member. Who may act for a team is decided
 // by accounts.ActsAsOwner alone.
@@ -303,7 +303,7 @@ func RemoveTeamMember(ctx context.Context, db *sql.DB, personID, handle, who str
 		return err
 	}
 	if n <= 1 {
-		return teamFail(http.StatusConflict, "last_member", "this is the team's last member, and a team always keeps one; to end the team, delete its sites, then delete the team (DELETE /v1/teams/<team>; sites in Recently deleted count until they are removed for good)")
+		return teamFail(http.StatusConflict, "last_member", "this is the team's last member, and a team always keeps one; to end the team, delete its sites, then delete the team (DELETE /v1/teams/<team>)")
 	}
 	if _, err := repo.RemoveTeamMember(ctx, tx, team.ID, memberID); err != nil {
 		return err
@@ -314,34 +314,42 @@ func RemoveTeamMember(ctx context.Context, db *sql.DB, personID, handle, who str
 	return tx.Commit()
 }
 
-// DeleteTeam deletes a team that owns no sites (Recently deleted included;
-// a taken-down site is never removed for good), for a member, unless the
-// operator suspended it (accounts.EraseTeam).
-func DeleteTeam(ctx context.Context, db *sql.DB, personID, handle string) error {
+// TeamID is the id of the team handle names, for one of its members.
+func TeamID(ctx context.Context, db *sql.DB, personID, handle string) (string, error) {
+	team, err := memberTeam(ctx, db, personID, handle)
+	return team.ID, err
+}
+
+// DeleteTeam deletes a team that owns no live sites, for a member, unless
+// the operator suspended it or a site is taken down (accounts.EraseTeam).
+// Its sites in Recently deleted go for good with it; the caller removes the
+// returned account's files after the commit.
+func DeleteTeam(ctx context.Context, db *sql.DB, personID, handle string) (model.ErasedAccount, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return model.ErasedAccount{}, err
 	}
 	defer tx.Rollback()
 	team, err := memberTeam(ctx, tx, personID, handle)
 	if err != nil {
-		return err
+		return model.ErasedAccount{}, err
 	}
 	if err := repo.LockTeam(ctx, tx, team.ID); err != nil {
-		return err
+		return model.ErasedAccount{}, err
 	}
-	n, err := repo.CountAccountSites(ctx, tx, team.ID)
+	n, err := repo.CountLiveSites(ctx, tx, team.ID)
 	if err != nil {
-		return err
+		return model.ErasedAccount{}, err
 	}
 	if n > 0 {
-		return teamFail(http.StatusConflict, "team_has_sites", fmt.Sprintf("the team still owns %d site(s), counting any in Recently deleted; delete them first", n))
+		return model.ErasedAccount{}, teamFail(http.StatusConflict, "team_has_sites", fmt.Sprintf("the team still owns %d site(s); delete them first (sites in Recently deleted go with the team)", n))
 	}
 	var hold *accounts.LifecycleError
-	if _, err := accounts.EraseTeam(ctx, tx, team.ID, personID, false); errors.As(err, &hold) {
-		return teamFail(hold.Status, hold.Code, hold.Message)
+	erased, err := accounts.EraseTeam(ctx, tx, team.ID, personID, false)
+	if errors.As(err, &hold) {
+		return model.ErasedAccount{}, teamFail(hold.Status, hold.Code, hold.Message)
 	} else if err != nil {
-		return err
+		return model.ErasedAccount{}, err
 	}
-	return tx.Commit()
+	return erased, tx.Commit()
 }

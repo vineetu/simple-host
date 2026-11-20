@@ -214,18 +214,13 @@
     },
     {
       "op": "set",
-      "path": "/areas/0/features/15/limits",
-      "value": "An author name is at most 80 characters. Discarding is final and applies only to versions that were never live; a deploy-only key or a Simple Hack team key cannot discard."
-    },
-    {
-      "op": "set",
       "path": "/areas/0/features/15/editions/hack",
       "value": "yes"
     },
     {
       "op": "set",
       "path": "/areas/0/features/15/editions_note",
-      "value": "On Simple Hack the version list and authors work the same way; team keys cannot discard."
+      "value": "On Simple Hack the version list and authors work the same way."
     },
     {
       "op": "set",
@@ -902,7 +897,7 @@
     {
       "op": "set",
       "path": "/areas/4/features/3/limits",
-      "value": "Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. On Simple Hack, new team subscriptions stop at the submission deadline, membership loss removes them, and organiser delivery stops when the event ends. Event accounts and team keys cannot subscribe. A deploy-only key cannot subscribe."
+      "value": "Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. On Simple Hack, new team subscriptions stop at the submission deadline, membership loss removes them, and organiser delivery stops when the event ends. Event accounts cannot subscribe. A deploy-only key cannot subscribe."
     },
     {
       "op": "set",

@@ -32,9 +32,9 @@ Announcements and team messages can email people: ask before posting, and explic
 
 ## Event website and storage
 
-Build a custom event website from `hack_get_page_recipe` topic `event`: it reads the public event feed live, so never copy stage, announcements or results into the HTML. Read `hack_get_event_website` before uploading a complete static site with root `index.html` via `hack_publish_event_website`; ask before the first publication or switching between built-in and custom (`hack_set_event_website_mode`; built-in keeps the custom files). Icons: PNG, JPEG or WebP via `hack_set_event_icon`; confirm before replacing one.
+Build a custom event website from `hack_get_page_recipe` topic `event`: it reads the public event feed live, so never copy stage, announcements or results into the HTML. Organisers are members of the event's account: publish a complete static site with root `index.html` with `create_site` / `update_site`, `site` = `organiser.website_site` from `hack_get_event` and `owner` = the event's name. Ask before the first publication or switching between built-in and custom (`hack_set_event_website_mode`; built-in keeps the custom files). Icons: PNG, JPEG or WebP via `hack_set_event_icon`; confirm before replacing one.
 
-After its first publication a custom event website can use KV, SQLite and file resources through `hack_event_storage_*` with the event slug, under row rules (see website-deploy's storage reference). There, "owner" is the organisers, until the event ends. Registration and applications stay on the Simple Hack apex. Ask before making data readable or changeable by more people, or deleting a resource.
+Its KV, SQLite and file resources use the `storage_*` tools with the same `site` and `owner`, under row rules (see website-deploy's storage reference). There, "owner" is the organisers, until the event ends. Registration and applications stay on the Simple Hack apex. Ask before making data readable or changeable by more people, or deleting a resource.
 
 ## Ask first
 

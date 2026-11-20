@@ -11,7 +11,7 @@ Ask your AI app for a website, and it goes live at its own address, `https://<si
 - **Features:** https://simple-host.app/features
 - **Architecture:** https://simple-host.app/architecture.html
 - **For agents and developers:** [`llms.txt`](https://simple-host.app/llms.txt) · [OpenAPI spec](https://simple-host.app/openapi.yaml) · [Get started in your AI app](https://simple-host.app/install.html)
-- **Enterprise edition:** https://simple-host.app/enterprise · [github.com/vineetu/simple-host-enterprise](https://github.com/vineetu/simple-host-enterprise)
+- **For companies:** https://simple-host.app/enterprise (the same Simple Host with company sign-in)
 - **Enterprise on your Kubernetes cluster → https://simple-host.app/setup?product=enterprise** (Helm or Kubernetes YAML; existing or in-cluster Postgres)
 - **What Enterprise costs to run → https://simple-host.app/costs** (AWS, Azure and Google Cloud at list prices, for your number of people)
 - **Legal and help:** [Terms](https://simple-host.app/terms) · [Privacy](https://simple-host.app/privacy.html) · [Support](https://simple-host.app/support) (support@simple-host.app)

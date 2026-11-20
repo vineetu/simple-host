@@ -1318,7 +1318,7 @@
      "name": "Row rules for saved data",
      "line": "SQLite, key-value and file data use rules for who may read and change each row.",
      "who": "Anyone deciding what visitors may see and change on a site: a form only the owner reads, records each person sees alone, a wall anyone reads.",
-     "how": "Policies name read, add, edit, delete or all. Permissive policies combine with OR; restrictive policies narrow them with AND. Without an applicable permissive policy, access is denied. A table may replace its resource default with its own set. Use visitor_id == auth.id or owner for personal reads; sign-in alone shares rows. Owner tools retain their SQL console; pages use fixed row routes. File rules see one row per file: path and visitor_id, the uploader. The old preset fields are refused with invalid_resource.",
+     "how": "Policies name read, add, edit, delete or all. Permissive policies combine with OR; restrictive policies narrow them with AND. Without an applicable permissive policy, access is denied. A table may replace its resource default with its own set. Use visitor_id == auth.id or owner for personal reads; sign-in alone shares rows. Owner tools retain their SQL console; pages use fixed row routes. File rules see one row per file: path and visitor_id, the uploader.",
      "example": "A tutor keeps requests readable only by the owner and homework readable only by its author or owner. Each table has its own rules.",
      "where": "Your AI app saves rules with storage_set_resource. The Storage panel shows the policies and lets the owner edit their JSON, for files too.",
      "limits": "Edit and delete require identity guards and read visibility of the stored row. A failed check rolls back. A resource created without rules, or saved before rules existed, is owner-only. A UNIQUE conflict can reveal a hidden row; KV add attempts can reveal an existing key.",
@@ -2467,7 +2467,7 @@
      "how": "Create a team, invite people by email, then ask your AI app to publish with the team as the owner. Every member can change or delete any team site and add or remove members. Removing someone stops their access on their next request.",
      "example": "A small design studio makes a team called studio; each designer publishes client pages at <site>.studio.simple-host.app from their own chat app.",
      "where": "The Teams page, linked from your sites, and any AI app connected to Simple Host.",
-     "limits": "Up to 10 teams per person. A team keeps at least one member and can be deleted only once it owns no sites. Teams cannot be renamed.",
+     "limits": "Up to 10 teams per person. A team keeps at least one member and can be deleted only once it owns no live sites; its sites in Recently deleted go with it. Teams cannot be renamed.",
      "editions": {
       "host": "yes",
       "enterprise": "yes",
@@ -2488,6 +2488,32 @@
      ],
      "covers": [],
      "evidence": "FEATURES.md \u00a724 Teams; h/teams.go; host/mcp/team_tools.go; st/teams.html."
+    },
+    {
+     "id": "site-editors",
+     "name": "Site editors",
+     "line": "Let someone publish and update one of your sites with their own sign-in, without joining your account.",
+     "who": "A freelancer or helper who looks after one site.",
+     "how": "Add the person as an editor of the site. They act with owner set to your handle: deploys, versions, rollback, the site's saved data and visits. Nothing else of the account.",
+     "example": "A caf\u00e9 owner adds her nephew as an editor of the menu site; he updates prices from his own chat app.",
+     "where": "Any AI app connected to Simple Host (add_site_editor, list_site_editors, remove_site_editor) or the API.",
+     "limits": "An editor cannot delete or rename the site, change its editors, domain, passcode or visibility (403 editor_scope).",
+     "editions": {
+      "host": "yes",
+      "enterprise": "yes",
+      "smallbox": "yes"
+     },
+     "editions_note": "",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "Deploy skill",
+       "href": "/skills/website-deploy/SKILL.md"
+      }
+     ],
+     "covers": [],
+     "evidence": "FEATURES.md \u00a724 Site editors; h/editors.go; host/mcp/editor_tools.go; host/auth/scope.go."
     }
    ]
   },
@@ -2600,7 +2626,7 @@
      "how": "Ask the app; it calls `events/list`, `events/subscribe`, and `events/unsubscribe`. The app supplies its own secret and answers a signed challenge before the subscription is active. `list_notifications` and `remove_notification` let you check or remove a subscription from chat. Refreshing renews the expiry and resumes delivery, and a cursor lets the app replay retained events and learn when some were dropped.",
      "example": "A founder's connected assistant subscribes to their waitlist site and tells them in chat each morning how many sign-ups arrived overnight.",
      "where": "Ask the app; it calls `events/list`, `events/subscribe`, and `events/unsubscribe`. `list_notifications` and `remove_notification` let you check or remove a subscription from chat.",
-     "limits": "Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. Event accounts and team keys cannot subscribe. A deploy-only key cannot subscribe.",
+     "limits": "Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. Event accounts cannot subscribe. A deploy-only key cannot subscribe.",
      "editions": {
       "host": "yes",
       "enterprise": "yes",

@@ -16,10 +16,9 @@ func (h *SiteHandler) registerEditors(mux *http.ServeMux, authMiddleware, notice
 	if !h.ed.Identity().PersonalSites {
 		return
 	}
-	wrap := func(f http.HandlerFunc) http.Handler { return noticeMiddleware(authMiddleware(f)) }
-	mux.Handle("GET /v1/sites/{sitename}/editors", wrap(h.listSiteEditors))
-	mux.Handle("POST /v1/sites/{sitename}/editors", wrap(h.addSiteEditor))
-	mux.Handle("DELETE /v1/sites/{sitename}/editors/{person}", wrap(h.removeSiteEditor))
+	mux.Handle("GET /v1/sites/{sitename}/editors", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteEditors))))
+	mux.Handle("POST /v1/sites/{sitename}/editors", noticeMiddleware(authMiddleware(http.HandlerFunc(h.addSiteEditor))))
+	mux.Handle("DELETE /v1/sites/{sitename}/editors/{person}", noticeMiddleware(authMiddleware(http.HandlerFunc(h.removeSiteEditor))))
 }
 
 func (h *SiteHandler) listSiteEditors(w http.ResponseWriter, r *http.Request) {

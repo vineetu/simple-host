@@ -3,7 +3,7 @@ package mcp
 // Teams family (owner decisions 2026-11-19): a team is an account that owns
 // sites and that people join. One role: any member manages the team's sites
 // (every site and storage tool takes owner=<team>), invites people and
-// removes members, and deletes it once it owns no sites. Nobody joins
+// removes members, and deletes it once it owns no live sites. Nobody joins
 // without accepting an invitation. Registered only where Config.Teams is set.
 
 import (
@@ -256,7 +256,7 @@ func teamTools() []Tool {
 				"deleted": outString("The team's handle."),
 			}, "deleted"),
 			Name: "delete_team", Title: "Delete a team",
-			Description: "Delete a team you belong to. Only a team that owns no sites can be deleted (sites in Recently deleted count): delete its sites first. Its name is retired and never given out again. Ask the person before deleting.",
+			Description: "Delete a team you belong to. Only a team with no live sites can be deleted: delete its sites first; any in Recently deleted are deleted for good with it. Its name is retired and never given out again. Ask the person before deleting.",
 			InputSchema: object(map[string]any{"team": str(teamArgDesc)}, "team"),
 			Annotations: writes(true, true, false),
 			run: func(c *call, args map[string]any) (output, error) {

@@ -70,7 +70,7 @@ func TestHackAuthMarkdownConfiguration(t *testing.T) {
 					t.Errorf("unexpected %q", absent)
 				}
 			}
-			for _, want := range []string{"hack_get_my_teams", "hack_select_team", "deadline", "code_challenge_method=S256", "Never request codes", "/oauth/revoke"} {
+			for _, want := range []string{"hack_get_my_teams", "owner", "deadline", "code_challenge_method=S256", "Never request codes", "/oauth/revoke"} {
 				if !strings.Contains(body, want) {
 					t.Errorf("missing %q", want)
 				}

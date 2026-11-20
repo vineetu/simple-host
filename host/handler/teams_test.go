@@ -243,6 +243,17 @@ func TestTeamKeepsAMemberAndDeletesOnlyWhenEmpty(t *testing.T) {
 	if r := a.at(t, "DELETE", teamAPIHost, "/v1/teams/"+team, nil, teamKey(ann)); r.status != http.StatusConflict || r.json(t)["code"] != "team_has_sites" {
 		t.Fatalf("delete with sites: %d %s", r.status, r.body)
 	}
+	// A site in Recently deleted does not block; it goes for good with the team.
+	if r := a.at(t, "DELETE", teamAPIHost, "/v1/sites/shop?owner="+team, nil, teamKey(ann)); r.status >= 300 {
+		t.Fatalf("delete site: %d %s", r.status, r.body)
+	}
+	if r := a.at(t, "DELETE", teamAPIHost, "/v1/teams/"+team, nil, teamKey(ann)); r.status != http.StatusOK {
+		t.Fatalf("delete team with a deleted site: %d %s", r.status, r.body)
+	}
+	var left int
+	if err := a.database.QueryRow(`SELECT count(*) FROM sites s JOIN users u ON u.id = s.user_id WHERE u.handle = $1`, team).Scan(&left); err != nil || left != 0 {
+		t.Fatalf("team's deleted site left behind: %d %v", left, err)
+	}
 	empty := newTeam(t, a, ann, "empty")
 	if r := a.at(t, "DELETE", teamAPIHost, "/v1/teams/"+empty, nil, teamKey(ann)); r.status != http.StatusOK {
 		t.Fatalf("delete empty team: %d %s", r.status, r.body)

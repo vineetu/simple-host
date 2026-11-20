@@ -228,13 +228,13 @@ func (s *Service) ReadPublicVote(ctx context.Context, ev hackmodel.Event, now fu
 }
 
 // ReadMyVote returns the selection and eligibility for a signed-in visitor.
-func (s *Service) ReadMyVote(ctx context.Context, ev hackmodel.Event, username string, admin bool) (hackmodel.Event, string, bool, error) {
+func (s *Service) ReadMyVote(ctx context.Context, ev hackmodel.Event, username string) (hackmodel.Event, string, bool, error) {
 	email := model.BaseEmail(username)
 	selected, err := repo.OwnVote(ctx, s.db, ev.ID, email)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return ev, "", false, err
 	}
-	eligible := !admin && username != ""
+	eligible := username != ""
 	if eligible {
 		v, err := repo.GetVotingSettings(ctx, s.db, ev.ID)
 		if err != nil {
@@ -265,7 +265,7 @@ func ValidateVotingWindow(v VotingConfig) error {
 }
 
 // CanCastVote reports whether the account can use the voting endpoint.
-func CanCastVote(username string, admin bool) bool { return !admin && username != "" }
+func CanCastVote(username string) bool { return username != "" }
 
 var votingTeamSlug = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 

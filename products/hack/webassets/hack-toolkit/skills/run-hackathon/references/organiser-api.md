@@ -11,10 +11,10 @@ Follow each tool's schema, use returned slugs and IDs, and read state before rep
 | Edit settings and text | `hack_update_event` |
 | Change stage | `hack_set_event_stage` |
 | Public event data for a custom page | `hack_get_public_event` |
-| Event website | `hack_get_event_website`, `hack_publish_event_website`, `hack_set_event_website_mode` |
+| Event website | `create_site`, `update_site` (`site` = `organiser.website_site`, `owner` = event name), `hack_set_event_website_mode` |
 | Event icon | `hack_set_event_icon`, `hack_clear_event_icon` |
-| Event website storage | `hack_event_storage_*`, `hack_get_page_recipe` |
-| Event website notifications | `list_notifications`, `remove_notification` with `event` |
+| Event website storage | `storage_*` (same `site` and `owner`), `hack_get_page_recipe` |
+| Event website notifications | `list_notifications`, `remove_notification` with `site` and `owner` |
 | Content and schedule | `hack_get_content`, `hack_set_content` |
 | Announcements | `hack_get_announcements`, `hack_post_announcement`, `hack_edit_announcement`, `hack_delete_announcement` |
 | Message teams (emails them; ask first) | `hack_message_team`, `hack_get_team_messages` |
@@ -27,7 +27,7 @@ Follow each tool's schema, use returned slugs and IDs, and read state before rep
 | New join or judge code | `hack_regenerate_code` |
 | Entry rules | `hack_get_entry_rules`, `hack_set_entry_rules` |
 | Exclude or include an entry | `hack_set_entry_excluded` |
-| People | `hack_get_people`, `hack_remove_person`, `hack_revoke_person_key` |
+| People | `hack_get_people`, `hack_remove_person` |
 | Teams | `hack_get_teams`, `hack_move_member`, `hack_remove_team_member`, `hack_rename_team`, `hack_lock_team`, `hack_set_team_admin`, `hack_new_team_link`, `hack_fill_teams`, `hack_delete_team`, `hack_set_team_deadline` |
 | Team sites | `hack_take_down_team_site`, `hack_restore_team_site` |
 | Organisers | `hack_create_organiser_invite`, `hack_revoke_organiser_invite`, `hack_preview_organiser_invite`, `hack_accept_organiser_invite`, `hack_remove_organiser` |

@@ -5,7 +5,7 @@ description: "Join and participate in a Simple Hack event on simple-hack.app: si
 
 # Join a hackathon
 
-Needs the Simple Hack connector, `https://simple-hack.app/mcp`. In ChatGPT: Plugins, **Add**, **Add custom MCP server**, paste that address. In Claude: **Settings**, **Connectors**, **Browse connectors**, **Simple Hack**, **Connect**. The person signs in in that window and chooses **Allow**; if the connection drops, ask them to reconnect it. Never ask for or handle a sign-in code, API key, team key, password or passcode in chat. Use the tool schemas and the identifiers they return; role and team membership are checked on every call.
+Needs the Simple Hack connector, `https://simple-hack.app/mcp`. In ChatGPT: Plugins, **Add**, **Add custom MCP server**, paste that address. In Claude: **Settings**, **Connectors**, **Browse connectors**, **Simple Hack**, **Connect**. The person signs in in that window and chooses **Allow**; if the connection drops, ask them to reconnect it. Never ask for or handle a sign-in code, API key, password or passcode in chat. Use the tool schemas and the identifiers they return; role and team membership are checked on every call.
 
 No coding needed. Ask what the participant wants to build in plain language, then build their team's site for them with `website-deploy` (for example: "an app that matches volunteers to shifts"). Follow the event's rules and rubric.
 
@@ -23,7 +23,7 @@ No coding needed. Ask what the participant wants to build in plain language, the
 | Entry and screenshot | `hack_get_entry`, `hack_update_entry`, `hack_get_entry_screenshot`, `hack_set_entry_screenshot`, `hack_delete_entry_screenshot` |
 | Submit, or move back to draft | `hack_submit_entry`, `hack_unsubmit_entry` |
 | Rubric | `hack_get_rubric` |
-| Team site and deadline | `hack_get_my_teams`, `hack_select_team`, `hack_get_team_status` |
+| Team site and deadline | `hack_get_my_teams`, `hack_get_team_status` |
 | Schedule with the event's real times | `hack_get_content` (`schedule` plus read-only `fixed_schedule`) |
 | Browse submissions from Judging on | `hack_get_submissions` |
 | Vote and results | `hack_get_voting`, `hack_get_my_vote`, `hack_vote`, `hack_get_my_results` |
@@ -40,7 +40,7 @@ No coding needed. Ask what the participant wants to build in plain language, the
 
 **Entry.** The entry and the website are separate. The entry is a summary card: `problem`, `tagline`, `audience`, `track`, `tools` (up to 10) and `maturity` (working, partial or concept), plus evidence (video, the published team website, a code link or a screenshot). `hack_get_entry` returns the event's `rules`, `status` and `missing`. Read it before replacing anything. Saving never submits: call `hack_submit_entry`; a submit with something `missing` is refused, so add it and retry. A submitted entry stays editable until the deadline. At the deadline a complete draft is submitted automatically; an incomplete one is still judged, marked Incomplete. Screenshots are PNG, JPEG or WebP up to 2 MB, sent as base64. After the team deadline, entry edits, publishing and saved-data changes return `submissions_closed`; do not work around it.
 
-**Website.** Identify the event and team, then hand off to `website-deploy`: `hack_get_my_teams`, then `hack_select_team(team_id)`. `hack_get_team_status` reports `site.connection`: `connected`, `other_team` (fix with `hack_select_team`), `key` or `none`. First publication needs the person's approval. The team site is `https://<team>.<event>.simple-hack.app/`; use the returned URL.
+**Website.** Identify the event and team with `hack_get_my_teams`, then hand off to `website-deploy`: site tools take the team's `site` and `owner` = the event's name. Teammates are editors of the team site and publish with their own sign-in. First publication needs the person's approval. The team site is `https://<team>.<event>.simple-hack.app/`; use the returned URL.
 
 **Leaving the event** differs from leaving a team. Preview it with `hack_preview_leave_event`: a team left empty before its deadline is deleted with its entry and site. After the deadline, leaving only removes the person from the member list. A pending or rejected applicant can withdraw the same way.
 

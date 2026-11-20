@@ -32,7 +32,7 @@
   <!--sh:header-->
   <main>
     <h1>Teams</h1>
-    <p class="muted">A team owns sites, like a person does. Every member can publish, change and delete all of its sites, invite people and remove members, and delete the team once it owns no sites. People join by accepting an invitation. Members use their own sign-in; in your AI app, name the team as the owner of a site.</p>
+    <p class="muted">A team owns sites, like a person does. Every member can publish, change and delete all of its sites, invite people and remove members, and delete the team once it owns no live sites. People join by accepting an invitation. Members use their own sign-in; in your AI app, name the team as the owner of a site.</p>
     <p id="signed-out" hidden>Sign in on <a href="/dashboard">your sites page</a> first.</p>
     <p id="status" role="status" aria-live="polite"></p>
 
@@ -62,7 +62,7 @@
       </form>
       <p class="muted">They join once they accept, signed in with that email; they find the invitation on this page. No email is sent, so tell them. Invitations lapse after 14 days.</p>
       <h2>Delete this team</h2>
-      <p class="muted">Only a team that owns no sites can be deleted (sites in Recently deleted count). Its name is never given out again.</p>
+      <p class="muted">Only a team with no live sites can be deleted; its sites in Recently deleted go with it. Its name is never given out again.</p>
       <button class="btn btn-danger" type="button" data-act="deleteTeam">Delete team</button>
     </section>
   </main>

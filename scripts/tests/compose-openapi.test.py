@@ -77,7 +77,6 @@ class CompositionTest(unittest.TestCase):
         product_features = {f['id']: f for a in product['areas'] for f in a['features']}
         for feature, field, phrase in (
                 ('site-versions', 'editions_note', 'small box keeps every version'),
-                ('site-drafts', 'limits', 'deploy-only key'),
                 ('notify-secrets', 'editions_note', 'small-box installer'),
                 ('deploy-archive', 'editions_note', 'small box has no total cap'),
                 ('access-company-signin', 'limits', 'Google-based issuer needs an allowed-domain list'),

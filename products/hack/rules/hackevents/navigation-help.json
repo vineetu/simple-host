@@ -1985,8 +1985,7 @@
       ],
       "related": [
         "applications",
-        "people.remove",
-        "people.key"
+        "people.remove"
       ]
     },
     {
@@ -2092,37 +2091,16 @@
       "when": "Remove someone’s access before End.",
       "effects": [
         "Membership and publishing access are removed. A removed judge’s eligible scores are preserved as former-judge scores.",
-        "Rotates the old team’s code and revokes stale publishing keys. An emptied team can be deleted with its entry. A frozen empty team stays without self-leave kept-team protection and can disappear from judging/results."
+        "Rotates the old team’s code. An emptied team can be deleted with its entry. A frozen empty team stays without self-leave kept-team protection and can disappear from judging/results."
       ],
       "keywords": [
         "kick",
         "remove person"
       ],
       "related": [
-        "people.key",
         "team.delete",
         "former",
         "organisers"
-      ]
-    },
-    {
-      "id": "people.key",
-      "target": "o.people",
-      "label": "Turn off publishing key",
-      "sources": [
-        "screens/organiser-people.js"
-      ],
-      "explains": "Revoke this person’s publishing credential immediately. This does not remove their membership.",
-      "when": "Stop publishing with someone’s current key.",
-      "effects": [
-        "They must create another key themselves to publish again."
-      ],
-      "keywords": [
-        "revoke publishing key",
-        "API key"
-      ],
-      "related": [
-        "people.remove"
       ]
     },
     {
@@ -2833,7 +2811,6 @@
       "when": "Manage someone from their row.",
       "related": [
         "people.remove",
-        "people.key",
         "team.members",
         "team.delete",
         "sponsors",

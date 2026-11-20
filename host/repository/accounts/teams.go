@@ -95,11 +95,11 @@ func CountTeamsOf(ctx context.Context, q Querier, userID string) (int, error) {
 	return n, err
 }
 
-// CountAccountSites counts every site row of the account, Recently deleted
-// included.
-func CountAccountSites(ctx context.Context, q Querier, accountID string) (int, error) {
+// CountLiveSites counts the account's sites that are not in Recently
+// deleted.
+func CountLiveSites(ctx context.Context, q Querier, accountID string) (int, error) {
 	var n int
-	err := q.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE user_id = $1`, accountID).Scan(&n)
+	err := q.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE user_id = $1 AND deleted_at IS NULL`, accountID).Scan(&n)
 	return n, err
 }
 

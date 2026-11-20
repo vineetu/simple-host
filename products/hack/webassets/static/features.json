@@ -540,14 +540,14 @@
      "how": "Publish without making it live, and name the author with the deploy. The version list shows who made each draft and can show only the drafts that have never been live. Make the chosen one live from the list; discard the others and they are gone for good. Versions that have been live are kept by the normal retention rule and cannot be discarded by hand.",
      "example": "A travel agency keeps one site per quote. Two staff each store a draft of the itinerary; the manager previews both, makes one live, and discards the other.",
      "where": "Versions under Manage on your sites page (the author beside each draft, Discard on drafts not live yet), or ask your AI app.",
-     "limits": "An author name is at most 80 characters. Discarding is final and applies only to versions that were never live; a deploy-only key or a Simple Hack team key cannot discard.",
+     "limits": "An author name is at most 80 characters. Discarding is final and applies only to versions that were never live; a deploy-only key cannot discard.",
      "editions": {
       "host": "yes",
       "hack": "yes",
       "enterprise": "no",
       "smallbox": "yes"
      },
-     "editions_note": "On Simple Hack the version list and authors work the same way; team keys cannot discard.",
+     "editions_note": "On Simple Hack the version list and authors work the same way.",
      "status": "live",
      "status_note": "",
      "docs": [
@@ -1357,7 +1357,7 @@
      "name": "Row rules for saved data",
      "line": "SQLite, key-value and file data use rules for who may read and change each row.",
      "who": "Anyone deciding what visitors may see and change on a site: a form only the owner reads, records each person sees alone, a wall anyone reads.",
-     "how": "Policies name read, add, edit, delete or all. Permissive policies combine with OR; restrictive policies narrow them with AND. Without an applicable permissive policy, access is denied. A table may replace its resource default with its own set. Use visitor_id == auth.id or owner for personal reads; sign-in alone shares rows. Owner tools retain their SQL console; pages use fixed row routes. File rules see one row per file: path and visitor_id, the uploader. The old preset fields are refused with invalid_resource.",
+     "how": "Policies name read, add, edit, delete or all. Permissive policies combine with OR; restrictive policies narrow them with AND. Without an applicable permissive policy, access is denied. A table may replace its resource default with its own set. Use visitor_id == auth.id or owner for personal reads; sign-in alone shares rows. Owner tools retain their SQL console; pages use fixed row routes. File rules see one row per file: path and visitor_id, the uploader.",
      "example": "A tutor keeps requests readable only by the owner and homework readable only by its author or owner. Each table has its own rules.",
      "where": "Your AI app saves rules with storage_set_resource. The Storage panel shows the policies and lets the owner edit their JSON, for files too.",
      "limits": "Edit and delete require identity guards and read visibility of the stored row. A failed check rolls back. A resource created without rules, or saved before rules existed, is owner-only. A UNIQUE conflict can reveal a hidden row; KV add attempts can reveal an existing key.",
@@ -2533,6 +2533,32 @@
      "covers": [
       "password-accounts"
      ]
+    },
+    {
+     "id": "site-editors",
+     "name": "Site editors",
+     "line": "Let someone publish and update one of your sites with their own sign-in, without joining your account.",
+     "who": "A freelancer or helper who looks after one site.",
+     "how": "Add the person as an editor of the site. They act with owner set to your handle: deploys, versions, rollback, the site's saved data and visits. Nothing else of the account.",
+     "example": "A caf\u00e9 owner adds her nephew as an editor of the menu site; he updates prices from his own chat app.",
+     "where": "Any AI app connected to Simple Host (add_site_editor, list_site_editors, remove_site_editor) or the API.",
+     "limits": "An editor cannot delete or rename the site, change its editors, domain, passcode or visibility (403 editor_scope).",
+     "editions": {
+      "host": "yes",
+      "enterprise": "yes",
+      "smallbox": "yes"
+     },
+     "editions_note": "",
+     "status": "live",
+     "status_note": "",
+     "docs": [
+      {
+       "label": "Deploy skill",
+       "href": "/skills/website-deploy/SKILL.md"
+      }
+     ],
+     "covers": [],
+     "evidence": "FEATURES.md \u00a724 Site editors; h/editors.go; host/mcp/editor_tools.go; host/auth/scope.go."
     }
    ]
   },
@@ -2648,7 +2674,7 @@
      "how": "Ask the app; it calls `events/list`, `events/subscribe`, and `events/unsubscribe`. The app supplies its own secret and answers a signed challenge before the subscription is active. `list_notifications` and `remove_notification` let you check or remove a subscription from chat. Refreshing renews the expiry and resumes delivery, and a cursor lets the app replay retained events and learn when some were dropped.",
      "example": "A founder's connected assistant subscribes to their waitlist site and tells them in chat each morning how many sign-ups arrived overnight.",
      "where": "Ask the app; it calls `events/list`, `events/subscribe`, and `events/unsubscribe`. `list_notifications` and `remove_notification` let you check or remove a subscription from chat.",
-     "limits": "Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. On Simple Hack, new team subscriptions stop at the submission deadline, membership loss removes them, and organiser delivery stops when the event ends. Event accounts and team keys cannot subscribe. A deploy-only key cannot subscribe.",
+     "limits": "Each connected app gets its own subscription, tied to its sign-in. Subscriptions expire after 7 days unless the app refreshes or holds a longer-lived sign-in; the shortest explicit expiry is 5 minutes. The list the app sees redacts receiver paths. On Simple Hack, new team subscriptions stop at the submission deadline, membership loss removes them, and organiser delivery stops when the event ends. Event accounts cannot subscribe. A deploy-only key cannot subscribe.",
      "editions": {
       "host": "yes",
       "hack": "yes",

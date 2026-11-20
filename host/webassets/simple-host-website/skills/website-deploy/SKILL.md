@@ -76,8 +76,13 @@ rules, sign-in only where the row says, and a line telling the owner how they se
   manage visitors' entries). The owner signs in on the page with their account email through the
   same sign-in box. Other jobs: the topic from the table.
 
-**Teams.** A team owns sites. Members act as themselves: pass `owner=<team>` to work on the
-team's sites instead of their own. Invite people to a team by email.
+**Teams and editors.** A team owns sites; members act with their own sign-in by passing
+`owner` = the team's handle on any site or storage tool. `create_team`, `list_teams`,
+`list_team_members`, `add_team_member` (invites by email; they accept with
+`answer_team_invitation`), `cancel_team_invitation`, `remove_team_member`, `delete_team`. An
+editor publishes, rolls back and uses the saved data of one site of another account, with
+`owner` = that account: `list_site_editors`, `add_site_editor`, `remove_site_editor`. Ask
+before inviting, adding, removing or deleting.
 
 ## 3. Pages that save or sign visitors in
 

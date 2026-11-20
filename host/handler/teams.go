@@ -198,10 +198,32 @@ func (h *UserHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"removed": r.PathValue("member")})
 }
 
+// deleteTeam takes the team's site locks first, as an account deletion does,
+// since its sites in Recently deleted go for good with it.
 func (h *UserHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
-	if err := sites.DeleteTeam(r.Context(), h.database, auth.GetUser(r.Context()).ID, r.PathValue("team")); err != nil {
+	personID := auth.GetUser(r.Context()).ID
+	if h.siteFiles != nil {
+		id, err := sites.TeamID(r.Context(), h.database, personID, r.PathValue("team"))
+		if err != nil {
+			writeTeamError(w, err)
+			return
+		}
+		unlock, err := h.siteFiles.lockAccountSites(r.Context(), id)
+		if err != nil {
+			writeTeamError(w, err)
+			return
+		}
+		defer unlock()
+	}
+	erased, err := sites.DeleteTeam(r.Context(), h.database, personID, r.PathValue("team"))
+	if err != nil {
 		writeTeamError(w, err)
 		return
+	}
+	if h.siteFiles != nil {
+		if err := h.siteFiles.eraseAccountFiles(r.Context(), erased); err != nil {
+			log.Printf("delete team %s: files: %v", erased.UserID, err)
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": r.PathValue("team")})
 }

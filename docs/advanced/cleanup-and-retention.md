@@ -20,13 +20,12 @@ promised.
 |---|---|---|---|
 | `IDLE_EXEMPT_FAMILY_SITES` | `on` | `on` / `off` | on: a site whose main address is an address family is never removed as idle, like one with its own domain. |
 | `DELETED_RETENTION_DAYS` | `7` | 1–365 days | How long a deleted site stays restorable in Recently deleted. |
-| `IDLE_AFTER_DAYS` | `90` | 7–3650 days | Idle cleanup: a site unused this long gets its owner a warning email. |
-| `IDLE_GRACE_DAYS` | `30` | 1–365 days | Idle cleanup: how long after the warning an unused site moves to Recently deleted. |
+| `IDLE_AFTER_DAYS` | `90` | 7–3650 days | Idle cleanup: a site unused this long, plus IDLE_GRACE_DAYS, moves to Recently deleted unless its owner marked it Keep. |
+| `IDLE_GRACE_DAYS` | `30` | 1–365 days | Idle cleanup: days added to IDLE_AFTER_DAYS before an unused site moves to Recently deleted. |
 | `ANALYTICS_RETENTION_DAYS` | `400` | 1–3650 days | How long visit analytics are kept. |
 | `API_METRICS_RETENTION_DAYS` | `30` | 1–3650 days | How long the admin page's API-call counts and shortened caller addresses are kept. |
 | `API_GROWTH_RETENTION_DAYS` | `400` | 7–3650 days | How long the admin page's API growth counts (calls per day by country and by kind, no addresses) are kept. Keep at least 183 for the 6-month view. |
-| `IDLE_CLEANUP` | `off` | `on` / `off` | on warns owners of long-unused sites, then moves them to Recently deleted. |
-| `IDLE_CLEANUP_MAX_EMAILS` | `50` | at least 1 emails | Idle-cleanup emails one run sends. |
+| `IDLE_CLEANUP` | `off` | `on` / `off` | on moves long-unused sites to Recently deleted unless their owner marked them Keep. |
 | `IDLE_CLEANUP_EXEMPT_HANDLES` | none | text | Accounts (comma-separated handles) whose sites the idle cleanup never touches. An account that later changes its handle stays exempt under the old one. |
 <!-- /settings -->
 

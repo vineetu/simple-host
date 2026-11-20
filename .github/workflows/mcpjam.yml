@@ -1,7 +1,7 @@
 name: mcpjam
 
 # MCPJam checks of the MCP server against a throwaway local instance: protocol
-# and OAuth conformance, host compatibility and the Claude directory policy on
+# and OAuth conformance, host compatibility and MCP Apps conformance on
 # every push and pull request (free), and the eval suite weekly or by hand on
 # two Claude models with our own Anthropic key (a full run is more than the
 # MCPJam free plan's 200 daily credits). See scripts/mcpjam/.

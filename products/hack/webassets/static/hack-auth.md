@@ -1,6 +1,6 @@
 ---
 title: Simple Hack authentication
-description: Browser sign-in, connector OAuth, and selected-team publishing.
+description: Browser sign-in, connector OAuth, and team-site publishing.
 canonical: https://simple-hack.app/auth.md
 ---
 
@@ -59,14 +59,14 @@ their registered method. Send `Authorization: Bearer <access_token>` to `/mcp`.
 Refresh at `/oauth/token` using `grant_type=refresh_token`; refresh tokens rotate.
 Company OIDC signs the person in; the connector uses this server's OAuth tokens.
 
-## Roles and selected team
+## Roles and team sites
 
 Start with `hack_list_events`. Event calls use the person's organiser,
-participant, or judge role. Use `hack_get_my_teams`, then `hack_select_team` before
-website or storage calls. Selection changes the publishing target, not the event
-role. Every call rechecks membership, stage, and deadline; leaving a team removes
-publishing access. Older team connections stay scoped to their original team.
-Organisers use `hack_event_storage_*` with an event slug for event websites.
+participant, or judge role. Site and storage tools take `site` and `owner` (the
+event's name): a team's site from `hack_get_my_teams` (teammates are its
+editors), or `organiser.website_site` from `hack_get_event` (organisers are
+members of the event's account). Every call rechecks membership, stage, and
+deadline; leaving a team removes publishing access.
 
 ## Errors and revocation
 

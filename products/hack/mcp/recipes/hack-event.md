@@ -1,6 +1,6 @@
-Ask who should read the event website and who should write its content. This worked example reads the public event feed; organisers publish the website with hack_publish_event_website. If the page also saves visitor data, call hack_get_page_recipe for that job, ask who reads and writes each row, and write rules before publishing it. The public event feed itself needs no storage resource.
+Ask who should read the event website and who should write its content. This worked example reads the public event feed; organisers publish the website with update_site (site: organiser.website_site from hack_get_event, owner: the event's name). If the page also saves visitor data, call hack_get_page_recipe for that job, ask who reads and writes each row, and write rules before publishing it. The public event feed itself needs no storage resource.
 
-Build the organiser's event website from this complete index.html and publish with hack_publish_event_website.
+Build the organiser's event website from this complete index.html and publish it with update_site as above.
 The public feed has a submissions array; list its cards when non-empty.
 Restyle freely, but keep the live fetch; never hard-code stage, dates, announcements, gallery or results.
 

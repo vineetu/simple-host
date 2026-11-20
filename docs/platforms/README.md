@@ -2,7 +2,7 @@
 
 - Simple Hack on one server: [install on your own server](simple-hack-standalone.md).
 - Simple Host on one server: [UpCloud or any Ubuntu VPS](upcloud.md), or use the [setup helper](https://simple-host.app/setup).
-- Kubernetes / Enterprise: use [Kubernetes](../kubernetes.md) and the [Enterprise guide](https://github.com/vineetu/simple-host-enterprise/blob/main/docs/cloud/digitalocean.md).
+- Kubernetes (also for a company install with company sign-in): use [Kubernetes](../kubernetes.md).
 
 Simple Host needs a process that stays on, persistent disk and Postgres.
 Choose a provider guide below.

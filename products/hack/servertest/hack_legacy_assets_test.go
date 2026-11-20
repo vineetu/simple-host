@@ -29,7 +29,7 @@ func TestHackPublicDocsShowCurrentStorage(t *testing.T) {
 			t.Errorf("personal presentation route in Hack OpenAPI: %s", personal)
 		}
 	}
-	for _, path := range []string{"/v1/hack/events", "/v1/hack/events/{slug}/website/storage/{rest}"} {
+	for _, path := range []string{"/v1/hack/events"} {
 		if spec.Paths[path] == nil {
 			t.Errorf("Hack event API missing: %s", path)
 		}

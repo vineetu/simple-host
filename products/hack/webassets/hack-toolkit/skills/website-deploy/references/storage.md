@@ -1,8 +1,8 @@
 # Simple Hack website storage
 
-Team site: `hack_get_my_teams`, confirm the team, `hack_select_team(team_id)`; the `storage_*` tools then act only on that site. Custom event website: the organiser uses the matching `hack_event_storage_*` tools with the event slug. Read each tool schema and use the returned names, limits and URLs. Resource names are per site.
+Every `storage_*` tool takes `site` (the team's from `hack_get_my_teams`, or `organiser.website_site` from `hack_get_event`) and `owner` = the event's name. Read each tool schema and use the returned names, limits and URLs. Resource names are per site.
 
-| Need | Team tools |
+| Need | Tools |
 |---|---|
 | Resources and usage | `storage_list_resources`, `storage_set_resource`, `storage_delete_resource`, `storage_get_usage` |
 | KV | `storage_list_kv_keys`, `storage_get_kv`, `storage_put_kv`, `storage_delete_kv` |

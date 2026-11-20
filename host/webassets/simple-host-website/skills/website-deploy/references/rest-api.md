@@ -6,7 +6,7 @@ returned URLs, never put a key in a page.
 
 - Base URL: `https://simple-host.app/v1`
 - Every authenticated call: `X-API-Key: <key>`
-- Every call: `X-Skill-Version: 0.27.117` (without it the server keeps asking you to update)
+- Every call: `X-Skill-Version: 0.27.118` (without it the server keeps asking you to update)
 - Keep the key out of chat, logs, pages and commits. Store it in `~/.website-deploy/config.json`
   (resolve `~` yourself) or the environment's secret store.
 
@@ -28,7 +28,7 @@ email creates the account.
 Inline JSON, for sites you wrote (`index.html` required; binary files base64 in `files_base64`):
 
 ```
-curl -sS -X POST https://simple-host.app/v1/sites/my-site/files -H "X-API-Key: $KEY" -H 'X-Skill-Version: 0.27.117' -H 'Content-Type: application/json' -d '{"files":{"index.html":"<!doctype html>..."}}'
+curl -sS -X POST https://simple-host.app/v1/sites/my-site/files -H "X-API-Key: $KEY" -H 'X-Skill-Version: 0.27.118' -H 'Content-Type: application/json' -d '{"files":{"index.html":"<!doctype html>..."}}'
 ```
 
 | Job | Call |
@@ -55,6 +55,10 @@ The API rejects archives over 100 MB. Every answer has `site_url`: give that to 
 | List on my profile | `PUT /sites/{site}/visibility` `{"visibility":"public"}` or `"unlisted"` |
 | Named viewers | `POST /sites/{site}/viewers` `{"emails":[...]}`, `DELETE /sites/{site}/viewers/{email}` |
 | Own domain or short address | `POST /sites/{site}/domain` `{"domain":"rsvp.example.com"}`, `GET` to check, `DELETE` to remove |
+| Teams | `POST /teams` `{"name"}`, `GET /teams`, `GET`/`POST /teams/{team}/members` (`{"email"}` invites), `DELETE /teams/{team}/members/{handle}`, `POST /me/team-invitations/{id}` `{"answer":"accept"}`, `DELETE /teams/{team}` |
+| Site editors | `GET`/`POST /sites/{site}/editors` `{"person":"<handle>"}`, `DELETE /sites/{site}/editors/{handle}` |
+
+Add `?owner=<team or account>` to any `/sites` call to act on a team's sites, or on the one site you edit.
 
 ## Storage
 
@@ -69,7 +73,7 @@ Paths start `/sites/{site}/storage`. Rules and the full table: `references/stora
 | Files put / get / list / delete | `PUT /files/{name}/objects/{path}` raw bytes with `Content-Type`; `GET`, `DELETE` the same path; `GET /files/{name}/objects` |
 
 ```
-curl -sS -X PUT https://simple-host.app/v1/sites/my-site/storage/resources/menu -H "X-API-Key: $KEY" -H 'X-Skill-Version: 0.27.117' -H 'Content-Type: application/json' -d '{"kind":"kv","rules":{"version":1,"policies":[{"command":"read","using":"true"},{"command":"all","using":"auth.role == \"owner\""}]}}'
+curl -sS -X PUT https://simple-host.app/v1/sites/my-site/storage/resources/menu -H "X-API-Key: $KEY" -H 'X-Skill-Version: 0.27.118' -H 'Content-Type: application/json' -d '{"kind":"kv","rules":{"version":1,"policies":[{"command":"read","using":"true"},{"command":"all","using":"auth.role == \"owner\""}]}}'
 ```
 
 A request that names a page (`Origin`) must come from the site's own address; scripts send none.
