@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	"strings"
 
 	"github.com/vsriram/simple-host/host/rules/sites"
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
@@ -32,14 +32,14 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, nam
 		return model.EventTeam{}, internalError(err)
 	}
 	if closed {
-		return model.EventTeam{}, &Error{Code: "submissions_closed"}
+		return model.EventTeam{}, &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
 	}
 	taken, err := teamNameTaken(ctx, tx, event.ID, name)
 	if err != nil {
 		return model.EventTeam{}, internalError(err)
 	}
 	if taken {
-		return model.EventTeam{}, &Error{Code: "team_name_taken"}
+		return model.EventTeam{}, &Error{Code: "team_name_taken", Message: "another team already has that name"}
 	}
 	var team model.EventTeam
 	for n := 0; n < 50; n++ {
@@ -77,7 +77,7 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, nam
 				return team, last
 			}
 			if isUnique(last) && strings.Contains(last.Error(), "event_teams_name_idx") {
-				return team, &Error{Code: "team_name_taken"}
+				return team, &Error{Code: "team_name_taken", Message: "another team already has that name"}
 			}
 			if isUnique(last) && attempt < 7 {
 				continue

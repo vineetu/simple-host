@@ -44,16 +44,16 @@ func ReminderLabel(m int) string {
 // ReminderOffsetMax minutes, all distinct, returned sorted descending.
 func ValidateReminderOffsets(in []int) ([]int, error) {
 	if len(in) > ReminderOffsetCount {
-		return nil, &Error{"invalid_offsets", fmt.Sprintf("send at most %d reminder offsets", ReminderOffsetCount)}
+		return nil, &Error{Code: "invalid_offsets", Message: fmt.Sprintf("send at most %d reminder offsets", ReminderOffsetCount)}
 	}
 	out := append([]int{}, in...)
 	seen := map[int]bool{}
 	for _, m := range out {
 		if m < ReminderOffsetMin || m > ReminderOffsetMax {
-			return nil, &Error{"invalid_offsets", fmt.Sprintf("each reminder offset must be between %d and %d minutes", ReminderOffsetMin, ReminderOffsetMax)}
+			return nil, &Error{Code: "invalid_offsets", Message: fmt.Sprintf("each reminder offset must be between %d and %d minutes", ReminderOffsetMin, ReminderOffsetMax)}
 		}
 		if seen[m] {
-			return nil, &Error{"invalid_offsets", "reminder offsets must be distinct"}
+			return nil, &Error{Code: "invalid_offsets", Message: "reminder offsets must be distinct"}
 		}
 		seen[m] = true
 	}
@@ -87,20 +87,20 @@ func (s *Service) SetReminderOffsets(ctx context.Context, eventID, actorID strin
 	defer tx.Rollback()
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return model.Event{}, &Error{"event_not_found", "event not found"}
+		return model.Event{}, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return model.Event{}, err
 	}
 	if ev.Stage == "archived" {
-		return model.Event{}, &Error{"event_closed", "an ended event cannot be changed"}
+		return model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if ev.TakenDown() {
-		return model.Event{}, &Error{"event_taken_down", "this event has been taken down"}
+		return model.Event{}, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	actor, err := eventrepo.GetEventMember(ctx, tx, eventID, actorID)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && actor.Role != "organiser") {
-		return model.Event{}, &Error{"event_not_found", "event not found"}
+		return model.Event{}, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return model.Event{}, err

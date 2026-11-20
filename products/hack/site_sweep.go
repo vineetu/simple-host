@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 

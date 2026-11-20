@@ -6,10 +6,10 @@ import (
 	"errors"
 	"net/http"
 
-	appsites "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	appsites "github.com/vsriram/simple-host/host/sites"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
@@ -67,7 +67,7 @@ func (h *HackHandler) patchEventWebsite(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Mode string `json:"mode"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.Mode != "builtin" && req.Mode != "custom" {

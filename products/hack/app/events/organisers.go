@@ -35,7 +35,7 @@ func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event
 func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (model.Event, model.EventMember, error) {
 	var ev model.Event
 	var member model.EventMember
-	invalid := func() error { return &Error{"invalid_code", "invalid or expired invitation"} }
+	invalid := func() error { return &Error{Code: "invalid_code", Message: "invalid or expired invitation"} }
 	hash := hackevents.HashCode(hackevents.NormalizeCode(code))
 	// Find the event before locking, then lock the event before the invite
 	// and inviter's member row, matching leave's lock order (SIM-340 2.4).
@@ -67,13 +67,13 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 		return ev, member, err
 	}
 	if ev.TakenDown() {
-		return ev, member, &Error{"event_taken_down", "this event has been taken down"}
+		return ev, member, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	if ev.Stage == "archived" {
-		return ev, member, &Error{"event_closed", "an ended event cannot be changed"}
+		return ev, member, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if _, err = eventrepo.GetEventMember(ctx, tx, ev.ID, userID); err == nil {
-		return ev, member, &Error{"already_member", "you already belong to this event; roles cannot be changed through an invitation"}
+		return ev, member, &Error{Code: "already_member", Message: "you already belong to this event; roles cannot be changed through an invitation"}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return ev, member, err
 	}
@@ -82,7 +82,7 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	}
 	member, err = eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser")
 	if unique(err) {
-		return ev, member, &Error{"already_member", "you already belong to this event"}
+		return ev, member, &Error{Code: "already_member", Message: "you already belong to this event"}
 	}
 	if err != nil {
 		return ev, member, err
@@ -99,7 +99,7 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 // RemoveOrganiser removes a co-organiser and revokes the shared invitation in a transaction.
 func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorID, userID string) error {
 	if event.CreatedBy.Valid && userID == event.CreatedBy.String {
-		return &Error{"primary_organiser", "the event creator cannot be removed"}
+		return &Error{Code: "primary_organiser", Message: "the event creator cannot be removed"}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorI
 	}
 	defer tx.Rollback()
 	if err = eventrepo.RemoveCoOrganiser(ctx, tx, event.ID, actorID, userID, eventLeaveOperations()); errors.Is(err, sql.ErrNoRows) {
-		return &Error{"event_not_found", "event not found"}
+		return &Error{Code: "event_not_found", Message: "event not found"}
 	} else if err != nil {
 		return err
 	}

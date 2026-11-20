@@ -6,11 +6,11 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/sites"
+	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/sites"
 
-	appstorage "github.com/vsriram/simple-host/host/app/storage"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	appstorage "github.com/vsriram/simple-host/host/data"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )

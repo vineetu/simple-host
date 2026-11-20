@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // Keep this expression in sync with hackevents.EffectiveDeadlineSQL.

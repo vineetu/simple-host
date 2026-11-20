@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/vsriram/simple-host/host/app/operations"
-	"github.com/vsriram/simple-host/host/app/sites"
+	operations "github.com/vsriram/simple-host/host/ops"
+	"github.com/vsriram/simple-host/host/sites"
 )
 
 // signInMailer is the outbound capability consumed by visitor sign-in.
@@ -14,7 +14,7 @@ type signInMailer interface {
 }
 
 // writePreparationError retains each upload route's error shape and precedence.
-func (h *SiteHandler) writePreparationError(w http.ResponseWriter, err error, limit int64, archive, patch bool) {
+func (h *SiteHandler) writePreparationError(w http.ResponseWriter, err error, limit int64, archive bool) {
 	var e *sites.UploadError
 	if !errors.As(err, &e) {
 		writeJSON(w, 400, errorResponse{Error: err.Error()})
@@ -31,7 +31,7 @@ func (h *SiteHandler) writePreparationError(w http.ResponseWriter, err error, li
 			message += ": " + err.Error()
 		}
 	}
-	if code == "digest_mismatch" || code == "invalid_files" || patch {
+	if code == "digest_mismatch" || code == "invalid_files" {
 		code = ""
 	}
 	writeJSON(w, 400, errorResponse{Error: message, Code: code})

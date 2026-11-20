@@ -21,9 +21,9 @@ import (
 	"testing"
 	"time"
 
-	notifyapp "github.com/vsriram/simple-host/host/app/notifications"
+	notifyapp "github.com/vsriram/simple-host/host/data/notify"
+	notifyrepo "github.com/vsriram/simple-host/host/data/repo/notify"
 	"github.com/vsriram/simple-host/host/mcp"
-	notifyrepo "github.com/vsriram/simple-host/host/repository/notifications"
 )
 
 // testPasscodeKey, notifyTestSecret, notifyRandom, receivedNotification,

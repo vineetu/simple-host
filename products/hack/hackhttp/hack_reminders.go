@@ -56,7 +56,7 @@ func (h *HackHandler) putReminderSettings(w http.ResponseWriter, r *http.Request
 	var req struct {
 		OffsetsMinutes *[]int `json:"offsets_minutes"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.OffsetsMinutes == nil {
@@ -65,7 +65,7 @@ func (h *HackHandler) putReminderSettings(w http.ResponseWriter, r *http.Request
 	}
 	updated, err := h.eventsSvc().SetReminderOffsets(r.Context(), a.event.ID, a.user.ID, *req.OffsetsMinutes)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, reminderSettingsJSON(updated))

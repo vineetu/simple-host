@@ -2,7 +2,7 @@ package hackteams
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // TeamRemovalNotice reads a participant's removal notice.

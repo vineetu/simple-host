@@ -2,84 +2,28 @@
 # Each row is FROM -> space-separated TO patterns. Braces are alternatives; /** includes the package and descendants. - means none.
 # A !pattern excludes destinations from that row; other matching rows still apply.
 [final]
-# A product may import the platform and itself; no platform row may list a product.
-@/products/hack/** -> /** !repository/** @/products/hack/** @/host/db @/host/db/migrations
-# A product asks the platform through app/* (app/accounts/product.go, app/sites/product.go), never its repositories.
-@/products/hack/** -> repository/sqlkit
-server -> /** !testdb !geoip/geoiptest !server/servertest @/host/db @/host/db/migrations
-server -> extension
-@/host/db -> @/host/db/migrations
-extension -> @/host/db/migrations
-extension -> config edition email handler mcp storage workers papermetrics model app/{accounts,operations,sites,notifications,storage} repository/sqlkit
+# Kernel: every host package outside the three modules, ops and the layers above them. It imports no module.
+/** -> /** !access/** !sites/** !data/** !ops/** !handler !mcp !server/** !extension !testdb !geoip/geoiptest
+# Modules: access <- sites <- data; ops reports over all three.
+access/** -> access/**
+sites/** -> access/** sites/**
+data/** -> access/** sites/** data/**
+ops/** -> access/** sites/** data/** ops/**
+# The HTTP and MCP layers and the composition roots may import every module.
+{handler,mcp,server/**,extension} -> /** !testdb !geoip/geoiptest
+# A product may import the platform and itself, never a module's repository; no platform row lists a product.
+@/products/hack/** -> /** !{access,sites,data,ops}/repo/** @/products/hack/**
 @/cmd/simple-host -> server
 @/cmd/simple-hack -> server extension @/products/hack
-handler -> app/** auth httpx edition model webassets buildinfo workers
-@/products/hack/hackhttp -> app/** auth httpx edition model webassets buildinfo workers
-handler -> mcp redirects pagepath
-auth -> app/accounts httpx edition model rules/auth rules/sites
-@/products/hack/hackhttp -> rules/sites
-mcp -> app/** edition model httpx buildinfo webassets workers
-httpx -> app/errors model edition
-httpx -> @/host/storage/rules
-app/{accounts,sites,storage,legacy,notifications,operations} -> app/errors model edition workers repository/sqlkit
-@/products/hack/app/events -> app/errors model edition workers repository/sqlkit
-@/products/hack/app/teams -> app/errors model edition workers repository/sqlkit
-@/products/hack/app/members -> app/errors model edition workers repository/sqlkit
-@/products/hack/app/entries -> app/errors model edition workers repository/sqlkit
-app/accounts -> repository/{accounts,sites} rules/auth oauth email geoip
-app/sites -> redirects pagepath app/{accounts,storage,notifications} repository/{sites,accounts} rules/{sites,auth} storage sitelocks tarball eventdns capacity
-app/storage -> app/{accounts,notifications} repository/{storage,sites} rules/{storage,auth} storage sitelocks
-app/storage -> @/host/storage/rules
-@/products/hack/app/storagebind -> app/{storage,accounts,sites} @/products/hack/repository/hackevents repository/sqlkit @/host/storage/rules
-app/legacy -> app/{accounts,storage,notifications} repository/{legacy,sites} rules/{storage,auth} sitelocks
-@/products/hack/app/events -> app/{accounts,sites,storage,notifications} @/products/hack/app/entries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/auth @/products/hack/rules/hackevents @/products/hack/rules/hackentries storage capacity llm
-@/products/hack/app/teams -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
-@/products/hack/app/members -> app/{accounts,sites,storage,notifications} @/products/hack/app/events @/products/hack/app/entries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/repository/hackentries rules/{sites,auth} @/products/hack/rules/hackevents @/products/hack/rules/hackteams
-@/products/hack/app/entries -> app/{accounts,sites,storage,notifications} @/products/hack/repository/hackentries @/products/hack/repository/hackevents @/products/hack/repository/hackteams @/products/hack/rules/hackentries @/products/hack/rules/hackevents storage
-app/notifications -> app/accounts repository/{notifications,accounts,legacy} email
-app/operations -> app/{accounts,sites,storage} repository/{operations,accounts,sites,legacy} storage analytics netusage papermetrics geoip email capacity buildinfo
-repository/{accounts,sites,storage,legacy,notifications,operations} -> repository/sqlkit model rules/{auth,sites,storage}
-@/products/hack/repository/hackevents -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
-@/products/hack/repository/hackteams -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
-@/products/hack/repository/hackentries -> repository/sqlkit model rules/{auth,sites,storage} @/products/hack/rules/hackevents @/products/hack/rules/hackteams @/products/hack/rules/hackentries
-@/products/hack/repository/hackteams -> @/products/hack/repository/hackevents
-@/products/hack/repository/hackevents -> @/products/hack/repository/hackentries
-rules/{auth,sites,storage} -> model
-@/products/hack/rules/hackevents -> model
-@/products/hack/rules/hackteams -> model
-@/products/hack/rules/hackentries -> model
-edition -> config
-storage -> model
-storage -> @/host/storage/rules
-{analytics,netusage,papermetrics} -> model workers
-geoip -> workers
-{app/errors,model,config,workers,sitelocks,repository/sqlkit,webassets} -> -
-{buildinfo,capacity,email,eventdns,oauth,tarball,testdb,geoip/geoiptest} -> -
-{llm,redirects,pagepath} -> -
-# Permanent module-specific packages and command rows.
-@/scripts/split/sqlcheck -> @/host/db/migrations @/products/hack/db/migrations
-@/cmd/analytics-rebuild -> analytics config
+@/cmd/analytics-rebuild -> sites/analytics config
 @/cmd/ip-country-load -> -
-@/scripts/layering -> -
+@/scripts/split/sqlcheck -> db/migrations @/products/hack/db/migrations
 @/scripts/inventory -> mcp webassets @/products/hack/mcp
-server/servertest -> server config extension
+@/scripts/layering -> -
 [test]
-@/products/hack/** -> repository/**
-app/sites -> config
-handler -> @/host/storage/rules
-app/sites -> @/host/storage/rules
 /** -> testdb geoip/geoiptest
-@/** -> testdb geoip/geoiptest
-{handler,auth,mcp} -> config repository/** storage sitelocks email llm
-@/products/hack/hackhttp -> config repository/** storage sitelocks email llm
-mcp -> @/host/storage/rules
-@/products/hack/mcp -> @/host/storage/rules
-server -> server/servertest
-@/cmd/simple-host -> server/servertest
-@/cmd/simple-hack -> server/servertest @/products/hack/testdb
-server/servertest -> testdb
-@/products/hack/servertest -> server/servertest
-@/products/hack/servertest -> @/host/storage/rules
+@/** -> testdb geoip/geoiptest server/servertest @/products/hack/testdb
+@/products/hack/** -> {access,sites,data,ops}/repo/**
 [transitional]
 # Must remain empty: every transitional edge now fails the check.
 

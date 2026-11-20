@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -38,19 +38,19 @@ func (s *Service) Leave(ctx context.Context, ev0 model.Event, userID, confirm, s
 	}
 	member, approvalStatus, err := eventrepo.LeaveSelf(ctx, tx, ev.ID, userID, true)
 	if errors.Is(err, sql.ErrNoRows) {
-		return result, &Error{"event_not_found", "event not found"}
+		return result, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return result, err
 	}
 	if ev.TakenDown() {
-		return result, &Error{"event_taken_down", "this event has been taken down"}
+		return result, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	if ev.Stage == "archived" {
-		return result, &Error{"event_closed", "this event has ended, so nobody can leave it"}
+		return result, &Error{Code: "event_closed", Message: "this event has ended, so nobody can leave it"}
 	}
 	if confirm != ev.Slug {
-		return result, &Error{"leave_needs_confirm", `to leave, send {"confirm":"<slug>"} with this event's address name`}
+		return result, &Error{Code: "leave_needs_confirm", Message: `to leave, send {"confirm":"<slug>"} with this event's address name`}
 	}
 
 	otherOrganisers, err := eventrepo.OtherEventOrganisers(ctx, tx, ev.ID, userID)
@@ -64,14 +64,14 @@ func (s *Service) Leave(ctx context.Context, ev0 model.Event, userID, confirm, s
 	switch leaveCase {
 	case "participant", "applicant", "judge", "co_organiser":
 		if successorID != "" || closeAction != "" {
-			return result, &Error{"leave_state_changed", LeaveStateChangedMessage}
+			return result, &Error{Code: "leave_state_changed", Message: LeaveStateChangedMessage}
 		}
 	case "creator":
 		if closeAction != "" {
-			return result, &Error{"leave_state_changed", LeaveStateChangedMessage}
+			return result, &Error{Code: "leave_state_changed", Message: LeaveStateChangedMessage}
 		}
 		if successorID == "" {
-			return result, &Error{"successor_required", "you created this event, so hand it to another organiser first: send successor_user_id"}
+			return result, &Error{Code: "successor_required", Message: "you created this event, so hand it to another organiser first: send successor_user_id"}
 		}
 		found := false
 		for _, o := range otherOrganisers {
@@ -82,14 +82,14 @@ func (s *Service) Leave(ctx context.Context, ev0 model.Event, userID, confirm, s
 			}
 		}
 		if !found {
-			return result, &Error{"invalid_successor", "pick another organiser of this event"}
+			return result, &Error{Code: "invalid_successor", Message: "pick another organiser of this event"}
 		}
 	case "last_organiser":
 		if successorID != "" {
-			return result, &Error{"leave_state_changed", LeaveStateChangedMessage}
+			return result, &Error{Code: "leave_state_changed", Message: LeaveStateChangedMessage}
 		}
 		if closeAction == "" {
-			return result, &Error{"last_organiser", `you are the only organiser, so leaving closes the event: send close "end" or "delete"`}
+			return result, &Error{Code: "last_organiser", Message: `you are the only organiser, so leaving closes the event: send close "end" or "delete"`}
 		}
 		if closeAction == "end" {
 			participants, _, _, err := eventrepo.CountEventMembers(ctx, tx, ev.ID)
@@ -97,7 +97,7 @@ func (s *Service) Leave(ctx context.Context, ev0 model.Event, userID, confirm, s
 				return result, err
 			}
 			if participants == 0 {
-				return result, &Error{"archive_needs_participants", "nobody has joined, so delete the event instead"}
+				return result, &Error{Code: "archive_needs_participants", Message: "nobody has joined, so delete the event instead"}
 			}
 		}
 	}

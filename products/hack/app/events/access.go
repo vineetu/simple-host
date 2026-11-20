@@ -4,8 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/sites"
+	accounts "github.com/vsriram/simple-host/host/access"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -22,5 +21,5 @@ func SyncAccess(ctx context.Context, tx *sql.Tx, eventID string) error {
 	if err := accounts.SetProductTeamMembers(ctx, tx, account, organisers); err != nil {
 		return err
 	}
-	return sites.SetProductSiteEditors(ctx, tx, account, editors)
+	return accounts.SetProductSiteEditors(ctx, tx, account, editors)
 }

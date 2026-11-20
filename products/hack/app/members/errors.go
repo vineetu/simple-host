@@ -1,6 +1,6 @@
 package members
 
-// Error describes a membership workflow refusal.
-type Error struct{ Code, Message string }
+import hackmodel "github.com/vsriram/simple-host/products/hack/model"
 
-func (e *Error) Error() string { return e.Message }
+// Error is the shared hack workflow refusal.
+type Error = hackmodel.Error

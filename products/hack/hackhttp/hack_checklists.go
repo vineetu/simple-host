@@ -63,26 +63,10 @@ func (h *HackHandler) getChecklist(w http.ResponseWriter, r *http.Request) {
 	h.pinDue(r.Context(), a.event.ID)
 	list, err := h.readChecklist(r.Context(), a.event, a.member, r.URL.Query().Get("role"))
 	if err != nil {
-		writeChecklistError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})
-}
-func writeChecklistError(w http.ResponseWriter, err error) {
-	if e, ok := err.(*events.Error); ok {
-		status := http.StatusBadRequest
-		switch e.Code {
-		case "event_closed", "stale_checklist_version":
-			status = http.StatusConflict
-		case "checklist_role_forbidden", "event_taken_down":
-			status = http.StatusForbidden
-		case "event_not_found":
-			status = http.StatusNotFound
-		}
-		httpx.WriteError(w, status, e.Code, e.Message)
-		return
-	}
-	httpx.WriteInternal(w)
 }
 func (h *HackHandler) setChecklistNotNeeded(w http.ResponseWriter, r *http.Request) {
 	marked := r.Method == http.MethodPost
@@ -100,14 +84,14 @@ func (h *HackHandler) writeChecklist(w http.ResponseWriter, r *http.Request, ver
 		var req struct {
 			Version string `json:"version"`
 		}
-		if !decodeHackJSON(w, r, &req) {
+		if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 			return
 		}
 		version = req.Version
 	}
 	item := r.PathValue("item")
 	if err := h.checklistService().Write(r.Context(), a.event.ID, a.user.ID, item, version, notNeeded); err != nil {
-		writeChecklistError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	role := "organiser"
@@ -117,7 +101,7 @@ func (h *HackHandler) writeChecklist(w http.ResponseWriter, r *http.Request, ver
 	h.pinDue(r.Context(), a.event.ID)
 	list, err := h.readChecklist(r.Context(), a.event, a.member, role)
 	if err != nil {
-		writeChecklistError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"can": h.eventsSvc().MemberAbilities(r.Context(), a.event.ID, a.member), "checklist": list})

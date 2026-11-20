@@ -23,7 +23,6 @@ import (
 	entries "github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/model"
-	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
 // Entries: the text, links and screenshot a team submits, kept apart from
@@ -73,8 +72,8 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !h.entryWrites.Allow(a.user.ID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if !h.entryWrites.AllowHTTP(w, a.user.ID) {
+		httpx.TooManyRequests(w)
 		return
 	}
 	if _, ok := h.participantTeam(w, r, a); !ok {
@@ -93,7 +92,7 @@ func (h *HackHandler) putEntry(w http.ResponseWriter, r *http.Request) {
 		Maturity    *string   `json:"maturity"`
 		Track       *string   `json:"track"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	fields := map[string]string{}
@@ -254,13 +253,7 @@ func (h *HackHandler) setEntryExcluded(w http.ResponseWriter, r *http.Request, e
 	}
 	team, err := h.entries.SetExcluded(r.Context(), a.event.ID, a.user.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))), excluded)
 	if err != nil {
-		var domainErr *entries.Error
-		if errors.As(err, &domainErr) {
-			httpx.WriteError(w, http.StatusNotFound, domainErr.Code, domainErr.Message)
-		} else {
-			log.Printf("hack: entry exclude %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	tl, err := h.loadTeamList(r.Context(), a.event)
@@ -295,15 +288,15 @@ func (h *HackHandler) putEntryScreenshot(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !h.entryWrites.Allow(a.user.ID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if !h.entryWrites.AllowHTTP(w, a.user.ID) {
+		httpx.TooManyRequests(w)
 		return
 	}
 	if _, ok := h.participantTeam(w, r, a); !ok {
 		return
 	}
-	if !h.shotWrites.Allow(a.user.ID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if !h.shotWrites.AllowHTTP(w, a.user.ID) {
+		httpx.TooManyRequests(w)
 		return
 	}
 	data, mime, ok := readEntryImage(w, r)
@@ -322,8 +315,8 @@ func (h *HackHandler) deleteEntryScreenshot(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if !h.entryWrites.Allow(a.user.ID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if !h.entryWrites.AllowHTTP(w, a.user.ID) {
+		httpx.TooManyRequests(w)
 		return
 	}
 	if _, ok := h.participantTeam(w, r, a); !ok {
@@ -517,8 +510,6 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 	var refusal *entries.Error
 	if errors.As(err, &refusal) {
 		switch refusal.Code {
-		case "event_not_found":
-			writeEventNotFound(w)
 		case "entry_changed":
 			view, loadErr := h.ownEntryJSON(r.Context(), a.event, id, a.user.ID)
 			if loadErr != nil {
@@ -530,18 +521,12 @@ func (h *HackHandler) entryWrite(w http.ResponseWriter, r *http.Request, a hackA
 			httpx.WriteJSON(w, 409, view)
 		case "entry_incomplete", "entry_would_be_incomplete":
 			writeHackErrMissing(w, http.StatusUnprocessableEntity, refusal.Code, "Add these first: "+entries.MissingMessage(missing, entries.LoadRules(a.event.EntryRules)), missing)
-		case "track_not_found":
-			httpx.WriteError(w, http.StatusNotFound, refusal.Code, refusal.Message)
-		case "no_team", "team_choice_closed":
-			httpx.WriteError(w, http.StatusConflict, refusal.Code, refusal.Message)
 		default:
-			status, msg := hackevents.TeamRefusal(refusal.Code)
-			httpx.WriteError(w, status, refusal.Code, msg)
+			writeHackError(w, err)
 		}
 		return "", false
 	}
-	log.Printf("hack: entry write %s: %v", a.event.Slug, err)
-	httpx.WriteInternal(w)
+	writeHackError(w, err)
 	return "", false
 }
 
@@ -658,7 +643,7 @@ func nonNilStrings(s []string) []string {
 func (h *HackHandler) entryListItem(ctx context.Context, ev model.Event, team model.EventTeam, e model.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
 	st := tl.states[team.ID]
 	site := tl.site(team.Slug)
-	siteLive := site != nil && site.ActiveVersion > 0 && !st.SiteTakenDown && !st.EventTakenDown
+	siteLive := entries.TeamSiteLive(site, st)
 	track, err := h.eventsSvc().TeamTrackLookup(ctx, team.ID)
 	if err != nil {
 		return nil, err

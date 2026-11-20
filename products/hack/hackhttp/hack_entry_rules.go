@@ -3,7 +3,6 @@ package hackhttp
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"net/http"
 
@@ -40,8 +39,7 @@ func (h *HackHandler) evaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.
 // entrySiteState reads the team's site once for the entry view: whether it
 // exists at all, its live version (nil when it has none), and whether it
 // counts as the "site" rules field -- a live version, not taken down
-// (section 4.1). siteTakenDown already covers both the organiser's
-// take-down and a platform suspension (model.TeamWriteState.SiteTakenDown).
+// (section 4.1): entries.TeamSiteLive, from the site-info row.
 func (h *HackHandler) entrySiteState(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
 	if h.sites == nil {
 		return false, nil, false
@@ -102,7 +100,7 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 		JudgeFirst *string           `json:"judge_first"`
 		DryRun     bool              `json:"dry_run"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.Preset != nil && !entries.PresetSettable(*req.Preset) {
@@ -115,16 +113,7 @@ func (h *HackHandler) putEntryRules(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.entries.PutRules(r.Context(), a.event.ID, entries.RulesUpdate{Preset: req.Preset, Fields: req.Fields, JudgeFirst: req.JudgeFirst, DryRun: req.DryRun})
 	if err != nil {
-		var domainErr *entries.Error
-		if errors.As(err, &domainErr) {
-			status := http.StatusBadRequest
-			if domainErr.Code == "entry_rules_closed" {
-				status = http.StatusConflict
-			}
-			httpx.WriteError(w, status, domainErr.Code, domainErr.Message)
-		} else {
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	if req.DryRun {

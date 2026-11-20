@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
+
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
-	"log"
 )
 
 // DeleteFormerJudgeScores removes a departed judge's scores under the event and membership locks.
@@ -33,7 +34,7 @@ func (s *Service) DeleteFormerJudgeScores(ctx context.Context, eventID, callerID
 	// may have committed while this request waited for that lock.
 	role, err := entryrepo.OrganiserRoleForShare(ctx, tx, eventID, callerID)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && role != "organiser" {
-		return &Error{Code: "event_not_found"}
+		return &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return err

@@ -18,7 +18,7 @@ import (
 
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
 
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"

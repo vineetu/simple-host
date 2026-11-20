@@ -135,7 +135,7 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var c hackContent
-	if !decodeHackJSON(w, r, &c) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &c) {
 		return
 	}
 	editable := []hackScheduleItem{}
@@ -215,7 +215,7 @@ func (h *HackHandler) putContent(w http.ResponseWriter, r *http.Request) {
 	faq, _ := json.Marshal(c.FAQ)
 	schedule, _ := json.Marshal(c.Schedule)
 	if err := h.eventsSvc().PutContent(r.Context(), a.event.ID, model.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
-		writeContentError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	view, err := h.contentView(r.Context(), a, c)
@@ -254,7 +254,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 		EmailParticipants bool   `json:"email_participants"`
 		Pinned            bool   `json:"pinned"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	var valid bool
@@ -278,7 +278,7 @@ func (h *HackHandler) postAnnouncement(w http.ResponseWriter, r *http.Request) {
 	}
 	item, queued, organiserCopied, err := h.eventsSvc().PostAnnouncement(r.Context(), a.event.ID, req.Title, req.Body, req.EmailParticipants, req.Pinned, a.user.ID)
 	if err != nil {
-		writeContentError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"announcement": item, "emails_queued": queued, "organiser_copied": organiserCopied})
@@ -293,7 +293,7 @@ func (h *HackHandler) previewAnnouncement(w http.ResponseWriter, r *http.Request
 	var req struct {
 		Body string `json:"body"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	// The same text rules as posting, except that an empty message previews
@@ -416,7 +416,7 @@ func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request)
 	}
 	title, body := "", ""
 	if r.Method == http.MethodPut {
-		if !decodeHackJSON(w, r, &req) {
+		if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 			return
 		}
 		// A change that only sets pinned (no title and no body) pins or
@@ -438,7 +438,7 @@ func (h *HackHandler) changeAnnouncement(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	if err := h.eventsSvc().ChangeAnnouncement(r.Context(), a.event.ID, id, title, body, req.Pinned, r.Method == http.MethodDelete); err != nil {
-		writeContentError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

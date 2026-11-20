@@ -173,7 +173,7 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 		Open       *bool  `json:"open"`
 		LookingFor string `json:"looking_for"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	name, ok := checkHackLine(w, events.StripInvisible(req.Name), "team_name", 1, 80)
@@ -185,22 +185,8 @@ func (h *HackHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	team, err := h.teamsSvc().CreateTeam(r.Context(), a.event, a.user.ID, name, note, h.teamSiteFlatHostsOn(), eventNameReserved)
-	var teamErr *teams.Error
-	switch {
-	case errors.As(err, &teamErr) && teamErr.Code == "submissions_closed":
-		httpx.WriteError(w, http.StatusConflict, "submissions_closed", "the submission deadline has passed, so new teams can't start")
-		return
-	case errors.As(err, &teamErr) && teamErr.Code == "team_name_taken":
-		writeTeamNameTaken(w)
-		return
-	case errors.Is(err, teams.ErrAlreadyInTeam):
-		httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
-		return
-	case errors.Is(err, teams.ErrNotParticipant):
-		writeEventNotFound(w)
-		return
-	case err != nil:
-		httpx.WriteInternal(w)
+	if err != nil {
+		writeHackError(w, err)
 		return
 	}
 	obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
@@ -226,7 +212,7 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Code string `json:"code"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	code := h.teamCodeFromInput(req.Code)
@@ -235,31 +221,8 @@ func (h *HackHandler) joinTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	team, err := h.teamsSvc().JoinTeam(r.Context(), a.event.ID, a.user.ID, code, a.event.TeamSizeMax)
-	var teamErr *teams.Error
-	switch {
-	case errors.As(err, &teamErr) && teamErr.Code == "teams_locked":
-		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
-		return
-	case errors.As(err, &teamErr) && teamErr.Code == "submissions_closed":
-		httpx.WriteError(w, http.StatusConflict, "submissions_closed", "that team's deadline has passed, so it can't take new members")
-		return
-	case errors.Is(err, teams.ErrTeamNotFound):
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	case errors.Is(err, teams.ErrTeamFull):
-		httpx.WriteError(w, http.StatusConflict, "team_full", "this team is full")
-		return
-	case errors.Is(err, teams.ErrTeamLocked):
-		httpx.WriteError(w, http.StatusConflict, "team_locked", "this team isn't taking new people")
-		return
-	case errors.Is(err, teams.ErrAlreadyInTeam):
-		httpx.WriteError(w, http.StatusConflict, "already_in_team", "you are already on a team")
-		return
-	case errors.Is(err, teams.ErrNotParticipant) || errors.Is(err, sql.ErrNoRows):
-		writeEventNotFound(w)
-		return
-	case err != nil:
-		httpx.WriteInternal(w)
+	if err != nil {
+		writeHackError(w, err)
 		return
 	}
 	obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
@@ -308,7 +271,7 @@ func (h *HackHandler) moveMember(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserID string `json:"user_id"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if !sites.UUIDShape.MatchString(req.UserID) {
@@ -365,7 +328,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 	teamName := ""
 	if participant {
 		if !teams.ParticipantTeamStages(a.event.Stage) || !a.member.TeamID.Valid || userID == a.user.ID {
-			findingError(w, teams.ErrFindingForbidden)
+			writeHackError(w, teams.ErrFindingForbidden)
 			return
 		}
 		team, err := h.teamsSvc().GetTeam(r.Context(), a.member.TeamID.String)
@@ -386,7 +349,7 @@ func (h *HackHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
 		return
 	case errors.Is(err, teams.ErrTeamFrozen):
-		findingError(w, err)
+		writeHackError(w, err)
 		return
 	case errors.Is(err, teams.ErrTeamNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
@@ -447,10 +410,6 @@ func (h *HackHandler) teamParticipantJSON(ctx context.Context, team model.EventT
 		"link": h.teamLinkURL(team.Code), "admin": admin, "locked": team.Locked(), "kept": team.KeptAfterLeave,
 		"looking_for": lookingFor, "members": members,
 	}, nil
-}
-
-func writeTeamNameTaken(w http.ResponseWriter) {
-	httpx.WriteError(w, http.StatusConflict, "team_name_taken", "another team already has that name")
 }
 
 // stripInvisible moved to host/rules/hackevents.StripInvisible in

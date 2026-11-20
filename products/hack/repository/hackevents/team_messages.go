@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 

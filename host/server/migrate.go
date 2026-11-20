@@ -13,7 +13,7 @@ import (
 	schema "github.com/vsriram/simple-host/host/db"
 	"github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/host/extension"
-	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
+	operationrepo "github.com/vsriram/simple-host/host/ops/repo"
 )
 
 const migrateUsage = `usage: simple-host migrate [-init] [-record-product] | -status | -mark FILE

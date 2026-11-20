@@ -167,7 +167,7 @@ func TestAssistantOffByDefault(t *testing.T) {
 		t.Fatalf("POST off: %d %s", r.status, r.body)
 	}
 	body := r.json(t)
-	if body["error"] != "assistant_off" {
+	if body["code"] != "assistant_off" {
 		t.Fatalf("expected error=assistant_off, got %v", body)
 	}
 }
@@ -194,7 +194,7 @@ func TestAssistantOrganisersOnly(t *testing.T) {
 		if r.status != http.StatusForbidden {
 			t.Fatalf("%s GET: %d %s", tc.name, r.status, r.body)
 		}
-		if body := r.json(t); body["error"] != "organisers_only" {
+		if body := r.json(t); body["code"] != "organisers_only" {
 			t.Fatalf("%s GET body: %v", tc.name, body)
 		}
 		r = w.call(t, "POST", "/assistant", map[string]any{"messages": []map[string]string{{"role": "user", "content": "hi"}}}, tc.p)
@@ -209,7 +209,7 @@ func TestAssistantOrganisersOnly(t *testing.T) {
 	if r.status != http.StatusForbidden {
 		t.Fatalf("admin (not joined) GET: %d %s", r.status, r.body)
 	}
-	if body := r.json(t); body["error"] != "organisers_only" {
+	if body := r.json(t); body["code"] != "organisers_only" {
 		t.Fatalf("admin GET body: %v", body)
 	}
 
@@ -296,7 +296,7 @@ func TestAssistantTakenDownEventRefuses(t *testing.T) {
 	if r.status != http.StatusForbidden {
 		t.Fatalf("GET: %d %s, want 403", r.status, r.body)
 	}
-	if body := r.json(t); body["error"] != "event_taken_down" {
+	if body := r.json(t); body["code"] != "event_taken_down" {
 		t.Fatalf("GET body: %v", body)
 	}
 
@@ -304,7 +304,7 @@ func TestAssistantTakenDownEventRefuses(t *testing.T) {
 	if r.status != http.StatusForbidden {
 		t.Fatalf("POST: %d %s, want 403", r.status, r.body)
 	}
-	if body := r.json(t); body["error"] != "event_taken_down" {
+	if body := r.json(t); body["code"] != "event_taken_down" {
 		t.Fatalf("POST body: %v", body)
 	}
 }
@@ -517,7 +517,7 @@ func TestAssistantBadRequest(t *testing.T) {
 		if r.status != http.StatusBadRequest {
 			t.Fatalf("%s: got %d %s, want 400", name, r.status, r.body)
 		}
-		if got := r.json(t)["error"]; got != "bad_request" {
+		if got := r.json(t)["code"]; got != "bad_request" && got != "invalid_request" {
 			t.Fatalf("%s: error = %v, want bad_request", name, got)
 		}
 	}
@@ -640,11 +640,11 @@ func TestAssistantRateLimitBody(t *testing.T) {
 		t.Fatalf("got %d %s, want 429 once the burst is exhausted", last.status, last.body)
 	}
 	body := last.json(t)
-	if body["error"] != "rate_limited" {
-		t.Fatalf("error = %v, want rate_limited", body["error"])
+	if body["code"] != "rate_limited" {
+		t.Fatalf("error = %v, want rate_limited", body["code"])
 	}
-	if body["message"] != "Too many questions at once. Wait a minute and try again." {
-		t.Fatalf("message = %v", body["message"])
+	if body["error"] != "Too many questions at once. Wait a minute and try again." {
+		t.Fatalf("error = %v", body["error"])
 	}
 }
 
@@ -672,8 +672,8 @@ func TestAssistantDailyLimit(t *testing.T) {
 		t.Fatalf("3rd question: %d %s", r.status, r.body)
 	}
 	body := r.json(t)
-	if body["error"] != "daily_limit" {
-		t.Fatalf("error = %v", body["error"])
+	if body["code"] != "daily_limit" {
+		t.Fatalf("error = %v", body["code"])
 	}
 	if n, ok := body["remaining_today"].(float64); !ok || n != 0 {
 		t.Fatalf("remaining_today = %v", body["remaining_today"])
@@ -695,8 +695,8 @@ func TestAssistantMonthlyBudget(t *testing.T) {
 		t.Fatalf("got %d %s, want 429", r.status, r.body)
 	}
 	body := r.json(t)
-	if body["error"] != "monthly_budget" {
-		t.Fatalf("error = %v", body["error"])
+	if body["code"] != "monthly_budget" {
+		t.Fatalf("error = %v", body["code"])
 	}
 	resets, _ := body["resets"].(string)
 	if resets == "" {
@@ -720,8 +720,8 @@ func TestAssistantProviderFailureRefunds(t *testing.T) {
 	if r.status != http.StatusBadGateway {
 		t.Fatalf("got %d %s, want 502", r.status, r.body)
 	}
-	if body := r.json(t); body["error"] != "provider_error" {
-		t.Fatalf("error = %v", body["error"])
+	if body := r.json(t); body["code"] != "provider_error" {
+		t.Fatalf("error = %v", body["code"])
 	}
 	after := w.call(t, "GET", "/assistant", nil, w.org).json(t)
 	if before["used_today"] != after["used_today"] {

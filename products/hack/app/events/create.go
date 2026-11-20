@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/host/app/sites"
 	"time"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
-	sqlkit "github.com/vsriram/simple-host/host/repository/sqlkit"
+	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -37,7 +37,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		return model.Event{}, model.EventMember{}, err
 	}
 	if perDay > 0 && n >= perDay {
-		return model.Event{}, model.EventMember{}, &Error{"too_many_events_today", "you have created too many events today"}
+		return model.Event{}, model.EventMember{}, &Error{Code: "too_many_events_today", Message: "you have created too many events today"}
 	}
 	active, err := eventrepo.CountActiveEventsByOrganiser(ctx, tx, userID)
 	if err != nil {
@@ -48,7 +48,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		if maxActive == 1 {
 			noun = "active event"
 		}
-		return model.Event{}, model.EventMember{}, &Error{"too_many_active_events", fmt.Sprintf("You already have %d %s, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings.", maxActive, noun)}
+		return model.Event{}, model.EventMember{}, &Error{Code: "too_many_active_events", Message: fmt.Sprintf("You already have %d %s, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings.", maxActive, noun)}
 	}
 
 	eventID, err := eventrepo.NewUUID(ctx, tx)
@@ -62,7 +62,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		return model.Event{}, model.EventMember{}, err
 	}
 	if !claimed {
-		return model.Event{}, model.EventMember{}, &Error{"name_taken", "that name is already in use"}
+		return model.Event{}, model.EventMember{}, &Error{Code: "name_taken", Message: "that name is already in use"}
 	}
 
 	var ev model.Event
@@ -115,7 +115,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 			continue
 		}
 		if unique(err) {
-			return model.Event{}, model.EventMember{}, &Error{"name_taken", "that name is already in use"}
+			return model.Event{}, model.EventMember{}, &Error{Code: "name_taken", Message: "that name is already in use"}
 		}
 		return model.Event{}, model.EventMember{}, err
 	}
@@ -148,7 +148,7 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 // SetStage changes the event stage and settles entries within the transaction.
 func (s *Service) SetStage(ctx context.Context, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
 	if event.Stage == "archived" && stage != "archived" {
-		return model.Event{}, "", &Error{"event_closed", "an ended event cannot be reopened"}
+		return model.Event{}, "", &Error{Code: "event_closed", Message: "an ended event cannot be reopened"}
 	}
 	if stage == "archived" && event.Stage != "archived" {
 		// An event nobody joined is deleted, not ended: ending one would keep
@@ -158,7 +158,7 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 			return model.Event{}, "", err
 		}
 		if participants == 0 {
-			return model.Event{}, "", &Error{"archive_needs_participants", "nobody has joined, so delete the event instead"}
+			return model.Event{}, "", &Error{Code: "archive_needs_participants", Message: "nobody has joined, so delete the event instead"}
 		}
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -188,7 +188,7 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 		return model.Event{}, "", err
 	}
 	if current == "archived" && stage != "archived" {
-		return model.Event{}, "", &Error{"event_closed", "an ended event cannot be reopened"}
+		return model.Event{}, "", &Error{Code: "event_closed", Message: "an ended event cannot be reopened"}
 	}
 	// Every team row too: a deploy let in holds its team FOR SHARE and
 	// finishes before the deadline moves.
@@ -283,20 +283,20 @@ func (s *Service) DeleteEvent(ctx context.Context, event model.Event, userID str
 	var takenDown bool
 	err = eventrepo.LockStageAndMemberRole(ctx, tx, event.ID, userID).Scan(&stage, &role, &takenDown)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && role != "organiser") {
-		return &Error{"event_not_found", "event not found"}
+		return &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return err
 	}
 	if takenDown {
-		return &Error{"event_taken_down", "this event has been taken down"}
+		return &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	participants, _, judges, err := eventrepo.CountEventMembers(ctx, tx, event.ID)
 	if err != nil {
 		return err
 	}
 	if (confirm != nil && *confirm != event.Slug) || (confirm == nil && (stage == "archived" || participants+judges > 0)) {
-		return &Error{"delete_only_empty", "to permanently delete this event, send {\"confirm\":\"" + event.Slug + "\"} with the matching event address name"}
+		return &Error{Code: "delete_only_empty", Message: "to permanently delete this event, send {\"confirm\":\"" + event.Slug + "\"} with the matching event address name"}
 	}
 	if err := s.DeleteEventTx(ctx, tx, event, trash); err != nil {
 		return err
@@ -343,6 +343,12 @@ func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, curre
 // account, including recently deleted sites; there is no event undo. The caller
 // holds the event row and has checked confirmation against the slug.
 func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event, trash func(context.Context, string, string) error) error {
+	if down, err := sites.AccountSiteTakenDown(ctx, tx, ev.AccountID); err != nil || down {
+		if err == nil {
+			err = &Error{Code: "site_taken_down", Message: "a team site is taken down; it stays until the take-down is lifted"}
+		}
+		return err
+	}
 	if trash != nil {
 		teams, err := teamrepo.ListEventTeams(ctx, tx, ev.ID)
 		if err != nil {
@@ -376,7 +382,7 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 	stage := ev.Stage
 	if deadlineChanged {
 		if stage == "archived" {
-			return model.Event{}, &Error{"event_closed", "an ended event cannot be changed"}
+			return model.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 		}
 		// Submissions closed means the deadline has passed; reopening them
 		// is moving the event back to Building, or one team's extension.
@@ -385,7 +391,7 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, validate func(
 			return model.Event{}, err
 		}
 		if hackevents.SubmissionsClosedStage(stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
-			return model.Event{}, &Error{"submissions_closed_stage", "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
+			return model.Event{}, &Error{Code: "submissions_closed_stage", Message: "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
 		}
 	}
 	updated, err := eventrepo.UpdateEventPatch(ctx, tx, ev)

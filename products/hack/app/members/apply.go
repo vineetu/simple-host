@@ -53,7 +53,7 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 		return model.EventMember{}, nil, err
 	}
 	if stage == "draft" || takenDownNow {
-		return model.EventMember{}, nil, &Error{"event_not_found", "event not found"}
+		return model.EventMember{}, nil, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 
 	// Security review #12 (rejected/approved/pending caller): an existing
@@ -71,7 +71,7 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 			// unchanged (no re-apply once rejected).
 			if err := events.EnsureAccountName(ctx, tx, userID, input.Display); err != nil {
 				if e, ok := err.(*events.Error); ok {
-					return model.EventMember{}, nil, &Error{e.Code, e.Message}
+					return model.EventMember{}, nil, &Error{Code: e.Code, Message: e.Message}
 				}
 				return model.EventMember{}, nil, err
 			}
@@ -84,17 +84,17 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 			}
 			return existing, existingView(existing), nil
 		}
-		return model.EventMember{}, nil, &Error{"already_member", "you already have a different role in this event"}
+		return model.EventMember{}, nil, &Error{Code: "already_member", Message: "you already have a different role in this event"}
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return model.EventMember{}, nil, err
 	}
 
 	if stage != "open" && stage != "building" {
-		return model.EventMember{}, nil, &Error{"joining_closed", "joining is closed for this event"}
+		return model.EventMember{}, nil, &Error{Code: "joining_closed", Message: "joining is closed for this event"}
 	}
 	if !applicationsOpen {
-		return model.EventMember{}, nil, &Error{"applications_closed", "this event isn't taking applications right now"}
+		return model.EventMember{}, nil, &Error{Code: "applications_closed", Message: "this event isn't taking applications right now"}
 	}
 
 	questions, _, err := eventrepo.RegistrationSettings(ctx, tx, ev.ID)
@@ -103,7 +103,7 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 	}
 	answers, validationErr := hackevents.SignupAnswers(questions, input.Answers)
 	if validationErr != nil {
-		return model.EventMember{}, nil, &Error{validationErr.Code, validationErr.Message}
+		return model.EventMember{}, nil, &Error{Code: validationErr.Code, Message: validationErr.Message}
 	}
 
 	// Security review #1/#2 (account-wide pending cap race): take a
@@ -120,7 +120,7 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 		return model.EventMember{}, nil, err
 	}
 	if pending >= 20 {
-		return model.EventMember{}, nil, &Error{"too_many_pending", "You have 20 applications waiting. Wait for answers before applying to more."}
+		return model.EventMember{}, nil, &Error{Code: "too_many_pending", Message: "You have 20 applications waiting. Wait for answers before applying to more."}
 	}
 
 	// Security review (Grok 1): a per-event ceiling, so many accounts cannot
@@ -132,13 +132,13 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 		return model.EventMember{}, nil, err
 	}
 	if eventPending >= capN {
-		return model.EventMember{}, nil, &Error{"event_applications_full", fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN)}
+		return model.EventMember{}, nil, &Error{Code: "event_applications_full", Message: fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN)}
 	}
 
 	profile := model.ApplicantProfile{City: input.City, Country: input.Country, AgeRange: input.AgeRange, Gender: input.Gender}
 	if err := events.EnsureAccountName(ctx, tx, userID, input.Display); err != nil {
 		if e, ok := err.(*events.Error); ok {
-			return model.EventMember{}, nil, &Error{e.Code, e.Message}
+			return model.EventMember{}, nil, &Error{Code: e.Code, Message: e.Message}
 		}
 		return model.EventMember{}, nil, err
 	}
@@ -149,7 +149,7 @@ func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, inpu
 			if err2 == nil && existing2.Role == "participant" {
 				return existing2, existingView(existing2), nil
 			}
-			return model.EventMember{}, nil, &Error{"already_member", "you already have a different role in this event"}
+			return model.EventMember{}, nil, &Error{Code: "already_member", Message: "you already have a different role in this event"}
 		}
 		return model.EventMember{}, nil, err
 	}
@@ -196,23 +196,23 @@ func (s *Service) ApplyDetails(ctx context.Context, ev model.Event, caller strin
 // ValidateApplication checks and normalizes the supplied application fields.
 func (s *Service) ValidateApplication(accept *bool, in ApplicationInput) (ApplicationInput, error) {
 	if accept == nil || !*accept {
-		return in, &Error{"coc_required", "you must accept the code of conduct"}
+		return in, &Error{Code: "coc_required", Message: "you must accept the code of conduct"}
 	}
 	var e *hackevents.ValidationError
 	in.City, e = hackevents.Line(in.City, "city", 0, 80)
 	if e != nil {
-		return in, &Error{e.Code, e.Message}
+		return in, &Error{Code: e.Code, Message: e.Message}
 	}
 	var ok bool
 	in.Country, ok = hackevents.Country(in.Country)
 	if !ok {
-		return in, &Error{"invalid_country", "country must be an ISO 3166-1 alpha-2 code"}
+		return in, &Error{Code: "invalid_country", Message: "country must be an ISO 3166-1 alpha-2 code"}
 	}
 	if !hackevents.Enum(in.AgeRange, hackevents.AgeRangeOrder) {
-		return in, &Error{"invalid_age_range", "age_range is not a recognised value"}
+		return in, &Error{Code: "invalid_age_range", Message: "age_range is not a recognised value"}
 	}
 	if !hackevents.Enum(in.Gender, hackevents.GenderOrder) {
-		return in, &Error{"invalid_gender", "gender is not a recognised value"}
+		return in, &Error{Code: "invalid_gender", Message: "gender is not a recognised value"}
 	}
 	return in, nil
 }

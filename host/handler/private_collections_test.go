@@ -16,13 +16,13 @@ import (
 
 	"github.com/vsriram/simple-host/host/config"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/operations"
-	"github.com/vsriram/simple-host/host/auth"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/auth"
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
-	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	operationsrepo "github.com/vsriram/simple-host/host/repository/operations"
+	operations "github.com/vsriram/simple-host/host/ops"
+	operationsrepo "github.com/vsriram/simple-host/host/ops/repo"
 	"github.com/vsriram/simple-host/host/storage"
 )
 

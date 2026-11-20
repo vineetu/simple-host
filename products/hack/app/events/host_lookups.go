@@ -2,31 +2,16 @@ package events
 
 import (
 	"context"
-	"time"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/sites"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
-// KeyResolver is injected by the composition root so Hack shares account authentication.
-type KeyResolver func(context.Context, string, time.Duration) (model.User, error)
-
-func (s *Service) SetKeyResolver(resolve KeyResolver) { s.resolveKey = resolve }
-func (s *Service) UserByAPIKey(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-	return s.resolveKey(ctx, key, idle)
-}
 func (s *Service) UserByID(ctx context.Context, id string) (model.User, error) {
 	return accounts.UserByID(ctx, s.db, id)
-}
-func (s *Service) AccountHandles(ctx context.Context, user *model.User) []string {
-	handles := []string{user.Handle.String}
-	if aliases, err := accounts.HandleAliases(ctx, s.db, user.ID); err == nil {
-		handles = append(handles, aliases...)
-	}
-	return handles
 }
 func (s *Service) SiteByUser(ctx context.Context, accountID, name string) (model.Site, error) {
 	return sites.SiteByName(ctx, s.db, accountID, name)

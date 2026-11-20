@@ -3,8 +3,8 @@ package teams
 import (
 	"context"
 	"database/sql"
-	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -182,7 +182,7 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 		return nil, nil, 0, internalError(err)
 	}
 	if !hackteams.ParticipantTeamStages(ev.Stage) {
-		return nil, nil, 0, &Error{Code: "teams_locked"}
+		return nil, nil, 0, &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
 	}
 	// Default to min(4, team_size_max), avoiding a 20-person team of strangers.
 	size := 4
@@ -193,7 +193,7 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 		size = *requestedSize
 	}
 	if size < 1 || size > ev.TeamSizeMax {
-		return nil, nil, 0, &Error{Code: "invalid_team_size"}
+		return nil, nil, 0, &Error{Code: "invalid_team_size", Message: "size must be between 1 and the event's team size"}
 	}
 	if _, err = teamrepo.LockEventMembersForFill(ctx, tx, ev.ID); err != nil {
 		return nil, nil, 0, internalError(err)

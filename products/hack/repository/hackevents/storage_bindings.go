@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // StorageBindings contains trusted facts about a site and a caller in its event.

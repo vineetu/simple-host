@@ -11,17 +11,15 @@ import (
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	"sync"
-	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/llm"
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/papermetrics"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/host/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
@@ -92,9 +90,6 @@ func Extension() *extension.Extension {
 			siteHandler, mux, authMW := d.Site, d.Mux, d.AuthMW
 			hack := hackhttp.NewHackHandler(d.DB, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 			hack.SetProductLimits(productConfig.Limits)
-			hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-				return d.Accounts.GetUserByAPIKey(ctx, key, idle)
-			})
 			hack.ShareAssets(siteHandler.Pages())
 			hack.SetHandleChecker(func(ctx context.Context, q sqlkit.Querier, name string) (hackhttp.HandleVerdict, error) {
 				v, err := handler.JudgeHandle(ctx, q, "", name)
@@ -157,7 +152,7 @@ func Extension() *extension.Extension {
 				return extension.Parts{}, fmt.Errorf("simple-hack: Assets must be installed before Wire")
 			}
 			hackhttp.RegisterHackHome(mux, siteHandler.Pages(), productAssets)
-			hackhttp.RegisterHackPublic(mux, d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages)
+			hackhttp.RegisterHackPublic(mux, d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages, hack)
 			hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
 			return extension.Parts{
 				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},

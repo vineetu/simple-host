@@ -12,10 +12,8 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// Error describes a rejected judging workflow.
-type Error struct{ Code, Message string }
-
-func (e *Error) Error() string { return e.Message }
+// Error is the shared hack workflow refusal.
+type Error = hackmodel.Error
 
 // BeginAssignmentsError identifies a failure to begin the assignment transaction.
 type BeginAssignmentsError struct{ Err error }

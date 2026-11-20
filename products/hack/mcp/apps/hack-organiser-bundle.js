@@ -4284,7 +4284,7 @@
         const thread2 = state.panelEl && state.panelEl.querySelector("[data-assistant-thread]");
         let msg, retry = true;
         if (res.status === 400) {
-          msg = cpLen(poppedText) > MAX_MSG_CHARS ? "That question is too long. Shorten it and try again." : data && typeof data.message === "string" && data.message || "Something went wrong. Refresh the page and try again.";
+          msg = cpLen(poppedText) > MAX_MSG_CHARS ? "That question is too long. Shorten it and try again." : data && typeof data.error === "string" && data.error || "Something went wrong. Refresh the page and try again.";
           if (state.panelEl) {
             const ta = state.panelEl.querySelector("[data-assistant-input]");
             if (ta) {
@@ -4293,9 +4293,9 @@
             }
           }
         } else {
-          msg = data && typeof data.message === "string" && data.message || "Something went wrong. Refresh the page and try again.";
+          msg = data && typeof data.error === "string" && data.error || "Something went wrong. Refresh the page and try again.";
         }
-        if (data && (data.error === "daily_limit" || data.error === "monthly_budget")) {
+        if (data && (data.code === "daily_limit" || data.code === "monthly_budget")) {
           disableForLimit(msg);
           retry = false;
         }

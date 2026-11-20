@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 )

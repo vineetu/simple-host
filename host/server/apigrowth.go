@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/vsriram/simple-host/host/app/operations"
 	"github.com/vsriram/simple-host/host/geoip"
+	operations "github.com/vsriram/simple-host/host/ops"
 )
 
 const apiGrowthUsage = `usage: simple-host api-growth-backfill [NGINX_LOG...]

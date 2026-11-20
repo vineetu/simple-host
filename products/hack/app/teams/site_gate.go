@@ -4,10 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/http"
 	"strings"
 
-	sites "github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
+
 	model "github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
@@ -80,8 +84,7 @@ func (g SiteGate) Check(ctx context.Context, tx *sql.Tx, user *model.User, siteN
 	}
 	g.PaperState(ctx, user, st.Stage)
 	if code := st.WriteRefusal(); code != "" {
-		status, msg := eventrepo.TeamRefusal(code)
-		return &sites.GateError{Status: status, Message: msg, Code: code}
+		return &sites.GateError{Status: httpx.RefusalStatus(code, http.StatusConflict), Message: hackevents.TeamRefusalMessage(code), Code: code}
 	}
 	if !g.TeamSitesReady(user.Handle.String) {
 		if !st.EventTakenDown && (st.Stage == "open" || st.Stage == "building" || st.Stage == "closed") {

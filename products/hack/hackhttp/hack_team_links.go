@@ -1,13 +1,11 @@
 package hackhttp
 
 import (
-	"errors"
 	"net/http"
 
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/products/hack/app/events"
-	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
 // getTeamLink is the public GET /v1/hack/team-links/{code}: a team link or
@@ -17,13 +15,9 @@ import (
 // the team's own name and counts, and the caller's own status.
 func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var user *model.User
-	caller := ""
-	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := h.eventsSvc().UserByAPIKey(ctx, k, h.limits.KeyIdleExpiry); err == nil {
-			user = &u
-			caller = u.ID
-		}
+	user, caller := auth.GetUser(ctx), ""
+	if user != nil {
+		caller = user.ID
 	}
 	if h.rateLimited(w, r, caller) {
 		return
@@ -34,13 +28,8 @@ func (h *HackHandler) getTeamLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	preview, err := h.teamsSvc().GetTeamLink(ctx, code, caller)
-	var teamErr *teams.Error
-	if errors.As(err, &teamErr) && teamErr.Code == "team_link_not_found" {
-		httpx.WriteError(w, http.StatusNotFound, "team_link_not_found", "that link or code doesn't match a team in this event")
-		return
-	}
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	ev, team, memberCount := preview.Event, preview.Team, preview.MemberCount

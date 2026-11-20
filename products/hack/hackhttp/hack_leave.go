@@ -213,7 +213,7 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 		SuccessorUserID string `json:"successor_user_id"`
 		Close           string `json:"close"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.Close != "" && req.Close != "end" && req.Close != "delete" {
@@ -242,7 +242,7 @@ func (h *HackHandler) postLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	result, err := h.membersSvc().Leave(ctx, ev0, user.ID, req.Confirm, req.SuccessorUserID, req.Close)
 	if err != nil {
-		writeMemberError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	leaveCase, teamDeleted, successor := result.Case, result.TeamDeleted, result.Successor

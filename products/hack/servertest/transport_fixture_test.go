@@ -28,17 +28,17 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/operations"
-	sitesapp "github.com/vsriram/simple-host/host/app/sites"
-	"github.com/vsriram/simple-host/host/auth"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/auth"
+	operations "github.com/vsriram/simple-host/host/ops"
+	sitesapp "github.com/vsriram/simple-host/host/sites"
 
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/model"
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
@@ -153,9 +153,6 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	h := hackhttp.NewHackHandler(database, srv.URL, "simple-hack.test", ed)
 	h.ShareAssets(handler.NewPages(ed, srv.URL))
 	h.SetHandleChecker(hackHandleCheckerForTest)
-	h.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-		return accountapp.New(database).GetUserByAPIKey(ctx, key, idle)
-	})
 	h.Register(mux, authMW)
 	root = mux
 	return &hackApp{database: database, admin: adminKey, mux: mux, srv: srv, hack: h}
@@ -680,9 +677,6 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	installAssets(a.sites, nil)
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetHandleChecker(hackHandleCheckerForTest)
-	a.hack.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-		return accountapp.New(database).GetUserByAPIKey(ctx, key, idle)
-	})
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
 	a.sites.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))

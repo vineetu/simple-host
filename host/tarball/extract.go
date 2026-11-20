@@ -193,7 +193,7 @@ func extractTarGz(r io.Reader, c caps) (map[string][]byte, error) {
 			continue
 		}
 
-		clean, ok := safeRelPath(header.Name)
+		clean, ok := SafeRelPath(header.Name)
 		if !ok {
 			return nil, fmt.Errorf("unsafe path %q in archive", header.Name)
 		}
@@ -240,7 +240,7 @@ func extractZip(r io.Reader, c caps) (map[string][]byte, error) {
 			continue
 		}
 
-		clean, ok := safeRelPath(file.Name)
+		clean, ok := SafeRelPath(file.Name)
 		if !ok {
 			return nil, fmt.Errorf("unsafe path %q in archive", file.Name)
 		}
@@ -300,10 +300,11 @@ func readCapped(r io.Reader, alreadyRead int64, c caps) ([]byte, error) {
 	return content, nil
 }
 
-// safeRelPath normalizes an archive entry name and rejects anything that could
-// escape the destination root or is otherwise pathological. It is the single
-// traversal guard for extraction; storage.WriteFiles re-checks independently.
-func safeRelPath(name string) (string, bool) {
+// SafeRelPath normalizes a site file path (archive entry, JSON key, keep=1
+// replace or remove) and rejects anything that could escape the destination
+// root or is otherwise pathological: the one path rule for every deploy.
+// storage.WriteFiles re-checks independently.
+func SafeRelPath(name string) (string, bool) {
 	name = normalizePath(name)
 	if name == "" || len(name) > MaxPathLen {
 		return "", false
@@ -316,9 +317,13 @@ func safeRelPath(name string) (string, bool) {
 	if filepath.IsAbs(name) {
 		return "", false
 	}
+	for _, part := range strings.Split(name, "/") {
+		if part == ".." {
+			return "", false
+		}
+	}
 	clean := filepath.Clean(name)
-	if clean == "." || clean == ".." ||
-		strings.HasPrefix(clean, "../") || strings.Contains(clean, "/../") {
+	if clean == "." {
 		return "", false
 	}
 	if strings.Count(clean, "/")+1 > maxPathDepth {
@@ -357,6 +362,7 @@ func isSecretPath(clean string) bool {
 }
 
 func normalizePath(name string) string {
+	name = strings.ReplaceAll(name, `\`, "/")
 	for strings.HasPrefix(name, "./") {
 		name = strings.TrimPrefix(name, "./")
 	}

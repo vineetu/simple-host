@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/mcp"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )

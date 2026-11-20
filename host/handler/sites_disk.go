@@ -1,6 +1,6 @@
 package handler
 
-import "github.com/vsriram/simple-host/host/app/sites"
+import "github.com/vsriram/simple-host/host/sites"
 
 // SiteDisk combines the independently defined content and local serving contracts.
 // The composition root supplies DiskStorage for both today.

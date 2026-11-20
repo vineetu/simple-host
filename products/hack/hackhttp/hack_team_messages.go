@@ -72,7 +72,7 @@ func (h *HackHandler) postTeamMessages(w http.ResponseWriter, r *http.Request) {
 		TeamIDs []string `json:"team_ids"`
 		Text    string   `json:"text"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	teamIDs, ok := checkTeamIDs(w, req.TeamIDs)
@@ -91,7 +91,7 @@ func (h *HackHandler) postTeamMessages(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "too many team messages for this event; try again later")
 			return
 		}
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	messages := make([]map[string]any, 0, len(sent))
@@ -147,7 +147,7 @@ func (h *HackHandler) postMyTeamMessage(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Text string `json:"text"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	text, ok := checkHackText(w, req.Text, "text", 1, 1000)
@@ -162,7 +162,7 @@ func (h *HackHandler) postMyTeamMessage(w http.ResponseWriter, r *http.Request) 
 			httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "your team sent too many messages to the organisers; try again later")
 			return
 		}
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"message": postedTeamMessageJSON(sent)})

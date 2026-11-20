@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	accountapp "github.com/vsriram/simple-host/host/access"
 
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/mcp"

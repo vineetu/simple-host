@@ -2,6 +2,8 @@ package handler
 
 import (
 	"bytes"
+	appstorage "github.com/vsriram/simple-host/host/data"
+	"github.com/vsriram/simple-host/host/sites"
 	"os"
 
 	"github.com/vsriram/simple-host/host/edition"
@@ -41,8 +43,8 @@ func pricingNumbers(hostedEvents bool, l edition.Limits) map[string]string {
 		"__NOTIFY_MAX__":          limitNum(l.NotifyMaxPerSite),
 		"__STORAGE_DB_BYTES__":    limitCommas(int(storageSiteLimitBytes(hostedEvents))),
 		"__STORAGE_FILES_BYTES__": limitCommas(int(filesBytes)),
-		"__STORAGE_FILE_BYTES__":  limitCommas(int(storageFileMaxBytes())),
-		"__PHOTO_BYTES__":         limitCommas(photoLimit("PHOTO_MAX_BYTES", 1000000)),
+		"__STORAGE_FILE_BYTES__":  limitCommas(int(appstorage.FileMaxBytes())),
+		"__PHOTO_BYTES__":         limitCommas(sites.PhotoMaxBytes()),
 	}
 }
 

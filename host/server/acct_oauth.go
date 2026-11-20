@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
+	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/oauth"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/handler"
-	"github.com/vsriram/simple-host/host/oauth"
 )
 
 // OAuthSettings adapts configured sign-in providers for the HTTP transport.

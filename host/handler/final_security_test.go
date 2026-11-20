@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/auth"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/auth"
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	model "github.com/vsriram/simple-host/host/model"
-	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	sitesrepo "github.com/vsriram/simple-host/host/repository/sites"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // v0.7.1 security fixes. Need DB_DSN (host/db/schema.sql applied).

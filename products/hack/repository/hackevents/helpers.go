@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 func queryContext(ctx context.Context, q sqlkit.Querier, query string, args ...any) (*sql.Rows, error) {

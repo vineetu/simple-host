@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/httpx"
 )
 
 // Sets the export can produce. Each is a Table: columns plus rows.
@@ -48,11 +50,11 @@ func (c *Collector) Export(who Who) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		signedIn, admin := who(r)
 		if !signedIn {
-			writeErr(w, http.StatusUnauthorized, "unauthorized")
+			httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
 			return
 		}
 		if !admin {
-			writeErr(w, http.StatusNotFound, "not found")
+			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "not found"})
 			return
 		}
 		c.export(w, r)
@@ -72,14 +74,14 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, d := range []string{from, to} {
 		if _, err := time.Parse("2006-01-02", d); err != nil {
-			writeErr(w, http.StatusBadRequest, "from and to are dates, YYYY-MM-DD")
+			httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "from and to are dates, YYYY-MM-DD"})
 			return
 		}
 	}
 	set := q.Get("set")
 	if set == "" || set == "summary" {
 		if q.Get("format") == "csv" {
-			writeErr(w, http.StatusBadRequest, "csv needs one set: "+c.exportSetList())
+			httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "csv needs one set: " + c.exportSetList()})
 			return
 		}
 		out := map[string]any{"from": from, "to": to, "classes": ClassNames(), "bucket_upper_us": BucketBounds(), "methodology": "https://github.com/vineetu/simple-host/blob/main/docs/paper-metrics.md"}
@@ -102,12 +104,12 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 	}
 	fn := c.exportSets()[set]
 	if fn == nil {
-		writeErr(w, http.StatusBadRequest, "unknown set; one of: summary, "+c.exportSetList())
+		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "unknown set; one of: summary, " + c.exportSetList()})
 		return
 	}
 	t, err := fn(r.Context(), from, to, r)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "query failed: "+err.Error())
+		httpx.WriteJSON(w, http.StatusInternalServerError, httpx.ErrorResponse{Error: "query failed: " + err.Error()})
 		return
 	}
 	if q.Get("format") == "csv" {
@@ -151,12 +153,6 @@ func setList() string {
 		s += n
 	}
 	return s
-}
-
-func writeErr(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
 
 // query runs a SELECT and returns every row as plain values.

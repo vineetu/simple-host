@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	_ "github.com/lib/pq"
-	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
+	operationrepo "github.com/vsriram/simple-host/host/ops/repo"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 

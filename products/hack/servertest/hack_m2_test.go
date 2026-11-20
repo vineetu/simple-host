@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	siterepo "github.com/vsriram/simple-host/host/repository/sites"
+	siterepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/products/hack"
 	teamsapp "github.com/vsriram/simple-host/products/hack/app/teams"
 )
@@ -189,8 +189,9 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/teams/"+beta, nil, org.key); r.status != 204 {
 		t.Fatalf("delete team: %d %s", r.status, r.body)
 	}
+	// Beta's site is taken down by the platform: that hold keeps it (not trashed).
 	var live int
-	_ = a.database.QueryRow(`SELECT count(*) FROM sites s JOIN events e ON e.account_id = s.user_id WHERE e.slug = $1 AND s.deleted_at IS NULL`, slug).Scan(&live)
+	_ = a.database.QueryRow(`SELECT count(*) FROM sites s JOIN events e ON e.account_id = s.user_id WHERE e.slug = $1 AND s.deleted_at IS NULL AND s.id <> $2`, slug, betaSite).Scan(&live)
 	if live != 0 {
 		t.Fatalf("removed teams' sites still live: %d", live)
 	}

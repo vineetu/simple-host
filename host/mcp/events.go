@@ -85,10 +85,14 @@ func eventPayloadSchema(name string, product ...bool) map[string]any {
 // write: they take the site argument only (no storage filter) and carry no
 // storage, kind or untrusted fields. Simple Host only; Simple Hack
 // keeps the three record events.
-var siteEventNames = []string{"site.deployed", "domain.status_changed", "viewer.access_requested", "visitor.signed_up"}
+var SiteEventNames = []string{"site.deployed", "domain.status_changed", "viewer.access_requested", "visitor.signed_up"}
 
-func isSiteEvent(name string) bool {
-	for _, n := range siteEventNames {
+// RecordEventNames fire on visitor writes to site storage.
+var RecordEventNames = []string{"record.added", "record.changed", "file.uploaded"}
+
+// IsSiteEvent is whether name is one of SiteEventNames.
+func IsSiteEvent(name string) bool {
+	for _, n := range SiteEventNames {
 		if n == name {
 			return true
 		}
@@ -239,7 +243,7 @@ func parseEventParams(raw json.RawMessage, subscribe bool, eventScoped bool) (Ev
 	siteEvent := false
 	switch {
 	case req.Name == "record.added", req.Name == "record.changed", req.Name == "file.uploaded":
-	case isSiteEvent(req.Name) && !eventScoped:
+	case IsSiteEvent(req.Name) && !eventScoped:
 		siteEvent = true
 	default:
 		return req, &EventError{Code: EventCodeNotFound, Message: "NotFound", Data: map[string]any{"kind": "event"}}

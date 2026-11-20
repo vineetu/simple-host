@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/vsriram/simple-host/host/handler"
-	siterepo "github.com/vsriram/simple-host/host/repository/sites"
+	siterepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/storage"
 )
 

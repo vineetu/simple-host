@@ -2,10 +2,10 @@ package events
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/sites"
 	"strings"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
+	accounts "github.com/vsriram/simple-host/host/access"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )

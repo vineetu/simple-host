@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/vsriram/simple-host/host/app/operations"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/handler"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/storage"
 )
 

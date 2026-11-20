@@ -3,7 +3,7 @@ package hackteams
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 import "github.com/vsriram/simple-host/products/hack/repository/hackevents"

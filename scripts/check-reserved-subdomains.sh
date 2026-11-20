@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Every <label>.<SITE_DOMAIN> that nginx answers with an exact server_name never
 # reaches the app, so a site must not be able to claim it as its free address.
-# reservedSubdomainLabels in host/handler/platformsubdomain.go is the single
+# reservedSubdomainLabels in host/handler/sites_platformsubdomain.go is the single
 # source of truth; this compares it with the nginx config on this box (read-only)
 # and fails when nginx serves a single-label name the list does not reserve.
 #
@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 DOMAINS="${SITE_DOMAIN:-simple-host.app} ${SITE_BASE_DOMAIN:-simple-host.site}"
 CONF=${NGINX_CONF_DIR:-/etc/nginx/sites-enabled}
 
-reserved=$(awk '/^var reservedSubdomainLabels/,/^}/' host/handler/platformsubdomain.go | grep -oE '"[a-z0-9-]+"' | tr -d '"' | sort -u)
+reserved=$(awk '/^var reservedSubdomainLabels/,/^}/' host/handler/sites_platformsubdomain.go | grep -oE '"[a-z0-9-]+"' | tr -d '"' | sort -u)
 if [ -z "$reserved" ]; then
   echo "FAIL: could not read reservedSubdomainLabels"; exit 1
 fi

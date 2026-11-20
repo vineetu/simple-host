@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/extension"
 	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"

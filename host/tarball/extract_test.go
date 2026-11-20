@@ -311,3 +311,16 @@ func TestPerCallLimit(t *testing.T) {
 		t.Fatalf("unsafe path: err = %v", err)
 	}
 }
+
+// One path rule for every deploy: backslashes are separators, ".." is refused.
+func TestSafeRelPathOneRule(t *testing.T) {
+	if p, ok := SafeRelPath(`css\a.css`); !ok || p != "css/a.css" {
+		t.Fatal(p)
+	}
+	if _, ok := SafeRelPath("a/../b"); ok {
+		t.Fatal("parent segment accepted")
+	}
+	if p, ok := SafeRelPath("/about.html"); !ok || p != "about.html" {
+		t.Fatal(p)
+	}
+}

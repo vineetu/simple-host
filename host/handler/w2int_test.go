@@ -8,7 +8,7 @@ import (
 	"time"
 
 	model "github.com/vsriram/simple-host/host/model"
-	sitesrepo "github.com/vsriram/simple-host/host/repository/sites"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // How the batch-2 features meet: the idle-site cleanup against the offline

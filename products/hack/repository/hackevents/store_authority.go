@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // OwnerOnSite narrows who is owner of an event's site for its saved data,

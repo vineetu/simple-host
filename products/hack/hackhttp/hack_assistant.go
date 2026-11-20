@@ -13,12 +13,8 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// registerAssistant wires SIM-394's organiser assistant chat. The API
-// contract (fixed by the lead) is exact about the JSON shape of every
-// refusal -- the top-level "error" field holds the stable code (not a
-// human message, unlike httpx.ErrorResponse elsewhere in this package) --
-// so every response here is built by hand rather than through
-// httpx.WriteError.
+// registerAssistant wires SIM-394's organiser assistant chat. Refusals use
+// the shared {"error", "code"} body.
 func (h *HackHandler) registerAssistant(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/assistant", wrap(h.getAssistant))
 	mux.Handle("POST /v1/hack/events/{slug}/assistant", wrap(h.postAssistant))
@@ -134,7 +130,7 @@ func (h *HackHandler) assistantAccess(w http.ResponseWriter, r *http.Request) (h
 		return hackAccess{}, false
 	}
 	if a.admin || a.member.Role != "organiser" {
-		httpx.WriteJSON(w, http.StatusForbidden, map[string]any{"error": "organisers_only"})
+		httpx.WriteError(w, http.StatusForbidden, "organisers_only", "only organisers can ask the assistant")
 		return hackAccess{}, false
 	}
 	// loadMember only checks TakenDown for write=true, and the assistant
@@ -144,11 +140,7 @@ func (h *HackHandler) assistantAccess(w http.ResponseWriter, r *http.Request) (h
 	// guidance about. A normally-ended (archived) event is a different,
 	// unflagged state and keeps asking.
 	if a.event.TakenDown() {
-		// This route's "error" field is always the stable code (see the
-		// package doc comment above), so the hand-rolled shape, not
-		// httpx.WriteError (whose "error" field carries the message and
-		// puts the code in "code" instead).
-		httpx.WriteJSON(w, http.StatusForbidden, map[string]any{"error": "event_taken_down", "message": "this event has been taken down"})
+		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
 		return hackAccess{}, false
 	}
 	return a, true
@@ -181,9 +173,6 @@ func (h *HackHandler) getAssistant(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, body)
 }
 
-// decodeAssistantMessages decodes {"messages":[...]}; a malformed or
-// oversized body is the contract's 400 bad_request shape.
-//
 // Organiser assistant v2: optional "screen" (navigation screen id) and
 // "tab" say where the organiser is asking from. They only word a line of
 // the prompt; anything the navigation map doesn't know is ignored, and
@@ -196,9 +185,7 @@ type assistantRequest struct {
 
 func decodeAssistantMessages(w http.ResponseWriter, r *http.Request) (assistantRequest, bool) {
 	var req assistantRequest
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, hackMaxBody))
-	if err := dec.Decode(&req); err != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, map[string]any{"error": "bad_request", "message": "invalid JSON body"})
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return assistantRequest{}, false
 	}
 	if len(req.Screen) > 64 {
@@ -226,7 +213,7 @@ func assistantRefusalStatus(code string) int {
 }
 
 func assistantRefusalBody(refusal *events.AssistantRefusal) map[string]any {
-	body := map[string]any{"error": refusal.Code, "message": refusal.Message}
+	body := map[string]any{"error": refusal.Message, "code": refusal.Code}
 	switch refusal.Code {
 	case "daily_limit":
 		body["remaining_today"] = refusal.RemainingToday
@@ -242,16 +229,11 @@ func (h *HackHandler) postAssistant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.assistant == nil || !h.assistant.Enabled() {
-		httpx.WriteJSON(w, http.StatusNotFound, map[string]any{"error": "assistant_off", "message": "The assistant is not set up on this server."})
+		httpx.WriteError(w, http.StatusNotFound, "assistant_off", "The assistant is not set up on this server.")
 		return
 	}
 	if !h.assistantWrites.Allow(a.user.ID) {
-		// This route's refusals are the contract's hand-rolled
-		// {"error","message"} shape throughout (see the package doc
-		// comment above), not httpx.ErrorResponse's {"error","code"} --
-		// so the per-account rate limit matches that shape here too,
-		// rather than reusing httpx.ErrorResponse's generic wording.
-		httpx.WriteJSON(w, http.StatusTooManyRequests, map[string]any{"error": "rate_limited", "message": "Too many questions at once. Wait a minute and try again."})
+		httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "Too many questions at once. Wait a minute and try again.")
 		return
 	}
 	req, ok := decodeAssistantMessages(w, r)

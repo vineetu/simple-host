@@ -6,7 +6,7 @@ import (
 	"errors"
 	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
-	sqlkit "github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"

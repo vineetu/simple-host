@@ -248,7 +248,7 @@ func TestEventsListSchemas(t *testing.T) {
 			"viewer.access_requested": {"visitor": "visitor-ref"},
 			"visitor.signed_up":       {"visitor": "visitor-ref"},
 		}
-		for i, name := range siteEventNames {
+		for i, name := range SiteEventNames {
 			event := events[3+i].(map[string]any)
 			if event["name"] != name || event["description"] == "" || !reflect.DeepEqual(event["delivery"], []any{"webhook"}) {
 				t.Errorf("bad descriptor for %s", name)
@@ -312,7 +312,7 @@ func TestEventsListSchemas(t *testing.T) {
 
 func TestEventsSiteEventArguments(t *testing.T) {
 	for _, modern := range []bool{false, true} {
-		for _, name := range siteEventNames {
+		for _, name := range SiteEventNames {
 			backend := &fakeEventsBackend{}
 			s := NewServer(testConfig(Config{Events: backend}))
 			params := eventTestParams()

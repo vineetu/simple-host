@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 )
 
 // hackSession signs uid in on host (bound to siteID) and returns a request

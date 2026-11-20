@@ -3,7 +3,7 @@ package hackevents
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // NoticeMemberStatus reads the member's current approval and team.

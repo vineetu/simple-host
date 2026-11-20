@@ -16,7 +16,7 @@ type QueueTeamError struct {
 	Err    error
 }
 
-func (e *QueueTeamError) Error() string { return e.Err.Error() }
+func (e *QueueTeamError) Error() string { return e.TeamID + ": " + e.Err.Error() }
 
 // Unwrap returns the completion query error.
 func (e *QueueTeamError) Unwrap() error { return e.Err }

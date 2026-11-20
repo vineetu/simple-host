@@ -1,8 +1,6 @@
 package hackhttp
 
 import (
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/vsriram/simple-host/host/httpx"
@@ -10,35 +8,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
-
-func findingError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, teams.ErrFindingStage):
-		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
-	case errors.Is(err, teams.ErrFindingOff):
-		httpx.WriteError(w, 409, "team_finding_off", "team finding is off")
-	case errors.Is(err, teams.ErrTeamFull):
-		httpx.WriteError(w, 409, "team_full", "this team is full")
-	case errors.Is(err, teams.ErrTeamLocked):
-		httpx.WriteError(w, 409, "team_locked", "this team isn't taking new people")
-	case errors.Is(err, teams.ErrTeamKept):
-		httpx.WriteError(w, 409, "team_kept", "this team can't take new members")
-	case errors.Is(err, teams.ErrLastTeamAdmin):
-		httpx.WriteError(w, 409, "last_team_admin", "make someone else admin first")
-	case errors.Is(err, teams.ErrTeamAdminOnly):
-		httpx.WriteError(w, 403, "team_admin_only", "only the team's admins can do that")
-	case errors.Is(err, teams.ErrAlreadyInTeam):
-		httpx.WriteError(w, 409, "already_in_team", "you are already on a team")
-	case errors.Is(err, teams.ErrTeamFrozen):
-		httpx.WriteError(w, 409, "submissions_closed", "the team's deadline has passed")
-	case errors.Is(err, teams.ErrFindingForbidden), errors.Is(err, teams.ErrNotParticipant):
-		httpx.WriteError(w, 403, "team_action_unavailable", "this team action is not available")
-	case errors.Is(err, sql.ErrNoRows), errors.Is(err, teams.ErrTeamNotFound):
-		writeEventNotFound(w)
-	default:
-		httpx.WriteInternal(w)
-	}
-}
 
 func (h *HackHandler) findingAccess(w http.ResponseWriter, r *http.Request, write bool) (hackAccess, bool) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), write, "participant", "organiser")
@@ -50,7 +19,7 @@ func (h *HackHandler) findingAccess(w http.ResponseWriter, r *http.Request, writ
 		return a, false
 	}
 	if !a.event.TeamFinding {
-		findingError(w, teams.ErrFindingOff)
+		writeHackError(w, teams.ErrFindingOff)
 		return a, false
 	}
 	return a, true
@@ -107,7 +76,7 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 		Open       bool   `json:"open"`
 		LookingFor string `json:"looking_for"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	note, ok := checkHackLine(w, events.StripInvisible(req.LookingFor), "looking_for", 0, 120)
@@ -116,7 +85,7 @@ func (h *HackHandler) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.teamsSvc().SetTeamFinding(r.Context(), a.event.ID, a.user.ID, note)
 	if err != nil {
-		findingError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true, "deprecated": "use PATCH /v1/hack/events/{slug}/team"})
@@ -134,7 +103,7 @@ func (h *HackHandler) setLooking(w http.ResponseWriter, r *http.Request) {
 		Looking bool   `json:"looking"`
 		Intro   string `json:"intro"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	intro, ok := checkHackLine(w, req.Intro, "intro", 0, 120)
@@ -143,7 +112,7 @@ func (h *HackHandler) setLooking(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.teamsSvc().SetLooking(r.Context(), a.event.ID, a.user.ID, req.Looking, intro)
 	if err != nil {
-		findingError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
@@ -161,7 +130,7 @@ func (h *HackHandler) createTeamRequest(w http.ResponseWriter, r *http.Request) 
 		var req struct {
 			UserID string `json:"user_id"`
 		}
-		if !decodeHackJSON(w, r, &req) {
+		if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 			return
 		}
 		if !sites.UUIDShape.MatchString(req.UserID) || !a.member.TeamID.Valid {
@@ -178,7 +147,7 @@ func (h *HackHandler) createTeamRequest(w http.ResponseWriter, r *http.Request) 
 	}
 	state, err := h.teamsSvc().CreateTeamRequest(r.Context(), a.event, a.user.ID, team, userID, kind)
 	if err != nil {
-		findingError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	status := 200
@@ -207,7 +176,7 @@ func (h *HackHandler) resolveTeamRequest(w http.ResponseWriter, r *http.Request)
 	}
 	err := h.teamsSvc().ResolveTeamRequest(r.Context(), a.event, a.user.ID, id, action)
 	if err != nil {
-		findingError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
@@ -226,24 +195,12 @@ func (h *HackHandler) fillTeams(w http.ResponseWriter, r *http.Request) {
 		Apply bool `json:"apply"`
 		Size  *int `json:"size"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	plan, skipped, size, err := h.teamsSvc().FillTeams(r.Context(), a.event.ID, a.user.ID, req.Size, req.Apply)
 	if err != nil {
-		var teamErr *teams.Error
-		if errors.As(err, &teamErr) {
-			switch teamErr.Code {
-			case "teams_locked":
-				httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
-			case "invalid_team_size":
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_team_size", "size must be between 1 and the event's team size")
-			default:
-				httpx.WriteInternal(w)
-			}
-		} else {
-			findingError(w, err)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped, "size": size})

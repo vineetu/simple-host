@@ -7,32 +7,13 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// hackAccountAdmin is handler's accountAdmin (accounts.go), duplicated here
-// (cleanup 3.2 slice 1c) so the platform-admin endpoints below need no
-// cross-package reference once HackHandler moves to host/hackhttp.
-// Same 401/404 shape (a signed-in non-admin should not learn the admin
-// endpoint exists).
-func hackAccountAdmin(w http.ResponseWriter, r *http.Request) bool {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
-		return false
-	}
-	if !user.IsAdmin {
-		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "not found"})
-		return false
-	}
-	return true
-}
-
 func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
-	if !hackAccountAdmin(w, r) {
+	if !auth.Admin(w, r) {
 		return
 	}
 	rows, err := h.events.AdminListEvents(r.Context())
@@ -78,13 +59,13 @@ func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
-	if !hackAccountAdmin(w, r) {
+	if !auth.Admin(w, r) {
 		return
 	}
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	reason := strings.Join(strings.Fields(req.Reason), " ")
@@ -102,24 +83,20 @@ func (h *HackHandler) adminTakeDown(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.events.AdminModerate(r.Context(), ev, reason, false, h.syncEventMarkers)
 	if err != nil {
-		if e, ok := err.(*events.Error); ok && e.Code == "markers_failed" {
-			httpx.WriteError(w, http.StatusInternalServerError, e.Code, e.Message)
-		} else {
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.adminEventJSON(updated))
 }
 
 func (h *HackHandler) adminKeepSites(w http.ResponseWriter, r *http.Request) {
-	if !hackAccountAdmin(w, r) {
+	if !auth.Admin(w, r) {
 		return
 	}
 	var req struct {
 		Keep *bool `json:"keep"`
 	}
-	if !decodeHackJSON(w, r, &req) || req.Keep == nil {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) || req.Keep == nil {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_request", `body must be {"keep": true} or {"keep": false}`)
 		return
 	}
@@ -136,7 +113,7 @@ func (h *HackHandler) adminKeepSites(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
-	if !hackAccountAdmin(w, r) {
+	if !auth.Admin(w, r) {
 		return
 	}
 	ev, ok := h.adminLoadEvent(w, r)
@@ -145,18 +122,14 @@ func (h *HackHandler) adminRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, err := h.events.AdminModerate(r.Context(), ev, "", true, h.syncEventMarkers)
 	if err != nil {
-		if e, ok := err.(*events.Error); ok && e.Code == "markers_failed" {
-			httpx.WriteError(w, http.StatusInternalServerError, e.Code, e.Message)
-		} else {
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.adminEventJSON(updated))
 }
 
 func (h *HackHandler) adminDelete(w http.ResponseWriter, r *http.Request) {
-	if !hackAccountAdmin(w, r) {
+	if !auth.Admin(w, r) {
 		return
 	}
 	ev, ok := h.adminLoadEvent(w, r)

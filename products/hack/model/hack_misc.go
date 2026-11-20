@@ -128,3 +128,9 @@ type VoteOption struct {
 	TeamID, Slug, Name, Title, Tagline string
 	Count                              int
 }
+
+// Error is the one hack workflow refusal: Code is the wire code, and the
+// transport takes its status from httpx.RefusalStatus.
+type Error struct{ Code, Message string }
+
+func (e *Error) Error() string { return e.Message }

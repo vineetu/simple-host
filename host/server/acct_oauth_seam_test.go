@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/oauth"
+	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/oauth"
 )
 
 type seamProvider struct {

@@ -19,43 +19,6 @@ import (
 // event_members ... FOR UPDATE in the same transaction as the change --
 // nothing trusts the event view's cached "admin" flag (security review 1).
 
-// writeTeamAdminErr maps the teams-redesign sentinel errors to their REST
-// codes; anything else is internal or event_not_found as usual.
-func writeTeamAdminErr(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, teams.ErrTeamAdminOnly):
-		httpx.WriteError(w, http.StatusForbidden, "team_admin_only", "only the team's admins can do that")
-	case errors.Is(err, teams.ErrLastTeamAdmin):
-		httpx.WriteError(w, http.StatusConflict, "last_team_admin", "make someone else admin first")
-	case errors.Is(err, teams.ErrTeamKept):
-		httpx.WriteError(w, http.StatusConflict, "team_kept", "this team can't take new members")
-	case errors.Is(err, teams.ErrTeamLocked):
-		httpx.WriteError(w, http.StatusConflict, "team_locked", "this team isn't taking new people")
-	case errors.Is(err, sql.ErrNoRows):
-		writeEventNotFound(w)
-	default:
-		httpx.WriteInternal(w)
-	}
-}
-
-func writeParticipantTeamError(w http.ResponseWriter, err error) {
-	var teamErr *teams.Error
-	if errors.As(err, &teamErr) {
-		switch teamErr.Code {
-		case "teams_locked":
-			httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
-			return
-		case "submissions_closed":
-			httpx.WriteError(w, http.StatusConflict, "submissions_closed", "the submission deadline has passed")
-			return
-		case "team_name_taken":
-			writeTeamNameTaken(w)
-			return
-		}
-	}
-	writeTeamAdminErr(w, err)
-}
-
 // patchTeam is PATCH /v1/hack/events/{slug}/team: the caller's own team,
 // admin only. name and looking_for are each optional; send only what
 // changes.
@@ -72,7 +35,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 		Name       *string `json:"name"`
 		LookingFor *string `json:"looking_for"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	var name string
@@ -100,7 +63,7 @@ func (h *HackHandler) patchTeam(w http.ResponseWriter, r *http.Request) {
 	}
 	team, err := h.teamsSvc().PatchTeam(r.Context(), a.event.ID, a.user.ID, nameArg, noteArg)
 	if err != nil {
-		writeParticipantTeamError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
@@ -127,12 +90,12 @@ func (h *HackHandler) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Locked bool `json:"locked"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	requests, invites, err := h.teamsSvc().ParticipantLock(r.Context(), a.event.ID, a.user.ID, req.Locked)
 	if err != nil {
-		writeParticipantTeamError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"locked": req.Locked, "cleared": map[string]any{"requests": requests, "invites": invites}})
@@ -165,12 +128,12 @@ func (h *HackHandler) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request)
 	var req struct {
 		Admin bool `json:"admin"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	err := h.teamsSvc().ParticipantAdmin(r.Context(), a.event.ID, a.user.ID, userID, req.Admin)
 	if err != nil {
-		writeParticipantTeamError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user_id": userID, "admin": req.Admin})
@@ -189,7 +152,7 @@ func (h *HackHandler) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
 	}
 	fresh, err := h.teamsSvc().ParticipantLink(r.Context(), a.event.ID, a.user.ID)
 	if err != nil {
-		writeParticipantTeamError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": fresh.Code, "link": h.teamLinkURL(fresh.Code)})
@@ -211,7 +174,7 @@ func (h *HackHandler) lockOrganiserTeam(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Locked bool `json:"locked"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
@@ -220,13 +183,8 @@ func (h *HackHandler) lockOrganiserTeam(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
 	}
-	var teamErr *teams.Error
-	if errors.As(err, &teamErr) && teamErr.Code == "member_not_found" {
-		writeEventNotFound(w)
-		return
-	}
 	if err != nil {
-		writeTeamAdminErr(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"locked": req.Locked, "cleared": map[string]any{"requests": requests, "invites": invites}})
@@ -249,7 +207,7 @@ func (h *HackHandler) setOrganiserTeamAdmin(w http.ResponseWriter, r *http.Reque
 	var req struct {
 		Admin bool `json:"admin"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
@@ -258,13 +216,8 @@ func (h *HackHandler) setOrganiserTeamAdmin(w http.ResponseWriter, r *http.Reque
 		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
 		return
 	}
-	var teamErr *teams.Error
-	if errors.As(err, &teamErr) && teamErr.Code == "member_not_found" {
-		writeEventNotFound(w)
-		return
-	}
 	if err != nil {
-		writeTeamAdminErr(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user_id": userID, "admin": req.Admin})

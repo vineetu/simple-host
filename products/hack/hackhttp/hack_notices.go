@@ -55,7 +55,7 @@ func (h *HackHandler) markNoticesSeen(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		IDs []string `json:"ids"`
 	}
-	if r.ContentLength != 0 && !decodeHackJSON(w, r, &req) {
+	if r.ContentLength != 0 && !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if len(req.IDs) > 50 {

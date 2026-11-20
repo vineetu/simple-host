@@ -60,10 +60,10 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 		role = member.Role
 	}
 	if role != member.Role && !(member.Role == "organiser" && role == "judge" && !readOnly) {
-		return Checklist{}, &Error{"checklist_role_forbidden", "this membership cannot read that checklist"}
+		return Checklist{}, &Error{Code: "checklist_role_forbidden", Message: "this membership cannot read that checklist"}
 	}
 	if role != "organiser" && role != "judge" && role != "participant" {
-		return Checklist{}, &Error{"checklist_role_forbidden", "unknown checklist role"}
+		return Checklist{}, &Error{Code: "checklist_role_forbidden", Message: "unknown checklist role"}
 	}
 	if role == "judge" {
 		judge, err := entryrepo.EventJudgeInEvent(ctx, s.db, eventID, actorID)
@@ -71,7 +71,7 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 			return Checklist{}, err
 		}
 		if !judge {
-			return Checklist{}, &Error{"checklist_role_forbidden", "only judges can read this checklist"}
+			return Checklist{}, &Error{Code: "checklist_role_forbidden", Message: "only judges can read this checklist"}
 		}
 	}
 	subject := actorID
@@ -434,20 +434,20 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 	}
 	m, err := eventrepo.GetEventMember(ctx, tx, eventID, actorID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return &Error{"event_not_found", "event not found"}
+		return &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return err
 	}
 	if ev.Stage == "archived" {
-		return &Error{"event_closed", "an ended event cannot be changed"}
+		return &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if ev.TakenDown() {
-		return &Error{"event_taken_down", "this event has been taken down"}
+		return &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	if notNeeded != nil {
 		if m.Role != "organiser" {
-			return &Error{"checklist_role_forbidden", "only organisers can mark optional items"}
+			return &Error{Code: "checklist_role_forbidden", Message: "only organisers can mark optional items"}
 		}
 		allowed := false
 		for _, d := range rules.ChecklistCatalogue() {
@@ -456,7 +456,7 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 			}
 		}
 		if !allowed {
-			return &Error{"invalid_checklist_item", "only optional organiser items can be marked not needed"}
+			return &Error{Code: "invalid_checklist_item", Message: "only optional organiser items can be marked not needed"}
 		}
 		err = eventrepo.SetChecklistNotNeeded(ctx, tx, eventID, itemID, actorID, *notNeeded)
 	} else {
@@ -466,10 +466,10 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 			if judge, err := entryrepo.EventJudgeInEvent(ctx, tx, eventID, actorID); err != nil {
 				return err
 			} else if !judge {
-				return &Error{"checklist_role_forbidden", "only judges can acknowledge this item"}
+				return &Error{Code: "checklist_role_forbidden", Message: "only judges can acknowledge this item"}
 			}
 		default:
-			return &Error{"invalid_checklist_item", "this item has no acknowledgement"}
+			return &Error{Code: "invalid_checklist_item", Message: "this item has no acknowledgement"}
 		}
 		if itemID != "j.conflicts" {
 			rubric, e := entryrepo.ListRubric(ctx, tx, eventID)
@@ -478,7 +478,7 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 			}
 			current := rules.RubricFingerprint(rubric)
 			if current == "" || version != current {
-				return &Error{"stale_checklist_version", "the rubric changed; read the checklist again"}
+				return &Error{Code: "stale_checklist_version", Message: "the rubric changed; read the checklist again"}
 			}
 		} else {
 			version = ""

@@ -3,7 +3,7 @@ package hackevents
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 func SetEventIcon(ctx context.Context, q sqlkit.Querier, eventID, mediaType string, body []byte) error {

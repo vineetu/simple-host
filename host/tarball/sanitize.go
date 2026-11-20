@@ -38,7 +38,7 @@ func sanitize(in map[string][]byte, c caps, allowEmpty bool) (map[string][]byte,
 	var count int
 
 	for rawPath, content := range in {
-		clean, ok := safeRelPath(rawPath)
+		clean, ok := SafeRelPath(rawPath)
 		if !ok {
 			return nil, fmt.Errorf("unsafe path %q", rawPath)
 		}

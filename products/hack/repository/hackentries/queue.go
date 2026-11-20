@@ -3,7 +3,7 @@ package hackentries
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // JudgeDoneForTeam reports whether the judge scored every current criterion.

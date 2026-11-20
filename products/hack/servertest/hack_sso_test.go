@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/config"
 
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/handler"
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 	"github.com/vsriram/simple-host/host/server"
 )
 

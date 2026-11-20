@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
 )
 
 // The site chrome — one header, one footer, one stylesheet — is defined once,

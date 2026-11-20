@@ -8,11 +8,11 @@ var dynamicSites = dynamicTable{
 	"host/server/build.go:Build": {
 		{`pattern`, []string{"GET /hackathons", "GET /hackathons.html"}},
 	},
-	"host/handler/connector.go:Register": {
+	"host/handler/access_connector.go:Register": {
 		{`"GET " + museClientPath`, []string{"GET /.well-known/muse-client.json"}},
 		{`m + " /mcp"`, []string{"POST /mcp", "GET /mcp", "DELETE /mcp"}},
 	},
-	"host/handler/ui.go:RegisterUIRoutes": {
+	"host/handler/sites_ui.go:RegisterUIRoutes": {
 		{`"GET /" + name`, []string{"GET /llms.txt", "GET /install.html", "GET /auth.js", "GET /signin.js", "GET /features.json"}},
 		{`"GET /" + name`, []string{"GET /openapi.yaml", "GET /openapi.json"}},
 		{`"GET /" + name`, []string{"GET /favicon.svg", "GET /favicon.ico", "GET /favicon-32.png", "GET /apple-touch-icon.png"}},

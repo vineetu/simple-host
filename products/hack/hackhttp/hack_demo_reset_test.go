@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	hackeventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"

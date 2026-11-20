@@ -331,16 +331,13 @@ func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlu
 func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHandler) func(w http.ResponseWriter, r *http.Request, user model.User, team string) bool {
 	// Public and unauthenticated, each hit reads up to 2 MB from the
 	// database: metered per network address.
-	perIP := httpx.NewRateLimiter(120, 5)
-	if len(owners) > 0 {
-		owners[0].addLimiter("http.hack.screenshots", perIP)
-	}
+	perIP := screenshotLimiter(owners)
 	return func(w http.ResponseWriter, r *http.Request, user model.User, team string) bool {
 		if !hackGallerySlug(team) {
 			return false
 		}
 		if !perIP.AllowHTTP(w, httpx.ClientIP(r)) {
-			http.Error(w, "Too many requests. Try again in a minute.", http.StatusTooManyRequests)
+			httpx.TooManyRequests(w)
 			return true
 		}
 		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)

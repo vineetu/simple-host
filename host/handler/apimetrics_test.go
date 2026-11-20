@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/host/app/operations"
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
 	model "github.com/vsriram/simple-host/host/model"
-	operationsrepo "github.com/vsriram/simple-host/host/repository/operations"
+	operations "github.com/vsriram/simple-host/host/ops"
+	operationsrepo "github.com/vsriram/simple-host/host/ops/repo"
 )
 
 func growthTestDB(t *testing.T) *sql.DB {

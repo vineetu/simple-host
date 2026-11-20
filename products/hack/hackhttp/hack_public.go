@@ -17,11 +17,11 @@ import (
 // pages is the hack-event.html template cache (HackEventPages), built once
 // by the caller and passed in explicitly (cleanup 3.2 slice 4).
 func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
-	teamSiteURL func(string, string) string, ready func(string) bool, pages *HackEventPages) {
-	perIP := httpx.NewRateLimiter(120, 5)
+	teamSiteURL func(string, string) string, ready func(string) bool, pages *HackEventPages, owners ...*HackHandler) {
+	perIP := screenshotLimiter(owners)
 	mux.HandleFunc("GET /e/{slug}/submissions/{team}/screenshot", func(w http.ResponseWriter, r *http.Request) {
 		if !perIP.AllowHTTP(w, httpx.ClientIP(r)) {
-			http.Error(w, "Too many requests. Try again in a minute.", 429)
+			httpx.TooManyRequests(w)
 			return
 		}
 		ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
@@ -44,7 +44,7 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 		writeHackEventNotFound(w, r, appURL, pages)
 	})
 	render := HackEventPage(database, appURL, teamSiteURL, ready, pages)
-	screenshot := HackScreenshot(database, ready)
+	screenshot := HackScreenshot(database, ready, owners...)
 	load := func(w http.ResponseWriter, r *http.Request) (model.User, bool) {
 		ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 		if err == nil {

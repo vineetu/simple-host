@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/vsriram/simple-host/host/app/accounts"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/model"
 )
@@ -83,14 +84,7 @@ func (s limitSet) maxSitesFor(ctx context.Context, database *sql.DB, user *model
 // the instance's own extractor caps (tarball.Extract), which are not derived
 // from MAX_ARCHIVE_MB when it is unset (500 MB total, 100 MB a file).
 func (s limitSet) siteLimitFor(ctx context.Context, database *sql.DB, user *model.User) (limit int64, override bool) {
-	l := s.limits
-	if l.MaxArchiveOverrides == "" || user == nil {
-		return uploadLimits.Body, false
-	}
-	if mb, ok := l.ArchiveOverrideMB(accountHandles(ctx, database, user)...); ok {
-		return int64(mb) << 20, true
-	}
-	return uploadLimits.Body, false
+	return accounts.New(database).SiteLimit(ctx, user, s.limits, uploadLimits.Body)
 }
 
 // statedSiteMB is a per-site limit as it is reported: in MB, and never above
@@ -168,8 +162,8 @@ func (s limitSet) metricsRetentionDays() int { return s.limits.APIMetricsRetenti
 func newRateLimiterFor(r struct {
 	Burst int
 	Every time.Duration
-}) *rateLimiter {
-	return newRateLimiter(float64(r.Burst), 1/r.Every.Seconds())
+}) *httpx.RateLimiter {
+	return httpx.NewRateLimiter(float64(r.Burst), 1/r.Every.Seconds())
 }
 
 // maxSitesOf is maxSitesFor with the account's earlier handles already read

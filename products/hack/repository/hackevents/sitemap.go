@@ -5,7 +5,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // FilterSitemapSites keeps only team sites that an organiser has not taken

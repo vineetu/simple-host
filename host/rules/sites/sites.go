@@ -188,6 +188,12 @@ func HandleIsLabel(handle string) bool {
 	return handle != "" && handle[0] != '-' && handle[len(handle)-1] != '-' && !strings.HasPrefix(handle, "xn--")
 }
 
+// EventNameShape: an event name is 3 to 39 lowercase letters, digits or
+// hyphens, a DNS label, and never has two hyphens in a row.
+func EventNameShape(name string) bool {
+	return len(name) >= 3 && VisitorHandle.MatchString(name) && HandleIsLabel(name) && !strings.Contains(name, "--")
+}
+
 // VisitorHandle / visitorSitenameRe (host/handler/oauth.go) are the
 // path-model segments allowed in return_to (SPEC §2.1).
 var VisitorHandle = regexp.MustCompile(`^[a-z0-9-]{1,39}$`)

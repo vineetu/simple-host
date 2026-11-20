@@ -78,6 +78,18 @@ func TestHackDeleteBusyEvent(t *testing.T) {
 	// Deletion is available even after archive, with a co-organiser identity.
 	wantTS(t, "archive", a.api(t, "POST", base+"/stage", map[string]string{"stage": "archived"}, org.key), 200, "")
 	wantTS(t, "ended confirmation required", a.api(t, "DELETE", base, nil, co.key), 409, "delete_only_empty")
+	// B2/B4: a taken-down team site is neither trashed nor erased with its event.
+	takeDown := func(on bool) {
+		if _, err := a.database.Exec(`UPDATE sites SET suspended_at = CASE WHEN $3 THEN now() END WHERE user_id = $1 AND name = $2`, ev.AccountID, team, on); err != nil {
+			t.Fatal(err)
+		}
+	}
+	takeDown(true)
+	if err := a.sites.TrashTeamSite(context.Background(), ev.AccountID, team); err != nil {
+		t.Fatal(err)
+	}
+	wantTS(t, "taken-down site kept", a.api(t, "DELETE", base, map[string]string{"confirm": slug}, co.key), 409, "site_taken_down")
+	takeDown(false)
 	wantTS(t, "confirmed deletion", a.api(t, "DELETE", base, map[string]string{"confirm": slug}, co.key), 204, "")
 	for _, who := range []person{org, co, participant, judge} {
 		wantTS(t, "access lost", a.api(t, "GET", base, nil, who.key), 404, "event_not_found")

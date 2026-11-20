@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	model "github.com/vsriram/simple-host/host/model"
-	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	sitesrepo "github.com/vsriram/simple-host/host/repository/sites"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // Regression tests for the cp/integrate review (sections A and C). Needs

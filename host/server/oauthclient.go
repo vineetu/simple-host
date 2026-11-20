@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/handler"
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
+	operationrepo "github.com/vsriram/simple-host/host/ops/repo"
 )
 
 // repeated collects a flag given more than once.

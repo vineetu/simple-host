@@ -61,7 +61,7 @@ func TestSettingsCoverEveryEnvRead(t *testing.T) {
 					case *ast.Ident:
 						// Literal calls through the getenv-style helpers used by the server.
 						// LoadLimits(os.Getenv) reads Knobs(), already included above.
-						if strings.Contains(strings.ToLower(f.Name), "getenv") || f.Name == "photoLimit" || f.Name == "appLimit" {
+						if strings.Contains(strings.ToLower(f.Name), "getenv") || f.Name == "photoLimit" || f.Name == "envInt" || f.Name == "appLimit" {
 							literal = n.Args[0]
 						}
 					}

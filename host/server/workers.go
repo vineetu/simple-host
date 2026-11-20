@@ -3,9 +3,9 @@ package server
 import (
 	"time"
 
-	"github.com/vsriram/simple-host/host/app/operations"
 	"github.com/vsriram/simple-host/host/geoip"
 	"github.com/vsriram/simple-host/host/handler"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/workers"
 )
 

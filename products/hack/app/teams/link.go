@@ -27,7 +27,7 @@ func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPre
 	var out LinkPreview
 	team, err := teamrepo.GetEventTeamByCodeOnly(ctx, s.db, code)
 	if errors.Is(err, sql.ErrNoRows) {
-		return out, &Error{Code: "team_link_not_found"}
+		return out, &Error{Code: "team_link_not_found", Message: "that link or code doesn't match a team in this event"}
 	}
 	if err != nil {
 		return out, err
@@ -37,7 +37,7 @@ func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPre
 		return out, err
 	}
 	if ev.TakenDown() {
-		return out, &Error{Code: "team_link_not_found"}
+		return out, &Error{Code: "team_link_not_found", Message: "that link or code doesn't match a team in this event"}
 	}
 	count, err := teamrepo.CountTeamMembers(ctx, s.db, team.ID)
 	if err != nil {

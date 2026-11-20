@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	siteapp "github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/extension"
-	repo "github.com/vsriram/simple-host/host/repository/sites"
 	platformtest "github.com/vsriram/simple-host/host/server/servertest"
+	siteapp "github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )

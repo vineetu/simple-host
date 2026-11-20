@@ -56,7 +56,7 @@ func CORS(next http.Handler) http.Handler {
 
 		if r.Method == http.MethodOptions {
 			// Preflight: answer here, never reaching auth/handlers.
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", corsAllowHeaders)
 			w.Header().Set("Access-Control-Max-Age", "600")
 			w.WriteHeader(http.StatusNoContent)

@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/httpx"
 	model "github.com/vsriram/simple-host/host/model"
 )
 
@@ -154,7 +155,7 @@ func TestCreateIdempotencyStorageSiteScope(t *testing.T) {
 
 func TestCreateIdempotencyRateLimitHeadersStayCurrent(t *testing.T) {
 	store := newCreateIdempotencyStore(config.DefaultLimits())
-	limiter := newRateLimiter(2, 0.5)
+	limiter := httpx.NewRateLimiter(2, 0.5)
 	limiter.Now = func() time.Time { return time.Unix(0, 0) }
 	calls := 0
 	h := rateLimitByIP(limiter, store.wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

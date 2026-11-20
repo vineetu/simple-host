@@ -3,7 +3,7 @@ package hackteams
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // LockEventDeadline locks and reads the event deadline.

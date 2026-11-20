@@ -2,8 +2,8 @@ package handler
 
 import (
 	"errors"
-	"github.com/vsriram/simple-host/host/app/operations"
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"log"
 	"net/http"
 	"strings"
@@ -91,20 +91,8 @@ func (s *statusCapture) Flush() {
 	}
 }
 
-func metricsAdmin(w http.ResponseWriter, r *http.Request) bool {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		writeJSON(w, 401, errorResponse{Error: "unauthorized"})
-		return false
-	}
-	if !user.IsAdmin {
-		writeJSON(w, 404, errorResponse{Error: "not found"})
-		return false
-	}
-	return true
-}
 func (m *APIMetrics) AdminSummary(w http.ResponseWriter, r *http.Request) {
-	if !metricsAdmin(w, r) {
+	if !auth.Admin(w, r) {
 		return
 	}
 	out, err := m.Summary(r.Context())
@@ -115,7 +103,7 @@ func (m *APIMetrics) AdminSummary(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 func (m *APIMetrics) AdminGrowth(w http.ResponseWriter, r *http.Request) {
-	if !metricsAdmin(w, r) {
+	if !auth.Admin(w, r) {
 		return
 	}
 	body, err := m.Growth(r.Context(), r.URL.Query().Get("range"))

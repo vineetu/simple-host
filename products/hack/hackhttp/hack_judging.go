@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/rules/sites"
 	entryapp "github.com/vsriram/simple-host/products/hack/app/entries"
@@ -29,7 +30,7 @@ func paperHackTimes(r *http.Request) { paperRecorder(r.Context()).HackPhasesChan
 // are the next pass. The lock column is already checked here so a locked
 // event cannot have its rubric rewritten out from under stored scores.
 
-func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
+func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap, optional func(http.HandlerFunc) http.Handler) {
 	mux.Handle("GET /v1/hack/events/{slug}/rubric", wrap(h.getRubric))
 	mux.Handle("PUT /v1/hack/events/{slug}/rubric", wrap(h.putRubric))
 	mux.Handle("GET /v1/hack/events/{slug}/judging/settings", wrap(h.getJudgingSettings))
@@ -47,7 +48,7 @@ func (h *HackHandler) registerJudging(mux *http.ServeMux, wrap func(http.Handler
 	mux.Handle("PUT /v1/hack/events/{slug}/judge/scores/{team}", wrap(h.putJudgeScores))
 	mux.Handle("POST /v1/hack/events/{slug}/results/publish", wrap(h.publishResults))
 	mux.Handle("PATCH /v1/hack/events/{slug}/results", wrap(h.patchResults))
-	mux.Handle("GET /v1/hack/events/{slug}/results", http.HandlerFunc(h.getPublicResults))
+	mux.Handle("GET /v1/hack/events/{slug}/results", optional(h.getPublicResults))
 	mux.Handle("GET /v1/hack/events/{slug}/my-results", wrap(h.getMyResults))
 	mux.Handle("GET /v1/hack/events/{slug}/export/scores.csv", wrap(h.exportScoresCSV))
 	mux.Handle("GET /v1/hack/events/{slug}/export/results.csv", wrap(h.exportResultsCSV))
@@ -127,7 +128,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 			MaxPoints   *float64 `json:"max_points"`
 		} `json:"criteria"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	items, msg := entryapp.ValidateRubric(req.Criteria)
@@ -141,16 +142,7 @@ func (h *HackHandler) putRubric(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := h.entries.ReplaceRubric(r.Context(), a.event.ID, items, ids, req.ConfirmScoreDeletion, a.user.ID)
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			status := http.StatusConflict
-			if e.Code == "invalid_rubric" {
-				status = http.StatusBadRequest
-			}
-			httpx.WriteError(w, status, e.Code, e.Message)
-		} else {
-			log.Printf("hack: rubric %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, rubricJSON(saved))
@@ -191,7 +183,7 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 		PublicScores      *bool     `json:"public_scores"`
 		PublicRanks       *bool     `json:"public_ranks"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	var mode *string
@@ -221,15 +213,7 @@ func (h *HackHandler) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	}
 	ev, err := h.entries.UpdateJudgingSettings(r.Context(), a.event.ID, entryapp.JudgingSettings{OrganiserJudges: req.OrganiserJudges, IncludeOrganisers: req.IncludeOrganisers, Mode: mode, PerTeam: perTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			status := http.StatusConflict
-			if e.Code == "criterion_not_found" {
-				status = http.StatusNotFound
-			}
-			httpx.WriteError(w, status, e.Code, e.Message)
-		} else {
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	h.writeJudgingSettings(w, r, ev)
@@ -258,7 +242,7 @@ func (h *HackHandler) judgingPoolFor(ctx context.Context, ev model.Event, teams 
 		}
 		st := tl.states[t.ID]
 		site := tl.site(t.Slug)
-		return site != nil && site.ActiveVersion > 0 && !site.Suspended() && !st.SiteTakenDown && !st.EventTakenDown, nil
+		return entryapp.TeamSiteLive(site, st), nil
 	})
 }
 
@@ -271,7 +255,7 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 		IncludeOrganisers *bool `json:"include_organisers"`
 	}
 	if r.Body != nil && r.ContentLength != 0 {
-		if !decodeHackJSON(w, r, &req) {
+		if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 			return
 		}
 	}
@@ -291,18 +275,7 @@ func (h *HackHandler) generateAssignments(w http.ResponseWriter, r *http.Request
 	}
 	planned, under, err := h.entries.GenerateAssignments(r.Context(), a.event.ID, req.IncludeOrganisers, pool.In, false)
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			status := http.StatusConflict
-			if e.Code == "too_few_judges" || e.Code == "too_few_teams" {
-				status = http.StatusBadRequest
-			}
-			httpx.WriteError(w, status, e.Code, e.Message)
-		} else {
-			if _, ok := err.(*entryapp.BeginAssignmentsError); !ok {
-				log.Printf("hack: assignments %s: %v", a.event.Slug, err)
-			}
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, assignmentJSON(planned, under))
@@ -373,7 +346,7 @@ func (h *HackHandler) declareConflict(w http.ResponseWriter, r *http.Request) {
 		TeamID      string `json:"team_id"`
 		JudgeUserID string `json:"judge_user_id"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	judgeID := a.user.ID
@@ -397,16 +370,7 @@ func (h *HackHandler) declareConflict(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := h.entries.DeclareConflict(r.Context(), a.event.ID, judgeID, req.TeamID, declaredBy)
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			status := http.StatusConflict
-			if e.Code == "team_not_found" || e.Code == "judge_not_found" {
-				status = http.StatusNotFound
-			}
-			httpx.WriteError(w, status, e.Code, e.Message)
-		} else {
-			log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, conflictJSON(saved))
@@ -436,16 +400,7 @@ func (h *HackHandler) deleteConflict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.entries.DeleteConflict(r.Context(), a.event.ID, judgeID, teamID); err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			status := http.StatusConflict
-			if e.Code == "conflict_not_found" {
-				status = http.StatusNotFound
-			}
-			httpx.WriteError(w, status, e.Code, e.Message)
-		} else {
-			log.Printf("hack: conflicts %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -593,7 +548,7 @@ func (h *HackHandler) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 	var req struct {
 		Confirm string `json:"confirm"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.Confirm != a.event.Slug {
@@ -602,20 +557,7 @@ func (h *HackHandler) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 	}
 	err := h.entries.DeleteFormerJudgeScores(r.Context(), a.event.ID, a.user.ID, userID, a.event.Slug)
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			switch e.Code {
-			case "event_not_found":
-				writeEventNotFound(w)
-			case "event_taken_down":
-				httpx.WriteError(w, http.StatusForbidden, e.Code, e.Message)
-			case "former_judge_not_found":
-				httpx.WriteError(w, http.StatusNotFound, e.Code, e.Message)
-			default:
-				httpx.WriteError(w, http.StatusConflict, e.Code, e.Message)
-			}
-			return
-		}
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -647,16 +589,7 @@ func (h *HackHandler) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			httpx.WriteError(w, http.StatusForbidden, e.Code, e.Message)
-			return
-		}
-		if e, ok := err.(*entryapp.QueueTeamError); ok {
-			log.Printf("hack: queue %s/%s: %v", a.event.Slug, e.TeamID, e.Err)
-		} else {
-			log.Printf("hack: queue %s: %v", a.event.Slug, err)
-		}
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	fields := entryapp.LoadRules(a.event.EntryRules)
@@ -722,12 +655,7 @@ func (h *HackHandler) getJudgeScores(w http.ResponseWriter, r *http.Request) {
 	teamID := r.PathValue("team")
 	scores, comment, err := h.entries.JudgeScores(r.Context(), a.event.ID, a.user.ID, teamID)
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			httpx.WriteError(w, http.StatusForbidden, e.Code, e.Message)
-		} else {
-			log.Printf("hack: scores %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, scoresJSON(scores, comment, nil))
@@ -748,23 +676,14 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	}
 	teamID := r.PathValue("team")
 	if err := h.entries.CheckScoreConflict(r.Context(), a.event.ID, a.user.ID, teamID); err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			status := http.StatusForbidden
-			if e.Code == "team_not_found" {
-				status = http.StatusNotFound
-			}
-			httpx.WriteError(w, status, e.Code, e.Message)
-		} else {
-			log.Printf("hack: scores %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	var req struct {
 		Scores  []entryapp.ScoreInput `json:"scores"`
 		Comment *string               `json:"comment"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.Comment != nil {
@@ -777,21 +696,7 @@ func (h *HackHandler) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, comment, complete, err := h.entries.PutJudgeScores(r.Context(), a.event.ID, a.user.ID, teamID, req.Scores, req.Comment, h.scoringStage)
 	if err != nil {
-		if e, ok := err.(*entryapp.Error); ok {
-			status := http.StatusConflict
-			switch e.Code {
-			case "forbidden":
-				status = http.StatusForbidden
-			case "criterion_not_found":
-				status = http.StatusNotFound
-			case "invalid_points", "invalid_request":
-				status = http.StatusBadRequest
-			}
-			httpx.WriteError(w, status, e.Code, e.Message)
-		} else {
-			log.Printf("hack: scores %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, scoresJSON(updated, comment, &complete))
@@ -811,7 +716,7 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 			Rank   int    `json:"rank"`
 		} `json:"rank_overrides"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	// Publishing implies judging is finished (SIM-271). Before entries
@@ -870,12 +775,8 @@ func (h *HackHandler) publishResults(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusConflict, "judging_not_started", "Close entries and judge them before publishing results.")
 			return
 		}
-		if e, ok := err.(*entryapp.Error); ok {
-			httpx.WriteError(w, http.StatusBadRequest, e.Code, e.Message)
-			return
-		}
-		if phase == "prepare" {
-			writeEventsError(w, err)
+		if _, ok := err.(*entryapp.Error); ok || phase == "prepare" {
+			writeHackError(w, err)
 			return
 		}
 		if cardsFailed {
@@ -989,10 +890,8 @@ func (h *HackHandler) resultsEntryCards(ctx context.Context, q entryapp.Querier,
 		slug := slugByID[res.TeamID]
 		site := tl.site(slug)
 		st := tl.states[res.TeamID]
-		live := site != nil && site.ActiveVersion > 0 && !site.Suspended()
-		takenDown := st.SiteTakenDown || st.EventTakenDown
 		siteURL := ""
-		if live && !takenDown {
+		if entryapp.TeamSiteLive(site, st) {
 			siteURL = h.teamSiteURL(ev.Slug, slug)
 		}
 		videoHost, codeHost := "", ""
@@ -1025,7 +924,7 @@ func (h *HackHandler) patchResults(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FullRanking *bool `json:"full_ranking"`
 	}
-	if !decodeHackJSON(w, r, &req) || req.FullRanking == nil {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) || req.FullRanking == nil {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "full_ranking is required")
 		return
 	}
@@ -1080,18 +979,12 @@ func (h *HackHandler) getPublicResults(w http.ResponseWriter, r *http.Request) {
 	// The organiser (and the platform admin) sees the same full snapshot
 	// `publishResults` returns — every team, with total and judges_scored —
 	// regardless of the public full_ranking switch, so the Judging tab can
-	// redraw its own view correctly after a page reload. Auth here is
-	// optional: a bad or missing key just falls through to the public view.
-	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
-			if u.IsAdmin {
-				httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
-				return
-			}
-			if m, merr := h.eventsSvc().EventMember(r.Context(), ev.ID, u.ID); merr == nil && m.Role == "organiser" {
-				httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
-				return
-			}
+	// redraw its own view correctly after a page reload. A missing key is the
+	// public view.
+	if u := auth.GetUser(r.Context()); u != nil {
+		if m, merr := h.eventsSvc().EventMember(r.Context(), ev.ID, u.ID); u.IsAdmin || (merr == nil && m.Role == "organiser") {
+			httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": rows, "full_ranking": res.FullRanking})
+			return
 		}
 	}
 	live := h.liveResultSites(r.Context(), ev)

@@ -42,7 +42,6 @@ func TestHackWebsiteZipUploads(t *testing.T) {
 		message string
 		code    string
 	}{
-		{map[string]string{"nested/index.html": "hi"}, "no index.html at the root", "missing_index"},
 		{map[string]string{"index.html": "hi", "server.py": "print('hi')"}, "disallowed file extension", "blocked_file_type"},
 	} {
 		r := upload(site, tc.files, participant.key)

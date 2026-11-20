@@ -580,7 +580,7 @@ func TestHackJudgingSettings(t *testing.T) {
 func TestHackJudgingAssignments(t *testing.T) {
 	w := newJudgingWorld(t, 3, 3)
 	r := w.call(t, "POST", "/assignments/generate", nil, w.org)
-	wantHackErr(t, "open", r, http.StatusConflict, "invalid_request", "Switch to automatic assignment first.")
+	wantHackErr(t, "open", r, http.StatusBadRequest, "invalid_request", "Switch to automatic assignment first.")
 	if n := w.countRows(t, `SELECT COUNT(*) FROM event_assignments WHERE event_id = (SELECT id FROM events WHERE slug = $1)`, w.slug); n != 0 {
 		t.Fatalf("open mode wrote %d assignments", n)
 	}

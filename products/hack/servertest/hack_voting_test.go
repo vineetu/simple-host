@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/host/auth"
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	"github.com/vsriram/simple-host/host/access/auth"
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 )
 
 func voteSettings(t *testing.T, a *teamSiteApp, slug string, org person, open, close time.Time, eligibility string) {

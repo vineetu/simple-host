@@ -12,7 +12,6 @@ import (
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
@@ -198,7 +197,7 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Deadline *string `json:"deadline"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.Deadline == nil {
@@ -219,18 +218,7 @@ func (h *HackHandler) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 	}
 	team, err := h.teamsSvc().SetDeadline(r.Context(), a.event.ID, team, t)
 	if err != nil {
-		var e *teams.Error
-		if errors.As(err, &e) {
-			switch e.Code {
-			case "no_event_deadline":
-				httpx.WriteError(w, http.StatusConflict, "no_event_deadline", "set the event's submission deadline first; a team's own deadline extends it")
-				return
-			case "deadline_not_later":
-				httpx.WriteError(w, http.StatusBadRequest, "deadline_not_later", "a team's own deadline must be after the event's deadline")
-				return
-			}
-		}
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	h.pinDue(r.Context(), a.event.ID)
@@ -254,7 +242,7 @@ func (h *HackHandler) takeDownTeamSite(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	if r.ContentLength != 0 && !decodeHackJSON(w, r, &req) {
+	if r.ContentLength != 0 && !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	reason, ok := checkHackLine(w, req.Reason, "reason", 0, 300)

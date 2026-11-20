@@ -40,7 +40,7 @@ func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, q
 		return err
 	}
 	if stage == "archived" {
-		return &Error{"event_closed", "an ended event cannot be changed"}
+		return &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if err = eventrepo.SetRegistrationSettings(ctx, tx, eventID, questions, approval); err != nil {
 		return err
@@ -67,14 +67,14 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 		return err
 	}
 	if stage == "archived" {
-		return &Error{"event_closed", "an ended event cannot be changed"}
+		return &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	updated, err := eventrepo.DecideRegistration(ctx, tx, eventID, userID, actorID, decision)
 	if err != nil {
 		return err
 	}
 	if !updated {
-		return &Error{"application_not_pending", "only pending applications can be decided"}
+		return &Error{Code: "application_not_pending", Message: "only pending applications can be decided"}
 	}
 	// Decision notices reach the app and email (INTENT 2026-11-02),
 	// superseding the earlier no-email decision.
@@ -96,7 +96,7 @@ func (s *Service) SetTracks(ctx context.Context, eventID string, tracks []model.
 		return nil, err
 	}
 	if stage == "archived" {
-		return nil, &Error{"event_closed", "an ended event cannot be changed"}
+		return nil, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if err = eventrepo.ReplaceEventTracks(ctx, tx, eventID, tracks); err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string,
 	}
 	managing := len(organiser) > 0 && organiser[0]
 	if managing && (ev.JudgingLockedAt.Valid || ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived") {
-		return nil, &Error{"judging_setup_locked", "Move back to Entries closed to change this."}
+		return nil, &Error{Code: "judging_setup_locked", Message: "Move back to Entries closed to change this."}
 	}
 	if _, err = eventrepo.LockTeam(ctx, tx, teamID); err != nil {
 		return nil, err
@@ -130,10 +130,10 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string,
 		return nil, err
 	}
 	if !managing && st.WriteRefusal() != "" {
-		return nil, &Error{"team_choice_closed", "team choices are closed"}
+		return nil, &Error{Code: "team_choice_closed", Message: "team choices are closed"}
 	}
 	if _, err = eventrepo.SetTeamTrack(ctx, tx, eventID, teamID, slug); errors.Is(err, sql.ErrNoRows) {
-		return nil, &Error{"track_not_found", "track not found"}
+		return nil, &Error{Code: "track_not_found", Message: "track not found"}
 	} else if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string,
 func (s *Service) ValidateQuestions(in []model.SignupQuestion) ([]model.SignupQuestion, error) {
 	out, e := hackevents.Questions(in)
 	if e != nil {
-		return nil, &Error{e.Code, e.Message}
+		return nil, &Error{Code: e.Code, Message: e.Message}
 	}
 	return out, nil
 }
@@ -160,7 +160,7 @@ func (s *Service) ValidateQuestions(in []model.SignupQuestion) ([]model.SignupQu
 func (s *Service) ValidateTracks(in []model.EventTrack) ([]model.EventTrack, error) {
 	out, e := hackevents.Tracks(in)
 	if e != nil {
-		return nil, &Error{e.Code, e.Message}
+		return nil, &Error{Code: e.Code, Message: e.Message}
 	}
 	return out, nil
 }
@@ -168,7 +168,7 @@ func (s *Service) ValidateTracks(in []model.EventTrack) ([]model.EventTrack, err
 // ValidateDecision checks an application decision.
 func (s *Service) ValidateDecision(decision string) error {
 	if decision != "approved" && decision != "rejected" {
-		return &Error{"invalid_decision", "decision must be approved or rejected"}
+		return &Error{Code: "invalid_decision", Message: "decision must be approved or rejected"}
 	}
 	return nil
 }
@@ -176,7 +176,7 @@ func (s *Service) ValidateDecision(decision string) error {
 // ValidateTrackStage checks whether team choices are open.
 func (s *Service) ValidateTrackStage(stage string) error {
 	if !hackteams.ParticipantTeamStages(stage) {
-		return &Error{"teams_locked", "team choices are closed"}
+		return &Error{Code: "teams_locked", Message: "team choices are closed"}
 	}
 	return nil
 }
@@ -185,7 +185,7 @@ func (s *Service) ValidateTrackStage(stage string) error {
 func (s *Service) ValidateTrackChoice(choice string) (string, error) {
 	slug := strings.TrimSpace(choice)
 	if slug != "" && !hackevents.TrackSlug(slug) {
-		return "", &Error{"invalid_track", "choose a listed track"}
+		return "", &Error{Code: "invalid_track", Message: "choose a listed track"}
 	}
 	return slug, nil
 }

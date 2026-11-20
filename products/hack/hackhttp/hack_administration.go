@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/rules/sites"
@@ -19,11 +20,11 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *HackHandler) registerAdministration(mux *http.ServeMux, wrap func(http.HandlerFunc) http.Handler) {
+func (h *HackHandler) registerAdministration(mux *http.ServeMux, wrap, optional func(http.HandlerFunc) http.Handler) {
 	mux.Handle("POST /v1/hack/events/{slug}/organiser-invite", wrap(h.createOrganiserInvite))
 	mux.Handle("DELETE /v1/hack/events/{slug}/organiser-invite", wrap(h.revokeOrganiserInvite))
 	mux.Handle("DELETE /v1/hack/events/{slug}/organisers/{user_id}", wrap(h.removeOrganiser))
-	mux.Handle("GET /v1/hack/organiser/{code}", http.HandlerFunc(h.getOrganiserInvite))
+	mux.Handle("GET /v1/hack/organiser/{code}", optional(h.getOrganiserInvite))
 	mux.Handle("POST /v1/hack/organiser/{code}", wrap(h.acceptOrganiserInvite))
 	mux.Handle("PATCH /v1/hack/events/{slug}/teams/{team}", wrap(h.renameTeam))
 	mux.Handle("GET /v1/hack/events/{slug}/export/participants.csv", wrap(h.exportAdministrationCSV))
@@ -74,10 +75,8 @@ func (h *HackHandler) revokeOrganiserInvite(w http.ResponseWriter, r *http.Reque
 
 func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request) {
 	caller, accountName := "", ""
-	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
-			caller, accountName = u.ID, strings.TrimSpace(u.DisplayName.String)
-		}
+	if u := auth.GetUser(r.Context()); u != nil {
+		caller, accountName = u.ID, strings.TrimSpace(u.DisplayName.String)
 	}
 	if h.rateLimited(w, r, caller) {
 		return
@@ -92,7 +91,7 @@ func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if ev.TakenDown() {
-		httpx.WriteError(w, 410, "event_taken_down", "this event has been taken down")
+		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -111,7 +110,7 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 		AcceptCoC   bool   `json:"accept_coc"`
 		DisplayName string `json:"display_name"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if !req.AcceptCoC {
@@ -121,7 +120,7 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	name := req.DisplayName
 	ev, member, err := h.eventsSvc().AcceptOrganiserInvite(r.Context(), r.PathValue("code"), user.ID, name)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, h.eventView(r.Context(), ev, member, true))
@@ -138,7 +137,7 @@ func (h *HackHandler) removeOrganiser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.eventsSvc().RemoveOrganiser(r.Context(), a.event, a.user.ID, id); err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	w.WriteHeader(204)
@@ -152,7 +151,7 @@ func (h *HackHandler) renameTeam(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	name, ok := checkHackLine(w, events.StripInvisible(req.Name), "team_name", 1, 80)

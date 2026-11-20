@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	model "github.com/vsriram/simple-host/host/model"
-	accountsrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	sitesrepo "github.com/vsriram/simple-host/host/repository/sites"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // near reports whether got is within a minute of want.

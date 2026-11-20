@@ -641,8 +641,8 @@ func TestHackLeaveCoOrganiserAndCreatorHandover(t *testing.T) {
 		"you created this event, so hand it to another organiser first: send successor_user_id")
 
 	// Invalid successor: a participant, a random uuid.
-	wantHackErr(t, "invalid successor participant", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, part)}), 409, "invalid_successor", "pick another organiser of this event")
-	wantHackErr(t, "invalid successor uuid", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": "00000000-0000-0000-0000-000000000000"}), 409, "invalid_successor", "pick another organiser of this event")
+	wantHackErr(t, "invalid successor participant", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, part)}), 400, "invalid_successor", "pick another organiser of this event")
+	wantHackErr(t, "invalid successor uuid", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": "00000000-0000-0000-0000-000000000000"}), 400, "invalid_successor", "pick another organiser of this event")
 
 	// Valid handover.
 	out = a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, co2)}).json(t)

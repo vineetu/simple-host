@@ -2,10 +2,11 @@ package events
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
-	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 	"strings"
+
+	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
 // EnsureAccountName uses the existing name, or validates and fills a first name
@@ -20,7 +21,7 @@ func EnsureAccountName(ctx context.Context, q sqlkit.Querier, userID, supplied s
 	}
 	name, invalid := hackevents.Line(supplied, "display_name", 1, 100)
 	if invalid != nil {
-		return &Error{invalid.Code, invalid.Message}
+		return &Error{Code: invalid.Code, Message: invalid.Message}
 	}
 	return accounts.FillEmptyDisplayName(ctx, q, userID, name)
 }

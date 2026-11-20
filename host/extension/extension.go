@@ -8,16 +8,16 @@ import (
 	"io/fs"
 	"net/http"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/app/sites"
-	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/config"
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/papermetrics"
+	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/workers"
 )
 

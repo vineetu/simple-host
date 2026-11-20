@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/sites"
 	"regexp"
 	"time"
 
@@ -13,6 +13,12 @@ import (
 	repo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
+
+// TeamSiteLive: the team's site counts as live: it has a live version and
+// nobody took it down (the platform, the organiser or the event's take-down).
+func TeamSiteLive(site *model.Site, st hackmodel.TeamWriteState) bool {
+	return site != nil && site.ActiveVersion > 0 && !site.Suspended() && !st.SiteTakenDown && !st.EventTakenDown
+}
 
 // VotingStatus evaluates the voting window.
 func VotingStatus(ev hackmodel.Event, v repo.VotingSettings, now time.Time) string {

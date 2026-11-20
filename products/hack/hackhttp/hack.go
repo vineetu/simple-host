@@ -4,26 +4,24 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
-	"encoding/json"
 	"errors"
 
-	"io"
 	"io/fs"
 	"log"
 	"net/http"
-	"net/mail"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
-	appsites "github.com/vsriram/simple-host/host/app/sites"
-	"github.com/vsriram/simple-host/host/auth"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/auth"
+	authrules "github.com/vsriram/simple-host/host/access/rules"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/rules/sites"
+	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
@@ -75,7 +73,8 @@ var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "jud
 
 // HackHandler is the hosted-events API (EVENTS=hosted).
 type HackHandler struct {
-	limiterOwner       *limiterWorkers
+	caches             httpx.Caches
+	limitersOnce       sync.Once
 	contentOnce        sync.Once
 	contentOwner       *contentDeliveryOwner
 	eventCleanupOnce   sync.Once
@@ -105,6 +104,7 @@ type HackHandler struct {
 	applyIP            *httpx.RateLimiter // applications without a join link, per network address
 	applyUser          *httpx.RateLimiter // the same, per account
 	assistantWrites    *httpx.RateLimiter // organiser assistant questions, per account (SIM-394)
+	screenshotsIP      *httpx.RateLimiter // public gallery screenshots, per network address
 	// assistant is nil until SetAssistant is called (main wires it only
 	// when ASSISTANT_BASE_URL and ASSISTANT_MODEL are both set); every
 	// handler checks h.assistant == nil the same as !h.assistant.Enabled().
@@ -149,14 +149,6 @@ func (h *HackHandler) SetHandleChecker(fn events.HandleChecker) {
 		h.events = events.New(h.database)
 	}
 	h.events.SetHandleChecker(fn)
-}
-
-// SetKeyResolver shares the instance's account authentication service.
-func (h *HackHandler) SetKeyResolver(resolve events.KeyResolver) {
-	if h.events == nil {
-		h.events = events.New(h.database)
-	}
-	h.events.SetKeyResolver(resolve)
 }
 
 func (h *HackHandler) judgeHandle(ctx context.Context, name string) (HandleVerdict, error) {
@@ -370,6 +362,7 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 		shotWrites:         httpx.NewRateLimiter(5, 0.1),
 		applyIP:            httpx.NewRateLimiter(float64(lim.RateEventApplyIP.Burst), lim.RateEventApplyIP.PerSecond()),
 		applyUser:          httpx.NewRateLimiter(float64(lim.RateEventApplyUser.Burst), lim.RateEventApplyUser.PerSecond()),
+		screenshotsIP:      httpx.NewRateLimiter(120, 5),
 		assistantWrites:    httpx.NewRateLimiter(40, 0.2), // burst 40 (above the 30/day business limit and the 18-question eval set), refills one every 5s: abuse defense only
 		archiveLinkKey:     newHackArchiveKey(),
 		events:             events.New(database),
@@ -410,20 +403,9 @@ func newHackArchiveKey() []byte {
 	return key
 }
 
-// siteLimitFor is the largest site this account may deploy, in bytes: its
-// MAX_ARCHIVE_MB_OVERRIDES entry (matched against its current handle and
-// then its earlier ones), else siteArchiveDefault. Mirrors handler's own
-// limitSet.siteLimitFor (limits.go) so the values read stay identical;
-// duplicated here (not shared) because that method is unexported in
-// another package once this type moves to host/hackhttp.
+// siteLimitFor is accounts.SiteLimit with siteArchiveDefault.
 func (h *HackHandler) siteLimitFor(ctx context.Context, database *sql.DB, user *model.User) (limit int64, override bool) {
-	if h.limits.MaxArchiveOverrides == "" || user == nil {
-		return h.siteArchiveDefault, false
-	}
-	if mb, ok := h.limits.ArchiveOverrideMB(h.eventsSvc().AccountHandles(ctx, user)...); ok {
-		return int64(mb) << 20, true
-	}
-	return h.siteArchiveDefault, false
+	return accountapp.New(database).SiteLimit(ctx, user, h.limits.Limits, h.siteArchiveDefault)
 }
 
 // exportLinkTTL is the shared EXPORT_LINK_TTL_MINUTES knob, which also
@@ -440,6 +422,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	wrap := func(fn http.HandlerFunc) http.Handler {
 		return authMW(http.HandlerFunc(fn))
 	}
+	optional := func(fn http.HandlerFunc) http.Handler { return auth.Optional(authMW)(fn) }
 	h.registerChecklists(mux, wrap)
 	h.registerAssistant(mux, wrap)
 	mux.Handle("GET /v1/hack/directory", http.HandlerFunc(h.getDirectory))
@@ -487,10 +470,10 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("PUT /v1/hack/events/{slug}/teams/{team}/lock", wrap(h.lockOrganiserTeam))
 	mux.Handle("PUT /v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin", wrap(h.setOrganiserTeamAdmin))
 	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/link", wrap(h.newOrganiserTeamLink))
-	mux.Handle("GET /v1/hack/team-links/{code}", http.HandlerFunc(h.getTeamLink))
-	mux.Handle("GET /v1/hack/join/{code}", http.HandlerFunc(h.getJoin))
+	mux.Handle("GET /v1/hack/team-links/{code}", optional(h.getTeamLink))
+	mux.Handle("GET /v1/hack/join/{code}", optional(h.getJoin))
 	mux.Handle("POST /v1/hack/join/{code}", wrap(h.postJoin))
-	mux.Handle("GET /v1/hack/judge/{code}", http.HandlerFunc(h.getJudge))
+	mux.Handle("GET /v1/hack/judge/{code}", optional(h.getJudge))
 	mux.Handle("POST /v1/hack/judge/{code}", wrap(h.postJudge))
 	mux.Handle("GET /v1/admin/hack/events", wrap(h.adminListEvents))
 	mux.Handle("POST /v1/admin/hack/events/{slug}/takedown", wrap(h.adminTakeDown))
@@ -499,10 +482,10 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("DELETE /v1/admin/hack/events/{slug}", wrap(h.adminDelete))
 	h.registerTeamSites(mux, wrap)
 	h.registerEntries(mux, wrap)
-	h.registerJudging(mux, wrap)
-	h.registerAdministration(mux, wrap)
+	h.registerJudging(mux, wrap, optional)
+	h.registerAdministration(mux, wrap, optional)
 	h.registerContent(mux, wrap)
-	h.registerRegistration(mux, wrap)
+	h.registerRegistration(mux, wrap, optional)
 	h.registerEventWebsite(mux, wrap)
 	h.registerHackPreferences(mux, wrap)
 	h.registerLeave(mux, wrap)
@@ -580,12 +563,12 @@ func eventNameReserved(name string) bool {
 // round trip, and a venue's shared address must not let one stranger's
 // anonymous lookups lock everyone there out of joining.
 func (h *HackHandler) rateLimited(w http.ResponseWriter, r *http.Request, userID string) bool {
-	if userID == "" && !h.codesIP.Allow(httpx.ClientIP(r)) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if userID == "" && !h.codesIP.AllowHTTP(w, httpx.ClientIP(r)) {
+		httpx.TooManyRequests(w)
 		return true
 	}
-	if userID != "" && !h.codesUser.Allow(userID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if userID != "" && !h.codesUser.AllowHTTP(w, userID) {
+		httpx.TooManyRequests(w)
 		return true
 	}
 	return false
@@ -595,28 +578,15 @@ func (h *HackHandler) rateLimited(w http.ResponseWriter, r *http.Request, userID
 // account and its network address (RATE_LIMIT_EVENT_APPLY_USER/_IP), so one
 // stranger cannot burn through many accounts from one address either.
 func (h *HackHandler) applyLimited(w http.ResponseWriter, r *http.Request, userID string) bool {
-	if !h.applyIP.Allow(httpx.ClientIP(r)) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if !h.applyIP.AllowHTTP(w, httpx.ClientIP(r)) {
+		httpx.TooManyRequests(w)
 		return true
 	}
-	if !h.applyUser.Allow(userID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if !h.applyUser.AllowHTTP(w, userID) {
+		httpx.TooManyRequests(w)
 		return true
 	}
 	return false
-}
-
-func decodeHackJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, hackMaxBody))
-	if err := dec.Decode(dst); err != nil {
-		if errors.Is(err, io.EOF) {
-			httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "JSON body required", Code: "invalid_request"})
-			return false
-		}
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "invalid JSON body", Code: "invalid_request"})
-		return false
-	}
-	return true
 }
 
 func hackNeedUser(w http.ResponseWriter, r *http.Request) *model.User {
@@ -719,8 +689,8 @@ func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	if !h.namesUser.Allow(user.ID) {
-		httpx.WriteJSON(w, http.StatusTooManyRequests, httpx.ErrorResponse{Error: "rate limit exceeded, slow down", Code: "rate_limited"})
+	if !h.namesUser.AllowHTTP(w, user.ID) {
+		httpx.TooManyRequests(w)
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
@@ -753,7 +723,7 @@ var errNameCheckUnavailable = errors.New("name check unavailable")
 // TEAM_SITE_FLAT_HOSTS' <team>--<event> single label needs "--" to appear
 // nowhere else in either slug to stay unambiguous.
 func (h *HackHandler) slugVerdict(ctx context.Context, slug string) (code, errMsg string, err error) {
-	if utf8.RuneCountInString(slug) < 3 || !sites.VisitorHandle.MatchString(slug) || !sites.HandleIsLabel(slug) || strings.Contains(slug, "--") {
+	if !sites.EventNameShape(slug) {
 		return "invalid_name", "use 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen, and never two hyphens in a row", nil
 	}
 	if eventNameReserved(slug) {
@@ -828,7 +798,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req createEventReq
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(req.Slug))
@@ -915,7 +885,7 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	ev, member, err := h.eventsSvc().CreateEvent(ctx, user.ID, slug, title, organiserName, organisation, contact, purpose, tz, *req.ExpectedParticipants, startsAt, endsAt, perDay, maxActive, h.limits.EventTeamSizeDefault, hackJoinCodeLen, hackJudgeCodeLen)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, h.eventView(ctx, ev, member, true))
@@ -1284,7 +1254,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req patchEventReq
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	deadlineChanged, entryRequiredChanged := false, false
@@ -1504,7 +1474,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		return deadlineChanged, entryRequiredChanged, nil
 	})
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	if deadlineChanged {
@@ -1521,7 +1491,7 @@ func submissionsClosedStage(stage string) bool { return events.SubmissionsClosed
 func checkEntryRequired(w http.ResponseWriter, in []string) ([]string, bool) {
 	value, err := checkEntryRequiredValue(in)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return nil, false
 	}
 	return value, true
@@ -1554,7 +1524,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Stage string `json:"stage"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	stage := strings.TrimSpace(req.Stage)
@@ -1568,7 +1538,7 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 	}
 	updated, current, err := h.eventsSvc().SetStage(r.Context(), a.event, stage, h.entries.SettleEventTx)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	if stage == "judging" && (current == "draft" || current == "open" || current == "building" || current == "closed") && updated.JudgeAssignmentMode == "automatic" {
@@ -1650,7 +1620,7 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		Confirm *string `json:"confirm"`
 	}
 	if r.Body != nil && r.ContentLength != 0 {
-		if !decodeHackJSON(w, r, &req) {
+		if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 			return
 		}
 	}
@@ -1659,7 +1629,7 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		trash = h.sites.TrashTeamSite
 	}
 	if err := h.eventsSvc().DeleteEvent(r.Context(), a.event, a.user.ID, req.Confirm, trash); err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	h.removeEventFiles(a.event)
@@ -1693,11 +1663,9 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 	// the account is metered, not the venue's shared address.
 	caller := ""
 	accountName := ""
-	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
-			caller = u.ID
-			accountName = strings.TrimSpace(u.DisplayName.String)
-		}
+	if u := auth.GetUser(r.Context()); u != nil {
+		caller = u.ID
+		accountName = strings.TrimSpace(u.DisplayName.String)
 	}
 	// The body carries the caller's own account name: never cache it.
 	w.Header().Set("Cache-Control", "no-store")
@@ -1725,7 +1693,7 @@ func (h *HackHandler) getCodeInfo(w http.ResponseWriter, r *http.Request, judge 
 		return
 	}
 	if ev.TakenDown() {
-		httpx.WriteError(w, http.StatusGone, "event_taken_down", "this event has been taken down")
+		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
 		return
 	}
 	role := "participant"
@@ -1788,7 +1756,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 		DisplayName string            `json:"display_name"`
 		Answers     map[string]string `json:"answers"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.AcceptCoC == nil || !*req.AcceptCoC {
@@ -1803,7 +1771,7 @@ func (h *HackHandler) postCodeJoin(w http.ResponseWriter, r *http.Request, judge
 	}
 	ev, member, organiser, err := h.eventsSvc().JoinByCode(r.Context(), code, user.ID, display, judge, req.Answers, validateSignupAnswersValue)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, organiser))
@@ -1845,7 +1813,7 @@ func checkHackLine(w http.ResponseWriter, s, field string, min, max int) (string
 func checkContactEmail(w http.ResponseWriter, s string) (string, bool) {
 	value, err := checkContactEmailValue(s)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return "", false
 	}
 	return value, true
@@ -1854,7 +1822,7 @@ func checkContactEmail(w http.ResponseWriter, s string) (string, bool) {
 func checkTimeZone(w http.ResponseWriter, tz string) (*time.Location, bool) {
 	value, err := checkTimeZoneValue(tz)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return nil, false
 	}
 	return value, true
@@ -1863,7 +1831,7 @@ func checkTimeZone(w http.ResponseWriter, tz string) (*time.Location, bool) {
 func parseEventTime(w http.ResponseWriter, s string, loc *time.Location, field string, required bool) (sql.NullTime, bool) {
 	value, err := parseEventTimeValue(s, loc, field, required)
 	if err != nil {
-		writeEventsError(w, err)
+		writeHackError(w, err)
 		return sql.NullTime{}, false
 	}
 	return value, true
@@ -1949,18 +1917,11 @@ func checkEntryRequiredValue(in []string) ([]string, error) {
 }
 
 func checkContactEmailValue(s string) (string, error) {
-	s = strings.TrimSpace(s)
-	if s == "" || utf8.RuneCountInString(s) > 254 {
+	addr, ok := authrules.NormalEmail(s)
+	if !ok {
 		return "", &events.Error{Code: "invalid_contact_email", Message: "contact_email must be a valid email address"}
 	}
-	addr, err := mail.ParseAddress(s)
-	if err != nil || addr.Name != "" || !strings.EqualFold(addr.Address, s) {
-		return "", &events.Error{Code: "invalid_contact_email", Message: "contact_email must be a valid email address"}
-	}
-	if utf8.RuneCountInString(addr.Address) > 254 {
-		return "", &events.Error{Code: "invalid_contact_email", Message: "contact_email must be a valid email address"}
-	}
-	return addr.Address, nil
+	return addr, nil
 }
 
 func checkTimeZoneValue(tz string) (*time.Location, error) {

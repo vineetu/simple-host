@@ -12,7 +12,6 @@ import (
 // Service owns Hack event and organiser workflows.
 type Service struct {
 	db          *sql.DB
-	resolveKey  KeyResolver
 	checkHandle HandleChecker
 }
 

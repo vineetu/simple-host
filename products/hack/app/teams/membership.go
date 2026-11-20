@@ -2,8 +2,8 @@ package teams
 
 import (
 	"context"
-	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -74,7 +74,7 @@ func (s *Service) JoinTeam(ctx context.Context, eventID, userID, code string, ma
 		return model.EventTeam{}, internalError(err)
 	}
 	if !hackteams.ParticipantTeamStages(stage) {
-		return model.EventTeam{}, &Error{Code: "teams_locked"}
+		return model.EventTeam{}, &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
 	}
 	team, err := teamrepo.JoinTeamByCode(ctx, tx, eventID, userID, code, max, teamrepo.EnsureTeamAdmin)
 	if err != nil {
@@ -86,7 +86,7 @@ func (s *Service) JoinTeam(ctx context.Context, eventID, userID, code string, ma
 		return team, internalError(err)
 	}
 	if st.Frozen() {
-		return team, &Error{Code: "submissions_closed"}
+		return team, &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
 	}
 	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
 		return team, internalError(err)

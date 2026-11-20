@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	accountapp "github.com/vsriram/simple-host/host/access"
 	"log"
 	"net/http"
 	"strings"

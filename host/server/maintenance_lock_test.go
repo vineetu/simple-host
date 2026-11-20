@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	appstorage "github.com/vsriram/simple-host/host/app/storage"
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/server"
 	"github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/host/storage"

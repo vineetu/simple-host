@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/host/app/sites"
+	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/workers"
 )
 

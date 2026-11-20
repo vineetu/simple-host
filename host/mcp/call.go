@@ -321,7 +321,7 @@ var codeHints = map[string]string{
 	"file_not_found":                 "No such file in this files resource; storage_list_file_objects shows the paths.",
 	"invalid_key":                    "That key is not allowed: use up to 256 characters, no control characters.",
 	"invalid_path":                   "That path is not allowed: relative, no leading slash, no .., no segment starting with a dot, at most 16 segments.",
-	"invalid_file":                   "The file was refused: it must be valid base64, not empty, and under the size limit (1 MiB through this tool).",
+	"invalid_file":                   "The file was refused: it must be valid base64, not empty, and under the size limit.",
 	"invalid_value":                  "The value must be valid JSON (a string, number, object, array, true, false, or null).",
 	"site_full":                      "This site's storage allowance is full (KV and SQLite: 10,000,000 bytes together on Simple Host; one 1,000,000-byte pool on Simple Hack). storage_get_usage shows usage; remove old rows or keys only after the person agrees.",
 	"sqlite_full":                    "This site's SQLite data has reached its allowance. storage_get_usage shows usage; remove old rows only after the person agrees.",

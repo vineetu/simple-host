@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	operationrepo "github.com/vsriram/simple-host/host/app/operations"
+	operationrepo "github.com/vsriram/simple-host/host/ops"
 )
 
 // hackColumns are what EVENTS=hosted reads (hack1-events.sql, hack2-team-sites.sql). Checked only

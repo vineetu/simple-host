@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
+	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/mcp"
@@ -382,7 +382,7 @@ func TestRateLimitsFollowSettings(t *testing.T) {
 	if h.emailLimiter.Capacity != 9 || h.emailLimiter.Rate != 1.0/20 {
 		t.Errorf("sign-in email limiter: burst %v, %v/s", h.emailLimiter.Capacity, h.emailLimiter.Rate)
 	}
-	if !h.ipLimiter.allow("a") || !h.ipLimiter.allow("a") || h.ipLimiter.allow("a") {
+	if !h.ipLimiter.Allow("a") || !h.ipLimiter.Allow("a") || h.ipLimiter.Allow("a") {
 		t.Error("a burst of 2 should allow two and refuse the third")
 	}
 }

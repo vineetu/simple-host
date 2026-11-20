@@ -51,7 +51,7 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 		JudgeWalkthroughDone     *bool   `json:"judge_walkthrough_done"`
 		EmailUpdates             *bool   `json:"email_updates"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	p, err := h.eventsSvc().HackPreferences(r.Context(), user.ID)

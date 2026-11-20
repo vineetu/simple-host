@@ -3,6 +3,7 @@ package mcp
 import (
 	"embed"
 	"encoding/json"
+	appsites "github.com/vsriram/simple-host/host/sites"
 	"html"
 	"net/url"
 	"os"
@@ -185,8 +186,8 @@ func (s *Server) readApp(req request, caller Caller) response {
 		config, _ := json.Marshal(map[string]any{
 			"assetOrigin":  "https://" + s.cfg.APIHost,
 			"maxBodyBytes": s.cfg.MaxBodyBytes,
-			"maxBytes":     min(appLimit("PHOTO_MAX_BYTES", 1000000), 1<<20),
-			"maxDimension": appLimit("PHOTO_MAX_DIMENSION", 2048),
+			"maxBytes":     appsites.PhotoMaxBytes(),
+			"maxDimension": appsites.PhotoMaxDimension(),
 			"frameDomains": s.previewFrameDomains(),
 		})
 		bridge := asset("bridge.js")

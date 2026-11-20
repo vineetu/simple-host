@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	accounts "github.com/vsriram/simple-host/host/app/accounts"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 )
 

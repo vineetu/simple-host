@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	appsites "github.com/vsriram/simple-host/host/app/sites"
-	operationrepo "github.com/vsriram/simple-host/host/repository/operations"
+	operationrepo "github.com/vsriram/simple-host/host/ops/repo"
+	appsites "github.com/vsriram/simple-host/host/sites"
 )
 
 const moveSiteBaseUsage = `usage: simple-host move-site-base --from DOMAIN --to DOMAIN [--apply]

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/lib/pq"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // UpdateEventEntryRules writes the organiser's entry rules: the preset name,

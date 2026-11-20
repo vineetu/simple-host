@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 )
 
 // Covers storage acting for the event account and the visitor's event origin.

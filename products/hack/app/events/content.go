@@ -9,7 +9,7 @@ import (
 	"log"
 	"time"
 
-	sqlkit "github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"

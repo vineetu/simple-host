@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/auth"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/auth"
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
 )
 
 func (a *teamSiteApp) consentPage(t *testing.T, q url.Values) (string, string) {

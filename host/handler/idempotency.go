@@ -2,13 +2,14 @@ package handler
 
 import (
 	"crypto/sha256"
+	"github.com/vsriram/simple-host/host/sites"
 	"io"
 	"net/http"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/host/auth"
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/edition"
 )
 
@@ -114,10 +115,7 @@ func (s *createIdempotencyStore) wrapAccount(account, siteID string, next http.H
 		}
 		defer os.Remove(body.Name())
 		defer body.Close()
-		limit := s.largestSiteLimit()*4/3 + (1 << 20)
-		if photoCap := int64(photoCountLimit*(photoLimit("PHOTO_MAX_BYTES", 1000000)+4096) + 4096); photoCap > limit {
-			limit = photoCap
-		}
+		limit := max(sites.JSONBodyLimit(s.largestSiteLimit()), sites.PhotoBodyLimit())
 		rc := http.NewResponseController(w)
 		_ = rc.SetReadDeadline(time.Now().Add(bodyReadTimeout(limit)))
 		hash := sha256.New()

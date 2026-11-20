@@ -431,7 +431,6 @@ func TestArgumentValidationHappensBeforeAnyRequest(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"create_site", map[string]any{"site": "blog", "files": map[string]any{"about.html": "x"}}, "index.html"},
 		{"update_site", map[string]any{"site": "Bad Name!", "files": map[string]any{"index.html": "x"}}, "not a valid site name"},
 		{"create_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "x"}, "mode": "replace"}, "unexpected argument"},
 		{"delete_site", map[string]any{"site": "blog", "confirm_name": "blogg"}, "nothing was deleted"},

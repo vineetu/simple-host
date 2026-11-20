@@ -40,22 +40,6 @@ func (h *HackHandler) previewJudging(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"results": resultsSnapshotJSON(rows, nil), "deciding_mode": a.event.ScoreMode})
 }
 
-func writeJudgingWorkflowError(w http.ResponseWriter, err error) {
-	e, ok := err.(*entries.Error)
-	if !ok {
-		httpx.WriteInternal(w)
-		return
-	}
-	status := 400
-	switch e.Code {
-	case "event_closed", "scores_locked", "judging_setup_locked", "invalid_assignment_mode", "judge_conflict":
-		status = 409
-	case "judge_not_found", "team_not_found", "track_not_found":
-		status = 404
-	}
-	httpx.WriteError(w, status, e.Code, e.Message)
-}
-
 func (h *HackHandler) getManualAssignments(w http.ResponseWriter, r *http.Request) {
 	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
 	if !ok {
@@ -77,7 +61,7 @@ func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Reques
 	var req struct {
 		Assignments []model.JudgeAssignment `json:"assignments"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if len(req.Assignments) > 500 {
@@ -86,7 +70,7 @@ func (h *HackHandler) putManualAssignments(w http.ResponseWriter, r *http.Reques
 	}
 	rows, err := h.entries.PutManualAssignments(r.Context(), a.event.ID, req.Assignments)
 	if err != nil {
-		writeJudgingWorkflowError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"assignments": rows})
@@ -113,7 +97,7 @@ func (h *HackHandler) putTrackPanels(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Panels []entries.TrackPanelMember `json:"panels"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if len(req.Panels) > 240 {
@@ -122,7 +106,7 @@ func (h *HackHandler) putTrackPanels(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.entries.PutTrackPanels(r.Context(), a.event.ID, req.Panels)
 	if err != nil {
-		writeJudgingWorkflowError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"panels": rows})

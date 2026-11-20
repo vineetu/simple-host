@@ -23,7 +23,7 @@ func (s *Service) OrganiserLock(ctx context.Context, eventID, slug, actor string
 	}
 	requests, invites, err := teamrepo.SetTeamLock(ctx, tx, team.ID, actor, locked)
 	if err == sql.ErrNoRows {
-		return 0, 0, &Error{Code: "member_not_found"}
+		return 0, 0, &Error{Code: "member_not_found", Message: "member not found"}
 	}
 	if err != nil {
 		return 0, 0, err
@@ -47,7 +47,7 @@ func (s *Service) OrganiserAdmin(ctx context.Context, eventID, slug, userID stri
 	}
 	if err = teamrepo.SetTeamAdmin(ctx, tx, eventID, team.ID, userID, admin); err != nil {
 		if err == sql.ErrNoRows {
-			return &Error{Code: "member_not_found"}
+			return &Error{Code: "member_not_found", Message: "member not found"}
 		}
 		return err
 	}
@@ -89,7 +89,7 @@ func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (m
 	// Recheck under the event lock; the handler's pre-BEGIN check only
 	// rejects obviously invalid requests early.
 	if !hackteams.ParticipantTeamStages(stage) {
-		return team, &Error{Code: "teams_locked"}
+		return team, &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
 	}
 	if !admin {
 		return team, teamrepo.ErrHackTeamAdminOnly
@@ -102,7 +102,7 @@ func checkFrozen(ctx context.Context, tx *sql.Tx, teamID string) error {
 		return internalError(err)
 	}
 	if st.Frozen() {
-		return &Error{Code: "submissions_closed"}
+		return &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, n
 	if name != nil {
 		if err = eventrepo.RenameEventTeam(ctx, tx, eventID, team.Slug, *name); err != nil {
 			if isUnique(err) {
-				return team, &Error{Code: "team_name_taken"}
+				return team, &Error{Code: "team_name_taken", Message: "another team already has that name"}
 			}
 			return team, internalError(err)
 		}
@@ -178,7 +178,7 @@ func (s *Service) ParticipantAdmin(ctx context.Context, eventID, userID, target 
 		return err
 	}
 	if !hackteams.ParticipantTeamStages(stage) {
-		return &Error{Code: "teams_locked"}
+		return &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
 	}
 	if !callerAdmin {
 		return teamrepo.ErrHackTeamAdminOnly

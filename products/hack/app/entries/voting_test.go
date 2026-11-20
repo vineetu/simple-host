@@ -9,8 +9,18 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/vsriram/simple-host/host/model"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
+
+// B1: a site the operator suspended is not live for organisers or judges.
+func TestTeamSiteLiveHonoursPlatformSuspension(t *testing.T) {
+	st := hackmodel.TeamWriteState{}
+	if !TeamSiteLive(&model.Site{ActiveVersion: 1}, st) || TeamSiteLive(&model.Site{ActiveVersion: 1, SiteSuspended: true}, st) || TeamSiteLive(nil, st) {
+		t.Fatal("wrong liveness")
+	}
+}
 
 type votingDriver struct{}
 type votingConn struct{ scenario string }

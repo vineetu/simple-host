@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	hackeventsrules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
+
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -53,7 +55,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 	var teamID sql.NullString
 	err = tx.QueryRowContext(ctx, `SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'participant' FOR SHARE`, req.Event.ID, req.UserID).Scan(&teamID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil, &Error{Code: "event_not_found"}
+		return "", nil, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return "", nil, err
@@ -73,7 +75,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 		return id, nil, err
 	}
 	if code := st.WriteRefusal(); code != "" {
-		return id, nil, &Error{Code: code}
+		return id, nil, &Error{Code: code, Message: hackeventsrules.TeamRefusalMessage(code)}
 	}
 	var missing []string
 	switch req.Kind {
@@ -88,7 +90,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 				stamp = current.UpdatedAt.UTC().Format(time.RFC3339Nano)
 			}
 			if *req.UpdatedAt != stamp {
-				return id, nil, &Error{Code: "entry_changed"}
+				return id, nil, &Error{Code: "entry_changed", Message: "A teammate changed this since you opened it"}
 			}
 		}
 		before, e := entryrepo.GetEventEntry(ctx, tx, id)
@@ -123,7 +125,7 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 				stamp = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
 			}
 			if *req.UpdatedAt != stamp {
-				return id, nil, &Error{Code: "entry_changed"}
+				return id, nil, &Error{Code: "entry_changed", Message: "A teammate changed this since you opened it"}
 			}
 		}
 		if !e.SubmittedAt.Valid {

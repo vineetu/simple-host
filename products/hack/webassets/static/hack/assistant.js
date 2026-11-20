@@ -665,15 +665,15 @@ async function buildFloating(ctx, { api, ev, checklist, slug, key }) {
       if (res.status === 400) {
         msg = cpLen(poppedText) > MAX_MSG_CHARS
           ? 'That question is too long. Shorten it and try again.'
-          : ((data && typeof data.message === 'string' && data.message) || 'Something went wrong. Refresh the page and try again.')
+          : ((data && typeof data.error === 'string' && data.error) || 'Something went wrong. Refresh the page and try again.')
         if (state.panelEl) {
           const ta = state.panelEl.querySelector('[data-assistant-input]')
           if (ta) { ta.value = poppedText; ta.dispatchEvent(new Event('input')) }
         }
       } else {
-        msg = (data && typeof data.message === 'string' && data.message) || 'Something went wrong. Refresh the page and try again.'
+        msg = (data && typeof data.error === 'string' && data.error) || 'Something went wrong. Refresh the page and try again.'
       }
-      if (data && (data.error === 'daily_limit' || data.error === 'monthly_budget')) { disableForLimit(msg); retry = false }
+      if (data && (data.code === 'daily_limit' || data.code === 'monthly_budget')) { disableForLimit(msg); retry = false }
       if (data && typeof data.remaining_today === 'number') setRemaining(data.remaining_today)
       appendErrorLine(thread, msg, { retry })
       refocusAfterTurn()

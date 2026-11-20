@@ -200,6 +200,14 @@ func TestHackTieCriterionAndPrizeSnapshot(t *testing.T) {
 	if public.status != 200 || !strings.Contains(string(public.body), "Trophy") || strings.Contains(string(public.body), "raw_total") || strings.Contains(string(public.body), "\"rank\"") {
 		t.Fatalf("public score privacy: %d %s", public.status, public.body)
 	}
+	// The env admin key is the admin here too (auth.Optional); a bad key is
+	// refused, not read as signed out.
+	if r := w.a.at(t, "GET", w.path("/results"), nil, map[string]string{"X-API-Key": w.a.admin}); r.status != 200 || r.json(t)["results"] == nil {
+		t.Fatalf("admin key results: %d %s", r.status, r.body)
+	}
+	if r := w.a.at(t, "GET", w.path("/results"), nil, map[string]string{"X-API-Key": "sh_bogus"}); r.status != 401 {
+		t.Fatalf("bad key results: %d %s", r.status, r.body)
+	}
 	if r = w.call(t, "PATCH", "/judging/settings", map[string]any{"public_scores": true, "public_ranks": true}, w.org); r.status != 200 {
 		t.Fatalf("show public scores: %d %s", r.status, r.body)
 	}

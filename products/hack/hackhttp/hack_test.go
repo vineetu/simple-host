@@ -21,14 +21,12 @@ import (
 	"testing"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	appsites "github.com/vsriram/simple-host/host/app/sites"
-	"github.com/vsriram/simple-host/host/auth"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/auth"
 
+	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/model"
-	accountrepo "github.com/vsriram/simple-host/host/repository/accounts"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 )
@@ -63,7 +61,7 @@ func jsonBody(v any) io.Reader {
 
 // hackHandleCheckerForTest uses the app service that owns the handle namespace.
 func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (HandleVerdict, error) {
-	v, err := appsites.JudgeHandle(ctx, q, "", h)
+	v, err := accountapp.JudgeHandle(ctx, q, "", h)
 	return HandleVerdict{Status: v.Status, Code: v.Code}, err
 }
 
@@ -152,9 +150,6 @@ func newHackAppDatabase(t *testing.T, database *sql.DB, eds ...*edition.Edition)
 	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
 	h := NewHackHandler(database, srv.URL, "simple-hack.test", ed)
 	h.SetHandleChecker(hackHandleCheckerForTest)
-	h.SetKeyResolver(func(ctx context.Context, key string, idle time.Duration) (model.User, error) {
-		return accountapp.New(database).GetUserByAPIKey(ctx, key, idle)
-	})
 	h.Register(mux, authMW)
 	root = mux
 	return &hackApp{database: database, admin: adminKey, mux: mux, srv: srv, hack: h}
@@ -1036,7 +1031,7 @@ func TestHackAdmin(t *testing.T) {
 		t.Fatalf("part write: %d %s", r.status, r.body)
 	}
 	r = a.at(t, "GET", "/v1/hack/join/"+join, nil, nil)
-	if r.status != 410 || r.json(t)["code"] != "event_taken_down" {
+	if r.status != 403 || r.json(t)["code"] != "event_taken_down" {
 		t.Fatalf("join get: %d %s", r.status, r.body)
 	}
 

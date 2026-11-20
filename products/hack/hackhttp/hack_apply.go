@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
@@ -60,11 +61,9 @@ func hackApplyFields() map[string]any {
 func (h *HackHandler) getApply(w http.ResponseWriter, r *http.Request) {
 	caller := ""
 	accountName := ""
-	if k := r.Header.Get("X-API-Key"); k != "" {
-		if u, err := h.eventsSvc().UserByAPIKey(r.Context(), k, h.limits.KeyIdleExpiry); err == nil {
-			caller = u.ID
-			accountName = strings.TrimSpace(u.DisplayName.String)
-		}
+	if u := auth.GetUser(r.Context()); u != nil {
+		caller = u.ID
+		accountName = strings.TrimSpace(u.DisplayName.String)
 	}
 	// The body carries the caller's own account name: never cache it.
 	w.Header().Set("Cache-Control", "no-store")
@@ -161,12 +160,12 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req postApplyReq
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	input, err := h.membersSvc().ValidateApplication(req.AcceptCoC, members.ApplicationInput{Display: req.DisplayName, City: req.City, Country: req.Country, AgeRange: req.AgeRange, Gender: req.Gender, Answers: req.Answers})
 	if err != nil {
-		writeMemberError(w, err)
+		writeHackError(w, err)
 		return
 	}
 
@@ -193,7 +192,7 @@ func (h *HackHandler) postApply(w http.ResponseWriter, r *http.Request) {
 		return h.eventView(ctx, ev, existing, false)
 	})
 	if err != nil {
-		writeMemberError(w, err)
+		writeHackError(w, err)
 		return
 	}
 	if existingView != nil {

@@ -2,15 +2,16 @@ package handler
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/host/config"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	accountapp "github.com/vsriram/simple-host/host/app/accounts"
-	"github.com/vsriram/simple-host/host/auth"
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/auth"
+	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
@@ -128,7 +129,7 @@ func TestAPIErrorCodesAndHeaders(t *testing.T) {
 		}
 	})
 	t.Run("rate limit", func(t *testing.T) {
-		limited := rateLimitByIP(newRateLimiter(1, 0), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		limited := rateLimitByIP(httpx.NewRateLimiter(1, 0), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 		limited.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/me", nil))
 		rec := httptest.NewRecorder()
 		limited.ServeHTTP(rec, httptest.NewRequest("GET", "/v1/me", nil))

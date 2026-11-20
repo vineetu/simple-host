@@ -1,9 +1,9 @@
 package events
 
-// Error describes a workflow failure for the transport to map.
-type Error struct{ Code, Message string }
+import hackmodel "github.com/vsriram/simple-host/products/hack/model"
 
-func (e *Error) Error() string { return e.Message }
+// Error is the shared hack workflow refusal.
+type Error = hackmodel.Error
 
 // RateLimitError is a DB-counted rate limit refusal (team messages):
 // RetryAfter is the whole seconds to wait before trying again.

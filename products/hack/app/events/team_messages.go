@@ -70,20 +70,20 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 	}
 	fresh, err := eventrepo.GetEventForShare(ctx, tx, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, &Error{"event_not_found", "event not found"}
+		return nil, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return nil, err
 	}
 	if fresh.Stage == "archived" {
-		return nil, &Error{"event_closed", "an ended event cannot be changed"}
+		return nil, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if fresh.TakenDown() {
-		return nil, &Error{"event_taken_down", "this event has been taken down"}
+		return nil, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	sender, err := eventrepo.GetEventMember(ctx, tx, ev.ID, senderID)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && sender.Role != "organiser") {
-		return nil, &Error{"event_not_found", "event not found"}
+		return nil, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 	for _, teamID := range teamIDs {
 		team, err := teamrepo.GetEventTeamByID(ctx, tx, teamID)
 		if errors.Is(err, sql.ErrNoRows) || (err == nil && team.EventID != ev.ID) {
-			return nil, &Error{"invalid_team", "team_ids must be teams of this event"}
+			return nil, &Error{Code: "invalid_team", Message: "team_ids must be teams of this event"}
 		}
 		if err != nil {
 			return nil, err
@@ -155,33 +155,33 @@ func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID
 	defer tx.Rollback()
 	fresh, err := eventrepo.GetEventForShare(ctx, tx, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return zero, &Error{"event_not_found", "event not found"}
+		return zero, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return zero, err
 	}
 	if fresh.Stage == "archived" {
-		return zero, &Error{"event_closed", "an ended event cannot be changed"}
+		return zero, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
 	if fresh.TakenDown() {
-		return zero, &Error{"event_taken_down", "this event has been taken down"}
+		return zero, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	status, teamID, _, err := eventrepo.NoticeMemberStatus(ctx, tx, ev.ID, senderID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return zero, &Error{"event_not_found", "event not found"}
+		return zero, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return zero, err
 	}
 	role, _, _, _, _, err := eventrepo.MailMember(ctx, tx, ev.ID, senderID)
 	if err != nil || role != "participant" {
-		return zero, &Error{"event_not_found", "event not found"}
+		return zero, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if status != "approved" {
-		return zero, &Error{"approval_" + status, "your application is " + status}
+		return zero, &Error{Code: "approval_" + status, Message: "your application is " + status}
 	}
 	if !teamID.Valid {
-		return zero, &Error{"no_team", "join or start a team first"}
+		return zero, &Error{Code: "no_team", Message: "join or start a team first"}
 	}
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('hack-team-inbound:' || $1, 0))`, teamID.String); err != nil {
 		return zero, err
@@ -193,7 +193,7 @@ func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return zero, err
 		}
-		return zero, &Error{"no_team", "join or start a team first"}
+		return zero, &Error{Code: "no_team", Message: "join or start a team first"}
 	}
 	count, oldest, err := eventrepo.CountRecentTeamInbound(ctx, tx, teamID.String, time.Now().Add(-teamInboundRateWindow))
 	if err != nil {

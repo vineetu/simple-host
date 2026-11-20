@@ -36,8 +36,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/vsriram/simple-host/host/analytics"
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/sites/analytics"
 )
 
 func main() {

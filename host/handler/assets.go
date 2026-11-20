@@ -9,6 +9,7 @@ import (
 	"weak"
 
 	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/httpx"
 )
 
 // assetPipeline is everything the static asset and chrome pipeline reads that
@@ -198,19 +199,19 @@ func (h *SiteHandler) DiskForTest() interface {
 // an automated test). Test hooks (cleanup 3.2 slice 3): the moved
 // Hack browser tests assigned emailLimiter/visitorAuthLimiter/
 // storageIPLimiter directly before the move; all three are unexported
-// fields of the handler-local *rateLimiter type, which a cross-package
+// fields of the handler-local *httpx.RateLimiter type, which a cross-package
 // caller can neither name nor build, so each hook takes the same
 // (capacity, perSecond) pair newRateLimiter itself does.
 func (h *SiteHandler) SetEmailLimiterForTest(capacity, perSecond float64) {
-	h.emailLimiter = newRateLimiter(capacity, perSecond)
+	h.emailLimiter = httpx.NewRateLimiter(capacity, perSecond)
 }
 
 func (h *SiteHandler) SetVisitorAuthLimiterForTest(capacity, perSecond float64) {
-	h.visitorAuthLimiter = newRateLimiter(capacity, perSecond)
+	h.visitorAuthLimiter = httpx.NewRateLimiter(capacity, perSecond)
 }
 
 func (h *SiteHandler) SetStorageIPLimiterForTest(capacity, perSecond float64) {
-	h.storageIPLimiter = newRateLimiter(capacity, perSecond)
+	h.storageIPLimiter = httpx.NewRateLimiter(capacity, perSecond)
 }
 
 // SetEditionForTest swaps h's edition after construction. Test hook

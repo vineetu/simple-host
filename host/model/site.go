@@ -88,6 +88,15 @@ type Site struct {
 // owner's account.
 func (s Site) Suspended() bool { return s.SiteSuspended || s.OwnerSuspended }
 
+// Gated: the site asks for a passcode or is open only to named viewers.
+func (s Site) Gated() bool { return s.Passcode || s.NamedViewers }
+
+// Live: the site is served at all: not offline and not taken down.
+func (s Site) Live() bool { return !s.Offline && !s.Suspended() }
+
+// OpenToAnyone: anyone with the link can open the site right now.
+func (s Site) OpenToAnyone() bool { return !s.Gated() && s.Live() }
+
 // SuspendedReason is the reason shown to the owner: the site's own, else the
 // account's.
 func (s Site) SuspendedReason() string {

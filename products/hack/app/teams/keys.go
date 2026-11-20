@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/vsriram/simple-host/host/app/sites"
 	model "github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -25,10 +25,10 @@ func (s *Service) SetDeadline(ctx context.Context, eventID string, team hackmode
 		return team, err
 	}
 	if t.Valid && !eventDeadline.Valid {
-		return team, &Error{Code: "no_event_deadline"}
+		return team, &Error{Code: "no_event_deadline", Message: "set the event's submission deadline first; a team's own deadline extends it"}
 	}
 	if t.Valid && !t.Time.After(eventDeadline.Time) {
-		return team, &Error{Code: "deadline_not_later"}
+		return team, &Error{Code: "deadline_not_later", Message: "a team's own deadline must be after the event's deadline"}
 	}
 	// FOR UPDATE on the team row: a deploy let in holds it FOR SHARE.
 	team.DeadlineOverride, err = hackteams.LockTeamDeadline(ctx, tx, team.ID)

@@ -14,11 +14,3 @@ func TeamRefusalMessage(code string) string {
 	}
 	return "your team cannot change its site now"
 }
-
-// TeamRefusalStatus is the HTTP status of a team write refusal code.
-func TeamRefusalStatus(code string) int {
-	if code == "event_taken_down" || code == "team_site_taken_down" {
-		return 403
-	}
-	return 409
-}

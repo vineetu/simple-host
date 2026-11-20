@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/vsriram/simple-host/host/app/sites"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/repository/sqlkit"
+	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"log"

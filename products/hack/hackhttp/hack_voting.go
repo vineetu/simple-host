@@ -54,12 +54,11 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 		ClosesAt           string `json:"closes_at"`
 		Eligibility        string `json:"eligibility"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if err := entries.ValidateVotingEligibility(req.Eligibility); err != nil {
-		e := err.(*entries.Error)
-		httpx.WriteError(w, 400, e.Code, e.Message)
+		writeHackError(w, err)
 		return
 	}
 	loc, err := time.LoadLocation(a.event.TimeZone)
@@ -80,8 +79,7 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if err := entries.ValidateVotingWindow(entries.VotingSettingsValue(req.Enabled, opens, closes, req.Eligibility)); err != nil {
-		e := err.(*entries.Error)
-		httpx.WriteError(w, 400, e.Code, e.Message)
+		writeHackError(w, err)
 		return
 	}
 	ev, s, removed, err := h.entries.SaveVotingSettings(r.Context(), a.event.ID, entries.VotingSettingsValue(req.Enabled, opens, closes, req.Eligibility), req.ConfirmVoteRemoval)
@@ -89,10 +87,8 @@ func (h *HackHandler) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 		switch e := err.(type) {
 		case *entries.VoteRemovalConfirmation:
 			httpx.WriteJSON(w, 409, map[string]any{"code": "vote_removal_confirmation", "error": "Confirm removal of earlier votes.", "votes_to_remove": e.Count})
-		case *entries.Error:
-			httpx.WriteError(w, 409, e.Code, e.Message)
 		default:
-			httpx.WriteInternal(w)
+			writeHackError(w, err)
 		}
 		return
 	}
@@ -114,7 +110,7 @@ func (h *HackHandler) patchDirectoryListed(w http.ResponseWriter, r *http.Reques
 	var req struct {
 		Listed *bool `json:"listed"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if req.Listed == nil {
@@ -133,12 +129,8 @@ func (h *HackHandler) getVote(w http.ResponseWriter, r *http.Request) {
 	if loaded {
 		paperHackEvent(r, ev)
 	}
-	if e, ok := err.(*entries.Error); ok && e.Code == "event_not_found" {
-		writeEventNotFound(w)
-		return
-	}
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	result, err := h.entries.ReadPublicVote(r.Context(), ev, time.Now)
@@ -186,12 +178,8 @@ func (h *HackHandler) getMyVote(w http.ResponseWriter, r *http.Request) {
 	if loaded {
 		paperHackEvent(r, ev)
 	}
-	if e, ok := err.(*entries.Error); ok && e.Code == "event_not_found" {
-		writeEventNotFound(w)
-		return
-	}
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	_, selected, eligible, err := h.entries.ReadMyVote(r.Context(), ev, user.Username)
@@ -214,7 +202,7 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Team string `json:"team"`
 	}
-	if !decodeHackJSON(w, r, &req) {
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	if !entries.ValidVoteTeam(req.Team) {
@@ -225,34 +213,13 @@ func (h *HackHandler) putVote(w http.ResponseWriter, r *http.Request) {
 	if loaded {
 		paperHackEvent(r, ev)
 	}
-	if e, ok := err.(*entries.Error); ok && e.Code == "event_not_found" {
-		writeEventNotFound(w)
-		return
-	}
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	created, err := h.entries.CastVote(r.Context(), ev.ID, ev.AccountID, model.BaseEmail(user.Username), req.Team)
 	if err != nil {
-		if e, ok := err.(*entries.Error); ok {
-			status := 0
-			switch e.Code {
-			case "voting_closed", "own_team_vote", "duplicate_vote":
-				status = 409
-			case "vote_ineligible":
-				status = 403
-			case "team_not_found":
-				status = 404
-			}
-			if status == 0 {
-				httpx.WriteInternal(w)
-			} else {
-				httpx.WriteError(w, status, e.Code, e.Message)
-			}
-		} else {
-			httpx.WriteInternal(w)
-		}
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"team": req.Team, "changed": !created})
