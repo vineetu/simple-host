@@ -347,13 +347,73 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 	if err != nil {
 		return fmt.Errorf("attr maps: %w", err)
 	}
+	hits, ips, total, perSite := i.scanLines(lines, maps)
 
-	hits := make([]hit, 0, len(lines))
-	ips := map[string]struct{}{}
-	// Bytes and requests served, from every line (not only page views): the
-	// whole log for the admin page's totals, per site where the host is one.
-	total := map[trafficKey]trafficSum{}
-	perSite := map[trafficKey]trafficSum{}
+	// Resolved before the transaction opens: it is a read against reference data
+	// and has nothing to do with the writes below.
+	country, err := resolveCountries(ctx, i.db, ips)
+	if err != nil {
+		return fmt.Errorf("resolve countries: %w", err)
+	}
+	c := countHits(hits, country)
+
+	tx, err := i.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := writeHitCounts(ctx, tx, c); err != nil {
+		return err
+	}
+	if err := i.writeDayItems(ctx, tx, c.pages, c.refs); err != nil {
+		return err
+	}
+	if err := recountGeoVisitors(ctx, tx, c.touched); err != nil {
+		return err
+	}
+	// Traffic is in the same transaction as the offset so a line is never
+	// counted twice.
+	if err := writeTraffic(ctx, tx, total, perSite); err != nil {
+		return err
+	}
+	// P0: offset advance is in the SAME transaction as the upserts.
+	if saveState {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
+			VALUES ($1, $2, $3, now())
+			ON CONFLICT (logfile) DO UPDATE SET
+				offset_bytes = EXCLUDED.offset_bytes,
+				inode        = EXCLUDED.inode,
+				updated_at   = now()
+		`, i.logPath, offset, inode); err != nil {
+			return fmt.Errorf("update ingest state: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	// Best-effort prune outside the main tx (bounded retention).
+	i.pruneOld(ctx)
+
+	if n := len(c.views); n > 0 || len(lines) > 0 {
+		i.tracker.Progress()
+		people, bots, infra, owner := viewsByClass(c.views)
+		log.Printf("analytics ingest: lines=%d buckets=%d people=%d bots=%d infra=%d owner=%d offset=%d inode=%d",
+			len(lines), n, people, bots, infra, owner, offset, inode)
+	}
+	return nil
+}
+
+// scanLines parses lines into page-view hits (and the IPs behind them) and
+// sums bytes and requests from every line, not only page views: the whole
+// log for the admin page's totals, per site where the host is one.
+func (i *Ingester) scanLines(lines []string, maps *attrMaps) (hits []hit, ips map[string]struct{}, total, perSite map[trafficKey]trafficSum) {
+	hits = make([]hit, 0, len(lines))
+	ips = map[string]struct{}{}
+	total = map[trafficKey]trafficSum{}
+	perSite = map[trafficKey]trafficSum{}
 	for _, line := range lines {
 		l, ok := parseLine(line)
 		if !ok {
@@ -374,106 +434,75 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 		hits = append(hits, h)
 		ips[h.ip] = struct{}{}
 	}
+	return hits, ips, total, perSite
+}
 
-	// Resolved before the transaction opens: it is a read against reference data
-	// and has nothing to do with the writes below.
-	country, err := resolveCountries(ctx, i.db, ips)
-	if err != nil {
-		return fmt.Errorf("resolve countries: %w", err)
-	}
+type visitor struct {
+	hash    []byte
+	country string
+}
 
-	type visitor struct {
-		hash    []byte
-		country string
-	}
-	viewDelta := map[bucketKey]int64{}
-	geoDelta := map[geoKey]int64{}
-	// visitorSet[bucketKey][hex(ipHash)] = one distinct visitor
-	visitorSet := map[bucketKey]map[string]visitor{}
+// hitCounts is what one batch of hits adds to the aggregates.
+type hitCounts struct {
+	views map[bucketKey]int64
+	geo   map[geoKey]int64
+	// visitors[bucketKey][hex(ipHash)] = one distinct visitor
+	visitors map[bucketKey]map[string]visitor
 	// (site, day) pairs whose per-country visitor counts need recomputing.
-	touched := map[[2]string]struct{}{}
+	touched map[[2]string]struct{}
 	// Top pages and referring domains: people only.
-	pageDelta := map[dayItemKey]int64{}
-	refDelta := map[dayItemKey]int64{}
+	pages map[dayItemKey]int64
+	refs  map[dayItemKey]int64
+}
 
+func countHits(hits []hit, country map[string]string) hitCounts {
+	c := hitCounts{
+		views:    map[bucketKey]int64{},
+		geo:      map[geoKey]int64{},
+		visitors: map[bucketKey]map[string]visitor{},
+		touched:  map[[2]string]struct{}{},
+		pages:    map[dayItemKey]int64{},
+		refs:     map[dayItemKey]int64{},
+	}
 	for _, h := range hits {
 		cc := country[h.ip]
 		day := h.key.hour[:len("2006-01-02")]
-		viewDelta[h.key]++
-		geoDelta[geoKey{siteID: h.key.siteID, day: day, country: cc, class: h.key.class}]++
-		if visitorSet[h.key] == nil {
-			visitorSet[h.key] = map[string]visitor{}
+		c.views[h.key]++
+		c.geo[geoKey{siteID: h.key.siteID, day: day, country: cc, class: h.key.class}]++
+		if c.visitors[h.key] == nil {
+			c.visitors[h.key] = map[string]visitor{}
 		}
-		visitorSet[h.key][hex.EncodeToString(h.ipHash)] = visitor{hash: h.ipHash, country: cc}
-		touched[[2]string{h.key.siteID, day}] = struct{}{}
+		c.visitors[h.key][hex.EncodeToString(h.ipHash)] = visitor{hash: h.ipHash, country: cc}
+		c.touched[[2]string{h.key.siteID, day}] = struct{}{}
 		if h.key.class == ClassPerson {
 			if h.path != "" {
-				pageDelta[dayItemKey{h.key.siteID, day, h.path}]++
+				c.pages[dayItemKey{h.key.siteID, day, h.path}]++
 			}
 			if h.referrer != "" {
-				refDelta[dayItemKey{h.key.siteID, day, h.referrer}]++
+				c.refs[dayItemKey{h.key.siteID, day, h.referrer}]++
 			}
 		}
 	}
+	return c
+}
 
-	tx, err := i.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback()
-
-	// View upserts — one row per (site, hour, class) per run.
-	for k, n := range viewDelta {
-		_, err := tx.ExecContext(ctx, `
+// writeHitCounts adds the hourly views, the distinct visitors and the
+// per-country views.
+func writeHitCounts(ctx context.Context, tx *sql.Tx, c hitCounts) error {
+	for k, n := range c.views {
+		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO site_view_hourly (site_id, hour, class, views)
 			VALUES ($1, $2::timestamptz, $3, $4)
 			ON CONFLICT (site_id, hour, class) DO UPDATE
 			SET views = site_view_hourly.views + EXCLUDED.views
-		`, k.siteID, k.hour, string(k.class), n)
-		if err != nil {
+		`, k.siteID, k.hour, string(k.class), n); err != nil {
 			return fmt.Errorf("upsert views: %w", err)
 		}
 	}
-
-	// Batched visitor inserts (ON CONFLICT DO NOTHING).
-	type vrow struct {
-		siteID  string
-		hour    string
-		class   string
-		hash    []byte
-		country string
+	if err := insertVisitors(ctx, tx, c.visitors); err != nil {
+		return err
 	}
-	var vrows []vrow
-	for k, set := range visitorSet {
-		for _, v := range set {
-			vrows = append(vrows, vrow{siteID: k.siteID, hour: k.hour, class: string(k.class), hash: v.hash, country: v.country})
-		}
-	}
-	for start := 0; start < len(vrows); start += visitorInsertChunk {
-		end := start + visitorInsertChunk
-		if end > len(vrows) {
-			end = len(vrows)
-		}
-		chunk := vrows[start:end]
-		var b strings.Builder
-		b.WriteString(`INSERT INTO site_visitor_hourly (site_id, hour, class, ip_hash, country) VALUES `)
-		args := make([]any, 0, len(chunk)*5)
-		for i, r := range chunk {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			base := i*5 + 1
-			fmt.Fprintf(&b, "($%d,$%d::timestamptz,$%d,$%d,$%d)", base, base+1, base+2, base+3, base+4)
-			args = append(args, r.siteID, r.hour, r.class, r.hash, r.country)
-		}
-		b.WriteString(` ON CONFLICT DO NOTHING`)
-		if _, err := tx.ExecContext(ctx, b.String(), args...); err != nil {
-			return fmt.Errorf("insert visitors: %w", err)
-		}
-	}
-
-	// Per-country views: additive, exactly like the hourly view upserts.
-	for k, n := range geoDelta {
+	for k, n := range c.geo {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO site_geo_daily (site_id, day, country, class, views)
 			VALUES ($1, $2::date, $3, $4, $5)
@@ -483,14 +512,50 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 			return fmt.Errorf("upsert geo views: %w", err)
 		}
 	}
+	return nil
+}
 
-	if pageDelta, err = capDayItems(ctx, tx, pageDelta, `SELECT path FROM site_page_daily WHERE site_id = $1 AND day = $2::date`, i.pagesPerDay); err != nil {
+// insertVisitors writes distinct visitors in batches of visitorInsertChunk
+// rows; a visitor already recorded for that hour is left as it is.
+func insertVisitors(ctx context.Context, tx *sql.Tx, visitors map[bucketKey]map[string]visitor) error {
+	var args []any
+	for k, set := range visitors {
+		for _, v := range set {
+			args = append(args, k.siteID, k.hour, string(k.class), v.hash, v.country)
+		}
+	}
+	const cols = 5
+	for start := 0; start < len(args); start += visitorInsertChunk * cols {
+		chunk := args[start:min(start+visitorInsertChunk*cols, len(args))]
+		var b strings.Builder
+		b.WriteString(`INSERT INTO site_visitor_hourly (site_id, hour, class, ip_hash, country) VALUES `)
+		for row := 0; row < len(chunk)/cols; row++ {
+			if row > 0 {
+				b.WriteByte(',')
+			}
+			base := row*cols + 1
+			fmt.Fprintf(&b, "($%d,$%d::timestamptz,$%d,$%d,$%d)", base, base+1, base+2, base+3, base+4)
+		}
+		b.WriteString(` ON CONFLICT DO NOTHING`)
+		if _, err := tx.ExecContext(ctx, b.String(), chunk...); err != nil {
+			return fmt.Errorf("insert visitors: %w", err)
+		}
+	}
+	return nil
+}
+
+// writeDayItems caps the day's top pages and referring domains, then adds
+// what is left.
+func (i *Ingester) writeDayItems(ctx context.Context, tx *sql.Tx, pages, refs map[dayItemKey]int64) error {
+	pages, err := capDayItems(ctx, tx, pages, `SELECT path FROM site_page_daily WHERE site_id = $1 AND day = $2::date`, i.pagesPerDay)
+	if err != nil {
 		return fmt.Errorf("cap pages: %w", err)
 	}
-	if refDelta, err = capDayItems(ctx, tx, refDelta, `SELECT domain FROM site_referrer_daily WHERE site_id = $1 AND day = $2::date`, i.refsPerDay); err != nil {
+	refs, err = capDayItems(ctx, tx, refs, `SELECT domain FROM site_referrer_daily WHERE site_id = $1 AND day = $2::date`, i.refsPerDay)
+	if err != nil {
 		return fmt.Errorf("cap referrers: %w", err)
 	}
-	for k, n := range pageDelta {
+	for k, n := range pages {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO site_page_daily (site_id, day, path, views)
 			VALUES ($1, $2::date, $3, $4)
@@ -500,7 +565,7 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 			return fmt.Errorf("upsert page views: %w", err)
 		}
 	}
-	for k, n := range refDelta {
+	for k, n := range refs {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO site_referrer_daily (site_id, day, domain, views)
 			VALUES ($1, $2::date, $3, $4)
@@ -510,11 +575,14 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 			return fmt.Errorf("upsert referrer views: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Per-country visitors: recounted from site_visitor_hourly for every day
-	// this run touched, never incremented. A visitor seen again in a later run
-	// is the same person, so adding would inflate the count; recounting is the
-	// same COUNT(DISTINCT ip_hash) the rest of analytics uses.
+// recountGeoVisitors recounts per-country visitors from site_visitor_hourly
+// for every (site, day) touched, never increments them. A visitor seen again
+// in a later run is the same person, so adding would inflate the count;
+// recounting is the same COUNT(DISTINCT ip_hash) the rest of analytics uses.
+func recountGeoVisitors(ctx context.Context, tx *sql.Tx, touched map[[2]string]struct{}) error {
 	for sd := range touched {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO site_geo_daily (site_id, day, country, class, visitors)
@@ -530,9 +598,10 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 			return fmt.Errorf("recount geo visitors: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Traffic: additive like the view counts, and in the same transaction as
-	// the offset so a line is never counted twice.
+func writeTraffic(ctx context.Context, tx *sql.Tx, total, perSite map[trafficKey]trafficSum) error {
 	for k, t := range total {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO traffic_daily (day, kind, bytes, requests)
@@ -555,47 +624,23 @@ func (i *Ingester) commitLines(ctx context.Context, lines []string, saveState bo
 			return fmt.Errorf("upsert site traffic: %w", err)
 		}
 	}
-
-	// P0: offset advance is in the SAME transaction as the upserts.
-	if saveState {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
-			VALUES ($1, $2, $3, now())
-			ON CONFLICT (logfile) DO UPDATE SET
-				offset_bytes = EXCLUDED.offset_bytes,
-				inode        = EXCLUDED.inode,
-				updated_at   = now()
-		`, i.logPath, offset, inode); err != nil {
-			return fmt.Errorf("update ingest state: %w", err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
-	}
-
-	// Best-effort prune outside the main tx (bounded retention).
-	i.pruneOld(ctx)
-
-	if n := len(viewDelta); n > 0 || len(lines) > 0 {
-		i.tracker.Progress()
-		var people, bots, infra, owner int64
-		for k, v := range viewDelta {
-			switch k.class {
-			case ClassPerson:
-				people += v
-			case ClassBot:
-				bots += v
-			case ClassInfra:
-				infra += v
-			case ClassOwner:
-				owner += v
-			}
-		}
-		log.Printf("analytics ingest: lines=%d buckets=%d people=%d bots=%d infra=%d owner=%d offset=%d inode=%d",
-			len(lines), n, people, bots, infra, owner, offset, inode)
-	}
 	return nil
+}
+
+func viewsByClass(views map[bucketKey]int64) (people, bots, infra, owner int64) {
+	for k, v := range views {
+		switch k.class {
+		case ClassPerson:
+			people += v
+		case ClassBot:
+			bots += v
+		case ClassInfra:
+			infra += v
+		case ClassOwner:
+			owner += v
+		}
+	}
+	return people, bots, infra, owner
 }
 
 func (i *Ingester) pruneOld(ctx context.Context) {

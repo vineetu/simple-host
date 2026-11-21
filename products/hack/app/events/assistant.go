@@ -19,45 +19,30 @@ import (
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
-// AssistantMaxTokens is the max_tokens sent with every assistant request
-// (SIM-394) and the output-side term in the worst-case reservation
-// estimate below; cmd/server wires the same value into llm.Config.MaxTokens
-// so the two never drift apart.
+// AssistantMaxTokens is the max_tokens sent with every assistant request.
 const AssistantMaxTokens = 800
 
-// Caps on how much of the event view and the docs text are embedded in the
-// system prompt (SIM-394 API contract).
+// Caps on how much of the event view and the docs text are embedded in the system prompt (SIM-394 API contract).
 const (
 	assistantEventViewCapBytes = 24 * 1024
 	assistantDocsCapBytes      = 16 * 1024
 )
 
-// AssistantLLM is the subset of *llm.Client's API AssistantService needs;
-// tests substitute a fake.
+// AssistantLLM is the subset of *llm.Client's API AssistantService needs; tests substitute a fake.
 type AssistantLLM interface {
 	Stream(ctx context.Context, messages []llm.Message, onDelta func(string)) (llm.Usage, error)
 }
 
-// ChatMessage is one request message. It mirrors llm.Message's JSON shape
-// exactly, but lives here (not host/llm) so hackhttp -- which may not
-// import host/llm (scripts/layering/rules.txt: only app/hack/events may)
-// -- can decode the request body straight into this type and hand it to
-// Ask without ever naming the llm package.
+// ChatMessage is one request message.
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// DocsTextFunc returns the pre-built, already-capped DOCS block (each page
-// as "## [<title>](<url>)" plus its extracted text). host/app/hack/events
-// cannot import host/webassets (scripts/layering/rules.txt), so the
-// actual HTML extraction lives in host/hackhttp (or cmd/server) and is
-// injected here; that caller is responsible for computing it once
-// (sync.Once) rather than re-parsing the embedded docs on every question.
+// DocsTextFunc returns the pre-built, already-capped DOCS block (each page as "## [<title>](<url>)" plus its extracted text).
 type DocsTextFunc func() string
 
-// AssistantConfig is the SIM-394 assistant's settings (host/config
-// ASSISTANT_* env vars), threaded through from cmd/server.
+// AssistantConfig is the SIM-394 assistant's settings (host/config ASSISTANT_* env vars), threaded through from cmd/server.
 type AssistantConfig struct {
 	BaseURL               string
 	Model                 string
@@ -69,10 +54,7 @@ type AssistantConfig struct {
 	PriceOutputPerMTokUSD float64
 }
 
-// AssistantService answers an organiser's questions about one event, built
-// only from the shared navigation map, that event's own view and the Hack
-// docs text -- never anything hand-written about the product. Off (every
-// call behaves as disabled) unless BaseURL and Model are both set.
+// AssistantService answers an organiser's questions about one event, built only from the shared navigation map, that event's own view and the Hack docs text.
 type AssistantService struct {
 	db       *sql.DB
 	llm      AssistantLLM
@@ -81,8 +63,7 @@ type AssistantService struct {
 	enabled  bool
 }
 
-// NewAssistant builds the service. llmClient and docsText may be nil when
-// cfg leaves the assistant off (enabled() guards every use of them).
+// NewAssistant builds the service.
 func NewAssistant(database *sql.DB, llmClient AssistantLLM, cfg AssistantConfig, docsText DocsTextFunc) *AssistantService {
 	return &AssistantService{
 		db:       database,
@@ -103,32 +84,22 @@ type AssistantStatus struct {
 	UsedToday      int
 	RemainingToday int
 	BudgetReached  bool
-	// Resets is the first day of next month (UTC, YYYY-MM-DD); only
-	// meaningful when BudgetReached.
+	// Resets is the first day of next month (UTC, YYYY-MM-DD); only meaningful when BudgetReached.
 	Resets string
 }
 
-// AssistantRefusal is every way Ask (or the GET status check) can refuse:
-// a pre-stream condition the transport renders as a plain JSON error, or,
-// when it comes back after Ask has already called onDelta at least once,
-// the final SSE error event. Code is one of assistant_off, bad_request,
-// daily_limit, monthly_budget, provider_error.
+// AssistantRefusal is every way Ask.
 type AssistantRefusal struct {
 	Code    string
 	Message string
-	// RemainingToday is set (always 0) for daily_limit; Resets (YYYY-MM-DD,
-	// UTC) is set for monthly_budget. Zero value otherwise.
+	// RemainingToday is set (always 0) for daily_limit; Resets (YYYY-MM-DD, UTC) is set for monthly_budget.
 	RemainingToday int
 	Resets         string
 }
 
 func (e *AssistantRefusal) Error() string { return e.Message }
 
-// errAssistantEmptyAnswer is logged (never returned to the caller as-is)
-// when the provider's stream succeeded but produced no non-whitespace
-// content -- a distinct failure from a transport/provider error, but one
-// still worth a single log line under the same "hack: assistant provider"
-// prefix.
+// errAssistantEmptyAnswer is logged.
 var errAssistantEmptyAnswer = errors.New("stream succeeded but produced no non-whitespace content")
 
 func assistantDay(t time.Time) time.Time {
@@ -149,9 +120,7 @@ func usdToMicro(usd float64) int64 {
 	return int64(math.Round(usd * 1_000_000))
 }
 
-// Status builds the GET payload for userID (an organiser; the HTTP layer
-// has already checked that). Independent of any one event: the daily
-// count is per organiser and the budget is instance-wide.
+// Status builds the GET payload for userID (an organiser; the HTTP layer has already checked that).
 func (s *AssistantService) Status(ctx context.Context, userID string) (AssistantStatus, error) {
 	if !s.enabled {
 		return AssistantStatus{Enabled: false}, nil
@@ -165,10 +134,7 @@ func (s *AssistantService) Status(ctx context.Context, userID string) (Assistant
 	if err != nil {
 		return AssistantStatus{}, err
 	}
-	remaining := s.cfg.DailyQuestions - used
-	if remaining < 0 {
-		remaining = 0
-	}
+	remaining := max(s.cfg.DailyQuestions-used, 0)
 	budgetReached := usdToMicro(s.cfg.MonthlyBudgetUSD)-spent < s.minReserveMicro()
 	resets := ""
 	if budgetReached {
@@ -189,27 +155,13 @@ type AskResult struct {
 	RemainingToday int
 }
 
-// assistantMaxTurnRunes is the per-message cap, in runes (not bytes: a
-// multi-byte character like an emoji or a CJK character is one character
-// to the person typing it, and must count as one here too).
-// assistantMaxTotalRunes is the whole conversation's cap, counted over
-// every user turn plus every assistant turn after truncation (never the
-// untruncated length), the same way a caller's own running transcript
-// would see it.
+// assistantMaxTurnRunes is the per-message cap, in runes.
 const (
 	assistantMaxTurnRunes  = 2000
 	assistantMaxTotalRunes = 12000
 )
 
-// validateAssistantMessages enforces the contract's request shape: 1..20
-// messages, the last one role "user". Only user turns are rejected for
-// length (1..2000 runes after trimming) -- a caller sends its own earlier
-// assistant replies back for context, and those were never typed by a
-// person, so rather than reject a long one this truncates it server-side
-// to 2000 runes before it ever reaches the prompt. The 12000-rune total is
-// counted over user turns plus truncated assistant turns (so it reflects
-// what the model will actually see). Trims and (for assistant turns)
-// truncates Content in place.
+// validateAssistantMessages enforces the contract's request shape: 1..20 messages, the last one role "user".
 func validateAssistantMessages(messages []ChatMessage) *AssistantRefusal {
 	if len(messages) < 1 || len(messages) > 20 {
 		return &AssistantRefusal{Code: "bad_request", Message: "messages must have 1 to 20 entries"}
@@ -240,8 +192,7 @@ func validateAssistantMessages(messages []ChatMessage) *AssistantRefusal {
 	return nil
 }
 
-// truncateRunes returns s cut to at most max runes (not bytes), leaving it
-// unchanged when it is already within the limit.
+// truncateRunes returns s cut to at most max runes (not bytes), leaving it unchanged when it is already within the limit.
 func truncateRunes(s string, max int) string {
 	if utf8.RuneCountInString(s) <= max {
 		return s
@@ -250,12 +201,7 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max])
 }
 
-// AskContext is everything about the asking organiser's event and screen
-// that the prompt is built from (organiser assistant v2, 2026-11-09).
-// EventView is the already-sanitised, size-capped event-view JSON;
-// Settings is the CURRENT SETTINGS block (plain lines, built by the HTTP
-// layer from an allow-list). Screen and Tab are the browser's hint of where
-// the organiser is asking from; unknown values are ignored.
+// AskContext is everything about the asking organiser's event and screen that the prompt is built from (organiser assistant v2, 2026-11-09).
 type AskContext struct {
 	Slug      string
 	CanJudge  bool
@@ -265,80 +211,62 @@ type AskContext struct {
 	Tab       string
 }
 
-// buildSystemPrompt assembles the whole system prompt: the rules, the
-// current screen, PLACES (every organiser link, plus judge links when
-// canJudge; labels and links only -- what each place does lives in
-// KNOWLEDGE), KNOWLEDGE (every record of the navigation map's explanation
-// layer, navigation-help.json, with its link), CURRENT SETTINGS, EVENT
-// (capped), DOCS (capped) and the current time.
+// buildSystemPrompt assembles the whole system prompt.
 func (s *AssistantService) buildSystemPrompt(in AskContext, now time.Time) string {
 	var b strings.Builder
 	b.WriteString(assistantPromptRules)
 
 	nav := rules.Navigation()
 	if screen := assistantScreenLabel(nav, in.Screen, in.Tab); screen != "" {
-		b.WriteString("\n\nCURRENT SCREEN: ")
-		b.WriteString(screen)
-		b.WriteString("\n")
+		b.WriteString("\n\nCURRENT SCREEN: " + screen + "\n")
 	}
+	b.WriteString("\n\nPLACES:\n" + assistantPlaces(nav, in.Slug, in.CanJudge))
+	b.WriteString("\nKNOWLEDGE:\n" + assistantKnowledge(in.Slug))
 
-	b.WriteString("\n\nPLACES:\n")
-	seen := make(map[string]bool)
-	for _, t := range nav.Targets {
-		if t.Role != "organiser" && !(in.CanJudge && t.Role == "judge") {
-			continue
-		}
-		href := strings.ReplaceAll(t.HrefPattern, "{slug}", url.PathEscape(in.Slug))
-		if href == "" || strings.Contains(href, "{") {
-			continue
-		}
-		// Several navigation targets share the same label+href: list each
-		// distinct link once.
-		key := t.Label + "\x00" + href
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		fmt.Fprintf(&b, "- [%s](%s)\n", t.Label, href)
+	settings := in.Settings
+	if strings.TrimSpace(settings) == "" {
+		settings = "(unavailable)\n"
 	}
-
-	b.WriteString("\nKNOWLEDGE:\n")
-	b.WriteString(assistantKnowledge(in.Slug))
-
-	b.WriteString("\nCURRENT SETTINGS:\n")
-	if strings.TrimSpace(in.Settings) == "" {
-		b.WriteString("(unavailable)\n")
-	} else {
-		b.WriteString(in.Settings)
-	}
-
-	eventJSON := string(in.EventView)
-	if len(eventJSON) > assistantEventViewCapBytes {
-		eventJSON = eventJSON[:assistantEventViewCapBytes] + "...(truncated)"
-	}
-	b.WriteString("\nEVENT:\n")
-	b.WriteString(eventJSON)
+	b.WriteString("\nCURRENT SETTINGS:\n" + settings)
+	b.WriteString("\nEVENT:\n" + capText(string(in.EventView), assistantEventViewCapBytes))
 
 	docs := ""
 	if s.docsText != nil {
 		docs = s.docsText()
 	}
-	if len(docs) > assistantDocsCapBytes {
-		docs = docs[:assistantDocsCapBytes] + "...(truncated)"
-	}
-	b.WriteString("\n\nDOCS:\n")
-	b.WriteString(docs)
-
+	b.WriteString("\n\nDOCS:\n" + capText(docs, assistantDocsCapBytes))
 	fmt.Fprintf(&b, "\n\nNow: %s\n", now.UTC().Format(time.RFC3339))
 	return b.String()
 }
 
-// assistantKnowledge renders every explanation record with its link. The
-// whole layer goes in on every question (about 50 KB, 2026-11-09; the
-// prompt-size guard in hack_assistant_test.go fails if a small event's
-// whole prompt passes 72 KB): no per-question selection, so a question
-// never misses the record it needs. Records stay whole. Rendered once with a sentinel slug, then the real
-// (path-escaped) slug is swapped in per question.
+// assistantPlaces lists every organiser link.
+func assistantPlaces(nav rules.NavigationMap, slug string, canJudge bool) string {
+	var b strings.Builder
+	seen := make(map[string]bool)
+	for _, t := range nav.Targets {
+		if t.Role != "organiser" && !(canJudge && t.Role == "judge") {
+			continue
+		}
+		href := strings.ReplaceAll(t.HrefPattern, "{slug}", url.PathEscape(slug))
+		key := t.Label + "\x00" + href
+		if href == "" || strings.Contains(href, "{") || seen[key] {
+			continue
+		}
+		seen[key] = true
+		fmt.Fprintf(&b, "- [%s](%s)\n", t.Label, href)
+	}
+	return b.String()
+}
+
+// capText cuts s to at most n bytes, marking the cut.
+func capText(s string, n int) string {
+	if len(s) > n {
+		return s[:n] + "...(truncated)"
+	}
+	return s
+}
+
+// assistantKnowledge renders every explanation record with its link.
 func assistantKnowledge(slug string) string {
 	assistantKnowledgeOnce.Do(func() {
 		var b strings.Builder
@@ -362,52 +290,58 @@ var (
 	assistantKnowledgeText string
 )
 
-// assistantScreenLabel names the organiser screen (and tab) the question
-// was asked from, from the navigation map; "" for anything it doesn't know.
+// assistantScreenLabel names the organiser screen (and tab) the question was asked from, from the navigation map; "" for anything it doesn't know.
 func assistantScreenLabel(nav rules.NavigationMap, screen, tab string) string {
-	screen = strings.TrimSpace(screen)
-	if screen == "" {
-		return ""
-	}
-	label := ""
-	for _, t := range nav.Targets {
-		if t.Role == "organiser" && t.Kind == "screen" && t.Screen == screen {
-			label = t.Label
-			break
-		}
-	}
-	if label == "" {
-		for _, sc := range nav.Screens {
-			if sc.Role == "organiser" && sc.ID == screen {
-				label = sc.Section
-				break
-			}
-		}
-	}
-	if label == "" {
-		return ""
-	}
-	tab = strings.TrimSpace(tab)
-	if tab == "" {
+	screen, tab = strings.TrimSpace(screen), strings.TrimSpace(tab)
+	label := organiserScreenLabel(nav, screen)
+	switch {
+	case label == "" || tab == "":
 		return label
-	}
-	if screen == "organiser-settings" {
+	case screen == "organiser-settings":
 		for _, st := range nav.Resolution.SettingsTabs {
 			if st.ID == tab {
 				return label + " > " + st.Label
 			}
 		}
 		return label
-	}
-	for _, r := range tab {
-		if !(r == '-' || r == '_' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
-			return label
-		}
-	}
-	if len(tab) > 40 {
+	case !plainTabID(tab):
 		return label
 	}
 	return label + " (tab " + tab + ")"
+}
+
+// organiserScreenLabel finds an organiser screen's label: its screen target's label first, else its screen section; "" when unknown.
+func organiserScreenLabel(nav rules.NavigationMap, screen string) string {
+	if screen == "" {
+		return ""
+	}
+	for _, t := range nav.Targets {
+		if t.Role == "organiser" && t.Kind == "screen" && t.Screen == screen {
+			if t.Label != "" {
+				return t.Label
+			}
+			break
+		}
+	}
+	for _, sc := range nav.Screens {
+		if sc.Role == "organiser" && sc.ID == screen {
+			return sc.Section
+		}
+	}
+	return ""
+}
+
+// plainTabID reports whether a browser-sent tab id is short lowercase letters, digits, dashes and underscores, safe to echo into the prompt.
+func plainTabID(tab string) bool {
+	if len(tab) > 40 {
+		return false
+	}
+	for _, r := range tab {
+		if !(r == '-' || r == '_' || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')) {
+			return false
+		}
+	}
+	return true
 }
 
 const assistantPromptRules = `You help an organiser run this one event in Simple Hack. Answer questions about what any organiser setting, option or action means and does, where it is, how to do something, and what happens if they do it.
@@ -418,48 +352,30 @@ You cannot change anything in Simple Hack, so never say you changed or will chan
 Links: copy a whole markdown link exactly as it appears in PLACES, KNOWLEDGE or DOCS. The href always starts with /e/ or /v1/skills/; never add a domain, a space or a second slash.
 Do not use headings.`
 
-// estimateTokens is the contract's worst-case reservation heuristic:
-// roughly 3 bytes per token.
+// estimateTokens is the contract's worst-case reservation heuristic: roughly 3 bytes per token.
 func estimateTokens(byteLen int) int {
 	return byteLen / 3
 }
 
-// assistantTypicalPromptBytes is a fixed stand-in for a whole system
-// prompt (rules + PLACES + KNOWLEDGE + CURRENT SETTINGS + EVENT + DOCS)
-// plus a short question, used only by minReserveMicro below -- not the
-// per-request estimate Ask itself reserves against (that one measures the
-// real prompt and messages). Measured 2026-11-09 (organiser assistant v2):
-// about 63 KB for a small event with its settings, event view and docs.
+// assistantTypicalPromptBytes is a fixed stand-in for a whole system prompt.
 const assistantTypicalPromptBytes = 64 * 1024
 
-// minReserveMicro is the smallest reservation a real question could need:
-// a 0-byte user message plus the typical-size prompt above, priced the
-// same way Ask prices every request (input tokens at the estimate
-// heuristic, output tokens at the fixed AssistantMaxTokens ceiling). GET
-// Status uses it so "budget reached" means the same thing there as it
-// does to the next POST: once the remaining budget can no longer cover
-// even a minimal question, no further question will be answered until
-// the budget resets, so GET already reports that. Deliberately simple:
-// the real, per-request reservation (Ask) still measures the actual
-// prompt and messages; this is a gate used for display only.
+// minReserveMicro is the smallest reservation a real question could need.
 func (s *AssistantService) minReserveMicro() int64 {
-	estimatedInputTokens := estimateTokens(assistantTypicalPromptBytes)
-	return int64(math.Round(float64(estimatedInputTokens)*s.cfg.PriceInputPerMTokUSD + float64(AssistantMaxTokens)*s.cfg.PriceOutputPerMTokUSD))
+	return s.costMicro(estimateTokens(assistantTypicalPromptBytes), AssistantMaxTokens)
 }
 
-// Ask validates the request, reserves the worst-case cost against the
-// daily and monthly limits, streams the answer through onDelta, and
-// settles (or, on a provider failure before any delta, refunds) the
-// reservation. in carries the event, the asker's screen and the
-// already-sanitised event view and settings the HTTP layer built.
-//
-// Every returned error is an *AssistantRefusal except a genuine
-// infrastructure failure (a database error), which the transport maps to
-// a 500. onDelta is never called before Ask has committed to answering (a
-// successful reservation), so a caller that has not yet written any
-// response bytes may still turn an *AssistantRefusal into a plain JSON
-// response; once onDelta has been called at least once, any further error
-// is always Code "provider_error" and belongs in a final SSE event instead.
+// costMicro prices a request in micro-dollars from its input and output token counts at the configured per-million-token prices.
+func (s *AssistantService) costMicro(inputTokens, outputTokens int) int64 {
+	return int64(math.Round(float64(inputTokens)*s.cfg.PriceInputPerMTokUSD + float64(outputTokens)*s.cfg.PriceOutputPerMTokUSD))
+}
+
+// providerRefusal is the one refusal for any failed or empty provider answer.
+func providerRefusal() *AssistantRefusal {
+	return &AssistantRefusal{Code: "provider_error", Message: "The assistant couldn't answer. Try again."}
+}
+
+// Ask validates the request, reserves the worst-case cost against the daily and monthly limits, streams the answer through onDelta, and settles.
 func (s *AssistantService) Ask(ctx context.Context, userID string, in AskContext, messages []ChatMessage, onDelta func(string)) (AskResult, error) {
 	if !s.enabled {
 		return AskResult{}, &AssistantRefusal{Code: "assistant_off", Message: "The assistant is not set up on this server."}
@@ -469,41 +385,11 @@ func (s *AssistantService) Ask(ctx context.Context, userID string, in AskContext
 	}
 
 	now := time.Now()
-	day := assistantDay(now)
-	month := assistantMonth(now)
-
-	systemPrompt := s.buildSystemPrompt(in, now)
-	inputBytes := len(systemPrompt)
-	for _, m := range messages {
-		inputBytes += len(m.Content)
-	}
-	estimatedInputTokens := estimateTokens(inputBytes)
-	reserveMicro := int64(math.Round(float64(estimatedInputTokens)*s.cfg.PriceInputPerMTokUSD + float64(AssistantMaxTokens)*s.cfg.PriceOutputPerMTokUSD))
-	budgetMicro := usdToMicro(s.cfg.MonthlyBudgetUSD)
-
-	if err := eventrepo.AssistantReserve(ctx, s.db, userID, day, month, s.cfg.DailyQuestions, budgetMicro, reserveMicro); err != nil {
-		switch {
-		case errors.Is(err, eventrepo.ErrAssistantDailyLimit):
-			return AskResult{}, &AssistantRefusal{
-				Code:           "daily_limit",
-				Message:        fmt.Sprintf("You've asked %d questions today. The limit resets at midnight UTC.", s.cfg.DailyQuestions),
-				RemainingToday: 0,
-			}
-		case errors.Is(err, eventrepo.ErrAssistantMonthlyBudget):
-			return AskResult{}, &AssistantRefusal{
-				Code:    "monthly_budget",
-				Message: "The assistant has used this month's budget. It's back on " + assistantNextMonth(now).Format("2 January") + ".",
-				Resets:  assistantNextMonth(now).Format("2006-01-02"),
-			}
-		default:
-			return AskResult{}, err
-		}
-	}
-
-	full := make([]llm.Message, 0, len(messages)+1)
-	full = append(full, llm.Message{Role: "system", Content: systemPrompt})
-	for _, m := range messages {
-		full = append(full, llm.Message{Role: m.Role, Content: m.Content})
+	day, month := assistantDay(now), assistantMonth(now)
+	full, inputBytes := assistantConversation(s.buildSystemPrompt(in, now), messages)
+	reserveMicro := s.costMicro(estimateTokens(inputBytes), AssistantMaxTokens)
+	if err := eventrepo.AssistantReserve(ctx, s.db, userID, day, month, s.cfg.DailyQuestions, usdToMicro(s.cfg.MonthlyBudgetUSD), reserveMicro); err != nil {
+		return AskResult{}, s.reserveRefusal(err, now)
 	}
 
 	var answer strings.Builder
@@ -516,14 +402,8 @@ func (s *AssistantService) Ask(ctx context.Context, userID string, in AskContext
 	defer cancel()
 
 	if streamErr != nil {
-		// A client cancel (the request context is done -- the browser
-		// disconnected or the question was aborted) is not refunded: the
-		// provider call carried the same ctx, so it may already have been
-		// billed upstream even though nothing came back. Only a genuine
-		// upstream failure before any text was sent gets its reservation
-		// back.
-		clientGone := ctx.Err() != nil
-		if !clientGone {
+		// A client cancel (the request context is done.
+		if ctx.Err() == nil {
 			log.Printf("hack: assistant provider: %v", streamErr)
 			if answer.Len() == 0 {
 				if err := eventrepo.AssistantRefund(cleanupCtx, s.db, userID, day, month, reserveMicro); err != nil {
@@ -531,41 +411,60 @@ func (s *AssistantService) Ask(ctx context.Context, userID string, in AskContext
 				}
 			}
 		}
-		return AskResult{}, &AssistantRefusal{Code: "provider_error", Message: "The assistant couldn't answer. Try again."}
+		return AskResult{}, providerRefusal()
 	}
 
-	// If the provider gave no usage, keep the reservation as the cost
-	// (delta 0 -- AssistantSettle is then a no-op). Settling to the
-	// actual cost, uncapped, means one request's real cost can exceed its
-	// worst-case reservation (the model ran longer than the MaxTokens
-	// estimate priced for) and so push this month's ledger that one
-	// request's excess past the budget; documented, not fixed, since only
-	// one request can ever be in flight past the cap this way
-	// (FEATURES.md "Organiser assistant").
-	if usage.PromptTokens > 0 || usage.CompletionTokens > 0 {
-		actualMicro := int64(math.Round(float64(usage.PromptTokens)*s.cfg.PriceInputPerMTokUSD + float64(usage.CompletionTokens)*s.cfg.PriceOutputPerMTokUSD))
-		if err := eventrepo.AssistantSettle(cleanupCtx, s.db, month, actualMicro-reserveMicro); err != nil {
-			log.Printf("hack: assistant settle: %v", err)
-		}
-	}
+	s.settle(cleanupCtx, month, usage, reserveMicro)
 
-	// The provider can "succeed" (a clean [DONE]/finish_reason) with only
-	// whitespace, e.g. a reasoning model that spent every token thinking.
-	// The call was billed, so the question and its cost stay counted (a
-	// refund here would let anyone ask for an empty reply for free); the
-	// organiser sees provider_error and can retry.
+	// The provider can "succeed" (a clean [DONE]/finish_reason) with only whitespace, e.g. a reasoning model that spent every token thinking.
 	if strings.TrimSpace(answer.String()) == "" {
 		log.Printf("hack: assistant provider: %v", errAssistantEmptyAnswer)
-		return AskResult{}, &AssistantRefusal{Code: "provider_error", Message: "The assistant couldn't answer. Try again."}
+		return AskResult{}, providerRefusal()
 	}
 
 	usedToday, err := eventrepo.AssistantUsedToday(cleanupCtx, s.db, userID, day)
 	if err != nil {
 		log.Printf("hack: assistant used-today: %v", err)
 	}
-	remaining := s.cfg.DailyQuestions - usedToday
-	if remaining < 0 {
-		remaining = 0
+	return AskResult{RemainingToday: max(s.cfg.DailyQuestions-usedToday, 0)}, nil
+}
+
+// assistantConversation prefixes the system prompt to the organiser's turns and returns the provider messages with their total content bytes.
+func assistantConversation(systemPrompt string, messages []ChatMessage) ([]llm.Message, int) {
+	full := []llm.Message{{Role: "system", Content: systemPrompt}}
+	inputBytes := len(systemPrompt)
+	for _, m := range messages {
+		full = append(full, llm.Message{Role: m.Role, Content: m.Content})
+		inputBytes += len(m.Content)
 	}
-	return AskResult{RemainingToday: remaining}, nil
+	return full, inputBytes
+}
+
+// reserveRefusal turns a failed reservation into the organiser-facing refusal for the daily or monthly limit, passing any other error through.
+func (s *AssistantService) reserveRefusal(err error, now time.Time) error {
+	switch {
+	case errors.Is(err, eventrepo.ErrAssistantDailyLimit):
+		return &AssistantRefusal{
+			Code:    "daily_limit",
+			Message: fmt.Sprintf("You've asked %d questions today. The limit resets at midnight UTC.", s.cfg.DailyQuestions),
+		}
+	case errors.Is(err, eventrepo.ErrAssistantMonthlyBudget):
+		next := assistantNextMonth(now)
+		return &AssistantRefusal{
+			Code:    "monthly_budget",
+			Message: "The assistant has used this month's budget. It's back on " + next.Format("2 January") + ".",
+			Resets:  next.Format("2006-01-02"),
+		}
+	}
+	return err
+}
+
+// settle moves this month's ledger from the reservation to the provider's reported cost.
+func (s *AssistantService) settle(ctx context.Context, month time.Time, usage llm.Usage, reserveMicro int64) {
+	if usage.PromptTokens <= 0 && usage.CompletionTokens <= 0 {
+		return
+	}
+	if err := eventrepo.AssistantSettle(ctx, s.db, month, s.costMicro(usage.PromptTokens, usage.CompletionTokens)-reserveMicro); err != nil {
+		log.Printf("hack: assistant settle: %v", err)
+	}
 }

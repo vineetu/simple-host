@@ -1,10 +1,11 @@
 package hackhttp
 
 import (
-	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"net/http"
 	"strings"
 	"testing"
+
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 )
 
 func TestHackEventCreationLimits(t *testing.T) {

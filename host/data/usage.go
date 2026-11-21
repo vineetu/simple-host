@@ -72,70 +72,84 @@ func (s *Service) MeasureSiteStorage(ctx context.Context, siteID, root string) (
 // whenever the site has KV namespaces.
 func (s *Service) measureSiteStorageAdmitted(ctx context.Context, siteID, root string) (Usage, error) {
 	u := Usage{FileObjects: map[string]int{}}
-	names, err := storage.KVNamespaces(ctx, s.db, siteID)
-	if err != nil {
+	var err error
+	if u.KV, err = s.measureKVBytes(ctx, siteID, root); err != nil {
 		return u, err
 	}
-	for _, name := range names {
-		var meta runtime.KVMeta
-		err = func() error {
-			conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(root, name), false, false)
-			if err != nil {
-				return err
-			}
-			defer closeSQLite(done)
-			meta, err = runtime.RuntimeKVMeta(conn)
+	err = filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		hidden := err == nil && strings.HasPrefix(d.Name(), ".")
+		switch {
+		case ctx.Err() != nil:
+			return ctx.Err()
+		case os.IsNotExist(err):
+			return nil
+		case err != nil:
 			return err
-		}()
+		case hidden && d.IsDir():
+			return filepath.SkipDir
+		case hidden || !d.Type().IsRegular():
+			return nil
+		}
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return err
+		}
+		fi, err := d.Info()
+		if err != nil {
+			return err
+		}
+		u.countFile(rel, fi.Size())
+		return nil
+	})
+	return u, err
+}
+
+// measureKVBytes sums the logical bytes of the site's KV namespaces; a
+// missing namespace file counts as zero.
+func (s *Service) measureKVBytes(ctx context.Context, siteID, root string) (int64, error) {
+	names, err := storage.KVNamespaces(ctx, s.db, siteID)
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, name := range names {
+		n, err := kvNamespaceBytes(ctx, runtime.RuntimeKVPath(root, name))
 		if os.IsNotExist(err) {
 			log.Printf("storage: missing KV file for site %s namespace %s; usage counted as zero", siteID, name)
 			continue
 		}
 		if err != nil {
-			return u, kvFileError(err)
+			return total, kvFileError(err)
 		}
-		u.KV += meta.LogicalBytes
+		total += n
 	}
-	err = filepath.WalkDir(root, func(p string, d os.DirEntry, e error) error {
-		if ctx.Err() != nil {
-			return ctx.Err()
+	return total, nil
+}
+
+// kvNamespaceBytes reads one namespace file's logical bytes.
+func kvNamespaceBytes(ctx context.Context, path string) (int64, error) {
+	conn, done, err := runtime.OpenRuntimeKV(ctx, path, false, false)
+	if err != nil {
+		return 0, err
+	}
+	defer closeSQLite(done)
+	meta, err := runtime.RuntimeKVMeta(conn)
+	return meta.LogicalBytes, err
+}
+
+// countFile charges a stored file at rel, relative to the site's runtime
+// root: SQLite main files, and file-bucket objects per bucket.
+func (u *Usage) countFile(rel string, size int64) {
+	parts := strings.Split(rel, string(filepath.Separator))
+	switch {
+	case len(parts) > 1 && parts[0] == "sqlite" && strings.HasSuffix(rel, ".sqlite"):
+		u.SQLite += size
+	case len(parts) > 1 && parts[0] == "files":
+		u.Files += size
+		if len(parts) > 2 {
+			u.FileObjects[parts[1]]++
 		}
-		if os.IsNotExist(e) {
-			return nil
-		}
-		if e != nil {
-			return e
-		}
-		if d.IsDir() {
-			if strings.HasPrefix(d.Name(), ".") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if strings.HasPrefix(d.Name(), ".") || !d.Type().IsRegular() {
-			return nil
-		}
-		rel, e := filepath.Rel(root, p)
-		if e != nil {
-			return e
-		}
-		fi, e := d.Info()
-		if e != nil {
-			return e
-		}
-		if strings.HasPrefix(rel, "sqlite"+string(filepath.Separator)) && strings.HasSuffix(rel, ".sqlite") {
-			u.SQLite += fi.Size()
-		}
-		if strings.HasPrefix(rel, "files"+string(filepath.Separator)) {
-			u.Files += fi.Size()
-			parts := strings.Split(rel, string(filepath.Separator))
-			if len(parts) > 2 {
-				u.FileObjects[parts[1]]++
-			}
-		}
-		return nil
-	})
-	return u, err
+	}
 }
 
 // BudgetUsed returns the bytes charged to the site pool.

@@ -8,8 +8,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 
-// Register adds every /v1/hack/... and /v1/admin/hack/... route in the spec.
-// authMW is auth.Middleware (X-API-Key).
+// Register adds every /v1/hack/...
 func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) http.Handler) {
 	wrap := func(fn http.HandlerFunc) http.Handler {
 		return authMW(http.HandlerFunc(fn))

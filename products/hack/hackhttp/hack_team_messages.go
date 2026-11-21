@@ -1,15 +1,13 @@
 package hackhttp
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
@@ -34,31 +32,9 @@ func postedTeamMessageJSON(m events.TeamMessageSent) map[string]any {
 	return out
 }
 
-// checkTeamIDs validates body.team_ids: 1..25 distinct ids. Which ids
-// actually belong to this event is checked by the service (invalid_team).
-func checkTeamIDs(w http.ResponseWriter, raw []string) ([]string, bool) {
-	if len(raw) < 1 || len(raw) > 25 {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_team", "send 1 to 25 team ids")
-		return nil, false
-	}
-	seen := map[string]bool{}
-	for _, id := range raw {
-		if !sites.UUIDShape.MatchString(id) || seen[id] {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_team", "team_ids must be distinct ids of this event's teams")
-			return nil, false
-		}
-		seen[id] = true
-	}
-	return raw, true
-}
-
 func (h *participationHTTP) postTeamMessages(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
-		return
-	}
-	if a.event.Stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return
 	}
 	var req struct {
@@ -68,23 +44,14 @@ func (h *participationHTTP) postTeamMessages(w http.ResponseWriter, r *http.Requ
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	teamIDs, ok := checkTeamIDs(w, req.TeamIDs)
-	if !ok {
-		return
-	}
-	text, ok := checkHackText(w, req.Text, "text", 1, 1000)
-	if !ok {
-		return
-	}
-	sent, err := h.events.SendTeamMessage(r.Context(), a.event, teamIDs, text, a.user.ID, a.member.DisplayName)
+	text, err := teams.OrganiserMessage(a.event.Stage, req.TeamIDs, req.Text)
 	if err != nil {
-		var rl *events.RateLimitError
-		if errors.As(err, &rl) {
-			w.Header().Set("Retry-After", strconv.Itoa(rl.RetryAfter))
-			httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "too many team messages for this event; try again later")
-			return
-		}
 		writeHackError(w, err)
+		return
+	}
+	sent, err := h.events.SendTeamMessage(r.Context(), a.event, req.TeamIDs, text, a.user.ID, a.member.DisplayName)
+	if err != nil {
+		writeMessageRefusal(w, err, "too many team messages for this event; try again later")
 		return
 	}
 	messages := make([]map[string]any, 0, len(sent))
@@ -94,20 +61,28 @@ func (h *participationHTTP) postTeamMessages(w http.ResponseWriter, r *http.Requ
 	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"messages": messages})
 }
 
+// writeMessageRefusal answers a refused message: a rate limit is 429 with
+// Retry-After and the route's wording.
+func writeMessageRefusal(w http.ResponseWriter, err error, limited string) {
+	var rl *events.RateLimitError
+	if !errors.As(err, &rl) {
+		writeHackError(w, err)
+		return
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(rl.RetryAfter))
+	httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", limited)
+}
+
 // getOrganiserTeamMessages is GET .../teams/{team}/messages: the organiser's
 // read of one team's message history.
 func (h *participationHTTP) getOrganiserTeamMessages(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	team, err := h.teams.TeamBySlugLookup(r.Context(), a.event.ID, strings.ToLower(strings.TrimSpace(r.PathValue("team"))))
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
+	team, err := h.teams.FindTeam(r.Context(), a.event.ID, r.PathValue("team"))
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	list, err := h.events.ListTeamMessages(r.Context(), team.ID)
@@ -129,12 +104,8 @@ func (h *participationHTTP) getOrganiserTeamMessages(w http.ResponseWriter, r *h
 // to the event's organisers. Only the caller's own current team's thread is
 // ever written; there is no team id in the request.
 func (h *participationHTTP) postMyTeamMessage(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant")
 	if !ok {
-		return
-	}
-	if a.event.Stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return
 	}
 	var req struct {
@@ -143,19 +114,14 @@ func (h *participationHTTP) postMyTeamMessage(w http.ResponseWriter, r *http.Req
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	text, ok := checkHackText(w, req.Text, "text", 1, 1000)
-	if !ok {
+	text, err := teams.TeamMessage(a.event.Stage, req.Text)
+	if err != nil {
+		writeHackError(w, err)
 		return
 	}
 	sent, err := h.events.SendToOrganisers(r.Context(), a.event, a.user.ID, a.member.DisplayName, text)
 	if err != nil {
-		var rl *events.RateLimitError
-		if errors.As(err, &rl) {
-			w.Header().Set("Retry-After", strconv.Itoa(rl.RetryAfter))
-			httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", "your team sent too many messages to the organisers; try again later")
-			return
-		}
-		writeHackError(w, err)
+		writeMessageRefusal(w, err, "your team sent too many messages to the organisers; try again later")
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"message": postedTeamMessageJSON(sent)})
@@ -164,7 +130,7 @@ func (h *participationHTTP) postMyTeamMessage(w http.ResponseWriter, r *http.Req
 // getMyTeamMessages is GET .../team/messages: a participant's own team's
 // message history, empty when they are on no team.
 func (h *participationHTTP) getMyTeamMessages(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
 	}

@@ -24,7 +24,10 @@ func GetNotification(ctx context.Context, q sqlkit.Querier, id string) (model.No
 	return scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.id=$1`, id))
 }
 func ListNotifications(ctx context.Context, database *sql.DB, owner, site string) ([]model.Notification, error) {
-	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
+	return queryNotifications(ctx, database, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
+}
+func queryNotifications(ctx context.Context, database *sql.DB, query string, args ...any) ([]model.Notification, error) {
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -40,12 +43,32 @@ func ListNotifications(ctx context.Context, database *sql.DB, owner, site string
 	return out, rows.Err()
 }
 
+// lockSite serializes subscription creation, event sequencing and replay on
+// one site.
+func lockSite(ctx context.Context, tx *sql.Tx, site string) error {
+	var locked string
+	return tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, site).Scan(&locked)
+}
+
+// wakeDeliveries makes a resumed subscription's waiting deliveries due now.
+func wakeDeliveries(ctx context.Context, tx *sql.Tx, id string) error {
+	_, err := tx.ExecContext(ctx, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1 AND state='pending' AND (lease_until IS NULL OR lease_until<=now())`, id)
+	return err
+}
+
 // sealLegacy preserves ciphertext and empty values, including during rotation.
 func sealLegacy(id, value string, seal func(string, string) (string, error)) (string, error) {
 	if value == "" || strings.HasPrefix(value, "enc1:") {
 		return value, nil
 	}
 	return seal(id, value)
+}
+
+// storedNotification is the row SaveNotification replaces, read under its lock.
+type storedNotification struct {
+	site, state, secret, prev, auth string
+	exists                          bool
+	count                           int
 }
 
 // SaveNotification accepts plaintext secrets and stores only sealed values.
@@ -56,123 +79,149 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 		return false, false, err
 	}
 	defer tx.Rollback()
-	var site string
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, n.SiteID).Scan(&site); err != nil {
+	old, err := lockStoredNotification(ctx, tx, n)
+	if err != nil {
 		return false, false, err
 	}
-	var oldSite, oldState, oldSecret, oldPrev, oldAuth string
-	err = tx.QueryRowContext(ctx, `SELECT site_id,state,secret,prev_secret,auth_header_value FROM site_notifications WHERE id=$1 FOR UPDATE`, n.ID).Scan(&oldSite, &oldState, &oldSecret, &oldPrev, &oldAuth)
+	if err = checkSave(ctx, tx, n, old, max, access); err != nil {
+		return false, false, err
+	}
+	n = withDefaultKindRole(n)
+	prev, changed, err := sealForSave(&n, old, secrets)
+	if err != nil {
+		return false, false, err
+	}
+	if err = upsertNotification(ctx, tx, n, changed, prev); err != nil {
+		return false, false, err
+	}
+	if old.state == "paused" || old.state == "suspended" {
+		if err = wakeDeliveries(ctx, tx, n.ID); err != nil {
+			return false, false, err
+		}
+	}
+	truncated := false
+	if cursor != nil {
+		if truncated, err = replayFrom(ctx, tx, n, *cursor, historyDays); err != nil {
+			return false, false, err
+		}
+	}
+	return old.exists, truncated, tx.Commit()
+}
+
+// lockStoredNotification locks n's site and n's existing row, and counts the
+// site's subscriptions.
+func lockStoredNotification(ctx context.Context, tx *sql.Tx, n model.Notification) (storedNotification, error) {
+	var old storedNotification
+	if err := lockSite(ctx, tx, n.SiteID); err != nil {
+		return old, err
+	}
+	err := tx.QueryRowContext(ctx, `SELECT site_id,state,secret,prev_secret,auth_header_value FROM site_notifications WHERE id=$1 FOR UPDATE`, n.ID).Scan(&old.site, &old.state, &old.secret, &old.prev, &old.auth)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return false, false, err
+		return old, err
 	}
-	if oldSite != "" && oldSite != n.SiteID {
-		return false, false, model.ErrNotificationSite
+	if old.site != "" && old.site != n.SiteID {
+		return old, model.ErrNotificationSite
 	}
-	var exists bool
-	var count int
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE id=$1), (SELECT count(*) FROM site_notifications WHERE site_id=$2)`, n.ID, n.SiteID).Scan(&exists, &count); err != nil {
-		return false, false, err
-	}
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications WHERE id=$1), (SELECT count(*) FROM site_notifications WHERE site_id=$2)`, n.ID, n.SiteID).Scan(&old.exists, &old.count)
+	return old, err
+}
+
+// checkSave refuses a product save by someone who may no longer act for the
+// site, and a new subscription over the site's cap.
+func checkSave(ctx context.Context, tx *sql.Tx, n model.Notification, old storedNotification, max int, access AccessChecks) error {
 	if n.Product {
 		ok, err := access.ActsOnSite(ctx, tx, n.SiteID, n.OwnerID)
 		if err != nil {
-			return false, false, err
+			return err
 		}
 		if !ok {
-			return false, false, model.ErrNotificationAccess
+			return model.ErrNotificationAccess
 		}
 	}
-	if !exists && count >= max {
-		return false, false, model.ErrNotificationCap
+	if !old.exists && old.count >= max {
+		return model.ErrNotificationCap
 	}
-	// Compare plaintext under the row lock: random nonces cannot indicate a change.
-	changed := false
-	if exists {
-		// A secret this key cannot open (the key changed) is replaced, and no
-		// unreadable previous secret is kept.
-		plain, err := secrets.Open(n.ID, oldSecret)
-		changed = err != nil || plain != n.Secret
+	return nil
+}
+
+// withDefaultKindRole fills kind and subscriber role for callers that predate
+// them (SIM-360): MCP Events creates mcp-event rows, every other source
+// webhook rows, and the subscriber is the owner.
+func withDefaultKindRole(n model.Notification) model.Notification {
+	if n.Kind == "" {
+		n.Kind = "webhook"
+		if n.Source == "mcp" {
+			n.Kind = "mcp-event"
+		}
+	}
+	if n.SubscriberRole == "" {
+		n.SubscriberRole = "owner"
+	}
+	return n
+}
+
+// sealForSave seals n's secret and auth header in place and returns the
+// sealed previous secret to keep and whether the signing secret changed.
+// An existing row keeps its stored header. Plaintext is compared under the
+// row lock, since random nonces cannot indicate a change; a stored secret
+// this key cannot open (the key changed) is replaced, and no unreadable
+// previous secret is kept.
+func sealForSave(n *model.Notification, old storedNotification, secrets model.NotificationSecrets) (prev string, changed bool, err error) {
+	prev = old.prev
+	if old.exists {
+		plain, openErr := secrets.Open(n.ID, old.secret)
+		changed = openErr != nil || plain != n.Secret
 		switch {
-		case err != nil:
-			oldPrev = ""
+		case openErr != nil:
+			prev = ""
 		case changed:
-			oldPrev = oldSecret
+			prev = old.secret
 		}
-		n.AuthHeaderValue, err = sealLegacy(n.ID+":header", oldAuth, secrets.Seal)
-		if err != nil {
-			return false, false, err
-		}
+		n.AuthHeaderValue, err = sealLegacy(n.ID+":header", old.auth, secrets.Seal)
 	} else {
 		n.AuthHeaderValue, err = secrets.Seal(n.ID+":header", n.AuthHeaderValue)
-		if err != nil {
-			return false, false, err
-		}
 	}
-	n.Secret, err = secrets.Seal(n.ID, n.Secret)
 	if err != nil {
-		return false, false, err
+		return "", false, err
 	}
-	oldPrev, err = sealLegacy(n.ID, oldPrev, secrets.Seal)
-	if err != nil {
-		return false, false, err
+	if n.Secret, err = secrets.Seal(n.ID, n.Secret); err != nil {
+		return "", false, err
 	}
-	kind := n.Kind
-	if kind == "" {
-		// A caller that has not been taught about kind (every pre-SIM-360
-		// creation path) still gets the right one by its existing Source:
-		// MCP Events creates mcp-event rows, everything else (the owner's
-		// dashboard/REST create) creates webhook rows, same as before kind
-		// existed at all.
-		kind = "webhook"
-		if n.Source == "mcp" {
-			kind = "mcp-event"
-		}
-	}
-	role := n.SubscriberRole
-	if role == "" {
-		role = "owner"
-	}
+	prev, err = sealLegacy(n.ID, prev, secrets.Seal)
+	return prev, changed, err
+}
+
+// upsertNotification writes n, reactivating an existing row on the same site.
+// An id taken on another site is model.ErrNotificationSite.
+func upsertNotification(ctx context.Context, tx *sql.Tx, n model.Notification, changed bool, prev string) error {
 	saved, err := tx.ExecContext(ctx, `INSERT INTO site_notifications(id,site_id,owner_id,source,grant_id,app_name,label,url,events,storage,args_canonical,secret,auth_header_name,auth_header_value,verified_at,expires_at,kind,subscriber_role,push_p256dh,push_auth,device_label)
  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$19,$20,$21,$22,$23)
  ON CONFLICT(id) DO UPDATE SET prev_secret=$18,
  prev_secret_until=CASE WHEN $17 THEN now()+interval '24 hours' ELSE site_notifications.prev_secret_until END,
  secret=EXCLUDED.secret,auth_header_value=EXCLUDED.auth_header_value,expires_at=EXCLUDED.expires_at,verified_at=EXCLUDED.verified_at,grant_id=EXCLUDED.grant_id,app_name=EXCLUDED.app_name,
  events=EXCLUDED.events,label=EXCLUDED.label,push_p256dh=EXCLUDED.push_p256dh,push_auth=EXCLUDED.push_auth,device_label=EXCLUDED.device_label,
- state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE site_notifications.site_id=EXCLUDED.site_id`, n.ID, n.SiteID, n.OwnerID, n.Source, n.GrantID, n.AppName, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.ArgsCanonical, n.Secret, n.AuthHeaderName, n.AuthHeaderValue, n.VerifiedAt, n.ExpiresAt, changed, oldPrev, kind, role, n.PushP256dh, n.PushAuth, n.DeviceLabel)
+ state='active',suspended_at=NULL,suspend_emailed_at=NULL,failing_since=NULL,window_start=NULL,window_attempts=0,window_failures=0,updated_at=now() WHERE site_notifications.site_id=EXCLUDED.site_id`, n.ID, n.SiteID, n.OwnerID, n.Source, n.GrantID, n.AppName, n.Label, n.URL, pq.Array(n.Events), n.Storage, n.ArgsCanonical, n.Secret, n.AuthHeaderName, n.AuthHeaderValue, n.VerifiedAt, n.ExpiresAt, changed, prev, n.Kind, n.SubscriberRole, n.PushP256dh, n.PushAuth, n.DeviceLabel)
 	if err != nil {
-		return false, false, err
+		return err
 	}
-	if rows, err := saved.RowsAffected(); err != nil {
-		return false, false, err
-	} else if rows == 0 {
-		return false, false, model.ErrNotificationSite
+	rows, err := saved.RowsAffected()
+	if err == nil && rows == 0 {
+		err = model.ErrNotificationSite
 	}
-	if oldState == "paused" || oldState == "suspended" {
-		_, err = tx.ExecContext(ctx, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1 AND state='pending' AND (lease_until IS NULL OR lease_until<=now())`, n.ID)
-		if err != nil {
-			return false, false, err
-		}
+	return err
+}
+
+// replayFrom queues every stored event after cursor that n matches, and
+// reports whether history no longer reaches back to cursor. Replay applies
+// the same actor rule as the live fan-out (fanOutSiteEvent), keyed by n's own
+// kind, role and owner, so reconnecting with an old cursor never delivers an
+// event the subscriber would not have received live (FIX 1, Codex round 2).
+func replayFrom(ctx context.Context, tx *sql.Tx, n model.Notification, cursor int64, historyDays int) (bool, error) {
+	var oldest sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `SELECT min(seq) FROM site_events WHERE site_id=$1 AND created_at>=now()-$2*interval '1 day'`, n.SiteID, historyDays).Scan(&oldest); err != nil {
+		return false, err
 	}
-	truncated := false
-	if cursor != nil {
-		var oldest sql.NullInt64
-		if err = tx.QueryRowContext(ctx, `SELECT min(seq) FROM site_events WHERE site_id=$1 AND created_at>=now()-$2*interval '1 day'`, n.SiteID, historyDays).Scan(&oldest); err != nil {
-			return false, false, err
-		}
-		truncated = oldest.Valid && *cursor < oldest.Int64
-		// FIX 1, Codex round 2: a cursor-based replay (an MCP subscriber
-		// reconnecting with an earlier cursor) used to backfill every
-		// matching stored event with no actor check at all, bypassing
-		// the exact exclusion the live fan-out (emitSiteEvent, above)
-		// enforces for an owner-authored write -- a subscriber who was
-		// never meant to see it live could still receive it, fields
-		// included, simply by reconnecting with a cursor. The CASE here
-		// is the same one, keyed by this subscription's own kind/role/
-		// owner id (kind, role, n.OwnerID -- all already resolved above)
-		// instead of a joined table's columns, since this query already
-		// targets one specific subscription rather than fanning out to
-		// every matching row.
-		_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT seq,$1 FROM site_events
+	_, err := tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT seq,$1 FROM site_events
  WHERE site_id=$2 AND seq>$3 AND name=ANY($4) AND ($5='' OR storage=$5) AND created_at>=now()-$6*interval '1 day'
  AND CASE
    WHEN $7<>'web-push' THEN push_actor<>'owner'
@@ -181,12 +230,8 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
      WHEN 'visitor' THEN push_target<>'' AND push_target=$9 AND push_target<>push_actor
      ELSE false END
    END
- ON CONFLICT DO NOTHING`, n.ID, n.SiteID, *cursor, pq.Array(n.Events), n.Storage, historyDays, kind, role, n.OwnerID)
-		if err != nil {
-			return false, false, err
-		}
-	}
-	return exists, truncated, tx.Commit()
+ ON CONFLICT DO NOTHING`, n.ID, n.SiteID, cursor, pq.Array(n.Events), n.Storage, historyDays, n.Kind, n.SubscriberRole, n.OwnerID)
+	return oldest.Valid && cursor < oldest.Int64, err
 }
 
 func DeleteNotification(ctx context.Context, q sqlkit.Querier, id string) (bool, error) {
@@ -216,8 +261,7 @@ func PauseNotification(ctx context.Context, database *sql.DB, id string, paused 
 		return err
 	}
 	if !paused && (oldState == "paused" || oldState == "suspended") {
-		_, err = tx.ExecContext(ctx, `UPDATE site_event_deliveries SET next_attempt_at=now() WHERE subscription_id=$1 AND state='pending' AND (lease_until IS NULL OR lease_until<=now())`, id)
-		if err != nil {
+		if err = wakeDeliveries(ctx, tx, id); err != nil {
 			return err
 		}
 	}
@@ -260,61 +304,18 @@ func RotateNotification(ctx context.Context, database *sql.DB, id, secret string
 	return until, tx.Commit()
 }
 
+const legacySecrets = `(secret<>'' AND secret NOT LIKE 'enc1:%') OR (prev_secret<>'' AND prev_secret NOT LIKE 'enc1:%') OR (auth_header_value<>'' AND auth_header_value NOT LIKE 'enc1:%')`
+
 // SealNotificationSecrets is a data-only sweep, safe to rerun alongside writers.
 // The count is rows updated. Locked rows are skipped until the next start.
 func SealNotificationSecrets(ctx context.Context, database *sql.DB, seal func(string, string) (string, error)) (int64, error) {
-	const legacy = `(secret<>'' AND secret NOT LIKE 'enc1:%') OR (prev_secret<>'' AND prev_secret NOT LIKE 'enc1:%') OR (auth_header_value<>'' AND auth_header_value NOT LIKE 'enc1:%')`
-	rows, err := database.QueryContext(ctx, `SELECT id FROM site_notifications WHERE `+legacy)
-	if err != nil {
-		return 0, err
-	}
-	var pending []string
-	for rows.Next() {
-		var id string
-		if err = rows.Scan(&id); err != nil {
-			rows.Close()
-			return 0, err
-		}
-		pending = append(pending, id)
-	}
-	err = rows.Err()
-	rows.Close()
+	pending, err := legacySecretIDs(ctx, database)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
 	for _, id := range pending {
-		updated, err := func() (bool, error) {
-			tx, err := database.BeginTx(ctx, nil)
-			if err != nil {
-				return false, err
-			}
-			defer tx.Rollback()
-			var secret, prev, header string
-			err = tx.QueryRowContext(ctx, `SELECT secret,prev_secret,auth_header_value FROM site_notifications WHERE id=$1 AND (`+legacy+`) FOR UPDATE SKIP LOCKED`, id).Scan(&secret, &prev, &header)
-			if errors.Is(err, sql.ErrNoRows) {
-				return false, nil
-			}
-			if err != nil {
-				return false, err
-			}
-			secret, err = sealLegacy(id, secret, seal)
-			if err != nil {
-				return false, err
-			}
-			prev, err = sealLegacy(id, prev, seal)
-			if err != nil {
-				return false, err
-			}
-			header, err = sealLegacy(id+":header", header, seal)
-			if err != nil {
-				return false, err
-			}
-			if _, err = tx.ExecContext(ctx, `UPDATE site_notifications SET secret=$2,prev_secret=$3,auth_header_value=$4 WHERE id=$1`, id, secret, prev, header); err != nil {
-				return false, err
-			}
-			return true, tx.Commit()
-		}()
+		updated, err := sealLegacyRow(ctx, database, id, seal)
 		if err != nil {
 			return count, err
 		}
@@ -323,6 +324,55 @@ func SealNotificationSecrets(ctx context.Context, database *sql.DB, seal func(st
 		}
 	}
 	return count, nil
+}
+
+// legacySecretIDs lists subscriptions still holding an unsealed value.
+func legacySecretIDs(ctx context.Context, database *sql.DB) ([]string, error) {
+	rows, err := database.QueryContext(ctx, `SELECT id FROM site_notifications WHERE `+legacySecrets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// sealLegacyRow seals one subscription's unsealed values in its own
+// transaction. It reports false when the row is locked or already sealed.
+func sealLegacyRow(ctx context.Context, database *sql.DB, id string, seal func(string, string) (string, error)) (bool, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	var secret, prev, header string
+	err = tx.QueryRowContext(ctx, `SELECT secret,prev_secret,auth_header_value FROM site_notifications WHERE id=$1 AND (`+legacySecrets+`) FOR UPDATE SKIP LOCKED`, id).Scan(&secret, &prev, &header)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if secret, err = sealLegacy(id, secret, seal); err != nil {
+		return false, err
+	}
+	if prev, err = sealLegacy(id, prev, seal); err != nil {
+		return false, err
+	}
+	if header, err = sealLegacy(id+":header", header, seal); err != nil {
+		return false, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE site_notifications SET secret=$2,prev_secret=$3,auth_header_value=$4 WHERE id=$1`, id, secret, prev, header); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
 }
 
 func HasNotifications(ctx context.Context, q sqlkit.Querier, site string) (bool, error) {
@@ -373,9 +423,7 @@ func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
 		return false, err
 	}
 	defer tx.Rollback()
-	// Serialize sequence allocation with subscription creation and replay on this site.
-	var locked string
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, site).Scan(&locked); err != nil {
+	if err = lockSite(ctx, tx, site); err != nil {
 		return false, err
 	}
 	if within > 0 {
@@ -384,59 +432,37 @@ func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
 			return false, err
 		}
 	}
+	// pushActor and pushTarget are stored on the event so a cursor replay
+	// (replayFrom) can apply the same rule as the live fan-out (FIX 1, Codex
+	// round 2). They are columns, never part of the delivered data.
 	var seq int64
-	// pushActor/pushTarget are persisted on the event itself, not only
-	// used transiently for the live INSERT below (FIX 1, Codex round 2):
-	// a cursor-based replay (SaveNotification's own backfill, an MCP
-	// subscriber reconnecting with an earlier cursor) queries site_events
-	// directly, with no access to the routing facts this call received
-	// as parameters -- without storing them, replay could not apply the
-	// same eligibility rule the live fan-out below does, and used not to.
-	// Never delivered: notify.go deletes both from the JSON body before
-	// it is ever stored, so storing them again here, as real columns
-	// rather than inside data, keeps that guarantee for the row itself.
 	err = tx.QueryRowContext(ctx, `INSERT INTO site_events(site_id,event_id,name,storage,data,push_actor,push_target) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING seq`, site, id, name, storage, data, pushActor, pushTarget).Scan(&seq)
 	if err != nil {
 		return false, err
 	}
-	// A subscription's storage filter narrows record and file events; a site
-	// event (storage '') reaches every subscription naming it.
-	//
-	// pushActor=='owner' (an owner-authored write, stored only so a push
-	// target can be reached once SIM-358 lands or for D1's owner edit of a
-	// visitor's row today) must NEVER reach a webhook or MCP Events
-	// subscription: before SIM-360, an owner write never stored an event
-	// at all, so a plain webhook/MCP subscriber received nothing for it;
-	// storing the event now (for push's sake) must not change that. The
-	// first branch of the outer CASE enforces this for every non-push
-	// kind; it has no effect on pushActor=='' (a visitor's own write, or a
-	// site-level event -- both unaffected, exactly as before SIM-360) or
-	// on pushActor==<a visitor's id> (that visitor's own write, which has
-	// always correctly reached the owner's webhook/MCP subscriptions).
-	//
-	// For a web-push subscription, the second branch additionally enforces
-	// who may ever receive it: the owner's devices unless the owner itself
-	// was the actor, or a visitor's own devices only when that visitor both
-	// owns the row (pushTarget) and did not make this exact write
-	// themselves.
-	//
-	// The owner branch's second condition (push, FIX 4) is broader than
-	// the webhook/MCP branch's on purpose: pushActor for an ordinary
-	// OwnerOnSite write (D1, the owner signed in on their own site, no
-	// OwnerFor) is that storage caller's own stampID, which StampID
-	// returns as the site owner's own users.id, not the literal "owner" --
-	// correctly so for webhook/MCP (D1's write has always notified those
-	// exactly like any other signed-in write, TestNotifyVisitorRoutes).
-	// But an owner-role push subscription's own owner_id is that same
-	// site-owner id, so pushActor==owner_id here can only mean "the site
-	// owner wrote this, however they were signed in" -- never a visitor,
-	// since no visitor's id can equal the site's own owner_id. Excluding
-	// it from the owner's own push devices too (on top of the literal
-	// 'owner' actor) closes the one gap SIM-358's live review found:
-	// D1 pushing a notification back to the very device that made the
-	// write, something no owner-cookie write has ever done for webhook or
-	// MCP and must not newly do for push either.
-	_, err = tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications
+	if err = fanOutSiteEvent(ctx, tx, seq, site, name, storage, pushActor, pushTarget); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
+}
+
+// fanOutSiteEvent queues event seq for every subscription on site that names
+// it. A subscription's storage filter narrows record and file events; a site
+// event (empty storage) reaches every subscription naming it.
+//
+// An owner-authored write (pushActor 'owner') never reaches a webhook or MCP
+// Events subscription: before SIM-360 such a write stored no event at all,
+// and storing it now for push must not change that. A visitor's own write
+// (empty pushActor, or their id) reaches them as before.
+//
+// A web-push subscription reaches the owner's devices unless the owner made
+// the write, and a visitor's devices only when that visitor owns the row
+// (pushTarget) and did not make this write. The owner branch also excludes
+// pushActor == owner_id (FIX 4): an owner signed in on their own site (D1)
+// writes with their own users.id as the actor, and must not get a push back
+// on the device that made the write.
+func fanOutSiteEvent(ctx context.Context, tx *sql.Tx, seq int64, site, name, storage, pushActor, pushTarget string) error {
+	_, err := tx.ExecContext(ctx, `INSERT INTO site_event_deliveries(event_seq,subscription_id) SELECT $1,id FROM site_notifications
  WHERE site_id=$2 AND state IN ('active','suspended') AND $3=ANY(events) AND ($4='' OR storage='' OR storage=$4) AND (expires_at IS NULL OR expires_at>now())
  AND CASE
    WHEN kind<>'web-push' THEN $5<>'owner'
@@ -445,10 +471,7 @@ func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
      WHEN 'visitor' THEN $6<>'' AND owner_id::text=$6 AND owner_id::text<>$5
      ELSE false END
    END`, seq, site, name, storage, pushActor, pushTarget)
-	if err != nil {
-		return false, err
-	}
-	return true, tx.Commit()
+	return err
 }
 
 // RecentSiteEvent reports whether a name event for visitor on site was stored
@@ -631,38 +654,12 @@ func RecentlyVerifiedNotification(ctx context.Context, q sqlkit.Querier, owner, 
 // ListPushDevices lists every web-push subscription on a site (both the
 // owner's and visitors' own devices), for the owner's device-management view.
 func ListPushDevices(ctx context.Context, database *sql.DB, site string) ([]model.Notification, error) {
-	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' ORDER BY n.created_at DESC`, site)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []model.Notification{}
-	for rows.Next() {
-		n, err := scanNotification(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
+	return queryNotifications(ctx, database, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' ORDER BY n.created_at DESC`, site)
 }
 
 // ListVisitorPushDevices lists one visitor's own web-push devices on one site.
 func ListVisitorPushDevices(ctx context.Context, database *sql.DB, site, visitorID string) ([]model.Notification, error) {
-	rows, err := database.QueryContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' AND n.subscriber_role='visitor' AND n.owner_id=$2 ORDER BY n.created_at DESC`, site, visitorID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []model.Notification{}
-	for rows.Next() {
-		n, err := scanNotification(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
+	return queryNotifications(ctx, database, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' AND n.subscriber_role='visitor' AND n.owner_id=$2 ORDER BY n.created_at DESC`, site, visitorID)
 }
 
 // UpsertPushSubscription creates or updates one push device, keyed by
@@ -687,8 +684,7 @@ func UpsertPushSubscription(ctx context.Context, database *sql.DB, n model.Notif
 		return "", false, err
 	}
 	defer tx.Rollback()
-	var locked string
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, n.SiteID).Scan(&locked); err != nil {
+	if err = lockSite(ctx, tx, n.SiteID); err != nil {
 		return "", false, err
 	}
 	var existing string

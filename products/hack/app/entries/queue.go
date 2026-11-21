@@ -10,17 +10,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// QueueTeamError identifies the team whose completion query failed.
-type QueueTeamError struct {
-	TeamID string
-	Err    error
-}
-
-func (e *QueueTeamError) Error() string { return e.TeamID + ": " + e.Err.Error() }
-
-// Unwrap returns the completion query error.
-func (e *QueueTeamError) Unwrap() error { return e.Err }
-
 // QueueRow holds the values needed to render one judge queue entry.
 type QueueRow struct {
 	Team        model.NamedTeam
@@ -40,6 +29,7 @@ func (s *Service) JudgeCandidates(ctx context.Context, ev model.Event, judgeID s
 	return s.judgeQueue(ctx, ev, judgeID, loadTeams, true)
 }
 
+// judgeQueue lists the judge's judgeable teams; candidates keeps their own conflicts.
 func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error, candidates bool) ([]QueueRow, error) {
 	judge, err := entryrepo.EventJudgeInEvent(ctx, s.db, ev.ID, judgeID)
 	if err != nil {
@@ -48,7 +38,7 @@ func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string
 	if !judge {
 		return nil, &Error{Code: "judge_not_found", Message: "You are not a judge of this event."}
 	}
-	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
+	teams, err := s.queueTeams(ctx, ev, judgeID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,28 +46,9 @@ func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string
 	if err != nil {
 		return nil, err
 	}
-	conflicted := map[string]bool{}
-	for _, p := range pairs {
-		if p.JudgeID == judgeID {
-			conflicted[p.TeamID] = true
-		}
-	}
 	coverage, _, err := entryrepo.ScoreCoverage(ctx, s.db, ev.ID)
 	if err != nil {
 		return nil, err
-	}
-	if ev.JudgeAssignmentMode != "open" {
-		assigned, err := entryrepo.EligibleJudgeTeamsIgnoringConflicts(ctx, s.db, ev.ID, judgeID)
-		if err != nil {
-			return nil, err
-		}
-		filtered := make([]model.NamedTeam, 0, len(assigned))
-		for _, t := range teams {
-			if assigned[t.ID] {
-				filtered = append(filtered, t)
-			}
-		}
-		teams = filtered
 	}
 	rubric, err := entryrepo.ListRubric(ctx, s.db, ev.ID)
 	if err != nil {
@@ -90,14 +61,12 @@ func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string
 	if err != nil {
 		return nil, err
 	}
-	byTeam := map[string]model.EventEntry{}
-	for _, e := range stored {
-		byTeam[e.TeamID] = e
-	}
 	completions, err := entryrepo.JudgeCompletionCounts(ctx, s.db, ev.ID, judgeID)
 	if err != nil {
 		return nil, err
 	}
+	conflicted := judgeConflicts(pairs, judgeID)
+	byTeam := entriesByTeam(stored)
 	out := make([]QueueRow, 0, len(teams))
 	for _, team := range teams {
 		entry := byTeam[team.ID]
@@ -107,30 +76,57 @@ func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string
 		done := len(rubric) > 0 && completions[judgeID][team.ID] >= len(rubric)
 		out = append(out, QueueRow{Team: team, Entry: entry, Done: done, ScoresCount: coverage[team.ID], Conflicted: conflicted[team.ID]})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].ScoresCount != out[j].ScoresCount {
-			return out[i].ScoresCount < out[j].ScoresCount
-		}
-		return strings.ToLower(out[i].Team.Name) < strings.ToLower(out[j].Team.Name)
-	})
+	sortQueue(out)
 	return out, nil
 }
 
-// UnscoredTeams is the events service's EntryEvaluator.UnscoredTeams
-// (0003-hack-notices-judges-messages.sql): how many of this judge's queue
-// rows are not yet Done. Used for judging_open/judging_reminder's N, both
-// live (NeedsYou) and at send time (the mail sweep and the reminder sweep).
+// judgeConflicts is the set of teams judgeID declared a conflict with.
+func judgeConflicts(pairs []entryrepo.ConflictPair, judgeID string) map[string]bool {
+	out := map[string]bool{}
+	for _, p := range pairs {
+		if p.JudgeID == judgeID {
+			out[p.TeamID] = true
+		}
+	}
+	return out
+}
+
+// sortQueue orders rows least-scored first, then by team name ignoring case.
+func sortQueue(rows []QueueRow) {
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].ScoresCount != rows[j].ScoresCount {
+			return rows[i].ScoresCount < rows[j].ScoresCount
+		}
+		return strings.ToLower(rows[i].Team.Name) < strings.ToLower(rows[j].Team.Name)
+	})
+}
+
+// queueTeams is every team in open assignment, otherwise those assigned to the judge.
+func (s *Service) queueTeams(ctx context.Context, ev model.Event, judgeID string) ([]model.NamedTeam, error) {
+	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
+	if err != nil || ev.JudgeAssignmentMode == "open" {
+		return teams, err
+	}
+	assigned, err := entryrepo.EligibleJudgeTeamsIgnoringConflicts(ctx, s.db, ev.ID, judgeID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.NamedTeam, 0, len(assigned))
+	for _, t := range teams {
+		if assigned[t.ID] {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// UnscoredTeams is how many of the judge's queue rows are not yet Done.
 func (s *Service) UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error) {
 	_, unscored, err := s.QueueCounts(ctx, ev, judgeID)
 	return unscored, err
 }
 
-// QueueCounts is the events service's EntryEvaluator.QueueCounts
-// (0003-hack-notices-judges-messages.sql): the judge's queue size and how
-// many of those rows are not yet Done. Lets judging_open distinguish an
-// empty queue ("No teams are in your queue yet.") from a populated queue
-// the judge has already finished ("You've scored every team in your
-// queue."), which a bare unscored count of 0 cannot tell apart.
+// QueueCounts is the judge's queue size and how many rows are not yet Done.
 func (s *Service) QueueCounts(ctx context.Context, ev model.Event, judgeID string) (total, unscored int, err error) {
 	rows, err := s.JudgeQueue(ctx, ev, judgeID, func() error { return nil })
 	if err != nil {
@@ -157,10 +153,7 @@ func (s *Service) JudgingPool(ctx context.Context, ev model.Event, teams []model
 	if err != nil {
 		return pool, err
 	}
-	byTeam := map[string]model.EventEntry{}
-	for _, e := range entries {
-		byTeam[e.TeamID] = e
-	}
+	byTeam := entriesByTeam(entries)
 	for _, t := range teams {
 		e, ok := byTeam[t.ID]
 		switch {
@@ -201,4 +194,13 @@ func (s *Service) EligibilityCounts(ctx context.Context, eventID string, judges 
 		}
 	}
 	return assigned, byTeam, nil
+}
+
+// entriesByTeam indexes entries by their team id.
+func entriesByTeam(entries []model.EventEntry) map[string]model.EventEntry {
+	out := make(map[string]model.EventEntry, len(entries))
+	for _, e := range entries {
+		out[e.TeamID] = e
+	}
+	return out
 }

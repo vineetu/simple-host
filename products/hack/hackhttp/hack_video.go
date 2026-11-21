@@ -6,65 +6,82 @@ import (
 	"strings"
 )
 
-// videoEmbed turns an entry's demo video link into a player URL the judge
-// screen may frame (build-plan.md section 4.5). Only the four hosts in the
-// table below are ever embeddable, and the player URL is always rebuilt
-// from the parsed id on a fixed origin, never from the participant's own
-// URL: "" for anything else, which the screen shows as a plain link.
-//
-// The app CSP's frame-src (hackAppCSP) lists exactly these four origins.
-func videoEmbed(raw string) string {
-	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.Port() != "" {
-		return ""
-	}
-	host := strings.ToLower(u.Hostname())
-	path := u.EscapedPath()
-	seg := strings.Split(strings.Trim(path, "/"), "/")
-	switch host {
-	case "youtube.com", "www.youtube.com", "m.youtube.com":
-		var id string
-		switch {
-		case path == "/watch":
-			id = u.Query().Get("v")
-		case len(seg) == 2 && (seg[0] == "shorts" || seg[0] == "embed" || seg[0] == "live"):
-			id = seg[1]
-		}
-		if videoYouTubeID.MatchString(id) {
-			return "https://www.youtube-nocookie.com/embed/" + id
-		}
-	case "youtu.be":
-		if len(seg) == 1 && videoYouTubeID.MatchString(seg[0]) {
-			return "https://www.youtube-nocookie.com/embed/" + seg[0]
-		}
-	case "vimeo.com", "www.vimeo.com":
-		if len(seg) == 1 && videoVimeoID.MatchString(seg[0]) {
-			return "https://player.vimeo.com/video/" + seg[0]
-		}
-	case "loom.com", "www.loom.com":
-		if len(seg) == 2 && seg[0] == "share" && videoLoomID.MatchString(seg[1]) {
-			return "https://www.loom.com/embed/" + seg[1]
-		}
-	case "drive.google.com":
-		if len(seg) >= 3 && seg[0] == "file" && seg[1] == "d" && videoDriveID.MatchString(seg[2]) {
-			return "https://drive.google.com/file/d/" + seg[2] + "/preview"
-		}
-	}
-	return ""
+// videoService is one embeddable video host: the link paths whose next
+// segment is the video id, the id's shape, and the fixed player URL the id
+// is placed into ({id}).
+type videoService struct {
+	paths  []string // path prefixes (after trimming "/") that precede the id
+	exact  bool     // the id must be the last path segment
+	watch  bool     // "/watch?v=<id>" also carries the id
+	id     *regexp.Regexp
+	player string
 }
 
 var (
-	videoYouTubeID = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
-	videoVimeoID   = regexp.MustCompile(`^[0-9]{1,15}$`)
-	videoLoomID    = regexp.MustCompile(`^[0-9a-f]{32}$`)
-	videoDriveID   = regexp.MustCompile(`^[A-Za-z0-9_-]{20,100}$`)
+	videoYouTube = videoService{paths: []string{"shorts/", "embed/", "live/"}, exact: true, watch: true,
+		id: regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`), player: "https://www.youtube-nocookie.com/embed/{id}"}
+	videoYouTuBe = videoService{paths: []string{""}, exact: true, id: videoYouTube.id, player: videoYouTube.player}
+	videoVimeo   = videoService{paths: []string{""}, exact: true,
+		id: regexp.MustCompile(`^[0-9]{1,15}$`), player: "https://player.vimeo.com/video/{id}"}
+	videoLoom = videoService{paths: []string{"share/"}, exact: true,
+		id: regexp.MustCompile(`^[0-9a-f]{32}$`), player: "https://www.loom.com/embed/{id}"}
+	videoDrive = videoService{paths: []string{"file/d/"},
+		id: regexp.MustCompile(`^[A-Za-z0-9_-]{20,100}$`), player: "https://drive.google.com/file/d/{id}/preview"}
 )
 
+// videoServices maps each accepted host to its service.
+var videoServices = map[string]videoService{
+	"youtube.com": videoYouTube, "www.youtube.com": videoYouTube, "m.youtube.com": videoYouTube,
+	"youtu.be":  videoYouTuBe,
+	"vimeo.com": videoVimeo, "www.vimeo.com": videoVimeo,
+	"loom.com": videoLoom, "www.loom.com": videoLoom,
+	"drive.google.com": videoDrive,
+}
+
 // videoFrameOrigins are the only third-party origins the app may frame, one
-// per videoEmbed host.
+// per videoEmbed player.
 var videoFrameOrigins = []string{
 	"https://www.youtube-nocookie.com",
 	"https://player.vimeo.com",
 	"https://www.loom.com",
 	"https://drive.google.com",
+}
+
+// videoEmbed turns an entry's demo video link into a player URL the judge
+// screen may frame (build-plan.md section 4.5).
+func videoEmbed(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.Port() != "" {
+		return ""
+	}
+	s, ok := videoServices[strings.ToLower(u.Hostname())]
+	if !ok {
+		return ""
+	}
+	id := s.linkID(u)
+	if !s.id.MatchString(id) {
+		return ""
+	}
+	return strings.Replace(s.player, "{id}", id, 1)
+}
+
+// linkID is the candidate video id in u's path (or watch query), "" when the
+// link has none of the service's shapes.
+func (s videoService) linkID(u *url.URL) string {
+	if s.watch && u.EscapedPath() == "/watch" {
+		return u.Query().Get("v")
+	}
+	path := strings.Trim(u.EscapedPath(), "/")
+	for _, prefix := range s.paths {
+		rest, ok := strings.CutPrefix(path, prefix)
+		if !ok {
+			continue
+		}
+		id, _, more := strings.Cut(rest, "/")
+		if more && s.exact {
+			return ""
+		}
+		return id
+	}
+	return ""
 }

@@ -12,8 +12,7 @@ func CheckpointExportSQLite(ctx context.Context, path string, maxMemory int64) (
 	if e != nil {
 		return e
 	}
-	ctx, cache := sqliteMemoryContext(ctx, size, maxMemory)
-	conn, e := sqlite3.OpenContext(ctx, path)
+	ctx, conn, cache, e := openSQLite(ctx, path, size, maxMemory)
 	if e != nil {
 		return e
 	}
@@ -25,8 +24,6 @@ func CheckpointExportSQLite(ctx context.Context, path string, maxMemory int64) (
 		}()
 		sqliteStage(ctx, "close")
 	})
-	sqliteStage(ctx, "after_open")
-	conn.SetInterrupt(ctx)
 	if e = configureSQLiteMemory(conn, cache); e != nil {
 		return e
 	}

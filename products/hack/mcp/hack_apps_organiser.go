@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"os"
 
 	"github.com/vsriram/simple-host/host/mcp"
@@ -66,6 +65,14 @@ func (s *hackScreens) hackShowOrganiserTool() mcp.Tool {
 	}, mcp.Screen("hack-organiser"), mcp.ShowAllowed(s.hackShowOrganiserAppAllowed)), s.runHackShowOrganiser)
 }
 
+var organiserViewNames = map[string]string{"overview": "the organiser overview", "people": "the applications and people list", "judging": "the judging dashboard"}
+
+// runHackShowOrganiser opens an organiser view, and refuses anyone who is
+// not an organiser of the event (a platform admin inspecting counts as one:
+// loadMember gives it that role). A refusal carries no event data. The
+// join/judge links and the organiser's own display_name ride in _meta,
+// read only by the view (hack-organiser-view.js refreshEvent), never in a
+// model-visible field.
 func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	if !s.hackShowOrganiserAppAllowed(c.Caller(), c.UICapable()) {
 		return mcp.Output{}, errors.New("hack_show_organiser only opens in an app that can render it; use hack_get_event, hack_get_applications, hack_get_people or hack_get_judging_dashboard instead")
@@ -74,16 +81,16 @@ func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mc
 	if err != nil {
 		return mcp.Output{}, err
 	}
-	if view != "overview" && view != "people" && view != "judging" {
+	if organiserViewNames[view] == "" {
 		return mcp.Output{}, errors.New("view must be overview, people or judging")
 	}
 	slug, err := eventSlug(args)
 	if err != nil {
 		return mcp.Output{}, err
 	}
-	res := c.Do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug), nil, nil)
-	if !res.OK() {
-		return mcp.Output{}, hackRestError("hack_show_organiser", res)
+	raw, err := hackDo(c, "hack_show_organiser", http.MethodGet, eventPath(slug, ""), nil)
+	if err != nil {
+		return mcp.Output{}, err
 	}
 	var body struct {
 		Event     map[string]any  `json:"event"`
@@ -93,19 +100,9 @@ func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mc
 		AdminView bool            `json:"admin_view"`
 		Me        map[string]any  `json:"me"`
 	}
-	if err := json.Unmarshal(res.Body(), &body); err != nil {
+	if err := json.Unmarshal(raw, &body); err != nil {
 		return mcp.Output{}, errors.New("hack_show_organiser: server returned invalid JSON")
 	}
-	// This show tool's whole job is opening an ORGANISER view, so it
-	// refuses outright for anyone else -- including a judge or
-	// participant of this same event -- rather than opening one with
-	// nothing useful (and nothing writable) in it. loadMember sets
-	// member.Role to "organiser" for a platform admin inspecting without
-	// real membership too (host/handler/hack.go), so admin_view
-	// inspections pass this check the same way the real screens' own
-	// adminLock() expects. No event data in the error (Grok security
-	// review pattern from the judge app, SIM-344): a refusal carries no
-	// structuredContent at all, same as every other tool's.
 	if body.Role != "organiser" {
 		return mcp.Output{}, errors.New("hack_show_organiser is for an organiser of this event")
 	}
@@ -117,16 +114,7 @@ func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mc
 	if body.Can != nil {
 		structured["can"] = body.Can
 	}
-	verb := map[string]string{"overview": "the organiser overview", "people": "the applications and people list", "judging": "the judging dashboard"}[view]
-	out := mcp.Output{Text: "Opened " + verb + " for " + slug + ".", Structured: structured}
-	// join_url/judge_url carry the event's own join and judge codes --
-	// organiser-only secrets a model must never be asked to repeat back
-	// (same reasoning as hack_show_judge never putting join_code/
-	// judge_code in its own model-visible fields) -- and the organiser's
-	// own display_name is organiser-written text, not a fixed sentence.
-	// All three ride in _meta, read only by the view's own refreshEvent
-	// (hack-organiser-view.js), via callToolResult rather than callTool,
-	// exactly like hack_show_judge's "simple-hack/event-text".
+	out := mcp.Output{Text: "Opened " + organiserViewNames[view] + " for " + slug + ".", Structured: structured}
 	if meta := hackShowOrganiserViewOnly(body.Organiser, body.Me); len(meta) > 0 {
 		out.Meta = map[string]any{"simple-hack/organiser-view": meta}
 	}

@@ -9,9 +9,7 @@ import (
 
 func TestPutKVGateBeforeReadingBody(t *testing.T) {
 	read := false
-	s := New(nil, Deps{
-		PasscodeAllows: func() bool { return false },
-	})
+	s := New(nil, Deps{})
 	_, auth, err := s.PutKV(context.Background(), KVPutInput{Call: Call{Resource: rules.Resource{SitePasscode: "inherit"}}, Body: readProbe{&read}})
 	if err != nil || auth == nil || auth.Code != "site_locked" || read {
 		t.Fatalf("gate: auth=%+v err=%v read=%v", auth, err, read)

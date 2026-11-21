@@ -61,9 +61,7 @@ func VoteOptions(ctx context.Context, q sqlkit.Querier, eventID string, live []s
 }
 
 // VoteFinalRanking retains the final tally after archived sites are removed
-// from the live gallery. Moderated teams and suspended sites stay hidden.
-// shown is the event account's sites the platform has not taken down
-// (sites.ShownSiteNames), Recently deleted included.
+// from the live gallery.
 func VoteFinalRanking(ctx context.Context, q sqlkit.Querier, eventID string, shown []string) ([]VoteOption, error) {
 	rows, err := queryContext(ctx, q, `SELECT t.id, t.slug, t.name, '', '', COUNT(v.team_id)
 		FROM event_teams t
@@ -97,10 +95,7 @@ func OwnVote(ctx context.Context, q sqlkit.Querier, eventID, canonicalEmail stri
 
 // VoterEligible reports whether canonicalEmail may vote under eligibility
 // ("all_signed_in", "event_members" or "participants"), the same approved-
-// membership rule CastVote itself enforces. Shared so the public vote page
-// can tell a signed-in visitor up front that they can't vote (Grok retest
-// 3, Confusing #4), instead of only after they press a Vote button that
-// looked active.
+// membership rule CastVote itself enforces.
 func VoterEligible(ctx context.Context, q sqlkit.Querier, eventID, eligibility, canonicalEmail string) (bool, error) {
 	if eligibility == "all_signed_in" {
 		return true, nil
@@ -195,9 +190,8 @@ func IneligibleVotes(ctx context.Context, q sqlkit.Querier, eventID, eligibility
 }
 
 // GalleryLiveFrom selects the live projects shared by the gallery and voting:
-// teams the organiser has not taken down whose site is one of $2, the names
-// of the event account's live sites (sites.LiveSiteNames, the platform's
-// answer).
+// teams the organiser has not taken down whose site is one of $2, the names of
+// the event account's live sites (sites.LiveSiteNames, the platform's answer).
 const GalleryLiveFrom = `
   FROM event_teams t
   LEFT JOIN event_entries e ON e.team_id = t.id

@@ -7,11 +7,7 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// OwnerOnSite narrows who is owner of an event's site for its saved data,
-// among those the platform lets act for it: on a team's site a current
-// approved teammate until the team's deadline, while neither the event nor
-// the site is taken down; on the event website an organiser until the event
-// ends.
+// OwnerOnSite narrows who is owner of an event's site for its saved data, among those the platform lets act for it.
 func OwnerOnSite(ctx context.Context, q sqlkit.Querier, accountID, siteName, userID string) (bool, error) {
 	var ok bool
 	err := q.QueryRowContext(ctx, `

@@ -34,9 +34,7 @@ func (s *Service) EventSlugTakenLookup(ctx context.Context, slug string) (bool, 
 	return eventrepo.EventSlugTaken(ctx, s.db, slug)
 }
 
-// EventStorageLookup counts the event account's site records (Recently
-// deleted included) and kept versions, and its entry screenshots. File bytes
-// are measured separately by the storage handler.
+// EventStorageLookup counts the event account's site records (Recently deleted included) and kept versions, and its entry screenshots.
 func (s *Service) EventStorageLookup(ctx context.Context, ev model.Event) (model.EventStorageUsage, error) {
 	var u model.EventStorageUsage
 	var err error

@@ -244,39 +244,43 @@ func dropAnalyticsValue(policy toolPolicy, value any, depth int) any {
 		rows, hasRows := v["rows"].([]any)
 		handledRows := hasColumns && hasRows
 		if handledRows {
-			if depth+1 >= 32 {
-				v["rows"] = "[Object]"
-			} else {
-				for r, raw := range rows {
-					cells, ok := raw.([]any)
-					if !ok || depth+2 >= 32 {
-						rows[r] = dropAnalyticsValue(policy, raw, depth+2)
-						continue
-					}
-					obj := map[string]any{}
-					for i, col := range columns {
-						if name, ok := col.(string); ok && i < len(cells) {
-							obj[name] = cells[i]
-						}
-					}
-					for i, cell := range cells {
-						name := ""
-						if i < len(columns) {
-							name, _ = columns[i].(string)
-						}
-						cells[i] = dropAnalyticsField(policy, name, cell, obj, depth+3)
-					}
-				}
-			}
+			dropAnalyticsRows(policy, v, columns, rows, depth)
 		}
 		for key, field := range v {
-			if key == "rows" && handledRows {
-				continue
+			if key != "rows" || !handledRows {
+				v[key] = dropAnalyticsField(policy, key, field, v, depth+1)
 			}
-			v[key] = dropAnalyticsField(policy, key, field, v, depth+1)
 		}
 	}
 	return value
+}
+
+// dropAnalyticsRows treats each SQLite row as an object of its columns.
+func dropAnalyticsRows(policy toolPolicy, v map[string]any, columns, rows []any, depth int) {
+	if depth+1 >= 32 {
+		v["rows"] = "[Object]"
+		return
+	}
+	for r, raw := range rows {
+		cells, ok := raw.([]any)
+		if !ok || depth+2 >= 32 {
+			rows[r] = dropAnalyticsValue(policy, raw, depth+2)
+			continue
+		}
+		obj := map[string]any{}
+		for i, col := range columns {
+			if name, ok := col.(string); ok && i < len(cells) {
+				obj[name] = cells[i]
+			}
+		}
+		for i, cell := range cells {
+			name := ""
+			if i < len(columns) {
+				name, _ = columns[i].(string)
+			}
+			cells[i] = dropAnalyticsField(policy, name, cell, obj, depth+3)
+		}
+	}
 }
 
 func dropAnalyticsField(policy toolPolicy, key string, field any, obj map[string]any, depth int) any {
@@ -285,10 +289,6 @@ func dropAnalyticsField(policy toolPolicy, key string, field any, obj map[string
 	}
 	name := analyticsFieldName(key)
 	switch {
-	case policy.analytics.pageText && name == "pagetext":
-		return analyticsFile(field, "text/plain", false)
-	case analyticsSecretFieldForPolicy(policy, key):
-		return "[removed]"
 	// Apply to a hackathon (2026-10-29/31 owner decisions, security review
 	// Grok 6): the four demographic fields are already removed everywhere by
 	// analyticsSecretFieldForPolicy, but free-text answers and the applicant's name
@@ -297,45 +297,63 @@ func dropAnalyticsField(policy toolPolicy, key string, field any, obj map[string
 	// organiser's read of the queue -- also drop answers and display_name
 	// from the analytics copy. The tool result the organiser's own model
 	// sees is untouched; this is the telemetry copy only.
-	case policy.analytics.applicationAnswers && (name == "answers" || name == "displayname"):
+	case analyticsSecretFieldForPolicy(policy, key),
+		policy.analytics.applicationAnswers && (name == "answers" || name == "displayname"):
 		return "[removed]"
 	case analyticsEmailField(policy, key):
 		return analyticsVisitorReference(obj)
-	case (name == "files" && policy.analytics.fileArguments) || name == "filesbase64":
-		if text, ok := field.(string); ok {
-			var parsed any
-			if json.Unmarshal([]byte(text), &parsed) == nil {
-				field = parsed
-			}
-		}
-		if files, ok := field.(map[string]any); ok {
-			for file, content := range files {
-				files[file] = analyticsFile(content, path.Ext(file), name == "filesbase64")
-			}
-			return files
-		}
-		return analyticsFile(field, "", name == "filesbase64")
 	case name == "edits" && policy.analytics.edits:
 		return analyticsEdits(policy, field, depth)
+	}
+	if file, ok := analyticsFileField(policy, key, name, field, obj); ok {
+		return file
+	}
+	return dropAnalyticsValue(policy, field, depth)
+}
+
+// analyticsFileField replaces a field holding file content by its size and
+// type. The field names never overlap the removed and identity ones above.
+func analyticsFileField(policy toolPolicy, key, name string, field any, obj map[string]any) (any, bool) {
+	switch {
+	case policy.analytics.pageText && name == "pagetext":
+		return analyticsFile(field, "text/plain", false), true
+	case (name == "files" && policy.analytics.fileArguments) || name == "filesbase64":
+		return analyticsFiles(field, name == "filesbase64"), true
 	case strings.HasSuffix(strings.ToLower(key), "_base64") || name == "base64":
 		kind := analyticsFileType(obj)
 		if name == "archivebase64" {
 			kind = "application/gzip"
 		}
-		return analyticsFile(field, kind, true)
+		return analyticsFile(field, kind, true), true
 	case (policy.analytics.edits && (name == "find" || name == "replace")) ||
 		(analyticsFileResult(policy) && (name == "content" || name == "csv")) ||
 		(policy.analytics.fileData && name == "data"):
 		file := analyticsFile(field, analyticsFileType(obj), false)
-		if policy.analytics.fileContentSize && name == "content" {
-			if size, ok := obj["size"].(float64); ok {
-				file.(map[string]any)["bytes"] = size
-			}
+		if size, ok := obj["size"].(float64); ok && policy.analytics.fileContentSize && name == "content" {
+			file.(map[string]any)["bytes"] = size
 		}
-		return file
-	default:
-		return dropAnalyticsValue(policy, field, depth)
+		return file, true
 	}
+	return nil, false
+}
+
+// analyticsFiles replaces each file of a path-to-content map (or the JSON
+// text of one) by its size and type.
+func analyticsFiles(field any, encoded bool) any {
+	if text, ok := field.(string); ok {
+		var parsed any
+		if json.Unmarshal([]byte(text), &parsed) == nil {
+			field = parsed
+		}
+	}
+	files, ok := field.(map[string]any)
+	if !ok {
+		return analyticsFile(field, "", encoded)
+	}
+	for file, content := range files {
+		files[file] = analyticsFile(content, path.Ext(file), encoded)
+	}
+	return files
 }
 
 func analyticsEdits(policy toolPolicy, value any, depth int) any {

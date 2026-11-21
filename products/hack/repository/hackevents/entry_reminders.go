@@ -9,30 +9,16 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// NoticeEntryReminder is the entry deadline reminder (entries slice 3,
-// host/db/migrations/zx-hack-entry-reminders.sql; generalised to custom offsets by
-// 0003-hack-notices-judges-messages.sql): before a team's effective
-// deadline, every current member of a team whose entry is not submitted
-// gets an email through the notices queue. It is email only (born seen):
-// Home already shows the countdown and the checklist.
+// NoticeEntryReminder is the entry deadline reminder.
 const NoticeEntryReminder = "entry_reminder"
 
 // EntryReminder is one team that is due a reminder now.
 type EntryReminder = model.EntryReminder
 
-// reminderOffsetKindSQL is the label for an offset of M minutes, the same
-// rule Go's ReminderLabel uses: M%60==0 ? (M/60)+"h" : M+"m" (1440->"24h",
-// 60->"1h", 4320->"72h", 90->"90m"), so existing rows keep deduping.
+// reminderOffsetKindSQL is the label for an offset of M minutes, the same rule Go's ReminderLabel uses.
 const reminderOffsetKindSQL = `CASE WHEN offset_min % 60 = 0 THEN (offset_min/60)::text || 'h' ELSE offset_min::text || 'm' END`
 
-// DueEntryReminders lists teams due a reminder now, from their own event's
-// reminder_offsets (0003-hack-notices-judges-messages.sql: one list drives
-// both audiences). The due offset is the smallest configured offset still
-// >= what remains (deadline - now); none if remaining exceeds every
-// configured offset -- the generalised form of the old fixed 24h/1h pair.
-// Teams whose entry is not submitted (or not started), in an event that
-// still takes entries, that have not yet had this reminder for this
-// deadline.
+// DueEntryReminders lists teams due a reminder now, from their own event's reminder_offsets.
 func DueEntryReminders(ctx context.Context, q sqlkit.Querier) ([]EntryReminder, error) {
 	rows, err := queryContext(ctx, q, `
 		WITH c AS (
@@ -70,10 +56,7 @@ func DueEntryReminders(ctx context.Context, q sqlkit.Querier) ([]EntryReminder, 
 	return out, rows.Err()
 }
 
-// ClaimEntryReminder records that this team's reminder of this kind goes out
-// for this deadline. claimed=false when it already went out for the same
-// deadline (another sweeper won, or nothing changed). A moved deadline
-// (an extension, a later event deadline) lets it go out once more.
+// ClaimEntryReminder records that this team's reminder of this kind goes out for this deadline.
 func ClaimEntryReminder(ctx context.Context, q sqlkit.Querier, r EntryReminder) (bool, error) {
 	var one int
 	err := q.QueryRowContext(ctx, `

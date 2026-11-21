@@ -46,8 +46,7 @@ func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, q
 		return err
 	}
 	if !approval && admit {
-		// D5: Approval settings govern link sign-ups, not applications. A stranger's
-		// application always waits for an organiser's decision.
+		// D5: Approval settings govern link sign-ups, not applications.
 		if _, err = eventrepo.AdmitPending(ctx, tx, eventID, userID); err != nil {
 			return err
 		}
@@ -76,8 +75,7 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 	if !updated {
 		return &Error{Code: "application_not_pending", Message: "only pending applications can be decided"}
 	}
-	// Decision notices reach the app and email (INTENT 2026-11-02),
-	// superseding the earlier no-email decision.
+	// Decision notices reach the app and email (INTENT 2026-11-02), superseding the earlier no-email decision.
 	if err = eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeApplicationDecided, "", "", decision, userID); err != nil {
 		return err
 	}
@@ -114,23 +112,8 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string,
 		return nil, err
 	}
 	defer tx.Rollback()
-	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
-	if err != nil {
+	if err := lockTrackChoice(ctx, tx, eventID, teamID, len(organiser) > 0 && organiser[0]); err != nil {
 		return nil, err
-	}
-	managing := len(organiser) > 0 && organiser[0]
-	if managing && (ev.JudgingLockedAt.Valid || ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived") {
-		return nil, &Error{Code: "judging_setup_locked", Message: "Move back to Entries closed to change this."}
-	}
-	if _, err = eventrepo.LockTeam(ctx, tx, teamID); err != nil {
-		return nil, err
-	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
-	if err != nil {
-		return nil, err
-	}
-	if !managing && st.WriteRefusal() != "" {
-		return nil, &Error{Code: "team_choice_closed", Message: "team choices are closed"}
 	}
 	if _, err = eventrepo.SetTeamTrack(ctx, tx, eventID, teamID, slug); errors.Is(err, sql.ErrNoRows) {
 		return nil, &Error{Code: "track_not_found", Message: "track not found"}
@@ -145,6 +128,28 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string,
 		return nil, err
 	}
 	return track, nil
+}
+
+// lockTrackChoice locks the event, then the team, and refuses the change.
+func lockTrackChoice(ctx context.Context, tx *sql.Tx, eventID, teamID string, managing bool) error {
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
+	if err != nil {
+		return err
+	}
+	if managing && (ev.JudgingLockedAt.Valid || ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived") {
+		return &Error{Code: "judging_setup_locked", Message: "Move back to Entries closed to change this."}
+	}
+	if _, err = eventrepo.LockTeam(ctx, tx, teamID); err != nil {
+		return err
+	}
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
+	if err != nil {
+		return err
+	}
+	if !managing && st.WriteRefusal() != "" {
+		return &Error{Code: "team_choice_closed", Message: "team choices are closed"}
+	}
+	return nil
 }
 
 // ValidateQuestions validates and normalizes sign-up questions.

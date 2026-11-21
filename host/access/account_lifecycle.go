@@ -52,6 +52,9 @@ type DeletedAccount struct {
 	Username string
 }
 
+// DeleteAccount erases an account and everything tied to it, in one
+// transaction, once every rule that holds it back is checked: the person's
+// own request (Operator false) must also confirm it by name.
 func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (DeletedAccount, error) {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -65,57 +68,15 @@ func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (Del
 	if err != nil {
 		return DeletedAccount{}, err
 	}
-	if IsOperator(acct.IsAdmin, acct.Username) {
-		if in.Operator {
-			return DeletedAccount{}, lifecycleFail(400, "cannot delete an admin account", "")
-		}
-		return DeletedAccount{}, lifecycleFail(403, "an admin account cannot delete itself here", "admin_account")
-	}
-	if !in.Operator {
-		if err := deletionHold(acct, "this account"); err != nil {
-			return DeletedAccount{}, err
-		}
-	}
-	if acct.EventClaims > 0 {
-		return DeletedAccount{}, lifecycleFail(409, "this account still holds event hostnames; release them first so their DNS records are removed", "event_hostnames")
-	}
-	if held, err := HoldingAccount(ctx, tx, acct.ID); err != nil {
+	if err := deletionRefusal(ctx, tx, acct, in); err != nil {
 		return DeletedAccount{}, err
-	} else if held {
-		action := "delete"
-		if in.Operator {
-			action = "delete_operator"
-		}
-		return DeletedAccount{}, lifecycleFail(409, HoldingText(action), "event_account")
-	}
-	if groupHooks.Erasure != nil {
-		if code, msg, err := groupHooks.Erasure.Block(ctx, tx, acct.ID, in.Operator); err != nil {
-			return DeletedAccount{}, err
-		} else if code != "" {
-			return DeletedAccount{}, lifecycleFail(409, msg, code)
-		}
-	}
-	if !in.Operator {
-		want, what := acct.Handle, "your handle"
-		if want == "" {
-			want, what = acct.Username, "your email"
-		}
-		if !strings.EqualFold(strings.TrimSpace(in.Confirm), want) {
-			return DeletedAccount{}, lifecycleFail(400, "type "+what+" ("+want+") as confirm to delete the account", "confirm_mismatch")
-		}
-	}
-	ops := repo.ErasureOperations{RetireSiteNames: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
-		return repo.RetireSiteNames(ctx, tx, id, repo.PlatformDomains()...)
-	}}
-	if h := groupHooks.Erasure; h != nil {
-		ops.Before, ops.Rows, ops.After = h.Before, h.Rows, h.After
 	}
 	// Teams this person alone belongs to go with the account, sites and all.
 	teams, err := eraseSoleMemberTeams(ctx, tx, acct.ID, in.Operator)
 	if err != nil {
 		return DeletedAccount{}, err
 	}
-	erased, err := repo.EraseAccount(ctx, tx, acct, ops)
+	erased, err := repo.EraseAccount(ctx, tx, acct, erasureOperations())
 	if err == nil {
 		err = tx.Commit()
 	}
@@ -128,6 +89,82 @@ func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (Del
 		return DeletedAccount{}, err
 	}
 	return DeletedAccount{Erased: erased, Teams: teams, Username: acct.Username}, nil
+}
+
+// deletionRefusal is why the account cannot be deleted now, nil when it
+// can: never an admin account, never while it holds what must be released
+// first, and only as confirmed.
+func deletionRefusal(ctx context.Context, tx *sql.Tx, acct model.AccountForDelete, in DeleteAccountInput) error {
+	if IsOperator(acct.IsAdmin, acct.Username) {
+		if in.Operator {
+			return lifecycleFail(400, "cannot delete an admin account", "")
+		}
+		return lifecycleFail(403, "an admin account cannot delete itself here", "admin_account")
+	}
+	if !in.Operator {
+		if err := deletionHold(acct, "this account"); err != nil {
+			return err
+		}
+	}
+	if acct.EventClaims > 0 {
+		return lifecycleFail(409, "this account still holds event hostnames; release them first so their DNS records are removed", "event_hostnames")
+	}
+	if err := holdingRefusal(ctx, tx, acct.ID, in.Operator); err != nil {
+		return err
+	}
+	if !in.Operator {
+		return confirmRefusal(acct, in.Confirm)
+	}
+	return nil
+}
+
+// holdingRefusal: an account that holds an event, or that the product's
+// erasure rules hold back, is not deleted.
+func holdingRefusal(ctx context.Context, tx *sql.Tx, accountID string, operator bool) error {
+	if held, err := HoldingAccount(ctx, tx, accountID); err != nil {
+		return err
+	} else if held {
+		action := "delete"
+		if operator {
+			action = "delete_operator"
+		}
+		return lifecycleFail(409, HoldingText(action), "event_account")
+	}
+	if groupHooks.Erasure == nil {
+		return nil
+	}
+	code, msg, err := groupHooks.Erasure.Block(ctx, tx, accountID, operator)
+	if err != nil {
+		return err
+	}
+	if code != "" {
+		return lifecycleFail(409, msg, code)
+	}
+	return nil
+}
+
+// confirmRefusal: the person typed their handle (or, without one, their
+// email) as confirm.
+func confirmRefusal(acct model.AccountForDelete, confirm string) error {
+	want, what := acct.Handle, "your handle"
+	if want == "" {
+		want, what = acct.Username, "your email"
+	}
+	if !strings.EqualFold(strings.TrimSpace(confirm), want) {
+		return lifecycleFail(400, "type "+what+" ("+want+") as confirm to delete the account", "confirm_mismatch")
+	}
+	return nil
+}
+
+// erasureOperations are the platform's and the product's parts of an erase.
+func erasureOperations() repo.ErasureOperations {
+	ops := repo.ErasureOperations{RetireSiteNames: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
+		return repo.RetireSiteNames(ctx, tx, id, repo.PlatformDomains()...)
+	}}
+	if h := groupHooks.Erasure; h != nil {
+		ops.Before, ops.Rows, ops.After = h.Before, h.Rows, h.After
+	}
+	return ops
 }
 
 // deletionHold is why an account (a person's own, or a team they alone

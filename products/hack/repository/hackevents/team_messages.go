@@ -13,9 +13,6 @@ import (
 type TeamMessage = model.TeamMessage
 
 // InsertTeamMessage writes one event_team_messages row: the durable history.
-// Delivery is the notice (kind team_message), queued by the caller in the
-// same transaction.
-// fromTeam marks a message a team member wrote to the organisers.
 func InsertTeamMessage(ctx context.Context, q sqlkit.Querier, eventID, teamID, senderID, senderName, body string, fromTeam bool) (TeamMessage, error) {
 	var sender sql.NullString
 	if senderID != "" {
@@ -30,8 +27,7 @@ func InsertTeamMessage(ctx context.Context, q sqlkit.Querier, eventID, teamID, s
 	return m, err
 }
 
-// ListTeamMessages is one team's message history, newest first, at most
-// limit rows.
+// ListTeamMessages is one team's message history, newest first, at most limit rows.
 func ListTeamMessages(ctx context.Context, q sqlkit.Querier, teamID string, limit int) ([]TeamMessage, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT id, event_id, team_id, sender_id, sender_name, body, created_at, from_team
@@ -51,10 +47,7 @@ func ListTeamMessages(ctx context.Context, q sqlkit.Querier, teamID string, limi
 	return out, rows.Err()
 }
 
-// CountRecentTeamMessages counts the event's organiser-written message rows created since
-// since, and the oldest such row's time (for the rate limit's Retry-After).
-// The count itself is the DB-counted rate limit: it is the durable history,
-// so it survives a restart.
+// CountRecentTeamMessages counts the event's organiser-written message rows created since since, and the oldest such row's time.
 func CountRecentTeamMessages(ctx context.Context, q sqlkit.Querier, eventID string, since time.Time) (int, sql.NullTime, error) {
 	var n int
 	var oldest sql.NullTime
@@ -64,8 +57,7 @@ func CountRecentTeamMessages(ctx context.Context, q sqlkit.Querier, eventID stri
 	return n, oldest, err
 }
 
-// CountRecentTeamInbound counts what one team wrote to the organisers since
-// since, and the oldest such row's time (for the rate limit's Retry-After).
+// CountRecentTeamInbound counts what one team wrote to the organisers since since, and the oldest such row's time (for the rate limit's Retry-After).
 func CountRecentTeamInbound(ctx context.Context, q sqlkit.Querier, teamID string, since time.Time) (int, sql.NullTime, error) {
 	var n int
 	var oldest sql.NullTime
@@ -81,9 +73,7 @@ type InboundTeam struct {
 	Count                      int
 }
 
-// ListInboundTeams lists the teams whose messages to the organisers this
-// organiser has not read (unseen team_inbound notices), one row per team with
-// its latest message, newest first. A team that was deleted drops out.
+// ListInboundTeams lists the teams whose messages to the organisers this organiser has not read.
 func ListInboundTeams(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]InboundTeam, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.slug, t.name, g.n,
@@ -114,8 +104,7 @@ func ListInboundTeams(ctx context.Context, q sqlkit.Querier, eventID, userID str
 	return out, rows.Err()
 }
 
-// MarkTeamInboundSeen marks this organiser's unread notices about one team's
-// messages up to upTo seen: they opened the thread and were shown those.
+// MarkTeamInboundSeen marks this organiser's unread notices about one team's messages up to upTo seen: they opened the thread and were shown those.
 func MarkTeamInboundSeen(ctx context.Context, q sqlkit.Querier, eventID, userID, teamID string, upTo time.Time) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_notices n SET seen_at = now()

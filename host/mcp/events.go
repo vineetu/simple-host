@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/data/notify"
 )
 
 func (s *Server) offersEvents(caller Caller) bool {
@@ -85,10 +87,10 @@ func eventPayloadSchema(name string, product ...bool) map[string]any {
 // write: they take the site argument only (no storage filter) and carry no
 // storage, kind or untrusted fields. Simple Host only; Simple Hack
 // keeps the three record events.
-var SiteEventNames = []string{"site.deployed", "domain.status_changed", "viewer.access_requested", "visitor.signed_up"}
+var SiteEventNames = notify.SiteEventNames
 
 // RecordEventNames fire on visitor writes to site storage.
-var RecordEventNames = []string{"record.added", "record.changed", "file.uploaded"}
+var RecordEventNames = notify.RecordEventNames
 
 // IsSiteEvent is whether name is one of SiteEventNames.
 func IsSiteEvent(name string) bool {
@@ -179,45 +181,53 @@ func (s *Server) dispatchEvents(r *http.Request, req request, caller Caller, mod
 	if caller.APIKey == "" || caller.Owner == "" {
 		return failure(req.ID, EventCodeForbidden, "Forbidden", nil)
 	}
-	out := map[string]any{}
-	switch req.Method {
-	case "events/list":
-		out["events"] = eventDefinitions(caller.Mode == CallerModeEvents)
-	case "events/subscribe", "events/unsubscribe":
-		params, err := parseEventParams(req.Params, req.Method == "events/subscribe", caller.Mode == CallerModeEvents)
-		if err != nil {
-			return eventFailure(req.ID, err)
-		}
-		if req.Method == "events/unsubscribe" {
-			err = s.cfg.Events.Unsubscribe(r.Context(), caller, EventUnsubscribeRequest{
-				Name: params.Name, Site: params.Site, Storage: params.Storage,
-				CanonicalArgs: params.CanonicalArgs, URL: params.URL,
-			})
-			if err != nil {
-				return eventFailure(req.ID, err)
-			}
-		} else {
-			sub, err := s.cfg.Events.Subscribe(r.Context(), caller, params)
-			if err != nil {
-				return eventFailure(req.ID, err)
-			}
-			out["id"], out["refreshBefore"], out["cursor"], out["truncated"] = sub.ID, nil, sub.Cursor, sub.Truncated
-			if sub.RefreshBefore != nil {
-				out["refreshBefore"] = sub.RefreshBefore.Format(time.RFC3339)
-			}
-			if sub.Refreshed {
-				status := map[string]any{"active": sub.Active}
-				if sub.LastError != "" {
-					status["lastError"] = sub.LastError
-				}
-				out["deliveryStatus"] = status
-			}
-		}
+	out, err := s.runEventMethod(r, req, caller)
+	if err != nil {
+		return eventFailure(req.ID, err)
 	}
 	if modern {
 		out["resultType"] = "complete"
 	}
 	return result(req.ID, out)
+}
+
+// runEventMethod answers events/list, events/subscribe or events/unsubscribe.
+func (s *Server) runEventMethod(r *http.Request, req request, caller Caller) (map[string]any, error) {
+	product := caller.Mode == CallerModeEvents
+	if req.Method == "events/list" {
+		return map[string]any{"events": eventDefinitions(product)}, nil
+	}
+	subscribe := req.Method == "events/subscribe"
+	params, err := parseEventParams(req.Params, subscribe, product)
+	if err != nil {
+		return nil, err
+	}
+	if !subscribe {
+		return map[string]any{}, s.cfg.Events.Unsubscribe(r.Context(), caller, EventUnsubscribeRequest{
+			Name: params.Name, Site: params.Site, Storage: params.Storage,
+			CanonicalArgs: params.CanonicalArgs, URL: params.URL,
+		})
+	}
+	sub, err := s.cfg.Events.Subscribe(r.Context(), caller, params)
+	if err != nil {
+		return nil, err
+	}
+	return subscribeResult(sub), nil
+}
+
+func subscribeResult(sub EventSubscribeResult) map[string]any {
+	out := map[string]any{"id": sub.ID, "refreshBefore": nil, "cursor": sub.Cursor, "truncated": sub.Truncated}
+	if sub.RefreshBefore != nil {
+		out["refreshBefore"] = sub.RefreshBefore.Format(time.RFC3339)
+	}
+	if sub.Refreshed {
+		status := map[string]any{"active": sub.Active}
+		if sub.LastError != "" {
+			status["lastError"] = sub.LastError
+		}
+		out["deliveryStatus"] = status
+	}
+	return out
 }
 
 func eventFailure(id json.RawMessage, err error) response {
@@ -228,95 +238,128 @@ func eventFailure(id json.RawMessage, err error) response {
 	return failure(id, codeInternalError, "internal error", nil)
 }
 
+var errEventParams = &EventError{Code: codeInvalidParams, Message: "InvalidParams"}
+
 func parseEventParams(raw json.RawMessage, subscribe bool, eventScoped bool) (EventSubscribeRequest, error) {
-	var req EventSubscribeRequest
-	invalid := func() (EventSubscribeRequest, error) {
-		return EventSubscribeRequest{}, &EventError{Code: codeInvalidParams, Message: "InvalidParams"}
-	}
 	var params map[string]json.RawMessage
 	if json.Unmarshal(raw, &params) != nil || params == nil {
-		return invalid()
+		return EventSubscribeRequest{}, errEventParams
 	}
+	var req EventSubscribeRequest
 	if json.Unmarshal(params["name"], &req.Name) != nil || req.Name == "" {
-		return invalid()
+		return EventSubscribeRequest{}, errEventParams
 	}
-	siteEvent := false
+	siteEvent, known := eventKind(req.Name, eventScoped)
+	if !known {
+		return EventSubscribeRequest{}, &EventError{Code: EventCodeNotFound, Message: "NotFound", Data: map[string]any{"kind": "event"}}
+	}
+	if err := readArguments(&req, params["arguments"], siteEvent); err != nil {
+		return EventSubscribeRequest{}, err
+	}
+	if err := readDelivery(&req, params["delivery"], subscribe); err != nil {
+		return EventSubscribeRequest{}, err
+	}
+	if subscribe {
+		if err := readStart(&req, params); err != nil {
+			return EventSubscribeRequest{}, err
+		}
+	}
+	return req, nil
+}
+
+// eventKind: whether name is a site event, and whether this connection
+// offers it at all.
+func eventKind(name string, eventScoped bool) (siteEvent, known bool) {
 	switch {
-	case req.Name == "record.added", req.Name == "record.changed", req.Name == "file.uploaded":
-	case IsSiteEvent(req.Name) && !eventScoped:
-		siteEvent = true
-	default:
-		return req, &EventError{Code: EventCodeNotFound, Message: "NotFound", Data: map[string]any{"kind": "event"}}
+	case name == "record.added", name == "record.changed", name == "file.uploaded":
+		return false, true
+	case IsSiteEvent(name) && !eventScoped:
+		return true, true
 	}
+	return false, false
+}
+
+// readArguments takes site, owner and (record events only) storage, all strings.
+func readArguments(req *EventSubscribeRequest, raw json.RawMessage, siteEvent bool) error {
 	var args map[string]any
-	if json.Unmarshal(params["arguments"], &args) != nil || args == nil {
-		return invalid()
+	if json.Unmarshal(raw, &args) != nil || args == nil {
+		return errEventParams
 	}
 	for key, value := range args {
 		// A site event takes the site only: its storage filter would mean nothing.
 		if key != "site" && key != "owner" && !(key == "storage" && !siteEvent) {
-			return invalid()
+			return errEventParams
 		}
 		if _, ok := value.(string); !ok {
-			return invalid()
+			return errEventParams
 		}
 	}
 	req.Site, _ = args["site"].(string)
 	req.Storage, _ = args["storage"].(string)
 	req.Owner, _ = args["owner"].(string)
 	if strings.TrimSpace(req.Site) == "" {
-		return invalid()
+		return errEventParams
 	}
 	// encoding/json sorts map keys and removes insignificant whitespace.
 	canonical, _ := json.Marshal(args)
 	req.CanonicalArgs = string(canonical)
+	return nil
+}
+
+// readDelivery takes a webhook delivery: its URL, and on subscribe its secret.
+func readDelivery(req *EventSubscribeRequest, raw json.RawMessage, subscribe bool) error {
 	var delivery map[string]any
-	if json.Unmarshal(params["delivery"], &delivery) != nil || delivery == nil {
-		return invalid()
+	if json.Unmarshal(raw, &delivery) != nil || delivery == nil {
+		return errEventParams
 	}
 	if _, present := delivery["mode"]; !subscribe && !present {
 		delivery["mode"] = "webhook"
 	}
 	mode, ok := delivery["mode"].(string)
 	if !ok {
-		return invalid()
+		return errEventParams
 	}
 	if mode != "webhook" {
-		return req, &EventError{Code: EventCodeUnsupported, Message: "Unsupported", Data: map[string]any{"feature": "deliveryMode", "value": mode}}
+		return &EventError{Code: EventCodeUnsupported, Message: "Unsupported", Data: map[string]any{"feature": "deliveryMode", "value": mode}}
 	}
-	req.URL, ok = delivery["url"].(string)
-	if !ok || strings.TrimSpace(req.URL) == "" {
-		return invalid()
+	if req.URL, ok = delivery["url"].(string); !ok || strings.TrimSpace(req.URL) == "" {
+		return errEventParams
 	}
 	if !subscribe {
-		return req, nil
+		return nil
 	}
-	req.Secret, ok = delivery["secret"].(string)
-	if !ok || !strings.HasPrefix(req.Secret, "whsec_") {
-		return invalid()
+	if req.Secret, ok = delivery["secret"].(string); !ok || !validWebhookSecret(req.Secret) {
+		return errEventParams
 	}
-	key, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(req.Secret, "whsec_"))
-	if err != nil || len(key) < 24 || len(key) > 64 {
-		return invalid()
+	return nil
+}
+
+func validWebhookSecret(secret string) bool {
+	key, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(secret, "whsec_"))
+	return strings.HasPrefix(secret, "whsec_") && err == nil && len(key) >= 24 && len(key) <= 64
+}
+
+// readStart takes the optional cursor and ttlMs of a subscribe.
+func readStart(req *EventSubscribeRequest, params map[string]json.RawMessage) error {
+	if cursor, present := params["cursor"]; present && json.Unmarshal(cursor, &req.Cursor) != nil {
+		return errEventParams
 	}
-	if cursor, present := params["cursor"]; present {
-		if json.Unmarshal(cursor, &req.Cursor) != nil {
-			return invalid()
-		}
+	ttl, present := params["ttlMs"]
+	if !present {
+		return nil
 	}
-	if ttl, present := params["ttlMs"]; present {
-		req.TTLSet = true
-		var ms *float64
-		if json.Unmarshal(ttl, &ms) != nil {
-			return invalid()
-		}
-		if ms != nil {
-			if *ms < 0 || *ms != math.Trunc(*ms) || *ms > float64(math.MaxInt64/int64(time.Millisecond)) {
-				return invalid()
-			}
-			duration := time.Duration(*ms) * time.Millisecond
-			req.TTL = &duration
-		}
+	req.TTLSet = true
+	var ms *float64
+	if json.Unmarshal(ttl, &ms) != nil {
+		return errEventParams
 	}
-	return req, nil
+	if ms == nil {
+		return nil
+	}
+	if *ms < 0 || *ms != math.Trunc(*ms) || *ms > float64(math.MaxInt64/int64(time.Millisecond)) {
+		return errEventParams
+	}
+	duration := time.Duration(*ms) * time.Millisecond
+	req.TTL = &duration
+	return nil
 }

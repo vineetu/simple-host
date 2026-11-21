@@ -31,6 +31,26 @@ func (s *Service) SiteLimit(ctx context.Context, user *model.User, limits editio
 	return def, false
 }
 
+// MaxSites is the sites this account may hold: its MAX_SITES_OVERRIDES entry,
+// matched against its current handle and then its earlier ones (so a handle
+// change keeps the override), else MAX_SITES_PER_ACCOUNT. Resolved on every
+// call, never cached.
+func (s *Service) MaxSites(ctx context.Context, user *model.User, limits edition.Limits) int {
+	if limits.MaxSitesOverrides == "" || user == nil {
+		return limits.MaxSitesPerAccount
+	}
+	return limits.MaxSitesFor(s.SiteAccountHandles(ctx, user)...)
+}
+
+// MaxSitesOf is MaxSites with the account's earlier handles already read (the
+// admin list reads them all at once); nil for an admin, who has no limit.
+func MaxSitesOf(limits edition.Limits, u model.User, aliases []string) any {
+	if u.IsAdmin {
+		return nil
+	}
+	return limits.MaxSitesFor(append([]string{u.Handle.String}, aliases...)...)
+}
+
 // SiteRetention resolves the account override before applying an allowed per-site setting.
 func (s *Service) SiteRetention(ctx context.Context, userID string, siteKeep, fallback int, limits edition.Limits) (keep int, canSet bool, err error) {
 	user, err := repo.GetUserByID(ctx, s.database, userID)

@@ -3,7 +3,6 @@ package hackhttp
 import (
 	"context"
 	"fmt"
-	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 
 	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"

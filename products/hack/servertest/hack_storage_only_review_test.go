@@ -11,7 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/web"
 )
 
 // Checks the public router and both connector grant shapes: the removed
@@ -103,12 +104,12 @@ func TestHackStorageOnlyReview(t *testing.T) {
 // Exercises the registered public routes: the Hack spec must be the same
 // complete JSON document at both extensions, with no dangling component refs.
 func TestHackRegisteredDocsReview(t *testing.T) {
-	handler.SetInstanceHosts("simple-hack.test", "sites.simple-hack.test", "")
+	web.SetInstanceHosts("simple-hack.test", "sites.simple-hack.test", "")
 	t.Cleanup(func() {
-		handler.SetInstanceHosts("simple-host.app", "", "")
+		web.SetInstanceHosts("simple-host.app", "", "")
 	})
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-hack.test", chromeTestHandler(productedition.Hack))
+	siteshttp.RegisterUIRoutes(mux, "https://simple-hack.test", chromeTestHandler(productedition.Hack))
 	get := func(path string) []byte {
 		t.Helper()
 		rec := httptest.NewRecorder()

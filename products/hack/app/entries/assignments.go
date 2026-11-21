@@ -15,38 +15,26 @@ import (
 // Error is the shared hack workflow refusal.
 type Error = hackmodel.Error
 
-// BeginAssignmentsError identifies a failure to begin the assignment transaction.
-type BeginAssignmentsError struct{ Err error }
-
-func (e *BeginAssignmentsError) Error() string { return e.Err.Error() }
-
-// Unwrap returns the transaction error.
-func (e *BeginAssignmentsError) Unwrap() error { return e.Err }
+// Refusals shared by every judging setup write.
+var (
+	errEventClosed  = &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+	errScoresLocked = &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
+	errSetupLocked  = &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
+)
 
 // GenerateAssignments plans and replaces assignments in one transaction.
 func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers *bool, pool map[string]bool, atStageMove bool) ([]hackmodel.JudgeAssignment, []string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, nil, &BeginAssignmentsError{Err: err}
+		return nil, nil, err
 	}
 	defer tx.Rollback()
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return nil, nil, err
 	}
-	if ev.Stage == "archived" {
-		return nil, nil, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
-	}
-	if ev.JudgingLockedAt.Valid {
-		return nil, nil, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
-	}
-	if ev.Stage == "judging" && (!atStageMove || includeOrganisers != nil) || ev.Stage == "results" && includeOrganisers != nil {
-		return nil, nil, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
-	}
-	// 409, not 400: the route exists, the event is just not in that mode.
-	// The code stays invalid_request, the same name as the other bad-input refusals.
-	if ev.JudgeAssignmentMode != "automatic" {
-		return nil, nil, &Error{Code: "invalid_request", Message: "Switch to automatic assignment first."}
+	if err := generateRefusal(ev, atStageMove, includeOrganisers != nil); err != nil {
+		return nil, nil, err
 	}
 	if err := updateOrganiserJudges(ctx, tx, eventID, nil, includeOrganisers); err != nil {
 		return nil, nil, err
@@ -59,24 +47,9 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(judges) == 0 {
-		return nil, nil, &Error{Code: "too_few_judges", Message: "Invite at least one judge first."}
+	if teams, err = poolTeams(len(judges), teams, pool); err != nil {
+		return nil, nil, err
 	}
-	// Only teams that will be judged get judges: a team with no entry would
-	// take a judge's slot and never show in anyone's queue.
-	judgedTeams := make([]hackmodel.NamedTeam, 0, len(teams))
-	for _, t := range teams {
-		if pool[t.ID] {
-			judgedTeams = append(judgedTeams, t)
-		}
-	}
-	if len(teams) == 0 {
-		return nil, nil, &Error{Code: "too_few_teams", Message: "No teams to assign yet."}
-	}
-	if len(judgedTeams) == 0 {
-		return nil, nil, &Error{Code: "too_few_teams", Message: "No team has an entry to judge yet."}
-	}
-	teams = judgedTeams
 	pairs, err := entryrepo.ListConflictPairs(ctx, tx, eventID)
 	if err != nil {
 		return nil, nil, err
@@ -95,6 +68,41 @@ func (s *Service) GenerateAssignments(ctx context.Context, eventID string, inclu
 	return planned, under, nil
 }
 
+// generateRefusal is why automatic assignments cannot be generated for ev now.
+func generateRefusal(ev hackmodel.Event, atStageMove, organisersChanged bool) error {
+	switch {
+	case ev.Stage == "archived":
+		return errEventClosed
+	case ev.JudgingLockedAt.Valid:
+		return errScoresLocked
+	case ev.Stage == "judging" && (!atStageMove || organisersChanged), ev.Stage == "results" && organisersChanged:
+		return errSetupLocked
+	case ev.JudgeAssignmentMode != "automatic":
+		return &Error{Code: "invalid_request", Message: "Switch to automatic assignment first."}
+	}
+	return nil
+}
+
+// poolTeams is the teams in the judging pool, refusing a plan with nobody to judge or be judged.
+func poolTeams(judges int, teams []hackmodel.NamedTeam, pool map[string]bool) ([]hackmodel.NamedTeam, error) {
+	if judges == 0 {
+		return nil, &Error{Code: "too_few_judges", Message: "Invite at least one judge first."}
+	}
+	if len(teams) == 0 {
+		return nil, &Error{Code: "too_few_teams", Message: "No teams to assign yet."}
+	}
+	out := make([]hackmodel.NamedTeam, 0, len(teams))
+	for _, t := range teams {
+		if pool[t.ID] {
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
+		return nil, &Error{Code: "too_few_teams", Message: "No team has an entry to judge yet."}
+	}
+	return out, nil
+}
+
 // PutManualAssignments replaces the event's manual assignments.
 func (s *Service) PutManualAssignments(ctx context.Context, eventID string, items []hackmodel.JudgeAssignment) ([]hackmodel.JudgeAssignment, error) {
 	tx, ev, err := s.optionsTx(ctx, eventID, true)
@@ -107,24 +115,15 @@ func (s *Service) PutManualAssignments(ctx context.Context, eventID string, item
 	}
 	seen := map[string]bool{}
 	for _, row := range items {
-		if !model.ValidUUID(row.JudgeID) || !model.ValidUUID(row.TeamID) {
-			return nil, &Error{Code: "invalid_assignment", Message: "use event judge and team ids"}
-		}
 		key := hackentries.JudgeTeamKey(row.JudgeID, row.TeamID)
-		if seen[key] {
+		switch {
+		case !model.ValidUUID(row.JudgeID) || !model.ValidUUID(row.TeamID):
+			return nil, &Error{Code: "invalid_assignment", Message: "use event judge and team ids"}
+		case seen[key]:
 			return nil, &Error{Code: "duplicate_assignment", Message: "each judge and team pair appears once"}
 		}
 		seen[key] = true
-		judge, err := entryrepo.EventJudgeInEvent(ctx, tx, ev.ID, row.JudgeID)
-		if err != nil {
-			return nil, err
-		}
-		if !judge {
-			return nil, &Error{Code: "judge_not_found", Message: "judge not found in this event"}
-		}
-		if _, err := entryrepo.EventTeamInEvent(ctx, tx, ev.ID, row.TeamID); errors.Is(err, sql.ErrNoRows) {
-			return nil, &Error{Code: "team_not_found", Message: "team not found in this event"}
-		} else if err != nil {
+		if err := assignmentInEvent(ctx, tx, ev.ID, row); err != nil {
 			return nil, err
 		}
 	}
@@ -143,11 +142,23 @@ func (s *Service) PutManualAssignments(ctx context.Context, eventID string, item
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	rows, err := entryrepo.ListEventAssignments(ctx, s.db, ev.ID)
+	return entryrepo.ListEventAssignments(ctx, s.db, ev.ID)
+}
+
+// assignmentInEvent refuses a row whose judge or team is not in the event.
+func assignmentInEvent(ctx context.Context, tx *sql.Tx, eventID string, row hackmodel.JudgeAssignment) error {
+	judge, err := entryrepo.EventJudgeInEvent(ctx, tx, eventID, row.JudgeID)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return rows, nil
+	if !judge {
+		return &Error{Code: "judge_not_found", Message: "judge not found in this event"}
+	}
+	_, err = entryrepo.EventTeamInEvent(ctx, tx, eventID, row.TeamID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &Error{Code: "team_not_found", Message: "team not found in this event"}
+	}
+	return err
 }
 
 // PutTrackPanels replaces the event's track panels.
@@ -188,34 +199,28 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	rows, err := entryrepo.ListTrackPanels(ctx, s.db, ev.ID)
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
+	return entryrepo.ListTrackPanels(ctx, s.db, ev.ID)
 }
 
+// optionsTx locks the event for a judging write; setup writes are also refused once judging starts.
 func (s *Service) optionsTx(ctx context.Context, eventID string, setup bool) (*sql.Tx, hackmodel.Event, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, hackmodel.Event{}, err
 	}
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
+	switch {
+	case err != nil:
+	case ev.Stage == "archived":
+		err = errEventClosed
+	case ev.JudgingLockedAt.Valid:
+		err = errScoresLocked
+	case setup && ev.Stage == "judging":
+		err = errSetupLocked
+	}
 	if err != nil {
 		tx.Rollback()
 		return nil, hackmodel.Event{}, err
-	}
-	if ev.Stage == "archived" {
-		tx.Rollback()
-		return nil, hackmodel.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
-	}
-	if ev.JudgingLockedAt.Valid {
-		tx.Rollback()
-		return nil, hackmodel.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
-	}
-	if setup && ev.Stage == "judging" {
-		tx.Rollback()
-		return nil, hackmodel.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
 	}
 	return tx, ev, nil
 }

@@ -2,9 +2,12 @@
 package hackmcp
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/vsriram/simple-host/host/mcp"
+	"net/url"
 	"strings"
+
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // Tools returns every base tool this package declares, hidden ones included,
@@ -53,4 +56,36 @@ func hackRestError(tool string, u mcp.UpstreamResult) error {
 	default:
 		return mcp.RestError(tool, u)
 	}
+}
+
+// hackDo serves one REST request as the caller and returns the answer's
+// body. body is sent as JSON when it is not nil; a refusal comes back as
+// hackRestError.
+func hackDo(c *mcp.Call, tool, method, path string, body any) ([]byte, error) {
+	var raw []byte
+	if body != nil {
+		raw, _ = json.Marshal(body)
+	}
+	res := c.Do(method, path, raw, nil)
+	if !res.OK() {
+		return nil, hackRestError(tool, res)
+	}
+	return res.Body(), nil
+}
+
+// eventPath is the REST path of one event, plus suffix ("/stage", ...).
+func eventPath(slug, suffix string) string {
+	return "/v1/hack/events/" + url.PathEscape(slug) + suffix
+}
+
+// withFields is a copy of base with fields added.
+func withFields(base, fields map[string]any) map[string]any {
+	out := make(map[string]any, len(base)+len(fields))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range fields {
+		out[k] = v
+	}
+	return out
 }

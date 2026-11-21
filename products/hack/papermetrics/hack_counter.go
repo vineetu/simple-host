@@ -103,8 +103,7 @@ type hackRequest struct {
 	write, deploy, apiCandidate, apiWrite bool
 }
 
-// ResolveHackEvent uses an already-resolved event. A verified member can be
-// supplied directly; public/key-only paths use the immutable membership cache.
+// ResolveHackEvent uses an already-resolved event.
 func ResolveHackEvent(ctx context.Context, slug, stage, member string, published ...time.Time) {
 	if r, ok := ctx.Value(hackRequestKey{}).(*hackRequest); ok {
 		event := r.event
@@ -156,7 +155,6 @@ func ResolveHackSite(ctx context.Context, account, site, member string, write bo
 }
 
 // HackWriteCommitted counts successful mutating operations, not transport 2xx.
-// In particular an MCP HTTP 200 carrying a failed operation is not a write.
 func HackWriteCommitted(ctx context.Context) {
 	if r, ok := ctx.Value(hackRequestKey{}).(*hackRequest); ok {
 		r.write = true
@@ -256,8 +254,7 @@ func (c *Collector) Wrap(next http.Handler) http.Handler {
 		state.metrics, state.start, state.class = c.hack, start, class
 		state.apiCandidate = mutationMethod(r.Method) && strings.HasPrefix(r.URL.Path, "/v1/hack/events/")
 		state.writer = StatusWriter{ResponseWriter: w, Status: 200}
-		// Resolve cached event URL/host before routing/auth so the gauge spans the
-		// entire handler. Other site forms attach at their existing resolution hook.
+		// Resolve cached event URL/host before routing/auth so the gauge spans the entire handler.
 		meta := c.hack.meta.Load()
 		var event *hackEventInfo
 		if path, ok := strings.CutPrefix(r.URL.Path, "/v1/hack/events/"); ok {
@@ -277,9 +274,7 @@ func (c *Collector) Wrap(next http.Handler) http.Handler {
 		ctx.state.Store(state)
 		completed := false
 		defer func() {
-			// Preserve the panic for net/http while releasing both gauges and
-			// recording the start slot. An aborted handler has server-error
-			// semantics for metrics even if it already wrote a partial body.
+			// Preserve the panic for net/http while releasing both gauges and recording the start slot.
 			if !completed {
 				state.writer.Status = http.StatusInternalServerError
 			}
@@ -338,8 +333,7 @@ func (r *hackRequest) finish(elapsed time.Duration) {
 	r.counts.pending.Add(-1)
 }
 
-// Only completed, quiescent start slots are detached. A long request retains
-// its start slot until completion rather than moving its latency into a new slot.
+// Only completed, quiescent start slots are detached.
 func (h *hackMetrics) drain(now time.Time) []*hackSlotCount {
 	cutoff := now.Unix() / 60
 	h.mu.Lock()
@@ -438,8 +432,7 @@ func mutationMethod(method string) bool {
 	return method != "GET" && method != "HEAD" && method != "OPTIONS"
 }
 
-// HackMutationResult observes the existing replay status rather than the MCP
-// transport status, which is 200 even for a failed event API operation.
+// HackMutationResult observes the existing replay status rather than the MCP transport status, which is 200 even for a failed event API operation.
 func HackMutationResult(ctx context.Context, method, path string, status int) {
 	if !mutationMethod(method) || !strings.HasPrefix(path, "/v1/hack/events/") || status < 200 || status >= 300 {
 		return
@@ -449,8 +442,7 @@ func HackMutationResult(ctx context.Context, method, path string, status int) {
 	}
 }
 
-// Fold quiescent shards only after sealing; event totals are derived from
-// the single class/status arrival/write observations, never duplicate adds.
+// Fold quiescent shards only after sealing; event totals are derived from the single class/status arrival/write observations, never duplicate adds.
 func (slot *hackSlotCount) mergeShards(h *hackMetrics) {
 	for i := range slot.shards {
 		shard := slot.shards[i].Load()

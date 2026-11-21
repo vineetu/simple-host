@@ -215,3 +215,10 @@ func TestHackJoinNamesOptional(t *testing.T) {
 		}
 	}
 }
+
+func TestRunMemberRouteReturnsMarshalError(t *testing.T) {
+	_, err := runMemberRoute(nil, "hack_set_looking", "PUT", "/v1/x", []string{"k"}, map[string]any{"k": make(chan int)})
+	if err == nil {
+		t.Fatal("unmarshalable argument must return an error, not be sent")
+	}
+}

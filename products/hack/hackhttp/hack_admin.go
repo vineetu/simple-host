@@ -38,7 +38,7 @@ func (h *HackHandler) adminListEvents(w http.ResponseWriter, r *http.Request) {
 			"purpose":               a.Purpose,
 			"expected_participants": exp,
 			"created_by_email":      a.CreatorEmail,
-			"url":                   h.EventURL(a.Slug),
+			"url":                   h.links.EventURL(a.Slug),
 			"starts_at":             rfc3339UTC(a.StartsAt),
 			"ends_at":               rfc3339UTC(a.EndsAt),
 			"created_at":            rfc3339Time(a.CreatedAt),
@@ -167,6 +167,6 @@ func (h *HackHandler) adminEventJSON(ev model.Event) map[string]any {
 		"taken_down":        ev.TakenDown(),
 		"taken_down_reason": ev.TakenDownReason,
 		"taken_down_at":     rfc3339UTC(ev.TakenDownAt),
-		"url":               h.EventURL(ev.Slug),
+		"url":               h.links.EventURL(ev.Slug),
 	}
 }

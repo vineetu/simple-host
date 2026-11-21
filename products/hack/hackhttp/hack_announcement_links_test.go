@@ -165,7 +165,7 @@ func TestAnnouncementMailHTML(t *testing.T) {
 	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
 	r := a.at(t, "POST", "/v1/hack/events/"+slug+"/announcements", map[string]any{"title": "Kickoff", "body": "[Join kickoff](https://zoom.us/j/123)", "email_participants": true}, a.key(org))
 	wantTS(t, "post", r, 201, "")
-	a.hack.deliverContentMail(context.Background())
+	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
 	if len(sink.notices) != 1 || !strings.Contains(sink.notices[0].body, "https://zoom.us/j/123") || !strings.Contains(sink.notices[0].html, "Join the call") || !strings.Contains(sink.notices[0].html, "<table") {
 		t.Fatalf("mail: %+v", sink.notices)
 	}

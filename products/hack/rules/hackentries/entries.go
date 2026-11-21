@@ -2,8 +2,10 @@ package hackentries
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/products/hack/model"
+	"slices"
 	"strings"
+
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // RuleFields are every field the rules engine understands, in canonical
@@ -356,6 +358,19 @@ func MissingMessage(missing []string, fields map[string]string) string {
 	default:
 		return strings.Join(words[:len(words)-1], ", ") + ", and " + words[len(words)-1]
 	}
+}
+
+// NewlyShort reports whether after misses a line before did not; drafts count only if before was complete.
+func NewlyShort(before, after Check, submitted bool) bool {
+	if after.Complete || (!submitted && !before.Complete) {
+		return false
+	}
+	for _, m := range after.Missing {
+		if !slices.Contains(before.Missing, m) {
+			return true
+		}
+	}
+	return false
 }
 
 // RulesEditable: rules may change from draft through building. From

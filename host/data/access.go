@@ -5,12 +5,12 @@ func (s *Service) Gate(call Call, write bool) error {
 	if call.Owner {
 		return nil
 	}
-	if call.Resource.SitePasscode == "inherit" && !s.deps.PasscodeAllows() {
+	if call.Resource.SitePasscode == "inherit" && !call.PasscodeOK {
 		return &Error{Code: "site_locked", Message: "unlock this site first"}
 	}
 	// A named-viewers site keeps its saved data to the owner and named viewers,
 	// whatever the resource's site_passcode says.
-	if !s.deps.ViewersAllow() {
+	if !call.ViewersOK {
 		return &Error{Code: "site_private", Message: "this site is open only to its named viewers; sign in on the site first"}
 	}
 	if write && !call.CSRFOK {

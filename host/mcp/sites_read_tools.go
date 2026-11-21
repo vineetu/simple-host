@@ -106,7 +106,11 @@ func runListSites(c *call, args map[string]any) (output, error) {
 			}
 		}
 	}
-	if all, ok := args["all_accounts"].(bool); ok && all {
+	all, err := boolArg(args, "all_accounts", false)
+	if err != nil {
+		return output{}, err
+	}
+	if all {
 		v.Set("all", "1")
 	}
 	sites, err := c.listSites(v)
@@ -414,61 +418,16 @@ func readSiteFiles(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	var paths []string
-	_, single := args["path"]
-	if raw, present := args["paths"]; present {
-		if single {
-			return output{}, errors.New("give path or paths, not both")
-		}
-		list, ok := listArg(raw)
-		if !ok || len(list) == 0 || len(list) > maxReadPaths {
-			return output{}, fmt.Errorf("paths must be a list of 1 to %d file paths", maxReadPaths)
-		}
-		for _, item := range list {
-			p, ok := item.(string)
-			if !ok || p == "" {
-				return output{}, errors.New("paths must hold file paths as strings")
-			}
-			paths = append(paths, p)
-		}
-	} else {
-		path, err := stringArg(args, "path")
-		if err != nil {
-			return output{}, errors.New("path is required (or paths, for several files)")
-		}
-		paths = []string{path}
-	}
-	version, given, err := wholeNumber(args, "version", false, 1, math.MaxInt32)
+	paths, single, err := readPathsArg(args)
 	if err != nil {
 		return output{}, err
 	}
-	if !given {
-		site, err := c.findSite(name)
-		if err != nil {
-			return output{}, err
-		}
-		version = site.ActiveVersion
+	version, err := siteVersionArg(c, args, name)
+	if err != nil {
+		return output{}, err
 	}
 	if !single {
-		files := make([]any, 0, len(paths))
-		var text strings.Builder
-		for _, path := range paths {
-			f, err := readFile(c, "read_site_file", name, version, path)
-			if err != nil {
-				// One missing file does not hide the others.
-				files = append(files, map[string]any{"path": path, "error": err.Error()})
-				fmt.Fprintf(&text, "=== %s ===\n%s\n", path, err.Error())
-				continue
-			}
-			files = append(files, f.structured())
-			if f.binary {
-				fmt.Fprintf(&text, "=== %s ===\n(binary file, %s, %d bytes; contents not shown)\n", path, f.ctype, f.size)
-			} else {
-				fmt.Fprintf(&text, "=== %s ===\n%s\n", path, f.content)
-			}
-		}
-		out := map[string]any{"site": name, "version": version, "files": files}
-		return output{Text: text.String(), Structured: out}, nil
+		return readManyFiles(c, name, version, paths), nil
 	}
 	f, err := readFile(c, "read_site_file", name, version, paths[0])
 	if err != nil {
@@ -480,4 +439,66 @@ func readSiteFiles(c *call, args map[string]any) (output, error) {
 		return output{Text: fmt.Sprintf("%s is a binary file (%s, %d bytes); its contents are not shown.", f.path, f.ctype, f.size), Structured: out}, nil
 	}
 	return output{Text: f.content, Structured: out}, nil
+}
+
+// readPathsArg reads path (one file) or paths (several).
+func readPathsArg(args map[string]any) (paths []string, single bool, err error) {
+	_, single = args["path"]
+	raw, present := args["paths"]
+	if !present {
+		path, err := stringArg(args, "path")
+		if err != nil {
+			return nil, false, errors.New("path is required (or paths, for several files)")
+		}
+		return []string{path}, single, nil
+	}
+	if single {
+		return nil, false, errors.New("give path or paths, not both")
+	}
+	list, ok := listArg(raw)
+	if !ok || len(list) == 0 || len(list) > maxReadPaths {
+		return nil, false, fmt.Errorf("paths must be a list of 1 to %d file paths", maxReadPaths)
+	}
+	for _, item := range list {
+		p, ok := item.(string)
+		if !ok || p == "" {
+			return nil, false, errors.New("paths must hold file paths as strings")
+		}
+		paths = append(paths, p)
+	}
+	return paths, false, nil
+}
+
+// siteVersionArg is the version argument, else the site's live version.
+func siteVersionArg(c *call, args map[string]any, site string) (int, error) {
+	version, given, err := wholeNumber(args, "version", false, 1, math.MaxInt32)
+	if err != nil || given {
+		return version, err
+	}
+	live, err := c.findSite(site)
+	if err != nil {
+		return 0, err
+	}
+	return live.ActiveVersion, nil
+}
+
+// readManyFiles reads several files; one missing file does not hide the others.
+func readManyFiles(c *call, name string, version int, paths []string) output {
+	files := make([]any, 0, len(paths))
+	var text strings.Builder
+	for _, path := range paths {
+		f, err := readFile(c, "read_site_file", name, version, path)
+		switch {
+		case err != nil:
+			files = append(files, map[string]any{"path": path, "error": err.Error()})
+			fmt.Fprintf(&text, "=== %s ===\n%s\n", path, err.Error())
+			continue
+		case f.binary:
+			fmt.Fprintf(&text, "=== %s ===\n(binary file, %s, %d bytes; contents not shown)\n", path, f.ctype, f.size)
+		default:
+			fmt.Fprintf(&text, "=== %s ===\n%s\n", path, f.content)
+		}
+		files = append(files, f.structured())
+	}
+	return output{Text: text.String(), Structured: map[string]any{"site": name, "version": version, "files": files}}
 }

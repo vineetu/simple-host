@@ -187,7 +187,7 @@ func TestHackAnnouncementEmailsApprovedApplicantsOnly(t *testing.T) {
 	if r.status != 201 || r.json(t)["emails_queued"] != float64(2) || r.json(t)["organiser_copied"] != true {
 		t.Fatalf("mail queue: %d %s", r.status, r.body)
 	}
-	a.hack.deliverContentMail(context.Background())
+	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
 	if len(sink.notices) != 2 {
 		t.Fatalf("recipients: %+v", sink.notices)
 	}
@@ -248,7 +248,7 @@ func TestHackEntryReceiptOnce(t *testing.T) {
 	if r := a.at(t, "PUT", base+"/entry", map[string]string{"title": "Edited entry"}, a.key(participant)); r.status != 200 {
 		t.Fatalf("edit: %d %s", r.status, r.body)
 	}
-	a.hack.deliverContentMail(context.Background())
+	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
 	if len(sink.notices) != 1 {
 		t.Fatalf("duplicate receipt: %+v", sink.notices)
 	}
@@ -310,18 +310,18 @@ func TestHackMailFailureDoesNotBlockOtherMessages(t *testing.T) {
 	if !gotReceipt || !gotOther {
 		t.Fatalf("wrong first pass: failed=%s sent=%+v", sink.failedTo, sink.notices)
 	}
-	a.hack.deliverContentMail(context.Background())
+	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
 	if len(sink.notices) != 3 {
 		t.Fatalf("failed row retried before delay: %+v", sink.notices)
 	}
 	if _, err := a.database.Exec(`UPDATE event_announcement_deliveries SET attempted_at=now()-interval '2 minutes' WHERE sent_at IS NULL`); err != nil {
 		t.Fatal(err)
 	}
-	a.hack.deliverContentMail(context.Background())
+	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
 	if len(sink.notices) != 4 || sink.notices[3].to != sink.failedTo {
 		t.Fatalf("failed row not retried: %+v", sink.notices)
 	}
-	a.hack.deliverContentMail(context.Background())
+	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
 	if len(sink.notices) != 4 {
 		t.Fatalf("completed receipt sent twice: %+v", sink.notices)
 	}
@@ -358,7 +358,7 @@ func TestHackAnnouncementEmailsZeroForKeyOnlyParticipants(t *testing.T) {
 	if r.status != 201 || r.json(t)["emails_queued"] != float64(0) || r.json(t)["organiser_copied"] != false {
 		t.Fatalf("announcement: %d %s", r.status, r.body)
 	}
-	a.hack.deliverContentMail(context.Background())
+	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
 	if len(sink.notices) != 0 {
 		t.Fatalf("no one should have been emailed: %+v", sink.notices)
 	}

@@ -88,17 +88,7 @@ func teamTools() []Tool {
 			Description: "Create a team: an account that owns sites, which people join. You become its first member. Its name becomes its address, https://<site>.<name>.simple-host.app/, so it follows the address rules: lowercase letters, numbers and hyphens, no dots. A team cannot be renamed later. Ask the person for the name first.",
 			InputSchema: object(map[string]any{"name": str("The team's name and address: 1 to 39 lowercase letters, numbers or hyphens.")}, "name"),
 			Annotations: writes(false, false, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := stringArg(args, "name")
-				if err != nil {
-					return output{}, err
-				}
-				out, err := teamCall(c, "create_team", http.MethodPost, "/v1/teams", map[string]string{"name": name})
-				if err != nil {
-					return output{}, err
-				}
-				return output{Text: fmt.Sprintf("Team %v created. Publish its sites with owner: %q on create_site and the other site tools; invite people with add_team_member.", out["handle"], out["handle"]), Structured: out}, nil
-			},
+			run:         runCreateTeam,
 		},
 		{
 			policy: policy,
@@ -110,13 +100,7 @@ func teamTools() []Tool {
 			Description: "List the teams you belong to, with each team's id and handle, and the invitations to join a team that wait for your answer. Pass a team's handle as owner on site and storage tools to work on its sites.",
 			InputSchema: noArgs(),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				out, err := teamCall(c, "list_teams", http.MethodGet, "/v1/teams", nil)
-				if err != nil {
-					return output{}, err
-				}
-				return output{Text: jsonText(out), Structured: out}, nil
-			},
+			run:         runListTeams,
 		},
 		{
 			policy: policy,
@@ -129,17 +113,7 @@ func teamTools() []Tool {
 			Description: "List the members of a team you belong to (each one's handle, name, who added them and when) and its invitations still waiting for an answer.",
 			InputSchema: object(map[string]any{"team": str(teamArgDesc)}, "team"),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				path, err := teamPath(args, "/members")
-				if err != nil {
-					return output{}, err
-				}
-				out, err := teamCall(c, "list_team_members", http.MethodGet, path, nil)
-				if err != nil {
-					return output{}, err
-				}
-				return output{Text: jsonText(out), Structured: out}, nil
-			},
+			run:         runListTeamMembers,
 		},
 		{
 			policy: policy,
@@ -152,21 +126,7 @@ func teamTools() []Tool {
 			Description: "Invite a person to a team you belong to, by their email. Nobody becomes a member until they accept: they see the invitation when signed in with that email (who_am_i or list_teams) and accept or decline it. Nothing is sent to them, so tell them yourself. The answer is the same whether or not anyone has that email. Every member can publish, change and delete all the team's sites and invite or remove members, so confirm the person and the team with the person you are helping first. Invitations lapse after 14 days; a team may have 20 waiting.",
 			InputSchema: object(map[string]any{"team": str(teamArgDesc), "email": str("The person's sign-in email.")}, "team", "email"),
 			Annotations: writes(false, false, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				path, err := teamPath(args, "/members")
-				if err != nil {
-					return output{}, err
-				}
-				email, err := stringArg(args, "email")
-				if err != nil {
-					return output{}, err
-				}
-				out, err := teamCall(c, "add_team_member", http.MethodPost, path, map[string]string{"email": email})
-				if err != nil {
-					return output{}, err
-				}
-				return output{Text: "Invitation recorded. They join only once they accept it, signed in with that email; nothing is sent to them, so let them know.", Structured: out}, nil
-			},
+			run:         runAddTeamMember,
 		},
 		{
 			policy: policy,
@@ -177,21 +137,7 @@ func teamTools() []Tool {
 			Description: "Cancel an invitation of a team you belong to that is still waiting for an answer (its id from list_team_members).",
 			InputSchema: object(map[string]any{"team": str(teamArgDesc), "invitation": str("The invitation's id, from list_team_members.")}, "team", "invitation"),
 			Annotations: writes(true, true, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				id, err := stringArg(args, "invitation")
-				if err != nil {
-					return output{}, err
-				}
-				path, err := teamPath(args, "/invitations/"+url.PathEscape(id))
-				if err != nil {
-					return output{}, err
-				}
-				out, err := teamCall(c, "cancel_team_invitation", http.MethodDelete, path, nil)
-				if err != nil {
-					return output{}, err
-				}
-				return output{Text: "Invitation cancelled.", Structured: out}, nil
-			},
+			run:         runCancelTeamInvitation,
 		},
 		{
 			policy: policy,
@@ -206,24 +152,7 @@ func teamTools() []Tool {
 				"answer":     map[string]any{"type": "string", "enum": []string{"accept", "decline"}, "description": "accept or decline."},
 			}, "invitation", "answer"),
 			Annotations: writes(false, false, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				id, err := stringArg(args, "invitation")
-				if err != nil {
-					return output{}, err
-				}
-				answer, err := stringArg(args, "answer")
-				if err != nil {
-					return output{}, err
-				}
-				out, err := teamCall(c, "answer_team_invitation", http.MethodPost, "/v1/me/team-invitations/"+url.PathEscape(id), map[string]string{"answer": answer})
-				if err != nil {
-					return output{}, err
-				}
-				if answer == "accept" {
-					return output{Text: fmt.Sprintf("You joined %v. Work on its sites with owner: %q.", out["team"], out["team"]), Structured: out}, nil
-				}
-				return output{Text: "Invitation declined.", Structured: out}, nil
-			},
+			run:         runAnswerTeamInvitation,
 		},
 		{
 			policy: policy,
@@ -234,21 +163,7 @@ func teamTools() []Tool {
 			Description: "Remove a member from a team you belong to (yourself included), by handle or account id. Their access to the team's sites stops on their next request, and invitations they sent are withdrawn. The last member cannot leave: to end the team, delete its sites, then the team. Ask before removing anyone.",
 			InputSchema: object(map[string]any{"team": str(teamArgDesc), "person": str("The member's handle or account id, from list_team_members.")}, "team", "person"),
 			Annotations: writes(true, true, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				person, err := stringArg(args, "person")
-				if err != nil {
-					return output{}, err
-				}
-				path, err := teamPath(args, "/members/"+url.PathEscape(strings.ToLower(person)))
-				if err != nil {
-					return output{}, err
-				}
-				out, err := teamCall(c, "remove_team_member", http.MethodDelete, path, nil)
-				if err != nil {
-					return output{}, err
-				}
-				return output{Text: "Removed from the team.", Structured: out}, nil
-			},
+			run:         runRemoveTeamMember,
 		},
 		{
 			policy: policy,
@@ -259,17 +174,7 @@ func teamTools() []Tool {
 			Description: "Delete a team you belong to. Only a team with no live sites can be deleted: delete its sites first; any in Recently deleted are deleted for good with it. Its name is retired and never given out again. Ask the person before deleting.",
 			InputSchema: object(map[string]any{"team": str(teamArgDesc)}, "team"),
 			Annotations: writes(true, true, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				path, err := teamPath(args, "")
-				if err != nil {
-					return output{}, err
-				}
-				out, err := teamCall(c, "delete_team", http.MethodDelete, path, nil)
-				if err != nil {
-					return output{}, err
-				}
-				return output{Text: "Team deleted.", Structured: out}, nil
-			},
+			run:         runDeleteTeam,
 		},
 	}
 }
@@ -327,4 +232,115 @@ func (c *call) takeTeamArguments(args map[string]any) error {
 		c.ifMatch = n
 	}
 	return nil
+}
+
+func runCreateTeam(c *call, args map[string]any) (output, error) {
+	name, err := stringArg(args, "name")
+	if err != nil {
+		return output{}, err
+	}
+	out, err := teamCall(c, "create_team", http.MethodPost, "/v1/teams", map[string]string{"name": name})
+	if err != nil {
+		return output{}, err
+	}
+	return output{Text: fmt.Sprintf("Team %v created. Publish its sites with owner: %q on create_site and the other site tools; invite people with add_team_member.", out["handle"], out["handle"]), Structured: out}, nil
+}
+
+func runListTeams(c *call, args map[string]any) (output, error) {
+	out, err := teamCall(c, "list_teams", http.MethodGet, "/v1/teams", nil)
+	if err != nil {
+		return output{}, err
+	}
+	return output{Text: jsonText(out), Structured: out}, nil
+}
+
+func runListTeamMembers(c *call, args map[string]any) (output, error) {
+	path, err := teamPath(args, "/members")
+	if err != nil {
+		return output{}, err
+	}
+	out, err := teamCall(c, "list_team_members", http.MethodGet, path, nil)
+	if err != nil {
+		return output{}, err
+	}
+	return output{Text: jsonText(out), Structured: out}, nil
+}
+
+func runAddTeamMember(c *call, args map[string]any) (output, error) {
+	path, err := teamPath(args, "/members")
+	if err != nil {
+		return output{}, err
+	}
+	email, err := stringArg(args, "email")
+	if err != nil {
+		return output{}, err
+	}
+	out, err := teamCall(c, "add_team_member", http.MethodPost, path, map[string]string{"email": email})
+	if err != nil {
+		return output{}, err
+	}
+	return output{Text: "Invitation recorded. They join only once they accept it, signed in with that email; nothing is sent to them, so let them know.", Structured: out}, nil
+}
+
+func runCancelTeamInvitation(c *call, args map[string]any) (output, error) {
+	id, err := stringArg(args, "invitation")
+	if err != nil {
+		return output{}, err
+	}
+	path, err := teamPath(args, "/invitations/"+url.PathEscape(id))
+	if err != nil {
+		return output{}, err
+	}
+	out, err := teamCall(c, "cancel_team_invitation", http.MethodDelete, path, nil)
+	if err != nil {
+		return output{}, err
+	}
+	return output{Text: "Invitation cancelled.", Structured: out}, nil
+}
+
+func runAnswerTeamInvitation(c *call, args map[string]any) (output, error) {
+	id, err := stringArg(args, "invitation")
+	if err != nil {
+		return output{}, err
+	}
+	answer, err := stringArg(args, "answer")
+	if err != nil {
+		return output{}, err
+	}
+	out, err := teamCall(c, "answer_team_invitation", http.MethodPost, "/v1/me/team-invitations/"+url.PathEscape(id), map[string]string{"answer": answer})
+	if err != nil {
+		return output{}, err
+	}
+	if answer == "accept" {
+		return output{Text: fmt.Sprintf("You joined %v. Work on its sites with owner: %q.", out["team"], out["team"]), Structured: out}, nil
+	}
+	return output{Text: "Invitation declined.", Structured: out}, nil
+}
+
+func runRemoveTeamMember(c *call, args map[string]any) (output, error) {
+	person, err := stringArg(args, "person")
+	if err != nil {
+		return output{}, err
+	}
+	path, err := teamPath(args, "/members/"+url.PathEscape(strings.ToLower(person)))
+	if err != nil {
+		return output{}, err
+	}
+	out, err := teamCall(c, "remove_team_member", http.MethodDelete, path, nil)
+	if err != nil {
+		return output{}, err
+	}
+	return output{Text: "Removed from the team.", Structured: out}, nil
+}
+
+func runDeleteTeam(c *call, args map[string]any) (output, error) {
+	path, err := teamPath(args, "")
+	if err != nil {
+		return output{}, err
+	}
+	out, err := teamCall(c, "delete_team", http.MethodDelete, path, nil)
+	if err != nil {
+		return output{}, err
+	}
+	return output{Text: "Team deleted.", Structured: out}, nil
 }

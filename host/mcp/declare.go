@@ -156,3 +156,10 @@ func (c *call) WithUICapable(ui bool) *Call {
 	clone.uiClient, clone.textOnlyClient = ui, !ui
 	return &clone
 }
+
+func BoolArg(args map[string]any, key string, fallback bool) (bool, error) {
+	return boolArg(args, key, fallback)
+}
+func PresentBool(args map[string]any, key string) (value, present bool, err error) {
+	return presentBool(args, key)
+}

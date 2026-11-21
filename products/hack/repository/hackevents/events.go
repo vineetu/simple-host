@@ -97,16 +97,12 @@ func GetEventBySlug(ctx context.Context, q sqlkit.Querier, slug string) (Event, 
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE slug = $1`, slug))
 }
 
-// GetEventByID loads an event by its id, for a route that only has a team's
-// event_id in hand (GET /v1/hack/team-links/{code}).
+// GetEventByID loads an event by its id, for a route that only has a team's event_id in hand (GET /v1/hack/team-links/{code}).
 func GetEventByID(ctx context.Context, q sqlkit.Querier, eventID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1`, eventID))
 }
 
-// GetDemoEvent finds the standing demo: the newest open or building event whose slug is
-// the demo slug or a dated successor (demo-YYYYWW, demo-YYYYWW-2), organised by the admin
-// account. Used slugs stay reserved, so the weekly reset moves to a dated name; the admin
-// check keeps anyone else from claiming a demo-* name and capturing the demo links.
+// GetDemoEvent finds the standing demo.
 func GetDemoEvent(ctx context.Context, q sqlkit.Querier, slug string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events
 		WHERE (slug = $1 OR slug LIKE $1 || '-%') AND taken_down_at IS NULL AND stage IN ('open', 'building')
@@ -165,11 +161,7 @@ func CountOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID string) (int, 
 	return n, err
 }
 
-// CountEmailableParticipants is approved participants with an email-shaped
-// username -- the only ones an announcement's email_participants can reach.
-// The organiser-announcements checkbox labels itself with this, not with
-// CountEventMembers' participant total, so it never promises mail to people
-// who hold key-only test accounts or any other "@"-less username.
+// CountEmailableParticipants is approved participants with an email-shaped username -- the only ones an announcement's email_participants can reach.
 func CountEmailableParticipants(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `
@@ -181,8 +173,7 @@ func CountEmailableParticipants(ctx context.Context, q sqlkit.Querier, eventID s
 // EventSlugTaken reports whether an events row already uses slug.
 func EventSlugTaken(ctx context.Context, q sqlkit.Querier, slug string) (bool, error) {
 	var taken bool
-	// A name that had a participant, judge or team stays taken after its event is gone
-	// (event_used_names): its team origins never pass to someone else.
+	// A name that had a participant, judge or team stays taken after its event is gone (event_used_names): its team origins never pass to someone else.
 	err := q.QueryRowContext(ctx, `
 		SELECT EXISTS (SELECT 1 FROM events WHERE slug = $1)
 		    OR EXISTS (SELECT 1 FROM event_used_names WHERE event_slug = $1)`, slug).Scan(&taken)
@@ -212,17 +203,9 @@ func InsertEventCreateLog(ctx context.Context, q sqlkit.Querier, userID string) 
 	return err
 }
 
-// InsertEvent writes a new events row. Unique violations on slug or codes are
-// returned as-is so the caller can retry codes or map a slug clash to name_taken.
+// InsertEvent writes a new events row.
 func InsertEvent(ctx context.Context, q sqlkit.Querier, e Event) (Event, error) {
-	// entry_preset/entry_rules: new events start on the "video or website"
-	// preset (the create handler passes its expanded rules JSON;
-	// zv-hack-entry-summary.sql section 2 -- a Go table, not a DB default,
-	// so the preset's field list lives in one place,
-	// host/rules/hackentries/entries.go). entry_rules_chosen: the
-	// create handler passes false (0005-hack-entry-rules-chosen.sql,
-	// SIM-382) -- the organiser hasn't saved a choice yet, which is what
-	// gates Overview's "Choose what teams hand in" first step.
+	// entry_preset/entry_rules: new events start on the "video or website" preset.
 	row := q.QueryRowContext(ctx, `
 		INSERT INTO events (
 			id, slug, account_id, created_by, title, stage,
@@ -266,34 +249,24 @@ func UpdateEventPatch(ctx context.Context, q sqlkit.Querier, e Event) (Event, er
 	return ScanEvent(row)
 }
 
-// SetEventReminderOffsets saves the validated, normalised reminder offsets
-// (0003-hack-notices-judges-messages.sql).
+// SetEventReminderOffsets saves the validated, normalised reminder offsets (0003-hack-notices-judges-messages.sql).
 func SetEventReminderOffsets(ctx context.Context, q sqlkit.Querier, eventID string, offsets []int64) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `
 		UPDATE events SET reminder_offsets = $2, updated_at = now() WHERE id = $1 RETURNING `+EventColumns,
 		eventID, pq.Array(offsets)))
 }
 
-// GetEventForUpdate reads the event and locks its row until the transaction
-// ends.
+// GetEventForUpdate reads the event and locks its row until the transaction ends.
 func GetEventForUpdate(ctx context.Context, q *sql.Tx, eventID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1 FOR UPDATE`, eventID))
 }
 
-// GetEventForShare reads the event and takes FOR SHARE, the lock join and
-// apply already take ahead of inserting a member row so a concurrent leave
-// (which takes FOR UPDATE) serialises against them -- sql.ErrNoRows when the
-// event no longer exists (the last organiser's concurrent delete won).
-// Unlike the bare `SELECT 1 ... FOR SHARE` the judge and participant join
-// branches used before (Codex review, SIM-340), this returns the row so the
-// caller can revalidate stage/takedown against the state as of the lock,
-// not the pre-lock snapshot a blocked insert would otherwise go on to use.
+// GetEventForShare reads the event under FOR SHARE, the lock join and apply take before inserting a member row.
 func GetEventForShare(ctx context.Context, q *sql.Tx, eventID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1 FOR SHARE`, eventID))
 }
 
-// UpdateEventEntrySettings writes the M2 settings: the submission deadline,
-// the required entry fields and whether the gallery is open.
+// UpdateEventEntrySettings writes the M2 settings: the submission deadline, the required entry fields and whether the gallery is open.
 func UpdateEventEntrySettings(ctx context.Context, q sqlkit.Querier, eventID string, deadline sql.NullTime, required []string, gallery bool) (Event, error) {
 	if required == nil {
 		required = []string{}
@@ -344,19 +317,13 @@ func RestoreEvent(ctx context.Context, q sqlkit.Querier, eventID string) (Event,
 		WHERE id = $1 RETURNING `+EventColumns, eventID))
 }
 
-// DeleteEventAndAccount deletes the event (cascading members and teams) then
-// the holding account, which frees the handle/slug. One transaction.
-// lockSites and deleteAccount are the platform's: the account's site rows
-// are locked in the deploy's order, and the account goes last.
+// DeleteEventAndAccount deletes the event (cascading members and teams) then the holding account, which frees the handle/slug.
 func DeleteEventAndAccount(ctx context.Context, q *sql.Tx, ev Event, lockSites, deleteAccount func(context.Context, *sql.Tx, string) error) error {
-	// Lock order: the event row (as PATCH, stage and extension changes
-	// take it), the holding account's sites, then the team rows (as a
-	// deploy takes them).
+	// Lock order: the event row (as PATCH, stage and extension changes take it), the holding account's sites, then the team rows.
 	if _, err := q.ExecContext(ctx, `SELECT 1 FROM events WHERE id = $1 FOR UPDATE`, ev.ID); err != nil {
 		return err
 	}
-	// The holding account's site rows before the team rows: an update
-	// deploy holds its site row, then its team row.
+	// The holding account's site rows before the team rows: an update deploy holds its site row, then its team row.
 	if err := lockSites(ctx, q, ev.AccountID); err != nil {
 		return err
 	}
@@ -459,9 +426,7 @@ func InsertEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID, r
 	return m, err
 }
 
-// ListEventPeople is GET /v1/hack/events/{slug}/people and the participants
-// CSV. It is the only EventPerson listing that reads the application profile
-// fields (city, country, age_range, gender): the handler decides who sees them.
+// ListEventPeople is GET /v1/hack/events/{slug}/people and the participants CSV.
 func ListEventPeople(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, COALESCE(u.display_name,''), m.role, m.team_id,

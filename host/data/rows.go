@@ -1,6 +1,7 @@
 package data
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -154,11 +156,12 @@ func tableMetadata(conn *sqlite3.Conn, c Call, table string) (rowMetadata, error
 	return m, nil
 }
 
+var tableActionOps = map[string]ruleengine.Op{"read": ruleengine.OpRead, "add": ruleengine.OpAdd, "edit": ruleengine.OpEdit, "delete": ruleengine.OpDelete}
+
 // authorizeTable runs authorize for one table. An add for someone (OwnerFor)
 // first needs read rules that limit the table's rows to their visitor or the
 // owner.
 func (s *Service) authorizeTable(ctx context.Context, c Call, table, action string) (Call, *Error, bool) {
-	op := map[string]ruleengine.Op{"read": ruleengine.OpRead, "add": ruleengine.OpAdd, "edit": ruleengine.OpEdit, "delete": ruleengine.OpDelete}[action]
 	if c.OwnerFor != "" {
 		if err := s.Gate(c, true); err != nil {
 			return c, err.(*Error), false
@@ -171,74 +174,165 @@ func (s *Service) authorizeTable(ctx context.Context, c Call, table, action stri
 		}
 		c.rulePlan = nil
 	}
-	err := s.authorize(ctx, &c, table, op)
+	err := s.authorize(ctx, &c, table, tableActionOps[action])
 	return c, err, err == nil
 }
 
-// TableGet authorizes and reads one SQLite table row.
-func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, error) {
-	var out TableResult
-	c, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
-	out.Authorization = auth
-	if !allowed {
-		return out, nil
+// tableSession is one authorized row operation on an open connection: the
+// call as the rules refined it, the table's checked metadata and, for a read
+// under rules, the row predicate.
+type tableSession struct {
+	conn      *sqlite3.Conn
+	c         Call
+	table     string
+	meta      rowMetadata
+	predicate ruleengine.Predicate
+	a         *Admission
+}
+
+// withTable owns the steps every row route shares: authorize, take the site
+// write lock for a change, admit the site, open the database, check the
+// table and settle its rules, then run work. work fills out before it
+// commits, so a panic after the commit keeps the result. A refusal is
+// returned as the result's Authorization with no error.
+func (s *Service) withTable(ctx context.Context, in TableInput, action string, work func(t *tableSession, out *TableResult) error) (TableResult, error) {
+	// A read is authorized here; a change was authorized before the
+	// idempotency boundary (AuthorizeTableWrite), for this table and action.
+	c, auth, allowed := in.Authorized.call, in.Authorized.Authorization, in.Authorized.Allowed() && in.Authorized.table == in.Table && in.Authorized.action == action
+	if action == "read" {
+		c, auth, allowed = s.authorizeTable(ctx, in.Call, in.Table, action)
 	}
+	if !allowed {
+		return TableResult{Authorization: auth}, nil
+	}
+	op := tableActionOps[action]
+	write := op != ruleengine.OpRead
+	if write {
+		lockCtx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+		if err != nil {
+			return TableResult{}, err
+		}
+		defer unlock()
+		ctx = lockCtx
+	}
+	var out TableResult
 	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
-		conn, done, err := s.openTableConn(ctx, c, false)
+		if write {
+			c.Context = ctx
+		}
+		conn, done, err := s.openTableConn(ctx, c, write)
 		if err != nil {
 			return err
 		}
 		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
 		s.sqliteStage("after_open")
-		invalid := func(err error) error {
-			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
+		if op == ruleengine.OpAdd && c.OwnerFor != "" {
+			if err := addWrittenByColumn(conn, in.Table); err != nil {
+				return err
+			}
 		}
-		meta, err := tableMetadata(conn, c, in.Table)
+		t := &tableSession{conn: conn, c: c, table: in.Table, a: a}
+		if t.meta, err = tableMetadata(conn, c, in.Table); err != nil {
+			return err
+		}
+		if write {
+			err = s.ruleWritePlan(&t.c, in.Table, t.meta, op)
+		} else if c.rulePlan != nil {
+			t.predicate, err = s.ruleReadPredicate(ctx, &t.c, in.Table, t.meta)
+		}
 		if err != nil {
 			return err
 		}
-		order, rowid, hold := meta.order, meta.rowid, meta.hold
-		query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table) + " WHERE " + rowid + " = ?"
-		params := []any{in.ID}
-		if hold && !c.Owner && !c.OwnerOnSite {
+		return work(t, &out)
+	})
+	if err != nil {
+		return TableResult{}, err
+	}
+	return out, nil
+}
+
+// seesEveryRow reports whether the caller sees every row's visitor_id and
+// rows still waiting for approval.
+func seesEveryRow(c Call) bool { return c.Owner || c.OwnerOnSite }
+
+// isVisitorColumn reports whether name is the column holding the row's
+// visitor; under rules SQLite's case-insensitive spelling counts too.
+func isVisitorColumn(c Call, name string) bool {
+	return name == "visitor_id" || c.rulePlan != nil && strings.EqualFold(name, "visitor_id")
+}
+
+// hiddenColumn reports whether the caller may not sort or filter by name.
+func hiddenColumn(c Call, name string) bool { return isVisitorColumn(c, name) && !seesEveryRow(c) }
+
+// visibleRow reads the statement's current row, hiding another visitor's
+// visitor_id from a caller who does not see every row. mine reports whether
+// the row is the caller's own.
+func visibleRow(stmt *sqlite3.Stmt, columns []string, c Call) ([]any, bool) {
+	row := make([]any, len(columns))
+	mine := false
+	for i, name := range columns {
+		row[i] = runtime.StorageColumn(stmt, i)
+		if !isVisitorColumn(c, name) {
+			continue
+		}
+		id, _ := row[i].(string)
+		mine = id != "" && c.VisitorID != "" && id == c.VisitorID
+		if !mine && !seesEveryRow(c) {
+			row[i] = nil
+		}
+	}
+	return row, mine
+}
+
+// prepareRowRead compiles a row read under the caller's read authorizer and
+// binds its values: the rules' arguments under rules, params otherwise.
+func (s *Service) prepareRowRead(t *tableSession, query string, ruleArgs []ruleengine.Value, params []json.RawMessage) (*sqlite3.Stmt, error) {
+	if err := rowReadAuthorizer(t.conn, t.c.Owner); err != nil {
+		return nil, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+	}
+	stmt, _, err := t.conn.Prepare(query)
+	if err != nil || stmt == nil {
+		return nil, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
+	}
+	bound := false
+	defer func() {
+		if !bound {
+			stmt.Close()
+		}
+	}()
+	s.sqliteStage("after_prepare")
+	if t.c.rulePlan != nil {
+		err = runtime.BindRuleArgs(stmt, 1, ruleArgs)
+	} else {
+		err = rowBindAll(stmt, params)
+	}
+	if err != nil {
+		return nil, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
+	}
+	bound = true
+	return stmt, nil
+}
+
+// TableGet authorizes and reads one SQLite table row.
+func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, error) {
+	return s.withTable(ctx, in, "read", func(t *tableSession, out *TableResult) error {
+		c, meta := t.c, t.meta
+		query := "SELECT *, " + meta.rowid + " FROM " + runtime.Quote(in.Table) + " WHERE " + meta.rowid + " = ?"
+		if meta.hold && !seesEveryRow(c) {
 			query += " AND approved_at IS NOT NULL"
 		}
 		var ruleArgs []ruleengine.Value
 		if c.rulePlan != nil {
-			predicate, e := s.ruleReadPredicate(ctx, &c, in.Table, meta)
-			if e != nil {
-				return e
-			}
-			query, ruleArgs, e = runtime.RuleSelectOne(in.Table, rowid, ruleengine.Int(in.ID), predicate)
-			if e != nil {
+			var err error
+			if query, ruleArgs, err = runtime.RuleSelectOne(in.Table, meta.rowid, ruleengine.Int(in.ID), t.predicate); err != nil {
 				return rulesInvalid()
 			}
 		}
-		err = rowReadAuthorizer(conn, c.Owner)
+		stmt, err := s.prepareRowRead(t, query, ruleArgs, []json.RawMessage{rowJSON(in.ID)})
 		if err != nil {
-			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
-		}
-		stmt, _, err := conn.Prepare(query)
-		if err != nil || stmt == nil {
-			return invalid(err)
+			return err
 		}
 		defer stmt.Close()
-		s.sqliteStage("after_prepare")
-		if c.rulePlan != nil {
-			if err := runtime.BindRuleArgs(stmt, 1, ruleArgs); err != nil {
-				return invalid(err)
-			}
-		} else {
-			if len(params) != stmt.BindCount() {
-				return invalid(err)
-			}
-			for i, v := range params {
-				raw, _ := json.Marshal(v)
-				if err := runtime.BindStorageParam(stmt, i+1, raw); err != nil {
-					return invalid(err)
-				}
-			}
-		}
 		if !stmt.Step() {
 			if stmt.Err() != nil {
 				return sqliteRowFailure(stmt.Err(), &Error{Code: "invalid_rows", Message: "query failed"})
@@ -246,244 +340,194 @@ func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, err
 			return &Error{Code: "row_not_found", Message: "row not found"}
 		}
 		s.sqliteStage("after_step")
-		row := make([]any, len(order))
-		mine := false
-		for i, name := range order {
-			row[i] = runtime.StorageColumn(stmt, i)
-			if name == "visitor_id" || c.rulePlan != nil && strings.EqualFold(name, "visitor_id") {
-				id, _ := row[i].(string)
-				mine = id != "" && c.VisitorID != "" && id == c.VisitorID
-				if !c.Owner && !c.OwnerOnSite && !mine {
-					row[i] = nil
-				}
-			}
+		row, mine := visibleRow(stmt, meta.order, c)
+		body := map[string]any{"columns": meta.order, "row": row}
+		if !seesEveryRow(c) {
+			body["mine"] = mine
 		}
-		out.Body = map[string]any{"columns": order, "row": row}
-		if !c.Owner && !c.OwnerOnSite {
-			out.Body["mine"] = mine
-		}
+		out.Body = body
 		return nil
 	})
-	return out, err
 }
 
 // TableList authorizes and lists SQLite table rows.
 func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, error) {
-	var out TableResult
-	c, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
-	out.Authorization = auth
-	if !allowed {
-		return out, nil
-	}
-	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
-		conn, done, err := s.openTableConn(ctx, c, false)
+	return s.withTable(ctx, in, "read", func(t *tableSession, out *TableResult) error {
+		page, err := parseRowPage(in.Query, t.c, t.meta)
 		if err != nil {
 			return err
 		}
-		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
-		s.sqliteStage("after_open")
-		meta, err := tableMetadata(conn, c, in.Table)
-		if err != nil {
-			return err
-		}
-		var predicate ruleengine.Predicate
-		if c.rulePlan != nil {
-			predicate, err = s.ruleReadPredicate(ctx, &c, in.Table, meta)
-			if err != nil {
-				return err
-			}
-		}
-		// Owner-only query options use the refreshed owner-on-site status.
-		cols, orderCols, rowid, hold := meta.cols, meta.order, meta.rowid, meta.hold
-		q := in.Query
-		after := q.Get("after")
-		limit, ok := httpx.Limit(q, 100, 500)
-		if !ok {
-			return &Error{Code: "invalid_rows", Message: "invalid limit"}
-		}
-		order := q.Get("order")
-		if order == "" {
-			order = rowid
-		}
-		if _, ok := cols[order]; !ok && order != rowid || (order == "visitor_id" || c.rulePlan != nil && strings.EqualFold(order, "visitor_id")) && !(c.Owner || c.OwnerOnSite) {
-			return &Error{Code: "invalid_rows", Message: "invalid row request"}
-		}
-		desc := q.Get("desc")
-		if desc != "" && desc != "0" && desc != "1" {
-			return &Error{Code: "invalid_rows", Message: "desc is 0 or 1"}
-		}
-		page := &rowPage{limit: limit, order: order, desc: desc == "1", orderIndex: -1}
-		rulePage := runtime.RulePage{Order: order, Desc: page.desc, Limit: limit + 1}
-		for i, name := range orderCols {
-			if name == order {
-				page.orderIndex = i
-			}
-		}
-		where := []string{}
-		params := []json.RawMessage{}
-		bind := func(v any) { params = append(params, rowJSON(v)) }
-		if hold && !c.Owner && !c.OwnerOnSite {
-			where = append(where, "approved_at IS NOT NULL")
-		}
-		// Equality filters on real columns only, bound as values.
-		keys := []string{}
-		for k := range q {
-			if strings.HasPrefix(k, "where.") {
-				keys = append(keys, k)
-			}
-		}
-		sort.Strings(keys)
-		if len(keys) > 3 {
-			return &Error{Code: "invalid_rows", Message: "at most 3 where filters"}
-		}
-		for _, k := range keys {
-			col := strings.TrimPrefix(k, "where.")
-			if _, ok := cols[col]; !ok || (col == "visitor_id" || c.rulePlan != nil && strings.EqualFold(col, "visitor_id")) && !(c.Owner || c.OwnerOnSite) {
-				return &Error{Code: "invalid_rows", Message: "invalid row request"}
-			}
-			where = append(where, runtime.Quote(col)+" = ?")
-			bind(q.Get(k))
-			rulePage.Filters = append(rulePage.Filters, runtime.RuleFilter{Column: col, Value: ruleengine.Text(q.Get(k))})
-		}
-		direction, op := " ASC", ">"
-		if page.desc {
-			direction, op = " DESC", "<"
-		}
-
-		if after != "" {
-			b, e := base64.RawURLEncoding.DecodeString(after)
-			var cur rowCursor
-			if e != nil || json.Unmarshal(b, &cur) != nil || cur.Order != order || cur.Desc != page.desc || cur.Value == nil || !runtime.StorageScalar(cur.Value) {
-				return &Error{Code: "invalid_rows", Message: "invalid after"}
-			}
-			value, e := ruleScalar(cur.Value)
-			if e != nil {
-				return &Error{Code: "invalid_rows", Message: "invalid after"}
-			}
-			rulePage.After = &runtime.RuleCursor{Value: value, ID: ruleengine.Int(cur.ID)}
-			// SQLite sorts NULL first in ascending order; include them when descending.
-			qo := runtime.Quote(order)
-			if order == rowid {
-				qo = rowid
-			}
-			if string(cur.Value) == "null" {
-				if page.desc {
-					where = append(where, "("+qo+" IS NULL AND "+rowid+op+"?)")
-				} else {
-					where = append(where, "("+qo+" IS NOT NULL OR ("+qo+" IS NULL AND "+rowid+op+"?))")
-				}
-				bind(cur.ID)
-			} else {
-				nulls := ""
-				if page.desc {
-					nulls = qo + " IS NULL OR "
-				}
-				where = append(where, "("+nulls+qo+op+"? OR ("+qo+" = ? AND "+rowid+op+"?))")
-				params = append(params, cur.Value, cur.Value)
-				bind(cur.ID)
-			}
-		}
-		query := "SELECT *, " + rowid + " FROM " + runtime.Quote(in.Table)
-		if len(where) > 0 {
-			query += " WHERE " + strings.Join(where, " AND ")
-		}
-		orderSQL := runtime.Quote(order)
-		if order == rowid {
-			orderSQL = rowid
-		}
-		query += " ORDER BY " + orderSQL + direction + ", " + rowid + direction + " LIMIT ?"
-		bind(limit + 1)
+		var query string
+		var params []json.RawMessage
 		var ruleArgs []ruleengine.Value
-		if c.rulePlan != nil {
-			var e error
-			query, ruleArgs, e = runtime.RuleSelectPage(in.Table, rowid, rulePage, predicate)
-			if e != nil {
+		if t.c.rulePlan != nil {
+			if query, ruleArgs, err = runtime.RuleSelectPage(in.Table, t.meta.rowid, page.rule, t.predicate); err != nil {
 				return rulesInvalid()
 			}
+		} else {
+			query, params = page.query(in.Table, t.meta.rowid, t.meta.hold && !seesEveryRow(t.c))
 		}
-		if err := rowReadAuthorizer(conn, c.Owner); err != nil {
-			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
-		}
-		stmt, _, err := conn.Prepare(query)
-		if err != nil || stmt == nil {
-			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
+		stmt, err := s.prepareRowRead(t, query, ruleArgs, params)
+		if err != nil {
+			return err
 		}
 		defer stmt.Close()
-		s.sqliteStage("after_prepare")
-		if c.rulePlan != nil {
-			err = runtime.BindRuleArgs(stmt, 1, ruleArgs)
-		} else {
-			err = rowBindAll(stmt, params)
-		}
-		if err != nil {
-			return sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "invalid row request"})
-		}
-		rows := make([][]any, 0)
-		mine := make([]bool, 0)
-		next := ""
-		hasMore := false
-		resultCols := orderCols
-		encodedCols, _ := json.Marshal(resultCols)
-		resultBytes := len(encodedCols) + 64
-		for stmt.Step() {
-			s.sqliteStage("after_step")
-			if len(rows) >= page.limit {
-				hasMore = true
-				break
-			}
-			raw := make([]any, len(resultCols))
-			for i := range resultCols {
-				raw[i] = runtime.StorageColumn(stmt, i)
-			}
-			cursor := page.cursor(raw, stmt.ColumnInt64(len(resultCols)))
-			row := make([]any, len(orderCols))
-			m := false
-			for i, name := range orderCols {
-				row[i] = runtime.StorageColumn(stmt, i)
-				if name == "visitor_id" || c.rulePlan != nil && strings.EqualFold(name, "visitor_id") {
-					id, _ := row[i].(string)
-					m = id != "" && c.VisitorID != "" && id == c.VisitorID
-					if !c.Owner && !c.OwnerOnSite && !m {
-						row[i] = nil
-					}
-				}
-			}
-			encoded, e := json.Marshal(row)
-			if e != nil || resultBytes+len(encoded) > ResultLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES")) {
-				return &Error{Code: "result_too_large", Message: "query result is too large"}
-			}
-			resultBytes += len(encoded)
-			rows = append(rows, row)
-			mine = append(mine, m)
-			next = cursor
-		}
-		if stmt.Err() != nil {
-			return sqliteRowFailure(stmt.Err(), &Error{Code: "invalid_rows", Message: "query failed"})
-		}
-		if !hasMore {
-			next = ""
-		}
-		result := map[string]any{"columns": resultCols, "rows": rows, "next_after": next}
-		if !(c.Owner || c.OwnerOnSite) {
-			result["mine"] = mine
-		}
-		out.Body = result
-		return nil
+		*out, err = s.readRowPage(stmt, page, t.c, t.meta.order)
+		return err
 	})
-	return out, err
 }
 
+// rowPage is a parsed list request: page size, sort and the cursor of the
+// previous page's last row; rule is the same page, with the equality
+// filters, for the rules' query builder.
 type rowPage struct {
 	limit      int
 	order      string
 	desc       bool
 	orderIndex int
+	after      *rowCursor
+	rule       runtime.RulePage
 }
+
 type rowCursor struct {
 	Order string          `json:"order"`
 	Desc  bool            `json:"desc"`
 	Value json.RawMessage `json:"value"`
 	ID    int64           `json:"id"`
+}
+
+// parseRowPage reads and checks a list request's limit, order, desc, where.*
+// filters (equality on real columns, at most three) and after cursor.
+// Owner-only options use the refreshed owner-on-site status.
+func parseRowPage(q url.Values, c Call, meta rowMetadata) (*rowPage, error) {
+	invalid := func(msg string) error { return &Error{Code: "invalid_rows", Message: msg} }
+	limit, ok := httpx.Limit(q, 100, 500)
+	if !ok {
+		return nil, invalid("invalid limit")
+	}
+	p := &rowPage{limit: limit, order: cmp.Or(q.Get("order"), meta.rowid)}
+	if _, known := meta.cols[p.order]; !known && p.order != meta.rowid || hiddenColumn(c, p.order) {
+		return nil, invalid("invalid row request")
+	}
+	desc := q.Get("desc")
+	if desc != "" && desc != "0" && desc != "1" {
+		return nil, invalid("desc is 0 or 1")
+	}
+	p.desc = desc == "1"
+	p.orderIndex = slices.Index(meta.order, p.order)
+	p.rule = runtime.RulePage{Order: p.order, Desc: p.desc, Limit: limit + 1}
+	keys := []string{}
+	for k := range q {
+		if strings.HasPrefix(k, "where.") {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) > 3 {
+		return nil, invalid("at most 3 where filters")
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		col := strings.TrimPrefix(k, "where.")
+		if _, known := meta.cols[col]; !known || hiddenColumn(c, col) {
+			return nil, invalid("invalid row request")
+		}
+		p.rule.Filters = append(p.rule.Filters, runtime.RuleFilter{Column: col, Value: ruleengine.Text(q.Get(k))})
+	}
+	if after := q.Get("after"); after != "" {
+		b, err := base64.RawURLEncoding.DecodeString(after)
+		var cur rowCursor
+		if err != nil || json.Unmarshal(b, &cur) != nil || cur.Order != p.order || cur.Desc != p.desc || cur.Value == nil || !runtime.StorageScalar(cur.Value) {
+			return nil, invalid("invalid after")
+		}
+		value, err := ruleScalar(cur.Value)
+		if err != nil {
+			return nil, invalid("invalid after")
+		}
+		p.after, p.rule.After = &cur, &runtime.RuleCursor{Value: value, ID: ruleengine.Int(cur.ID)}
+	}
+	return p, nil
+}
+
+// query builds the page's SELECT for a table without rules. SQLite sorts
+// NULL first in ascending order, so the cursor condition places NULL rows
+// on the right side of the previous page.
+func (p *rowPage) query(table, rowid string, approvedOnly bool) (string, []json.RawMessage) {
+	where, params := []string{}, []json.RawMessage{}
+	if approvedOnly {
+		where = append(where, "approved_at IS NOT NULL")
+	}
+	for _, f := range p.rule.Filters {
+		where = append(where, runtime.Quote(f.Column)+" = ?")
+		params = append(params, rowJSON(f.Value.Text))
+	}
+	direction, op := " ASC", ">"
+	if p.desc {
+		direction, op = " DESC", "<"
+	}
+	order := runtime.Quote(p.order)
+	if p.order == rowid {
+		order = rowid
+	}
+	switch {
+	case p.after == nil:
+	case string(p.after.Value) == "null" && p.desc:
+		where = append(where, "("+order+" IS NULL AND "+rowid+op+"?)")
+	case string(p.after.Value) == "null":
+		where = append(where, "("+order+" IS NOT NULL OR ("+order+" IS NULL AND "+rowid+op+"?))")
+	default:
+		nulls := ""
+		if p.desc {
+			nulls = order + " IS NULL OR "
+		}
+		where = append(where, "("+nulls+order+op+"? OR ("+order+" = ? AND "+rowid+op+"?))")
+		params = append(params, p.after.Value, p.after.Value)
+	}
+	if p.after != nil {
+		params = append(params, rowJSON(p.after.ID))
+	}
+	query := "SELECT *, " + rowid + " FROM " + runtime.Quote(table)
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+	query += " ORDER BY " + order + direction + ", " + rowid + direction + " LIMIT ?"
+	return query, append(params, rowJSON(p.limit+1))
+}
+
+// readRowPage steps through one page of rows, stopping at the page size or
+// the result size cap, and shapes the list response with the next cursor.
+func (s *Service) readRowPage(stmt *sqlite3.Stmt, p *rowPage, c Call, columns []string) (TableResult, error) {
+	encodedCols, _ := json.Marshal(columns)
+	size, maxSize := len(encodedCols)+64, ResultLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES"))
+	rows, mine := make([][]any, 0), make([]bool, 0)
+	next, hasMore := "", false
+	for stmt.Step() {
+		s.sqliteStage("after_step")
+		if len(rows) >= p.limit {
+			hasMore = true
+			break
+		}
+		// The order column is never hidden (parseRowPage), so the cursor
+		// can be taken from the visible row.
+		row, m := visibleRow(stmt, columns, c)
+		encoded, err := json.Marshal(row)
+		if err != nil || size+len(encoded) > maxSize {
+			return TableResult{}, &Error{Code: "result_too_large", Message: "query result is too large"}
+		}
+		size += len(encoded)
+		rows, mine = append(rows, row), append(mine, m)
+		next = p.cursor(row, stmt.ColumnInt64(len(columns)))
+	}
+	if err := stmt.Err(); err != nil {
+		return TableResult{}, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "query failed"})
+	}
+	if !hasMore {
+		next = ""
+	}
+	body := map[string]any{"columns": columns, "rows": rows, "next_after": next}
+	if !seesEveryRow(c) {
+		body["mine"] = mine
+	}
+	return TableResult{Body: body}, nil
 }
 
 func (p *rowPage) cursor(row []any, id int64) string {

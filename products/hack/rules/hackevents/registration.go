@@ -104,8 +104,7 @@ func Tracks(in []model.EventTrack) ([]model.EventTrack, *ValidationError) {
 	return out, nil
 }
 
-// hasBadControls rejects bidi controls that can disguise text, while retaining
-// joiners, direction marks, soft hyphens and emoji tags needed by real text.
+// hasBadControls rejects bidi controls that can disguise text, while retaining joiners, direction marks, soft hyphens and emoji tags needed by real text.
 func hasBadControls(s string) bool {
 	for _, r := range s {
 		if r == '\n' || r == '\t' {
@@ -122,8 +121,7 @@ func hasBadControls(s string) bool {
 	return false
 }
 
-// hasVisible: s has at least one character that shows (not only spaces,
-// marks or blank-looking letters such as the Hangul filler).
+// hasVisible: s has at least one character that shows (not only spaces, marks or blank-looking letters such as the Hangul filler).
 func hasVisible(s string) bool {
 	for _, r := range s {
 		switch r {

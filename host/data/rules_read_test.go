@@ -18,8 +18,7 @@ import (
 func readFixture(t *testing.T, schema string, set *json.RawMessage) (*Service, Call, ResourceInput) {
 	t.Helper()
 	s, c, in := rulesFixture(t, schema)
-	s.deps.PasscodeAllows = func() bool { return true }
-	s.deps.ViewersAllow = func() bool { return true }
+	c.PasscodeOK, c.ViewersOK = true, true
 	in.Rules = set
 	c.Resource = putRules(t, s, in)
 	c.Owner = false
@@ -187,8 +186,7 @@ func TestRulesReadFreshBindingsAndFailure(t *testing.T) {
 	for _, failure := range []string{"", "first", "second", "missing", "timeout"} {
 		t.Run(failure, func(t *testing.T) {
 			s, c, in := rulesFixture(t, `CREATE TABLE entries(body TEXT); INSERT INTO entries VALUES('first'),('second');`)
-			s.deps.PasscodeAllows = func() bool { return true }
-			s.deps.ViewersAllow = func() bool { return true }
+			c.PasscodeOK, c.ViewersOK = true, true
 			p := &readBindings{}
 			p.values = func(ctx context.Context, n int) (ruleengine.Values, error) {
 				if failure == "first" || failure == "second" && n == 2 {
@@ -386,8 +384,7 @@ func TestRulesOwnerSchemaRequiredColumnsSurvive(t *testing.T) {
 	for _, removedBinding := range []bool{false, true} {
 		t.Run(fmt.Sprint(removedBinding), func(t *testing.T) {
 			s, c, in := rulesFixture(t, `CREATE TABLE entries(body TEXT);`)
-			s.deps.PasscodeAllows = func() bool { return true }
-			s.deps.ViewersAllow = func() bool { return true }
+			c.PasscodeOK, c.ViewersOK = true, true
 			read, add := "true", "auth.signed_in"
 			if removedBinding {
 				s.deps.Bindings = &readBindings{}

@@ -20,10 +20,14 @@ const (
 )
 
 // SetMailer is the notice sender for the archive warning. Call once at startup.
-func (h *HackHandler) SetMailer(m events.Mailer) { h.mailer = m }
+func (h *HackHandler) SetMailer(m events.Mailer) {
+	h.mailer = m
+	if h.publicEvent != nil {
+		h.publicEvent.mailer = m
+	}
+}
 
 // StartEventCleanup runs the sweep shortly after boot and then daily.
-// EVENTS=hosted only: main starts it from the hosted-mode block.
 func (h *HackHandler) StartEventCleanup(ctx context.Context) { h.EventCleanupOwner().Start(ctx) }
 
 func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
@@ -32,8 +36,8 @@ func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
 func (h *HackHandler) runEventCleanupTracked(ctx context.Context, now time.Time, report *workers.Tracker) {
 	send := events.ArchiveWarningSender(h.mailer)
 	var trash func(context.Context, string, string) error
-	if h.sites != nil {
-		trash = h.sites.TrashTeamSite
+	if h.links.hooks != nil {
+		trash = h.links.hooks.TrashTeamSite
 	}
 	var reports []events.CleanupReport
 	if report != nil {

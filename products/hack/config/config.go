@@ -7,23 +7,14 @@ import (
 )
 
 type Config struct {
-	// SIM-394 hack organiser assistant (Hack edition only). The assistant is
-	// off unless both AssistantBaseURL and AssistantModel are set.
-	// AssistantReasoningEffort is sent as the request's reasoning_effort
-	// field only when non-empty: the hosted DeepSeek model on Ollama Cloud
-	// is a reasoning model, and "none" turns its thinking off, but other
-	// OpenAI-compatible providers may reject an unknown field, so it is
-	// omitted by default.
+	// SIM-394 hack organiser assistant (Hack edition only).
 	AssistantBaseURL         string
 	AssistantModel           string
 	AssistantAPIKey          string
 	AssistantReasoningEffort string
 	// AssistantMonthlyBudgetUSD is the instance-wide monthly spend ceiling
-	// (default 5); AssistantDailyQuestions is the per-organiser daily
-	// question ceiling (default 30). AssistantPriceInputPerMTokUSD and
-	// AssistantPriceOutputPerMTokUSD price the configured model for the
-	// worst-case-reservation/actual-settlement accounting in
-	// host/app/hack/events (default 0.5 / 2.0 per million tokens).
+	// (default 5); AssistantDailyQuestions is the per-organiser daily question
+	// ceiling (default 30).
 	AssistantMonthlyBudgetUSD      float64
 	AssistantDailyQuestions        int
 	AssistantPriceInputPerMTokUSD  float64
@@ -46,10 +37,7 @@ func Load(getenv func(string) string) (Config, []string, error) {
 	return cfg, warnings, nil
 }
 
-// loadAssistant reads the SIM-394 hack organiser assistant settings. The
-// assistant is off unless both ASSISTANT_BASE_URL and ASSISTANT_MODEL are
-// set; a malformed numeric setting warns and falls back to its default
-// rather than failing startup (matches loadCleanup/loadSitesPreview).
+// loadAssistant reads the SIM-394 hack organiser assistant settings.
 func loadAssistant(cfg *Config, getenv func(string) string) (warnings []string) {
 	cfg.AssistantBaseURL = strings.TrimSpace(getenv("ASSISTANT_BASE_URL"))
 	cfg.AssistantModel = strings.TrimSpace(getenv("ASSISTANT_MODEL"))

@@ -48,7 +48,7 @@ func TestOpenFileAccessAndRegularFile(t *testing.T) {
 	if err := os.WriteFile(file, []byte("hello"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	s := New(nil, Deps{FilePath: func(_ Call, _ string) string { return file }, PasscodeAllows: func() bool { return false }, ViewersAllow: func() bool { return true }})
+	s := New(nil, Deps{FilePath: func(_ Call, _ string) string { return file }})
 	f, info, auth, err := s.OpenFile(context.Background(), FileReadInput{Call: Call{Owner: true}, Path: "file"})
 	if err != nil || auth != nil || f == nil || info.Size() != 5 {
 		t.Fatalf("open: file=%v info=%v auth=%v err=%v", f, info, auth, err)

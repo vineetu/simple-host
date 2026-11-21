@@ -3,14 +3,20 @@
 # A !pattern excludes destinations from that row; other matching rows still apply.
 [final]
 # Kernel: every host package outside the three modules, ops and the layers above them. It imports no module.
-/** -> /** !access/** !sites/** !data/** !ops/** !handler !mcp !server/** !extension !testdb !geoip/geoiptest
+/** -> /** !access/** !sites/** !data/** !ops/** !web !handler !mcp !server/** !extension !testdb !geoip/geoiptest
 # Modules: access <- sites <- data; ops reports over all three.
-access/** -> access/**
-sites/** -> access/** sites/**
-data/** -> access/** sites/** data/**
-ops/** -> access/** sites/** data/** ops/**
+access/** -> access/** !access/accesshttp
+sites/** -> access/** sites/** !access/accesshttp !sites/siteshttp
+data/** -> access/** sites/** data/** !access/accesshttp !sites/siteshttp !data/datahttp
+ops/** -> access/** sites/** data/** ops/** !access/accesshttp !sites/siteshttp !data/datahttp
+# The pages and HTTP refusals every route package shares sit above the modules.
+web -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !server/** !extension !testdb !geoip/geoiptest
+# A module's routes may import every module, web and the kernel; never another module's routes.
+{access/accesshttp,sites/siteshttp,data/datahttp} -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !server/** !extension !testdb !geoip/geoiptest
 # The HTTP and MCP layers and the composition roots may import every module.
 {handler,mcp,server/**,extension} -> /** !testdb !geoip/geoiptest
+# servertest is itself a test fixture: it builds the server on a disposable database.
+server/servertest -> testdb geoip/geoiptest
 # A product may import the platform and itself, never a module's repository; no platform row lists a product.
 @/products/hack/** -> /** !{access,sites,data,ops}/repo/** @/products/hack/**
 @/cmd/simple-host -> server
@@ -22,7 +28,9 @@ ops/** -> access/** sites/** data/** ops/**
 @/scripts/layering -> -
 [test]
 /** -> testdb geoip/geoiptest
-@/** -> testdb geoip/geoiptest server/servertest @/products/hack/testdb
+@/** -> testdb geoip/geoiptest @/products/hack/testdb
+# Only the composition roots' tests build the whole server (servertest).
+{server/**,@/cmd/**,@/products/**} -> server/servertest
 @/products/hack/** -> {access,sites,data,ops}/repo/**
 [transitional]
 # Must remain empty: every transitional edge now fails the check.

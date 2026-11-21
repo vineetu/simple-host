@@ -8,6 +8,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
@@ -30,10 +31,13 @@ var teamSentinels = []struct {
 	{teams.ErrTeamNotFound, "team_not_found", "team not found"},
 }
 
-// writeHackError is the one hack refusal writer. A workflow Error answers
-// its code at httpx.RefusalStatus (409 where the table is silent), a team
-// sentinel its code, a missing row event_not_found, anything else 500 (logged).
+// writeHackError is the one hack refusal writer.
 func writeHackError(w http.ResponseWriter, err error) {
+	var approval *members.ApprovalError
+	if errors.As(err, &approval) {
+		httpx.WriteError(w, http.StatusForbidden, approval.Code(), approval.Error())
+		return
+	}
 	var e *events.Error
 	if errors.As(err, &e) && e.Code != "internal" {
 		httpx.WriteError(w, httpx.RefusalStatus(e.Code, http.StatusConflict), e.Code, e.Message)

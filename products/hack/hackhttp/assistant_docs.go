@@ -9,25 +9,15 @@ import (
 // assistant's system prompt embeds (api-contract.md: "cap 16 KB total").
 const AssistantDocsTextCapBytes = 16 * 1024
 
-// AssistantDocPages are the Hack skills the assistant knows about. Path is
-// relative to the skills filesystem passed to AssistantDocsText (the
-// product's embedded skill tree in production); URL is the public address
-// included in the prompt's DOCS section.
+// AssistantDocPages are the Hack skills the assistant knows about.
 var AssistantDocPages = []struct{ Path, URL string }{
 	{"skills/run-hackathon/SKILL.md", "/v1/skills/run-hackathon"},
 	{"skills/join-hackathon/SKILL.md", "/v1/skills/join-hackathon"},
 	{"skills/judge-hackathon/SKILL.md", "/v1/skills/judge-hackathon"},
 }
 
-// AssistantDocsText builds the DOCS block (each page as
-// "## [<title>](<url>)" plus its extracted text, capped) from fsys. It is
-// the one place this text extraction lives: cmd/server calls it to
-// build the real server's prompt (host/app/hack/events may not import
-// host/webassets -- scripts/layering/rules.txt -- so cmd/server passes
-// the product's skill tree in), and host/hackhttp's own eval test
-// (assistant_eval_test.go) calls it too, so the eval runs against the
-// exact production prompt instead of a second, maybe-drifted copy of this
-// extraction.
+// AssistantDocsText builds the DOCS block (each page as "## [<title>](<url>)"
+// plus its extracted text, capped) from fsys.
 func AssistantDocsText(fsys fs.FS) string {
 	var b strings.Builder
 	for _, p := range AssistantDocPages {

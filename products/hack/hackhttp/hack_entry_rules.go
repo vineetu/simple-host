@@ -35,11 +35,11 @@ func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, mi
 // exists at all, its live version (nil when it has none), and whether it
 // counts as the "site" rules field -- a live version, not taken down
 // (section 4.1): entries.TeamSiteLive, from the site-info row.
-func (h *hackBase) entrySiteState(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
-	if h.sites == nil {
+func (h *siteLinks) entrySiteState(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
+	if h.hooks == nil {
 		return false, nil, false
 	}
-	info, _, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, teamSlug)
+	info, _, err := h.hooks.TeamSiteInfo(ctx, ev.AccountID, teamSlug)
 	if err != nil || !info.Exists {
 		return false, nil, false
 	}
@@ -52,7 +52,7 @@ func (h *hackBase) entrySiteState(ctx context.Context, ev model.Event, teamSlug 
 
 // entrySiteLive is entrySiteState's third return, for callers (the sweep,
 // the rules dry run) that only need whether the site counts as filled.
-func (h *hackBase) entrySiteLive(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) bool {
+func (h *siteLinks) entrySiteLive(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) bool {
 	_, _, live := h.entrySiteState(ctx, ev, teamSlug, siteTakenDown)
 	return live
 }
@@ -71,7 +71,7 @@ func entryRulesView(ev model.Event, hasTracks, editable bool) map[string]any {
 }
 
 func (h *participationHTTP) getEntryRules(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -85,7 +85,7 @@ func (h *participationHTTP) getEntryRules(w http.ResponseWriter, r *http.Request
 }
 
 func (h *participationHTTP) putEntryRules(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -122,7 +122,7 @@ func (h *participationHTTP) putEntryRules(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (h *hackBase) entryProgressJSON(ctx context.Context, ev model.Event, team model.EventTeam, teammates []string, st model.TeamWriteState) (map[string]any, error) {
+func (h *views) entryProgressJSON(ctx context.Context, ev model.Event, team model.EventTeam, teammates []string, st model.TeamWriteState) (map[string]any, error) {
 	p, err := h.entries.EntryProgress(ctx, ev, team, teammates, st)
 	if err != nil {
 		return nil, err

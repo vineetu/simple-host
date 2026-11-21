@@ -174,8 +174,6 @@ func TestRulesOneEntryPerPerson(t *testing.T) {
 
 func TestRulesWriteServerColumnsAndApproval(t *testing.T) {
 	s, c, in := rulesFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT, created_at TEXT, updated_at TEXT, written_by TEXT);`)
-	s.deps.PasscodeAllows = func() bool { return true }
-	s.deps.ViewersAllow = func() bool { return true }
 	s.deps.SpamCheckAvailable = true
 	comments := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
 		{Name: "read", Command: ruleengine.CmdRead, Using: `true`},
@@ -188,6 +186,7 @@ func TestRulesWriteServerColumnsAndApproval(t *testing.T) {
 	c.Resource = putRules(t, s, in)
 	c.Owner = false
 	c.CSRFOK = true
+	c.PasscodeOK, c.ViewersOK = true, true
 	c.VisitorID = "caller"
 	c.ActiveChecked = true
 	c.SpamCheck = "ok"
@@ -288,8 +287,7 @@ func TestRulesWriteMixedCaseServerColumns(t *testing.T) {
 
 func TestRulesWriteMixedCaseApproval(t *testing.T) {
 	s, c, in := rulesFixture(t, `CREATE TABLE entries(body TEXT, APPROVED_AT TEXT);`)
-	s.deps.PasscodeAllows = func() bool { return true }
-	s.deps.ViewersAllow = func() bool { return true }
+	c.PasscodeOK, c.ViewersOK = true, true
 	s.deps.SpamCheckAvailable = true
 	raw := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
 		{Name: "read", Command: ruleengine.CmdRead, Using: `true`},
@@ -378,8 +376,7 @@ func TestRulesWriteFreshBindings(t *testing.T) {
 	for _, failure := range []string{"changed", "error", "owner"} {
 		t.Run(failure, func(t *testing.T) {
 			s, c, in := rulesFixture(t, `CREATE TABLE entries(body TEXT);`)
-			s.deps.PasscodeAllows = func() bool { return true }
-			s.deps.ViewersAllow = func() bool { return true }
+			c.PasscodeOK, c.ViewersOK = true, true
 			p := &readBindings{owner: false}
 			p.values = func(_ context.Context, n int) (ruleengine.Values, error) {
 				if n == 2 && failure == "error" {
@@ -481,8 +478,7 @@ func TestRulesWriteStageTwoFiltersUseFreshValues(t *testing.T) {
 	for _, action := range []string{"edit", "delete"} {
 		t.Run(action, func(t *testing.T) {
 			s, c, in := rulesFixture(t, `CREATE TABLE entries(body TEXT); INSERT INTO entries VALUES('first'),('second');`)
-			s.deps.PasscodeAllows = func() bool { return true }
-			s.deps.ViewersAllow = func() bool { return true }
+			c.PasscodeOK, c.ViewersOK = true, true
 			p := &readBindings{values: func(_ context.Context, n int) (ruleengine.Values, error) {
 				v := "first"
 				if n > 1 {

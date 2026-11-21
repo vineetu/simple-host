@@ -16,61 +16,67 @@ func ValidateSyntax(set PolicySet, b BindingSchema, lim Limits) []RuleError {
 	}
 	errs = append(errs, duplicateNames(set)...)
 	for _, pol := range set.Policies {
-		add := func(e *RuleError) {
+		for _, e := range validatePolicy(pol, b, lim) {
 			if e != nil {
 				e.Policy = pol.Name
 				errs = append(errs, *e)
 			}
 		}
-		if len(pol.Name) > lim.NameBytes {
-			add(refusal("name", -1, "policy name exceeds byte limit"))
-		}
-		switch pol.Command {
-		case CmdRead, CmdAdd, CmdEdit, CmdDelete, CmdAll:
-		default:
-			add(refusal("command", -1, "unknown command"))
-			continue
-		}
-		var using *Expr
-		for _, clause := range []struct {
-			name, text          string
-			required, forbidden bool
-		}{
-			{"using", pol.Using, pol.Command != CmdAdd, pol.Command == CmdAdd},
-			{"check", pol.Check, pol.Command == CmdAdd, pol.Command == CmdRead || pol.Command == CmdDelete},
-		} {
-			if clause.text == "" {
-				if clause.required {
-					add(refusal(clause.name, -1, "clause is required"))
-				}
-				continue
-			}
-			if clause.forbidden {
-				add(refusal(clause.name, -1, "clause is not allowed for this command"))
-				continue
-			}
-			x, err := Parse(clause.text, lim)
-			if err != nil {
-				if err.Clause == "using" {
-					err.Clause = clause.name
-				}
-				add(err)
-				continue
-			}
-			v := validator{schema: b, addCheck: pol.Command == CmdAdd && clause.name == "check"}
-			if err := v.boolean(x); err != nil {
-				add(err)
-				continue
-			}
-			if clause.name == "using" {
-				using = x
-			}
-		}
-		if !pol.Restrictive && (pol.Command == CmdEdit || pol.Command == CmdDelete || pol.Command == CmdAll) && using != nil && !guarded(using) {
-			add(refusal("anonymous_change", using.pos, "every using alternative must guard changes by identity"))
-		}
 	}
 	return errs
+}
+
+// validatePolicy returns one policy's refusals in report order; nil entries are passes.
+func validatePolicy(pol Policy, b BindingSchema, lim Limits) []*RuleError {
+	var nameErr, anonErr *RuleError
+	if len(pol.Name) > lim.NameBytes {
+		nameErr = refusal("name", -1, "policy name exceeds byte limit")
+	}
+	switch pol.Command {
+	case CmdRead, CmdAdd, CmdEdit, CmdDelete, CmdAll:
+	default:
+		return []*RuleError{nameErr, refusal("command", -1, "unknown command")}
+	}
+	using, usingErr := validateClause(pol.Command, "using", pol.Using, b, lim)
+	_, checkErr := validateClause(pol.Command, "check", pol.Check, b, lim)
+	changes := pol.Command == CmdEdit || pol.Command == CmdDelete || pol.Command == CmdAll
+	if !pol.Restrictive && changes && using != nil && !guarded(using) {
+		anonErr = refusal("anonymous_change", using.pos, "every using alternative must guard changes by identity")
+	}
+	return []*RuleError{nameErr, usingErr, checkErr, anonErr}
+}
+
+// clauseRule says whether a policy for cmd must, or must not, carry the clause.
+func clauseRule(cmd Command, clause string) (required, forbidden bool) {
+	if clause == "using" {
+		return cmd != CmdAdd, cmd == CmdAdd
+	}
+	return cmd == CmdAdd, cmd == CmdRead || cmd == CmdDelete
+}
+
+// validateClause parses and type-checks one clause; the tree is returned only when valid.
+func validateClause(cmd Command, clause, text string, b BindingSchema, lim Limits) (*Expr, *RuleError) {
+	required, forbidden := clauseRule(cmd, clause)
+	switch {
+	case text == "" && required:
+		return nil, refusal(clause, -1, "clause is required")
+	case text == "":
+		return nil, nil
+	case forbidden:
+		return nil, refusal(clause, -1, "clause is not allowed for this command")
+	}
+	x, err := Parse(text, lim)
+	if err != nil {
+		if err.Clause == "using" {
+			err.Clause = clause
+		}
+		return nil, err
+	}
+	v := validator{schema: b, addCheck: cmd == CmdAdd && clause == "check"}
+	if err := v.boolean(x); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
 
 type validator struct {
@@ -161,67 +167,77 @@ func (v validator) comparison(x *Expr) *RuleError {
 	if err != nil {
 		return err
 	}
-	fail := func(msg string) *RuleError { return refusal("type", x.pos, msg) }
-	if x.op == "is" || x.op == "is not" {
+	switch x.op {
+	case "is", "is not":
 		if x.left.op != "column" && (x.left.op != "binding" || !a.nullable) {
-			return fail("is null requires a column or nullable binding")
+			return refusal("type", x.pos, "is null requires a column or nullable binding")
 		}
 		return nil
-	}
-	if x.op == "in" {
-		if !a.column && !a.binding && x.left.op != "lower" || a.typ != 0 && a.typ != TypeText && a.typ != TypeNumber {
-			return fail("in needs a column, text or number on the left")
-		}
-		var typ Type
-		if x.right.op == "list" {
-			typ = TypeNumber
-			if x.right.items[0].value.Kind == KindText {
-				typ = TypeText
-			}
-		} else {
-			b, err := v.operand(x.right)
-			if err != nil {
-				return err
-			}
-			if x.right.op != "binding" || b.typ != TypeTextList {
-				return fail("in requires a literal list or text-list binding")
-			}
-			typ = TypeText
-		}
-		if a.typ != 0 && a.typ != typ {
-			return fail("in operands have different types")
-		}
-		return nil
+	case "in":
+		return v.membership(x, a)
 	}
 	b, err := v.operand(x.right)
 	if err != nil {
 		return err
 	}
 	if x.op == "contains" {
-		if !a.column && !a.binding && x.left.op != "lower" || a.typ != 0 && a.typ != TypeText || b.typ != TypeText || b.column || x.right.op == "lower" {
-			return fail("contains requires text on the left and a text literal or binding on the right")
+		if !subject(x.left, a) || a.typ != 0 && a.typ != TypeText || b.typ != TypeText || b.column || x.right.op == "lower" {
+			return refusal("type", x.pos, "contains requires text on the left and a text literal or binding on the right")
 		}
 		return nil
 	}
-	for _, pair := range [][2]*Expr{{x.left, x.right}, {x.right, x.left}} {
-		lower, other := pair[0], pair[1]
-		if lower.op == "lower" && ((lower.left.op != "column" && lower.left.op != "binding") || (other.op != "literal" && other.op != "binding")) {
-			return fail("compare lower(column or text binding) with a text literal or binding")
+	return equality(x, a, b)
+}
+
+// subject reports whether the left side of in/contains is a column, binding or lower().
+func subject(x *Expr, i operandInfo) bool { return i.column || i.binding || x.op == "lower" }
+
+// membership checks `a in list`: a literal list or a text-list binding of a's type.
+func (v validator) membership(x *Expr, a operandInfo) *RuleError {
+	fail := func(msg string) *RuleError { return refusal("type", x.pos, msg) }
+	if !subject(x.left, a) || a.typ != 0 && a.typ != TypeText && a.typ != TypeNumber {
+		return fail("in needs a column, text or number on the left")
+	}
+	typ := TypeText
+	if x.right.op == "list" {
+		if x.right.items[0].value.Kind != KindText {
+			typ = TypeNumber
 		}
+	} else if b, err := v.operand(x.right); err != nil {
+		return err
+	} else if x.right.op != "binding" || b.typ != TypeTextList {
+		return fail("in requires a literal list or text-list binding")
 	}
-	if a.column && b.column {
+	if a.typ != 0 && a.typ != typ {
+		return fail("in operands have different types")
+	}
+	return nil
+}
+
+// equality checks == and !=: one column or binding side, matching scalar types.
+func equality(x *Expr, a, b operandInfo) *RuleError {
+	fail := func(msg string) *RuleError { return refusal("type", x.pos, msg) }
+	switch {
+	case !lowerComparable(x.left, x.right) || !lowerComparable(x.right, x.left):
+		return fail("compare lower(column or text binding) with a text literal or binding")
+	case a.column && b.column:
 		return fail("two columns cannot be compared")
-	}
-	if !a.column && !a.binding && !b.column && !b.binding {
+	case !a.column && !a.binding && !b.column && !b.binding:
 		return fail("compare a column or a binding")
-	}
-	if a.typ == TypeTextList || b.typ == TypeTextList {
+	case a.typ == TypeTextList || b.typ == TypeTextList:
 		return fail("use in for a list binding")
-	}
-	if a.typ != 0 && b.typ != 0 && a.typ != b.typ {
+	case a.typ != 0 && b.typ != 0 && a.typ != b.typ:
 		return fail("comparison operands have different types")
 	}
 	return nil
+}
+
+// lowerComparable allows lower(column or binding) only against a literal or binding.
+func lowerComparable(x, other *Expr) bool {
+	if x.op != "lower" {
+		return true
+	}
+	return (x.left.op == "column" || x.left.op == "binding") && (other.op == "literal" || other.op == "binding")
 }
 
 func ungroup(x *Expr) *Expr {

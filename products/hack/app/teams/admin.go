@@ -4,117 +4,171 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/vsriram/simple-host/host/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
 
+// errMemberNotFound refuses an organiser write naming someone not on the team.
+func errMemberNotFound() error { return &Error{Code: "member_not_found", Message: "member not found"} }
+
+// teamBySlug reads the event's team a path names; team_not_found when none.
+func teamBySlug(ctx context.Context, q sqlkit.Querier, eventID, rawSlug string) (model.EventTeam, error) {
+	team, err := teamrepo.GetEventTeamBySlug(ctx, q, eventID, normSlug(rawSlug))
+	return team, notFoundAs(err, ErrTeamNotFound)
+}
+
 // OrganiserLock sets a team's lock and returns cleared request counts.
-func (s *Service) OrganiserLock(ctx context.Context, eventID, slug, actor string, locked bool) (int, int, error) {
+func (s *Service) OrganiserLock(ctx context.Context, ev model.Event, rawSlug, actor string, locked bool) (int, int, error) {
+	if err := organiserStage(ev.Stage, msgEnded); err != nil {
+		return 0, 0, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, 0, internalError(err)
 	}
 	defer tx.Rollback()
-	team, err := teamrepo.GetEventTeamBySlug(ctx, tx, eventID, slug)
+	team, err := teamBySlug(ctx, tx, ev.ID, rawSlug)
 	if err != nil {
 		return 0, 0, err
 	}
 	requests, invites, err := teamrepo.SetTeamLock(ctx, tx, team.ID, actor, locked)
-	if err == sql.ErrNoRows {
-		return 0, 0, &Error{Code: "member_not_found", Message: "member not found"}
-	}
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, notFoundAs(err, errMemberNotFound())
 	}
-	if err = tx.Commit(); err != nil {
-		return 0, 0, internalError(err)
-	}
-	return requests, invites, nil
+	return requests, invites, commit(tx)
 }
 
 // OrganiserAdmin changes a team member's admin flag.
-func (s *Service) OrganiserAdmin(ctx context.Context, eventID, slug, userID string, admin bool) error {
+func (s *Service) OrganiserAdmin(ctx context.Context, ev model.Event, rawSlug, userID string, admin bool) error {
+	if err := organiserStage(ev.Stage, msgEnded); err != nil {
+		return err
+	}
+	if !isID(userID) {
+		return errEventNotFound()
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
 	}
 	defer tx.Rollback()
-	team, err := teamrepo.GetEventTeamBySlug(ctx, tx, eventID, slug)
+	team, err := teamBySlug(ctx, tx, ev.ID, rawSlug)
 	if err != nil {
 		return err
 	}
-	if err = teamrepo.SetTeamAdmin(ctx, tx, eventID, team.ID, userID, admin); err != nil {
-		if err == sql.ErrNoRows {
-			return &Error{Code: "member_not_found", Message: "member not found"}
-		}
-		return err
+	if err = teamrepo.SetTeamAdmin(ctx, tx, ev.ID, team.ID, userID, admin); err != nil {
+		return notFoundAs(err, errMemberNotFound())
 	}
-	if err = tx.Commit(); err != nil {
-		return internalError(err)
-	}
-	return nil
+	return commit(tx)
 }
 
 // OrganiserLink rotates a team's link.
-func (s *Service) OrganiserLink(ctx context.Context, eventID, slug string) (model.EventTeam, error) {
+func (s *Service) OrganiserLink(ctx context.Context, ev model.Event, rawSlug string) (model.EventTeam, error) {
+	if err := organiserStage(ev.Stage, msgEnded); err != nil {
+		return model.EventTeam{}, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
-	team, err := teamrepo.GetEventTeamBySlug(ctx, tx, eventID, slug)
+	team, err := teamBySlug(ctx, tx, ev.ID, rawSlug)
 	if err != nil {
 		return team, err
 	}
-	if err = rotateTeamCode(ctx, tx, team.ID); err != nil {
+	return rotateAndRead(ctx, tx, team)
+}
+
+// rotateAndRead gives the team a new code, re-reads it and commits.
+func rotateAndRead(ctx context.Context, tx *sql.Tx, team model.EventTeam) (model.EventTeam, error) {
+	if err := rotateTeamCode(ctx, tx, team.ID); err != nil {
 		return team, internalError(err)
 	}
 	fresh, err := teamrepo.GetEventTeamByID(ctx, tx, team.ID)
 	if err != nil {
 		return team, internalError(err)
 	}
-	if err = tx.Commit(); err != nil {
-		return team, internalError(err)
-	}
-	return fresh, nil
+	return fresh, commit(tx)
 }
 
+// commit commits tx; a failure is internal.
+func commit(tx *sql.Tx) error {
+	if err := tx.Commit(); err != nil {
+		return internalError(err)
+	}
+	return nil
+}
+
+// participantTeam locks the caller's team for an admin write: the stage
+// is rechecked under the event lock and the caller must be its admin.
 func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (model.EventTeam, error) {
 	team, admin, stage, err := LockCallerTeam(ctx, tx, eventID, userID)
 	if err != nil {
 		return team, err
 	}
-	// Recheck under the event lock; the handler's pre-BEGIN check only
-	// rejects obviously invalid requests early.
 	if !hackteams.ParticipantTeamStages(stage) {
-		return team, &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
+		return team, errTeamsLocked()
 	}
 	if !admin {
 		return team, teamrepo.ErrHackTeamAdminOnly
 	}
 	return team, nil
 }
+
+// checkFrozen refuses a write to a team past its deadline.
 func checkFrozen(ctx context.Context, tx *sql.Tx, teamID string) error {
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
 	if err != nil {
 		return internalError(err)
 	}
 	if st.Frozen() {
-		return &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
+		return errDeadlinePassed()
 	}
 	return nil
 }
 
-// PatchTeam changes the caller's team name or finding note.
-func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, note *string) (model.EventTeam, error) {
+// beginAdminWrite checks the stage, opens the transaction and locks the
+// caller's team as its admin, refusing a frozen team. The caller rolls back.
+func (s *Service) beginAdminWrite(ctx context.Context, ev model.Event, userID string) (*sql.Tx, model.EventTeam, error) {
+	if err := participantStage(ev.Stage); err != nil {
+		return nil, model.EventTeam{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, model.EventTeam{}, internalError(err)
+	}
+	team, err := participantTeam(ctx, tx, ev.ID, userID)
+	if err == nil {
+		err = checkFrozen(ctx, tx, team.ID)
+	}
+	if err != nil {
+		tx.Rollback()
+		return nil, team, err
+	}
+	return tx, team, nil
+}
+
+// PatchTeam changes the caller's team name or finding note; nil leaves a
+// field as it is (with neither it only checks the caller is the admin).
+func (s *Service) PatchTeam(ctx context.Context, ev model.Event, userID string, name, note *string) (model.EventTeam, error) {
+	if err := participantStage(ev.Stage); err != nil {
+		return model.EventTeam{}, err
+	}
+	name, err := optionalLine(name, "team_name", 1, 80)
+	if err != nil {
+		return model.EventTeam{}, err
+	}
+	if note, err = optionalLine(note, "looking_for", 0, 120); err != nil {
+		return model.EventTeam{}, err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
-	team, err := participantTeam(ctx, tx, eventID, userID)
+	team, err := participantTeam(ctx, tx, ev.ID, userID)
 	if err != nil {
 		return team, err
 	}
@@ -123,101 +177,84 @@ func (s *Service) PatchTeam(ctx context.Context, eventID, userID string, name, n
 			return team, err
 		}
 	}
+	if err = patchTeam(ctx, tx, ev.ID, team, name, note); err != nil {
+		return team, err
+	}
+	return team, commit(tx)
+}
+
+// patchTeam writes the given name and note.
+func patchTeam(ctx context.Context, tx *sql.Tx, eventID string, team model.EventTeam, name, note *string) error {
 	if name != nil {
-		if err = eventrepo.RenameEventTeam(ctx, tx, eventID, team.Slug, *name); err != nil {
-			if isUnique(err) {
-				return team, &Error{Code: "team_name_taken", Message: "another team already has that name"}
-			}
-			return team, internalError(err)
+		err := eventrepo.RenameEventTeam(ctx, tx, eventID, team.Slug, *name)
+		if isUnique(err) {
+			return errTeamNameTaken()
+		}
+		if err != nil {
+			return internalError(err)
 		}
 	}
 	if note != nil {
-		if _, err = teamrepo.SetTeamLookingFor(ctx, tx, team.ID, *note); err != nil {
-			return team, internalError(err)
+		if _, err := teamrepo.SetTeamLookingFor(ctx, tx, team.ID, *note); err != nil {
+			return internalError(err)
 		}
 	}
-	if err = tx.Commit(); err != nil {
-		return team, internalError(err)
-	}
-	return team, nil
+	return nil
 }
 
-// ParticipantLock sets the caller's team lock.
-func (s *Service) ParticipantLock(ctx context.Context, eventID, userID string, locked bool) (int, int, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+// ParticipantLock sets the caller's team lock and returns cleared counts.
+func (s *Service) ParticipantLock(ctx context.Context, ev model.Event, userID string, locked bool) (int, int, error) {
+	tx, team, err := s.beginAdminWrite(ctx, ev, userID)
 	if err != nil {
-		return 0, 0, internalError(err)
+		return 0, 0, err
 	}
 	defer tx.Rollback()
-	team, err := participantTeam(ctx, tx, eventID, userID)
-	if err != nil {
-		return 0, 0, err
-	}
-	if err = checkFrozen(ctx, tx, team.ID); err != nil {
-		return 0, 0, err
-	}
 	requests, invites, err := teamrepo.SetTeamLock(ctx, tx, team.ID, userID, locked)
 	if err != nil {
 		return 0, 0, err
 	}
-	if err = tx.Commit(); err != nil {
-		return 0, 0, internalError(err)
-	}
-	return requests, invites, nil
+	return requests, invites, commit(tx)
 }
 
 // ParticipantAdmin sets a teammate's admin flag under sorted member locks.
-func (s *Service) ParticipantAdmin(ctx context.Context, eventID, userID, target string, admin bool) error {
+// A target not on the caller's team is event_not_found, never confirming
+// where else someone belongs.
+func (s *Service) ParticipantAdmin(ctx context.Context, ev model.Event, userID, target string, admin bool) error {
+	if err := participantStage(ev.Stage); err != nil {
+		return err
+	}
+	if !isID(target) {
+		return errEventNotFound()
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
 	}
 	defer tx.Rollback()
-	teamID, callerAdmin, stage, err := LockCallerAndTargetTeam(ctx, tx, eventID, userID, target)
-	if err != nil {
+	teamID, callerAdmin, stage, err := LockCallerAndTargetTeam(ctx, tx, ev.ID, userID, target)
+	switch {
+	case err != nil:
 		return err
-	}
-	if !hackteams.ParticipantTeamStages(stage) {
-		return &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
-	}
-	if !callerAdmin {
+	case !hackteams.ParticipantTeamStages(stage):
+		return errTeamsLocked()
+	case !callerAdmin:
 		return teamrepo.ErrHackTeamAdminOnly
 	}
 	if err = checkFrozen(ctx, tx, teamID); err != nil {
 		return err
 	}
-	if err = teamrepo.SetTeamAdmin(ctx, tx, eventID, teamID, target, admin); err != nil {
+	if err = teamrepo.SetTeamAdmin(ctx, tx, ev.ID, teamID, target, admin); err != nil {
 		return err
 	}
-	if err = tx.Commit(); err != nil {
-		return internalError(err)
-	}
-	return nil
+	return commit(tx)
 }
 
 // ParticipantLink rotates the caller's team link.
-func (s *Service) ParticipantLink(ctx context.Context, eventID, userID string) (model.EventTeam, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+func (s *Service) ParticipantLink(ctx context.Context, ev model.Event, userID string) (model.EventTeam, error) {
+	tx, team, err := s.beginAdminWrite(ctx, ev, userID)
 	if err != nil {
-		return model.EventTeam{}, internalError(err)
+		return team, err
 	}
 	defer tx.Rollback()
-	team, err := participantTeam(ctx, tx, eventID, userID)
-	if err != nil {
-		return team, err
-	}
-	if err = checkFrozen(ctx, tx, team.ID); err != nil {
-		return team, err
-	}
-	if err = rotateTeamCode(ctx, tx, team.ID); err != nil {
-		return team, internalError(err)
-	}
-	fresh, err := teamrepo.GetEventTeamByID(ctx, tx, team.ID)
-	if err != nil {
-		return team, internalError(err)
-	}
-	if err = tx.Commit(); err != nil {
-		return team, internalError(err)
-	}
-	return fresh, nil
+	return rotateAndRead(ctx, tx, team)
 }

@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"strings"
+	"time"
+
 	repo "github.com/vsriram/simple-host/host/data/repo/notify"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/workers"
-	"net"
-	"strings"
-	"time"
 )
 
 func (s *Service) NotifySuspension(ctx context.Context, n model.Notification, mailer email.NoticeSender, tracker *workers.Tracker) {

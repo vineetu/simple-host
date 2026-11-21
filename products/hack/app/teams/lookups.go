@@ -34,11 +34,6 @@ func (s *Service) TeamWriteStateForLookup(ctx context.Context, teamID string, sh
 	return teamrepo.TeamWriteStateFor(ctx, s.db, teamID, share)
 }
 
-// TeamWriteStatesForEventLookup forwards the TeamWriteStatesForEvent lookup.
-func (s *Service) TeamWriteStatesForEventLookup(ctx context.Context, eventID string) (map[string]model.TeamWriteState, error) {
-	return teamrepo.TeamWriteStatesForEvent(ctx, s.db, eventID)
-}
-
 // ParticipantTeamStages reports whether participants can change teams.
 var ParticipantTeamStages = hackteams.ParticipantTeamStages
 

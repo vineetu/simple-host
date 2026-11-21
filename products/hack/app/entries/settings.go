@@ -31,66 +31,79 @@ func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req
 	if err != nil {
 		return hackmodel.Event{}, err
 	}
-	if ev.Stage == "archived" {
-		return hackmodel.Event{}, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
-	}
-	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && ev.JudgingLockedAt.Valid {
-		return hackmodel.Event{}, &Error{Code: "scores_locked", Message: "Judging is locked because the event is at Results. Move the event back to Judging to change it."}
-	}
-	if (req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil) && (ev.Stage == "judging" || ev.Stage == "results") {
-		return hackmodel.Event{}, &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
+	if err := judgingSettingsRefusal(ev, req); err != nil {
+		return hackmodel.Event{}, err
 	}
 	if err := updateOrganiserJudges(ctx, tx, ev.ID, req.OrganiserJudges, req.IncludeOrganisers); err != nil {
 		return hackmodel.Event{}, err
 	}
-	if req.TieCriterionID != nil {
-		if ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived" {
-			return hackmodel.Event{}, &Error{Code: "tie_rule_closed", Message: "choose the tie criterion before judging begins"}
-		}
-		if *req.TieCriterionID != "" {
-			valid, err := entryrepo.EventCriterionInEvent(ctx, tx, ev.ID, *req.TieCriterionID)
-			if err != nil {
-				return hackmodel.Event{}, err
-			}
-			if !valid {
-				return hackmodel.Event{}, &Error{Code: "criterion_not_found", Message: "criterion not in this event"}
-			}
-		}
+	if err := checkTieCriterion(ctx, tx, ev.ID, req.TieCriterionID); err != nil {
+		return hackmodel.Event{}, err
 	}
-	if req.Mode != nil || req.PerTeam != nil {
-		ev, err = eventrepo.UpdateJudgingSettings(ctx, tx, ev.ID, req.Mode, req.PerTeam)
-		if err != nil {
-			return hackmodel.Event{}, err
-		}
+	if err := saveJudgingSettings(ctx, tx, ev.ID, req); err != nil {
+		return hackmodel.Event{}, err
 	}
-	var scoreMode, publicScores, publicRanks any
-	if req.ScoreMode != nil {
-		scoreMode = *req.ScoreMode
-	}
-	if req.PublicScores != nil {
-		publicScores = *req.PublicScores
-	}
-	if req.PublicRanks != nil {
-		publicRanks = *req.PublicRanks
-	}
-	if req.ScoreMode != nil || req.TieCriterionID != nil || req.PublicScores != nil || req.PublicRanks != nil {
-		var tie any
-		if req.TieCriterionID != nil {
-			tie = *req.TieCriterionID
-		}
-		err = eventrepo.UpdateScoreSettings(ctx, tx, ev.ID, scoreMode, req.TieCriterionID != nil, tie, publicScores, publicRanks)
-		if err != nil {
-			return hackmodel.Event{}, err
-		}
-	}
-	ev, err = eventrepo.GetEventForUpdate(ctx, tx, ev.ID)
-	if err != nil {
+	if ev, err = eventrepo.GetEventForUpdate(ctx, tx, ev.ID); err != nil {
 		return hackmodel.Event{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return hackmodel.Event{}, err
 	}
 	return ev, nil
+}
+
+// judgingStarted are the stages where judging setup and the tie rule are fixed.
+var judgingStarted = map[string]bool{"judging": true, "results": true}
+
+// judgingSettingsRefusal refuses changes the event's stage no longer allows.
+func judgingSettingsRefusal(ev hackmodel.Event, req JudgingSettings) error {
+	setup := req.Mode != nil || req.PerTeam != nil || req.OrganiserJudges != nil || req.IncludeOrganisers != nil
+	switch {
+	case ev.Stage == "archived":
+		return errEventClosed
+	case setup && ev.JudgingLockedAt.Valid:
+		return errScoresLocked
+	case setup && judgingStarted[ev.Stage]:
+		return errSetupLocked
+	case req.TieCriterionID != nil && judgingStarted[ev.Stage]:
+		return &Error{Code: "tie_rule_closed", Message: "choose the tie criterion before judging begins"}
+	}
+	return nil
+}
+
+// checkTieCriterion refuses a tie criterion from another event; nil or ""
+// needs no check.
+func checkTieCriterion(ctx context.Context, q sqlkit.Querier, eventID string, id *string) error {
+	if id == nil || *id == "" {
+		return nil
+	}
+	valid, err := entryrepo.EventCriterionInEvent(ctx, q, eventID, *id)
+	if err == nil && !valid {
+		return &Error{Code: "criterion_not_found", Message: "criterion not in this event"}
+	}
+	return err
+}
+
+// saveJudgingSettings writes the assignment settings and the score settings
+// that the request changes.
+func saveJudgingSettings(ctx context.Context, q sqlkit.Querier, eventID string, req JudgingSettings) error {
+	if req.Mode != nil || req.PerTeam != nil {
+		if _, err := eventrepo.UpdateJudgingSettings(ctx, q, eventID, req.Mode, req.PerTeam); err != nil {
+			return err
+		}
+	}
+	if req.ScoreMode == nil && req.TieCriterionID == nil && req.PublicScores == nil && req.PublicRanks == nil {
+		return nil
+	}
+	return eventrepo.UpdateScoreSettings(ctx, q, eventID, valueOrNil(req.ScoreMode), req.TieCriterionID != nil, valueOrNil(req.TieCriterionID), valueOrNil(req.PublicScores), valueOrNil(req.PublicRanks))
+}
+
+// valueOrNil passes an unset optional setting to SQL as NULL.
+func valueOrNil[T any](p *T) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 func updateOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string, selection *[]string, alias *bool) error {

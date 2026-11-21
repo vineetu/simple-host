@@ -11,12 +11,14 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/host/webassets"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 func TestStoragePanelSharesNoticeGate(t *testing.T) {
-	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", nil, nil)
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", nil, nil)
 	assets := Extension().Assets(sh)
 	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
 	page, err := sh.Pages().ChromePage(httptest.NewRequest(http.MethodGet, "/owner", nil), "showcase.html")
@@ -90,7 +92,7 @@ func TestAssetTablesNameTheRightFiles(t *testing.T) {
 }
 
 func TestSkillsVersionRoutes(t *testing.T) {
-	hostVersion, err := handler.PluginVersion()
+	hostVersion, err := web.PluginVersion()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +104,7 @@ func TestSkillsVersionRoutes(t *testing.T) {
 		{productedition.Hack, "0.27.20"},
 	} {
 		t.Run(tc.kind.String(), func(t *testing.T) {
-			sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(tc.kind), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+			sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(tc.kind), "", nil, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 			mux := http.NewServeMux()
 			if tc.kind == productedition.Hack {
 				assets := Extension().Assets(sh)
@@ -112,7 +114,7 @@ func TestSkillsVersionRoutes(t *testing.T) {
 					t.Fatalf("product did not register the version route: %q", pattern)
 				}
 			}
-			handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
+			siteshttp.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/skills/version", nil))
 			if rec.Code != http.StatusOK || rec.Body.String() != `{"version":"`+tc.version+`"}` {
@@ -128,12 +130,12 @@ func TestSkillsVersionRoutes(t *testing.T) {
 // Hack's one file route answers every own name that is served by its file
 // name, at that name; a page-only name gets no address of its own.
 func TestOwnFilesAreServedByTheFileRoute(t *testing.T) {
-	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	assets := Extension().Assets(sh)
 	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
 	mux := http.NewServeMux()
 	assets.Routes(mux, sh.AssetServices())
-	handler.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
+	siteshttp.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
 	for name, file := range assets.Own {
 		req := httptest.NewRequest(http.MethodGet, "/"+name, nil)
 		_, pattern := mux.Handler(req)

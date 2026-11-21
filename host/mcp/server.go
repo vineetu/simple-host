@@ -16,6 +16,7 @@ package mcp
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -25,6 +26,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/vsriram/simple-host/host/access"
 )
 
 // protocolVersion is the newest revision this server implements. It is the
@@ -103,7 +106,7 @@ type Config struct {
 	// VisitorTool runs with a fresh, site-bound visitor pass, never APIKey.
 	VisitorTool func(*http.Request, Caller, string, map[string]any) (map[string]any, error)
 	// VisitorRefs shares the site handler export key for MCP-only attribution.
-	VisitorRefs *VisitorReferences
+	VisitorRefs *access.VisitorReferences
 
 	// Upstream is the application router (the bare mux, not the edge
 	// middleware). Tool calls are served into it in process.
@@ -271,83 +274,82 @@ func (s *Server) productPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
 	return all, withoutSchemas, byName
 }
 
+// toolListing is one connection's tools: with output schemas (full),
+// without (bare, for the one revision without them), and by name.
+type toolListing struct {
+	full, bare []Tool
+	byName     map[string]Tool
+}
+
+func (l *toolListing) add(tool Tool) {
+	l.full = append(l.full, tool)
+	tool.OutputSchema = nil
+	l.bare = append(l.bare, tool)
+}
+
 // forCaller is the tool inventory for this connection. A product connection
 // sees its event tools and the site tools.
 func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]Tool) {
-	defer func() {
-		if s.passcodeScreenEnabled(caller) {
-			full = append([]Tool(nil), full...)
-			bare = append([]Tool(nil), bare...)
-			copied := make(map[string]Tool, len(byName)+1)
-			for name, tool := range byName {
-				copied[name] = tool
-			}
-			byName = copied
-			if !flatListApp(caller.AppName) {
-				for _, entry := range s.registry.entries {
-					if !entry.tool.policy.listWithPasscode {
-						continue
-					}
-					tool, ok := byName[entry.tool.Name]
-					if !ok {
-						continue
-					}
-					full = append(full, tool)
-					tool.OutputSchema = nil
-					bare = append(bare, tool)
-				}
-			}
-			tool := s.registry.view(s.cfg, editionScreen, false, false, false).tools[0]
-			byName[tool.Name] = tool
-			full = append(full, tool)
-			tool.OutputSchema = nil
-			bare = append(bare, tool)
-		}
-		if s.offersAnalyticsContext(caller) {
-			full = analyticsContextTools(full)
-			bare = analyticsContextTools(bare)
-		}
-		screens := s.enabledScreens(caller)
+	l := s.baseListing(caller)
+	if s.passcodeScreenEnabled(caller) {
+		l = s.withPasscodeScreen(l, caller)
+	}
+	if s.offersAnalyticsContext(caller) {
+		l.full, l.bare = analyticsContextTools(l.full), analyticsContextTools(l.bare)
+	}
+	for _, screens := range [][]appScreen{s.enabledScreens(caller), s.productScreens(caller)} {
 		if len(screens) > 0 {
-			full = appToolMetadata(full, screens)
-			bare = appToolMetadata(bare, screens)
+			l.full, l.bare = appToolMetadata(l.full, screens), appToolMetadata(l.bare, screens)
 		}
-		productScreens := s.productScreens(caller)
-		if len(productScreens) > 0 {
-			full = appToolMetadata(full, productScreens)
-			bare = appToolMetadata(bare, productScreens)
-		}
-		full, bare, byName = s.storageRulesInventory(full, bare, byName, caller)
-	}()
-	if caller.Mode == CallerModeEvents {
+	}
+	return s.storageRulesInventory(l.full, l.bare, l.byName, caller)
+}
+
+// baseListing is the inventory a caller's mode and app choose.
+func (s *Server) baseListing(caller Caller) toolListing {
+	allowed := s.byName
+	if caller.DeployOnly {
+		allowed = s.deployByName
+	}
+	switch {
+	case caller.Mode == CallerModeEvents:
 		// A product connection, OAuth or the person's own key: the product's
 		// tools and the site tools, which name the account as owner.
-		return s.productPersonalInventory()
-	}
-	if flatListApp(caller.AppName) {
-		allowed := s.byName
-		if caller.DeployOnly {
-			allowed = s.deployByName
-		}
-		byName = make(map[string]Tool, len(allowed))
+		full, bare, byName := s.productPersonalInventory()
+		return toolListing{full: full, bare: bare, byName: byName}
+	case flatListApp(caller.AppName):
+		l := toolListing{byName: make(map[string]Tool, len(allowed))}
 		for name, tool := range allowed {
-			byName[name] = flatListTool(tool)
+			l.byName[name] = flatListTool(tool)
 		}
 		for _, tool := range s.tools {
-			if _, ok := allowed[tool.Name]; !ok {
-				continue
+			if _, ok := allowed[tool.Name]; ok {
+				l.add(l.byName[tool.Name])
 			}
-			tool = byName[tool.Name]
-			full = append(full, tool)
-			tool.OutputSchema = nil
-			bare = append(bare, tool)
 		}
-		return full, bare, byName
+		return l
 	}
-	if caller.DeployOnly {
-		return s.coreTools, s.preOutputSchemaTools, s.deployByName
+	return toolListing{full: s.coreTools, bare: s.preOutputSchemaTools, byName: allowed}
+}
+
+// withPasscodeScreen adds the passcode screen's tool and, outside the flat
+// list, the tools listed alongside it, to a copy of l.
+func (s *Server) withPasscodeScreen(l toolListing, caller Caller) toolListing {
+	out := toolListing{full: append([]Tool(nil), l.full...), bare: append([]Tool(nil), l.bare...), byName: make(map[string]Tool, len(l.byName)+1)}
+	for name, tool := range l.byName {
+		out.byName[name] = tool
 	}
-	return s.coreTools, s.preOutputSchemaTools, s.byName
+	if !flatListApp(caller.AppName) {
+		for _, entry := range s.registry.entries {
+			if tool, ok := out.byName[entry.tool.Name]; ok && entry.tool.policy.listWithPasscode {
+				out.add(tool)
+			}
+		}
+	}
+	tool := s.registry.view(s.cfg, editionScreen, false, false, false).tools[0]
+	out.byName[tool.Name] = tool
+	out.add(tool)
+	return out
 }
 
 func (s *Server) instructionsFor(caller Caller) string {
@@ -424,59 +426,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeRPC(w, http.StatusMethodNotAllowed, failure(nil, codeInvalidRequest, "method not allowed; send MCP messages with POST /mcp", nil))
 		return
 	}
-	caller, ok := callerFrom(r.Context())
-
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.cfg.MaxBodyBytes))
-	if err != nil {
-		writeRPC(w, http.StatusRequestEntityTooLarge, failure(nil, codeParseError, "request body could not be read (too large?)", nil))
+	req, status, refusal := s.readRequest(w, r)
+	if status == http.StatusAccepted {
+		w.WriteHeader(status)
 		return
 	}
-
-	var raw json.RawMessage
-	if err := json.Unmarshal(body, &raw); err != nil {
-		writeRPC(w, http.StatusBadRequest, failure(nil, codeParseError, "invalid JSON", nil))
-		return
-	}
-	if trimmed := bytes.TrimSpace(raw); len(trimmed) > 0 && trimmed[0] == '[' {
-		writeRPC(w, http.StatusBadRequest, failure(nil, codeInvalidRequest,
-			"batched messages are not supported; send one JSON-RPC message per request", nil))
-		return
-	}
-
-	var req request
-	if err := json.Unmarshal(body, &req); err != nil {
-		writeRPC(w, http.StatusBadRequest, failure(nil, codeInvalidRequest, "not a JSON-RPC 2.0 request object", nil))
-		return
-	}
-	if !req.wellFormed() {
-		// A JSON-RPC response (a client answering a server request) is valid
-		// traffic on this transport; this server never sends requests, so it
-		// is acknowledged and ignored.
-		if req.Method == "" && len(req.ID) > 0 && bytes.Contains(body, []byte(`"result"`)) {
-			w.WriteHeader(http.StatusAccepted)
-			return
-		}
-		writeRPC(w, http.StatusBadRequest, failure(req.ID, codeInvalidRequest,
-			"a JSON-RPC 2.0 request needs jsonrpc:\"2.0\" and a method", nil))
-		return
-	}
-	if req.hasNullID() {
-		writeRPC(w, http.StatusBadRequest, failure(nil, codeInvalidRequest, "id must not be null", nil))
-		return
-	}
-	if !ok && !isEventMethod(req.Method) {
-		// The wrapper authenticates before calling in; reaching here without
-		// a caller is a wiring bug, and it must fail closed.
-		writeRPC(w, http.StatusUnauthorized, failure(nil, codeInvalidRequest, "not authenticated", nil))
-		return
-	}
-
-	if status, rpcErr := s.validate(r, req); rpcErr != nil {
-		id := req.ID
-		if req.isNotification() {
-			id = nil
-		}
-		writeRPC(w, status, failure(id, rpcErr.Code, rpcErr.Message, rpcErr.Data))
+	if refusal != nil {
+		writeRPC(w, status, *refusal)
 		return
 	}
 	// A notification is acknowledged with 202 and no body, whatever it names.
@@ -484,9 +440,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
-
+	caller, _ := callerFrom(r.Context())
 	resp := s.dispatch(r, req, caller)
-	status := http.StatusOK
+	status = http.StatusOK
 	if resp.Error != nil && resp.Error.Code == codeMethodNotFound && (s.isModern(r, req) || modernInitialize(r, req)) {
 		// The stateless revision distinguishes an unimplemented method from a
 		// server with no MCP endpoint by a 404 carrying a JSON-RPC body. An
@@ -494,6 +450,56 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusNotFound
 	}
 	writeRPC(w, status, resp)
+}
+
+// readRequest reads, parses and checks one message. A refusal comes back
+// with its status; 202 with no refusal acknowledges a client's response.
+func (s *Server) readRequest(w http.ResponseWriter, r *http.Request) (request, int, *response) {
+	refuse := func(status int, id json.RawMessage, code int, message string) (request, int, *response) {
+		reply := failure(id, code, message, nil)
+		return request{}, status, &reply
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, s.cfg.MaxBodyBytes))
+	if err != nil {
+		return refuse(http.StatusRequestEntityTooLarge, nil, codeParseError, "request body could not be read (too large?)")
+	}
+	var raw json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return refuse(http.StatusBadRequest, nil, codeParseError, "invalid JSON")
+	}
+	if trimmed := bytes.TrimSpace(raw); len(trimmed) > 0 && trimmed[0] == '[' {
+		return refuse(http.StatusBadRequest, nil, codeInvalidRequest, "batched messages are not supported; send one JSON-RPC message per request")
+	}
+	var req request
+	if err := json.Unmarshal(body, &req); err != nil {
+		return refuse(http.StatusBadRequest, nil, codeInvalidRequest, "not a JSON-RPC 2.0 request object")
+	}
+	if !req.wellFormed() {
+		// A JSON-RPC response (a client answering a server request) is valid
+		// traffic on this transport; this server never sends requests, so it
+		// is acknowledged and ignored.
+		if req.Method == "" && len(req.ID) > 0 && bytes.Contains(body, []byte(`"result"`)) {
+			return request{}, http.StatusAccepted, nil
+		}
+		return refuse(http.StatusBadRequest, req.ID, codeInvalidRequest, "a JSON-RPC 2.0 request needs jsonrpc:\"2.0\" and a method")
+	}
+	if req.hasNullID() {
+		return refuse(http.StatusBadRequest, nil, codeInvalidRequest, "id must not be null")
+	}
+	if _, ok := callerFrom(r.Context()); !ok && !isEventMethod(req.Method) {
+		// The wrapper authenticates before calling in; reaching here without
+		// a caller is a wiring bug, and it must fail closed.
+		return refuse(http.StatusUnauthorized, nil, codeInvalidRequest, "not authenticated")
+	}
+	if status, rpcErr := s.validate(r, req); rpcErr != nil {
+		id := req.ID
+		if req.isNotification() {
+			id = nil
+		}
+		reply := failure(id, rpcErr.Code, rpcErr.Message, rpcErr.Data)
+		return request{}, status, &reply
+	}
+	return req, http.StatusOK, nil
 }
 
 // requestedVersion is the revision a request declares, by header or in _meta.
@@ -517,84 +523,90 @@ func modernInitialize(r *http.Request, req request) bool {
 
 // validate enforces the header/body agreement the transport requires.
 func (s *Server) validate(r *http.Request, req request) (int, *rpcError) {
+	requested, err := checkVersion(r, req)
+	if err == nil {
+		// Only a client declaring the stateless revision is held to its
+		// header and _meta rules. An initialize-era client predates both.
+		modern := requested == protocolVersion && req.Method != "initialize"
+		err = s.checkHeaders(r, req, modern)
+	}
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+	return http.StatusOK, nil
+}
+
+// checkVersion returns the revision the request declares, by header or
+// _meta, refusing a disagreement or (outside initialize) one not spoken here.
+func checkVersion(r *http.Request, req request) (string, *rpcError) {
 	declared := strings.TrimSpace(r.Header.Get("MCP-Protocol-Version"))
 	inBody := metaProtocolVersion(req.Params)
-
 	if declared != "" && inBody != "" && declared != inBody && req.Method != "initialize" {
-		return http.StatusBadRequest, &rpcError{
-			Code:    codeHeaderMismatch,
-			Message: fmt.Sprintf("MCP-Protocol-Version header %q does not match the body's %q", declared, inBody),
-		}
+		return "", &rpcError{Code: codeHeaderMismatch, Message: fmt.Sprintf("MCP-Protocol-Version header %q does not match the body's %q", declared, inBody)}
 	}
-	requested := declared
-	if requested == "" {
-		requested = inBody
-	}
+	requested := cmp.Or(declared, inBody)
 	// initialize negotiates, so an unknown version there is answered with one
 	// this server speaks rather than refused.
 	if requested != "" && !supported(requested) && req.Method != "initialize" {
-		return http.StatusBadRequest, &rpcError{
-			Code:    codeUnsupportedVersion,
-			Message: "Unsupported protocol version",
-			Data:    map[string]any{"supported": supportedVersions, "requested": requested},
-		}
+		return "", &rpcError{Code: codeUnsupportedVersion, Message: "Unsupported protocol version",
+			Data: map[string]any{"supported": supportedVersions, "requested": requested}}
 	}
+	return requested, nil
+}
 
-	// Only a client declaring the stateless revision is held to its header
-	// and _meta rules. An initialize-era client predates both.
-	modern := requested == protocolVersion && req.Method != "initialize"
-
+// checkHeaders holds the request to its Mcp-Method and Mcp-Name headers and,
+// under the stateless revision, to declaring its client capabilities.
+func (s *Server) checkHeaders(r *http.Request, req request, modern bool) *rpcError {
 	method := strings.TrimSpace(r.Header.Get("Mcp-Method"))
 	if method == "" && modern {
-		return http.StatusBadRequest, &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Method header is required"}
+		return &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Method header is required"}
 	}
 	if method != "" && method != req.Method {
-		return http.StatusBadRequest, &rpcError{
-			Code:    codeHeaderMismatch,
-			Message: fmt.Sprintf("Mcp-Method header %q does not match the body's %q", method, req.Method),
-		}
+		return &rpcError{Code: codeHeaderMismatch, Message: fmt.Sprintf("Mcp-Method header %q does not match the body's %q", method, req.Method)}
 	}
+	if err := s.checkNameHeader(r, req, modern); err != nil {
+		return err
+	}
+	if modern && !req.isNotification() && !hasClientCapabilities(req.Params) {
+		return &rpcError{Code: codeInvalidParams, Message: "params._meta must carry io.modelcontextprotocol/clientCapabilities"}
+	}
+	return nil
+}
 
-	if req.Method == "tools/call" {
+// checkNameHeader matches Mcp-Name to the tool called or the resource read.
+func (s *Server) checkNameHeader(r *http.Request, req request, modern bool) *rpcError {
+	var target string
+	var mismatch func(header string) string
+	switch req.Method {
+	case "tools/call":
 		params, err := s.parseCallParams(req.Params)
 		if err != nil {
-			return http.StatusBadRequest, &rpcError{Code: codeInvalidParams, Message: "params could not be read"}
+			return &rpcError{Code: codeInvalidParams, Message: "params could not be read"}
 		}
-		name := strings.TrimSpace(r.Header.Get("Mcp-Name"))
-		if name == "" && modern {
-			return http.StatusBadRequest, &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Name header is required on tools/call"}
+		target = params.Name
+		mismatch = func(header string) string {
+			return fmt.Sprintf("Mcp-Name header %q does not match the tool being called, %q", header, target)
 		}
-		if name != "" && decodeHeaderValue(name) != params.Name {
-			return http.StatusBadRequest, &rpcError{
-				Code:    codeHeaderMismatch,
-				Message: fmt.Sprintf("Mcp-Name header %q does not match the tool being called, %q", decodeHeaderValue(name), params.Name),
-			}
-		}
-	}
-
-	if req.Method == "resources/read" {
+	case "resources/read":
 		var params struct {
 			URI string `json:"uri"`
 		}
 		if json.Unmarshal(req.Params, &params) != nil {
-			return http.StatusBadRequest, &rpcError{Code: codeInvalidParams, Message: "params could not be read"}
+			return &rpcError{Code: codeInvalidParams, Message: "params could not be read"}
 		}
-		name := strings.TrimSpace(r.Header.Get("Mcp-Name"))
-		if name == "" && modern {
-			return http.StatusBadRequest, &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Name header is required on resources/read"}
-		}
-		if name != "" && decodeHeaderValue(name) != params.URI {
-			return http.StatusBadRequest, &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Name header does not match the resource URI"}
-		}
+		target = params.URI
+		mismatch = func(string) string { return "Mcp-Name header does not match the resource URI" }
+	default:
+		return nil
 	}
-
-	if modern && !req.isNotification() && !hasClientCapabilities(req.Params) {
-		return http.StatusBadRequest, &rpcError{
-			Code:    codeInvalidParams,
-			Message: "params._meta must carry io.modelcontextprotocol/clientCapabilities",
-		}
+	name := strings.TrimSpace(r.Header.Get("Mcp-Name"))
+	if name == "" && modern {
+		return &rpcError{Code: codeHeaderMismatch, Message: "Mcp-Name header is required on " + req.Method}
 	}
-	return http.StatusOK, nil
+	if header := decodeHeaderValue(name); name != "" && header != target {
+		return &rpcError{Code: codeHeaderMismatch, Message: mismatch(header)}
+	}
+	return nil
 }
 
 func hasClientCapabilities(params json.RawMessage) bool {
@@ -615,102 +627,136 @@ func (s *Server) serverInfo() map[string]any {
 	return map[string]any{"name": s.cfg.ServerName, "title": "Simple Host", "version": s.cfg.Version}
 }
 
+// rpcCall is one request on its way to its method.
+type rpcCall struct {
+	r      *http.Request
+	req    request
+	caller Caller
+	modern bool
+}
+
+// rpcMethods answers each method this server implements.
+var rpcMethods = map[string]func(*Server, rpcCall) response{
+	"initialize":               (*Server).rpcInitialize,
+	"ping":                     (*Server).rpcPing,
+	"server/discover":          (*Server).rpcDiscover,
+	"tools/list":               (*Server).rpcToolsList,
+	"tools/call":               func(s *Server, c rpcCall) response { return s.callTool(c.r, c.req, c.caller, c.modern) },
+	"events/list":              (*Server).rpcEvents,
+	"events/subscribe":         (*Server).rpcEvents,
+	"events/unsubscribe":       (*Server).rpcEvents,
+	"resources/list":           (*Server).rpcResourcesList,
+	"resources/read":           (*Server).rpcResourcesRead,
+	"resources/templates/list": (*Server).rpcResourceTemplates,
+	// Disabled prompts return an empty list. Some clients list these
+	// regardless of the declared capabilities; an empty list is the true
+	// answer and keeps them from treating the connector as broken.
+	"prompts/list": func(_ *Server, c rpcCall) response { return result(c.req.ID, map[string]any{"prompts": []any{}}) },
+}
+
 func (s *Server) dispatch(r *http.Request, req request, caller Caller) response {
-	modern := s.isModern(r, req)
-	switch req.Method {
-	case "initialize":
-		if modernInitialize(r, req) {
-			return failure(req.ID, codeMethodNotFound, "initialize is not part of "+protocolVersion+"; send requests directly", nil)
-		}
-		s.clientUI.remember(caller, initializeDeclaresUI(req.Params), time.Now())
-		return result(req.ID, map[string]any{
-			"protocolVersion": negotiateInitialize(metaProtocolVersion(req.Params)),
-			"capabilities":    s.capabilities(caller),
-			"serverInfo":      s.serverInfo(),
-			"instructions":    s.instructionsFor(caller),
-		})
-
-	// ping is a keepalive in the initialize-era revisions. The stateless
-	// revision removed it along with the connection it kept alive.
-	case "ping":
-		if modern {
-			return failure(req.ID, codeMethodNotFound, "ping is not part of "+protocolVersion, nil)
-		}
-		return result(req.ID, map[string]any{})
-
-	case "server/discover":
-		return result(req.ID, s.withMeta(map[string]any{
-			"resultType":        "complete",
-			"supportedVersions": supportedVersions,
-			"capabilities":      s.capabilities(caller),
-			"serverInfo":        s.serverInfo(),
-			"instructions":      s.instructionsFor(caller),
-			"ttlMs":             cacheTTLMillis,
-			"cacheScope":        "private",
-		}))
-
-	case "tools/list":
-		full, bare, _ := s.forCaller(caller)
-		showAllowed := s.showToolsAllowed(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-		full, bare = filterShowTools(full, showAllowed), filterShowTools(bare, showAllowed)
-		if modern {
-			return result(req.ID, s.withMeta(map[string]any{
-				"resultType": "complete",
-				"tools":      full,
-				"ttlMs":      cacheTTLMillis,
-				"cacheScope": "private",
-			}))
-		}
-		listed := full
-		if requestedVersion(r, req) == "2025-03-26" {
-			listed = bare
-		}
-		return result(req.ID, map[string]any{"tools": listed})
-
-	case "events/list", "events/subscribe", "events/unsubscribe":
-		return s.dispatchEvents(r, req, caller, modern)
-
-	// Disabled resources and prompts return empty lists. Some clients list these regardless of
-	// the declared capabilities; an empty list is the true answer and keeps
-	// them from treating the connector as broken.
-	case "resources/list":
-		productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-		payload := map[string]any{"resources": append(s.appResources(caller), s.productAppResources(caller, productResourceAllowed)...)}
-		if modern && (len(s.enabledScreens(caller)) > 0 || (productResourceAllowed && len(s.productScreens(caller)) > 0)) {
-			markCached(payload)
-		}
-		return result(req.ID, payload)
-	case "resources/read":
-		reply := s.readApp(req, caller)
-		if reply.Error != nil {
-			productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-			if read := s.apps.Read; read != nil {
-				if productReply, handled := read(req, caller, productResourceAllowed); handled {
-					reply = productReply
-				}
-			}
-		}
-		if modern && reply.Error == nil {
-			payload := reply.Result.(map[string]any)
-			markCached(payload)
-		}
-		return reply
-	case "resources/templates/list":
-		productResourceAllowed := s.productAppsGate(caller, s.uiDeclaredForListing(caller, req.Params, modern))
-		payload := map[string]any{"resourceTemplates": []any{}}
-		if modern && (len(s.enabledScreens(caller)) > 0 || (productResourceAllowed && len(s.productScreens(caller)) > 0)) {
-			markCached(payload)
-		}
-		return result(req.ID, payload)
-	case "prompts/list":
-		return result(req.ID, map[string]any{"prompts": []any{}})
-
-	case "tools/call":
-		return s.callTool(r, req, caller, modern)
-
-	default:
+	method, ok := rpcMethods[req.Method]
+	if !ok {
 		return failure(req.ID, codeMethodNotFound, "unknown method: "+req.Method, nil)
 	}
+	return method(s, rpcCall{r: r, req: req, caller: caller, modern: s.isModern(r, req)})
+}
+
+func (s *Server) rpcInitialize(c rpcCall) response {
+	if modernInitialize(c.r, c.req) {
+		return failure(c.req.ID, codeMethodNotFound, "initialize is not part of "+protocolVersion+"; send requests directly", nil)
+	}
+	s.clientUI.remember(c.caller, initializeDeclaresUI(c.req.Params), time.Now())
+	return result(c.req.ID, map[string]any{
+		"protocolVersion": negotiateInitialize(metaProtocolVersion(c.req.Params)),
+		"capabilities":    s.capabilities(c.caller),
+		"serverInfo":      s.serverInfo(),
+		"instructions":    s.instructionsFor(c.caller),
+	})
+}
+
+// ping is a keepalive in the initialize-era revisions. The stateless
+// revision removed it along with the connection it kept alive.
+func (s *Server) rpcPing(c rpcCall) response {
+	if c.modern {
+		return failure(c.req.ID, codeMethodNotFound, "ping is not part of "+protocolVersion, nil)
+	}
+	return result(c.req.ID, map[string]any{})
+}
+
+func (s *Server) rpcDiscover(c rpcCall) response {
+	return result(c.req.ID, s.withMeta(map[string]any{
+		"resultType":        "complete",
+		"supportedVersions": supportedVersions,
+		"capabilities":      s.capabilities(c.caller),
+		"serverInfo":        s.serverInfo(),
+		"instructions":      s.instructionsFor(c.caller),
+		"ttlMs":             cacheTTLMillis,
+		"cacheScope":        "private",
+	}))
+}
+
+func (s *Server) rpcToolsList(c rpcCall) response {
+	full, bare, _ := s.forCaller(c.caller)
+	showAllowed := s.showToolsAllowed(c.caller, s.uiDeclaredForListing(c.caller, c.req.Params, c.modern))
+	full, bare = filterShowTools(full, showAllowed), filterShowTools(bare, showAllowed)
+	if c.modern {
+		return result(c.req.ID, s.withMeta(map[string]any{
+			"resultType": "complete",
+			"tools":      full,
+			"ttlMs":      cacheTTLMillis,
+			"cacheScope": "private",
+		}))
+	}
+	if requestedVersion(c.r, c.req) == "2025-03-26" {
+		return result(c.req.ID, map[string]any{"tools": bare})
+	}
+	return result(c.req.ID, map[string]any{"tools": full})
+}
+
+func (s *Server) rpcEvents(c rpcCall) response {
+	return s.dispatchEvents(c.r, c.req, c.caller, c.modern)
+}
+
+// productResourcesAllowed: this call may see the product's screens.
+func (s *Server) productResourcesAllowed(c rpcCall) bool {
+	return s.productAppsGate(c.caller, s.uiDeclaredForListing(c.caller, c.req.Params, c.modern))
+}
+
+// cacheResourceListing marks a modern resource listing cacheable when any
+// screen is on offer.
+func (s *Server) cacheResourceListing(c rpcCall, productAllowed bool, payload map[string]any) {
+	if c.modern && (len(s.enabledScreens(c.caller)) > 0 || (productAllowed && len(s.productScreens(c.caller)) > 0)) {
+		markCached(payload)
+	}
+}
+
+// Disabled resources return empty lists, for the clients that list them
+// regardless of the declared capabilities.
+func (s *Server) rpcResourcesList(c rpcCall) response {
+	allowed := s.productResourcesAllowed(c)
+	payload := map[string]any{"resources": append(s.appResources(c.caller), s.productAppResources(c.caller, allowed)...)}
+	s.cacheResourceListing(c, allowed, payload)
+	return result(c.req.ID, payload)
+}
+
+func (s *Server) rpcResourceTemplates(c rpcCall) response {
+	payload := map[string]any{"resourceTemplates": []any{}}
+	s.cacheResourceListing(c, s.productResourcesAllowed(c), payload)
+	return result(c.req.ID, payload)
+}
+
+func (s *Server) rpcResourcesRead(c rpcCall) response {
+	reply := s.readApp(c.req, c.caller)
+	if reply.Error != nil && s.apps.Read != nil {
+		if productReply, handled := s.apps.Read(c.req, c.caller, s.productResourcesAllowed(c)); handled {
+			reply = productReply
+		}
+	}
+	if c.modern && reply.Error == nil {
+		markCached(reply.Result.(map[string]any))
+	}
+	return reply
 }
 
 // cacheTTLMillis is how long a client may reuse a discovery or tool listing.

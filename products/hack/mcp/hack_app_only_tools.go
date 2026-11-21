@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/vsriram/simple-host/host/mcp"
@@ -170,225 +169,227 @@ func countSchema(fields ...string) map[string]any {
 	return mcp.OutObject(props)
 }
 
-// hackAppOnlyTools builds every app-only twin, by name, from the already-
-// assembled base registry (base must already contain every tool named
-// below -- the tool server calls this after all base families are assembled).
+// twinSpec is one app-only twin: the base tool it wraps, its name, title
+// and output schema, which screen may call it, and how the base output is
+// summarized for the model.
+type twinSpec struct {
+	base, name, title string
+	gate              twinGate
+	out               map[string]any
+	summarize         func(mcp.Output) (string, map[string]any)
+	input             map[string]any // replaces the base's input schema when set
+}
+
+type twinGate int
+
+const (
+	organiserTwin twinGate = iota
+	judgeTwin
+	sharedTwin // called by both the judge and organiser route tables
+)
+
+func (s *hackScreens) twinAllowed(gate twinGate) hackAppOnlyAllowed {
+	switch gate {
+	case judgeTwin:
+		return s.hackAppOnlyJudgeAllowed
+	case sharedTwin:
+		return s.hackAppOnlySharedAllowed
+	}
+	return s.hackAppOnlyOrganiserAllowed
+}
+
+// hackAppOnlyTools builds every app-only twin, in listing order, from the
+// already-assembled base registry (base must already contain every tool
+// named below -- the tool server calls this after all base families are
+// assembled).
+//
+// hack_get_judging_dashboard is NOT a generic twin: its base tool already
+// has judge_id stripped from every judges[] row by
+// minimiseHackOrganiserResult, a MODEL-facing protection (Grok security
+// review, SIM-344 phase 1). The VIEW is fully authorized to see judge_id
+// and organiser-judging.js's isCountedJudge() needs it (Codex review
+// finding 1, SIM-344 phase 2), so that twin reads the REST route itself,
+// unminimised, straight into _meta.
 func (s *hackScreens) hackAppOnlyTools(base []mcp.Tool) []mcp.Tool {
-	hackAppOnlyJudgeAllowed, hackAppOnlyOrganiserAllowed, hackAppOnlySharedAllowed := s.hackAppOnlyJudgeAllowed, s.hackAppOnlyOrganiserAllowed, s.hackAppOnlySharedAllowed
 	byName := make(map[string]mcp.Tool, len(base))
 	for _, t := range base {
 		byName[t.Name] = t
 	}
-	find := func(name string) mcp.Tool {
-		t, ok := byName[name]
-		if !ok {
-			panic("hack_apps: app-only twin wiring: tool " + name + " not found in the base registry")
+	build := func(specs []twinSpec) []mcp.Tool {
+		tools := make([]mcp.Tool, 0, len(specs))
+		for _, spec := range specs {
+			baseTool, ok := byName[spec.base]
+			if !ok {
+				panic("hack_apps: app-only twin wiring: tool " + spec.base + " not found in the base registry")
+			}
+			twin := hackAppOnlyTwin(baseTool, spec.name, spec.title, spec.out, s.twinAllowed(spec.gate), spec.summarize)
+			if spec.input != nil {
+				twin.InputSchema = spec.input
+			}
+			tools = append(tools, twin)
 		}
-		return t
+		return tools
 	}
-
-	var twins []mcp.Tool
-	twin := func(baseName, name, title string, outSchema map[string]any, allowed hackAppOnlyAllowed, summarize func(mcp.Output) (string, map[string]any)) {
-		twins = append(twins, hackAppOnlyTwin(find(baseName), name, title, outSchema, allowed, summarize))
-	}
-
-	// Home's publish dialog reads standings and publishes through app-only twins.
-	for _, spec := range []struct{ base, name, title string }{
-		{"hack_preview_judging_assignments", "hack_app_preview_results", "App: preview results"},
-		{"hack_get_public_results", "hack_app_get_results", "App: load published results"},
-		{"hack_publish_results", "hack_app_publish_results", "App: publish results"},
-	} {
-		title := spec.title
-		twin(spec.base, spec.name, title, countSchema("count"), hackAppOnlyOrganiserAllowed,
-			func(out mcp.Output) (string, map[string]any) {
-				n := hackAppOnlyArrayField(hackAppOnlyRouteBody(out), "results")
-				return title + ".", map[string]any{"count": n}
-			})
-	}
-
-	// --- organiser reads --------------------------------------------------
-	twin("hack_get_people", "hack_app_get_people", "App: load people",
-		countSchema("count"),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			n := len(hackAppOnlyRouteArray(out))
-			return pluralSentence("Loaded", n, "person", "people"), map[string]any{"count": n}
-		})
-	twin("hack_get_applications", "hack_app_get_applications", "App: load applications",
-		countSchema("count", "pending"),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			rows := hackAppOnlyRouteArray(out)
-			pending := 0
-			for _, row := range rows {
-				if m, ok := row.(map[string]any); ok && m["status"] == "pending" {
-					pending++
-				}
-			}
-			return pluralSentence("Loaded", len(rows), "application", "applications"), map[string]any{"count": len(rows), "pending": pending}
-		})
-	twin("hack_get_registration", "hack_app_get_registration", "App: load sign-up settings",
-		mcp.OutObject(map[string]any{"questions": mcp.OutInteger("Count."), "approval_required": map[string]any{"type": "boolean"}, "applications_open": map[string]any{"type": "boolean"}}),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			body := hackAppOnlyRouteBody(out)
-			return "Loaded sign-up questions and approval settings.", map[string]any{
-				"questions":         hackAppOnlyArrayField(body, "questions"),
-				"approval_required": body["approval_required"],
-				"applications_open": body["applications_open"],
-			}
-		})
-	twin("hack_get_judging_settings", "hack_app_get_judging_settings", "App: load judging settings",
-		mcp.OutObject(map[string]any{
-			"assignment_mode": mcp.OutString("open, automatic, manual or panel."), "judges_per_team": mcp.OutInteger("Target judges per team."),
-			"score_mode": mcp.OutString("Scoring mode."), "tie_criterion_id": mcp.OutString("Tie-break criterion ID, or empty."),
-			"public_scores": map[string]any{"type": "boolean"}, "public_ranks": map[string]any{"type": "boolean"},
-		}),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			// Every field here is a fixed configuration enum, number or
-			// boolean -- never a name, a free-text field or a secret --
-			// so this twin passes them through as-is rather than reducing
-			// to a count that would not exist for a settings object.
-			body := hackAppOnlyRouteBody(out)
-			counts := map[string]any{}
-			for _, key := range []string{"assignment_mode", "judges_per_team", "score_mode", "tie_criterion_id", "public_scores", "public_ranks"} {
-				if v, ok := body[key]; ok {
-					counts[key] = v
-				}
-			}
-			return "Loaded judging settings.", counts
-		})
-	twin("hack_get_conflicts", "hack_app_get_conflicts", "App: load conflicts",
-		countSchema("count"),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			n := hackAppOnlyArrayField(hackAppOnlyRouteBody(out), "conflicts")
-			return pluralSentence("Loaded", n, "conflict", "conflicts"), map[string]any{"count": n}
-		})
-	twin("hack_get_teams", "hack_app_get_teams", "App: load teams",
-		countSchema("teams", "on_no_team"),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			body := hackAppOnlyRouteBody(out)
-			teams := hackAppOnlyArrayField(body, "teams")
-			onNone := hackAppOnlyArrayField(body, "on_no_team")
-			return pluralSentence("Loaded", teams, "team", "teams"), map[string]any{"teams": teams, "on_no_team": onNone}
-		})
-	twin("hack_get_assignments", "hack_app_get_assignments", "App: load assignments",
-		countSchema("count"),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			n := hackAppOnlyArrayField(hackAppOnlyRouteBody(out), "assignments")
-			return pluralSentence("Loaded", n, "assignment", "assignments"), map[string]any{"count": n}
-		})
-
-	// hack_get_judging_dashboard is NOT a generic hackAppOnlyTwin: its
-	// base tool already has judge_id stripped from every judges[] row by
-	// minimiseHackOrganiserResult, a MODEL-facing protection (Grok
-	// security review, SIM-344 phase 1) that exists so a model calling
-	// hack_get_judging_dashboard directly never receives an internal
-	// judge identifier. That protection is pointless -- and actively
-	// breaks the view -- once this read is itself behind an app-only
-	// twin whose structuredContent is already reduced to counts: the
-	// VIEW is fully authorized to see judge_id (the real REST response
-	// always includes it; the organiser's own website shows the same
-	// data), and organiser-judging.js's isCountedJudge() needs it to
-	// match a dashboard row to the /people list (Codex review finding 1,
-	// SIM-344 phase 2). So this twin reads the REST route itself,
-	// unminimised, straight into _meta, rather than reusing hack_get_
-	// judging_dashboard's already-stripped output.
+	twins := build(organiserReadTwins())
 	twins = append(twins, s.hackAppOnlyJudgingDashboardTool())
+	return append(twins, build(append(organiserWriteTwins(), judgeTwins()...))...)
+}
 
-	// --- organiser writes whose body carries a secret ----------------------
-	twin("hack_set_event_stage", "hack_app_set_event_stage", "App: change event stage",
-		mcp.OutObject(map[string]any{"stage": mcp.OutString("The new stage.")}),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			stage, _ := out.Structured["stage"].(string)
-			return "Stage changed.", map[string]any{"stage": stage}
-		})
-	twin("hack_regenerate_code", "hack_app_regenerate_code", "App: make a new join or judge link",
-		mcp.OutObject(map[string]any{}),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			return "Made a new link.", map[string]any{}
-		})
-	twin("hack_create_organiser_invite", "hack_app_create_organiser_invite", "App: create a co-organiser invitation",
-		mcp.OutObject(map[string]any{"created": map[string]any{"type": "boolean"}}),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			return "Created a co-organiser invitation.", map[string]any{"created": true}
-		})
-	// hack_app_set_judging_ends_at (0003-hack-notices-judges-messages.sql
-	// round 2, Codex review): organiser-judging.js's "Judging closes" card
-	// used to call hack_update_event straight (hack-organiser-view.js's
-	// own route table), the general event-patch tool -- whose output
-	// (hackEventOutput) carries the organiser's join/judge codes and URLs
-	// whenever the caller is the organiser, exactly the secret the twin
-	// pattern exists to keep out of content/structuredContent for an
-	// app-initiated call nobody in chat asked for. This wraps the same
-	// tool (same REST route, same auth) and reduces content down to the
-	// one non-secret field the card actually sets.
-	judgingEndsAtTwin := hackAppOnlyTwin(find("hack_update_event"), "hack_app_set_judging_ends_at", "App: set when judging closes",
-		mcp.OutObject(map[string]any{
-			"judging_ends_at": map[string]any{"type": []any{"string", "null"}, "description": "When judging closes, after the change, or null when cleared."},
-		}, "judging_ends_at"),
-		hackAppOnlyOrganiserAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			v := out.Structured["judging_ends_at"]
-			text := "Cleared when judging closes."
-			if v != nil {
-				text = "Set when judging closes."
-			}
-			return text, map[string]any{"judging_ends_at": v}
-		})
-	// Narrower than hack_update_event's own InputSchema (every field it
-	// can patch): this twin is reached only by the "Judging closes"
-	// card, which only ever sends judging_ends_at (hack-organiser-view.js's
-	// route table: body: ['judging_ends_at']), so advertising the rest
-	// here would invite a future caller to use a judging-close setter to
-	// patch the event's title or page text instead. hackPatchBody
-	// (hack_event_tools.go) still reads whichever of its known keys are
-	// present in args, so the narrower schema does not change what
-	// originalRun (hack_update_event's own run) accepts or does.
-	judgingEndsAtTwin.InputSchema = mcp.Object(map[string]any{
-		"slug":            mcp.Str("The event name."),
-		"judging_ends_at": mcp.Str("When judging closes, in the event time zone. Empty clears it. Judges with unscored teams are reminded before this time, once set; with no judging_ends_at they get no reminder."),
-	}, "slug")
-	twins = append(twins, judgingEndsAtTwin)
+// --- summaries -------------------------------------------------------------
 
-	// --- shared and judge reads --------------------------------------------
-	twin("hack_get_rubric", "hack_app_get_rubric", "App: load the rubric",
-		countSchema("criteria"),
-		hackAppOnlySharedAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			criteria, _ := out.Structured["criteria"].([]any)
-			return "Loaded the rubric.", map[string]any{"criteria": len(criteria)}
-		})
-	twin("hack_get_judge_queue", "hack_app_get_judge_queue", "App: load the judging queue",
-		countSchema("count"),
-		hackAppOnlyJudgeAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			n := hackAppOnlyArrayField(out.Structured, "queue")
-			return pluralSentence("Loaded", n, "entry", "entries"), map[string]any{"count": n}
-		})
-	twin("hack_get_judge_scores", "hack_app_get_judge_scores", "App: load my scores for a team",
-		mcp.OutObject(map[string]any{"scored": mcp.OutInteger("Count.")}),
-		hackAppOnlyJudgeAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			n := hackAppOnlyArrayField(out.Structured, "scores")
-			return "Loaded scores for this team.", map[string]any{"scored": n}
-		})
-	twin("hack_get_my_conflicts", "hack_app_get_my_conflicts", "App: load my conflicts",
-		countSchema("count"),
-		hackAppOnlyJudgeAllowed,
-		func(out mcp.Output) (string, map[string]any) {
-			n := hackAppOnlyArrayField(out.Structured, "conflicts")
-			return pluralSentence("Loaded", n, "conflict", "conflicts"), map[string]any{"count": n}
-		})
+// loaded counts the rows read reports: "Loaded 3 teams.", {"count": 3}.
+func loaded(read func(mcp.Output) int, singular, plural string) func(mcp.Output) (string, map[string]any) {
+	return func(out mcp.Output) (string, map[string]any) {
+		n := read(out)
+		return pluralSentence("Loaded", n, singular, plural), map[string]any{"count": n}
+	}
+}
 
-	return twins
+// fixed is a summary that never depends on the base output.
+func fixed(text string, counts map[string]any) func(mcp.Output) (string, map[string]any) {
+	return func(mcp.Output) (string, map[string]any) { return text, counts }
+}
+
+// routeField counts the array key in a route tool's REST body.
+func routeField(key string) func(mcp.Output) int {
+	return func(out mcp.Output) int { return hackAppOnlyArrayField(hackAppOnlyRouteBody(out), key) }
+}
+
+// ownField counts the array key in a hand-written tool's structured output.
+func ownField(key string) func(mcp.Output) int {
+	return func(out mcp.Output) int { return hackAppOnlyArrayField(out.Structured, key) }
+}
+
+func routeRows(out mcp.Output) int { return len(hackAppOnlyRouteArray(out)) }
+
+func resultsSummary(title string) func(mcp.Output) (string, map[string]any) {
+	return func(out mcp.Output) (string, map[string]any) {
+		return title + ".", map[string]any{"count": routeField("results")(out)}
+	}
+}
+
+func applicationsSummary(out mcp.Output) (string, map[string]any) {
+	rows := hackAppOnlyRouteArray(out)
+	pending := 0
+	for _, row := range rows {
+		if m, ok := row.(map[string]any); ok && m["status"] == "pending" {
+			pending++
+		}
+	}
+	return pluralSentence("Loaded", len(rows), "application", "applications"), map[string]any{"count": len(rows), "pending": pending}
+}
+
+func registrationSummary(out mcp.Output) (string, map[string]any) {
+	body := hackAppOnlyRouteBody(out)
+	return "Loaded sign-up questions and approval settings.", map[string]any{
+		"questions":         hackAppOnlyArrayField(body, "questions"),
+		"approval_required": body["approval_required"],
+		"applications_open": body["applications_open"],
+	}
+}
+
+// judgingSettingsSummary passes the settings through as-is: every field is
+// a fixed configuration enum, number or boolean -- never a name, a
+// free-text field or a secret.
+func judgingSettingsSummary(out mcp.Output) (string, map[string]any) {
+	body := hackAppOnlyRouteBody(out)
+	counts := map[string]any{}
+	for _, key := range []string{"assignment_mode", "judges_per_team", "score_mode", "tie_criterion_id", "public_scores", "public_ranks"} {
+		if v, ok := body[key]; ok {
+			counts[key] = v
+		}
+	}
+	return "Loaded judging settings.", counts
+}
+
+func teamsSummary(out mcp.Output) (string, map[string]any) {
+	teams := routeField("teams")(out)
+	return pluralSentence("Loaded", teams, "team", "teams"), map[string]any{"teams": teams, "on_no_team": routeField("on_no_team")(out)}
+}
+
+func stageSummary(out mcp.Output) (string, map[string]any) {
+	stage, _ := out.Structured["stage"].(string)
+	return "Stage changed.", map[string]any{"stage": stage}
+}
+
+func judgingEndsAtSummary(out mcp.Output) (string, map[string]any) {
+	v := out.Structured["judging_ends_at"]
+	text := "Cleared when judging closes."
+	if v != nil {
+		text = "Set when judging closes."
+	}
+	return text, map[string]any{"judging_ends_at": v}
+}
+
+func scoresSummary(out mcp.Output) (string, map[string]any) {
+	return "Loaded scores for this team.", map[string]any{"scored": ownField("scores")(out)}
+}
+
+func rubricSummary(out mcp.Output) (string, map[string]any) {
+	criteria, _ := out.Structured["criteria"].([]any)
+	return "Loaded the rubric.", map[string]any{"criteria": len(criteria)}
+}
+
+// --- the twins ---------------------------------------------------------------
+
+// organiserReadTwins: Home's publish dialog reads standings and publishes
+// through the first three; the rest load the organiser's screens.
+func organiserReadTwins() []twinSpec {
+	return []twinSpec{
+		{base: "hack_preview_judging_assignments", name: "hack_app_preview_results", title: "App: preview results", out: countSchema("count"), summarize: resultsSummary("App: preview results")},
+		{base: "hack_get_public_results", name: "hack_app_get_results", title: "App: load published results", out: countSchema("count"), summarize: resultsSummary("App: load published results")},
+		{base: "hack_publish_results", name: "hack_app_publish_results", title: "App: publish results", out: countSchema("count"), summarize: resultsSummary("App: publish results")},
+		{base: "hack_get_people", name: "hack_app_get_people", title: "App: load people", out: countSchema("count"), summarize: loaded(routeRows, "person", "people")},
+		{base: "hack_get_applications", name: "hack_app_get_applications", title: "App: load applications", out: countSchema("count", "pending"), summarize: applicationsSummary},
+		{base: "hack_get_registration", name: "hack_app_get_registration", title: "App: load sign-up settings",
+			out:       mcp.OutObject(map[string]any{"questions": mcp.OutInteger("Count."), "approval_required": map[string]any{"type": "boolean"}, "applications_open": map[string]any{"type": "boolean"}}),
+			summarize: registrationSummary},
+		{base: "hack_get_judging_settings", name: "hack_app_get_judging_settings", title: "App: load judging settings",
+			out: mcp.OutObject(map[string]any{
+				"assignment_mode": mcp.OutString("open, automatic, manual or panel."), "judges_per_team": mcp.OutInteger("Target judges per team."),
+				"score_mode": mcp.OutString("Scoring mode."), "tie_criterion_id": mcp.OutString("Tie-break criterion ID, or empty."),
+				"public_scores": map[string]any{"type": "boolean"}, "public_ranks": map[string]any{"type": "boolean"},
+			}),
+			summarize: judgingSettingsSummary},
+		{base: "hack_get_conflicts", name: "hack_app_get_conflicts", title: "App: load conflicts", out: countSchema("count"), summarize: loaded(routeField("conflicts"), "conflict", "conflicts")},
+		{base: "hack_get_teams", name: "hack_app_get_teams", title: "App: load teams", out: countSchema("teams", "on_no_team"), summarize: teamsSummary},
+		{base: "hack_get_assignments", name: "hack_app_get_assignments", title: "App: load assignments", out: countSchema("count"), summarize: loaded(routeField("assignments"), "assignment", "assignments")},
+	}
+}
+
+// organiserWriteTwins are the writes whose body carries a secret. The
+// judging_ends_at twin (0003-hack-notices-judges-messages.sql round 2,
+// Codex review) wraps hack_update_event, whose output carries the
+// organiser's join/judge codes, for the "Judging closes" card; its input
+// is narrower than hack_update_event's so it cannot patch page text.
+func organiserWriteTwins() []twinSpec {
+	return []twinSpec{
+		{base: "hack_set_event_stage", name: "hack_app_set_event_stage", title: "App: change event stage",
+			out: mcp.OutObject(map[string]any{"stage": mcp.OutString("The new stage.")}), summarize: stageSummary},
+		{base: "hack_regenerate_code", name: "hack_app_regenerate_code", title: "App: make a new join or judge link",
+			out: mcp.OutObject(map[string]any{}), summarize: fixed("Made a new link.", map[string]any{})},
+		{base: "hack_create_organiser_invite", name: "hack_app_create_organiser_invite", title: "App: create a co-organiser invitation",
+			out: mcp.OutObject(map[string]any{"created": map[string]any{"type": "boolean"}}), summarize: fixed("Created a co-organiser invitation.", map[string]any{"created": true})},
+		{base: "hack_update_event", name: "hack_app_set_judging_ends_at", title: "App: set when judging closes",
+			out: mcp.OutObject(map[string]any{
+				"judging_ends_at": map[string]any{"type": []any{"string", "null"}, "description": "When judging closes, after the change, or null when cleared."},
+			}, "judging_ends_at"),
+			summarize: judgingEndsAtSummary,
+			input: mcp.Object(map[string]any{
+				"slug":            mcp.Str("The event name."),
+				"judging_ends_at": mcp.Str("When judging closes, in the event time zone. Empty clears it. Judges with unscored teams are reminded before this time, once set; with no judging_ends_at they get no reminder."),
+			}, "slug")},
+	}
+}
+
+func judgeTwins() []twinSpec {
+	return []twinSpec{
+		{base: "hack_get_rubric", name: "hack_app_get_rubric", title: "App: load the rubric", gate: sharedTwin, out: countSchema("criteria"), summarize: rubricSummary},
+		{base: "hack_get_judge_queue", name: "hack_app_get_judge_queue", title: "App: load the judging queue", gate: judgeTwin, out: countSchema("count"), summarize: loaded(ownField("queue"), "entry", "entries")},
+		{base: "hack_get_judge_scores", name: "hack_app_get_judge_scores", title: "App: load my scores for a team", gate: judgeTwin,
+			out: mcp.OutObject(map[string]any{"scored": mcp.OutInteger("Count.")}), summarize: scoresSummary},
+		{base: "hack_get_my_conflicts", name: "hack_app_get_my_conflicts", title: "App: load my conflicts", gate: judgeTwin, out: countSchema("count"), summarize: loaded(ownField("conflicts"), "conflict", "conflicts")},
+	}
 }
 
 func pluralSentence(verb string, n int, singular, plural string) string {
@@ -413,36 +414,34 @@ func (s *hackScreens) hackAppOnlyJudgingDashboardTool() mcp.Tool {
 		OutputSchema: countSchema("teams", "judges", "former_judges"),
 		Meta:         hackAppOnlyVisibility(),
 		Annotations:  mcp.Writes(false, true, false),
-	}, mcp.ShowAllowed(s.hackAppOnlyOrganiserAllowed)), func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-		if !s.hackAppOnlyOrganiserAllowed(c.Caller(), c.UICapable()) {
-			return mcp.Output{}, errors.New("hack_app_get_judging_dashboard is not available for this connection; use hack_get_judging_dashboard instead")
-		}
-		slug, err := eventSlug(args)
-		if err != nil {
-			return mcp.Output{}, err
-		}
-		res := c.Do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug)+"/judging/dashboard", nil, nil)
-		if !res.OK() {
-			return mcp.Output{}, hackRestError("hack_app_get_judging_dashboard", res)
-		}
-		var body map[string]any
-		if len(res.Body()) > 0 {
-			if err := json.Unmarshal(res.Body(), &body); err != nil {
-				return mcp.Output{}, errors.New("hack_app_get_judging_dashboard: server returned invalid JSON")
-			}
-		}
-		teams, _ := body["teams"].([]any)
-		judges, _ := body["judges"].([]any)
-		former, _ := body["former_judges"].([]any)
-		counts := map[string]any{"teams": len(teams), "judges": len(judges), "former_judges": len(former)}
-		out := mcp.Output{Text: "Loaded judging progress.", Structured: counts}
-		// The glue's api() unwrap step expects the same {"response",
-		// "status"} shape runHackRoute uses for every other
-		// hackRouteTool-backed route (hack_organiser_tools.go); built
-		// by hand here since this bypasses runHackRoute entirely.
-		out.Meta = hackAppOnlyMeta(map[string]any{"response": body, "status": res.Status()})
-		return out, nil
-	})
+	}, mcp.ShowAllowed(s.hackAppOnlyOrganiserAllowed)), s.runAppJudgingDashboard)
+}
+
+func (s *hackScreens) runAppJudgingDashboard(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	if !s.hackAppOnlyOrganiserAllowed(c.Caller(), c.UICapable()) {
+		return mcp.Output{}, errors.New("hack_app_get_judging_dashboard is not available for this connection; use hack_get_judging_dashboard instead")
+	}
+	slug, err := eventSlug(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	res := c.Do(http.MethodGet, eventPath(slug, "/judging/dashboard"), nil, nil)
+	if !res.OK() {
+		return mcp.Output{}, hackRestError("hack_app_get_judging_dashboard", res)
+	}
+	var body map[string]any
+	if len(res.Body()) > 0 && json.Unmarshal(res.Body(), &body) != nil {
+		return mcp.Output{}, errors.New("hack_app_get_judging_dashboard: server returned invalid JSON")
+	}
+	counts := map[string]any{}
+	for _, key := range []string{"teams", "judges", "former_judges"} {
+		counts[key] = hackAppOnlyArrayField(body, key)
+	}
+	out := mcp.Output{Text: "Loaded judging progress.", Structured: counts}
+	// The glue's api() unwrap step expects runHackRoute's {"response",
+	// "status"} shape; this read bypasses runHackRoute.
+	out.Meta = hackAppOnlyMeta(map[string]any{"response": body, "status": res.Status()})
+	return out, nil
 }
 
 // hackAppFamilyTools registers famHackAppOnly after all base tools exist.

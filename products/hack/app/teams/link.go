@@ -22,76 +22,84 @@ type LinkPreview struct {
 	HasOtherTeamName bool
 }
 
-// GetTeamLink reads a team link and the caller's relationship to the team.
+// errLinkNotFound refuses a team link or code that matches no live team.
+func errLinkNotFound() error {
+	return &Error{Code: "team_link_not_found", Message: "that link or code doesn't match a team in this event"}
+}
+
+// GetTeamLink reads a team link and the caller's relationship to the team
+// (userID empty: signed out, no status).
 func (s *Service) GetTeamLink(ctx context.Context, code, userID string) (LinkPreview, error) {
-	var out LinkPreview
-	team, err := teamrepo.GetEventTeamByCodeOnly(ctx, s.db, code)
-	if errors.Is(err, sql.ErrNoRows) {
-		return out, &Error{Code: "team_link_not_found", Message: "that link or code doesn't match a team in this event"}
-	}
-	if err != nil {
+	out, err := s.linkTeam(ctx, code)
+	if err != nil || userID == "" {
 		return out, err
+	}
+	err = s.linkStatus(ctx, &out, userID)
+	return out, err
+}
+
+// linkTeam reads the team a code names, with its event, size, deadline and
+// track; an empty code or a taken-down event is team_link_not_found.
+func (s *Service) linkTeam(ctx context.Context, code string) (LinkPreview, error) {
+	if code == "" {
+		return LinkPreview{}, errLinkNotFound()
+	}
+	team, err := teamrepo.GetEventTeamByCodeOnly(ctx, s.db, code)
+	if err != nil {
+		return LinkPreview{}, notFoundAs(err, errLinkNotFound())
 	}
 	ev, err := eventrepo.GetEventByID(ctx, s.db, team.EventID)
 	if err != nil {
-		return out, err
+		return LinkPreview{}, err
 	}
 	if ev.TakenDown() {
-		return out, &Error{Code: "team_link_not_found", Message: "that link or code doesn't match a team in this event"}
+		return LinkPreview{}, errLinkNotFound()
 	}
-	count, err := teamrepo.CountTeamMembers(ctx, s.db, team.ID)
-	if err != nil {
-		return out, err
+	out := LinkPreview{Event: ev, Team: team}
+	if out.MemberCount, err = teamrepo.CountTeamMembers(ctx, s.db, team.ID); err != nil {
+		return LinkPreview{}, err
 	}
-	deadline, err := s.teamDeadlinePassed(ctx, team.ID)
-	if err != nil {
-		return out, err
+	if out.DeadlinePassed, err = s.teamDeadlinePassed(ctx, team.ID); err != nil {
+		return LinkPreview{}, err
 	}
-	track, trackErr := eventrepo.TeamTrack(ctx, s.db, team.ID)
-	if trackErr != nil {
-		track = nil
-	}
-	out = LinkPreview{Event: ev, Team: team, MemberCount: count, DeadlinePassed: deadline, Track: track}
-	// Signed-out callers have no status. Otherwise distinguish not_in_event,
-	// pending, rejected, judge, organiser, no_team, on_this_team and on_other_team.
-	// A lookup failure must not become not_in_event: only a missing row proves it.
-	if userID == "" {
-		return out, nil
-	}
-	member, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		out.YouStatus = "not_in_event"
-		return out, nil
-	}
-	if err != nil {
-		return out, err
-	}
-	switch member.Role {
-	case "organiser", "judge":
-		out.YouStatus = member.Role
-		return out, nil
-	}
-	status, err := eventrepo.MemberApprovalStatus(ctx, s.db, ev.ID, userID)
-	if err != nil {
-		return out, err
-	}
-	if status == "pending" || status == "rejected" {
-		out.YouStatus = status
-		return out, nil
-	}
-	if !member.TeamID.Valid {
-		out.YouStatus = "no_team"
-		return out, nil
-	}
-	if member.TeamID.String == team.ID {
-		out.YouStatus = "on_this_team"
-		return out, nil
-	}
-	out.YouStatus = "on_other_team"
-	other, err := teamrepo.GetEventTeamByID(ctx, s.db, member.TeamID.String)
-	if err == nil {
-		out.OtherTeamName = other.Name
-		out.HasOtherTeamName = true
+	if track, err := eventrepo.TeamTrack(ctx, s.db, team.ID); err == nil {
+		out.Track = track
 	}
 	return out, nil
+}
+
+// linkStatus sets the caller's status: not_in_event, pending, rejected,
+// judge, organiser, no_team, on_this_team or on_other_team (with that
+// team's name). A lookup failure never becomes not_in_event: only a
+// missing row proves it.
+func (s *Service) linkStatus(ctx context.Context, out *LinkPreview, userID string) error {
+	member, err := eventrepo.GetEventMember(ctx, s.db, out.Event.ID, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		out.YouStatus = "not_in_event"
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if member.Role == "organiser" || member.Role == "judge" {
+		out.YouStatus = member.Role
+		return nil
+	}
+	status, err := eventrepo.MemberApprovalStatus(ctx, s.db, out.Event.ID, userID)
+	switch {
+	case err != nil:
+		return err
+	case status == "pending" || status == "rejected":
+		out.YouStatus = status
+	case !member.TeamID.Valid:
+		out.YouStatus = "no_team"
+	case member.TeamID.String == out.Team.ID:
+		out.YouStatus = "on_this_team"
+	default:
+		out.YouStatus = "on_other_team"
+		if other, err := teamrepo.GetEventTeamByID(ctx, s.db, member.TeamID.String); err == nil {
+			out.OtherTeamName, out.HasOtherTeamName = other.Name, true
+		}
+	}
+	return nil
 }

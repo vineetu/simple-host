@@ -2,12 +2,7 @@ package hackhttp
 
 import (
 	"context"
-	"database/sql"
-	"encoding/base64"
-	"encoding/json"
 	"net/http"
-	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,39 +10,14 @@ import (
 	"github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/host/workers"
 	"github.com/vsriram/simple-host/products/hack/app/events"
-	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-type hackSponsor struct {
-	Name     string `json:"name"`
-	Tier     string `json:"tier"`
-	LogoData string `json:"logo_data"`
-	URL      string `json:"url"`
-}
-
-type hackFAQ struct {
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
-}
-
-type hackScheduleItem struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	StartAt     string `json:"start_at"`
-	EndAt       string `json:"end_at"`
-	// Prompt is the forward move this row lines up with (hackScheduleMoves),
-	// or empty. Organisers only: hackPublicSchedule drops it for everyone else.
-	Prompt string `json:"prompt,omitempty"`
-	// Fixed is never stored. A fixed row sent back in a PUT (a client that
-	// wrote back what it read) is dropped: fixed rows come from settings.
-	Fixed bool `json:"fixed,omitempty"`
-}
-
-type hackContent struct {
-	Sponsors []hackSponsor      `json:"sponsors"`
-	FAQ      []hackFAQ          `json:"faq"`
-	Schedule []hackScheduleItem `json:"schedule"`
-}
+type (
+	hackContent      = events.Content
+	hackSponsor      = events.Sponsor
+	hackFAQ          = events.FAQ
+	hackScheduleItem = events.ScheduleItem
+)
 
 // hackContentView is what GET and PUT /content answer: the stored document
 // plus the fixed rows derived from the event's settings (hack_schedule.go).
@@ -65,28 +35,12 @@ func (h *publicEventHTTP) contentView(ctx context.Context, a hackAccess, c hackC
 	return hackContentView{hackContent: c, FixedSchedule: fixed}, err
 }
 
-func readHackContent(ctx context.Context, q *sql.DB, eventID string) (hackContent, error) {
-	raw, err := events.ReadContent(ctx, q, eventID)
-	c := hackContent{Sponsors: []hackSponsor{}, FAQ: []hackFAQ{}, Schedule: []hackScheduleItem{}}
-	if err != nil {
-		return c, err
-	}
-	if err = json.Unmarshal(raw.Sponsors, &c.Sponsors); err != nil {
-		return c, err
-	}
-	if err = json.Unmarshal(raw.FAQ, &c.FAQ); err != nil {
-		return c, err
-	}
-	err = json.Unmarshal(raw.Schedule, &c.Schedule)
-	return c, err
-}
-
 func (h *publicEventHTTP) getContent(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false)
 	if !ok {
 		return
 	}
-	c, err := readHackContent(r.Context(), h.database, a.event.ID)
+	c, err := h.events.EventContent(r.Context(), a.event.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -99,112 +53,17 @@ func (h *publicEventHTTP) getContent(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, view)
 }
 
-func cleanLogo(s string) bool {
-	if s == "" {
-		return true
-	}
-	const prefix = "data:image/"
-	if !strings.HasPrefix(s, prefix) || len(s) > 180000 {
-		return false
-	}
-	i := strings.Index(s, ";base64,")
-	if i < 0 || (s[len(prefix):i] != "png" && s[len(prefix):i] != "jpeg" && s[len(prefix):i] != "webp") {
-		return false
-	}
-	b, err := base64.StdEncoding.DecodeString(s[i+8:])
-	return err == nil && len(b) > 0 && len(b) <= 128<<10 && http.DetectContentType(b) == "image/"+s[len(prefix):i]
-}
-
 func (h *publicEventHTTP) putContent(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
-	if a.event.Stage == "archived" {
-		httpx.WriteError(w, http.StatusConflict, "event_ended", "this event has ended")
+	var in hackContent
+	if !httpx.DecodeJSON(w, r, hackMaxBody, &in) {
 		return
 	}
-	var c hackContent
-	if !httpx.DecodeJSON(w, r, hackMaxBody, &c) {
-		return
-	}
-	editable := []hackScheduleItem{}
-	for _, s := range c.Schedule {
-		if !s.Fixed {
-			editable = append(editable, s)
-		}
-	}
-	c.Schedule = editable
-	if len(c.Sponsors) > 20 || len(c.FAQ) > 30 || len(c.Schedule) > 100 {
-		httpx.WriteError(w, http.StatusBadRequest, "invalid_content", "too many items")
-		return
-	}
-	for i := range c.Sponsors {
-		s := &c.Sponsors[i]
-		var valid bool
-		if s.Name, valid = checkHackLine(w, s.Name, "sponsor name", 1, 100); !valid {
-			return
-		}
-		if s.Tier, valid = checkHackLine(w, s.Tier, "sponsor tier", 0, 60); !valid {
-			return
-		}
-		if s.URL != "" {
-			u, err := url.Parse(s.URL)
-			if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || len(s.URL) > 500 {
-				httpx.WriteError(w, http.StatusBadRequest, "invalid_sponsor_url", "use an HTTPS sponsor website")
-				return
-			}
-		}
-		if !cleanLogo(s.LogoData) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_logo", "use a PNG, JPEG or WebP image under 128 KB")
-			return
-		}
-	}
-	for i := range c.FAQ {
-		f := &c.FAQ[i]
-		var valid bool
-		if f.Question, valid = checkHackLine(w, f.Question, "question", 1, 200); !valid {
-			return
-		}
-		if f.Answer, valid = checkHackText(w, f.Answer, "answer", 1, 2000); !valid {
-			return
-		}
-	}
-	loc, err := time.LoadLocation(a.event.TimeZone)
+	c, err := h.events.SaveContent(r.Context(), a.event, in)
 	if err != nil {
-		loc = time.UTC
-	}
-	for i := range c.Schedule {
-		s := &c.Schedule[i]
-		var valid bool
-		if s.Title, valid = checkHackLine(w, s.Title, "schedule title", 1, 120); !valid {
-			return
-		}
-		if s.Description, valid = checkHackText(w, s.Description, "schedule description", 0, 500); !valid {
-			return
-		}
-		start, valid := parseEventTime(w, s.StartAt, loc, "start_at")
-		if !valid {
-			return
-		}
-		end, valid := parseEventTime(w, s.EndAt, loc, "end_at")
-		if !valid {
-			return
-		}
-		if !end.Time.After(start.Time) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_schedule", "each schedule item must end after it starts")
-			return
-		}
-		if _, known := hackScheduleMoves[s.Prompt]; s.Prompt != "" && !known {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_schedule_prompt", "prompt must be empty or one of open, building, closed, judging, results, publish_results")
-			return
-		}
-		s.StartAt, s.EndAt = start.Time.UTC().Format(time.RFC3339), end.Time.UTC().Format(time.RFC3339)
-	}
-	sponsors, _ := json.Marshal(c.Sponsors)
-	faq, _ := json.Marshal(c.FAQ)
-	schedule, _ := json.Marshal(c.Schedule)
-	if err := h.events.PutContent(r.Context(), a.event.ID, model.EventContent{Sponsors: sponsors, FAQ: faq, Schedule: schedule}); err != nil {
 		writeHackError(w, err)
 		return
 	}
@@ -217,7 +76,7 @@ func (h *publicEventHTTP) putContent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *publicEventHTTP) getAnnouncements(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false)
 	if !ok {
 		return
 	}
@@ -230,7 +89,7 @@ func (h *publicEventHTTP) getAnnouncements(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *publicEventHTTP) postAnnouncement(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -247,26 +106,16 @@ func (h *publicEventHTTP) postAnnouncement(w http.ResponseWriter, r *http.Reques
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	var valid bool
-	if req.Title, valid = checkHackLine(w, req.Title, "title", 1, 120); !valid {
+	title, body, err := events.AnnouncementText(req.Title, req.Body)
+	if err != nil {
+		writeHackError(w, err)
 		return
 	}
-	if req.Body, valid = checkHackText(w, req.Body, "body", 1, 3000); !valid {
+	if _, ok := noticeSender(h.mailer); req.EmailParticipants && !ok {
+		httpx.WriteError(w, http.StatusServiceUnavailable, "email_unavailable", "participant email is unavailable")
 		return
 	}
-	if req.EmailParticipants {
-		if _, ok := h.mailer.(interface {
-			SendNotice(string, string, string) error
-		}); !ok {
-			httpx.WriteError(w, http.StatusServiceUnavailable, "email_unavailable", "participant email is unavailable")
-			return
-		}
-		if ready, ok := h.mailer.(interface{ CanSendNotice() bool }); ok && !ready.CanSendNotice() {
-			httpx.WriteError(w, http.StatusServiceUnavailable, "email_unavailable", "participant email is unavailable")
-			return
-		}
-	}
-	item, queued, organiserCopied, err := h.events.PostAnnouncement(r.Context(), a.event.ID, req.Title, req.Body, req.EmailParticipants, req.Pinned, a.user.ID)
+	item, queued, organiserCopied, err := h.events.PostAnnouncement(r.Context(), a.event.ID, title, body, req.EmailParticipants, req.Pinned, a.user.ID)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -277,7 +126,7 @@ func (h *publicEventHTTP) postAnnouncement(w http.ResponseWriter, r *http.Reques
 // previewAnnouncement renders announcement text exactly as participants will
 // see it, so the composer never carries a second renderer. Nothing is stored.
 func (h *publicEventHTTP) previewAnnouncement(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser"); !ok {
+	if _, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser"); !ok {
 		return
 	}
 	var req struct {
@@ -293,14 +142,6 @@ func (h *publicEventHTTP) previewAnnouncement(w http.ResponseWriter, r *http.Req
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"body_html": events.RenderAnnouncement(body)})
-}
-
-// queueReceipt records the team's first submission. A later edit, or a
-// second submit, never sends another one (the receipt table's primary key
-// (event_id, team_id) caps it at one per team -- section 4.1: "moves from
-// 'first time complete' to 'submitted'").
-func (h *hackBase) queueReceipt(ctx context.Context, ev model.Event, teamID, userID string) {
-	h.events.QueueReceipt(ctx, ev, teamID, userID)
 }
 
 type contentDeliveryOwner struct {
@@ -345,16 +186,14 @@ func (o *contentDeliveryOwner) pending(ctx context.Context) (int64, bool) {
 func (o *contentDeliveryOwner) run(ctx context.Context) {
 	o.tracker.Attempt()
 	o.pending(ctx)
-	// Only replace the mail dependency in this local handler view. The service
-	// still controls transactions, retries, and the order of all three phases.
-	base := *o.h.hackBase
-	h := &HackHandler{hackBase: &base, noticeTiming: o.h.noticeTiming}
-	if sender, ok := h.mailer.(interface {
+	// Only replace the mail dependency in this local handler view.
+	h, mailer := o.h, o.h.mailer
+	if sender, ok := mailer.(interface {
 		SendNotice(string, string, string) error
 	}); ok {
-		h.mailer = events.TrackContentSender(h.mailer, sender, o.tracker)
+		mailer = events.TrackContentSender(mailer, sender, o.tracker)
 	}
-	n, err := h.deliverContentMail(ctx)
+	n, err := h.deliverContentMail(ctx, mailer)
 	o.record("deliver content mail", n, err)
 	n, err = h.events.QueueEntryReminders(ctx)
 	o.record("queue entry reminders", n, err)
@@ -362,7 +201,7 @@ func (o *contentDeliveryOwner) run(ctx context.Context) {
 	o.record("queue judge reminders", n, err)
 	n, err = h.events.PruneNotices(ctx)
 	o.record("prune notices", n, err)
-	n, err = h.deliverNoticeMailOnly(ctx)
+	n, err = h.deliverNoticeMailOnly(ctx, mailer)
 	o.record("deliver notice mail", n, err)
 	o.pending(ctx)
 }
@@ -376,19 +215,20 @@ func (o *contentDeliveryOwner) record(op string, n int64, err error) {
 	}
 }
 
-func (h *HackHandler) deliverContentMail(ctx context.Context) (int64, error) {
-	sender, ok := h.mailer.(interface {
+// deliverContentMail sends due announcement mail through mailer.
+func (h *HackHandler) deliverContentMail(ctx context.Context, mailer events.Mailer) (int64, error) {
+	sender, ok := mailer.(interface {
 		SendNotice(string, string, string) error
 	})
 	if !ok {
 		return 0, nil
 	}
-	return h.events.DeliverContentMail(ctx, sender, h.siteDomain, h.publicBaseURL)
+	return h.events.DeliverContentMail(ctx, sender, h.links.siteDomain, h.links.publicBaseURL)
 }
 
 // Editing an announcement changes the page only, without queueing mail.
 func (h *publicEventHTTP) changeAnnouncement(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -402,28 +242,13 @@ func (h *publicEventHTTP) changeAnnouncement(w http.ResponseWriter, r *http.Requ
 		Body   *string `json:"body"`
 		Pinned *bool   `json:"pinned"`
 	}
-	title, body := "", ""
-	if r.Method == http.MethodPut {
-		if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
-			return
-		}
-		// A change that only sets pinned (no title and no body) pins or
-		// unpins without touching the text.
-		if req.Pinned == nil || req.Title != nil || req.Body != nil {
-			var valid bool
-			if req.Title != nil {
-				title = *req.Title
-			}
-			if req.Body != nil {
-				body = *req.Body
-			}
-			if title, valid = checkHackLine(w, title, "title", 1, 120); !valid {
-				return
-			}
-			if body, valid = checkHackText(w, body, "body", 1, 3000); !valid {
-				return
-			}
-		}
+	if r.Method == http.MethodPut && !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
+		return
+	}
+	title, body, err := events.AnnouncementChange(req.Title, req.Body, req.Pinned)
+	if r.Method == http.MethodPut && err != nil {
+		writeHackError(w, err)
+		return
 	}
 	if err := h.events.ChangeAnnouncement(r.Context(), a.event.ID, id, title, body, req.Pinned, r.Method == http.MethodDelete); err != nil {
 		writeHackError(w, err)

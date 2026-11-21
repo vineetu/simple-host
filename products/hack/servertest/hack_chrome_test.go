@@ -3,6 +3,7 @@ package servertest
 import (
 	"bytes"
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/web"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"html/template"
 	"io/fs"
@@ -13,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/webassets"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
@@ -22,7 +22,7 @@ func TestHackChromeHeader(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	page := []byte("<!--sh:header--><!--sh:footer-->")
 
-	hackAssets := handler.NewPages(productedition.ForKind(productedition.Hack), "")
+	hackAssets := web.NewPages(productedition.ForKind(productedition.Hack), "")
 	on, err := hackAssets.WithChromeForTest(r, "", page)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestHackChromeHeader(t *testing.T) {
 		t.Error("hack header missing sh-hack class")
 	}
 
-	hostAssets := handler.NewPages(edition.Default(config.DefaultLimits()), "")
+	hostAssets := web.NewPages(edition.Default(config.DefaultLimits()), "")
 	off, err := hostAssets.WithChromeForTest(r, "", page)
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 			t.Fatalf("parse %s: %v", name, err)
 		}
 	}
-	samples := []handler.ChromeData{
+	samples := []web.ChromeData{
 		{},
 		{Current: "home"},
 		{Base: "https://simple-host.app", Current: "enterprise"},
@@ -185,7 +185,7 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 	for _, d := range samples {
 		for _, name := range names {
 			var got, want bytes.Buffer
-			if err := handler.ChromeTemplates.ExecuteTemplate(&got, name, d); err != nil {
+			if err := web.ChromeTemplates.ExecuteTemplate(&got, name, d); err != nil {
 				t.Fatalf("current %s %+v: %v", name, d, err)
 			}
 			if err := old.ExecuteTemplate(&want, name, d); err != nil {
@@ -200,7 +200,7 @@ func TestNonHackPartialsMatchBaseline(t *testing.T) {
 		}
 	}
 	var hackHead bytes.Buffer
-	if err := handler.ChromeTemplates.ExecuteTemplate(&hackHead, "head.html", handler.ChromeData{Product: true}); err != nil {
+	if err := web.ChromeTemplates.ExecuteTemplate(&hackHead, "head.html", web.ChromeData{Product: true}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(hackHead.String(), `<meta name="sh-hack" content="1">`) {

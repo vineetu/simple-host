@@ -51,11 +51,7 @@ func computeLoadedResults(ev model.Event, rubric []model.RubricCriterion, teams 
 	return hackentries.ComputeResults(hackentries.ResultsInput[model.EventTrack]{Rubric: rubric, Teams: teams, Raw: raw, Eligible: eligible, Tracks: tracks, TrackIDs: ids, ScoreMode: ev.ScoreMode, TieCriterionID: tie, HasTieCriterion: ev.TieCriterionID.Valid})
 }
 
-// PublishResults computes and stores a snapshot in the existing transaction.
-// snapshot builds the transport representation while the transaction is open.
-// prepare, when set, runs right after the event row is locked and may
-// refuse the publish or change the event (SIM-271: move it to Results); its
-// error is returned with phase "prepare".
+// PublishResults stores a snapshot in one transaction; prepare runs after the event lock and may refuse or change the event.
 func (s *Service) PublishResults(ctx context.Context, eventID, userID string, overrides []hackentries.RankOverride, prepare func(*sql.Tx, model.Event) (model.Event, error), snapshot func(sqlkit.Querier, []TeamResult) ([]byte, error), committed func()) (entryrepo.EventResultsRow, string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

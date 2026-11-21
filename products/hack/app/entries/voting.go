@@ -54,7 +54,7 @@ func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.Voti
 		return ev, v, 0, err
 	}
 	if ev.Stage == "archived" {
-		return ev, v, 0, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+		return ev, v, 0, errEventClosed
 	}
 	old, err := repo.GetVotingSettings(ctx, tx, id)
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 	if err != nil {
 		return false, err
 	}
-	if !v.Enabled || !v.GalleryOpen || !v.Opens.Valid || !v.Closes.Valid || now.Before(v.Opens.Time) || !now.Before(v.Closes.Time) || v.Stage == "draft" || v.Stage == "archived" || v.TakenDown.Valid {
+	if !voteWindowOpen(v, now) {
 		return false, &Error{Code: "voting_closed", Message: "voting is not open"}
 	}
 	allowed, err := repo.VoterEligible(ctx, tx, id, v.Eligibility, email)
@@ -146,6 +146,13 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 		return false, err
 	}
 	return created, nil
+}
+
+// voteWindowOpen reports whether a vote cast at now falls in an open window of a live event.
+func voteWindowOpen(v repo.VoteWindow, now time.Time) bool {
+	return v.Enabled && v.GalleryOpen && v.Opens.Valid && v.Closes.Valid &&
+		!now.Before(v.Opens.Time) && now.Before(v.Closes.Time) &&
+		v.Stage != "draft" && v.Stage != "archived" && !v.TakenDown.Valid
 }
 
 // VotingSettingsValue constructs a configuration from transport inputs.

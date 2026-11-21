@@ -27,32 +27,7 @@ func domainTools(limits Limits) []Tool {
 			// Reaches an arbitrary outside domain and, once DNS proves it,
 			// serves the site there, replacing any existing binding for this account.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				domain, err := stringArg(args, "domain")
-				if err != nil {
-					return output{}, err
-				}
-				if suffix, ok := familyDomain(domain); ok {
-					body, _ := json.Marshal(map[string]string{"suffix": suffix})
-					res := c.do(http.MethodPost, "/v1/me/address-families", body, nil)
-					if !res.ok() {
-						return output{}, restError("connect_domain", res)
-					}
-					out := familySummary(res.body, limits)
-					return output{Text: jsonText(out), Structured: out}, nil
-				}
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				body, _ := json.Marshal(map[string]string{"domain": domain})
-				res := c.do(http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/domain", body, nil)
-				if !res.ok() {
-					return output{}, restError("connect_domain", res)
-				}
-				out := domainSummary(name, res.body, limits)
-				return output{Text: jsonText(out), Structured: out}, nil
-			},
+			run:         runConnectDomain,
 		},
 		{
 			OutputSchema: domainSchema(false, limits),
@@ -65,28 +40,7 @@ func domainTools(limits Limits) []Tool {
 				"domain": str("Optional: `*.<domain>` to check an address family of the account."),
 			}),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				if d, _ := args["domain"].(string); strings.TrimSpace(d) != "" {
-					if suffix, ok := familyDomain(d); ok {
-						res := c.do(http.MethodGet, "/v1/me/address-families/"+url.PathEscape(suffix), nil, nil)
-						if !res.ok() {
-							return output{}, restError("domain_status", res)
-						}
-						out := familySummary(res.body, limits)
-						return output{Text: jsonText(out), Structured: out}, nil
-					}
-				}
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/domain", nil, nil)
-				if !res.ok() {
-					return output{}, restError("domain_status", res)
-				}
-				out := domainSummary(name, res.body, limits)
-				return output{Text: jsonText(out), Structured: out}, nil
-			},
+			run:         runDomainStatus,
 		},
 		{
 			OutputSchema: outObject(map[string]any{
@@ -108,57 +62,50 @@ func domainTools(limits Limits) []Tool {
 			// be claimed by someone else, so it is destructive; calling it
 			// again would disconnect the next address, so not idempotent.
 			Annotations: writes(true, false, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				confirm, err := stringArg(args, "confirm_domain")
-				if err != nil {
-					return output{}, err
-				}
-				if suffix, ok := familyDomain(confirm); ok {
-					res := c.do(http.MethodDelete, "/v1/me/address-families/"+url.PathEscape(suffix), nil, nil)
-					if !res.ok() {
-						return output{}, restError("remove_domain", res)
-					}
-					out := map[string]any{"removed": "*." + suffix}
-					return output{Text: "Disconnected the address family *." + suffix + ". Every site answers at its own address again.", Structured: out}, nil
-				}
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				path := "/v1/sites/" + url.PathEscape(name) + "/domain"
-				res := c.do(http.MethodGet, path, nil, nil)
-				if !res.ok() {
-					return output{}, restError("remove_domain", res)
-				}
-				var cur struct {
-					Domain *string `json:"domain"`
-				}
-				_ = json.Unmarshal(res.body, &cur)
-				if cur.Domain == nil || *cur.Domain == "" {
-					return output{}, fmt.Errorf("site %q has no domain connected; nothing was changed", name)
-				}
-				want := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(confirm)), "https://"), "http://"), "/")
-				if want != strings.ToLower(*cur.Domain) {
-					return output{}, fmt.Errorf("confirm_domain %q does not match the connected domain %q; nothing was changed", confirm, *cur.Domain)
-				}
-				// The server drops only this address: if the site's domain
-				// changed since the read above, it answers domain_changed.
-				res = c.do(http.MethodDelete, path+"?domain="+url.QueryEscape(*cur.Domain), nil, nil)
-				if !res.ok() {
-					return output{}, restError("remove_domain", res)
-				}
-				out := map[string]any{"site": name, "removed": *cur.Domain}
-				if site, err := c.findSite(name); err == nil {
-					out["url"] = site.liveURL()
-				}
-				text := "Disconnected " + *cur.Domain + " from " + name + "."
-				if u, ok := out["url"].(string); ok && u != "" {
-					text += " The site is now at " + u
-				}
-				return output{Text: text, Structured: out}, nil
-			},
+			run:         runRemoveDomain,
 		},
 	}
+}
+
+// dnsRecord is one DNS record the person adds at their registrar.
+type dnsRecord struct {
+	Type  string `json:"type"`
+	Host  string `json:"host"`
+	Value string `json:"value"`
+}
+
+func (r dnsRecord) wire() map[string]any {
+	return map[string]any{"type": r.Type, "host": r.Host, "value": r.Value}
+}
+
+// putRecord sets out[key] to the record, when there is one.
+func putRecord(out map[string]any, key string, r *dnsRecord) {
+	if r != nil {
+		out[key] = r.wire()
+	}
+}
+
+// putText sets out[key] to value, when it is not empty.
+func putText(out map[string]any, key, value string) {
+	if value != "" {
+		out[key] = value
+	}
+}
+
+// restDomain is GET/POST /v1/sites/{site}/domain.
+type restDomain struct {
+	Domain         *string    `json:"domain"`
+	Status         *string    `json:"status"`
+	LastError      string     `json:"last_error"`
+	Certificate    string     `json:"certificate_status"`
+	PreviousDomain string     `json:"previous_domain"`
+	FailingSince   string     `json:"failing_since"`
+	DNS            *dnsRecord `json:"dns"`
+	TXT            *dnsRecord `json:"dns_txt"`
+	PartnerDomain  string     `json:"partner_domain"`
+	PartnerStatus  string     `json:"partner_status"`
+	PartnerNote    string     `json:"partner_note"`
+	PartnerDNS     *dnsRecord `json:"dns_partner"`
 }
 
 // domainSummary is what a person needs about a site's custom domain: which
@@ -166,32 +113,7 @@ func domainTools(limits Limits) []Tool {
 // yet. Binding times and the name of any site a pending binding was taken over
 // from are the server's bookkeeping and stay out.
 func domainSummary(site string, body []byte, limits Limits) map[string]any {
-	var d struct {
-		Domain         *string `json:"domain"`
-		Status         *string `json:"status"`
-		LastError      string  `json:"last_error"`
-		Certificate    string  `json:"certificate_status"`
-		PreviousDomain string  `json:"previous_domain"`
-		FailingSince   string  `json:"failing_since"`
-		DNS            *struct {
-			Type  string `json:"type"`
-			Host  string `json:"host"`
-			Value string `json:"value"`
-		} `json:"dns"`
-		TXT *struct {
-			Type  string `json:"type"`
-			Host  string `json:"host"`
-			Value string `json:"value"`
-		} `json:"dns_txt"`
-		PartnerDomain string `json:"partner_domain"`
-		PartnerStatus string `json:"partner_status"`
-		PartnerNote   string `json:"partner_note"`
-		PartnerDNS    *struct {
-			Type  string `json:"type"`
-			Host  string `json:"host"`
-			Value string `json:"value"`
-		} `json:"dns_partner"`
-	}
+	var d restDomain
 	_ = json.Unmarshal(body, &d)
 	out := map[string]any{"site": site}
 	if d.Domain == nil || *d.Domain == "" {
@@ -199,47 +121,34 @@ func domainSummary(site string, body []byte, limits Limits) map[string]any {
 		out["status"] = "none"
 		return out
 	}
-	out["domain"] = *d.Domain
+	domain, status := *d.Domain, ""
+	out["domain"] = domain
 	if d.Status != nil {
-		out["status"] = *d.Status
+		status = *d.Status
+		out["status"] = status
 	}
-	if d.DNS != nil {
-		out["dns_record"] = map[string]any{"type": d.DNS.Type, "host": d.DNS.Host, "value": d.DNS.Value}
-	}
-	if d.TXT != nil {
-		out["ownership_record"] = map[string]any{"type": d.TXT.Type, "host": d.TXT.Host, "value": d.TXT.Value}
-	}
+	putRecord(out, "dns_record", d.DNS)
+	putRecord(out, "ownership_record", d.TXT)
 	if d.PartnerDomain != "" && d.PartnerDNS != nil {
-		partner := map[string]any{
-			"domain":     d.PartnerDomain,
-			"status":     d.PartnerStatus,
-			"dns_record": map[string]any{"type": d.PartnerDNS.Type, "host": d.PartnerDNS.Host, "value": d.PartnerDNS.Value},
-		}
-		if d.PartnerNote != "" {
-			partner["note"] = d.PartnerNote
-		}
+		partner := map[string]any{"domain": d.PartnerDomain, "status": d.PartnerStatus, "dns_record": d.PartnerDNS.wire()}
+		putText(partner, "note", d.PartnerNote)
 		out["partner"] = partner
 	}
-	if d.LastError != "" {
-		out["last_check"] = d.LastError
-	}
-	if d.Certificate != "" {
-		out["certificate"] = d.Certificate
-	}
+	putText(out, "last_check", d.LastError)
+	putText(out, "certificate", d.Certificate)
 	if d.PreviousDomain != "" {
 		out["serving_at"] = "https://" + d.PreviousDomain + "/"
 	}
-	if d.FailingSince != "" {
-		out["failing_since"] = d.FailingSince
-	}
-	if d.Status != nil && *d.Status == "active" {
-		out["url"] = "https://" + *d.Domain + "/"
-	}
-	if d.Status != nil && *d.Status == "pending" {
-		out["note"] = "Add both DNS records at the domain's registrar within " + span(limits.DomainUnprovenTTL) + ": dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
+	putText(out, "failing_since", d.FailingSince)
+	switch status {
+	case "active":
+		out["url"] = "https://" + domain + "/"
+	case "pending":
+		note := "Add both DNS records at the domain's registrar within " + span(limits.DomainUnprovenTTL) + ": dns_record points the domain here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place afterwards. Until both are seen, the binding is provisional. Then the certificate is issued automatically and the domain goes live within minutes."
 		if _, ok := out["partner"]; ok {
-			out["note"] = out["note"].(string) + " Also add partner.dns_record so " + d.PartnerDomain + " forwards to " + *d.Domain + " (the one ownership record covers both)."
+			note += " Also add partner.dns_record so " + d.PartnerDomain + " forwards to " + domain + " (the one ownership record covers both)."
 		}
+		out["note"] = note
 	}
 	return out
 }
@@ -259,20 +168,16 @@ func familyDomain(d string) (string, bool) {
 // familySummary is what a person needs about an address family.
 func familySummary(body []byte, limits Limits) map[string]any {
 	var f struct {
-		Family     string `json:"family"`
-		Suffix     string `json:"suffix"`
-		SitePrefix string `json:"site_prefix"`
-		Canonical  bool   `json:"canonical"`
-		Status     string `json:"status"`
-		Live       bool   `json:"live"`
-		LastError  string `json:"last_error"`
-		ExampleURL string `json:"example_url"`
-		DNS        *struct {
-			Type, Host, Value string
-		} `json:"dns"`
-		TXT *struct {
-			Type, Host, Value string
-		} `json:"dns_txt"`
+		Family      string     `json:"family"`
+		Suffix      string     `json:"suffix"`
+		SitePrefix  string     `json:"site_prefix"`
+		Canonical   bool       `json:"canonical"`
+		Status      string     `json:"status"`
+		Live        bool       `json:"live"`
+		LastError   string     `json:"last_error"`
+		ExampleURL  string     `json:"example_url"`
+		DNS         *dnsRecord `json:"dns"`
+		TXT         *dnsRecord `json:"dns_txt"`
 		Certificate struct {
 			Status string `json:"status"`
 			Note   string `json:"note"`
@@ -280,25 +185,13 @@ func familySummary(body []byte, limits Limits) map[string]any {
 	}
 	_ = json.Unmarshal(body, &f)
 	out := map[string]any{"domain": f.Family, "status": f.Status}
-	if f.DNS != nil {
-		out["dns_record"] = map[string]any{"type": f.DNS.Type, "host": f.DNS.Host, "value": f.DNS.Value}
-	}
-	if f.TXT != nil {
-		out["ownership_record"] = map[string]any{"type": f.TXT.Type, "host": f.TXT.Host, "value": f.TXT.Value}
-	}
-	if f.Certificate.Status != "" {
-		out["certificate"] = f.Certificate.Status
-	}
-	if f.LastError != "" {
-		out["last_check"] = f.LastError
-	}
+	putRecord(out, "dns_record", f.DNS)
+	putRecord(out, "ownership_record", f.TXT)
+	putText(out, "certificate", f.Certificate.Status)
+	putText(out, "last_check", f.LastError)
 	fam := map[string]any{"site_prefix": f.SitePrefix, "main_address": f.Canonical, "live": f.Live}
-	if f.ExampleURL != "" {
-		fam["example_url"] = f.ExampleURL
-	}
-	if f.Certificate.Note != "" {
-		fam["certificate_note"] = f.Certificate.Note
-	}
+	putText(fam, "example_url", f.ExampleURL)
+	putText(fam, "certificate_note", f.Certificate.Note)
 	out["family"] = fam
 	if f.Live && f.ExampleURL != "" {
 		out["url"] = f.ExampleURL
@@ -307,4 +200,108 @@ func familySummary(body []byte, limits Limits) map[string]any {
 		out["note"] = "Add both DNS records at the domain's registrar within " + span(limits.FamilyUnprovenTTL) + ": dns_record (the wildcard) points every name under " + f.Suffix + " here, and ownership_record (a TXT record) proves it is the person's; keep the TXT record in place. Then every site X of the account answers at X." + f.Suffix + " once its certificate is live."
 	}
 	return out
+}
+
+// familyOutput serves one address-family request and summarises the answer.
+func familyOutput(c *call, tool, method, suffix string, body []byte) (output, error) {
+	path := "/v1/me/address-families"
+	if method != http.MethodPost {
+		path += "/" + url.PathEscape(suffix)
+	}
+	raw, err := c.fetch(tool, method, path, body)
+	if err != nil {
+		return output{}, err
+	}
+	return jsonOutput(familySummary(raw, c.limits())), nil
+}
+
+// siteDomainOutput serves one site-domain request and summarises the answer.
+func siteDomainOutput(c *call, tool, method, site string, body []byte) (output, error) {
+	raw, err := c.fetch(tool, method, sitePath(site, "/domain"), body)
+	if err != nil {
+		return output{}, err
+	}
+	return jsonOutput(domainSummary(site, raw, c.limits())), nil
+}
+
+func runConnectDomain(c *call, args map[string]any) (output, error) {
+	domain, err := stringArg(args, "domain")
+	if err != nil {
+		return output{}, err
+	}
+	if suffix, ok := familyDomain(domain); ok {
+		body, _ := json.Marshal(map[string]string{"suffix": suffix})
+		return familyOutput(c, "connect_domain", http.MethodPost, suffix, body)
+	}
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	body, _ := json.Marshal(map[string]string{"domain": domain})
+	return siteDomainOutput(c, "connect_domain", http.MethodPost, name, body)
+}
+
+func runDomainStatus(c *call, args map[string]any) (output, error) {
+	domain, err := optionalString(args, "domain")
+	if err != nil {
+		return output{}, err
+	}
+	if suffix, ok := familyDomain(domain); ok {
+		return familyOutput(c, "domain_status", http.MethodGet, suffix, nil)
+	}
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	return siteDomainOutput(c, "domain_status", http.MethodGet, name, nil)
+}
+
+func runRemoveDomain(c *call, args map[string]any) (output, error) {
+	confirm, err := stringArg(args, "confirm_domain")
+	if err != nil {
+		return output{}, err
+	}
+	if suffix, ok := familyDomain(confirm); ok {
+		res := c.do(http.MethodDelete, "/v1/me/address-families/"+url.PathEscape(suffix), nil, nil)
+		if !res.ok() {
+			return output{}, restError("remove_domain", res)
+		}
+		out := map[string]any{"removed": "*." + suffix}
+		return output{Text: "Disconnected the address family *." + suffix + ". Every site answers at its own address again.", Structured: out}, nil
+	}
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	path := "/v1/sites/" + url.PathEscape(name) + "/domain"
+	res := c.do(http.MethodGet, path, nil, nil)
+	if !res.ok() {
+		return output{}, restError("remove_domain", res)
+	}
+	var cur struct {
+		Domain *string `json:"domain"`
+	}
+	_ = json.Unmarshal(res.body, &cur)
+	if cur.Domain == nil || *cur.Domain == "" {
+		return output{}, fmt.Errorf("site %q has no domain connected; nothing was changed", name)
+	}
+	want := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(confirm)), "https://"), "http://"), "/")
+	if want != strings.ToLower(*cur.Domain) {
+		return output{}, fmt.Errorf("confirm_domain %q does not match the connected domain %q; nothing was changed", confirm, *cur.Domain)
+	}
+	// The server drops only this address: if the site's domain
+	// changed since the read above, it answers domain_changed.
+	res = c.do(http.MethodDelete, path+"?domain="+url.QueryEscape(*cur.Domain), nil, nil)
+	if !res.ok() {
+		return output{}, restError("remove_domain", res)
+	}
+	out := map[string]any{"site": name, "removed": *cur.Domain}
+	if site, err := c.findSite(name); err == nil {
+		out["url"] = site.liveURL()
+	}
+	text := "Disconnected " + *cur.Domain + " from " + name + "."
+	if u, ok := out["url"].(string); ok && u != "" {
+		text += " The site is now at " + u
+	}
+	return output{Text: text, Structured: out}, nil
 }

@@ -41,7 +41,7 @@ func TestHackOrganiserToolRoutes(t *testing.T) {
 			}
 			args := map[string]any{}
 			path := route.path
-			for _, p := range route.params {
+			for _, p := range route.params() {
 				value := "test-value"
 				if p == "slug" {
 					value = "Spring"

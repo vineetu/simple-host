@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -27,23 +26,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			}, "site", "confirm_name"),
 			// Removes the public site and access to its data, even while restorable.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				confirm, err := stringArg(args, "confirm_name")
-				if err != nil {
-					return output{}, err
-				}
-				if strings.ToLower(confirm) != name {
-					return output{}, fmt.Errorf("confirm_name %q does not match site %q; nothing was deleted", confirm, name)
-				}
-				if err := c.doJSON("delete_site", http.MethodDelete, "/v1/sites/"+url.PathEscape(name), nil, nil); err != nil {
-					return output{}, err
-				}
-				return output{Text: "Deleted " + name + ". It is offline now and stays in Recently deleted for " + span(limits.DeletedRetention) + "; restore_site brings it back with all its versions and data.", Structured: map[string]any{"deleted": name, "restorable_days": int(limits.DeletedRetention / (24 * time.Hour))}}, nil
-			},
+			run:         runDeleteSite,
 		},
 		{
 			OutputSchema: outObject(map[string]any{
@@ -59,29 +42,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			Description: "List the account's sites in Recently deleted: each was deleted within the last " + span(limits.DeletedRetention) + " and can be brought back with restore_site until its purge_at time, when it is removed for good.",
 			InputSchema: noArgs(),
 			Annotations: readOnly(),
-			run: func(c *call, _ map[string]any) (output, error) {
-				var body struct {
-					Sites []struct {
-						Name      string `json:"name"`
-						DeletedAt string `json:"deleted_at"`
-						PurgeAt   string `json:"purge_at"`
-					} `json:"sites"`
-				}
-				if err := c.doJSON("list_deleted_sites", http.MethodGet, "/v1/me/deleted-sites", nil, &body); err != nil {
-					return output{}, err
-				}
-				sites := make([]any, 0, len(body.Sites))
-				lines := make([]string, 0, len(body.Sites))
-				for _, d := range body.Sites {
-					sites = append(sites, map[string]any{"name": d.Name, "deleted_at": d.DeletedAt, "purge_at": d.PurgeAt})
-					lines = append(lines, d.Name+" (restorable until "+d.PurgeAt+")")
-				}
-				text := "Nothing in Recently deleted."
-				if len(lines) > 0 {
-					text = "Recently deleted: " + strings.Join(lines, "; ")
-				}
-				return output{Text: text, Structured: map[string]any{"sites": sites, "count": len(sites)}}, nil
-			},
+			run:         runListDeletedSites,
 		},
 		{
 			OutputSchema: withDescription(siteSummarySchema(), "The restored site, live again at its address."),
@@ -91,17 +52,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			InputSchema:  object(map[string]any{"site": str(siteDesc)}, "site"),
 			// Serves the site again at its public address; nothing is lost.
 			Annotations: writes(false, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				var site restSite
-				if err := c.doJSON("restore_site", http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/restore", nil, &site); err != nil {
-					return output{}, err
-				}
-				return output{Text: "Restored " + site.Name + ". Live again at " + site.liveURL(), Structured: site.summary()}, nil
-			},
+			run:         runRestoreSite,
 		},
 		{
 			OutputSchema: withDescription(siteSummarySchema(), "The site under its new name, at its new address."),
@@ -115,22 +66,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			// Serves the site at a new public address. Nothing is deleted and
 			// renaming back restores the old address.
 			Annotations: writes(true, false, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				newName, err := stringArg(args, "new_name")
-				if err != nil {
-					return output{}, err
-				}
-				body, _ := json.Marshal(map[string]string{"name": strings.ToLower(newName)})
-				var site restSite
-				if err := c.doJSON("rename_site", http.MethodPatch, "/v1/sites/"+url.PathEscape(name), body, &site); err != nil {
-					return output{}, err
-				}
-				return output{Text: "Renamed to " + site.Name + ". New address: " + site.liveURL(), Structured: site.summary()}, nil
-			},
+			run:         runRenameSite,
 		},
 		{
 			policy:       toolPolicy{groupSiteExcluded: true},
@@ -140,23 +76,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			Description:  "Make one of the person's sites their home page, served at their personal address https://<handle>.simple-host.app/ instead of the showcase (the list of their sites); site null brings the showcase back. The site's own address keeps working too. If that site goes offline or is deleted, the showcase shows again.",
 			InputSchema:  object(map[string]any{"site": map[string]any{"type": []string{"string", "null"}, "description": "Your site's name, or null for the showcase."}}, "site"),
 			Annotations:  writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				site, ok := args["site"]
-				if !ok {
-					return output{}, fmt.Errorf("site is required (name or null)")
-				}
-				if site != nil {
-					if _, ok := site.(string); !ok {
-						return output{}, fmt.Errorf("site must be a name or null")
-					}
-				}
-				body, _ := json.Marshal(map[string]any{"site": site})
-				var result map[string]any
-				if err := c.doJSON("set_home_page", http.MethodPut, "/v1/me/home", body, &result); err != nil {
-					return output{}, err
-				}
-				return output{Text: "Home page updated.", Structured: result}, nil
-			},
+			run:          runSetHomePage,
 		},
 		{
 			OutputSchema: outObject(map[string]any{
@@ -172,21 +92,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			}, "site", "visibility"),
 			// Adds a site to, or removes it from, a public listing page.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				vis, err := stringArg(args, "visibility")
-				if err != nil {
-					return output{}, err
-				}
-				body, _ := json.Marshal(map[string]string{"visibility": vis})
-				if err := c.doJSON("set_visibility", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/visibility", body, nil); err != nil {
-					return output{}, err
-				}
-				return output{Text: name + " is now " + strings.ToLower(vis) + ".", Structured: map[string]any{"site": name, "visibility": strings.ToLower(vis)}}, nil
-			},
+			run:         runSetVisibility,
 		},
 		{
 			OutputSchema: outObject(map[string]any{
@@ -205,27 +111,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			// Changes what the public sees; nothing is deleted and the other
 			// value undoes it.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				off, ok := args["offline"].(bool)
-				if !ok {
-					return output{}, errors.New("offline is required: true to take the site offline, false to put it back online")
-				}
-				body, _ := json.Marshal(map[string]bool{"offline": off})
-				var site restSite
-				if err := c.doJSON("set_site_offline", http.MethodPatch, "/v1/sites/"+url.PathEscape(name), body, &site); err != nil {
-					return output{}, err
-				}
-				out := map[string]any{"site": name, "offline": site.Offline, "url": site.liveURL()}
-				text := name + " is back online at " + site.liveURL()
-				if site.Offline {
-					text = name + " is offline: " + site.liveURL() + " shows \"This site is offline\" and visitor saves are refused. Nothing was deleted."
-				}
-				return output{Text: text, Structured: out}, nil
-			},
+			run:         runSetSiteOffline,
 		},
 		{
 			OutputSchema: outObject(map[string]any{
@@ -242,29 +128,154 @@ func siteLifecycleTools(limits Limits) []Tool {
 			}, "site"),
 			// Changes a flag on the person's own site; reversible.
 			Annotations: writes(true, false, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				keep := true
-				if v, ok := args["keep"]; ok {
-					b, isBool := v.(bool)
-					if !isBool {
-						return output{}, errors.New("keep must be true or false")
-					}
-					keep = b
-				}
-				body, _ := json.Marshal(map[string]bool{"keep": keep})
-				if err := c.doJSON("keep_site", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/keep", body, nil); err != nil {
-					return output{}, err
-				}
-				text := name + " is marked Keep: it stays up even if nobody visits it."
-				if !keep {
-					text = name + " is no longer marked Keep: if nobody visits or updates it for " + span(limits.IdleAfter) + ", it moves to Recently deleted."
-				}
-				return output{Text: text, Structured: map[string]any{"site": name, "keep": keep}}, nil
-			},
+			run:         runKeepSite,
 		},
 	}
+}
+
+func runDeleteSite(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	confirm, err := stringArg(args, "confirm_name")
+	if err != nil {
+		return output{}, err
+	}
+	if strings.ToLower(confirm) != name {
+		return output{}, fmt.Errorf("confirm_name %q does not match site %q; nothing was deleted", confirm, name)
+	}
+	if err := c.doJSON("delete_site", http.MethodDelete, sitePath(name, ""), nil, nil); err != nil {
+		return output{}, err
+	}
+	retention := c.limits().DeletedRetention
+	text := "Deleted " + name + ". It is offline now and stays in Recently deleted for " + span(retention) + "; restore_site brings it back with all its versions and data."
+	return output{Text: text, Structured: map[string]any{"deleted": name, "restorable_days": int(retention / (24 * time.Hour))}}, nil
+}
+
+func runListDeletedSites(c *call, _ map[string]any) (output, error) {
+	var body struct {
+		Sites []struct {
+			Name      string `json:"name"`
+			DeletedAt string `json:"deleted_at"`
+			PurgeAt   string `json:"purge_at"`
+		} `json:"sites"`
+	}
+	if err := c.doJSON("list_deleted_sites", http.MethodGet, "/v1/me/deleted-sites", nil, &body); err != nil {
+		return output{}, err
+	}
+	sites := make([]any, 0, len(body.Sites))
+	lines := make([]string, 0, len(body.Sites))
+	for _, d := range body.Sites {
+		sites = append(sites, map[string]any{"name": d.Name, "deleted_at": d.DeletedAt, "purge_at": d.PurgeAt})
+		lines = append(lines, d.Name+" (restorable until "+d.PurgeAt+")")
+	}
+	text := "Nothing in Recently deleted."
+	if len(lines) > 0 {
+		text = "Recently deleted: " + strings.Join(lines, "; ")
+	}
+	return output{Text: text, Structured: map[string]any{"sites": sites, "count": len(sites)}}, nil
+}
+
+func runRestoreSite(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	var site restSite
+	if err := c.doJSON("restore_site", http.MethodPost, sitePath(name, "/restore"), nil, &site); err != nil {
+		return output{}, err
+	}
+	return output{Text: "Restored " + site.Name + ". Live again at " + site.liveURL(), Structured: site.summary()}, nil
+}
+
+func runRenameSite(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	newName, err := stringArg(args, "new_name")
+	if err != nil {
+		return output{}, err
+	}
+	body, _ := json.Marshal(map[string]string{"name": strings.ToLower(newName)})
+	var site restSite
+	if err := c.doJSON("rename_site", http.MethodPatch, sitePath(name, ""), body, &site); err != nil {
+		return output{}, err
+	}
+	return output{Text: "Renamed to " + site.Name + ". New address: " + site.liveURL(), Structured: site.summary()}, nil
+}
+
+func runSetHomePage(c *call, args map[string]any) (output, error) {
+	site, ok := args["site"]
+	if !ok {
+		return output{}, fmt.Errorf("site is required (name or null)")
+	}
+	if _, isName := site.(string); site != nil && !isName {
+		return output{}, fmt.Errorf("site must be a name or null")
+	}
+	body, _ := json.Marshal(map[string]any{"site": site})
+	var result map[string]any
+	if err := c.doJSON("set_home_page", http.MethodPut, "/v1/me/home", body, &result); err != nil {
+		return output{}, err
+	}
+	return output{Text: "Home page updated.", Structured: result}, nil
+}
+
+func runSetVisibility(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	vis, err := stringArg(args, "visibility")
+	if err != nil {
+		return output{}, err
+	}
+	body, _ := json.Marshal(map[string]string{"visibility": vis})
+	if err := c.doJSON("set_visibility", http.MethodPut, sitePath(name, "/visibility"), body, nil); err != nil {
+		return output{}, err
+	}
+	vis = strings.ToLower(vis)
+	return output{Text: name + " is now " + vis + ".", Structured: map[string]any{"site": name, "visibility": vis}}, nil
+}
+
+func runSetSiteOffline(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	off, ok := args["offline"].(bool)
+	if !ok {
+		return output{}, errors.New("offline is required: true to take the site offline, false to put it back online")
+	}
+	body, _ := json.Marshal(map[string]bool{"offline": off})
+	var site restSite
+	if err := c.doJSON("set_site_offline", http.MethodPatch, sitePath(name, ""), body, &site); err != nil {
+		return output{}, err
+	}
+	text := name + " is back online at " + site.liveURL()
+	if site.Offline {
+		text = name + " is offline: " + site.liveURL() + " shows \"This site is offline\" and visitor saves are refused. Nothing was deleted."
+	}
+	return output{Text: text, Structured: map[string]any{"site": name, "offline": site.Offline, "url": site.liveURL()}}, nil
+}
+
+func runKeepSite(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	keep, err := boolArg(args, "keep", true)
+	if err != nil {
+		return output{}, err
+	}
+	body, _ := json.Marshal(map[string]bool{"keep": keep})
+	if err := c.doJSON("keep_site", http.MethodPut, sitePath(name, "/keep"), body, nil); err != nil {
+		return output{}, err
+	}
+	text := name + " is marked Keep: it stays up even if nobody visits it."
+	if !keep {
+		text = name + " is no longer marked Keep: if nobody visits or updates it for " + span(c.limits().IdleAfter) + ", it moves to Recently deleted."
+	}
+	return output{Text: text, Structured: map[string]any{"site": name, "keep": keep}}, nil
 }

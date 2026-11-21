@@ -44,52 +44,8 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 		liveInode = fileInode(info)
 		files = files[:len(files)-1]
 	}
-
-	tx, err := i.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin reset tx: %w", err)
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.ExecContext(ctx, `DELETE FROM site_view_hourly`); err != nil {
-		return fmt.Errorf("clear views: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM site_visitor_hourly`); err != nil {
-		return fmt.Errorf("clear visitors: %w", err)
-	}
-	// Not ip_country_ranges: that is reference data loaded by ip-country-load,
-	// not something the log can rebuild.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM site_geo_daily`); err != nil {
-		return fmt.Errorf("clear geo: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM site_page_daily`); err != nil {
-		return fmt.Errorf("clear pages: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM site_referrer_daily`); err != nil {
-		return fmt.Errorf("clear referrers: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM site_traffic_daily`); err != nil {
-		return fmt.Errorf("clear site traffic: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM traffic_daily`); err != nil {
-		return fmt.Errorf("clear traffic: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM analytics_ingest_state WHERE logfile = $1`, i.logPath); err != nil {
-		return fmt.Errorf("reset ingest state: %w", err)
-	}
-	if liveInode >= 0 {
-		// Point the position at the live file's start. Without this, the
-		// ingest pass below would see "rotated" and read .1 a second time.
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
-			VALUES ($1, 0, $2, now())
-		`, i.logPath, liveInode); err != nil {
-			return fmt.Errorf("reset ingest state: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit reset: %w", err)
+	if err := i.resetAggregates(ctx, liveInode); err != nil {
+		return err
 	}
 
 	var lastInode, lastSize int64 = -1, 0
@@ -117,9 +73,13 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 		}
 		return nil
 	}
+	return i.drainLive(ctx)
+}
 
-	// Drain the live file. Each pass consumes at most maxLinesPerRun lines and
-	// persists its offset, so this terminates once the offset stops advancing.
+// drainLive ingests the live log until it is read to the end. Each pass
+// consumes at most maxLinesPerRun lines and persists its offset, so this
+// terminates once the offset stops advancing.
+func (i *Ingester) drainLive(ctx context.Context) error {
 	var lastOffset int64 = -1
 	for pass := 1; ; pass++ {
 		if err := i.runOnce(ctx); err != nil {
@@ -134,6 +94,53 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 		}
 		log.Printf("analytics rebuild: pass %d, offset %d", pass, offset)
 		lastOffset = offset
+	}
+	return nil
+}
+
+// rebuiltTables are the aggregates a rebuild empties, in order, with the
+// label each failure is reported under. Not ip_country_ranges: that is
+// reference data loaded by ip-country-load, not something the log can rebuild.
+var rebuiltTables = []struct{ table, label string }{
+	{"site_view_hourly", "clear views"},
+	{"site_visitor_hourly", "clear visitors"},
+	{"site_geo_daily", "clear geo"},
+	{"site_page_daily", "clear pages"},
+	{"site_referrer_daily", "clear referrers"},
+	{"site_traffic_daily", "clear site traffic"},
+	{"traffic_daily", "clear traffic"},
+}
+
+// resetAggregates empties every rebuilt table and the ingest position in one
+// transaction. When there is a live log (liveInode >= 0) the position is
+// pointed at its start; without that the ingest pass after the archives
+// would see "rotated" and read .1 a second time.
+func (i *Ingester) resetAggregates(ctx context.Context, liveInode int64) error {
+	tx, err := i.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin reset tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, t := range rebuiltTables {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM `+t.table); err != nil {
+			return fmt.Errorf("%s: %w", t.label, err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM analytics_ingest_state WHERE logfile = $1`, i.logPath); err != nil {
+		return fmt.Errorf("reset ingest state: %w", err)
+	}
+	if liveInode >= 0 {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO analytics_ingest_state (logfile, offset_bytes, inode, updated_at)
+			VALUES ($1, 0, $2, now())
+		`, i.logPath, liveInode); err != nil {
+			return fmt.Errorf("reset ingest state: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reset: %w", err)
 	}
 	return nil
 }

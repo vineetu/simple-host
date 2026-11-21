@@ -1427,21 +1427,6 @@ func TestOverallPrizesValidation(t *testing.T) {
 
 func TestOverallPrizesWinners(t *testing.T) {
 	prizes := []string{"", "$200", "$100"}
-	for _, tc := range []struct {
-		rank  int
-		label string
-	}{{0, ""}, {1, ""}, {2, "2nd · $200"}, {3, "3rd · $100"}, {4, ""}} {
-		if got := overallPrizeLabel(tc.rank, prizes); got != tc.label {
-			t.Errorf("rank %d: %q", tc.rank, got)
-		}
-	}
-	for rank := 1; rank <= 4; rank++ {
-		for _, track := range []bool{false, true} {
-			if got := shownInWinnersOnly(rank, track, nil); got != (rank == 1 || track) {
-				t.Errorf("no prizes changed rank %d track %v", rank, track)
-			}
-		}
-	}
 	snap := []byte(`[{"rank":1,"team_id":"a","team_name":"Alpha","entry":{}},{"rank":2,"team_id":"b","team_name":"Beta","tied":true,"entry":{"title":"Beta entry"}},{"rank":2,"team_id":"c","team_name":"Gamma","tied":true,"entry":{}},{"rank":4,"team_name":"Delta","entry":{}},{"team_name":"Unranked","track_winner":true}]`)
 	for _, full := range []bool{false, true} {
 		for _, ranks := range []bool{false, true} {

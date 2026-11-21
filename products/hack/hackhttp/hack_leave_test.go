@@ -2,10 +2,11 @@ package hackhttp
 
 import (
 	"database/sql"
-	"github.com/vsriram/simple-host/products/hack/app/members"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/products/hack/app/members"
 )
 
 // Leave this event (SIM-340). The harness is newHackApp (DB_DSN), same as

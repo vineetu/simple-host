@@ -44,20 +44,9 @@ type KVMeta struct{ Entries, LogicalBytes int64 }
 // OpenRuntimeKV opens only a declared namespace. Callers own admission and writes
 // own the site lock. Unlike row databases, this file has no physical page cap.
 func OpenRuntimeKV(ctx context.Context, path string, write, create bool) (*sqlite3.Conn, func(), error) {
-	if !create {
-		if _, err := os.Stat(path); err != nil {
-			return nil, nil, err
-		}
-	}
-	mode := "ro"
-	if write {
-		mode = "rw"
-	}
-	if create {
-		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-			return nil, nil, err
-		}
-		mode = "rwc"
+	mode, err := runtimeKVMode(path, write, create)
+	if err != nil {
+		return nil, nil, err
 	}
 	size, err := sqliteReadSize(path)
 	if err != nil {
@@ -76,33 +65,54 @@ func OpenRuntimeKV(ctx context.Context, path string, write, create bool) (*sqlit
 		}
 	}()
 	conn.SetInterrupt(ctx)
+	if err = setUpRuntimeKV(conn, cache, write, create); err != nil {
+		return nil, nil, err
+	}
+	ready = true
+	return conn, done, nil
+}
+
+// runtimeKVMode picks the open mode. Only create may start a missing file.
+func runtimeKVMode(path string, write, create bool) (string, error) {
+	if create {
+		return "rwc", os.MkdirAll(filepath.Dir(path), 0700)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return "", err
+	}
+	if write {
+		return "rw", nil
+	}
+	return "ro", nil
+}
+
+// setUpRuntimeKV configures a namespace connection and, on create, gives the
+// file a fresh schema.
+func setUpRuntimeKV(conn *sqlite3.Conn, cache int64, write, create bool) error {
 	// Set before the first statement: a connection that is closing the WAL
 	// holds the file exclusively for a moment, and the pragmas below would
 	// fail at once with "database is locked". The wait ends early when ctx
 	// is done.
-	if err = conn.BusyTimeout(2 * time.Second); err != nil {
-		return nil, nil, err
+	if err := conn.BusyTimeout(2 * time.Second); err != nil {
+		return err
 	}
-	if err = configureSQLiteMemory(conn, cache); err != nil {
-		return nil, nil, err
+	if err := configureSQLiteMemory(conn, cache); err != nil {
+		return err
 	}
 	if write {
-		if err = conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
-			return nil, nil, err
+		if err := conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
+			return err
 		}
 	}
-	if create {
-		// Creation happens before the resource row is inserted. A previous failed
-		// save can leave an empty file; initialize it afresh for the new namespace.
-		if err = conn.Exec("BEGIN; DROP TABLE IF EXISTS kv; DROP TABLE IF EXISTS kv_meta;" + runtimeKVSchema + "COMMIT;"); err != nil {
-			return nil, nil, err
-		}
-		if err = conn.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-			return nil, nil, err
-		}
+	if !create {
+		return nil
 	}
-	ready = true
-	return conn, done, nil
+	// Creation happens before the resource row is inserted. A previous failed
+	// save can leave an empty file; initialize it afresh for the new namespace.
+	if err := conn.Exec("BEGIN; DROP TABLE IF EXISTS kv; DROP TABLE IF EXISTS kv_meta;" + runtimeKVSchema + "COMMIT;"); err != nil {
+		return err
+	}
+	return conn.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
 }
 
 func kvStatement(conn *sqlite3.Conn, query string, args ...string) (*sqlite3.Stmt, error) {

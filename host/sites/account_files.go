@@ -11,12 +11,6 @@ import (
 	"strings"
 )
 
-type AccountFileDeps struct {
-	CancelDomain    func(string)
-	RemoveFamily    func(string)
-	RefreshFamilies func(context.Context)
-}
-
 // LockAccountSites takes the lock of every site of the account and of the
 // teams it belongs to (accounts.AccountSiteKeys) before the account is erased.
 func (s *Service) LockAccountSites(ctx context.Context, userID string) (func(), error) {
@@ -55,7 +49,7 @@ func (s *Service) LockAccountSites(ctx context.Context, userID string) (func(), 
 	return func() {}, err
 }
 
-func (svc *Service) EraseAccountFiles(ctx context.Context, e model.ErasedAccount, deps AccountFileDeps) error {
+func (svc *Service) EraseAccountFiles(ctx context.Context, e model.ErasedAccount, hosts *Hosts) error {
 	var first error
 	keep := func(err error) {
 		if err != nil && first == nil {
@@ -71,7 +65,7 @@ func (svc *Service) EraseAccountFiles(ctx context.Context, e model.ErasedAccount
 				continue
 			}
 			if _, err := svc.GetSiteByCustomDomain(ctx, d); errors.Is(err, sql.ErrNoRows) {
-				deps.CancelDomain(d)
+				hosts.CancelDomainCert(d)
 			}
 		}
 	}
@@ -84,10 +78,10 @@ func (svc *Service) EraseAccountFiles(ctx context.Context, e model.ErasedAccount
 		if svc.disk.FamilyLinkTarget(f) == filepath.Join("..", "by-id", e.UserID) {
 			keep(svc.disk.UnbindFamily(f))
 		}
-		deps.RemoveFamily(f)
+		hosts.RemoveFamilyRequest(context.Background(), f)
 	}
 	if len(e.Families) > 0 {
-		deps.RefreshFamilies(ctx)
+		hosts.RefreshFamilies(ctx)
 	}
 	keep(svc.disk.DeleteUser(e.UserID, e.Handle))
 	return first

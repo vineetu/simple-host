@@ -10,14 +10,9 @@ import (
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
-	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// SettleDue runs the deadline sweep for every event: every entry whose team
-// is now frozen and not yet settled gets decided -- auto-submitted if complete,
-// left as "not submitted" (still judged, with an Incomplete flag) otherwise.
-// The per-minute timer calls it alongside PinDueTeams. Stage transitions call
-// SettleEventTx in the same transaction so judging never waits for the sweep.
+// SettleDue settles every frozen, unsettled entry: complete ones auto-submit, the rest stay not submitted.
 func (s *Service) SettleDue(ctx context.Context, reports ...SweepReport) {
 	s.SettleEvent(ctx, "", reports...)
 }
@@ -46,15 +41,8 @@ func (s *Service) SettleEvent(ctx context.Context, eventID string, reports ...Sw
 	}
 }
 
-// SettleEventTx settles every unsettled, now-frozen entry of the event in
-// the caller's own transaction (the setStage hook: one commit covers the
-// stage move and every team's settle). The caller has already locked
-// event_teams FOR UPDATE.
-//
-// Before that, a frozen team that never opened the entry form but has a live
-// team site gets an empty entry started, so it is settled (and judged,
-// flagged Incomplete) too: the site is part of the entry (full-test fix,
-// 2026-11-02). A team with neither an entry nor a live site stays out.
+// SettleEventTx settles the event's frozen entries in the caller's tx, which holds event_teams FOR UPDATE.
+// A frozen team with a live site but no entry gets an empty one first, so it is judged too.
 func (s *Service) SettleEventTx(ctx context.Context, tx *sql.Tx, eventID string) error {
 	if err := s.startSiteOnlyEntries(ctx, tx, eventID); err != nil {
 		return err
@@ -93,9 +81,7 @@ func (s *Service) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID 
 	return nil
 }
 
-// SettleTeam locks and settles one team's entry in its own transaction
-// (lock order: team, then entry -- there is no specific member or event row
-// to lock for this write).
+// SettleTeam locks the team, then its entry, and settles it in its own transaction.
 func (s *Service) SettleTeam(ctx context.Context, teamID string, progress ...func()) error {
 	changed := false
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -120,8 +106,7 @@ func (s *Service) SettleTeam(ctx context.Context, teamID string, progress ...fun
 	return nil
 }
 
-// SettleTeamTx is SettleTeam's body, run in a transaction that
-// already holds the team row FOR UPDATE.
+// SettleTeamTx settles one entry in a tx that already holds the team row FOR UPDATE.
 func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string, progress ...func()) error {
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -147,37 +132,26 @@ func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string, p
 	if err != nil {
 		return err
 	}
-	fields := hackentries.LoadRules(ev.EntryRules)
-	tracks, err := eventrepo.ListEventTracks(ctx, tx, ev.ID)
+	check, err := s.EvaluateEntryTx(ctx, tx, ev, st, teamID, e)
 	if err != nil {
 		return err
 	}
-	track, err := eventrepo.TeamTrack(ctx, tx, teamID)
-	if err != nil {
-		return err
-	}
-	siteLive := s.siteLive(ctx, ev, st.TeamSlug, st.SiteTakenDown)
-	check := hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track)
 	if check.Complete {
-		deadline := time.Now()
+		at := time.Now()
 		if st.Deadline.Valid {
-			deadline = st.Deadline.Time
+			at = st.Deadline.Time
 		}
-		err = entryrepo.SettleEntryComplete(ctx, tx, teamID, deadline)
-		if err == nil {
-			for _, fn := range progress {
-				fn()
-			}
-		}
+		err = entryrepo.SettleEntryComplete(ctx, tx, teamID, at)
+	} else {
+		err = entryrepo.SettleEntryIncomplete(ctx, tx, teamID)
+	}
+	if err != nil {
 		return err
 	}
-	err = entryrepo.SettleEntryIncomplete(ctx, tx, teamID)
-	if err == nil {
-		for _, fn := range progress {
-			fn()
-		}
+	for _, fn := range progress {
+		fn()
 	}
-	return err
+	return nil
 }
 
 // SweepReport receives committed entry settlement outcomes.

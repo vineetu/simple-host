@@ -1,34 +1,17 @@
 package hackhttp
 
 import (
-	"database/sql"
-	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/rules/sites"
-	"github.com/vsriram/simple-host/products/hack/app/events"
-	"github.com/vsriram/simple-host/products/hack/app/teams"
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Team admins (owner 2026-10-31): the creator is admin; admins approve or
-// decline requests, lock or unlock, rename, edit Looking for, remove
-// members, make or remove admins, make a new link. Every write here checks
-// the admin flag fresh, under the right locks, re-reading it from
-// event_members ... FOR UPDATE in the same transaction as the change --
-// nothing trusts the event view's cached "admin" flag (security review 1).
-
-// patchTeam is PATCH /v1/hack/events/{slug}/team: the caller's own team,
-// admin only. name and looking_for are each optional; send only what
-// changes.
+// patchTeam is PATCH /v1/hack/events/{slug}/team: name and looking_for are
+// each optional; send only what changes.
 func (h *participationHTTP) patchTeam(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant")
 	if !ok {
-		return
-	}
-	if !teams.ParticipantTeamStages(a.event.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
 	var req struct {
@@ -38,53 +21,15 @@ func (h *participationHTTP) patchTeam(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	var name string
-	if req.Name != nil {
-		var okName bool
-		name, okName = checkHackLine(w, events.StripInvisible(*req.Name), "team_name", 1, 80)
-		if !okName {
-			return
-		}
-	}
-	var lookingFor string
-	if req.LookingFor != nil {
-		var okNote bool
-		lookingFor, okNote = checkHackLine(w, events.StripInvisible(*req.LookingFor), "looking_for", 0, 120)
-		if !okNote {
-			return
-		}
-	}
-	var nameArg, noteArg *string
-	if req.Name != nil {
-		nameArg = &name
-	}
-	if req.LookingFor != nil {
-		noteArg = &lookingFor
-	}
-	team, err := h.teams.PatchTeam(r.Context(), a.event.ID, a.user.ID, nameArg, noteArg)
-	if err != nil {
-		writeHackError(w, err)
-		return
-	}
-	obj, err := h.teamParticipantJSON(r.Context(), team, a.user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, obj)
+	team, err := h.teams.PatchTeam(r.Context(), a.event, a.user.ID, req.Name, req.LookingFor)
+	h.writeParticipantTeam(w, r, http.StatusOK, a.user.ID, team, err)
 }
 
-// setMyTeamLock is PUT /v1/hack/events/{slug}/team/lock: the caller's own
-// team, admin only. Locking clears the team's pending requests and invites
-// and reports the counts; unlocking a team kept after its last member left
-// is refused.
+// setMyTeamLock is PUT /v1/hack/events/{slug}/team/lock. Locking clears
+// the team's pending requests and invites and reports the counts.
 func (h *participationHTTP) setMyTeamLock(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant")
 	if !ok {
-		return
-	}
-	if !teams.ParticipantTeamStages(a.event.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
 	var req struct {
@@ -93,36 +38,23 @@ func (h *participationHTTP) setMyTeamLock(w http.ResponseWriter, r *http.Request
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	requests, invites, err := h.teams.ParticipantLock(r.Context(), a.event.ID, a.user.ID, req.Locked)
+	requests, invites, err := h.teams.ParticipantLock(r.Context(), a.event, a.user.ID, req.Locked)
+	writeLockAnswer(w, req.Locked, requests, invites, err)
+}
+
+// writeLockAnswer answers a lock change with the counts it cleared.
+func writeLockAnswer(w http.ResponseWriter, locked bool, requests, invites int, err error) {
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"locked": req.Locked, "cleared": map[string]any{"requests": requests, "invites": invites}})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"locked": locked, "cleared": map[string]any{"requests": requests, "invites": invites}})
 }
 
-// setMyTeammateAdmin is PUT /v1/hack/events/{slug}/team/members/{user_id}/admin:
-// the caller's own team, admin only. A user_id not on the caller's team is
-// 404, not 403, so this never confirms where else someone belongs. Gated
-// by the same participant team stages and frozen-team check as the other
-// participant team handlers (patch, lock, new link): a deviation from the
-// original plan, which left this route ungated (Codex review, 2026-11-01)
-// -- on reflection it should follow the others, since it is still a team
-// composition write, not pure bookkeeping, and the organiser's equivalent
-// keeps its own separate override (no stage/deadline check, matching every
-// other organiser team write).
+// setMyTeammateAdmin is PUT /v1/hack/events/{slug}/team/members/{user_id}/admin.
 func (h *participationHTTP) setMyTeammateAdmin(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant")
 	if !ok {
-		return
-	}
-	if !teams.ParticipantTeamStages(a.event.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
-		return
-	}
-	userID := r.PathValue("user_id")
-	if !sites.UUIDShape.MatchString(userID) {
-		writeEventNotFound(w)
 		return
 	}
 	var req struct {
@@ -131,44 +63,43 @@ func (h *participationHTTP) setMyTeammateAdmin(w http.ResponseWriter, r *http.Re
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	err := h.teams.ParticipantAdmin(r.Context(), a.event.ID, a.user.ID, userID, req.Admin)
+	userID := r.PathValue("user_id")
+	err := h.teams.ParticipantAdmin(r.Context(), a.event, a.user.ID, userID, req.Admin)
+	writeAdminAnswer(w, userID, req.Admin, err)
+}
+
+// writeAdminAnswer answers an admin-flag change.
+func writeAdminAnswer(w http.ResponseWriter, userID string, admin bool, err error) {
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user_id": userID, "admin": req.Admin})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user_id": userID, "admin": admin})
 }
 
-// newMyTeamLink is POST /v1/hack/events/{slug}/team/link: the caller's own
-// team, admin only. The old code and link stop working at once.
+// newMyTeamLink is POST /v1/hack/events/{slug}/team/link. The old code and
+// link stop working at once.
 func (h *participationHTTP) newMyTeamLink(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant")
 	if !ok {
 		return
 	}
-	if !teams.ParticipantTeamStages(a.event.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "teams_locked", "teams cannot be changed at this stage")
-		return
-	}
-	fresh, err := h.teams.ParticipantLink(r.Context(), a.event.ID, a.user.ID)
+	fresh, err := h.teams.ParticipantLink(r.Context(), a.event, a.user.ID)
+	h.writeLinkAnswer(w, fresh, err)
+}
+
+// writeLinkAnswer answers a link rotation with the new code and link.
+func (h *participationHTTP) writeLinkAnswer(w http.ResponseWriter, fresh model.EventTeam, err error) {
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": fresh.Code, "link": h.teamLinkURL(fresh.Code)})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": fresh.Code, "link": h.links.teamLinkURL(fresh.Code)})
 }
-
-// --- Organiser equivalents: the organiser picks the team by slug, never
-// needs to be its admin, and is gated by organiserTeamStages (not archived)
-// rather than the participant team-building stages or the frozen check. ---
 
 func (h *participationHTTP) lockOrganiserTeam(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
-		return
-	}
-	if !organiserTeamStages(a.event.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return
 	}
 	var req struct {
@@ -177,31 +108,13 @@ func (h *participationHTTP) lockOrganiserTeam(w http.ResponseWriter, r *http.Req
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	requests, invites, err := h.teams.OrganiserLock(r.Context(), a.event.ID, teamSlug, a.user.ID, req.Locked)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
-	if err != nil {
-		writeHackError(w, err)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"locked": req.Locked, "cleared": map[string]any{"requests": requests, "invites": invites}})
+	requests, invites, err := h.teams.OrganiserLock(r.Context(), a.event, r.PathValue("team"), a.user.ID, req.Locked)
+	writeLockAnswer(w, req.Locked, requests, invites, err)
 }
 
 func (h *participationHTTP) setOrganiserTeamAdmin(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
-		return
-	}
-	if !organiserTeamStages(a.event.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	userID := r.PathValue("user_id")
-	if !sites.UUIDShape.MatchString(userID) {
-		writeEventNotFound(w)
 		return
 	}
 	var req struct {
@@ -210,37 +123,16 @@ func (h *participationHTTP) setOrganiserTeamAdmin(w http.ResponseWriter, r *http
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	err := h.teams.OrganiserAdmin(r.Context(), a.event.ID, teamSlug, userID, req.Admin)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
-	if err != nil {
-		writeHackError(w, err)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"user_id": userID, "admin": req.Admin})
+	userID := r.PathValue("user_id")
+	err := h.teams.OrganiserAdmin(r.Context(), a.event, r.PathValue("team"), userID, req.Admin)
+	writeAdminAnswer(w, userID, req.Admin, err)
 }
 
 func (h *participationHTTP) newOrganiserTeamLink(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
-	if !organiserTeamStages(a.event.Stage) {
-		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
-		return
-	}
-	teamSlug := strings.ToLower(strings.TrimSpace(r.PathValue("team")))
-	fresh, err := h.teams.OrganiserLink(r.Context(), a.event.ID, teamSlug)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": fresh.Code, "link": h.teamLinkURL(fresh.Code)})
+	fresh, err := h.teams.OrganiserLink(r.Context(), a.event, r.PathValue("team"))
+	h.writeLinkAnswer(w, fresh, err)
 }

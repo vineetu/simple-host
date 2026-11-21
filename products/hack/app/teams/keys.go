@@ -3,18 +3,55 @@ package teams
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
+	"strings"
+	"time"
 
 	model "github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
+	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// SetDeadline changes the override and queues notices in the same transaction.
-func (s *Service) SetDeadline(ctx context.Context, eventID string, team hackmodel.EventTeam, t sql.NullTime) (hackmodel.EventTeam, error) {
+// SetDeadline gives the team until raw, a time in the event's zone ("" takes
+// the extension back), queues notices in the same transaction and then
+// pins the event's teams now due.
+func (s *Service) SetDeadline(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam, raw *string) (hackmodel.EventTeam, error) {
+	t, err := deadlineInput(ev.TimeZone, raw)
+	if err != nil {
+		return team, err
+	}
+	if team, err = s.setDeadline(ctx, ev.ID, team, t); err != nil {
+		return team, err
+	}
+	if err = s.PinDue(ctx, ev.ID); err != nil {
+		log.Printf("hack: pin %s: %v", ev.ID, err)
+	}
+	return team, nil
+}
+
+// deadlineInput parses a team deadline: required, "" for none, otherwise
+// an event time in zone (UTC when the zone is unknown).
+func deadlineInput(zone string, raw *string) (sql.NullTime, error) {
+	if raw == nil {
+		return sql.NullTime{}, &Error{Code: "invalid_deadline", Message: "deadline is required (\"\" removes the extension)"}
+	}
+	if strings.TrimSpace(*raw) == "" {
+		return sql.NullTime{}, nil
+	}
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		loc = time.UTC
+	}
+	return eventapp.ParseEventTime(*raw, loc, "deadline")
+}
+
+// setDeadline changes the override and queues notices in one transaction.
+func (s *Service) setDeadline(ctx context.Context, eventID string, team hackmodel.EventTeam, t sql.NullTime) (hackmodel.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return team, err
@@ -93,13 +130,7 @@ func (s *Service) OpenEventSlugs(ctx context.Context, request func(string)) erro
 	return nil
 }
 
-// NoticeSiteChange tells the team their site was taken down, with the
-// organiser's reason, or put back. It runs after the site handler's own
-// transaction has committed (that one is the site's, not the event's), so a
-// failure here is logged and the change itself stands. A restore reaches only
-// members who could have known it was down: anyone whose take-down notice
-// was never seen nor emailed (a restore within the first minute) hears
-// nothing at all.
+// NoticeSiteChange tells the team their site went down or came back; it runs after the site's commit, so failures are only logged.
 func (s *Service) NoticeSiteChange(ctx context.Context, eventID, teamID string, down bool, reason string) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -193,6 +224,32 @@ func (s *Service) TeamBySlug(ctx context.Context, eventID, slug string) (hackmod
 	return hackteams.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 }
 
+// FindTeam is the event's team a path names (trimmed, any case);
+// team_not_found when none.
+func (s *Service) FindTeam(ctx context.Context, eventID, rawSlug string) (hackmodel.EventTeam, error) {
+	return teamBySlug(ctx, s.db, eventID, rawSlug)
+}
+
+// OrganiserTeam is FindTeam for an organiser write: refused once the event
+// is archived.
+func (s *Service) OrganiserTeam(ctx context.Context, ev hackmodel.Event, rawSlug string) (hackmodel.EventTeam, error) {
+	if err := organiserStage(ev.Stage, msgEnded); err != nil {
+		return hackmodel.EventTeam{}, err
+	}
+	return teamBySlug(ctx, s.db, ev.ID, rawSlug)
+}
+
+// CallerTeam is the team of the calling member; no_team when they are on
+// none.
+func (s *Service) CallerTeam(ctx context.Context, member hackmodel.EventMember) (hackmodel.EventTeam, error) {
+	noTeam := &Error{Code: "no_team", Message: "join or start a team first"}
+	if !member.TeamID.Valid {
+		return hackmodel.EventTeam{}, noTeam
+	}
+	team, err := hackteams.GetEventTeamByID(ctx, s.db, member.TeamID.String)
+	return team, notFoundAs(err, noTeam)
+}
+
 // WriteState reads a team's publishing state.
 func (s *Service) WriteState(ctx context.Context, teamID string) (hackmodel.TeamWriteState, error) {
 	return hackteams.TeamWriteStateFor(ctx, s.db, teamID, false)
@@ -240,13 +297,24 @@ type TeamSiteChanger interface {
 	SuspendHeldSite(context.Context, sites.HeldSiteSuspension) error
 }
 
-// SetSiteTakenDown changes a site's state and sends the existing team notices.
-func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger, event hackmodel.Event, team hackmodel.EventTeam, down bool, reason string) error {
-	if err := changer.SuspendHeldSite(ctx, sites.HeldSiteSuspension{
+// SetSiteTakenDown takes the team's site down with a reason, or puts it back unless the platform took it down.
+func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger, event hackmodel.Event, team hackmodel.EventTeam, down bool, rawReason string) error {
+	reason, err := checkLine(rawReason, "reason", 0, 300)
+	if err != nil {
+		return err
+	}
+	if changer == nil {
+		return internalError(errors.New("no site hooks"))
+	}
+	err = changer.SuspendHeldSite(ctx, sites.HeldSiteSuspension{
 		AccountID: event.AccountID, Name: team.Slug, Prefix: organiserTakedownPrefix, Reason: reason, On: down,
 		Also: func(tx *sql.Tx) error { return hackteams.SetTeamSiteTakedown(ctx, tx, team.ID, down, reason) },
-	}); err != nil {
-		return err
+	})
+	if errors.Is(err, model.ErrNotOrganiserTakedown) {
+		return &Error{Code: "platform_takedown", Message: "Simple Hack took this site down; only the platform can put it back"}
+	}
+	if err != nil {
+		return internalError(err)
 	}
 	if down || team.SiteTakenDownAt.Valid {
 		s.NoticeSiteChange(ctx, event.ID, team.ID, down, reason)

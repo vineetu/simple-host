@@ -20,23 +20,30 @@ func hackWhoAmITool() mcp.Tool {
 		OutputSchema: mcp.OutObject(map[string]any{
 			"email": mcp.OutString("The email address the person signs in with. Absent unless include_email is true."),
 		}),
-		run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-			res := c.Do(http.MethodGet, "/v1/me", nil, nil)
-			if !res.OK() {
-				return mcp.Output{}, mcp.RestError("who_am_i", res)
-			}
-			var me struct {
-				Username string `json:"username"`
-			}
-			_ = json.Unmarshal(res.Body(), &me)
-			out := map[string]any{}
-			text := "Signed in to Simple Hack"
-			if include, _ := args["include_email"].(bool); include && me.Username != "" {
-				out["email"] = me.Username
-				text += " as " + me.Username
-			}
-			text += ". Simple Hack accounts have no personal sites; websites belong to teams and events. hack_list_events lists your events and your role in each; to publish your team's site, call the site and storage tools with site set to your team's site and owner set to the event's name (hack_get_my_teams lists both)."
-			return mcp.Output{Text: text, Structured: out}, nil
-		},
+		run: runHackWhoAmI,
 	}.tool()
+}
+
+const hackWhoAmINote = ". Simple Hack accounts have no personal sites; websites belong to teams and events. hack_list_events lists your events and your role in each; to publish your team's site, call the site and storage tools with site set to your team's site and owner set to the event's name (hack_get_my_teams lists both)."
+
+func runHackWhoAmI(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	includeEmail, err := mcp.BoolArg(args, "include_email", false)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	res := c.Do(http.MethodGet, "/v1/me", nil, nil)
+	if !res.OK() {
+		return mcp.Output{}, mcp.RestError("who_am_i", res)
+	}
+	var me struct {
+		Username string `json:"username"`
+	}
+	_ = json.Unmarshal(res.Body(), &me)
+	out := map[string]any{}
+	text := "Signed in to Simple Hack"
+	if includeEmail && me.Username != "" {
+		out["email"] = me.Username
+		text += " as " + me.Username
+	}
+	return mcp.Output{Text: text + hackWhoAmINote, Structured: out}, nil
 }

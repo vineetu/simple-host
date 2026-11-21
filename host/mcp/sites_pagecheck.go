@@ -38,91 +38,113 @@ const (
 
 // pageWarnings returns plain warnings about the files just published to site.
 func pageWarnings(c *call, site string, files map[string]string) []string {
-	var warns []string
-	// Each warning stands alone: some apps show only the structured answer.
-	add := func(format string, a ...any) {
-		if len(warns) < maxPageWarnings {
-			warns = append(warns, "Not working yet, fix it and publish again: "+fmt.Sprintf(format, a...))
+	p := &pageCheck{files: files, uses: map[storageUse]map[string]bool{}}
+	for _, path := range sortedKeys(files) {
+		p.checkFile(path)
+	}
+	if len(p.uses) > 0 && len(p.warns) < maxPageWarnings {
+		storageWarnings(c, site, p.uses, p.add)
+	}
+	return p.warns
+}
+
+// pageCheck collects the warnings and storage uses of one publish.
+type pageCheck struct {
+	files map[string]string
+	warns []string
+	uses  map[storageUse]map[string]bool
+}
+
+// add keeps up to maxPageWarnings. Each warning stands alone: some apps show
+// only the structured answer.
+func (p *pageCheck) add(format string, a ...any) {
+	if len(p.warns) < maxPageWarnings {
+		p.warns = append(p.warns, "Not working yet, fix it and publish again: "+fmt.Sprintf(format, a...))
+	}
+}
+
+func (p *pageCheck) checkFile(path string) {
+	lower := strings.ToLower(path)
+	isHTML := strings.HasSuffix(lower, ".html") || strings.HasSuffix(lower, ".htm")
+	text := p.files[path]
+	if (!isHTML && !strings.HasSuffix(lower, ".js")) || len(text) > maxPageCheckBytes {
+		return
+	}
+	code := text
+	if isHTML {
+		var local string
+		code, local = pageScripts(text, p.files)
+		p.checkAuthJS(path, text, code, local)
+		p.checkTextAfterHTML(path, text)
+		p.checkHiddenByCSS(path, text, code)
+	}
+	if pageSQL.MatchString(code) {
+		p.add(`%s sends SQL from the page (query or execute), which a page may not do: use SH.storage.sqlite(name).table(t).list, .get, .add, .edit and .delete (get_page_recipe shows them); SQL is for your storage_sql_* tools only.`, path)
+	}
+	// Double-escaped files arrive as one line with literal \n in place of line breaks.
+	if strings.Count(text, "\n") < 3 && doubleEscaped.MatchString(code) {
+		p.add(`%s has a script with literal \n sequences between statements: it was sent double-escaped and will not run. Send the file with real line breaks.`, path)
+	}
+	p.collectStorage(code)
+}
+
+func (p *pageCheck) checkAuthJS(path, text, code, local string) {
+	tag := authTag.FindString(text)
+	if shUse.MatchString(local) && tag == "" {
+		p.add(instanceText(`%s uses SH but never loads auth.js, so nothing on it can sign in or save. Add <script src="https://simple-host.app/auth.js"></script> in the head, before the page's own scripts.`), path)
+	}
+	if t := strings.ToLower(tag); (strings.Contains(t, "defer") || strings.Contains(t, "async")) && shUse.MatchString(code) && !waitsForLoaded.MatchString(code) {
+		p.add(`%s loads auth.js with defer or async, but its script calls SH straight away, before auth.js has run ("SH is not defined"). Load auth.js with a plain script tag in the head, without defer.`, path)
+	}
+}
+
+// checkTextAfterHTML: text after </html> means a splice went wrong (SIM-331:
+// a JavaScript replace with "$'" in it pasted the file's tail into a
+// script), so the script breaks and its code shows on the page. Scripts are
+// skipped, as the browser does: a "</html>" in a script string does not end
+// the page.
+func (p *pageCheck) checkTextAfterHTML(path, text string) {
+	markup := inlineScript.ReplaceAllString(text, "")
+	end := strings.Index(strings.ToLower(markup), "</html>")
+	if end >= 0 && strings.TrimSpace(htmlComment.ReplaceAllString(markup[end+len("</html>"):], "")) != "" {
+		p.add(`%s has text after </html>, so the browser shows it on the page and a script cut short by it does not run. Part of the file was pasted into itself: read it with read_site_file and send it whole, ending at one </html>.`, path)
+	}
+}
+
+// checkHiddenByCSS: a hidden element that CSS also sets to display: none
+// never shows, whatever the script does with .hidden.
+func (p *pageCheck) checkHiddenByCSS(path, text, code string) {
+	for _, m := range hiddenID.FindAllStringSubmatch(text, 20) {
+		rule := regexp.MustCompile(`(?is)#` + regexp.QuoteMeta(m[1]) + `\s*\{[^}]*display\s*:\s*none`)
+		if rule.MatchString(text) && strings.Contains(code, ".hidden") {
+			p.add(`%s: #%s has the hidden attribute and a CSS rule display: none, so setting .hidden = false never shows it. Remove display: none from that rule.`, path, m[1])
 		}
 	}
-	uses := map[storageUse]map[string]bool{}
-	paths := make([]string, 0, len(files))
-	for p := range files {
-		paths = append(paths, p)
-	}
-	sort.Strings(paths)
-	for _, p := range paths {
-		lower := strings.ToLower(p)
-		isHTML := strings.HasSuffix(lower, ".html") || strings.HasSuffix(lower, ".htm")
-		if !isHTML && !strings.HasSuffix(lower, ".js") {
-			continue
+}
+
+// collectStorage records the storage resources (and SQLite tables) code names.
+func (p *pageCheck) collectStorage(code string) {
+	for _, m := range storageRef.FindAllStringSubmatch(code, -1) {
+		u := storageUse{m[1], m[2]}
+		if p.uses[u] == nil {
+			p.uses[u] = map[string]bool{}
 		}
-		text := files[p]
-		if len(text) > maxPageCheckBytes {
-			continue
-		}
-		code := text
-		if isHTML {
-			var local string
-			code, local = pageScripts(text, files)
-			tag := authTag.FindString(text)
-			if shUse.MatchString(local) && tag == "" {
-				add(instanceText(`%s uses SH but never loads auth.js, so nothing on it can sign in or save. Add <script src="https://simple-host.app/auth.js"></script> in the head, before the page's own scripts.`), p)
-			}
-			if t := strings.ToLower(tag); (strings.Contains(t, "defer") || strings.Contains(t, "async")) && shUse.MatchString(code) && !waitsForLoaded.MatchString(code) {
-				add(`%s loads auth.js with defer or async, but its script calls SH straight away, before auth.js has run ("SH is not defined"). Load auth.js with a plain script tag in the head, without defer.`, p)
-			}
-			// Text after </html> means a splice went wrong (SIM-331: a JavaScript
-			// replace with "$'" in it pasted the file's tail into a script), so
-			// the script breaks and its code shows on the page.
-			// Scripts are skipped, as the browser does: a "</html>" in a script
-			// string does not end the page.
-			markup := inlineScript.ReplaceAllString(text, "")
-			if end := strings.Index(strings.ToLower(markup), "</html>"); end >= 0 && strings.TrimSpace(htmlComment.ReplaceAllString(markup[end+len("</html>"):], "")) != "" {
-				add(`%s has text after </html>, so the browser shows it on the page and a script cut short by it does not run. Part of the file was pasted into itself: read it with read_site_file and send it whole, ending at one </html>.`, p)
-			}
-			// A hidden element that CSS also sets to display: none never shows,
-			// whatever the script does with .hidden.
-			for _, m := range hiddenID.FindAllStringSubmatch(text, 20) {
-				rule := regexp.MustCompile(`(?is)#` + regexp.QuoteMeta(m[1]) + `\s*\{[^}]*display\s*:\s*none`)
-				if rule.MatchString(text) && strings.Contains(code, ".hidden") {
-					add(`%s: #%s has the hidden attribute and a CSS rule display: none, so setting .hidden = false never shows it. Remove display: none from that rule.`, p, m[1])
-				}
-			}
-		}
-		if pageSQL.MatchString(code) {
-			add(`%s sends SQL from the page (query or execute), which a page may not do: use SH.storage.sqlite(name).table(t).list, .get, .add, .edit and .delete (get_page_recipe shows them); SQL is for your storage_sql_* tools only.`, p)
-		}
-		// Double-escaped files arrive as one line with literal \n in place of line breaks.
-		if strings.Count(text, "\n") < 3 && doubleEscaped.MatchString(code) {
-			add(`%s has a script with literal \n sequences between statements: it was sent double-escaped and will not run. Send the file with real line breaks.`, p)
-		}
-		for _, m := range storageRef.FindAllStringSubmatch(code, -1) {
-			u := storageUse{m[1], m[2]}
-			if uses[u] == nil {
-				uses[u] = map[string]bool{}
-			}
-			if m[4] != "" {
-				uses[u][m[4]] = true
-			}
-		}
-		// .table("t") on a variable: credit it to the page's only SQLite resource.
-		var sqlite []storageUse
-		for u := range uses {
-			if u.kind == "sqlite" && (strings.Contains(code, `"`+u.name+`"`) || strings.Contains(code, `'`+u.name+`'`)) {
-				sqlite = append(sqlite, u)
-			}
-		}
-		if len(sqlite) == 1 {
-			for _, m := range tableRef.FindAllStringSubmatch(code, -1) {
-				uses[sqlite[0]][m[1]] = true
-			}
+		if m[4] != "" {
+			p.uses[u][m[4]] = true
 		}
 	}
-	if len(uses) > 0 && len(warns) < maxPageWarnings {
-		storageWarnings(c, site, uses, add)
+	// .table("t") on a variable: credit it to the page's only SQLite resource.
+	var sqlite []storageUse
+	for u := range p.uses {
+		if u.kind == "sqlite" && (strings.Contains(code, `"`+u.name+`"`) || strings.Contains(code, `'`+u.name+`'`)) {
+			sqlite = append(sqlite, u)
+		}
 	}
-	return warns
+	if len(sqlite) == 1 {
+		for _, m := range tableRef.FindAllStringSubmatch(code, -1) {
+			p.uses[sqlite[0]][m[1]] = true
+		}
+	}
 }
 
 // pageScripts returns an HTML page's own inline scripts (code) and those
@@ -157,23 +179,10 @@ type storageUse struct{ kind, name string }
 // storageWarnings compares the resources (and SQLite tables) the pages use
 // with what the site has.
 func storageWarnings(c *call, site string, uses map[storageUse]map[string]bool, add func(string, ...any)) {
-	base := "/v1/sites/" + url.PathEscape(site) + "/storage"
-	res := c.do(http.MethodGet, base+"/resources", nil, nil)
-	if !res.ok() {
+	base := sitePath(site, "/storage")
+	kinds, ok := siteResourceKinds(c, base)
+	if !ok {
 		return
-	}
-	var listed struct {
-		Resources []struct {
-			Name string `json:"name"`
-			Kind string `json:"kind"`
-		} `json:"resources"`
-	}
-	if json.Unmarshal(res.body, &listed) != nil {
-		return
-	}
-	kinds := map[string]string{}
-	for _, r := range listed.Resources {
-		kinds[r.Name] = r.Kind
 	}
 	keys := make([]storageUse, 0, len(uses))
 	for u := range uses {
@@ -194,38 +203,72 @@ func storageWarnings(c *call, site string, uses map[storageUse]map[string]bool, 
 			add(`The page uses %q as %s, but it is a %s resource on this site: change the page to SH.storage.%s(%q).`, u.name, u.kind, kind, kind, u.name)
 		case u.kind == "sqlite" && len(uses[u]) > 0 && lookups < 5:
 			lookups++
-			body, _ := json.Marshal(map[string]any{"sql": "SELECT name FROM sqlite_master WHERE type = 'table'", "params": []any{}})
-			q := c.do(http.MethodPost, base+"/sqlite/"+url.PathEscape(u.name)+"/query", body, nil)
-			var rows struct {
-				Rows [][]any `json:"rows"`
-			}
-			if !q.ok() || json.Unmarshal(q.body, &rows) != nil {
-				continue
-			}
-			have := map[string]bool{}
-			var names []string
-			for _, r := range rows.Rows {
-				if len(r) > 0 {
-					if n, ok := r[0].(string); ok && !strings.HasPrefix(n, "sqlite_") {
-						have[strings.ToLower(n)] = true
-						names = append(names, n)
-					}
-				}
-			}
-			var missing []string
-			for t := range uses[u] {
-				if !have[strings.ToLower(t)] {
-					missing = append(missing, t)
-				}
-			}
-			sort.Strings(missing)
-			for _, t := range missing {
-				existing := "no tables yet"
-				if len(names) > 0 {
-					existing = "tables: " + strings.Join(names, ", ")
-				}
-				add(`The page uses table %q in %q, which does not exist (%s): create it with storage_sql_schema, or fix the name in the page.`, t, u.name, existing)
-			}
+			tableWarnings(c, base, u.name, uses[u], add)
 		}
 	}
+}
+
+// siteResourceKinds maps each storage resource of the site to its kind.
+func siteResourceKinds(c *call, base string) (map[string]string, bool) {
+	res := c.do(http.MethodGet, base+"/resources", nil, nil)
+	if !res.ok() {
+		return nil, false
+	}
+	var listed struct {
+		Resources []struct {
+			Name string `json:"name"`
+			Kind string `json:"kind"`
+		} `json:"resources"`
+	}
+	if json.Unmarshal(res.body, &listed) != nil {
+		return nil, false
+	}
+	kinds := map[string]string{}
+	for _, r := range listed.Resources {
+		kinds[r.Name] = r.Kind
+	}
+	return kinds, true
+}
+
+// tableWarnings names the tables the pages use that the resource lacks.
+func tableWarnings(c *call, base, resource string, used map[string]bool, add func(string, ...any)) {
+	names, ok := sqliteTables(c, base, resource)
+	if !ok {
+		return
+	}
+	have := map[string]bool{}
+	for _, n := range names {
+		have[strings.ToLower(n)] = true
+	}
+	existing := "no tables yet"
+	if len(names) > 0 {
+		existing = "tables: " + strings.Join(names, ", ")
+	}
+	for _, t := range sortedKeys(used) {
+		if !have[strings.ToLower(t)] {
+			add(`The page uses table %q in %q, which does not exist (%s): create it with storage_sql_schema, or fix the name in the page.`, t, resource, existing)
+		}
+	}
+}
+
+// sqliteTables lists a SQLite resource's own tables.
+func sqliteTables(c *call, base, resource string) ([]string, bool) {
+	body, _ := json.Marshal(map[string]any{"sql": "SELECT name FROM sqlite_master WHERE type = 'table'", "params": []any{}})
+	q := c.do(http.MethodPost, base+"/sqlite/"+url.PathEscape(resource)+"/query", body, nil)
+	var rows struct {
+		Rows [][]any `json:"rows"`
+	}
+	if !q.ok() || json.Unmarshal(q.body, &rows) != nil {
+		return nil, false
+	}
+	var names []string
+	for _, r := range rows.Rows {
+		if len(r) == 0 {
+			continue
+		}
+		if n, ok := r[0].(string); ok && !strings.HasPrefix(n, "sqlite_") {
+			names = append(names, n)
+		}
+	}
+	return names, true
 }

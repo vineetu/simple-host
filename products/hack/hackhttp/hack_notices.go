@@ -24,7 +24,7 @@ func (h *HackHandler) getTodos(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	todos, on, possible, err := h.events.Todos(r.Context(), user.ID, h.entryEvaluator())
+	todos, on, possible, err := h.events.Todos(r.Context(), user.ID, h.views.entryEvaluator())
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -39,7 +39,7 @@ func (h *HackHandler) getTodos(w http.ResponseWriter, r *http.Request) {
 // markNoticesSeen is POST /v1/hack/events/{slug}/notices/seen: the person
 // dismisses their own news lines, the listed ids or all of them.
 func (h *HackHandler) markNoticesSeen(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false)
 	if !ok {
 		return
 	}
@@ -82,21 +82,30 @@ func (h *HackHandler) noticePolicy() noticeMailPolicy {
 	return noticeMailPolicy{delay: delay, window: window}
 }
 
-func (h *HackHandler) deliverNoticeMailOnly(ctx context.Context) (int64, error) {
-	sender, ok := h.mailer.(interface {
-		SendNotice(string, string, string) error
-	})
+func (h *HackHandler) deliverNoticeMailOnly(ctx context.Context, mailer events.Mailer) (int64, error) {
+	sender, ok := noticeSender(mailer)
 	if !ok {
 		return 0, nil
 	}
-	if ready, ok := h.mailer.(interface{ CanSendNotice() bool }); ok && !ready.CanSendNotice() {
-		return 0, nil
-	}
 	pol := h.noticePolicy()
-	return h.events.DeliverNoticeMail(ctx, sender, pol.delay, pol.window, h.publicBaseURL, h.entries)
+	return h.events.DeliverNoticeMail(ctx, sender, pol.delay, pol.window, h.links.publicBaseURL, h.entries)
 }
 
-func (h *hackBase) needsYou(ctx context.Context, ev model.Event, m model.EventMember) []map[string]any {
+// noticeSender is the mailer as a notice sender, when it is one and is
+// ready to send.
+func noticeSender(m events.Mailer) (interface {
+	SendNotice(string, string, string) error
+}, bool) {
+	sender, ok := m.(interface {
+		SendNotice(string, string, string) error
+	})
+	if ready, can := m.(interface{ CanSendNotice() bool }); can && !ready.CanSendNotice() {
+		return nil, false
+	}
+	return sender, ok
+}
+
+func (h *views) needsYou(ctx context.Context, ev model.Event, m model.EventMember) []map[string]any {
 	return needsYouView(h.events.NeedsYou(ctx, ev, m, h.entryEvaluator()))
 }
 
@@ -104,7 +113,7 @@ func (h *hackBase) needsYou(ctx context.Context, ev model.Event, m model.EventMe
 // h.entries itself is nil (a bare &HackHandler{} test fixture): a nil
 // *entries.Service boxed in a non-nil interface would panic on first call,
 // not compare equal to nil.
-func (h *hackBase) entryEvaluator() events.EntryEvaluator {
+func (h *views) entryEvaluator() events.EntryEvaluator {
 	if h.entries == nil {
 		return nil
 	}

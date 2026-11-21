@@ -6,6 +6,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/products/hack/app/events"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
@@ -49,29 +50,9 @@ func (h *HackHandler) patchHackPreferences(w http.ResponseWriter, r *http.Reques
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	p, err := h.events.HackPreferences(r.Context(), user.ID)
+	p, err := h.events.PatchPreferences(r.Context(), user.ID, events.PreferencesPatch(req))
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if req.Theme != nil {
-		if *req.Theme != "system" && *req.Theme != "light" && *req.Theme != "dark" {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_theme", "theme must be system, light or dark")
-			return
-		}
-		p.Theme = *req.Theme
-	}
-	if req.OrganiserWalkthroughDone != nil {
-		p.OrganiserWalkthroughDone = *req.OrganiserWalkthroughDone
-	}
-	if req.JudgeWalkthroughDone != nil {
-		p.JudgeWalkthroughDone = *req.JudgeWalkthroughDone
-	}
-	if req.EmailUpdates != nil {
-		p.EmailUpdates = *req.EmailUpdates
-	}
-	if err := h.events.SetHackPreferencesLookup(r.Context(), user.ID, p); err != nil {
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, hackPreferencesJSON(user, p))

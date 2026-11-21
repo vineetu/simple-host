@@ -4,13 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
-	"sort"
-	"strings"
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
-	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
@@ -21,10 +18,6 @@ type hackSubmission struct {
 	Team          string `json:"team"`
 	ScreenshotURL string `json:"screenshot_url,omitempty"`
 	teamID        string
-}
-
-func submissionsOpen(ev model.Event) bool {
-	return !ev.TakenDown() && (ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived")
 }
 
 // visibleSubmissions is shared by participant reads, the public feed and page.
@@ -42,30 +35,12 @@ func visibleSubmissionTeam(ctx context.Context, db *sql.DB, ev model.Event, team
 	return cards[0].teamID, nil
 }
 
-// submissionCards builds the cards; onlyTeam (a team slug) limits it to one team.
+// submissionCards is entries.Submissions as public cards, with live site
+// links when siteURL is given; onlyTeam (a team slug) limits it to one team.
 func submissionCards(ctx context.Context, db *sql.DB, ev model.Event, siteURL func(string, string) string, screenshotBase, onlyTeam string) ([]hackSubmission, error) {
-	out := make([]hackSubmission, 0)
-	if !submissionsOpen(ev) {
-		return out, nil
-	}
-	es := entries.New(db, nil)
-	stored, err := es.Entries(ctx, ev.ID)
-	if err != nil {
-		return nil, err
-	}
-	tt, err := teams.New(db).EventTeams(ctx, ev.ID)
-	if err != nil {
-		return nil, err
-	}
-	byTeam := make(map[string]model.EventEntry, len(stored))
-	for _, e := range stored {
-		byTeam[e.TeamID] = e
-	}
-	tracks := map[string]*model.EventTrack{}
-	if onlyTeam == "" {
-		if tracks, err = es.TeamTracks(ctx, ev.ID); err != nil {
-			return nil, err
-		}
+	subs, err := entries.New(db, nil).Submissions(ctx, ev, onlyTeam)
+	if err != nil || len(subs) == 0 {
+		return []hackSubmission{}, err
 	}
 	live := map[string]string{}
 	if siteURL != nil {
@@ -77,45 +52,39 @@ func submissionCards(ctx context.Context, db *sql.DB, ev model.Event, siteURL fu
 			live[c.ID] = hackGalleryLink(siteURL, ev.Slug, c.Slug)
 		}
 	}
-	codeOff := entries.LoadRules(ev.EntryRules)["code_url"] == "off"
-	for _, t := range tt {
-		if onlyTeam != "" && t.Slug != onlyTeam {
-			continue
-		}
-		e, ok := byTeam[t.ID]
-		if !ok || e.Status() != "submitted" || e.ExcludedAt.Valid {
-			continue
-		}
-		code := e.CodeURL
-		if codeOff {
-			code = ""
-		}
-		c := hackSubmission{hackResultCard: hackResultCard{Title: e.Title, Tagline: e.Tagline, Problem: e.Problem, Audience: e.Audience, Tools: nonNilStrings(e.Tools), Maturity: e.Maturity, Track: tracks[t.ID], VideoURL: e.VideoURL, CodeURL: code, SiteURL: live[t.ID], HasScreenshot: e.HasScreenshot}, TeamName: t.Name, Team: t.Slug, teamID: t.ID}
-		if e.VideoURL != "" {
-			c.VideoHost = hackURLHost(e.VideoURL)
-		}
-		if code != "" {
-			c.CodeHost = hackURLHost(code)
-		}
-		if c.HasScreenshot {
-			c.ScreenshotURL = screenshotBase + "/" + t.Slug + "/screenshot"
-		}
-		out = append(out, c)
+	out := make([]hackSubmission, 0, len(subs))
+	for _, sub := range subs {
+		out = append(out, submissionCard(sub, live[sub.Team.ID], screenshotBase))
 	}
-	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].TeamName) < strings.ToLower(out[j].TeamName) })
 	return out, nil
 }
 
-func (h *hackBase) submissionSiteURL() func(string, string) string {
-	if h.sites == nil {
+// submissionCard is one submission's public card.
+func submissionCard(sub entries.Submission, siteURL, screenshotBase string) hackSubmission {
+	e, t := sub.Entry, sub.Team
+	c := hackSubmission{hackResultCard: hackResultCard{Title: e.Title, Tagline: e.Tagline, Problem: e.Problem, Audience: e.Audience, Tools: nonNilStrings(e.Tools), Maturity: e.Maturity, Track: sub.Track, VideoURL: e.VideoURL, CodeURL: e.CodeURL, SiteURL: siteURL, HasScreenshot: e.HasScreenshot}, TeamName: t.Name, Team: t.Slug, teamID: t.ID}
+	if e.VideoURL != "" {
+		c.VideoHost = hackURLHost(e.VideoURL)
+	}
+	if e.CodeURL != "" {
+		c.CodeHost = hackURLHost(e.CodeURL)
+	}
+	if c.HasScreenshot {
+		c.ScreenshotURL = screenshotBase + "/" + t.Slug + "/screenshot"
+	}
+	return c
+}
+
+func (h *siteLinks) submissionSiteURL() func(string, string) string {
+	if h.hooks == nil {
 		return nil
 	}
-	return h.sites.TeamSiteURL
+	return h.hooks.TeamSiteURL
 }
 
 func (h *participationHTTP) getSubmissions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
 	}
@@ -123,11 +92,11 @@ func (h *participationHTTP) getSubmissions(w http.ResponseWriter, r *http.Reques
 		writeEventNotFound(w)
 		return
 	}
-	if !submissionsOpen(a.event) {
+	if !entries.SubmissionsOpen(a.event) {
 		httpx.WriteError(w, 409, "submissions_not_open", "Submissions open to everyone when judging starts")
 		return
 	}
-	cards, err := visibleSubmissions(r.Context(), h.database, a.event, h.submissionSiteURL(), "/v1/hack/events/"+a.event.Slug+"/submissions")
+	cards, err := visibleSubmissions(r.Context(), h.database, a.event, h.links.submissionSiteURL(), "/v1/hack/events/"+a.event.Slug+"/submissions")
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -137,7 +106,7 @@ func (h *participationHTTP) getSubmissions(w http.ResponseWriter, r *http.Reques
 
 func (h *participationHTTP) getSubmissionScreenshot(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
 	}

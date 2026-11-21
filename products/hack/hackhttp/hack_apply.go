@@ -1,8 +1,6 @@
 package hackhttp
 
 import (
-	"database/sql"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -10,7 +8,6 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
-	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Applying to a hackathon without a join link (zp-hack-applications.sql,
@@ -21,11 +18,10 @@ import (
 // pending — D1).
 
 // hackUnder18Note is plain prose for non-browser consumers of GET .../apply;
-// the public-apply.js form itself never renders this string -- it builds
-// the same sentence with "Terms" as a real link to /terms (review item 6:
-// the API's own copy of this sentence must not bake the URL into visible
-// text either, since a client showing it verbatim would repeat the same
-// mistake).
+// the public-apply.js form itself never renders this string -- it builds the
+// same sentence with "Terms" as a real link to /terms (review item 6: the API's
+// own copy of this sentence must not bake the URL into visible text either,
+// since a client showing it verbatim would repeat the same mistake).
 const hackUnder18Note = "If you're under 18, a parent or guardian needs to agree to Simple Hack's Terms for you."
 
 func hackApplyFields() map[string]any {
@@ -46,9 +42,7 @@ func hackApplyFields() map[string]any {
 	}
 }
 
-// getApply is GET /v1/hack/events/{slug}/apply. Signed out allowed; a valid
-// X-API-Key meters the account instead of the shared network address, as
-// getCodeInfo does for join/judge links.
+// getApply is GET /v1/hack/events/{slug}/apply.
 func (h *participationHTTP) getApply(w http.ResponseWriter, r *http.Request) {
 	caller := ""
 	accountName := ""
@@ -58,70 +52,42 @@ func (h *participationHTTP) getApply(w http.ResponseWriter, r *http.Request) {
 	}
 	// The body carries the caller's own account name: never cache it.
 	w.Header().Set("Cache-Control", "no-store")
-	if h.rateLimited(w, r, caller) {
+	if h.codes.limited(w, r, caller) {
 		return
 	}
-	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev, err := h.members.ApplyEvent(r.Context(), slug)
-	if err == nil {
-		paperHackEvent(r, ev)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
+	page, err := h.members.ApplyPage(r.Context(), eventSlug(r), caller)
+	if page.Event.ID != "" {
+		paperHackEvent(r, page.Event)
 	}
 	if err != nil {
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
-	// A draft or taken-down event is 404, identical to an unknown slug: its
-	// existence must not leak either way.
-	if ev.Stage == "draft" || ev.TakenDown() {
-		writeEventNotFound(w)
-		return
-	}
-	openNow := events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown())
+	ev := page.Event
 	out := map[string]any{
 		"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
-		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev),
+		"icon_url": h.links.iconURL(ev), "color": hackEventAccent(ev),
 		"organiser_name": ev.OrganiserName, "organisation": ev.Organisation,
 		"stage":             ev.Stage,
 		"starts_at":         rfc3339UTC(ev.StartsAt),
 		"ends_at":           rfc3339UTC(ev.EndsAt),
 		"time_zone":         ev.TimeZone,
-		"event_url":         h.EventURL(ev.Slug),
-		"applications_open": openNow,
+		"event_url":         h.links.EventURL(ev.Slug),
+		"applications_open": page.Open,
 		"account_name":      accountName,
-		"closed_reason":     events.ApplicationsClosedReason(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage),
+		"closed_reason":     page.ClosedReason,
 		"fields":            hackApplyFields(),
 	}
-	// Questions and the organiser's own code of conduct are for people they
-	// invited to answer. They used to require the join code, including for a
-	// signed-out caller (security review #5); keep that protection by
-	// returning them only when applications are open right now, to a
-	// signed-in caller -- not to every account for every non-draft slug.
-	// `me` stays available to a member either way, open or closed.
+	// Questions and the organiser's own code of conduct are only for a
+	// signed-in caller while applications are open (security review #5);
+	// `me` is shown to any signed-in caller.
 	if caller != "" {
-		questions, status, err := h.members.ApplyDetails(r.Context(), ev, caller, openNow)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		if openNow {
-			out["signup_questions"] = questions
+		if page.Open {
+			out["signup_questions"] = page.Questions
 			out["coc_default"] = HackDefaultCoC
 			out["coc_text"] = ev.CocText
 		}
-		if status == nil {
-			out["me"] = nil
-		} else {
-			me := map[string]any{"role": status.Role, "joined_via": status.JoinedVia}
-			if status.Role == "participant" {
-				me["approval_status"] = status.ApprovalStatus
-			}
-			out["me"] = me
-		}
-
+		out["me"] = page.Me
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
@@ -150,42 +116,14 @@ func (h *participationHTTP) postApply(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	input, err := h.members.ValidateApplication(req.AcceptCoC, members.ApplicationInput{Display: req.DisplayName, City: req.City, Country: req.Country, AgeRange: req.AgeRange, Gender: req.Gender, Answers: req.Answers})
+	input := members.ApplicationInput{Display: req.DisplayName, City: req.City, Country: req.Country, AgeRange: req.AgeRange, Gender: req.Gender, Answers: req.Answers}
+	res, err := h.members.Apply(r.Context(), eventSlug(r), user.ID, req.AcceptCoC, input, h.limits.EventApplyPendingPerEvent)
+	if res.Event.ID != "" {
+		paperHackEvent(r, res.Event)
+	}
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-
-	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	ev, err := h.members.ApplyEvent(r.Context(), slug)
-	if err == nil {
-		paperHackEvent(r, ev)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if ev.Stage == "draft" || ev.TakenDown() {
-		writeEventNotFound(w)
-		return
-	}
-
-	ctx := r.Context()
-	member, existingView, err := h.members.Apply(ctx, ev, user.ID, input, h.limits.EventApplyPendingPerEvent, func(existing model.EventMember) any {
-		return h.eventView(ctx, ev, existing, false)
-	})
-	if err != nil {
-		writeHackError(w, err)
-		return
-	}
-	if existingView != nil {
-		httpx.WriteJSON(w, http.StatusOK, existingView)
-		return
-	}
-
-	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), ev, member, false))
+	httpx.WriteJSON(w, http.StatusOK, h.views.eventView(r.Context(), res.Event, res.Member, false))
 }

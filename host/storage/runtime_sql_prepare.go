@@ -26,8 +26,7 @@ func OpenLegacySQLite(ctx context.Context, uri string, maxMemory, writeBytes int
 			}
 		}
 	}
-	ctx, cache := sqliteMemoryContext(ctx, size, maxMemory)
-	conn, err := sqlite3.OpenContext(ctx, uri)
+	ctx, conn, cache, err := openSQLite(ctx, uri, size, maxMemory)
 	if err != nil {
 		return nil, err
 	}
@@ -37,22 +36,7 @@ func OpenLegacySQLite(ctx context.Context, uri string, maxMemory, writeBytes int
 			closeTableConn(func() { defer conn.Close(); sqliteStage(ctx, "close") })
 		}
 	}()
-	sqliteStage(ctx, "after_open")
-	conn.SetInterrupt(ctx)
-	if err = configureSQLiteMemory(conn, cache); err != nil {
-		return nil, err
-	}
-	if err = conn.Exec("PRAGMA foreign_keys=ON"); err == nil {
-		_, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true)
-	}
-	if err == nil {
-		_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
-		_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
-		if write {
-			err = conn.Exec("PRAGMA journal_mode=WAL")
-		}
-	}
-	if err != nil {
+	if err = restrictSQLite(conn, cache, write); err != nil {
 		return nil, err
 	}
 	ready = true

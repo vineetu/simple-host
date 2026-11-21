@@ -37,10 +37,7 @@ func (c *Collector) Classify(r *http.Request) int {
 			return ClassMCPStream
 		}
 		return ClassMCP
-	case strings.HasPrefix(p, "/oauth/") || strings.HasPrefix(p, "/.well-known/oauth") ||
-		strings.HasPrefix(p, "/v1/auth/") || strings.HasPrefix(p, "/v1/sso/") ||
-		strings.HasPrefix(p, "/v1/visitor/") || strings.HasPrefix(p, "/v1/me/sessions") ||
-		siteSub(p) == "me":
+	case isAuthPath(p):
 		return ClassAuth
 	case strings.HasPrefix(p, "/v1/"):
 		if isDataPath(p) {
@@ -54,14 +51,32 @@ func (c *Collector) Classify(r *http.Request) int {
 		}
 		return ClassAPIWrite
 	}
-	host := strings.ToLower(r.Host)
-	if i := strings.LastIndexByte(host, ':'); i >= 0 && !strings.Contains(host[i:], "]") {
-		host = host[:i]
-	}
-	if c.apexHosts[host] || host == "" || host == "localhost" || isIPLiteral(host) {
+	if c.isPlatformHost(r.Host) {
 		return ClassPlatform
 	}
 	return ClassSiteFile
+}
+
+// authPrefixes are the sign-in, OAuth, SSO and visitor-session routes.
+var authPrefixes = []string{"/oauth/", "/.well-known/oauth", "/v1/auth/", "/v1/sso/", "/v1/visitor/", "/v1/me/sessions"}
+
+func isAuthPath(p string) bool {
+	for _, prefix := range authPrefixes {
+		if strings.HasPrefix(p, prefix) {
+			return true
+		}
+	}
+	return siteSub(p) == "me"
+}
+
+// isPlatformHost: the apex, or no real site name (empty, localhost, a bare
+// address). The port is ignored, but not the colons inside an IPv6 literal.
+func (c *Collector) isPlatformHost(rawHost string) bool {
+	host := strings.ToLower(rawHost)
+	if i := strings.LastIndexByte(host, ':'); i >= 0 && !strings.Contains(host[i:], "]") {
+		host = host[:i]
+	}
+	return c.apexHosts[host] || host == "" || host == "localhost" || isIPLiteral(host)
 }
 
 // Histogram upper bounds in microseconds; the last bucket is everything

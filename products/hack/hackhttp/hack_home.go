@@ -13,10 +13,7 @@ import (
 // HomepageLinks: pure data, simpler than an injected value).
 const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"`
 
-// RegisterHackHome serves the simple-hack.app product page at /. The
-// integrator calls this when EVENTS=hosted in place of the Simple Host
-// homepage. The canonical instance uses the video page; self-hosted installs
-// keep the drawn film so it can show their own address.
+// RegisterHackHome serves the simple-hack.app product page at /.
 func RegisterHackHome(mux *http.ServeMux, pages hackPages, product *Assets) {
 	assets := pages
 	registerHackathons(mux, pages)

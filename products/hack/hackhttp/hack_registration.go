@@ -9,7 +9,7 @@ import (
 )
 
 func (h *participationHTTP) getRegistration(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -23,7 +23,7 @@ func (h *participationHTTP) getRegistration(w http.ResponseWriter, r *http.Reque
 	httpx.WriteJSON(w, 200, map[string]any{"questions": q, "approval_required": approval, "applications_open": a.event.ApplicationsOpen})
 }
 func (h *participationHTTP) putRegistration(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -47,7 +47,7 @@ func (h *participationHTTP) putRegistration(w http.ResponseWriter, r *http.Reque
 	httpx.WriteJSON(w, 200, map[string]any{"questions": questions, "approval_required": req.ApprovalRequired})
 }
 func (h *participationHTTP) getApplications(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -59,7 +59,7 @@ func (h *participationHTTP) getApplications(w http.ResponseWriter, r *http.Reque
 	httpx.WriteJSON(w, 200, list)
 }
 func (h *participationHTTP) decideApplication(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -85,7 +85,7 @@ func (h *participationHTTP) decideApplication(w http.ResponseWriter, r *http.Req
 	httpx.WriteJSON(w, 200, map[string]any{"user_id": id, "status": req.Decision})
 }
 func (h *participationHTTP) getTracks(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false)
 	if !ok {
 		return
 	}
@@ -97,7 +97,7 @@ func (h *participationHTTP) getTracks(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, tracks)
 }
 func (h *participationHTTP) putTracks(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -120,7 +120,7 @@ func (h *participationHTTP) putTracks(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, out)
 }
 func (h *participationHTTP) chooseTrack(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "participant", "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {
 		return
 	}
@@ -144,7 +144,7 @@ func (h *participationHTTP) chooseTrack(w http.ResponseWriter, r *http.Request) 
 			writeHackError(w, err)
 			return
 		}
-		team, ok = h.participantTeam(w, r, a)
+		team, ok = participantTeam(w, r, h.teams, a)
 		if !ok {
 			return
 		}

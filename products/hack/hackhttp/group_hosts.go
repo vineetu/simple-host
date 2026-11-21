@@ -6,8 +6,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
@@ -19,18 +19,18 @@ type groupHosts struct {
 }
 
 // NewGroupHosts supplies Hack's address lookups and built-in event pages.
-func NewGroupHosts(db *sql.DB, page func(http.ResponseWriter, *http.Request, model.User) bool, screenshot func(http.ResponseWriter, *http.Request, model.User, string) bool) handler.GroupHosts {
+func NewGroupHosts(db *sql.DB, page func(http.ResponseWriter, *http.Request, model.User) bool, screenshot func(http.ResponseWriter, *http.Request, model.User, string) bool) web.GroupHosts {
 	return &groupHosts{teams: teams.New(db), page: page, screenshot: screenshot}
 }
 
-func hostGroup(ev hackmodel.Event) handler.Group {
-	return handler.Group{GroupRef: groupRef(ev), CustomWebsite: ev.WebsiteMode == "custom", TakenDown: ev.TakenDown()}
+func hostGroup(ev hackmodel.Event) web.Group {
+	return web.Group{GroupRef: groupRef(ev), CustomWebsite: ev.WebsiteMode == "custom", TakenDown: ev.TakenDown()}
 }
-func (g *groupHosts) ByAccount(ctx context.Context, id string) (handler.Group, error) {
+func (g *groupHosts) ByAccount(ctx context.Context, id string) (web.Group, error) {
 	ev, err := g.teams.SiteEventByAccount(ctx, id)
 	return hostGroup(ev), err
 }
-func (g *groupHosts) BySlug(ctx context.Context, slug string) (handler.Group, error) {
+func (g *groupHosts) BySlug(ctx context.Context, slug string) (web.Group, error) {
 	ev, err := g.teams.SiteEventBySlug(ctx, slug)
 	return hostGroup(ev), err
 }
@@ -53,12 +53,12 @@ func (g *groupHosts) ServePage(w http.ResponseWriter, r *http.Request, holder mo
 	}
 	return false
 }
-func (*groupHosts) Texts() handler.GroupTexts {
+func (*groupHosts) Texts() web.GroupTexts {
 	return groupHostTexts()
 }
 
-func groupHostTexts() handler.GroupTexts {
-	return handler.GroupTexts{
+func groupHostTexts() web.GroupTexts {
+	return web.GroupTexts{
 		NotFoundTitle:   "Event not found",
 		NotFoundBody:    "No event or page lives at this address.",
 		NoPersonalSites: "team sites belong to an event: select your team in the Simple Hack connection before publishing",

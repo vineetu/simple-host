@@ -46,14 +46,7 @@ func (g SiteGate) Suspension(ctx context.Context, tx *sql.Tx, site model.Site) (
 	return organiserTakedownPrefix, full, nil
 }
 
-// Check decides, in the deploy's transaction (or the platform's write check
-// for saved data), whether a person acting for an event's account may change
-// its site now. The event website is the organisers' (the account's
-// members) until the event ends; a team's site is its teammates' (the site's
-// editors) while the team may still change it. Organisers read team sites
-// but never change them. The team's row is held FOR SHARE, so the deadline
-// pin waits for a deploy let in before the deadline and pins what it made
-// live.
+// Check decides in the deploy's transaction whether user may change the site: organisers the event website until it ends, teammates their team's site until its deadline.
 func (g SiteGate) Check(ctx context.Context, tx *sql.Tx, user *model.User, siteName string) *sites.GateError {
 	ev, err := eventrepo.GetEventByAccount(ctx, tx, user.ID)
 	if errors.Is(err, sql.ErrNoRows) {

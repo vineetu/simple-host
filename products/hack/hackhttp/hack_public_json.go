@@ -1,184 +1,239 @@
 package hackhttp
 
 import (
-	"database/sql"
-	"errors"
+	"context"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 // PublicEventJSON is a credentialless, read-only feed for an event's custom
 // website. It exposes only the information already eligible for public pages.
 func (h *publicEventHTTP) PublicEventJSON(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-	w.Header().Set("Cache-Control", "no-store")
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", "GET, HEAD, OPTIONS")
-		httpx.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET only")
+	if !publicFeedPreflight(w, r) {
 		return
 	}
 	ev, err := h.events.EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 	if err == nil {
 		paperHackEvent(r, ev)
+		if ev.TakenDown() {
+			writeEventNotFound(w)
+			return
+		}
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
+	if err != nil {
+		writeHackError(w, err)
 		return
 	}
+	out, err := h.publicEventFeed(r.Context(), ev)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	if ev.TakenDown() {
-		writeEventNotFound(w)
-		return
+	httpx.WriteJSON(w, http.StatusOK, out)
+}
+
+// publicFeedPreflight sets the feed's open CORS and no-store headers and
+// answers OPTIONS and wrong methods itself; true when the read should go on.
+func publicFeedPreflight(w http.ResponseWriter, r *http.Request) bool {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+	w.Header().Set("Cache-Control", "no-store")
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		return true
+	case http.MethodOptions:
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		w.Header().Set("Allow", "GET, HEAD, OPTIONS")
+		httpx.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "GET only")
 	}
-	submissions := []hackSubmission{}
-	if ev.SubmissionsPublic {
-		submissions, err = visibleSubmissions(r.Context(), h.database, ev, h.submissionSiteURL(), strings.TrimRight(h.publicBaseURL, "/")+"/e/"+ev.Slug+"/submissions")
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
+	return false
+}
+
+// publicEventFeed is the whole feed: the event's own fields, then each part
+// read in turn. Any part failing fails the feed.
+func (h *publicEventHTTP) publicEventFeed(ctx context.Context, ev hackmodel.Event) (map[string]any, error) {
+	out := h.publicEventFields(ev)
+	parts := []func(context.Context, hackmodel.Event, map[string]any) error{
+		h.feedSubmissions, h.feedCounts, h.feedTracks, h.feedContent, h.feedFixedSchedule,
+		h.feedAnnouncements, h.feedGallery, h.feedResults, h.feedVoting,
+	}
+	for _, part := range parts {
+		if err := part(ctx, ev, out); err != nil {
+			return nil, err
 		}
 	}
+	return out, nil
+}
+
+// publicEventPath is the event's built-in page on the app, plus suffix.
+func (h *publicEventHTTP) publicEventPath(ev hackmodel.Event, suffix string) string {
+	return strings.TrimRight(h.links.publicBaseURL, "/") + "/e/" + ev.Slug + suffix
+}
+
+// publicEventFields are the feed's fields that come straight from the event,
+// with empty lists for the parts that are only filled when public.
+func (h *publicEventHTTP) publicEventFields(ev hackmodel.Event) map[string]any {
 	out := map[string]any{
-		"submissions_public": ev.SubmissionsPublic, "submissions": submissions,
-		"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
+		"submissions_public": ev.SubmissionsPublic,
+		"slug":               ev.Slug, "title": ev.Title, "tagline": ev.Tagline,
 		"about": ev.About, "rules": ev.Rules, "prizes": ev.Prizes, "overall_prizes": append([]string{}, ev.OverallPrizes...),
 		"organiser_name": ev.OrganiserName, "organisation": ev.Organisation,
 		"stage": ev.Stage, "time_zone": ev.TimeZone,
 		"starts_at": rfc3339UTC(ev.StartsAt), "ends_at": rfc3339UTC(ev.EndsAt),
 		"submission_deadline": rfc3339UTC(ev.SubmissionDeadline),
-		"url":                 h.EventURL(ev.Slug), "builtin_url": strings.TrimRight(h.publicBaseURL, "/") + "/e/" + ev.Slug,
-		"icon_url": h.iconURL(ev), "color": hackEventAccent(ev), "theme": ev.Theme,
+		"url":                 h.links.EventURL(ev.Slug), "builtin_url": h.publicEventPath(ev, ""),
+		"icon_url": h.links.iconURL(ev), "color": hackEventAccent(ev), "theme": ev.Theme,
 		"gallery": []any{}, "results": []any{}, "vote_ranking": []any{},
-		"vote_status": "disabled", "tracks": []any{}, "announcements": []any{},
-		"sponsors": []any{}, "faq": []any{}, "schedule": []any{}, "fixed_schedule": []any{},
+		"applications_open": false,
 	}
-	if open := events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()); open {
-		out["applications_open"], out["apply_url"] = true, strings.TrimRight(h.publicBaseURL, "/")+"/e/"+ev.Slug+"/apply"
-	} else {
-		out["applications_open"] = false
+	if events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
+		out["applications_open"], out["apply_url"] = true, h.publicEventPath(ev, "/apply")
 	}
-	if n, t, _, err := h.events.CountEventMembersLookup(r.Context(), ev.ID); err == nil {
-		out["participants"], out["teams"] = n, t
-	} else {
-		httpx.WriteInternal(w)
-		return
+	return out
+}
+
+// feedSubmissions are the visible submissions when the organiser made them public.
+func (h *publicEventHTTP) feedSubmissions(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	out["submissions"] = []hackSubmission{}
+	if !ev.SubmissionsPublic {
+		return nil
 	}
-	tracks, err := h.events.EventTracks(r.Context(), ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
+	subs, err := visibleSubmissions(ctx, h.database, ev, h.links.submissionSiteURL(), h.publicEventPath(ev, "/submissions"))
+	out["submissions"] = subs
+	return err
+}
+
+// feedCounts are the participant and team counts.
+func (h *publicEventHTTP) feedCounts(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	n, t, _, err := h.events.CountEventMembersLookup(ctx, ev.ID)
+	out["participants"], out["teams"] = n, t
+	return err
+}
+
+// feedTracks are the event's tracks.
+func (h *publicEventHTTP) feedTracks(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	tracks, err := h.events.EventTracks(ctx, ev.ID)
 	tr := make([]any, 0, len(tracks))
 	for _, v := range tracks {
 		tr = append(tr, map[string]any{"name": v.Name, "challenge": v.Challenge, "prize": v.Prize})
 	}
 	out["tracks"] = tr
-	content, err := readHackContent(r.Context(), h.database, ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
+	return err
+}
+
+// feedContent is the sponsors (logo only when clean), FAQ and the editable
+// schedule without the organiser's prompts.
+func (h *publicEventHTTP) feedContent(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	content, err := h.events.EventContent(ctx, ev.ID)
 	sponsors := make([]any, 0, len(content.Sponsors))
 	for _, s := range content.Sponsors {
 		item := map[string]any{"name": s.Name, "tier": s.Tier, "url": s.URL}
-		if cleanLogo(s.LogoData) {
+		if events.LogoValid(s.LogoData) {
 			item["logo_data"] = s.LogoData
 		}
 		sponsors = append(sponsors, item)
 	}
 	out["sponsors"], out["faq"], out["schedule"] = sponsors, content.FAQ, hackPublicSchedule(content.Schedule)
-	// The event's real times as fixed schedule rows (hack_schedule.go), the
-	// same ones the built-in page lists.
-	fixed, err := h.fixedScheduleFor(r.Context(), ev, nil, false)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
+	return err
+}
+
+// feedFixedSchedule is the event's real times as fixed schedule rows
+// (hack_schedule.go), the same ones the built-in page lists.
+func (h *publicEventHTTP) feedFixedSchedule(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	fixed, err := h.fixedScheduleFor(ctx, ev, nil, false)
 	out["fixed_schedule"] = fixed
-	announcements, err := h.events.EventAnnouncements(r.Context(), ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	aa := make([]any, 0, len(announcements))
-	for _, a := range announcements {
+	return err
+}
+
+// feedAnnouncements are the announcements, newest as stored.
+func (h *publicEventHTTP) feedAnnouncements(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	anns, err := h.events.EventAnnouncements(ctx, ev.ID)
+	aa := make([]any, 0, len(anns))
+	for _, a := range anns {
 		aa = append(aa, map[string]any{"title": a.Title, "body": a.Body, "body_html": a.BodyHTML, "pinned": a.Pinned, "created_at": a.CreatedAt.UTC().Format(time.RFC3339)})
 	}
 	out["announcements"] = aa
-	if h.sites != nil && hackGalleryPublic(ev, h.sites.TeamSitesReady) {
-		cards, err := h.events.GalleryCards(r.Context(), ev.ID, ev.AccountID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		gg := make([]any, 0, len(cards))
-		for _, c := range hackGalleryCards(ev.Slug, cards, h.sites.TeamSiteURL) {
-			item := map[string]any{"title": c.Title, "tagline": c.Tagline, "team": c.Team, "url": c.URL, "tools": nonNilStrings(c.Tools)}
-			if c.Shot != "" {
-				item["screenshot_url"] = strings.TrimRight(h.publicBaseURL, "/") + "/e/" + ev.Slug + c.Shot
-			}
-			gg = append(gg, item)
-		}
-		out["gallery"] = gg
+	return err
+}
+
+// feedGallery is the live team sites, only while the gallery is public.
+func (h *publicEventHTTP) feedGallery(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	if h.links.hooks == nil || !hackGalleryPublic(ev, h.links.hooks.TeamSitesReady) {
+		return nil
 	}
-	res, err := h.entries.EventResults(r.Context(), ev.ID)
+	cards, err := h.events.GalleryCards(ctx, ev.ID, ev.AccountID)
+	gg := make([]any, 0, len(cards))
+	for _, c := range hackGalleryCards(ev.Slug, cards, h.links.hooks.TeamSiteURL) {
+		item := map[string]any{"title": c.Title, "tagline": c.Tagline, "team": c.Team, "url": c.URL, "tools": nonNilStrings(c.Tools)}
+		if c.Shot != "" {
+			item["screenshot_url"] = h.publicEventPath(ev, c.Shot)
+		}
+		gg = append(gg, item)
+	}
+	out["gallery"] = gg
+	return err
+}
+
+// feedResults is the published results, as public as the organiser chose,
+// with each card's site link taken from the sites live right now.
+func (h *publicEventHTTP) feedResults(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	res, err := h.entries.EventResults(ctx, ev.ID)
+	if err != nil || !res.Published {
+		return err
+	}
+	view := hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks, ev.OverallPrizes)
+	if view == nil {
+		return nil
+	}
+	out["results"] = publicResultRows(view.Rows, ev.PublicRanks, ev.PublicScores, h.links.liveResultSites(ctx, h.events, ev))
+	out["results_published"], out["full_ranking"] = true, view.FullRanking
+	return nil
+}
+
+// publicResultRows are the results rows on the wire: rank and score only
+// when public, the card with its live site link.
+func publicResultRows(rows []hackResultsRow, publicRanks, publicScores bool, live map[string]string) []any {
+	rr := make([]any, 0, len(rows))
+	for _, row := range rows {
+		item := map[string]any{"team_name": row.TeamName, "track_name": row.TrackName, "track_prize": row.TrackPrize, "track_winner": row.TrackWinner, "overall": row.Overall, "overall_prize": row.OverallPrize}
+		if publicRanks {
+			item["rank"], item["tied"] = row.Rank, row.Tied
+		}
+		if publicScores {
+			item["score"], item["score_mode"] = row.Score, row.ScoreMode
+		}
+		if row.Card != nil {
+			card := *row.Card
+			card.SiteURL = live[row.TeamID]
+			item["entry"] = card
+		}
+		rr = append(rr, item)
+	}
+	return rr
+}
+
+// feedVoting is the people's choice status, and the final ranking once closed.
+func (h *publicEventHTTP) feedVoting(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
+	voting, err := h.entries.VotingSettings(ctx, ev.ID)
 	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if res.Published {
-		if view := hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks, ev.OverallPrizes); view != nil {
-			live := h.liveResultSites(r.Context(), ev)
-			rr := make([]any, 0, len(view.Rows))
-			for _, row := range view.Rows {
-				item := map[string]any{"team_name": row.TeamName, "track_name": row.TrackName, "track_prize": row.TrackPrize, "track_winner": row.TrackWinner, "overall": row.Overall, "overall_prize": row.OverallPrize}
-				if ev.PublicRanks {
-					item["rank"], item["tied"] = row.Rank, row.Tied
-				}
-				if ev.PublicScores {
-					item["score"], item["score_mode"] = row.Score, row.ScoreMode
-				}
-				if row.Card != nil {
-					card := *row.Card
-					card.SiteURL = live[row.TeamID]
-					item["entry"] = card
-				}
-				rr = append(rr, item)
-			}
-			out["results"], out["results_published"] = rr, true
-			out["full_ranking"] = view.FullRanking
-		}
-	}
-	voting, err := h.entries.VotingSettings(r.Context(), ev.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
+		return err
 	}
 	status := votingStatus(ev, voting, time.Now())
 	out["vote_status"] = status
-	if status == "closed" {
-		ranking, err := h.entries.VoteFinalRankingLookup(r.Context(), ev.ID, ev.AccountID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		vv := make([]any, 0, len(ranking))
-		for _, v := range ranking {
-			vv = append(vv, map[string]any{"team": v.Slug, "team_name": v.Name, "votes": v.Count})
-		}
-		out["vote_ranking"] = vv
+	if status != "closed" {
+		return nil
 	}
-	httpx.WriteJSON(w, http.StatusOK, out)
+	ranking, err := h.entries.VoteFinalRankingLookup(ctx, ev.ID, ev.AccountID)
+	vv := make([]any, 0, len(ranking))
+	for _, v := range ranking {
+		vv = append(vv, map[string]any{"team": v.Slug, "team_name": v.Name, "votes": v.Count})
+	}
+	out["vote_ranking"] = vv
+	return err
 }

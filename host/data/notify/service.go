@@ -13,14 +13,10 @@ import (
 
 type Service struct {
 	database *sql.DB
-	sites    SiteReader
-}
-type SiteReader interface {
-	GetSiteByID(context.Context, string) (model.Site, error)
 }
 
-func New(database *sql.DB, sites SiteReader) *Service {
-	return &Service{database: database, sites: sites}
+func New(database *sql.DB) *Service {
+	return &Service{database: database}
 }
 func (s *Service) ClaimNotificationDelivery(ctx context.Context, lease time.Duration, maxAttempts int, historyDays int, window time.Duration) (model.NotificationDelivery, error) {
 	return repo.ClaimNotificationDelivery(ctx, s.database, lease, maxAttempts, historyDays, window)

@@ -1,10 +1,12 @@
 package rules
 
+import "maps"
+
 // Compile validates syntax, resolves schema names, and bounds every composed
 // predicate with maximal list bindings before returning an immutable plan.
 func Compile(set PolicySet, t Table, b BindingSchema, lim Limits) (*Plan, []RuleError) {
 	errs := ValidateSyntax(set, b, lim)
-	if t.RowKey != "rowid" && t.RowKey != "_rowid_" && t.RowKey != "oid" && t.RowKey != `"key"` {
+	if !rowKeys[t.RowKey] {
 		errs = append(errs, *refusal("shape", -1, "unsupported row key"))
 	}
 	if len(errs) > 0 {
@@ -14,37 +16,19 @@ func Compile(set PolicySet, t Table, b BindingSchema, lim Limits) (*Plan, []Rule
 		return nil, errs
 	}
 	p := &Plan{table: t.Name, schema: make(BindingSchema, len(b)), lim: lim}
-	for name, decl := range b {
-		p.schema[name] = decl
-	}
+	maps.Copy(p.schema, b)
 	columns := map[string]string{}
 	for _, c := range t.Columns {
 		columns[asciiLower(c.Name)] = c.Name
 	}
 	for _, pol := range set.Policies {
-		pp := plannedPolicy{command: pol.Command, restrictive: pol.Restrictive}
-		for _, clause := range []struct {
-			text string
-			dest **Expr
-		}{{pol.Using, &pp.using}, {pol.Check, &pp.check}} {
-			if clause.text == "" {
-				continue
-			}
-			x, _ := Parse(clause.text, lim) // ValidateSyntax already parsed and typed it.
-			if clause.dest == &pp.using {
-				pp.shapeUsing = x
-			}
-			walk(x, func(x *Expr) {
-				if x.op == "column" {
-					if name, ok := columns[asciiLower(x.name)]; ok {
-						x.name = name
-					} else {
-						errs = append(errs, RuleError{Table: t.Name, Policy: pol.Name, Clause: "column", Position: x.pos, Message: "unknown column " + x.name})
-					}
-				}
-			})
-			*clause.dest = normal(x, false)
+		using, usingErrs := resolveClause(pol.Using, lim, columns)
+		check, checkErrs := resolveClause(pol.Check, lim, columns)
+		for _, e := range append(usingErrs, checkErrs...) {
+			e.Table, e.Policy = t.Name, pol.Name
+			errs = append(errs, e)
 		}
+		pp := plannedPolicy{command: pol.Command, restrictive: pol.Restrictive, shapeUsing: using, using: normal(using, false), check: normal(check, false)}
 		if pp.check == nil && (pol.Command == CmdEdit || pol.Command == CmdAll) {
 			pp.check = pp.using
 		}
@@ -53,26 +37,51 @@ func Compile(set PolicySet, t Table, b BindingSchema, lim Limits) (*Plan, []Rule
 	if len(errs) > 0 {
 		return nil, errs
 	}
-	for _, op := range []Op{OpRead, OpAdd, OpEdit, OpDelete} {
-		for _, check := range []bool{false, true} {
-			if check && op != OpAdd && op != OpEdit || !check && op == OpAdd {
-				continue
-			}
-			x := p.compose(op, check)
-			if check {
-				p.check[op] = x
-			} else {
-				p.using[op] = x
-			}
-			if _, err := p.predicate(x, nil, true); err != nil {
-				errs = append(errs, err.(RuleError))
-			}
+	for _, c := range composedClauses {
+		x := p.compose(c.op, c.check)
+		if c.check {
+			p.check[c.op] = x
+		} else {
+			p.using[c.op] = x
+		}
+		if _, err := p.predicate(x, nil, true); err != nil {
+			errs = append(errs, err.(RuleError))
 		}
 	}
 	if len(errs) > 0 {
 		return nil, errs
 	}
 	return p, nil
+}
+
+var rowKeys = map[string]bool{"rowid": true, "_rowid_": true, "oid": true, `"key"`: true}
+
+// composedClauses are the (op, clause) pairs a plan stores: add has only a
+// check, edit has both, read and delete only a using.
+var composedClauses = []struct {
+	op    Op
+	check bool
+}{{OpRead, false}, {OpAdd, true}, {OpEdit, false}, {OpEdit, true}, {OpDelete, false}}
+
+// resolveClause parses an already-validated clause and rewrites column names
+// to the table's spelling; an empty clause is nil.
+func resolveClause(text string, lim Limits, columns map[string]string) (*Expr, []RuleError) {
+	if text == "" {
+		return nil, nil
+	}
+	x, _ := Parse(text, lim) // ValidateSyntax already parsed and typed it.
+	var errs []RuleError
+	walk(x, func(x *Expr) {
+		if x.op != "column" {
+			return
+		}
+		if name, ok := columns[asciiLower(x.name)]; ok {
+			x.name = name
+		} else {
+			errs = append(errs, RuleError{Clause: "column", Position: x.pos, Message: "unknown column " + x.name})
+		}
+	})
+	return x, errs
 }
 func boolean(b bool) *Expr { return &Expr{op: "literal", value: Bool(b)} }
 func join(op string, a, b *Expr) *Expr {

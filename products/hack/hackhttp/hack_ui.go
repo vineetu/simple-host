@@ -1,21 +1,16 @@
 package hackhttp
 
 import (
-	"github.com/vsriram/simple-host/host/httpx"
 	"io/fs"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/vsriram/simple-host/host/httpx"
 )
 
-// RegisterHackUI serves the signed-in simple-hack.app pages from one HTML
-// shell (static/hack/app.html) that routes on location.pathname. The JSON
-// API is registered separately. These pages are not indexed and must not be
-// cached: they are the signed-in app, not the public product page.
-//
-// sitesBase is the domain team sites are served under (team.event.<base>),
-// or "" when this server gives sites no hosts of their own; the judge
-// route's CSP (hackAppCSP) may frame them.
+// RegisterHackUI serves the signed-in simple-hack.app pages from one HTML shell
+// (static/hack/app.html) that routes on location.pathname.
 func RegisterHackUI(mux *http.ServeMux, pages hackPages, sitesBase string) {
 	assets := pages
 	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,10 +21,8 @@ func RegisterHackUI(mux *http.ServeMux, pages hackPages, sitesBase string) {
 			http.NotFound(w, r)
 			return
 		}
-		// The sign-in script tag is only injected on /signin: every other
-		// route mounts the app without it, since nothing there needs
-		// window.SHSignIn. The kit owns this app's presentation, including
-		// on the sign-in page (RenderAppShell always renders Hack=false).
+		// The sign-in script tag is only injected on /signin: every other route
+		// mounts the app without it, since nothing there needs window.SHSignIn.
 		body, err = assets.RenderAppShell(r, body, r.URL.Path == "/signin")
 		if err != nil {
 			http.Error(w, "Could not load app", http.StatusInternalServerError)
@@ -63,10 +56,9 @@ func RegisterHackUI(mux *http.ServeMux, pages hackPages, sitesBase string) {
 	mux.Handle("GET /e/{slug}/judge", hackAppCSP(assets, app, sitesBase))
 }
 
-// hackAppCSP is AdminUICSP for the judge route, whose frame-src also lists
-// the four video players videoEmbed builds URLs for and one wildcard for
-// team sites (build-plan.md section 6). With no sites base (no per-site
-// hosts) the wildcard is left out; entries are then never frameable.
+// hackAppCSP is AdminUICSP for the judge route, whose frame-src also lists the
+// four video players videoEmbed builds URLs for and one wildcard for team sites
+// (build-plan.md section 6).
 func hackAppCSP(assets hackPages, next http.Handler, sitesBase string) http.Handler {
 	src := "'self' blob:"
 	if base := strings.Trim(strings.ToLower(sitesBase), "."); hackFrameBase.MatchString(base) {
@@ -82,8 +74,7 @@ var hackFrameBase = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9
 
 // announcementImages lets the Hack app shell show YouTube thumbnails on
 // announcement cards (SIM-444): img-src gains https://i.ytimg.com and nothing
-// else. Every route of the shell gets it, since the app moves between them
-// without reloading; Simple Host pages keep the shared policy unchanged.
+// else.
 func announcementImages(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		csp := w.Header().Get("Content-Security-Policy")

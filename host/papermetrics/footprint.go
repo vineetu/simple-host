@@ -156,7 +156,7 @@ func (c *Collector) WalkFootprints(sites map[string]*SiteFootprint) {
 			return nil
 		}
 		if d.IsDir() {
-			if len(seg) == 3 && len(seg[2]) > 1 && seg[2][0] == 'v' && isDigits(seg[2][1:]) {
+			if len(seg) == 3 && isVersionDir(seg[2]) {
 				f.Versions++
 			}
 			return nil
@@ -168,30 +168,39 @@ func (c *Collector) WalkFootprints(sites map[string]*SiteFootprint) {
 		if err != nil {
 			return nil //nolint:nilerr
 		}
-		size := info.Size()
-		f.TotalBytes += size
-		switch {
-		case seg[2] == "current" && len(seg) > 3:
-			f.LiveBytes += size
-			f.LiveFiles++
-			switch strings.ToLower(strings.TrimPrefix(filepath.Ext(path), ".")) {
-			case "html", "htm":
-				f.HtmlBytes += size
-			case "js", "mjs":
-				f.JsBytes += size
-			case "css":
-				f.CssBytes += size
-			case "png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "ico", "mp4", "webm", "mp3", "wav", "woff", "woff2", "ttf", "otf":
-				f.MediaBytes += size
-			default:
-				f.Other += size
-			}
-		case seg[2] == "runtime" && len(seg) > 4 && seg[3] == "sqlite":
-			f.SqliteBytes += size
-		case seg[2] == "runtime" && len(seg) > 4 && seg[3] == "files":
-			f.FileStoreBytes += size
-		}
+		f.countFile(seg, filepath.Ext(path), info.Size())
 		return nil
 	})
 
+}
+
+// isVersionDir matches a site's version directories: v1, v2, ...
+func isVersionDir(name string) bool {
+	return len(name) > 1 && name[0] == 'v' && isDigits(name[1:])
+}
+
+// countFile adds one regular file, at by-id/<seg...>, to the site's totals.
+func (f *SiteFootprint) countFile(seg []string, ext string, size int64) {
+	f.TotalBytes += size
+	switch {
+	case seg[2] == "current" && len(seg) > 3:
+		f.LiveBytes += size
+		f.LiveFiles++
+		switch strings.ToLower(strings.TrimPrefix(ext, ".")) {
+		case "html", "htm":
+			f.HtmlBytes += size
+		case "js", "mjs":
+			f.JsBytes += size
+		case "css":
+			f.CssBytes += size
+		case "png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "ico", "mp4", "webm", "mp3", "wav", "woff", "woff2", "ttf", "otf":
+			f.MediaBytes += size
+		default:
+			f.Other += size
+		}
+	case seg[2] == "runtime" && len(seg) > 4 && seg[3] == "sqlite":
+		f.SqliteBytes += size
+	case seg[2] == "runtime" && len(seg) > 4 && seg[3] == "files":
+		f.FileStoreBytes += size
+	}
 }

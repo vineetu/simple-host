@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
-	"sort"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/host/data/repo"
@@ -77,133 +76,141 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 		return ResourceResult{}, err
 	}
 	defer unlock()
-	name := in.Name
-	old, e := repo.LoadResource(ctx, s.db, call.SiteID, in.Name)
-	exists := e == nil
-	if e != nil && !errors.Is(e, sql.ErrNoRows) {
-		return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
+	internal := &Error{Code: "internal_error", Message: "internal server error"}
+	old, err := repo.LoadResource(ctx, s.db, call.SiteID, in.Name)
+	exists := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return ResourceResult{}, internal
 	}
-	x := rules.Resource{Name: name, Kind: in.Kind, SitePasscode: in.SitePasscode}
-	if x.SitePasscode == "" {
-		x.SitePasscode = "inherit"
+	x, err := in.resource(old, exists)
+	if err != nil {
+		return ResourceResult{}, err
 	}
-	if x.Kind != "kv" && x.Kind != "sqlite" && x.Kind != "files" || x.SitePasscode != "inherit" && x.SitePasscode != "off" {
-		return ResourceResult{}, &Error{Code: "invalid_resource", Message: "kind takes kv, sqlite, or files; site_passcode takes inherit or off"}
-	}
-	if exists && old.Kind != x.Kind {
-		return ResourceResult{}, &Error{Code: "resource_kind_conflict", Message: "resource kind cannot change"}
-	}
-	var warnings []string
-	var rulesErrors []ruleengine.RuleError
-	ruleFailure := func(err error) error {
-		if e, ok := err.(*Error); ok {
-			return e
-		}
-		if errors.Is(err, runtime.ErrSQLiteBusy) {
-			return &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
-		}
-		return &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	switch {
-	case in.hasPresetFields():
-		return ResourceResult{}, &Error{Code: "invalid_resource", Message: "presets were removed; send rules"}
-	case !hasRules(in.Rules) && in.Tables != nil:
-		return ResourceResult{}, invalidRules("shape", "", "table rules require resource rules")
-	case !hasRules(in.Rules) && exists:
-		// A save without rules (a site_passcode change) keeps the stored rules.
-		passcode := x.SitePasscode
-		x = old
-		x.SitePasscode = passcode
-		if rulesErrors, err = s.retainedRulesErrors(ctx, call, x); err != nil {
-			return ResourceResult{}, ruleFailure(err)
-		}
-	default:
-		if !hasRules(in.Rules) {
-			// A new resource without rules is owner only.
-			owner := model.OwnerOnlyRules
-			in.Rules = &owner
-		}
-		if err := s.configureRules(ctx, in, old, exists, &x); err != nil {
-			if errors.Is(err, sqlite3.FULL) {
-				return ResourceResult{}, &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
-			}
-			return ResourceResult{}, ruleFailure(err)
-		}
+	rulesErrors, err := s.applyResourceRules(ctx, in, old, exists, &x)
+	if err != nil {
+		return ResourceResult{}, storageFailure(err, internal)
 	}
 	if !exists && x.Kind == "kv" {
-		if err := s.createKVSQLite(ctx, call, x.Name); err != nil {
-			var e *Error
-			if errors.As(err, &e) {
-				return ResourceResult{}, e
-			}
-			return ResourceResult{}, &Error{Code: "internal_error", Message: "internal server error"}
+		if err = s.createKVSQLite(ctx, call, x.Name); err != nil {
+			return ResourceResult{}, storageFailure(err, internal)
 		}
 	}
-	internal := &Error{Code: "internal_error", Message: "internal server error"}
 	// Before presets a visitor's overwrite in a full-mode KV or files
 	// resource recorded the overwriter, so a later own would hand them
 	// someone else's key. The first rules forget those writers.
 	clearWriters := exists && x.Rules != nil && old.BeforePresets && old.WriteMode == "full" && old.Write != model.WhoOwner
-	// commitFile, when set, commits the same clearing in the namespace's
-	// SQLite file. It runs right before the Postgres commit, so a policy is
-	// never saved over writers that were not cleared.
-	save := func(commitFile func() error) error {
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			return internal
-		}
-		defer tx.Rollback()
-		if clearWriters && x.Kind == "files" {
-			if _, e := repo.ClearFileWriters(ctx, tx, call.SiteID, name); e != nil {
-				return internal
-			}
-		}
-		result, e := repo.UpsertResource(ctx, tx, call.SiteID, x)
-		if e != nil {
-			return internal
-		}
-		if n, err := result.RowsAffected(); err != nil || n == 0 {
-			return &Error{Code: "resource_kind_conflict", Message: "resource kind cannot change"}
-		}
-		if _, e = repo.DeleteResourceTables(ctx, tx, call.SiteID, name); e != nil {
-			return internal
-		}
-		for table, t := range x.Tables {
-			if _, e = repo.InsertResourceTable(ctx, tx, call.SiteID, name, table, t); e != nil {
-				return internal
-			}
-		}
-		if commitFile != nil {
-			if err = commitFile(); err != nil {
-				return err
-			}
-		}
-		if err = tx.Commit(); err != nil {
-			return internal
-		}
-		return nil
+	if err = s.storeResource(ctx, call, x, clearWriters); err != nil {
+		return ResourceResult{}, storageFailure(err, internal)
 	}
-	if clearWriters && x.Kind == "kv" {
-		err = s.clearKVWritersSQLite(ctx, call, name, save)
-	} else {
-		err = save(nil)
-	}
-	if err != nil {
-		var e *Error
-		if errors.As(err, &e) {
-			return ResourceResult{}, e
-		}
-		if errors.Is(err, runtime.ErrSQLiteBusy) {
-			return ResourceResult{}, &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
-		}
-		return ResourceResult{}, internal
-	}
-
 	unlock()
-	if len(warnings) > 0 {
-		sort.Strings(warnings)
+	return ResourceResult{Resource: x, RulesErrors: rulesErrors, Created: !exists}, nil
+}
+
+var resourceKinds = map[string]bool{"kv": true, "sqlite": true, "files": true}
+
+// resource validates the save's kind, passcode and shape against the stored
+// resource and returns the resource it describes, rules not yet set.
+func (in ResourceInput) resource(old rules.Resource, exists bool) (rules.Resource, error) {
+	x := rules.Resource{Name: in.Name, Kind: in.Kind, SitePasscode: in.SitePasscode}
+	if x.SitePasscode == "" {
+		x.SitePasscode = "inherit"
 	}
-	return ResourceResult{Resource: x, RulesErrors: rulesErrors, Warnings: warnings, Created: !exists}, nil
+	switch {
+	case !resourceKinds[x.Kind] || x.SitePasscode != "inherit" && x.SitePasscode != "off":
+		return x, &Error{Code: "invalid_resource", Message: "kind takes kv, sqlite, or files; site_passcode takes inherit or off"}
+	case exists && old.Kind != x.Kind:
+		return x, &Error{Code: "resource_kind_conflict", Message: "resource kind cannot change"}
+	case in.hasPresetFields():
+		return x, &Error{Code: "invalid_resource", Message: "presets were removed; send rules"}
+	case !hasRules(in.Rules) && in.Tables != nil:
+		return x, invalidRules("shape", "", "table rules require resource rules")
+	}
+	return x, nil
+}
+
+// applyResourceRules sets x's rules. A save without rules (a site_passcode
+// change) keeps the stored rules and reports their current errors; a new
+// resource without rules is owner only.
+func (s *Service) applyResourceRules(ctx context.Context, in ResourceInput, old rules.Resource, exists bool, x *rules.Resource) ([]ruleengine.RuleError, error) {
+	if !hasRules(in.Rules) && exists {
+		passcode := x.SitePasscode
+		*x = old
+		x.SitePasscode = passcode
+		return s.retainedRulesErrors(ctx, in.Call, *x)
+	}
+	if !hasRules(in.Rules) {
+		owner := model.OwnerOnlyRules
+		in.Rules = &owner
+	}
+	return nil, s.configureRules(ctx, in, old, exists, x)
+}
+
+// storeResource saves the resource and its table rules, first forgetting the
+// recorded writers when clearWriters is set. A KV namespace's writers live in
+// its SQLite file, whose clearing commits right before the Postgres commit, so
+// a policy is never saved over writers that were not cleared.
+func (s *Service) storeResource(ctx context.Context, call Call, x rules.Resource, clearWriters bool) error {
+	if clearWriters && x.Kind == "kv" {
+		return s.clearKVWritersSQLite(ctx, call, x.Name, func(commitFile func() error) error {
+			return s.upsertResource(ctx, call, x, false, commitFile)
+		})
+	}
+	return s.upsertResource(ctx, call, x, clearWriters && x.Kind == "files", nil)
+}
+
+// upsertResource writes the resource row and replaces its table rules in one
+// transaction; commitFile, when set, runs right before the commit.
+func (s *Service) upsertResource(ctx context.Context, call Call, x rules.Resource, clearFileWriters bool, commitFile func() error) error {
+	internal := &Error{Code: "internal_error", Message: "internal server error"}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return internal
+	}
+	defer tx.Rollback()
+	if clearFileWriters {
+		if _, err := repo.ClearFileWriters(ctx, tx, call.SiteID, x.Name); err != nil {
+			return internal
+		}
+	}
+	result, err := repo.UpsertResource(ctx, tx, call.SiteID, x)
+	if err != nil {
+		return internal
+	}
+	if n, err := result.RowsAffected(); err != nil || n == 0 {
+		return &Error{Code: "resource_kind_conflict", Message: "resource kind cannot change"}
+	}
+	if _, err = repo.DeleteResourceTables(ctx, tx, call.SiteID, x.Name); err != nil {
+		return internal
+	}
+	for table, t := range x.Tables {
+		if _, err = repo.InsertResourceTable(ctx, tx, call.SiteID, x.Name, table, t); err != nil {
+			return internal
+		}
+	}
+	if commitFile != nil {
+		if err = commitFile(); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return internal
+	}
+	return nil
+}
+
+// storageFailure keeps a service error and names busy or full storage;
+// anything else is reported as fallback.
+func storageFailure(err error, fallback *Error) *Error {
+	var e *Error
+	switch {
+	case errors.As(err, &e):
+		return e
+	case errors.Is(err, runtime.ErrSQLiteBusy):
+		return sqliteBusy()
+	case errors.Is(err, sqlite3.FULL):
+		return kvFull()
+	}
+	return fallback
 }
 
 // DeleteStorageResource removes a resource and its staged runtime files.

@@ -18,7 +18,10 @@ import (
 
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/web"
 
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
@@ -26,19 +29,19 @@ import (
 )
 
 // hackMuxAt is a Hack install at base ("" is simple-hack.app itself).
-func hackMuxAt(t *testing.T, base, publicBaseURL string) (*http.ServeMux, *handler.SiteHandler) {
+func hackMuxAt(t *testing.T, base, publicBaseURL string) (*http.ServeMux, *siteshttp.SiteHandler) {
 	t.Helper()
 	sh := chromeTestHandlerWithBase(productedition.Hack, base)
 	mux := http.NewServeMux()
 	installAssets(sh, mux)
-	handler.RegisterUIRoutes(mux, publicBaseURL, sh)
+	siteshttp.RegisterUIRoutes(mux, publicBaseURL, sh)
 	return mux, sh
 }
 
 func TestHackAuthMarkdownConfiguration(t *testing.T) {
 	t.Cleanup(func() {
-		handler.SetEmailSignIn(false)
-		handler.SetInstanceNote(handler.InstanceFacts{})
+		accesshttp.SetEmailSignIn(false)
+		web.SetInstanceNote(web.InstanceFacts{})
 	})
 	for _, tc := range []struct {
 		name, base   string
@@ -52,8 +55,8 @@ func TestHackAuthMarkdownConfiguration(t *testing.T) {
 		{"Hack no sign-in", "http://localhost:18480", false, nil, []string{"Browser sign-in is unavailable", "Email-code sign-in is unavailable"}, []string{"an emailed code or Google"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			handler.SetEmailSignIn(tc.email)
-			handler.SetInstanceNote(handler.InstanceFacts{SignInProviders: tc.providers, OIDCLabel: "Acme SSO"})
+			accesshttp.SetEmailSignIn(tc.email)
+			web.SetInstanceNote(web.InstanceFacts{SignInProviders: tc.providers, OIDCLabel: "Acme SSO"})
 			mux, _ := hackMuxAt(t, tc.base, tc.base)
 			rec := get(t, mux, "", "/auth.md")
 			if rec.Code != 200 || rec.Header().Get("Content-Type") != "text/markdown; charset=utf-8" {
@@ -148,8 +151,8 @@ func TestSelfHostedHackNamesNoHostedDomain(t *testing.T) {
 	prevContact := auth.SupportContact
 	t.Cleanup(func() { auth.SupportContact = prevContact })
 	auth.SupportContact = "ops@example.org"
-	handler.SetInstanceHosts("hack.example.test", "", "")
-	defer handler.SetInstanceHosts("simple-host.app", "", "")
+	web.SetInstanceHosts("hack.example.test", "", "")
+	defer web.SetInstanceHosts("simple-host.app", "", "")
 
 	mux, sh := hackMuxAt(t, "https://hack.example.test", "https://hack.example.test")
 	for _, p := range []string{
@@ -177,10 +180,10 @@ func TestSelfHostedHackNamesNoHostedDomain(t *testing.T) {
 	}
 	// The 404 page names the install's own domain, so the handler is built
 	// with it (the shared fixture's site domain is the hosted one).
-	self, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "https://hack.example.test", nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", nil, nil)
+	self, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "https://hack.example.test", nil, nil, nil, "hack.example.test", "sites.hack.example.test", "", "", "", "", nil, 0, "", nil, nil)
 	selfMux := http.NewServeMux()
 	installAssets(self, selfMux)
-	handler.RegisterUIRoutes(selfMux, "https://hack.example.test", self)
+	siteshttp.RegisterUIRoutes(selfMux, "https://hack.example.test", self)
 	notFound := get(t, selfMux, "hack.example.test", "/__not_a_handle__")
 	if notFound.Code != http.StatusNotFound || !strings.Contains(notFound.Body.String(), ">Go to hack.example.test<") {
 		t.Errorf("404 page: %d, label does not name this install", notFound.Code)
@@ -223,7 +226,7 @@ var ()
 // left the platform's static folder, so that test no longer reaches them.
 func TestHackServedPagesCarryTheOneThemeScript(t *testing.T) {
 	var buf bytes.Buffer
-	if err := handler.ChromeTemplates.ExecuteTemplate(&buf, "theme.html", handler.ChromeData{}); err != nil {
+	if err := web.ChromeTemplates.ExecuteTemplate(&buf, "theme.html", web.ChromeData{}); err != nil {
 		t.Fatal(err)
 	}
 	// Served pages carry a nonce on <script>; compare the script's body.
@@ -231,7 +234,7 @@ func TestHackServedPagesCarryTheOneThemeScript(t *testing.T) {
 	sh := chromeTestHandlerWithBase(productedition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
 	installAssets(sh, mux)
-	handler.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
+	siteshttp.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	for _, path := range []string{"/", "/companies", "/hackathons", "/get-started", "/watch"} {
 		rec := get(t, mux, "simple-hack.app", path)
@@ -396,8 +399,8 @@ func TestHackFilesDoNotDecideTheirOwnTheme(t *testing.T) {
 
 // The product callback keeps the shared enterprise page's event link local.
 func TestEnterpriseHackathonsLinkProductCallback(t *testing.T) {
-	handler.SetInstanceHosts("simple-host.app", "", "")
-	t.Cleanup(func() { handler.SetInstanceHosts("simple-host.app", "", "") })
+	web.SetInstanceHosts("simple-host.app", "", "")
+	t.Cleanup(func() { web.SetInstanceHosts("simple-host.app", "", "") })
 	for _, base := range []string{"https://simple-hack.app", "https://hack.example.org"} {
 		mux, _ := hackMuxAt(t, base, base)
 		rec := get(t, mux, "", "/enterprise")

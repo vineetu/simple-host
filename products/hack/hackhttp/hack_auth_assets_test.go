@@ -1,9 +1,10 @@
 package hackhttp
 
 import (
-	platformassets "github.com/vsriram/simple-host/host/webassets"
 	"strings"
 	"testing"
+
+	platformassets "github.com/vsriram/simple-host/host/webassets"
 )
 
 func TestHackAuthJSHasOnlyCurrentStorage(t *testing.T) {

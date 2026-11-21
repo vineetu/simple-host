@@ -162,143 +162,165 @@ type ErasureOperations struct {
 // handle, old handles and claimed names are retired, not freed.
 func EraseAccount(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops ErasureOperations) (model.ErasedAccount, error) {
 	out := model.ErasedAccount{UserID: a.ID, Handle: a.Handle}
-	// Take what a save on these sites takes, in the order a save takes it:
-	// the names' declaration rows, then their items, then the site rows
-	// (the size triggers update those). A save already under way finishes
-	// first; one that starts later waits for the erase. Taken in another
-	// order, the erase and a visitor's save could each hold what the other
-	// needs (a deadlock that aborts the erase).
+	if err := lockErasedSites(ctx, tx, a.ID); err != nil {
+		return out, err
+	}
+	if err := collectErasedNames(ctx, tx, a.ID, ops, &out); err != nil {
+		return out, err
+	}
+	// Capture product identifiers before the account cascade removes them.
+	var ids []string
+	if ops.Before != nil {
+		var err error
+		if ids, err = ops.Before(ctx, tx, a.ID); err != nil {
+			return out, err
+		}
+	}
+	if err := deleteErasedRows(ctx, tx, a, ops); err != nil {
+		return out, err
+	}
+	// Product cleanup follows the account cascade, in the same transaction.
+	if ops.After != nil {
+		var err error
+		if out.AffectedEventAccounts, err = ops.After(ctx, tx, ids); err != nil {
+			return out, err
+		}
+	}
+	return out, nil
+}
+
+// lockErasedSites takes what a save on the account's sites takes, in the
+// order a save takes it: the names' declaration rows, then their items, then
+// the site rows (the size triggers update those). A save already under way
+// finishes first; one that starts later waits for the erase. Taken in
+// another order, the erase and a visitor's save could each hold what the
+// other needs (a deadlock that aborts the erase).
+func lockErasedSites(ctx context.Context, tx *sql.Tx, userID string) error {
 	for _, q := range []string{
 		`SELECT count(*) FROM (SELECT 1 FROM collection_settings WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY site_id, collection FOR UPDATE) x`,
 		`SELECT count(*) FROM (SELECT 1 FROM collection_items WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY id FOR UPDATE) x`,
 		`SELECT count(*) FROM (SELECT 1 FROM sites WHERE user_id = $1 ORDER BY id FOR UPDATE) x`,
 	} {
 		var n int64
-		if err := tx.QueryRowContext(ctx, q, a.ID).Scan(&n); err != nil {
-			return out, err
+		if err := tx.QueryRowContext(ctx, q, userID).Scan(&n); err != nil {
+			return err
 		}
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id, name FROM sites WHERE user_id = $1 ORDER BY name`, a.ID)
-	if err != nil {
-		return out, err
-	}
-	for rows.Next() {
+	return nil
+}
+
+// collectErasedNames records what the erase leaves for the caller to clean
+// up after the commit: the sites with their claimed addresses (which become
+// retired names), the old handles and the address families.
+func collectErasedNames(ctx context.Context, tx *sql.Tx, userID string, ops ErasureOperations, out *model.ErasedAccount) error {
+	err := scanEach(ctx, tx, `SELECT id, name FROM sites WHERE user_id = $1 ORDER BY name`, userID, func(rows *sql.Rows) error {
 		var s model.ErasedSite
 		if err := rows.Scan(&s.ID, &s.Name); err != nil {
-			rows.Close()
-			return out, err
+			return err
 		}
 		out.Sites = append(out.Sites, s)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return out, err
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 	for i := range out.Sites {
 		// Claimed <name>.<SITE_DOMAIN> addresses (current and earlier)
 		// become retired names.
 		domains, err := ops.RetireSiteNames(ctx, tx, out.Sites[i].ID)
 		if err != nil {
-			return out, err
+			return err
 		}
 		for _, d := range domains {
 			out.Sites[i].Domains = append(out.Sites[i].Domains, strings.ToLower(d))
 		}
 	}
+	if out.Aliases, err = scanStrings(ctx, tx, `SELECT handle FROM handle_aliases WHERE user_id = $1 ORDER BY handle`, userID); err != nil {
+		return err
+	}
+	out.Families, err = scanStrings(ctx, tx, `SELECT suffix FROM address_families WHERE user_id = $1 ORDER BY suffix`, userID)
+	return err
+}
 
-	arows, err := tx.QueryContext(ctx, `SELECT handle FROM handle_aliases WHERE user_id = $1 ORDER BY handle`, a.ID)
+// scanEach runs q with one argument and calls scan for each row.
+func scanEach(ctx context.Context, tx *sql.Tx, q, arg string, scan func(*sql.Rows) error) error {
+	rows, err := tx.QueryContext(ctx, q, arg)
 	if err != nil {
-		return out, err
+		return err
 	}
-	for arows.Next() {
-		var h string
-		if err := arows.Scan(&h); err != nil {
-			arows.Close()
-			return out, err
+	defer rows.Close()
+	for rows.Next() {
+		if err := scan(rows); err != nil {
+			return err
 		}
-		out.Aliases = append(out.Aliases, h)
 	}
-	arows.Close()
-	if err := arows.Err(); err != nil {
-		return out, err
-	}
-	frows, err := tx.QueryContext(ctx, `SELECT suffix FROM address_families WHERE user_id = $1 ORDER BY suffix`, a.ID)
-	if err != nil {
-		return out, err
-	}
-	for frows.Next() {
-		var s string
-		if err := frows.Scan(&s); err != nil {
-			frows.Close()
-			return out, err
-		}
-		out.Families = append(out.Families, s)
-	}
-	frows.Close()
-	if err := frows.Err(); err != nil {
-		return out, err
-	}
+	return rows.Err()
+}
 
-	// Capture product identifiers before the account cascade removes them.
-	var ids []string
-	if ops.Before != nil {
-		ids, err = ops.Before(ctx, tx, a.ID)
-		if err != nil {
-			return out, err
+// scanStrings is the single text column q returns for arg.
+func scanStrings(ctx context.Context, tx *sql.Tx, q, arg string) ([]string, error) {
+	var out []string
+	err := scanEach(ctx, tx, q, arg, func(rows *sql.Rows) error {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return err
 		}
-	}
+		out = append(out, v)
+		return nil
+	})
+	return out, err
+}
 
-	steps := []struct {
-		q    string
-		args []any
-	}{
+// erasureStep is one statement of the erase.
+type erasureStep struct {
+	q    string
+	args []any
+}
+
+// erasureSteps are the account's rows the erase removes or lets go of, in
+// order, before the account row itself.
+func erasureSteps(a model.AccountForDelete) []erasureStep {
+	var steps []erasureStep
+	if a.Handle != "" {
+		// The handle itself joins the retired names.
+		steps = append(steps, erasureStep{`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, NULL)
+			ON CONFLICT (handle) DO UPDATE SET user_id = NULL
+			WHERE handle_aliases.user_id IS NULL OR handle_aliases.user_id = $2`, []any{a.Handle, a.ID}})
+	}
+	return append(steps,
 		// GDPR erasure: what this person submitted to anyone's list goes.
 		// (Their own sites' items go with the sites.)
-		{`DELETE FROM collection_items WHERE submitted_by = $1`, []any{a.ID}},
+		erasureStep{`DELETE FROM collection_items WHERE submitted_by = $1`, []any{a.ID}},
 		// Their address leaves the history of other people's saved data
 		// (the rows stay: they hold the site owner's earlier data).
-		{`UPDATE data_history SET actor_email = NULL WHERE actor_id = $1`, []any{a.ID}},
+		erasureStep{`UPDATE data_history SET actor_email = NULL WHERE actor_id = $1`, []any{a.ID}},
 		// Old handles and retired names stay held, by nobody.
-		{`UPDATE handle_aliases SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
-		{`UPDATE legacy_hostnames SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
+		erasureStep{`UPDATE handle_aliases SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
+		erasureStep{`UPDATE legacy_hostnames SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
 		// Sign-in codes are keyed by email, not by account.
-		{`DELETE FROM auth_tokens WHERE lower(email) = lower($1)`, []any{a.Username}},
+		erasureStep{`DELETE FROM auth_tokens WHERE lower(email) = lower($1)`, []any{a.Username}},
 		// Sites go first so nothing depends on the row's cascade order; the
 		// row's own cascade takes keys, connected apps (grants, tokens,
 		// codes), sign-in identities and visitor sessions.
-		{`DELETE FROM sites WHERE user_id = $1`, []any{a.ID}},
-	}
-	if a.Handle != "" {
-		// The handle itself joins the retired names.
-		steps = append([]struct {
-			q    string
-			args []any
-		}{{`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, NULL)
-			ON CONFLICT (handle) DO UPDATE SET user_id = NULL
-			WHERE handle_aliases.user_id IS NULL OR handle_aliases.user_id = $2`, []any{a.Handle, a.ID}}}, steps...)
-	}
-	for _, s := range steps {
+		erasureStep{`DELETE FROM sites WHERE user_id = $1`, []any{a.ID}},
+	)
+}
+
+// deleteErasedRows runs the erase's statements, the product's own rows, then
+// deletes the account row.
+func deleteErasedRows(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops ErasureOperations) error {
+	for _, s := range erasureSteps(a) {
 		if _, err := tx.ExecContext(ctx, s.q, s.args...); err != nil {
-			return out, err
+			return err
 		}
 	}
 	if ops.Rows != nil {
 		if err := ops.Rows(ctx, tx, a.ID); err != nil {
-			return out, err
+			return err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, a.ID); err != nil {
-		return out, err
-	}
-	// Product cleanup follows the account cascade, in the same transaction.
-	if ops.After != nil {
-		out.AffectedEventAccounts, err = ops.After(ctx, tx, ids)
-		if err != nil {
-			return out, err
-		}
-	}
-
-	return out, nil
+	_, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, a.ID)
+	return err
 }
 
 func InsertIssuedAccount(ctx context.Context, tx *sql.Tx, name string) (string, error) {

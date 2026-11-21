@@ -8,10 +8,7 @@ import (
 	"golang.org/x/text/language/display"
 )
 
-// AgeRangeOrder and GenderOrder are the fixed product choices GET
-// .../apply's "fields" lists, in display order; "" (not shared) is always
-// accepted too and is not listed. Was hack_apply.go's hackAgeRangeOrder and
-// hackGenderOrder.
+// AgeRangeOrder and GenderOrder are the fixed product choices GET .../apply's "fields" lists, in display order.
 var (
 	AgeRangeOrder  = []string{"under_18", "18_24", "25_34", "35_plus"}
 	AgeRangeLabels = map[string]string{
@@ -30,9 +27,7 @@ var (
 	}
 )
 
-// CountryName is the participants CSV's country cell: the English region
-// name for a stored ISO 3166-1 alpha-2 code, blank when blank. Was
-// hack_apply.go's hackCountryName.
+// CountryName is the participants CSV's country cell: the English region name for a stored ISO 3166-1 alpha-2 code, blank when blank.
 func CountryName(code string) string {
 	if code == "" {
 		return ""
@@ -44,8 +39,7 @@ func CountryName(code string) string {
 	return display.English.Regions().Name(region)
 }
 
-// JoinedViaLabel is the participants CSV's joined_via cell. Was
-// hack_apply.go's hackJoinedViaLabel.
+// JoinedViaLabel is the participants CSV's joined_via cell.
 func JoinedViaLabel(joinedVia string) string {
 	if joinedVia == "application" {
 		return "application"
@@ -53,11 +47,7 @@ func JoinedViaLabel(joinedVia string) string {
 	return "join link"
 }
 
-// StripInvisible drops every character that is not seen (format
-// characters, variation selectors, fillers), so two team names that look the
-// same are the same name. An emoji sequence may lose its joiners: a team
-// name is a label, not a place for composed emoji. Was hack_teams.go's
-// stripInvisible.
+// StripInvisible drops every character that is not seen.
 func StripInvisible(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch {

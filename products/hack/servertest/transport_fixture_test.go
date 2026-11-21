@@ -29,8 +29,12 @@ import (
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 
 	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
+	"github.com/vsriram/simple-host/host/data/datahttp"
 	sitesapp "github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/web"
 
 	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
@@ -73,7 +77,7 @@ func jsonBody(v any) io.Reader {
 }
 
 func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (hackhttp.HandleVerdict, error) {
-	v, err := handler.JudgeHandle(ctx, q, "", h)
+	v, err := accesshttp.JudgeHandle(ctx, q, "", h)
 	return hackhttp.HandleVerdict{Status: v.Status, Code: v.Code}, err
 }
 
@@ -117,10 +121,10 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { root.ServeHTTP(w, r) }))
 	t.Cleanup(srv.Close)
 	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
-	users := handler.NewUserHandler(database, accountapp.New(database), email.NewResendSender("", "test@example.com"), srv.URL, ed)
-	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
+	users := accesshttp.NewUserHandler(database, accountapp.New(database), email.NewResendSender("", "test@example.com"), srv.URL, ed)
+	users.Register(mux, authMW, web.NoticeMiddleware("1.0.0"))
 	h := hackhttp.NewHackHandler(database, srv.URL, "simple-hack.test", ed)
-	h.ShareAssets(handler.NewPages(ed, srv.URL))
+	h.ShareAssets(web.NewPages(ed, srv.URL))
 	h.SetHandleChecker(hackHandleCheckerForTest)
 	h.Register(mux, authMW)
 	root = mux
@@ -373,12 +377,12 @@ func get(t *testing.T, h http.Handler, host, path string) *httptest.ResponseReco
 	return rec
 }
 
-func chromeTestHandler(kind productedition.Kind) *handler.SiteHandler {
+func chromeTestHandler(kind productedition.Kind) *siteshttp.SiteHandler {
 	return chromeTestHandlerWithBase(kind, "")
 }
 
-func chromeTestHandlerWithBase(kind productedition.Kind, base string) *handler.SiteHandler {
-	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(kind), base, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+func chromeTestHandlerWithBase(kind productedition.Kind, base string) *siteshttp.SiteHandler {
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(kind), base, nil, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	if kind == productedition.Hack {
 		installAssets(sh, nil)
 	}
@@ -392,7 +396,7 @@ func chromeTestMux(t *testing.T, kind productedition.Kind) *http.ServeMux {
 	if kind == productedition.Hack {
 		installAssets(sh, mux)
 	}
-	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
+	siteshttp.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	return mux
 }
 
@@ -519,11 +523,11 @@ type teamSiteApp struct {
 	database   *sql.DB
 	admin      string
 	mux        *http.ServeMux
-	conn       *handler.ConnectorHandler
-	sites      *handler.SiteHandler
-	access     *handler.AccessHandler
-	data       *handler.DataHandler
-	users      *handler.UserHandler
+	conn       *accesshttp.ConnectorHandler
+	sites      *siteshttp.SiteHandler
+	access     *accesshttp.AccessHandler
+	data       *datahttp.DataHandler
+	users      *accesshttp.UserHandler
 	hack       *hackhttp.HackHandler
 	certDir    string
 	disk       fixtureDisk
@@ -571,34 +575,34 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	if mailer == nil {
 		mailer = email.NewResendSender("", "test@example.com")
 	}
-	users := handler.NewUserHandler(database, accountapp.New(database), mailer, a.srv.URL, ed)
+	users := accesshttp.NewUserHandler(database, accountapp.New(database), mailer, a.srv.URL, ed)
 	a.users = users
-	users.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
+	users.Register(mux, authMW, web.NoticeMiddleware("1.0.0"))
 	a.disk = disk
-	a.sites, a.access, a.data = handler.NewSiteHandlers(ed, "", database, disk, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter())
+	a.sites, a.access, a.data = handler.NewSiteHandlers(ed, "", database, disk, nil, tsDomain, "sites."+tsDomain, "cname."+tsDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter)
 	gate := teams.SiteGate{TeamSitesReady: a.sites.TeamSitesReady, RequestCert: a.sites.RequestSiteCert, PaperSite: a.sites.RecordGateSite, PaperState: a.sites.RecordGateState}
 	a.sites.SetGroupGate(gate)
-	a.data.SetStorageBindings(storagebind.Provider{DB: database})
-	a.sites.Register(mux, authMW, handler.NoticeMiddleware("1.0.0"))
+	handler.SetStorageBindings(a.access, a.data, storagebind.Provider{DB: database})
+	handler.Register(mux, a.sites, a.access, a.data, authMW, web.NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.data.WaitNotifications)
-	a.sites.SetPersonHosts("canonical")
-	a.sites.SetSiteHosts("canonical", certDir)
+	a.sites.Hosts.SetPersonHosts("canonical")
+	a.sites.Hosts.SetSiteHosts("canonical", certDir)
 	a.hack = hackhttp.NewHackHandler(database, a.srv.URL, tsDomain)
 	installAssets(a.sites, nil)
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetHandleChecker(hackHandleCheckerForTest)
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
-	a.sites.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))
+	a.sites.Hosts.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))
 	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour, func(ctx context.Context, user *model.User, site string) (int, string, string, error) {
 		return sitesapp.CheckWrite(ctx, database, gate, user, site)
 	})
-	a.conn = handler.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
+	a.conn = accesshttp.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetTools(hackmcp.Contribution())
 	a.conn.SetTeamConnections(true)
 	a.conn.SetSignInAlerts(users.SignInAlerts())
-	app := handler.SecurityHeaders(handler.CORS(a.conn.BearerAuth(gated)))
+	app := web.SecurityHeaders(web.CORS(a.conn.BearerAuth(gated)))
 	root = a.sites.FamilyHosts(app, a.sites.SiteBaseHosts(a.sites.BoundSubdomains(app, a.sites.SiteHosts(app, a.sites.PersonHosts(app, a.sites.LegacyHostRedirect(app))))))
 	return a
 }
@@ -870,18 +874,18 @@ func wantTS(t *testing.T, what string, r resp, status int, code string) {
 
 // hackAssetsFor is the product's Assets for a handler whose routes a test
 // registers one by one (the server passes the one from Extension.Assets).
-func hackAssetsFor(sh *handler.SiteHandler) *hackhttp.Assets {
+func hackAssetsFor(sh *siteshttp.SiteHandler) *hackhttp.Assets {
 	return hackhttp.NewAssets(sh.AssetServices(), sh.Pages().InkBaseURL())
 }
 
 // mountHackFiles mounts Hack's file route and film files on a mux a test
 // builds route by route (the server mounts them through Extension.Assets).
-func mountHackFiles(mux *http.ServeMux, sh *handler.SiteHandler) {
+func mountHackFiles(mux *http.ServeMux, sh *siteshttp.SiteHandler) {
 	hack.RegisterOwnFiles(mux, sh.AssetServices().ProductFiles())
 	hackhttp.RegisterHackFilm(mux)
 }
 
-func installAssets(sh *handler.SiteHandler, mux *http.ServeMux) {
+func installAssets(sh *siteshttp.SiteHandler, mux *http.ServeMux) {
 	a := hack.Extension().Assets(sh)
 	sh.SetProductAssets(a.Replace, a.Own, a.Files, a.Skills, a.Hooks, a.Rewrite)
 	if mux != nil && a.Routes != nil {

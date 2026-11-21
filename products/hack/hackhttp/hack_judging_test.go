@@ -1807,3 +1807,25 @@ func TestHackAutomaticStageMoveAssignmentFailureStillStartsJudging(t *testing.T)
 		})
 	}
 }
+
+func TestHackResultsOldSparseSnapshotPassesThrough(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	w.setStage(t, "results")
+	snap := `[{"team_id":"t1","team_name":"Old","rank":1,"total":"n/a","legacy":"keep"}]`
+	if _, err := w.a.database.Exec(`INSERT INTO event_results (event_id, full_ranking, snapshot)
+		SELECT id, true, $2::jsonb FROM events WHERE slug=$1`, w.slug, snap); err != nil {
+		t.Fatal(err)
+	}
+	org := w.call(t, "GET", "/results", nil, w.org)
+	if org.status != 200 || !strings.Contains(string(org.body), `"legacy":"keep"`) || strings.Contains(string(org.body), "judges_scored") {
+		t.Fatalf("organiser: %d %s", org.status, org.body)
+	}
+	pub := w.call(t, "GET", "/results", nil, person{})
+	if pub.status != 200 || strings.Contains(string(pub.body), `"track_winner":false`) || !strings.Contains(string(pub.body), `"track_winner":null`) {
+		t.Fatalf("public: %d %s", pub.status, pub.body)
+	}
+	csv := w.call(t, "GET", "/export/results.csv", nil, w.org)
+	if csv.status != 200 || !strings.Contains(string(csv.body), "Old") {
+		t.Fatalf("csv: %d %s", csv.status, csv.body)
+	}
+}

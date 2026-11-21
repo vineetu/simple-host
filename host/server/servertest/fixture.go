@@ -1,4 +1,8 @@
-// Package servertest provides product-independent fixtures for the composed server.
+// Package servertest provides product-independent fixtures for the composed
+// server: Build and Config for the whole program, and NewPrivateApp (the
+// router as host/handler composes it, with people, sites and sessions) for
+// the end-to-end suites in accesstest, datatest and sitestest and for this
+// package's own cross-module tests.
 package servertest
 
 import (
@@ -7,8 +11,8 @@ import (
 
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/extension"
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/server"
+	"github.com/vsriram/simple-host/host/web"
 )
 
 // Build constructs the program without starting workers and closes it after the test.
@@ -22,7 +26,7 @@ func Build(t *testing.T, cfg config.Config, exts []*extension.Extension) *server
 	}
 	t.Cleanup(app.Close)
 	// Build points the process-wide asset host rewriting at the fixture's domain.
-	t.Cleanup(func() { handler.SetInstanceHosts("simple-host.app", "", "") })
+	t.Cleanup(func() { web.SetInstanceHosts("simple-host.app", "", "") })
 	return app
 }
 

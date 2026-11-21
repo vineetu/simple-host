@@ -2,10 +2,11 @@ package hackhttp
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/host/model"
-	metrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"net/http"
 	"strings"
+
+	"github.com/vsriram/simple-host/host/model"
+	metrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 )
 
 // SitePaperRecorder resolves product identities for platform site requests.

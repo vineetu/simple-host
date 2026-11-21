@@ -28,7 +28,6 @@ type Deps struct {
 	SiteLimit, FilesLimit                    string
 	SpamCheckedMaxBytes, SpamCheckedMaxLinks int
 	VisitorSessionIdle                       time.Duration
-	PasscodeAllows, ViewersAllow             func() bool
 	WriteLockWait, WriteTimeout              time.Duration
 	Recheck                                  func(context.Context) bool
 	Committed                                func(context.Context)

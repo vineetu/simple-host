@@ -28,11 +28,9 @@ func hackEventLocation(zone string) (*time.Location, string) {
 var hackNumericZoneRe = regexp.MustCompile(`^[+-]\d`)
 
 // hackZoneAbbrFamiliar is the same fixed map ui.zoneAbbr (host/handler/
-// static/hack/ui.js) and the vote page's own copy of it use -- kept in step
-// by hand, since Go's tzdata and Intl don't always agree on which zones get
-// a real short code. Go already gets North America, the UK and Central
-// Europe (CET/CEST) and Australia (AEDT/AEST) right from tzdata directly;
-// this map only covers the zones tzdata leaves as a bare numeric offset.
+// static/hack/ui.js) and the vote page's own copy of it use -- kept in step by
+// hand, since Go's tzdata and Intl don't always agree on which zones get a real
+// short code.
 var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Jakarta": "WIB", "Asia/Pontianak": "WIB",
 	"Asia/Makassar":  "WITA",
@@ -43,14 +41,8 @@ var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Kolkata":   "IST", "Asia/Calcutta": "IST",
 }
 
-// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"),
-// the way tech_notes asks for ("times in WIB"). Go's tzdata does not assign
-// every zone a short code; when what comes back looks like a bare UTC offset
-// ("+07") this checks the familiar-zone map first (SGT, WIB, WITA, WIT, JST,
-// KST, IST -- same table and same decision as the app's ui.zoneAbbr and the
-// vote page), then falls back to a GMT±N label built from the numeric
-// offset itself, never the IANA zone name ("Asia/Singapore") -- consistent
-// with what a browser without a named abbreviation for that zone shows.
+// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"), the
+// way tech_notes asks for ("times in WIB").
 func hackZoneAbbr(t time.Time, ianaFallback string) string {
 	abbr, offsetSeconds := t.Zone()
 	if abbr != "" && !hackNumericZoneRe.MatchString(abbr) {
@@ -92,11 +84,10 @@ func hackEventDateRange(starts, ends time.Time, loc *time.Location) string {
 	if start.IsZero() && end.IsZero() {
 		return ""
 	}
-	// events.Midnight is the same local-midnight check the fixed-row
-	// classifier uses (hack_schedule.go hackFixedSchedule, via
-	// events.Midnight): hour, minute AND second, so a stray
-	// 00:00:30 doesn't read as date-only here while the classifier
-	// disagrees.
+	// events.Midnight is the same local-midnight check the fixed-row classifier
+	// uses (hack_schedule.go hackFixedSchedule, via events.Midnight): hour, minute
+	// AND second, so a stray 00:00:30 doesn't read as date-only here while the
+	// classifier disagrees.
 	startDateOnly := start.IsZero() || events.Midnight(start, loc)
 	endDateOnly := end.IsZero() || events.Midnight(end, loc)
 	if !startDateOnly || !endDateOnly {
@@ -141,46 +132,31 @@ func hackDateRange(a, b time.Time) string {
 }
 
 // hackScheduleViews sorts rows by start time (Grok re-test cosmetic #4: rows
-// used to list in whatever order the organiser entered them, so "Demos"
-// could print above "Kickoff" and the Next badge landed on the wrong row),
-// marks Now/Next, and shows the end date too when an item spans more than one
-// day (tech_notes/fixes: "Multi-day schedule items showed only the end time").
-// A row with an unparseable time sorts last and is dropped below, same as
-// before. The fixed rows (hack_schedule.go: the event's real start, end,
-// entry deadline, voting window and results) are merged in: a moment shows
-// one time, a date-only event start or end shows just the date and is never
-// Now or Next.
+// used to list in whatever order the organiser entered them, so "Demos" could
+// print above "Kickoff" and the Next badge landed on the wrong row), marks
+// Now/Next, and shows the end date too when an item spans more than one day
+// (tech_notes/fixes: "Multi-day schedule items showed only the end time").
 func hackScheduleViews(items []hackScheduleItem, fixed []hackFixedRow, loc *time.Location, zoneFallback string) []hackScheduleView {
-	type row struct {
-		title, desc         string
-		start, end, sortAt  time.Time
-		hasEnd, allDay, fix bool
-	}
-	var rows []row
-	for _, item := range items {
-		start, e1 := time.Parse(time.RFC3339, item.StartAt)
-		end, e2 := time.Parse(time.RFC3339, item.EndAt)
-		if e1 != nil || e2 != nil {
-			continue
-		}
-		rows = append(rows, row{title: item.Title, desc: item.Description, start: start, end: end, sortAt: start, hasEnd: true})
-	}
-	for _, f := range fixed {
-		start, err := time.Parse(time.RFC3339, f.StartAt)
-		if err != nil {
-			continue
-		}
-		r := row{title: f.Title, desc: f.Description, start: start, sortAt: hackFixedSortTime(f, loc), allDay: f.AllDay, fix: true}
-		if f.EndAt != nil {
-			if end, err := time.Parse(time.RFC3339, *f.EndAt); err == nil {
-				r.end, r.hasEnd = end, true
-			}
-		}
-		rows = append(rows, r)
-	}
+	rows := hackTimedRows(items, fixed, loc)
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].sortAt.Before(rows[j].sortAt) })
-	now := time.Now()
-	next, ongoing := -1, -1
+	ongoing, next := hackScheduleMarks(rows, time.Now())
+	var out []hackScheduleView
+	for i, r := range rows {
+		status := ""
+		if i == ongoing {
+			status = "Now"
+		} else if i == next {
+			status = "Next"
+		}
+		out = append(out, hackScheduleView{Title: r.title, Description: r.desc, When: hackScheduleWhen(r, loc, zoneFallback), Status: status, Fixed: r.fixed})
+	}
+	return out
+}
+
+// hackScheduleMarks is the index of the first row under way now and of the
+// soonest row still to come (-1 when none). Date-only rows are never either.
+func hackScheduleMarks(rows []hackTimedRow, now time.Time) (ongoing, next int) {
+	ongoing, next = -1, -1
 	for i, r := range rows {
 		if r.allDay {
 			continue
@@ -192,33 +168,26 @@ func hackScheduleViews(items []hackScheduleItem, fixed []hackFixedRow, loc *time
 			next = i
 		}
 	}
-	var out []hackScheduleView
-	for i, r := range rows {
-		ls := r.start.In(loc)
-		var when string
-		switch {
-		case r.allDay:
-			when = ls.Format("Mon 2 Jan")
-		case !r.hasEnd:
-			when = ls.Format("Mon 2 Jan, 3:04 pm") + " " + hackZoneAbbr(ls, zoneFallback)
-		default:
-			le := r.end.In(loc)
-			abbr := hackZoneAbbr(le, zoneFallback)
-			if ls.Year() == le.Year() && ls.Month() == le.Month() && ls.Day() == le.Day() {
-				when = ls.Format("Mon 2 Jan, 3:04 pm") + "–" + le.Format("3:04 pm") + " " + abbr
-			} else {
-				when = ls.Format("Mon 2 Jan 3:04 pm") + " – " + le.Format("Mon 2 Jan 3:04 pm") + " " + abbr
-			}
-		}
-		status := ""
-		if i == ongoing {
-			status = "Now"
-		} else if i == next {
-			status = "Next"
-		}
-		out = append(out, hackScheduleView{Title: r.title, Description: r.desc, When: when, Status: status, Fixed: r.fix})
+	return ongoing, next
+}
+
+// hackScheduleWhen is a row's time as the page prints it: a date for a
+// date-only row, one time for a moment, otherwise the span (with both dates
+// when it crosses midnight).
+func hackScheduleWhen(r hackTimedRow, loc *time.Location, zoneFallback string) string {
+	ls := r.start.In(loc)
+	switch {
+	case r.allDay:
+		return ls.Format("Mon 2 Jan")
+	case !r.hasEnd:
+		return ls.Format("Mon 2 Jan, 3:04 pm") + " " + hackZoneAbbr(ls, zoneFallback)
 	}
-	return out
+	le := r.end.In(loc)
+	abbr := hackZoneAbbr(le, zoneFallback)
+	if ls.Year() == le.Year() && ls.YearDay() == le.YearDay() {
+		return ls.Format("Mon 2 Jan, 3:04 pm") + "–" + le.Format("3:04 pm") + " " + abbr
+	}
+	return ls.Format("Mon 2 Jan 3:04 pm") + " – " + le.Format("Mon 2 Jan 3:04 pm") + " " + abbr
 }
 
 // hackCountdownText is the server-rendered, non-live value the countdown
@@ -251,17 +220,11 @@ func hackPlural(n int, unit string) string {
 }
 
 // hackScoreText formats a score for display: full precision (two decimals,
-// matching the data everywhere else stores it), with trailing zeros trimmed
-// so "100.00" reads "100" and "42.50" reads "42.5" (Grok SIM-346 Part B
+// matching the data everywhere else stores it), with trailing zeros trimmed so
+// "100.00" reads "100" and "42.50" reads "42.5" (Grok SIM-346 Part B
 // hack-event.html item 4) -- but, after review #8, never rounded to fewer
-// decimals than it actually has: "81.25" must stay "81.25", not become
-// "81.3" or "81.2". The old one-decimal-with-rounding version did exactly
-// that, and for two teams a hundredth apart it made both read the same
-// score. hackResultsFromSnapshot (hack_wire.go) keeps the untrimmed,
-// unrounded string for the public JSON API (BUILD.md goal 4: that API does
-// not change); buildHackResultsBlock trims it for the HTML template only,
-// via trimScoreZeros below, so display and API no longer have to be the
-// same string.
+// decimals than it actually has: "81.25" must stay "81.25", not become "81.3"
+// or "81.2".
 func hackScoreText(score float64) string {
 	return trimScoreZeros(strconv.FormatFloat(score, 'f', 2, 64))
 }

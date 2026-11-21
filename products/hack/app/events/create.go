@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	accounts "github.com/vsriram/simple-host/host/access"
@@ -27,115 +28,36 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		return model.Event{}, model.EventMember{}, err
 	}
 	defer tx.Rollback()
-
-	if err := eventrepo.LockUserRow(ctx, tx, userID); err != nil {
+	if err := checkCreateLimits(ctx, tx, userID, perDay, maxActive); err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	since := time.Now().Add(-24 * time.Hour)
-	n, err := eventrepo.CountEventCreatesSince(ctx, tx, userID, since)
-	if err != nil {
-		return model.Event{}, model.EventMember{}, err
-	}
-	if perDay > 0 && n >= perDay {
-		return model.Event{}, model.EventMember{}, &Error{Code: "too_many_events_today", Message: "you have created too many events today"}
-	}
-	active, err := eventrepo.CountActiveEventsByOrganiser(ctx, tx, userID)
-	if err != nil {
-		return model.Event{}, model.EventMember{}, err
-	}
-	if maxActive > 0 && active >= maxActive {
-		noun := "active events"
-		if maxActive == 1 {
-			noun = "active event"
-		}
-		return model.Event{}, model.EventMember{}, &Error{Code: "too_many_active_events", Message: fmt.Sprintf("You already have %d %s, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings.", maxActive, noun)}
-	}
-
 	eventID, err := eventrepo.NewUUID(ctx, tx)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	// The event's account is a team whose members are the organisers
-	// (SyncAccess): its sites are the team sites and the event website.
+	// The event's account is a team whose members are the organisers (SyncAccess): its sites are the team sites and the event website.
 	accountID, claimed, err := accounts.CreateProductTeam(ctx, tx, "event+"+eventID+"@events.invalid", slug)
+	if err == nil && !claimed {
+		err = errNameTaken
+	}
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	if !claimed {
-		return model.Event{}, model.EventMember{}, &Error{Code: "name_taken", Message: "that name is already in use"}
+	ev, err := insertWithCodes(ctx, tx, model.Event{
+		ID: eventID, Slug: slug, AccountID: accountID, CreatedBy: sql.NullString{String: userID, Valid: true}, Stage: "draft",
+		Title: title, OrganiserName: organiserName, Organisation: organisation, ContactEmail: contact, Purpose: purpose,
+		ExpectedParticipants: sql.NullInt64{Int64: int64(expected), Valid: true}, TimeZone: tz, StartsAt: startsAt, EndsAt: endsAt, TeamSizeMax: teamSize,
+		// New events start on the "video or website" preset.
+		EntryPreset: "video_or_website",
+		EntryRules:  hackentries.MarshalRules(hackentries.ExpandPreset("video_or_website")),
+	}, joinLen, judgeLen)
+	if err == nil {
+		err = seedEvent(ctx, tx, ev.ID, userID, organiserName)
 	}
-
-	var ev model.Event
-	for attempt := 0; attempt < 8; attempt++ {
-		joinCode, err := hackevents.RandomCode(joinLen)
-		if err != nil {
-			return model.Event{}, model.EventMember{}, err
-		}
-		judgeCode, err := hackevents.RandomCode(judgeLen)
-		if err != nil {
-			return model.Event{}, model.EventMember{}, err
-		}
-		err = savepoint(ctx, tx, func() error {
-			var ierr error
-			ev, ierr = eventrepo.InsertEvent(ctx, tx, model.Event{
-				ID:                   eventID,
-				Slug:                 slug,
-				AccountID:            accountID,
-				CreatedBy:            sql.NullString{String: userID, Valid: true},
-				Title:                title,
-				Stage:                "draft",
-				OrganiserName:        organiserName,
-				Organisation:         organisation,
-				ContactEmail:         contact,
-				Purpose:              purpose,
-				ExpectedParticipants: sql.NullInt64{Int64: int64(expected), Valid: true},
-				TimeZone:             tz,
-				StartsAt:             startsAt,
-				EndsAt:               endsAt,
-				TeamSizeMax:          teamSize,
-				JoinCode:             joinCode,
-				JudgeCode:            judgeCode,
-				// New events start on the "video or website" preset
-				// (section 2); a Go table, not a DB default, so the
-				// preset's field list lives in one place
-				// (rules/hackentries). EntryRulesChosen false until the
-				// organiser saves a choice on Entries (SIM-382,
-				// 0005-hack-entry-rules-chosen.sql) -- that's what gates
-				// Overview's "Choose what teams hand in" first step.
-				EntryPreset:      "video_or_website",
-				EntryRules:       hackentries.MarshalRules(hackentries.ExpandPreset("video_or_website")),
-				EntryRulesChosen: false,
-			})
-			return ierr
-		})
-		if err == nil {
-			break
-		}
-		if unique(err) && attempt < 7 {
-			continue
-		}
-		if unique(err) {
-			return model.Event{}, model.EventMember{}, &Error{Code: "name_taken", Message: "that name is already in use"}
-		}
-		return model.Event{}, model.EventMember{}, err
+	if err == nil {
+		err = tx.Commit()
 	}
-	// Starter rubric, only for this new row. Nothing else writes one onto an
-	// event that does not already have it.
-	if err := entryrepo.ReplaceRubric(ctx, tx, ev.ID, hackentries.DefaultEventRubric()); err != nil {
-		return model.Event{}, model.EventMember{}, err
-	}
-	if organiserName != "" {
-		if err := accounts.FillEmptyDisplayName(ctx, tx, userID, organiserName); err != nil {
-			return model.Event{}, model.EventMember{}, err
-		}
-	}
-	if _, err := eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser"); err != nil {
-		return model.Event{}, model.EventMember{}, err
-	}
-	if err := SyncAccess(ctx, tx, ev.ID); err != nil {
-		return model.Event{}, model.EventMember{}, err
-	}
-	if err := tx.Commit(); err != nil {
+	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
 	member, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
@@ -145,14 +67,77 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 	return ev, member, nil
 }
 
+var errNameTaken = &Error{Code: "name_taken", Message: "that name is already in use"}
+
+// checkCreateLimits locks the user's row, then refuses a creator over the per-day or active-event limits (0 means no limit).
+func checkCreateLimits(ctx context.Context, tx *sql.Tx, userID string, perDay, maxActive int) error {
+	if err := eventrepo.LockUserRow(ctx, tx, userID); err != nil {
+		return err
+	}
+	n, err := eventrepo.CountEventCreatesSince(ctx, tx, userID, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		return err
+	}
+	if perDay > 0 && n >= perDay {
+		return &Error{Code: "too_many_events_today", Message: "you have created too many events today"}
+	}
+	active, err := eventrepo.CountActiveEventsByOrganiser(ctx, tx, userID)
+	if err != nil || maxActive <= 0 || active < maxActive {
+		return err
+	}
+	noun := "active events"
+	if maxActive == 1 {
+		noun = "active event"
+	}
+	return &Error{Code: "too_many_active_events", Message: fmt.Sprintf("You already have %d %s, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings.", maxActive, noun)}
+}
+
+// insertWithCodes inserts ev with fresh join and judge codes, retrying a collision up to 8 times; a collision every time reads as name_taken.
+func insertWithCodes(ctx context.Context, tx *sql.Tx, ev model.Event, joinLen, judgeLen int) (model.Event, error) {
+	var err error
+	for attempt := 0; attempt < 8; attempt++ {
+		if ev.JoinCode, err = hackevents.RandomCode(joinLen); err != nil {
+			return model.Event{}, err
+		}
+		if ev.JudgeCode, err = hackevents.RandomCode(judgeLen); err != nil {
+			return model.Event{}, err
+		}
+		var inserted model.Event
+		err = savepoint(ctx, tx, func() error {
+			var ierr error
+			inserted, ierr = eventrepo.InsertEvent(ctx, tx, ev)
+			return ierr
+		})
+		if !unique(err) {
+			return inserted, err
+		}
+	}
+	return model.Event{}, errNameTaken
+}
+
+// seedEvent gives a new event its starter rubric.
+func seedEvent(ctx context.Context, tx *sql.Tx, eventID, userID, organiserName string) error {
+	if err := entryrepo.ReplaceRubric(ctx, tx, eventID, hackentries.DefaultEventRubric()); err != nil {
+		return err
+	}
+	if organiserName != "" {
+		if err := accounts.FillEmptyDisplayName(ctx, tx, userID, organiserName); err != nil {
+			return err
+		}
+	}
+	if _, err := eventrepo.InsertEventMember(ctx, tx, eventID, userID, "organiser"); err != nil {
+		return err
+	}
+	return SyncAccess(ctx, tx, eventID)
+}
+
 // SetStage changes the event stage and settles entries within the transaction.
 func (s *Service) SetStage(ctx context.Context, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
 	if event.Stage == "archived" && stage != "archived" {
 		return model.Event{}, "", &Error{Code: "event_closed", Message: "an ended event cannot be reopened"}
 	}
 	if stage == "archived" && event.Stage != "archived" {
-		// An event nobody joined is deleted, not ended: ending one would keep
-		// its name and page for good without it ever running.
+		// An event nobody joined is deleted, not ended: ending one would keep its name and page for good without it ever running.
 		participants, _, _, err := eventrepo.CountEventMembers(ctx, s.db, event.ID)
 		if err != nil {
 			return model.Event{}, "", err
@@ -176,99 +161,91 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 	return updated, current, nil
 }
 
-// SetStageTx is SetStage's work inside the caller's transaction: it locks
-// the event's stage and team rows, moves the stage with every side effect
-// SetStage has, and returns the stage it found under that lock. Publishing
-// results uses it so the move to Results and the snapshot commit together
-// (SIM-271). The archived path still needs SetStage's participant check.
+// SetStageTx is SetStage's work inside the caller's transaction.
 func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
 	var current string
-	var err error
-	if err = eventrepo.LockWorkflowStage(ctx, tx, event.ID).Scan(&current); err != nil {
+	if err := eventrepo.LockWorkflowStage(ctx, tx, event.ID).Scan(&current); err != nil {
 		return model.Event{}, "", err
 	}
 	if current == "archived" && stage != "archived" {
 		return model.Event{}, "", &Error{Code: "event_closed", Message: "an ended event cannot be reopened"}
 	}
-	// Every team row too: a deploy let in holds its team FOR SHARE and
-	// finishes before the deadline moves.
+	// Every team row too: a deploy let in holds its team FOR SHARE and finishes before the deadline moves.
 	if _, err := eventrepo.LockEventTeams(ctx, tx, event.ID); err != nil {
 		return model.Event{}, "", err
 	}
-	var updated model.Event
 	if stage == "archived" {
-		updated, err = s.ArchiveEventTx(ctx, tx, event.ID, current, settle)
+		updated, err := s.ArchiveEventTx(ctx, tx, event.ID, current, settle)
 		if err != nil {
 			return model.Event{}, "", err
 		}
-	} else {
-		switch {
-		case hackevents.SubmissionsClosedStage(stage) && !hackevents.SubmissionsClosedStage(current) && current != "archived":
-			// Submissions close now: the deadline becomes now unless it
-			// already passed. Teams given more time keep it.
-			_, err = eventrepo.CloseSubmissionDeadline(ctx, tx, event.ID)
-		case (stage == "open" || stage == "building") && current != "open" && current != "building":
-			// Back to open or building from any other stage (closed, or draft
-			// after closed): a passed deadline (and passed extensions) go, so
-			// teams can publish again until the organiser sets a new one.
-			if _, err = eventrepo.ClearPassedSubmissionDeadline(ctx, tx, event.ID); err == nil {
-				_, err = eventrepo.ClearPassedTeamDeadlines(ctx, tx, event.ID)
-			}
-			if err == nil {
-				// Section 7, "Unsettle": back to building reopens every
-				// unsubmitted draft the sweep had already settled.
-				err = entryrepo.UnsettleEventDrafts(ctx, tx, event.ID)
-			}
-		}
-		if err != nil {
-			return model.Event{}, "", err
-		}
-		updated, err = eventrepo.SetEventStage(ctx, tx, event.ID, stage)
-		if err != nil {
-			return model.Event{}, "", err
-		}
-		if err := teamrepo.UnpinReopened(ctx, tx, event.ID); err != nil {
-			return model.Event{}, "", err
-		}
-		// Section 7: settle every due entry in the same transaction as a
-		// move that freezes submissions, so judging never has to wait a
-		// minute for the sweep to catch up.
-		if hackevents.SubmissionsClosedStage(stage) {
-			if err := settle(ctx, tx, event.ID); err != nil {
-				return model.Event{}, "", err
-			}
-		}
-		// 0003-hack-notices-judges-messages.sql: judging opens now, from
-		// anything but results -- after settle, so a judge's first
-		// reminder/queue read already sees the settled entries.
-		if stage == "judging" && current != "judging" && current != "results" {
-			if err := eventrepo.NotifyJudgingOpen(ctx, tx, event.ID); err != nil {
-				return model.Event{}, "", err
-			}
-		}
-		// Results stops scoring and locks judging in the stage transaction.
-		if stage == "results" && current != "results" {
-			if updated, err = eventrepo.SetJudgingLock(ctx, tx, event.ID, true, ""); err != nil {
-				return model.Event{}, "", err
-			}
-		}
-		// Locks follow the stage (SIM-416): moving back to Judging or earlier
-		// clears the judging lock. Setup still requires a stage before Judging.
-		switch stage {
-		case "draft", "open", "building", "closed", "judging":
-			if updated.JudgingLockedAt.Valid {
-				if updated, err = eventrepo.SetJudgingLock(ctx, tx, event.ID, false, "stage moved back"); err != nil {
-					return model.Event{}, "", err
-				}
-			}
-		}
+		return updated, current, nil
 	}
-	if current != stage && stage != "archived" {
-		if err := eventrepo.DismissTeamMessages(ctx, tx, event.ID); err != nil {
-			return model.Event{}, "", err
-		}
+	updated, err := moveStage(ctx, tx, event.ID, current, stage, settle)
+	if err == nil && current != stage {
+		err = eventrepo.DismissTeamMessages(ctx, tx, event.ID)
+	}
+	if err != nil {
+		return model.Event{}, "", err
 	}
 	return updated, current, nil
+}
+
+// moveStage moves a live event from current to stage.
+func moveStage(ctx context.Context, tx *sql.Tx, eventID, current, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, error) {
+	if err := moveSubmissionDeadline(ctx, tx, eventID, current, stage); err != nil {
+		return model.Event{}, err
+	}
+	updated, err := eventrepo.SetEventStage(ctx, tx, eventID, stage)
+	if err != nil {
+		return model.Event{}, err
+	}
+	if err := teamrepo.UnpinReopened(ctx, tx, eventID); err != nil {
+		return model.Event{}, err
+	}
+	// Section 7: settle every due entry in the same transaction as a move that freezes submissions, so judging never waits for the sweep.
+	if hackevents.SubmissionsClosedStage(stage) {
+		if err := settle(ctx, tx, eventID); err != nil {
+			return model.Event{}, err
+		}
+	}
+	// Judging opens now, from anything but results -- after settle, so a judge's first reminder/queue read already sees the settled entries.
+	if stage == "judging" && current != "judging" && current != "results" {
+		if err := eventrepo.NotifyJudgingOpen(ctx, tx, eventID); err != nil {
+			return model.Event{}, err
+		}
+	}
+	return syncJudgingLock(ctx, tx, eventID, current, stage, updated)
+}
+
+// moveSubmissionDeadline closes submissions on a move that freezes them.
+func moveSubmissionDeadline(ctx context.Context, tx *sql.Tx, eventID, current, stage string) error {
+	forming := func(st string) bool { return st == "open" || st == "building" }
+	switch {
+	case hackevents.SubmissionsClosedStage(stage) && !hackevents.SubmissionsClosedStage(current):
+		_, err := eventrepo.CloseSubmissionDeadline(ctx, tx, eventID)
+		return err
+	case forming(stage) && !forming(current):
+		if _, err := eventrepo.ClearPassedSubmissionDeadline(ctx, tx, eventID); err != nil {
+			return err
+		}
+		if _, err := eventrepo.ClearPassedTeamDeadlines(ctx, tx, eventID); err != nil {
+			return err
+		}
+		return entryrepo.UnsettleEventDrafts(ctx, tx, eventID)
+	}
+	return nil
+}
+
+// syncJudgingLock makes the judging lock follow the stage (SIM-416): moving to Results locks it, moving back to Judging or earlier clears it.
+func syncJudgingLock(ctx context.Context, tx *sql.Tx, eventID, current, stage string, updated model.Event) (model.Event, error) {
+	if stage == "results" && current != "results" {
+		return eventrepo.SetJudgingLock(ctx, tx, eventID, true, "")
+	}
+	if stage != "results" && updated.JudgingLockedAt.Valid {
+		return eventrepo.SetJudgingLock(ctx, tx, eventID, false, "stage moved back")
+	}
+	return updated, nil
 }
 
 // DeleteEvent checks and deletes an event under its lock.
@@ -307,10 +284,7 @@ func (s *Service) DeleteEvent(ctx context.Context, event model.Event, userID str
 	return nil
 }
 
-// ArchiveEventTx locks teams and closes the deadline unless it already passed or
-// submissions were closed, then archives, unpins and settles entries. The caller
-// holds the event row FOR UPDATE, has checked that a participant exists, and
-// supplies the current stage read under that lock.
+// ArchiveEventTx locks teams and closes the deadline unless it already passed or submissions were closed, then archives, unpins and settles entries.
 func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string, settle func(context.Context, *sql.Tx, string) error) (model.Event, error) {
 	if _, err := eventrepo.LockEventTeams(ctx, tx, eventID); err != nil {
 		return model.Event{}, err
@@ -339,9 +313,7 @@ func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, curre
 	return updated, nil
 }
 
-// DeleteEventTx trashes team sites, then deletes the event and its holding
-// account, including recently deleted sites; there is no event undo. The caller
-// holds the event row and has checked confirmation against the slug.
+// DeleteEventTx trashes team sites, then deletes the event and its holding account, including recently deleted sites; there is no event undo.
 func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event, trash func(context.Context, string, string) error) error {
 	if down, err := sites.AccountSiteTakenDown(ctx, tx, ev.AccountID); err != nil || down {
 		if err == nil {
@@ -363,9 +335,7 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event,
 	return eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, sites.DeleteProductAccount)
 }
 
-// PatchEvent applies validated settings while holding the event lock.
-// PatchEvent applies p to the event row under its lock. deadlineChanged
-// reports that the submission deadline was sent.
+// PatchEvent applies p to the event row under its lock.
 func (s *Service) PatchEvent(ctx context.Context, eventID string, p EventPatch) (updated model.Event, deadlineChanged bool, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -377,75 +347,69 @@ func (s *Service) PatchEvent(ctx context.Context, eventID string, p EventPatch) 
 	if err != nil {
 		return model.Event{}, false, err
 	}
-	deadlineChanged, entryRequiredChanged, validationErr := p.apply(&ev)
-	if validationErr != nil {
-		return model.Event{}, false, validationErr
+	deadlineChanged, entryRequiredChanged, err := p.apply(&ev)
+	if err == nil && deadlineChanged {
+		err = checkDeadlineChange(ctx, tx, ev)
 	}
-	stage := ev.Stage
-	if deadlineChanged {
-		if stage == "archived" {
-			return model.Event{}, false, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
-		}
-		// Submissions closed means the deadline has passed; reopening them
-		// is moving the event back to Building, or one team's extension.
-		var dbNow time.Time
-		if err := eventrepo.DatabaseNow(ctx, tx).Scan(&dbNow); err != nil {
-			return model.Event{}, false, err
-		}
-		if hackevents.SubmissionsClosedStage(stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
-			return model.Event{}, false, &Error{Code: "submissions_closed_stage", Message: "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
-		}
+	if err == nil {
+		updated, err = eventrepo.UpdateEventPatch(ctx, tx, ev)
 	}
-	updated, err = eventrepo.UpdateEventPatch(ctx, tx, ev)
+	if err == nil {
+		updated, err = eventrepo.UpdateEventEntrySettings(ctx, tx, ev.ID, ev.SubmissionDeadline, ev.EntryRequired, ev.GalleryOpen)
+	}
+	if err == nil && entryRequiredChanged {
+		updated, err = applyEntryRequiredAlias(ctx, tx, ev, updated)
+	}
+	if err == nil && deadlineChanged {
+		err = reopenForDeadline(ctx, tx, ev.ID)
+	}
+	if err == nil {
+		err = tx.Commit()
+	}
 	if err != nil {
-		return model.Event{}, false, err
-	}
-	updated, err = eventrepo.UpdateEventEntrySettings(ctx, tx, ev.ID, ev.SubmissionDeadline, ev.EntryRequired, ev.GalleryOpen)
-	if err != nil {
-		return model.Event{}, false, err
-	}
-	// Deprecated entry_required alias (section 4.2): maps to "required" for
-	// the listed fields, leaves every other field's mode as it is, and
-	// demotes the stored preset to custom -- kept for one release.
-	if entryRequiredChanged {
-		fields := hackentries.LoadRules(updated.EntryRules)
-		want := map[string]bool{}
-		for _, f := range ev.EntryRequired {
-			want[f] = true
-		}
-		for _, f := range hackevents.EntryFields {
-			if want[f] {
-				fields[f] = "required"
-			}
-		}
-		updated, err = eventrepo.UpdateEventEntryRules(ctx, tx, ev.ID, "custom", hackentries.MarshalRules(fields), updated.JudgeFirst, ev.EntryRequired)
-		if err != nil {
-			return model.Event{}, false, err
-		}
-	}
-	if deadlineChanged {
-		// Lock every team row: a deploy let in before the old deadline
-		// holds its team FOR SHARE and finishes first.
-		if _, err := eventrepo.LockEventTeams(ctx, tx, ev.ID); err != nil {
-			return model.Event{}, false, err
-		}
-		if err := teamrepo.UnpinReopened(ctx, tx, ev.ID); err != nil {
-			return model.Event{}, false, err
-		}
-		// A deadline pushed later reopens drafts the sweep had already
-		// settled as not submitted (section 7, "Unsettle").
-		if err := entryrepo.UnsettleEventDrafts(ctx, tx, ev.ID); err != nil {
-			return model.Event{}, false, err
-		}
-	}
-	if err := tx.Commit(); err != nil {
 		return model.Event{}, false, err
 	}
 	return updated, deadlineChanged, nil
 }
 
-// savepoint rolls back a failed attempt so a unique violation does not abort
-// the transaction and prevent a retry.
+// checkDeadlineChange refuses a new deadline on an ended event, or while submissions are closed and ev's deadline is unset or still ahead.
+func checkDeadlineChange(ctx context.Context, tx *sql.Tx, ev model.Event) error {
+	if ev.Stage == "archived" {
+		return &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+	}
+	var dbNow time.Time
+	if err := eventrepo.DatabaseNow(ctx, tx).Scan(&dbNow); err != nil {
+		return err
+	}
+	if hackevents.SubmissionsClosedStage(ev.Stage) && (!ev.SubmissionDeadline.Valid || ev.SubmissionDeadline.Time.After(dbNow)) {
+		return &Error{Code: "submissions_closed_stage", Message: "submissions are closed: move the event back to Building to set a new deadline, or give single teams more time"}
+	}
+	return nil
+}
+
+// applyEntryRequiredAlias handles the deprecated entry_required alias.
+func applyEntryRequiredAlias(ctx context.Context, tx *sql.Tx, ev, updated model.Event) (model.Event, error) {
+	fields := hackentries.LoadRules(updated.EntryRules)
+	for _, f := range hackevents.EntryFields {
+		if slices.Contains(ev.EntryRequired, f) {
+			fields[f] = "required"
+		}
+	}
+	return eventrepo.UpdateEventEntryRules(ctx, tx, ev.ID, "custom", hackentries.MarshalRules(fields), updated.JudgeFirst, ev.EntryRequired)
+}
+
+// reopenForDeadline lets a moved deadline take effect.
+func reopenForDeadline(ctx context.Context, tx *sql.Tx, eventID string) error {
+	if _, err := eventrepo.LockEventTeams(ctx, tx, eventID); err != nil {
+		return err
+	}
+	if err := teamrepo.UnpinReopened(ctx, tx, eventID); err != nil {
+		return err
+	}
+	return entryrepo.UnsettleEventDrafts(ctx, tx, eventID)
+}
+
+// savepoint rolls back a failed attempt so a unique violation does not abort the transaction and prevent a retry.
 func savepoint(ctx context.Context, q sqlkit.Querier, fn func() error) error {
 	if _, err := eventrepo.StartWorkflowSavepoint(ctx, q); err != nil {
 		return err

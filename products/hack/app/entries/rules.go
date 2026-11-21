@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,14 +15,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// EntryRulesImpact is the dry run's counts (section 4.2): how many already-
-// submitted entries would newly read as missing something under the
-// proposed fields (they stay submitted regardless -- this is
-// informational), and how many drafts would newly need more before they can
-// submit. "Newly" means the proposed rules ask for a line the current rules
-// don't: an entry already short of the current rules in exactly the same
-// way is not counted again, so loosening or re-saving unchanged rules
-// reports no impact.
 // ImpactTeam identifies an entry affected by a rule change.
 type ImpactTeam struct {
 	ID, Name string
@@ -44,6 +37,7 @@ type RulesResult struct {
 	Updated    model.Event
 }
 
+// EntryRulesImpact counts entries the proposed fields newly leave short; nothing is un-submitted.
 func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev model.Event, fields map[string]string) (RulesImpact, error) {
 	current := hackentries.LoadRules(ev.EntryRules)
 	teams, err := teamrepo.ListEventTeams(ctx, tx, ev.ID)
@@ -58,13 +52,8 @@ func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev model.Eve
 	if err != nil {
 		return RulesImpact{}, err
 	}
-	hasTracks := len(tracks) > 0
-	byTeam := map[string]model.EventEntry{}
-	for _, e := range entries {
-		byTeam[e.TeamID] = e
-	}
-	submittedMissing, draftsNewlyBlocked := 0, 0
-	affected := []ImpactTeam{}
+	byTeam := entriesByTeam(entries)
+	out := RulesImpact{Teams: []ImpactTeam{}}
 	for _, team := range teams {
 		e, ok := byTeam[team.ID]
 		if !ok {
@@ -75,37 +64,19 @@ func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev model.Eve
 			return RulesImpact{}, err
 		}
 		siteLive := s.siteLive(ctx, ev, team.Slug, team.SiteTakenDownAt.Valid)
-		check := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
-		if check.Complete {
-			continue
-		}
-		before := hackentries.Evaluate(current, e, siteLive, hasTracks, track)
-		was := map[string]bool{}
-		for _, m := range before.Missing {
-			was[m] = true
-		}
-		newly := false
-		for _, m := range check.Missing {
-			if !was[m] {
-				newly = true
-				break
-			}
-		}
-		// A draft counts only when these rules newly block it: it could be
-		// submitted under the current rules and no longer can. A draft that
-		// was already incomplete is not newly blocked, even if it now misses
-		// one more line.
-		if !newly || (!e.SubmittedAt.Valid && !before.Complete) {
+		after := hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track)
+		before := hackentries.Evaluate(current, e, siteLive, len(tracks) > 0, track)
+		if !hackentries.NewlyShort(before, after, e.SubmittedAt.Valid) {
 			continue
 		}
 		if e.SubmittedAt.Valid {
-			submittedMissing++
+			out.SubmittedMissing++
 		} else {
-			draftsNewlyBlocked++
+			out.DraftsNewlyBlocked++
 		}
-		affected = append(affected, ImpactTeam{ID: team.ID, Name: team.Name, Missing: check.Missing})
+		out.Teams = append(out.Teams, ImpactTeam{ID: team.ID, Name: team.Name, Missing: after.Missing})
 	}
-	return RulesImpact{SubmittedMissing: submittedMissing, DraftsNewlyBlocked: draftsNewlyBlocked, Teams: affected}, nil
+	return out, nil
 }
 
 // RulesUpdate contains the requested rule changes.
@@ -130,46 +101,9 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 	if !hackentries.RulesEditable(ev.Stage) {
 		return RulesResult{}, &Error{Code: "entry_rules_closed", Message: "entry rules are fixed once entries close"}
 	}
-	preset := ev.EntryPreset
-	fields := hackentries.LoadRules(ev.EntryRules)
-	if req.Preset != nil {
-		preset = *req.Preset
-		fields = hackentries.ExpandPreset(preset)
-	}
-	if req.Fields != nil {
-		for k, v := range req.Fields {
-			known := false
-			for _, f := range hackentries.RuleFields {
-				if f == k {
-					known = true
-					break
-				}
-			}
-			if !known {
-				return RulesResult{}, &Error{Code: "invalid_entry_field", Message: "fields keys must be one of: " + strings.Join(hackentries.RuleFields, ", ")}
-			}
-			if !hackentries.RuleModeOK[v] || (v == "one_of" && !hackentries.OneOfFields[k]) {
-				return RulesResult{}, &Error{Code: "invalid_entry_field_mode", Message: k + " must be required, optional or off" + hackentries.ModeSuffix(k)}
-			}
-			fields[k] = v
-		}
-		fields = hackentries.NormaliseRules(fields)
-		// A field sent that differs from the preset's own table demotes the
-		// stored preset to custom (section 4.2): the saved rules are no
-		// longer exactly that preset's table.
-		if preset != "custom" && !hackentries.FieldsEqual(fields, hackentries.ExpandPreset(preset)) {
-			preset = "custom"
-		}
-	}
-	fields = hackentries.NormaliseRules(fields)
-	judgeFirst := ev.JudgeFirst
-	if req.Preset != nil {
-		if jf, ok := hackentries.PresetJudgeFirst[*req.Preset]; ok {
-			judgeFirst = jf
-		}
-	}
-	if req.JudgeFirst != nil {
-		judgeFirst = *req.JudgeFirst
+	preset, fields, judgeFirst, err := nextRules(ev, req)
+	if err != nil {
+		return RulesResult{}, err
 	}
 	if req.DryRun {
 		impact, err := s.EntryRulesImpact(ctx, tx, ev, fields)
@@ -182,20 +116,16 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 		}
 		return RulesResult{Impact: impact, Preset: preset, Fields: fields, JudgeFirst: judgeFirst, HasTracks: len(tracks) > 0}, nil
 	}
-	rulesJSON := hackentries.MarshalRules(fields)
 	legacyRequired := []string{}
 	for _, f := range []string{"title", "tagline", "description", "video_url", "code_url", "screenshot"} {
 		if fields[f] == "required" {
 			legacyRequired = append(legacyRequired, f)
 		}
 	}
-	updated, err := eventrepo.UpdateEventEntryRules(ctx, tx, eventID, preset, rulesJSON, judgeFirst, legacyRequired)
+	updated, err := eventrepo.UpdateEventEntryRules(ctx, tx, eventID, preset, hackentries.MarshalRules(fields), judgeFirst, legacyRequired)
 	if err != nil {
 		return RulesResult{}, err
 	}
-	// Tightening never un-submits (section 12): nothing here touches
-	// submitted_at. A team newly short of the tightened rules just shows
-	// "Incomplete" if it later unsubmits and the deadline passes again.
 	if err := tx.Commit(); err != nil {
 		return RulesResult{}, err
 	}
@@ -203,8 +133,35 @@ func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate)
 	return RulesResult{Updated: updated, HasTracks: len(tracks) > 0}, nil
 }
 
-// EvaluateEntryTx is hackentries.Evaluate with every piece read fresh inside tx:
-// the rules, the team's track and the site's live state.
+// nextRules applies req to ev's rules; sent fields that differ from the preset demote it to custom.
+func nextRules(ev model.Event, req RulesUpdate) (preset string, fields map[string]string, judgeFirst string, err error) {
+	preset, fields, judgeFirst = ev.EntryPreset, hackentries.LoadRules(ev.EntryRules), ev.JudgeFirst
+	if req.Preset != nil {
+		preset, fields = *req.Preset, hackentries.ExpandPreset(*req.Preset)
+		if jf, ok := hackentries.PresetJudgeFirst[preset]; ok {
+			judgeFirst = jf
+		}
+	}
+	if req.JudgeFirst != nil {
+		judgeFirst = *req.JudgeFirst
+	}
+	for k, v := range req.Fields {
+		if !slices.Contains(hackentries.RuleFields, k) {
+			return "", nil, "", &Error{Code: "invalid_entry_field", Message: "fields keys must be one of: " + strings.Join(hackentries.RuleFields, ", ")}
+		}
+		if !hackentries.RuleModeOK[v] || (v == "one_of" && !hackentries.OneOfFields[k]) {
+			return "", nil, "", &Error{Code: "invalid_entry_field_mode", Message: k + " must be required, optional or off" + hackentries.ModeSuffix(k)}
+		}
+		fields[k] = v
+	}
+	fields = hackentries.NormaliseRules(fields)
+	if req.Fields != nil && preset != "custom" && !hackentries.FieldsEqual(fields, hackentries.ExpandPreset(preset)) {
+		preset = "custom"
+	}
+	return preset, fields, judgeFirst, nil
+}
+
+// EvaluateEntryTx evaluates the entry with rules, track and site state read inside tx.
 func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.Event, st model.TeamWriteState, teamID string, e model.EventEntry) (hackentries.Check, error) {
 	fields := hackentries.LoadRules(ev.EntryRules)
 	tracks, err := eventrepo.ListEventTracks(ctx, tx, ev.ID)
@@ -219,9 +176,6 @@ func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.Even
 	return hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track), nil
 }
 
-// EntryProgress is the participant Home checklist (section 4.3): four
-// steps (team, summary, evidence, submit), the next one to do, and the
-// deadline, so the website and the AI apps compute it identically.
 // Progress contains the facts used to render the participant checklist.
 type Progress struct {
 	Entry                           model.EventEntry
@@ -232,6 +186,7 @@ type Progress struct {
 	Now                             time.Time
 }
 
+// EntryProgress is the participant Home checklist, shared by the website and the AI apps.
 func (s *Service) EntryProgress(ctx context.Context, ev model.Event, team model.EventTeam, teammates []string, st model.TeamWriteState) (Progress, error) {
 	e, err := entryrepo.GetEventEntry(ctx, s.db, team.ID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -239,71 +194,51 @@ func (s *Service) EntryProgress(ctx context.Context, ev model.Event, team model.
 	} else if err != nil {
 		return Progress{}, err
 	}
-	fields := hackentries.LoadRules(ev.EntryRules)
 	tracks, err := eventrepo.ListEventTracks(ctx, s.db, ev.ID)
 	if err != nil {
 		return Progress{}, err
 	}
-	hasTracks := len(tracks) > 0
 	track, err := eventrepo.TeamTrack(ctx, s.db, team.ID)
 	if err != nil {
 		return Progress{}, err
 	}
 	siteLive := s.siteLive(ctx, ev, team.Slug, st.SiteTakenDown)
-
-	filled, of, summaryMissing := 0, 0, []string{}
-	for _, f := range hackentries.SummaryFields {
-		if f == "track" && !hasTracks {
-			continue
-		}
-		if fields[f] != "required" {
-			// Off and Optional lines are not part of the count (SIM-395):
-			// an optional line left blank never holds the summary step open.
-			continue
-		}
-		// The project name always counts (full-test fix, 2026-11-02): it
-		// used to count only while empty, so "1 of 7 filled" became "6 of
-		// 6" once it was typed, and Home and Entry disagreed mid-edit.
-		of++
-		if hackentries.FieldPresent(f, e, siteLive, track) {
-			filled++
-		} else {
-			summaryMissing = append(summaryMissing, f)
-		}
-	}
-	evidenceCheck := hackentries.Evaluate(fields, e, siteLive, hasTracks, track)
-	evidenceMissing := []string{}
-	for _, m := range evidenceCheck.Missing {
-		// Every show-your-work field (hackentries.OneOfFields: video_url,
-		// site, code_url, screenshot), not just "one_of" and "code_url".
-		// Fixed for SIM-382's video_website_code preset, which makes
-		// video_url and site individually required rather than one_of:
-		// before this fix a team with a code link but no video or website
-		// read as Done on Home (missing only checked one_of/code_url) and
-		// moved on to Submit, which then correctly refused it -- Home and
-		// the real completeness check disagreed.
-		if m == "one_of" || hackentries.OneOfFields[m] {
-			evidenceMissing = append(evidenceMissing, m)
-		}
-	}
-	evidenceDone := len(evidenceMissing) == 0
-
-	teamLine := "On " + team.Name
+	p := progressSteps(hackentries.LoadRules(ev.EntryRules), e, siteLive, len(tracks) > 0, track)
+	p.TeamLine = "On " + team.Name
 	if len(teammates) > 0 {
-		teamLine += " with " + hackentries.JoinNames(teammates)
+		p.TeamLine += " with " + hackentries.JoinNames(teammates)
 	}
-	next := "submit"
+	_ = s.db.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&p.Now)
+	return p, nil
+}
+
+// progressSteps is the checklist's counts and next step for e under fields.
+func progressSteps(fields map[string]string, e model.EventEntry, siteLive, hasTracks bool, track *model.EventTrack) Progress {
+	p := Progress{Entry: e, SummaryMissing: []string{}, EvidenceMissing: []string{}, Summary: hackentries.RulesSummary(fields)}
+	for _, f := range hackentries.SummaryFields {
+		if fields[f] != "required" || (f == "track" && !hasTracks) {
+			continue
+		}
+		p.Of++
+		if hackentries.FieldPresent(f, e, siteLive, track) {
+			p.Filled++
+		} else {
+			p.SummaryMissing = append(p.SummaryMissing, f)
+		}
+	}
+	for _, m := range hackentries.Evaluate(fields, e, siteLive, hasTracks, track).Missing {
+		if m == "one_of" || hackentries.OneOfFields[m] {
+			p.EvidenceMissing = append(p.EvidenceMissing, m)
+		}
+	}
+	p.EvidenceDone = len(p.EvidenceMissing) == 0
 	switch {
-	case filled < of:
-		next = "summary"
-	case !evidenceDone:
-		next = "evidence"
+	case p.Filled < p.Of:
+		p.Next = "summary"
+	case !p.EvidenceDone:
+		p.Next = "evidence"
 	case e.Status() != "submitted":
-		next = "submit"
-	default:
-		next = ""
+		p.Next = "submit"
 	}
-	var now time.Time
-	_ = s.db.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&now)
-	return Progress{Entry: e, Filled: filled, Of: of, SummaryMissing: summaryMissing, EvidenceMissing: evidenceMissing, EvidenceDone: evidenceDone, Summary: hackentries.RulesSummary(fields), TeamLine: teamLine, Next: next, Now: now}, nil
+	return p
 }

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 )
 
 const reviewAccountUsage = `usage: simple-host review-account hash
@@ -33,7 +33,7 @@ func runReviewAccountCommand(args []string) int {
 		return 2
 	}
 	password := strings.TrimRight(line, "\r\n")
-	hash, err := handler.HashReviewerPassword(password)
+	hash, err := accesshttp.HashReviewerPassword(password)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2

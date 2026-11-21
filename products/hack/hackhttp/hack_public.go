@@ -14,18 +14,60 @@ import (
 
 // RegisterHackPublic serves the trusted, stable built-in event page on the
 // apex, whether or not an organiser has published a custom event website.
-// pages is the hack-event.html template cache (HackEventPages), built once
-// by the caller.
 func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 	teamSiteURL func(string, string) string, ready func(string) bool, pages *HackEventPages, owners ...*HackHandler) {
-	perIP := screenshotLimiter(owners)
-	mux.HandleFunc("GET /e/{slug}/submissions/{team}/screenshot", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /e/{slug}/submissions/{team}/screenshot", submissionScreenshotHandler(database, appURL, pages, screenshotLimiter(owners)))
+	render := HackEventPage(database, appURL, teamSiteURL, ready, pages)
+	screenshot := HackScreenshot(database, ready, owners...)
+	mux.HandleFunc("GET /e/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("judge") == "1" {
+			http.Redirect(w, r, "/e/"+r.PathValue("slug")+"/judge", http.StatusFound)
+			return
+		}
+		if user, ok := loadPublicEventOwner(w, r, database, appURL, pages); ok {
+			render(w, r, user)
+		}
+	})
+	mux.HandleFunc("GET /e/{slug}/screenshots/{team}", func(w http.ResponseWriter, r *http.Request) {
+		user, ok := loadPublicEventOwner(w, r, database, appURL, pages)
+		if ok && !screenshot(w, r, user, r.PathValue("team")) {
+			writeEventNotFound(w)
+		}
+	})
+}
+
+// loadPublicEventOwner is the account holding the event at /e/{slug}; it
+// writes the event page's own not-found (or a 500) and returns false otherwise.
+func loadPublicEventOwner(w http.ResponseWriter, r *http.Request, database *sql.DB, appURL string, pages *HackEventPages) (model.User, bool) {
+	ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
+	if errors.Is(err, sql.ErrNoRows) {
+		writeHackEventNotFound(w, r, appURL, pages)
+		return model.User{}, false
+	}
+	if err != nil {
+		httpx.WriteInternal(w)
+		return model.User{}, false
+	}
+	paperHackEvent(r, ev)
+	user, err := events.New(database).UserByID(r.Context(), ev.AccountID)
+	if err != nil {
+		httpx.WriteInternal(w)
+		return model.User{}, false
+	}
+	return user, true
+}
+
+// submissionScreenshotHandler serves one public submission's screenshot,
+// metered per network address, while submissions are public and open;
+// anything else is the event page's not-found.
+func submissionScreenshotHandler(database *sql.DB, appURL string, pages *HackEventPages, perIP *httpx.RateLimiter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if !perIP.AllowHTTP(w, httpx.ClientIP(r)) {
 			httpx.TooManyRequests(w)
 			return
 		}
 		ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
-		if err != nil || !ev.SubmissionsPublic || !submissionsOpen(ev) {
+		if err != nil || !ev.SubmissionsPublic || !entries.SubmissionsOpen(ev) {
 			writeHackEventNotFound(w, r, appURL, pages)
 			return
 		}
@@ -42,46 +84,5 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 			}
 		}
 		writeHackEventNotFound(w, r, appURL, pages)
-	})
-	render := HackEventPage(database, appURL, teamSiteURL, ready, pages)
-	screenshot := HackScreenshot(database, ready, owners...)
-	load := func(w http.ResponseWriter, r *http.Request) (model.User, bool) {
-		ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
-		if err == nil {
-			paperHackEvent(r, ev)
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			writeHackEventNotFound(w, r, appURL, pages)
-			return model.User{}, false
-		}
-		if err != nil {
-			httpx.WriteInternal(w)
-			return model.User{}, false
-		}
-		user, err := events.New(database).UserByID(r.Context(), ev.AccountID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return model.User{}, false
-		}
-		return user, true
 	}
-	mux.HandleFunc("GET /e/{slug}", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("judge") == "1" {
-			http.Redirect(w, r, "/e/"+r.PathValue("slug")+"/judge", http.StatusFound)
-			return
-		}
-		user, ok := load(w, r)
-		if ok {
-			render(w, r, user)
-		}
-	})
-	mux.HandleFunc("GET /e/{slug}/screenshots/{team}", func(w http.ResponseWriter, r *http.Request) {
-		user, ok := load(w, r)
-		if !ok {
-			return
-		}
-		if !screenshot(w, r, user, r.PathValue("team")) {
-			writeEventNotFound(w)
-		}
-	})
 }

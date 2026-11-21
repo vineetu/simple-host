@@ -11,66 +11,90 @@ import (
 func hackChecklistTools() []mcp.Tool {
 	slug := map[string]any{"slug": mcp.Str("Event slug.")}
 	tools := []mcp.Tool{
-		{Name: "hack_get_checklist", Title: "Read event checklist", Description: "Read the membership role's checklist and next action. Organisers may also request judge. Records due entry deadline pins.", InputSchema: mcp.Object(checklistWith(slug, map[string]any{"role": map[string]any{"type": "string", "enum": []string{"organiser", "judge", "participant"}}}), "slug"), Annotations: mcp.Writes(false, true, false)},
-		{Name: "hack_set_checklist_not_needed", Title: "Mark an optional item not needed", Description: "Set or restore a shared optional organiser checklist item. Ask first. Ended events refuse changes.", InputSchema: mcp.Object(checklistWith(slug, map[string]any{"item_id": mcp.Str("Optional organiser item ID."), "not_needed": map[string]any{"type": "boolean"}}), "slug", "item_id", "not_needed"), Annotations: mcp.Writes(false, true, false)},
-		{Name: "hack_acknowledge_checklist_item", Title: "Acknowledge a checklist item", Description: "Explicitly confirm your j.rubric or j.conflicts review. Ask first. Rubric items need the current checklist version; conflicts are unversioned.", InputSchema: mcp.Object(checklistWith(slug, map[string]any{"item_id": map[string]any{"type": "string", "enum": []string{"j.rubric", "j.conflicts"}, "description": "j.rubric or j.conflicts."}, "version": mcp.Str("Current rubric item's version; omit for conflicts.")}), "slug", "item_id"), Annotations: mcp.Writes(false, true, false)},
+		{Name: "hack_get_checklist", Title: "Read event checklist", Description: "Read the membership role's checklist and next action. Organisers may also request judge. Records due entry deadline pins.", InputSchema: mcp.Object(withFields(slug, map[string]any{"role": map[string]any{"type": "string", "enum": []string{"organiser", "judge", "participant"}}}), "slug"), Annotations: mcp.Writes(false, true, false)},
+		{Name: "hack_set_checklist_not_needed", Title: "Mark an optional item not needed", Description: "Set or restore a shared optional organiser checklist item. Ask first. Ended events refuse changes.", InputSchema: mcp.Object(withFields(slug, map[string]any{"item_id": mcp.Str("Optional organiser item ID."), "not_needed": map[string]any{"type": "boolean"}}), "slug", "item_id", "not_needed"), Annotations: mcp.Writes(false, true, false)},
+		{Name: "hack_acknowledge_checklist_item", Title: "Acknowledge a checklist item", Description: "Explicitly confirm your j.rubric or j.conflicts review. Ask first. Rubric items need the current checklist version; conflicts are unversioned.", InputSchema: mcp.Object(withFields(slug, map[string]any{"item_id": map[string]any{"type": "string", "enum": []string{"j.rubric", "j.conflicts"}, "description": "j.rubric or j.conflicts."}, "version": mcp.Str("Current rubric item's version; omit for conflicts.")}), "slug", "item_id"), Annotations: mcp.Writes(false, true, false)},
+	}
+	runs := map[string]func(*mcp.Call, map[string]any) (mcp.Output, error){
+		"hack_get_checklist": runGetChecklist, "hack_set_checklist_not_needed": runSetChecklistNotNeeded,
+		"hack_acknowledge_checklist_item": runAcknowledgeChecklistItem,
 	}
 	for i := range tools {
-		name := tools[i].Name
 		tools[i].OutputSchema = mcp.OutObject(map[string]any{"can": hackAbilitiesSchema(), "checklist": hackChecklistSchema()}, "can", "checklist")
-		tools[i] = mcp.WithRun(mcp.WithPolicy(tools[i], mcp.RecordsPins()), func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-			slug, err := eventSlug(args)
-			if err != nil {
-				return mcp.Output{}, err
-			}
-			path := "/v1/hack/events/" + url.PathEscape(slug) + "/checklist"
-			method := http.MethodGet
-			var body []byte
-			if name == "hack_get_checklist" {
-				if role, ok, e := presentString(args, "role"); e != nil {
-					return mcp.Output{}, e
-				} else if ok {
-					path += "?role=" + url.QueryEscape(role)
-				}
-			} else {
-				item, err := mcp.StringArg(args, "item_id")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				if name == "hack_set_checklist_not_needed" {
-					marked, ok := args["not_needed"].(bool)
-					if !ok {
-						return mcp.Output{}, fmt.Errorf("not_needed must be a boolean")
-					}
-					path += "/not-needed/" + url.PathEscape(item)
-					method = http.MethodDelete
-					if marked {
-						method = http.MethodPost
-					}
-				} else {
-					path += "/acknowledgements/" + url.PathEscape(item)
-					method = http.MethodPost
-					payload := map[string]any{}
-					if version, ok, e := presentString(args, "version"); e != nil {
-						return mcp.Output{}, e
-					} else if ok {
-						payload["version"] = version
-					}
-					body, _ = json.Marshal(payload)
-				}
-			}
-			res := c.Do(method, path, body, nil)
-			if !res.OK() {
-				return mcp.Output{}, hackRestError(name, res)
-			}
-			var out map[string]any
-			if err = json.Unmarshal(res.Body(), &out); err != nil {
-				return mcp.Output{}, err
-			}
-			return mcp.Output{Text: mcp.JSONText(out), Structured: out}, nil
-		})
+		tools[i] = mcp.WithRun(mcp.WithPolicy(tools[i], mcp.RecordsPins()), runs[tools[i].Name])
 	}
 	return tools
+}
+
+func runGetChecklist(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	slug, err := eventSlug(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	path := eventPath(slug, "/checklist")
+	role, present, err := presentString(args, "role")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	if present {
+		path += "?role=" + url.QueryEscape(role)
+	}
+	return checklistCall(c, "hack_get_checklist", http.MethodGet, path, nil)
+}
+
+// runSetChecklistNotNeeded marks the item not needed (POST) or restores it
+// (DELETE).
+func runSetChecklistNotNeeded(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	slug, item, err := checklistItem(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	marked, present, err := mcp.PresentBool(args, "not_needed")
+	if err == nil && !present {
+		err = fmt.Errorf("not_needed must be true or false")
+	}
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	method := map[bool]string{true: http.MethodPost, false: http.MethodDelete}[marked]
+	return checklistCall(c, "hack_set_checklist_not_needed", method, eventPath(slug, "/checklist/not-needed/"+url.PathEscape(item)), nil)
+}
+
+func runAcknowledgeChecklistItem(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	slug, item, err := checklistItem(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	payload := map[string]any{}
+	version, present, err := presentString(args, "version")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	if present {
+		payload["version"] = version
+	}
+	body, _ := json.Marshal(payload)
+	return checklistCall(c, "hack_acknowledge_checklist_item", http.MethodPost, eventPath(slug, "/checklist/acknowledgements/"+url.PathEscape(item)), body)
+}
+
+func checklistItem(args map[string]any) (slug, item string, err error) {
+	if slug, err = eventSlug(args); err != nil {
+		return "", "", err
+	}
+	item, err = mcp.StringArg(args, "item_id")
+	return slug, item, err
+}
+
+func checklistCall(c *mcp.Call, name, method, path string, body []byte) (mcp.Output, error) {
+	res := c.Do(method, path, body, nil)
+	if !res.OK() {
+		return mcp.Output{}, hackRestError(name, res)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(res.Body(), &out); err != nil {
+		return mcp.Output{}, err
+	}
+	return mcp.Output{Text: mcp.JSONText(out), Structured: out}, nil
 }
 
 func hackChecklistSchema() map[string]any {
@@ -82,18 +106,8 @@ func hackChecklistSchema() map[string]any {
 	return mcp.OutObject(map[string]any{"role": mcp.OutString("Checklist role."), "stage": mcp.OutString("Event stage."), "map_version": mcp.OutInteger("Navigation map version."), "items": mcp.OutArray("Selected checklist rows.", item), "next": next}, "role", "stage", "map_version", "items", "next")
 }
 
-func checklistWith(a, b map[string]any) map[string]any {
-	out := map[string]any{}
-	for k, v := range a {
-		out[k] = v
-	}
-	for k, v := range b {
-		out[k] = v
-	}
-	return out
-}
 func checklistNullableObject(s map[string]any) map[string]any {
-	out := checklistWith(s, nil)
+	out := withFields(s, nil)
 	out["type"] = []string{"object", "null"}
 	return out
 }

@@ -6,18 +6,20 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/vsriram/simple-host/host/handler"
+	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/web"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 func (h *publicEventHTTP) eventWebsiteState(ctx context.Context, ev hackmodel.Event) (map[string]any, error) {
 	site, err := h.events.SiteByUser(ctx, ev.AccountID, ev.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": []any{},
-			"custom_url": h.EventURL(ev.Slug), "builtin_url": h.publicBaseURL + "/e/" + ev.Slug, "site": ev.ID, "owner": ev.Slug}, nil
+		return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": false, "upload_limit_bytes": h.website.uploadLimit(ctx, ev), "upload_limits": h.website.uploadLimits(ctx, ev), "versions": []any{},
+			"custom_url": h.links.EventURL(ev.Slug), "builtin_url": h.links.publicBaseURL + "/e/" + ev.Slug, "site": ev.ID, "owner": ev.Slug}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -32,13 +34,13 @@ func (h *publicEventHTTP) eventWebsiteState(ctx context.Context, ev hackmodel.Ev
 			history = append(history, map[string]any{"version_number": v.VersionNumber, "created_at": v.CreatedAt})
 		}
 	}
-	return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": true, "upload_limit_bytes": h.websiteUploadLimit(ctx, ev), "upload_limits": h.websiteUploadLimits(ctx, ev), "versions": history,
-		"custom_url": h.EventURL(ev.Slug), "builtin_url": h.publicBaseURL + "/e/" + ev.Slug, "site": ev.ID, "owner": ev.Slug,
+	return map[string]any{"mode": ev.WebsiteMode, "has_custom_page": true, "upload_limit_bytes": h.website.uploadLimit(ctx, ev), "upload_limits": h.website.uploadLimits(ctx, ev), "versions": history,
+		"custom_url": h.links.EventURL(ev.Slug), "builtin_url": h.links.publicBaseURL + "/e/" + ev.Slug, "site": ev.ID, "owner": ev.Slug,
 		"active_version": site.ActiveVersion}, nil
 }
 
 func (h *publicEventHTTP) getEventWebsite(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -51,7 +53,7 @@ func (h *publicEventHTTP) getEventWebsite(w http.ResponseWriter, r *http.Request
 }
 
 func (h *publicEventHTTP) patchEventWebsite(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -96,24 +98,36 @@ func (h *publicEventHTTP) patchEventWebsite(w http.ResponseWriter, r *http.Reque
 	httpx.WriteJSON(w, http.StatusOK, state)
 }
 
-func (h *hackBase) websiteSitesSvc() *appsites.Service {
-	return appsites.New(h.database, nil, nil, 0, appsites.Deps{
-		WebsiteArchiveDefault: h.siteArchiveDefault,
+// websiteLimits are the instance's site size limits, as an event or team
+// website's upload form states them.
+type websiteLimits struct {
+	database *sql.DB
+	limits   *productconfig.Limits
+	// archiveDefault is the per-site size cap for an account with no
+	// MAX_ARCHIVE_MB_OVERRIDES entry (SetSiteArchiveDefault).
+	archiveDefault int64
+}
+
+func (l *websiteLimits) sites() *appsites.Service {
+	return appsites.New(l.database, nil, nil, 0, appsites.Deps{
+		WebsiteArchiveDefault: l.archiveDefault,
 		WebsiteLimit: func(ctx context.Context, user *model.User) (int64, bool) {
-			return h.siteLimitFor(ctx, h.database, user)
+			return accountapp.New(l.database).SiteLimit(ctx, user, l.limits.Limits, l.archiveDefault)
 		},
-		MaxFilesPerSite: h.limits.MaxFilesPerSite,
+		MaxFilesPerSite: l.limits.MaxFilesPerSite,
 	})
 }
 
-func (h *hackBase) websiteUploadLimit(ctx context.Context, ev hackmodel.Event) int64 {
-	return h.websiteSitesSvc().WebsiteUploadLimit(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
+// uploadLimit is the largest zip the event's websites take, in bytes.
+func (l *websiteLimits) uploadLimit(ctx context.Context, ev hackmodel.Event) int64 {
+	return l.sites().WebsiteUploadLimit(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
 
-func (h *hackBase) websiteUploadLimits(ctx context.Context, ev hackmodel.Event) string {
-	return h.websiteSitesSvc().WebsiteUploadLimits(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
+// uploadLimits is the upload limits in words.
+func (l *websiteLimits) uploadLimits(ctx context.Context, ev hackmodel.Event) string {
+	return l.sites().WebsiteUploadLimits(ctx, appsites.WebsiteLimitsInput{AccountID: ev.AccountID})
 }
 
-func groupRef(ev hackmodel.Event) handler.GroupRef {
-	return handler.GroupRef{ID: ev.ID, Slug: ev.Slug, AccountID: ev.AccountID}
+func groupRef(ev hackmodel.Event) web.GroupRef {
+	return web.GroupRef{ID: ev.ID, Slug: ev.Slug, AccountID: ev.AccountID}
 }

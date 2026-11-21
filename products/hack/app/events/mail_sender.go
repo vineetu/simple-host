@@ -10,7 +10,6 @@ import (
 )
 
 // Mailer is the shared transactional sender supplied by the composition root.
-// Optional notice/reply/context capabilities are detected before delivery.
 type Mailer interface {
 	SendSignInCode(toEmail, code, link string) error
 }
@@ -57,8 +56,7 @@ func (s trackedContentSender) SendNotice(to, subject, body string) error {
 }
 func (s trackedContentSender) SendNoticeCtx(ctx context.Context, to, subject, body string) error {
 	if err := sendMailNotice(ctx, s.notice, to, subject, body); err != nil {
-		// Provider errors can contain the recipient or credentials. Keep those
-		// out of both the status and the existing service log.
+		// Provider errors can contain the recipient or credentials.
 		err = contentMailError(err)
 		s.tracker.Fail("send mail", err)
 		return err
@@ -67,8 +65,7 @@ func (s trackedContentSender) SendNoticeCtx(ctx context.Context, to, subject, bo
 	return nil
 }
 
-// SendRichNoticeCtx sends a notice with an HTML part when the underlying
-// sender supports one, and the text alone otherwise.
+// SendRichNoticeCtx sends a notice with an HTML part when the underlying sender supports one, and the text alone otherwise.
 func (s trackedContentSender) SendRichNoticeCtx(ctx context.Context, to, subject, text, html string) error {
 	rich, ok := s.notice.(interface {
 		SendRichNoticeCtx(context.Context, string, string, string, string) error

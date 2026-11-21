@@ -149,35 +149,9 @@ func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle tim
 		// REST requests on the /mcp request's context).
 		var actingUser *model.User
 		if owner := r.URL.Query().Get("owner"); owner != "" && ownerRoutes(pattern) {
-			site := ""
-			if strings.Contains(pattern, "{sitename}") {
-				site, _ = sitePathName(r)
-			}
-			user, refusal, err := accountService.ResolveOwner(r.Context(), key, owner, site, keyIdle, strings.Contains(pattern, "/analytics"), pattern == "GET /v1/sites")
-			if err != nil {
-				log.Printf("scope gate: owner: %v", err)
-				httpx.WriteInternal(w)
+			user, ok := actingOwner(w, r, accountService, key, owner, pattern, keyIdle, writeCheck)
+			if !ok {
 				return
-			}
-			if refusal != nil {
-				httpx.WriteError(w, refusal.Status, refusal.Code, refusal.Message)
-				return
-			}
-			if user != nil && (user.Member.Site != "" && !EditorAllows(pattern) || user.Member.Edits != nil && pattern != "GET /v1/sites") {
-				httpx.WriteError(w, http.StatusForbidden, "editor_scope", "you edit only the site "+user.Member.Site+" of "+owner+": publish, roll back, its versions, saved data and visits; nothing else of the account")
-				return
-			}
-			if user != nil && writeCheck != nil && changes(r, pattern) {
-				status, code, msg, err := writeCheck(r.Context(), user, site)
-				if err != nil {
-					log.Printf("scope gate: write check: %v", err)
-					httpx.WriteInternal(w)
-					return
-				}
-				if code != "" {
-					httpx.WriteError(w, status, code, msg)
-					return
-				}
 			}
 			actingUser = user
 		}
@@ -198,6 +172,45 @@ func ScopeGate(accountService *accounts.Service, mux *http.ServeMux, keyIdle tim
 		}
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// actingOwner is the account a request with owner=<account> acts for: the
+// key's holder must be allowed to act for it, an editor only on their one
+// site's routes, and a change must pass the product's write check. It
+// writes the refusal and reports false when the request stops here.
+func actingOwner(w http.ResponseWriter, r *http.Request, accountService *accounts.Service, key, owner, pattern string, keyIdle time.Duration, writeCheck WriteCheck) (*model.User, bool) {
+	site := ""
+	if strings.Contains(pattern, "{sitename}") {
+		site, _ = sitePathName(r)
+	}
+	user, refusal, err := accountService.ResolveOwner(r.Context(), key, owner, site, keyIdle, strings.Contains(pattern, "/analytics"), pattern == "GET /v1/sites")
+	if err != nil {
+		log.Printf("scope gate: owner: %v", err)
+		httpx.WriteInternal(w)
+		return nil, false
+	}
+	if refusal != nil {
+		httpx.WriteError(w, refusal.Status, refusal.Code, refusal.Message)
+		return nil, false
+	}
+	if user != nil && (user.Member.Site != "" && !EditorAllows(pattern) || user.Member.Edits != nil && pattern != "GET /v1/sites") {
+		httpx.WriteError(w, http.StatusForbidden, "editor_scope", "you edit only the site "+user.Member.Site+" of "+owner+": publish, roll back, its versions, saved data and visits; nothing else of the account")
+		return nil, false
+	}
+	if user == nil || writeCheck == nil || !changes(r, pattern) {
+		return user, true
+	}
+	status, code, msg, err := writeCheck(r.Context(), user, site)
+	if err != nil {
+		log.Printf("scope gate: write check: %v", err)
+		httpx.WriteInternal(w)
+		return nil, false
+	}
+	if code != "" {
+		httpx.WriteError(w, status, code, msg)
+		return nil, false
+	}
+	return user, true
 }
 
 // ownerRoutes are the routes that take owner=<handle>: every /v1/sites

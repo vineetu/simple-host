@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
@@ -39,18 +41,46 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 	if !c.Owner && !c.OwnerOnSite {
 		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
 	}
-	byID := map[string]*Person{}
-	order := []string{}
-	get := func(id string) *Person {
-		p, ok := byID[id]
-		if !ok {
-			p = &Person{VisitorID: id, SignedIn: true}
-			byID[id] = p
-			order = append(order, id)
-		}
-		return p
+	writers, err := s.siteDataWriters(ctx, c)
+	if err != nil {
+		return nil, err
 	}
+	viewers, byEmail, err := s.namedViewers(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Person, 0, len(writers)+len(viewers)+len(byEmail))
+	index := map[string]int{}
+	for _, id := range writers {
+		index[id] = len(out)
+		out = append(out, Person{VisitorID: id, SignedIn: true, HasData: true})
+	}
+	for _, id := range viewers {
+		i, ok := index[id]
+		if !ok {
+			i, index[id] = len(out), len(out)
+			out = append(out, Person{VisitorID: id, SignedIn: true})
+		}
+		out[i].NamedViewer = true
+	}
+	for i := range out {
+		email, err := s.deps.VisitorEmail(ctx, out[i].VisitorID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, &Error{Code: "internal_error", Message: "internal server error"}
+		}
+		out[i].Email = email
+	}
+	return append(out, byEmail...), nil
+}
 
+// siteDataWriters returns the visitors with a KV key, stored file or SQLite
+// row here. KV and file writer_id are server-stamped and already
+// trustworthy, but a SQLite row's visitor_id can be whatever the owner's raw
+// storage_sql_execute wrote, including another account's id entirely
+// (review fix, SIM-358). Every candidate, from every source, is confirmed
+// against the server's own site_visitor_signins record before it is listed
+// or its email resolved — never trust a value read back out of a table.
+func (s *Service) siteDataWriters(ctx context.Context, c Call) ([]string, error) {
 	kvIDs, err := s.sqliteKVVisitors(ctx, c)
 	if err != nil {
 		return nil, err
@@ -63,82 +93,45 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 	if err != nil {
 		return nil, err
 	}
-	// hasData's keys are raw candidate ids: KV and file writer_id are
-	// server-stamped and already trustworthy, but a SQLite row's
-	// visitor_id can be whatever the owner's raw storage_sql_execute
-	// wrote, including another account's id entirely (review fix,
-	// SIM-358). Every candidate, from every source, is confirmed against
-	// the server's own site_visitor_signins record before it is listed or
-	// its email resolved — never trust a value read back out of a table.
 	hasData := map[string]bool{}
-	for _, id := range kvIDs {
+	for _, id := range slices.Concat(kvIDs, fileIDs, rowIDs) {
 		hasData[id] = true
 	}
-	for _, id := range fileIDs {
-		hasData[id] = true
-	}
-	for _, id := range rowIDs {
-		hasData[id] = true
-	}
-	candidates := make([]string, 0, len(hasData))
-	for id := range hasData {
-		candidates = append(candidates, id)
-	}
+	candidates := slices.Collect(maps.Keys(hasData))
 	signedIn, err := repository.SignedInAmong(ctx, s.db, c.SiteID, candidates)
 	if err != nil {
 		return nil, &Error{Code: "internal_error", Message: "internal server error"}
 	}
-	for id := range hasData {
-		if !signedIn[id] {
-			continue
-		}
-		get(id).HasData = true
-	}
+	return slices.DeleteFunc(candidates, func(id string) bool { return !signedIn[id] }), nil
+}
 
+// namedViewers returns the visitor ids of the site's named viewers, and,
+// listed by email only, the viewers no single current account matches.
+func (s *Service) namedViewers(ctx context.Context, c Call) (ids []string, byEmail []Person, _ error) {
 	viewers, err := accountsrepo.ListSiteViewers(ctx, s.db, c.SiteID)
 	if err != nil {
-		return nil, &Error{Code: "internal_error", Message: "internal server error"}
+		return nil, nil, &Error{Code: "internal_error", Message: "internal server error"}
 	}
-	var unresolved []Person
 	for _, v := range viewers {
-		if v.SignedInAt == nil {
-			unresolved = append(unresolved, Person{Email: v.Email, NamedViewer: true})
+		id, found, err := "", false, error(nil)
+		if v.SignedInAt != nil {
+			id, found, err = s.resolveSignedInVisitorByEmail(ctx, c.SiteID, strings.ToLower(v.Email))
+		}
+		switch {
+		case errors.Is(err, errAmbiguousVisitorEmail):
+			// More than one signed-in account resolves to this email: never
+			// guess which one.
+		case err != nil:
+			return nil, nil, &Error{Code: "internal_error", Message: "internal server error"}
+		case found:
+			ids = append(ids, id)
 			continue
 		}
-		id, found, err := s.resolveSignedInVisitorByEmail(ctx, c.SiteID, strings.ToLower(v.Email))
-		if errors.Is(err, errAmbiguousVisitorEmail) {
-			// More than one signed-in account currently resolves to this
-			// email: list the named viewer by email, never guess which one.
-			unresolved = append(unresolved, Person{Email: v.Email, NamedViewer: true})
-			continue
-		}
-		if err != nil {
-			return nil, &Error{Code: "internal_error", Message: "internal server error"}
-		}
-		if !found {
-			// The viewer's first-signed-in timestamp exists, but no current
-			// account matches this email (it changed since): list by email
-			// only, the same as never having signed in.
-			unresolved = append(unresolved, Person{Email: v.Email, NamedViewer: true})
-			continue
-		}
-		get(id).NamedViewer = true
+		// Never signed in, ambiguous, or no current account matches the
+		// email (it changed since): listed by email only.
+		byEmail = append(byEmail, Person{Email: v.Email, NamedViewer: true})
 	}
-
-	out := make([]Person, 0, len(order)+len(unresolved))
-	for _, id := range order {
-		p := byID[id]
-		if p.Email == "" {
-			email, err := s.deps.VisitorEmail(ctx, id)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return nil, &Error{Code: "internal_error", Message: "internal server error"}
-			}
-			p.Email = email
-		}
-		out = append(out, *p)
-	}
-	out = append(out, unresolved...)
-	return out, nil
+	return ids, byEmail, nil
 }
 
 // sqliteRowVisitors scans every SQLite resource's author-tracked tables

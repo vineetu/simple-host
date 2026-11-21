@@ -17,23 +17,22 @@ func nullableString(v sql.NullString) any {
 }
 
 func (h *judgingHTTP) previewJudging(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	rows, err := computeResultsWithOptions(r.Context(), h.database, a.event)
+	rows, err := h.entries.LiveResults(r.Context(), a.event)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
 	// A judging preview is read-only maths, never published, so it carries
-	// no entry cards (nil cards map -- resultsSnapshotJSON reads a nil map
-	// fine, same as "no card for this team").
-	httpx.WriteJSON(w, 200, map[string]any{"results": resultsSnapshotJSON(rows, nil), "deciding_mode": a.event.ScoreMode})
+	// no entry cards.
+	httpx.WriteJSON(w, 200, map[string]any{"results": entries.SnapshotRows(rows, nil), "deciding_mode": a.event.ScoreMode})
 }
 
 func (h *judgingHTTP) getManualAssignments(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -46,7 +45,7 @@ func (h *judgingHTTP) getManualAssignments(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *judgingHTTP) putManualAssignments(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -69,7 +68,7 @@ func (h *judgingHTTP) putManualAssignments(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *judgingHTTP) getTrackPanels(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -82,7 +81,7 @@ func (h *judgingHTTP) getTrackPanels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *judgingHTTP) putTrackPanels(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}

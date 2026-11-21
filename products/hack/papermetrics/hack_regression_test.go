@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -366,5 +367,45 @@ func TestHackCellReuseIsEmpty(t *testing.T) {
 	}
 	if s.arrivals[0].Load() != 1 || s.writes1s[0].Load() != 0 {
 		t.Fatal("reused cell retained second bins")
+	}
+}
+
+func TestHiddenDailyAndPhasePlan(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		values map[string]any
+		want   string
+	}{
+		{map[string]any{"hack_judges_total": int64(3), "hack_scores_total": int64(40)}, "hack_judges_total hack_scores_total"},
+		{map[string]any{"hack_scores_total": int64(40)}, "hack_scores_total"},
+		{map[string]any{"hack_applications_total": int64(20), "hack_applications_approved_total": int64(18)}, "hack_applications_approved_total hack_applications_total"},
+		{map[string]any{"hack_applications_day": int64(20)}, "hack_applications_day"},
+		{map[string]any{"hack_applications_day": int64(20), "hack_applications_approved_day": int64(10), "hack_judges_total": int64(5)}, ""},
+	} {
+		var got []string
+		for metric, hidden := range hiddenDaily(tt.values) {
+			if hidden {
+				got = append(got, metric)
+			}
+		}
+		slices.Sort(got)
+		if strings.Join(got, " ") != tt.want {
+			t.Errorf("hiddenDaily(%v) = %v, want %s", tt.values, got, tt.want)
+		}
+	}
+	for _, tt := range []struct {
+		prev  hackPhaseRow
+		stage string
+		hook  bool
+		want  hackPhasePlan
+	}{
+		{hackPhaseRow{stage: "open"}, "open", false, hackPhasePlan{}},
+		{hackPhaseRow{stage: "draft"}, "open", false, hackPhasePlan{record: true}},
+		{hackPhaseRow{stage: "open", observed: true}, "open", true, hackPhasePlan{record: true, moveOrigin: true, firstOpen: true}},
+		{hackPhaseRow{stage: "building"}, "building", true, hackPhasePlan{record: true}},
+	} {
+		if got := planHackPhase(tt.prev, tt.stage, tt.hook); got != tt.want {
+			t.Errorf("planHackPhase(%+v, %s, %v) = %+v", tt.prev, tt.stage, tt.hook, got)
+		}
 	}
 }

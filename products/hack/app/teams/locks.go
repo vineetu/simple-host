@@ -9,28 +9,14 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// LockEventStage locks the event row FOR SHARE and returns its stage,
-// fresh, inside the transaction. setStage takes the event row FOR UPDATE
-// as its very first step (and every team row FOR UPDATE right after), so
-// this either waits for a setStage already running to commit and then
-// sees its result, or runs first and makes setStage wait for it -- never a
-// stage value read before this transaction even began. Lock order for
-// every handler that calls this: the event row first, then member rows,
-// then team rows, the same order setStage and every other hack writer
-// uses (Grok security review, 2026-11-01: the former transport lockCallerTeam's comment used
-// to claim the event was "already locked by loadMember's read", which it
-// never was -- loadMember's read holds no lock at all).
+// LockEventStage locks the event row FOR SHARE (event, then members, then teams) and returns its current stage.
 func LockEventStage(ctx context.Context, tx *sql.Tx, eventID string) (string, error) {
 	var stage string
 	err := teamrepo.LockEventStageShared(ctx, tx, eventID).Scan(&stage)
 	return stage, err
 }
 
-// LockCallerTeam locks the event row (see LockEventStage), then the
-// caller's member row, then (if they are on a team) the team row.
-// sql.ErrNoRows when the caller is on no team. stage is always returned
-// (even on a later error) so the caller can re-check hackteams.ParticipantTeamStages
-// with a value that is guaranteed current, not the one read before BEGIN.
+// LockCallerTeam locks the event, the caller's member row and their team row; sql.ErrNoRows when on no team. stage is returned even on error.
 func LockCallerTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (team model.EventTeam, admin bool, stage string, err error) {
 	stage, err = LockEventStage(ctx, tx, eventID)
 	if err != nil {
@@ -51,19 +37,7 @@ func LockCallerTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (te
 	return team, admin, stage, err
 }
 
-// LockCallerAndTargetTeam locks the event row (see LockEventStage), then
-// the caller's and target's membership rows together, sorted by user_id
-// (the same person collapses to one row), then the caller's team row --
-// always in that order. Used only where a second member is named (the
-// admin toggle): locking just the caller's row, then the team row, then
-// the target's row (as a plain LockCallerTeam call followed by a write on
-// userID would) reproduces a deadlock against that same member's own
-// concurrent request naming the caller back as its target (Codex review,
-// 2026-11-01) -- Postgres aborts one side with a 500 instead of either
-// succeeding or cleanly refusing. Returns the caller's team id
-// (sql.ErrNoRows when they are on no team), whether they are its admin,
-// and the event's current stage; it does not check that target is on the
-// same team, since SetTeamAdmin does that under the same locks.
+// LockCallerAndTargetTeam locks the event, both member rows sorted by user id (avoiding a deadlock with the reverse request), then the caller's team row.
 func LockCallerAndTargetTeam(ctx context.Context, tx *sql.Tx, eventID, callerID, targetID string) (teamID string, callerAdmin bool, stage string, err error) {
 	stage, err = LockEventStage(ctx, tx, eventID)
 	if err != nil {

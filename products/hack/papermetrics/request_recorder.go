@@ -6,7 +6,6 @@ import (
 )
 
 // RequestRecorder records transport-resolved facts in the current collector request.
-// Without a collector request in the context these methods do nothing.
 type RequestRecorder struct{}
 
 func (RequestRecorder) ResolveHackEvent(ctx context.Context, slug, stage, member string, published ...time.Time) {

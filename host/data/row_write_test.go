@@ -198,7 +198,7 @@ func TestAddTableRowOwnerMayUseTrigger(t *testing.T) {
 }
 
 func TestTableWriteAuthorizesBeforeReplay(t *testing.T) {
-	s := New(nil, Deps{PasscodeAllows: func() bool { return false }})
+	s := New(nil, Deps{})
 	c := Call{Resource: rules.Resource{SitePasscode: "inherit"}}
 	for _, action := range []string{"add", "edit", "delete"} {
 		result := s.AuthorizeTableWrite(context.Background(), TableInput{Call: c, Table: "notes"}, action)

@@ -208,8 +208,8 @@ test('native headers reject oversized images before any browser decoder starts',
 });
 test('native header parser accepts small canvas JPEG and WebP fixtures',()=>{
  const h=decodeHarness();h.nativeDimensions(Uint8Array.from(png()).buffer);
- for(const name of fs.readdirSync('host/handler/testdata/photos').filter(n=>/\.(jpg|webp)$/.test(n))) {
-  const bytes=fs.readFileSync('host/handler/testdata/photos/'+name);
+ for(const name of fs.readdirSync('host/web/testdata/photos').filter(n=>/\.(jpg|webp)$/.test(n))) {
+  const bytes=fs.readFileSync('host/web/testdata/photos/'+name);
   h.nativeDimensions(Uint8Array.from(bytes).buffer);
  }
 });

@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"testing"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 	entryapp "github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/model"
-	"strings"
-	"testing"
 )
 
 func checklistItems(t *testing.T, r resp) (map[string]map[string]any, map[string]any) {

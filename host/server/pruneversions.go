@@ -9,9 +9,9 @@ import (
 
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/handler"
 	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/storage"
+	"github.com/vsriram/simple-host/host/web"
 )
 
 func runPruneVersions(args []string) int {
@@ -41,7 +41,7 @@ func runPruneVersions(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err = operations.PruneFixedAccounts(context.Background(), database, disk, edition.Default(limits), handler.KeepVersions(), *apply, os.Stdout); err != nil {
+	if err = operations.PruneFixedAccounts(context.Background(), database, disk, edition.Default(limits), web.KeepVersions(), *apply, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

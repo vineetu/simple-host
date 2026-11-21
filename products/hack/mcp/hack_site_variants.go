@@ -30,15 +30,9 @@ func hackSiteUpdateSite(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 	return tool
 }
 
-func hackSiteWhoAmI(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
-	tool = hackWhoAmITool()
-	return tool
-}
+func hackSiteWhoAmI(mcp.Tool, mcp.Limits) mcp.Tool { return hackWhoAmITool() }
 
-func hackSiteGetPageRecipe(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
-	tool = hackPageRecipeTool()
-	return tool
-}
+func hackSiteGetPageRecipe(mcp.Tool, mcp.Limits) mcp.Tool { return hackPageRecipeTool() }
 
 func hackSiteSetVisibility(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 	tool.Description = "Choose whether the team website appears on its account's public listing (public = listed, unlisted = not listed; new sites start unlisted). It does not affect search engines: every open site can be found by them. To keep it out, use a passcode or named viewers, take it offline, or ship your own robots.txt / noindex. It does not make the site or any storage resource private."

@@ -2,6 +2,7 @@ package hackhttp
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"strings"
@@ -119,47 +120,101 @@ func assistantOffsetLabel(m int64) string {
 	return fmt.Sprintf("%d minutes", m)
 }
 
-// assistantCurrentSettings builds the CURRENT SETTINGS block for one event.
+// settingsText collects the CURRENT SETTINGS lines.
+type settingsText struct {
+	strings.Builder
+	ev model.Event
+}
+
+func (b *settingsText) line(format string, args ...any) {
+	b.WriteString("- ")
+	fmt.Fprintf(b, format, args...)
+	b.WriteString("\n")
+}
+
+// timeOr is a stored time in the event's zone, or "not set".
+func (b *settingsText) timeOr(t sql.NullTime) string {
+	if !t.Valid {
+		return "not set"
+	}
+	return assistantTime(b.ev, t.Time)
+}
+
+// unavailable logs a failed read and says so in the block.
+func (b *settingsText) unavailable(what, label string, err error) {
+	log.Printf("hack: assistant settings %s %s: %v", what, b.ev.Slug, err)
+	b.line("%s: unavailable", label)
+}
+
+// assistantCurrentSettings builds the CURRENT SETTINGS block for one event,
+// in the order of the organiser's Settings sections.
 func (h *assistantHTTP) assistantCurrentSettings(ctx context.Context, ev model.Event) string {
-	var b strings.Builder
-	line := func(format string, args ...any) {
-		b.WriteString("- ")
-		fmt.Fprintf(&b, format, args...)
-		b.WriteString("\n")
-	}
+	b := &settingsText{ev: ev}
+	h.signupSettings(ctx, b)
+	entrySettings(b)
+	h.judgingSettings(ctx, b)
+	h.resultSettings(ctx, b)
+	h.pageSettings(ctx, b)
+	return b.String()
+}
 
-	// Sign-up and teams (Settings > Sign-up, Teams).
+// signupSettings is Settings > Sign-up and Teams.
+func (h *assistantHTTP) signupSettings(ctx context.Context, b *settingsText) {
+	ev := b.ev
 	if questions, approval, err := h.members.Registration(ctx, ev.ID); err != nil {
-		log.Printf("hack: assistant settings registration %s: %v", ev.Slug, err)
-		line("Sign-up: unavailable")
+		b.unavailable("registration", "Sign-up", err)
 	} else {
-		line("Approve people who join with your link: %s", onOff(approval))
-		line("Sign-up questions: %d", len(questions))
+		b.line("Approve people who join with your link: %s", onOff(approval))
+		b.line("Sign-up questions: %d", len(questions))
 	}
-	line("Let people apply without your join link (Applications): %s", onOff(ev.ApplicationsOpen))
-	line("List this event on Find a hackathon: %s", onOff(ev.DirectoryListed))
-	line("Team finding: %s", onOff(ev.TeamFinding))
-	line("Most people per team: %d", ev.TeamSizeMax)
+	b.line("Let people apply without your join link (Applications): %s", onOff(ev.ApplicationsOpen))
+	b.line("List this event on Find a hackathon: %s", onOff(ev.DirectoryListed))
+	b.line("Team finding: %s", onOff(ev.TeamFinding))
+	b.line("Most people per team: %d", ev.TeamSizeMax)
+}
 
-	// Entries (Settings > Entries).
-	if ev.SubmissionDeadline.Valid {
-		line("Entries close: %s", assistantTime(ev, ev.SubmissionDeadline.Time))
-	} else {
-		line("Entries close: not set")
-	}
-	fields := entries.LoadRules(ev.EntryRules)
-	preset := "Custom (rows changed from a preset)"
-	if l, ok := assistantPresetLabels[ev.EntryPreset]; ok {
-		preset = l
-	} else if l, ok := assistantLegacyPresetLabels[ev.EntryPreset]; ok {
-		preset = l + " (an older preset that can no longer be picked; the event keeps it until another preset is chosen)"
-	}
+// entrySettings is Settings > Entries.
+func entrySettings(b *settingsText) {
+	ev := b.ev
+	b.line("Entries close: %s", b.timeOr(ev.SubmissionDeadline))
+	saved := "not yet saved by an organiser; this is what the event starts with"
 	if ev.EntryRulesChosen {
-		line("What teams hand in: %s (saved by an organiser)", preset)
-	} else {
-		line("What teams hand in: %s (not yet saved by an organiser; this is what the event starts with)", preset)
+		saved = "saved by an organiser"
 	}
-	var rows []string
+	b.line("What teams hand in: %s (%s)", presetLabel(ev.EntryPreset), saved)
+	fields := entries.LoadRules(ev.EntryRules)
+	b.line("Summary card and Show your work rows: %s", entryFieldRows(fields))
+	if fields["description"] == "required" {
+		// No editor row today; only older rules can still require it.
+		b.line("Longer description (an older field with no row in today's editor): Required")
+	}
+	b.line("Judges see, after the card, first: %s", labelOr(assistantJudgeFirstLabels, ev.JudgeFirst))
+	if len(ev.ReminderOffsets) == 0 {
+		b.line("Reminder times: none (reminders are off)")
+		return
+	}
+	offs := make([]string, len(ev.ReminderOffsets))
+	for i, m := range ev.ReminderOffsets {
+		offs[i] = assistantOffsetLabel(m)
+	}
+	b.line("Reminder times: %s before", strings.Join(offs, ", "))
+}
+
+// presetLabel names the event's entry preset, current, older or custom.
+func presetLabel(preset string) string {
+	if l, ok := assistantPresetLabels[preset]; ok {
+		return l
+	}
+	if l, ok := assistantLegacyPresetLabels[preset]; ok {
+		return l + " (an older preset that can no longer be picked; the event keeps it until another preset is chosen)"
+	}
+	return "Custom (rows changed from a preset)"
+}
+
+// entryFieldRows is each Entries row with its mode; the title is always
+// required and an unset row is optional.
+func entryFieldRows(fields map[string]string) string {
+	rows := make([]string, 0, len(assistantEntryFieldLabels))
 	for _, f := range assistantEntryFieldLabels {
 		mode := fields[f.ID]
 		if f.ID == "title" {
@@ -170,112 +225,101 @@ func (h *assistantHTTP) assistantCurrentSettings(ctx context.Context, ev model.E
 		}
 		rows = append(rows, f.Label+": "+labelOr(assistantFieldModeLabels, mode))
 	}
-	line("Summary card and Show your work rows: %s", strings.Join(rows, "; "))
-	if m := fields["description"]; m == "required" {
-		// No editor row today; only older rules can still require it.
-		line("Longer description (an older field with no row in today's editor): Required")
-	}
-	line("Judges see, after the card, first: %s", labelOr(assistantJudgeFirstLabels, ev.JudgeFirst))
-	if len(ev.ReminderOffsets) == 0 {
-		line("Reminder times: none (reminders are off)")
-	} else {
-		var offs []string
-		for _, m := range ev.ReminderOffsets {
-			offs = append(offs, assistantOffsetLabel(m))
-		}
-		line("Reminder times: %s before", strings.Join(offs, ", "))
-	}
+	return strings.Join(rows, "; ")
+}
 
-	// Judging (Settings > Judging, Judging).
-	if ev.JudgingEndsAt.Valid {
-		line("Judging closes: %s", assistantTime(ev, ev.JudgingEndsAt.Time))
-	} else {
-		line("Judging closes: not set")
-	}
-	tieName := ""
-	rubricOK := true
-	if items, err := h.entries.Rubric(ctx, ev.ID); err != nil {
-		log.Printf("hack: assistant settings rubric %s: %v", ev.Slug, err)
-		line("Rubric: unavailable")
-		rubricOK = false
-	} else {
-		var crit []string
-		for _, c := range items {
-			crit = append(crit, fmt.Sprintf("%s (weight %d%%, max %d points)", c.Name, c.Weight, c.MaxPoints))
-			if ev.TieCriterionID.Valid && c.ID == ev.TieCriterionID.String {
-				tieName = c.Name
-			}
-		}
-		line("Rubric (%d criteria): %s", len(items), strings.Join(crit, "; "))
-	}
-	switch {
-	case !rubricOK && ev.TieCriterionID.Valid:
-		line("First tie criterion: unavailable")
-	case tieName != "":
-		line("First tie criterion: %s", tieName)
-	default:
-		line("First tie criterion: not chosen")
-	}
-	line("How judges are assigned: %s; judges per team: %d", labelOr(assistantAssignmentModeLabels, ev.JudgeAssignmentMode), ev.JudgesPerTeam)
+// judgingSettings is Settings > Judging and the Judging page.
+func (h *assistantHTTP) judgingSettings(ctx context.Context, b *settingsText) {
+	ev := b.ev
+	b.line("Judging closes: %s", b.timeOr(ev.JudgingEndsAt))
+	h.rubricSettings(ctx, b)
+	b.line("How judges are assigned: %s; judges per team: %d", labelOr(assistantAssignmentModeLabels, ev.JudgeAssignmentMode), ev.JudgesPerTeam)
 	if judges, err := h.entries.EventJudges(ctx, ev.ID); err == nil {
-		names := []string{}
+		names := make([]string, 0, len(judges))
 		for _, j := range judges {
-			name := j.Name
 			if j.Role == "organiser" {
-				name += " (organiser)"
+				j.Name += " (organiser)"
 			}
-			names = append(names, name)
+			names = append(names, j.Name)
 		}
-		line("Who judges (joined judges plus selected organisers): %s", strings.Join(names, ", "))
+		b.line("Who judges (joined judges plus selected organisers): %s", strings.Join(names, ", "))
 	}
-
 	if ev.JudgingLockedAt.Valid {
-		line("Judging locked: yes, since %s", assistantTime(ev, ev.JudgingLockedAt.Time))
+		b.line("Judging locked: yes, since %s", assistantTime(ev, ev.JudgingLockedAt.Time))
 	} else {
-		line("Judging locked: no")
+		b.line("Judging locked: no")
 	}
+}
 
-	// Results (Settings > Results).
-	line("Score used for ranking: %s", labelOr(assistantScoreModeLabels, ev.ScoreMode))
-	if res, err := h.entries.EventResults(ctx, ev.ID); err != nil {
-		log.Printf("hack: assistant settings results %s: %v", ev.Slug, err)
-		line("Results: unavailable")
-	} else if !res.Published {
-		line("Results published: no (Visibility can be set once results are published)")
-		line("Show scores: %s; Show ranks: %s", onOff(ev.PublicScores), onOff(ev.PublicRanks))
-	} else {
+// rubricSettings is the rubric and the first tie criterion.
+func (h *assistantHTTP) rubricSettings(ctx context.Context, b *settingsText) {
+	ev := b.ev
+	items, err := h.entries.Rubric(ctx, ev.ID)
+	if err != nil {
+		b.unavailable("rubric", "Rubric", err)
+		if ev.TieCriterionID.Valid {
+			b.line("First tie criterion: unavailable")
+		} else {
+			b.line("First tie criterion: not chosen")
+		}
+		return
+	}
+	tie := "not chosen"
+	crit := make([]string, 0, len(items))
+	for _, c := range items {
+		crit = append(crit, fmt.Sprintf("%s (weight %d%%, max %d points)", c.Name, c.Weight, c.MaxPoints))
+		if ev.TieCriterionID.Valid && c.ID == ev.TieCriterionID.String && c.Name != "" {
+			tie = c.Name
+		}
+	}
+	b.line("Rubric (%d criteria): %s", len(items), strings.Join(crit, "; "))
+	b.line("First tie criterion: %s", tie)
+}
+
+// resultSettings is Settings > Results and people's choice.
+func (h *assistantHTTP) resultSettings(ctx context.Context, b *settingsText) {
+	ev := b.ev
+	b.line("Score used for ranking: %s", labelOr(assistantScoreModeLabels, ev.ScoreMode))
+	res, err := h.entries.EventResults(ctx, ev.ID)
+	switch {
+	case err != nil:
+		b.unavailable("results", "Results", err)
+	case !res.Published:
+		b.line("Results published: no (Visibility can be set once results are published)")
+		b.line("Show scores: %s; Show ranks: %s", onOff(ev.PublicScores), onOff(ev.PublicRanks))
+	default:
 		vis := "Winners only"
 		if res.FullRanking {
 			vis = "Full ranking"
 		}
-		line("Results published: yes, last on %s", assistantTime(ev, res.PublishedAt.Time))
-		line("Visibility on the public page: %s; Show scores: %s; Show ranks: %s", vis, onOff(ev.PublicScores), onOff(ev.PublicRanks))
+		b.line("Results published: yes, last on %s", assistantTime(ev, res.PublishedAt.Time))
+		b.line("Visibility on the public page: %s; Show scores: %s; Show ranks: %s", vis, onOff(ev.PublicScores), onOff(ev.PublicRanks))
 	}
-	if v, err := h.entries.ReadVotingSettings(ctx, ev, time.Now); err != nil {
-		log.Printf("hack: assistant settings voting %s: %v", ev.Slug, err)
-		line("People's choice: unavailable")
-	} else {
-		s := v.Settings
-		window := ""
-		if s.OpensAt.Valid {
-			window += "; starts " + assistantTime(ev, s.OpensAt.Time)
-		}
-		if s.ClosesAt.Valid {
-			window += "; ends " + assistantTime(ev, s.ClosesAt.Time)
-		}
-		line("People's choice (Let visitors vote): %s%s; Who can vote: %s", onOff(s.Enabled), window, labelOr(assistantEligibilityLabels, s.Eligibility))
+	v, err := h.entries.ReadVotingSettings(ctx, ev, time.Now)
+	if err != nil {
+		b.unavailable("voting", "People's choice", err)
+		return
 	}
+	window := ""
+	if v.Settings.OpensAt.Valid {
+		window += "; starts " + assistantTime(ev, v.Settings.OpensAt.Time)
+	}
+	if v.Settings.ClosesAt.Valid {
+		window += "; ends " + assistantTime(ev, v.Settings.ClosesAt.Time)
+	}
+	b.line("People's choice (Let visitors vote): %s%s; Who can vote: %s", onOff(v.Settings.Enabled), window, labelOr(assistantEligibilityLabels, v.Settings.Eligibility))
+}
 
-	// Event page (Look, Website).
-	line("Show entries on the event page (gallery): %s", onOff(ev.GalleryOpen))
-	line("What shows at your address: %s", labelOr(assistantWebsiteModeLabels, ev.WebsiteMode))
-	// Not organiser settings: fixed by the server, so said as such (the
-	// model otherwise offers to "change this in Settings").
-	line("Website zip upload limit: %d MB (fixed by Simple Hack; organisers can't change it)", h.websiteUploadLimit(ctx, ev)>>20)
+// pageSettings is Look and Website, plus the limits Simple Hack fixes (said
+// as such, or the model offers to "change this in Settings").
+func (h *assistantHTTP) pageSettings(ctx context.Context, b *settingsText) {
+	ev := b.ev
+	b.line("Show entries on the event page (gallery): %s", onOff(ev.GalleryOpen))
+	b.line("What shows at your address: %s", labelOr(assistantWebsiteModeLabels, ev.WebsiteMode))
+	b.line("Website zip upload limit: %d MB (fixed by Simple Hack; organisers can't change it)", h.website.uploadLimit(ctx, ev)>>20)
 	if ev.KeepSites {
-		line("Team sites after the event ends: kept, this event is exempt from cleanup (set by Simple Hack; organisers can't change it)")
-	} else {
-		line("Team sites after the event ends: removed %d days after it ends (fixed by Simple Hack; organisers can't change it)", int(h.limits.EventSitesKeep.Hours()/24))
+		b.line("Team sites after the event ends: kept, this event is exempt from cleanup (set by Simple Hack; organisers can't change it)")
+		return
 	}
-	return b.String()
+	b.line("Team sites after the event ends: removed %d days after it ends (fixed by Simple Hack; organisers can't change it)", int(h.limits.EventSitesKeep.Hours()/24))
 }

@@ -12,18 +12,18 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/extension"
-	"github.com/vsriram/simple-host/host/handler"
 	platformtest "github.com/vsriram/simple-host/host/server/servertest"
+	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 )
 
 type countedGroupHosts struct {
-	handler.GroupHosts
+	web.GroupHosts
 	accounts, pins int
 }
 
-func (g *countedGroupHosts) ByAccount(ctx context.Context, id string) (handler.Group, error) {
+func (g *countedGroupHosts) ByAccount(ctx context.Context, id string) (web.Group, error) {
 	g.accounts++
 	return g.GroupHosts.ByAccount(ctx, id)
 }

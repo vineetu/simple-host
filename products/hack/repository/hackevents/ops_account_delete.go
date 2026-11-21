@@ -16,8 +16,7 @@ func AccountHasRunningEvents(ctx context.Context, q sqlkit.Querier, userID strin
 	return running, nil
 }
 func CleanupDeletedAccountEvents(ctx context.Context, q sqlkit.Querier, userID string) error {
-	// A taken-down event of theirs ends: restoring it later must not bring
-	// back a running event nobody can manage.
+	// A taken-down event of theirs ends: restoring it later must not bring back a running event nobody can manage.
 	if _, err := q.ExecContext(ctx, `
 		UPDATE events e SET stage = 'archived', closed_at = COALESCE(e.closed_at, now()), updated_at = now()
 		  FROM event_members m
@@ -31,8 +30,7 @@ func CleanupDeletedAccountEvents(ctx context.Context, q sqlkit.Querier, userID s
 		 WHERE m.event_id = e.id AND m.user_id = $1 AND m.role = 'organiser'`, userID); err != nil {
 		return err
 	}
-	// A team this person is alone on goes with them (its code would
-	// otherwise stay live on an empty team).
+	// A team this person is alone on goes with them (its code would otherwise stay live on an empty team).
 	_, err := q.ExecContext(ctx, `
 		DELETE FROM event_teams t USING events e
 		 WHERE e.id = t.event_id

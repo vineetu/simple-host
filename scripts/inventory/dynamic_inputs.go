@@ -34,21 +34,21 @@ func patternInputs(sites []dynamicSite, prefix, suffix string) []string {
 	return values
 }
 func validateDynamicInputs(root string) error {
-	ui := dynamicSites["host/handler/sites_ui.go:RegisterUIRoutes"]
-	connector := dynamicSites["host/handler/access_connector.go:Register"]
+	ui := dynamicSites["host/sites/siteshttp/ui.go:RegisterUIRoutes"]
+	connector := dynamicSites["host/access/accesshttp/connector.go:Register"]
 	hackVersions := dynamicSites["products/hack/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
 	ownFiles := dynamicSites["products/hack/asset_files.go:RegisterOwnFiles"]
 	hackFilm := dynamicSites["products/hack/hackhttp/hack_film.go:RegisterHackFilm"]
 	inputs := []dynamicInput{
 		{"host/server/build.go", "Build", "range", nil, 1, "redirects"},
 		{"cmd/simple-host/main.go", "compatibilityRedirects", "keys", patternInputs(dynamicSites["host/server/build.go:Build"], "", ""), 0, ""},
-		{"host/handler/instancehost.go", "rewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
-		{"host/handler/sites_ui.go", "RegisterUIRoutes", "range", nil, 1, "rewrittenAssets"},
-		{"host/handler/sites_ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},
-		{"host/handler/sites_ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles()"},
-		{"host/handler/sites_ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
-		{"host/handler/access_connector.go", "museClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
-		{"host/handler/access_connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
+		{"host/web/instancehost.go", "RewrittenAssets", "values", patternInputs(ui[:2], "GET /", ""), 0, ""},
+		{"host/sites/siteshttp/ui.go", "RegisterUIRoutes", "range", nil, 1, "web.RewrittenAssets"},
+		{"host/sites/siteshttp/ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},
+		{"host/sites/siteshttp/ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles()"},
+		{"host/sites/siteshttp/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
+		{"host/access/accesshttp/connector.go", "MuseClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
+		{"host/access/accesshttp/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
 		{"products/hack/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["products/hack/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
 		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
@@ -63,7 +63,7 @@ func validateDynamicInputs(root string) error {
 		{"products/hack/hackhttp/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
 	}
 	for registration := 4; registration <= 7; registration++ {
-		inputs = append(inputs, dynamicInput{"host/handler/sites_ui.go", "RegisterUIRoutes", "range", nil, registration, "assets.bundledSkillDirs()"})
+		inputs = append(inputs, dynamicInput{"host/sites/siteshttp/ui.go", "RegisterUIRoutes", "range", nil, registration, "assets.BundledSkillDirs()"})
 	}
 	for _, input := range inputs {
 		if err := validateDynamicInput(root, input); err != nil {

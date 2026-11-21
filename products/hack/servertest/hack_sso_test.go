@@ -15,8 +15,8 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/config"
 
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	accountrepo "github.com/vsriram/simple-host/host/access/repo"
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/server"
 )
 
@@ -30,8 +30,8 @@ func TestSSOHackEventAndTeamHosts(t *testing.T) {
 	wantTS(t, "team", a.deployTeam(t, event, team, member.key, "team"), 201, "")
 	wantTS(t, "event website", a.deployTeam(t, event, eventIDOf(t, a, event), organiser.key, "event"), 201, "")
 	wantTS(t, "custom event website", a.api(t, "PATCH", "/v1/hack/events/"+event+"/website", map[string]string{"mode": "custom"}, organiser.key), 200, "")
-	o := handler.NewOAuthHandler(a.database, accountapp.New(a.database), server.OAuthSettings(config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain}, accountapp.New(a.database)), productedition.ForKind(productedition.Hack))
-	o.SetPersonSiteResolver(a.sites.PersonReturnSite)
+	o := accesshttp.NewOAuthHandler(a.database, accountapp.New(a.database), server.OAuthSettings(config.Config{PublicBaseURL: a.srv.URL, SiteDomain: tsDomain, ContentHost: "sites." + tsDomain}, accountapp.New(a.database)), productedition.ForKind(productedition.Hack))
+	o.SetPersonSiteResolver(a.sites.Hosts.ReturnSite)
 	o.SetPasscodeCheck(a.access.PasscodeLetsIn)
 	a.access.SetSSOHop(o)
 	o.Register(a.mux)

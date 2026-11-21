@@ -3,174 +3,167 @@ package hackhttp
 import (
 	"fmt"
 	"strings"
+
+	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 
+// hackOrganisedBy is "Organised by <name> (<organisation>)", with either
+// part alone when the other is blank, or "" when both are.
 func hackOrganisedBy(name, org string) string {
-	name = strings.TrimSpace(name)
-	org = strings.TrimSpace(org)
+	name, org = strings.TrimSpace(name), strings.TrimSpace(org)
 	switch {
 	case name != "" && org != "":
 		return "Organised by " + name + " (" + org + ")"
-	case name != "":
-		return "Organised by " + name
-	case org != "":
-		return "Organised by " + org
-	default:
+	case name == "" && org == "":
 		return ""
 	}
+	return "Organised by " + name + org
 }
 
-// hackStagePill is the short phrase in the event header's stage pill
+// hackStagePills is the short phrase in the event header's stage pill
 // (spec sections "Event header": "[stage pill] Sign-up is open").
+var hackStagePills = map[string]string{
+	"draft": "Not open yet", "open": "Sign-up is open", "building": "Teams are building",
+	"closed": "Entries are closed", "judging": "Judging is under way",
+	"results": "Results coming soon", "archived": "This event has ended",
+}
+
+// hackStagePill is the stage's pill; published results read "Results are out".
 func hackStagePill(stage string, published bool) string {
-	switch stage {
-	case "draft":
-		return "Not open yet"
-	case "open":
-		return "Sign-up is open"
-	case "building":
-		return "Teams are building"
-	case "closed":
-		return "Entries are closed"
-	case "judging":
-		return "Judging is under way"
-	case "results":
-		if published {
-			return "Results are out"
-		}
-		return "Results coming soon"
-	case "archived":
-		return "This event has ended"
-	default:
-		return ""
+	if stage == "results" && published {
+		return "Results are out"
 	}
+	return hackStagePills[stage]
+}
+
+// hackStageCardInput is what the stage card is decided from: the raw stage (not
+// the results layout), the organiser's name to show, the deadline as already
+// formatted, and whether results or voting take the spotlight.
+type hackStageCardInput struct {
+	Stage, AppURL, Who, ApplyURL  string
+	GalleryCount                  int
+	DeadlineNote, DeadlineHeading string
+	Countdown, DeadlinePassed     bool
+	ResultsPublished, VotingOpen  bool
+}
+
+// hackLateStageCards are the stage cards from closed onwards; each gets the
+// gallery link when there are team sites to see.
+var hackLateStageCards = map[string]hackStageCardView{
+	"closed":   {Kicker: "Entries are closed", Heading: "Teams have handed in their work", Body: "Winners will be posted on this page."},
+	"judging":  {Kicker: "Judging is under way", Heading: "The judges are scoring every entry", Body: "Winners will be posted on this page."},
+	"results":  {Kicker: "Results coming soon", Heading: "Winners will be posted here", Body: "The organisers publish the results on this page."},
+	"archived": {Kicker: "This event has ended", Heading: "Thanks to everyone who took part"},
 }
 
 // buildHackStageCard is the one card under the header (spec
-// "primary_action_by_stage" and "sections": "Stage card: ..."). Nil for
-// results/archived once results are published: the Results block replaces it.
-// applyURL is empty when applications are off (D4/§4: then the card is
-// exactly what it would be without this feature).
-func buildHackStageCard(stage, appURL, organiserName, organisation string,
-	galleryCount int, deadlineNote, deadlineHeading string, hasCountdown, deadlinePassed bool, resultsPublished bool, applyURL string) *hackStageCardView {
-	signIn := &hackCTA{Label: "Already joined? Sign in", URL: appURL + "/events"}
-	switch stage {
+// "primary_action_by_stage" and "sections": "Stage card: ...").
+func buildHackStageCard(in hackStageCardInput) *hackStageCardView {
+	var card *hackStageCardView
+	switch in.Stage {
 	case "draft":
-		return &hackStageCardView{
+		card = &hackStageCardView{
 			Kicker:    "Not open yet",
 			Heading:   "The organisers are still setting this up",
 			Body:      "Details may change before sign-up opens. Check back here later.",
-			Secondary: &hackCTA{Label: "Find another hackathon", URL: appURL + "/directory"},
+			Secondary: &hackCTA{Label: "Find another hackathon", URL: in.AppURL + "/directory"},
 		}
 	case "open":
-		who := strings.TrimSpace(organisation)
-		if who == "" {
-			who = strings.TrimSpace(organiserName)
-		}
-		if who == "" {
-			who = "The organisers"
-		}
-		note := ""
-		switch {
-		case deadlinePassed:
-			note = "Entries are closed"
-		case deadlineNote != "":
-			note = "Entries close " + deadlineNote
-		}
-		if applyURL != "" {
-			return &hackStageCardView{
-				Kicker:  "Sign-up is open",
-				Heading: "Apply to join",
-				Body: "Sign in with your email and fill in a short form. The organisers decide who joins, and you'll see their answer on your Simple Hack Home. " +
-					"Have a join link from " + who + "? Open that instead.",
-				Primary:         &hackCTA{Label: "Apply", URL: applyURL, Strong: true},
-				Secondary:       signIn,
-				Note:            note,
-				CountdownInNote: hasCountdown && note != "",
-			}
-		}
-		return &hackStageCardView{
-			Kicker:  "Sign-up is open",
-			Heading: "Join with the link from the organisers",
-			Body: who + " shares a join link with you, for example in a WhatsApp group or by email. " +
-				"Open it and sign in with your email. Some events ask a few questions first.",
-			Note:            note,
-			Secondary:       signIn,
-			CountdownInNote: hasCountdown && note != "",
-		}
+		card = hackOpenStageCard(in)
 	case "building":
-		heading := "Building is under way"
-		if galleryCount > 0 {
-			heading = "See what teams are making"
-		}
-		switch {
-		case deadlinePassed:
-			heading = "Entries are closed"
-		case deadlineHeading != "":
-			heading = "Entries close " + deadlineHeading
-		}
-		body := "Sign-up is still open. Join with the link from the organisers."
-		if applyURL != "" {
-			body = "Sign-up is still open. Apply, or join with the link from the organisers."
-		}
-		card := &hackStageCardView{Kicker: "Teams are building", Heading: heading, Body: body, Secondary: signIn,
-			CountdownInBody: hasCountdown}
-		if galleryCount > 0 {
-			card.Primary = &hackCTA{Label: fmt.Sprintf("See team sites (%d)", galleryCount), URL: "#sites"}
-		}
-		if applyURL != "" {
-			apply := &hackCTA{Label: "Apply", URL: applyURL}
-			if card.Primary == nil {
-				apply.Strong = true
-				card.Primary = apply
-			} else {
-				card.Extra = apply
-			}
-		}
-		return card
-	case "closed":
-		body := "Winners will be posted on this page."
-		if deadlineNote != "" {
-			body = "Entries closed " + deadlineNote + ". " + body
-		}
-		card := &hackStageCardView{Kicker: "Entries are closed", Heading: "Teams have handed in their work", Body: body}
-		if galleryCount > 0 {
-			card.Primary = &hackCTA{Label: "See what teams built", URL: "#sites"}
-		}
-		return card
-	case "judging":
-		card := &hackStageCardView{
-			Kicker: "Judging is under way", Heading: "The judges are scoring every entry",
-			Body: "Winners will be posted on this page.",
-		}
-		if galleryCount > 0 {
-			card.Primary = &hackCTA{Label: "See what teams built", URL: "#sites"}
-		}
-		return card
-	case "results":
-		if resultsPublished {
-			return nil
-		}
-		card := &hackStageCardView{
-			Kicker: "Results coming soon", Heading: "Winners will be posted here",
-			Body: "The organisers publish the results on this page.",
-		}
-		if galleryCount > 0 {
-			card.Primary = &hackCTA{Label: "See what teams built", URL: "#sites"}
-		}
-		return card
-	case "archived":
-		if resultsPublished {
-			return nil
-		}
-		card := &hackStageCardView{Kicker: "This event has ended", Heading: "Thanks to everyone who took part"}
-		if galleryCount > 0 {
-			card.Primary = &hackCTA{Label: "See what teams built", URL: "#sites"}
-		}
-		return card
+		card = hackBuildingStageCard(in)
 	default:
+		card = hackLateStageCard(in)
+	}
+	if card != nil && card.Primary != nil {
+		card.Primary.Strong = !in.VotingOpen
+	}
+	return card
+}
+
+// hackSignInCTA is the quiet link for someone who already joined.
+func hackSignInCTA(appURL string) *hackCTA {
+	return &hackCTA{Label: "Already joined? Sign in", URL: appURL + "/events"}
+}
+
+// hackOpenStageCard asks people to apply, or to use the organisers' join
+// link when applications are off, with the entry deadline as its note.
+func hackOpenStageCard(in hackStageCardInput) *hackStageCardView {
+	note := ""
+	if in.DeadlinePassed {
+		note = "Entries are closed"
+	} else if in.DeadlineNote != "" {
+		note = "Entries close " + in.DeadlineNote
+	}
+	card := &hackStageCardView{
+		Kicker: "Sign-up is open", Heading: "Join with the link from the organisers",
+		Body: in.Who + " shares a join link with you, for example in a WhatsApp group or by email. " +
+			"Open it and sign in with your email. Some events ask a few questions first.",
+		Note: note, Secondary: hackSignInCTA(in.AppURL), CountdownInNote: in.Countdown && note != "",
+	}
+	if in.ApplyURL != "" {
+		card.Heading = "Apply to join"
+		card.Body = "Sign in with your email and fill in a short form. The organisers decide who joins, and you'll see their answer on your Simple Hack Home. " +
+			"Have a join link from " + in.Who + "? Open that instead."
+		card.Primary = &hackCTA{Label: "Apply", URL: in.ApplyURL}
+	}
+	return card
+}
+
+// hackBuildingStageCard leads with the team sites when there are any, the
+// deadline in its heading, and Apply as primary or extra button.
+func hackBuildingStageCard(in hackStageCardInput) *hackStageCardView {
+	card := &hackStageCardView{Kicker: "Teams are building", Heading: "Building is under way",
+		Body: "Sign-up is still open. Join with the link from the organisers.", Secondary: hackSignInCTA(in.AppURL),
+		CountdownInBody: in.Countdown}
+	if in.GalleryCount > 0 {
+		card.Heading = "See what teams are making"
+		card.Primary = &hackCTA{Label: fmt.Sprintf("See team sites (%d)", in.GalleryCount), URL: "#sites"}
+	}
+	if in.DeadlinePassed {
+		card.Heading = "Entries are closed"
+	} else if in.DeadlineHeading != "" {
+		card.Heading = "Entries close " + in.DeadlineHeading
+	}
+	if in.ApplyURL == "" {
+		return card
+	}
+	card.Body = "Sign-up is still open. Apply, or join with the link from the organisers."
+	apply := &hackCTA{Label: "Apply", URL: in.ApplyURL}
+	if card.Primary == nil {
+		card.Primary = apply
+	} else {
+		card.Extra = apply
+	}
+	return card
+}
+
+// hackLateStageCard is the closed, judging, results or archived card.
+func hackLateStageCard(in hackStageCardInput) *hackStageCardView {
+	base, ok := hackLateStageCards[in.Stage]
+	if !ok || events.ResultsReplaceStageCard(in.Stage, in.ResultsPublished) {
 		return nil
 	}
+	card := base
+	if in.Stage == "closed" && in.DeadlineNote != "" {
+		card.Body = "Entries closed " + in.DeadlineNote + ". " + card.Body
+	}
+	if in.GalleryCount > 0 {
+		card.Primary = &hackCTA{Label: "See what teams built", URL: "#sites"}
+	}
+	return &card
+}
+
+// hackOrganiserWho is who the open card says shares the join link: the
+// organisation, else the organiser, else "The organisers".
+func hackOrganiserWho(name, organisation string) string {
+	if who := strings.TrimSpace(organisation); who != "" {
+		return who
+	}
+	if who := strings.TrimSpace(name); who != "" {
+		return who
+	}
+	return "The organisers"
 }
 
 func buildHackPeoplesChoice(status, voteURL string) *hackPeoplesChoiceView {
@@ -198,60 +191,54 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 		out.Heading = "Results"
 	}
 	for _, row := range res.Rows {
-		rv := hackResultsRowView{hackResultsRow: row, Score: trimScoreZeros(row.Score), Avatar: hackInitials(row.TeamName), ShotLetter: hackInitials(row.TeamName)}
-		if row.Rank > 0 {
-			out.AnyRanked = true
-		}
+		out.AnyRanked = out.AnyRanked || row.Rank > 0
+		out.HasCards = out.HasCards || row.Card != nil
 		if row.Score != "" {
 			out.ShowScoreHeader = out.ShowScoreHeader || res.FullRanking
 			if out.ScoreNote == "" {
-				switch row.ScoreMode {
-				case "normalised":
-					out.ScoreNote = "Scores are adjusted so strict and generous judges count the same."
-				default:
-					out.ScoreNote = "Scores are the judges' average."
-				}
+				out.ScoreNote = hackScoreNote(row.ScoreMode)
 			}
 		}
-		trackPill := ""
-		if row.TrackWinner {
-			trackPill = "Track winner"
-			if row.TrackName != "" {
-				trackPill = row.TrackName + " winner"
-			}
-			if row.TrackPrize != "" {
-				trackPill += " · " + row.TrackPrize
-			}
-		}
-		if !res.FullRanking {
-			// Winners-only: a row can be the overall winner, a track
-			// winner, or both — markTrackWinners makes the rank-1 team the
-			// winner of its own track too, so the two pills are independent
-			// (review 2026-10-30 item 1; Overall is set from the snapshot
-			// rank, not from publicRanks, so this holds with ranks hidden).
-			if row.Overall {
-				rv.WinnerPill = true
-			}
-			if row.TrackWinner {
-				rv.TrackPill = trackPill
-			}
-		} else {
-			rv.TrackPill = trackPill
-		}
-		if row.Card != nil {
-			if res.FullRanking && !row.Overall && !row.TrackWinner {
-				name := row.Card.Title
-				if name == "" {
-					name = row.TeamName
-				}
-				rv.ShotLetter = hackInitials(name)
-			}
-			rv.MaturityLabel = hackMaturityLabel(row.Card.Maturity)
-			out.HasCards = true
-		}
-		out.Rows = append(out.Rows, rv)
+		out.Rows = append(out.Rows, hackResultsRowViewOf(row, res.FullRanking))
 	}
 	return out
+}
+
+// hackScoreNote is the one plain-English line on how scores were decided.
+func hackScoreNote(mode string) string {
+	if mode == "normalised" {
+		return "Scores are adjusted so strict and generous judges count the same."
+	}
+	return "Scores are the judges' average."
+}
+
+// hackResultsRowViewOf is one results row as the template shows it.
+func hackResultsRowViewOf(row hackResultsRow, fullRanking bool) hackResultsRowView {
+	rv := hackResultsRowView{hackResultsRow: row, Score: trimScoreZeros(row.Score), Avatar: hackInitials(row.TeamName),
+		ShotLetter: hackInitials(row.TeamName), WinnerPill: !fullRanking && row.Overall, TrackPill: hackTrackPill(row)}
+	if row.Card == nil {
+		return rv
+	}
+	if fullRanking && !row.Overall && !row.TrackWinner && row.Card.Title != "" {
+		rv.ShotLetter = hackInitials(row.Card.Title)
+	}
+	rv.MaturityLabel = hackMaturityLabel(row.Card.Maturity)
+	return rv
+}
+
+// hackTrackPill is "<track> winner · <prize>" for a track winner, else "".
+func hackTrackPill(row hackResultsRow) string {
+	if !row.TrackWinner {
+		return ""
+	}
+	pill := "Track winner"
+	if row.TrackName != "" {
+		pill = row.TrackName + " winner"
+	}
+	if row.TrackPrize != "" {
+		pill += " · " + row.TrackPrize
+	}
+	return pill
 }
 
 func hackTextParas(s string) [][]string {

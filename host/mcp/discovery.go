@@ -96,21 +96,7 @@ func discoveryTools() []Tool {
 				"next": outString("How to call the tool."),
 			}, "tools", "next"),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				query, ok := args["query"].(string)
-				if !ok {
-					return output{}, fmt.Errorf("query must be a string")
-				}
-				limit := 3
-				if raw, present := args["limit"]; present {
-					n, ok := raw.(float64)
-					if !ok || n < 1 || n > 10 || n != math.Trunc(n) {
-						return output{}, fmt.Errorf("limit must be an integer from 1 to 10")
-					}
-					limit = int(n)
-				}
-				return c.server.searchFor(c.caller).find(query, limit), nil
-			},
+			run:         runFindTools,
 		},
 		{
 			policy: toolPolicy{unwrap: true, discovery: true, unlisted: true,
@@ -140,49 +126,53 @@ type toolSearch struct {
 	idf   map[string]float64
 }
 
+var searchStopWords = map[string]bool{
+	"a": true, "an": true, "the": true, "my": true, "our": true, "me": true, "i": true, "it": true, "to": true, "for": true,
+	"of": true, "on": true, "in": true, "is": true, "are": true, "and": true, "from": true, "with": true, "this": true,
+}
+
+// searchSynonyms maps a singular word to the term the tools use for it.
+var searchSynonyms = map[string]string{"expiry": "expire", "website": "site", "photo": "file", "picture": "file", "image": "file"}
+
 func searchTerms(text string) []string {
 	words := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool { return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9') })
 	terms := make([]string, 0, len(words))
 	for _, word := range words {
-		switch word {
-		case "a", "an", "the", "my", "our", "me", "i", "it", "to", "for", "of", "on", "in", "is", "are", "and", "from", "with", "this":
-			continue
+		if !searchStopWords[word] {
+			terms = append(terms, searchStem(word))
 		}
-		if len(word) > 4 && strings.HasSuffix(word, "ies") {
-			word = strings.TrimSuffix(word, "ies") + "y"
-		} else if len(word) > 3 && strings.HasSuffix(word, "s") && !strings.HasSuffix(word, "ss") {
-			word = strings.TrimSuffix(word, "s")
-		}
-		if word == "expiry" {
-			word = "expire"
-		}
-		switch word {
-		case "website":
-			word = "site"
-		case "photo", "picture", "image":
-			word = "file"
-		}
-		inflected := false
-		switch {
-		case len(word) > 4 && strings.HasSuffix(word, "ied"):
-			word = strings.TrimSuffix(word, "ied") + "y"
-		case len(word) > 5 && strings.HasSuffix(word, "ing"):
-			word = strings.TrimSuffix(word, "ing")
-			inflected = true
-		case len(word) > 4 && strings.HasSuffix(word, "ed"):
-			word = strings.TrimSuffix(word, "ed")
-			inflected = true
-		}
-		// Undo consonant doubling in forms such as pinned and stopping.
-		if n := len(word); inflected && n > 2 && word[n-1] == word[n-2] && strings.ContainsRune("bdgmnprt", rune(word[n-1])) {
-			word = word[:n-1]
-		}
-		if len(word) > 3 {
-			word = strings.TrimSuffix(word, "e")
-		}
-		terms = append(terms, word)
 	}
 	return terms
+}
+
+// searchStem reduces a word to its search term: singular, synonyms folded,
+// -ied/-ing/-ed endings and a final e removed.
+func searchStem(word string) string {
+	if len(word) > 4 && strings.HasSuffix(word, "ies") {
+		word = strings.TrimSuffix(word, "ies") + "y"
+	} else if len(word) > 3 && strings.HasSuffix(word, "s") && !strings.HasSuffix(word, "ss") {
+		word = strings.TrimSuffix(word, "s")
+	}
+	if synonym, ok := searchSynonyms[word]; ok {
+		word = synonym
+	}
+	inflected := false
+	switch {
+	case len(word) > 4 && strings.HasSuffix(word, "ied"):
+		word = strings.TrimSuffix(word, "ied") + "y"
+	case len(word) > 5 && strings.HasSuffix(word, "ing"):
+		word, inflected = strings.TrimSuffix(word, "ing"), true
+	case len(word) > 4 && strings.HasSuffix(word, "ed"):
+		word, inflected = strings.TrimSuffix(word, "ed"), true
+	}
+	// Undo consonant doubling in forms such as pinned and stopping.
+	if n := len(word); inflected && n > 2 && word[n-1] == word[n-2] && strings.ContainsRune("bdgmnprt", rune(word[n-1])) {
+		word = word[:n-1]
+	}
+	if len(word) > 3 {
+		word = strings.TrimSuffix(word, "e")
+	}
+	return word
 }
 
 func newToolSearch(tools []Tool) *toolSearch {
@@ -351,4 +341,20 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 		}
 	}
 	return &copy
+}
+
+func runFindTools(c *call, args map[string]any) (output, error) {
+	query, ok := args["query"].(string)
+	if !ok {
+		return output{}, fmt.Errorf("query must be a string")
+	}
+	limit := 3
+	if raw, present := args["limit"]; present {
+		n, ok := raw.(float64)
+		if !ok || n < 1 || n > 10 || n != math.Trunc(n) {
+			return output{}, fmt.Errorf("limit must be an integer from 1 to 10")
+		}
+		limit = int(n)
+	}
+	return c.server.searchFor(c.caller).find(query, limit), nil
 }

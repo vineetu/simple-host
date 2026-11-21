@@ -12,7 +12,7 @@
 # Packages whose inputs did not change answer from Go's test cache; FULL=1
 # (`make check FULL=1`, what installs and CI run) runs every package.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
-#   make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5
+#   make test-db PKGS=./host/server/servertest/datatest RUN='^TestNotify' COUNT=5
 .PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries browser
 
 # `check` stays the default goal (`make` with no target) even though `test`

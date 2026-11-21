@@ -10,9 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/buildinfo"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/web"
 
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
@@ -105,14 +107,14 @@ func TestHackPublicDiscovery(t *testing.T) {
 		t.Run(base, func(t *testing.T) {
 			sh := chromeTestHandlerWithBase(productedition.Hack, base)
 			mux := http.NewServeMux()
-			handler.RegisterUIRoutes(mux, base, sh)
+			siteshttp.RegisterUIRoutes(mux, base, sh)
 			mountHackFiles(mux, sh)
 			hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 			sh.Pages().RegisterSkillsHub(mux, base)
 			host := strings.SplitN(base, "://", 2)[1]
 			product := hackmcp.Contribution()
 			server := mcp.NewServer(mcp.Config{APIHost: host, Contribution: &product})
-			connector := handler.NewConnectorHandlerForTest(base, server, productedition.ForKind(productedition.Hack))
+			connector := accesshttp.NewConnectorHandlerForTest(base, server, productedition.ForKind(productedition.Hack))
 			connector.Register(mux, func(next http.Handler) http.Handler { return next })
 			readJSON := func(path string, dst any) string {
 				t.Helper()
@@ -257,7 +259,7 @@ func TestAPIErrorInstanceReference(t *testing.T) {
 	for _, base := range []string{"https://simple-host.app", "https://simple-hack.app", "https://hack.company.example", "http://localhost:18480/"} {
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /v1/example", func(http.ResponseWriter, *http.Request) {})
-		app := handler.APIErrors(mux, mux, base)
+		app := web.APIErrors(mux, mux, base)
 		for _, tc := range []struct {
 			method, path string
 			status       int

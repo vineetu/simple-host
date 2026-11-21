@@ -47,6 +47,12 @@ func NewRateLimiter(capacity, perSecond float64) *RateLimiter {
 	}
 }
 
+// NewRateLimiterFor builds a limiter from a configured rate: bursts of burst,
+// one token back every every.
+func NewRateLimiterFor(burst int, every time.Duration) *RateLimiter {
+	return NewRateLimiter(float64(burst), 1/every.Seconds())
+}
+
 // Allow consumes one token for key, returning false when the bucket is empty.
 func (rl *RateLimiter) Allow(key string) bool {
 	allowed, _, _ := rl.AllowState(key)

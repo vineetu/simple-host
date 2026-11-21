@@ -13,13 +13,16 @@ import (
 	"sync"
 
 	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/extension"
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/llm"
 	"github.com/vsriram/simple-host/host/papermetrics"
+	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/sqlkit"
+	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/host/workers"
 	events "github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
@@ -58,11 +61,11 @@ func Extension() *extension.Extension {
 			}
 			return warnings, err
 		}},
-		Assets: func(site *handler.SiteHandler) extension.Assets {
+		Assets: func(site *siteshttp.SiteHandler) extension.Assets {
 			assets := hackhttp.NewAssets(site.AssetServices(), site.Pages().InkBaseURL())
 			productAssets = assets
 			return extension.Assets{Replace: assetReplacements(), Own: ownAssetFiles(), Files: hackassets.Static, Skills: hackassets.HackSkills, Hooks: assets.Hooks(), Rewrite: assets.Rewrite,
-				Routes: func(mux *http.ServeMux, services handler.AssetServices) {
+				Routes: func(mux *http.ServeMux, services web.AssetServices) {
 					mux.HandleFunc("GET /skills.zip", assets.ServeHackSkillsZip())
 					mux.HandleFunc("GET /skills/version", func(w http.ResponseWriter, r *http.Request) {
 						w.Header().Set("Content-Type", "application/json")
@@ -92,32 +95,27 @@ func Extension() *extension.Extension {
 			hack.SetProductLimits(productConfig.Limits)
 			hack.ShareAssets(siteHandler.Pages())
 			hack.SetHandleChecker(func(ctx context.Context, q sqlkit.Querier, name string) (hackhttp.HandleVerdict, error) {
-				v, err := handler.JudgeHandle(ctx, q, "", name)
+				v, err := accesshttp.JudgeHandle(ctx, q, "", name)
 				return hackhttp.HandleVerdict{Status: v.Status, Code: v.Code}, err
 			})
-			// handler.SiteLimit() already reflects any MAX_ARCHIVE_MB override
-			// (applied from site.go's init before main runs), so this matches
-			// the per-site default HackHandler.siteLimitFor used to read off
-			// handler's shared limitSet (cleanup 3.2 slice 1c).
-			hack.SetSiteArchiveDefault(handler.SiteLimit())
+			// sites.Upload.Body already reflects any MAX_ARCHIVE_MB override
+			// (applied from host/sites' init before main runs).
+			hack.SetSiteArchiveDefault(sites.Upload.Body)
 			hack.SetMailer(d.Mail)
 			if d.Mail != nil {
 				d.Mail.SetJournal("hack_mail_send")
 			}
 			if cfg.EventNamePeer != "" {
-				peer, zone := handler.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
+				peer, zone := siteshttp.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
 				hack.SetNamePeer(func(ctx context.Context, name string) (bool, error) { return peer(ctx, zone, name) })
 				log.Printf("hosted events: event names checked with %s", cfg.EventNamePeer)
 			}
-			hack.SetInstanceUsage(handler.DirUsage(cfg.DataDir))
+			hack.SetInstanceUsage(siteshttp.DirUsage(cfg.DataDir))
 			// Team sites (M2): the sweep pins teams at their deadline, removes
 			// sites of removed teams and asks for open events' certificates.
 			hack.SetSites(siteHandler)
 			d.Connector.SetTeamConnections(true)
-			// SIM-394 organiser assistant: off unless both are set. Built here
-			// (not in hackhttp) because the client needs host/llm and the
-			// docs text needs host/webassets, neither of which hackhttp may
-			// import (scripts/layering/rules.txt).
+			// SIM-394 organiser assistant: off unless both are set.
 			if productConfig.AssistantBaseURL != "" && productConfig.AssistantModel != "" {
 				assistantLLM := llm.New(llm.Config{
 					BaseURL:         productConfig.AssistantBaseURL,
@@ -143,7 +141,7 @@ func Extension() *extension.Extension {
 			}
 			hack.Register(mux, authMW)
 			hack.RegisterDemo(mux, productConfig.DemoEventSlug)
-			handler.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
+			siteshttp.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 				return hack.NameTaken(ctx, name)
 			})
 			hackPages := hackhttp.NewHackEventPages(hackassets.Static)
@@ -171,7 +169,7 @@ func Extension() *extension.Extension {
 					paper.WithRunLimits(limits)
 				},
 				PaperRecorder: func(next http.Handler) http.Handler {
-					return hackhttp.WithPaperRecorder(handler.WithPaperRecorder(next, hackhttp.SitePaperRecorder{}), hackmetrics.RequestRecorder{})
+					return hackhttp.WithPaperRecorder(papermetrics.With(next, hackhttp.SitePaperRecorder{}), hackmetrics.RequestRecorder{})
 				},
 			}, nil
 		},
@@ -179,12 +177,10 @@ func Extension() *extension.Extension {
 }
 
 // newAssistantDocsTextFunc returns a events.DocsTextFunc: host/app/hack/events
-// may not import host/webassets (scripts/layering/rules.txt), so this
-// wires webassets' embedded Hack skills into hackhttp.AssistantDocsText (the
-// one place the text extraction lives -- SIM-394 L22) and injects
-// the result into the assistant service. The extraction runs once, the first time any
-// request calls the returned function, and the result is cached for the
-// life of the process.
+// may not import host/webassets (scripts/layering/rules.txt), so this wires
+// webassets' embedded Hack skills into hackhttp.AssistantDocsText (the one
+// place the text extraction lives -- SIM-394 L22) and injects the result into
+// the assistant service.
 func newAssistantDocsTextFunc() func() string {
 	var once sync.Once
 	var text string

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -58,12 +59,25 @@ func CheckOutputSchema(schema any) error {
 }
 
 func checkSchemaNode(node map[string]any, at string) error {
-	keys := make([]string, 0, len(node))
-	for k := range node {
-		keys = append(keys, k)
+	if err := checkSchemaKeywords(node, at); err != nil {
+		return err
 	}
-	sort.Strings(keys)
-	for _, k := range keys {
+	types, err := schemaTypeList(node, at)
+	if err != nil {
+		return err
+	}
+	for _, step := range []func(map[string]any, []string, string) error{
+		checkSchemaProperties, checkSchemaRequired, checkSchemaAdditional, checkSchemaItems, checkSchemaEnum,
+	} {
+		if err := step(node, types, at); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkSchemaKeywords(node map[string]any, at string) error {
+	for _, k := range sortedKeys(node) {
 		if !schemaKeywords[k] {
 			return fmt.Errorf("%s: unsupported keyword %q", at, k)
 		}
@@ -73,104 +87,126 @@ func checkSchemaNode(node map[string]any, at string) error {
 			return fmt.Errorf("%s: description must be a string", at)
 		}
 	}
-	types, err := schemaTypeList(node, at)
-	if err != nil {
-		return err
-	}
-	has := func(t string) bool {
-		for _, x := range types {
-			if x == t {
-				return true
-			}
-		}
-		return len(types) == 0
-	}
+	return nil
+}
 
-	var props map[string]any
-	if raw, present := node["properties"]; present {
-		if !has("object") {
-			return fmt.Errorf("%s: properties on a non-object type", at)
-		}
-		var ok bool
-		if props, ok = raw.(map[string]any); !ok {
-			return fmt.Errorf("%s: properties must be an object", at)
-		}
-		names := make([]string, 0, len(props))
-		for name := range props {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			sub, ok := props[name].(map[string]any)
-			if !ok {
-				return fmt.Errorf("%s.%s: property schema must be an object", at, name)
-			}
-			if err := checkSchemaNode(sub, at+"."+name); err != nil {
-				return err
-			}
-		}
+// allowsType: types (empty means any) admits t.
+func allowsType(types []string, t string) bool {
+	return len(types) == 0 || slices.Contains(types, t)
+}
+
+func checkSchemaProperties(node map[string]any, types []string, at string) error {
+	raw, present := node["properties"]
+	if !present {
+		return nil
 	}
-	if raw, present := node["required"]; present {
-		list, ok := raw.([]any)
+	if !allowsType(types, "object") {
+		return fmt.Errorf("%s: properties on a non-object type", at)
+	}
+	props, ok := raw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("%s: properties must be an object", at)
+	}
+	for _, name := range sortedKeys(props) {
+		sub, ok := props[name].(map[string]any)
 		if !ok {
-			return fmt.Errorf("%s: required must be an array", at)
+			return fmt.Errorf("%s.%s: property schema must be an object", at, name)
 		}
-		seen := map[string]bool{}
-		for _, r := range list {
-			name, ok := r.(string)
-			if !ok {
-				return fmt.Errorf("%s: required entries must be strings", at)
-			}
-			if seen[name] {
-				return fmt.Errorf("%s: %q required twice", at, name)
-			}
-			seen[name] = true
-			if _, declared := props[name]; !declared {
-				return fmt.Errorf("%s: %q is required but not a declared property", at, name)
-			}
-		}
-	}
-	if raw, present := node["additionalProperties"]; present {
-		switch v := raw.(type) {
-		case bool:
-		case map[string]any:
-			if err := checkSchemaNode(v, at+"[*]"); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("%s: additionalProperties must be a boolean or a schema", at)
-		}
-	}
-	if raw, present := node["items"]; present {
-		if !has("array") {
-			return fmt.Errorf("%s: items on a non-array type", at)
-		}
-		sub, ok := raw.(map[string]any)
-		if !ok {
-			return fmt.Errorf("%s: items must be a schema", at)
-		}
-		if err := checkSchemaNode(sub, at+"[]"); err != nil {
+		if err := checkSchemaNode(sub, at+"."+name); err != nil {
 			return err
-		}
-	} else if len(types) == 1 && types[0] == "array" {
-		return fmt.Errorf("%s: an array needs an items schema", at)
-	}
-	if raw, present := node["enum"]; present {
-		list, ok := raw.([]any)
-		if !ok || len(list) == 0 {
-			return fmt.Errorf("%s: enum must be a non-empty array", at)
-		}
-		typeOnly := map[string]any{}
-		if t, present := node["type"]; present {
-			typeOnly["type"] = t
-		}
-		for _, v := range list {
-			if err := validateNode(typeOnly, v, at+"(enum)", nil); err != nil {
-				return fmt.Errorf("%s: enum value %v does not match the type", at, v)
-			}
 		}
 	}
 	return nil
+}
+
+func checkSchemaRequired(node map[string]any, _ []string, at string) error {
+	raw, present := node["required"]
+	if !present {
+		return nil
+	}
+	list, ok := raw.([]any)
+	if !ok {
+		return fmt.Errorf("%s: required must be an array", at)
+	}
+	props, _ := node["properties"].(map[string]any)
+	seen := map[string]bool{}
+	for _, r := range list {
+		name, ok := r.(string)
+		if !ok {
+			return fmt.Errorf("%s: required entries must be strings", at)
+		}
+		if seen[name] {
+			return fmt.Errorf("%s: %q required twice", at, name)
+		}
+		seen[name] = true
+		if _, declared := props[name]; !declared {
+			return fmt.Errorf("%s: %q is required but not a declared property", at, name)
+		}
+	}
+	return nil
+}
+
+func checkSchemaAdditional(node map[string]any, _ []string, at string) error {
+	raw, present := node["additionalProperties"]
+	if !present {
+		return nil
+	}
+	switch v := raw.(type) {
+	case bool:
+		return nil
+	case map[string]any:
+		return checkSchemaNode(v, at+"[*]")
+	default:
+		return fmt.Errorf("%s: additionalProperties must be a boolean or a schema", at)
+	}
+}
+
+func checkSchemaItems(node map[string]any, types []string, at string) error {
+	raw, present := node["items"]
+	if !present {
+		if len(types) == 1 && types[0] == "array" {
+			return fmt.Errorf("%s: an array needs an items schema", at)
+		}
+		return nil
+	}
+	if !allowsType(types, "array") {
+		return fmt.Errorf("%s: items on a non-array type", at)
+	}
+	sub, ok := raw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("%s: items must be a schema", at)
+	}
+	return checkSchemaNode(sub, at+"[]")
+}
+
+func checkSchemaEnum(node map[string]any, _ []string, at string) error {
+	raw, present := node["enum"]
+	if !present {
+		return nil
+	}
+	list, ok := raw.([]any)
+	if !ok || len(list) == 0 {
+		return fmt.Errorf("%s: enum must be a non-empty array", at)
+	}
+	typeOnly := map[string]any{}
+	if t, present := node["type"]; present {
+		typeOnly["type"] = t
+	}
+	for _, v := range list {
+		if err := validateNode(typeOnly, v, at+"(enum)", nil); err != nil {
+			return fmt.Errorf("%s: enum value %v does not match the type", at, v)
+		}
+	}
+	return nil
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // schemaTypeList reads "type" as a list; empty means any type.
@@ -223,78 +259,70 @@ func ValidateOutput(schema, value any, seen map[string]bool) error {
 }
 
 func validateNode(node map[string]any, value any, at string, seen map[string]bool) error {
-	types, err := schemaTypeList(node, at)
-	if err != nil {
+	if err := validateType(node, value, at); err != nil {
 		return err
 	}
-	if len(types) > 0 {
-		matched := false
-		for _, t := range types {
-			if jsonTypeMatches(t, value) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return fmt.Errorf("%s: %s is not of type %s", at, describe(value), strings.Join(types, "|"))
-		}
-	}
-	if raw, present := node["enum"]; present {
-		ok := false
-		for _, allowed := range raw.([]any) {
-			if reflect.DeepEqual(allowed, value) {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			return fmt.Errorf("%s: %s is not one of %v", at, describe(value), raw)
-		}
+	if raw, present := node["enum"]; present && !slices.ContainsFunc(raw.([]any), func(allowed any) bool { return reflect.DeepEqual(allowed, value) }) {
+		return fmt.Errorf("%s: %s is not one of %v", at, describe(value), raw)
 	}
 	switch v := value.(type) {
 	case map[string]any:
-		props, _ := node["properties"].(map[string]any)
-		if req, ok := node["required"].([]any); ok {
-			for _, r := range req {
-				if _, present := v[r.(string)]; !present {
-					return fmt.Errorf("%s: required property %q is missing", at, r)
-				}
+		return validateObject(node, v, at, seen)
+	case []any:
+		items, ok := node["items"].(map[string]any)
+		if !ok {
+			return nil
+		}
+		for i, el := range v {
+			// Items share one path, so coverage is per shape, not per index.
+			if err := validateNode(items, el, at+"[]", seen); err != nil {
+				return fmt.Errorf("%w (item %d)", err, i)
 			}
 		}
-		keys := make([]string, 0, len(v))
-		for k := range v {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			if sub, declared := props[k].(map[string]any); declared {
-				if seen != nil {
-					seen[at+"."+k] = true
-				}
-				if err := validateNode(sub, v[k], at+"."+k, seen); err != nil {
-					return err
-				}
-				continue
+	}
+	return nil
+}
+
+func validateType(node map[string]any, value any, at string) error {
+	types, err := schemaTypeList(node, at)
+	if err != nil || len(types) == 0 {
+		return err
+	}
+	if slices.ContainsFunc(types, func(t string) bool { return jsonTypeMatches(t, value) }) {
+		return nil
+	}
+	return fmt.Errorf("%s: %s is not of type %s", at, describe(value), strings.Join(types, "|"))
+}
+
+func validateObject(node map[string]any, v map[string]any, at string, seen map[string]bool) error {
+	if req, ok := node["required"].([]any); ok {
+		for _, r := range req {
+			if _, present := v[r.(string)]; !present {
+				return fmt.Errorf("%s: required property %q is missing", at, r)
 			}
+		}
+	}
+	props, _ := node["properties"].(map[string]any)
+	for _, k := range sortedKeys(v) {
+		sub, declared := props[k].(map[string]any)
+		if declared && seen != nil {
+			seen[at+"."+k] = true
+		}
+		if !declared {
 			switch extra := node["additionalProperties"].(type) {
 			case bool:
 				if !extra {
 					return fmt.Errorf("%s: property %q is not allowed", at, k)
 				}
+				continue
 			case map[string]any:
-				if err := validateNode(extra, v[k], at+"."+k, seen); err != nil {
-					return err
-				}
+				sub = extra
+			default:
+				continue
 			}
 		}
-	case []any:
-		if items, ok := node["items"].(map[string]any); ok {
-			for i, el := range v {
-				// Items share one path, so coverage is per shape, not per index.
-				if err := validateNode(items, el, at+"[]", seen); err != nil {
-					return fmt.Errorf("%w (item %d)", err, i)
-				}
-			}
+		if err := validateNode(sub, v[k], at+"."+k, seen); err != nil {
+			return err
 		}
 	}
 	return nil

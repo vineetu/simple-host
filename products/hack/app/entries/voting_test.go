@@ -11,6 +11,7 @@ import (
 
 	model "github.com/vsriram/simple-host/host/model"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
+	repo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
@@ -116,5 +117,33 @@ func TestVotingEventLoadSignal(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestVoteWindowOpen(t *testing.T) {
+	now := time.Now()
+	at := func(d time.Duration) sql.NullTime { return sql.NullTime{Time: now.Add(d), Valid: true} }
+	open := repo.VoteWindow{Enabled: true, GalleryOpen: true, Opens: at(-time.Hour), Closes: at(time.Hour), Stage: "judging"}
+	for _, tc := range []struct {
+		name string
+		edit func(*repo.VoteWindow)
+		want bool
+	}{
+		{"open", func(*repo.VoteWindow) {}, true},
+		{"opens exactly now", func(v *repo.VoteWindow) { v.Opens = at(0) }, true},
+		{"closes exactly now", func(v *repo.VoteWindow) { v.Closes = at(0) }, false},
+		{"not yet open", func(v *repo.VoteWindow) { v.Opens = at(time.Minute) }, false},
+		{"no close time", func(v *repo.VoteWindow) { v.Closes = sql.NullTime{} }, false},
+		{"disabled", func(v *repo.VoteWindow) { v.Enabled = false }, false},
+		{"gallery closed", func(v *repo.VoteWindow) { v.GalleryOpen = false }, false},
+		{"draft", func(v *repo.VoteWindow) { v.Stage = "draft" }, false},
+		{"archived", func(v *repo.VoteWindow) { v.Stage = "archived" }, false},
+		{"taken down", func(v *repo.VoteWindow) { v.TakenDown = at(0) }, false},
+	} {
+		v := open
+		tc.edit(&v)
+		if got := voteWindowOpen(v, now); got != tc.want {
+			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

@@ -146,3 +146,7 @@ func toolNamed(t *testing.T, name string) mcp.Tool {
 	t.Fatalf("no tool named %s", name)
 	return mcp.Tool{}
 }
+
+func hackOrganiserRoutes() []hackRouteTool {
+	return append(hackOrganiserEventRoutes(), hackOrganiserEntryRoutes()...)
+}

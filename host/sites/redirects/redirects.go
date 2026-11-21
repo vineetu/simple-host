@@ -75,7 +75,6 @@ func Parse(data []byte, maxRules int) (*Rules, error) {
 
 // ParseWith is Parse with Options.
 func ParseWith(data []byte, opt Options) (*Rules, error) {
-	maxRules := opt.MaxRules
 	exists := opt.Exists
 	if exists == nil {
 		exists = func(string) bool { return false }
@@ -91,18 +90,7 @@ func ParseWith(data []byte, opt Options) (*Rules, error) {
 		return nil, problems
 	}
 	if !utf8.Valid(data) {
-		line := 1
-		for len(data) > 0 {
-			r, n := utf8.DecodeRune(data)
-			if r == utf8.RuneError && n == 1 {
-				break
-			}
-			if r == '\n' {
-				line++
-			}
-			data = data[n:]
-		}
-		add(line, "use valid UTF-8 text")
+		add(invalidUTF8Line(data), "use valid UTF-8 text")
 		return nil, problems
 	}
 	rs := &Rules{}
@@ -112,116 +100,17 @@ func ParseWith(data []byte, opt Options) (*Rules, error) {
 			add(n, "line exceeds 2048 bytes; shorten this rule")
 			continue
 		}
-		tokens := strings.Fields(line)
-		for j, t := range tokens {
-			if strings.HasPrefix(t, "#") {
-				tokens = tokens[:j]
-				break
-			}
-		}
+		tokens := ruleTokens(line)
 		if len(tokens) == 0 {
 			continue
 		}
-		if len(rs.rules) >= maxRules {
-			add(n, fmt.Sprintf("too many rules; maximum is %d", maxRules))
+		if len(rs.rules) >= opt.MaxRules {
+			add(n, fmt.Sprintf("too many rules; maximum is %d", opt.MaxRules))
 			continue
 		}
-		if len(tokens) < 2 {
-			add(n, "write FROM [key=value ...] TO [301|302|404|410[!]]")
-			continue
-		}
-		r := rule{from: tokens[0], status: 301, line: n}
-		end := len(tokens) - 1
-		last := tokens[end]
-		if !strings.HasPrefix(last, "/") && !strings.HasPrefix(last, "http://") && !strings.HasPrefix(last, "https://") && end >= 2 {
-			code, err := strconv.Atoi(strings.TrimSuffix(last, "!"))
-			if err != nil || (code != 301 && code != 302 && code != 404 && code != 410) {
-				add(n, "supported status codes are 301, 302, 404 and 410, optionally followed by !")
-				continue
-			}
-			r.status = code
-			r.force = strings.HasSuffix(last, "!")
-			end--
-		}
-		r.to = tokens[end]
-		from, err := url.PathUnescape(r.from)
-		if err != nil || !strings.HasPrefix(from, "/") || strings.HasPrefix(from, "//") || strings.ContainsAny(from, "\\?") || strings.ContainsFunc(from, unicode.IsControl) {
-			add(n, "FROM must be a path on this site, such as /old; put query conditions in separate key=value tokens")
-			continue
-		}
-		r.from = normal(from)
-		r.segments = strings.Split(strings.TrimPrefix(r.from, "/"), "/")
-		defined := map[string]bool{}
-		bad := false
-		for j, s := range r.segments {
-			if s == ".." || strings.Contains(s, "*") && (s != "*" || j != len(r.segments)-1) {
-				bad = true
-			}
-			if strings.HasPrefix(s, ":") {
-				if !identifier.MatchString(s[1:]) {
-					bad = true
-				}
-				defined[s[1:]] = true
-			}
-			if s == "*" {
-				defined["splat"] = true
-			}
-		}
-		for _, t := range tokens[1:end] {
-			k, v, ok := strings.Cut(t, "=")
-			if !ok || k == "" || strings.ContainsAny(k, ":?&") {
-				bad = true
-				continue
-			}
-			if strings.HasPrefix(v, ":") {
-				if !identifier.MatchString(v[1:]) {
-					bad = true
-				}
-				defined[v[1:]] = true
-			}
-			r.conditions = append(r.conditions, condition{k, v})
-		}
-		if bad {
-			add(n, "use literal segments, :name segments, and a final *; no .. segments; query conditions must be key=value")
-			continue
-		}
-		u, err := url.Parse(r.to)
-		if err != nil || unsafe(r.to) || strings.Contains(r.to, "\\") || strings.HasPrefix(r.to, "//") || strings.Contains(r.to, "#") {
-			add(n, "TO must be a local /path or an absolute http:// or https:// URL without spaces, controls, backslashes or fragments")
-			continue
-		}
-		external := u.IsAbs()
-		if external {
-			if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
-				bad = true
-			}
-			if len(reference.FindAllString(u.Host, -1)) > 0 {
-				bad = true
-			}
-		} else if !strings.HasPrefix(r.to, "/") {
-			bad = true
-		}
-		for _, seg := range strings.Split(u.Path, "/") {
-			if seg == "." || seg == ".." {
-				bad = true
-			}
-		}
-		if bad {
-			add(n, "TO must be /path or http(s)://literal-host/path; placeholders are allowed only in path and query")
-			continue
-		}
-		if external && (r.status == 404 || r.status == 410) {
-			add(n, "404 and 410 need a local target page, such as /gone.html")
-			continue
-		}
-		// Inspect path/query only: a literal port is not a capture.
-		for _, ref := range reference.FindAllStringSubmatch(u.EscapedPath()+"?"+u.RawQuery, -1) {
-			if !defined[ref[1]] {
-				bad = true
-			}
-		}
-		if bad {
-			add(n, "TO uses an undefined placeholder; define it in FROM or a query condition (:splat needs a final *)")
+		r, problem := parseRule(tokens, n)
+		if problem != "" {
+			add(n, problem)
 			continue
 		}
 		rs.rules = append(rs.rules, r)
@@ -233,63 +122,197 @@ func ParseWith(data []byte, opt Options) (*Rules, error) {
 		return rs, nil
 	}
 	for _, r := range rs.rules {
-		if r.status != 301 && r.status != 302 {
-			continue
-		}
-		sample := r.from
-		for _, s := range r.segments {
-			if strings.HasPrefix(s, ":") {
-				sample = strings.ReplaceAll(sample, s, sampleValue)
-			}
-		}
-		sample = strings.ReplaceAll(sample, "*", sampleValue)
-		q := url.Values{}
-		for _, c := range r.conditions {
-			v := c.value
-			if strings.HasPrefix(v, ":") {
-				v = sampleValue
-			}
-			q.Set(c.key, v)
-		}
-		seen := map[string]bool{}
-		involved := []string{}
-		// Follow the rules as a visitor's browser would (first match wins,
-		// a page of the site shadows a non-forced rule). A revisit is a loop;
-		// a chain that has not ended after MaxChain redirects (a growing
-		// splat, a long cycle) is refused too, so a published file always ends.
-		for hop := 0; ; hop++ {
-			key := normal(sample) + "?" + q.Encode()
-			if seen[key] {
-				add(r.line, "redirect loop involving lines "+strings.Join(involved, ", ")+"; change a target")
-				break
-			}
-			seen[key] = true
-			var m Match
-			found := false
-			for _, next := range rs.rules {
-				if m, found = match(next, sample, q); found {
-					involved = append(involved, strconv.Itoa(next.line))
-					break
-				}
-			}
-			if !found || m.Status != 301 && m.Status != 302 || !m.Force && exists(sample) {
-				break
-			}
-			u, _ := url.Parse(m.Location("", q.Encode()))
-			if u == nil || u.IsAbs() {
-				break
-			}
-			if hop == MaxChain {
-				add(r.line, fmt.Sprintf("more than %d redirects in a row from here (lines %s), which browsers give up on or never finish; point the old address straight at its final page", MaxChain, strings.Join(involved, ", ")))
-				break
-			}
-			sample, q = u.Path, u.Query()
+		if problem := rs.chainProblem(r, exists); problem != "" {
+			add(r.line, problem)
 		}
 	}
 	if len(problems) > 0 {
 		return nil, problems
 	}
 	return rs, nil
+}
+
+// invalidUTF8Line is the 1-based line holding the first invalid byte.
+func invalidUTF8Line(data []byte) int {
+	line := 1
+	for len(data) > 0 {
+		r, n := utf8.DecodeRune(data)
+		if r == utf8.RuneError && n == 1 {
+			break
+		}
+		if r == '\n' {
+			line++
+		}
+		data = data[n:]
+	}
+	return line
+}
+
+// ruleTokens splits a line into fields, dropping everything from the first
+// field that starts with #.
+func ruleTokens(line string) []string {
+	tokens := strings.Fields(line)
+	for j, t := range tokens {
+		if strings.HasPrefix(t, "#") {
+			return tokens[:j]
+		}
+	}
+	return tokens
+}
+
+var statusCodes = map[int]bool{301: true, 302: true, 404: true, 410: true}
+
+// parseRule reads FROM [key=value ...] TO [status[!]] from one line's tokens,
+// or says what is wrong with it.
+func parseRule(tokens []string, n int) (rule, string) {
+	if len(tokens) < 2 {
+		return rule{}, "write FROM [key=value ...] TO [301|302|404|410[!]]"
+	}
+	r := rule{from: tokens[0], status: 301, line: n}
+	end := len(tokens) - 1
+	last := tokens[end]
+	if !strings.HasPrefix(last, "/") && !strings.HasPrefix(last, "http://") && !strings.HasPrefix(last, "https://") && end >= 2 {
+		code, err := strconv.Atoi(strings.TrimSuffix(last, "!"))
+		if err != nil || !statusCodes[code] {
+			return rule{}, "supported status codes are 301, 302, 404 and 410, optionally followed by !"
+		}
+		r.status = code
+		r.force = strings.HasSuffix(last, "!")
+		end--
+	}
+	r.to = tokens[end]
+	from, err := url.PathUnescape(r.from)
+	if err != nil || !strings.HasPrefix(from, "/") || strings.HasPrefix(from, "//") || strings.ContainsAny(from, "\\?") || strings.ContainsFunc(from, unicode.IsControl) {
+		return rule{}, "FROM must be a path on this site, such as /old; put query conditions in separate key=value tokens"
+	}
+	r.from = normal(from)
+	r.segments = strings.Split(strings.TrimPrefix(r.from, "/"), "/")
+	conditions, defined, ok := patternCaptures(r.segments, tokens[1:end])
+	if !ok {
+		return rule{}, "use literal segments, :name segments, and a final *; no .. segments; query conditions must be key=value"
+	}
+	r.conditions = conditions
+	return r, targetProblem(r.to, r.status, defined)
+}
+
+// patternCaptures checks FROM's segments and the key=value condition tokens,
+// returning the conditions and the placeholder names they define.
+func patternCaptures(segments, tokens []string) ([]condition, map[string]bool, bool) {
+	var conditions []condition
+	defined := map[string]bool{}
+	bad := false
+	for j, s := range segments {
+		if s == ".." || strings.Contains(s, "*") && (s != "*" || j != len(segments)-1) {
+			bad = true
+		}
+		if strings.HasPrefix(s, ":") {
+			bad = bad || !identifier.MatchString(s[1:])
+			defined[s[1:]] = true
+		}
+		if s == "*" {
+			defined["splat"] = true
+		}
+	}
+	for _, t := range tokens {
+		k, v, ok := strings.Cut(t, "=")
+		if !ok || k == "" || strings.ContainsAny(k, ":?&") {
+			bad = true
+			continue
+		}
+		if strings.HasPrefix(v, ":") {
+			bad = bad || !identifier.MatchString(v[1:])
+			defined[v[1:]] = true
+		}
+		conditions = append(conditions, condition{k, v})
+	}
+	return conditions, defined, !bad
+}
+
+// targetProblem says what is wrong with a rule's TO, given the placeholders
+// its FROM and query conditions define; "" means it is fine.
+func targetProblem(to string, status int, defined map[string]bool) string {
+	u, err := url.Parse(to)
+	if err != nil || unsafe(to) || strings.Contains(to, "\\") || strings.HasPrefix(to, "//") || strings.Contains(to, "#") {
+		return "TO must be a local /path or an absolute http:// or https:// URL without spaces, controls, backslashes or fragments"
+	}
+	external := u.IsAbs()
+	bad := false
+	if external {
+		bad = u.Scheme != "http" && u.Scheme != "https" || u.Host == "" || u.User != nil || reference.MatchString(u.Host)
+	} else {
+		bad = !strings.HasPrefix(to, "/")
+	}
+	for _, seg := range strings.Split(u.Path, "/") {
+		bad = bad || seg == "." || seg == ".."
+	}
+	if bad {
+		return "TO must be /path or http(s)://literal-host/path; placeholders are allowed only in path and query"
+	}
+	if external && (status == 404 || status == 410) {
+		return "404 and 410 need a local target page, such as /gone.html"
+	}
+	// Inspect path/query only: a literal port is not a capture.
+	for _, ref := range reference.FindAllStringSubmatch(u.EscapedPath()+"?"+u.RawQuery, -1) {
+		if !defined[ref[1]] {
+			return "TO uses an undefined placeholder; define it in FROM or a query condition (:splat needs a final *)"
+		}
+	}
+	return ""
+}
+
+// chainProblem follows the redirects a request matching r would go through
+// and says whether they loop or run past MaxChain; "" means they end.
+func (rs *Rules) chainProblem(r rule, exists func(string) bool) string {
+	if r.status != 301 && r.status != 302 {
+		return ""
+	}
+	sample := r.from
+	for _, s := range r.segments {
+		if strings.HasPrefix(s, ":") {
+			sample = strings.ReplaceAll(sample, s, sampleValue)
+		}
+	}
+	sample = strings.ReplaceAll(sample, "*", sampleValue)
+	q := url.Values{}
+	for _, c := range r.conditions {
+		v := c.value
+		if strings.HasPrefix(v, ":") {
+			v = sampleValue
+		}
+		q.Set(c.key, v)
+	}
+	seen := map[string]bool{}
+	involved := []string{}
+	// Follow the rules as a visitor's browser would (first match wins,
+	// a page of the site shadows a non-forced rule). A revisit is a loop;
+	// a chain that has not ended after MaxChain redirects (a growing
+	// splat, a long cycle) is refused too, so a published file always ends.
+	for hop := 0; ; hop++ {
+		key := normal(sample) + "?" + q.Encode()
+		if seen[key] {
+			return "redirect loop involving lines " + strings.Join(involved, ", ") + "; change a target"
+		}
+		seen[key] = true
+		var m Match
+		found := false
+		for _, next := range rs.rules {
+			if m, found = match(next, sample, q); found {
+				involved = append(involved, strconv.Itoa(next.line))
+				break
+			}
+		}
+		if !found || m.Status != 301 && m.Status != 302 || !m.Force && exists(sample) {
+			return ""
+		}
+		u, _ := url.Parse(m.Location("", q.Encode()))
+		if u == nil || u.IsAbs() {
+			return ""
+		}
+		if hop == MaxChain {
+			return fmt.Sprintf("more than %d redirects in a row from here (lines %s), which browsers give up on or never finish; point the old address straight at its final page", MaxChain, strings.Join(involved, ", "))
+		}
+		sample, q = u.Path, u.Query()
+	}
 }
 func match(r rule, reqPath string, query url.Values) (Match, bool) {
 	if r.from == "/" && reqPath != "/" {

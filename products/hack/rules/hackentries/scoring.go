@@ -36,72 +36,82 @@ type RankOverride struct {
 // ApplyRankOverrides orders complete unresolved tie groups by the organiser's
 // chosen places, then rebuilds dense ranks. Untouched groups remain tied.
 func ApplyRankOverrides[T any](results []TeamResult[T], overrides []RankOverride, trackIDs map[string]string) error {
-	groups := map[int][]int{}
-	byID := map[string]int{}
-	for i := range results {
-		byID[results[i].TeamID] = i
-		if results[i].Tied && results[i].Rank != nil {
-			groups[*results[i].Rank] = append(groups[*results[i].Rank], i)
+	groupOf := map[string]int{} // tied team -> its shared rank
+	for _, r := range results {
+		if r.Tied && r.Rank != nil {
+			groupOf[r.TeamID] = *r.Rank
 		}
 	}
-	assigned := map[string]int{}
+	chosen := map[string]int{}
 	touched := map[int]bool{}
 	for _, ov := range overrides {
-		i, ok := byID[ov.TeamID]
-		if !ok || !results[i].Tied || results[i].Rank == nil {
+		group, ok := groupOf[ov.TeamID]
+		if !ok {
 			return fmt.Errorf("%s is not part of a tie.", ov.TeamID)
 		}
-		if _, duplicate := assigned[ov.TeamID]; duplicate {
+		if _, duplicate := chosen[ov.TeamID]; duplicate {
 			return fmt.Errorf("name each tied team once")
 		}
-		assigned[ov.TeamID] = ov.Rank
-		touched[*results[i].Rank] = true
+		chosen[ov.TeamID] = ov.Rank
+		touched[group] = true
 	}
-	oldGroup := map[string]int{}
-	for rank, ids := range groups {
-		for _, i := range ids {
-			oldGroup[results[i].TeamID] = rank
+	if err := checkChosenPlaces(results, groupOf, touched, chosen); err != nil {
+		return err
+	}
+	for _, run := range equalRuns(results, func(a, b TeamResult[T]) bool { return groupOf[a.TeamID] != 0 && groupOf[a.TeamID] == groupOf[b.TeamID] }) {
+		if touched[groupOf[run[0].TeamID]] {
+			sort.SliceStable(run, func(i, j int) bool { return chosen[run[i].TeamID] < chosen[run[j].TeamID] })
 		}
-		if !touched[rank] {
+	}
+	rerankAfterOverrides(results, groupOf, touched)
+	MarkTrackWinners(results, trackIDs)
+	return nil
+}
+
+// checkChosenPlaces requires every team of a touched tie group to have a
+// place, each different from the rest of its group.
+func checkChosenPlaces[T any](results []TeamResult[T], groupOf map[string]int, touched map[int]bool, chosen map[string]int) error {
+	used := map[[2]int]bool{} // group, place
+	for _, r := range results {
+		group := groupOf[r.TeamID]
+		if !touched[group] {
 			continue
 		}
-		seen := map[int]bool{}
-		for _, i := range ids {
-			order, ok := assigned[results[i].TeamID]
-			if !ok {
-				return fmt.Errorf("give every tied team in a group a rank, or none of them")
-			}
-			if seen[order] {
-				return fmt.Errorf("tied teams need different ranks from each other")
-			}
-			seen[order] = true
+		place, ok := chosen[r.TeamID]
+		if !ok {
+			return fmt.Errorf("give every tied team in a group a rank, or none of them")
 		}
-		start, end := ids[0], ids[len(ids)-1]+1
-		sort.SliceStable(results[start:end], func(i, j int) bool { return assigned[results[start+i].TeamID] < assigned[results[start+j].TeamID] })
+		if used[[2]int{group, place}] {
+			return fmt.Errorf("tied teams need different ranks from each other")
+		}
+		used[[2]int{group, place}] = true
 	}
+	return nil
+}
+
+// rerankAfterOverrides rebuilds dense ranks: untouched tie groups share a rank
+// and stay tied, and teams placed by the organiser are marked as such.
+func rerankAfterOverrides[T any](results []TeamResult[T], groupOf map[string]int, touched map[int]bool) {
 	rank := 0
 	for i := range results {
-		if results[i].Total == nil {
-			results[i].Rank = nil
-			results[i].Tied = false
+		r := &results[i]
+		r.Tied = false
+		if r.Total == nil {
+			r.Rank = nil
+			continue
+		}
+		group := groupOf[r.TeamID]
+		if touched[group] {
+			r.TieDecider = "organiser"
+		}
+		if i > 0 && group != 0 && !touched[group] && groupOf[results[i-1].TeamID] == group {
+			r.Rank, r.Tied, results[i-1].Tied = results[i-1].Rank, true, true
 			continue
 		}
 		rank++
-		r := rank
-		results[i].Rank = &r
-		results[i].Tied = false
-		if i > 0 && oldGroup[results[i].TeamID] != 0 && oldGroup[results[i].TeamID] == oldGroup[results[i-1].TeamID] && !touched[oldGroup[results[i].TeamID]] {
-			results[i].Rank = results[i-1].Rank
-			results[i].Tied = true
-			results[i-1].Tied = true
-			rank--
-		}
-		if touched[oldGroup[results[i].TeamID]] {
-			results[i].TieDecider = "organiser"
-		}
+		n := rank
+		r.Rank = &n
 	}
-	MarkTrackWinners(results, trackIDs)
-	return nil
 }
 
 // JudgeEntry holds one judge’s weighted score for a team.
@@ -174,7 +184,28 @@ type ResultsInput[T any] struct {
 
 // ComputeResults calculates the event standings.
 func ComputeResults[T any](in ResultsInput[T]) []TeamResult[T] {
-	rubric, teams, raw, eligible := in.Rubric, in.Teams, in.Raw, in.Eligible
+	entries := judgeEntries(in.Rubric, in.Raw, in.Eligible)
+	normalised := normalisedEntries(entries)
+	byTeam := map[string][]JudgeEntry{}
+	for _, e := range entries {
+		byTeam[e.Team] = append(byTeam[e.Team], e)
+	}
+	out := make([]TeamResult[T], 0, len(in.Teams))
+	for _, team := range in.Teams {
+		out = append(out, teamResult(in, team, byTeam[team.ID], normalised))
+	}
+	sortByTotal(out)
+	for _, group := range equalRuns(out, func(a, b TeamResult[T]) bool { return a.Total != nil && b.Total != nil && *a.Total == *b.Total }) {
+		breakTies(group, in.HasTieCriterion)
+	}
+	rankResults(out)
+	MarkTrackWinners(out, in.TrackIDs)
+	return out
+}
+
+// judgeEntries sums each eligible judge's weighted score per team, keeping
+// every criterion as a percentage of its maximum.
+func judgeEntries(rubric []model.RubricCriterion, raw []model.RawScoreRow, eligible map[string]map[string]bool) []JudgeEntry {
 	weights, maxes := map[string]float64{}, map[string]float64{}
 	for _, c := range rubric {
 		weights[c.ID] = float64(c.Weight)
@@ -186,105 +217,113 @@ func ComputeResults[T any](in ResultsInput[T]) []TeamResult[T] {
 			continue
 		}
 		key := JudgeTeamKey(r.JudgeID, r.TeamID)
-		e := byPair[key]
-		if e == nil {
-			e = &JudgeEntry{Team: r.TeamID, Judge: r.JudgeID, Criteria: map[string]float64{}}
-			byPair[key] = e
+		if byPair[key] == nil {
+			byPair[key] = &JudgeEntry{Team: r.TeamID, Judge: r.JudgeID, Criteria: map[string]float64{}}
 		}
 		fraction := float64(r.Points) / maxes[r.CriterionID]
-		e.Raw += weights[r.CriterionID] * fraction
-		e.Criteria[r.CriterionID] = fraction * 100
+		byPair[key].Raw += weights[r.CriterionID] * fraction
+		byPair[key].Criteria[r.CriterionID] = fraction * 100
 	}
 	entries := make([]JudgeEntry, 0, len(byPair))
-	byTeam := map[string][]JudgeEntry{}
 	for _, e := range byPair {
 		entries = append(entries, *e)
-		byTeam[e.Team] = append(byTeam[e.Team], *e)
 	}
-	normalised := normalisedEntries(entries)
-	out := make([]TeamResult[T], 0, len(teams))
-	for _, team := range teams {
-		items := byTeam[team.ID]
-		res := TeamResult[T]{TeamID: team.ID, TeamName: team.Name, JudgesScored: len(items), ScoreMode: in.ScoreMode, judgeScores: map[string]float64{}}
-		if len(items) > 0 {
-			rawSum, normSum, criterionSum, criterionCount := 0.0, 0.0, 0.0, 0
-			for _, e := range items {
-				rawSum += e.Raw
-				normSum += normalised[JudgeTeamKey(e.Judge, e.Team)]
-				res.judgeScores[e.Judge] = e.Raw
-				if in.HasTieCriterion {
-					if v, ok := e.Criteria[in.TieCriterionID]; ok {
-						criterionSum += v
-						criterionCount++
-					}
-				}
-			}
-			rawMean, normMean := roundedScore(rawSum/float64(len(items))), roundedScore(normSum/float64(len(items)))
-			res.RawTotal = &rawMean
-			res.NormalisedTotal = &normMean
-			res.Total = &rawMean
-			if in.ScoreMode == "normalised" {
-				res.Total = &normMean
-			}
-			if criterionCount > 0 {
-				res.criterionMean = roundedScore(criterionSum / float64(criterionCount))
-			}
+	return entries
+}
+
+// teamResult averages a team's judge entries into raw, normalised and
+// selected totals plus the tie criterion's mean; no entries means no total.
+func teamResult[T any](in ResultsInput[T], team model.NamedTeam, items []JudgeEntry, normalised map[string]float64) TeamResult[T] {
+	res := TeamResult[T]{TeamID: team.ID, TeamName: team.Name, JudgesScored: len(items), ScoreMode: in.ScoreMode, judgeScores: map[string]float64{}, Track: in.Tracks[team.ID]}
+	if len(items) == 0 {
+		return res
+	}
+	rawSum, normSum, criterionSum, criterionCount := 0.0, 0.0, 0.0, 0
+	for _, e := range items {
+		rawSum += e.Raw
+		normSum += normalised[JudgeTeamKey(e.Judge, e.Team)]
+		res.judgeScores[e.Judge] = e.Raw
+		if v, ok := e.Criteria[in.TieCriterionID]; ok && in.HasTieCriterion {
+			criterionSum += v
+			criterionCount++
 		}
-		res.Track = in.Tracks[team.ID]
-		out = append(out, res)
 	}
+	rawMean, normMean := roundedScore(rawSum/float64(len(items))), roundedScore(normSum/float64(len(items)))
+	res.RawTotal, res.NormalisedTotal, res.Total = &rawMean, &normMean, &rawMean
+	if in.ScoreMode == "normalised" {
+		res.Total = &normMean
+	}
+	if criterionCount > 0 {
+		res.criterionMean = roundedScore(criterionSum / float64(criterionCount))
+	}
+	return res
+}
+
+// sortByTotal orders by total descending then name; teams without a total go last by name.
+func sortByTotal[T any](out []TeamResult[T]) {
 	sort.Slice(out, func(i, j int) bool {
 		a, b := out[i], out[j]
-		if a.Total == nil {
+		switch {
+		case a.Total == nil:
 			return b.Total == nil && a.TeamName < b.TeamName
-		}
-		if b.Total == nil {
+		case b.Total == nil:
 			return true
-		}
-		if *a.Total != *b.Total {
+		case *a.Total != *b.Total:
 			return *a.Total > *b.Total
 		}
 		return a.TeamName < b.TeamName
 	})
-	// Among equal selected totals: criterion mean, then each judge's pairwise
-	// preference within the remaining tied subgroup. Any residual tie stays
-	// unresolved until an organiser records a choice at publish.
-	for start := 0; start < len(out); {
+}
+
+// equalRuns splits rows into consecutive runs whose rows are the same as the run's first.
+func equalRuns[T any](rows []TeamResult[T], same func(a, b TeamResult[T]) bool) [][]TeamResult[T] {
+	var runs [][]TeamResult[T]
+	for start := 0; start < len(rows); {
 		end := start + 1
-		for end < len(out) && out[start].Total != nil && out[end].Total != nil && *out[start].Total == *out[end].Total {
+		for end < len(rows) && same(rows[start], rows[end]) {
 			end++
 		}
-		if end-start > 1 {
-			if in.HasTieCriterion {
-				sort.SliceStable(out[start:end], func(i, j int) bool { return out[start+i].criterionMean > out[start+j].criterionMean })
-			}
-			for c := start; c < end; {
-				d := c + 1
-				for d < end && out[d].criterionMean == out[c].criterionMean {
-					d++
-				}
-				if d-c > 1 {
-					for i := c; i < d; i++ {
-						wins := 0
-						for j := c; j < d; j++ {
-							if i == j {
-								continue
-							}
-							for judge, a := range out[i].judgeScores {
-								if b, ok := out[j].judgeScores[judge]; ok && a > b {
-									wins++
-								}
-							}
-						}
-						out[i].majorityWins = wins
-					}
-					sort.SliceStable(out[c:d], func(i, j int) bool { return out[c+i].majorityWins > out[c+j].majorityWins })
-				}
-				c = d
-			}
-		}
+		runs = append(runs, rows[start:end])
 		start = end
 	}
+	return runs
+}
+
+// breakTies orders teams with equal totals by the tie criterion's mean, then,
+// among equal means, by how many pairwise judge preferences each team wins.
+// Any residual tie stays unresolved until an organiser records a choice at publish.
+func breakTies[T any](group []TeamResult[T], byCriterion bool) {
+	if byCriterion {
+		sort.SliceStable(group, func(i, j int) bool { return group[i].criterionMean > group[j].criterionMean })
+	}
+	for _, sub := range equalRuns(group, func(a, b TeamResult[T]) bool { return a.criterionMean == b.criterionMean }) {
+		for i := range sub {
+			sub[i].majorityWins = majorityWins(sub, i)
+		}
+		sort.SliceStable(sub, func(i, j int) bool { return sub[i].majorityWins > sub[j].majorityWins })
+	}
+}
+
+// majorityWins counts, over every other team in the group, the judges who
+// scored team i higher than that team.
+func majorityWins[T any](group []TeamResult[T], i int) int {
+	wins := 0
+	for j := range group {
+		if i == j {
+			continue
+		}
+		for judge, a := range group[i].judgeScores {
+			if b, ok := group[j].judgeScores[judge]; ok && a > b {
+				wins++
+			}
+		}
+	}
+	return wins
+}
+
+// rankResults assigns dense ranks in sorted order, naming what separated each
+// team from the one above; teams nothing separates share a rank as unresolved.
+func rankResults[T any](out []TeamResult[T]) {
 	rank := 0
 	for i := range out {
 		if out[i].Total == nil {
@@ -292,25 +331,22 @@ func ComputeResults[T any](in ResultsInput[T]) []TeamResult[T] {
 		}
 		rank++
 		r := rank
-		out[i].Rank = &r
-		out[i].TieDecider = "score"
-		if i > 0 && out[i-1].Total != nil && *out[i].Total == *out[i-1].Total {
-			if out[i].criterionMean != out[i-1].criterionMean {
-				out[i].TieDecider = "criterion"
-			} else if out[i].majorityWins != out[i-1].majorityWins {
-				out[i].TieDecider = "judge_majority"
-			} else {
-				out[i].Rank = out[i-1].Rank
-				rank--
-				out[i].Tied = true
-				out[i-1].Tied = true
-				out[i].TieDecider = "unresolved"
-				out[i-1].TieDecider = "unresolved"
-			}
+		out[i].Rank, out[i].TieDecider = &r, "score"
+		if i == 0 || out[i-1].Total == nil || *out[i].Total != *out[i-1].Total {
+			continue
+		}
+		switch {
+		case out[i].criterionMean != out[i-1].criterionMean:
+			out[i].TieDecider = "criterion"
+		case out[i].majorityWins != out[i-1].majorityWins:
+			out[i].TieDecider = "judge_majority"
+		default:
+			out[i].Rank = out[i-1].Rank
+			rank--
+			out[i].Tied, out[i-1].Tied = true, true
+			out[i].TieDecider, out[i-1].TieDecider = "unresolved", "unresolved"
 		}
 	}
-	MarkTrackWinners(out, in.TrackIDs)
-	return out
 }
 
 // MarkTrackWinners assigns track ranks.

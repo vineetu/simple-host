@@ -18,10 +18,9 @@ func kvRulesFixture(t *testing.T, set *json.RawMessage) (*Service, Call) {
 	t.Helper()
 	s, c := kvFixture(t, false)
 	s.deps.SpamCheckAvailable = true
-	s.deps.PasscodeAllows = func() bool { return true }
-	s.deps.ViewersAllow = func() bool { return true }
 	c.Resource = putRules(t, s, ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: set})
 	c.Owner, c.CSRFOK, c.ActiveChecked = false, true, true
+	c.PasscodeOK, c.ViewersOK = true, true
 	c.VisitorID = "writer"
 	return s, c
 }

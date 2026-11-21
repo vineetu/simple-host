@@ -66,14 +66,7 @@ func ListEventAssignments(ctx context.Context, q sqlkit.Querier, eventID string)
 }
 
 // EligibleJudgeTeams uses current event mode, event-scoped membership and
-// conflict rows. The same predicate gates queues, score writes and totals.
-//
-// A former judge (no member row left, but an event_former_judges record) has
-// no mode-based eligibility of their own any more: this returns exactly the
-// counted_team_ids frozen when they left, minus any conflict declared since
-// and minus any team that no longer exists (section 3: Leave this event,
-// SIM-340). Score writes and the judge queue never reach this path for a
-// former judge -- they go through loadMember first, which they cannot pass.
+// conflict rows.
 func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (map[string]bool, error) {
 	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
 	if err != nil {
@@ -121,19 +114,9 @@ func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 	return out, rows.Err()
 }
 
-// EligibleJudgeTeamsIgnoringConflicts is EligibleJudgeTeams for a current
-// judge or judging organiser (mode, assignments and panels), without the
-// live event_conflicts exclusion. A former judge has none -- their universe
-// is already frozen counted_team_ids, which has no conflict-free reading of
-// its own.
-//
-// Used only to decide what RecordFormerJudge freezes when someone leaves or
-// is removed (SIM-340 ship-blocker B2): the conflict exclusion must stay
-// live-only, checked again on every read by EligibleJudgeTeams itself, so a
-// conflict declared and later removed keeps un-excluding a team rather than
-// never coming back (Grok finding 6). Freezing anything other than "today's
-// mode-eligible teams, scored" would make a non-counting score start
-// counting (or vice versa) the moment the judge leaves.
+// EligibleJudgeTeamsIgnoringConflicts is EligibleJudgeTeams for a current judge
+// or judging organiser (mode, assignments and panels), without the live
+// event_conflicts exclusion.
 func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (map[string]bool, error) {
 	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
 	if err != nil {

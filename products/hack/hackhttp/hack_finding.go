@@ -4,45 +4,22 @@ import (
 	"net/http"
 
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/rules/sites"
-	"github.com/vsriram/simple-host/products/hack/app/events"
-	"github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
-func (h *participationHTTP) findingAccess(w http.ResponseWriter, r *http.Request, write bool) (hackAccess, bool) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), write, "participant", "organiser")
-	if !ok {
-		return a, false
-	}
-	if write && !teams.ParticipantTeamStages(a.event.Stage) {
-		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
-		return a, false
-	}
-	if !a.event.TeamFinding {
-		writeHackError(w, teams.ErrFindingOff)
-		return a, false
-	}
-	return a, true
-}
-
 func (h *participationHTTP) listOpenTeams(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant", "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant", "organiser")
 	if !ok {
 		return
 	}
-	out := map[string]any{"enabled": a.event.TeamFinding, "teams": []any{}, "solo": []any{}, "pending": []any{}, "looking": false, "intro": ""}
-	if !a.event.TeamFinding {
-		httpx.WriteJSON(w, 200, out)
-		return
-	}
-	directory, err := h.teams.ListOpenTeams(r.Context(), a.event.ID, a.user.ID, a.member)
+	directory, err := h.teams.ListOpenTeams(r.Context(), a.event, a.user.ID, a.member)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
+	max := a.event.TeamSizeMax
 	teams := []any{}
 	for _, t := range directory.Teams {
-		teams = append(teams, map[string]any{"slug": t.Slug, "name": t.Name, "members": t.Members, "member_count": len(t.Members), "team_size_max": a.event.TeamSizeMax, "full": len(t.Members) >= a.event.TeamSizeMax, "track": t.Track, "looking_for": t.LookingFor})
+		teams = append(teams, map[string]any{"slug": t.Slug, "name": t.Name, "members": t.Members, "member_count": len(t.Members), "team_size_max": max, "full": len(t.Members) >= max, "track": t.Track, "looking_for": t.LookingFor})
 	}
 	solo := []any{}
 	for _, p := range directory.Solo {
@@ -52,51 +29,37 @@ func (h *participationHTTP) listOpenTeams(w http.ResponseWriter, r *http.Request
 	for _, p := range directory.Pending {
 		pending = append(pending, p)
 	}
-	out["teams"], out["solo"], out["pending"] = teams, solo, pending
-	out["looking"], out["intro"] = directory.Looking, directory.Intro
+	out := map[string]any{"enabled": a.event.TeamFinding, "teams": teams, "solo": solo, "pending": pending, "looking": directory.Looking, "intro": directory.Intro}
 	if t := directory.Team; t != nil {
 		out["team"] = map[string]any{"looking_for": t.LookingFor, "locked": t.Locked, "admin": t.Admin}
 	}
-	httpx.WriteJSON(w, 200, out)
+	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
 // setTeamFinding is the deprecated PUT .../team/finding (replaced by PATCH
 // .../team): admin only now, writes only looking_for, ignores open. Kept
 // for one release so an older cached tool call still works.
 func (h *participationHTTP) setTeamFinding(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.findingAccess(w, r, true)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {
 		return
 	}
-	if !a.member.TeamID.Valid {
-		writeEventNotFound(w)
-		return
-	}
 	var req struct {
-		Open       bool   `json:"open"`
 		LookingFor string `json:"looking_for"`
 	}
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	note, ok := checkHackLine(w, events.StripInvisible(req.LookingFor), "looking_for", 0, 120)
-	if !ok {
-		return
-	}
-	err := h.teams.SetTeamFinding(r.Context(), a.event.ID, a.user.ID, note)
-	if err != nil {
+	if err := h.teams.SetTeamFinding(r.Context(), a.event, a.member, a.user.ID, req.LookingFor); err != nil {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"ok": true, "deprecated": "use PATCH /v1/hack/events/{slug}/team"})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "deprecated": "use PATCH /v1/hack/events/{slug}/team"})
 }
+
 func (h *participationHTTP) setLooking(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.findingAccess(w, r, true)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {
-		return
-	}
-	if a.member.Role != "participant" {
-		writeEventNotFound(w)
 		return
 	}
 	var req struct {
@@ -106,89 +69,58 @@ func (h *participationHTTP) setLooking(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	intro, ok := checkHackLine(w, req.Intro, "intro", 0, 120)
-	if !ok {
-		return
-	}
-	err := h.teams.SetLooking(r.Context(), a.event.ID, a.user.ID, req.Looking, intro)
-	if err != nil {
+	if err := h.teams.SetLooking(r.Context(), a.event, a.member, a.user.ID, req.Looking, req.Intro); err != nil {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
+
+// createTeamRequest asks to join {team}, or, on the route without one,
+// invites body.user_id to the caller's team.
 func (h *participationHTTP) createTeamRequest(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.findingAccess(w, r, true)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {
 		return
 	}
-	userID := a.user.ID
-	team := r.PathValue("team")
-	kind := "request"
-	if team == "" {
-		kind = "invite"
-		var req struct {
-			UserID string `json:"user_id"`
-		}
-		if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
-			return
-		}
-		if !sites.UUIDShape.MatchString(req.UserID) || !a.member.TeamID.Valid {
-			writeEventNotFound(w)
-			return
-		}
-		userID = req.UserID
-		t, err := h.teams.GetTeam(r.Context(), a.member.TeamID.String)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		team = t.Slug
+	var req struct {
+		UserID string `json:"user_id"`
 	}
-	state, err := h.teams.CreateTeamRequest(r.Context(), a.event, a.user.ID, team, userID, kind)
+	team := r.PathValue("team")
+	if team == "" && !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
+		return
+	}
+	state, err := h.teams.CreateTeamRequest(r.Context(), a.event, a.member, a.user.ID, team, req.UserID)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	status := 200
+	status := http.StatusOK
 	if state == "created" {
-		status = 201
+		status = http.StatusCreated
 	}
 	httpx.WriteJSON(w, status, map[string]any{"ok": true, "state": state})
 }
+
 func (h *participationHTTP) resolveTeamRequest(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.findingAccess(w, r, true)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {
-		return
-	}
-	id := r.PathValue("id")
-	if !sites.UUIDShape.MatchString(id) {
-		writeEventNotFound(w)
 		return
 	}
 	action := r.PathValue("action")
 	if r.Method == http.MethodDelete {
 		action = "withdraw"
 	}
-	if action != "accept" && action != "decline" && action != "withdraw" {
-		writeEventNotFound(w)
-		return
-	}
-	err := h.teams.ResolveTeamRequest(r.Context(), a.event, a.user.ID, id, action)
-	if err != nil {
+	if err := h.teams.ResolveTeamRequest(r.Context(), a.event, a.user.ID, r.PathValue("id"), action); err != nil {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"ok": true})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *participationHTTP) fillTeams(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
-		return
-	}
-	if !teams.ParticipantTeamStages(a.event.Stage) {
-		httpx.WriteError(w, 409, "teams_locked", "teams cannot be changed at this stage")
 		return
 	}
 	var req struct {
@@ -203,5 +135,5 @@ func (h *participationHTTP) fillTeams(w http.ResponseWriter, r *http.Request) {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped, "size": size})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"plan": plan, "applied": req.Apply, "skipped": skipped, "size": size})
 }

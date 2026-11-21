@@ -53,114 +53,44 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		return failure(req.ID, codeInvalidParams, "params could not be read", nil)
 	}
 	_, _, byName := s.forCaller(caller)
-	started := time.Now()
-	secretValues := analyticsSecretValues(s.policy(params.Name), params.Arguments, s.policy)
-	eventName := params.Name
-	intent, _ := takeAnalyticsContext(byName[params.Name], params.Arguments)
-	var recorded bool
-	var runError error
-	var completed time.Time
-	var parameters any
-	record := func(err error) {
-		recorded, runError, completed = true, err, time.Now()
-	}
+	a := &callAnalytics{s: s, caller: caller, event: params.Name, started: time.Now(),
+		secrets: analyticsSecretValues(s.policy(params.Name), params.Arguments, s.policy)}
+	a.intent, _ = takeAnalyticsContext(byName[params.Name], params.Arguments)
+	defer func() { a.send(params.Arguments, reply) }()
 	refuse := func(err error, text string) response {
-		record(err)
+		a.record(err)
 		return toolResult(req.ID, text, nil, true, modern)
 	}
-	defer func() {
-		if s.analytics != nil && recorded {
-			if s.policy(eventName).analytics.redactAll {
-				intent = "[removed]"
-			}
-			if parameters == nil {
-				parameters = analyticsParametersForPolicy(s.policy(eventName), params.Arguments)
-			}
-			s.analytics.enqueue(caller, eventName, completed.Sub(started), completed, runError,
-				redactAnalyticsSecrets(parameters, secretValues), redactAnalyticsSecrets(analyticsResponseForPolicy(s.policy(eventName), reply.Result), secretValues), capAnalyticsIntent(redactAnalyticsSecrets(intent, secretValues).(string)))
-		}
-	}()
 	// Unwrap before lookup so direct and wrapped calls share the same checks.
-	wrapped := byName[params.Name].policy.unwrap
-	if _, allowed := byName["run_tool"]; wrapped && allowed {
-		outer := params.Arguments
-		name, nameErr := stringArg(outer, "name")
-		innerArgs, objectArgs := outer["arguments"].(map[string]any)
-		if inner, present := takeAnalyticsContext(byName[name], innerArgs); present {
-			intent = inner
-		}
-		_, known := byName[name]
-		validTarget := known && !byName[name].policy.discovery
-		if validTarget {
-			eventName = name
-		}
-		if s.analytics != nil {
-			if _, present := outer["arguments"]; validTarget && (objectArgs || !present) {
-				parameters = analyticsParametersForPolicy(s.policy(name), innerArgs)
-			} else {
-				parameters = map[string]any{"arguments": "[removed]"}
-			}
-		}
-		err := unexpectedArgument(byName["run_tool"], outer)
-		switch {
-		case err != nil:
-		case nameErr != nil:
-			err = nameErr
-		case s.policy(name).screenOnly:
-			err = errors.New("passcode_screen is only for the passcode screen")
-		case byName[name].policy.discovery:
-			err = errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
-		}
+	_, runTool := byName["run_tool"]
+	wrapped := runTool && byName[params.Name].policy.unwrap
+	if wrapped {
+		name, args, text, err := s.unwrapRunTool(byName, params.Arguments, a)
 		if err != nil {
-			return refuse(err, err.Error())
+			return refuse(err, text)
 		}
-		params.Name = name
-		params.Arguments = nil
-		if raw, present := outer["arguments"]; present {
-			var ok bool
-			if params.Arguments, ok = raw.(map[string]any); !ok {
-				err := errors.New("arguments must be an object")
-				return refuse(err, argumentMessage(err, byName[name]))
-			}
-		}
-	} else {
-		wrapped = false
+		params.Name, params.Arguments = name, args
 	}
 	tool, known := byName[params.Name]
 	if inner, present := takeAnalyticsContext(tool, params.Arguments); present {
-		intent = inner
+		a.intent = inner
 	}
 	if !known {
-		return s.unknownTool(req.ID, params.Name, caller, wrapped, modern, record)
+		return s.unknownTool(req.ID, params.Name, caller, wrapped, modern, a.record)
 	}
 	if params.Arguments == nil {
 		params.Arguments = map[string]any{}
 	}
-	if argErr := checkArguments(tool, params.Arguments, wrapped); argErr != nil {
-		// Some apps (ChatGPT custom servers) keep the tool list from when the
-		// person connected, so a stale schema is common: give the current one.
-		message := argumentMessage(argErr, tool)
-		if !wrapped {
-			message += "\n" + staleToolsHint
-		}
-		return refuse(codedError("invalid_argument", argErr.Error()), message)
+	c, text, err := s.prepareCall(r, tool, params, caller, wrapped, modern)
+	if err != nil {
+		return refuse(err, text)
 	}
-	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
-	if err := c.takeTeamArguments(params.Arguments); err != nil {
-		return refuse(codedError("invalid_argument", err.Error()), argumentMessage(err, tool))
+	if s.analytics != nil && a.parameters == nil {
+		a.parameters = analyticsParametersForPolicy(s.policy(a.event), params.Arguments)
 	}
-	s.setClientUI(c, params.Meta, caller, modern)
-	// A host draws a screen for the tool it listed, never for run_tool.
-	if wrapped {
-		c.wrapped = true
-		c.textOnlyClient = true
-	}
-	if s.analytics != nil && parameters == nil {
-		parameters = analyticsParametersForPolicy(s.policy(eventName), params.Arguments)
-	}
-	started = time.Now()
+	a.started = time.Now()
 	out, err := tool.run(c, params.Arguments)
-	record(err)
+	a.record(err)
 	if err != nil {
 		// A bad argument or a refused REST call is the model's to correct, so
 		// it comes back as a failed tool result it can read, not a protocol
@@ -172,6 +102,109 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		reply.Result.(map[string]any)["_meta"] = out.Meta
 	}
 	return reply
+}
+
+// unwrapRunTool reads run_tool's own arguments: the tool to run and its
+// arguments. The refusal comes with the text the caller reads.
+func (s *Server) unwrapRunTool(byName map[string]Tool, outer map[string]any, a *callAnalytics) (name string, args map[string]any, text string, err error) {
+	name, nameErr := stringArg(outer, "name")
+	inner, objectArgs := outer["arguments"].(map[string]any)
+	if intent, present := takeAnalyticsContext(byName[name], inner); present {
+		a.intent = intent
+	}
+	target, known := byName[name]
+	validTarget := known && !target.policy.discovery
+	if validTarget {
+		a.event = name
+	}
+	_, present := outer["arguments"]
+	if s.analytics != nil {
+		a.parameters = map[string]any{"arguments": "[removed]"}
+		if validTarget && (objectArgs || !present) {
+			a.parameters = analyticsParametersForPolicy(s.policy(name), inner)
+		}
+	}
+	if err := runToolRefusal(byName, outer, nameErr, s.policy(name).screenOnly, target.policy.discovery); err != nil {
+		return "", nil, err.Error(), err
+	}
+	if present && !objectArgs {
+		err := errors.New("arguments must be an object")
+		return "", nil, argumentMessage(err, target), err
+	}
+	return name, inner, "", nil
+}
+
+// runToolRefusal is why run_tool may not run this call, or nil.
+func runToolRefusal(byName map[string]Tool, outer map[string]any, nameErr error, screenOnly, discovery bool) error {
+	switch err := unexpectedArgument(byName["run_tool"], outer); {
+	case err != nil:
+		return err
+	case nameErr != nil:
+		return nameErr
+	case screenOnly:
+		return errors.New("passcode_screen is only for the passcode screen")
+	case discovery:
+		return errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
+	}
+	return nil
+}
+
+// prepareCall checks the arguments and builds the call the tool runs in.
+func (s *Server) prepareCall(r *http.Request, tool Tool, params callParams, caller Caller, wrapped, modern bool) (*call, string, error) {
+	if argErr := checkArguments(tool, params.Arguments, wrapped); argErr != nil {
+		// Some apps (ChatGPT custom servers) keep the tool list from when the
+		// person connected, so a stale schema is common: give the current one.
+		message := argumentMessage(argErr, tool)
+		if !wrapped {
+			message += "\n" + staleToolsHint
+		}
+		return nil, message, codedError("invalid_argument", argErr.Error())
+	}
+	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
+	if err := c.takeTeamArguments(params.Arguments); err != nil {
+		return nil, argumentMessage(err, tool), codedError("invalid_argument", err.Error())
+	}
+	s.setClientUI(c, params.Meta, caller, modern)
+	// A host draws a screen for the tool it listed, never for run_tool.
+	if wrapped {
+		c.wrapped, c.textOnlyClient = true, true
+	}
+	return c, "", nil
+}
+
+// callAnalytics is what one tools/call reports to usage analytics.
+type callAnalytics struct {
+	s                  *Server
+	caller             Caller
+	event, intent      string
+	parameters         any
+	secrets            []string
+	started, completed time.Time
+	recorded           bool
+	err                error
+}
+
+func (a *callAnalytics) record(err error) {
+	a.recorded, a.err, a.completed = true, err, time.Now()
+}
+
+// send enqueues the event for a recorded call; args are its final arguments.
+func (a *callAnalytics) send(args map[string]any, reply response) {
+	if a.s.analytics == nil || !a.recorded {
+		return
+	}
+	policy := a.s.policy(a.event)
+	intent := a.intent
+	if policy.analytics.redactAll {
+		intent = "[removed]"
+	}
+	parameters := a.parameters
+	if parameters == nil {
+		parameters = analyticsParametersForPolicy(policy, args)
+	}
+	a.s.analytics.enqueue(a.caller, a.event, a.completed.Sub(a.started), a.completed, a.err,
+		redactAnalyticsSecrets(parameters, a.secrets), redactAnalyticsSecrets(analyticsResponseForPolicy(policy, reply.Result), a.secrets),
+		capAnalyticsIntent(redactAnalyticsSecrets(intent, a.secrets).(string)))
 }
 
 // unknownTool answers a call naming no tool of this connection: a retired

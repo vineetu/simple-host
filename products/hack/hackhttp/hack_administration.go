@@ -12,16 +12,19 @@ import (
 	"strings"
 
 	"github.com/vsriram/simple-host/host/access/auth"
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/rules/sites"
+	"github.com/vsriram/simple-host/host/web"
 	entryapp "github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
+	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *hackBase) administrationWrite(w http.ResponseWriter, r *http.Request) (hackAccess, bool) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+// organiserWrite is loadMember for an organiser change to an event that has
+// not ended.
+func organiserWrite(w http.ResponseWriter, r *http.Request, svc *members.Service) (hackAccess, bool) {
+	a, ok := loadMember(w, r, svc, r.PathValue("slug"), true, "organiser")
 	if ok && a.event.Stage == "archived" {
 		httpx.WriteError(w, 409, "event_closed", "an ended event cannot be changed")
 		return a, false
@@ -30,7 +33,7 @@ func (h *hackBase) administrationWrite(w http.ResponseWriter, r *http.Request) (
 }
 
 func (h *HackHandler) createOrganiserInvite(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -40,11 +43,11 @@ func (h *HackHandler) createOrganiserInvite(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	httpx.WriteJSON(w, 201, map[string]any{"url": h.publicBaseURL + "/organiser/" + code, "expires_at": rfc3339Time(expires)})
+	httpx.WriteJSON(w, 201, map[string]any{"url": h.links.publicBaseURL + "/organiser/" + code, "expires_at": rfc3339Time(expires)})
 }
 
 func (h *HackHandler) revokeOrganiserInvite(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -60,7 +63,7 @@ func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request)
 	if u := auth.GetUser(r.Context()); u != nil {
 		caller, accountName = u.ID, strings.TrimSpace(u.DisplayName.String)
 	}
-	if h.rateLimited(w, r, caller) {
+	if h.codes.limited(w, r, caller) {
 		return
 	}
 	ev, err := h.events.OrganiserInvite(r.Context(), r.PathValue("code"))
@@ -77,7 +80,7 @@ func (h *HackHandler) getOrganiserInvite(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	httpx.WriteJSON(w, 200, map[string]any{"slug": ev.Slug, "title": ev.Title, "icon_url": h.iconURL(ev), "stage": ev.Stage, "organiser_name": ev.OrganiserName, "organisation": ev.Organisation, "role": "organiser", "account_name": accountName, "joinable": ev.Stage != "archived", "coc_default": HackDefaultCoC, "coc_text": ev.CocText})
+	httpx.WriteJSON(w, 200, map[string]any{"slug": ev.Slug, "title": ev.Title, "icon_url": h.links.iconURL(ev), "stage": ev.Stage, "organiser_name": ev.OrganiserName, "organisation": ev.Organisation, "role": "organiser", "account_name": accountName, "joinable": ev.Stage != "archived", "coc_default": HackDefaultCoC, "coc_text": ev.CocText})
 }
 
 func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +88,7 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 	if user == nil {
 		return
 	}
-	if h.rateLimited(w, r, user.ID) {
+	if h.codes.limited(w, r, user.ID) {
 		return
 	}
 	var req struct {
@@ -105,11 +108,11 @@ func (h *HackHandler) acceptOrganiserInvite(w http.ResponseWriter, r *http.Reque
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, h.eventView(r.Context(), ev, member, true))
+	httpx.WriteJSON(w, 200, h.views.eventView(r.Context(), ev, member, true))
 }
 
 func (h *HackHandler) removeOrganiser(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -126,7 +129,7 @@ func (h *HackHandler) removeOrganiser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) renameTeam(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.administrationWrite(w, r)
+	a, ok := organiserWrite(w, r, h.members)
 	if !ok {
 		return
 	}
@@ -157,108 +160,35 @@ func (h *HackHandler) renameTeam(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"name": name, "slug": slug})
 }
 
+// exportAdministrationCSV answers participants.csv, teams.csv or
+// entries.csv for the event's organisers.
 func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	var rows [][]string
 	kind := filepath.Base(r.URL.Path)
-	switch kind {
-	case "participants.csv":
-		people, err := h.events.EventPeople(r.Context(), a.event.ID)
-		if err != nil {
+	build := map[string]func(context.Context, model.Event) ([][]string, error){
+		"participants.csv": h.participantRows,
+		"teams.csv":        h.teamRows,
+		"entries.csv":      h.entryRows,
+	}[kind]
+	var rows [][]string
+	if build != nil {
+		var err error
+		if rows, err = build(r.Context(), a.event); err != nil {
 			httpx.WriteInternal(w)
 			return
-		}
-		// D11: appended at the end, so existing spreadsheet imports keep working.
-		rows = append(rows, []string{"name", "email", "team", "team_slug", "joined_at", "coc_accepted_at", "city", "country", "age_range", "gender", "joined_via"})
-		for _, p := range people {
-			if p.Role == "participant" && p.ApprovalStatus == "approved" {
-				accepted := ""
-				if p.CocAcceptedAt.Valid {
-					accepted = rfc3339Time(p.CocAcceptedAt.Time)
-				}
-				rows = append(rows, []string{
-					p.DisplayName, p.Email, p.TeamName.String, p.TeamSlug.String, rfc3339Time(p.JoinedAt), accepted,
-					p.City, events.CountryName(p.Country), events.AgeRangeLabels[p.AgeRange], events.GenderLabels[p.Gender], events.JoinedViaLabel(p.JoinedVia),
-				})
-			}
-		}
-	case "teams.csv":
-		teams, err := h.teams.EventTeams(r.Context(), a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		people, err := h.events.EventPeople(r.Context(), a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		counts := map[string]int{}
-		for _, p := range people {
-			if p.TeamID.Valid {
-				counts[p.TeamID.String]++
-			}
-		}
-		rows = append(rows, []string{"name", "slug", "members", "site_url", "created_at"})
-		for _, t := range teams {
-			rows = append(rows, []string{t.Name, t.Slug, strconv.Itoa(counts[t.ID]), h.teamSiteURL(a.event.Slug, t.Slug), rfc3339Time(t.CreatedAt)})
-		}
-	case "entries.csv":
-		entries, err := h.entries.EventEntries(r.Context(), a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		teams, err := h.teams.EventTeams(r.Context(), a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		byID := map[string]model.EventTeam{}
-		for _, t := range teams {
-			byID[t.ID] = t
-		}
-		fields := entryapp.LoadRules(a.event.EntryRules)
-		tracks, err := h.events.EventTracks(r.Context(), a.event.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-		hasTracks := len(tracks) > 0
-		// D11-style: the new columns are appended at the end, so existing
-		// spreadsheet imports keep working (section 4.7).
-		rows = append(rows, []string{"team", "team_slug", "title", "tagline", "description", "video_url", "code_url", "has_screenshot", "updated_at",
-			"status", "submitted_at", "submit_auto", "problem", "audience", "track", "tools", "maturity", "missing", "excluded"})
-		for _, e := range entries {
-			t := byID[e.TeamID]
-			track, err := h.events.TeamTrackLookup(r.Context(), e.TeamID)
-			if err != nil {
-				httpx.WriteInternal(w)
-				return
-			}
-			siteLive := h.entrySiteLive(r.Context(), a.event, t.Slug, t.SiteTakenDownAt.Valid)
-			check := entryapp.Evaluate(fields, e, siteLive, hasTracks, track)
-			trackName := ""
-			if track != nil {
-				trackName = track.Name
-			}
-			submittedAt := ""
-			if e.SubmittedAt.Valid {
-				submittedAt = rfc3339Time(e.SubmittedAt.Time)
-			}
-			rows = append(rows, []string{
-				t.Name, t.Slug, e.Title, e.Tagline, e.Description, e.VideoURL, e.CodeURL, strconv.FormatBool(e.HasScreenshot), rfc3339Time(e.UpdatedAt),
-				e.Status(), submittedAt, strconv.FormatBool(e.SubmitAuto), e.Problem, e.Audience, trackName, strings.Join(e.Tools, "; "), e.Maturity,
-				strings.Join(check.Missing, "; "), strconv.FormatBool(e.ExcludedAt.Valid),
-			})
 		}
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-%s"`, a.event.Slug, kind))
+	writeCSV(w, rows)
+}
+
+// writeCSV writes rows with every cell made spreadsheet-safe.
+func writeCSV(w http.ResponseWriter, rows [][]string) {
 	cw := csv.NewWriter(w)
 	defer cw.Flush()
 	for _, row := range rows {
@@ -271,17 +201,108 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// rfc3339Or is t in RFC 3339, or "" when unset.
+func rfc3339Or(t sql.NullTime) string {
+	if !t.Valid {
+		return ""
+	}
+	return rfc3339Time(t.Time)
+}
+
+// participantRows lists approved participants.
+func (h *HackHandler) participantRows(ctx context.Context, ev model.Event) ([][]string, error) {
+	people, err := h.events.EventPeople(ctx, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	rows := [][]string{{"name", "email", "team", "team_slug", "joined_at", "coc_accepted_at", "city", "country", "age_range", "gender", "joined_via"}}
+	for _, p := range people {
+		if p.Role != "participant" || p.ApprovalStatus != "approved" {
+			continue
+		}
+		rows = append(rows, []string{
+			p.DisplayName, p.Email, p.TeamName.String, p.TeamSlug.String, rfc3339Time(p.JoinedAt), rfc3339Or(p.CocAcceptedAt),
+			p.City, events.CountryName(p.Country), events.AgeRangeLabels[p.AgeRange], events.GenderLabels[p.Gender], events.JoinedViaLabel(p.JoinedVia),
+		})
+	}
+	return rows, nil
+}
+
+// teamRows lists teams with their member counts and site addresses.
+func (h *HackHandler) teamRows(ctx context.Context, ev model.Event) ([][]string, error) {
+	teams, err := h.teams.EventTeams(ctx, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	people, err := h.events.EventPeople(ctx, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	counts := map[string]int{}
+	for _, p := range people {
+		if p.TeamID.Valid {
+			counts[p.TeamID.String]++
+		}
+	}
+	rows := [][]string{{"name", "slug", "members", "site_url", "created_at"}}
+	for _, t := range teams {
+		rows = append(rows, []string{t.Name, t.Slug, strconv.Itoa(counts[t.ID]), h.links.teamSiteURL(ev.Slug, t.Slug), rfc3339Time(t.CreatedAt)})
+	}
+	return rows, nil
+}
+
+// entryRows lists every entry with what it still misses.
+func (h *HackHandler) entryRows(ctx context.Context, ev model.Event) ([][]string, error) {
+	stored, err := h.entries.EventEntries(ctx, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	teams, err := h.teams.EventTeams(ctx, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]model.EventTeam{}
+	for _, t := range teams {
+		byID[t.ID] = t
+	}
+	tracks, err := h.events.EventTracks(ctx, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	fields := entryapp.LoadRules(ev.EntryRules)
+	rows := [][]string{{"team", "team_slug", "title", "tagline", "description", "video_url", "code_url", "has_screenshot", "updated_at",
+		"status", "submitted_at", "submit_auto", "problem", "audience", "track", "tools", "maturity", "missing", "excluded"}}
+	for _, e := range stored {
+		t := byID[e.TeamID]
+		track, err := h.events.TeamTrackLookup(ctx, e.TeamID)
+		if err != nil {
+			return nil, err
+		}
+		check := entryapp.Evaluate(fields, e, h.links.entrySiteLive(ctx, ev, t.Slug, t.SiteTakenDownAt.Valid), len(tracks) > 0, track)
+		trackName := ""
+		if track != nil {
+			trackName = track.Name
+		}
+		rows = append(rows, []string{
+			t.Name, t.Slug, e.Title, e.Tagline, e.Description, e.VideoURL, e.CodeURL, strconv.FormatBool(e.HasScreenshot), rfc3339Time(e.UpdatedAt),
+			e.Status(), rfc3339Or(e.SubmittedAt), strconv.FormatBool(e.SubmitAuto), e.Problem, e.Audience, trackName, strings.Join(e.Tools, "; "), e.Maturity,
+			strings.Join(check.Missing, "; "), strconv.FormatBool(e.ExcludedAt.Valid),
+		})
+	}
+	return rows, nil
+}
+
 type hackAdministrationSites interface {
-	ExportEventProjects(http.ResponseWriter, *http.Request, handler.GroupRef, []string, string)
+	ExportEventProjects(http.ResponseWriter, *http.Request, web.GroupRef, []string, string)
 	EventFileBytes(context.Context, string) (int64, error)
 }
 
 func (h *HackHandler) exportProjects(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	sites, ok := h.sites.(hackAdministrationSites)
+	sites, ok := h.links.hooks.(hackAdministrationSites)
 	if !ok {
 		httpx.WriteInternal(w)
 		return
@@ -289,15 +310,15 @@ func (h *HackHandler) exportProjects(w http.ResponseWriter, r *http.Request) {
 	h.exportEventProjects(w, r, sites, a.event, "")
 }
 func (h *HackHandler) exportOwnTeam(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
 	}
-	team, ok := h.participantTeam(w, r, a)
+	team, ok := participantTeam(w, r, h.teams, a)
 	if !ok {
 		return
 	}
-	sites, ok := h.sites.(hackAdministrationSites)
+	sites, ok := h.links.hooks.(hackAdministrationSites)
 	if !ok {
 		httpx.WriteInternal(w)
 		return
@@ -305,7 +326,7 @@ func (h *HackHandler) exportOwnTeam(w http.ResponseWriter, r *http.Request) {
 	h.exportEventProjects(w, r, sites, a.event, team.Slug)
 }
 func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -314,7 +335,7 @@ func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	sites, ok := h.sites.(hackAdministrationSites)
+	sites, ok := h.links.hooks.(hackAdministrationSites)
 	if !ok {
 		httpx.WriteInternal(w)
 		return

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/web"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
@@ -62,7 +62,7 @@ func TestFullHackInstancePresentation(t *testing.T) {
 			t.Fatalf("instance plugin file %s points to hosted service", f.Name)
 		}
 	}
-	hostAssets := handler.NewPages(edition.Default(config.DefaultLimits()), "")
+	hostAssets := web.NewPages(edition.Default(config.DefaultLimits()), "")
 	if string(hostAssets.InstanceText([]byte("https://simple-hack.app"))) != "https://simple-hack.app" {
 		t.Fatal("Host text changed")
 	}

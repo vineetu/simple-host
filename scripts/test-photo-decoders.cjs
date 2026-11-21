@@ -26,7 +26,7 @@ function environment() {
   new DataView(malformed).setUint32(14, 0xffffffff, false);
   assert.throws(() => utif.decode(malformed), /TIFF/);
 
-  const expansion = fs.readFileSync(path.join(__dirname, '../host/handler/testdata/photos/deflate-expansion.tiff'));
+  const expansion = fs.readFileSync(path.join(__dirname, '../host/web/testdata/photos/deflate-expansion.tiff'));
   const malicious = Uint8Array.from(expansion).buffer;
   assert.throws(() => utif.decodeImage(malicious, utif.decode(malicious)[0]), /strip too large/);
   // Bound each strip, not just the full image, and exercise successful streaming.

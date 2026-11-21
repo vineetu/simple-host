@@ -2,9 +2,12 @@ package sites
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
+	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites/repo"
 )
@@ -75,4 +78,30 @@ func RetainedFloor(versions []model.Version, keep int) int {
 		return 0
 	}
 	return versions[keep-1].VersionNumber
+}
+
+// AccountFileUsage is GET /v1/me "file_usage": the account's website files
+// on disk against its cap.
+type AccountFileUsage struct {
+	UsedBytes int64  `json:"used_bytes"`
+	LimitMB   int    `json:"limit_mb"`
+	Message   string `json:"message"`
+	Tips      string `json:"tips"`
+}
+
+// FileUsage measures the account's website files and kept versions against
+// its cap (MAX_ACCOUNT_MB and its overrides, by the account's site handles).
+func FileUsage(ctx context.Context, database *sql.DB, disk Disk, l edition.Limits, user *model.User) (*AccountFileUsage, error) {
+	used, err := disk.AccountFileBytes(user.ID)
+	if err != nil {
+		return nil, err
+	}
+	mb := l.AccountMBFor(accountapp.New(database).SiteAccountHandles(ctx, user)...)
+	msg := fmt.Sprintf("%.1f MB used", float64(used)/(1<<20))
+	if mb == 1024 {
+		msg = fmt.Sprintf("%.1f MB of 1 GB used", float64(used)/(1<<20))
+	} else if mb > 0 {
+		msg = fmt.Sprintf("%.1f MB of %d MB used", float64(used)/(1<<20), mb)
+	}
+	return &AccountFileUsage{used, mb, msg, StorageTips}, nil
 }

@@ -151,10 +151,7 @@ func GetEventTeamByCode(ctx context.Context, q Querier, eventID, code string) (E
 		  FROM event_teams WHERE event_id = $1 AND code = $2`, eventID, code))
 }
 
-// GetEventTeamByCodeOnly loads a team by its (normalised) code alone: team
-// codes are unique across every event (event_teams.code UNIQUE), which is
-// what the public team link (GET /v1/hack/team-links/{code}) relies on --
-// the code alone names a team without an event slug in the URL.
+// GetEventTeamByCodeOnly loads a team by its code alone; codes are unique across events.
 func GetEventTeamByCodeOnly(ctx context.Context, q Querier, code string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
 		SELECT `+teamColumns+`
@@ -240,12 +237,7 @@ func LockTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (Event
 		  FROM event_teams WHERE event_id = $1 AND slug = $2 FOR UPDATE`, eventID, slug))
 }
 
-// SetMemberTeam puts the member on teamID, or takes them off (teamID invalid).
-// Joining (any team, including one just created) always starts as a plain
-// member -- team_admin false, team_joined_at now -- the caller promotes a
-// fresh creator afterwards (CreateTeamAndJoin). Leaving clears both, so a
-// returning member's tenure and admin status never carry over from an
-// earlier stint on the same team.
+// SetMemberTeam puts the member on teamID as a plain member, or takes them off (teamID invalid), resetting tenure and admin.
 func SetMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamID sql.NullString) error {
 	var err error
 	if teamID.Valid {
@@ -270,16 +262,7 @@ func SetMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamI
 	return err
 }
 
-// AdminTeamIDs is every team userID currently admins, for a caller whose
-// own deletion of the member row does not go through a hack write path at
-// all: account erasure (EraseAccount) deletes the person's users row, and
-// event_members.user_id's ON DELETE CASCADE takes every membership with it,
-// including team_admin, with nothing to run the ordinary leave cleanup
-// afterward (Codex review, 2026-11-01; widened by Grok security review,
-// 2026-11-01, to the full DeleteTeamIfEmpty/kept/EnsureTeamAdmin sequence
-// LeaveMembership runs, not EnsureTeamAdmin alone -- the erased account
-// could have been a team's only member). The caller reads this before the
-// cascade and runs that sequence on each team after it.
+// AdminTeamIDs is every team userID admins, read before account erasure cascades their memberships away.
 func AdminTeamIDs(ctx context.Context, q Querier, userID string) ([]string, error) {
 	rows, err := queryContext(ctx, q, `SELECT team_id FROM event_members WHERE user_id = $1 AND team_admin AND team_id IS NOT NULL`, userID)
 	if err != nil {
@@ -315,10 +298,7 @@ func randomTeamCode() (string, error) {
 	return string(b), nil
 }
 
-// RotateTeamCodeTx gives teamID a new code, retrying under a savepoint on a
-// collision (same pattern as claimHandleIn) so it never aborts the larger
-// transaction account erasure runs in. Mirrors the rotation helper in
-// host/app/hack/teams/organiser.go, which the repository cannot import.
+// RotateTeamCodeTx gives teamID a new code, retrying a collision under a savepoint.
 func RotateTeamCodeTx(ctx context.Context, tx *sql.Tx, teamID string) error {
 	for attempt := 0; attempt < 8; attempt++ {
 		code, err := randomTeamCode()
@@ -488,65 +468,28 @@ func LeaveTeam(ctx context.Context, q Querier, eventID, userID string, ensureTea
 // MoveParticipantToTeam is the organiser putting a participant on a team
 // (from any team or none). sizeMax is events.team_size_max.
 func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, teamSlug string, sizeMax int, ensureTeamAdmin func(context.Context, Querier, string) error) (EventTeam, error) {
-	m, err := LockMember(ctx, q, eventID, userID)
+	m, err := lockMovable(ctx, q, eventID, userID)
 	if err != nil {
 		return EventTeam{}, err
-	}
-	if m.Role != "participant" {
-		return EventTeam{}, ErrHackNotParticipant
-	}
-	status, err := hackevents.MemberApprovalStatus(ctx, q, eventID, userID)
-	if err != nil {
-		return EventTeam{}, err
-	}
-	if status != "approved" {
-		return EventTeam{}, ErrHackNotParticipant
 	}
 	dest, err := GetEventTeamBySlug(ctx, q, eventID, teamSlug)
 	if errors.Is(err, sql.ErrNoRows) {
 		return EventTeam{}, ErrHackTeamNotFound
 	}
+	if err != nil || (m.TeamID.Valid && m.TeamID.String == dest.ID) {
+		return dest, err
+	}
+	team, err := lockMoveTeams(ctx, q, eventID, teamSlug, dest.ID, m.TeamID)
 	if err != nil {
 		return EventTeam{}, err
 	}
-	if m.TeamID.Valid && m.TeamID.String == dest.ID {
-		return dest, nil
-	}
-	ids := []string{dest.ID}
-	if m.TeamID.Valid {
-		ids = append(ids, m.TeamID.String)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		if _, err := LockTeam(ctx, q, id); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return EventTeam{}, err
-		}
-	}
-	team, err := LockTeamBySlug(ctx, q, eventID, teamSlug)
-	if errors.Is(err, sql.ErrNoRows) {
-		return EventTeam{}, ErrHackTeamNotFound
-	}
-	if err != nil {
+	if err := checkRoom(ctx, q, team, sizeMax); err != nil {
 		return EventTeam{}, err
-	}
-	// A team kept after its last member left can never take anyone again,
-	// by hand or otherwise; a plain lock is not this check -- the organiser
-	// may still place someone on an ordinary locked team.
-	if team.KeptAfterLeave {
-		return EventTeam{}, ErrHackTeamKept
-	}
-	old := m.TeamID
-	n, err := CountTeamMembers(ctx, q, team.ID)
-	if err != nil {
-		return EventTeam{}, err
-	}
-	if n >= sizeMax {
-		return EventTeam{}, ErrHackTeamFull
 	}
 	if err := SetMemberTeam(ctx, q, eventID, userID, sql.NullString{String: team.ID, Valid: true}); err != nil {
 		return EventTeam{}, err
 	}
-	if old.Valid && old.String != team.ID {
+	if old := m.TeamID; old.Valid && old.String != team.ID {
 		if err := DeleteTeamIfEmpty(ctx, q, old.String); err != nil {
 			return EventTeam{}, err
 		}
@@ -558,6 +501,61 @@ func MoveParticipantToTeam(ctx context.Context, q Querier, eventID, userID, team
 		return EventTeam{}, err
 	}
 	return team, nil
+}
+
+// lockMovable locks the member a move names; only an approved participant
+// can be moved.
+func lockMovable(ctx context.Context, q Querier, eventID, userID string) (EventMember, error) {
+	m, err := LockMember(ctx, q, eventID, userID)
+	if err != nil {
+		return m, err
+	}
+	if m.Role != "participant" {
+		return m, ErrHackNotParticipant
+	}
+	status, err := hackevents.MemberApprovalStatus(ctx, q, eventID, userID)
+	if err != nil {
+		return m, err
+	}
+	if status != "approved" {
+		return m, ErrHackNotParticipant
+	}
+	return m, nil
+}
+
+// lockMoveTeams locks the destination and the member's old team in id
+// order, then re-reads the destination under its lock.
+func lockMoveTeams(ctx context.Context, q Querier, eventID, teamSlug, destID string, old sql.NullString) (EventTeam, error) {
+	ids := []string{destID}
+	if old.Valid {
+		ids = append(ids, old.String)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := LockTeam(ctx, q, id); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return EventTeam{}, err
+		}
+	}
+	team, err := LockTeamBySlug(ctx, q, eventID, teamSlug)
+	if errors.Is(err, sql.ErrNoRows) {
+		return EventTeam{}, ErrHackTeamNotFound
+	}
+	return team, err
+}
+
+// checkRoom refuses a full team or one kept after its last member left (a plain lock does not stop the organiser).
+func checkRoom(ctx context.Context, q Querier, team EventTeam, sizeMax int) error {
+	if team.KeptAfterLeave {
+		return ErrHackTeamKept
+	}
+	n, err := CountTeamMembers(ctx, q, team.ID)
+	if err != nil {
+		return err
+	}
+	if n >= sizeMax {
+		return ErrHackTeamFull
+	}
+	return nil
 }
 
 // RemoveParticipantFromTeam takes a participant off a team; they stay in the event.

@@ -1,6 +1,7 @@
 package hackhttp
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -22,15 +23,13 @@ import (
 )
 
 // hackGallerySlug is one label: lowercase letters, digits and hyphens, not
-// starting or ending with a hyphen. A team slug is at most 30 characters; an
-// event slug used inside a team-site URL is at most one DNS label.
+// starting or ending with a hyphen.
 func hackGallerySlug(s string) bool {
 	return entries.ValidVotingLabel(s, 30)
 }
 
 // hackScreenshotPath is the team slug of /screenshots/<slug> when the path is
-// exactly one team slug. Extra segments, traversal and any other shape are not
-// this route.
+// exactly one team slug.
 func hackScreenshotPath(p string) (string, bool) {
 	const prefix = "/screenshots/"
 	if !strings.HasPrefix(p, prefix) {
@@ -57,17 +56,13 @@ func hackGalleryImageType(s string) bool {
 }
 
 // hackGalleryPublic: the event page may list projects, and the event host may
-// serve their screenshots. ready is false until the event's team addresses
-// have a certificate (and asking reports that, the same as a deploy).
+// serve their screenshots.
 func hackGalleryPublic(ev hackmodel.Event, ready func(string) bool) bool {
 	return ev.GalleryOpen && ev.Stage != "draft" && !ev.TakenDown() && ready != nil && ready(ev.Slug)
 }
 
 // HackEventPage is the SiteHandler hook that renders <event>.<SITE_DOMAIN>/
 // (hack_mode.go): user is the host's account; false when it holds no event.
-// teamSiteURL and ready are SiteHandler.TeamSiteURL and TeamSitesReady.
-// pages is the hack-event.html template cache (HackEventPages), built once
-// by the caller.
 func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool, pages *HackEventPages) func(w http.ResponseWriter, r *http.Request, user model.User) bool {
 	return func(w http.ResponseWriter, r *http.Request, user model.User) bool {
 		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)
@@ -79,139 +74,162 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 			http.Error(w, "Something went wrong. Try again in a minute.", http.StatusInternalServerError)
 			return true
 		}
-		participants, teams, _, err := events.New(database).CountEventMembersLookup(r.Context(), ev.ID)
+		src := hackEventPageSource{database: database, appURL: strings.TrimRight(appURL, "/"), teamSiteURL: teamSiteURL, galleryPublic: hackGalleryPublic(ev, ready)}
+		p, err := src.load(r.Context(), ev)
 		if err != nil {
-			log.Printf("event page %s: counts: %v", ev.Slug, err)
-		}
-		p := hackEventPage{
-			Slug: ev.Slug, Title: ev.Title, Tagline: ev.Tagline, About: ev.About, Rules: ev.Rules, Prizes: ev.Prizes,
-			OrganiserName: ev.OrganiserName, Organisation: ev.Organisation,
-			Stage: ev.Stage, TimeZone: ev.TimeZone,
-			Participants: participants, Teams: teams,
-			AppURL:    appURL,
-			TakenDown: ev.TakenDown(), TakenDownReason: ev.TakenDownReason,
-		}
-		if events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
-			p.ApplyURL = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + "/apply"
-		}
-		if ev.SubmissionsPublic {
-			p.Submissions, err = visibleSubmissions(r.Context(), database, ev, teamSiteURL, strings.TrimRight(appURL, "/")+"/e/"+ev.Slug+"/submissions")
-			if err != nil {
-				httpx.WriteInternal(w)
-				return true
-			}
-		}
-		p.Color = hackEventAccent(ev)
-		p.Theme = ev.Theme
-		p.IconURL = strings.TrimRight(appURL, "/") + "/v1/hack/events/" + ev.Slug + "/icon"
-		if tracks, terr := events.New(database).EventTracks(r.Context(), ev.ID); terr == nil {
-			for _, track := range tracks {
-				p.Tracks = append(p.Tracks, hackTrackView{Name: track.Name, Challenge: track.Challenge, Prize: track.Prize})
-			}
-		} else {
-			log.Printf("event page %s: tracks: %v", ev.Slug, terr)
-		}
-		if ev.StartsAt.Valid {
-			p.StartsAt = ev.StartsAt.Time
-		}
-		if ev.EndsAt.Valid {
-			p.EndsAt = ev.EndsAt.Time
-		}
-		if ev.SubmissionDeadline.Valid {
-			p.Deadline = ev.SubmissionDeadline.Time
-		}
-		if content, cerr := readHackContent(r.Context(), database, ev.ID); cerr != nil {
-			log.Printf("event page %s: content: %v", ev.Slug, cerr)
-		} else {
-			p.Content = content
-		}
-		if announcements, aerr := events.New(database).EventAnnouncements(r.Context(), ev.ID); aerr != nil {
-			log.Printf("event page %s: announcements: %v", ev.Slug, aerr)
-		} else {
-			for _, announcement := range announcements {
-				p.Announcements = append(p.Announcements, hackAnnouncementView{
-					Title: announcement.Title, Body: announcement.Body,
-					CreatedAt: announcement.CreatedAt, Pinned: announcement.Pinned, BodyHTML: announcement.BodyHTML,
-				})
-			}
-		}
-		fixedIn := hackFixedInputs{Event: ev, Now: time.Now()}
-		if voting, verr := entries.New(database, nil).VotingSettings(r.Context(), ev.ID); verr == nil {
-			p.VoteStatus = votingStatus(ev, voting, time.Now())
-			fixedIn.Voting = &voting
-		}
-		if res, rerr := entries.New(database, nil).EventResults(r.Context(), ev.ID); rerr == nil {
-			fixedIn.Results = res
-		}
-		p.Fixed = hackFixedSchedule(fixedIn)
-		if hackGalleryPublic(ev, ready) {
-			cards, gerr := events.New(database).GalleryCards(r.Context(), ev.ID, ev.AccountID)
-			if gerr != nil {
-				log.Printf("event page %s: gallery: %v", ev.Slug, gerr)
-			} else {
-				p.Gallery = hackGalleryCards(ev.Slug, cards, teamSiteURL)
-				for i := range p.Gallery {
-					if p.Gallery[i].Shot != "" {
-						p.Gallery[i].Shot = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + p.Gallery[i].Shot
-					}
-				}
-			}
-		}
-		if !ev.TakenDown() {
-			if res, rerr := entries.New(database, nil).EventResults(r.Context(), ev.ID); rerr != nil {
-				log.Printf("event page %s: results: %v", ev.Slug, rerr)
-			} else if res.Published {
-				p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks, ev.OverallPrizes)
-				if p.Results != nil {
-					galleryPublic := hackGalleryPublic(ev, ready)
-					cards, err := events.New(database).GalleryCards(r.Context(), ev.ID, ev.AccountID)
-					if err != nil {
-						log.Printf("event page %s: result sites: %v", ev.Slug, err)
-					}
-					resultTeamIDs := make(map[string]bool, len(p.Results.Rows))
-					for i := range p.Results.Rows {
-						resultTeamIDs[p.Results.Rows[i].TeamID] = true
-						// Default to "no live site" every render: a card's
-						// SiteURL/Shot reflect this exact query, run fresh on
-						// every page load, not whatever the snapshot captured
-						// at publish time -- a team taken down or whose site
-						// went offline since publish drops its link and shot
-						// here without needing a republish (build-plan §4.6
-						// render-time filtering, extended to the card).
-						if p.Results.Rows[i].Card != nil {
-							p.Results.Rows[i].Card.SiteURL = ""
-						}
-						for _, card := range cards {
-							if card.ID != p.Results.Rows[i].TeamID {
-								continue
-							}
-							link := hackGalleryLink(teamSiteURL, ev.Slug, card.Slug)
-							p.Results.Rows[i].URL = link
-							if p.Results.Rows[i].Card != nil {
-								p.Results.Rows[i].Card.SiteURL = link
-								if galleryPublic && card.HasScreenshot {
-									p.Results.Rows[i].Shot = strings.TrimRight(appURL, "/") + "/e/" + ev.Slug + "/screenshots/" + card.Slug
-								}
-							}
-						}
-					}
-					for i := range p.Gallery {
-						if resultTeamIDs[p.Gallery[i].TeamID] {
-							p.Gallery[i].ResultAnchor = "#result-" + p.Gallery[i].TeamID
-						}
-					}
-				}
-			}
+			httpx.WriteInternal(w)
+			return true
 		}
 		renderHackEventPage(w, r, p, pages)
 		return true
 	}
 }
 
+// hackEventPageSource is what the public event page is read with.
+type hackEventPageSource struct {
+	database      *sql.DB
+	appURL        string // no trailing slash
+	teamSiteURL   func(eventSlug, teamSlug string) string
+	galleryPublic bool
+}
+
+// load reads everything the page shows.
+func (s hackEventPageSource) load(ctx context.Context, ev hackmodel.Event) (hackEventPage, error) {
+	p := hackEventPageBasics(ev, s.appURL)
+	if ev.SubmissionsPublic {
+		var err error
+		if p.Submissions, err = visibleSubmissions(ctx, s.database, ev, s.teamSiteURL, s.appURL+"/e/"+ev.Slug+"/submissions"); err != nil {
+			return p, err
+		}
+	}
+	evs, ent := events.New(s.database), entries.New(s.database, nil)
+	logErr := func(part string, err error) bool {
+		if err != nil {
+			log.Printf("event page %s: %s: %v", ev.Slug, part, err)
+		}
+		return err == nil
+	}
+	participants, teams, _, err := evs.CountEventMembersLookup(ctx, ev.ID)
+	logErr("counts", err)
+	p.Participants, p.Teams = participants, teams
+	if tracks, err := evs.EventTracks(ctx, ev.ID); logErr("tracks", err) {
+		p.Tracks = hackTrackViews(tracks)
+	}
+	if content, err := events.ReadEventContent(ctx, s.database, ev.ID); logErr("content", err) {
+		p.Content = content
+	}
+	if anns, err := evs.EventAnnouncements(ctx, ev.ID); logErr("announcements", err) {
+		p.Announcements = hackAnnouncementViews(anns)
+	}
+	now := time.Now()
+	fixedIn := hackFixedInputs{Event: ev, Now: now}
+	if voting, err := ent.VotingSettings(ctx, ev.ID); err == nil {
+		p.VoteStatus, fixedIn.Voting = votingStatus(ev, voting, now), &voting
+	}
+	res, err := ent.EventResults(ctx, ev.ID)
+	if logErr("results", err) {
+		fixedIn.Results = res
+	}
+	p.Fixed = hackFixedSchedule(fixedIn)
+	if res.Published && !ev.TakenDown() {
+		p.Results = hackResultsFromSnapshot(res, ev.PublicScores, ev.PublicRanks, ev.OverallPrizes)
+	}
+	if !s.galleryPublic && p.Results == nil {
+		return p, nil
+	}
+	cards, err := evs.GalleryCards(ctx, ev.ID, ev.AccountID)
+	logErr("gallery", err)
+	s.placeTeamSites(&p, ev.Slug, cards)
+	return p, nil
+}
+
+// hackEventPageBasics is the page's fields that come straight from the event.
+func hackEventPageBasics(ev hackmodel.Event, appURL string) hackEventPage {
+	p := hackEventPage{
+		Slug: ev.Slug, Title: ev.Title, Tagline: ev.Tagline, About: ev.About, Rules: ev.Rules, Prizes: ev.Prizes,
+		OrganiserName: ev.OrganiserName, Organisation: ev.Organisation,
+		Stage: ev.Stage, TimeZone: ev.TimeZone, AppURL: appURL,
+		TakenDown: ev.TakenDown(), TakenDownReason: ev.TakenDownReason,
+		Color: hackEventAccent(ev), Theme: ev.Theme, IconURL: appURL + "/v1/hack/events/" + ev.Slug + "/icon",
+		StartsAt: hackSetTime(ev.StartsAt), EndsAt: hackSetTime(ev.EndsAt), Deadline: hackSetTime(ev.SubmissionDeadline),
+	}
+	if events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()) {
+		p.ApplyURL = appURL + "/e/" + ev.Slug + "/apply"
+	}
+	return p
+}
+
+// hackSetTime is t's time, or zero when it is not set.
+func hackSetTime(t sql.NullTime) time.Time {
+	if !t.Valid {
+		return time.Time{}
+	}
+	return t.Time
+}
+
+// hackTrackViews are the tracks as the page lists them.
+func hackTrackViews(tracks []hackmodel.EventTrack) []hackTrackView {
+	var out []hackTrackView
+	for _, t := range tracks {
+		out = append(out, hackTrackView{Name: t.Name, Challenge: t.Challenge, Prize: t.Prize})
+	}
+	return out
+}
+
+// hackAnnouncementViews are the announcements as the page lists them.
+func hackAnnouncementViews(anns []hackmodel.EventAnnouncement) []hackAnnouncementView {
+	var out []hackAnnouncementView
+	for _, a := range anns {
+		out = append(out, hackAnnouncementView{Title: a.Title, Body: a.Body, CreatedAt: a.CreatedAt, Pinned: a.Pinned, BodyHTML: a.BodyHTML})
+	}
+	return out
+}
+
+// placeTeamSites links the gallery and the results to the team sites that are
+// live right now.
+func (s hackEventPageSource) placeTeamSites(p *hackEventPage, eventSlug string, cards []hackmodel.GalleryCard) {
+	shotBase := s.appURL + "/e/" + eventSlug
+	if s.galleryPublic {
+		p.Gallery = hackGalleryCards(eventSlug, cards, s.teamSiteURL)
+		for i := range p.Gallery {
+			if p.Gallery[i].Shot != "" {
+				p.Gallery[i].Shot = shotBase + p.Gallery[i].Shot
+			}
+		}
+	}
+	if p.Results == nil {
+		return
+	}
+	byTeam := make(map[string]hackmodel.GalleryCard, len(cards))
+	for _, c := range cards {
+		byTeam[c.ID] = c
+	}
+	inResults := make(map[string]bool, len(p.Results.Rows))
+	for i := range p.Results.Rows {
+		row := &p.Results.Rows[i]
+		inResults[row.TeamID] = true
+		c, live := byTeam[row.TeamID]
+		if live {
+			row.URL = hackGalleryLink(s.teamSiteURL, eventSlug, c.Slug)
+		}
+		if row.Card == nil {
+			continue
+		}
+		row.Card.SiteURL = row.URL
+		if live && s.galleryPublic && c.HasScreenshot {
+			row.Shot = shotBase + "/screenshots/" + c.Slug
+		}
+	}
+	for i := range p.Gallery {
+		if inResults[p.Gallery[i].TeamID] {
+			p.Gallery[i].ResultAnchor = "#result-" + p.Gallery[i].TeamID
+		}
+	}
+}
+
 // hackResultsFromSnapshot is the public page's view of a published snapshot:
-// Winners-only shows rank 1, places with an overall prize, and track winners;
-// a full ranking shows every ranked team. Public score and rank visibility
-// are applied here. Prize labels use the snapshot rank even when it is hidden.
+// Winners-only shows rank 1, places with an overall prize, and track winners; a
+// full ranking shows every ranked team.
 func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRanks bool, prizes []string) *hackResultsView {
 	var rows []map[string]any
 	if err := json.Unmarshal(res.Snapshot, &rows); err != nil {
@@ -225,55 +243,43 @@ func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRa
 			continue // unscored team (total is null): never shown publicly
 		}
 		trackWinner, _ := row["track_winner"].(bool)
-		if !res.FullRanking && !shownInWinnersOnly(int(rank), trackWinner, prizes) {
-			continue
+		if res.FullRanking || entries.ShownInWinnersOnly(int(rank), trackWinner, prizes) {
+			v.Rows = append(v.Rows, hackSnapshotRow(row, int(rank), publicScores, publicRanks, prizes))
 		}
-		name, _ := row["team_name"].(string)
-		tied, _ := row["tied"].(bool)
-		teamID, _ := row["team_id"].(string)
-		view := hackResultsRow{TeamID: teamID, TeamName: name, TrackWinner: trackWinner, Overall: rank == 1, OverallPrize: overallPrizeLabel(int(rank), prizes)}
-		if publicRanks {
-			view.Rank = int(rank)
-			view.Tied = tied
-		}
-		if track, ok := row["track"].(map[string]any); ok {
-			view.TrackName, _ = track["name"].(string)
-			view.TrackPrize, _ = track["prize"].(string)
-		}
-		if publicScores {
-			// #8: this is also the public JSON API's score field
-			// (hack_public_json.go) -- BUILD.md goal 4 says that API does not
-			// change, so it keeps exactly the pre-231f769d full precision
-			// (two decimals, untrimmed: "81.25", "100.00"). hackScoreText's
-			// one-decimal rounding belongs to the HTML template's display
-			// only, applied separately in buildHackResultsBlock
-			// (hack_eventpage.go), never baked into this shared string.
-			if score, ok := row["total"].(float64); ok {
-				view.Score = strconv.FormatFloat(score, 'f', 2, 64)
-			}
-			view.ScoreMode, _ = row["deciding_mode"].(string)
-		}
-		// build-plan §4.6: a card is copied only into a row this function
-		// already decided to emit, so a winners-only view never carries a
-		// card for a team it does not otherwise show, even though the
-		// snapshot holds every ranked team's card. A snapshot published
-		// before slice 3 has no "entry" key on any row, which round-trips to
-		// Card staying nil here -- "old snapshots must keep rendering, no
-		// card".
-		if raw, ok := row["entry"]; ok && raw != nil {
-			if b, merr := json.Marshal(raw); merr == nil {
-				var c hackResultCard
-				if uerr := json.Unmarshal(b, &c); uerr == nil {
-					view.Card = &c
-				}
-			}
-		}
-		v.Rows = append(v.Rows, view)
 	}
 	if !publicRanks {
 		sort.Slice(v.Rows, func(i, j int) bool { return v.Rows[i].TeamName < v.Rows[j].TeamName })
 	}
 	return v
+}
+
+// hackSnapshotRow is one ranked snapshot row as the public sees it.
+func hackSnapshotRow(row map[string]any, rank int, publicScores, publicRanks bool, prizes []string) hackResultsRow {
+	view := hackResultsRow{Overall: rank == 1, OverallPrize: entries.OverallPrizeLabel(rank, prizes)}
+	view.TeamID, _ = row["team_id"].(string)
+	view.TeamName, _ = row["team_name"].(string)
+	view.TrackWinner, _ = row["track_winner"].(bool)
+	if publicRanks {
+		view.Rank = rank
+		view.Tied, _ = row["tied"].(bool)
+	}
+	if track, ok := row["track"].(map[string]any); ok {
+		view.TrackName, _ = track["name"].(string)
+		view.TrackPrize, _ = track["prize"].(string)
+	}
+	if publicScores {
+		if score, ok := row["total"].(float64); ok {
+			view.Score = strconv.FormatFloat(score, 'f', 2, 64)
+		}
+		view.ScoreMode, _ = row["deciding_mode"].(string)
+	}
+	if raw, ok := row["entry"]; ok && raw != nil {
+		var c hackResultCard
+		if b, err := json.Marshal(raw); err == nil && json.Unmarshal(b, &c) == nil {
+			view.Card = &c
+		}
+	}
+	return view
 }
 
 func hackGalleryCards(eventSlug string, cards []hackmodel.GalleryCard, teamSiteURL func(string, string) string) []hackGalleryCard {
@@ -304,11 +310,7 @@ func hackGalleryCards(eventSlug string, cards []hackmodel.GalleryCard, teamSiteU
 
 // hackGalleryLink is the team site URL when both slugs are single labels and
 // the builder returned an http(s) URL whose host starts with those labels —
-// either the two-level <team>.<event>. or, under TEAM_SITE_FLAT_HOSTS, the
-// flat <team>--<event>. single label. Accepting either shape here, rather
-// than asking the builder which mode it is in, keeps this a pure sanity
-// check: whatever teamSiteURL built, it must still visibly be this team's
-// site before the gallery links to it.
+// either the two-level <team>.<event>.
 func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlug string) string {
 	if teamSiteURL == nil || !hackEventLabel(eventSlug) || !hackGallerySlug(teamSlug) {
 		return ""
@@ -326,8 +328,7 @@ func hackGalleryLink(teamSiteURL func(string, string) string, eventSlug, teamSlu
 }
 
 // HackScreenshot is the SiteHandler hook for GET/HEAD /screenshots/<team> on
-// the event host. It writes the image only while that team is on the public
-// gallery; otherwise false, and the caller renders the 404.
+// the event host.
 func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHandler) func(w http.ResponseWriter, r *http.Request, user model.User, team string) bool {
 	// Public and unauthenticated, each hit reads up to 2 MB from the
 	// database: metered per network address.
@@ -396,14 +397,4 @@ func writeHackScreenshotPolicy(w http.ResponseWriter, r *http.Request, data []by
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(data)
 	}
-}
-
-func overallPrizeLabel(rank int, prizes []string) string {
-	if rank < 1 || rank > 3 || rank > len(prizes) || prizes[rank-1] == "" {
-		return ""
-	}
-	return []string{"1st", "2nd", "3rd"}[rank-1] + " · " + prizes[rank-1]
-}
-func shownInWinnersOnly(rank int, trackWinner bool, prizes []string) bool {
-	return rank > 0 && (rank == 1 || trackWinner || overallPrizeLabel(rank, prizes) != "")
 }

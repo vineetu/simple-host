@@ -22,22 +22,7 @@ import (
 // sign-up?"). It only asks: nothing here ever moves a stage, because a late
 // kickoff must not close entries early.
 
-// hackScheduleMoves are the forward moves a schedule row may prompt: a stage
-// next_step would move to, or publish_results. Ending the event is left out
-// on purpose, since it is final.
-var hackScheduleMoves = map[string]string{
-	"open":            "Open sign-up",
-	"building":        "Start building",
-	"closed":          "Close entries",
-	"judging":         "Start judging",
-	"results":         "Finish judging",
-	"publish_results": "Publish results",
-}
-
-// hackFixedRow is one derived, read-only schedule row. EndAt is nil for a
-// moment (a deadline) and set for a window (voting). AllDay marks an event
-// start or end saved as a date only (midnight in the event's zone): it shows
-// the date with no time and never nudges anyone.
+// hackFixedRow is one derived, read-only schedule row.
 type hackFixedRow struct {
 	Key         string  `json:"key"`
 	Title       string  `json:"title"`
@@ -50,9 +35,7 @@ type hackFixedRow struct {
 	Prompt      string  `json:"prompt,omitempty"`
 }
 
-// hackFixedInputs is what the fixed rows are computed from. Voting is nil
-// when the caller does not need the voting row (the next-step cue). Team is
-// the caller's own team state, for a participant on a team.
+// hackFixedInputs is what the fixed rows are computed from.
 type hackFixedInputs struct {
 	Event     model.Event
 	Voting    *model.VotingSettings
@@ -70,8 +53,7 @@ func hackEventLoc(ev model.Event) *time.Location {
 	return loc
 }
 
-// hackFixedSchedule builds the fixed rows, sorted by time. Prompts are only
-// filled in for organisers.
+// hackFixedSchedule builds the fixed rows, sorted by time.
 func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	ev := in.Event
 	loc := hackEventLoc(ev)
@@ -95,8 +77,7 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	if ev.EndsAt.Valid {
 		r := hackFixedRow{Key: "event_end", Title: "Event ends", StartAt: stamp(ev.EndsAt.Time), SetIn: "basics"}
 		r.AllDay = events.Midnight(ev.EndsAt.Time, loc)
-		// With no entry deadline, the event's end is when entries are
-		// meant to close.
+		// With no entry deadline, the event's end is when entries are meant to close.
 		if !r.AllDay && !ev.SubmissionDeadline.Valid {
 			r.Prompt = "closed"
 		}
@@ -109,9 +90,8 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 		add(hackFixedRow{Key: "entry_deadline", Title: "Entries due", StartAt: stamp(ev.SubmissionDeadline.Time), SetIn: "entries", Prompt: "closed"})
 	}
 	if ev.JudgingEndsAt.Valid {
-		// 0003-hack-notices-judges-messages.sql: a plain organiser-set time,
-		// not inferred from any schedule row. Prompts "Finish judging" for
-		// organisers, the same move the judging-close reminder keys off.
+		// 0003-hack-notices-judges-messages.sql: a plain organiser-set time, not
+		// inferred from any schedule row.
 		add(hackFixedRow{Key: "judging_end", Title: "Judging closes", StartAt: stamp(ev.JudgingEndsAt.Time), SetIn: "judging", Prompt: "results"})
 	}
 	if in.Voting != nil && votingStatus(ev, *in.Voting, in.Now) != "disabled" {
@@ -151,96 +131,109 @@ func hackCueTime(t, now time.Time, loc *time.Location) string {
 	return lt.Format("Mon 2 Jan, 3:04 pm")
 }
 
-// hackScheduleCue is the next step's schedule cue: the most recent row
-// (editable or fixed) that prompts this very move and whose time has come.
-// nil when none. It never moves anything.
-func hackScheduleCue(step map[string]any, free []hackScheduleItem, fixed []hackFixedRow, loc *time.Location, now time.Time) map[string]any {
-	move := ""
-	switch step["kind"] {
-	case "stage":
-		move, _ = step["stage"].(string)
-	case "publish_results":
-		move = "publish_results"
-	}
-	label, ok := hackScheduleMoves[move]
-	if !ok || step["blocked"] != nil {
-		return nil
-	}
-	type cand struct {
-		key, title    string
-		start, end    time.Time
-		hasEnd, fixed bool
-	}
-	var best *cand
-	consider := func(c cand) {
-		if c.start.After(now) {
-			return
-		}
-		if best == nil || c.start.After(best.start) {
-			cc := c
-			best = &cc
-		}
-	}
+// hackTimedRow is one schedule row with its times parsed: an organiser's
+// editable item or a fixed row. sortAt is where it sorts in the schedule.
+type hackTimedRow struct {
+	key, title, desc, prompt string
+	start, end, sortAt       time.Time
+	hasEnd, allDay, fixed    bool
+}
+
+// hackTimedRows parses the editable items (dropping any with a bad time)
+// followed by the fixed rows, in that order.
+func hackTimedRows(free []hackScheduleItem, fixed []hackFixedRow, loc *time.Location) []hackTimedRow {
+	var rows []hackTimedRow
 	for _, it := range free {
-		if it.Prompt != move {
-			continue
-		}
-		s, e1 := time.Parse(time.RFC3339, it.StartAt)
-		e, e2 := time.Parse(time.RFC3339, it.EndAt)
+		start, e1 := time.Parse(time.RFC3339, it.StartAt)
+		end, e2 := time.Parse(time.RFC3339, it.EndAt)
 		if e1 != nil || e2 != nil {
 			continue
 		}
-		consider(cand{title: it.Title, start: s, end: e, hasEnd: true})
+		rows = append(rows, hackTimedRow{title: it.Title, desc: it.Description, prompt: it.Prompt,
+			start: start, end: end, sortAt: start, hasEnd: true})
 	}
-	for _, r := range fixed {
-		if r.Prompt != move || r.AllDay {
-			continue
-		}
-		s, err := time.Parse(time.RFC3339, r.StartAt)
+	for _, f := range fixed {
+		start, err := time.Parse(time.RFC3339, f.StartAt)
 		if err != nil {
 			continue
 		}
-		c := cand{key: r.Key, title: r.Title, start: s, fixed: true}
-		if r.EndAt != nil {
-			if e, err := time.Parse(time.RFC3339, *r.EndAt); err == nil {
-				c.end, c.hasEnd = e, true
+		r := hackTimedRow{key: f.Key, title: f.Title, desc: f.Description, prompt: f.Prompt,
+			start: start, sortAt: hackFixedSortTime(f, loc), allDay: f.AllDay, fixed: true}
+		if f.EndAt != nil {
+			if end, err := time.Parse(time.RFC3339, *f.EndAt); err == nil {
+				r.end, r.hasEnd = end, true
 			}
 		}
-		consider(c)
+		rows = append(rows, r)
 	}
-	if best == nil {
+	return rows
+}
+
+// hackCuePhrases is what the cue says about a fixed row, before and while it
+// is "now"; any other row uses its own title.
+var hackCuePhrases = map[string][2]string{
+	"entry_deadline": {"Entries were due at ", "Entries are due now"},
+	"event_start":    {"The event started at ", "The event starts now"},
+	"event_end":      {"The event ended at ", "The event ends now"},
+}
+
+// hackStepMove is the schedule move a next step proposes: a stage, or
+// publish_results; "" for anything else.
+func hackStepMove(step map[string]any) string {
+	if step["kind"] == "publish_results" {
+		return "publish_results"
+	}
+	if step["kind"] != "stage" {
+		return ""
+	}
+	move, _ := step["stage"].(string)
+	return move
+}
+
+// hackDueRow is the latest-starting row that prompts move and whose time has
+// come; the first such row wins a tie.
+func hackDueRow(rows []hackTimedRow, move string, now time.Time) (hackTimedRow, bool) {
+	var best hackTimedRow
+	found := false
+	for _, r := range rows {
+		if r.prompt != move || r.allDay || r.start.After(now) {
+			continue
+		}
+		if !found || r.start.After(best.start) {
+			best, found = r, true
+		}
+	}
+	return best, found
+}
+
+// hackCueText is the cue's sentence: what the row is (or was), then the move.
+func hackCueText(r hackTimedRow, isNow bool, at, label string) string {
+	past, present := r.title+" was at ", r.title+" is now"
+	if p, ok := hackCuePhrases[r.key]; ok {
+		past, present = p[0], p[1]
+	}
+	if isNow {
+		return present + ". " + label + "?"
+	}
+	return past + at + ". " + label + "?"
+}
+
+// hackScheduleCue is the next step's schedule cue: the most recent row
+// (editable or fixed) that prompts this very move and whose time has come.
+func hackScheduleCue(step map[string]any, free []hackScheduleItem, fixed []hackFixedRow, loc *time.Location, now time.Time) map[string]any {
+	move := hackStepMove(step)
+	label, ok := events.ScheduleMoves[move]
+	if !ok || step["blocked"] != nil {
+		return nil
+	}
+	best, ok := hackDueRow(hackTimedRows(free, fixed, loc), move, now)
+	if !ok {
 		return nil
 	}
 	isNow := now.Before(best.start.Add(hackCuePointWindow))
-	if best.hasEnd {
-		isNow = now.Before(best.end)
-	}
-	at := hackCueTime(best.start, now, loc)
-	var phrase string
-	switch best.key {
-	case "entry_deadline":
-		phrase = "Entries were due at " + at
-		if isNow {
-			phrase = "Entries are due now"
-		}
-	case "event_start":
-		phrase = "The event started at " + at
-		if isNow {
-			phrase = "The event starts now"
-		}
-	case "event_end":
-		phrase = "The event ended at " + at
-		if isNow {
-			phrase = "The event ends now"
-		}
-	default:
-		phrase = best.title + " was at " + at
-		if isNow {
-			phrase = best.title + " is now"
-		}
-	}
 	var endAt any
 	if best.hasEnd {
+		isNow = now.Before(best.end)
 		endAt = best.end.UTC().Format(time.RFC3339)
 	}
 	return map[string]any{
@@ -250,14 +243,13 @@ func hackScheduleCue(step map[string]any, free []hackScheduleItem, fixed []hackF
 		"end_at":   endAt,
 		"fixed":    best.fixed,
 		"now":      isNow,
-		"text":     phrase + ". " + label + "?",
+		"text":     hackCueText(best, isNow, hackCueTime(best.start, now, loc), label),
 	}
 }
 
-// scheduleCue loads what the organiser's cue needs. Errors leave it out:
-// the next step itself never depends on the schedule.
-func (h *hackBase) scheduleCue(ctx context.Context, ev model.Event, step map[string]any) map[string]any {
-	content, err := readHackContent(ctx, h.database, ev.ID)
+// scheduleCue loads what the organiser's cue needs.
+func (h *views) scheduleCue(ctx context.Context, ev model.Event, step map[string]any) map[string]any {
+	content, err := h.events.EventContent(ctx, ev.ID)
 	if err != nil {
 		return nil
 	}

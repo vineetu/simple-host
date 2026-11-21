@@ -231,21 +231,14 @@ func (d *DiskStorage) WriteFiles(ctx context.Context, userID, siteName string, v
 	return nil
 }
 
-func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) (err error) {
-	defer func() {
-		if err == nil {
-			d.changed()
-		}
-	}()
+func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) error {
 	if !validPathKey(userID) {
 		return fmt.Errorf("invalid user id %q", userID)
 	}
 	if !validPathKey(siteName) {
 		return fmt.Errorf("invalid site name %q", siteName)
 	}
-
 	siteDir := d.SiteDir(userID, siteName)
-	versionDir := filepath.Join(siteDir, fmt.Sprintf("v%d", versionNum))
 	currentDir := filepath.Join(siteDir, "current")
 	tmpDir := filepath.Join(siteDir, ".current.tmp")
 
@@ -254,25 +247,11 @@ func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) (er
 	if err := os.RemoveAll(tmpDir); err != nil {
 		return fmt.Errorf("remove temp current dir: %w", err)
 	}
-	if err := copyDir(versionDir, tmpDir); err != nil {
+	if err := copyDir(filepath.Join(siteDir, fmt.Sprintf("v%d", versionNum)), tmpDir); err != nil {
 		return fmt.Errorf("copy version %d to temp current: %w", versionNum, err)
 	}
-
-	// Root rules remain in versions, but never in the served tree: their
-	// bytes go to the redirects marker next to `current` once the new tree
-	// is live (a folder named _redirects is ordinary content).
-	rulesPath := filepath.Join(tmpDir, "_redirects")
-	var rules []byte
-	hasRules := false
-	if st, err := os.Lstat(rulesPath); err == nil && st.Mode().IsRegular() {
-		if rules, err = os.ReadFile(rulesPath); err != nil {
-			return err
-		}
-		if err := os.Remove(rulesPath); err != nil {
-			return err
-		}
-		hasRules = true
-	} else if err != nil && !os.IsNotExist(err) {
+	rules, hasRules, err := takeRootRules(tmpDir)
+	if err != nil {
 		return err
 	}
 	// Swap into place. The window where `current` is absent is now just a
@@ -288,13 +267,30 @@ func (d *DiskStorage) UpdateCurrent(userID, siteName string, versionNum int) (er
 	if err := d.writeRedirectsMarker(siteDir, rules, hasRules); err != nil {
 		return fmt.Errorf("redirects marker: %w", err)
 	}
-
-	// Legacy per-name subdomain (<siteName>.<domain>) is deprecated: we no longer
-	// create the flat back-compat symlink at <dataDir>/<siteName>. Sites are
-	// reachable only by path (sites.<domain>/<handle>/<siteName>/). DeleteSite
-	// still cleans up any pre-existing back-compat symlink.
-
+	// Sites are reachable only by path (sites.<domain>/<handle>/<siteName>/);
+	// no per-name back-compat symlink is made.
+	d.changed()
 	return nil
+}
+
+// takeRootRules removes the root _redirects file from a staged tree and
+// returns its bytes. Root rules remain in versions, but never in the served
+// tree: they go to the redirects marker next to `current` once the new tree
+// is live (a folder named _redirects is ordinary content).
+func takeRootRules(dir string) ([]byte, bool, error) {
+	path := filepath.Join(dir, "_redirects")
+	st, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil || !st.Mode().IsRegular() {
+		return nil, false, err
+	}
+	rules, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false, err
+	}
+	return rules, true, os.Remove(path)
 }
 
 // EnsureHandleLink makes handles/<handle> -> by-id/<userID> so the content host

@@ -215,7 +215,7 @@ func (f hackNotifyFixture) emit(t *testing.T) {
 func (f hackNotifyFixture) gone(t *testing.T, ids ...string) {
 	t.Helper()
 	for _, id := range ids {
-		if _, err := notifyapp.New(f.a.database, nil).GetNotification(context.Background(), id); !errors.Is(err, sql.ErrNoRows) {
+		if _, err := notifyapp.New(f.a.database).GetNotification(context.Background(), id); !errors.Is(err, sql.ErrNoRows) {
 			t.Fatal("membership loss retained subscription")
 		}
 	}
@@ -224,7 +224,7 @@ func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
 	f := newHackNotifyFixture(t)
 	a := f.a
 	id := f.create(t, f.base+f.own, f.member)
-	n, err := notifyapp.New(a.database, nil).GetNotification(context.Background(), id)
+	n, err := notifyapp.New(a.database).GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
 	if rotated.status != 200 {
 		t.Fatal("rotate")
 	}
-	n, err = notifyapp.New(a.database, nil).GetNotification(context.Background(), id)
+	n, err = notifyapp.New(a.database).GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +406,7 @@ func TestHackNotificationsMCPTeamAndOrganiser(t *testing.T) {
 	}
 	wantTS(t, "other event site", a.deployTeam(t, another, anotherSite, f.other.key, "other"), 201, "")
 	subscribe(orgAccess, map[string]any{"site": anotherSite, "owner": another}, false)
-	n, err := notifyapp.New(a.database, nil).GetNotification(context.Background(), eventID)
+	n, err := notifyapp.New(a.database).GetNotification(context.Background(), eventID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,11 +446,11 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	wantTS(t, "second site", a.deployTeam(t, slug2, team2, f.member.key, "second"), 201, "")
 	id := f.create(t, f.base+f.own, f.member)
 	otherID := f.create(t, f.base+"?owner="+slug2, f.member)
-	n, err := notifyapp.New(a.database, nil).GetNotification(context.Background(), id)
+	n, err := notifyapp.New(a.database).GetNotification(context.Background(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := notifyapp.New(a.database, nil).GetNotification(context.Background(), otherID)
+	other, err := notifyapp.New(a.database).GetNotification(context.Background(), otherID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -469,7 +469,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	if !ok {
 		t.Fatal("MCP subscribe")
 	}
-	sub, err := notifyapp.New(a.database, nil).GetNotification(context.Background(), result["id"].(string))
+	sub, err := notifyapp.New(a.database).GetNotification(context.Background(), result["id"].(string))
 	if err != nil || sub.SiteID != other.SiteID {
 		t.Fatal("MCP resolved wrong event")
 	}
@@ -479,7 +479,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 		t.Fatal("remove")
 	}
 	f.gone(t, otherID)
-	if _, err := notifyapp.New(a.database, nil).GetNotification(context.Background(), id); err != nil {
+	if _, err := notifyapp.New(a.database).GetNotification(context.Background(), id); err != nil {
 		t.Fatal("removed other event subscription")
 	}
 }

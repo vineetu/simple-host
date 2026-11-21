@@ -67,9 +67,7 @@ func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, 
 	return item, queued, copied, nil
 }
 
-// ChangeAnnouncement edits, pins or unpins, or deletes an announcement under
-// the event lock. A change with no title and body but a pinned value only
-// pins or unpins; an edit leaves the pin alone unless pinned is given.
+// ChangeAnnouncement edits, pins or unpins, or deletes an announcement under the event lock.
 func (s *Service) ChangeAnnouncement(ctx context.Context, eventID, id, title, body string, pinned *bool, remove bool) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -149,6 +147,7 @@ func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, s
 	return written, nil
 }
 
+// deliverContentMailOne claims the next due mail, sends it and records the outcome in the same transaction: sent, or deferred for a retry.
 func (s *Service) deliverContentMailOne(ctx context.Context, sender NoticeSender, siteDomain, publicBaseURL string) (bool, int64, error) {
 	if err := ctx.Err(); err != nil {
 		return false, 0, err
@@ -165,64 +164,66 @@ func (s *Service) deliverContentMailOne(ctx context.Context, sender NoticeSender
 	defer tx.Rollback()
 	m, err := hackevents.NextEventMail(ctx, tx)
 	if errors.Is(err, sql.ErrNoRows) {
-		tx.Rollback()
 		return false, 0, nil
 	}
 	if err != nil {
-		tx.Rollback()
 		log.Printf("hack: content mail: %v", err)
 		return false, 0, err
 	}
-	var subject, body, htmlBody string
-	if m.Kind == "announcement" {
-		subject = m.EventTitle + ": " + m.Title
-		page := "https://" + m.EventSlug + "." + siteDomain + "/"
-		body = rules.AnnouncementText(m.Body) + "\n\nEvent page: " + page + "\n"
-		htmlBody = announcementEmailDocument(m.EventTitle, m.Title, m.Body, page)
-	} else {
-		subject = m.EventTitle + ": entry received"
-		body = fmt.Sprintf("Your team's entry for %s was received.\n\nTeam: %s\nReview it at %s/e/%s/team\n", m.EventTitle, m.TeamName, publicBaseURL, m.EventSlug)
-	}
-	// Once sending starts, worker cancellation must not roll back a
-	// successful provider response before its durable mark is committed.
+	subject, body, htmlBody := contentMailMessage(m, siteDomain, publicBaseURL)
+	// Once sending starts, worker cancellation must not roll back a successful provider response before its durable mark is committed.
 	if !stopCancel() || ctx.Err() != nil {
 		return false, 0, ctx.Err()
 	}
-	var sendErr error
-	if rich, ok := sender.(interface {
-		SendRichNoticeCtx(context.Context, string, string, string, string) error
-	}); ok && htmlBody != "" {
-		sendErr = rich.SendRichNoticeCtx(ctx, m.Recipient, subject, body, htmlBody)
-	} else {
-		sendErr = sendMailNotice(ctx, sender, m.Recipient, subject, body)
-	}
+	sendErr := sendContentMail(ctx, sender, m.Recipient, subject, body, htmlBody)
 	ctx, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancelFinish()
 	stopFinish := context.AfterFunc(ctx, cancelTx)
 	defer stopFinish()
-	if err := sendErr; err != nil {
-		log.Printf("hack: content mail delivery failed: %v", err)
-		if deferErr := hackevents.DeferEventMail(ctx, tx, m); deferErr != nil {
-			tx.Rollback()
-			log.Printf("hack: content mail defer: %v", deferErr)
-			return false, 0, deferErr
-		}
-		if commitErr := tx.Commit(); commitErr != nil {
-			log.Printf("hack: content mail defer commit: %v", commitErr)
-			return false, 0, commitErr
-		}
-		return true, 1, nil
-	}
-	if err := hackevents.MarkEventMailSent(ctx, tx, m); err != nil {
-		tx.Rollback()
-		log.Printf("hack: content mail mark: %v", err)
-		return false, 0, err
-	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("hack: content mail commit: %v", err)
+	if err := recordContentMail(ctx, tx, m, sendErr); err != nil {
 		return false, 0, err
 	}
 	return true, 1, nil
+}
+
+// contentMailMessage writes an announcement or entry receipt's subject, plain body and (announcements only) HTML body.
+func contentMailMessage(m hackevents.EventMail, siteDomain, publicBaseURL string) (subject, body, htmlBody string) {
+	if m.Kind != "announcement" {
+		return m.EventTitle + ": entry received",
+			fmt.Sprintf("Your team's entry for %s was received.\n\nTeam: %s\nReview it at %s/e/%s/team\n", m.EventTitle, m.TeamName, publicBaseURL, m.EventSlug), ""
+	}
+	page := "https://" + m.EventSlug + "." + siteDomain + "/"
+	return m.EventTitle + ": " + m.Title,
+		rules.AnnouncementText(m.Body) + "\n\nEvent page: " + page + "\n",
+		announcementEmailDocument(m.EventTitle, m.Title, m.Body, page)
+}
+
+// sendContentMail sends the HTML version when there is one and the sender can, else the plain one.
+func sendContentMail(ctx context.Context, sender NoticeSender, to, subject, body, htmlBody string) error {
+	if rich, ok := sender.(interface {
+		SendRichNoticeCtx(context.Context, string, string, string, string) error
+	}); ok && htmlBody != "" {
+		return rich.SendRichNoticeCtx(ctx, to, subject, body, htmlBody)
+	}
+	return sendMailNotice(ctx, sender, to, subject, body)
+}
+
+// recordContentMail marks the mail sent, or defers it for a retry when sending failed, and commits.
+func recordContentMail(ctx context.Context, tx *sql.Tx, m hackevents.EventMail, sendErr error) error {
+	record, step, commit := hackevents.MarkEventMailSent, "mark", "commit"
+	if sendErr != nil {
+		log.Printf("hack: content mail delivery failed: %v", sendErr)
+		record, step, commit = hackevents.DeferEventMail, "defer", "defer commit"
+	}
+	if err := record(ctx, tx, m); err != nil {
+		log.Printf("hack: content mail %s: %v", step, err)
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("hack: content mail %s: %v", commit, err)
+		return err
+	}
+	return nil
 }
 
 // CreateEventAnnouncement creates an announcement in the caller’s transaction.
@@ -230,8 +231,7 @@ func CreateEventAnnouncement(ctx context.Context, q *sql.Tx, eventID, title, bod
 	return hackevents.CreateEventAnnouncement(ctx, q, eventID, title, body, email, userID)
 }
 
-// Legacy senders remain supported; the production sender and worker wrapper
-// implement the context-aware capability.
+// Legacy senders remain supported; the production sender and worker wrapper implement the context-aware capability.
 func sendMailNotice(ctx context.Context, sender NoticeSender, to, subject, body string) error {
 	if s, ok := sender.(interface {
 		SendNoticeCtx(context.Context, string, string, string) error
@@ -241,9 +241,7 @@ func sendMailNotice(ctx context.Context, sender NoticeSender, to, subject, body 
 	return sender.SendNotice(to, subject, body)
 }
 
-// announcementEmailDocument is the HTML part of an announcement email: the
-// event name, the title, the body rendered with buttons for calls and videos,
-// and a link to the event page. Every piece of text is escaped.
+// announcementEmailDocument is the HTML part of an announcement email.
 func announcementEmailDocument(eventTitle, title, body, page string) string {
 	const font = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"
 	esc := html.EscapeString

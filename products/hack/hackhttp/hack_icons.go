@@ -18,11 +18,11 @@ func (h *publicEventHTTP) hackIconLimit() int64 {
 	return int64(h.limits.HackEventIconMaxBytes)
 }
 
-func (h *hackBase) iconURL(ev model.Event) string {
+func (h *siteLinks) iconURL(ev model.Event) string {
 	return h.iconURLSlug(ev.Slug)
 }
 
-func (h *hackBase) iconURLSlug(slug string) string {
+func (h *siteLinks) iconURLSlug(slug string) string {
 	return strings.TrimRight(h.publicBaseURL, "/") + "/v1/hack/events/" + slug + "/icon"
 }
 
@@ -70,7 +70,7 @@ func (h *publicEventHTTP) getEventIcon(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *publicEventHTTP) putEventIcon(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -103,11 +103,11 @@ func (h *publicEventHTTP) putEventIcon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.event.IconMediaType = typ
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"icon_url": h.iconURL(a.event), "content_type": typ, "bytes": len(raw)})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"icon_url": h.links.iconURL(a.event), "content_type": typ, "bytes": len(raw)})
 }
 
 func (h *publicEventHTTP) deleteEventIcon(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}

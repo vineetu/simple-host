@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -100,6 +101,21 @@ func (c *call) doJSON(tool, method, path string, body []byte, into any) error {
 	_ = json.Unmarshal(res.body, into)
 	return nil
 }
+
+// fetch serves one REST request and returns a successful answer's body.
+func (c *call) fetch(tool, method, path string, body []byte) ([]byte, error) {
+	res := c.do(method, path, body, nil)
+	if !res.ok() {
+		return nil, restError(tool, res)
+	}
+	return res.body, nil
+}
+
+// jsonOutput is a result whose text is its structured content as JSON.
+func jsonOutput(out map[string]any) output { return output{Text: jsonText(out), Structured: out} }
+
+// sitePath is the REST path of one site, plus suffix ("/domain", ...).
+func sitePath(site, suffix string) string { return "/v1/sites/" + url.PathEscape(site) + suffix }
 
 // ownerPath reports whether a REST path takes owner=: the routes
 // auth.ScopeGate answers it on.
@@ -384,3 +400,6 @@ func jsonText(v any) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)
 }
+
+// limits is the server's limits snapshot, the one its declarations state.
+func (c *call) limits() Limits { return *c.server.cfg.Limits }

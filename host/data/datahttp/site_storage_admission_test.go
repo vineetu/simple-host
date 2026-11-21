@@ -1,0 +1,26 @@
+package datahttp
+
+import (
+	"net/http/httptest"
+	"testing"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
+)
+
+func TestTableAdmissionErrorStatus(t *testing.T) {
+	for _, tc := range []struct {
+		code   string
+		status int
+	}{{"query_too_expensive", 422}, {"storage_failed", 500}, {"storage_busy", 503}} {
+		t.Run(tc.code, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			WriteStorageError(w, &appstorage.Error{Code: tc.code, Message: tc.code}, 400)
+			if w.Code != tc.status {
+				t.Fatalf("status=%d want=%d", w.Code, tc.status)
+			}
+			if tc.code == "storage_busy" && w.Header().Get("Retry-After") == "" {
+				t.Fatal("missing Retry-After")
+			}
+		})
+	}
+}

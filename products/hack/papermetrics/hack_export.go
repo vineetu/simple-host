@@ -3,6 +3,7 @@ package papermetrics
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -15,11 +16,11 @@ func peopleMetric(metric string) bool {
 	}
 	return false
 }
+
+// suppressPeople blanks each event row's small people counts (and what they would reveal) and adds a <column>_suppressed flag per people column.
 func suppressPeople(t Table) Table {
-	positions := map[string]int{}
 	var indexes []int
 	for i, col := range t.Columns {
-		positions[col] = i
 		if peopleColumns[col] {
 			indexes = append(indexes, i)
 		}
@@ -28,40 +29,65 @@ func suppressPeople(t Table) Table {
 		t.Columns = append(t.Columns, t.Columns[i]+"_suppressed")
 	}
 	for j, row := range t.Rows {
-		hidden := map[int]bool{}
+		counts := map[string]any{}
 		for _, i := range indexes {
-			col := t.Columns[i]
-			if col != "assignments" && col != "scores" && col != "conflicts" {
-				hidden[i] = row[i] != nil && ToInt(row[i]) < 5
-			}
+			counts[t.Columns[i]] = row[i]
 		}
-		if judge, ok := positions["judges"]; ok && (row[judge] == nil || hidden[judge]) {
-			for _, col := range []string{"assignments", "scores", "conflicts"} {
-				if i, ok := positions[col]; ok {
-					hidden[i] = row[i] != nil
-				}
-			}
-		}
-		a, hasA := positions["applications"]
-		b, hasB := positions["applications_approved"]
-		if hasA && hasB && (row[a] == nil || row[b] == nil || hidden[a] || hidden[b] || ToInt(row[a])-ToInt(row[b]) < 5) {
-			hidden[a] = row[a] != nil
-			hidden[b] = row[b] != nil
-		}
+		hidden := hiddenPeople(counts)
 		for _, i := range indexes {
-			if hidden[i] {
+			if hidden[t.Columns[i]] {
 				row[i] = nil
 			}
-			row = append(row, hidden[i])
+			row = append(row, hidden[t.Columns[i]])
 		}
 		t.Rows[j] = row
 	}
 	return t
 }
+
+// judgeWorkColumns follow the judges count: they would reveal it.
+var judgeWorkColumns = []string{"assignments", "scores", "conflicts"}
+
+// hiddenPeople decides which of one event's people counts to hide.
+func hiddenPeople(counts map[string]any) map[string]bool {
+	hidden := map[string]bool{}
+	for col, v := range counts {
+		if !slices.Contains(judgeWorkColumns, col) {
+			hidden[col] = v != nil && ToInt(v) < 5
+		}
+	}
+	if _, ok := counts["judges"]; ok {
+		hideJudgeWork(hidden, counts, "judges", judgeWorkColumns)
+	}
+	_, hasA := counts["applications"]
+	_, hasB := counts["applications_approved"]
+	if hasA && hasB {
+		hideApplicationPair(hidden, counts, "applications", "applications_approved")
+	}
+	return hidden
+}
+
+// hideJudgeWork hides each known judge-work count when the judges count is unknown or hidden.
+func hideJudgeWork(hidden map[string]bool, counts map[string]any, judges string, work []string) {
+	if counts[judges] != nil && !hidden[judges] {
+		return
+	}
+	for _, name := range work {
+		hidden[name] = counts[name] != nil
+	}
+}
+
+// hideApplicationPair hides both counts of an applications/approved pair when either is unknown or below 5, or so is their difference.
+func hideApplicationPair(hidden map[string]bool, counts map[string]any, applied, approved string) {
+	a, b := counts[applied], counts[approved]
+	if a == nil || b == nil || ToInt(a) < 5 || ToInt(b) < 5 || ToInt(a)-ToInt(b) < 5 {
+		hidden[applied], hidden[approved] = a != nil, b != nil
+	}
+}
+
 func includeSmall(r *http.Request) bool { return r != nil && r.URL.Query().Get("include_small") == "1" }
 
-// Apply to every per-event set, including phase and latency series. Eligibility
-// uses the latest retained snapshot, never the private source-ID lookup.
+// Apply to every per-event set, including phase and latency series.
 const eligibleEvent = `($3 OR COALESCE((SELECT teams FROM paper_hack_event e WHERE e.event_key=t.event_key ORDER BY snapshot_day DESC LIMIT 1),0)>=5)`
 
 func (c *Collector) setHackEvents(ctx context.Context, from, to string, r *http.Request) (Table, error) {
@@ -116,53 +142,42 @@ func (c *Collector) setRuns(ctx context.Context, from, to string, _ *http.Reques
  ) ORDER BY run_id`, from, to)
 }
 
-// Suppression is evaluated per day before mutating any values, so sibling
-// totals cannot reveal hidden judge/application counts by multiplication or
-// subtraction. Missing source metrics are treated as unknown, not zero.
+// Suppression is evaluated per day before mutating any values, so sibling totals cannot reveal hidden judge/application counts by multiplication or subtraction.
 func suppressHackDaily(t Table) Table {
-	groups := map[string]map[string]int{}
-	hidden := make([]bool, len(t.Rows))
-	for i, row := range t.Rows {
-		day, metric := row[0].(string), row[1].(string)
-		if groups[day] == nil {
-			groups[day] = map[string]int{}
+	days := map[string]map[string]any{}
+	for _, row := range t.Rows {
+		day := row[0].(string)
+		if days[day] == nil {
+			days[day] = map[string]any{}
 		}
-		groups[day][metric] = i
-		hidden[i] = peopleMetric(metric) && row[2] != nil && ToInt(row[2]) < 5
+		days[day][row[1].(string)] = row[2]
 	}
-	for _, metrics := range groups {
-		j, ok := metrics["hack_judges_total"]
-		if !ok || t.Rows[j][2] == nil || hidden[j] {
-			for _, metric := range []string{"hack_scores_total", "hack_assignments_total", "hack_conflicts_total"} {
-				if i, ok := metrics[metric]; ok {
-					hidden[i] = t.Rows[i][2] != nil
-				}
-			}
-		}
-		for _, suffix := range []string{"day", "total"} {
-			a, hasA := metrics["hack_applications_"+suffix]
-			b, hasB := metrics["hack_applications_approved_"+suffix]
-			if !hasA && !hasB {
-				continue
-			}
-			if !hasA || !hasB || t.Rows[a][2] == nil || t.Rows[b][2] == nil || ToInt(t.Rows[a][2]) < 5 || ToInt(t.Rows[b][2]) < 5 || ToInt(t.Rows[a][2])-ToInt(t.Rows[b][2]) < 5 {
-				if hasA {
-					hidden[a] = t.Rows[a][2] != nil
-				}
-				if hasB {
-					hidden[b] = t.Rows[b][2] != nil
-				}
-			}
-		}
+	hidden := map[string]map[string]bool{}
+	for day, values := range days {
+		hidden[day] = hiddenDaily(values)
 	}
 	t.Columns = append(t.Columns, "value_suppressed")
 	for i, row := range t.Rows {
-		if hidden[i] {
+		h := hidden[row[0].(string)][row[1].(string)]
+		if h {
 			row[2] = nil
 		}
-		t.Rows[i] = append(row, hidden[i])
+		t.Rows[i] = append(row, h)
 	}
 	return t
+}
+
+// hiddenDaily decides which of one day's metrics to hide.
+func hiddenDaily(values map[string]any) map[string]bool {
+	hidden := map[string]bool{}
+	for metric, v := range values {
+		hidden[metric] = peopleMetric(metric) && v != nil && ToInt(v) < 5
+	}
+	hideJudgeWork(hidden, values, "hack_judges_total", []string{"hack_scores_total", "hack_assignments_total", "hack_conflicts_total"})
+	for _, suffix := range []string{"day", "total"} {
+		hideApplicationPair(hidden, values, "hack_applications_"+suffix, "hack_applications_approved_"+suffix)
+	}
+	return hidden
 }
 
 func (c *Collector) setDaily(ctx context.Context, from, to string, _ *http.Request) (Table, error) {

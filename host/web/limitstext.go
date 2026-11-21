@@ -1,0 +1,319 @@
+package web
+
+import (
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/sites"
+)
+
+// The pages, llms.txt, the OpenAPI spec and the skills state some of the
+// operational limits in words ("Recently deleted keeps it for 7 days"). They
+// are written with today's values, which is what simple-host.app runs. An
+// install that changes a knob (host/config/limits.go) must not go on
+// promising the old value, so every such sentence is listed here with how to
+// say it from the settings, and served text is Rewritten through the list —
+// the same serve-time approach as InstanceHosts for hostnames.
+//
+// Only phrases whose knob differs from its default are Rewritten, so with
+// every knob at its default nothing is (AssetPipeline.limitsText is nil) and
+// the served bytes are exactly the files. TestLimitPhrasesAppearInServedText fails when a
+// phrase no longer occurs in any served file, which is how an edit to the copy
+// that breaks the match is caught. Go code that states a limit (emails, MCP
+// descriptions, error messages) formats it from the settings directly and is
+// not listed here.
+
+// limitPhrase is one sentence fragment as written in the files (the default
+// wording) and how to say it for a given set of limits.
+type limitPhrase struct {
+	text string
+	// env names the knob(s) the phrase states, for the tests.
+	env []string
+	say func(l *edition.Limits) string
+}
+
+func limitNum(n int) string  { return strconv.Itoa(n) }
+func limitDays(n int) string { return limitCount(n, "day") }
+
+// commas prints 50000 as 50,000.
+func limitCommas(n int) string {
+	s := strconv.Itoa(n)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
+}
+
+func phrase(text string, env []string, say func(l *edition.Limits) string) limitPhrase {
+	return limitPhrase{text: text, env: env, say: say}
+}
+
+func knob(env string) []string { return []string{env} }
+
+// limitPhrases is every sentence in served text that states a knob's value.
+// Keep each phrase on one line of its file (a line break inside it would not
+// match the JSON copy of the spec) and long enough to be unambiguous.
+var limitPhrases = []limitPhrase{
+	// Documentation notification defaults, substituted for every install.
+	phrase("At most 10 subscriptions per site", knob("NOTIFY_MAX_PER_SITE"), func(l *edition.Limits) string {
+		return "At most " + limitNum(l.NotifyMaxPerSite) + " subscriptions per site"
+	}),
+	phrase("At most 60 events per minute and 5,000 per day per site", []string{"NOTIFY_PER_MINUTE", "NOTIFY_PER_DAY"}, func(l *edition.Limits) string {
+		return "At most " + limitCommas(l.NotifyPerMinute) + " events per minute and " + limitCommas(l.NotifyPerDay) + " per day per site"
+	}),
+	phrase("normally seven days", knob("NOTIFY_HISTORY_DAYS"), func(l *edition.Limits) string { return "normally " + limitDays(l.NotifyHistoryDays) }),
+	phrase("default five-second timeout", knob("NOTIFY_TIMEOUT_MS"), func(l *edition.Limits) string { return "configured " + limitSpanAdj(l.NotifyTimeout) + " timeout" }),
+	phrase("at least 100 attempts in an hour with more than 95% failures", []string{"NOTIFY_SUSPEND_ATTEMPTS", "NOTIFY_SUSPEND_WINDOW_HOURS", "NOTIFY_SUSPEND_FAILURE_PERCENT"}, func(l *edition.Limits) string {
+		return "at least " + limitNum(l.NotifySuspendAttempts) + " attempts in " + LimitSpan(l.NotifySuspendWindow) + " with more than " + limitNum(l.NotifySuspendFailurePercent) + "% failures"
+	}),
+	phrase("all attempts failing for three days", knob("NOTIFY_SUSPEND_DAYS"), func(l *edition.Limits) string { return "all attempts failing for " + LimitSpan(l.NotifySuspendAfter) }),
+	phrase("String fields over 2 KB", knob("NOTIFY_FIELD_MAX_BYTES"), func(l *edition.Limits) string {
+		return "String fields over " + limitCommas(l.NotifyFieldMaxBytes) + " bytes"
+	}),
+	phrase("bodies over 16 KB", knob("NOTIFY_BODY_MAX_BYTES"), func(l *edition.Limits) string { return "bodies over " + limitCommas(l.NotifyBodyMaxBytes) + " bytes" }),
+	phrase("up to five delivery attempts", knob("NOTIFY_ATTEMPTS"), func(l *edition.Limits) string { return "up to " + limitNum(l.NotifyAttempts) + " delivery attempts" }),
+
+	// SIGNIN_CODE_TTL_MINUTES. The dashboard sign-in card no longer states the
+	// code lifetime up front (2026-10-20); the sentences that still do are below.
+	phrase("expires in 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "expires in " + LimitSpan(l.SigninCodeTTL) }),
+	phrase("(15 minutes,", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "(" + LimitSpan(l.SigninCodeTTL) + "," }),
+	phrase("valid for 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "valid for " + LimitSpan(l.SigninCodeTTL) }),
+	phrase("after <b>15 minutes</b>", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "after <b>" + LimitSpan(l.SigninCodeTTL) + "</b>" }),
+	phrase("Same 15-minute expiry", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "Same " + limitSpanAdj(l.SigninCodeTTL) + " expiry" }),
+	phrase("(15-minute code", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "(" + limitSpanAdj(l.SigninCodeTTL) + " code" }),
+
+	// KEY_IDLE_EXPIRY_DAYS (0 = never)
+	phrase("A key unused for 180 days stops working.", knob("KEY_IDLE_EXPIRY_DAYS"), func(l *edition.Limits) string {
+		if l.KeyIdleExpiry <= 0 {
+			return "Unused keys keep working until revoked."
+		}
+		return "A key unused for " + LimitSpan(l.KeyIdleExpiry) + " stops working."
+	}),
+
+	// MAX_KEYS_PER_ACCOUNT
+	phrase("at most 50 keys", knob("MAX_KEYS_PER_ACCOUNT"), func(l *edition.Limits) string { return "at most " + limitNum(l.MaxKeysPerAccount) + " keys" }),
+	phrase("holds 50 keys", knob("MAX_KEYS_PER_ACCOUNT"), func(l *edition.Limits) string { return "holds " + limitNum(l.MaxKeysPerAccount) + " keys" }),
+
+	// HANDLE_RENAME_EVERY_DAYS
+	phrase("once every 30 days", knob("HANDLE_RENAME_EVERY_DAYS"), func(l *edition.Limits) string { return "once every " + LimitSpan(l.HandleRenameEvery) }),
+	phrase("the last 30 days after publishing", knob("HANDLE_RENAME_EVERY_DAYS"), func(l *edition.Limits) string {
+		return "the last " + LimitSpan(l.HandleRenameEvery) + " after publishing"
+	}),
+	phrase("change it again after 30 days", knob("HANDLE_RENAME_EVERY_DAYS"), func(l *edition.Limits) string { return "change it again after " + LimitSpan(l.HandleRenameEvery) }),
+
+	// EMAIL_CHANGE_UNDO_DAYS
+	phrase("7-day undo link", knob("EMAIL_CHANGE_UNDO_DAYS"), func(l *edition.Limits) string { return limitSpanAdj(l.EmailChangeUndoTTL) + " undo link" }),
+	phrase("undo link valid for 7 days", knob("EMAIL_CHANGE_UNDO_DAYS"), func(l *edition.Limits) string { return "undo link valid for " + LimitSpan(l.EmailChangeUndoTTL) }),
+	phrase("used or is older than 7 days", knob("EMAIL_CHANGE_UNDO_DAYS"), func(l *edition.Limits) string { return "used or is older than " + LimitSpan(l.EmailChangeUndoTTL) }),
+
+	// MAX_SITES_PER_ACCOUNT
+	phrase("Up to a hundred sites", knob("MAX_SITES_PER_ACCOUNT"), func(l *edition.Limits) string { return "Up to " + limitCommas(l.MaxSitesPerAccount) + " sites" }),
+	phrase("up to a hundred separate sites", knob("MAX_SITES_PER_ACCOUNT"), func(l *edition.Limits) string {
+		return "up to " + limitCommas(l.MaxSitesPerAccount) + " separate sites"
+	}),
+	phrase("<b>100 sites</b>", knob("MAX_SITES_PER_ACCOUNT"), func(l *edition.Limits) string { return "<b>" + limitCommas(l.MaxSitesPerAccount) + " sites</b>" }),
+
+	// MAX_FILES_PER_SITE
+	phrase("50,000 entries", knob("MAX_FILES_PER_SITE"), func(l *edition.Limits) string { return limitCommas(l.MaxFilesPerSite) + " entries" }),
+
+	// PREVIEW_LINK_TTL_MINUTES
+	phrase("has it, for one hour", knob("PREVIEW_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "has it, for " + LimitSpan(l.PreviewLinkTTL) }),
+	phrase("has it for one hour", knob("PREVIEW_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "has it for " + LimitSpan(l.PreviewLinkTTL) }),
+	phrase("stops working after an hour", knob("PREVIEW_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "stops working after " + LimitSpan(l.PreviewLinkTTL) }),
+	phrase("with it, for one hour", knob("PREVIEW_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "with it, for " + LimitSpan(l.PreviewLinkTTL) }),
+	phrase("yours for one hour", knob("PREVIEW_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "yours for " + LimitSpan(l.PreviewLinkTTL) }),
+
+	// EXPORT_LINK_TTL_MINUTES
+	phrase("link that works for 10 minutes", knob("EXPORT_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "link that works for " + LimitSpan(l.ExportLinkTTL) }),
+	phrase("a 10-minute download link", knob("EXPORT_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "a " + limitSpanAdj(l.ExportLinkTTL) + " download link" }),
+	phrase("expires after 10 minutes", knob("EXPORT_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "expires after " + LimitSpan(l.ExportLinkTTL) }),
+	phrase("site, for 10 minutes", knob("EXPORT_LINK_TTL_MINUTES"), func(l *edition.Limits) string { return "site, for " + LimitSpan(l.ExportLinkTTL) }),
+
+	// VISITOR_SESSION_DAYS, VISITOR_SESSION_IDLE_DAYS
+	phrase("Session has 30-day absolute and 14-day idle lifetimes", []string{"VISITOR_SESSION_DAYS", "VISITOR_SESSION_IDLE_DAYS"}, func(l *edition.Limits) string {
+		return "Session has " + limitSpanAdj(l.VisitorSessionTTL) + " absolute and " + limitSpanAdj(l.VisitorSessionIdle) + " idle lifetimes"
+	}),
+	phrase("lasts up to 30 days and covers", knob("VISITOR_SESSION_DAYS"), func(l *edition.Limits) string { return "lasts up to " + LimitSpan(l.VisitorSessionTTL) + " and covers" }),
+	phrase("for that one site (up to 30 days)", knob("VISITOR_SESSION_DAYS"), func(l *edition.Limits) string {
+		return "for that one site (up to " + LimitSpan(l.VisitorSessionTTL) + ")"
+	}),
+	phrase("on sites:</strong> up to 30 days", knob("VISITOR_SESSION_DAYS"), func(l *edition.Limits) string { return "on sites:</strong> up to " + LimitSpan(l.VisitorSessionTTL) }),
+
+	// OAUTH_ACCESS_TTL_MINUTES, OAUTH_REFRESH_TTL_DAYS
+	phrase("access token that lasts one hour", knob("OAUTH_ACCESS_TTL_MINUTES"), func(l *edition.Limits) string { return "access token that lasts " + LimitSpan(l.OAuthAccessTTL) }),
+	phrase("expires after 90 days without use", knob("OAUTH_REFRESH_TTL_DAYS"), func(l *edition.Limits) string {
+		return "expires after " + LimitSpan(l.OAuthRefreshTTL) + " without use"
+	}),
+	phrase("refresh tokens expire after 90 days", knob("OAUTH_REFRESH_TTL_DAYS"), func(l *edition.Limits) string { return "refresh tokens expire after " + LimitSpan(l.OAuthRefreshTTL) }),
+
+	// DOMAIN_UNPROVEN_HOURS
+	phrase("expires 24 hours after binding", knob("DOMAIN_UNPROVEN_HOURS"), func(l *edition.Limits) string { return "expires " + LimitSpan(l.DomainUnprovenTTL) + " after binding" }),
+	phrase("bound_at plus 24 hours", knob("DOMAIN_UNPROVEN_HOURS"), func(l *edition.Limits) string { return "bound_at plus " + LimitSpan(l.DomainUnprovenTTL) }),
+	phrase("lapses after 24 hours", knob("DOMAIN_UNPROVEN_HOURS"), func(l *edition.Limits) string { return "lapses after " + LimitSpan(l.DomainUnprovenTTL) }),
+	phrase("unproven bindings after 24 hours", knob("DOMAIN_UNPROVEN_HOURS"), func(l *edition.Limits) string { return "unproven bindings after " + LimitSpan(l.DomainUnprovenTTL) }),
+	phrase("expires after 24 hours", knob("DOMAIN_UNPROVEN_HOURS"), func(l *edition.Limits) string { return "expires after " + LimitSpan(l.DomainUnprovenTTL) }),
+
+	// DOMAIN_LAPSE_WARN_HOURS, DOMAIN_LAPSE_HOURS
+	phrase("for 24 hours the owner is emailed, and after 72 hours", []string{"DOMAIN_LAPSE_WARN_HOURS", "DOMAIN_LAPSE_HOURS"}, func(l *edition.Limits) string {
+		return "for " + LimitSpan(l.DomainLapseWarnAfter) + " the owner is emailed, and after " + LimitSpan(l.DomainLapseAfter)
+	}),
+	phrase("the owner is emailed after 24 hours; after 72 hours", []string{"DOMAIN_LAPSE_WARN_HOURS", "DOMAIN_LAPSE_HOURS"}, func(l *edition.Limits) string {
+		return "the owner is emailed after " + LimitSpan(l.DomainLapseWarnAfter) + "; after " + LimitSpan(l.DomainLapseAfter)
+	}),
+	phrase("If it fails every check for a day", knob("DOMAIN_LAPSE_WARN_HOURS"), func(l *edition.Limits) string {
+		return "If it fails every check for " + LimitSpan(l.DomainLapseWarnAfter)
+	}),
+	phrase("After three days the domain is disconnected", knob("DOMAIN_LAPSE_HOURS"), func(l *edition.Limits) string {
+		return "After " + LimitSpan(l.DomainLapseAfter) + " the domain is disconnected"
+	}),
+	phrase("after three days, be disconnected", knob("DOMAIN_LAPSE_HOURS"), func(l *edition.Limits) string { return "after " + LimitSpan(l.DomainLapseAfter) + ", be disconnected" }),
+
+	// DOMAIN_CHECK_INTERVAL_MINUTES
+	phrase("about every two minutes", knob("DOMAIN_CHECK_INTERVAL_MINUTES"), func(l *edition.Limits) string { return "about every " + LimitSpan(l.DomainCheckInterval) }),
+	phrase("background check every two minutes", knob("DOMAIN_CHECK_INTERVAL_MINUTES"), func(l *edition.Limits) string { return "background check every " + LimitSpan(l.DomainCheckInterval) }),
+	phrase("every 2 minutes (releasing", knob("DOMAIN_CHECK_INTERVAL_MINUTES"), func(l *edition.Limits) string { return "every " + LimitSpan(l.DomainCheckInterval) + " (releasing" }),
+
+	// DOMAIN_CERTS_PER_ACCOUNT_DAILY
+	phrase("at most 5 new domain certificates per account per day", knob("DOMAIN_CERTS_PER_ACCOUNT_DAILY"), func(l *edition.Limits) string {
+		return "at most " + limitNum(l.DomainCertsDaily) + " new domain certificates per account per day"
+	}),
+	phrase("at most 5 new domain certificates a day", knob("DOMAIN_CERTS_PER_ACCOUNT_DAILY"), func(l *edition.Limits) string {
+		return "at most " + limitNum(l.DomainCertsDaily) + " new domain certificates a day"
+	}),
+
+	// DELETED_RETENTION_DAYS
+	phrase("Recently deleted for 7 days", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "Recently deleted for " + LimitSpan(l.DeletedRetention) }),
+	phrase("After 7 days it is removed for good", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string {
+		return "After " + LimitSpan(l.DeletedRetention) + " it is removed for good"
+	}),
+	phrase("deleted in the last 7 days", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "deleted in the last " + LimitSpan(l.DeletedRetention) }),
+	phrase("for 7 days with its name held", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "for " + LimitSpan(l.DeletedRetention) + " with its name held" }),
+	phrase("restorable for 7 days", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "restorable for " + LimitSpan(l.DeletedRetention) }),
+	phrase("kept for 7 days with their saved data", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string {
+		return "kept for " + LimitSpan(l.DeletedRetention) + " with their saved data"
+	}),
+	phrase("For 7 days you can restore it", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "For " + LimitSpan(l.DeletedRetention) + " you can restore it" }),
+	phrase("Recently deleted within 7 days", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "Recently deleted within " + LimitSpan(l.DeletedRetention) }),
+	phrase("keeps it for 7 days", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "keeps it for " + LimitSpan(l.DeletedRetention) }),
+	phrase("After <b>7 days</b> it is gone", knob("DELETED_RETENTION_DAYS"), func(l *edition.Limits) string { return "After <b>" + LimitSpan(l.DeletedRetention) + "</b> it is gone" }),
+
+	// IDLE_AFTER_DAYS, IDLE_GRACE_DAYS
+	phrase("for 90 days gets its owner", knob("IDLE_AFTER_DAYS"), func(l *edition.Limits) string { return "for " + LimitSpan(l.IdleAfter) + " gets its owner" }),
+	phrase("no new version for 90 days", knob("IDLE_AFTER_DAYS"), func(l *edition.Limits) string { return "no new version for " + LimitSpan(l.IdleAfter) }),
+	phrase("under 90 days of visit records", knob("IDLE_AFTER_DAYS"), func(l *edition.Limits) string { return "under " + LimitSpan(l.IdleAfter) + " of visit records" }),
+	phrase("no saved data for 120 days moves to Recently deleted", []string{"IDLE_AFTER_DAYS", "IDLE_GRACE_DAYS"}, func(l *edition.Limits) string {
+		return "no saved data for " + LimitSpan(l.IdleAfter+l.IdleGrace) + " moves to Recently deleted"
+	}),
+	phrase("30 days later with nothing done", knob("IDLE_GRACE_DAYS"), func(l *edition.Limits) string { return LimitSpan(l.IdleGrace) + " later with nothing done" }),
+	phrase("warned 30 days ago", knob("IDLE_GRACE_DAYS"), func(l *edition.Limits) string { return "warned " + LimitSpan(l.IdleGrace) + " ago" }),
+
+	// ANALYTICS_RETENTION_DAYS
+	phrase("Analytics records are deleted after 400 days", knob("ANALYTICS_RETENTION_DAYS"), func(l *edition.Limits) string {
+		return "Analytics records are deleted after " + limitDays(l.AnalyticsRetention)
+	}),
+	phrase("Analytics records:</strong> 400 days", knob("ANALYTICS_RETENTION_DAYS"), func(l *edition.Limits) string {
+		return "Analytics records:</strong> " + limitDays(l.AnalyticsRetention)
+	}),
+	phrase("prune at 400 days", knob("ANALYTICS_RETENTION_DAYS"), func(l *edition.Limits) string { return "prune at " + limitDays(l.AnalyticsRetention) }),
+	phrase("pruned at 400 days", knob("ANALYTICS_RETENTION_DAYS"), func(l *edition.Limits) string { return "pruned at " + limitDays(l.AnalyticsRetention) }),
+
+	// API_METRICS_RETENTION_DAYS
+	phrase("caller IPs are kept 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *edition.Limits) string { return "caller IPs are kept " + limitDays(l.APIMetricsRetention) }),
+	phrase("exact address) for 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *edition.Limits) string { return "exact address) for " + limitDays(l.APIMetricsRetention) }),
+	phrase("shortened IP for 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *edition.Limits) string { return "shortened IP for " + limitDays(l.APIMetricsRetention) }),
+	phrase("from API calls:</strong> 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *edition.Limits) string { return "from API calls:</strong> " + limitDays(l.APIMetricsRetention) }),
+}
+
+// MAX_ARCHIVE_MB is read by the handler (sites.Upload), not a edition.Limits
+// knob, so its phrases compare the upload cap in force with the default.
+const defaultArchiveMB = 100
+
+// archivePhrases is every sentence in served text that states the upload cap.
+var archivePhrases = []struct {
+	text string
+	say  func(mb int) string
+}{
+	{"Up to <b>100 MB</b> per upload.", func(mb int) string { return "Up to <b>" + limitNum(mb) + " MB</b> per upload." }},
+	{"a 100 MB request body (<code>MAX_ARCHIVE_MB</code>)", func(mb int) string { return "a " + limitNum(mb) + " MB request body (<code>MAX_ARCHIVE_MB</code>)" }},
+	{"**Archive limit** is 100 MB.", func(mb int) string { return "**Archive limit** is " + limitNum(mb) + " MB." }},
+	{"The API rejects archives over 100 MB.", func(mb int) string { return "The API rejects archives over " + limitNum(mb) + " MB." }},
+	{"Warn if the directory exceeds 100 MB.", func(mb int) string { return "Warn if the directory exceeds " + limitNum(mb) + " MB." }},
+	{"large sites). Max 100 MB.", func(mb int) string { return "large sites). Max " + limitNum(mb) + " MB." }},
+	{"Each upload may be at most 100 MB.", func(mb int) string { return "Each upload may be at most " + limitNum(mb) + " MB." }},
+	{"A site archive is capped at 100 MB;", func(mb int) string { return "A site archive is capped at " + limitNum(mb) + " MB;" }},
+}
+
+// archiveMBInForce is the upload cap this server enforces, in MB.
+func archiveMBInForce() int { return int(sites.Upload.Body >> 20) }
+
+// limitsRewriter substitutes the configured limits into served text. Nil when
+// every phrase already says what the settings say.
+type limitsRewriter struct{ r *strings.Replacer }
+
+func newLimitsRewriter(l edition.Limits) *limitsRewriter {
+	def := (*edition.Edition)(nil).Limits()
+	var pairs []string
+	for _, ph := range limitPhrases {
+		if now := ph.say(&l); now != ph.say(&def) {
+			pairs = append(pairs, ph.text, now)
+		}
+	}
+	if mb := archiveMBInForce(); mb != defaultArchiveMB {
+		for _, ph := range archivePhrases {
+			pairs = append(pairs, ph.text, ph.say(mb))
+		}
+	}
+	if len(pairs) == 0 {
+		return nil
+	}
+	return &limitsRewriter{r: strings.NewReplacer(pairs...)}
+}
+
+func (h *limitsRewriter) apply(b []byte) []byte {
+	if h == nil {
+		return b
+	}
+	return []byte(h.r.Replace(string(b)))
+}
+
+// rewriteServedText applies both serve-time rewrites (hostnames, then limits)
+// to a text asset, with lr as this instance's limits rewriter
+// (AssetPipeline.limitsText).
+func rewriteServedText(b []byte, lr *limitsRewriter) []byte {
+	return lr.apply(InstanceHosts.Apply(b))
+}
+
+func limitCount(n int, unit string) string {
+	if n == 1 {
+		return "one " + unit
+	}
+	return strconv.Itoa(n) + " " + unit + "s"
+}
+
+func LimitSpan(d time.Duration) string {
+	n, unit := limitSpanUnit(d)
+	return limitCount(n, unit)
+}
+
+func limitSpanAdj(d time.Duration) string {
+	n, unit := limitSpanUnit(d)
+	if n == 1 {
+		return "one-" + unit
+	}
+	return strconv.Itoa(n) + "-" + unit
+}
+
+func limitSpanUnit(d time.Duration) (int, string) {
+	switch {
+	case d >= (24*time.Hour) && d%(24*time.Hour) == 0:
+		return int(d / (24 * time.Hour)), "day"
+	case d >= time.Hour && d%time.Hour == 0:
+		return int(d / time.Hour), "hour"
+	case d >= time.Minute && d%time.Minute == 0:
+		return int(d / time.Minute), "minute"
+	default:
+		return int(d / time.Second), "second"
+	}
+}

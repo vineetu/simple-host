@@ -1,9 +1,10 @@
 package hackhttp
 
 import (
-	"github.com/vsriram/simple-host/products/hack/webassets"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // TestHackConnectStepsJSON checks hack-connect-steps.json, the one source

@@ -14,9 +14,8 @@ import (
 )
 
 // HackFilmTypes are the Hack landing film's files (static/film/ in the
-// product's embed) and their types: H.264 MP4 first, and VP9 WebM for
-// browsers built without H.264. The type is set here rather than read from
-// the system's mime table, which a small container image may not have.
+// product's embed) and their types: H.264 MP4 first, and VP9 WebM for browsers
+// built without H.264.
 var HackFilmTypes = hackFilmTypes()
 
 func hackFilmTypes() map[string]string {
@@ -30,10 +29,7 @@ func hackFilmTypes() map[string]string {
 	}
 }
 
-// hackCompaniesFilmTypes are the /companies page's film files. A name with no
-// file answers 404 (the page's own poster and video tag degrade the same way
-// any other missing asset would, so the page never breaks for lack of the
-// film).
+// hackCompaniesFilmTypes are the /companies page's film files.
 func hackCompaniesFilmTypes() map[string]string {
 	return map[string]string{
 		"hack-companies-film-390.mp4":         "video/mp4",
@@ -62,11 +58,8 @@ var hackFilmETags = sync.OnceValue(func() map[string]string {
 })
 
 // RegisterHackFilm mounts Hack's film files at the addresses the platform's
-// /film/{file} route answered while they were in its embed: one exact route
-// per file, so the platform's route keeps every other film. The answer is the
-// same: the fixed type, a week of caching, the content ETag, and Range
-// support from http.ServeContent (iPhone Safari needs 206 before it plays or
-// seeks a video).
+// /film/{file} route answered while they were in its embed: one exact route per
+// file, so the platform's route keeps every other film.
 func RegisterHackFilm(mux *http.ServeMux) {
 	for name, ctype := range hackFilmTypes() {
 		mux.HandleFunc("GET /film/"+name, serveHackFilm(name, ctype))

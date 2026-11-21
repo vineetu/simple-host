@@ -20,15 +20,13 @@ func RegisterHackWatch(mux *http.ServeMux, pages hackPages) {
 	})))
 }
 
-// RegisterDemo is called only in hosted mode. Resolve the event on every
-// request so the weekly replacement (slug demo, then demo-YYYYWW once the name is
-// reserved) and regenerated codes take effect at once. Only the admin's events count.
+// RegisterDemo is called only in hosted mode.
 func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		slug = "demo"
 	}
-	h.demoSlug = slug
+	h.demoSlug, h.views.demoSlug = slug, slug
 	lookup := func(w http.ResponseWriter, r *http.Request, page bool) (model.Event, bool) {
 		w.Header().Set("Cache-Control", "no-store")
 		ev, err := h.events.DemoEvent(r.Context(), slug)
@@ -50,20 +48,20 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 	mux.HandleFunc("GET /v1/hack/demo", func(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := lookup(w, r, false); ok {
 			httpx.WriteJSON(w, http.StatusOK, map[string]string{
-				"event_url": h.EventURL(ev.Slug), "join_url": h.joinURL(ev.JoinCode),
-				"judge_url": h.judgeURL(ev.JudgeCode), "title": ev.Title,
+				"event_url": h.links.EventURL(ev.Slug), "join_url": h.links.joinURL(ev.JoinCode),
+				"judge_url": h.links.judgeURL(ev.JudgeCode), "title": ev.Title,
 			})
 		}
 	})
 	assets := h.assets
 	mux.Handle("GET /demo/join", assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := lookup(w, r, true); ok {
-			http.Redirect(w, r, h.joinURL(ev.JoinCode), http.StatusFound)
+			http.Redirect(w, r, h.links.joinURL(ev.JoinCode), http.StatusFound)
 		}
 	})))
 	mux.Handle("GET /demo/judge", assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ev, ok := lookup(w, r, true); ok {
-			http.Redirect(w, r, h.judgeURL(ev.JudgeCode), http.StatusFound)
+			http.Redirect(w, r, h.links.judgeURL(ev.JudgeCode), http.StatusFound)
 		}
 	})))
 }

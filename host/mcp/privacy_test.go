@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	accountapp "github.com/vsriram/simple-host/host/access"
 )
 
 const privacyUser = "1b4e28ba-2fa1-11d2-883f-0016d3cca427"
@@ -42,7 +44,7 @@ func privacyServer() (*Server, *recordingUpstream) {
 		return 200, string(raw)
 	}
 	s := newTestServer(up)
-	s.cfg.VisitorRefs = NewVisitorReferences([]byte("privacy test key"))
+	s.cfg.VisitorRefs = accountapp.NewVisitorReferences([]byte("privacy test key"))
 	return s, up
 }
 
@@ -145,7 +147,7 @@ func TestVisitorReferenceFromQueryResolves(t *testing.T) {
 }
 
 func TestVisitorReferencesAreScopedAndReversible(t *testing.T) {
-	refs := NewVisitorReferences([]byte("test key"))
+	refs := accountapp.NewVisitorReferences([]byte("test key"))
 	a, err := refs.Encode(privacySite, privacyUser)
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +231,7 @@ func TestGroupSQLParametersKeepVisitorReferences(t *testing.T) {
 		up.answers["POST /v1/sites/blog/storage/sqlite/orders/"+operation] = func() (int, string) { return 200, `{}` }
 		c := &call{server: s, orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "test", Mode: CallerModeEvents}}
 		c.policy = s.policy(name)
-		_, err := runStorageRoute(c, "POST", "/sqlite/{name}/"+operation, name, []string{"name"}, "sql", map[string]any{"site": "blog", "name": "orders", "sql": "SELECT ?", "params": []any{ref}})
+		_, err := runStorageRoute(c, storageRoute{name: name, method: "POST", suffix: "/sqlite/{name}/" + operation, args: []string{"name"}, body: "sql"}, map[string]any{"site": "blog", "name": "orders", "sql": "SELECT ?", "params": []any{ref}})
 		if err != nil {
 			t.Fatal(err)
 		}

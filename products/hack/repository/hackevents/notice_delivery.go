@@ -11,13 +11,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Notices: "notify people when something waits on them" (2026-11-02, audit
-// item 7, host/db/migrations/zw-hack-wait-notices.sql). One event_notices row per
-// person per thing that happened. The row is the in-app news line (seen_at)
-// and the email queue (email_state) at once. The live to-dos (a join request
-// waiting for a team's admins, an invite, an application waiting for the
-// organisers) are read from current state instead (ListLiveTodos), so they
-// vanish the moment they are answered; their rows exist only to be emailed.
+// Notices: "notify people when something waits on them" (2026-11-02, audit item 7, host/db/migrations/zw-hack-wait-notices.sql).
 const (
 	NoticeJoinRequest        = "join_request"
 	NoticeInvite             = "invite"
@@ -30,20 +24,15 @@ const (
 	TeamAdminNotice          = "team_admin"
 	NoticeTeamLocked         = "team_locked"
 	NoticeTeamRemoved        = "team_removed"
-	// 0003-hack-notices-judges-messages.sql: judging_open/judging_reminder go
-	// to every current judge member (not team-scoped); team_message goes to
-	// one team's current members.
+	// 0003-hack-notices-judges-messages.sql.
 	NoticeJudgingOpen     = "judging_open"
 	NoticeJudgingReminder = "judging_reminder"
 	NoticeTeamMessage     = "team_message"
-	// 0015-hack-team-to-organiser-messages.sql: a team member wrote to the
-	// organisers; goes to every organiser of the event.
+	// 0015-hack-team-to-organiser-messages.sql: a team member wrote to the organisers; goes to every organiser of the event.
 	NoticeTeamInbound = "team_inbound"
 )
 
-// noticeIsNews: shown in the app as a dismissable line until seen. The other
-// kinds are either live to-dos or, for team_removed, already shown by the
-// member's own team_removal_notice, so their rows are born seen.
+// noticeIsNews: shown in the app as a dismissable line until seen.
 func noticeIsNews(kind string) bool {
 	switch kind {
 	case NoticeRequestAnswered, NoticeApplicationDecided, NoticeSiteTakenDown, NoticeSiteRestored,
@@ -57,9 +46,7 @@ func noticeIsNews(kind string) bool {
 // noticeEmails: every kind but a team lock, which has nothing to act on.
 func noticeEmails(kind string) bool { return kind != NoticeTeamLocked }
 
-// NoticeTeamScoped kinds describe the person's current team. They are shown
-// and emailed only while the person is still on that team, so a line about a
-// team never reaches someone who has since moved to another one.
+// NoticeTeamScoped kinds describe the person's current team.
 func NoticeTeamScoped(kind string) bool {
 	switch kind {
 	case NoticeSiteTakenDown, NoticeSiteRestored, NoticeDeadlineChanged, TeamAdminNotice, NoticeTeamLocked,
@@ -69,18 +56,10 @@ func NoticeTeamScoped(kind string) bool {
 	return false
 }
 
-// emailableSQL is the one rule for who may be emailed, used both when a
-// notice is queued and again at send time: a sign-in name that is an email
-// address (key-only accounts have none and never get mail), not an event's
-// holding account, not suspended, and "Email me when something waits on me"
-// left on. u is users, p is a LEFT JOINed hack_account_preferences.
+// emailableSQL is the one rule for who may be emailed, used both when a notice is queued and again at send time.
 const emailableSQL = `(u.username LIKE '%@%' AND NOT u.event_account AND u.suspended_at IS NULL AND COALESCE(p.email_updates, true))`
 
-// NotifyUsers queues one notice of kind for each user. teamID, refID and
-// detail may be empty. A row is written only when it will show in the app or
-// can be emailed. An identical notice still waiting to be emailed is not
-// queued twice, so asking, withdrawing and asking again inside the email
-// window costs one line, not three.
+// NotifyUsers queues one notice of kind for each user.
 func NotifyUsers(ctx context.Context, q sqlkit.Querier, eventID, kind, teamID, refID, detail string, userIDs ...string) error {
 	_, err := NotifyUsersCount(ctx, q, eventID, kind, teamID, refID, detail, userIDs...)
 	return err
@@ -120,8 +99,7 @@ func NotifyTeamAdmins(ctx context.Context, q sqlkit.Querier, eventID, teamID, ki
 	return NotifyUsers(ctx, q, eventID, kind, teamID, refID, detail, ids...)
 }
 
-// TeamMemberIDs lists the team's members, leaving out except (the person who
-// made the change, who needs no notice of it).
+// TeamMemberIDs lists the team's members, leaving out except (the person who made the change, who needs no notice of it).
 func TeamMemberIDs(ctx context.Context, q sqlkit.Querier, eventID, teamID, except string) ([]string, error) {
 	return userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND team_id = $2 AND user_id::text <> $3`, eventID, teamID, except)
 }
@@ -144,15 +122,12 @@ func NotifyOrganisers(ctx context.Context, q sqlkit.Querier, eventID, kind, refI
 	return NotifyUsers(ctx, q, eventID, kind, "", refID, "", ids...)
 }
 
-// ListJudgeMemberIDs lists the event's current judge members (role='judge';
-// an organiser who also judges is not included, matching the contract's
-// "every member with role judge").
+// ListJudgeMemberIDs lists the event's current judge members.
 func ListJudgeMemberIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
 	return userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND role = 'judge'`, eventID)
 }
 
 // NotifyJudgingOpen keeps one undismissed opening notice when judging reopens.
-// The stage transaction holds the event lock while checking and creating it.
 func NotifyJudgingOpen(ctx context.Context, q sqlkit.Querier, eventID string) error {
 	kind := NoticeJudgingOpen
 	ids, err := userIDs(ctx, q, `SELECT m.user_id FROM event_members m
@@ -166,9 +141,7 @@ func NotifyJudgingOpen(ctx context.Context, q sqlkit.Querier, eventID string) er
 	return NotifyUsers(ctx, q, eventID, kind, "", "", "", ids...)
 }
 
-// NoticeIsJudge reports whether the person is currently a judge member of
-// the event (judging_open/judging_reminder's staleness check: "the person is
-// no longer a judge").
+// NoticeIsJudge reports whether the person is currently a judge member of the event.
 func NoticeIsJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (bool, error) {
 	var ok bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'judge')`,
@@ -176,10 +149,7 @@ func NoticeIsJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string
 	return ok, err
 }
 
-// SupersedeTeamNotices marks earlier notices of these kinds about the team
-// seen, and drops their unsent emails: a restored site replaces the
-// take-down line, a second deadline change replaces the first, an unlock
-// clears "locked". userID narrows it to one person ("" = everyone).
+// SupersedeTeamNotices marks earlier notices of these kinds about the team seen, and drops their unsent emails.
 func SupersedeTeamNotices(ctx context.Context, q sqlkit.Querier, teamID, userID string, kinds ...string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_notices
@@ -191,12 +161,7 @@ func SupersedeTeamNotices(ctx context.Context, q sqlkit.Querier, teamID, userID 
 	return err
 }
 
-// TeamMembersWhoKnew lists the team's members (but except) who could have
-// learned of an earlier change of these kinds: everyone except a person whose
-// notice of it is still unseen and was never emailed. Its reversal (a site
-// put back, an extension taken away) only means something to them. A member
-// with no earlier notice at all, from before notices existed, counts as
-// knowing.
+// TeamMembersWhoKnew lists the team's members.
 func TeamMembersWhoKnew(ctx context.Context, q sqlkit.Querier, eventID, teamID, except string, kinds ...string) ([]string, error) {
 	return userIDs(ctx, q, `
 		SELECT m.user_id FROM event_members m
@@ -227,9 +192,7 @@ func userIDs(ctx context.Context, q sqlkit.Querier, query string, args ...any) (
 // Notice is one event_notices row, with what a line about it needs.
 type Notice = model.Notice
 
-// ListNews is the person's unseen news lines in one event, newest first: at
-// most 20, none older than 14 days, team-scoped lines only about their
-// current team, nothing once they have left the event.
+// ListNews is the person's unseen news lines in one event, newest first.
 func ListNews(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]Notice, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT n.id, n.event_id, n.user_id, n.kind, COALESCE(n.team_id::text,''), COALESCE(n.ref_id::text,''), n.detail, n.created_at
@@ -255,10 +218,7 @@ func ListNews(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]
 	return out, rows.Err()
 }
 
-// MarkNewsSeen marks the person's own news in one event seen: ids, or every
-// line when ids is empty. Returns how many changed. A pending email of a
-// line read in the app is still sent: seeing it once is not a reason to drop
-// the copy the person asked for.
+// MarkNewsSeen marks the person's own news in one event seen: ids, or every line when ids is empty.
 func MarkNewsSeen(ctx context.Context, q sqlkit.Querier, eventID, userID string, ids []string) (int64, error) {
 	res, err := q.ExecContext(ctx, `
 		UPDATE event_notices SET seen_at = now()
@@ -276,8 +236,7 @@ type PendingJoinRequest = model.PendingJoinRequest
 // PendingInvite is one team waiting on an invited person.
 type PendingInvite = model.PendingInvite
 
-// ListPendingJoinRequests lists the requests waiting on the team's admins,
-// oldest first.
+// ListPendingJoinRequests lists the requests waiting on the team's admins, oldest first.
 func ListPendingJoinRequests(ctx context.Context, q sqlkit.Querier, teamID string) ([]PendingJoinRequest, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT r.id, COALESCE(u.display_name,'') FROM event_team_requests r
@@ -318,16 +277,14 @@ func ListPendingInvites(ctx context.Context, q sqlkit.Querier, eventID, userID s
 	return out, rows.Err()
 }
 
-// CountWaitingApplications counts every participant waiting for an
-// organiser's decision, by application or by a join link that needs approval.
+// CountWaitingApplications counts every participant waiting for an organiser's decision, by application or by a join link that needs approval.
 func CountWaitingApplications(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `SELECT count(*) FROM event_members WHERE event_id = $1 AND role = 'participant' AND approval_status = 'pending'`, eventID).Scan(&n)
 	return n, err
 }
 
-// EmailUpdates reads the person's "Email me when something waits on me"
-// setting (on by default) and whether their account has an address at all.
+// EmailUpdates reads the person's "Email me when something waits on me" setting (on by default) and whether their account has an address at all.
 func EmailUpdates(ctx context.Context, q sqlkit.Querier, userID string) (on, possible bool, err error) {
 	err = q.QueryRowContext(ctx, `
 		SELECT COALESCE(p.email_updates, true), u.username LIKE '%@%' AND NOT u.event_account
@@ -335,18 +292,13 @@ func EmailUpdates(ctx context.Context, q sqlkit.Querier, userID string) (on, pos
 	return on, possible, err
 }
 
-// MailBatch is one person's pending notices of one kind, locked until the
-// caller commits.
+// MailBatch is one person's pending notices of one kind, locked until the caller commits.
 type MailBatch = model.MailBatch
 
 // MailNotice is a pending notice with its event, for the email text.
 type MailNotice = model.MailNotice
 
-// NextMailBatch picks the oldest person and kind with a notice that waited
-// at least delay and no email of that kind in the last window, takes an
-// advisory lock on that person and kind (so two sweepers can never both send
-// inside one window), re-checks the window under it, and locks every pending
-// notice of theirs of that kind. sql.ErrNoRows when nothing is due.
+// NextMailBatch picks the oldest person and kind with a notice that waited at least delay and no email of that kind in the last window, takes an advisory lock on that person and kind.
 func NextMailBatch(ctx context.Context, tx *sql.Tx, delay, window time.Duration) (MailBatch, error) {
 	var b MailBatch
 	secs := func(d time.Duration) float64 { return d.Seconds() }
@@ -369,8 +321,7 @@ func NextMailBatch(ctx context.Context, tx *sql.Tx, delay, window time.Duration)
 		return b, err
 	}
 	if recent {
-		// Another sweeper sent this kind while we waited for the lock. Leave
-		// the rows pending for the next window.
+		// Another sweeper sent this kind while we waited for the lock.
 		return b, errMailBatchRaced
 	}
 	var recipient string
@@ -410,8 +361,7 @@ var errMailBatchRaced = errors.New("notice mail: another sweeper sent this kind"
 // IsMailBatchRaced reports NextMailBatch's lost race (nothing to do this time).
 func IsMailBatchRaced(err error) bool { return errors.Is(err, errMailBatchRaced) }
 
-// FinishMailNotices sets the email state of these notices: sent (with
-// emailed_at, which starts the person's window for this kind) or skipped.
+// FinishMailNotices sets the email state of these notices: sent (with emailed_at, which starts the person's window for this kind) or skipped.
 func FinishMailNotices(ctx context.Context, tx *sql.Tx, ids []string, state string) error {
 	if len(ids) == 0 {
 		return nil
@@ -430,8 +380,7 @@ func DeferMailNotices(ctx context.Context, tx *sql.Tx, ids []string) error {
 	return err
 }
 
-// PruneNotices deletes notices older than 30 days, seen or not, and any
-// whose event is gone (event_notices has no foreign key to events).
+// PruneNotices deletes notices older than 30 days, seen or not, and any whose event is gone (event_notices has no foreign key to events).
 func PruneNotices(ctx context.Context, q sqlkit.Querier) error {
 	_, err := PruneNoticesCount(ctx, q)
 	return err

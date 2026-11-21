@@ -7,15 +7,7 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// UpdateEventEntryRules writes the organiser's entry rules: the preset name,
-// the expanded+validated rules JSON (never the client's raw JSON -- the
-// handler normalises it first) and which evidence judges see first. It also
-// writes entry_required for the deprecated alias, kept in sync with the
-// rules' required fields among hackEntryFields for one release. Every real
-// call here is an organiser explicitly saving rules (PutRules's non-dry-run
-// path, or the deprecated entry_required alias), so it also sets
-// entry_rules_chosen true for good (0005-hack-entry-rules-chosen.sql,
-// SIM-382) -- even a save that keeps the default preset counts as a choice.
+// UpdateEventEntryRules writes the organiser's entry rules.
 
 func UpdateEventEntryRules(ctx context.Context, q sqlkit.Querier, eventID, preset string, rulesJSON []byte, judgeFirst string, legacyRequired []string) (Event, error) {
 	if legacyRequired == nil {
@@ -45,9 +37,6 @@ func UpdateJudgingSettings(ctx context.Context, q sqlkit.Querier, eventID string
 }
 
 // SetJudgingLock sets or clears judging_locked_at/judging_lock_reason.
-// locked=false clears both regardless of reason; locked=true sets
-// judging_locked_at to now() only if it was not already set (idempotent),
-// leaving the stored reason from the last unlock in place until the next one.
 func SetJudgingLock(ctx context.Context, q sqlkit.Querier, eventID string, locked bool, reason string) (Event, error) {
 	if locked {
 		return ScanEvent(q.QueryRowContext(ctx, `

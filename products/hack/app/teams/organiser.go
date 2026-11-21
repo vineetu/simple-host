@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
 	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
 	"github.com/vsriram/simple-host/host/sqlkit"
@@ -11,6 +12,7 @@ import (
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
+	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
 
 func isUnique(err error) bool { return hackevents.UniqueError(err) }
@@ -34,8 +36,15 @@ func rotateTeamCode(ctx context.Context, q sqlkit.Querier, teamID string) error 
 	return errors.New("could not find a free team code")
 }
 
-// RemovePerson removes a member and rotates the remaining team's code atomically.
-func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) error {
+// RemovePerson removes someone from the event (never an organiser) and
+// rotates their remaining team's code, atomically.
+func (s *Service) RemovePerson(ctx context.Context, ev model.Event, userID string) error {
+	if err := organiserStage(ev.Stage, msgEnded); err != nil {
+		return err
+	}
+	if !isID(userID) {
+		return errEventNotFound()
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
@@ -45,41 +54,64 @@ func (s *Service) RemovePerson(ctx context.Context, eventID, userID string) erro
 	// member then inserts a former-judge row, whose foreign key takes an event
 	// key-share lock. Self-leave can hold the event update lock while waiting
 	// for that member, causing a deadlock unless this locks the event first.
-	if _, err = eventrepo.GetEventForShare(ctx, tx, eventID); err != nil {
+	if _, err = eventrepo.GetEventForShare(ctx, tx, ev.ID); err != nil {
 		return internalError(err)
 	}
-	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	if err = eventrepo.RemovePersonFromEvent(ctx, tx, eventID, userID, eventLeaveOperations()); err != nil {
+	oldTeam := memberTeamID(ctx, tx, ev.ID, userID)
+	err = eventrepo.RemovePersonFromEvent(ctx, tx, ev.ID, userID, eventLeaveOperations())
+	if errors.Is(err, ErrCannotRemoveOrganiser) {
+		return &Error{Code: "cannot_remove_organiser", Message: "an organiser cannot be removed from the event"}
+	}
+	if err != nil {
 		return err
 	}
-	if oldTeam != "" {
-		// Empty teams are already deleted; rotate only a remaining team.
-		var still bool
-		if err = teamrepo.TeamRowExists(ctx, tx, oldTeam).Scan(&still); err == nil && still {
-			err = rotateTeamCode(ctx, tx, oldTeam)
-		}
-		if err != nil {
-			return internalError(err)
-		}
-	}
-	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
+	if err = rotateIfKept(ctx, tx, oldTeam); err != nil {
 		return internalError(err)
 	}
-	if err = tx.Commit(); err != nil {
-		return internalError(err)
-	}
-	return nil
+	return syncAndCommit(ctx, tx, ev.ID)
 }
 
-// MoveMember moves a participant and rotates the old team's code atomically.
-func (s *Service) MoveMember(ctx context.Context, eventID, userID, slug string, max int) (model.EventTeam, error) {
+// rotateIfKept rotates the code of a team someone left, unless leaving
+// deleted it.
+func rotateIfKept(ctx context.Context, tx *sql.Tx, teamID string) error {
+	if teamID == "" {
+		return nil
+	}
+	var still bool
+	if err := teamrepo.TeamRowExists(ctx, tx, teamID).Scan(&still); err != nil || !still {
+		return err
+	}
+	return rotateTeamCode(ctx, tx, teamID)
+}
+
+// syncAndCommit syncs the event's site access and commits.
+func syncAndCommit(ctx context.Context, tx *sql.Tx, eventID string) error {
+	if err := eventapp.SyncAccess(ctx, tx, eventID); err != nil {
+		return internalError(err)
+	}
+	return commit(tx)
+}
+
+// MoveMember puts a participant on the team rawSlug names and rotates
+// their old team's code, atomically. Someone who is no approved
+// participant is event_not_found.
+func (s *Service) MoveMember(ctx context.Context, ev model.Event, userID, rawSlug string) (model.EventTeam, error) {
+	if err := organiserStage(ev.Stage, msgArchived); err != nil {
+		return model.EventTeam{}, err
+	}
+	if !isID(userID) {
+		return model.EventTeam{}, errEventNotFound()
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
-	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, eventID, userID, slug, max, teamrepo.EnsureTeamAdmin)
+	oldTeam := memberTeamID(ctx, tx, ev.ID, userID)
+	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, userID, normSlug(rawSlug), ev.TeamSizeMax, teamrepo.EnsureTeamAdmin)
+	if errors.Is(err, ErrNotParticipant) {
+		return team, errEventNotFound()
+	}
 	if err != nil {
 		return team, err
 	}
@@ -88,72 +120,114 @@ func (s *Service) MoveMember(ctx context.Context, eventID, userID, slug string, 
 			return team, internalError(err)
 		}
 	}
-	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
-		return team, internalError(err)
-	}
-	if err = tx.Commit(); err != nil {
-		return team, internalError(err)
-	}
-	return team, nil
+	return team, syncAndCommit(ctx, tx, ev.ID)
 }
 
-// RemoveTeamMember removes a member, sends the notice and rotates the team code.
-func (s *Service) RemoveTeamMember(ctx context.Context, eventID, actorID, userID, slug, teamName string, participant bool) error {
+// RemoveTeamMember takes userID off a team: an organiser off any team the
+// path names, a participant only off their own, as its admin, before its
+// deadline. It sends the notice and rotates the team code.
+func (s *Service) RemoveTeamMember(ctx context.Context, ev model.Event, caller model.EventMember, actorID, userID, rawSlug string) error {
+	if err := organiserStage(ev.Stage, msgArchived); err != nil {
+		return err
+	}
+	if !isID(userID) {
+		return errEventNotFound()
+	}
+	participant := caller.Role == "participant"
+	slug, teamName, err := s.removalTeam(ctx, ev, caller, actorID, userID, normSlug(rawSlug))
+	if err != nil {
+		return err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
 	}
 	defer tx.Rollback()
 	if participant {
-		// Removal no longer requires team finding. Recheck admin authority under
-		// locks: both member rows sorted by user ID, then the team row.
-		if _, err = teamrepo.LockRemovalMembers(ctx, tx, eventID, actorID, userID); err != nil {
-			return internalError(err)
-		}
-		var teamID string
-		var admin bool
-		if err = teamrepo.ReadRemovalActor(ctx, tx, eventID, actorID).Scan(&teamID, &admin); err != nil {
-			return sql.ErrNoRows
-		}
-		if !admin {
-			return teamrepo.ErrHackTeamAdminOnly
-		}
-		var gotSlug string
-		if err = teamrepo.LockTeamSlug(ctx, tx, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
-			return sql.ErrNoRows
-		}
-		st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
-		if err != nil {
-			return internalError(err)
-		}
-		if st.Frozen() {
-			return teamrepo.ErrHackTeamFrozen
+		if err = checkRemover(ctx, tx, ev.ID, actorID, userID, slug); err != nil {
+			return err
 		}
 	}
-	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	if err = teamrepo.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID, teamrepo.EnsureTeamAdmin); err != nil {
+	if err = takeOffTeam(ctx, tx, ev.ID, userID, slug, teamName, participant); err != nil {
 		return err
 	}
-	if participant {
-		_, err = teamrepo.SetMemberRemovalNotice(ctx, tx, eventID, userID, "A teammate took you off "+teamName+".")
+	return syncAndCommit(ctx, tx, ev.ID)
+}
+
+// removalTeam is the team slug a removal acts on, with its name for the
+// notice: as given for an organiser; for a participant their own team,
+// which a slug in the path must match.
+func (s *Service) removalTeam(ctx context.Context, ev model.Event, caller model.EventMember, actorID, userID, slug string) (string, string, error) {
+	if caller.Role != "participant" {
+		return slug, "", nil
 	}
-	if err == nil {
-		// Email uses the same words as the removal notice.
-		var notice string
-		if err = teamrepo.ReadMemberRemovalNotice(ctx, tx, eventID, userID).Scan(&notice); err == nil && notice != "" {
-			err = eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeTeamRemoved, oldTeam, "", notice, userID)
-		}
+	if !hackteams.ParticipantTeamStages(ev.Stage) || !caller.TeamID.Valid || userID == actorID {
+		return "", "", ErrFindingForbidden
 	}
-	if err == nil && oldTeam != "" {
-		err = rotateTeamCode(ctx, tx, oldTeam)
+	team, err := teamrepo.GetEventTeamByID(ctx, s.db, caller.TeamID.String)
+	if err != nil {
+		return "", "", internalError(err)
 	}
+	if slug != "" && slug != team.Slug {
+		return "", "", errEventNotFound()
+	}
+	return team.Slug, team.Name, nil
+}
+
+// checkRemover rechecks a participant remover's authority under locks:
+// both member rows sorted by user id, then the team row. Removal no
+// longer requires team finding.
+func checkRemover(ctx context.Context, tx *sql.Tx, eventID, actorID, userID, slug string) error {
+	if _, err := teamrepo.LockRemovalMembers(ctx, tx, eventID, actorID, userID); err != nil {
+		return internalError(err)
+	}
+	var teamID, gotSlug string
+	var admin bool
+	if err := teamrepo.ReadRemovalActor(ctx, tx, eventID, actorID).Scan(&teamID, &admin); err != nil {
+		return sql.ErrNoRows
+	}
+	if !admin {
+		return teamrepo.ErrHackTeamAdminOnly
+	}
+	if err := teamrepo.LockTeamSlug(ctx, tx, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
+		return sql.ErrNoRows
+	}
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
 	if err != nil {
 		return internalError(err)
 	}
-	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
+	if st.Frozen() {
+		return teamrepo.ErrHackTeamFrozen
+	}
+	return nil
+}
+
+// takeOffTeam removes userID from the team, queues the removal notice and
+// its email, and rotates the team's code.
+func takeOffTeam(ctx context.Context, tx *sql.Tx, eventID, userID, slug, teamName string, participant bool) error {
+	oldTeam := memberTeamID(ctx, tx, eventID, userID)
+	if err := teamrepo.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID, teamrepo.EnsureTeamAdmin); err != nil {
+		return err
+	}
+	if participant {
+		if _, err := teamrepo.SetMemberRemovalNotice(ctx, tx, eventID, userID, "A teammate took you off "+teamName+"."); err != nil {
+			return internalError(err)
+		}
+	}
+	// Email uses the same words as the removal notice.
+	var notice string
+	if err := teamrepo.ReadMemberRemovalNotice(ctx, tx, eventID, userID).Scan(&notice); err != nil {
 		return internalError(err)
 	}
-	if err = tx.Commit(); err != nil {
+	if notice != "" {
+		if err := eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeTeamRemoved, oldTeam, "", notice, userID); err != nil {
+			return internalError(err)
+		}
+	}
+	if oldTeam == "" {
+		return nil
+	}
+	if err := rotateTeamCode(ctx, tx, oldTeam); err != nil {
 		return internalError(err)
 	}
 	return nil

@@ -3,6 +3,7 @@ package mcp
 // Account family: identity and showcase profile.
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -40,81 +41,7 @@ func accountTools() []Tool {
 			Description: "Return the Simple Host account this connection acts as: its handle (the <handle> in its page https://<handle>.simple-host.app/ and its site addresses https://<site>.<handle>.simple-host.app/) and its public page listing its sites. Email is returned only when include_email is true.",
 			InputSchema: object(map[string]any{"include_email": map[string]any{"type": "boolean", "description": "Set true only when the person asks which email they are signed in with."}}),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				var me struct {
-					Username           string              `json:"username"`
-					Handle             string              `json:"handle"`
-					HomeSite           *string             `json:"home_site"`
-					FileUsage          map[string]any      `json:"file_usage"`
-					CanSetKeepVersions bool                `json:"can_set_keep_versions"`
-					KeepVersions       int                 `json:"keep_versions"`
-					PublicPage         string              `json:"public_page"`
-					Teams              []map[string]string `json:"teams"`
-					TeamInvitations    []map[string]any    `json:"team_invitations"`
-					Address            *struct {
-						State        string `json:"state"`
-						Address      string `json:"address"`
-						ReadyInHours *int   `json:"ready_in_hours"`
-						Note         string `json:"note"`
-					} `json:"address"`
-				}
-				if err := c.doJSON("who_am_i", http.MethodGet, "/v1/me", nil, &me); err != nil {
-					return output{}, err
-				}
-				out := map[string]any{"email": "", "home_site": me.HomeSite}
-				out["can_set_keep_versions"], out["keep_versions"] = me.CanSetKeepVersions, me.KeepVersions
-				if me.FileUsage != nil {
-					out["file_usage"] = me.FileUsage
-				}
-				text := "Signed in to Simple Host."
-				if include, _ := args["include_email"].(bool); include {
-					out["email"] = me.Username
-					text = "Signed in to Simple Host as " + me.Username + "."
-				}
-				if me.FileUsage != nil {
-					text += " " + fmt.Sprint(me.FileUsage["message"]) + "."
-				}
-				if me.Handle != "" {
-					page := me.PublicPage
-					if page == "" {
-						page = c.server.cfg.ContentOrigin + "/" + me.Handle
-					}
-					out["handle"], out["public_page"] = me.Handle, page
-					text += " Handle: " + me.Handle + ". Public page: " + page
-				}
-				if len(me.Teams) > 0 {
-					teams := make([]any, 0, len(me.Teams))
-					handles := make([]string, 0, len(me.Teams))
-					for _, t := range me.Teams {
-						teams = append(teams, map[string]any{"id": t["id"], "handle": t["handle"]})
-						handles = append(handles, t["handle"])
-					}
-					out["teams"] = teams
-					text += " Teams: " + strings.Join(handles, ", ") + " (pass owner=<team> on site tools to work on a team's sites)."
-				}
-				if len(me.TeamInvitations) > 0 {
-					invitations := make([]any, 0, len(me.TeamInvitations))
-					teams := make([]string, 0, len(me.TeamInvitations))
-					for _, v := range me.TeamInvitations {
-						invitations = append(invitations, v)
-						teams = append(teams, fmt.Sprint(v["team"]))
-					}
-					out["team_invitations"] = invitations
-					text += " Invitations to join: " + strings.Join(teams, ", ") + " (ask the person, then answer_team_invitation)."
-				}
-				if a := me.Address; a != nil && a.State != "" {
-					addr := map[string]any{"state": a.State, "address": a.Address}
-					if a.ReadyInHours != nil {
-						addr["ready_in_hours"] = *a.ReadyInHours
-					}
-					if a.Note != "" {
-						addr["note"] = a.Note
-						text += " " + a.Note
-					}
-					out["address"] = addr
-				}
-				return output{Text: text, Structured: out}, nil
-			},
+			run:         runWhoAmI,
 		},
 		{
 			policy:       toolPolicy{groupSiteExcluded: true},
@@ -125,18 +52,7 @@ func accountTools() []Tool {
 			InputSchema: object(map[string]any{"bio": str("Plain text, or empty to clear the bio.")}, "bio"),
 			// Overwrites the earlier bio with no copy kept: hard to reverse.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				bio, ok := args["bio"].(string)
-				if !ok {
-					return output{}, fmt.Errorf("bio must be a string")
-				}
-				body, _ := json.Marshal(map[string]any{"bio": bio})
-				var result map[string]any
-				if err := c.doJSON("set_bio", http.MethodPut, "/v1/me/bio", body, &result); err != nil {
-					return output{}, err
-				}
-				return output{Text: "Showcase bio updated.", Structured: result}, nil
-			},
+			run:         runSetBio,
 		},
 		{
 			policy:       toolPolicy{groupSiteExcluded: true},
@@ -145,28 +61,136 @@ func accountTools() []Tool {
 			Description: "Pin a site to the top of the person's public page (the showcase of their sites), or set its position. Pinned sites come first, then smaller order numbers. Sites with List on my profile off, offline sites, and passcode-protected sites never appear there, pinned or not. Supply pinned, order, or both.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "pinned": map[string]any{"type": "boolean", "description": "true pins the site to the top of the showcase; false unpins it."}, "order": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000, "description": "Manual position among the pinned or unpinned sites: smaller numbers come first."}}, "site"),
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				payload := map[string]any{}
-				if v, ok := args["pinned"]; ok {
-					payload["pinned"] = v
-				}
-				if v, ok := args["order"]; ok {
-					payload["order"] = v
-				}
-				if len(payload) == 0 {
-					return output{}, fmt.Errorf("supply pinned and/or order")
-				}
-				body, _ := json.Marshal(payload)
-				var result map[string]any
-				if err := c.doJSON("set_showcase_site", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/showcase", body, &result); err != nil {
-					return output{}, err
-				}
-				return output{Text: "Showcase pin and order updated.", Structured: result}, nil
-			},
+			run:         runSetShowcaseSite,
 		},
 	}
+}
+
+// restMe is GET /v1/me.
+type restMe struct {
+	Username           string              `json:"username"`
+	Handle             string              `json:"handle"`
+	HomeSite           *string             `json:"home_site"`
+	FileUsage          map[string]any      `json:"file_usage"`
+	CanSetKeepVersions bool                `json:"can_set_keep_versions"`
+	KeepVersions       int                 `json:"keep_versions"`
+	PublicPage         string              `json:"public_page"`
+	Teams              []map[string]string `json:"teams"`
+	TeamInvitations    []map[string]any    `json:"team_invitations"`
+	Address            *struct {
+		State        string `json:"state"`
+		Address      string `json:"address"`
+		ReadyInHours *int   `json:"ready_in_hours"`
+		Note         string `json:"note"`
+	} `json:"address"`
+}
+
+func runWhoAmI(c *call, args map[string]any) (output, error) {
+	var me restMe
+	if err := c.doJSON("who_am_i", http.MethodGet, "/v1/me", nil, &me); err != nil {
+		return output{}, err
+	}
+	include, err := boolArg(args, "include_email", false)
+	if err != nil {
+		return output{}, err
+	}
+	out := map[string]any{"email": "", "home_site": me.HomeSite, "can_set_keep_versions": me.CanSetKeepVersions, "keep_versions": me.KeepVersions}
+	text := "Signed in to Simple Host."
+	if include {
+		out["email"] = me.Username
+		text = "Signed in to Simple Host as " + me.Username + "."
+	}
+	if me.FileUsage != nil {
+		out["file_usage"] = me.FileUsage
+		text += " " + fmt.Sprint(me.FileUsage["message"]) + "."
+	}
+	text += me.handleText(out, c.server.cfg.ContentOrigin) + me.teamsText(out) + me.addressText(out)
+	return output{Text: text, Structured: out}, nil
+}
+
+func (me restMe) handleText(out map[string]any, contentOrigin string) string {
+	if me.Handle == "" {
+		return ""
+	}
+	page := cmp.Or(me.PublicPage, contentOrigin+"/"+me.Handle)
+	out["handle"], out["public_page"] = me.Handle, page
+	return " Handle: " + me.Handle + ". Public page: " + page
+}
+
+func (me restMe) teamsText(out map[string]any) string {
+	text := ""
+	if len(me.Teams) > 0 {
+		teams := make([]any, 0, len(me.Teams))
+		handles := make([]string, 0, len(me.Teams))
+		for _, t := range me.Teams {
+			teams = append(teams, map[string]any{"id": t["id"], "handle": t["handle"]})
+			handles = append(handles, t["handle"])
+		}
+		out["teams"] = teams
+		text += " Teams: " + strings.Join(handles, ", ") + " (pass owner=<team> on site tools to work on a team's sites)."
+	}
+	if len(me.TeamInvitations) > 0 {
+		invitations := make([]any, 0, len(me.TeamInvitations))
+		teams := make([]string, 0, len(me.TeamInvitations))
+		for _, v := range me.TeamInvitations {
+			invitations = append(invitations, v)
+			teams = append(teams, fmt.Sprint(v["team"]))
+		}
+		out["team_invitations"] = invitations
+		text += " Invitations to join: " + strings.Join(teams, ", ") + " (ask the person, then answer_team_invitation)."
+	}
+	return text
+}
+
+func (me restMe) addressText(out map[string]any) string {
+	a := me.Address
+	if a == nil || a.State == "" {
+		return ""
+	}
+	addr := map[string]any{"state": a.State, "address": a.Address}
+	if a.ReadyInHours != nil {
+		addr["ready_in_hours"] = *a.ReadyInHours
+	}
+	out["address"] = addr
+	if a.Note == "" {
+		return ""
+	}
+	addr["note"] = a.Note
+	return " " + a.Note
+}
+
+func runSetBio(c *call, args map[string]any) (output, error) {
+	bio, ok := args["bio"].(string)
+	if !ok {
+		return output{}, fmt.Errorf("bio must be a string")
+	}
+	body, _ := json.Marshal(map[string]any{"bio": bio})
+	var result map[string]any
+	if err := c.doJSON("set_bio", http.MethodPut, "/v1/me/bio", body, &result); err != nil {
+		return output{}, err
+	}
+	return output{Text: "Showcase bio updated.", Structured: result}, nil
+}
+
+func runSetShowcaseSite(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	payload := map[string]any{}
+	if v, ok := args["pinned"]; ok {
+		payload["pinned"] = v
+	}
+	if v, ok := args["order"]; ok {
+		payload["order"] = v
+	}
+	if len(payload) == 0 {
+		return output{}, fmt.Errorf("supply pinned and/or order")
+	}
+	body, _ := json.Marshal(payload)
+	var result map[string]any
+	if err := c.doJSON("set_showcase_site", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/showcase", body, &result); err != nil {
+		return output{}, err
+	}
+	return output{Text: "Showcase pin and order updated.", Structured: result}, nil
 }

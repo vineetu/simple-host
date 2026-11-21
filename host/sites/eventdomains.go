@@ -53,63 +53,9 @@ func (s *Service) EventNameClaimed(ctx context.Context, in EventNameInput) (bool
 
 // ClaimEventDomain claims a row, replaces DNS records and compensates failures in order.
 func (s *Service) ClaimEventDomain(ctx context.Context, req EventClaimInput) (EventDomainResult, error) {
-	// A static reserved list cannot know what the zone already serves. Live
-	// products answered by the wildcard have no explicit record of their own, so
-	// without this check anyone could claim one of those exact names, override
-	// the wildcard, obtain a certificate and serve content under it.
-	taken, terr := s.deps.EventDNS.TakenNames(ctx, req.Domain)
-	if terr != nil {
-		log.Printf("event claim: listing %s: %v", req.Domain, terr)
-		return EventDomainResult{}, &EventDomainError{Code: "gateway", Message: "could not check the domain; try again", WireCode: ""}
+	if err := s.checkEventNameFree(ctx, req); err != nil {
+		return EventDomainResult{}, err
 	}
-	// The instance knows its own names authoritatively, and they are the ones a
-	// probe is least likely to catch: a handle or a site name may answer no
-	// differently from an unknown host today, yet claiming it would still take
-	// an explicit record over a name this service is responsible for.
-	ours, err := reposite.EventNameLocal(ctx, s.database, req.Name)
-	if err != nil {
-		return EventDomainResult{}, &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
-	}
-	if ours {
-		return EventDomainResult{}, &EventDomainError{Code: "conflict", Message: "that name belongs to an account or a site on this instance", WireCode: ""}
-	}
-
-	// The hackathon platform hands out names under the same zone from its
-	// own database; it is asked, and a failure to answer refuses the name.
-	if s.deps.EventNamePeer != nil {
-		held, perr := s.deps.EventNamePeer(ctx, req.Domain, req.Name)
-		if perr != nil {
-			log.Printf("event claim: name peer %s.%s: %v", req.Name, req.Domain, perr)
-			return EventDomainResult{}, &EventDomainError{Code: "unavailable", Message: "could not check that name; try again", WireCode: "name_check_unavailable"}
-		}
-		if held {
-			return EventDomainResult{}, &EventDomainError{Code: "conflict", Message: "that name is an event on " + req.Domain, WireCode: "name_taken"}
-		}
-	}
-
-	// Listing the zone only sees explicit records. A live product served through
-	// the wildcard by name has none, so it would look free and claiming it would
-	// take a running product off the internet. Ask the internet as well.
-	if !taken[req.Name] && !taken["sites."+req.Name] {
-		if inUse, perr := s.deps.EventProbe.InUse(ctx, req.Domain, req.Name); perr != nil || inUse {
-			mine, _ := reposite.EventNameOwned(ctx, s.database, req.Name, req.Domain, req.UserID)
-			if !mine {
-				if perr != nil {
-					log.Printf("event claim: probe %s.%s: %v", req.Name, req.Domain, perr)
-					return EventDomainResult{}, &EventDomainError{Code: "gateway", Message: "could not check that name; try again", WireCode: ""}
-				}
-				return EventDomainResult{}, &EventDomainError{Code: "conflict", Message: "that name is already serving something on this domain", WireCode: ""}
-			}
-		}
-	}
-	if taken[req.Name] || taken["sites."+req.Name] {
-		// Unless it is already ours: re-claiming to extend must still work.
-		mine, _ := reposite.EventNameOwned(ctx, s.database, req.Name, req.Domain, req.UserID)
-		if !mine {
-			return EventDomainResult{}, &EventDomainError{Code: "conflict", Message: "that name is already in use on this domain", WireCode: ""}
-		}
-	}
-
 	// Refuse to move a live event unless the caller says that is the intent.
 	currentIP, _ := reposite.EventCurrentIP(ctx, s.database, req.Name, req.Domain, req.UserID)
 	if currentIP != "" && currentIP != req.IP && !req.Move {
@@ -117,7 +63,6 @@ func (s *Service) ClaimEventDomain(ctx context.Context, req EventClaimInput) (Ev
 			"%s.%s already points at %s. Re-claiming with a different address moves a running event, and anyone using it would silently reach the new machine. Send \"move\": true if that is what you want.",
 			req.Name, req.Domain, currentIP), WireCode: ""}
 	}
-
 	// Cap concurrent holdings, counting only names this account does not
 	// already hold, so re-claiming to extend an existing event never trips it.
 	if held, err := reposite.EventHoldingCount(ctx, s.database, req.UserID, req.Name, req.Domain); err == nil && held >= s.deps.EventMaxClaims {
@@ -144,24 +89,11 @@ func (s *Service) ClaimEventDomain(ctx context.Context, req EventClaimInput) (Ev
 			log.Printf("event claim: stale record %s: %v", id, err)
 		}
 	}
-
-	host := req.Name + "." + req.Domain
-	content := "sites." + req.Name + "." + req.Domain
 	var ids []string
 	for _, label := range []string{req.Name, "sites." + req.Name} {
 		id, err := s.deps.EventDNS.CreateA(ctx, req.Domain, label, req.IP, recordTTL)
 		if err != nil {
-			// Roll back what we made, so a half-created claim never leaves a
-			// record behind that nothing will clean up.
-			for _, made := range ids {
-				_ = s.deps.EventDNS.DeleteRecord(ctx, req.Domain, made)
-			}
-			// Only drop the row if this request created it. A renewal that fails
-			// must leave the existing claim standing, or the organiser's running
-			// event loses its name and anyone can take it.
-			if wasNew {
-				_, _ = reposite.DeleteEventDomain(ctx, s.database, req.Name, req.Domain)
-			}
+			s.undoEventClaim(ctx, req, ids, wasNew)
 			log.Printf("event claim: %v", err)
 			return EventDomainResult{}, &EventDomainError{Code: "gateway", Message: "could not create DNS records", WireCode: ""}
 		}
@@ -171,20 +103,88 @@ func (s *Service) ClaimEventDomain(ctx context.Context, req EventClaimInput) (Ev
 	// nor the sweep would ever remove them. Undo rather than report success.
 	if _, err := reposite.SetEventRecordIDs(ctx, s.database, req.Name, req.Domain, ids); err != nil {
 		log.Printf("event claim: recording ids: %v", err)
-		for _, made := range ids {
-			_ = s.deps.EventDNS.DeleteRecord(ctx, req.Domain, made)
-		}
-		if wasNew {
-			_, _ = reposite.DeleteEventDomain(ctx, s.database, req.Name, req.Domain)
-		}
+		s.undoEventClaim(ctx, req, ids, wasNew)
 		return EventDomainResult{}, &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
 	}
 
+	host := req.Name + "." + req.Domain
 	// Attributable by design: a name under our domain carrying a valid
 	// certificate is worth being able to trace back to an account.
 	log.Printf("event claim: %s -> %s by user %s", host, req.IP, req.UserID)
+	return EventDomainResult{Host: host, ContentHost: "sites." + host, IP: req.IP, ExpiresAt: time.Now().Add(s.deps.EventTTL)}, nil
+}
 
-	return EventDomainResult{Host: host, ContentHost: content, IP: req.IP, ExpiresAt: time.Now().Add(s.deps.EventTTL)}, nil
+// checkEventNameFree refuses a name that something other than this account
+// already answers for: an explicit zone record, this instance, the hackathon
+// platform, or a live product served through the wildcard.
+func (s *Service) checkEventNameFree(ctx context.Context, req EventClaimInput) error {
+	// A static reserved list cannot know what the zone already serves. Live
+	// products answered by the wildcard have no explicit record of their own, so
+	// without this check anyone could claim one of those exact names, override
+	// the wildcard, obtain a certificate and serve content under it.
+	taken, err := s.deps.EventDNS.TakenNames(ctx, req.Domain)
+	if err != nil {
+		log.Printf("event claim: listing %s: %v", req.Domain, err)
+		return &EventDomainError{Code: "gateway", Message: "could not check the domain; try again", WireCode: ""}
+	}
+	// The instance knows its own names authoritatively, and they are the ones a
+	// probe is least likely to catch: a handle or a site name may answer no
+	// differently from an unknown host today, yet claiming it would still take
+	// an explicit record over a name this service is responsible for.
+	ours, err := reposite.EventNameLocal(ctx, s.database, req.Name)
+	if err != nil {
+		return &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
+	}
+	if ours {
+		return &EventDomainError{Code: "conflict", Message: "that name belongs to an account or a site on this instance", WireCode: ""}
+	}
+	// The hackathon platform hands out names under the same zone from its
+	// own database; it is asked, and a failure to answer refuses the name.
+	if s.deps.EventNamePeer != nil {
+		held, err := s.deps.EventNamePeer(ctx, req.Domain, req.Name)
+		if err != nil {
+			log.Printf("event claim: name peer %s.%s: %v", req.Name, req.Domain, err)
+			return &EventDomainError{Code: "unavailable", Message: "could not check that name; try again", WireCode: "name_check_unavailable"}
+		}
+		if held {
+			return &EventDomainError{Code: "conflict", Message: "that name is an event on " + req.Domain, WireCode: "name_taken"}
+		}
+	}
+	// A name already in use is still free to this account when it is the
+	// account's own claim: re-claiming to extend must still work.
+	if taken[req.Name] || taken["sites."+req.Name] {
+		if mine, _ := reposite.EventNameOwned(ctx, s.database, req.Name, req.Domain, req.UserID); !mine {
+			return &EventDomainError{Code: "conflict", Message: "that name is already in use on this domain", WireCode: ""}
+		}
+		return nil
+	}
+	// Listing the zone only sees explicit records. A live product served through
+	// the wildcard by name has none, so it would look free and claiming it would
+	// take a running product off the internet. Ask the internet as well.
+	inUse, perr := s.deps.EventProbe.InUse(ctx, req.Domain, req.Name)
+	if perr == nil && !inUse {
+		return nil
+	}
+	if mine, _ := reposite.EventNameOwned(ctx, s.database, req.Name, req.Domain, req.UserID); mine {
+		return nil
+	}
+	if perr != nil {
+		log.Printf("event claim: probe %s.%s: %v", req.Name, req.Domain, perr)
+		return &EventDomainError{Code: "gateway", Message: "could not check that name; try again", WireCode: ""}
+	}
+	return &EventDomainError{Code: "conflict", Message: "that name is already serving something on this domain", WireCode: ""}
+}
+
+// undoEventClaim deletes the records this claim made and, only if this request
+// created the row, the row too: a renewal that fails must leave the existing
+// claim standing, or the organiser's running event loses its name.
+func (s *Service) undoEventClaim(ctx context.Context, req EventClaimInput, ids []string, wasNew bool) {
+	for _, made := range ids {
+		_ = s.deps.EventDNS.DeleteRecord(ctx, req.Domain, made)
+	}
+	if wasNew {
+		_, _ = reposite.DeleteEventDomain(ctx, s.database, req.Name, req.Domain)
+	}
 }
 
 // ReleaseEventDomain authorizes the caller and deletes DNS records before the row.

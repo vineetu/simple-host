@@ -21,18 +21,7 @@ func siteVersionTools(limits Limits) []Tool {
 			Description: "Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.",
 			InputSchema: object(map[string]any{"site": str(siteDesc), "keep_versions": map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "How many versions to keep (the live one included); 0 goes back to the account default."}}, "site", "keep_versions"),
 			Annotations: writes(true, false, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				body, _ := json.Marshal(map[string]any{"keep_versions": args["keep_versions"]})
-				var out map[string]any
-				if err := c.doJSON("set_keep_versions", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/keep-versions", body, &out); err != nil {
-					return output{}, err
-				}
-				return output{Text: jsonText(out), Structured: out}, nil
-			},
+			run:         runSetKeepVersions,
 		},
 		{
 			OutputSchema: outObject(map[string]any{
@@ -66,18 +55,7 @@ func siteVersionTools(limits Limits) []Tool {
 			// Changes what the public sees; nothing is deleted and the
 			// version it replaces can be made live again the same way.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, version, err := siteVersionArgs(args)
-				if err != nil {
-					return output{}, err
-				}
-				body, _ := json.Marshal(map[string]int{"version_number": version})
-				var site restSite
-				if err := c.doJSON("rollback_site", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/active-version", body, &site); err != nil {
-					return output{}, err
-				}
-				return output{Text: fmt.Sprintf("Version %d of %s is now live at %s", site.ActiveVersion, name, site.liveURL()), Structured: site.summary()}, nil
-			},
+			run:         runRollbackSite,
 		},
 		{
 			OutputSchema: outObject(map[string]any{
@@ -98,29 +76,7 @@ func siteVersionTools(limits Limits) []Tool {
 			}, "site", "version"),
 			// Computes a signed preview URL without persisting a grant.
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, version, err := siteVersionArgs(args)
-				if err != nil {
-					return output{}, err
-				}
-				var link struct {
-					URL       string `json:"url"`
-					ExpiresAt string `json:"expires_at"`
-					Live      bool   `json:"live"`
-				}
-				if err := c.doJSON("preview_version", http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(version)+"/preview-link", nil, &link); err != nil {
-					return output{}, err
-				}
-				if link.URL == "" {
-					return output{}, errors.New("preview_version failed: the server returned no link; try again in a moment")
-				}
-				out := map[string]any{"site": name, "version": version, "live": link.Live, "url": link.URL, "expires_at": link.ExpiresAt}
-				text := fmt.Sprintf("Preview of %s version %d (valid until %s): %s", name, version, link.ExpiresAt, link.URL)
-				if !link.Live {
-					text += fmt.Sprintf("\nIt is not live; rollback_site with version %d makes it live.", version)
-				}
-				return output{Text: text, Structured: out}, nil
-			},
+			run:         runPreviewVersion,
 		},
 		{
 			policy: toolPolicy{groupSiteExcluded: true},
@@ -139,28 +95,7 @@ func siteVersionTools(limits Limits) []Tool {
 			}, "site", "version"),
 			// Removes stored files for good; nothing the public sees changes.
 			Annotations: writes(true, true, false),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, version, err := siteVersionArgs(args)
-				if err != nil {
-					return output{}, err
-				}
-				var body struct {
-					Site      string `json:"site"`
-					Discarded int    `json:"discarded_version"`
-					Active    int    `json:"active_version"`
-				}
-				if err := c.doJSON("discard_version", http.MethodDelete, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(version), nil, &body); err != nil {
-					return output{}, err
-				}
-				if body.Site == "" {
-					body.Site = name
-				}
-				if body.Discarded == 0 {
-					body.Discarded = version
-				}
-				out := map[string]any{"site": body.Site, "discarded_version": body.Discarded, "active_version": body.Active}
-				return output{Text: fmt.Sprintf("Discarded version %d of %s; version %d stays live.", body.Discarded, body.Site, body.Active), Structured: out}, nil
-			},
+			run:         runDiscardVersion,
 		},
 	}
 }
@@ -170,13 +105,9 @@ func runListVersions(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	pending := false
-	if raw, present := args["pending"]; present && raw != nil {
-		b, ok := raw.(bool)
-		if !ok {
-			return output{}, errors.New("pending must be true or false")
-		}
-		pending = b
+	pending, err := boolArg(args, "pending", false)
+	if err != nil {
+		return output{}, err
 	}
 	path := "/v1/sites/" + url.PathEscape(name) + "/versions"
 	if pending {
@@ -228,4 +159,77 @@ func siteVersionArgs(args map[string]any) (string, int, error) {
 	}
 	version, _, err := wholeNumber(args, "version", true, 1, math.MaxInt32)
 	return name, version, err
+}
+
+func runSetKeepVersions(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	body, _ := json.Marshal(map[string]any{"keep_versions": args["keep_versions"]})
+	var out map[string]any
+	if err := c.doJSON("set_keep_versions", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/keep-versions", body, &out); err != nil {
+		return output{}, err
+	}
+	return output{Text: jsonText(out), Structured: out}, nil
+}
+
+func runRollbackSite(c *call, args map[string]any) (output, error) {
+	name, version, err := siteVersionArgs(args)
+	if err != nil {
+		return output{}, err
+	}
+	body, _ := json.Marshal(map[string]int{"version_number": version})
+	var site restSite
+	if err := c.doJSON("rollback_site", http.MethodPut, "/v1/sites/"+url.PathEscape(name)+"/active-version", body, &site); err != nil {
+		return output{}, err
+	}
+	return output{Text: fmt.Sprintf("Version %d of %s is now live at %s", site.ActiveVersion, name, site.liveURL()), Structured: site.summary()}, nil
+}
+
+func runPreviewVersion(c *call, args map[string]any) (output, error) {
+	name, version, err := siteVersionArgs(args)
+	if err != nil {
+		return output{}, err
+	}
+	var link struct {
+		URL       string `json:"url"`
+		ExpiresAt string `json:"expires_at"`
+		Live      bool   `json:"live"`
+	}
+	if err := c.doJSON("preview_version", http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(version)+"/preview-link", nil, &link); err != nil {
+		return output{}, err
+	}
+	if link.URL == "" {
+		return output{}, errors.New("preview_version failed: the server returned no link; try again in a moment")
+	}
+	out := map[string]any{"site": name, "version": version, "live": link.Live, "url": link.URL, "expires_at": link.ExpiresAt}
+	text := fmt.Sprintf("Preview of %s version %d (valid until %s): %s", name, version, link.ExpiresAt, link.URL)
+	if !link.Live {
+		text += fmt.Sprintf("\nIt is not live; rollback_site with version %d makes it live.", version)
+	}
+	return output{Text: text, Structured: out}, nil
+}
+
+func runDiscardVersion(c *call, args map[string]any) (output, error) {
+	name, version, err := siteVersionArgs(args)
+	if err != nil {
+		return output{}, err
+	}
+	var body struct {
+		Site      string `json:"site"`
+		Discarded int    `json:"discarded_version"`
+		Active    int    `json:"active_version"`
+	}
+	if err := c.doJSON("discard_version", http.MethodDelete, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(version), nil, &body); err != nil {
+		return output{}, err
+	}
+	if body.Site == "" {
+		body.Site = name
+	}
+	if body.Discarded == 0 {
+		body.Discarded = version
+	}
+	out := map[string]any{"site": body.Site, "discarded_version": body.Discarded, "active_version": body.Active}
+	return output{Text: fmt.Sprintf("Discarded version %d of %s; version %d stays live.", body.Discarded, body.Site, body.Active), Structured: out}, nil
 }

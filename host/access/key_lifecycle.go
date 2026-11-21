@@ -3,6 +3,8 @@ package access
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 	"time"
 	"unicode"
@@ -109,4 +111,51 @@ func (s *Service) SignOut(ctx context.Context, userID, keyHash, browserPass stri
 	}
 	_, err := repo.DeleteAPIKeyByHash(ctx, s.database, userID, keyHash)
 	return err
+}
+
+// MaxKeyExpiryDays bounds expires_in_days at mint (about ten years).
+const MaxKeyExpiryDays = 3650
+
+// NewKeyRequest is what a person asks a new key to be: where it lives, full
+// or deploy scope, and optionally a lifetime in days.
+type NewKeyRequest struct {
+	Name          string `json:"name"`
+	Scope         string `json:"scope"`
+	ExpiresInDays *int   `json:"expires_in_days"`
+}
+
+// NewKeySpec is a checked NewKeyRequest.
+type NewKeySpec struct {
+	Name, Scope string
+	ExpiresAt   *time.Time
+}
+
+// CheckNewKey checks a key request: a name is required, the scope is full
+// (the default) or deploy, and a lifetime is 1..MaxKeyExpiryDays days from
+// now. A refusal is a 400 Refusal with no code.
+func CheckNewKey(in NewKeyRequest, now time.Time) (NewKeySpec, error) {
+	name, err := NormalizeKeyName(in.Name)
+	if err == nil && name == "" {
+		err = errors.New("name is required: say where the key will live, e.g. \"GitHub Actions\"")
+	}
+	if err != nil {
+		return NewKeySpec{}, &Refusal{Status: http.StatusBadRequest, Message: err.Error()}
+	}
+	spec := NewKeySpec{Name: name, Scope: strings.TrimSpace(in.Scope)}
+	switch spec.Scope {
+	case "":
+		spec.Scope = model.KeyScopeFull
+	case model.KeyScopeFull, model.KeyScopeDeploy:
+	default:
+		return NewKeySpec{}, &Refusal{Status: http.StatusBadRequest, Message: `scope must be "full" (the default) or "deploy" (create, update, roll back and list sites, and preview links only)`}
+	}
+	if in.ExpiresInDays != nil {
+		n := *in.ExpiresInDays
+		if n < 1 || n > MaxKeyExpiryDays {
+			return NewKeySpec{}, &Refusal{Status: http.StatusBadRequest, Message: fmt.Sprintf("expires_in_days must be 1..%d, or left out for a key that expires only when unused", MaxKeyExpiryDays)}
+		}
+		t := now.Add(time.Duration(n) * 24 * time.Hour).UTC()
+		spec.ExpiresAt = &t
+	}
+	return spec, nil
 }

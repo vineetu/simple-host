@@ -1,65 +1,48 @@
 package notify
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/host/edition"
+	"time"
+
+	"github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/workers"
-	"time"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
-type DeliveryResult struct {
-	Delivered bool
-	Status    int
-	Result    string
-}
-type DeliveryDeps struct {
-	Tracker, Retention *workers.Tracker
-	Mailer             email.NoticeSender
-	AcquireOwner       func(string) bool
-	ReleaseOwner       func(string)
-	AllowURL           func(string) bool
-	Body               func(context.Context, model.Notification, model.NotificationDelivery, int64) []byte
-	Send               func(context.Context, model.Notification, string, []byte) DeliveryResult
-	Pending            func(context.Context)
-	// VisitorAllowed re-checks, at delivery time, whether a visitor-role
-	// push subscription's own subscriber (siteID, userID == n.OwnerID) is
-	// still welcome on this site right now -- the same decision an
-	// ordinary read's named-viewers gate would make, since a push device
-	// belongs to a specific signed-in visitor rather than the owner
-	// (SIM-360). Left nil (no caller sets it today besides the handler's
-	// own wiring), a visitor-role subscription is allowed, matching
-	// behaviour before this check existed.
-	VisitorAllowed func(ctx context.Context, siteID, userID string) (bool, error)
-}
-
-func (h *Service) Deliver(ctx context.Context, ed *edition.Edition, deps DeliveryDeps) bool {
-	l := ed.Limits()
-	deps.Tracker.Attempt()
-	deps.Pending(ctx)
-	d, err := h.ClaimNotificationDelivery(ctx, l.NotifyTimeout+30*time.Second, l.NotifyAttempts, l.NotifyHistoryDays, l.NotifySuspendWindow)
+// Deliver claims and sends the next due delivery; false when none is due
+// or the claim failed.
+func (e *Engine) Deliver(ctx context.Context, env Env) bool {
+	l := e.limits
+	e.delivery.Attempt()
+	e.pending(ctx)
+	d, err := e.svc.ClaimNotificationDelivery(ctx, l.NotifyTimeout+30*time.Second, l.NotifyAttempts, l.NotifyHistoryDays, l.NotifySuspendWindow)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false
 	}
 	if err != nil {
 		if ctx.Err() == nil {
-			deps.Tracker.Fail("claim delivery", err)
+			e.delivery.Fail("claim delivery", err)
 		}
 		return false
 	}
-	return h.ProcessDelivery(ctx, d, ed, deps)
+	return e.Process(ctx, env, d)
 }
-func (h *Service) ProcessDelivery(ctx context.Context, d model.NotificationDelivery, ed *edition.Edition, deps DeliveryDeps) bool {
-	l := ed.Limits()
+
+// Process sends one claimed delivery and records the attempt, within the
+// claim's lease. A delivery whose site or subscriber no longer allows it
+// is recorded as skipped.
+func (e *Engine) Process(ctx context.Context, env Env, d model.NotificationDelivery) bool {
 	ctx, cancel := context.WithDeadline(ctx, d.LeaseUntil)
 	defer cancel()
-	n, err := h.GetNotification(ctx, d.SubscriptionID)
+	n, err := e.svc.GetNotification(ctx, d.SubscriptionID)
 	if err != nil {
-		deps.Tracker.Fail("load subscription", err)
+		e.delivery.Fail("load subscription", err)
 		return true
 	}
 	// A pause or expiry may have happened after the claim.
@@ -67,94 +50,209 @@ func (h *Service) ProcessDelivery(ctx context.Context, d model.NotificationDeliv
 		return true
 	}
 	start := time.Now()
-	result := DeliveryResult{Result: "site_unavailable"}
-	state := "skipped"
-	site, err := h.sites.GetSiteByID(ctx, n.SiteID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		deps.Tracker.Fail("load delivery site", err)
+	open, ok := e.siteWelcomes(ctx, n)
+	if !ok {
 		return true
 	}
-	// A push subscription's OwnerID is the subscriber -- the site owner's
-	// own account id for subscriber_role "owner" (checked the same way a
-	// webhook/mcp-event subscription always has been), or a signed-in
-	// visitor's own users.id for subscriber_role "visitor" (SIM-360): that
-	// can never equal site.UserID, so it is never refused delivery for
-	// that reason alone. The event fan-out (EmitSiteEventFor) is what
-	// actually proved a visitor-role subscription is allowed to exist and
-	// match this event; VisitorAllowed is the delivery-time recheck for
-	// whatever can have changed since (the visitor is no longer a named
-	// viewer on a site that has locked itself to them) -- the same thing
-	// site.Offline/Suspended/Deleted below are for an owner subscription.
-	allowed := site.UserID == n.OwnerID
-	if err == nil && n.SubscriberRole == "visitor" {
-		if deps.VisitorAllowed == nil {
-			allowed = true
-		} else if allowed, err = deps.VisitorAllowed(ctx, n.SiteID, n.OwnerID); err != nil {
-			deps.Tracker.Fail("check visitor access", err)
+	result, state := Result{Result: "site_unavailable"}, "skipped"
+	if open {
+		var sent bool
+		if result, sent = e.attempt(ctx, env, n, d); !sent {
 			return true
 		}
+		state = attemptState(result, d.Attempts, e.limits.NotifyAttempts)
 	}
-	if err == nil && !allowed && n.SubscriberRole != "visitor" {
-		// A member or editor's subscription lasts while they may act for
-		// the site.
-		if allowed, err = MayActOnSite(ctx, h.database, n.SiteID, n.OwnerID); err != nil {
-			deps.Tracker.Fail("check member access", err)
-			return true
-		}
-	}
-	if err == nil && site.Live() && !site.Deleted && allowed {
-		cursor, e := h.NotificationCursor(ctx, n.ID, n.SiteID)
-		if e != nil {
-			deps.Tracker.Fail("load delivery cursor", e)
-			return true
-		}
-		held, err := h.NotificationLeaseHeld(ctx, d)
-		if err != nil {
-			deps.Tracker.Fail("check delivery lease", err)
-		}
-		if err != nil || !held {
-			return true
-		}
-		acquired := deps.AcquireOwner(n.OwnerID)
-		if acquired {
-			defer deps.ReleaseOwner(n.OwnerID)
-		}
-		if !acquired || !deps.AllowURL(n.URL) {
-			if err := h.DeferNotificationDelivery(ctx, d); err != nil {
-				deps.Tracker.Fail("defer delivery", err)
-			}
-			return true
-		}
-		body := deps.Body(ctx, n, d, cursor)
-		if body == nil {
-			return true
-		}
-		result = deps.Send(ctx, n, d.EventID, body)
-		if !result.Delivered {
-			deps.Tracker.Fail("send webhook", fmt.Errorf("%s (HTTP %d)", result.Result, result.Status))
-		}
-		state = "failed"
-		if result.Delivered {
-			state = "delivered"
-		} else if d.Attempts < l.NotifyAttempts && result.Status != 410 && result.Status != 413 && result.Result != "refused_address" {
-			state = "pending"
-		}
-	}
-	delays := []time.Duration{30 * time.Second, 2 * time.Minute, 5 * time.Minute, 7 * time.Minute}
-	i := d.Attempts - 1
-	if i >= len(delays) {
-		i = len(delays) - 1
-	}
-	next := time.Now().Add(delays[i])
-	suspended, err := h.FinishNotificationDelivery(ctx, d, state, result.Result, result.Status, int(time.Since(start).Milliseconds()), next, l.NotifySuspendWindow, l.NotifySuspendAttempts, l.NotifySuspendFailurePercent, l.NotifySuspendAfter)
-	if err != nil {
-		deps.Tracker.Fail("finish delivery", err)
-	} else {
-		deps.Tracker.Progress()
-		deps.Pending(ctx)
-	}
-	if suspended && deps.Mailer != nil {
-		h.NotifySuspension(ctx, n, deps.Mailer, deps.Retention)
-	}
+	e.finishDelivery(ctx, env, n, d, state, result, start)
 	return true
+}
+
+// attempt sends d to n when this worker still holds the claim and the
+// owner's concurrency and the receiver's budget allow it; otherwise the
+// delivery is deferred or left to its lease, and sent is false.
+func (e *Engine) attempt(ctx context.Context, env Env, n model.Notification, d model.NotificationDelivery) (result Result, sent bool) {
+	cursor, ok := e.claimStillHeld(ctx, n, d)
+	if !ok {
+		return Result{}, false
+	}
+	acquired := e.acquireOwner(n.OwnerID)
+	if acquired {
+		defer e.releaseOwner(n.OwnerID)
+	}
+	if !acquired || !e.perURL.Allow(n.URL) {
+		if err := e.svc.DeferNotificationDelivery(ctx, d); err != nil {
+			e.delivery.Fail("defer delivery", err)
+		}
+		return Result{}, false
+	}
+	body := e.body(ctx, env, n, d, cursor)
+	if body == nil {
+		return Result{}, false
+	}
+	result = e.send(ctx, env, n, d.EventID, body)
+	if !result.Delivered {
+		e.delivery.Fail("send webhook", fmt.Errorf("%s (HTTP %d)", result.Result, result.Status))
+	}
+	return result, true
+}
+
+// send hands body to n's kind of receiver.
+func (e *Engine) send(ctx context.Context, env Env, n model.Notification, id string, body []byte) Result {
+	if n.Kind == "web-push" {
+		return e.sendPush(ctx, env, n, body)
+	}
+	return e.client.send(ctx, env, n, id, body)
+}
+
+// body is what n receives for d: a web push its own small payload, a
+// webhook the event envelope (WebhookBody). Nil leaves the delivery to be
+// retried.
+func (e *Engine) body(ctx context.Context, env Env, n model.Notification, d model.NotificationDelivery, cursor int64) []byte {
+	if n.Kind == "web-push" {
+		return e.pushPayload(ctx, n, d)
+	}
+	return WebhookBody(env, e.ed.Notifications().EventScoped, n, d, cursor, e.limits.NotifyBodyMaxBytes)
+}
+
+// WebhookBody is the envelope a webhook or MCP subscriber n receives for
+// d. An MCP subscriber sees visitors as connector references, except on an
+// event-scoped edition. Nil: the event could not be read.
+func WebhookBody(env Env, eventScoped bool, n model.Notification, d model.NotificationDelivery, cursor int64, bodyMax int) []byte {
+	if n.Source == "mcp" && !eventScoped {
+		data, ok := visitorAsReference(env, n.SiteID, d.Data)
+		if !ok {
+			return nil
+		}
+		d.Data = data
+	}
+	return Body(d, cursor, bodyMax)
+}
+
+// visitorAsReference replaces an event's visitor id with the connector's
+// reference for it on site.
+func visitorAsReference(env Env, site string, raw json.RawMessage) (json.RawMessage, bool) {
+	var data map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if decoder.Decode(&data) != nil {
+		return nil, false
+	}
+	if id, ok := data["visitor"].(string); ok && id != "" {
+		ref, err := access.NewVisitorReferences(env.VisitorRef).Encode(site, id)
+		if err != nil {
+			return nil, false
+		}
+		data["visitor"] = ref
+	}
+	out, _ := json.Marshal(data)
+	return out, true
+}
+
+// siteWelcomes reports whether n's site is live and n's subscriber may still
+// receive from it. ok is false when a check failed; the failure is recorded.
+func (e *Engine) siteWelcomes(ctx context.Context, n model.Notification) (open, ok bool) {
+	site, err := sitesrepo.GetSiteByID(ctx, e.svc.database, n.SiteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, true
+	}
+	if err != nil {
+		e.delivery.Fail("load delivery site", err)
+		return false, false
+	}
+	allowed, ok := e.subscriberAllowed(ctx, n, site.UserID)
+	return ok && allowed && site.Live() && !site.Deleted, ok
+}
+
+// subscriberAllowed reports whether n's subscriber may still receive from
+// the site owned by siteOwner. A push subscription's OwnerID is the
+// subscriber: the site owner's account (or a member's, who keeps the
+// subscription while they may act for the site), or for subscriber_role
+// "visitor" a signed-in visitor's own users.id (SIM-360), which never equals
+// the site owner. The event fan-out proved the visitor subscription may
+// exist; access.VisitorStillWelcome rechecks whatever has changed since.
+func (e *Engine) subscriberAllowed(ctx context.Context, n model.Notification, siteOwner string) (allowed, ok bool) {
+	var err error
+	switch {
+	case n.SubscriberRole == "visitor":
+		allowed, err = access.VisitorStillWelcome(ctx, e.svc.database, n.SiteID, n.OwnerID)
+		if err != nil {
+			e.delivery.Fail("check visitor access", err)
+		}
+	case siteOwner == n.OwnerID:
+		return true, true
+	default:
+		allowed, err = MayActOnSite(ctx, e.svc.database, n.SiteID, n.OwnerID)
+		if err != nil {
+			e.delivery.Fail("check member access", err)
+		}
+	}
+	return allowed, err == nil
+}
+
+// claimStillHeld loads n's replay cursor and confirms this worker still holds
+// d's lease. ok is false when it does not or a check failed.
+func (e *Engine) claimStillHeld(ctx context.Context, n model.Notification, d model.NotificationDelivery) (cursor int64, ok bool) {
+	cursor, err := e.svc.NotificationCursor(ctx, n.ID, n.SiteID)
+	if err != nil {
+		e.delivery.Fail("load delivery cursor", err)
+		return 0, false
+	}
+	held, err := e.svc.NotificationLeaseHeld(ctx, d)
+	if err != nil {
+		e.delivery.Fail("check delivery lease", err)
+	}
+	return cursor, err == nil && held
+}
+
+// attemptState is the delivery state after a send: failures retry until the
+// attempts run out, except for answers that say retrying cannot help.
+func attemptState(result Result, attempts, maxAttempts int) string {
+	switch {
+	case result.Delivered:
+		return "delivered"
+	case attempts < maxAttempts && result.Status != 410 && result.Status != 413 && result.Result != "refused_address":
+		return "pending"
+	}
+	return "failed"
+}
+
+var retryDelays = []time.Duration{30 * time.Second, 2 * time.Minute, 5 * time.Minute, 7 * time.Minute}
+
+// finishDelivery records the attempt and mails the owner when it suspended
+// the subscription.
+func (e *Engine) finishDelivery(ctx context.Context, env Env, n model.Notification, d model.NotificationDelivery, state string, result Result, start time.Time) {
+	l := e.limits
+	next := time.Now().Add(retryDelays[min(d.Attempts-1, len(retryDelays)-1)])
+	suspended, err := e.svc.FinishNotificationDelivery(ctx, d, state, result.Result, result.Status, int(time.Since(start).Milliseconds()), next, l.NotifySuspendWindow, l.NotifySuspendAttempts, l.NotifySuspendFailurePercent, l.NotifySuspendAfter)
+	if err != nil {
+		e.delivery.Fail("finish delivery", err)
+	} else {
+		e.delivery.Progress()
+		e.pending(ctx)
+	}
+	if suspended {
+		e.NotifySuspension(ctx, env.Mailer, n)
+	}
+}
+
+// pending reports the queue's depth on the delivery tracker.
+func (e *Engine) pending(ctx context.Context) {
+	n, err := e.svc.PendingNotificationDeliveries(ctx)
+	if err != nil {
+		e.delivery.Fail("count pending deliveries", err)
+		return
+	}
+	e.delivery.SetPending(n)
+}
+
+// NotifySuspension mails n's site owner that n was suspended (no mailer:
+// nothing).
+func (e *Engine) NotifySuspension(ctx context.Context, mailer email.NoticeSender, n model.Notification) {
+	if mailer != nil {
+		e.svc.NotifySuspension(ctx, n, mailer, e.retention)
+	}
+}
+
+// Sweep prunes delivery history and mails suspension notices still owed.
+func (e *Engine) Sweep(ctx context.Context, mailer email.NoticeSender) {
+	e.svc.SweepSuspensionEmails(ctx, e.limits.NotifyHistoryDays, mailer, e.retention)
 }

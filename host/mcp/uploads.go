@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -26,51 +27,79 @@ type uploadLink struct {
 }
 
 func createUploadLink(c *call, args map[string]any) (output, error) {
-	archive, ok := args["archive"].(bool)
-	if _, present := args["archive"]; present && !ok {
-		return output{}, errors.New("archive must be a boolean")
+	archive, err := boolArg(args, "archive", false)
+	if err != nil {
+		return output{}, err
 	}
-	archive = archive || c.caller.Mode == CallerModeEvents
 	site, err := siteArg(args)
 	if err != nil {
 		return output{}, err
 	}
-	now := time.Now()
-	owner := c.caller.Owner
-	if owner == "" {
-		owner = c.caller.APIKey
+	link := newUploadLink(c, site, !archive && c.caller.Mode != CallerModeEvents, time.Now())
+	if link.photos && c.owner != "" {
+		return output{}, codedError("invalid_argument", "the photo picker adds photos to your own sites only; for a team's site pass archive: true and upload the site with its photos")
 	}
+	api := "https://" + c.server.cfg.APIHost
+	if link.photos && !c.textOnlyClient && c.server.screenEnabled(c.caller, "photo-picker") {
+		return photoPickerOutput(api+"/photos?site="+url.QueryEscape(site)+"&account="+url.QueryEscape(c.caller.Handle), link.expires), nil
+	}
+	token, err := c.server.storeUploadLink(link)
+	if err != nil {
+		return output{}, err
+	}
+	if link.photos {
+		return photoLinkOutput(api+"/photos?site="+url.QueryEscape(site)+"#t="+token, link.expires), nil
+	}
+	uploadURL := api + "/v1/uploads/" + token
+	return jsonOutput(map[string]any{
+		"upload_url": uploadURL,
+		"method":     "PUT",
+		"expires_at": link.expires.UTC().Format(time.RFC3339),
+		"how":        "curl -sS --fail-with-body -T site.tar.gz '" + uploadURL + "'\nBuild the site into a folder, pack it with tar -czf site.tar.gz -C <folder> . (or a .zip), send it with this command from a terminal, then read the JSON answer (site_url, active_version).",
+	}), nil
+}
+
+// newUploadLink is a link for this caller: an archive link lasts 15
+// minutes, a photo link an hour (or until the credential behind it ends).
+func newUploadLink(c *call, site string, photos bool, now time.Time) uploadLink {
+	owner := cmp.Or(c.caller.Owner, c.caller.APIKey)
 	mint := c.caller.MintUpload
 	if mint == nil {
 		key := c.caller.APIKey
 		mint = func(context.Context) (string, func(), error) { return key, func() {}, nil }
 	}
-	link := uploadLink{owner: owner, account: c.owner, site: site, expires: now.Add(15 * time.Minute), mint: mint}
-	link.photos = !archive
-	if link.photos && c.owner != "" {
-		return output{}, codedError("invalid_argument", "the photo picker adds photos to your own sites only; for a team's site pass archive: true and upload the site with its photos")
+	link := uploadLink{photos: photos, owner: owner, account: c.owner, site: site, expires: now.Add(15 * time.Minute), mint: mint}
+	if !photos {
+		return link
 	}
-	if link.photos {
-		link.expires = now.Add(time.Hour)
-		if c.caller.MintPhoto != nil {
-			link.mint = c.caller.MintPhoto
-		} else if expiry := c.caller.CredentialExpiresAt; !expiry.IsZero() && expiry.Before(link.expires) {
-			link.expires = expiry
+	link.expires = now.Add(time.Hour)
+	if c.caller.MintPhoto != nil {
+		link.mint = c.caller.MintPhoto
+	} else if expiry := c.caller.CredentialExpiresAt; !expiry.IsZero() && expiry.Before(link.expires) {
+		link.expires = expiry
+	}
+	return link
+}
+
+// screenEnabled: the screen with this id is on for the caller.
+func (s *Server) screenEnabled(c Caller, id string) bool {
+	for _, screen := range s.enabledScreens(c) {
+		if screen.ID == id {
+			return true
 		}
 	}
-	if link.photos && !c.textOnlyClient {
-		for _, screen := range c.server.enabledScreens(c.caller) {
-			if screen.ID == "photo-picker" {
-				return photoPickerOutput("https://"+c.server.cfg.APIHost+"/photos?site="+url.QueryEscape(site)+"&account="+url.QueryEscape(c.caller.Handle), link.expires), nil
-			}
-		}
-	}
+	return false
+}
+
+// storeUploadLink keeps link under a new token, at most 20 live links per
+// account, dropping expired ones.
+func (s *Server) storeUploadLink(link uploadLink) (string, error) {
 	var bytes [32]byte
 	if _, err := rand.Read(bytes[:]); err != nil {
-		return output{}, errors.New("could not create an upload link")
+		return "", errors.New("could not create an upload link")
 	}
 	token := base64.RawURLEncoding.EncodeToString(bytes[:])
-	s := c.server
+	now := time.Now()
 	s.uploadMu.Lock()
 	defer s.uploadMu.Unlock()
 	count := 0
@@ -82,23 +111,13 @@ func createUploadLink(c *call, args map[string]any) (output, error) {
 		}
 	}
 	if count >= 20 {
-		return output{}, errors.New("there are already 20 live upload links for this account; use one or wait for it to expire before asking for another")
+		return "", errors.New("there are already 20 live upload links for this account; use one or wait for it to expire before asking for another")
 	}
 	if s.uploads == nil {
 		s.uploads = make(map[[32]byte]uploadLink)
 	}
 	s.uploads[sha256.Sum256([]byte(token))] = link
-	if link.photos {
-		return photoLinkOutput("https://"+s.cfg.APIHost+"/photos?site="+url.QueryEscape(site)+"#t="+token, link.expires), nil
-	}
-	uploadURL := "https://" + s.cfg.APIHost + "/v1/uploads/" + token
-	out := map[string]any{
-		"upload_url": uploadURL,
-		"method":     "PUT",
-		"expires_at": link.expires.UTC().Format(time.RFC3339),
-		"how":        "curl -sS --fail-with-body -T site.tar.gz '" + uploadURL + "'\nBuild the site into a folder, pack it with tar -czf site.tar.gz -C <folder> . (or a .zip), send it with this command from a terminal, then read the JSON answer (site_url, active_version).",
-	}
-	return output{Text: jsonText(out), Structured: out}, nil
+	return token, nil
 }
 
 // photoPickerOutput keeps photoLinkOutput's fields (apps that cache the output

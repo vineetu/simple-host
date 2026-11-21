@@ -2,10 +2,6 @@ package hackmcp
 
 import "strings"
 
-func hackUsageWording(description string) string {
-	return strings.Replace(description, "Show how much of a site's saved-data allowance is used: KV and SQLite together (10,000,000 bytes) and files separately (10 MB). The site's own pages and images are counted elsewhere (list_sites).", hackStorageUsageDescription, 1)
-}
-
 const hackPhotoTip = "Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB."
 
 // Shared Host refusal hints are written for the owner's own connector. Keep

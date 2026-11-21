@@ -14,17 +14,20 @@ import (
 	_ "time/tzdata" // Container images have no zoneinfo.
 
 	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/config"
 	storageapp "github.com/vsriram/simple-host/host/data"
+	"github.com/vsriram/simple-host/host/data/datahttp"
 	"github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/geoip"
 	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/model"
 	operations "github.com/vsriram/simple-host/host/ops"
@@ -33,7 +36,9 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/analytics"
 	"github.com/vsriram/simple-host/host/sites/eventdns"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/storage"
+	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
@@ -118,7 +123,7 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 
 	// Per-site cap: MAX_ARCHIVE_MB or 100 MB. What the disk really holds is
 	// reported by /v1/admin/usage.
-	log.Printf("per-site limit: %d MB", handler.SiteLimit()>>20)
+	log.Printf("per-site limit: %d MB", sites.Upload.Body>>20)
 	// Ensure a real admin user row exists so the admin key can own sites.
 	adminUserID, err := accountrepo.EnsureAdminUser(context.Background(), db)
 	if err != nil {
@@ -132,14 +137,18 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	}
 	// Stale-skill notice: only routes wrapped with it compare X-Skill-Version
 	// with the bundled plugin version.
-	noticeMW := handler.NoticeMiddleware(pluginVersion)
+	noticeMW := web.NoticeMiddleware(pluginVersion)
 	mailer := configureSignIn(cfg, ed, hosted)
 
-	handler.RegisterHealthRoutes(mux, db)
-	userHandler := handler.NewUserHandler(db, accountsService, mailer, cfg.PublicBaseURL, ed)
+	web.RegisterHealthRoutes(mux, db)
+	userHandler := accesshttp.NewUserHandler(db, accountsService, mailer, cfg.PublicBaseURL, ed)
 	userHandler.SetPasswordSignIn(cfg.PasswordSignIn == "on", cfg.PasswordSelfSignup != "off")
 	userHandler.Register(mux, authMW, noticeMW)
-	siteHandler, accessHandler, dataHandler := handler.NewSiteHandlers(ed, productInstanceURL, db, diskStorage, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, adminUserID, mailer, userHandler.EmailLimiter())
+	hosts, err := newHosts(cfg, db, diskStorage, ed)
+	if err != nil {
+		return nil, err
+	}
+	siteHandler, accessHandler, dataHandler := handler.NewSiteHandlers(ed, productInstanceURL, db, diskStorage, hosts, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, adminUserID, mailer, userHandler.EmailLimiter)
 	if ext != nil && ext.Assets != nil {
 		assets := ext.Assets(siteHandler)
 		siteHandler.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
@@ -147,13 +156,13 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 			assets.Routes(mux, siteHandler.AssetServices())
 		}
 	}
-	userHandler.ShareAssets(siteHandler)
-	userHandler.SetSites(siteHandler)
+	userHandler.ShareAssets(siteHandler.Pages())
+	userHandler.SetSites(accessHandler)
 	if err := configureSites(cfg, db, siteHandler, accessHandler, dataHandler, userHandler); err != nil {
 		return nil, err
 	}
-	siteHandler.Register(mux, authMW, noticeMW)
-	handler.SetInstanceNote(handler.InstanceFacts{
+	handler.Register(mux, siteHandler, accessHandler, dataHandler, authMW, noticeMW)
+	web.SetInstanceNote(web.InstanceFacts{
 		SiteDomain: cfg.SiteDomain, BaseDomain: siteHandler.HandoutBase(), ContentHost: cfg.ContentHost,
 		SharedOrigin: siteHandler.SharedOrigin(),
 		SignInEmail:  cfg.EmailSignInEnabled(), SignInProviders: cfg.EnabledVisitorProviders(), OIDCLabel: cfg.OIDCLabel,
@@ -162,12 +171,12 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	})
 	// Take-down markers on disk follow the database (suspend.go).
 	accessHandler.SyncSuspendMarkers(context.Background())
-	oauthHandler := handler.NewOAuthHandler(db, accountsService, OAuthSettings(cfg, accountsService), ed)
-	oauthHandler.ShareAssets(siteHandler)
-	oauthHandler.SetPersonSiteResolver(siteHandler.PersonReturnSite)
+	oauthHandler := accesshttp.NewOAuthHandler(db, accountsService, OAuthSettings(cfg, accountsService), ed)
+	oauthHandler.ShareAssets(siteHandler.Pages())
+	oauthHandler.SetPersonSiteResolver(hosts.ReturnSite)
 	oauthHandler.SetPasscodeCheck(accessHandler.PasscodeLetsIn)
 	accessHandler.SetSSOHop(oauthHandler)
-	oauthHandler.SetSiteBases(siteHandler.ServedBases(), siteHandler.SameUserHost)
+	oauthHandler.SetSiteBases(hosts.ServedBases(), hosts.SameUserHost)
 	oauthHandler.Register(mux)
 
 	// Deploy-only keys are refused everywhere but the deploy routes, in this one
@@ -179,13 +188,13 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	scoped := auth.ScopeGate(accountsService, mux, ed.Limits().KeyIdleExpiry, func(ctx context.Context, user *model.User, site string) (int, string, string, error) {
 		return sites.CheckWrite(ctx, db, writeGate, user, site)
 	})
-	gated := handler.APIErrors(mux, scoped, cfg.PublicBaseURL)
+	gated := web.APIErrors(mux, scoped, cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
-	connector := handler.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, hosted, ed)
-	connector.ShareAssets(siteHandler)
+	connector := accesshttp.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, hosted, ed)
+	connector.ShareAssets(siteHandler.Pages())
 	connector.SetVisitorReferences(accessHandler)
-	connector.SetVisitorTools(accessHandler, oauthHandler)
+	handler.SetVisitorTools(connector, accessHandler, dataHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
 	connector.OfferSpamCheck(dataHandler.SpamCheckEnabled())
 	if events := dataHandler.EventsBackend(); events != nil {
@@ -200,12 +209,12 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	userHandler.SetPreviewAccounts(cfg.PreviewAccounts)
 	dataHandler.SetWebPushAccounts(cfg.WebPushAccounts, cfg.WebPushAccountsAll)
 	connector.SetSignInAlerts(userHandler.SignInAlerts())
-	handler.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
-	handler.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
+	web.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
+	siteshttp.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	for pattern, target := range redirects {
 		mux.Handle(pattern, http.RedirectHandler(target, http.StatusFound))
 	}
-	handler.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
+	siteshttp.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
 
 	var parts extension.Parts
 	if ext != nil && ext.Wire != nil {
@@ -220,10 +229,10 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	}
 	connector.SetTools(parts.Tools)
 	siteHandler.SetSitemapFilter(parts.Hooks.Sitemap)
-	siteHandler.SetGroupHosts(parts.Hooks.GroupHosts)
+	hosts.SetGroupHosts(parts.Hooks.GroupHosts)
 	siteHandler.SetGroupGate(parts.Hooks.GroupGate)
 	writeGate = parts.Hooks.GroupGate
-	dataHandler.SetStorageBindings(parts.Hooks.Storage)
+	handler.SetStorageBindings(accessHandler, dataHandler, parts.Hooks.Storage)
 	eventDomains := registerEventDomains(cfg, db, ed, mux, authMW)
 
 	// Caller location comes from local DB-IP files only (no network lookup);
@@ -241,16 +250,16 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	}
 	// Per-endpoint API analytics: every /v1/* call that matches a route is
 	// counted into daily aggregates; calls from this box are counted apart.
-	apiMetrics := handler.NewAPIMetrics(operations.NewAPIMetrics(db, geo, ed))
+	apiMetrics := web.NewAPIMetrics(operations.NewAPIMetrics(db, geo, ed))
 	apiMetrics.SetRouting(mux, append([]string{cfg.CustomDomainIP}, cfg.CustomDomainIPAlso...)...)
 	mux.Handle("GET /v1/admin/api-analytics", authMW(http.HandlerFunc(apiMetrics.AdminSummary)))
 	mux.Handle("GET /v1/admin/growth", authMW(http.HandlerFunc(apiMetrics.AdminGrowth)))
 	paper := paperMetrics(cfg, db, hosted, dataHandler, parts, mux, authMW)
-	ingester := analyticsIngester(cfg, db, siteHandler)
+	ingester := analyticsIngester(cfg, db, siteHandler, accessHandler)
 	siteHandler.SetTrafficLog(cfg.AnalyticsLog != "")
 	siteHandler.SetNetworkUsage(cfg.NetworkInterface)
 
-	app := handler.SecurityHeaders(handler.CORS(apiMetrics.Wrap(connector.BearerAuth(gated))))
+	app := web.SecurityHeaders(web.CORS(apiMetrics.Wrap(connector.BearerAuth(gated))))
 	served := publicHTTP(siteHandler, app, paper, parts)
 	workerSet := registerWorkers(siteHandler, dataHandler, userHandler, oauthHandler, connector, parts, apiMetrics.APIMetrics, geo, eventDomains, ingester, paper)
 	siteHandler.SetWorkerStatus(workerSet.Status)
@@ -340,8 +349,8 @@ func prepareDatabase(db *sql.DB, cfg config.Config, exts []*extension.Extension)
 // applySavedSetup reads the hostnames saved by the setup page into cfg; they
 // win over the environment, which a catalog container may mount read-only.
 // With neither, it returns the setup handler the instance serves alone.
-func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, productInstanceURL string) (*handler.SetupHandler, error) {
-	savedDomain, savedContent, err := handler.InstanceConfigured(context.Background(), db)
+func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, productInstanceURL string) (*siteshttp.SetupHandler, error) {
+	savedDomain, savedContent, err := siteshttp.InstanceConfigured(context.Background(), db)
 	if err != nil {
 		return nil, fmt.Errorf("read instance config: %v", err)
 	}
@@ -356,7 +365,7 @@ func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, produc
 	if cfg.SiteDomainSet {
 		return nil, nil
 	}
-	return handler.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir, ed, productInstanceURL), nil
+	return siteshttp.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir, ed, productInstanceURL), nil
 }
 
 // configurePresentation sets the instance hosts and support contact the pages
@@ -364,7 +373,7 @@ func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, produc
 func configurePresentation(cfg config.Config, ed *edition.Edition) (string, error) {
 	// Before anything can serve an asset: the skills zips are built once and
 	// cached for the process lifetime, so the rewriter has to exist first.
-	handler.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.HandoutBase())
+	web.SetInstanceHosts(cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.HandoutBase())
 	// The hosted services keep their own support address. Elsewhere it is
 	// SUPPORT_EMAIL, else a safe IDLE_REPLY_TO, else whoever runs the server.
 	if cfg.SiteDomain != "simple-host.app" && "https://"+cfg.SiteDomain != ed.Presentation().CanonicalBaseURL {
@@ -383,7 +392,7 @@ func configurePresentation(cfg config.Config, ed *edition.Edition) (string, erro
 		}
 		auth.SetSupportContact(contact, cfg.ResendAPIKey != "")
 	}
-	pluginVersion, err := handler.PluginVersion()
+	pluginVersion, err := web.PluginVersion()
 	if v := ed.Presentation().PluginVersion; v != "" {
 		pluginVersion, err = v, nil
 	}
@@ -404,8 +413,8 @@ func configureSignIn(cfg config.Config, ed *edition.Edition, hosted bool) *email
 	if cfg.ResendAPIKey == "" {
 		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) are off; accounts use keys the admin issues")
 	}
-	handler.SetEmailSignIn(cfg.EmailSignInEnabled())
-	handler.SetTrustedProxies(cfg.TrustedProxyCIDRs)
+	accesshttp.SetEmailSignIn(cfg.EmailSignInEnabled())
+	httpx.SetTrustedProxies(cfg.TrustedProxyCIDRs)
 	if len(cfg.TrustedProxyCIDRs) > 0 {
 		log.Printf("trusted proxies: %d network(s) (TRUSTED_PROXY_CIDRS); X-Forwarded-For is believed only from them", len(cfg.TrustedProxyCIDRs))
 	}
@@ -423,35 +432,44 @@ func configureSignIn(cfg config.Config, ed *edition.Edition, hosted bool) *email
 	return mailer
 }
 
-// configureSites applies the hosting settings to the site, access and data
-// handlers before their routes are registered.
-func configureSites(cfg config.Config, db *sql.DB, site *handler.SiteHandler, access *handler.AccessHandler, data *handler.DataHandler, user *handler.UserHandler) error {
-	access.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
-	site.SetPersonHosts(cfg.PersonHosts)
-	site.SetCustomDomainIPAlso(cfg.CustomDomainIPAlso)
-	site.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
-	site.SetTeamSiteFlatHosts(cfg.TeamSiteFlatHosts)
-	site.SetSiteBase(cfg.SiteBaseDomain, cfg.SiteBaseMove, cfg.SiteBaseCertDir)
-	// auth.js serves pages under every base while addresses move.
-	handler.SetSiteBaseText(site.ServedBases())
-	site.SetDomainCerts(cfg.DomainCertDir)
-	// Address families: *.<domain> for every site of an account (familyhost.go).
-	site.SetAddressFamilies(cfg.FamilyCertDir)
+// newHosts is the instance's address settings: which site a host names and
+// which address a site has, shared by the site, access and data handlers.
+func newHosts(cfg config.Config, db *sql.DB, disk sites.Disk, ed *edition.Edition) (*sites.Hosts, error) {
+	hosts := sites.NewHosts(db, disk, ed, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP)
+	hosts.SetPersonHosts(cfg.PersonHosts)
+	hosts.SetCustomDomainIPAlso(cfg.CustomDomainIPAlso)
+	hosts.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
+	hosts.SetSiteBase(cfg.SiteBaseDomain, cfg.SiteBaseMove, cfg.SiteBaseCertDir)
+	hosts.SetDomainCertDir(cfg.DomainCertDir)
 	// The platform's other zones are never an owner's domain or family.
 	if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
-		site.SetPlatformZones(append([]string{u.Hostname()}, cfg.EventDomains...)...)
+		hosts.SetPlatformZones(append([]string{u.Hostname()}, cfg.EventDomains...)...)
 		// Account sign-in (an API key) is served only on this address; every
 		// other host this server answers on carries hosted pages (accountauth.go).
 		log.Printf("account sign-in: served only on %s (visitor sign-in on every site's own address)", u.Hostname())
 	} else if strings.TrimSpace(cfg.PublicBaseURL) != "" {
 		// A base URL with no host would silently switch the gate off.
-		return fmt.Errorf("PUBLIC_BASE_URL %q has no host; set it to https://<your app address>", cfg.PublicBaseURL)
+		return nil, fmt.Errorf("PUBLIC_BASE_URL %q has no host; set it to https://<your app address>", cfg.PublicBaseURL)
 	} else {
-		site.SetPlatformZones(cfg.EventDomains...)
+		hosts.SetPlatformZones(cfg.EventDomains...)
 	}
+	return hosts, nil
+}
+
+// configureSites applies the hosting settings to the site, access and data
+// handlers before their routes are registered.
+func configureSites(cfg config.Config, db *sql.DB, site *siteshttp.SiteHandler, access *accesshttp.AccessHandler, data *datahttp.DataHandler, user *accesshttp.UserHandler) error {
+	access.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
+	site.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
+	site.SetTeamSiteFlatHosts(cfg.TeamSiteFlatHosts)
+	// auth.js serves pages under every base while addresses move.
+	web.SetSiteBaseText(site.ServedBases())
+	// Address families: *.<domain> for every site of an account (familyhost.go).
+	site.SetAddressFamilies(cfg.FamilyCertDir)
 	site.SetIdleCleanup(cfg.IdleCleanup)
 	site.SetIdleExempt(cfg.IdleCleanupExemptHandles, cfg.ReviewAccountEmail)
 	site.SetPublicBaseURL(cfg.PublicBaseURL)
+	data.SetPublicBaseURL(cfg.PublicBaseURL)
 	data.SetTurnstile(cfg.TurnstileSiteKey, cfg.TurnstileSecret, cfg.PublicBaseURL)
 	if data.SpamCheckEnabled() {
 		log.Printf("spam check: Turnstile on; storage rules may use auth.checked")
@@ -474,7 +492,6 @@ func configureSites(cfg config.Config, db *sql.DB, site *handler.SiteHandler, ac
 		log.Printf("site passcodes: PASSCODE_ENC_KEY is not set, so no site can get a passcode")
 	}
 	user.SetPublicPage(site.PersonPageURL)
-	user.SetAddressState(site.AddressState)
 	// One namespace across every domain people's addresses live under.
 	accountrepo.SetPlatformDomains(site.HandoutBase(), site.ServedBases()...)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
@@ -487,16 +504,16 @@ func configureSites(cfg config.Config, db *sql.DB, site *handler.SiteHandler, ac
 // registerEventDomains serves event hostnames for hackathon organisers. It is
 // off unless a DNS token and at least one domain are configured, so a
 // self-hosted instance never hands out names under a domain it does not control.
-func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *handler.EventDomainHandler {
+func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *siteshttp.EventDomainHandler {
 	if cfg.EventDNSToken == "" || len(cfg.EventDomains) == 0 {
 		return nil
 	}
 	eventSvc := sites.New(db, nil, nil, 0, sites.Deps{EventDNS: eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), EventProbe: eventdns.NewLiveProbe(), EventDomains: cfg.EventDomains, EventTTL: ed.Limits().EventTTL, EventMaxClaims: ed.Limits().EventMaxClaims})
-	ev := handler.NewEventDomainHandler(eventSvc, cfg.EventDomains)
+	ev := siteshttp.NewEventDomainHandler(eventSvc, cfg.EventDomains)
 	if cfg.EventNamePeer != "" && !ed.Routes().HostedEvents {
 		// One name list with the hackathon platform (hack_mode.go).
-		ev.SetNamePeer(handler.NamePeerClient(cfg.EventNamePeer))
-		handler.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)
+		ev.SetNamePeer(siteshttp.NamePeerClient(cfg.EventNamePeer))
+		siteshttp.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)
 		log.Printf("event hostnames: names checked with %s", cfg.EventNamePeer)
 	}
 	ev.Register(mux, authMW)
@@ -506,7 +523,7 @@ func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mu
 
 // paperMetrics (SIM-335) collects latency per route class, process samples and
 // aggregate snapshots for the research papers. PAPER_METRICS=off returns nil.
-func paperMetrics(cfg config.Config, db *sql.DB, hosted bool, data *handler.DataHandler, parts extension.Parts, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *papermetrics.Collector {
+func paperMetrics(cfg config.Config, db *sql.DB, hosted bool, data *datahttp.DataHandler, parts extension.Parts, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *papermetrics.Collector {
 	paperOn := papermetrics.Enabled()
 	if !paperOn {
 		return nil
@@ -530,7 +547,7 @@ func paperMetrics(cfg config.Config, db *sql.DB, hosted bool, data *handler.Data
 
 // analyticsIngester tails the nginx analytics log into daily aggregates. It is
 // off (nil) unless ANALYTICS_LOG is set.
-func analyticsIngester(cfg config.Config, db *sql.DB, site *handler.SiteHandler) *analytics.Ingester {
+func analyticsIngester(cfg config.Config, db *sql.DB, site *siteshttp.SiteHandler, access *accesshttp.AccessHandler) *analytics.Ingester {
 	if cfg.AnalyticsLog == "" {
 		return nil
 	}
@@ -541,7 +558,9 @@ func analyticsIngester(cfg config.Config, db *sql.DB, site *handler.SiteHandler)
 		WithItemCaps(cfg.Limits.AnalyticsPagesDay, cfg.Limits.AnalyticsRefsDay)
 	// The owner's own visits are told apart by marks the handlers write
 	// (ownermarks.go); an install without analytics writes none.
-	site.SetOwnerMarks(operations.NewOwnerMarks(db, cfg.AdminAPIKey, cfg.AnalyticsSalt))
+	marks := operations.NewOwnerMarks(db, cfg.AdminAPIKey, cfg.AnalyticsSalt)
+	site.SetOwnerMarks(marks)
+	access.SetOwnerMarks(marks)
 	log.Printf("analytics ingester enabled: %s", cfg.AnalyticsLog)
 	return ingester
 }
@@ -551,7 +570,7 @@ func analyticsIngester(cfg config.Config, db *sql.DB, site *handler.SiteHandler)
 // <name>.<SITE_DOMAIN> served like a custom domain, <site>.<handle> site hosts,
 // person hosts, and the legacy 301 for every other single-label name. app
 // serves everything else, including /v1/push/sw.js.
-func publicHTTP(site *handler.SiteHandler, app http.Handler, paper *papermetrics.Collector, parts extension.Parts) http.Handler {
+func publicHTTP(site *siteshttp.SiteHandler, app http.Handler, paper *papermetrics.Collector, parts extension.Parts) http.Handler {
 	served := site.FamilyHosts(app, site.SiteBaseHosts(site.BoundSubdomains(app, site.SiteHosts(app, site.PersonHosts(app, site.LegacyHostRedirect(app))))))
 	if paper == nil {
 		return served

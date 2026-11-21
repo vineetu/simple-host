@@ -16,8 +16,7 @@ import (
 type EventEntry = model.EventEntry
 
 // entryTextColumns are the plain-text fields of an entry, in the order a
-// partial update writes them. tools (an array) and the screenshot bytes are
-// separate writes.
+// partial update writes them.
 var entryTextColumns = []string{"title", "tagline", "description", "video_url", "code_url", "problem", "audience", "maturity"}
 
 const entrySelect = `
@@ -81,9 +80,8 @@ func ListEventEntries(ctx context.Context, q sqlkit.Querier, eventID string) ([]
 }
 
 // UpsertEventEntryText inserts the team's entry or updates the text fields
-// present in fields (column names from entryTextColumns) and, when tools is
-// not nil, the tools array. Omitted fields stay as stored. updated_at and
-// updated_by always move to this write.
+// present in fields (column names from entryTextColumns) and, when tools is not
+// nil, the tools array.
 func UpsertEventEntryText(ctx context.Context, q sqlkit.Querier, eventID, teamID, userID string, fields map[string]string, tools *[]string) error {
 	allowed := map[string]bool{}
 	for _, col := range entryTextColumns {
@@ -135,8 +133,7 @@ func UpsertEventEntryScreenshot(ctx context.Context, q sqlkit.Querier, eventID, 
 	return err
 }
 
-// GetEventScreenshot reads the team's stored image. sql.ErrNoRows when the
-// team has no entry or the screenshot is empty.
+// GetEventScreenshot reads the team's stored image.
 func GetEventScreenshot(ctx context.Context, q sqlkit.Querier, teamID string) ([]byte, string, error) {
 	var data []byte
 	var mime string
@@ -146,23 +143,14 @@ func GetEventScreenshot(ctx context.Context, q sqlkit.Querier, teamID string) ([
 	return data, mime, err
 }
 
-// EntryJudgeableSQL implements rules/hackentries.Judgeable over event_teams t; TestEntryJudgeableSQL checks the contract. It is true when a team's entry has
-// been decided one way (submitted, or settled as "not submitted") and an
-// organiser has not excluded it by hand. A team with no entry row is never
-// judgeable. Coordinator decision 2026-11-02 (INTENT.md, owner may
-// overrule): an incomplete, "not submitted" entry stays judged with an
-// Incomplete flag rather than being dropped -- this is what EligibleJudgeTeams
-// and scoreEligiblePredicate gate on instead of the build plan's original
-// "en.submitted_at IS NOT NULL".
+// EntryJudgeableSQL implements rules/hackentries.Judgeable over event_teams t;
+// TestEntryJudgeableSQL checks the contract.
 const EntryJudgeableSQL = `EXISTS (
 	SELECT 1 FROM event_entries en WHERE en.team_id = t.id
 	  AND (en.submitted_at IS NOT NULL OR en.submit_settled_at IS NOT NULL)
 	  AND en.excluded_at IS NULL)`
 
-// SubmitEventEntry marks the team's entry submitted. Idempotent: a second
-// call keeps the first submitted_at, submitted_by and submit_auto (section
-// 4.1, "submitting twice"). The caller evaluates completeness first; this
-// just writes the decision.
+// SubmitEventEntry marks the team's entry submitted.
 func SubmitEventEntry(ctx context.Context, q sqlkit.Querier, teamID, userID string) (EventEntry, error) {
 	if _, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET
@@ -199,12 +187,8 @@ func SettleEntryComplete(ctx context.Context, q sqlkit.Querier, teamID string, d
 	return err
 }
 
-// SettleEntryIncomplete is the sweep's decision for an incomplete draft:
-// left unsubmitted (status "not_submitted"), just marked settled. Owner
-// coordinator decision 2026-11-02 (INTENT.md): it stays judged, carrying an
-// Incomplete flag, rather than dropped -- unlike the build plan's original
-// "not judged" rule. An organiser excludes it by hand (SetEntryExcluded) if
-// they choose to.
+// SettleEntryIncomplete is the sweep's decision for an incomplete draft: left
+// unsubmitted (status "not_submitted"), just marked settled.
 func SettleEntryIncomplete(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submit_settled_at = now()
@@ -212,11 +196,10 @@ func SettleEntryIncomplete(ctx context.Context, q sqlkit.Querier, teamID string)
 	return err
 }
 
-// UnsettledFrozenTeamIDs lists teams (of eventID, or every event when "")
-// whose entry is written, not yet settled one way or the other, and now
-// frozen: the team's effective deadline has passed, or the event stage is
-// judging, results or archived. A team with no entry row is never listed --
-// it has nothing to settle and reads as "Not started".
+// UnsettledFrozenTeamIDs lists teams (of eventID, or every event when "") whose
+// entry is written, not yet settled one way or the other, and now frozen: the
+// team's effective deadline has passed, or the event stage is judging, results
+// or archived.
 func UnsettledFrozenTeamIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT en.team_id FROM event_entries en
@@ -251,10 +234,7 @@ type FrozenTeamWithoutEntry struct {
 }
 
 // FrozenTeamsWithoutEntry lists the event's frozen teams that have no entry
-// row. The settle hook (settleEntriesTx) starts an empty entry for each one
-// whose team site is live, so a team that published its site but never
-// opened the entry form is still judged, flagged Incomplete (full-test fix,
-// 2026-11-02): the site is part of the entry. A team with neither stays out.
+// row.
 func FrozenTeamsWithoutEntry(ctx context.Context, q sqlkit.Querier, eventID string) ([]FrozenTeamWithoutEntry, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.id, t.slug, t.site_taken_down_at IS NOT NULL FROM event_teams t
@@ -292,8 +272,7 @@ func StartEmptyEventEntry(ctx context.Context, q sqlkit.Querier, eventID, teamID
 
 // UnsettleTeamEntry clears submit_settled_at on one team's unsubmitted draft
 // (an extension, section 7 "Unsettle"): the sweep reconsiders it against the
-// new deadline. A submitted entry is untouched -- tightening or loosening the
-// clock never un-submits.
+// new deadline.
 func UnsettleTeamEntry(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submit_settled_at = NULL
@@ -311,10 +290,8 @@ func UnsettleEventDrafts(ctx context.Context, q sqlkit.Querier, eventID string) 
 	return err
 }
 
-// SetEntryExcluded is the organiser's hand exclude/include of a flagged
-// entry from judging (coordinator decision 2026-11-02, INTENT.md). Allowed
-// on any entry, not only an incomplete one -- an organiser call, not gated
-// on status.
+// SetEntryExcluded is the organiser's hand exclude/include of a flagged entry
+// from judging (coordinator decision 2026-11-02, INTENT.md).
 func SetEntryExcluded(ctx context.Context, q sqlkit.Querier, teamID, userID string, excluded bool) (EventEntry, error) {
 	var err error
 	if excluded {

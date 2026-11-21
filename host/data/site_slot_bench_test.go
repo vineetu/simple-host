@@ -89,7 +89,7 @@ func BenchmarkSiteSlots(b *testing.B) {
 		b.Fatal(err)
 	}
 	gate := NewSQLiteGate(4, 250*time.Millisecond)
-	deps := Deps{SQLiteGate: gate, SQLiteTimeout: 5 * time.Second, Locks: &sync.Map{}, WriteLockWait: 250 * time.Millisecond, WriteTimeout: 5 * time.Second, MarkChanged: func() {}, ViewersAllow: func() bool { return true }}
+	deps := Deps{SQLiteGate: gate, SQLiteTimeout: 5 * time.Second, Locks: &sync.Map{}, WriteLockWait: 250 * time.Millisecond, WriteTimeout: 5 * time.Second, MarkChanged: func() {}}
 	deps.SiteSlots = NewSiteSlots(1, gate, 250*time.Millisecond)
 	services := make([]*Service, 1000)
 	calls := make([]Call, 1000)

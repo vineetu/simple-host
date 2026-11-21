@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/rules/sites"
@@ -29,7 +28,7 @@ func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
-	out := map[string]any{"address": h.EventURL(slug)}
+	out := map[string]any{"address": h.links.EventURL(slug)}
 	code, errMsg, err := h.slugVerdict(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, errNameCheckUnavailable) {
@@ -52,11 +51,7 @@ func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
 
 var errNameCheckUnavailable = errors.New("name check unavailable")
 
-// slugVerdict is the create/check result for an event slug. Empty code means
-// free. "--" is refused outright (not just the usual shape check): an event
-// slug is also a DNS label in a hosted event's own and team addresses, and
-// TEAM_SITE_FLAT_HOSTS' <team>--<event> single label needs "--" to appear
-// nowhere else in either slug to stay unambiguous.
+// slugVerdict is the create/check result for an event slug.
 func (h *HackHandler) slugVerdict(ctx context.Context, slug string) (code, errMsg string, err error) {
 	if !sites.EventNameShape(slug) {
 		return "invalid_name", "use 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen, and never two hyphens in a row", nil
@@ -114,101 +109,67 @@ func (h *HackHandler) instanceFull(ctx context.Context) (bool, error) {
 	return used >= limit, nil
 }
 
-type createEventReq struct {
-	Slug                 string `json:"slug"`
-	Title                string `json:"title"`
-	OrganiserName        string `json:"organiser_name"`
-	Organisation         string `json:"organisation"`
-	ContactEmail         string `json:"contact_email"`
-	Purpose              string `json:"purpose"`
-	ExpectedParticipants *int   `json:"expected_participants"`
-	StartsAt             string `json:"starts_at"`
-	EndsAt               string `json:"ends_at"`
-	TimeZone             string `json:"time_zone"`
-}
-
 func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
 		return
 	}
-	var req createEventReq
+	var req struct {
+		Slug                 string `json:"slug"`
+		Title                string `json:"title"`
+		OrganiserName        string `json:"organiser_name"`
+		Organisation         string `json:"organisation"`
+		ContactEmail         string `json:"contact_email"`
+		Purpose              string `json:"purpose"`
+		ExpectedParticipants *int   `json:"expected_participants"`
+		StartsAt             string `json:"starts_at"`
+		EndsAt               string `json:"ends_at"`
+		TimeZone             string `json:"time_zone"`
+	}
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(req.Slug))
-	code, errMsg, err := h.slugVerdict(r.Context(), slug)
-	if err != nil {
-		if errors.Is(err, errNameCheckUnavailable) {
-			httpx.WriteError(w, http.StatusServiceUnavailable, "name_check_unavailable", "could not check whether this name is free; try again")
-			return
-		}
-		httpx.WriteInternal(w)
+	if !h.slugFree(w, r, slug) {
 		return
 	}
-	if code != "" {
-		status := http.StatusBadRequest
-		if code == "name_taken" {
-			status = http.StatusConflict
-		}
-		httpx.WriteError(w, status, code, errMsg)
-		return
-	}
-	title, err := events.EventTitle(req.Title)
-	var organiserName, organisation, contact, purpose, tz string
-	var loc *time.Location
-	var startsAt, endsAt sql.NullTime
-	if err == nil {
-		organiserName, err = events.EventOrganiserName(req.OrganiserName)
-	}
-	if err == nil {
-		organisation, err = events.EventOrganisation(req.Organisation)
-	}
-	if err == nil {
-		contact, err = events.EventContactEmail(req.ContactEmail)
-	}
-	if err == nil {
-		purpose, err = events.EventPurpose(req.Purpose)
-	}
-	expected := 0 // absent is refused like 0
-	if req.ExpectedParticipants != nil {
-		expected = *req.ExpectedParticipants
-	}
-	if err == nil {
-		err = events.EventExpectedParticipants(expected)
-	}
-	if err == nil {
-		tz, loc, err = events.EventTimeZone(req.TimeZone)
-	}
-	if err == nil {
-		startsAt, err = events.ParseEventTime(req.StartsAt, loc, "starts_at")
-	}
-	if err == nil && strings.TrimSpace(req.EndsAt) != "" {
-		if endsAt, err = events.ParseEventTime(req.EndsAt, loc, "ends_at"); err == nil {
-			err = events.EventEnds(startsAt, endsAt, tz)
-		}
-	}
+	in, err := events.CheckNewEvent(events.NewEventInput(req))
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	full, err := h.instanceFull(r.Context())
-	if err != nil || full {
+	if full, err := h.instanceFull(r.Context()); err != nil || full {
 		httpx.WriteError(w, http.StatusInsufficientStorage, "instance_full", "this instance is at capacity")
 		return
 	}
-
 	perDay, maxActive := h.limits.EventCreatePerDay, h.limits.EventMaxActivePerOrganiser
 	if user.IsAdmin || h.limits.EventLimitExempt(user.Username) {
 		perDay, maxActive = 0, 0
 	}
-	ctx := r.Context()
-	ev, member, err := h.events.CreateEvent(ctx, user.ID, slug, title, organiserName, organisation, contact, purpose, tz, expected, startsAt, endsAt, perDay, maxActive, h.limits.EventTeamSizeDefault, hackJoinCodeLen, hackJudgeCodeLen)
+	ev, member, err := h.events.CreateEvent(r.Context(), user.ID, slug, in.Title, in.OrganiserName, in.Organisation, in.ContactEmail, in.Purpose, in.TimeZone, in.ExpectedParticipants, in.StartsAt, in.EndsAt, perDay, maxActive, h.limits.EventTeamSizeDefault, hackJoinCodeLen, hackJudgeCodeLen)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusCreated, h.eventView(ctx, ev, member, true))
+	httpx.WriteJSON(w, http.StatusCreated, h.views.eventView(r.Context(), ev, member, true))
+}
+
+// slugFree writes the refusal when slug cannot be a new event's name.
+func (h *HackHandler) slugFree(w http.ResponseWriter, r *http.Request, slug string) bool {
+	code, errMsg, err := h.slugVerdict(r.Context(), slug)
+	switch {
+	case errors.Is(err, errNameCheckUnavailable):
+		httpx.WriteError(w, http.StatusServiceUnavailable, "name_check_unavailable", "could not check whether this name is free; try again")
+	case err != nil:
+		httpx.WriteInternal(w)
+	case code == "name_taken":
+		httpx.WriteError(w, http.StatusConflict, code, errMsg)
+	case code != "":
+		httpx.WriteError(w, http.StatusBadRequest, code, errMsg)
+	default:
+		return true
+	}
+	return false
 }
 
 func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
@@ -230,8 +191,8 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"role":         roles[i],
 			"can":          h.events.MemberAbilities(r.Context(), ev.ID, hackmodel.EventMember{UserID: user.ID, Role: roles[i], JoinedAt: ev.CreatedAt}),
 			"ended_at":     rfc3339UTC(ev.ClosedAt),
-			"url":          h.EventURL(ev.Slug),
-			"icon_url":     h.iconURL(ev),
+			"url":          h.links.EventURL(ev.Slug),
+			"icon_url":     h.links.iconURL(ev),
 			"accent_color": ev.AccentColor, "color": hackEventAccent(ev),
 			"manage_url": h.manageURL(ev.Slug),
 			"starts_at":  rfc3339UTC(ev.StartsAt),
@@ -250,12 +211,12 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HackHandler) getEvent(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false)
 	if !ok {
 		return
 	}
-	h.pinDue(r.Context(), a.event.ID) // every read of pins pins first
-	view := h.eventView(r.Context(), a.event, a.member, a.member.Role == "organiser" || a.admin)
+	h.links.pinDue(r.Context(), a.event.ID) // every read of pins pins first
+	view := h.views.eventView(r.Context(), a.event, a.member, a.member.Role == "organiser" || a.admin)
 	if a.admin && a.member.JoinedAt.IsZero() {
 		// The platform admin reading an event it is not in: every write here
 		// is refused, so the page shows it read-only.
@@ -264,11 +225,8 @@ func (h *HackHandler) getEvent(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, view)
 }
 
-// submissionsClosedStage: stages after submissions close.
-func submissionsClosedStage(stage string) bool { return events.SubmissionsClosedStage(stage) }
-
 func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -283,55 +241,37 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_stage", "stage is not a known event stage")
 		return
 	}
-	if !hackStagesOffered[stage] {
-		httpx.WriteError(w, http.StatusConflict, "stage_not_available", "that stage is not available yet")
-		return
-	}
 	updated, current, err := h.events.SetStage(r.Context(), a.event, stage, h.entries.SettleEventTx)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	if stage == "judging" && (current == "draft" || current == "open" || current == "building" || current == "closed") && updated.JudgeAssignmentMode == "automatic" {
-		allTeams, assignErr := h.entries.TeamsWithMembers(r.Context(), updated.ID)
-		if assignErr == nil {
-			pool, poolErr := h.judgingPoolFor(r.Context(), updated, allTeams)
-			assignErr = poolErr
-			if assignErr == nil {
-				_, _, assignErr = h.entries.GenerateAssignments(r.Context(), updated.ID, nil, pool.In, true)
-			}
-		}
-		if assignErr != nil {
-			log.Printf("hack: stage assignments %s: %v", updated.Slug, assignErr)
-		}
+	if err := h.entries.AssignOnStartJudging(r.Context(), updated, current, h.links.poolSiteLive(r.Context(), updated)); err != nil {
+		log.Printf("hack: stage assignments %s: %v", updated.Slug, err)
 	}
 	if current != updated.Stage {
 		paperHackStage(r, updated)
 	}
 	paperHackTimes(r)
-	h.pinDue(r.Context(), updated.ID)
-	h.requestEventCert(updated)
-	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), updated, a.member, true))
+	h.links.pinDue(r.Context(), updated.ID)
+	h.links.requestEventCert(updated)
+	httpx.WriteJSON(w, http.StatusOK, h.views.eventView(r.Context(), updated, a.member, true))
 }
 
 // archiveEventTx archives the event: locks event_teams (as every other
-// deadline-affecting write does), closes the submission deadline now --
-// unless it already passed, or submissions were already closed (closed,
-// judging or results: Nit 3, restoring setStage's original condition,
-// `!submissionsClosedStage(current)`, that archiveEventTx dropped when it
-// was extracted) -- sets stage to archived, then clears any pin that no
+// deadline-affecting write does), closes the submission deadline now -- unless
+// it already passed, or submissions were already closed (closed, judging or
+// results: Nit 3, restoring setStage's original condition,
+// `!events.SubmissionsClosedStage(current)`, that archiveEventTx dropped when
+// it was extracted) -- sets stage to archived, then clears any pin that no
 // longer applies (UnpinReopened is a no-op once the stage read back is
-// archived). Extracted from setStage so POST .../leave's last_organiser
-// "end" case (hack_leave.go) shares it exactly; the caller already holds the
-// event row FOR UPDATE and has checked there is at least one participant
-// (archive_needs_participants is each caller's own 409). current is the
-// event's stage right now, under that same lock.
+// archived).
 func (h *HackHandler) archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (hackmodel.Event, error) {
 	return h.events.ArchiveEventTx(ctx, tx, eventID, current, h.entries.SettleEventTx)
 }
 
 func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -356,14 +296,14 @@ func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if kind == "join" {
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": updated.JoinCode, "url": h.joinURL(updated.JoinCode)})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": updated.JoinCode, "url": h.links.joinURL(updated.JoinCode)})
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": updated.JudgeCode, "url": h.judgeURL(updated.JudgeCode)})
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"code": updated.JudgeCode, "url": h.links.judgeURL(updated.JudgeCode)})
 }
 
 func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -376,8 +316,8 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var trash func(context.Context, string, string) error
-	if h.sites != nil {
-		trash = h.sites.TrashTeamSite
+	if h.links.hooks != nil {
+		trash = h.links.hooks.TrashTeamSite
 	}
 	if err := h.events.DeleteEvent(r.Context(), a.event, a.user.ID, req.Confirm, trash); err != nil {
 		writeHackError(w, err)
@@ -387,16 +327,14 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// deleteEventTx trashes every team site (the same removal as deleting a
-// team; the holding-account deletion below then purges its Recently deleted
-// sites too, so there is no event undo), then deletes the event and its
-// holding account. Extracted from deleteEvent so POST .../leave's
-// last_organiser "delete" case (hack_leave.go) shares it exactly. The caller
-// already holds the event row, and has checked confirm matches the slug.
+// deleteEventTx trashes every team site (the same removal as deleting a team;
+// the holding-account deletion below then purges its Recently deleted sites
+// too, so there is no event undo), then deletes the event and its holding
+// account.
 func (h *HackHandler) deleteEventTx(ctx context.Context, tx *sql.Tx, ev hackmodel.Event) error {
 	var trash func(context.Context, string, string) error
-	if h.sites != nil {
-		trash = h.sites.TrashTeamSite
+	if h.links.hooks != nil {
+		trash = h.links.hooks.TrashTeamSite
 	}
 	return h.events.DeleteEventTx(ctx, tx, ev, trash)
 }

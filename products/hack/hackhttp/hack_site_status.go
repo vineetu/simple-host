@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/access"
 	"log"
 	"net/http"
 	"strings"
+
+	accountapp "github.com/vsriram/simple-host/host/access"
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
@@ -19,11 +20,11 @@ import (
 // with their own sign-in, naming owner (the event) on the site routes.
 
 func (h *participationHTTP) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "participant")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
 	if !ok {
 		return
 	}
-	team, ok := h.participantTeam(w, r, a)
+	team, ok := participantTeam(w, r, h.teams, a)
 	if !ok {
 		return
 	}
@@ -39,10 +40,10 @@ func (h *participationHTTP) getTeamSiteStatus(w http.ResponseWriter, r *http.Req
 		"connection":         conn,
 		"team":               map[string]any{"slug": team.Slug, "name": team.Name},
 		"owner":              a.event.Slug,
-		"api_base":           h.publicBaseURL,
-		"mcp_url":            h.publicBaseURL + "/mcp",
-		"upload_limit_bytes": h.websiteUploadLimit(ctx, a.event),
-		"upload_limits":      h.websiteUploadLimits(ctx, a.event),
+		"api_base":           h.links.publicBaseURL,
+		"mcp_url":            h.links.publicBaseURL + "/mcp",
+		"upload_limit_bytes": h.website.uploadLimit(ctx, a.event),
+		"upload_limits":      h.website.uploadLimits(ctx, a.event),
 	})
 }
 
@@ -51,14 +52,14 @@ func (h *participationHTTP) getTeamSiteStatus(w http.ResponseWriter, r *http.Req
 // deadline pin was taken.
 func (h *participationHTTP) siteStatusJSON(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) map[string]any {
 	var site *model.Site
-	if h.sites != nil {
-		if info, st, err := h.sites.TeamSiteInfo(ctx, ev.AccountID, team.Slug); err != nil {
+	if h.links.hooks != nil {
+		if info, st, err := h.links.hooks.TeamSiteInfo(ctx, ev.AccountID, team.Slug); err != nil {
 			log.Printf("hack: site status %s/%s: %v", ev.Slug, team.Slug, err)
 		} else if info.Exists {
 			site = &st
 		}
 	}
-	out := h.teamSiteJSONFrom(ev, team, site, h.teamSitesReady(ev.Slug))
+	out := h.links.teamSiteJSONFrom(ev, team, site, h.links.teamSitesReady(ev.Slug))
 	out["published_at"] = nil
 	out["published_via"] = nil
 	out["pinned_version"] = nil
@@ -74,11 +75,8 @@ func (h *participationHTTP) siteStatusJSON(ctx context.Context, ev hackmodel.Eve
 	if site != nil {
 		if v, err := h.teams.ActiveSiteVersion(ctx, site.ID); err == nil {
 			out["published_at"] = rfc3339Time(v.CreatedAt)
-			// published_via: whatever the live deploy's ?author= recorded
-			// (SIM-152), passed through as-is. Most deploys never set it, so
-			// this is usually null -- the build plan says not to add a
-			// column just to guess it, so this is a straight read, no
-			// mapping to a fixed "Claude"/"zip"/"key" enum.
+			// published_via: whatever the live deploy's ?author= recorded (SIM-152),
+			// passed through as-is.
 			if author := strings.TrimSpace(v.Author); author != "" {
 				out["published_via"] = author
 			}
@@ -89,8 +87,7 @@ func (h *participationHTTP) siteStatusJSON(ctx context.Context, ev hackmodel.Eve
 
 // connectionStatusJSON is the Website screen's "AI app" state: whether the
 // caller has connected an app (names only, never client ids, grants or
-// devices). A connected app publishes the team's site as the person, naming
-// the event as owner.
+// devices).
 func (h *participationHTTP) connectionStatusJSON(ctx context.Context, userID string) (map[string]any, error) {
 	conns, err := accountapp.ConnectedApps(ctx, h.database, userID)
 	if err != nil {

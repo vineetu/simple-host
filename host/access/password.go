@@ -218,21 +218,13 @@ func temporaryPassword(password string) (string, error) {
 // strips a domain, so no address leaks into the handle). Admin create
 // (temporary=true, signup_source "admin") keeps users.username == login --
 // the admin vouches for that address, same as before this change.
+// CreatePasswordAccount makes an account that signs in with login and a
+// password: an admin's temporary one (the account is named login), or a
+// person's own sign-up (the account gets a random synthetic name). It
+// returns the password in force.
 func (s *Service) CreatePasswordAccount(ctx context.Context, login, password string, temporary, randomHandles bool, assign func(context.Context, AttributionStore, string, string, bool)) (model.User, string, error) {
 	login = NormalizeLogin(login)
-	if err := validLogin(login); err != nil {
-		return model.User{}, "", err
-	}
-	var err error
-	if temporary {
-		password, err = temporaryPassword(password)
-	} else {
-		err = validPassword(password)
-	}
-	if err != nil {
-		return model.User{}, "", err
-	}
-	hash, err := hashPassword(password)
+	password, hash, err := checkedPassword(login, password, temporary)
 	if err != nil {
 		return model.User{}, "", err
 	}
@@ -241,34 +233,11 @@ func (s *Service) CreatePasswordAccount(ctx context.Context, login, password str
 		return model.User{}, "", err
 	}
 	defer tx.Rollback()
-	// Use the same insertion and handle-assignment path as bulk account creation.
-	source, username := "website", login
-	if temporary {
-		source = "admin"
-	} else if username, err = randomPasswordUsername(); err != nil {
-		return model.User{}, "", err
-	}
-	var id string
-	for attempt := 0; ; attempt++ {
-		id, err = repo.InsertAccount(ctx, tx, username, source, "password")
-		if !temporary && errors.Is(err, sql.ErrNoRows) && attempt < 4 {
-			// The random synthetic username collided (vanishingly
-			// unlikely): try a fresh one. This can never be login's own
-			// uniqueness -- that is checked below, against
-			// account_passwords.login, not users.username.
-			if username, err = randomPasswordUsername(); err != nil {
-				return model.User{}, "", err
-			}
-			continue
-		}
-		break
-	}
-	if errors.Is(err, sql.ErrNoRows) || repo.IsUniqueViolation(err) {
-		return model.User{}, "", lifecycleFail(409, "That username is taken.", "username_taken")
-	}
+	id, err := insertPasswordAccount(ctx, tx, login, temporary)
 	if err != nil {
 		return model.User{}, "", err
 	}
+	// Use the same handle-assignment path as bulk account creation.
 	assign(ctx, tx, id, login, randomHandles)
 	user, err := repo.GetUserByID(ctx, tx, id)
 	if err != nil {
@@ -283,13 +252,62 @@ func (s *Service) CreatePasswordAccount(ctx context.Context, login, password str
 			// (account_passwords.login is unique) -- the same outward
 			// refusal as a username clash, whichever table actually
 			// caught it.
-			return user, "", lifecycleFail(409, "That username is taken.", "username_taken")
+			return user, "", errUsernameTaken()
 		}
 		return user, "", err
 	}
-
 	return user, password, tx.Commit()
 }
+
+func errUsernameTaken() error { return lifecycleFail(409, "That username is taken.", "username_taken") }
+
+// checkedPassword validates login and the password (a temporary one is
+// generated when empty) and hashes it.
+func checkedPassword(login, password string, temporary bool) (string, string, error) {
+	if err := validLogin(login); err != nil {
+		return "", "", err
+	}
+	var err error
+	if temporary {
+		password, err = temporaryPassword(password)
+	} else {
+		err = validPassword(password)
+	}
+	if err != nil {
+		return "", "", err
+	}
+	hash, err := hashPassword(password)
+	return password, hash, err
+}
+
+// insertPasswordAccount inserts the account row, the same insertion as bulk
+// account creation. A sign-up's random synthetic username that collides
+// (vanishingly unlikely) is drawn again; this can never be login's own
+// uniqueness -- that is checked against account_passwords.login, not
+// users.username.
+func insertPasswordAccount(ctx context.Context, tx *sql.Tx, login string, temporary bool) (string, error) {
+	source, username := "admin", login
+	if !temporary {
+		source = "website"
+	}
+	for attempt := 0; ; attempt++ {
+		if !temporary {
+			var err error
+			if username, err = randomPasswordUsername(); err != nil {
+				return "", err
+			}
+		}
+		id, err := repo.InsertAccount(ctx, tx, username, source, "password")
+		if !temporary && errors.Is(err, sql.ErrNoRows) && attempt < 4 {
+			continue
+		}
+		if errors.Is(err, sql.ErrNoRows) || repo.IsUniqueViolation(err) {
+			return "", errUsernameTaken()
+		}
+		return id, err
+	}
+}
+
 func (s *Service) ResetPassword(ctx context.Context, id, password string) (model.User, string, error) {
 	password, err := temporaryPassword(password)
 	if err != nil {

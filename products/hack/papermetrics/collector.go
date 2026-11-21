@@ -14,8 +14,7 @@ import (
 	"github.com/vsriram/simple-host/host/workers"
 )
 
-// Collector owns the product's measurements while sharing the platform's
-// provenance, database, progress tracker and measurement primitives.
+// Collector owns the product's measurements while sharing the platform's provenance, database, progress tracker and measurement primitives.
 type Collector struct {
 	platform  *platform.Collector
 	db        *sql.DB

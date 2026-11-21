@@ -109,87 +109,21 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	}
 	defer unlock()
 	dest := s.deps.FilePath(call, in.Path)
-	var oldBytes int64
-	existed := false
-	if fi, e := os.Lstat(dest); e == nil {
-		if !fi.Mode().IsRegular() {
-			return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
-		}
-		oldBytes, existed = fi.Size(), true
-	} else if !errors.Is(e, os.ErrNotExist) {
-		return FilePutResult{}, nil, e
+	oldBytes, existed, err := storedFileSize(dest)
+	if err != nil {
+		return FilePutResult{}, nil, err
 	}
 	call.Context = ctx
-	op := ruleengine.OpAdd
-	if existed {
-		op = ruleengine.OpEdit
+	// rowVisitorID is this write's SIM-360 push-fan-out target: the stored
+	// file's uploader on an overwrite, or the new file's own uploader.
+	rowVisitorID, refusal, err := s.authorizeFilePut(&call, in.Path, existed)
+	if refusal != nil || err != nil {
+		return FilePutResult{}, refusal, err
 	}
-	rule, auth := s.fileRule(&call, op)
-	if auth != nil {
-		// Someone who may add but not change gets file_exists, as on kv.
-		add := in.Call
-		add.Context = ctx
-		if existed {
-			if _, e := s.fileRule(&add, ruleengine.OpAdd); e == nil {
-				return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
-			}
-		}
-		return FilePutResult{}, auth, nil
-	}
-	if rule != nil && !existed && !rule(in.Path, StampID(call.Owner, call.VisitorID)) {
-		return FilePutResult{}, &Error{Code: "forbidden", Message: "add is not open to this visitor here"}, nil
-	}
-	// rowVisitorID is this write's SIM-360 push-fan-out target: the
-	// existing file's own uploader when overwriting one (read under the
-	// write lock, right here, before the overwrite -- the rule check on
-	// the stored file needs this same lookup, so that result is reused
-	// rather than queried twice), or the new file's own uploader (StampID
-	// below) when adding one.
-	rowVisitorID := ""
-	if existed {
-		writer, e := repository.FileWriter(ctx, s.db, call.SiteID, call.ResourceName, in.Path)
-		if e != nil && !errors.Is(e, sql.ErrNoRows) {
-			return FilePutResult{}, nil, e
-		}
-		if rule != nil && !rule(in.Path, writer) {
-			return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
-		}
-		rowVisitorID = writer
-	}
-	usage, err := s.MeasureSiteStorage(ctx, call.SiteID, call.RuntimeDir)
-	if err != nil {
+	if err = s.checkFileRoom(ctx, call, existed, oldBytes, int64(len(body))); err != nil {
 		return FilePutResult{}, nil, err
 	}
-	if !existed && usage.FileObjects[call.ResourceName] >= s.deps.FileObjectsLimit {
-		return FilePutResult{}, nil, &Error{Code: "bucket_full", Message: "file bucket has too many objects; remove unused files"}
-	}
-	used := usage.Files
-	if s.deps.CombinedPool {
-		used = usage.Total()
-	}
-	if used-oldBytes+int64(len(body)) > s.FilesLimitBytes() {
-		return FilePutResult{}, nil, &Error{Code: "site_full", Message: "file storage is full; shrink photos to about 1600 px WebP and remove unused files"}
-	}
-	f, err := mechanics.StageFile(dest, body)
-	if err != nil {
-		return FilePutResult{}, nil, err
-	}
-	defer os.Remove(f)
-	if existed {
-		err = repository.RecordFileEdit(ctx, s.db, call.SiteID, call.ResourceName, in.Path)
-		if err == nil {
-			err = os.Rename(f, dest)
-		}
-	} else if err = os.Link(f, dest); errors.Is(err, os.ErrExist) {
-		return FilePutResult{}, nil, &Error{Code: "file_exists", Message: "this path already exists"}
-	} else if err == nil {
-		rowVisitorID = StampID(call.Owner, call.VisitorID)
-		err = repository.RecordFileAdd(ctx, s.db, call.SiteID, call.ResourceName, in.Path, rowVisitorID)
-		if err != nil {
-			_ = os.Remove(dest)
-		}
-	}
-	if err != nil {
+	if err = s.publishFile(ctx, call, dest, in.Path, body, existed, rowVisitorID); err != nil {
 		return FilePutResult{}, nil, err
 	}
 	s.deps.Committed(ctx)
@@ -202,6 +136,103 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	}
 	s.deps.Notify(call, "file.uploaded", data)
 	return result, nil, nil
+}
+
+// storedFileSize reports the size of the regular file at dest, if one is
+// there; any other kind of entry blocks the path.
+func storedFileSize(dest string) (size int64, existed bool, err error) {
+	fi, err := os.Lstat(dest)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return 0, false, nil
+	case err != nil:
+		return 0, false, err
+	case !fi.Mode().IsRegular():
+		return 0, false, &Error{Code: "file_exists", Message: "this path already exists"}
+	}
+	return fi.Size(), true, nil
+}
+
+// authorizeFilePut applies the file rules to an add or an edit and returns
+// the file's uploader: the new file's own, or the stored file's (read under
+// the write lock, before the overwrite). Someone who may add but not change
+// gets file_exists, as on kv.
+func (s *Service) authorizeFilePut(c *Call, path string, existed bool) (writer string, refusal *Error, err error) {
+	add := *c
+	op := ruleengine.OpAdd
+	if existed {
+		op = ruleengine.OpEdit
+	}
+	rule, auth := s.fileRule(c, op)
+	exists := &Error{Code: "file_exists", Message: "this path already exists"}
+	if auth != nil && existed {
+		if _, e := s.fileRule(&add, ruleengine.OpAdd); e == nil {
+			return "", nil, exists
+		}
+	}
+	if auth != nil {
+		return "", auth, nil
+	}
+	if !existed {
+		writer = StampID(c.Owner, c.VisitorID)
+		if rule != nil && !rule(path, writer) {
+			return "", &Error{Code: "forbidden", Message: "add is not open to this visitor here"}, nil
+		}
+		return writer, nil, nil
+	}
+	writer, err = repository.FileWriter(c.Context, s.db, c.SiteID, c.ResourceName, path)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", nil, err
+	}
+	if rule != nil && !rule(path, writer) {
+		return "", nil, exists
+	}
+	return writer, nil, nil
+}
+
+// checkFileRoom refuses a write that the bucket's object limit or the site's
+// file storage cannot take.
+func (s *Service) checkFileRoom(ctx context.Context, call Call, existed bool, oldBytes, newBytes int64) error {
+	usage, err := s.MeasureSiteStorage(ctx, call.SiteID, call.RuntimeDir)
+	if err != nil {
+		return err
+	}
+	if !existed && usage.FileObjects[call.ResourceName] >= s.deps.FileObjectsLimit {
+		return &Error{Code: "bucket_full", Message: "file bucket has too many objects; remove unused files"}
+	}
+	used := usage.Files
+	if s.deps.CombinedPool {
+		used = usage.Total()
+	}
+	if used-oldBytes+newBytes > s.FilesLimitBytes() {
+		return &Error{Code: "site_full", Message: "file storage is full; shrink photos to about 1600 px WebP and remove unused files"}
+	}
+	return nil
+}
+
+// publishFile stages body and moves it to dest, recording the edit, or the
+// new file and its uploader.
+func (s *Service) publishFile(ctx context.Context, call Call, dest, path string, body []byte, existed bool, writer string) error {
+	staged, err := mechanics.StageFile(dest, body)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(staged)
+	if existed {
+		if err = repository.RecordFileEdit(ctx, s.db, call.SiteID, call.ResourceName, path); err != nil {
+			return err
+		}
+		return os.Rename(staged, dest)
+	}
+	if err = os.Link(staged, dest); errors.Is(err, os.ErrExist) {
+		return &Error{Code: "file_exists", Message: "this path already exists"}
+	} else if err != nil {
+		return err
+	}
+	if err = repository.RecordFileAdd(ctx, s.db, call.SiteID, call.ResourceName, path, writer); err != nil {
+		_ = os.Remove(dest)
+	}
+	return err
 }
 
 // FileLinkInput identifies the file for an owner download link.
@@ -322,135 +353,153 @@ type FileItem struct {
 func (s *Service) ListFiles(ctx context.Context, in FileListInput) ([]FileItem, string, *Error, error) {
 	call := in.Call
 	call.Context = ctx
-	var filter string
 	rule, auth := s.fileRule(&call, ruleengine.OpRead)
 	if auth != nil {
 		return nil, "", auth, nil
 	}
-	if rule != nil {
-		if call.rulePlan.ReadIsOwnOrOwner() && !call.OwnerOnSite {
-			filter = call.VisitorID // the indexed lookup by uploader
-		} else if call.rulePlan.Partial(ruleengine.OpRead, call.ruleValues) == ruleengine.True {
-			rule = nil // every file is readable
-		}
+	uploader := ""
+	if rule != nil && call.rulePlan.ReadIsOwnOrOwner() && !call.OwnerOnSite {
+		uploader = call.VisitorID // the indexed lookup by uploader
+	} else if rule != nil && call.rulePlan.Partial(ruleengine.OpRead, call.ruleValues) == ruleengine.True {
+		rule = nil // every file is readable
 	}
 	if !in.Valid {
 		return nil, "", nil, &Error{Code: "invalid_limit", Message: "invalid limit"}
 	}
-	out := []FileItem{}
-	next := ""
-	if filter != "" {
-		count := 0
-		more := false
-		e := repository.ForEachFilePath(ctx, s.db, call.SiteID, call.ResourceName, filter, in.After, in.Prefix, in.Limit+1, func(p string) (bool, error) {
-			count++
-			if count > in.Limit {
-				more = true
-				return false, nil
-			}
-			next = p
-			if !mechanics.ValidObjectPath(p) || rule != nil && !rule(p, filter) {
-				return true, nil
-			}
-			f, e := os.Open(s.deps.FilePath(call, p))
-			if os.IsNotExist(e) {
-				return true, nil
-			}
-			if e != nil {
-				return false, e
-			}
-			fi, e := f.Stat()
-			if e != nil || !fi.Mode().IsRegular() {
-				f.Close()
-				return true, nil
-			}
-			var b [512]byte
-			n, _ := f.Read(b[:])
-			f.Close()
-			mine := true
-			out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: mechanics.DetectContentType(b[:n]), Mine: &mine})
-			return true, nil
-		})
-		if e != nil {
-			return nil, "", nil, e
-		}
-		if !more {
-			next = ""
-		}
-		return out, next, nil, nil
+	var out []FileItem
+	var next string
+	var err error
+	if uploader != "" {
+		out, next, err = s.listUploaderFiles(ctx, call, in, rule, uploader)
+	} else {
+		out, next, err = s.listBucketFiles(ctx, call, in, rule)
 	}
-	err := filepath.WalkDir(in.Root, func(fp string, d os.DirEntry, e error) error {
-		if errors.Is(e, os.ErrNotExist) {
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return out, next, nil, nil
+}
+
+// listUploaderFiles pages through the files one visitor uploaded, by the
+// uploader index. The cursor is the last path visited, listed or not.
+func (s *Service) listUploaderFiles(ctx context.Context, call Call, in FileListInput, rule fileCheck, uploader string) ([]FileItem, string, error) {
+	out, next, visited := []FileItem{}, "", 0
+	err := repository.ForEachFilePath(ctx, s.db, call.SiteID, call.ResourceName, uploader, in.After, in.Prefix, in.Limit+1, func(p string) (bool, error) {
+		if visited++; visited > in.Limit {
+			return false, nil
+		}
+		next = p
+		if !mechanics.ValidObjectPath(p) || rule != nil && !rule(p, uploader) {
+			return true, nil
+		}
+		item, ok, err := regularFileItem(s.deps.FilePath(call, p), p)
+		if ok {
+			mine := true
+			item.Mine = &mine
+			out = append(out, item)
+		}
+		return err == nil, err
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	if visited <= in.Limit {
+		next = ""
+	}
+	return out, next, nil
+}
+
+// listBucketFiles walks the bucket in path order for the files the caller may
+// read, then shows who uploaded them.
+func (s *Service) listBucketFiles(ctx context.Context, call Call, in FileListInput, rule fileCheck) ([]FileItem, string, error) {
+	out := []FileItem{}
+	err := filepath.WalkDir(in.Root, func(fp string, d os.DirEntry, err error) error {
+		hidden := err == nil && strings.HasPrefix(d.Name(), ".")
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			return nil
+		case err != nil:
+			return err
+		case hidden && d.IsDir():
+			return filepath.SkipDir
+		case hidden || !d.Type().IsRegular():
 			return nil
 		}
-		if e != nil {
-			return e
-		}
-		if strings.HasPrefix(d.Name(), ".") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() || !d.Type().IsRegular() {
-			return nil
-		}
-		rel, e := filepath.Rel(in.Root, fp)
-		if e != nil {
-			return e
+		rel, err := filepath.Rel(in.Root, fp)
+		if err != nil {
+			return err
 		}
 		p := filepath.ToSlash(rel)
 		if !mechanics.ValidObjectPath(p) || !strings.HasPrefix(p, in.Prefix) || p <= in.After {
 			return nil
 		}
-		if rule != nil {
-			if ok, e := rule.stored(ctx, s, call, p); e != nil || !ok {
-				return e
-			}
+		if ok, err := rule.stored(ctx, s, call, p); err != nil || !ok {
+			return err
 		}
-		fi, e := d.Info()
-		if e != nil {
-			return e
+		item, ok, err := regularFileItem(fp, p)
+		if ok {
+			out = append(out, item)
 		}
-		f, e := os.Open(fp)
-		if e != nil {
-			return e
-		}
-		var b [512]byte
-		n, _ := f.Read(b[:])
-		f.Close()
-		out = append(out, FileItem{Path: p, Bytes: fi.Size(), ContentType: mechanics.DetectContentType(b[:n])})
-		if len(out) >= in.Limit+1 {
+		if err == nil && len(out) > in.Limit {
 			return io.EOF
 		}
-		return nil
+		return err
 	})
 	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, "", nil, err
+		return nil, "", err
 	}
+	next := ""
 	if len(out) > in.Limit {
 		next = out[in.Limit-1].Path
 		out = out[:in.Limit]
 	}
-	if (call.Owner || call.OwnerOnSite || call.VisitorID != "") && len(out) > 0 {
-		paths := make([]string, len(out))
-		for i := range out {
-			paths[i] = out[i].Path
-		}
-		writers, e := repository.FileWriters(ctx, s.db, call.SiteID, call.ResourceName, paths)
-		if e != nil {
-			return nil, "", nil, e
-		}
-		for i := range out {
-			out[i].VisitorID = writers[out[i].Path]
-			if !call.Owner && !call.OwnerOnSite {
-				mine := out[i].VisitorID != "" && out[i].VisitorID == call.VisitorID
-				out[i].VisitorID = ""
-				out[i].Mine = &mine
-			}
-		}
+	return out, next, s.showFileUploaders(ctx, call, out)
+}
+
+// regularFileItem describes the regular file at fp, sniffing its content
+// type; a missing or non-regular file is skipped.
+func regularFileItem(fp, p string) (FileItem, bool, error) {
+	f, err := os.Open(fp)
+	if os.IsNotExist(err) {
+		return FileItem{}, false, nil
 	}
-	return out, next, nil, nil
+	if err != nil {
+		return FileItem{}, false, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil || !fi.Mode().IsRegular() {
+		return FileItem{}, false, nil
+	}
+	var b [512]byte
+	n, _ := f.Read(b[:])
+	return FileItem{Path: p, Bytes: fi.Size(), ContentType: mechanics.DetectContentType(b[:n])}, true, nil
+}
+
+// showFileUploaders tells a signed-in caller who uploaded each listed file:
+// the owner sees the uploader, a visitor only whether it was them.
+func (s *Service) showFileUploaders(ctx context.Context, call Call, out []FileItem) error {
+	if len(out) == 0 || !call.Owner && !call.OwnerOnSite && call.VisitorID == "" {
+		return nil
+	}
+	paths := make([]string, len(out))
+	for i := range out {
+		paths[i] = out[i].Path
+	}
+	writers, err := repository.FileWriters(ctx, s.db, call.SiteID, call.ResourceName, paths)
+	if err != nil {
+		return err
+	}
+	for i := range out {
+		writer := writers[out[i].Path]
+		if call.Owner || call.OwnerOnSite {
+			out[i].VisitorID = writer
+			continue
+		}
+		mine := writer != "" && writer == call.VisitorID
+		out[i].Mine = &mine
+	}
+	return nil
 }
 
 // DownloadFile validates a sealed link and opens its file for streaming.

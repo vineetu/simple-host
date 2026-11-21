@@ -8,8 +8,7 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// FilterSitemapSites keeps only team sites that an organiser has not taken
-// down, preserving the platform's order and site metadata.
+// FilterSitemapSites keeps only team sites that an organiser has not taken down, preserving the platform's order and site metadata.
 func FilterSitemapSites(ctx context.Context, q sqlkit.Querier, sites []model.Site) ([]model.Site, error) {
 	if len(sites) == 0 {
 		return sites, nil

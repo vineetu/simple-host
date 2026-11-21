@@ -3,19 +3,21 @@ package server
 import (
 	"time"
 
+	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/data/datahttp"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/geoip"
-	"github.com/vsriram/simple-host/host/handler"
 	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/sites/analytics"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
 // registerWorkers is the single registry of process background owners, in
 // start order. Retain every owner before any potentially blocking Start call.
-func registerWorkers(site *handler.SiteHandler, data *handler.DataHandler, user *handler.UserHandler, oauth *handler.OAuthHandler, connector *handler.ConnectorHandler,
-	parts extension.Parts, metrics *operations.APIMetrics, geo *geoip.DB, eventDomains *handler.EventDomainHandler, ingester *analytics.Ingester, paper *papermetrics.Collector) *workers.Set {
+func registerWorkers(site *siteshttp.SiteHandler, data *datahttp.DataHandler, user *accesshttp.UserHandler, oauth *accesshttp.OAuthHandler, connector *accesshttp.ConnectorHandler,
+	parts extension.Parts, metrics *operations.APIMetrics, geo *geoip.DB, eventDomains *siteshttp.EventDomainHandler, ingester *analytics.Ingester, paper *papermetrics.Collector) *workers.Set {
 	s := &workers.Set{}
 	s.Add(site.HTTPCaches())
 	s.Add(user.HTTPCaches())

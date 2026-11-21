@@ -12,38 +12,22 @@ import (
 // author and approval columns, resolved case-insensitively.
 func PrepareRulesDatabase(ctx context.Context, path string, maxMemory, limit, used, fileSize int64, requireEmpty, clearIDs bool, ownTables, holdTables func(string) bool, checkpoint func(error), markChanged func(), committed func(map[string]bool)) (map[string]bool, error) {
 	existing := map[string]bool{}
-	ctx, cache := sqliteMemoryContext(ctx, min(limit, fileSize+limit-used), maxMemory)
-	conn, err := sqlite3.OpenContext(ctx, path)
+	ctx, conn, cache, err := openSQLite(ctx, path, min(limit, fileSize+limit-used), maxMemory)
 	if err != nil {
 		return existing, err
 	}
 	defer closeTableConn(func() { defer conn.Close(); sqliteStage(ctx, "close") })
-	sqliteStage(ctx, "after_open")
-	conn.SetInterrupt(ctx)
 	if err = configureSQLiteMemory(conn, cache); err != nil {
 		return existing, err
 	}
 	if err = conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		return existing, err
 	}
-	page, _, err := conn.Prepare("PRAGMA page_size")
-	if err != nil {
-		return existing, err
-	}
-	defer page.Close()
-	sqliteStage(ctx, "after_prepare")
-	if !page.Step() {
-		page.Close()
-		return existing, fmt.Errorf("page size unavailable")
-	}
-	sqliteStage(ctx, "after_step")
-	size := page.ColumnInt64(0)
-	page.Close()
-	maxPages := (limit - (used - fileSize)) / size
-	if maxPages < 1 || fileSize > maxPages*size {
+	pages, pageSize, err := capPages(ctx, conn, limit-(used-fileSize))
+	if err == ErrTableFull || err == nil && fileSize > pages*pageSize {
 		return existing, sqlite3.FULL
 	}
-	if err = conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)); err != nil {
+	if err != nil {
 		return existing, err
 	}
 	tables, err := SQLTables(conn)
@@ -54,51 +38,11 @@ func PrepareRulesDatabase(ctx context.Context, path string, maxMemory, limit, us
 		existing[strings.ToLower(t)] = true
 	}
 	if requireEmpty {
-		for t := range tables {
-			check, _, e := conn.Prepare("SELECT 1 FROM " + Quote(t) + " LIMIT 1")
-			if e != nil {
-				return existing, e
-			}
-			defer check.Close()
-			hasRows := check.Step()
-			e = check.Err()
-			check.Close()
-			if e != nil {
-				return existing, e
-			}
-			if hasRows {
-				return existing, fmt.Errorf("database must be empty before own applies")
-			}
+		if err = requireEmptyTables(conn, tables); err != nil {
+			return existing, err
 		}
 	}
-	if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
-		return existing, err
-	}
-	defer conn.Exec("ROLLBACK")
-	if clearIDs {
-		for t := range tables {
-			cols, _, e := TableXInfo(conn, t)
-			if e != nil {
-				return existing, e
-			}
-			column := schemaColumn(cols, "visitor_id")
-			if _, found := cols[column]; found {
-				if e = conn.Exec("UPDATE " + Quote(t) + " SET " + Quote(column) + " = NULL"); e != nil {
-					return existing, e
-				}
-			}
-		}
-	}
-	// Every table counts as new here, so one that needs visitor_id and has
-	// none gets it.
-	if err = ensureOwnTables(conn, map[string]bool{}, ownTables); err != nil {
-		return existing, err
-	}
-	if err = ensureHoldTables(conn, holdTables, nil); err != nil {
-		return existing, err
-	}
-	sqliteStage(ctx, "before_commit")
-	if err = conn.Exec("COMMIT"); err != nil {
+	if err = addRuleColumns(ctx, conn, tables, clearIDs, ownTables, holdTables); err != nil {
 		return existing, err
 	}
 	committed(existing)
@@ -108,4 +52,60 @@ func PrepareRulesDatabase(ctx context.Context, path string, maxMemory, limit, us
 		checkpoint(err)
 	}
 	return existing, nil
+}
+
+// requireEmptyTables refuses a database that holds any row.
+func requireEmptyTables(conn *sqlite3.Conn, tables map[string]bool) error {
+	for t := range tables {
+		check, _, err := conn.Prepare("SELECT 1 FROM " + Quote(t) + " LIMIT 1")
+		if err != nil {
+			return err
+		}
+		hasRows := check.Step()
+		err = check.Err()
+		check.Close()
+		if err != nil {
+			return err
+		}
+		if hasRows {
+			return fmt.Errorf("database must be empty before own applies")
+		}
+	}
+	return nil
+}
+
+// addRuleColumns commits, in one transaction, the optional clearing of
+// visitor ids and the author and approval columns the rules need. Every table
+// counts as new here, so one that needs visitor_id and has none gets it.
+func addRuleColumns(ctx context.Context, conn *sqlite3.Conn, tables map[string]bool, clearIDs bool, own, hold func(string) bool) error {
+	if err := conn.Exec("BEGIN IMMEDIATE"); err != nil {
+		return err
+	}
+	defer conn.Exec("ROLLBACK")
+	if clearIDs {
+		if err := clearVisitorIDs(conn, tables); err != nil {
+			return err
+		}
+	}
+	if err := EnsureRuleColumns(conn, nil, own, hold); err != nil {
+		return err
+	}
+	sqliteStage(ctx, "before_commit")
+	return conn.Exec("COMMIT")
+}
+
+// clearVisitorIDs empties the visitor_id column of every table that has one.
+func clearVisitorIDs(conn *sqlite3.Conn, tables map[string]bool) error {
+	for t := range tables {
+		cols, _, err := TableXInfo(conn, t)
+		if err != nil {
+			return err
+		}
+		if column := schemaColumn(cols, "visitor_id"); column != "" {
+			if err = conn.Exec("UPDATE " + Quote(t) + " SET " + Quote(column) + " = NULL"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

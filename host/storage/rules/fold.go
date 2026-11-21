@@ -48,43 +48,48 @@ func (p *Plan) predicate(x *Expr, v Values, worst bool) (Predicate, error) {
 	return f.Predicate, nil
 }
 func (p *Plan) emit(x *Expr, v Values, worst bool) fragment {
-	if x.op == "&&" || x.op == "||" {
-		a, b := p.emit(x.left, v, worst), p.emit(x.right, v, worst)
-		for i := 0; i < 2; i++ {
-			if a.constant {
-				if x.op == "&&" {
-					if a.SQL == "0" {
-						return a
-					}
-					return b
-				}
-				if a.SQL == "1" {
-					return a
-				}
-				return b
-			}
-			a, b = b, a
-		}
-		op := " AND "
-		if x.op == "||" {
-			op = " OR "
-		}
-		return fragment{Predicate: Predicate{SQL: "(" + a.SQL + op + b.SQL + ")", Args: append(a.Args, b.Args...)}}
+	switch {
+	case x.op == "&&" || x.op == "||":
+		return p.junction(x, v, worst)
+	case hasColumn(x):
+		return p.comparisonSQL(x, v, worst)
+	case worst && hasBinding(x):
+		// The worst case keeps binding-dependent branches as SQL so they are sized.
+		return fragment{Predicate: Predicate{SQL: "1"}}
 	}
-	if !hasColumn(x) {
-		if worst {
-			binding := false
-			walk(x, func(x *Expr) {
-				if x.op == "binding" {
-					binding = true
-				}
-			})
-			if binding {
-				return fragment{Predicate: Predicate{SQL: "1"}}
-			}
-		}
-		return constant(eval(x, v, nil))
+	return constant(eval(x, v, nil))
+}
+
+// junction emits AND/OR, folding a constant side: the absorbing value wins
+// and the identity value yields the other side.
+func (p *Plan) junction(x *Expr, v Values, worst bool) fragment {
+	a, b := p.emit(x.left, v, worst), p.emit(x.right, v, worst)
+	absorbing, op := "0", " AND "
+	if x.op == "||" {
+		absorbing, op = "1", " OR "
 	}
+	for _, pair := range [][2]fragment{{a, b}, {b, a}} {
+		if c, other := pair[0], pair[1]; c.constant {
+			if c.SQL == absorbing {
+				return c
+			}
+			return other
+		}
+	}
+	return fragment{Predicate: Predicate{SQL: "(" + a.SQL + op + b.SQL + ")", Args: append(a.Args, b.Args...)}}
+}
+
+func hasBinding(x *Expr) bool {
+	found := false
+	walk(x, func(x *Expr) { found = found || x.op == "binding" })
+	return found
+}
+
+var nullSQL = map[string]string{"is": " IS NULL", "is not": " IS NOT NULL"}
+
+// comparisonSQL emits a column comparison guarded by the column's storage type,
+// so text never matches a number and NULL bound values match nothing.
+func (p *Plan) comparisonSQL(x *Expr, v Values, worst bool) fragment {
 	left, right := x.left, x.right
 	if (x.op == "==" || x.op == "!=") && !hasColumn(left) {
 		left, right = right, left
@@ -94,73 +99,65 @@ func (p *Plan) emit(x *Expr, v Values, worst bool) fragment {
 		col = col.left
 	}
 	quoted := `"` + strings.ReplaceAll(col.name, `"`, `""`) + `"`
-	if x.op == "is" || x.op == "is not" {
-		op := " IS NULL"
-		if x.op == "is not" {
-			op = " IS NOT NULL"
-		}
-		return fragment{Predicate: Predicate{SQL: quoted + op}}
+	if sql, ok := nullSQL[x.op]; ok {
+		return fragment{Predicate: Predicate{SQL: quoted + sql}}
 	}
 	target := quoted
 	if left.op == "lower" {
 		target = "lower(" + quoted + ")"
 	}
-	var args []Value
-	if x.op == "in" || x.op == "not in" {
-		if worst && right.op == "binding" {
-			args = make([]Value, p.lim.ListItems)
-			for i := range args {
-				args[i] = Text("")
-			}
-		} else {
-			args = listValues(right, v)
-		}
-	} else {
-		args = []Value{numeric(p.boundValue(right, v, worst))}
-	}
-	textType := len(args) == 0 || args[0].Kind == KindText
+	args := p.comparisonArgs(x.op, right, v, worst)
+	text := len(args) == 0 || args[0].Kind == KindText
 	guard := "typeof(" + quoted + ") IN ('integer','real')"
-	if textType {
+	if text {
 		guard = "typeof(" + quoted + ") = 'text'"
 	}
-	if len(args) == 0 {
-		if x.op == "in" {
-			return constant(false)
-		}
+	switch {
+	case len(args) == 0 && x.op == "in", len(args) > 0 && args[0].Kind == KindNull:
+		return constant(false)
+	case len(args) == 0:
 		return fragment{Predicate: Predicate{SQL: "(" + guard + ")"}}
 	}
-	if args[0].Kind == KindNull {
-		return constant(false)
-	}
-	var condition string
-	switch x.op {
-	case "==", "!=":
-		op := " = "
-		if x.op == "!=" {
-			op = " != "
-		}
-		condition = target + op + "?"
-		if textType {
-			condition += " COLLATE BINARY"
-		}
-	case "in", "not in":
-		if textType {
-			target += " COLLATE BINARY"
-		}
-		op := " IN "
-		if x.op == "not in" {
-			op = " NOT IN "
-		}
-		condition = target + op + "(" + strings.TrimSuffix(strings.Repeat("?,", len(args)), ",") + ")"
-	case "contains", "not contains":
-		op := " > 0"
-		if x.op == "not contains" {
-			op = " = 0"
-		}
-		condition = "instr(" + target + ", ?)" + op
-	}
-	return fragment{Predicate: Predicate{SQL: "(" + guard + " AND " + condition + ")", Args: args}}
+	return fragment{Predicate: Predicate{SQL: "(" + guard + " AND " + condition(x.op, target, text, len(args)) + ")", Args: args}}
 }
+
+// comparisonArgs binds the right-hand side; the worst case fills list bindings to the limit.
+func (p *Plan) comparisonArgs(op string, right *Expr, v Values, worst bool) []Value {
+	if op != "in" && op != "not in" {
+		return []Value{numeric(p.boundValue(right, v, worst))}
+	}
+	if !worst || right.op != "binding" {
+		return listValues(right, v)
+	}
+	args := make([]Value, p.lim.ListItems)
+	for i := range args {
+		args[i] = Text("")
+	}
+	return args
+}
+
+// condition is the SQL test for op against n placeholders.
+func condition(op, target string, text bool, n int) string {
+	collate := ""
+	if text {
+		collate = " COLLATE BINARY"
+	}
+	placeholders := "(" + strings.TrimSuffix(strings.Repeat("?,", n), ",") + ")"
+	switch op {
+	case "==":
+		return target + " = ?" + collate
+	case "!=":
+		return target + " != ?" + collate
+	case "in":
+		return target + collate + " IN " + placeholders
+	case "not in":
+		return target + collate + " NOT IN " + placeholders
+	case "contains":
+		return "instr(" + target + ", ?) > 0"
+	}
+	return "instr(" + target + ", ?) = 0"
+}
+
 func (p *Plan) boundValue(x *Expr, v Values, worst bool) Value {
 	if !worst {
 		return operand(x, v, nil)

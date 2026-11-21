@@ -8,146 +8,203 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
-	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
-	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
 
-// SetTeamFinding performs the team finding workflow in one transaction.
-func (s *Service) SetTeamFinding(ctx context.Context, eventID, userID, note string) error {
+// findingWrite refuses a team-finding write outside team building or with
+// team finding off.
+func findingWrite(ev model.Event) error {
+	if err := participantStage(ev.Stage); err != nil {
+		return err
+	}
+	if !ev.TeamFinding {
+		return ErrFindingOff
+	}
+	return nil
+}
+
+// SetTeamFinding is the deprecated finding-note write: the caller's team,
+// admin only, before its deadline.
+func (s *Service) SetTeamFinding(ctx context.Context, ev model.Event, caller model.EventMember, userID, rawNote string) error {
+	if err := findingWrite(ev); err != nil {
+		return err
+	}
+	if !caller.TeamID.Valid {
+		return errEventNotFound()
+	}
+	note, err := checkLine(eventapp.StripInvisible(rawNote), "looking_for", 0, 120)
+	if err != nil {
+		return err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
 	}
 	defer tx.Rollback()
-	if err = teamrepo.LockFindingEvent(ctx, tx, eventID); err == nil {
-		// Membership is rechecked while locked, before editing the team.
-		var team string
-		var admin bool
-		err = teamrepo.LockFindingMembership(ctx, tx, eventID, userID).Scan(&team, &admin)
-		if err == nil && !admin {
-			err = teamrepo.ErrHackTeamAdminOnly
-		}
-		// Same team-row lock and frozen-team check as PatchTeam (Grok
-		// security review, 2026-11-01): this deprecated alias writes the
-		// same column and deserves the same guard, not a looser one just
-		// because it predates PatchTeam.
-		if err == nil {
-			_, err = teamrepo.LockFindingTeam(ctx, tx, team)
-		}
-		if err == nil {
-			if st, serr := teamrepo.TeamWriteStateFor(ctx, tx, team, false); serr != nil {
-				err = serr
-			} else if st.Frozen() {
-				err = teamrepo.ErrHackTeamFrozen
-			}
-		}
-		if err == nil {
-			_, err = teamrepo.SetFindingNote(ctx, tx, team, note)
-		}
+	if err = setFindingNote(ctx, tx, ev.ID, userID, note); err != nil {
+		return err
 	}
+	return commit(tx)
+}
+
+// setFindingNote rechecks membership and admin under the event lock, then
+// takes the same team-row lock and frozen check as PatchTeam (this
+// deprecated alias writes the same column) before writing the note.
+func setFindingNote(ctx context.Context, tx *sql.Tx, eventID, userID, note string) error {
+	if err := teamrepo.LockFindingEvent(ctx, tx, eventID); err != nil {
+		return err
+	}
+	var team string
+	var admin bool
+	if err := teamrepo.LockFindingMembership(ctx, tx, eventID, userID).Scan(&team, &admin); err != nil {
+		return err
+	}
+	if !admin {
+		return teamrepo.ErrHackTeamAdminOnly
+	}
+	if _, err := teamrepo.LockFindingTeam(ctx, tx, team); err != nil {
+		return err
+	}
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, team, false)
 	if err != nil {
 		return err
 	}
-	if err = tx.Commit(); err != nil {
-		return internalError(err)
+	if st.Frozen() {
+		return teamrepo.ErrHackTeamFrozen
 	}
-	return nil
+	_, err = teamrepo.SetFindingNote(ctx, tx, team, note)
+	return err
 }
 
-// SetLooking performs the team finding workflow in one transaction.
-func (s *Service) SetLooking(ctx context.Context, eventID, userID string, looking bool, intro string) error {
+// SetLooking sets whether a participant is looking for a team, with intro.
+func (s *Service) SetLooking(ctx context.Context, ev model.Event, caller model.EventMember, userID string, looking bool, rawIntro string) error {
+	if err := findingWrite(ev); err != nil {
+		return err
+	}
+	if caller.Role != "participant" {
+		return errEventNotFound()
+	}
+	intro, err := checkLine(rawIntro, "intro", 0, 120)
+	if err != nil {
+		return err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
 	}
 	defer tx.Rollback()
-	if err = teamrepo.LockFindingEvent(ctx, tx, eventID); err == nil {
-		var res sql.Result
-		res, err = teamrepo.SetMemberLooking(ctx, tx, eventID, userID, looking, intro)
-		if err == nil {
-			n, _ := res.RowsAffected()
-			if n == 0 {
-				err = teamrepo.ErrHackFindingForbidden
-			}
-		}
+	if err = teamrepo.LockFindingEvent(ctx, tx, ev.ID); err != nil {
+		return err
 	}
+	res, err := teamrepo.SetMemberLooking(ctx, tx, ev.ID, userID, looking, intro)
 	if err != nil {
 		return err
 	}
-	if err = tx.Commit(); err != nil {
-		return internalError(err)
+	if n, _ := res.RowsAffected(); n == 0 {
+		return teamrepo.ErrHackFindingForbidden
 	}
-	return nil
+	return commit(tx)
 }
 
-// CreateTeamRequest performs the team finding workflow in one transaction.
-func (s *Service) CreateTeamRequest(ctx context.Context, event model.Event, actorID, team, userID, kind string) (string, error) {
+// CreateTeamRequest asks to join teamSlug, or, with teamSlug empty,
+// invites invitee to the caller's own team. It returns the request state
+// ("created" for a new one).
+func (s *Service) CreateTeamRequest(ctx context.Context, ev model.Event, caller model.EventMember, actorID, teamSlug, invitee string) (string, error) {
+	if err := findingWrite(ev); err != nil {
+		return "", err
+	}
+	team, userID, kind, err := s.requestTarget(ctx, caller, actorID, teamSlug, invitee)
+	if err != nil {
+		return "", err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", internalError(err)
 	}
 	defer tx.Rollback()
-	state := ""
-	if err = teamrepo.LockFindingEvent(ctx, tx, event.ID); err == nil {
-		state, err = teamrepo.NewTeamRequest(ctx, tx, event, actorID, team, userID, kind)
+	if err = teamrepo.LockFindingEvent(ctx, tx, ev.ID); err != nil {
+		return "", err
 	}
+	state, err := teamrepo.NewTeamRequest(ctx, tx, ev, actorID, team, userID, kind)
 	if err == nil {
-		err = noticeTeamRequest(ctx, tx, event.ID, team, userID, kind, state)
+		err = noticeTeamRequest(ctx, tx, ev.ID, team, userID, kind, state)
 	}
 	if err == nil && state == "joined" {
-		err = eventapp.SyncAccess(ctx, tx, event.ID)
+		err = eventapp.SyncAccess(ctx, tx, ev.ID)
 	}
 	if err != nil {
 		return "", err
 	}
-	if err = tx.Commit(); err != nil {
-		return "", internalError(err)
-	}
-	return state, nil
+	return state, commit(tx)
 }
 
-// ResolveTeamRequest performs the team finding workflow in one transaction.
-func (s *Service) ResolveTeamRequest(ctx context.Context, event model.Event, actorID, id, action string) error {
+// requestTarget is the team, person and kind of a new request: the caller
+// asking to join teamSlug, or (teamSlug empty) the caller inviting
+// invitee to their own team.
+func (s *Service) requestTarget(ctx context.Context, caller model.EventMember, actorID, teamSlug, invitee string) (string, string, string, error) {
+	if teamSlug != "" {
+		return teamSlug, actorID, "request", nil
+	}
+	if !isID(invitee) || !caller.TeamID.Valid {
+		return "", "", "", errEventNotFound()
+	}
+	team, err := teamrepo.GetEventTeamByID(ctx, s.db, caller.TeamID.String)
+	if err != nil {
+		return "", "", "", internalError(err)
+	}
+	return team.Slug, invitee, "invite", nil
+}
+
+// resolveActions are the answers a team request takes.
+var resolveActions = map[string]bool{"accept": true, "decline": true, "withdraw": true}
+
+// ResolveTeamRequest accepts, declines or withdraws request id.
+func (s *Service) ResolveTeamRequest(ctx context.Context, ev model.Event, actorID, id, action string) error {
+	if err := findingWrite(ev); err != nil {
+		return err
+	}
+	if !isID(id) || !resolveActions[action] {
+		return errEventNotFound()
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return internalError(err)
 	}
 	defer tx.Rollback()
-	var answered struct{ teamID, userID, kind string }
-	if err = teamrepo.LockFindingEvent(ctx, tx, event.ID); err == nil {
-		// Read before it is resolved: resolving deletes the row.
-		err = teamrepo.ReadTeamRequest(ctx, tx,
-			event.ID, id).Scan(&answered.teamID, &answered.userID, &answered.kind)
-		if err == nil {
-			err = teamrepo.ResolveTeamRequest(ctx, tx, event, actorID, id, action)
-		}
-	}
-	// A team's admin answered someone's request to join: tell that person.
-	// An invite's answer and a withdrawal are the actor's own news.
-	if err == nil && answered.kind == "request" && action != "withdraw" {
-		detail := "declined"
-		if action == "accept" {
-			detail = "accepted"
-		}
-		err = eventrepo.NotifyUsers(ctx, tx, event.ID, eventrepo.NoticeRequestAnswered, answered.teamID, "", detail, answered.userID)
-	}
-	if err == nil {
-		err = eventapp.SyncAccess(ctx, tx, event.ID)
-	}
-	if err != nil {
+	if err = resolveRequest(ctx, tx, ev, actorID, id, action); err != nil {
 		return err
 	}
-	if err = tx.Commit(); err != nil {
-		return internalError(err)
+	if err = eventapp.SyncAccess(ctx, tx, ev.ID); err != nil {
+		return err
 	}
-	return nil
+	return commit(tx)
 }
 
-// noticeTeamRequest queues the notice for a new request or invite, inside
-// the transaction that made it and after its event, member and team locks: a
-// request reaches the team's admins, an invite the invited person. When the
-// call instead completed an earlier offer ("joined"), a teammate's invite
-// answered someone's waiting request, so that person hears they're in.
+// resolveRequest resolves the request under the event lock and, when a
+// team's admin answered someone's request to join, tells that person. An
+// invite's answer and a withdrawal are the actor's own news.
+func resolveRequest(ctx context.Context, tx *sql.Tx, ev model.Event, actorID, id, action string) error {
+	if err := teamrepo.LockFindingEvent(ctx, tx, ev.ID); err != nil {
+		return err
+	}
+	// Read before it is resolved: resolving deletes the row.
+	var teamID, userID, kind string
+	if err := teamrepo.ReadTeamRequest(ctx, tx, ev.ID, id).Scan(&teamID, &userID, &kind); err != nil {
+		return err
+	}
+	if err := teamrepo.ResolveTeamRequest(ctx, tx, ev, actorID, id, action); err != nil {
+		return err
+	}
+	if kind != "request" || action == "withdraw" {
+		return nil
+	}
+	detail := "declined"
+	if action == "accept" {
+		detail = "accepted"
+	}
+	return eventrepo.NotifyUsers(ctx, tx, ev.ID, eventrepo.NoticeRequestAnswered, teamID, "", detail, userID)
+}
+
+// noticeTeamRequest queues the notice for a new request (to admins), invite (to the invitee) or completed invite (accepted).
 func noticeTeamRequest(ctx context.Context, tx *sql.Tx, eventID, teamSlug, userID, kind, state string) error {
 	if state != "created" && !(state == "joined" && kind == "invite") {
 		return nil
@@ -166,73 +223,4 @@ func noticeTeamRequest(ctx context.Context, tx *sql.Tx, eventID, teamSlug, userI
 		return eventrepo.NotifyTeamAdmins(ctx, tx, eventID, teamID, eventrepo.NoticeJoinRequest, requestID, "")
 	}
 	return eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeInvite, teamID, requestID, "", userID)
-}
-
-// FillTeams plans or applies the organiser's team placements under the same locks.
-func (s *Service) FillTeams(ctx context.Context, eventID, userID string, requestedSize *int, apply bool) ([]model.FillPlacement, []model.FillSkippedTeam, int, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, nil, 0, internalError(err)
-	}
-	defer tx.Rollback()
-	// Fill teams does not require team finding. Lock the event and recheck
-	// stage, then lock all prospective members before teams, as joining does.
-	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
-	if err != nil {
-		return nil, nil, 0, internalError(err)
-	}
-	if !hackteams.ParticipantTeamStages(ev.Stage) {
-		return nil, nil, 0, &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
-	}
-	// Default to min(4, team_size_max), avoiding a 20-person team of strangers.
-	size := 4
-	if ev.TeamSizeMax < size {
-		size = ev.TeamSizeMax
-	}
-	if requestedSize != nil {
-		size = *requestedSize
-	}
-	if size < 1 || size > ev.TeamSizeMax {
-		return nil, nil, 0, &Error{Code: "invalid_team_size", Message: "size must be between 1 and the event's team size"}
-	}
-	if _, err = teamrepo.LockEventMembersForFill(ctx, tx, ev.ID); err != nil {
-		return nil, nil, 0, internalError(err)
-	}
-	if _, err = teamrepo.LockEventTeamsForFill(ctx, tx, ev.ID); err != nil {
-		return nil, nil, 0, internalError(err)
-	}
-	plan, skipped, err := teamrepo.PlanFillTeams(ctx, tx, ev, size, siteEverNamed)
-	if err != nil {
-		return nil, nil, 0, internalError(err)
-	}
-	if apply {
-		for _, p := range plan {
-			if p.New {
-				code, e := hackevents.RandomCode(teamCodeLength)
-				if e != nil {
-					return nil, nil, 0, internalError(e)
-				}
-				if _, err = teamrepo.InsertEventTeam(ctx, tx, ev.ID, p.Team, p.Name, code, userID); err != nil {
-					return nil, nil, 0, internalError(err)
-				}
-				// event_teams.open is no longer written (deprecated 2026-10-31).
-				if err = teamrepo.RecordUsedTeamName(ctx, tx, ev.Slug, p.Team); err != nil {
-					return nil, nil, 0, internalError(err)
-				}
-			}
-			for _, m := range p.Members {
-				// MoveParticipantToTeam ensures the first person placed is an admin.
-				if _, err = teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, m.UserID, p.Team, ev.TeamSizeMax, teamrepo.EnsureTeamAdmin); err != nil {
-					return nil, nil, 0, err
-				}
-			}
-		}
-		if err = eventapp.SyncAccess(ctx, tx, ev.ID); err != nil {
-			return nil, nil, 0, internalError(err)
-		}
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, nil, 0, internalError(err)
-	}
-	return plan, skipped, size, nil
 }

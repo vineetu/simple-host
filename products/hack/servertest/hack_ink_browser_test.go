@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
@@ -23,7 +23,7 @@ func TestServeHackInkBrowser(t *testing.T) {
 	a := newTeamSiteAppMailer(t, mb)
 	a.sites.RebasePagesForTest(a.srv.URL)
 	a.hack.SetMailer(mb)
-	handler.RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
+	siteshttp.RegisterUIRoutes(a.mux, a.srv.URL, a.sites)
 	mountHackFiles(a.mux, a.sites)
 	a.sites.Pages().RegisterSkillsHub(a.mux, a.srv.URL)
 	hackhttp.RegisterHackHome(a.mux, a.sites.Pages(), hackAssetsFor(a.sites))

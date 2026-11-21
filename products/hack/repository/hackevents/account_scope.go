@@ -16,11 +16,7 @@ const teamWriteStateCols = `t.id, e.id, e.slug, t.slug, e.account_id, e.stage, e
 	COALESCE(t.deadline_override > e.submission_deadline, false),
 	e.submission_deadline, t.deadline_override`
 
-// TeamWriteStateFor reads a team's write state. In a transaction with share
-// set, the team row is held FOR SHARE until the transaction ends, so the
-// deadline pin (PinDueTeams, FOR UPDATE) waits for a deploy that was let in
-// before the deadline and then pins what it made live. The time compared is
-// clock_timestamp(), not the transaction's start.
+// TeamWriteStateFor reads a team's write state.
 func TeamWriteStateFor(ctx context.Context, q sqlkit.Querier, teamID string, share bool) (TeamWriteState, error) {
 	lock := ""
 	if share {

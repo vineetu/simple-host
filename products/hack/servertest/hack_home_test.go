@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
@@ -17,7 +17,7 @@ func hackHomeTestMux(t *testing.T, base string) *http.ServeMux {
 	t.Helper()
 	sh := chromeTestHandlerWithBase(productedition.Hack, base)
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, base, sh)
+	siteshttp.RegisterUIRoutes(mux, base, sh)
 	mountHackFiles(mux, sh)
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	return mux

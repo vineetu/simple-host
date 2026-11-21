@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
@@ -19,7 +19,7 @@ import (
 func TestHackUINext(t *testing.T) {
 	sh := chromeTestHandler(productedition.Hack)
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh) // Includes the existing embedded file server.
+	siteshttp.RegisterUIRoutes(mux, "https://simple-host.app", sh) // Includes the existing embedded file server.
 	mountHackFiles(mux, sh)
 	hackhttp.RegisterHackUI(mux, sh.Pages(), "")
 	for _, tc := range []struct{ name, path, cookie string }{

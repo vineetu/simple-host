@@ -51,60 +51,7 @@ func notificationTools() []Tool {
 				"limits":        notificationLimitsSchema(),
 			}, "notifications", "limits"),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				path, err := notificationPath(c, args, false)
-				if err != nil {
-					return output{}, err
-				}
-				res := c.do(http.MethodGet, path, nil, nil)
-				if !res.ok() {
-					return output{}, restError("list_notifications", res)
-				}
-				var body struct {
-					Notifications []map[string]any `json:"notifications"`
-					Limits        map[string]any   `json:"limits"`
-				}
-				if json.Unmarshal(res.body, &body) != nil {
-					return output{}, errors.New("list_notifications: server returned invalid JSON")
-				}
-				notifications := make([]any, 0, len(body.Notifications))
-				for _, row := range body.Notifications {
-					// SIM-360 privacy guardrail: a web-push device's
-					// endpoint is personal data and must never reach
-					// AgentCat, which captures every MCP tool call's
-					// result. This tool was always "list webhook
-					// subscriptions" (its own description says so); push
-					// devices are managed by GET/PUT .../push/devices
-					// and .../push/rules instead, neither of which is an
-					// MCP tool.
-					if kind, _ := row["kind"].(string); kind == "web-push" {
-						continue
-					}
-					// Only public subscription fields belong in a tool result.
-					item := map[string]any{}
-					for _, key := range []string{"id", "site", "url", "events", "storage", "label", "source", "app_name", "state", "created_at", "expires_at", "last_attempt_at", "last_success_at", "last_result", "failing_since", "auth_header_name"} {
-						if value, present := row[key]; present {
-							item[key] = value
-						}
-					}
-					item["url"] = ""
-					if raw, ok := row["url"].(string); ok {
-						if u, err := url.Parse(raw); err == nil && u.Scheme != "" && u.Host != "" {
-							item["url"] = u.Scheme + "://" + u.Host
-							if u.Path != "" {
-								item["url"] = item["url"].(string) + "/..."
-							}
-						}
-					}
-					notifications = append(notifications, item)
-				}
-				limits := map[string]any{}
-				for _, key := range []string{"per_site", "per_minute", "per_day", "history_days"} {
-					limits[key] = body.Limits[key]
-				}
-				return output{Text: fmt.Sprintf("%d notification subscriptions.", len(notifications)),
-					Structured: map[string]any{"notifications": notifications, "limits": limits}}, nil
-			},
+			run:         listNotifications,
 		},
 		{
 			policy: toolPolicy{notificationID: true, groupSiteExcluded: true,
@@ -126,6 +73,63 @@ func notificationTools() []Tool {
 			},
 		},
 	}
+}
+
+func listNotifications(c *call, args map[string]any) (output, error) {
+	path, err := notificationPath(c, args, false)
+	if err != nil {
+		return output{}, err
+	}
+	res := c.do(http.MethodGet, path, nil, nil)
+	if !res.ok() {
+		return output{}, restError("list_notifications", res)
+	}
+	var body struct {
+		Notifications []map[string]any `json:"notifications"`
+		Limits        map[string]any   `json:"limits"`
+	}
+	if json.Unmarshal(res.body, &body) != nil {
+		return output{}, errors.New("list_notifications: server returned invalid JSON")
+	}
+	fields := notificationSchema()["properties"].(map[string]any)
+	notifications := make([]any, 0, len(body.Notifications))
+	for _, row := range body.Notifications {
+		// SIM-360 privacy guardrail: a web-push device's endpoint is personal
+		// data and must never reach AgentCat, which captures every MCP tool
+		// call's result. This tool lists webhook subscriptions; push devices
+		// are managed by GET/PUT .../push/devices and .../push/rules instead,
+		// neither of which is an MCP tool.
+		if kind, _ := row["kind"].(string); kind != "web-push" {
+			notifications = append(notifications, publicNotification(row, fields))
+		}
+	}
+	limits := map[string]any{}
+	for key := range notificationLimitsSchema()["properties"].(map[string]any) {
+		limits[key] = body.Limits[key]
+	}
+	return output{Text: fmt.Sprintf("%d notification subscriptions.", len(notifications)),
+		Structured: map[string]any{"notifications": notifications, "limits": limits}}, nil
+}
+
+// publicNotification keeps only the subscription fields its output schema
+// declares, with the webhook URL cut to its scheme and host.
+func publicNotification(row, declared map[string]any) map[string]any {
+	item := map[string]any{}
+	for key := range declared {
+		if value, present := row[key]; present {
+			item[key] = value
+		}
+	}
+	item["url"] = ""
+	if raw, ok := row["url"].(string); ok {
+		if u, err := url.Parse(raw); err == nil && u.Scheme != "" && u.Host != "" {
+			item["url"] = u.Scheme + "://" + u.Host
+			if u.Path != "" {
+				item["url"] = u.Scheme + "://" + u.Host + "/..."
+			}
+		}
+	}
+	return item
 }
 
 func notificationPath(c *call, args map[string]any, required bool) (string, error) {

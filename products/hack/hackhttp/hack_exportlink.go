@@ -11,9 +11,7 @@ import (
 	"github.com/vsriram/simple-host/host/rules/sites"
 )
 
-// Event archive links follow the site's export-link pattern. Their signature
-// is process-local, and live event membership is checked again at download.
-// The shared EXPORT_LINK_TTL_MINUTES knob (limits.ExportLinkTTL) sets their life.
+// Event archive links follow the site's export-link pattern.
 const HackArchiveLinkDomain = "simple-hack event archive v1"
 
 type HackArchiveClaim struct {
@@ -51,12 +49,11 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 	if strings.HasSuffix(r.URL.Path, "/own-team-link") {
 		kind, role = "own-team", "participant"
 	}
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, role)
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, role)
 	if !ok {
 		return
 	}
-	// loadMember grants a platform admin read access to any event. An archive
-	// link is private data, so only actual event membership may mint it.
+	// loadMember grants a platform admin read access to any event.
 	if _, err := h.events.EventMember(r.Context(), a.event.ID, a.user.ID); err != nil {
 		writeEventNotFound(w)
 		return
@@ -64,7 +61,7 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 	claim := HackArchiveClaim{UserID: a.user.ID, EventID: a.event.ID, Slug: a.event.Slug, Kind: kind,
 		Expiry: time.Now().Add(h.limits.ExportLinkTTL).Truncate(time.Second).Unix()}
 	if kind == "own-team" {
-		team, ok := h.participantTeam(w, r, a)
+		team, ok := participantTeam(w, r, h.teams, a)
 		if !ok {
 			return
 		}
@@ -72,7 +69,7 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"url":        h.publicBaseURL + "/v1/hack/archive?token=" + url.QueryEscape(h.SignHackArchiveClaim(claim)),
+		"url":        h.links.publicBaseURL + "/v1/hack/archive?token=" + url.QueryEscape(h.SignHackArchiveClaim(claim)),
 		"expires_at": time.Unix(claim.Expiry, 0).UTC().Format(time.RFC3339),
 		"expires_in": int(h.limits.ExportLinkTTL.Seconds()),
 	})
@@ -81,54 +78,27 @@ func (h *HackHandler) createHackArchiveLink(w http.ResponseWriter, r *http.Reque
 func (h *HackHandler) downloadHackArchive(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	invalid := func() {
-		httpx.WriteError(w, http.StatusNotFound, "archive_link_invalid", "this archive link is not valid or has expired")
-	}
 	c, ok := h.CheckHackArchiveClaim(r.URL.Query().Get("token"), time.Now())
 	if !ok {
-		invalid()
+		writeArchiveLinkInvalid(w)
 		return
 	}
-	ev, err := h.events.EventBySlug(r.Context(), c.Slug)
-	if err == nil {
+	ev, teamSlug, err := h.members.ArchiveHolder(r.Context(), c.Slug, c.EventID, c.UserID, c.TeamID)
+	if ev.ID != "" {
 		paperHackEvent(r, ev)
 	}
-	if err != nil || ev.ID != c.EventID {
-		invalid()
-		return
-	}
-	m, err := h.events.EventMember(r.Context(), ev.ID, c.UserID)
 	if err != nil {
-		invalid()
+		writeArchiveLinkInvalid(w)
 		return
 	}
-	teamSlug := ""
-	if c.Kind == "projects" {
-		if m.Role != "organiser" {
-			invalid()
-			return
-		}
-	} else {
-		if m.Role != "participant" || !m.TeamID.Valid || m.TeamID.String != c.TeamID {
-			invalid()
-			return
-		}
-		status, err := h.members.MemberApprovalStatusLookup(r.Context(), ev.ID, c.UserID)
-		if err != nil || status != "approved" {
-			invalid()
-			return
-		}
-		team, err := h.teams.TeamByID(r.Context(), c.TeamID)
-		if err != nil || team.EventID != ev.ID {
-			invalid()
-			return
-		}
-		teamSlug = team.Slug
-	}
-	sites, ok := h.sites.(hackAdministrationSites)
+	sites, ok := h.links.hooks.(hackAdministrationSites)
 	if !ok {
 		httpx.WriteInternal(w)
 		return
 	}
 	h.exportEventProjects(w, r, sites, ev, teamSlug)
+}
+
+func writeArchiveLinkInvalid(w http.ResponseWriter) {
+	httpx.WriteError(w, http.StatusNotFound, "archive_link_invalid", "this archive link is not valid or has expired")
 }

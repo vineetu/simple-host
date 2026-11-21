@@ -30,13 +30,7 @@ const EffectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL 
 // TeamKeepableSQL is the predicate for deleting an empty team.
 const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + EffectiveDeadlineSQL + ` IS NULL OR ` + EffectiveDeadlineSQL + ` > clock_timestamp())`
 
-// LeaveSelf loads one membership row plus its approval status, for
-// GET/POST .../leave (hack_leave.go): every field the case logic there
-// needs (role, approval status, team, display name), in one row, for any
-// role and any approval status -- unlike loadMember, pending and rejected
-// are not refused here. lock=true takes FOR UPDATE, as POST .../leave does
-// right after locking the event row (event, then member, then team is the
-// lock order every hack writer uses).
+// LeaveSelf loads one membership row plus its approval status, for GET/POST .../leave.
 func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lock bool) (EventMember, string, error) {
 	query := `SELECT m.event_id, m.user_id, m.role, COALESCE(u.display_name,''), m.team_id, m.coc_accepted_at, m.joined_at, approval_status
 	            FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id = $1 AND m.user_id = $2`
@@ -50,11 +44,7 @@ func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lo
 	return m, status, err
 }
 
-// OtherEventOrganisers is every organiser of the event except userID,
-// ordered by display name. Unlocked: POST .../leave reads it after the
-// event row is already locked, which is enough to serialise against another
-// organiser's concurrent leave (section 1, build plan: "the server takes
-// the event row FOR UPDATE, then works out the case").
+// OtherEventOrganisers is every organiser of the event except userID, ordered by display name.
 func OtherEventOrganisers(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]OtherOrganiser, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, COALESCE(u.display_name,''), u.username FROM event_members m
@@ -76,19 +66,7 @@ func OtherEventOrganisers(ctx context.Context, q sqlkit.Querier, eventID, userID
 	return out, rows.Err()
 }
 
-// TeamKeptIfEmptied reports whether, if leaving emptied this team right now,
-// it would be kept rather than deleted. This is NOT (TeamKeepableSQL) --
-// exactly, literally, the predicate deleteTeamIfEmpty itself uses -- so
-// GET .../leave's preview can never promise more than POST .../leave
-// actually does (Codex review, SIM-340, P1: a stage transition to closed
-// forces events.submission_deadline to now, but a team's own
-// deadline_override extension survives that and can still be in the
-// future, so "stage NOT IN (draft, open, building)" and "not keepable" are
-// NOT the same condition -- a team with a live extension previews as
-// frozen under the old stage-based check but was still deletable-if-empty
-// under the write path's real check). Using stage or the raw deadline here
-// instead of TeamKeepableSQL itself is exactly the bug that let the
-// preview and the write disagree.
+// TeamKeptIfEmptied reports whether, if leaving emptied this team right now, it would be kept rather than deleted.
 func TeamKeptIfEmptied(ctx context.Context, q sqlkit.Querier, teamID string) (bool, error) {
 	var kept bool
 	err := q.QueryRowContext(ctx, `
@@ -97,27 +75,7 @@ func TeamKeptIfEmptied(ctx context.Context, q sqlkit.Querier, teamID string) (bo
 	return kept, err
 }
 
-// LeaveMembership is the shared core of a person losing their event
-// membership, whether they chose it (POST .../leave) or an organiser removed
-// them (RemovePersonFromEvent, which keeps its own organiser refusal and its
-// lock-then-call shape, then calls this for the rest). The caller has already
-// locked the event row; this locks the member row, then the team row (same
-// order every hack writer uses: event, member, team).
-//
-// It does what RemovePersonFromEvent always did -- reserve the event's name,
-// drop pending team requests, delete the membership, clean up an emptied team
-// -- plus unsent mail queued for this person in this event, so leaving (or
-// being removed) stops an announcement or an entry receipt from going out
-// after the fact. Returns the team id they left, empty when they were on none.
-//
-// selfLeave is true only for POST .../leave (never for RemovePersonFromEvent):
-// when it empties a team that deleteTeamIfEmpty kept instead of deleting,
-// that team's kept_after_leave is set (Codex review, SIM-340, P2). This is
-// deliberately narrower than "every team NOT TeamKeepableSQL" -- a team an
-// organiser emptied with Remove person stays excluded from judging, results
-// and dashboards exactly as it always was; only a team THIS feature kept
-// reappears there. Changing that for Remove person too is a separate owner
-// decision, not implied by widening self-leave.
+// LeaveMembership is the shared core of a person losing their event membership, whether they chose it.
 func LeaveMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string, selfLeave bool, ops LeaveOperations) (string, error) {
 	m, err := ops.LockMember(ctx, q, eventID, userID)
 	if err != nil {
@@ -128,39 +86,8 @@ func LeaveMembership(ctx context.Context, q sqlkit.Querier, eventID, userID stri
 			return "", err
 		}
 	}
-	// An imported member may predate reservation-on-join. Keep their event's
-	// name when they leave, even if no team was ever formed.
-	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
-		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID); err != nil {
+	if err := dropMembership(ctx, q, eventID, userID); err != nil || !m.TeamID.Valid {
 		return "", err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`, eventID, userID); err != nil {
-		return "", err
-	}
-	// Unsent mail queued for this person in this event never goes out once
-	// they are gone, whether they left or were removed.
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_announcement_deliveries d USING event_announcements a
-		WHERE d.announcement_id = a.id AND a.event_id = $1 AND d.user_id = $2 AND d.sent_at IS NULL`, eventID, userID); err != nil {
-		return "", err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_entry_receipts WHERE event_id=$1 AND user_id=$2 AND sent_at IS NULL`, eventID, userID); err != nil {
-		return "", err
-	}
-	// Their notices go too, lines and unsent emails alike (2026-11-02).
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_notices WHERE event_id=$1 AND user_id=$2`, eventID, userID); err != nil {
-		return "", err
-	}
-	if err := DeletePersonalChecklistAcknowledgements(ctx, q, eventID, userID); err != nil {
-		return "", err
-	}
-	if _, err := q.ExecContext(ctx, `UPDATE events SET organiser_judges=array_remove(organiser_judges,$2::uuid) WHERE id=$1`, eventID, userID); err != nil {
-		return "", err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
-		return "", err
-	}
-	if !m.TeamID.Valid {
-		return "", nil
 	}
 	team := m.TeamID.String
 	if err := ops.DeleteTeamIfEmpty(ctx, q, team); err != nil {
@@ -177,12 +104,47 @@ func LeaveMembership(ctx context.Context, q sqlkit.Querier, eventID, userID stri
 	return team, nil
 }
 
-// markTeamKeptAfterLeave sets kept_after_leave on a team LeaveMembership's own
-// deleteTeamIfEmpty call just kept instead of deleting: true only once the
-// row still exists (it wasn't keepable, so deleteTeamIfEmpty's DELETE did not
-// match it) and has no members. A no-op, not an error, when the team was
-// deleted instead (0 rows match) or still has someone on it.
-// MarkTeamKeptAfterLeave marks a retained empty team.
+// leaveQueuedSQL drops what was waiting on the leaver, each taking.
+var leaveQueuedSQL = []string{
+	`DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`,
+	`DELETE FROM event_announcement_deliveries d USING event_announcements a
+		WHERE d.announcement_id = a.id AND a.event_id = $1 AND d.user_id = $2 AND d.sent_at IS NULL`,
+	`DELETE FROM event_entry_receipts WHERE event_id=$1 AND user_id=$2 AND sent_at IS NULL`,
+	`DELETE FROM event_notices WHERE event_id=$1 AND user_id=$2`,
+}
+
+// leaveMemberSQL removes the leaver as an organiser judge and as a member.
+var leaveMemberSQL = []string{
+	`UPDATE events SET organiser_judges=array_remove(organiser_judges,$2::uuid) WHERE id=$1`,
+	`DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`,
+}
+
+// dropMembership reserves the event's name, drops everything queued for the leaver and their checklist acknowledgements, then the membership itself.
+func dropMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string) error {
+	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
+		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID); err != nil {
+		return err
+	}
+	if err := execForMember(ctx, q, leaveQueuedSQL, eventID, userID); err != nil {
+		return err
+	}
+	if err := DeletePersonalChecklistAcknowledgements(ctx, q, eventID, userID); err != nil {
+		return err
+	}
+	return execForMember(ctx, q, leaveMemberSQL, eventID, userID)
+}
+
+// execForMember runs each statement with (event, user), stopping at the first error.
+func execForMember(ctx context.Context, q sqlkit.Querier, stmts []string, eventID, userID string) error {
+	for _, stmt := range stmts {
+		if _, err := q.ExecContext(ctx, stmt, eventID, userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// markTeamKeptAfterLeave sets kept_after_leave on a team LeaveMembership's own deleteTeamIfEmpty call just kept instead of deleting.
 func MarkTeamKeptAfterLeave(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	_, err := q.ExecContext(ctx, `
 		UPDATE event_teams SET kept_after_leave = true, locked_at = COALESCE(locked_at, clock_timestamp())
@@ -190,29 +152,7 @@ func MarkTeamKeptAfterLeave(ctx context.Context, q sqlkit.Querier, teamID string
 	return err
 }
 
-// RecordFormerJudge preserves every team a leaving judge or judging organiser
-// already scored AND was eligible for under the event's current mode,
-// assignments and panels, so leaving (section 2.3's recordFormerJudge)
-// doesn't change what their scores counted toward. Call it before
-// LeaveMembership deletes the member row (EligibleJudgeTeamsIgnoringConflicts
-// needs the member row to still exist). A no-op when the leaver never scored
-// anything eligible in this event.
-//
-// counted_team_ids is scored teams intersected with
-// EligibleJudgeTeamsIgnoringConflicts, not EligibleJudgeTeams (Grok security
-// review, SIM-340: that set already excludes a team with a live conflict, so
-// intersecting against it here froze out any team an organiser had
-// conflicted by mistake even after the conflict was removed again -- there
-// was no way back in, because the team was never in the frozen set to begin
-// with). scoreEligiblePredicate's former-judge branch still checks
-// event_conflicts live on every read, so a real, standing conflict keeps
-// excluding that team; only a conflict that no longer exists stops being
-// held against it.
-//
-// The mode/assignment/panel intersection itself is ship-blocker B2: without
-// it, every team the leaver ever scored froze in regardless of whether it
-// was ever eligible, so a score that never counted (wrong mode, never
-// assigned, no panel) started counting the moment they left.
+// RecordFormerJudge freezes the teams a leaving judge scored and was eligible for, so leaving does not change what their scores count toward.
 func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, role string) error {
 	eligible, err := hackentries.EligibleJudgeTeamsIgnoringConflicts(ctx, q, eventID, userID)
 	if err != nil {
@@ -269,15 +209,7 @@ func ListFormerJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]
 	return out, rows.Err()
 }
 
-// FormerJudgeAssignedCount is how many of today's judge-eligible teams this
-// former judge would be assigned under the event's current mode, ignoring
-// that their role is gone -- the same universe a current judge's
-// assigned_count counts (dashboard display only; EligibleJudgeTeams keeps the
-// authoritative, frozen set that actually counts toward totals). The
-// membership/kept_after_leave population here must match ListTeamsWithMembers
-// exactly (Codex review, SIM-340, P2 follow-on): otherwise a scored team a
-// leave kept empty shows 1 counted team but 0 assigned on the dashboard,
-// since this count dropped it while ListTeamsWithMembers kept it.
+// FormerJudgeAssignedCount is how many of today's judge-eligible teams this former judge would be assigned under the event's current mode, ignoring that their role is gone.
 func FormerJudgeAssignedCount(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `
@@ -291,10 +223,7 @@ func FormerJudgeAssignedCount(ctx context.Context, q sqlkit.Querier, eventID, ju
 	return n, err
 }
 
-// DeleteFormerJudgeScores removes a departed judge's score rows and their
-// former-judge record. false means there was no such record: either nobody
-// by that id ever left scores behind, or they are a member again (rejoining
-// already deleted the record, via the clear_hack_former_judge trigger).
+// DeleteFormerJudgeScores removes a departed judge's score rows and their former-judge record.
 func DeleteFormerJudgeScores(ctx context.Context, q *sql.Tx, eventID, userID string) (bool, error) {
 	var id string
 	err := q.QueryRowContext(ctx, `
@@ -314,17 +243,9 @@ func DeleteFormerJudgeScores(ctx context.Context, q *sql.Tx, eventID, userID str
 	return true, nil
 }
 
-// RemoveCoOrganiser drops an organiser (Grok security review, SIM-340):
-// their own event_scores rows deleted outright -- TestHackOrganisersCanJudge
-// AndRemovedOrganiserScoresStopCounting already establishes "a removed
-// organiser's scores stop counting" as the intended behaviour, unlike a
-// voluntary leave's frozen-but-kept scores, so removal deletes rather than
-// freezes -- plus LeaveMembership's shared cleanup (name reservation,
-// pending team requests, unsent announcement/entry mail, the member row).
-// Previously a single atomic DELETE that skipped the mail cleanup only.
+// RemoveCoOrganiser drops an organiser.
 func RemoveCoOrganiser(ctx context.Context, q *sql.Tx, eventID, actorID, userID string, ops LeaveOperations) error {
-	// Serialise removals so a legacy event without its creator cannot lose
-	// both remaining organisers through concurrent requests.
+	// Serialise removals so a legacy event without its creator cannot lose both remaining organisers through concurrent requests.
 	var createdBy sql.NullString
 	if err := q.QueryRowContext(ctx, `SELECT created_by FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&createdBy); err != nil {
 		return err
@@ -360,14 +281,7 @@ func RemoveCoOrganiser(ctx context.Context, q *sql.Tx, eventID, actorID, userID 
 // ErrHackCannotRemoveOrganiser prevents removal through the participant path.
 var ErrHackCannotRemoveOrganiser = errors.New("cannot remove organiser")
 
-// RemovePersonFromEvent deletes a participant or judge. Organisers cannot be removed.
-// A team left with nobody is deleted. The shared cleanup (name reservation,
-// pending team requests, unsent mail, the member row, an emptied team) is
-// LeaveMembership, which POST .../leave also calls. A removed judge who
-// scored gets the same former-judge freeze a voluntary leave would (Grok
-// security review, SIM-340): otherwise their scores kept counting under no
-// rule at all once the member row was gone, and came back un-frozen if they
-// were ever given the judge link again.
+// RemovePersonFromEvent deletes a participant or judge.
 func RemovePersonFromEvent(ctx context.Context, q sqlkit.Querier, eventID, userID string, ops LeaveOperations) error {
 	m, err := ops.LockMember(ctx, q, eventID, userID)
 	if err != nil {

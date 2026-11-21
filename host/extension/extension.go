@@ -9,15 +9,18 @@ import (
 	"net/http"
 
 	accountapp "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/config"
 	appstorage "github.com/vsriram/simple-host/host/data"
+	"github.com/vsriram/simple-host/host/data/datahttp"
 	"github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
-	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
@@ -29,7 +32,7 @@ type ConfigSpec struct {
 type Extension struct {
 	Config ConfigSpec
 
-	Assets func(*handler.SiteHandler) Assets
+	Assets func(*siteshttp.SiteHandler) Assets
 	// CheckSchema runs after platform verification, before other database reads.
 	// It also runs after migration verification; nil adds no product checks.
 	CheckSchema func(context.Context, *sql.DB) error
@@ -59,12 +62,12 @@ type EarlyHooks struct {
 
 type Deps struct {
 	DB        *sql.DB
-	Disk      handler.SiteDisk
+	Disk      sites.Disk
 	Mail      *email.ResendSender
 	Accounts  *accountapp.Service
-	Site      *handler.SiteHandler
-	Data      *handler.DataHandler
-	Connector *handler.ConnectorHandler
+	Site      *siteshttp.SiteHandler
+	Data      *datahttp.DataHandler
+	Connector *accesshttp.ConnectorHandler
 	AuthMW    func(http.Handler) http.Handler
 	Mux       *http.ServeMux
 	Config    config.Config
@@ -73,7 +76,7 @@ type Deps struct {
 
 type Parts struct {
 	Workers        []workers.Owner
-	SiteSweep      handler.GroupSweep
+	SiteSweep      siteshttp.GroupSweep
 	ProductMetrics func(*papermetrics.Collector)
 	PaperRecorder  func(http.Handler) http.Handler
 	// Tools is the product's AI tools; the zero value adds none.
@@ -84,7 +87,7 @@ type Parts struct {
 type Hooks struct {
 	Storage    appstorage.BindingProvider
 	Sitemap    sites.SitemapFilter
-	GroupHosts handler.GroupHosts
+	GroupHosts web.GroupHosts
 	GroupGate  sites.GroupGate
 }
 
@@ -101,7 +104,7 @@ type Assets struct {
 	Own     map[string]string
 	Files   fs.FS
 	Skills  fs.FS
-	Routes  func(*http.ServeMux, handler.AssetServices)
-	Hooks   handler.ProductAssetHooks
+	Routes  func(*http.ServeMux, web.AssetServices)
+	Hooks   web.ProductAssetHooks
 	Rewrite func(string, []byte) []byte
 }

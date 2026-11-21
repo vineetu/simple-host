@@ -20,6 +20,28 @@ func PublicOpenAPISpec(source []byte, audience string) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("openapi paths missing")
 	}
+	usedTags := keepAudienceOperations(paths, audience)
+	if tags, ok := spec["tags"].([]any); ok {
+		current := make([]any, 0, len(tags))
+		for _, value := range tags {
+			tag, _ := value.(map[string]any)
+			name, _ := tag["name"].(string)
+			if usedTags[name] {
+				current = append(current, value)
+			}
+		}
+		spec["tags"] = current
+	}
+	if components, ok := spec["components"].(map[string]any); ok {
+		pruneUnusedComponents(components, paths)
+	}
+	return json.MarshalIndent(spec, "", "  ")
+}
+
+// keepAudienceOperations deletes, in place, every operation not marked for
+// audience and every path left without one, strips x-audience from the rest,
+// and returns the tags the kept operations use.
+func keepAudienceOperations(paths map[string]any, audience string) map[string]bool {
 	usedTags := map[string]bool{}
 	for path, value := range paths {
 		methods, _ := value.(map[string]any)
@@ -50,60 +72,51 @@ func PublicOpenAPISpec(source []byte, audience string) ([]byte, error) {
 			delete(paths, path)
 		}
 	}
-	if tags, ok := spec["tags"].([]any); ok {
-		current := make([]any, 0, len(tags))
-		for _, value := range tags {
-			tag, _ := value.(map[string]any)
-			name, _ := tag["name"].(string)
-			if usedTags[name] {
-				current = append(current, value)
-			}
-		}
-		spec["tags"] = current
-	}
-	// Keep component definitions only when a retained operation references
-	// them, including references reached through another component.
-	if components, ok := spec["components"].(map[string]any); ok {
-		used := map[string]bool{}
-		var scan func(any)
-		scan = func(value any) {
-			switch v := value.(type) {
-			case map[string]any:
-				if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/components/") && !used[ref] {
-					used[ref] = true
-					parts := strings.Split(strings.TrimPrefix(ref, "#/components/"), "/")
-					if len(parts) == 2 {
-						if section, ok := components[parts[0]].(map[string]any); ok {
-							scan(section[parts[1]])
-						}
+	return usedTags
+}
+
+// pruneUnusedComponents deletes, in place, component definitions (other than
+// securitySchemes) that nothing under paths references, directly or through
+// another component.
+func pruneUnusedComponents(components map[string]any, paths map[string]any) {
+	used := map[string]bool{}
+	var scan func(any)
+	scan = func(value any) {
+		switch v := value.(type) {
+		case map[string]any:
+			if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/components/") && !used[ref] {
+				used[ref] = true
+				parts := strings.Split(strings.TrimPrefix(ref, "#/components/"), "/")
+				if len(parts) == 2 {
+					if section, ok := components[parts[0]].(map[string]any); ok {
+						scan(section[parts[1]])
 					}
 				}
-				for _, child := range v {
-					scan(child)
-				}
-			case []any:
-				for _, child := range v {
-					scan(child)
-				}
 			}
-		}
-		scan(paths)
-		for sectionName, value := range components {
-			if sectionName == "securitySchemes" {
-				continue
+			for _, child := range v {
+				scan(child)
 			}
-			section, ok := value.(map[string]any)
-			if !ok {
-				continue
-			}
-			for name := range section {
-				if !used["#/components/"+sectionName+"/"+name] {
-					delete(section, name)
-				}
+		case []any:
+			for _, child := range v {
+				scan(child)
 			}
 		}
 	}
-	return json.MarshalIndent(spec, "", "  ")
+	scan(paths)
+	for sectionName, value := range components {
+		if sectionName == "securitySchemes" {
+			continue
+		}
+		section, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		for name := range section {
+			if !used["#/components/"+sectionName+"/"+name] {
+				delete(section, name)
+			}
+		}
+	}
 }
 
 func OpenAPIMethod(method string) bool {

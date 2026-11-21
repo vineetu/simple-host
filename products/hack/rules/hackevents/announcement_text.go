@@ -1,6 +1,7 @@
 package hackevents
 
 import (
+	"fmt"
 	"html"
 	"net/url"
 	"regexp"
@@ -10,21 +11,6 @@ import (
 )
 
 // Announcement text is plain text with a tiny, safe subset of Markdown:
-//
-//	[label](https://example.com)   a labelled link
-//	https://example.com            a bare address, linked automatically
-//	**bold**                       bold
-//	- item                         a bullet line
-//	blank line                     a new paragraph; a single line break stays a line break
-//
-// Nothing else is interpreted, and no raw HTML is ever produced from the
-// text: every piece of it is escaped, and only http and https addresses
-// become links. An address alone on its line becomes a card when it is a
-// call (Zoom, Google Meet, Microsoft Teams) or a YouTube video; the card is
-// worked out from the address alone, with no request to the linked page.
-//
-// One parser serves the web output (AnnouncementHTML), the email's HTML part
-// (AnnouncementEmailHTML) and the email's text part (AnnouncementText).
 
 const announcementMaxURL = 2000
 
@@ -50,47 +36,44 @@ var annBareURL = regexp.MustCompile(`(?i)^https?://[^\s\p{Z}<>"]+`)
 var annHostName = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$`)
 var annVideoID = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 
-// cleanAnnouncementURL returns the address to put in an href, or false when
-// the text is not a safe http(s) address. It rejects other schemes (javascript:,
-// data:, ...), user info (https://zoom.us@evil.example), control, space and
-// invisible formatting characters, and non-ASCII host names. The result is pure
-// ASCII (non-ASCII path bytes are percent-encoded).
+// cleanAnnouncementURL returns the address to put in an href, or false when the text is not a safe http(s) address.
 func cleanAnnouncementURL(raw string) (string, bool) {
-	if raw == "" || len(raw) > announcementMaxURL {
+	if raw == "" || len(raw) > announcementMaxURL || strings.ContainsFunc(raw, unsafeURLRune) {
 		return "", false
-	}
-	for _, r := range raw {
-		if unicode.IsControl(r) || unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) {
-			return "", false
-		}
 	}
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Opaque != "" || u.User != nil {
+	if err != nil || !safeHTTPURL(u) {
 		return "", false
 	}
-	host := u.Hostname()
-	if host == "" || len(host) > 253 || !annHostName.MatchString(host) {
-		return "", false
-	}
-	if p := u.Port(); p != "" && len(p) > 5 {
-		return "", false
-	}
-	out := u.String()
-	var b strings.Builder
-	for i := 0; i < len(out); i++ {
-		c := out[i]
-		if c >= 0x80 || c == '"' || c == '<' || c == '>' || c == '\'' || c == '`' || c == '\\' {
-			b.WriteString("%" + strings.ToUpper(hex2(c)))
-			continue
-		}
-		b.WriteByte(c)
-	}
-	return b.String(), true
+	return escapeURLBytes(u.String()), true
 }
 
-func hex2(c byte) string {
-	const digits = "0123456789abcdef"
-	return string([]byte{digits[c>>4], digits[c&15]})
+// unsafeURLRune reports control, space and invisible formatting characters.
+func unsafeURLRune(r rune) bool {
+	return unicode.IsControl(r) || unicode.IsSpace(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp)
+}
+
+// safeHTTPURL accepts an http(s) address without user info whose host is an ASCII name of at most 253 characters and whose port has at most 5 digits.
+func safeHTTPURL(u *url.URL) bool {
+	host := u.Hostname()
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Opaque == "" && u.User == nil &&
+		host != "" && len(host) <= 253 && annHostName.MatchString(host) && len(u.Port()) <= 5
+}
+
+// urlEscapes are the ASCII bytes percent-encoded so an address is safe in HTML.
+const urlEscapes = "\"<>'`\\"
+
+// escapeURLBytes percent-encodes non-ASCII bytes and urlEscapes.
+func escapeURLBytes(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if c := s[i]; c >= 0x80 || strings.IndexByte(urlEscapes, c) >= 0 {
+			fmt.Fprintf(&b, "%%%02X", c)
+		} else {
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
 }
 
 // parseAnnouncementInline splits one line into text, bold and links.
@@ -214,34 +197,47 @@ func classifyAnnouncementCard(addr, label string) (annCard, bool) {
 	}
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	c := annCard{url: addr, label: label, host: host}
-	switch {
-	case host == "zoom.us" || strings.HasSuffix(host, ".zoom.us"):
-		c.service, c.action = "Zoom", "Join the call"
-	case host == "meet.google.com":
-		c.service, c.action = "Google Meet", "Join the call"
-	case host == "teams.microsoft.com" || host == "teams.live.com":
-		c.service, c.action = "Microsoft Teams", "Join the call"
-	case host == "youtu.be":
-		c.videoID = strings.Trim(u.Path, "/")
-		c.service, c.action = "YouTube", "Watch the video"
-	case host == "youtube.com" || host == "www.youtube.com" || host == "m.youtube.com" || host == "music.youtube.com":
-		c.service, c.action = "YouTube", "Watch the video"
-		if u.Path == "/watch" {
-			c.videoID = u.Query().Get("v")
-		} else {
-			for _, p := range []string{"/embed/", "/shorts/", "/live/", "/v/"} {
-				if strings.HasPrefix(u.Path, p) {
-					c.videoID = strings.Trim(strings.TrimPrefix(u.Path, p), "/")
-				}
-			}
-		}
-	default:
+	if strings.HasSuffix(host, ".zoom.us") {
+		host = "zoom.us"
+	}
+	if service, ok := annCallServices[host]; ok {
+		c.service, c.action = service, "Join the call"
+		return c, true
+	}
+	if c.videoID = youTubeVideoID(host, u); !annVideoID.MatchString(c.videoID) {
 		return annCard{}, false
 	}
-	if c.service == "YouTube" && !annVideoID.MatchString(c.videoID) {
-		return annCard{}, false
-	}
+	c.service, c.action = "YouTube", "Watch the video"
 	return c, true
+}
+
+// annCallServices names the call service of each meeting host.
+var annCallServices = map[string]string{
+	"zoom.us":             "Zoom",
+	"meet.google.com":     "Google Meet",
+	"teams.microsoft.com": "Microsoft Teams",
+	"teams.live.com":      "Microsoft Teams",
+}
+
+var annYouTubeHosts = map[string]bool{"youtube.com": true, "www.youtube.com": true, "m.youtube.com": true, "music.youtube.com": true}
+
+// youTubeVideoID reads the video id from a YouTube address; "" for any
+// other host or path.
+func youTubeVideoID(host string, u *url.URL) string {
+	switch {
+	case host == "youtu.be":
+		return strings.Trim(u.Path, "/")
+	case !annYouTubeHosts[host]:
+		return ""
+	case u.Path == "/watch":
+		return u.Query().Get("v")
+	}
+	for _, p := range []string{"/embed/", "/shorts/", "/live/", "/v/"} {
+		if rest, ok := strings.CutPrefix(u.Path, p); ok {
+			return strings.Trim(rest, "/")
+		}
+	}
+	return ""
 }
 
 // cardLine reads a line that holds nothing but one address (bare, or as one

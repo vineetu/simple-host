@@ -31,10 +31,7 @@ func PutEventContent(ctx context.Context, q sqlkit.Querier, eventID string, c Ev
 
 type EventAnnouncement = model.EventAnnouncement
 
-// ListEventAnnouncements reports EmailsSent as deliveries actually sent (not
-// merely queued), from event_announcement_deliveries. The announcements
-// screen only shows "Emailed N people" once mail has gone out, never as an
-// optimistic count of what was requested.
+// ListEventAnnouncements reports EmailsSent as deliveries actually sent (not merely queued), from event_announcement_deliveries.
 func ListEventAnnouncements(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventAnnouncement, error) {
 	rows, err := queryContext(ctx, q, `SELECT a.id, a.title, a.body, a.created_at,
 		(SELECT COUNT(*) FROM event_announcement_deliveries d WHERE d.announcement_id = a.id AND d.sent_at IS NOT NULL),
@@ -56,8 +53,7 @@ func ListEventAnnouncements(ctx context.Context, q sqlkit.Querier, eventID strin
 	return out, rows.Err()
 }
 
-// ListAnnouncementTimes is when the latest 20 announcements were posted,
-// newest first, as RFC 3339 UTC strings.
+// ListAnnouncementTimes is when the latest 20 announcements were posted, newest first, as RFC 3339 UTC strings.
 func ListAnnouncementTimes(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
 	rows, err := queryContext(ctx, q, `SELECT created_at FROM event_announcements WHERE event_id = $1
 		ORDER BY created_at DESC, id DESC LIMIT 20`, eventID)
@@ -76,15 +72,7 @@ func ListAnnouncementTimes(ctx context.Context, q sqlkit.Querier, eventID string
 	return out, rows.Err()
 }
 
-// CreateEventAnnouncement queues one delivery row per approved participant
-// with an email-shaped username, plus one more for organiserUserID (the
-// posting organiser) when their own username is email-shaped too -- never a
-// duplicate row if the organiser happens to already be in that participant
-// set, since (announcement_id, user_id) is the deliveries table's primary
-// key. queued is the real number of rows actually queued (what emails_queued
-// in the API response reports); organiserCopied says whether one of those
-// rows belongs to the organiser, so the caller can say "(including a copy to
-// you)" truthfully instead of assuming it.
+// CreateEventAnnouncement queues one delivery row per approved participant with an email-shaped username, plus one more for organiserUserID.
 func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, body string, emailParticipants bool, organiserUserID string) (EventAnnouncement, int64, bool, error) {
 	var a EventAnnouncement
 	err := tx.QueryRowContext(ctx, `INSERT INTO event_announcements (event_id, title, body)
@@ -109,10 +97,7 @@ func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, bo
 	return a, queued, organiserCopied, err
 }
 
-// SetAnnouncementPin pins or unpins one announcement. An event has at most one
-// pinned announcement, so pinning replaces whichever was pinned before; the
-// caller holds the event row lock (LockContentStage). It reports the rows
-// matched, which is 0 when the announcement is not this event's.
+// SetAnnouncementPin pins or unpins one announcement.
 func SetAnnouncementPin(ctx context.Context, tx *sql.Tx, eventID, id string, pinned bool) (int64, error) {
 	if pinned {
 		if _, err := tx.ExecContext(ctx, `UPDATE event_announcements SET pinned_at = NULL
@@ -143,8 +128,6 @@ func QueueEntryReceipt(ctx context.Context, q sqlkit.Querier, eventID, teamID, u
 type EventMail = model.EventMail
 
 // NextEventMail holds one eligible row until the caller commits after sending.
-// SKIP LOCKED avoids concurrent sends of that row; a crash after sending but
-// before commit can still cause an at-least-once retry.
 func NextEventMail(ctx context.Context, tx *sql.Tx) (EventMail, error) {
 	var m EventMail
 	err := tx.QueryRowContext(ctx, `SELECT 'announcement', d.announcement_id, '', a.event_id,
@@ -167,8 +150,7 @@ func NextEventMail(ctx context.Context, tx *sql.Tx) (EventMail, error) {
 	return m, err
 }
 
-// DeferEventMail leaves a failed delivery pending but makes later rows eligible
-// before this one is retried on a future sweep.
+// DeferEventMail leaves a failed delivery pending but makes later rows eligible before this one is retried on a future sweep.
 func DeferEventMail(ctx context.Context, tx *sql.Tx, m EventMail) error {
 	var err error
 	if m.Kind == "announcement" {

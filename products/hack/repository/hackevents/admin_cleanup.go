@@ -7,10 +7,7 @@ import (
 	"time"
 )
 
-// ListEventsForSiteCleanup is every archived event whose team sites are still
-// due to be warned or removed: keep_sites is off, nothing has been removed
-// yet, and closed_at is set (SetEventStage stamps it when the stage becomes
-// archived). The caller decides warn versus remove from closed_at.
+// ListEventsForSiteCleanup is every archived event whose team sites are still due to be warned or removed.
 func ListEventsForSiteCleanup(ctx context.Context, q sqlkit.Querier) ([]Event, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT `+EventColumns+`
@@ -41,11 +38,7 @@ func durationSeconds(d time.Duration) int64 {
 	return int64(d / time.Second)
 }
 
-// MarkEventRemovalWarned stamps removal_warned_at, and only while the event
-// still qualifies: archived, sites not kept, not yet removed, not yet warned,
-// and now is in the warning window (at or after warnAt, before removeAt).
-// sql.ErrNoRows when it no longer qualifies. The caller sends the email
-// before committing, so the stamp is on record only once the email was accepted.
+// MarkEventRemovalWarned stamps removal_warned_at, and only while the event still qualifies.
 func MarkEventRemovalWarned(ctx context.Context, tx *sql.Tx, eventID string, now time.Time, keepFor, warnFor time.Duration) error {
 	res, err := tx.ExecContext(ctx, `
 		UPDATE events
@@ -63,10 +56,7 @@ func MarkEventRemovalWarned(ctx context.Context, tx *sql.Tx, eventID string, now
 	return cleanupOneRow(res, err)
 }
 
-// MarkEventSitesRemoved stamps sites_removed_at, and only while the event
-// still qualifies: archived, sites not kept, not yet removed, and closed_at
-// plus keepFor is at or before now. sql.ErrNoRows when it no longer qualifies.
-// It changes nothing else on the row.
+// MarkEventSitesRemoved stamps sites_removed_at, and only while the event still qualifies.
 func MarkEventSitesRemoved(ctx context.Context, tx *sql.Tx, eventID string, now time.Time, keepFor time.Duration) error {
 	res, err := tx.ExecContext(ctx, `
 		UPDATE events

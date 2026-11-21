@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -344,97 +343,118 @@ func CreateIfNotExists(sql string) bool {
 // inside the write's transaction, so a refused reference leaves no change. Reading the row back also covers
 // foreign-key values supplied by SQLite defaults.
 func CheckReferences(conn *sqlite3.Conn, table, rowid string, id int64, access func(string) (ruleengine.Predicate, error)) (int, error) {
-	stmt, _, err := conn.Prepare("PRAGMA foreign_key_list(" + Quote(table) + ")")
+	keys, err := foreignKeys(conn, table)
 	if err != nil {
 		return 400, err
 	}
-	defer stmt.Close()
-	type reference struct {
-		table    string
-		from, to []string
-	}
-	refs := map[int]*reference{}
-	for stmt.Step() {
-		n := stmt.ColumnInt(0)
-		ref := refs[n]
-		if ref == nil {
-			ref = &reference{table: stmt.ColumnText(2)}
-			refs[n] = ref
-		}
-		ref.from = append(ref.from, stmt.ColumnText(3))
-		ref.to = append(ref.to, stmt.ColumnText(4))
-	}
-	err = stmt.Err()
-	stmt.Close()
-	if err != nil {
-		return 400, err
-	}
-	for _, ref := range refs {
-		predicate, err := access(ref.table)
+	for _, key := range keys {
+		predicate, err := access(key.parent)
 		if err != nil {
 			return 404, err
 		}
-		if ref.to[0] == "" {
-			info, _, err := conn.Prepare("PRAGMA table_info(" + Quote(ref.table) + ")")
-			if err != nil {
+		if key.to[0] == "" {
+			if key.to, err = primaryKeyOrder(conn, key.parent); err != nil {
 				return 400, err
 			}
-			defer info.Close()
-			primary := map[int]string{}
-			for info.Step() {
-				if pos := info.ColumnInt(5); pos > 0 {
-					primary[pos] = info.ColumnText(1)
-				}
-			}
-			err = info.Err()
-			info.Close()
-			if err != nil {
-				return 400, err
-			}
-			if len(primary) != len(ref.to) {
+			if len(key.to) != len(key.from) {
 				return 400, fmt.Errorf("foreign key must reference a primary key")
 			}
-			for i := range ref.to {
-				ref.to[i] = primary[i+1]
-			}
 		}
-		joins, nulls := []string{}, []string{}
-		for i, from := range ref.from {
-			joins = append(joins, "p."+Quote(ref.to[i])+" = c."+Quote(from))
-			nulls = append(nulls, "c."+Quote(from)+" IS NULL")
-		}
-		// Keep the predicate inside the parent subquery so its unqualified
-		// columns cannot resolve to the child. Optional links are all NULL;
-		// partial composite NULLs are refused.
-		query := "SELECT (" + strings.Join(nulls, " OR ") + "), (" + strings.Join(nulls, " AND ") + "), p." + Quote(ref.to[0]) + " IS NOT NULL FROM " + Quote(table) +
-			" c LEFT JOIN (SELECT * FROM " + Quote(ref.table) + " WHERE " + predicate.SQL + ") p ON " + strings.Join(joins, " AND ") + " WHERE c." + rowid + " = ?"
-		check, _, err := conn.Prepare(query)
-		if err != nil {
+		if err = checkReference(conn, table, rowid, id, key, predicate); err != nil {
 			return 404, err
-		}
-		defer check.Close()
-		if err = BindRuleArgs(check, 1, predicate.Args); err == nil {
-			err = check.BindInt64(len(predicate.Args)+1, id)
-		}
-		if err != nil {
-			check.Close()
-			return 404, err
-		}
-		found := check.Step()
-		anyNull, allNull, exists := found && check.ColumnBool(0), found && check.ColumnBool(1), found && check.ColumnBool(2)
-		err = check.Err()
-		check.Close()
-		if err != nil {
-			return 404, err
-		}
-		if allNull {
-			continue
-		}
-		if !found || anyNull || !exists {
-			return 404, fmt.Errorf("referenced row not found")
 		}
 	}
 	return 0, nil
+}
+
+// foreignKey is one declared foreign key: child columns from, parent columns
+// to (all empty when it names the parent's primary key implicitly).
+type foreignKey struct {
+	parent   string
+	from, to []string
+}
+
+// foreignKeys lists a table's foreign keys in declaration order.
+func foreignKeys(conn *sqlite3.Conn, table string) ([]foreignKey, error) {
+	stmt, _, err := conn.Prepare("PRAGMA foreign_key_list(" + Quote(table) + ")")
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+	var keys []foreignKey
+	last := -1
+	for stmt.Step() {
+		if n := stmt.ColumnInt(0); n != last {
+			keys = append(keys, foreignKey{parent: stmt.ColumnText(2)})
+			last = n
+		}
+		key := &keys[len(keys)-1]
+		key.from = append(key.from, stmt.ColumnText(3))
+		key.to = append(key.to, stmt.ColumnText(4))
+	}
+	return keys, stmt.Err()
+}
+
+// primaryKeyOrder lists a table's primary key columns in key order.
+func primaryKeyOrder(conn *sqlite3.Conn, table string) ([]string, error) {
+	info, _, err := conn.Prepare("PRAGMA table_info(" + Quote(table) + ")")
+	if err != nil {
+		return nil, err
+	}
+	defer info.Close()
+	byPosition := map[int]string{}
+	for info.Step() {
+		if pos := info.ColumnInt(5); pos > 0 {
+			byPosition[pos] = info.ColumnText(1)
+		}
+	}
+	if err = info.Err(); err != nil {
+		return nil, err
+	}
+	columns := make([]string, len(byPosition))
+	for pos, name := range byPosition {
+		columns[pos-1] = name
+	}
+	return columns, nil
+}
+
+// checkReference accepts the row when its reference is entirely NULL or
+// names a parent row the predicate lets this caller read.
+func checkReference(conn *sqlite3.Conn, table, rowid string, id int64, key foreignKey, predicate ruleengine.Predicate) error {
+	joins, nulls := make([]string, len(key.from)), make([]string, len(key.from))
+	for i, from := range key.from {
+		joins[i] = "p." + Quote(key.to[i]) + " = c." + Quote(from)
+		nulls[i] = "c." + Quote(from) + " IS NULL"
+	}
+	// Keep the predicate inside the parent subquery so its unqualified
+	// columns cannot resolve to the child. Optional links are all NULL;
+	// partial composite NULLs are refused.
+	query := "SELECT (" + strings.Join(nulls, " OR ") + "), (" + strings.Join(nulls, " AND ") + "), p." + Quote(key.to[0]) + " IS NOT NULL FROM " + Quote(table) +
+		" c LEFT JOIN (SELECT * FROM " + Quote(key.parent) + " WHERE " + predicate.SQL + ") p ON " + strings.Join(joins, " AND ") + " WHERE c." + rowid + " = ?"
+	check, _, err := conn.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer check.Close()
+	if err = BindRuleArgs(check, 1, predicate.Args); err != nil {
+		return err
+	}
+	if err = check.BindInt64(len(predicate.Args)+1, id); err != nil {
+		return err
+	}
+	if !check.Step() {
+		if err = check.Err(); err != nil {
+			return err
+		}
+		return fmt.Errorf("referenced row not found")
+	}
+	if check.ColumnBool(1) {
+		return nil
+	}
+	if check.ColumnBool(0) || !check.ColumnBool(2) {
+		return fmt.Errorf("referenced row not found")
+	}
+	return nil
 }
 
 var (
@@ -494,120 +514,143 @@ func configureSQLiteMemory(conn *sqlite3.Conn, cache int64) error {
 	return conn.Exec(fmt.Sprintf("PRAGMA cache_size=-%d; PRAGMA temp_store=MEMORY", cache/1024))
 }
 
-// OpenTableConn opens the database for one table route: read-only
-// for reads, and for writes with the site's allowance as the page cap.
-func OpenTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
-	return openTableConn(parent, dbPath, write, timeout, maxMemory, budget, "mode=ro")
-}
-
-func openTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error), readQuery string) (*sqlite3.Conn, func(), error) {
-	uri := (&url.URL{Scheme: "file", Path: dbPath, RawQuery: readQuery}).String()
-	var remaining int64
-	var currentDBBytes int64
-	if fi, err := os.Stat(dbPath); os.IsNotExist(err) {
-		if write {
-			// No tables yet, so no row to add or change.
-			return nil, nil, ErrUnknownTable
-		}
-		uri = ":memory:"
-	} else if err != nil {
-		return nil, nil, ErrTableInternal
-	} else {
-		currentDBBytes = fi.Size()
-	}
-	if write {
-		var err error
-		if remaining, err = budget(); err != nil {
-			return nil, nil, err
-		}
-		uri = dbPath
-		if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
-			return nil, nil, ErrTableInternal
-		}
-	}
-	size := currentDBBytes + remaining // budget excludes this DB and cannot exceed the site limit
-	if !write {
-		var err error
-		size, err = sqliteReadSize(dbPath)
-		if err != nil {
-			return nil, nil, ErrTableInternal
-		}
-	}
-	ctx, cancel := context.WithTimeout(parent, timeout)
+// openSQLite opens uri with a memory cap sized for a database of size bytes
+// and returns the capped context and the page cache size for
+// configureSQLiteMemory. It closes the connection itself if the open stage
+// panics; once it returns a connection, the caller owns it.
+func openSQLite(ctx context.Context, uri string, size, maxMemory int64) (context.Context, *sqlite3.Conn, int64, error) {
 	ctx, cache := sqliteMemoryContext(ctx, size, maxMemory)
+	conn, err := sqlite3.OpenContext(ctx, uri)
+	if err != nil {
+		return ctx, nil, 0, err
+	}
 	opened := false
 	defer func() {
 		if !opened {
+			closeTableConn(func() { defer conn.Close(); sqliteStage(ctx, "close") })
+		}
+	}()
+	sqliteStage(ctx, "after_open")
+	conn.SetInterrupt(ctx)
+	opened = true
+	return ctx, conn, cache, nil
+}
+
+// restrictSQLite applies the settings of every owner-data connection:
+// memory, foreign keys, defensive mode and size limits, and WAL for writes.
+func restrictSQLite(conn *sqlite3.Conn, cache int64, write bool) error {
+	if err := configureSQLiteMemory(conn, cache); err != nil {
+		return err
+	}
+	if err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		return err
+	}
+	if _, err := conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
+		return err
+	}
+	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
+	_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
+	if write {
+		return conn.Exec("PRAGMA journal_mode=WAL")
+	}
+	return nil
+}
+
+// capPages limits the database to the whole pages that fit in available
+// bytes and returns that page count and the page size. ErrTableFull means
+// not even one page fits.
+func capPages(ctx context.Context, conn *sqlite3.Conn, available int64) (pages, pageSize int64, err error) {
+	page, _, err := conn.Prepare("PRAGMA page_size")
+	if err != nil {
+		return 0, 0, err
+	}
+	defer page.Close()
+	sqliteStage(ctx, "after_prepare")
+	if !page.Step() {
+		if err = page.Err(); err == nil {
+			err = errors.New("page size unavailable")
+		}
+		return 0, 0, err
+	}
+	sqliteStage(ctx, "after_step")
+	pageSize = page.ColumnInt64(0)
+	page.Close()
+	if pageSize <= 0 {
+		return 0, 0, errors.New("invalid page size")
+	}
+	if pages = available / pageSize; pages < 1 {
+		return 0, 0, ErrTableFull
+	}
+	return pages, pageSize, conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", pages))
+}
+
+// OpenTableConn opens the database for one table route: read-only
+// for reads, and for writes with the site's allowance as the page cap.
+func OpenTableConn(parent context.Context, dbPath string, write bool, timeout time.Duration, maxMemory int64, budget func() (int64, error)) (*sqlite3.Conn, func(), error) {
+	uri, size, err := tableConnTarget(dbPath, write, budget)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	ready := false
+	defer func() {
+		if !ready {
 			cancel()
 		}
 	}()
-	conn, err := sqlite3.OpenContext(ctx, uri)
+	ctx, conn, cache, err := openSQLite(ctx, uri, size, maxMemory)
 	if err != nil {
-		cancel()
 		return nil, nil, err
 	}
 	done := func() { defer cancel(); defer conn.Close(); sqliteStage(ctx, "close") }
 	// Setup also owns the connection until the successful return. A panic in a
 	// pragma must not strand a connection before the caller can defer its close.
-	ready := false
 	defer func() {
 		if !ready {
 			closeTableConn(done)
 		}
 	}()
-	sqliteStage(ctx, "after_open")
-	conn.SetInterrupt(ctx)
-	fail := func(err error) (*sqlite3.Conn, func(), error) {
-		if errors.Is(err, sqlite3.NOMEM) {
-			return nil, nil, err
-		}
-		return nil, nil, ErrTableInternal
+	if err = restrictSQLite(conn, cache, write); err == nil && write {
+		_, _, err = capPages(ctx, conn, size)
 	}
-	if err := configureSQLiteMemory(conn, cache); err != nil {
-		return fail(err)
+	if err != nil && err != ErrTableFull && !errors.Is(err, sqlite3.NOMEM) {
+		err = ErrTableInternal
 	}
-	if err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		return fail(err)
-	}
-	if _, err = conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
-		return fail(err)
-	}
-	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
-	_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
-	if write {
-		if err := conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
-			return fail(err)
-		}
-		page, _, e := conn.Prepare("PRAGMA page_size")
-		if e != nil || page == nil {
-			return fail(e)
-		}
-		defer page.Close()
-		sqliteStage(ctx, "after_prepare")
-		if !page.Step() {
-			e = page.Err()
-			if page != nil {
-				page.Close()
-			}
-			return fail(e)
-		}
-		sqliteStage(ctx, "after_step")
-		pageSize := page.ColumnInt64(0)
-		page.Close()
-		if pageSize <= 0 {
-			return fail(err)
-		}
-		maxPages := (remaining + currentDBBytes) / pageSize
-		if maxPages < 1 {
-			return nil, nil, ErrTableFull
-		}
-		if err := conn.Exec(fmt.Sprintf("PRAGMA max_page_count=%d", maxPages)); err != nil {
-			return fail(err)
-		}
+	if err != nil {
+		return nil, nil, err
 	}
 	ready = true
-	opened = true
 	return conn, done, nil
+}
+
+// tableConnTarget resolves what a table route opens and the size its memory
+// (and, for a write, page) cap is based on. A read of a missing database
+// opens an empty in-memory one; a write to it has no table to change.
+func tableConnTarget(dbPath string, write bool, budget func() (int64, error)) (string, int64, error) {
+	fi, err := os.Stat(dbPath)
+	missing := os.IsNotExist(err)
+	switch {
+	case err != nil && !missing:
+		return "", 0, ErrTableInternal
+	case write && missing:
+		return "", 0, ErrUnknownTable
+	case write:
+		remaining, err := budget()
+		if err != nil {
+			return "", 0, err
+		}
+		// The budget excludes this database and cannot exceed the site limit.
+		return dbPath, fi.Size() + remaining, nil
+	}
+	// Reads include uncheckpointed pages.
+	size, err := sqliteReadSize(dbPath)
+	if err != nil {
+		return "", 0, ErrTableInternal
+	}
+	if missing {
+		return ":memory:", size, nil
+	}
+	return (&url.URL{Scheme: "file", Path: dbPath, RawQuery: "mode=ro"}).String(), size, nil
 }
 
 // TableInfo returns the declared types and ordered names of a table's columns.

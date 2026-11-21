@@ -64,6 +64,7 @@ func (c *Collector) ensureHackKeys(ctx context.Context) (resultErr error) {
 	return err
 }
 
+// refreshHack reloads the Hack metadata snapshot (events, active members and team site hosts) and records any stage change it notices.
 func (c *Collector) refreshHack(ctx context.Context) {
 	c.hack.refreshMu.Lock()
 	defer c.hack.refreshMu.Unlock()
@@ -74,94 +75,13 @@ func (c *Collector) refreshHack(ctx context.Context) {
 		log.Printf("paper metrics Hack keys: %v", err)
 		return
 	}
-	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.slug,e.account_id::text,e.stage,COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id)),k.event_key,k.synthetic,last.stage,e.updated_at FROM events e JOIN paper_hack_key k ON k.event_id=e.id
- LEFT JOIN LATERAL (SELECT stage FROM paper_hack_phase p WHERE p.event_key=k.event_key
- AND stage IN ('draft','open','building','closed','judging','results','archived')
- ORDER BY recorded_at DESC LIMIT 1) last ON true`)
-	if err != nil {
-		c.tracker.Fail("paper metrics Hack metadata", err)
-		log.Printf("paper metrics Hack metadata: %v", err)
-		return
-	}
-	old := c.hack.meta.Load()
 	meta := &hackMetadata{events: map[string]*hackEventInfo{}, accounts: map[string]*hackEventInfo{}, members: map[string]map[string]struct{}{}, hosts: map[string]*hackEventInfo{}}
-	type change struct {
-		id, stage string
-		baseline  bool
-		origin    time.Time
-	}
-	var changes []change
-	for rows.Next() {
-		var id, slug, account, stage string
-		var origin time.Time
-		var published sql.NullTime
-		var last sql.NullString
-		var key int64
-		var synthetic bool
-		if err := rows.Scan(&id, &slug, &account, &stage, &published, &key, &synthetic, &last, &origin); err != nil {
-			c.tracker.Fail("scan Hack metadata", err)
-			rows.Close()
-			return
-		}
-		event := old.events[slug]
-		if event == nil {
-			event = &hackEventInfo{id: id, slug: slug, account: account, key: key}
-		}
-		event.synthetic.Store(synthetic)
-		if !last.Valid || last.String != stage {
-			changes = append(changes, change{id, stage, !last.Valid, origin})
-		}
-		event.state.Store(&hackEventState{stage: stage, published: published.Time})
-		meta.events[slug], meta.accounts[account] = event, event
-	}
-	rows.Close()
-	if rows.Err() != nil {
-		c.tracker.Fail("read Hack metadata", rows.Err())
+	changes, ok := c.loadHackEvents(ctx, c.hack.meta.Load(), meta)
+	if !ok {
 		return
 	}
-	rows, err = c.db.QueryContext(ctx, `SELECT e.slug,m.user_id::text FROM event_members m JOIN events e ON e.id=m.event_id WHERE e.stage IN ('open','building','closed','judging') OR (e.stage='results' AND COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))<=now() AND COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))>now()-interval '24 hours')`)
-	if err != nil {
-		c.tracker.Fail("query Hack metadata", err)
-	}
-	if err == nil {
-		for rows.Next() {
-			var slug, member string
-			if err := rows.Scan(&slug, &member); err != nil {
-				c.tracker.Fail("scan Hack metadata", err)
-				break
-			}
-			if meta.members[slug] == nil {
-				meta.members[slug] = map[string]struct{}{}
-			}
-			meta.members[slug][member] = struct{}{}
-		}
-		rows.Close()
-		if rows.Err() != nil {
-			c.tracker.Fail("read Hack metadata", rows.Err())
-		}
-	}
-	rows, err = c.db.QueryContext(ctx, `SELECT user_id::text,name FROM sites WHERE deleted_at IS NULL`)
-	if err != nil {
-		c.tracker.Fail("query Hack metadata", err)
-	}
-	if err == nil {
-		for rows.Next() {
-			var account, name string
-			if err := rows.Scan(&account, &name); err != nil {
-				c.tracker.Fail("scan Hack metadata", err)
-				break
-			}
-			if event := meta.accounts[account]; event != nil && name != event.id {
-				for base := range c.apexHosts {
-					meta.hosts[name+"."+event.slug+"."+base] = event
-				}
-			}
-		}
-		rows.Close()
-		if rows.Err() != nil {
-			c.tracker.Fail("read Hack metadata", rows.Err())
-		}
-	}
+	c.loadHackMembers(ctx, meta)
+	c.loadHackHosts(ctx, meta)
 	c.hack.meta.Store(meta)
 	now := time.Now().UTC()
 	for _, change := range changes {
@@ -172,9 +92,98 @@ func (c *Collector) refreshHack(ctx context.Context) {
 	}
 }
 
+// hackStageChange is a stage refresh found that no phase records yet; baseline means the event had no phase at all.
+type hackStageChange struct {
+	id, stage string
+	baseline  bool
+	origin    time.Time
+}
+
+// loadHackEvents fills meta's events and accounts, keeping the info of events old already knew, and lists the stage changes it noticed.
+func (c *Collector) loadHackEvents(ctx context.Context, old, meta *hackMetadata) ([]hackStageChange, bool) {
+	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.slug,e.account_id::text,e.stage,COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id)),k.event_key,k.synthetic,last.stage,e.updated_at FROM events e JOIN paper_hack_key k ON k.event_id=e.id
+ LEFT JOIN LATERAL (SELECT stage FROM paper_hack_phase p WHERE p.event_key=k.event_key
+ AND stage IN ('draft','open','building','closed','judging','results','archived')
+ ORDER BY recorded_at DESC LIMIT 1) last ON true`)
+	if err != nil {
+		c.tracker.Fail("paper metrics Hack metadata", err)
+		log.Printf("paper metrics Hack metadata: %v", err)
+		return nil, false
+	}
+	defer rows.Close()
+	var changes []hackStageChange
+	for rows.Next() {
+		var id, slug, account, stage string
+		var origin time.Time
+		var published sql.NullTime
+		var last sql.NullString
+		var key int64
+		var synthetic bool
+		if err := rows.Scan(&id, &slug, &account, &stage, &published, &key, &synthetic, &last, &origin); err != nil {
+			c.tracker.Fail("scan Hack metadata", err)
+			return nil, false
+		}
+		event := old.events[slug]
+		if event == nil {
+			event = &hackEventInfo{id: id, slug: slug, account: account, key: key}
+		}
+		event.synthetic.Store(synthetic)
+		if !last.Valid || last.String != stage {
+			changes = append(changes, hackStageChange{id, stage, !last.Valid, origin})
+		}
+		event.state.Store(&hackEventState{stage: stage, published: published.Time})
+		meta.events[slug], meta.accounts[account] = event, event
+	}
+	if err := rows.Err(); err != nil {
+		c.tracker.Fail("read Hack metadata", err)
+		return nil, false
+	}
+	return changes, true
+}
+
+// loadHackMembers fills meta's members of events that are running, or whose results went out in the last day.
+func (c *Collector) loadHackMembers(ctx context.Context, meta *hackMetadata) {
+	c.eachHackRow(ctx, `SELECT e.slug,m.user_id::text FROM event_members m JOIN events e ON e.id=m.event_id WHERE e.stage IN ('open','building','closed','judging') OR (e.stage='results' AND COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))<=now() AND COALESCE(e.results_published_at,(SELECT published_at FROM event_results r WHERE r.event_id=e.id))>now()-interval '24 hours')`, func(slug, member string) {
+		if meta.members[slug] == nil {
+			meta.members[slug] = map[string]struct{}{}
+		}
+		meta.members[slug][member] = struct{}{}
+	})
+}
+
+// loadHackHosts maps every team site host of every known event to it.
+func (c *Collector) loadHackHosts(ctx context.Context, meta *hackMetadata) {
+	c.eachHackRow(ctx, `SELECT user_id::text,name FROM sites WHERE deleted_at IS NULL`, func(account, name string) {
+		if event := meta.accounts[account]; event != nil && name != event.id {
+			for base := range c.apexHosts {
+				meta.hosts[name+"."+event.slug+"."+base] = event
+			}
+		}
+	})
+}
+
+// eachHackRow runs a two-column metadata query and hands each row to use, reporting (not returning) a failed read.
+func (c *Collector) eachHackRow(ctx context.Context, query string, use func(a, b string)) {
+	rows, err := c.db.QueryContext(ctx, query)
+	if err != nil {
+		c.tracker.Fail("query Hack metadata", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var a, b string
+		if err := rows.Scan(&a, &b); err != nil {
+			c.tracker.Fail("scan Hack metadata", err)
+			return
+		}
+		use(a, b)
+	}
+	if err := rows.Err(); err != nil {
+		c.tracker.Fail("read Hack metadata", err)
+	}
+}
+
 // Stage hooks capture time after commit and only enqueue background work.
-// A full queue never blocks the business request; refresh observes the latest
-// database stage as a fallback (not every intermediate transition).
 type hackPhaseNotice struct {
 	eventID, stage string
 	at, origin     time.Time
@@ -190,10 +199,7 @@ func RecordHackStage(ctx context.Context, eventID, stage string, origin ...time.
 	if request, ok := ctx.Value(hackRequestKey{}).(*hackRequest); ok {
 		h := request.metrics
 		at := time.Now().UTC()
-		stamp := at
-		if len(origin) > 0 && !origin[0].IsZero() {
-			stamp = origin[0]
-		}
+		stamp := phaseStamp(at, origin)
 		select {
 		case h.phases <- hackPhaseNotice{eventID, stage, at, stamp}:
 		default:
@@ -227,6 +233,8 @@ func (c *Collector) recordHackStage(ctx context.Context, eventID, stage string, 
 	}()
 	return c.recordHackPhase(ctx, eventID, stage, at, observed, false)
 }
+
+// recordHackPhase records that an event reached stage at at.
 func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, at time.Time, observed, baseline bool, origin ...time.Time) (resultErr error) {
 	defer func() {
 		if resultErr != nil {
@@ -240,11 +248,7 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 	if err != nil {
 		return err
 	}
-	stamp := at
-	if len(origin) > 0 && !origin[0].IsZero() {
-		stamp = origin[0]
-	}
-	var written int64
+	stamp := phaseStamp(at, origin)
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -254,35 +258,78 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
 	if err = tx.QueryRowContext(ctx, `SELECT event_key FROM paper_hack_key WHERE event_id=$1 FOR UPDATE`, eventID).Scan(&key); err != nil {
 		return err
 	}
-	var previous string
-	var previousOrigin time.Time
-	var wasObserved, wasBaseline bool
-	err = tx.QueryRowContext(ctx, `SELECT stage,origin_change,observed,baseline FROM paper_hack_phase WHERE event_key=$1 AND stage IN ('draft','open','building','closed','judging','results','archived') ORDER BY recorded_at DESC LIMIT 1`, key).Scan(&previous, &previousOrigin, &wasObserved, &wasBaseline)
-	if err != nil && err != sql.ErrNoRows {
+	prev, err := lastHackPhase(ctx, tx, key)
+	if err != nil {
 		return err
 	}
-	// Recheck under the key lock: a hook may have recorded this transition
-	// after refresh read its metadata snapshot.
-	if (observed || baseline) && previous == stage {
+	plan := planHackPhase(prev, stage, !observed && !baseline)
+	if !plan.record {
 		return nil
 	}
-	if !observed && !baseline && previous == stage && (wasObserved || wasBaseline) {
-		var exact bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM paper_hack_phase WHERE event_key=$1 AND stage=$2 AND origin_change=$3)`, key, stage, stamp).Scan(&exact); err != nil {
+	var written int64
+	if plan.moveOrigin {
+		if err := c.moveHackPhaseOrigin(ctx, tx, &written, key, stage, prev.origin, stamp); err != nil {
 			return err
 		}
-		if !exact {
-			if _, err = c.platform.ExecMetric(ctx, tx, &written, `UPDATE paper_hack_phase SET origin_change=$4 WHERE event_key=$1 AND stage=$2 AND origin_change=$3`, key, stage, previousOrigin, stamp); err != nil {
-				return err
-			}
-		}
 	}
-	if stage == "open" && !observed && !baseline {
+	if plan.firstOpen {
 		if _, err = c.platform.ExecMetric(ctx, tx, &written, `UPDATE paper_hack_key SET first_open_at=COALESCE(first_open_at,$2) WHERE event_id=$1`, eventID, at); err != nil {
 			return err
 		}
 	}
-	_, err = c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,origin_change)
+	if _, err = c.platform.ExecMetric(ctx, tx, &written, insertHackPhaseSQL, run, eventID, stage, at, observed, baseline, stamp); err != nil {
+		return err
+	}
+	return c.platform.CommitMetrics(tx, written)
+}
+
+// hackPhasePlan is what recording one phase does besides inserting it.
+type hackPhasePlan struct{ record, moveOrigin, firstOpen bool }
+
+// planHackPhase decides from the latest recorded phase.
+func planHackPhase(prev hackPhaseRow, stage string, hook bool) hackPhasePlan {
+	if !hook {
+		return hackPhasePlan{record: prev.stage != stage}
+	}
+	return hackPhasePlan{record: true, moveOrigin: prev.stage == stage && (prev.observed || prev.baseline), firstOpen: stage == "open"}
+}
+
+// phaseStamp is the change a phase dates from: origin when given, else at.
+func phaseStamp(at time.Time, origin []time.Time) time.Time {
+	if len(origin) > 0 && !origin[0].IsZero() {
+		return origin[0]
+	}
+	return at
+}
+
+// hackPhaseRow is the latest stage phase recorded for an event.
+type hackPhaseRow struct {
+	stage              string
+	origin             time.Time
+	observed, baseline bool
+}
+
+// lastHackPhase reads the latest stage phase of an event key; none is the zero row.
+func lastHackPhase(ctx context.Context, tx *sql.Tx, key int64) (p hackPhaseRow, err error) {
+	err = tx.QueryRowContext(ctx, `SELECT stage,origin_change,observed,baseline FROM paper_hack_phase WHERE event_key=$1 AND stage IN ('draft','open','building','closed','judging','results','archived') ORDER BY recorded_at DESC LIMIT 1`, key).Scan(&p.stage, &p.origin, &p.observed, &p.baseline)
+	if err == sql.ErrNoRows {
+		err = nil
+	}
+	return p, err
+}
+
+// moveHackPhaseOrigin re-dates a phase refresh or the baseline recorded first to the hook's exact change, unless that change is already recorded.
+func (c *Collector) moveHackPhaseOrigin(ctx context.Context, tx *sql.Tx, written *int64, key int64, stage string, from, to time.Time) error {
+	var exact bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM paper_hack_phase WHERE event_key=$1 AND stage=$2 AND origin_change=$3)`, key, stage, to).Scan(&exact); err != nil || exact {
+		return err
+	}
+	_, err := c.platform.ExecMetric(ctx, tx, written, `UPDATE paper_hack_phase SET origin_change=$4 WHERE event_key=$1 AND stage=$2 AND origin_change=$3`, key, stage, from, to)
+	return err
+}
+
+// insertHackPhaseSQL records one stage phase; a hook's row replaces the timing of an observed or baseline row for the same change.
+const insertHackPhaseSQL = `INSERT INTO paper_hack_phase(run_id,event_key,synthetic,stage,phase_slot,minute_offset,origin_slot,observed,baseline,origin_change)
  SELECT $1,k.event_key,k.synthetic,$3,date_trunc('minute',$4::timestamptz),round(EXTRACT(epoch FROM ($4::timestamptz-COALESCE(e.starts_at,k.first_open_at)))/60)::int,date_trunc('minute',COALESCE(e.starts_at,k.first_open_at)+interval '30 seconds'),$5,$6,$7
  FROM events e JOIN paper_hack_key k ON k.event_id=e.id WHERE e.id=$2
  ON CONFLICT(event_key,stage,origin_change) DO UPDATE SET
@@ -291,12 +338,8 @@ func (c *Collector) recordHackPhase(ctx context.Context, eventID, stage string, 
  phase_slot=CASE WHEN (paper_hack_phase.observed OR paper_hack_phase.baseline) AND NOT EXCLUDED.observed THEN EXCLUDED.phase_slot ELSE paper_hack_phase.phase_slot END,
  minute_offset=CASE WHEN (paper_hack_phase.observed OR paper_hack_phase.baseline) AND NOT EXCLUDED.observed THEN EXCLUDED.minute_offset ELSE paper_hack_phase.minute_offset END,
  origin_slot=CASE WHEN (paper_hack_phase.observed OR paper_hack_phase.baseline) AND NOT EXCLUDED.observed THEN EXCLUDED.origin_slot ELSE paper_hack_phase.origin_slot END,
- observed=paper_hack_phase.observed AND EXCLUDED.observed`, run, eventID, stage, at, observed, baseline, stamp)
-	if err != nil {
-		return err
-	}
-	return c.platform.CommitMetrics(tx, written)
-}
+ observed=paper_hack_phase.observed AND EXCLUDED.observed`
+
 func (c *Collector) hackTimestampPhases(ctx context.Context) (resultErr error) {
 	defer func() {
 		if resultErr != nil {

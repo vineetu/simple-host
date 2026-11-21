@@ -74,12 +74,12 @@ make check
 the DB-backed test fixtures (connector, hack, analytics, netusage, papermetrics -- anything
 gated on `DB_DSN`) a disposable Postgres and fails if any of them skip instead of running;
 `make test` is the fast no-DB loop (`go test ./...`), which still skips those fixtures. Quick
-loop: `go test ./host/handler/` (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
+loop: `go test ./host/data/datahttp/` (or the route package you changed) (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
 Each DB-backed test package has a `TestMain` calling `testdb.Main` (`host/testdb`): under the
 script (`TESTDB_ISOLATE=1`) every test process gets its own clone of the schema database, dropped
 afterwards, so packages never share rows. Fixtures that start background workers must cancel and
 join them (`Wait`) in a `t.Cleanup` registered after the one that closes the database. To chase a
-flaky test: `make test-db PKGS=./host/handler RUN='^TestNotify' COUNT=5` (packages go in
+flaky test: `make test-db PKGS=./host/server/servertest/datatest RUN='^TestNotify' COUNT=5` (packages go in
 `PKGS`/`TEST_PKGS`, never as a bare argument to the script).
 
 Build, back up, install, restart both programs from one commit (one line, from the repo root; after the initial two-program deployment has installed both paths):

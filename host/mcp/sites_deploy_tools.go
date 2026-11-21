@@ -114,42 +114,64 @@ func applyEdits(c *call, site string, raw any) (map[string]string, error) {
 	}
 	texts := map[string]string{}
 	for i, item := range list {
-		edit, ok := item.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("edits[%d] must be an object with path, find, and replace", i)
-		}
-		for key := range edit {
-			if key != "path" && key != "find" && key != "replace" {
-				return nil, fmt.Errorf("edits[%d] has unexpected field %q; it takes path, find, and replace", i, key)
-			}
-		}
-		path, _ := edit["path"].(string)
-		find, _ := edit["find"].(string)
-		replace, okReplace := edit["replace"].(string)
-		if path == "" || find == "" || !okReplace {
-			return nil, fmt.Errorf("edits[%d] needs path, a non-empty find, and replace (all strings)", i)
+		path, find, replace, err := readEdit(i, item)
+		if err != nil {
+			return nil, err
 		}
 		text, seen := texts[path]
 		if !seen {
-			f, err := readFile(c, "update_site", site, live.ActiveVersion, path)
-			if err != nil {
-				return nil, fmt.Errorf("edits[%d]: could not read %s: %w", i, path, err)
+			if text, err = editableText(c, site, live.ActiveVersion, path, i); err != nil {
+				return nil, err
 			}
-			if f.binary || f.truncated {
-				return nil, fmt.Errorf("edits[%d]: %s is not a text file under 200 KB; send it whole in files", i, path)
-			}
-			text = f.content
 		}
-		switch n := strings.Count(text, find); n {
-		case 1:
-			texts[path] = strings.Replace(text, find, replace, 1)
-		case 0:
-			return nil, fmt.Errorf("edits[%d]: the find text is not in %s, so nothing was published. Copy it exactly from read_site_file (spaces and line breaks count)", i, path)
-		default:
-			return nil, fmt.Errorf("edits[%d]: the find text occurs %d times in %s, so nothing was published. Include more of the surrounding text so it occurs once", i, n, path)
+		if texts[path], err = replaceOnce(text, find, replace, path, i); err != nil {
+			return nil, err
 		}
 	}
 	return texts, nil
+}
+
+// readEdit reads edits[i]: {path, find, replace}, all strings, find not empty.
+func readEdit(i int, item any) (path, find, replace string, err error) {
+	edit, ok := item.(map[string]any)
+	if !ok {
+		return "", "", "", fmt.Errorf("edits[%d] must be an object with path, find, and replace", i)
+	}
+	for key := range edit {
+		if key != "path" && key != "find" && key != "replace" {
+			return "", "", "", fmt.Errorf("edits[%d] has unexpected field %q; it takes path, find, and replace", i, key)
+		}
+	}
+	path, _ = edit["path"].(string)
+	find, _ = edit["find"].(string)
+	replace, okReplace := edit["replace"].(string)
+	if path == "" || find == "" || !okReplace {
+		return "", "", "", fmt.Errorf("edits[%d] needs path, a non-empty find, and replace (all strings)", i)
+	}
+	return path, find, replace, nil
+}
+
+// editableText is a live text file's content, for edits[i].
+func editableText(c *call, site string, version int, path string, i int) (string, error) {
+	f, err := readFile(c, "update_site", site, version, path)
+	if err != nil {
+		return "", fmt.Errorf("edits[%d]: could not read %s: %w", i, path, err)
+	}
+	if f.binary || f.truncated {
+		return "", fmt.Errorf("edits[%d]: %s is not a text file under 200 KB; send it whole in files", i, path)
+	}
+	return f.content, nil
+}
+
+func replaceOnce(text, find, replace, path string, i int) (string, error) {
+	switch n := strings.Count(text, find); n {
+	case 1:
+		return strings.Replace(text, find, replace, 1), nil
+	case 0:
+		return "", fmt.Errorf("edits[%d]: the find text is not in %s, so nothing was published. Copy it exactly from read_site_file (spaces and line breaks count)", i, path)
+	default:
+		return "", fmt.Errorf("edits[%d]: the find text occurs %d times in %s, so nothing was published. Include more of the surrounding text so it occurs once", i, n, path)
+	}
 }
 
 // deploySite publishes the given files. mode is "create" (a new site only,
@@ -159,16 +181,49 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	files, binary, edited, keep, err := deployFiles(c, args, name, mode)
+	in, err := deployFiles(c, args, name, mode)
 	if err != nil {
 		return output{}, err
 	}
-	payload := map[string]any{"files": files}
+	body, err := json.Marshal(deployPayload(args, in, mode))
+	if err != nil {
+		return output{}, err
+	}
+	query, publish, err := deployQuery(args, mode, in.keep)
+	if err != nil {
+		return output{}, err
+	}
+	method := http.MethodPut
+	if mode == "create" {
+		method = http.MethodPost
+	}
+	res := c.do(method, sitePath(name, "/files"+query), body, nil)
+	if !res.ok() {
+		return output{}, deployRefusal(res, mode, name)
+	}
+	var site restSite
+	_ = json.Unmarshal(res.body, &site)
+	out := site.summary()
+	out["file_count"] = len(in.files) + len(in.binary)
+	warnText := ""
+	if warns := pageWarnings(c, name, in.files); len(warns) > 0 {
+		out["page_warnings"] = warns
+		warnText = "\nFix these before telling the person the page works:\n- " + strings.Join(warns, "\n- ")
+	}
+	if !publish {
+		return output{Text: storedText(c, name, site, res.body, out) + warnText, Structured: out}, nil
+	}
+	return output{Text: publishedText(name, site, args, mode, in.edited) + warnText, Structured: out}, nil
+}
+
+// deployPayload is the JSON body of the files request.
+func deployPayload(args map[string]any, in deployInput, mode string) map[string]any {
+	payload := map[string]any{"files": in.files}
 	if remove, exists := args["remove_files"]; exists {
 		payload["remove_files"] = remove
 	}
-	if len(binary) > 0 {
-		payload["files_base64"] = binary
+	if len(in.binary) > 0 {
+		payload["files_base64"] = in.binary
 	}
 	if mode == "create" {
 		for _, key := range []string{"access", "viewers"} {
@@ -177,47 +232,27 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 			}
 		}
 	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return output{}, err
+	return payload
+}
+
+// storedText answers a publish: false update, adding its version and
+// preview link to out.
+func storedText(c *call, name string, site restSite, body []byte, out map[string]any) string {
+	var stored struct {
+		Version    int    `json:"unpublished_version"`
+		PreviewURL string `json:"preview_url"`
 	}
-	query, publish, err := deployQuery(args, mode, keep)
-	if err != nil {
-		return output{}, err
+	_ = json.Unmarshal(body, &stored)
+	out["unpublished_version"] = stored.Version
+	text := fmt.Sprintf("Stored %s version %d without making it live; visitors still see version %d at %s.", name, stored.Version, site.ActiveVersion, site.liveURL())
+	if stored.PreviewURL != "" {
+		out["preview_url"] = stored.PreviewURL
+		text += " Preview it (the link works for anyone who has it, for " + span(c.limits().PreviewLinkTTL) + "): " + stored.PreviewURL
 	}
-	method := http.MethodPut
-	if mode == "create" {
-		method = http.MethodPost
-	}
-	res := c.do(method, "/v1/sites/"+url.PathEscape(name)+"/files"+query, body, nil)
-	if !res.ok() {
-		return output{}, deployRefusal(res, mode, name)
-	}
-	var site restSite
-	_ = json.Unmarshal(res.body, &site)
-	out := site.summary()
-	out["file_count"] = len(files) + len(binary)
-	warns := pageWarnings(c, name, files)
-	warnText := ""
-	if len(warns) > 0 {
-		out["page_warnings"] = warns
-		warnText = "\nFix these before telling the person the page works:\n- " + strings.Join(warns, "\n- ")
-	}
-	if !publish {
-		var stored struct {
-			Version    int    `json:"unpublished_version"`
-			PreviewURL string `json:"preview_url"`
-		}
-		_ = json.Unmarshal(res.body, &stored)
-		out["unpublished_version"] = stored.Version
-		text := fmt.Sprintf("Stored %s version %d without making it live; visitors still see version %d at %s.", name, stored.Version, site.ActiveVersion, site.liveURL())
-		if stored.PreviewURL != "" {
-			out["preview_url"] = stored.PreviewURL
-			text += " Preview it (the link works for anyone who has it, for " + span(c.server.cfg.Limits.PreviewLinkTTL) + "): " + stored.PreviewURL
-		}
-		text += fmt.Sprintf("\nWhen the person is happy, rollback_site with version %d makes it live.", stored.Version)
-		return output{Text: text + warnText, Structured: out}, nil
-	}
+	return text + fmt.Sprintf("\nWhen the person is happy, rollback_site with version %d makes it live.", stored.Version)
+}
+
+func publishedText(name string, site restSite, args map[string]any, mode string, edited []string) string {
 	text := fmt.Sprintf("Published a new version of %s (version %d). Live at %s", name, site.ActiveVersion, site.liveURL())
 	if mode == "create" {
 		text = fmt.Sprintf("Created %s (version %d). Live at %s", name, site.ActiveVersion, site.liveURL()) + createAccessText(site, args)
@@ -228,81 +263,83 @@ func deploySite(c *call, args map[string]any, mode string) (output, error) {
 	if len(edited) > 0 {
 		text += "\nEdited " + strings.Join(edited, ", ") + "; every other file was kept."
 	}
-	return output{Text: text + warnText, Structured: out}, nil
+	return text
+}
+
+// deployInput is what a deploy sends. keep is whether the other live files stay.
+type deployInput struct {
+	files, binary map[string]string
+	edited        []string
+	keep          bool
 }
 
 // deployFiles reads what a deploy sends: files, edits applied to the live
-// version (update_site only), and files_base64. keep is whether the other
-// live files stay.
-func deployFiles(c *call, args map[string]any, name, mode string) (files, binary map[string]string, edited []string, keep bool, err error) {
-	if files, err = stringMap(args, "files"); err != nil {
-		return
+// version (update_site only), and files_base64.
+func deployFiles(c *call, args map[string]any, name, mode string) (deployInput, error) {
+	var in deployInput
+	var err error
+	if in.files, err = stringMap(args, "files"); err != nil {
+		return in, err
 	}
-	if value, present := args["keep_other_files"]; present {
-		var ok bool
-		if keep, ok = value.(bool); !ok {
-			err = errors.New("keep_other_files must be true or false")
-			return
-		}
+	if in.keep, err = boolArg(args, "keep_other_files", false); err != nil {
+		return in, err
 	}
-	if keep && mode != "replace" {
-		err = errors.New("keep_other_files is only for update_site")
-		return
+	if in.keep && mode != "replace" {
+		return in, errors.New("keep_other_files is only for update_site")
 	}
 	if raw, present := args["edits"]; present {
 		if mode != "replace" {
-			err = errors.New("edits is only for update_site")
-			return
+			return in, errors.New("edits is only for update_site")
 		}
-		var texts map[string]string
-		if texts, err = applyEdits(c, name, raw); err != nil {
-			return
-		}
-		if files == nil {
-			files = map[string]string{}
-		}
-		for path, text := range texts {
-			if _, dup := files[path]; dup {
-				err = fmt.Errorf("%s is in both files and edits; use one of them for a file", path)
-				return
-			}
-			files[path] = text
-			edited = append(edited, path)
-		}
-		sort.Strings(edited)
-		// An edit changes part of the live site, so the rest is always kept.
-		keep = true
-	}
-	if _, exists := args["remove_files"]; exists && !keep {
-		err = errors.New("remove_files requires keep_other_files")
-		return
-	}
-	if len(files) == 0 && !keep {
-		err = errors.New("files is required: an object mapping each path to its contents, including index.html")
-		return
-	}
-	if binary, err = stringMap(args, "files_base64"); err != nil {
-		return
-	}
-	for _, path := range edited {
-		if _, dup := binary[path]; dup {
-			err = fmt.Errorf("%s is in both files_base64 and edits; use one of them for a file", path)
-			return
+		if err := in.addEdits(c, name, raw); err != nil {
+			return in, err
 		}
 	}
-	return
+	if _, exists := args["remove_files"]; exists && !in.keep {
+		return in, errors.New("remove_files requires keep_other_files")
+	}
+	if len(in.files) == 0 && !in.keep {
+		return in, errors.New("files is required: an object mapping each path to its contents, including index.html")
+	}
+	if in.binary, err = stringMap(args, "files_base64"); err != nil {
+		return in, err
+	}
+	for _, path := range in.edited {
+		if _, dup := in.binary[path]; dup {
+			return in, fmt.Errorf("%s is in both files_base64 and edits; use one of them for a file", path)
+		}
+	}
+	return in, nil
+}
+
+// addEdits applies edits to the live files and adds them to files. An edit
+// changes part of the live site, so the rest is always kept.
+func (in *deployInput) addEdits(c *call, name string, raw any) error {
+	texts, err := applyEdits(c, name, raw)
+	if err != nil {
+		return err
+	}
+	if in.files == nil {
+		in.files = map[string]string{}
+	}
+	for path, text := range texts {
+		if _, dup := in.files[path]; dup {
+			return fmt.Errorf("%s is in both files and edits; use one of them for a file", path)
+		}
+		in.files[path] = text
+		in.edited = append(in.edited, path)
+	}
+	sort.Strings(in.edited)
+	in.keep = true
+	return nil
 }
 
 // deployQuery reads publish and author into the deploy request's query.
 func deployQuery(args map[string]any, mode string, keep bool) (string, bool, error) {
 	var query []string
-	publish := true
-	if raw, present := args["publish"]; present && raw != nil {
-		b, ok := raw.(bool)
-		if !ok {
-			return "", false, errors.New("publish must be true or false")
-		}
-		publish = b
+	publish, err := boolArg(args, "publish", true)
+	if err != nil {
+		return "", false, err
 	}
 	if !publish {
 		if mode == "create" {

@@ -10,8 +10,7 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// EventPatch is one change to an event. A nil field is absent and keeps its
-// stored value; an empty string clears a field that can be empty.
+// EventPatch is one change to an event.
 type EventPatch struct {
 	AccentColor, Theme, Title, Tagline, About, Rules, Prizes, CocText, TimeZone, StartsAt, EndsAt *string
 	TeamFinding, ApplicationsOpen                                                                 *bool
@@ -30,9 +29,7 @@ var Crayons = []struct{ Name, Color string }{
 	{"orange", "#e9a45f"}, {"yellow", "#f2c94c"}, {"grass", "#86ab74"}, {"blush", "#ee8f92"},
 }
 
-// Themes are the public event page's whole-page styles (SIM-353). ""
-// (Classic) is always valid and not listed. The CSS for each lives in
-// products/hack/webassets/static/hack/themes.css.
+// Themes are the public event page's whole-page styles (SIM-353).
 var Themes = []string{"poster", "confetti", "boardroom", "garden", "terminal"}
 
 // The event field validators, shared by create and patch.
@@ -41,8 +38,7 @@ func EventTitle(s string) (string, error)         { return lineValue(s, "title",
 func EventOrganiserName(s string) (string, error) { return lineValue(s, "organiser_name", 1, 100) }
 func EventPurpose(s string) (string, error)       { return textValue(s, "purpose", 1, 1000) }
 
-// hackOrganisationHintPaste is the organisation field's own guidance text,
-// seen saved as its value when a client copied the hint: cleared, not stored.
+// hackOrganisationHintPaste is the organisation field's own guidance text, seen saved as its value when a client copied the hint.
 const hackOrganisationHintPaste = "write the name of your company, college, or group (for example: futuretech or your organization's name)"
 
 func EventOrganisation(s string) (string, error) {
@@ -84,9 +80,7 @@ func EventTimeZone(s string) (string, *time.Location, error) {
 	return tz, loc, nil
 }
 
-// EventEnds refuses an end before the start. A date-only end (local
-// midnight) means the whole of that day (EventOver), so a same-day timed
-// start is not "after" it.
+// EventEnds refuses an end before the start.
 func EventEnds(starts, ends sql.NullTime, zone string) error {
 	if ends.Valid && starts.Valid && EventOver(ends.Time, zone).Before(starts.Time) {
 		return &Error{Code: "invalid_ends_at", Message: "ends_at must not be before starts_at"}
@@ -94,8 +88,7 @@ func EventEnds(starts, ends sql.NullTime, zone string) error {
 	return nil
 }
 
-// ParseEventTime reads a required event time: YYYY-MM-DD, a wall-clock
-// YYYY-MM-DDTHH:MM[:SS] in loc, or RFC 3339.
+// ParseEventTime reads a required event time: YYYY-MM-DD, a wall-clock YYYY-MM-DDTHH:MM[:SS] in loc, or RFC 3339.
 func ParseEventTime(s string, loc *time.Location, field string) (sql.NullTime, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -112,8 +105,7 @@ func ParseEventTime(s string, loc *time.Location, field string) (sql.NullTime, e
 	for _, layout := range []string{"2006-01-02T15:04", "2006-01-02T15:04:05"} {
 		if len(s) == len(layout) {
 			if t, err := time.ParseInLocation(layout, s, loc); err == nil {
-				// A wall-clock time the clocks skip (a daylight-saving gap)
-				// does not exist in that zone: say so rather than move it.
+				// A wall-clock time the clocks skip (a daylight-saving gap) does not exist in that zone: say so rather than move it.
 				if t.In(loc).Format(layout) != s {
 					return sql.NullTime{}, &Error{Code: "invalid_" + field, Message: field + " is a time the clocks skip in " + loc.String() + "; pick another"}
 				}
@@ -200,8 +192,7 @@ func set[In, Out any](dst *Out, in *In, valid func(In) (Out, error)) error {
 
 func accept[T any](v T) (T, error) { return v, nil }
 
-// first is the first refusal of fields checked in wire order: every argument
-// is evaluated, left to right, and a refused patch is never stored.
+// first is the first refusal of fields checked in wire order: every argument is evaluated, left to right, and a refused patch is never stored.
 func first(errs ...error) error {
 	for _, err := range errs {
 		if err != nil {
@@ -211,78 +202,68 @@ func first(errs ...error) error {
 	return nil
 }
 
-// apply validates p against the locked row ev and writes it in, field by
-// field in wire order; the first refusal wins. It reports whether the
-// submission deadline and the required entry fields were sent.
+// apply validates p against the locked row ev and writes it in, field by field in wire order; the first refusal wins.
 func (p EventPatch) apply(ev *model.Event) (deadlineChanged, entryRequiredChanged bool, err error) {
-	line := func(field string, min, max int) func(string) (string, error) {
-		return func(s string) (string, error) { return lineValue(s, field, min, max) }
-	}
-	text := func(field string, min, max int) func(string) (string, error) {
-		return func(s string) (string, error) { return textValue(s, field, min, max) }
-	}
-	oneOf := func(names []string, refusal *Error) func(string) (string, error) {
-		return func(s string) (string, error) {
-			if s != "" && !slices.Contains(names, s) {
-				return "", refusal
-			}
-			return s, nil
-		}
-	}
-	crayons := []string{}
-	for _, c := range Crayons {
-		crayons = append(crayons, c.Name)
-	}
 	oldZone := ev.TimeZone
-	if err := first(
-		set(&ev.AccentColor, p.AccentColor, oneOf(crayons, &Error{Code: "invalid_accent_color", Message: "choose a crayon colour or an empty string for automatic"})),
-		set(&ev.Theme, p.Theme, oneOf(Themes, &Error{Code: "invalid_theme", Message: "choose poster, confetti, boardroom, garden, terminal, or an empty string for the classic look"})),
-		set(&ev.Title, p.Title, EventTitle),
-		set(&ev.Tagline, p.Tagline, line("tagline", 0, 160)),
-		set(&ev.About, p.About, text("about", 0, 10000)),
-		set(&ev.Rules, p.Rules, text("rules", 0, 10000)),
-		set(&ev.OverallPrizes, p.OverallPrizes, EventOverallPrizes),
-		set(&ev.Prizes, p.Prizes, text("prizes", 0, 5000)),
-		set(&ev.CocText, p.CocText, text("coc_text", 0, 10000)),
-		set(&ev.TimeZone, p.TimeZone, func(s string) (string, error) { tz, _, err := EventTimeZone(s); return tz, err }),
-	); err != nil {
+	if err := p.applyPage(ev); err != nil {
 		return false, false, err
 	}
 	loc, err := time.LoadLocation(ev.TimeZone)
 	if err != nil {
 		return false, false, &Error{Code: "invalid_time_zone", Message: "time_zone is not a valid IANA name"}
 	}
-	// A new zone without new dates keeps the same calendar dates: each
-	// stored instant is moved to the same wall-clock time in the new zone.
 	if old, oerr := time.LoadLocation(oldZone); ev.TimeZone != oldZone && oerr == nil {
-		reanchor := func(t sql.NullTime) sql.NullTime {
-			if !t.Valid {
-				return t
-			}
-			o := t.Time.In(old)
-			return sql.NullTime{Time: time.Date(o.Year(), o.Month(), o.Day(), o.Hour(), o.Minute(), o.Second(), 0, loc), Valid: true}
-		}
-		if p.StartsAt == nil {
-			ev.StartsAt = reanchor(ev.StartsAt)
-		}
-		if p.EndsAt == nil {
-			ev.EndsAt = reanchor(ev.EndsAt)
-		}
+		p.reanchorDates(ev, old, loc)
 	}
-	// A clearable time: "" clears it. The deadline is an instant, so a new
-	// zone never moves it (a deadline that passed must stay passed).
-	clearable := func(field string) func(string) (sql.NullTime, error) {
-		return func(s string) (sql.NullTime, error) {
-			if strings.TrimSpace(s) == "" {
-				return sql.NullTime{}, nil
-			}
-			return ParseEventTime(s, loc, field)
+	err = first(p.applyDates(ev, loc), p.applySettings(ev, loc))
+	return p.SubmissionDeadline != nil, p.EntryRequired != nil, err
+}
+
+// applyPage writes the public page's look and text fields and the zone.
+func (p EventPatch) applyPage(ev *model.Event) error {
+	return first(
+		set(&ev.AccentColor, p.AccentColor, oneOf(crayonNames(), &Error{Code: "invalid_accent_color", Message: "choose a crayon colour or an empty string for automatic"})),
+		set(&ev.Theme, p.Theme, oneOf(Themes, &Error{Code: "invalid_theme", Message: "choose poster, confetti, boardroom, garden, terminal, or an empty string for the classic look"})),
+		set(&ev.Title, p.Title, EventTitle),
+		set(&ev.Tagline, p.Tagline, lineOf("tagline", 0, 160)),
+		set(&ev.About, p.About, textOf("about", 0, 10000)),
+		set(&ev.Rules, p.Rules, textOf("rules", 0, 10000)),
+		set(&ev.OverallPrizes, p.OverallPrizes, EventOverallPrizes),
+		set(&ev.Prizes, p.Prizes, textOf("prizes", 0, 5000)),
+		set(&ev.CocText, p.CocText, textOf("coc_text", 0, 10000)),
+		set(&ev.TimeZone, p.TimeZone, func(s string) (string, error) { tz, _, err := EventTimeZone(s); return tz, err }),
+	)
+}
+
+// reanchorDates keeps the same calendar dates under a new zone when no new dates were sent.
+func (p EventPatch) reanchorDates(ev *model.Event, old, loc *time.Location) {
+	reanchor := func(t sql.NullTime) sql.NullTime {
+		if !t.Valid {
+			return t
 		}
+		o := t.Time.In(old)
+		return sql.NullTime{Time: time.Date(o.Year(), o.Month(), o.Day(), o.Hour(), o.Minute(), o.Second(), 0, loc), Valid: true}
 	}
-	err = first(
+	if p.StartsAt == nil {
+		ev.StartsAt = reanchor(ev.StartsAt)
+	}
+	if p.EndsAt == nil {
+		ev.EndsAt = reanchor(ev.EndsAt)
+	}
+}
+
+// applyDates writes the start and end in the event's zone and refuses an end before the start.
+func (p EventPatch) applyDates(ev *model.Event, loc *time.Location) error {
+	return first(
 		set(&ev.StartsAt, p.StartsAt, func(s string) (sql.NullTime, error) { return ParseEventTime(s, loc, "starts_at") }),
-		set(&ev.EndsAt, p.EndsAt, clearable("ends_at")),
-		func() error { return EventEnds(ev.StartsAt, ev.EndsAt, ev.TimeZone) }(),
+		set(&ev.EndsAt, p.EndsAt, clearableTime(loc, "ends_at")),
+		EventEnds(ev.StartsAt, ev.EndsAt, ev.TimeZone),
+	)
+}
+
+// applySettings writes registration, organiser, submission and judging fields.
+func (p EventPatch) applySettings(ev *model.Event, loc *time.Location) error {
+	return first(
 		set(&ev.TeamFinding, p.TeamFinding, accept[bool]),
 		set(&ev.ApplicationsOpen, p.ApplicationsOpen, func(open bool) (bool, error) {
 			if ev.Stage == "archived" {
@@ -303,11 +284,46 @@ func (p EventPatch) apply(ev *model.Event) (deadlineChanged, entryRequiredChange
 		set(&ev.ExpectedParticipants, p.ExpectedParticipants, func(n int) (sql.NullInt64, error) {
 			return sql.NullInt64{Int64: int64(n), Valid: true}, EventExpectedParticipants(n)
 		}),
-		set(&ev.SubmissionDeadline, p.SubmissionDeadline, clearable("submission_deadline")),
+		set(&ev.SubmissionDeadline, p.SubmissionDeadline, clearableTime(loc, "submission_deadline")),
 		set(&ev.EntryRequired, p.EntryRequired, eventEntryRequired),
 		set(&ev.SubmissionsPublic, p.SubmissionsPublic, accept[bool]),
 		set(&ev.GalleryOpen, p.GalleryOpen, accept[bool]),
-		set(&ev.JudgingEndsAt, p.JudgingEndsAt, clearable("judging_ends_at")),
+		set(&ev.JudgingEndsAt, p.JudgingEndsAt, clearableTime(loc, "judging_ends_at")),
 	)
-	return p.SubmissionDeadline != nil, p.EntryRequired != nil, err
+}
+
+// clearableTime parses an event time in loc, where "" clears it.
+func clearableTime(loc *time.Location, field string) func(string) (sql.NullTime, error) {
+	return func(s string) (sql.NullTime, error) {
+		if strings.TrimSpace(s) == "" {
+			return sql.NullTime{}, nil
+		}
+		return ParseEventTime(s, loc, field)
+	}
+}
+
+func lineOf(field string, min, max int) func(string) (string, error) {
+	return func(s string) (string, error) { return lineValue(s, field, min, max) }
+}
+
+func textOf(field string, min, max int) func(string) (string, error) {
+	return func(s string) (string, error) { return textValue(s, field, min, max) }
+}
+
+// oneOf accepts "" or one of names, refusing anything else with refusal.
+func oneOf(names []string, refusal *Error) func(string) (string, error) {
+	return func(s string) (string, error) {
+		if s != "" && !slices.Contains(names, s) {
+			return "", refusal
+		}
+		return s, nil
+	}
+}
+
+func crayonNames() []string {
+	names := make([]string, 0, len(Crayons))
+	for _, c := range Crayons {
+		names = append(names, c.Name)
+	}
+	return names
 }

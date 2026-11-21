@@ -48,7 +48,7 @@
 #   bash scripts/test-integration.sh --full          # run every package, ignoring the cache
 #   TEST_PG_URL=postgres://postgres:postgres@127.0.0.1:5432 bash scripts/test-integration.sh
 #   bash scripts/test-integration.sh -run '^TestFoo$' # extra args passed through to `go test`
-#   TEST_PKGS=./host/handler TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
+#   TEST_PKGS=./host/server/servertest/datatest TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
 #     # packages via TEST_PKGS (default ./...), repeat count via TEST_COUNT (forces runs);
 #     # `make test-db PKGS=... RUN=... COUNT=...` wraps this.
 #   TEST_WORKERS=1 bash scripts/test-integration.sh  # serial packages (default 3)

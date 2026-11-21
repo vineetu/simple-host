@@ -9,7 +9,6 @@ import (
 )
 
 // StorageBindings contains trusted facts about a site and a caller in its event.
-// Take-downs and suspension are enforced by the request gates, not these facts.
 type StorageBindings struct {
 	Team, SiteTeam, Stage     sql.NullString
 	Organiser, BeforeDeadline bool

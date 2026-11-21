@@ -44,7 +44,7 @@ func TestHackStorageTeamAndEventScopes(t *testing.T) {
 	if r := a.on(t, "GET", eventHost, "/v1/sites/"+slug+"/storage/kv/prefs/keys/theme", nil, ""); r.status != 200 || !strings.Contains(string(r.body), "orange") {
 		t.Fatalf("event visitor read: %d %s", r.status, r.body)
 	}
-	if id, ok := a.sites.PersonReturnSite(context.Background(), eventHost, "/"); !ok || id == "" {
+	if id, ok := a.sites.Hosts.ReturnSite(context.Background(), eventHost, "/"); !ok || id == "" {
 		t.Fatal("event host did not bind sign-in to custom site's ID")
 	}
 	if r := hackBrowserRequest(t, a, "GET", eventHost, "/v1/sites/"+slug+"/me", nil); r.status != 200 {

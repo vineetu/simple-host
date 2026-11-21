@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -123,19 +124,47 @@ var (
 // listed; conn must be the connection that failed, with the request's
 // authorizer still set (it is cleared here before the server's own lookups).
 func sqlFailure(ctx context.Context, conn *sqlite3.Conn, err error, owner bool, sql, writeTable string, writeAction sqlite3.AuthorizerActionCode, timeout time.Duration) *sqlRefusal {
-	if errors.Is(err, sqlite3.INTERRUPT) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+	switch {
+	case errors.Is(err, sqlite3.INTERRUPT) || errors.Is(ctx.Err(), context.DeadlineExceeded):
 		return sqlRefuse("sql_timeout", fmt.Sprintf("the statement ran longer than %s and was stopped: add a LIMIT, a narrower WHERE, or an index", timeout))
-	}
-	if errors.Is(err, sqlite3.BUSY) || errors.Is(err, sqlite3.LOCKED) {
+	case errors.Is(err, sqlite3.BUSY) || errors.Is(err, sqlite3.LOCKED):
 		return sqlRefuse("storage_busy", "the database is busy with another change; call once more in a second")
-	}
-	if errors.Is(err, sqlite3.TOOBIG) {
+	case errors.Is(err, sqlite3.TOOBIG):
 		return sqlRefuse("sql_value_too_large", "a value or the statement is too large: each value may be at most 1,048,576 bytes and a statement 32,768 characters")
 	}
 	msg := sqliteText(err)
 	if conn != nil {
 		_ = conn.SetAuthorizer(nil)
 	}
+	if r := sqlMissingName(conn, owner, sql, msg); r != nil {
+		return r
+	}
+	if r := sqlSyntax(msg); r != nil {
+		return r
+	}
+	if r := sqlConstraint(conn, err, owner, msg, writeTable, writeAction); r != nil {
+		return r
+	}
+	switch {
+	case strings.HasPrefix(msg, "table ") && strings.Contains(msg, " values were supplied"):
+		if !owner {
+			msg = "the number of values does not match the table's columns"
+		}
+		return sqlRefuse("sql_error", msg+": name the columns, e.g. INSERT INTO t (a, b) VALUES (?, ?)")
+	case strings.HasPrefix(msg, "no such function: "):
+		fn := strings.TrimPrefix(msg, "no such function: ")
+		return sqlRefuse("sql_no_such_function", fn+"() is not available here: check the name against SQLite's built-in functions (dates use datetime('now'), joining text uses ||)")
+	case errors.Is(err, sqlite3.AUTH) && strings.Contains(strings.ToLower(sql), "pragma"):
+		return sqlAuthorizerDenial(sqlite3.AUTH_PRAGMA, "", "")
+	case errors.Is(err, sqlite3.AUTH):
+		return sqlRefuse("sql_not_available", "that statement is not available here")
+	}
+	return sqlRefuse("sql_error", "SQLite: "+msg)
+}
+
+// sqlMissingName explains a table or column that does not exist, listing the
+// real names to the owner.
+func sqlMissingName(conn *sqlite3.Conn, owner bool, sql, msg string) *sqlRefusal {
 	if m := sqlNoTableRe.FindStringSubmatch(msg); m != nil {
 		out := "table " + m[1] + " does not exist"
 		if owner {
@@ -165,6 +194,11 @@ func sqlFailure(ctx context.Context, conn *sqlite3.Conn, err error, owner bool, 
 		}
 		return sqlRefuse("sql_no_such_column", out+". Text values go in single quotes or in params, never in double quotes")
 	}
+	return nil
+}
+
+// sqlSyntax explains a statement SQLite could not parse.
+func sqlSyntax(msg string) *sqlRefusal {
 	if m := sqlNearRe.FindStringSubmatch(msg); m != nil {
 		return sqlRefuse("sql_syntax", fmt.Sprintf("SQLite syntax error near %q: fix the statement at that word (put values in params with ? placeholders)", sqlClip(m[1], 60)))
 	}
@@ -174,52 +208,50 @@ func sqlFailure(ctx context.Context, conn *sqlite3.Conn, err error, owner bool, 
 	if strings.HasPrefix(msg, "unrecognized token:") {
 		return sqlRefuse("sql_syntax", "SQLite syntax error: "+msg+"; check the quotes (text in single quotes) and brackets")
 	}
-	// Constraint messages can name columns the statement never mentioned,
-	// so only the owner sees the names.
-	if m := sqlUniqueRe.FindStringSubmatch(msg); m != nil {
-		if !owner {
-			return sqlRefuse("sql_unique_failed", "a row with the same unique value already exists (UNIQUE): use another value")
+	return nil
+}
+
+// sqlConstraintRefusals explain the constraint messages that name what
+// failed. Constraint messages can name columns the statement never
+// mentioned, so only the owner sees the name (owner, filled with it).
+var sqlConstraintRefusals = []struct {
+	re             *regexp.Regexp
+	code           string
+	visitor, owner string
+	clip           int
+}{
+	{sqlUniqueRe, "sql_unique_failed", "a row with the same unique value already exists (UNIQUE): use another value",
+		"a row with the same %s already exists (UNIQUE): use another value, or change the existing row with UPDATE (or INSERT ... ON CONFLICT DO UPDATE)", 0},
+	{sqlNotNullRe, "sql_not_null_failed", "a required column got no value (NOT NULL): fill in every required column",
+		"%s needs a value (NOT NULL): include it in the statement and do not send null for it", 0},
+	{sqlCheckRe, "sql_check_failed", "a value breaks one of the table's CHECK rules: send a value that meets it",
+		"a value breaks the table's CHECK rule (%s): send a value that meets it", 120},
+}
+
+// sqlConstraint explains a table rule (UNIQUE, NOT NULL, CHECK, FOREIGN KEY
+// or another constraint) that refused the change.
+func sqlConstraint(conn *sqlite3.Conn, err error, owner bool, msg, writeTable string, writeAction sqlite3.AuthorizerActionCode) *sqlRefusal {
+	for _, c := range sqlConstraintRefusals {
+		m := c.re.FindStringSubmatch(msg)
+		switch {
+		case m == nil:
+		case !owner:
+			return sqlRefuse(c.code, c.visitor)
+		case c.clip > 0:
+			return sqlRefuse(c.code, fmt.Sprintf(c.owner, sqlClip(m[1], c.clip)))
+		default:
+			return sqlRefuse(c.code, fmt.Sprintf(c.owner, m[1]))
 		}
-		return sqlRefuse("sql_unique_failed", "a row with the same "+m[1]+" already exists (UNIQUE): use another value, or change the existing row with UPDATE (or INSERT ... ON CONFLICT DO UPDATE)")
 	}
-	if m := sqlNotNullRe.FindStringSubmatch(msg); m != nil {
-		if !owner {
-			return sqlRefuse("sql_not_null_failed", "a required column got no value (NOT NULL): fill in every required column")
-		}
-		return sqlRefuse("sql_not_null_failed", m[1]+" needs a value (NOT NULL): include it in the statement and do not send null for it")
-	}
-	if m := sqlCheckRe.FindStringSubmatch(msg); m != nil {
-		if !owner {
-			return sqlRefuse("sql_check_failed", "a value breaks one of the table's CHECK rules: send a value that meets it")
-		}
-		return sqlRefuse("sql_check_failed", "a value breaks the table's CHECK rule ("+sqlClip(m[1], 120)+"): send a value that meets it")
-	}
-	if msg == "FOREIGN KEY constraint failed" {
+	switch {
+	case msg == "FOREIGN KEY constraint failed":
 		return sqlForeignKey(conn, owner, writeTable, writeAction)
+	case !errors.Is(err, sqlite3.CONSTRAINT):
+		return nil
+	case !owner:
+		return sqlRefuse("sql_constraint_failed", "a table rule refused the change")
 	}
-	if errors.Is(err, sqlite3.CONSTRAINT) {
-		if !owner {
-			return sqlRefuse("sql_constraint_failed", "a table rule refused the change")
-		}
-		return sqlRefuse("sql_constraint_failed", "a table rule refused the change: "+msg)
-	}
-	if strings.HasPrefix(msg, "table ") && strings.Contains(msg, " values were supplied") {
-		if !owner {
-			msg = "the number of values does not match the table's columns"
-		}
-		return sqlRefuse("sql_error", msg+": name the columns, e.g. INSERT INTO t (a, b) VALUES (?, ?)")
-	}
-	if strings.HasPrefix(msg, "no such function: ") {
-		fn := strings.TrimPrefix(msg, "no such function: ")
-		return sqlRefuse("sql_no_such_function", fn+"() is not available here: check the name against SQLite's built-in functions (dates use datetime('now'), joining text uses ||)")
-	}
-	if errors.Is(err, sqlite3.AUTH) {
-		if strings.Contains(strings.ToLower(sql), "pragma") {
-			return sqlAuthorizerDenial(sqlite3.AUTH_PRAGMA, "", "")
-		}
-		return sqlRefuse("sql_not_available", "that statement is not available here")
-	}
-	return sqlRefuse("sql_error", "SQLite: "+msg)
+	return sqlRefuse("sql_constraint_failed", "a table rule refused the change: "+msg)
 }
 
 func sqlForeignKey(conn *sqlite3.Conn, owner bool, table string, action sqlite3.AuthorizerActionCode) *sqlRefusal {

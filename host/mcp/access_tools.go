@@ -115,7 +115,6 @@ func siteAccessSchema(optional ...string) map[string]any {
 }
 
 func accessTools() []Tool {
-	path := func(name string) string { return "/v1/sites/" + url.PathEscape(name) }
 	return []Tool{
 		{
 			policy:       toolPolicy{accessResult: "set", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
@@ -130,18 +129,7 @@ func accessTools() []Tool {
 			}, "site", "access"),
 			// Changes who sees the site; the other value undoes it.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				access, err := stringArg(args, "access")
-				if err != nil || (access != "anyone" && access != "specific") {
-					return output{}, errors.New("access must be anyone or specific")
-				}
-				body, _ := json.Marshal(map[string]string{"access": access})
-				return c.siteAccessOutput("set_site_access", c.do(http.MethodPut, path(name)+"/access", body, nil))
-			},
+			run:         runSetSiteAccess,
 		},
 		{
 			policy:       toolPolicy{accessResult: "list", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
@@ -151,13 +139,7 @@ func accessTools() []Tool {
 			Description:  "Show who can open a site: its access (anyone or specific) and its named viewers. " + accessToolsWhen,
 			InputSchema:  object(map[string]any{"site": str(siteDesc)}, "site"),
 			Annotations:  readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				return c.siteAccessOutput("list_site_viewers", c.do(http.MethodGet, path(name)+"/access", nil, nil))
-			},
+			run:          runListSiteViewers,
 		},
 		{
 			policy:       toolPolicy{accessResult: "grant", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
@@ -172,24 +154,7 @@ func accessTools() []Tool {
 					"description": "The emails to add, exactly as the person gave them (e.g. [\"mom@example.com\", \"dad@example.com\"])."},
 			}, "site", "emails"),
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				raw, _ := args["emails"].([]any)
-				var emails []string
-				for _, e := range raw {
-					if s, ok := e.(string); ok && strings.TrimSpace(s) != "" {
-						emails = append(emails, s)
-					}
-				}
-				if len(emails) == 0 {
-					return output{}, errors.New("emails is required: the email addresses the person gave")
-				}
-				body, _ := json.Marshal(map[string][]string{"emails": emails})
-				return c.siteAccessOutput("grant_site_viewer", c.do(http.MethodPost, path(name)+"/viewers", body, nil))
-			},
+			run:         runGrantSiteViewer,
 		},
 		{
 			policy:       toolPolicy{accessResult: "revoke", analytics: analyticsPolicy{structuredText: true, emailChanges: true, emailIdentity: true}, groupSiteExcluded: true},
@@ -204,17 +169,7 @@ func accessTools() []Tool {
 			// Access ends immediately; it comes back only if the owner
 			// grants it again.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				email, err := stringArg(args, "email")
-				if err != nil {
-					return output{}, err
-				}
-				return c.siteAccessOutput("revoke_site_viewer", c.do(http.MethodDelete, path(name)+"/viewers/"+url.PathEscape(strings.TrimSpace(email)), nil, nil))
-			},
+			run:         runRevokeSiteViewer,
 		},
 	}
 }
@@ -255,131 +210,160 @@ func storageVisitorEmailsTool() Tool {
 			}, "visitor_id", "found")),
 		}, "site", "visitors"),
 		Annotations: readOnly(),
-		run: func(c *call, args map[string]any) (output, error) {
-			name, err := siteArg(args)
-			if err != nil {
-				return output{}, err
-			}
-			raw, _ := args["visitor_ids"].([]any)
-			if encoded, ok := args["visitor_ids"].(string); ok {
-				if json.Unmarshal([]byte(encoded), &raw) != nil {
-					return output{}, errors.New("visitor_ids must be an array or JSON-encoded array")
-				}
-			}
-			var ids []string
-			for _, v := range raw {
-				if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-					ids = append(ids, strings.TrimSpace(s))
-				}
-			}
-			rawEmails, _ := args["emails"].([]any)
-			if encoded, ok := args["emails"].(string); ok {
-				if json.Unmarshal([]byte(encoded), &rawEmails) != nil {
-					return output{}, errors.New("emails must be an array or JSON-encoded array")
-				}
-			}
-			var emails []string
-			for _, v := range rawEmails {
-				if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-					emails = append(emails, strings.ToLower(strings.TrimSpace(s)))
-				}
-			}
-			if len(ids)+len(emails) == 0 || len(ids)+len(emails) > 100 {
-				return output{}, errors.New("give 1 to 100 values total, in visitor_ids and/or emails")
-			}
-			siteID := ""
-			siteIDFor := func() (string, error) {
-				if siteID == "" {
-					var e error
-					siteID, e = c.visitorSiteID(name)
-					if e != nil {
-						return "", e
-					}
-				}
-				return siteID, nil
-			}
-			resolved := make([]string, len(ids))
-			for i, id := range ids {
-				resolved[i] = strings.ToLower(id)
-				if strings.HasPrefix(id, "v_") {
-					sid, e := siteIDFor()
-					if e != nil {
-						return output{}, e
-					}
-					resolved[i], err = c.server.cfg.VisitorRefs.Decode(sid, id)
-					if err != nil {
-						return output{}, err
-					}
-				}
-			}
-			q := url.Values{}
-			if len(resolved) > 0 {
-				q.Set("id", strings.Join(resolved, ","))
-			}
-			if len(emails) > 0 {
-				q.Set("email", strings.Join(emails, ","))
-			}
-			res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/storage/visitors?"+q.Encode(), nil, nil)
-			if !res.ok() {
-				return output{}, restError("storage_visitor_emails", res)
-			}
-			var body struct {
-				Visitors []struct {
-					VisitorID string `json:"visitor_id"`
-					Email     string `json:"email"`
-					Found     bool   `json:"found"`
-				} `json:"visitors"`
-			}
-			if err := json.Unmarshal(res.body, &body); err != nil {
-				return output{}, errors.New("storage_visitor_emails: server returned invalid JSON")
-			}
-			list := make([]any, 0, len(ids)+len(emails))
-			var lines []string
-			for i, id := range ids {
-				var email string
-				var found bool
-				for _, v := range body.Visitors {
-					if v.VisitorID == resolved[i] {
-						email, found = v.Email, v.Found
-						break
-					}
-				}
-				item := map[string]any{"visitor_id": id, "found": found}
-				if found {
-					item["email"] = email
-					lines = append(lines, id+": "+email)
-				} else {
-					lines = append(lines, id+": not found on this site")
-				}
-				list = append(list, item)
-			}
-			for _, email := range emails {
-				var rawID string
-				var found bool
-				for _, v := range body.Visitors {
-					if v.Email == email {
-						rawID, found = v.VisitorID, v.Found
-						break
-					}
-				}
-				item := map[string]any{"email": email, "found": found, "visitor_id": ""}
-				if found {
-					sid, e := siteIDFor()
-					if e != nil {
-						return output{}, e
-					}
-					ref, e := c.server.cfg.VisitorRefs.Encode(sid, rawID)
-					if e != nil {
-						return output{}, e
-					}
-					item["visitor_id"] = ref
-					lines = append(lines, email+": "+ref)
-				} else {
-					lines = append(lines, email+": not found on this site")
-				}
-				list = append(list, item)
-			}
-			return output{Text: strings.Join(lines, "\n"), Structured: map[string]any{"site": name, "visitors": list}}, nil
-		},
+		run:         runStorageVisitorEmails,
 	}
+}
+
+func runSetSiteAccess(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	access, err := stringArg(args, "access")
+	if err != nil || (access != "anyone" && access != "specific") {
+		return output{}, errors.New("access must be anyone or specific")
+	}
+	body, _ := json.Marshal(map[string]string{"access": access})
+	return c.siteAccessOutput("set_site_access", c.do(http.MethodPut, sitePath(name, "/access"), body, nil))
+}
+
+func runListSiteViewers(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	return c.siteAccessOutput("list_site_viewers", c.do(http.MethodGet, sitePath(name, "/access"), nil, nil))
+}
+
+func runGrantSiteViewer(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	raw, _ := args["emails"].([]any)
+	var emails []string
+	for _, e := range raw {
+		if s, ok := e.(string); ok && strings.TrimSpace(s) != "" {
+			emails = append(emails, s)
+		}
+	}
+	if len(emails) == 0 {
+		return output{}, errors.New("emails is required: the email addresses the person gave")
+	}
+	body, _ := json.Marshal(map[string][]string{"emails": emails})
+	return c.siteAccessOutput("grant_site_viewer", c.do(http.MethodPost, sitePath(name, "/viewers"), body, nil))
+}
+
+func runRevokeSiteViewer(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	email, err := stringArg(args, "email")
+	if err != nil {
+		return output{}, err
+	}
+	return c.siteAccessOutput("revoke_site_viewer", c.do(http.MethodDelete, sitePath(name, "/viewers/"+url.PathEscape(strings.TrimSpace(email))), nil, nil))
+}
+
+func runStorageVisitorEmails(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	ids, err := stringListArg(args, "visitor_ids")
+	if err != nil {
+		return output{}, err
+	}
+	emails, err := stringListArg(args, "emails")
+	if err != nil {
+		return output{}, err
+	}
+	for i := range emails {
+		emails[i] = strings.ToLower(emails[i])
+	}
+	if len(ids)+len(emails) == 0 || len(ids)+len(emails) > 100 {
+		return output{}, errors.New("give 1 to 100 values total, in visitor_ids and/or emails")
+	}
+	refs := &siteVisitorRefs{c: c, site: name}
+	resolved := make([]string, len(ids))
+	for i, id := range ids {
+		if resolved[i], err = refs.decode(id); err != nil {
+			return output{}, err
+		}
+	}
+	visitors, err := lookupVisitors(c, name, resolved, emails)
+	if err != nil {
+		return output{}, err
+	}
+	list := make([]any, 0, len(ids)+len(emails))
+	var lines []string
+	for i, id := range ids {
+		item, line := visitorByID(visitors, id, resolved[i])
+		list, lines = append(list, item), append(lines, line)
+	}
+	for _, email := range emails {
+		item, line, err := visitorByEmail(visitors, email, refs)
+		if err != nil {
+			return output{}, err
+		}
+		list, lines = append(list, item), append(lines, line)
+	}
+	return output{Text: strings.Join(lines, "\n"), Structured: map[string]any{"site": name, "visitors": list}}, nil
+}
+
+type siteVisitor struct {
+	VisitorID string `json:"visitor_id"`
+	Email     string `json:"email"`
+	Found     bool   `json:"found"`
+}
+
+// lookupVisitors asks the site's visitor directory for raw ids and emails.
+func lookupVisitors(c *call, site string, ids, emails []string) ([]siteVisitor, error) {
+	q := url.Values{}
+	if len(ids) > 0 {
+		q.Set("id", strings.Join(ids, ","))
+	}
+	if len(emails) > 0 {
+		q.Set("email", strings.Join(emails, ","))
+	}
+	raw, err := c.fetch("storage_visitor_emails", http.MethodGet, sitePath(site, "/storage/visitors?"+q.Encode()), nil)
+	if err != nil {
+		return nil, err
+	}
+	var body struct {
+		Visitors []siteVisitor `json:"visitors"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return nil, errors.New("storage_visitor_emails: server returned invalid JSON")
+	}
+	return body.Visitors, nil
+}
+
+func visitorByID(visitors []siteVisitor, id, raw string) (map[string]any, string) {
+	for _, v := range visitors {
+		if v.VisitorID == raw && v.Found {
+			return map[string]any{"visitor_id": id, "found": true, "email": v.Email}, id + ": " + v.Email
+		}
+		if v.VisitorID == raw {
+			break
+		}
+	}
+	return map[string]any{"visitor_id": id, "found": false}, id + ": not found on this site"
+}
+
+func visitorByEmail(visitors []siteVisitor, email string, refs *siteVisitorRefs) (map[string]any, string, error) {
+	for _, v := range visitors {
+		if v.Email == email && v.Found {
+			ref, err := refs.encode(v.VisitorID)
+			if err != nil {
+				return nil, "", err
+			}
+			return map[string]any{"email": email, "found": true, "visitor_id": ref}, email + ": " + ref, nil
+		}
+		if v.Email == email {
+			break
+		}
+	}
+	return map[string]any{"email": email, "found": false, "visitor_id": ""}, email + ": not found on this site", nil
 }

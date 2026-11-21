@@ -1,7 +1,4 @@
-// Package hackevents holds the pure Hack event rules: deterministic text and
-// code decisions with no SQL, HTTP, filesystem or provider calls, and no
-// ambient clock (docs/architecture/target.md §2). Moved out of
-// host/handler/hack*.go in cleanup 3.2 slice 1c.
+// Package hackevents holds the pure Hack event rules.
 package hackevents
 
 import (
@@ -11,14 +8,10 @@ import (
 	"strings"
 )
 
-// codeAlphabet avoids visually confusable characters (no 0/o/1/i/l): a join,
-// judge or team code read aloud or typed by hand should not need a second
-// guess.
+// codeAlphabet avoids visually confusable characters.
 const codeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 
-// RandomCode returns n random characters from codeAlphabet, rejection
-// sampling each byte so every character is equally likely. Was hack.go's
-// randomHackCode.
+// RandomCode returns n random characters from codeAlphabet, rejection sampling each byte so every character is equally likely.
 func RandomCode(n int) (string, error) {
 	b := make([]byte, n)
 	max := 256 - (256 % len(codeAlphabet))
@@ -37,9 +30,7 @@ func RandomCode(n int) (string, error) {
 	return string(b), nil
 }
 
-// NormalizeCode lowercases a join/judge/team code and drops spaces and
-// hyphens, so "AB12 CD34" and "ab12-cd34" are the same code. Was hack.go's
-// normalizeHackCode.
+// NormalizeCode lowercases a join/judge/team code and drops spaces and hyphens, so "AB12 CD34" and "ab12-cd34" are the same code.
 func NormalizeCode(s string) string {
 	s = strings.ToLower(s)
 	var b strings.Builder

@@ -16,13 +16,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/web"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // Assets owns Hack's text rewriting and download caches.
 type Assets struct {
-	services      handler.AssetServices
+	services      web.AssetServices
 	inkBase       string
 	hackSkillsZip struct {
 		once  sync.Once
@@ -31,13 +31,11 @@ type Assets struct {
 	}
 }
 
-func NewAssets(services handler.AssetServices, inkBase string) *Assets {
+func NewAssets(services web.AssetServices, inkBase string) *Assets {
 	if inkBase == "" {
 		inkBase = "https://simple-hack.app"
 	}
-	// The setup script is assembled from the platform's file. Check the
-	// anchors now, so a drifted platform file stops the install at start
-	// rather than panicking on a visitor's request.
+	// The setup script is assembled from the platform's file.
 	product, err := hackassets.Static.ReadFile("static/setup/setup-hack.js")
 	if err != nil {
 		panic("setup-hack.js: the product file is missing")
@@ -53,8 +51,8 @@ func NewAssets(services handler.AssetServices, inkBase string) *Assets {
 }
 func (p *Assets) inkBaseURL() string { return p.inkBase }
 
-func (p *Assets) Hooks() handler.ProductAssetHooks {
-	return handler.ProductAssetHooks{
+func (p *Assets) Hooks() web.ProductAssetHooks {
+	return web.ProductAssetHooks{
 		InstanceText: p.HackInstanceText, RewritePluginZip: p.RewriteHackPluginZip,
 		SkillAvailable: hostedHackSkill, ExpandConnectSteps: expandConnectSteps,
 		PersonalPresentationHTML: p.personalPresentationHTML,
@@ -64,9 +62,7 @@ func (p *Assets) Hooks() handler.ProductAssetHooks {
 }
 
 // HackInstanceText rewrites simple-hack.app's own address to this Hack
-// instance's, in served Hack text. Full Hack instances serve the same UI
-// and skills, with their own connector and event addresses. Simple Host's
-// hosted-product and control-plane links keep their existing meaning.
+// instance's, in served Hack text.
 func (p *Assets) HackInstanceText(data []byte) []byte {
 	if p.inkBaseURL() == "https://simple-hack.app" {
 		return data
@@ -81,8 +77,7 @@ func (p *Assets) HackInstanceText(data []byte) []byte {
 // HackSkillNames are the five Simple Hack skills bundled in the hosted zip.
 var HackSkillNames = []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}
 
-// hostedHackSkill reports whether name is one of the five bundled Hack
-// skills. The platform skills hub reaches it through ProductAssetHooks.
+// hostedHackSkill reports whether name is one of the five bundled Hack skills.
 func hostedHackSkill(name string) bool {
 	for _, skill := range HackSkillNames {
 		if name == skill {
@@ -117,10 +112,8 @@ func (p *Assets) BuildHackSkillsZip() ([]byte, error) {
 				if err != nil {
 					return err
 				}
-				// services.InstanceText is the platform's limits pass plus its
-				// old base-domain swap (simple-host.site). No Hack skill names
-				// that domain (TestHackSkillsNameNoOldBaseDomain), so the bytes
-				// are those of the limits pass alone, as before the move.
+				// services.InstanceText is the platform's limits pass plus its old
+				// base-domain swap (simple-host.site).
 				_, err = dst.Write(p.HackInstanceText(p.services.InstanceText(data)))
 				return err
 			})
@@ -201,13 +194,6 @@ type ConnectCopy struct {
 }
 
 // ConnectStep is one numbered step.
-//
-// Command is a one-line terminal command template, with a literal "{address}"
-// placeholder for the MCP address (e.g. "claude mcp add --transport http
-// simple-hack {address}"). It renders as its own copy box, filled server-side
-// from doc.MCPAddress and client-side (hack-get-started.html's own script,
-// and participant-website.js/account.js) from the viewer's own origin, same
-// as an Address step's copy box.
 type ConnectStep struct {
 	HTML         string       `json:"html"`
 	Address      bool         `json:"address,omitempty"`
@@ -219,18 +205,6 @@ type ConnectStep struct {
 }
 
 // ConnectApp is one AI app's connect steps.
-//
-// ConnectHosted, when set, is an alternate steps list (a directory/browse
-// path, e.g. Claude's connector directory) that only the canonical hosted
-// instance can offer. Neither expandConnectSteps nor connectStepsListHTML
-// (this file, server-rendered /get-started) read it — that page already
-// picks hosted vs. self with its own <!--sh:hosted-->/<!--sh:self-->
-// markers around the markup, same as every other hosted-only block. It
-// exists so the Website and Account screens' client-side renderers
-// (hack/connect-steps.js, hack/screens/participant-website.js), which have
-// no server-side hosted/self marker to lean on, can pick the same way the
-// page does (by the viewer's own origin) without duplicating the whole
-// steps array per screen.
 type ConnectApp struct {
 	ID            string        `json:"id"`
 	Label         string        `json:"label"`
@@ -257,8 +231,7 @@ var (
 	connectStepsErr  error
 )
 
-// loadConnectSteps parses the embedded hack-connect-steps.json once. The
-// served copy (static file server) and this copy are the same bytes.
+// loadConnectSteps parses the embedded hack-connect-steps.json once.
 func loadConnectSteps() (ConnectStepsDoc, error) {
 	connectStepsOnce.Do(func() {
 		raw, err := hackassets.Static.ReadFile("static/hack-connect-steps.json")
@@ -302,10 +275,7 @@ func connectAddressRow(id, value, label string) string {
 }
 
 // connectCommandRow renders a ConnectStep.Command template, filled with
-// mcpAddress, in its own copy box. data-mcp-cmd carries the raw template
-// (its one "{address}" placeholder) so the page's own script can refill it
-// from the viewer's origin, the same way data-mcp-address does for a plain
-// address row.
+// mcpAddress, in its own copy box.
 func connectCommandRow(id, template, mcpAddress, label string) string {
 	filled := strings.ReplaceAll(template, "{address}", mcpAddress)
 	return `<div class="copyrow"><code id="` + html.EscapeString(id) + `" data-mcp-cmd="` + html.EscapeString(template) + `">` + html.EscapeString(filled) +
@@ -314,10 +284,6 @@ func connectCommandRow(id, template, mcpAddress, label string) string {
 }
 
 // connectStepsListHTML is one app's <ol class="steps"> for /get-started.
-// The address is the hosted one; HackInstanceText rewrites it on another
-// server exactly as it did when the list was written into the page, and the
-// page's own script refills it (and any command box) from the viewer's
-// origin so it is always exact.
 func connectStepsListHTML(doc ConnectStepsDoc, app ConnectApp) string {
 	var b strings.Builder
 	b.WriteString(`<ol class="steps">`)
@@ -343,9 +309,7 @@ func connectStepsListHTML(doc ConnectStepsDoc, app ConnectApp) string {
 }
 
 // expandConnectSteps replaces each <!--sh:connect:ID--> in a page with that
-// app's list. A marker for an app the file lacks is left as an HTML comment
-// (invisible) rather than failing the page; TestHackGetStartedOnboarding
-// catches a missing list.
+// app's list.
 func expandConnectSteps(page []byte) []byte {
 	if !bytes.Contains(page, []byte("<!--sh:connect:")) {
 		return page
@@ -419,8 +383,7 @@ func hackAuthJS(b []byte) []byte {
 
 // setupInsertions are the places where the platform's setup.js takes Simple
 // Hack's choice: each anchor appears exactly once in the platform file and is
-// replaced by the product's text. The last anchor, setupProductAnchor, takes
-// the whole of setup-hack.js.
+// replaced by the product's text.
 var setupInsertions = [][2]string{
 	{"// lists are generated from code.", "// lists are generated from code; Simple Hack steps live in simple-hack.json."},
 	{"var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json' };", "var FILES = { small: '/setup/small-box-settings.json', ent: '/setup/enterprise-settings.json', hack: '/setup/simple-hack.json' };"},
@@ -434,9 +397,7 @@ var setupInsertions = [][2]string{
 
 const setupProductAnchor = "  function productChoices(choices) { return choices; }\n  /*sh:product-setup*/\n\n"
 
-// buildSetupJS puts Simple Hack's choice into the platform's setup.js. An
-// anchor that is missing or repeated is an error: the page must never be
-// served with half of the choice.
+// buildSetupJS puts Simple Hack's choice into the platform's setup.js.
 func buildSetupJS(shared, product []byte) ([]byte, error) {
 	once := func(anchor string, with []byte) error {
 		if n := bytes.Count(shared, []byte(anchor)); n != 1 {
@@ -456,14 +417,7 @@ func buildSetupJS(shared, product []byte) ([]byte, error) {
 	return shared, nil
 }
 
-// Rewrite builds the product view of shared assets. Like hackAuthJS, the
-// setup script fails loudly when the platform text it builds on has drifted;
-// NewAssets has already checked the anchors once, at install.
-//
-// The setup script is reachable two ways, as the slice asks ("through
-// Replace and a route"): the Replace entry makes the platform's file server
-// and page pipeline read it, and the product route (ServeSetupJS) answers
-// GET /setup/setup.js. Both end here, so they serve the same script.
+// Rewrite builds the product view of shared assets.
 func (p *Assets) Rewrite(name string, body []byte) []byte {
 	switch name {
 	case "static/features.json", "features.json":

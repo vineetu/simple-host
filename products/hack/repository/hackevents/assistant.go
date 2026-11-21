@@ -9,27 +9,16 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// ErrAssistantDailyLimit and ErrAssistantMonthlyBudget are the two refusals
-// AssistantReserve returns; the caller (host/app/hack/events) maps them
-// to the contract's daily_limit/monthly_budget error codes.
+// ErrAssistantDailyLimit and ErrAssistantMonthlyBudget are the two refusals AssistantReserve returns.
 var (
 	ErrAssistantDailyLimit    = errors.New("hackevents: assistant daily question limit reached")
 	ErrAssistantMonthlyBudget = errors.New("hackevents: assistant monthly budget reached")
 )
 
-// assistantLockKey is the fixed pg_advisory_xact_lock key every
-// Reserve/Settle/Refund call takes, since one organiser's daily count and
-// the instance's monthly spend are checked and updated together and must
-// never race against each other (SIM-394).
+// assistantLockKey is the fixed pg_advisory_xact_lock key every Reserve/Settle/Refund call takes, since one organiser's daily count and the instance's monthly spend are checked and updated together and must never race against each other.
 const assistantLockKey int64 = 7394202601
 
-// AssistantReserve checks and reserves one organiser question against both
-// the per-organiser daily limit and the instance-wide monthly budget, in one
-// transaction under assistantLockKey: refuses with ErrAssistantDailyLimit if
-// today's count is already at dailyLimit, else with ErrAssistantMonthlyBudget
-// if this month's spend plus reserveMicro would exceed budgetMicro,
-// otherwise increments today's question count and adds reserveMicro to this
-// month's spend. day and month are UTC dates (time-of-day ignored).
+// AssistantReserve checks and reserves one organiser question against both the per-organiser daily limit and the instance-wide monthly budget, in one transaction under assistantLockKey.
 func AssistantReserve(ctx context.Context, db *sql.DB, userID string, day, month time.Time, dailyLimit int, budgetMicro, reserveMicro int64) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -74,10 +63,7 @@ func AssistantReserve(ctx context.Context, db *sql.DB, userID string, day, month
 	return tx.Commit()
 }
 
-// AssistantSettle adjusts this month's spend by deltaMicro (actual cost
-// minus the amount AssistantReserve already added; negative when the actual
-// answer cost less than the worst-case reservation). Never lets the ledger
-// go negative, which a reservation it is settling against already covers.
+// AssistantSettle adjusts this month's spend by deltaMicro.
 func AssistantSettle(ctx context.Context, db *sql.DB, month time.Time, deltaMicro int64) error {
 	if deltaMicro == 0 {
 		return nil
@@ -99,9 +85,7 @@ func AssistantSettle(ctx context.Context, db *sql.DB, month time.Time, deltaMicr
 	return tx.Commit()
 }
 
-// AssistantRefund undoes one AssistantReserve: decrements today's question
-// count and this month's spend by reserveMicro, both floored at zero. Used
-// when the provider fails before any answer text streamed back.
+// AssistantRefund undoes one AssistantReserve: decrements today's question count and this month's spend by reserveMicro, both floored at zero.
 func AssistantRefund(ctx context.Context, db *sql.DB, userID string, day, month time.Time, reserveMicro int64) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -134,8 +118,7 @@ func AssistantUsedToday(ctx context.Context, q sqlkit.Querier, userID string, da
 	return n, err
 }
 
-// AssistantSpentThisMonth reads this month's instance-wide spend in micro-USD
-// (0 if no row yet).
+// AssistantSpentThisMonth reads this month's instance-wide spend in micro-USD (0 if no row yet).
 func AssistantSpentThisMonth(ctx context.Context, q sqlkit.Querier, month time.Time) (int64, error) {
 	var n int64
 	err := q.QueryRowContext(ctx, `SELECT cost_micro_usd FROM hack_assistant_spend WHERE month = $1`, month).Scan(&n)

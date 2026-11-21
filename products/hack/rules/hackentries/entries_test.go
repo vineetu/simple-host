@@ -266,3 +266,24 @@ func TestPresetsLeaveAudienceOptional(t *testing.T) {
 		}
 	}
 }
+
+func TestNewlyShort(t *testing.T) {
+	ok, short := Check{Complete: true}, func(m ...string) Check { return Check{Missing: m} }
+	for _, tc := range []struct {
+		name          string
+		before, after Check
+		submitted     bool
+		want          bool
+	}{
+		{"still complete", ok, ok, true, false},
+		{"submitted newly short", ok, short("video_url"), true, true},
+		{"draft newly blocked", ok, short("video_url"), false, true},
+		{"draft already incomplete", short("title"), short("title", "video_url"), false, false},
+		{"submitted short the same way", short("title"), short("title"), true, false},
+		{"submitted short one more way", short("title"), short("title", "site"), true, true},
+	} {
+		if got := NewlyShort(tc.before, tc.after, tc.submitted); got != tc.want {
+			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

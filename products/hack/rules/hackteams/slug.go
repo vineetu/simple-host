@@ -13,9 +13,8 @@ const DefaultMaxTeamSlugLen = 30
 // MaxTeamSlugLen is the longest a team slug may be: DefaultMaxTeamSlugLen
 // normally, or, under the flat <team>--<event> single-label host
 // (TEAM_SITE_FLAT_HOSTS), capped so "<team>--<event>" never exceeds the
-// 63-character DNS label limit (63, less 2 for "--", less the event
-// slug's own length). Never less than 1, and never more than
-// DefaultMaxTeamSlugLen either way.
+// 63-character DNS label limit (63, less 2 for "--", less the event slug's own
+// length).
 func MaxTeamSlugLen(eventSlug string, flat bool) int {
 	if !flat {
 		return DefaultMaxTeamSlugLen
@@ -30,13 +29,8 @@ func MaxTeamSlugLen(eventSlug string, flat bool) int {
 	return max
 }
 
-// DeriveTeamSlug converts a team name to a slug base, at most max
-// characters (MaxTeamSlugLen). It collapses every run of non-alphanumeric
-// characters to a single "-" (the dash guard below), so a derived slug can
-// never contain "--" — the separator TEAM_SITE_FLAT_HOSTS' <team>--<event>
-// single label relies on being unambiguous. TeamSlugCandidate's own "-<n>"
-// suffix preserves that: its root is hyphen-trimmed first, so the suffix
-// never follows another hyphen.
+// DeriveTeamSlug converts a team name to a slug base, at most max characters
+// (MaxTeamSlugLen).
 func DeriveTeamSlug(name string, max int) string {
 	s := strings.ToLower(name)
 	var b strings.Builder

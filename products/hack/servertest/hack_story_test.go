@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
@@ -50,7 +50,7 @@ func TestHostedHackStoryHome(t *testing.T) {
 
 func TestHostFilmAssets(t *testing.T) {
 	mux := chromeTestMux(t, productedition.Host)
-	for name, ctype := range handler.FilmTypes {
+	for name, ctype := range web.FilmTypes {
 		rec := get(t, mux, "simple-host.app", "/film/"+name+"?v=20261010")
 		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != ctype || rec.Body.Len() < 10000 || rec.Header().Get("Cache-Control") != "public, max-age=604800" || rec.Header().Get("ETag") == "" {
 			t.Fatalf("%s status/type/size/cache: %d %q %d %v", name, rec.Code, rec.Header().Get("Content-Type"), rec.Body.Len(), rec.Header())

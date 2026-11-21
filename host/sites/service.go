@@ -85,7 +85,6 @@ type Deps struct {
 	EventDomains            []string
 	EventTTL                time.Duration
 	EventMaxClaims          int
-	CertRequests            CertRequestDeps
 	DeletedRetention        time.Duration
 	CancelDomainCert        func(string)
 	ExportResources         func(context.Context, string) ([]map[string]any, error)
@@ -161,15 +160,8 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if err := repo.LockUserHandle(ctx, tx, in.User.ID, &in.User.Handle); err != nil {
 		return CreateResult{}, err
 	}
-	if in.Access == "specific" {
-		if len(in.Viewers) > s.deps.SiteViewersMax {
-			return CreateResult{}, &Error{Code: "too_many_viewers", Message: fmt.Sprintf("a site can name at most %d viewers", s.deps.SiteViewersMax)}
-		}
-		if in.NamedViewersRefusal != nil {
-			if code, msg := in.NamedViewersRefusal(in.User.Handle.String, in.Name); code != "" {
-				return CreateResult{}, &Error{Code: code, Message: msg}
-			}
-		}
+	if err := s.checkNamedViewers(in); err != nil {
+		return CreateResult{}, err
 	}
 	siteURL := fmt.Sprintf("https://%s.%s", in.Name, s.deps.SiteDomain)
 	if in.User.Handle.Valid && in.User.Handle.String != "" {
@@ -184,13 +176,38 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if err != nil {
 		return CreateResult{Site: site}, err
 	}
+	if site, err = s.commitFirstVersion(ctx, tx, in, site); err != nil {
+		return CreateResult{Site: site}, err
+	}
+	return s.promoteCreated(ctx, in, site)
+}
+
+// checkNamedViewers refuses a specific-access create whose viewer list is not allowed.
+func (s *Service) checkNamedViewers(in CreateInput) error {
+	if in.Access != "specific" {
+		return nil
+	}
+	if len(in.Viewers) > s.deps.SiteViewersMax {
+		return &Error{Code: "too_many_viewers", Message: fmt.Sprintf("a site can name at most %d viewers", s.deps.SiteViewersMax)}
+	}
+	if in.NamedViewersRefusal != nil {
+		if code, msg := in.NamedViewersRefusal(in.User.Handle.String, in.Name); code != "" {
+			return &Error{Code: code, Message: msg}
+		}
+	}
+	return nil
+}
+
+// commitFirstVersion writes version 1 of a new site row and commits tx; the
+// returned site is the one to report, also on error.
+func (s *Service) commitFirstVersion(ctx context.Context, tx *sql.Tx, in CreateInput, site model.Site) (model.Site, error) {
 	if in.Access == "specific" {
 		if err := accounts.SetSiteAccess(ctx, tx, site.ID, "specific"); err != nil {
-			return CreateResult{Site: site}, err
+			return site, err
 		}
 		for _, email := range in.Viewers {
 			if _, err := accounts.AddSiteViewer(ctx, tx, site.ID, email); err != nil {
-				return CreateResult{Site: site}, err
+				return site, err
 			}
 		}
 		site.NamedViewers = true
@@ -209,48 +226,50 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 		}
 	}()
 	if err := repo.UpdateSiteSummary(ctx, tx, site.ID, s.deps.Summarize(in.Files)); err != nil {
-		return CreateResult{Site: site}, err
+		return site, err
 	}
 	// A renamed site's old name is free for a new site, which wins: links to
 	// the name stop following the renamed one.
 	if err := repo.DropOldSiteName(ctx, tx, site.UserID, site.Name); err != nil {
-		return CreateResult{Site: site}, err
+		return site, err
 	}
 	if err := s.checkFileCaps(ctx, in.User, site, in.Files, 1, true); err != nil {
-		return CreateResult{Site: site}, err
-	}
-	var handle string
-	if in.User.Handle.Valid {
-		handle = in.User.Handle.String
+		return site, err
 	}
 	if err := s.validateRedirects(in.Files); err != nil {
-		return CreateResult{Site: site}, err
+		return site, err
 	}
 	const versionNumber = 1
 	diskPath := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, site.Name, versionNumber)
 	version, err := repo.CreateVersion(ctx, tx, site.ID, versionNumber, diskPath, in.ArchiveSHA, in.Author)
 	if err != nil {
-		return CreateResult{Site: site}, err
+		return site, err
 	}
 	// Write the new version dir (not yet live) before committing.
 	if err := s.disk.WriteFiles(ctx, site.UserID, site.Name, versionNumber, in.Files); err != nil {
-		return CreateResult{Site: site}, err
+		return site, err
 	}
 	if in.Access == "specific" {
 		markerAttempted = true
 		if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, true); err != nil || !s.disk.HasPasscodeMarker(site.UserID, site.Name) {
-			return CreateResult{Site: site}, &Error{Code: "access_marker", Message: "the site's files could not be marked; nothing changed, try again"}
+			return site, &Error{Code: "access_marker", Message: "the site's files could not be marked; nothing changed, try again"}
 		}
 	}
 	if err := repo.ActivateVersion(ctx, tx, version.ID); err != nil {
-		return CreateResult{Site: site}, err
+		return site, err
 	}
 	if err := repo.UpdateSiteActiveVersion(ctx, tx, site.ID, versionNumber); err != nil {
-		return CreateResult{Site: site}, err
+		return site, err
 	}
 	commitTried = true
-	if err := tx.Commit(); err != nil {
-		return CreateResult{Site: site}, err
+	return site, tx.Commit()
+}
+
+// promoteCreated makes a committed new site live and reports it.
+func (s *Service) promoteCreated(ctx context.Context, in CreateInput, site model.Site) (CreateResult, error) {
+	var handle string
+	if in.User.Handle.Valid {
+		handle = in.User.Handle.String
 	}
 	if site.NamedViewers && createMarkerSettle > 0 {
 		// A request that checked for the marker just before it existed
@@ -818,35 +837,13 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		unlockSite := s.deps.LockSite(in.User.ID, in.Name)
 		defer unlockSite()
 	}
-	if in.Photos != nil {
-		var override bool
-		in.Limit, override = s.deps.PhotoLimits(ctx, in.User)
-		in.Budget = ExtractBudget(in.Limit, override)
-	}
 	var paths []string
-	if in.Keep || in.Photos != nil {
-		files, digest, err := s.mergePatch(ctx, in)
-		if err != nil {
-			return UpdateResult{Limit: in.Limit}, err
-		}
-		in.Files, in.ArchiveSHA = files, digest
-	}
-	if in.Photos != nil {
+	if locked {
+		var stop UpdateResult
 		var err error
-		paths, err = mergePhotos(ctx, in.Files, in.Photos, in.Reconcile)
-		if err != nil {
-			return UpdateResult{}, err
-		}
-		if in.Reconcile {
-			site, err := repo.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
-			if err != nil {
-				return UpdateResult{}, &Error{Code: "photo_read_failed"}
-			}
-			return UpdateResult{Site: site, PhotoPaths: paths, Reconciled: true, ResponseState: s.deps.ResponseState(site, 0, false, true)}, nil
-		}
-		in.Files, in.ArchiveSHA, err = s.PrepareFiles(FilePreparationInput{Files: in.Files, Limit: in.Budget, Override: true})
-		if err != nil {
-			return UpdateResult{Limit: in.Limit}, err
+		paths, stop, err = s.mergeUpdateFiles(ctx, &in)
+		if err != nil || stop.Reconciled {
+			return stop, err
 		}
 	}
 	if in.CreateIfMissing {
@@ -868,6 +865,46 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 		unlockSite := s.deps.LockSite(in.User.ID, in.Name)
 		defer unlockSite()
 	}
+	return s.updateExisting(ctx, in, paths)
+}
+
+// mergeUpdateFiles merges the live files and photos into in.Files under the
+// deploy locks. A non-nil error or a Reconciled result is the update's answer.
+func (s *Service) mergeUpdateFiles(ctx context.Context, in *UpdateInput) ([]string, UpdateResult, error) {
+	if in.Photos != nil {
+		var override bool
+		in.Limit, override = s.deps.PhotoLimits(ctx, in.User)
+		in.Budget = ExtractBudget(in.Limit, override)
+	}
+	files, digest, err := s.mergePatch(ctx, *in)
+	if err != nil {
+		return nil, UpdateResult{Limit: in.Limit}, err
+	}
+	in.Files, in.ArchiveSHA = files, digest
+	if in.Photos == nil {
+		return nil, UpdateResult{}, nil
+	}
+	paths, err := mergePhotos(ctx, in.Files, in.Photos, in.Reconcile)
+	if err != nil {
+		return nil, UpdateResult{}, err
+	}
+	if in.Reconcile {
+		site, err := repo.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
+		if err != nil {
+			return nil, UpdateResult{}, &Error{Code: "photo_read_failed"}
+		}
+		return paths, UpdateResult{Site: site, PhotoPaths: paths, Reconciled: true, ResponseState: s.deps.ResponseState(site, 0, false, true)}, nil
+	}
+	in.Files, in.ArchiveSHA, err = s.PrepareFiles(FilePreparationInput{Files: in.Files, Limit: in.Budget, Override: true})
+	if err != nil {
+		return nil, UpdateResult{Limit: in.Limit}, err
+	}
+	return paths, UpdateResult{}, nil
+}
+
+// updateExisting stores the next version of an existing site while the
+// deploy locks are held, then promotes it when in.Publish is set.
+func (s *Service) updateExisting(ctx context.Context, in UpdateInput, paths []string) (UpdateResult, error) {
 	site, err := repo.GetSiteByUser(ctx, s.database, in.User.ID, in.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return UpdateResult{}, &Error{Code: "deploy_site_not_found"}
@@ -881,76 +918,14 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	if site.Suspended() {
 		return UpdateResult{}, &Error{Code: "site_suspended", Message: site.SuspendedReason()}
 	}
-	tx, err := s.database.BeginTx(ctx, nil)
+	n, liveBefore, err := s.commitNextVersion(ctx, in, site)
 	if err != nil {
-		return UpdateResult{}, err
-	}
-	defer tx.Rollback()
-	if s.deps.FileCaps {
-		if err := repo.LockUserForFileCaps(ctx, tx, in.User.ID); err != nil {
-			return UpdateResult{}, err
-		}
-	}
-	if err := repo.LockSiteForUpdate(ctx, tx, site.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return UpdateResult{}, &Error{Code: "site_not_found", Message: "site not found"}
-		}
-		return UpdateResult{}, err
-	}
-	liveBefore, err := repo.SiteActiveVersion(ctx, tx, site.ID)
-	if err != nil {
-		return UpdateResult{}, err
-	}
-	if in.IfMatch > 0 && liveBefore != in.IfMatch {
-		return UpdateResult{}, versionChanged(liveBefore)
-	}
-	if err := s.createGate(ctx, tx, in.User, in.Name); err != nil {
-		return UpdateResult{}, err
-	}
-	max, err := repo.GetMaxVersionNumber(ctx, tx, site.ID)
-	if err != nil {
-		return UpdateResult{}, err
-	}
-	n := max + 1
-	if err := s.checkFileCaps(ctx, in.User, site, in.Files, n, in.Publish); err != nil {
-		return UpdateResult{}, err
-	}
-	path := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, in.Name, n)
-	if err := s.validateRedirects(in.Files); err != nil {
-		return UpdateResult{}, err
-	}
-	version, err := repo.CreateVersion(ctx, tx, site.ID, n, path, in.ArchiveSHA, in.Author)
-	if err != nil {
-		return UpdateResult{}, err
-	}
-	if err := repo.UpdateSiteSummary(ctx, tx, site.ID, s.deps.Summarize(in.Files)); err != nil {
-		return UpdateResult{}, err
-	}
-	if err := s.disk.WriteFiles(ctx, site.UserID, in.Name, n, in.Files); err != nil {
-		return UpdateResult{}, err
-	}
-	if err := s.ensureAccessMarker(site); err != nil {
 		return UpdateResult{}, err
 	}
 	if !in.Publish {
-		if err := repo.MarkVersionReady(ctx, tx, version.ID); err != nil {
-			return UpdateResult{}, err
-		}
-		if err := tx.Commit(); err != nil {
-			return UpdateResult{}, err
-		}
 		s.PruneVersions(ctx, PruneInput{site.ID, site.UserID, in.Name, site.ActiveVersion, site.KeepVersions})
 		s.deps.NotifyUpdate(ctx, in.User, site, n, liveBefore, false, in.Files)
 		return UpdateResult{Site: site, Version: n, ResponseState: s.deps.ResponseState(site, n, true, true)}, nil
-	}
-	if err := repo.ActivateVersion(ctx, tx, version.ID); err != nil {
-		return UpdateResult{}, err
-	}
-	if err := repo.UpdateSiteActiveVersion(ctx, tx, site.ID, n); err != nil {
-		return UpdateResult{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return UpdateResult{}, err
 	}
 	if err := s.disk.UpdateCurrent(site.UserID, in.Name, n); err != nil {
 		log.Printf("updateSite: promote %s v%d after commit: %v", in.Name, n, err)
@@ -966,6 +941,83 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (UpdateResult, err
 	s.deps.NotifyUpdate(ctx, in.User, site, n, liveBefore, true, in.Files)
 	site.ActiveVersion = n
 	return UpdateResult{Site: site, Version: n, Published: true, PhotoPaths: paths, ResponseState: s.deps.ResponseState(site, 0, false, true)}, nil
+}
+
+// lockForUpdate takes the account's file-caps row lock (when caps are on)
+// and the site row lock inside tx.
+func (s *Service) lockForUpdate(ctx context.Context, tx *sql.Tx, userID, siteID string) error {
+	if s.deps.FileCaps {
+		if err := repo.LockUserForFileCaps(ctx, tx, userID); err != nil {
+			return err
+		}
+	}
+	if err := repo.LockSiteForUpdate(ctx, tx, siteID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &Error{Code: "site_not_found", Message: "site not found"}
+		}
+		return err
+	}
+	return nil
+}
+
+// commitNextVersion writes and commits the site's next version, activating it
+// in the database when in.Publish is set. It returns the new version number
+// and the version that was live before.
+func (s *Service) commitNextVersion(ctx context.Context, in UpdateInput, site model.Site) (n, liveBefore int, err error) {
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+	if err := s.lockForUpdate(ctx, tx, in.User.ID, site.ID); err != nil {
+		return 0, 0, err
+	}
+	liveBefore, err = repo.SiteActiveVersion(ctx, tx, site.ID)
+	if err != nil {
+		return 0, 0, err
+	}
+	if in.IfMatch > 0 && liveBefore != in.IfMatch {
+		return 0, 0, versionChanged(liveBefore)
+	}
+	if err := s.createGate(ctx, tx, in.User, in.Name); err != nil {
+		return 0, 0, err
+	}
+	max, err := repo.GetMaxVersionNumber(ctx, tx, site.ID)
+	if err != nil {
+		return 0, 0, err
+	}
+	n = max + 1
+	if err := s.checkFileCaps(ctx, in.User, site, in.Files, n, in.Publish); err != nil {
+		return 0, 0, err
+	}
+	path := fmt.Sprintf("by-id/%s/%s/v%d/", site.UserID, in.Name, n)
+	if err := s.validateRedirects(in.Files); err != nil {
+		return 0, 0, err
+	}
+	version, err := repo.CreateVersion(ctx, tx, site.ID, n, path, in.ArchiveSHA, in.Author)
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := repo.UpdateSiteSummary(ctx, tx, site.ID, s.deps.Summarize(in.Files)); err != nil {
+		return 0, 0, err
+	}
+	if err := s.disk.WriteFiles(ctx, site.UserID, in.Name, n, in.Files); err != nil {
+		return 0, 0, err
+	}
+	if err := s.ensureAccessMarker(site); err != nil {
+		return 0, 0, err
+	}
+	if in.Publish {
+		if err := repo.ActivateVersion(ctx, tx, version.ID); err != nil {
+			return 0, 0, err
+		}
+		if err := repo.UpdateSiteActiveVersion(ctx, tx, site.ID, n); err != nil {
+			return 0, 0, err
+		}
+	} else if err := repo.MarkVersionReady(ctx, tx, version.ID); err != nil {
+		return 0, 0, err
+	}
+	return n, liveBefore, tx.Commit()
 }
 
 // mergePatch reads the live files while the update owns the deploy locks.

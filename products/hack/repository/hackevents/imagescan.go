@@ -6,8 +6,7 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// ClearEventIcon removes an event's icon (the image bytes and their type),
-// only while the stored bytes still hash to sha. Reports whether it did.
+// ClearEventIcon removes an event's icon (the image bytes and their type), only while the stored bytes still hash to sha.
 func ClearEventIcon(ctx context.Context, q sqlkit.Querier, eventID, sha string) (bool, error) {
 	res, err := q.ExecContext(ctx, `UPDATE events SET icon_media_type = '', icon_bytes = NULL, updated_at = now()
 		 WHERE id = $1 AND icon_bytes IS NOT NULL AND encode(sha256(icon_bytes), 'hex') = $2`, eventID, sha)

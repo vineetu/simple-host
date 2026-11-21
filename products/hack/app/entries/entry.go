@@ -52,113 +52,153 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 		return "", nil, err
 	}
 	defer tx.Rollback()
-	var teamID sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'participant' FOR SHARE`, req.Event.ID, req.UserID).Scan(&teamID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil, &Error{Code: "event_not_found", Message: "event not found"}
-	}
-	if err != nil {
-		return "", nil, err
-	}
-	if !teamID.Valid || teamID.String == "" {
-		return "", nil, &Error{Code: "no_team", Message: "join or start a team first"}
-	}
-	id := teamID.String
-	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, id); err != nil {
-		return id, nil, err
-	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, id, true)
-	if errors.Is(err, sql.ErrNoRows) {
-		return id, nil, &Error{Code: "no_team", Message: "join or start a team first"}
-	}
+	id, st, err := lockWritableTeam(ctx, tx, req.Event.ID, req.UserID)
 	if err != nil {
 		return id, nil, err
-	}
-	if code := st.WriteRefusal(); code != "" {
-		return id, nil, &Error{Code: code, Message: hackeventsrules.TeamRefusalMessage(code)}
 	}
 	var missing []string
 	switch req.Kind {
 	case "text":
-		if req.UpdatedAt != nil {
-			current, e := entryrepo.GetEventEntry(ctx, tx, id)
-			if e != nil && !errors.Is(e, sql.ErrNoRows) {
-				return id, nil, e
-			}
-			stamp := ""
-			if current.Exists {
-				stamp = current.UpdatedAt.UTC().Format(time.RFC3339Nano)
-			}
-			if *req.UpdatedAt != stamp {
-				return id, nil, &Error{Code: "entry_changed", Message: "A teammate changed this since you opened it"}
-			}
-		}
-		before, e := entryrepo.GetEventEntry(ctx, tx, id)
-		if e != nil && !errors.Is(e, sql.ErrNoRows) {
-			return id, nil, e
-		}
-		if req.Track != nil {
-			if st.Stage != "open" && st.Stage != "building" {
-				return id, nil, &Error{Code: "team_choice_closed", Message: "team choices are closed"}
-			}
-			if _, e = eventrepo.SetTeamTrack(ctx, tx, req.Event.ID, id, *req.Track); e != nil {
-				if errors.Is(e, sql.ErrNoRows) {
-					return id, nil, &Error{Code: "track_not_found", Message: "track not found"}
-				}
-				return id, nil, e
-			}
-		}
-		if e = entryrepo.UpsertEventEntryText(ctx, tx, req.Event.ID, id, req.UserID, req.Fields, req.Tools); e != nil {
-			return id, nil, e
-		}
-		missing, err = s.keepComplete(ctx, tx, req.Event, st, id, before.SubmittedAt.Valid)
+		missing, err = s.writeText(ctx, tx, req, st, id)
 	case "submit":
-		e, er := entryrepo.GetEventEntryForUpdate(ctx, tx, id)
-		if errors.Is(er, sql.ErrNoRows) {
-			e = model.EventEntry{TeamID: id, EventID: req.Event.ID}
-		} else if er != nil {
-			return id, nil, er
-		}
-		if req.UpdatedAt != nil {
-			stamp := ""
-			if e.Exists {
-				stamp = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
-			}
-			if *req.UpdatedAt != stamp {
-				return id, nil, &Error{Code: "entry_changed", Message: "A teammate changed this since you opened it"}
-			}
-		}
-		if !e.SubmittedAt.Valid {
-			check, er := s.EvaluateEntryTx(ctx, tx, req.Event, st, id, e)
-			if er != nil {
-				return id, nil, er
-			}
-			if !check.Complete {
-				return id, check.Missing, &Error{Code: "entry_incomplete"}
-			}
-			_, err = entryrepo.SubmitEventEntry(ctx, tx, id, req.UserID)
-		}
+		missing, err = s.submitEntry(ctx, tx, req, st, id)
 	case "unsubmit":
 		_, err = entryrepo.UnsubmitEventEntry(ctx, tx, id)
 	case "screenshot":
-		before, er := entryrepo.GetEventEntry(ctx, tx, id)
-		if er != nil && !errors.Is(er, sql.ErrNoRows) {
-			return id, nil, er
-		}
-		if er = entryrepo.UpsertEventEntryScreenshot(ctx, tx, req.Event.ID, id, req.UserID, req.Data, req.MIME); er != nil {
-			return id, nil, er
-		}
-		missing, err = s.keepComplete(ctx, tx, req.Event, st, id, before.SubmittedAt.Valid)
+		missing, err = s.writeScreenshot(ctx, tx, req, st, id)
 	}
 	if err != nil {
 		return id, missing, err
 	}
-	if err = tx.Commit(); err != nil {
-		return id, nil, err
-	}
-	return id, nil, nil
+	return id, nil, tx.Commit()
 }
 
+// lockWritableTeam share-locks the participant's membership, locks their team
+// and refuses when the team may not change its entry now.
+func lockWritableTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (string, model.TeamWriteState, error) {
+	var teamID sql.NullString
+	err := tx.QueryRowContext(ctx, `SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'participant' FOR SHARE`, eventID, userID).Scan(&teamID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", model.TeamWriteState{}, &Error{Code: "event_not_found", Message: "event not found"}
+	}
+	if err != nil {
+		return "", model.TeamWriteState{}, err
+	}
+	if teamID.String == "" {
+		return "", model.TeamWriteState{}, &Error{Code: "no_team", Message: "join or start a team first"}
+	}
+	id := teamID.String
+	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, id); err != nil {
+		return id, model.TeamWriteState{}, err
+	}
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, id, true)
+	if errors.Is(err, sql.ErrNoRows) {
+		return id, st, &Error{Code: "no_team", Message: "join or start a team first"}
+	}
+	if err != nil {
+		return id, st, err
+	}
+	if code := st.WriteRefusal(); code != "" {
+		return id, st, &Error{Code: code, Message: hackeventsrules.TeamRefusalMessage(code)}
+	}
+	return id, st, nil
+}
+
+// writeText saves text fields and the track choice, refusing a stale edit
+// and an edit that would leave a submitted entry incomplete.
+func (s *Service) writeText(ctx context.Context, tx *sql.Tx, req WriteRequest, st model.TeamWriteState, id string) ([]string, error) {
+	before, err := entryOrNone(entryrepo.GetEventEntry(ctx, tx, id))
+	if err != nil {
+		return nil, err
+	}
+	if err := checkEntryStamp(req.UpdatedAt, before); err != nil {
+		return nil, err
+	}
+	if err := setEntryTrack(ctx, tx, req, st, id); err != nil {
+		return nil, err
+	}
+	if err := entryrepo.UpsertEventEntryText(ctx, tx, req.Event.ID, id, req.UserID, req.Fields, req.Tools); err != nil {
+		return nil, err
+	}
+	return s.keepComplete(ctx, tx, req.Event, st, id, before.SubmittedAt.Valid)
+}
+
+// setEntryTrack records the team's track choice while team choices are open.
+func setEntryTrack(ctx context.Context, tx *sql.Tx, req WriteRequest, st model.TeamWriteState, id string) error {
+	if req.Track == nil {
+		return nil
+	}
+	if st.Stage != "open" && st.Stage != "building" {
+		return &Error{Code: "team_choice_closed", Message: "team choices are closed"}
+	}
+	_, err := eventrepo.SetTeamTrack(ctx, tx, req.Event.ID, id, *req.Track)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &Error{Code: "track_not_found", Message: "track not found"}
+	}
+	return err
+}
+
+// submitEntry submits a complete entry; an already submitted entry is left as is.
+func (s *Service) submitEntry(ctx context.Context, tx *sql.Tx, req WriteRequest, st model.TeamWriteState, id string) ([]string, error) {
+	e, err := entryOrNone(entryrepo.GetEventEntryForUpdate(ctx, tx, id))
+	if err != nil {
+		return nil, err
+	}
+	if !e.Exists {
+		e = model.EventEntry{TeamID: id, EventID: req.Event.ID}
+	}
+	if err := checkEntryStamp(req.UpdatedAt, e); err != nil || e.SubmittedAt.Valid {
+		return nil, err
+	}
+	check, err := s.EvaluateEntryTx(ctx, tx, req.Event, st, id, e)
+	if err != nil {
+		return nil, err
+	}
+	if !check.Complete {
+		return check.Missing, &Error{Code: "entry_incomplete"}
+	}
+	_, err = entryrepo.SubmitEventEntry(ctx, tx, id, req.UserID)
+	return nil, err
+}
+
+// writeScreenshot stores the screenshot, refusing a change that would leave
+// a submitted entry incomplete.
+func (s *Service) writeScreenshot(ctx context.Context, tx *sql.Tx, req WriteRequest, st model.TeamWriteState, id string) ([]string, error) {
+	before, err := entryOrNone(entryrepo.GetEventEntry(ctx, tx, id))
+	if err != nil {
+		return nil, err
+	}
+	if err := entryrepo.UpsertEventEntryScreenshot(ctx, tx, req.Event.ID, id, req.UserID, req.Data, req.MIME); err != nil {
+		return nil, err
+	}
+	return s.keepComplete(ctx, tx, req.Event, st, id, before.SubmittedAt.Valid)
+}
+
+// entryOrNone treats a missing entry as an empty one.
+func entryOrNone(e model.EventEntry, err error) (model.EventEntry, error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return model.EventEntry{}, nil
+	}
+	return e, err
+}
+
+// checkEntryStamp refuses a change when the entry moved on since the writer
+// read it; a nil stamp skips the check and "" stands for no entry.
+func checkEntryStamp(want *string, e model.EventEntry) error {
+	if want == nil {
+		return nil
+	}
+	stamp := ""
+	if e.Exists {
+		stamp = e.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	}
+	if *want != stamp {
+		return &Error{Code: "entry_changed", Message: "A teammate changed this since you opened it"}
+	}
+	return nil
+}
+
+// keepComplete refuses a change that leaves a submitted entry incomplete.
 func (s *Service) keepComplete(ctx context.Context, tx *sql.Tx, ev model.Event, st model.TeamWriteState, id string, submitted bool) ([]string, error) {
 	if !submitted {
 		return nil, nil

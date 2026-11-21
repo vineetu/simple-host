@@ -43,24 +43,42 @@ func MoveSiteBase(ctx context.Context, database *sql.DB, from, to string, skip f
 	if from == "" || to == "" || from == to {
 		return rep, errors.New("move-site-base: --from and --to must be two different domains")
 	}
-	label := func(host string) (string, bool) {
-		host = strings.ToLower(strings.TrimSpace(host))
-		if !strings.HasSuffix(host, "."+from) {
-			return "", false
-		}
-		l := strings.TrimSuffix(host, "."+from)
-		if l == "" || strings.Contains(l, ".") || l == "www" || (skip != nil && skip(l)) {
-			return "", false
-		}
-		return l, true
-	}
-
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return rep, err
 	}
 	defer tx.Rollback()
+	if err := moveSiteDomains(ctx, tx, from, to, skip, apply, &rep); err != nil {
+		return rep, err
+	}
+	if err := moveRetiredNames(ctx, tx, from, to, skip, apply, &rep); err != nil {
+		return rep, err
+	}
+	if !apply {
+		return rep, nil
+	}
+	return rep, tx.Commit()
+}
 
+// movableLabel returns the single label host carries under from, or false
+// when host is not a movable name: another base, multi-label, www, or one
+// skip reserves.
+func movableLabel(host, from string, skip func(label string) bool) (string, bool) {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if !strings.HasSuffix(host, "."+from) {
+		return "", false
+	}
+	l := strings.TrimSuffix(host, "."+from)
+	if l == "" || strings.Contains(l, ".") || l == "www" || (skip != nil && skip(l)) {
+		return "", false
+	}
+	return l, true
+}
+
+// moveSiteDomains locks the sites holding a name under from and moves each
+// movable custom_domain and previous_domain to to, unless another site
+// already holds the new name.
+func moveSiteDomains(ctx context.Context, tx *sql.Tx, from, to string, skip func(label string) bool, apply bool, rep *MoveSiteBaseReport) error {
 	type row struct {
 		id, userID, name string
 		cur, prev        sql.NullString
@@ -70,40 +88,36 @@ func MoveSiteBase(ctx context.Context, database *sql.DB, from, to string, skip f
 		WHERE lower(custom_domain) LIKE '%.' || $1 OR lower(previous_domain) LIKE '%.' || $1
 		ORDER BY id FOR UPDATE`, from)
 	if err != nil {
-		return rep, err
+		return err
 	}
 	var sites []row
 	for rows.Next() {
 		var r row
 		if err := rows.Scan(&r.id, &r.userID, &r.name, &r.cur, &r.prev); err != nil {
 			rows.Close()
-			return rep, err
+			return err
 		}
 		sites = append(sites, r)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return rep, err
+		return err
 	}
 
-	taken := func(host, siteID string) (bool, error) {
-		var t bool
-		err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE id::text <> $2 AND (lower(custom_domain) = $1 OR lower(previous_domain) = $1))`, host, siteID).Scan(&t)
-		return t, err
-	}
 	for _, r := range sites {
 		for _, col := range []struct {
-			name string
-			val  sql.NullString
-		}{{"custom_domain", r.cur}, {"previous_domain", r.prev}} {
-			l, ok := label(col.val.String)
+			name  string
+			val   sql.NullString
+			count *int
+		}{{"custom_domain", r.cur, &rep.CustomDomains}, {"previous_domain", r.prev, &rep.PreviousDomains}} {
+			l, ok := movableLabel(col.val.String, from, skip)
 			if !col.val.Valid || !ok {
 				continue
 			}
 			newHost := l + "." + to
-			busy, err := taken(newHost, r.id)
-			if err != nil {
-				return rep, err
+			var busy bool
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE id::text <> $2 AND (lower(custom_domain) = $1 OR lower(previous_domain) = $1))`, newHost, r.id).Scan(&busy); err != nil {
+				return err
 			}
 			if busy {
 				rep.Conflicts++
@@ -111,44 +125,46 @@ func MoveSiteBase(ctx context.Context, database *sql.DB, from, to string, skip f
 			}
 			if apply {
 				if _, err := tx.ExecContext(ctx, `UPDATE sites SET `+col.name+` = $2 WHERE id::text = $1`, r.id, newHost); err != nil {
-					return rep, err
+					return err
 				}
 			}
-			if col.name == "custom_domain" {
-				rep.CustomDomains++
-			} else {
-				rep.PreviousDomains++
-			}
+			*col.count++
 			rep.Links = append(rep.Links, MovedName{SiteID: r.id, UserID: r.userID, SiteName: r.name, From: strings.ToLower(col.val.String), To: newHost})
 		}
 	}
+	return nil
+}
 
-	lrows, err := tx.QueryContext(ctx, `SELECT hostname FROM legacy_hostnames WHERE lower(hostname) LIKE '%.' || $1 ORDER BY hostname`, from)
+// moveRetiredNames moves each movable legacy_hostnames name under from to
+// to, unless the new name is already retired.
+func moveRetiredNames(ctx context.Context, tx *sql.Tx, from, to string, skip func(label string) bool, apply bool, rep *MoveSiteBaseReport) error {
+	rows, err := tx.QueryContext(ctx, `SELECT hostname FROM legacy_hostnames WHERE lower(hostname) LIKE '%.' || $1 ORDER BY hostname`, from)
 	if err != nil {
-		return rep, err
+		return err
 	}
 	var retired []string
-	for lrows.Next() {
+	for rows.Next() {
 		var h string
-		if err := lrows.Scan(&h); err != nil {
-			lrows.Close()
-			return rep, err
+		if err := rows.Scan(&h); err != nil {
+			rows.Close()
+			return err
 		}
 		retired = append(retired, h)
 	}
-	lrows.Close()
-	if err := lrows.Err(); err != nil {
-		return rep, err
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
 	}
+
 	for _, h := range retired {
-		l, ok := label(h)
+		l, ok := movableLabel(h, from, skip)
 		if !ok {
 			continue
 		}
 		newHost := l + "." + to
 		var exists bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM legacy_hostnames WHERE lower(hostname) = $1)`, newHost).Scan(&exists); err != nil {
-			return rep, err
+			return err
 		}
 		if exists {
 			rep.Conflicts++
@@ -156,13 +172,10 @@ func MoveSiteBase(ctx context.Context, database *sql.DB, from, to string, skip f
 		}
 		if apply {
 			if _, err := tx.ExecContext(ctx, `UPDATE legacy_hostnames SET hostname = $2 WHERE hostname = $1`, h, newHost); err != nil {
-				return rep, err
+				return err
 			}
 		}
 		rep.RetiredNames++
 	}
-	if !apply {
-		return rep, nil
-	}
-	return rep, tx.Commit()
+	return nil
 }

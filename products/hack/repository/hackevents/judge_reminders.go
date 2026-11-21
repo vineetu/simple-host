@@ -10,22 +10,10 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// JudgeReminderDue aliases the shared model record
-// (0003-hack-notices-judges-messages.sql).
+// JudgeReminderDue aliases the shared model record (0003-hack-notices-judges-messages.sql).
 type JudgeReminderDue = model.JudgeReminderDue
 
-// DueJudgeReminders lists (event, judge) pairs due a judging-close reminder
-// now, from judging_ends_at and the event's own reminder_offsets (the same
-// due-offset rule as DueEntryReminders, generalised across both
-// audiences): events in stage judging, judging not locked, not taken down,
-// with judging_ends_at set and at least one configured offset, joined out
-// to every current judge member. The NOT EXISTS against
-// event_judge_reminders (the same shape DueEntryReminders uses against
-// event_entry_reminders) drops a judge who already has this kind claimed
-// for this exact deadline, so a judge whose reminder already went out --
-// or who simply has nothing left to score, which the caller
-// (queueOneJudgeReminder, notify=false) still claims without a notice --
-// cannot sit in the LIMIT 500 batch forever and crowd out judges still due.
+// DueJudgeReminders lists (event, judge) pairs due a judging-close reminder now, from judging_ends_at and the event's own reminder_offsets.
 func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDue, error) {
 	rows, err := queryContext(ctx, q, `
 		WITH c AS (
@@ -61,11 +49,7 @@ func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDu
 	return out, rows.Err()
 }
 
-// ClaimJudgeReminder records that this judge's reminder of this kind goes
-// out for this deadline. claimed=false when it already went out for the
-// same deadline (another sweeper won, or nothing changed). A moved deadline
-// (judging_ends_at changed) lets it go out once more -- same shape as
-// ClaimEntryReminder.
+// ClaimJudgeReminder records that this judge's reminder of this kind goes out for this deadline.
 func ClaimJudgeReminder(ctx context.Context, q sqlkit.Querier, eventID, userID, kind string, deadline time.Time) (bool, error) {
 	var one int
 	err := q.QueryRowContext(ctx, `

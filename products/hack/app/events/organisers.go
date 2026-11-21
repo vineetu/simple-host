@@ -33,67 +33,72 @@ func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event
 
 // AcceptOrganiserInvite joins through a reusable invitation, locking the event before the invite and member.
 func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (model.Event, model.EventMember, error) {
-	var ev model.Event
-	var member model.EventMember
-	invalid := func() error { return &Error{Code: "invalid_code", Message: "invalid or expired invitation"} }
 	hash := hackevents.HashCode(hackevents.NormalizeCode(code))
-	// Find the event before locking, then lock the event before the invite
-	// and inviter's member row, matching leave's lock order (SIM-340 2.4).
+	// Find the event before locking, then lock the event before the invite and inviter's member row, matching leave's lock order (SIM-340 2.4).
 	unlocked, err := eventrepo.OrganiserInviteEvent(ctx, s.db, hash, false)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ev, member, invalid()
-	}
 	if err != nil {
-		return ev, member, err
+		return model.Event{}, model.EventMember{}, inviteRefusal(err)
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return ev, member, err
+		return model.Event{}, model.EventMember{}, err
 	}
 	defer tx.Rollback()
-	ev, err = eventrepo.GetEventForUpdate(ctx, tx, unlocked.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ev, member, invalid()
+	ev, err := lockInvitedEvent(ctx, tx, unlocked.ID, hash)
+	if err != nil {
+		return ev, model.EventMember{}, err
 	}
+	member, err := joinAsOrganiser(ctx, tx, ev.ID, userID, name)
 	if err != nil {
 		return ev, member, err
 	}
-	// Serialise accepts and recheck the reusable invite under lock.
-	// Check before the event stage: ending an event deletes invitations,
-	// so invalid_code takes precedence.
-	if _, err = eventrepo.OrganiserInviteEvent(ctx, tx, hash, true); errors.Is(err, sql.ErrNoRows) {
-		return ev, member, invalid()
-	} else if err != nil {
-		return ev, member, err
+	return ev, member, tx.Commit()
+}
+
+// inviteRefusal turns a missing event or invitation into invalid_code.
+func inviteRefusal(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return &Error{Code: "invalid_code", Message: "invalid or expired invitation"}
+	}
+	return err
+}
+
+// lockInvitedEvent locks the event, then rechecks the invitation under lock (serialising accepts), and refuses an event that is taken down or ended.
+func lockInvitedEvent(ctx context.Context, tx *sql.Tx, eventID, hash string) (model.Event, error) {
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
+	if err != nil {
+		return ev, inviteRefusal(err)
+	}
+	if _, err := eventrepo.OrganiserInviteEvent(ctx, tx, hash, true); err != nil {
+		return ev, inviteRefusal(err)
 	}
 	if ev.TakenDown() {
-		return ev, member, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
+		return ev, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	if ev.Stage == "archived" {
-		return ev, member, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+		return ev, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
-	if _, err = eventrepo.GetEventMember(ctx, tx, ev.ID, userID); err == nil {
-		return ev, member, &Error{Code: "already_member", Message: "you already belong to this event; roles cannot be changed through an invitation"}
+	return ev, nil
+}
+
+// joinAsOrganiser adds a user who is not yet in the event as an organiser and refreshes the event's access.
+func joinAsOrganiser(ctx context.Context, tx *sql.Tx, eventID, userID, name string) (model.EventMember, error) {
+	if _, err := eventrepo.GetEventMember(ctx, tx, eventID, userID); err == nil {
+		return model.EventMember{}, &Error{Code: "already_member", Message: "you already belong to this event; roles cannot be changed through an invitation"}
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		return ev, member, err
+		return model.EventMember{}, err
 	}
 	if err := EnsureAccountName(ctx, tx, userID, name); err != nil {
-		return ev, member, err
+		return model.EventMember{}, err
 	}
-	member, err = eventrepo.InsertEventMember(ctx, tx, ev.ID, userID, "organiser")
+	member, err := eventrepo.InsertEventMember(ctx, tx, eventID, userID, "organiser")
 	if unique(err) {
-		return ev, member, &Error{Code: "already_member", Message: "you already belong to this event"}
+		return member, &Error{Code: "already_member", Message: "you already belong to this event"}
 	}
 	if err != nil {
-		return ev, member, err
+		return member, err
 	}
-	if err = SyncAccess(ctx, tx, ev.ID); err != nil {
-		return ev, member, err
-	}
-	if err = tx.Commit(); err != nil {
-		return ev, member, err
-	}
-	return ev, member, nil
+	return member, SyncAccess(ctx, tx, eventID)
 }
 
 // RemoveOrganiser removes a co-organiser and revokes the shared invitation in a transaction.

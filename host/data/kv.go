@@ -250,17 +250,10 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	if err := s.Gate(call, true); err != nil {
 		return nil, err.(*Error), nil
 	}
-	body, err := io.ReadAll(in.Body)
+	value, err := decodeKVValue(in.Body)
 	if err != nil {
-		return nil, nil, &Error{Code: "invalid_value", Message: "value too large"}
+		return nil, nil, err
 	}
-	var v struct {
-		Value json.RawMessage `json:"value"`
-	}
-	if json.Unmarshal(body, &v) != nil || len(v.Value) == 0 || !json.Valid(v.Value) {
-		return nil, nil, &Error{Code: "invalid_value", Message: "valid JSON value required"}
-	}
-	value := v.Value
 	requested := in.Requested
 	if !call.VisitorAI {
 		requested = ""
@@ -273,34 +266,9 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	var writer string
 	var exists bool
 	err = s.withKV(ctx, call, true, func(ctx context.Context, conn *sqlite3.Conn, admission *Admission) error {
-		if call.Owner {
-			// The owner's tools are never limited by rules (authorize).
-			writer, exists, _, err = s.prepareKVWrite(conn, in.Key, requested)
-			if err != nil {
-				return err
-			}
-			return s.putKVSQLite(ctx, conn, admission, call, in.Key, value, exists)
-		}
-		if err := conn.Exec("BEGIN IMMEDIATE"); err != nil {
-			return err
-		}
-		defer conn.Exec("ROLLBACK")
-		// Resolve existence and the AI action before active-account checks.
-		var action string
-		writer, exists, action, err = s.prepareKVWrite(conn, in.Key, requested)
-		if err != nil {
-			return err
-		}
-		call.Context = ctx
-		if err := s.prepareKVRuleWrite(&call, action, exists); err != nil {
-			return err
-		}
-		if call.CheckedPost {
-			if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
-				return err
-			}
-		}
-		return s.putKVSQLite(ctx, conn, admission, call, in.Key, value, exists)
+		var err error
+		writer, exists, err = s.writeKVSQLite(ctx, conn, admission, &call, in.Key, value, requested)
+		return err
 	})
 	if err != nil {
 		return nil, nil, err
@@ -320,6 +288,54 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	}
 	s.deps.Notify(call, name, data)
 	return value, nil, nil
+}
+
+// decodeKVValue reads a write's body, which must hold a JSON value.
+func decodeKVValue(body io.Reader) (json.RawMessage, error) {
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return nil, &Error{Code: "invalid_value", Message: "value too large"}
+	}
+	var v struct {
+		Value json.RawMessage `json:"value"`
+	}
+	if json.Unmarshal(raw, &v) != nil || len(v.Value) == 0 || !json.Valid(v.Value) {
+		return nil, &Error{Code: "invalid_value", Message: "valid JSON value required"}
+	}
+	return v.Value, nil
+}
+
+// writeKVSQLite stores value under key in the open namespace and returns the
+// key's author and whether it existed. The owner's tools are never limited by
+// rules (authorize); a visitor's write is decided by the rules inside one
+// immediate transaction.
+func (s *Service) writeKVSQLite(ctx context.Context, conn *sqlite3.Conn, admission *Admission, call *Call, key string, value json.RawMessage, requested string) (string, bool, error) {
+	if call.Owner {
+		writer, exists, _, err := s.prepareKVWrite(conn, key, requested)
+		if err != nil {
+			return writer, exists, err
+		}
+		return writer, exists, s.putKVSQLite(ctx, conn, admission, *call, key, value, exists)
+	}
+	if err := conn.Exec("BEGIN IMMEDIATE"); err != nil {
+		return "", false, err
+	}
+	defer conn.Exec("ROLLBACK")
+	// Resolve existence and the AI action before active-account checks.
+	writer, exists, action, err := s.prepareKVWrite(conn, key, requested)
+	if err != nil {
+		return writer, exists, err
+	}
+	call.Context = ctx
+	if err := s.prepareKVRuleWrite(call, action, exists); err != nil {
+		return writer, exists, err
+	}
+	if call.CheckedPost {
+		if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
+			return writer, exists, err
+		}
+	}
+	return writer, exists, s.putKVSQLite(ctx, conn, admission, *call, key, value, exists)
 }
 
 // KVDeleteInput identifies a key and the caller requesting deletion.

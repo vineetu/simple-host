@@ -7,212 +7,216 @@ import (
 	"fmt"
 
 	"github.com/vsriram/simple-host/products/hack/app/events"
-
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
-// ApplicationInput contains normalized application fields.
+// Applying to a hackathon without a join link.
+
+// pendingPerAccount caps how many applications one account may have waiting.
+const pendingPerAccount = 20
+
+// ApplicationInput contains the supplied application fields.
 type ApplicationInput struct {
 	Display, City, Country, AgeRange, Gender string
 	Answers                                  map[string]string
 }
 
-// Apply creates an application under the event and user locks.
-func (s *Service) Apply(ctx context.Context, ev model.Event, userID string, input ApplicationInput, capN int, existingView func(model.EventMember) any) (memberResult model.EventMember, view any, errResult error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return model.EventMember{}, nil, err
-	}
-	defer tx.Rollback()
-
-	// The atomic gate (security review #2): stage, applications_open and
-	// whether the event is taken down are read again inside the same
-	// transaction as the insert, so a concurrent switch-off, stage change or
-	// takedown cannot be bypassed. Security review #4 (takedown race): the
-	// unlocked lookup above can be stale by the time this runs -- a takedown
-	// that commits in that window must still produce the same 404 as an
-	// unknown slug, with nothing inserted, so taken_down_at is read here too
-	// rather than trusting the pre-transaction ev.TakenDown().
-	//
-	// Pre-ship review B2: this used to take the row FOR SHARE, which lets any
-	// number of concurrent applicants hold the lock at once -- they don't
-	// serialize on it, so they can all read the same eventPending count below
-	// and all insert, overshooting EVENT_APPLY_PENDING_PER_EVENT (20
-	// concurrent applicants against a cap of 3 produced 10 rows). FOR UPDATE
-	// instead serializes every apply to this event on this one row, event
-	// first and the applicant's own users row second (eventrepo.LockUserRow,
-	// further down) -- the same order every other path through this
-	// transaction takes, so two applies to different events by the same user
-	// (the cross-event pending-cap race) still only ever contend on the one
-	// shared resource, the user row, and can't deadlock.
-	var stage string
-	var applicationsOpen, takenDownNow bool
-	if err := eventrepo.LockApplicationEvent(ctx, tx, ev.ID, &stage, &applicationsOpen, &takenDownNow); err != nil {
-		return model.EventMember{}, nil, err
-	}
-	if stage == "draft" || takenDownNow {
-		return model.EventMember{}, nil, &Error{Code: "event_not_found", Message: "event not found"}
-	}
-
-	// Security review #12 (rejected/approved/pending caller): an existing
-	// participant -- pending, approved or rejected -- gets the same
-	// idempotent 200 view whether or not applications are currently open, so
-	// a switch-off or a stage change never turns a status check into a
-	// retry-able error for someone who already applied. This runs before the
-	// joining_closed/applications_closed checks below, which only matter for
-	// someone who is not yet a member.
-	existing, err := eventrepo.GetEventMember(ctx, tx, ev.ID, userID)
-	if err == nil {
-		if existing.Role == "participant" {
-			// Idempotent: applying again, an approved member re-applying or
-			// a rejected member re-applying all return the same view
-			// unchanged (no re-apply once rejected).
-			if err := events.EnsureAccountName(ctx, tx, userID, input.Display); err != nil {
-				if e, ok := err.(*events.Error); ok {
-					return model.EventMember{}, nil, &Error{Code: e.Code, Message: e.Message}
-				}
-				return model.EventMember{}, nil, err
-			}
-			existing, err = eventrepo.GetEventMember(ctx, tx, ev.ID, userID)
-			if err != nil {
-				return model.EventMember{}, nil, err
-			}
-			if err := tx.Commit(); err != nil {
-				return model.EventMember{}, nil, err
-			}
-			return existing, existingView(existing), nil
-		}
-		return model.EventMember{}, nil, &Error{Code: "already_member", Message: "you already have a different role in this event"}
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return model.EventMember{}, nil, err
-	}
-
-	if stage != "open" && stage != "building" {
-		return model.EventMember{}, nil, &Error{Code: "joining_closed", Message: "joining is closed for this event"}
-	}
-	if !applicationsOpen {
-		return model.EventMember{}, nil, &Error{Code: "applications_closed", Message: "this event isn't taking applications right now"}
-	}
-
-	questions, _, err := eventrepo.RegistrationSettings(ctx, tx, ev.ID)
-	if err != nil {
-		return model.EventMember{}, nil, err
-	}
-	answers, validationErr := hackevents.SignupAnswers(questions, input.Answers)
-	if validationErr != nil {
-		return model.EventMember{}, nil, &Error{Code: validationErr.Code, Message: validationErr.Message}
-	}
-
-	// Security review #1/#2 (account-wide pending cap race): take a
-	// transaction-scoped lock on the applicant's own users row before
-	// counting their pending applications, so two concurrent applies to
-	// different events serialise on this count instead of both reading the
-	// same stale number and both inserting. Mirrors eventrepo.LockUserRow's
-	// existing use for the per-organiser event-creation limit (hack.go:624).
-	if err := eventrepo.LockUserRow(ctx, tx, userID); err != nil {
-		return model.EventMember{}, nil, err
-	}
-	pending, err := eventrepo.CountPendingApplications(ctx, tx, userID)
-	if err != nil {
-		return model.EventMember{}, nil, err
-	}
-	if pending >= 20 {
-		return model.EventMember{}, nil, &Error{Code: "too_many_pending", Message: "You have 20 applications waiting. Wait for answers before applying to more."}
-	}
-
-	// Security review (Grok 1): a per-event ceiling, so many accounts cannot
-	// flood one event's queue. Counted under the same events-row FOR SHARE
-	// lock as the rest of the gate, against the event-scoped partial index
-	// (zp-hack-applications.sql).
-	eventPending, err := eventrepo.CountPendingApplicationsForEvent(ctx, tx, ev.ID)
-	if err != nil {
-		return model.EventMember{}, nil, err
-	}
-	if eventPending >= capN {
-		return model.EventMember{}, nil, &Error{Code: "event_applications_full", Message: fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN)}
-	}
-
-	profile := model.ApplicantProfile{City: input.City, Country: input.Country, AgeRange: input.AgeRange, Gender: input.Gender}
-	if err := events.EnsureAccountName(ctx, tx, userID, input.Display); err != nil {
-		if e, ok := err.(*events.Error); ok {
-			return model.EventMember{}, nil, &Error{Code: e.Code, Message: e.Message}
-		}
-		return model.EventMember{}, nil, err
-	}
-	member, err := eventrepo.ApplyParticipant(ctx, tx, ev.ID, userID, answers, profile)
-	if err != nil {
-		if hackevents.UniqueError(err) {
-			existing2, err2 := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
-			if err2 == nil && existing2.Role == "participant" {
-				return existing2, existingView(existing2), nil
-			}
-			return model.EventMember{}, nil, &Error{Code: "already_member", Message: "you already have a different role in this event"}
-		}
-		return model.EventMember{}, nil, err
-	}
-	// Every application waits on the organisers.
-	if err := eventrepo.NotifyOrganisers(ctx, tx, ev.ID, eventrepo.NoticeApplicationNew, userID); err != nil {
-		return model.EventMember{}, nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return model.EventMember{}, nil, err
-	}
-	return member, nil, nil
-
+// ApplyResult is the caller's membership after applying.
+type ApplyResult struct {
+	Event  model.Event
+	Member model.EventMember
 }
 
-// ApplyEvent finds an event before the public application checks.
-func (s *Service) ApplyEvent(ctx context.Context, slug string) (model.Event, error) {
+// ApplyPage is what GET .../apply shows.
+type ApplyPage struct {
+	Event        model.Event
+	Open         bool
+	ClosedReason any
+	Questions    []model.SignupQuestion
+	Me           *ApplyMe
+}
+
+// ApplyMe is the caller's own standing in the event.
+type ApplyMe struct {
+	Role           string `json:"role"`
+	JoinedVia      string `json:"joined_via"`
+	ApprovalStatus string `json:"approval_status,omitempty"`
+}
+
+// errAlreadyMember refuses an application from someone with another role.
+func errAlreadyMember() error {
+	return &Error{Code: "already_member", Message: "you already have a different role in this event"}
+}
+
+// applyHidden is true for an event whose apply page must look exactly like an unknown slug: a draft or a taken-down event.
+func applyHidden(stage string, takenDown bool) bool { return stage == "draft" || takenDown }
+
+// applyEvent finds the event at slug, refusing one applyHidden hides.
+func (s *Service) applyEvent(ctx context.Context, slug string) (model.Event, error) {
 	ev, err := eventrepo.GetEventBySlug(ctx, s.db, slug)
-	if err != nil {
-		return ev, err
+	if err == nil && applyHidden(ev.Stage, ev.TakenDown()) {
+		err = errEventNotFound
 	}
-	return ev, nil
+	return ev, err
 }
 
-// ApplyDetails loads private questions and membership when applicable.
-func (s *Service) ApplyDetails(ctx context.Context, ev model.Event, caller string, open bool) ([]model.SignupQuestion, *model.MemberStatus, error) {
-	var q []model.SignupQuestion
-	var err error
-	if open {
-		q, _, err = eventrepo.RegistrationSettings(ctx, s.db, ev.ID)
-		if err != nil {
-			return nil, nil, err
+// ApplyPage loads the public application page of the event at slug, plus the signed-in caller's questions and standing.
+func (s *Service) ApplyPage(ctx context.Context, slug, caller string) (p ApplyPage, err error) {
+	if p.Event, err = s.applyEvent(ctx, slug); err != nil {
+		return p, err
+	}
+	ev := p.Event
+	p.Open = events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown())
+	p.ClosedReason = events.ApplicationsClosedReason(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage)
+	if caller == "" {
+		return p, nil
+	}
+	if p.Open {
+		if p.Questions, _, err = eventrepo.RegistrationSettings(ctx, s.db, ev.ID); err != nil {
+			return p, err
 		}
 	}
 	status, err := eventrepo.GetMemberStatus(ctx, s.db, ev.ID, caller)
 	if errors.Is(err, sql.ErrNoRows) {
-		return q, nil, nil
+		return p, nil
 	}
-	if err != nil {
-		return nil, nil, err
+	p.Me = &ApplyMe{Role: status.Role, JoinedVia: status.JoinedVia}
+	if status.Role == "participant" {
+		p.Me.ApprovalStatus = status.ApprovalStatus
 	}
-	return q, &status, nil
+	return p, err
 }
 
-// ValidateApplication checks and normalizes the supplied application fields.
-func (s *Service) ValidateApplication(accept *bool, in ApplicationInput) (ApplicationInput, error) {
+// Apply checks an application and files it, pending, for the event at slug.
+func (s *Service) Apply(ctx context.Context, slug, userID string, accept *bool, in ApplicationInput, capN int) (res ApplyResult, err error) {
+	if in, err = validateApplication(accept, in); err != nil {
+		return res, err
+	}
+	if res.Event, err = s.applyEvent(ctx, slug); err != nil {
+		return res, err
+	}
+	res.Member, err = s.applyTx(ctx, res.Event.ID, userID, in, capN)
+	if hackevents.UniqueError(err) {
+		// A concurrent apply by the same caller won the insert.
+		res.Member, err = eventrepo.GetEventMember(ctx, s.db, res.Event.ID, userID)
+		if err != nil || res.Member.Role != "participant" {
+			err = errAlreadyMember()
+		}
+	}
+	return res, err
+}
+
+// applyTx files or re-reads the caller's application in one transaction.
+func (s *Service) applyTx(ctx context.Context, eventID, userID string, in ApplicationInput, capN int) (model.EventMember, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return model.EventMember{}, err
+	}
+	defer tx.Rollback()
+	var stage string
+	var open, takenDown bool
+	if err := eventrepo.LockApplicationEvent(ctx, tx, eventID, &stage, &open, &takenDown); err != nil {
+		return model.EventMember{}, err
+	}
+	if applyHidden(stage, takenDown) {
+		return model.EventMember{}, errEventNotFound
+	}
+	member, err := eventrepo.GetEventMember(ctx, tx, eventID, userID)
+	switch {
+	case err == nil:
+		member, err = reapply(ctx, tx, member, in.Display)
+	case errors.Is(err, sql.ErrNoRows):
+		member, err = fileApplication(ctx, tx, eventID, userID, stage, open, in, capN)
+	}
+	if err != nil {
+		return model.EventMember{}, err
+	}
+	return member, tx.Commit()
+}
+
+// reapply answers an application from someone already in the event.
+func reapply(ctx context.Context, tx *sql.Tx, existing model.EventMember, display string) (model.EventMember, error) {
+	if existing.Role != "participant" {
+		return model.EventMember{}, errAlreadyMember()
+	}
+	if err := events.EnsureAccountName(ctx, tx, existing.UserID, display); err != nil {
+		return model.EventMember{}, err
+	}
+	return eventrepo.GetEventMember(ctx, tx, existing.EventID, existing.UserID)
+}
+
+// fileApplication inserts a new pending application once the event takes applications, the answers are valid and neither pending cap is reached, and tells the organisers.
+func fileApplication(ctx context.Context, tx *sql.Tx, eventID, userID, stage string, open bool, in ApplicationInput, capN int) (model.EventMember, error) {
+	if stage != "open" && stage != "building" {
+		return model.EventMember{}, &Error{Code: "joining_closed", Message: "joining is closed for this event"}
+	}
+	if !open {
+		return model.EventMember{}, &Error{Code: "applications_closed", Message: "this event isn't taking applications right now"}
+	}
+	questions, _, err := eventrepo.RegistrationSettings(ctx, tx, eventID)
+	if err != nil {
+		return model.EventMember{}, err
+	}
+	answers, invalid := hackevents.SignupAnswers(questions, in.Answers)
+	if invalid != nil {
+		return model.EventMember{}, &Error{Code: invalid.Code, Message: invalid.Message}
+	}
+	if err := checkPendingCaps(ctx, tx, eventID, userID, capN); err != nil {
+		return model.EventMember{}, err
+	}
+	if err := events.EnsureAccountName(ctx, tx, userID, in.Display); err != nil {
+		return model.EventMember{}, err
+	}
+	profile := model.ApplicantProfile{City: in.City, Country: in.Country, AgeRange: in.AgeRange, Gender: in.Gender}
+	member, err := eventrepo.ApplyParticipant(ctx, tx, eventID, userID, answers, profile)
+	if err != nil {
+		return model.EventMember{}, err
+	}
+	return member, eventrepo.NotifyOrganisers(ctx, tx, eventID, eventrepo.NoticeApplicationNew, userID)
+}
+
+// checkPendingCaps refuses an application past the account-wide or the per-event pending cap.
+func checkPendingCaps(ctx context.Context, tx *sql.Tx, eventID, userID string, capN int) error {
+	if err := eventrepo.LockUserRow(ctx, tx, userID); err != nil {
+		return err
+	}
+	pending, err := eventrepo.CountPendingApplications(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+	if pending >= pendingPerAccount {
+		return &Error{Code: "too_many_pending", Message: fmt.Sprintf("You have %d applications waiting. Wait for answers before applying to more.", pendingPerAccount)}
+	}
+	eventPending, err := eventrepo.CountPendingApplicationsForEvent(ctx, tx, eventID)
+	if err != nil {
+		return err
+	}
+	if eventPending >= capN {
+		return &Error{Code: "event_applications_full", Message: fmt.Sprintf("This event already has %d applications waiting for a decision. Try again once some are decided.", capN)}
+	}
+	return nil
+}
+
+// validateApplication checks and normalises the supplied application fields.
+func validateApplication(accept *bool, in ApplicationInput) (ApplicationInput, error) {
 	if accept == nil || !*accept {
 		return in, &Error{Code: "coc_required", Message: "you must accept the code of conduct"}
 	}
-	var e *hackevents.ValidationError
-	in.City, e = hackevents.Line(in.City, "city", 0, 80)
+	city, e := hackevents.Line(in.City, "city", 0, 80)
 	if e != nil {
 		return in, &Error{Code: e.Code, Message: e.Message}
 	}
-	var ok bool
-	in.Country, ok = hackevents.Country(in.Country)
-	if !ok {
+	country, ok := hackevents.Country(in.Country)
+	switch {
+	case !ok:
 		return in, &Error{Code: "invalid_country", Message: "country must be an ISO 3166-1 alpha-2 code"}
-	}
-	if !hackevents.Enum(in.AgeRange, hackevents.AgeRangeOrder) {
+	case !hackevents.Enum(in.AgeRange, hackevents.AgeRangeOrder):
 		return in, &Error{Code: "invalid_age_range", Message: "age_range is not a recognised value"}
-	}
-	if !hackevents.Enum(in.Gender, hackevents.GenderOrder) {
+	case !hackevents.Enum(in.Gender, hackevents.GenderOrder):
 		return in, &Error{Code: "invalid_gender", Message: "gender is not a recognised value"}
 	}
+	in.City, in.Country = city, country
 	return in, nil
 }

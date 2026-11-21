@@ -2,15 +2,11 @@ package hackhttp
 
 import (
 	"encoding/json"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
-	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 
@@ -71,76 +67,9 @@ func TestNavigationHelpPresentationEnums(t *testing.T) {
 		stages = append(stages, label)
 	}
 	check("stage", stages)
-	// There is no exported mode catalogue yet. Parse validation syntax rather
-	// than depending on whitespace, operand order or comparison spelling.
-	judging, err := os.ReadFile("hack_judging.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	modes := navigationAssignmentModes(t, string(judging))
-	if len(modes) == 0 {
-		t.Fatal("assignment mode validation moved: update its help parity extractor")
-	}
+	modes := append([]string(nil), entries.AssignmentModes...)
 	for i := range modes {
 		modes[i] = title(modes[i])
 	}
 	check("judging.mode", modes)
-}
-
-// Handle equivalent ==/!= comparisons (in either order), parentheses,
-// dereferences and switch cases. Comments and error-message prose never count.
-func navigationAssignmentModes(t *testing.T, source string) []string {
-	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), "judging.go", source, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var isMode func(ast.Expr) bool
-	isMode = func(expr ast.Expr) bool {
-		switch v := expr.(type) {
-		case *ast.SelectorExpr:
-			return v.Sel.Name == "AssignmentMode"
-		case *ast.StarExpr:
-			return isMode(v.X)
-		case *ast.ParenExpr:
-			return isMode(v.X)
-		}
-		return false
-	}
-	seen := map[string]bool{}
-	add := func(expr ast.Expr) {
-		if value, ok := expr.(*ast.BasicLit); ok && value.Kind == token.STRING {
-			mode, err := strconv.Unquote(value.Value)
-			if err == nil && mode != "" {
-				seen[mode] = true
-			}
-		}
-	}
-	ast.Inspect(file, func(node ast.Node) bool {
-		switch v := node.(type) {
-		case *ast.BinaryExpr:
-			if v.Op == token.EQL || v.Op == token.NEQ {
-				if isMode(v.X) {
-					add(v.Y)
-				} else if isMode(v.Y) {
-					add(v.X)
-				}
-			}
-		case *ast.SwitchStmt:
-			if isMode(v.Tag) {
-				for _, statement := range v.Body.List {
-					for _, expr := range statement.(*ast.CaseClause).List {
-						add(expr)
-					}
-				}
-			}
-		}
-		return true
-	})
-	modes := make([]string, 0, len(seen))
-	for mode := range seen {
-		modes = append(modes, mode)
-	}
-	sort.Strings(modes)
-	return modes
 }

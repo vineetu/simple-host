@@ -19,22 +19,6 @@ func paperHackTimes(r *http.Request) { paperRecorder(r.Context()).HackPhasesChan
 // are the next pass. The lock column is already checked here so a locked
 // event cannot have its rubric rewritten out from under stored scores.
 
-// writeIfJudgingLocked refuses a write that would change what a published or
-// about-to-be-published total is computed from. Locking is meant to freeze
-// every input to scoring, not just score rows themselves: a conflict
-// declared or removed, an assignment regenerated, or the assignment mode
-// changed after locking would otherwise silently change the result the next
-// time it is (re)computed, with no further write to "scores" ever
-// happening — defeating the point of locking in the first place. Returns
-// true (having already written the response) when locked.
-func writeIfJudgingLocked(w http.ResponseWriter, ev model.Event) bool {
-	if ev.JudgingLockedAt.Valid {
-		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked because the event is at Results. Move the event back to Judging to change it.")
-		return true
-	}
-	return false
-}
-
 func rubricJSON(items []model.RubricCriterion) map[string]any {
 	out := make([]map[string]any, 0, len(items))
 	for _, c := range items {
@@ -51,14 +35,10 @@ func rubricJSON(items []model.RubricCriterion) map[string]any {
 }
 
 func (h *judgingHTTP) getRubric(w http.ResponseWriter, r *http.Request) {
-	// Teams can see the rubric (2026-11-02, audit item 1): an approved
-	// participant reads the same criteria judges and organisers do --
-	// names, descriptions, weights and max points, never a score.
-	// loadMember's own approval-status gate (len(roles) > 0) still refuses a
-	// pending or rejected participant with 403 approval_<status>, and a
-	// non-member still gets 404 event_not_found. rubricJSON never includes
-	// scores, so no response-shape change is needed for this role.
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser", "judge", "participant")
+	// Teams can see the rubric (2026-11-02, audit item 1): an approved participant
+	// reads the same criteria judges and organisers do -- names, descriptions,
+	// weights and max points, never a score.
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser", "judge", "participant")
 	if !ok {
 		return
 	}
@@ -72,7 +52,7 @@ func (h *judgingHTTP) getRubric(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *judgingHTTP) putRubric(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -125,7 +105,7 @@ func judgingSettingsJSON(ev model.Event) map[string]any {
 }
 
 func (h *judgingHTTP) getJudgingSettings(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -133,7 +113,7 @@ func (h *judgingHTTP) getJudgingSettings(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *judgingHTTP) patchJudgingSettings(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -150,32 +130,7 @@ func (h *judgingHTTP) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	var mode *string
-	if req.AssignmentMode != nil {
-		if *req.AssignmentMode != "open" && *req.AssignmentMode != "automatic" && *req.AssignmentMode != "manual" && *req.AssignmentMode != "panel" {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_request", `assignment_mode must be open, automatic, manual or panel.`)
-			return
-		}
-		mode = req.AssignmentMode
-	}
-	var perTeam *int
-	if req.JudgesPerTeam != nil {
-		n, ok := entryapp.WholeInRange(req.JudgesPerTeam, 1, 20)
-		if !ok {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "judges_per_team must be a whole number from 1 to 20.")
-			return
-		}
-		perTeam = &n
-	}
-	if req.ScoreMode != nil && *req.ScoreMode != "raw" && *req.ScoreMode != "normalised" {
-		httpx.WriteError(w, 400, "invalid_score_mode", "score_mode must be raw or normalised")
-		return
-	}
-	if req.TieCriterionID != nil && *req.TieCriterionID != "" && !sites.UUIDShape.MatchString(*req.TieCriterionID) {
-		httpx.WriteError(w, 400, "invalid_tie_criterion", "use a criterion in this event")
-		return
-	}
-	ev, err := h.entries.UpdateJudgingSettings(r.Context(), a.event.ID, entryapp.JudgingSettings{OrganiserJudges: req.OrganiserJudges, IncludeOrganisers: req.IncludeOrganisers, Mode: mode, PerTeam: perTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
+	ev, err := h.entries.ChangeJudgingSettings(r.Context(), a.event.ID, entryapp.JudgingSettingsInput{OrganiserJudges: req.OrganiserJudges, IncludeOrganisers: req.IncludeOrganisers, Mode: req.AssignmentMode, PerTeam: req.JudgesPerTeam, ScoreMode: req.ScoreMode, TieCriterionID: req.TieCriterionID, PublicScores: req.PublicScores, PublicRanks: req.PublicRanks})
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -183,35 +138,30 @@ func (h *judgingHTTP) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	h.writeJudgingSettings(w, r, ev)
 }
 
-// judgingPool sorts the event's teams (ListTeamsWithMembers) by whether they
-// will be judged, the same rule the judge queue applies once judging starts
-// (full-test fix, 2026-11-02): a team is in when it has an entry an
-// organiser has not excluded -- submitted, settled or still a draft, since
-// moving to judging settles every draft (settleEntriesTx) -- or, with no
-// entry row, a live team site (settleEntriesTx starts an entry for it). A
-// team with neither has no entry and stays out; an excluded entry stays out.
-// Automatic assignment, the Judging progress and Overview's Start judging
-// confirm all use this, so none of them counts a team the queue never shows.
-func (h *hackBase) judgingPoolFor(ctx context.Context, ev model.Event, teams []model.NamedTeam) (entryapp.Pool, error) {
-	var tl teamList
-	loaded := false
-	return h.entries.JudgingPool(ctx, ev, teams, func(t model.NamedTeam) (bool, error) {
-		if !loaded {
-			var err error
-			tl, err = h.loadTeamList(ctx, ev)
+// poolSiteLive is siteLiveCheck in the shape the judging pool asks it.
+func (h *siteLinks) poolSiteLive(ctx context.Context, ev model.Event) func(model.NamedTeam) (bool, error) {
+	live := h.siteLiveCheck(ctx, ev)
+	return func(t model.NamedTeam) (bool, error) { return live(t.ID, t.Slug) }
+}
+
+// siteLiveCheck reports whether a team's site is live right now, loading
+// the event's team list once, on first use.
+func (h *siteLinks) siteLiveCheck(ctx context.Context, ev model.Event) func(teamID, teamSlug string) (bool, error) {
+	var tl *teamList
+	return func(teamID, teamSlug string) (bool, error) {
+		if tl == nil {
+			loaded, err := h.loadTeamList(ctx, ev)
 			if err != nil {
 				return false, err
 			}
-			loaded = true
+			tl = &loaded
 		}
-		st := tl.states[t.ID]
-		site := tl.site(t.Slug)
-		return entryapp.TeamSiteLive(site, st), nil
-	})
+		return entryapp.TeamSiteLive(tl.site(teamSlug), tl.states[teamID]), nil
+	}
 }
 
 func (h *judgingHTTP) generateAssignments(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -231,7 +181,7 @@ func (h *judgingHTTP) generateAssignments(w http.ResponseWriter, r *http.Request
 		httpx.WriteInternal(w)
 		return
 	}
-	pool, err := h.judgingPoolFor(r.Context(), a.event, allTeams)
+	pool, err := h.entries.JudgingPool(r.Context(), a.event, allTeams, h.links.poolSiteLive(r.Context(), a.event))
 	if err != nil {
 		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -277,7 +227,7 @@ func conflictJSON(c entryapp.EventConflict) map[string]any {
 }
 
 func (h *judgingHTTP) listConflicts(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser", "judge")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser", "judge")
 	if !ok {
 		return
 	}
@@ -299,11 +249,12 @@ func (h *judgingHTTP) listConflicts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *judgingHTTP) declareConflict(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser", "judge")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser", "judge")
 	if !ok {
 		return
 	}
-	if writeIfJudgingLocked(w, a.event) {
+	if err := entryapp.JudgingLocked(a.event); err != nil {
+		writeHackError(w, err)
 		return
 	}
 	var req struct {
@@ -313,26 +264,7 @@ func (h *judgingHTTP) declareConflict(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	judgeID := a.user.ID
-	declaredBy := "judge"
-	if a.member.Role != "organiser" {
-		if req.JudgeUserID != "" && !strings.EqualFold(req.JudgeUserID, a.user.ID) {
-			httpx.WriteError(w, http.StatusForbidden, "forbidden", "Only an organiser can record a conflict for another judge.")
-			return
-		}
-	} else if strings.TrimSpace(req.JudgeUserID) != "" {
-		judgeID = req.JudgeUserID
-		declaredBy = "organiser"
-	}
-	if !sites.UUIDShape.MatchString(req.TeamID) {
-		httpx.WriteError(w, http.StatusNotFound, "team_not_found", "team not found")
-		return
-	}
-	if !sites.UUIDShape.MatchString(judgeID) {
-		httpx.WriteError(w, http.StatusNotFound, "judge_not_found", "judge not found")
-		return
-	}
-	saved, err := h.entries.DeclareConflict(r.Context(), a.event.ID, judgeID, req.TeamID, declaredBy)
+	saved, err := h.entries.RecordConflict(r.Context(), a.event.ID, conflictCaller(a), req.TeamID, req.JudgeUserID)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -341,162 +273,63 @@ func (h *judgingHTTP) declareConflict(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *judgingHTTP) deleteConflict(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser", "judge")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser", "judge")
 	if !ok {
 		return
 	}
-	if writeIfJudgingLocked(w, a.event) {
-		return
-	}
-	teamID := r.PathValue("team_id")
-	judgeID := a.user.ID
-	q := strings.TrimSpace(r.URL.Query().Get("judge_user_id"))
-	if a.member.Role != "organiser" {
-		if q != "" && !strings.EqualFold(q, a.user.ID) {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "You can only remove your own conflict.")
-			return
-		}
-	} else if q != "" {
-		judgeID = q
-	}
-	if !sites.UUIDShape.MatchString(teamID) || !sites.UUIDShape.MatchString(judgeID) {
-		httpx.WriteError(w, http.StatusNotFound, "conflict_not_found", "conflict not found")
-		return
-	}
-	if err := h.entries.DeleteConflict(r.Context(), a.event.ID, judgeID, teamID); err != nil {
+	judgeID := strings.TrimSpace(r.URL.Query().Get("judge_user_id"))
+	if err := h.entries.RemoveConflict(r.Context(), a.event, conflictCaller(a), r.PathValue("team_id"), judgeID); err != nil {
 		writeHackError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// conflictCaller is the caller of a conflict route.
+func conflictCaller(a hackAccess) entryapp.ConflictCaller {
+	return entryapp.ConflictCaller{UserID: a.user.ID, Organiser: a.member.Role == "organiser"}
+}
+
 func (h *judgingHTTP) judgingDashboard(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
-	ctx := r.Context()
-	allTeams, err := h.entries.TeamsWithMembers(ctx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
 	// TODO(4.1): This prospective pool includes unsettled entries and live sites; the queue requires judgeable entries.
-	// Progress lists only the teams that will be judged (judgingPoolFor),
-	// the same set the queue and automatic assignment use.
-	pool, err := h.judgingPoolFor(ctx, a.event, allTeams)
+	d, err := h.entries.JudgingDashboard(r.Context(), a.event, h.links.poolSiteLive(r.Context(), a.event))
 	if err != nil {
-		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
+		writeHackError(w, err)
 		return
 	}
-	teams := make([]model.NamedTeam, 0, len(allTeams))
-	for _, t := range allTeams {
-		if pool.In[t.ID] {
-			teams = append(teams, t)
-		}
-	}
-	judges, err := h.entries.EventJudges(ctx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	scoredTeams, scoredJudges, err := h.entries.ScoreCoverage(ctx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	// flagged when judges_scored is short of the target. Automatic mode's
-	// target is judges_per_team. Open mode does not assign a cap, so the
-	// target is 2 (the column's default) rather than whatever judges_per_team
-	// is set to: an event still on open shows teams that nobody has scored.
-	target := a.event.JudgesPerTeam
-	if a.event.JudgeAssignmentMode == "open" {
-		target = 2
-	}
-	assigned, eligibleByTeam, err := h.entries.EligibilityCounts(ctx, a.event.ID, judges)
-	if err != nil {
-		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	teamRows := make([]map[string]any, 0, len(teams))
-	for _, team := range teams {
-		scored := scoredTeams[team.ID]
-		teamTarget := target
-		if a.event.JudgeAssignmentMode == "manual" || a.event.JudgeAssignmentMode == "panel" {
-			if eligibleByTeam[team.ID] > 0 && eligibleByTeam[team.ID] < teamTarget {
-				teamTarget = eligibleByTeam[team.ID]
-			}
-		}
-		teamRows = append(teamRows, map[string]any{
-			"team_id":         team.ID,
-			"team_name":       team.Name,
-			"judges_scored":   scored,
-			"judges_eligible": eligibleByTeam[team.ID],
-			"flagged":         scored < teamTarget,
-		})
-	}
-	judgeRows := make([]map[string]any, 0, len(judges))
-	for _, judge := range judges {
-		judgeRows = append(judgeRows, map[string]any{
-			"judge_id":       judge.ID,
-			"judge_name":     judge.Name,
-			"done_count":     scoredJudges[judge.ID],
-			"assigned_count": assigned[judge.ID],
-		})
-	}
-	former, err := h.entries.FormerJudges(ctx, a.event.ID)
-	if err != nil {
-		log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-		httpx.WriteInternal(w)
-		return
-	}
-	formerRows := make([]map[string]any, 0, len(former))
-	for _, f := range former {
-		assignedCount, err := h.entries.FormerJudgeAssignedCountLookup(ctx, a.event.ID, f.UserID)
-		if err != nil {
-			log.Printf("hack: dashboard %s: %v", a.event.Slug, err)
-			httpx.WriteInternal(w)
-			return
-		}
-		formerRows = append(formerRows, map[string]any{
-			"user_id":        f.UserID,
-			"display_name":   f.DisplayName,
-			"role":           f.Role,
-			"left_at":        rfc3339Time(f.LeftAt),
-			"counted_teams":  scoredJudges[f.UserID],
-			"assigned_count": assignedCount,
-		})
-	}
-	setupCoverage, err := h.entries.JudgingSetupCoverage(ctx, a.event)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	// Tied totals need scores. The next pass fills this once totals exist.
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"coverage":      setupCoverage,
-		"teams":         teamRows,
-		"judges":        judgeRows,
-		"former_judges": formerRows,
-		"tied_groups":   []any{},
-		// What Start judging will do, for Overview's confirm: teams that
-		// will be judged, teams with no entry (left out), and entries an
-		// organiser excluded by hand.
-		"entries": map[string]any{"judged": pool.Judged, "no_entry": pool.NoEntry, "excluded": pool.Excluded},
-	})
+	httpx.WriteJSON(w, http.StatusOK, dashboardJSON(d))
 }
 
-// deleteFormerJudgeScores handles removal at .../judging/former-judges/{user_id}
-// (SIM-340): an organiser dropping a departed judge's scores so they stop
-// counting. Published results change only on the next publish (the snapshot
-// already taken is untouched).
+// dashboardJSON is the judging dashboard's body.
+func dashboardJSON(d entryapp.Dashboard) map[string]any {
+	teams := make([]map[string]any, 0, len(d.Teams))
+	for _, t := range d.Teams {
+		teams = append(teams, map[string]any{"team_id": t.ID, "team_name": t.Name, "judges_scored": t.Scored, "judges_eligible": t.Eligible, "flagged": t.Flagged})
+	}
+	judges := make([]map[string]any, 0, len(d.Judges))
+	for _, j := range d.Judges {
+		judges = append(judges, map[string]any{"judge_id": j.ID, "judge_name": j.Name, "done_count": j.Done, "assigned_count": j.Assigned})
+	}
+	former := make([]map[string]any, 0, len(d.Former))
+	for _, f := range d.Former {
+		former = append(former, map[string]any{"user_id": f.UserID, "display_name": f.DisplayName, "role": f.Role,
+			"left_at": rfc3339Time(f.LeftAt), "counted_teams": f.Counted, "assigned_count": f.Assigned})
+	}
+	return map[string]any{
+		"coverage": d.Coverage, "teams": teams, "judges": judges, "former_judges": former, "tied_groups": []any{},
+		"entries": map[string]any{"judged": d.Pool.Judged, "no_entry": d.Pool.NoEntry, "excluded": d.Pool.Excluded},
+	}
+}
+
+// deleteFormerJudgeScores handles removal at
+// .../judging/former-judges/{user_id} (SIM-340): an organiser dropping a
+// departed judge's scores so they stop counting.
 func (h *judgingHTTP) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -530,14 +363,14 @@ func (h *judgingHTTP) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 // --- M3 pass 2: scoring, lock/unlock, publish, results, exports ----------
 
 func (h *judgingHTTP) judgingLockRemoved(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser"); !ok {
+	if _, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser"); !ok {
 		return
 	}
 	httpx.WriteError(w, http.StatusGone, "judging_lock_removed", "Judging locks when you finish judging (move to Results) and unlocks when you move the event back.")
 }
 
 func (h *judgingHTTP) judgeQueue(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "judge", "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "judge", "organiser")
 	if !ok {
 		return
 	}
@@ -549,7 +382,7 @@ func (h *judgingHTTP) judgeQueue(w http.ResponseWriter, r *http.Request) {
 	var tl teamList
 	queue, err := h.entries.JudgeCandidates(ctx, a.event, a.user.ID, func() error {
 		var err error
-		tl, err = h.loadTeamList(ctx, a.event)
+		tl, err = h.links.loadTeamList(ctx, a.event)
 		return err
 	})
 	if err != nil {
@@ -564,7 +397,7 @@ func (h *judgingHTTP) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hasTracks := len(tracks) > 0
-	mayLink, err := h.judgeSiteLinkGate(ctx, a)
+	mayLink, err := h.views.judgeSiteLinkGate(ctx, a)
 	if err != nil {
 		log.Printf("hack: queue %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -578,7 +411,7 @@ func (h *judgingHTTP) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		if row.Conflicted {
 			continue
 		}
-		item, ierr := h.entryListItem(ctx, a.event, model.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, row.Entry, fields, hasTracks, tl)
+		item, ierr := h.views.entryListItem(ctx, a.event, model.EventTeam{ID: team.ID, Name: team.Name, Slug: team.Slug}, row.Entry, fields, hasTracks, tl)
 		if ierr != nil {
 			log.Printf("hack: queue %s/%s: %v", a.event.Slug, team.ID, ierr)
 			httpx.WriteInternal(w)
@@ -608,7 +441,7 @@ func scoresJSON(scores []entryapp.JudgeScore, comment string, complete *bool) ma
 }
 
 func (h *judgingHTTP) getJudgeScores(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "judge", "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "judge", "organiser")
 	if !ok {
 		return
 	}
@@ -626,7 +459,7 @@ func (h *judgingHTTP) getJudgeScores(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *judgingHTTP) putJudgeScores(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "judge", "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "judge", "organiser")
 	if !ok {
 		return
 	}
@@ -634,7 +467,7 @@ func (h *judgingHTTP) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "scores_locked", "Judging is locked.")
 		return
 	}
-	if !h.scoringStage(r.Context(), a.event) {
+	if !h.views.scoringStage(r.Context(), a.event) {
 		httpx.WriteError(w, 409, "scoring_not_open", "Scoring opens when judging starts.")
 		return
 	}
@@ -653,12 +486,12 @@ func (h *judgingHTTP) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 	if req.Comment != nil {
 		cleaned, err := h.entries.JudgeComment(*req.Comment)
 		if err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, "invalid_comment", err.Error())
+			writeHackError(w, err)
 			return
 		}
 		req.Comment = &cleaned
 	}
-	updated, comment, complete, err := h.entries.PutJudgeScores(r.Context(), a.event.ID, a.user.ID, teamID, req.Scores, req.Comment, h.scoringStage)
+	updated, comment, complete, err := h.entries.PutJudgeScores(r.Context(), a.event.ID, a.user.ID, teamID, req.Scores, req.Comment, h.views.scoringStage)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -669,7 +502,7 @@ func (h *judgingHTTP) putJudgeScores(w http.ResponseWriter, r *http.Request) {
 // scoringStage reports whether judges may score in the event's stage:
 // during Judging, or while building on the standing demo
 // (including its weekly replacement slug) so visitors can try judging.
-func (h *hackBase) scoringStage(ctx context.Context, ev model.Event) bool {
+func (h *views) scoringStage(ctx context.Context, ev model.Event) bool {
 	if ev.Stage == "judging" {
 		return true
 	}

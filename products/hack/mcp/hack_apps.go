@@ -172,35 +172,39 @@ func (s *hackScreens) readHackApp(req mcp.Request, caller mcp.Caller, allowed bo
 		if params.URI != screen.URI {
 			continue
 		}
-		asset := func(name string) string { b, _ := hackAppFiles.ReadFile("apps/" + name); return string(b) }
-		bridge, _ := mcp.AppFiles().ReadFile("apps/bridge.js")
-		nonce, err := freshNonce()
+		page, err := s.appPage(screen)
 		if err != nil {
 			return mcp.Failure(req.ID, mcp.CodeInternalError, "could not prepare this view; try again", nil)
 		}
-		// The organiser bundle (only, so far) carries its own __ORIGIN__
-		// placeholder for the real website's origin (frame/organiser-
-		// nav.js: out-of-scope sections open there via ui/open-link rather
-		// than staying unreachable). Substituted here, before the bundle
-		// text becomes a replacement VALUE below -- strings.Replacer only
-		// scans the page template it is given, never a value it is
-		// substituting in, so a placeholder inside the bundle would
-		// otherwise never be touched. The judge bundle never contains this
-		// token (bundlegen.GenerateJS fails generation if it ever does),
-		// so this ReplaceAll is a no-op there.
-		bundle := strings.ReplaceAll(asset(screen.ID+"-bundle.js"), "__ORIGIN__", "https://"+s.ctx.APIHost)
-		page := strings.NewReplacer(
-			"__NONCE__", nonce,
-			"__STYLE__", asset(screen.ID+"-kit.css"),
-			"__BRIDGE__", string(bridge),
-			"__BUNDLE__", bundle,
-			"__VIEW__", asset(screen.ID+"-view.js"),
-		).Replace(asset(screen.HTML))
 		return mcp.Result(req.ID, map[string]any{"contents": []any{map[string]any{
 			"uri": screen.URI, "mimeType": mcp.AppMIME, "text": page, "_meta": s.ctx.Meta(screen),
 		}}})
 	}
 	return mcp.Failure(req.ID, mcp.CodeInvalidParams, "resource not available", nil)
+}
+
+// appPage is a screen's HTML with its style, bridge, bundle and view
+// script inlined under a fresh nonce. The organiser bundle (only, so far)
+// carries its own __ORIGIN__ placeholder for the real website's origin
+// (frame/organiser-nav.js), substituted before the bundle becomes a
+// replacement value, since strings.Replacer never scans the values it
+// substitutes in. The judge bundle never contains it (bundlegen.GenerateJS
+// fails generation if it does).
+func (s *hackScreens) appPage(screen mcp.AppScreen) (string, error) {
+	asset := func(name string) string { b, _ := hackAppFiles.ReadFile("apps/" + name); return string(b) }
+	bridge, _ := mcp.AppFiles().ReadFile("apps/bridge.js")
+	nonce, err := freshNonce()
+	if err != nil {
+		return "", err
+	}
+	bundle := strings.ReplaceAll(asset(screen.ID+"-bundle.js"), "__ORIGIN__", "https://"+s.ctx.APIHost)
+	return strings.NewReplacer(
+		"__NONCE__", nonce,
+		"__STYLE__", asset(screen.ID+"-kit.css"),
+		"__BRIDGE__", string(bridge),
+		"__BUNDLE__", bundle,
+		"__VIEW__", asset(screen.ID+"-view.js"),
+	).Replace(asset(screen.HTML)), nil
 }
 
 // --- hack_show_judge: the one tool that opens the judge app -------------
@@ -266,78 +270,70 @@ func (s *hackScreens) runHackShowJudge(c *mcp.Call, args map[string]any) (mcp.Ou
 	}
 	switch view {
 	case "invite":
-		code, err := mcp.StringArg(args, "code")
-		if err != nil {
-			return mcp.Output{}, errors.New("code is required for view invite")
-		}
-		res := c.Do(http.MethodGet, "/v1/hack/judge/"+url.PathEscape(code), nil, nil)
-		if !res.OK() {
-			return mcp.Output{}, hackRestError("hack_show_judge", res)
-		}
-		structured := map[string]any{"view": "invite", "code": code}
-		// No organiser-authored title (or anything else from the REST body)
-		// in the text: a fixed sentence only (Grok security review,
-		// SIM-344) -- that text is as visible to the model as to the
-		// frame, and an event title is free text an organiser chose, not
-		// something this tool should ever need to repeat back.
-		return mcp.Output{Text: "Opened the judge invite.", Structured: structured}, nil
+		return showJudgeInvite(c, args)
 	case "queue", "score", "rubric":
-		slug, err := eventSlug(args)
-		if err != nil {
-			return mcp.Output{}, err
-		}
-		res := c.Do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug), nil, nil)
-		if !res.OK() {
-			return mcp.Output{}, hackRestError("hack_show_judge", res)
-		}
-		var body struct {
-			Event map[string]any `json:"event"`
-			Role  string         `json:"role"`
-			Can   struct {
-				Judge bool `json:"judge"`
-			} `json:"can"`
-		}
-		if err := json.Unmarshal(res.Body(), &body); err != nil {
-			return mcp.Output{}, errors.New("hack_show_judge: server returned invalid JSON")
-		}
-		// Personal judging views use the same canonical capability as the website.
-		if !body.Can.Judge {
-			return mcp.Output{}, errors.New("hack_show_judge is for a judge of this event")
-		}
-		structured := map[string]any{"view": view, "slug": slug, "event": hackShowJudgeEventFields(body.Event)}
-		if teamID, _ := args["team_id"].(string); teamID != "" {
-			structured["team_id"] = teamID
-		}
-		// Fixed sentences, no event title or other free text (Grok
-		// security review, SIM-344): slug is a constrained, organiser-
-		// chosen identifier (3 to 39 lowercase letters, numbers and
-		// hyphens; hack_check_event_name enforces the shape), not open
-		// text, so it stays.
-		verb := map[string]string{"queue": "the judging queue", "score": "scoring", "rubric": "the rubric"}[view]
-		out := mcp.Output{Text: "Opened " + verb + " for " + slug + ".", Structured: structured}
-		// About/rules/prizes (judge-rubric.js's brief card) ride in _meta,
-		// not content or structuredContent (coordinator follow-up, SIM-344:
-		// Grok finding 2 was "no organiser prose reaches the model", and
-		// these three are exactly that -- the one place they had landed,
-		// after the first round of fixes, was still inside structuredContent,
-		// which a model sees the same as the view does). _meta on a tool
-		// result is this codebase's own established channel for "the view
-		// needs this, the model does not": site_analytics already puts its
-		// daily chart series there (tools.go, "would swamp a conversation"),
-		// read by my-sites.js via SHApp.callToolResult (the bridge method
-		// that keeps _meta; the plain callTool it also offers returns only
-		// structuredContent, discarding _meta -- bridge.js's own doc
-		// comment: "Raw results retain host-only metadata"). The glue
-		// script (hack-judge-view.js's refreshEvent) reads it the same way
-		// and merges it back onto ctx.event, so judge-rubric.js needs no
-		// change at all to keep reading ev.about/ev.rules/ev.prizes.
-		if text := hackShowJudgeEventText(body.Event); len(text) > 0 {
-			out.Meta = map[string]any{"simple-hack/event-text": text}
-		}
-		return out, nil
-	default:
-		return mcp.Output{}, errors.New("view must be invite, queue, score or rubric")
+		return showJudgeEvent(c, args, view)
 	}
+	return mcp.Output{}, errors.New("view must be invite, queue, score or rubric")
+}
+
+// showJudgeInvite opens the invite view. No organiser-authored title (or
+// anything else from the REST body) in the text: a fixed sentence only
+// (Grok security review, SIM-344), since that text is as visible to the
+// model as to the frame.
+func showJudgeInvite(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	code, err := mcp.StringArg(args, "code")
+	if err != nil {
+		return mcp.Output{}, errors.New("code is required for view invite")
+	}
+	if _, err := hackDo(c, "hack_show_judge", http.MethodGet, "/v1/hack/judge/"+url.PathEscape(code), nil); err != nil {
+		return mcp.Output{}, err
+	}
+	return mcp.Output{Text: "Opened the judge invite.", Structured: map[string]any{"view": "invite", "code": code}}, nil
+}
+
+var judgeViewNames = map[string]string{"queue": "the judging queue", "score": "scoring", "rubric": "the rubric"}
+
+// showJudgeEvent opens a judging view of one event, for a judge of it
+// (the same canonical capability as the website). The text is a fixed
+// sentence: slug is a constrained identifier, not open text (Grok security
+// review, SIM-344). About/rules/prizes (judge-rubric.js's brief card) ride
+// in _meta, the channel a model never reads (bridge.js callToolResult),
+// never in content or structuredContent.
+func showJudgeEvent(c *mcp.Call, args map[string]any, view string) (mcp.Output, error) {
+	slug, err := eventSlug(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	teamID, err := mcp.OptionalString(args, "team_id")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	raw, err := hackDo(c, "hack_show_judge", http.MethodGet, eventPath(slug, ""), nil)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	var body struct {
+		Event map[string]any `json:"event"`
+		Can   struct {
+			Judge bool `json:"judge"`
+		} `json:"can"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return mcp.Output{}, errors.New("hack_show_judge: server returned invalid JSON")
+	}
+	if !body.Can.Judge {
+		return mcp.Output{}, errors.New("hack_show_judge is for a judge of this event")
+	}
+	structured := map[string]any{"view": view, "slug": slug, "event": hackShowJudgeEventFields(body.Event)}
+	if teamID != "" {
+		structured["team_id"] = teamID
+	}
+	out := mcp.Output{Text: "Opened " + judgeViewNames[view] + " for " + slug + ".", Structured: structured}
+	if text := hackShowJudgeEventText(body.Event); len(text) > 0 {
+		out.Meta = map[string]any{"simple-hack/event-text": text}
+	}
+	return out, nil
 }
 
 // hackShowJudgeEventFields is the only shape of an event this tool's

@@ -45,10 +45,7 @@ func (AccountErasure) After(ctx context.Context, tx *sql.Tx, adminTeamIDs []stri
 			return affected, err
 		}
 		if members == 0 {
-			// Not keepable (frozen or pinned): kept for good and locked, the
-			// same as a voluntary last-member leave past the deadline, and
-			// its code rotated so the dead link that used to work for this
-			// person stops working for anyone else too.
+			// Not keepable (frozen or pinned).
 			if err := hackevents.MarkTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
 				return affected, err
 			}
@@ -57,10 +54,7 @@ func (AccountErasure) After(ctx context.Context, tx *sql.Tx, adminTeamIDs []stri
 			}
 			continue
 		}
-		// Members remain: give them a successor. hackteams.EnsureTeamAdmin locks
-		// that team's remaining members (sorted), then the team row, so
-		// running this sequentially here (never concurrently with itself)
-		// carries no extra deadlock risk.
+		// Members remain: give them a successor.
 		if err := hackteams.EnsureTeamAdmin(ctx, tx, teamID); err != nil {
 			return affected, err
 		}

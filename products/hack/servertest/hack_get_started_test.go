@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/handler"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
@@ -338,7 +338,7 @@ func TestHackWithdrawnPlatformDownloads(t *testing.T) {
 	sh := chromeTestHandler(productedition.Hack)
 	mux := http.NewServeMux()
 	hackhttp.RegisterHackGetStarted(mux, sh.Pages(), hackAssetsFor(sh))
-	handler.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
+	siteshttp.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
 	for path, want := range map[string]string{
 		"/plugin.zip":  "this legacy plugin download was withdrawn\n",
 		"/install.sh":  "this installer was withdrawn\n",

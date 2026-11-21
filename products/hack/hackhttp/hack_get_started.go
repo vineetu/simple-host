@@ -10,9 +10,6 @@ import (
 )
 
 // RegisterHackGetStarted mounts Hack onboarding and the preserved toolkit URLs.
-// product is the one Assets of this install (Extension.Assets): it owns the
-// skill bundle, built once and shared with /skills.zip, and the
-// instance-specific archive rewriting.
 func RegisterHackGetStarted(mux *http.ServeMux, pages hackPages, product *Assets) {
 	assets := pages
 	mux.HandleFunc("GET /hack-skills.zip", product.ServeHackSkillsZip())

@@ -1,20 +1,18 @@
 package hackhttp
 
 import (
-	"database/sql"
-	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/products/hack/app/members"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// These hooks annotate the outer paper collector using resolutions the
-// handler already performed. With collection off they are context lookups
-// only.
+// These hooks annotate the outer paper collector using resolutions the handler
+// already performed.
 func paperHackEvent(r *http.Request, ev hackmodel.Event) {
 	paperRecorder(r.Context()).ResolveHackEvent(r.Context(), ev.Slug, ev.Stage, "", ev.ResultsPublishedAt.Time)
 	paperHackUser(r, auth.GetUser(r.Context()))
@@ -39,22 +37,31 @@ func paperHackStage(r *http.Request, ev hackmodel.Event) {
 	paperRecorder(r.Context()).RecordHackStage(r.Context(), ev.ID, ev.Stage, ev.UpdatedAt)
 }
 
-// rateLimited meters code lookups and joins: per network address (roomy,
-// since a venue shares one) and, when signed in, per account.
-//
-// A signed-in caller is metered by account only: an account costs an email
-// round trip, and a venue's shared address must not let one stranger's
-// anonymous lookups lock everyone there out of joining.
-func (h *hackBase) rateLimited(w http.ResponseWriter, r *http.Request, userID string) bool {
-	if userID == "" && !h.codesIP.AllowHTTP(w, httpx.ClientIP(r)) {
-		httpx.TooManyRequests(w)
-		return true
+// codeLimiter meters code lookups and joins: per network address (roomy, since
+// a venue shares one) and, when signed in, per account.
+type codeLimiter struct {
+	ip, user *httpx.RateLimiter
+}
+
+func newCodeLimiter(limits productconfig.Limits) codeLimiter {
+	return codeLimiter{
+		ip:   httpx.NewRateLimiter(float64(limits.RateEventCodesIP.Burst), limits.RateEventCodesIP.PerSecond()),
+		user: httpx.NewRateLimiter(float64(limits.RateEventCodesUser.Burst), limits.RateEventCodesUser.PerSecond()),
 	}
-	if userID != "" && !h.codesUser.AllowHTTP(w, userID) {
-		httpx.TooManyRequests(w)
-		return true
+}
+
+// limited answers 429 and reports true when the caller is over its limit.
+func (c *codeLimiter) limited(w http.ResponseWriter, r *http.Request, userID string) bool {
+	var allowed bool
+	if userID == "" {
+		allowed = c.ip.AllowHTTP(w, httpx.ClientIP(r))
+	} else {
+		allowed = c.user.AllowHTTP(w, userID)
 	}
-	return false
+	if !allowed {
+		httpx.TooManyRequests(w)
+	}
+	return !allowed
 }
 
 // applyLimited meters POST apply: a signed-in caller is metered by both its
@@ -92,73 +99,23 @@ type hackAccess struct {
 	admin  bool
 }
 
-// loadMember loads the event and the caller's membership. Non-members get 404
-// event_not_found (including a wrong-role member on a role-gated route). The
-// admin key may read any event it is not in as organiser (admin is true only
-// then); writes need membership. A platform admin who joined an event is an
-// ordinary member there, with no admin bypass. write is true for mutating routes.
-func (h *hackBase) loadMember(w http.ResponseWriter, r *http.Request, slug string, write bool, roles ...string) (hackAccess, bool) {
-	var z hackAccess
+// loadMember resolves the signed-in caller in the event (members.Caller owns
+// the decision) and writes the refusal when there is one.
+func loadMember(w http.ResponseWriter, r *http.Request, svc *members.Service, slug string, write bool, roles ...string) (hackAccess, bool) {
 	user := hackNeedUser(w, r)
 	if user == nil {
-		return z, false
+		return hackAccess{}, false
 	}
-	slug = strings.ToLower(strings.TrimSpace(slug))
-	ev, err := h.events.EventBySlug(r.Context(), slug)
-	if err == nil {
-		paperHackEvent(r, ev)
+	c, err := svc.Caller(r.Context(), slug, user.ID, user.IsAdmin, write, roles...)
+	if c.Event.ID != "" {
+		paperHackEvent(r, c.Event)
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		writeEventNotFound(w)
-		return z, false
+	if c.Member.Role != "" && !c.Admin {
+		paperHackKnownMember(r, c.Event, user.ID)
 	}
 	if err != nil {
-		httpx.WriteInternal(w)
-		return z, false
+		writeHackError(w, err)
+		return hackAccess{}, false
 	}
-	m, err := h.events.EventMember(r.Context(), ev.ID, user.ID)
-	if err == nil {
-		paperHackKnownMember(r, ev, user.ID)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		if user.IsAdmin && !write {
-			z = hackAccess{event: ev, member: hackmodel.EventMember{EventID: ev.ID, UserID: user.ID, Role: "organiser"}, user: user, admin: true}
-			return z, true
-		}
-		writeEventNotFound(w)
-		return z, false
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return z, false
-	}
-	if m.Role == "participant" && (write || len(roles) > 0) {
-		status, err := h.members.MemberApprovalStatusLookup(r.Context(), ev.ID, user.ID)
-		if err != nil {
-			httpx.WriteInternal(w)
-			return z, false
-		}
-		if status != "approved" {
-			httpx.WriteError(w, http.StatusForbidden, "approval_"+status, "your application is "+status)
-			return z, false
-		}
-	}
-	if len(roles) > 0 {
-		ok := false
-		for _, role := range roles {
-			if m.Role == role {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			writeEventNotFound(w)
-			return z, false
-		}
-	}
-	if write && ev.TakenDown() {
-		httpx.WriteError(w, http.StatusForbidden, "event_taken_down", "this event has been taken down")
-		return z, false
-	}
-	return hackAccess{event: ev, member: m, user: user}, true
+	return hackAccess{event: c.Event, member: c.Member, user: user, admin: c.Admin}, true
 }

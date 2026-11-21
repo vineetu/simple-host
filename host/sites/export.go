@@ -102,37 +102,57 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 	})
 }
 
+// writeStorageArchive writes the site's saved data under prefix/storage/:
+// resources, file writers and KV entries as JSON, then the runtime tree.
 func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
 	resources, err := s.deps.ExportResources(ctx, siteID)
 	if err != nil {
 		return err
 	}
 	if len(resources) > 0 {
-		b, e := json.MarshalIndent(map[string]any{"resources": resources}, "", "  ")
-		if e != nil {
-			return e
+		b, err := json.MarshalIndent(map[string]any{"resources": resources}, "", "  ")
+		if err != nil {
+			return err
 		}
-		if e = putBytes(put, prefix+"/storage/resources.json", b); e != nil {
-			return e
+		if err := putBytes(put, prefix+"/storage/resources.json", b); err != nil {
+			return err
 		}
 	}
-	fileOwners, e := repo.ExportFileOwners(ctx, s.database, siteID)
-	if e != nil {
-		return e
+	fileOwners, err := repo.ExportFileOwners(ctx, s.database, siteID)
+	if err != nil {
+		return err
 	}
 	if len(fileOwners) > 0 {
-		b, e := json.Marshal(map[string]any{"items": fileOwners})
-		if e != nil {
-			return e
+		b, err := json.Marshal(map[string]any{"items": fileOwners})
+		if err != nil {
+			return err
 		}
-		if e = putBytes(put, prefix+"/storage/file-writers.json", b); e != nil {
-			return e
+		if err := putBytes(put, prefix+"/storage/file-writers.json", b); err != nil {
+			return err
 		}
 	}
+	entries, err := s.exportKVEntries(ctx, siteID, runtime)
+	if err != nil {
+		return err
+	}
+	if len(entries) > 0 {
+		b, err := json.MarshalIndent(map[string]any{"items": entries}, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := putBytes(put, prefix+"/storage/kv.json", b); err != nil {
+			return err
+		}
+	}
+	return s.writeRuntimeArchive(ctx, put, prefix, siteID, runtime)
+}
+
+// exportKVEntries reads every KV namespace's runtime database, in database order.
+func (s *Service) exportKVEntries(ctx context.Context, siteID, runtime string) ([]repo.ExportKVEntry, error) {
 	entries := []repo.ExportKVEntry{}
 	names, err := repo.ExportKVNamespaces(ctx, s.database, siteID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, name := range names {
 		err := s.deps.AdmitSQLite(ctx, siteID, func(ctx context.Context) error {
@@ -151,27 +171,21 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 			return nil
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
+	}
+	if len(names) == 0 {
+		return entries, nil
 	}
 	// Preserve the export's existing database collation: the keys are read
 	// from SQLite, whose visitor list uses byte order.
-	if len(names) > 0 {
-		entries, err = repo.OrderExportKV(ctx, s.database, entries)
-		if err != nil {
-			return err
-		}
-	}
+	return repo.OrderExportKV(ctx, s.database, entries)
+}
 
-	if len(entries) > 0 {
-		b, e := json.MarshalIndent(map[string]any{"items": entries}, "", "  ")
-		if e != nil {
-			return e
-		}
-		if e = putBytes(put, prefix+"/storage/kv.json", b); e != nil {
-			return e
-		}
-	}
+// writeRuntimeArchive copies the runtime tree under prefix/storage/runtime/,
+// checkpointing each SQLite database first and leaving out the KV folder,
+// half-deleted folders and SQLite side files.
+func (s *Service) writeRuntimeArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
 	if _, err := os.Stat(runtime); os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
@@ -184,33 +198,27 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 		if d.IsDir() && (strings.HasPrefix(d.Name(), ".deleting-") || p == filepath.Join(runtime, "kv")) {
 			return filepath.SkipDir
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if !d.Type().IsRegular() {
-			return nil
-		}
-		if strings.HasSuffix(p, "-wal") || strings.HasSuffix(p, "-shm") {
+		if d.IsDir() || !d.Type().IsRegular() || strings.HasSuffix(p, "-wal") || strings.HasSuffix(p, "-shm") {
 			return nil
 		}
 		if strings.HasSuffix(p, ".sqlite") {
-			if e := s.deps.AdmitSQLite(ctx, siteID, func(ctx context.Context) error {
+			if err := s.deps.AdmitSQLite(ctx, siteID, func(ctx context.Context) error {
 				return storage.CheckpointExportSQLite(ctx, p, s.deps.ExportSQLiteMaxMemory)
-			}); e != nil {
-				return e
+			}); err != nil {
+				return err
 			}
 		}
-		rel, e := filepath.Rel(runtime, p)
-		if e != nil {
-			return e
+		rel, err := filepath.Rel(runtime, p)
+		if err != nil {
+			return err
 		}
-		info, e := d.Info()
-		if e != nil {
-			return e
+		info, err := d.Info()
+		if err != nil {
+			return err
 		}
-		f, e := os.Open(p)
-		if e != nil {
-			return e
+		f, err := os.Open(p)
+		if err != nil {
+			return err
 		}
 		defer f.Close()
 		return put(prefix+"/storage/runtime/"+filepath.ToSlash(rel), info.ModTime(), info.Size(), f)

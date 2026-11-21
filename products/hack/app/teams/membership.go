@@ -2,8 +2,8 @@ package teams
 
 import (
 	"context"
+	"errors"
 
-	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
@@ -11,72 +11,79 @@ import (
 )
 
 // LeaveTeam takes a participant off their team; they stop editing its site.
-func (s *Service) LeaveTeam(ctx context.Context, eventID, userID string) error {
+// A team past its deadline keeps its members.
+func (s *Service) LeaveTeam(ctx context.Context, ev model.Event, userID string) error {
+	if err := participantStage(ev.Stage); err != nil {
+		return err
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err = teamrepo.LeaveTeam(ctx, tx, eventID, userID, teamrepo.EnsureTeamAdmin); err != nil {
+	err = teamrepo.LeaveTeam(ctx, tx, ev.ID, userID, teamrepo.EnsureTeamAdmin)
+	if errors.Is(err, ErrTeamFrozen) {
+		return &Error{Code: "submissions_closed", Message: "your team's deadline has passed, so the team can't change; ask the organiser"}
+	}
+	if err != nil {
 		return err
 	}
-	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
-	}
-	if err = tx.Commit(); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
-	}
-	return nil
+	return syncAndCommit(ctx, tx, ev.ID)
 }
 
-// DeleteTeam deletes a team and queues member notices; its members stop
-// editing its site.
-func (s *Service) DeleteTeam(ctx context.Context, eventID, slug string) error {
-	team, err := teamrepo.GetEventTeamBySlug(ctx, s.db, eventID, slug)
+// DeleteTeam deletes the team rawSlug names and queues member notices; its
+// members stop editing its site.
+func (s *Service) DeleteTeam(ctx context.Context, ev model.Event, rawSlug string) error {
+	if err := organiserStage(ev.Stage, msgArchived); err != nil {
+		return err
+	}
+	team, err := teamBySlug(ctx, s.db, ev.ID, rawSlug)
 	if err != nil {
 		return err
 	}
 	// The handler sends the team site to Recently deleted after commit.
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
+		return internalError(err)
 	}
 	defer tx.Rollback()
-	if _, err = teamrepo.SetTeamRemovalNotices(ctx, tx, team.ID, team.Name+" was removed by the organiser."); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
+	notice := team.Name + " was removed by the organiser."
+	if _, err = teamrepo.SetTeamRemovalNotices(ctx, tx, team.ID, notice); err != nil {
+		return internalError(err)
 	}
-	if err = eventrepo.NotifyTeamMembers(ctx, tx, eventID, team.ID, eventrepo.NoticeTeamRemoved, team.Name+" was removed by the organiser.", ""); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
+	if err = eventrepo.NotifyTeamMembers(ctx, tx, ev.ID, team.ID, eventrepo.NoticeTeamRemoved, notice, ""); err != nil {
+		return internalError(err)
 	}
 	if err = teamrepo.DeleteEventTeam(ctx, tx, team.ID); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
+		return internalError(err)
 	}
-	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
-	}
-	if err = tx.Commit(); err != nil {
-		return &Error{Code: "internal", Message: err.Error()}
-	}
-	return nil
+	return syncAndCommit(ctx, tx, ev.ID)
 }
 
-// JoinTeam joins a team under the event lock and checks its deadline.
-func (s *Service) JoinTeam(ctx context.Context, eventID, userID, code string, max int) (model.EventTeam, error) {
+// JoinTeam joins the team with code under the event lock and checks its
+// deadline. An empty code is team_not_found.
+func (s *Service) JoinTeam(ctx context.Context, ev model.Event, userID, code string) (model.EventTeam, error) {
+	if err := participantStage(ev.Stage); err != nil {
+		return model.EventTeam{}, err
+	}
+	if code == "" {
+		return model.EventTeam{}, ErrTeamNotFound
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.EventTeam{}, internalError(err)
 	}
 	defer tx.Rollback()
-	// The handler's pre-BEGIN stage check is a cheap early rejection; recheck
-	// under the event lock, before JoinTeamByCode locks member then team.
-	stage, err := LockEventStage(ctx, tx, eventID)
+	// Recheck the stage under the event lock, before JoinTeamByCode locks
+	// member then team.
+	stage, err := LockEventStage(ctx, tx, ev.ID)
 	if err != nil {
 		return model.EventTeam{}, internalError(err)
 	}
 	if !hackteams.ParticipantTeamStages(stage) {
-		return model.EventTeam{}, &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
+		return model.EventTeam{}, errTeamsLocked()
 	}
-	team, err := teamrepo.JoinTeamByCode(ctx, tx, eventID, userID, code, max, teamrepo.EnsureTeamAdmin)
+	team, err := teamrepo.JoinTeamByCode(ctx, tx, ev.ID, userID, code, ev.TeamSizeMax, teamrepo.EnsureTeamAdmin)
 	if err != nil {
 		return team, err
 	}
@@ -86,13 +93,7 @@ func (s *Service) JoinTeam(ctx context.Context, eventID, userID, code string, ma
 		return team, internalError(err)
 	}
 	if st.Frozen() {
-		return team, &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
+		return team, errDeadlinePassed()
 	}
-	if err = eventapp.SyncAccess(ctx, tx, eventID); err != nil {
-		return team, internalError(err)
-	}
-	if err = tx.Commit(); err != nil {
-		return team, internalError(err)
-	}
-	return team, nil
+	return team, syncAndCommit(ctx, tx, ev.ID)
 }

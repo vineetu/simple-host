@@ -35,13 +35,12 @@ type patchEventReq struct {
 	OverallPrizes      *[]string `json:"overall_prizes"`
 	GalleryOpen        *bool     `json:"gallery_open"`
 	SubmissionsPublic  *bool     `json:"submissions_public"`
-	// 0003-hack-notices-judges-messages.sql: when judging closes. Same
-	// parsing as submission_deadline; "" or null clears it.
+	// 0003-hack-notices-judges-messages.sql: when judging closes.
 	JudgingEndsAt *string `json:"judging_ends_at"`
 }
 
 func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -55,7 +54,7 @@ func (h *HackHandler) patchEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if deadlineChanged {
-		h.pinDue(r.Context(), a.event.ID)
+		h.links.pinDue(r.Context(), a.event.ID)
 	}
-	httpx.WriteJSON(w, http.StatusOK, h.eventView(r.Context(), updated, a.member, true))
+	httpx.WriteJSON(w, http.StatusOK, h.views.eventView(r.Context(), updated, a.member, true))
 }

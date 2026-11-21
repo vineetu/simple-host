@@ -22,9 +22,8 @@ type Event struct {
 	WebsiteMode          string
 	IconMediaType        string
 	AccentColor          string
-	// 0011-hack-event-theme.sql (SIM-353): whole-page style for the public
-	// event page; "" is Classic (today's look). AccentColor still drives
-	// buttons, links and the icon under every theme.
+	// 0011-hack-event-theme.sql (SIM-353): whole-page style for the public event
+	// page; "" is Classic (today's look).
 	Theme              string
 	About              string
 	Rules              string
@@ -55,7 +54,6 @@ type Event struct {
 	SubmissionsPublic bool
 	GalleryOpen       bool
 	// M3 (hack3-judging.sql): how judges are spread, and the score lock.
-	// JudgingLockReason is cleared on unlock; the reason itself is logged.
 	OrganiserJudges     []string
 	JudgeAssignmentMode string
 	JudgesPerTeam       int
@@ -65,36 +63,21 @@ type Event struct {
 	TieCriterionID      sql.NullString
 	PublicScores        bool
 	PublicRanks         bool
-	// Applications without a join link (zp-hack-applications.sql). On by
-	// default; the organiser's Settings switch.
+	// Applications without a join link (zp-hack-applications.sql).
 	ApplicationsOpen bool
-	// Listed in Find a hackathon (Results settings). Applications are taken
-	// only from listed events (owner, 2026-10-31).
+	// Listed in Find a hackathon (Results settings).
 	DirectoryListed bool
-	// zv-hack-entry-summary.sql: the entry rules engine. EntryRules is
-	// {"v":1,"fields":{field: mode}}, validated and expanded server-side
-	// (host/rules/hackentries/entries.go) -- never stored as the client
-	// sent it. JudgeFirst is which evidence judges see first.
+	// zv-hack-entry-summary.sql: the entry rules engine.
 	EntryPreset string
 	EntryRules  []byte
 	JudgeFirst  string
-	// 0005-hack-entry-rules-chosen.sql (SIM-382): whether an organiser has
-	// ever saved entry rules on this event. New events start false, with
-	// the default preset's fields already in place (so entries can be
-	// filled before the organiser visits the setting) -- false only drives
-	// the Overview "Choose what teams hand in" first step. Every event
-	// that existed before this column was added counts as already chosen.
-	// Any real PutRules save (including saving the unchanged default) sets
-	// it true for good; it never goes back to false.
+	// 0005-hack-entry-rules-chosen.sql (SIM-382): whether an organiser has ever
+	// saved entry rules on this event.
 	EntryRulesChosen bool
 	// 0003-hack-notices-judges-messages.sql: minutes before a deadline, 0..5
-	// entries each 15..20160, distinct, stored sorted descending. Drives both
-	// entry reminders (participants) and judging reminders (judges).
-	// int64, not int: lib/pq's array Scan only knows a fixed set of element
-	// types, int64 among them.
+	// entries each 15..20160, distinct, stored sorted descending.
 	ReminderOffsets []int64
-	// When judging closes, set like the event's other times. NULL means
-	// judges get no reminder.
+	// When judging closes, set like the event's other times.
 	JudgingEndsAt sql.NullTime
 }
 
@@ -152,18 +135,13 @@ type EventPerson struct {
 	JoinedAt       time.Time
 	CocAcceptedAt  sql.NullTime
 	ApprovalStatus string
-	// zp-hack-applications.sql. JoinedVia is on every EventPerson row
-	// (GET /people and the participants CSV); the profile fields are read
-	// only where ListEventPeople is used, since the CSV needs them (D3:
-	// they never reach GET /people's JSON).
+	// zp-hack-applications.sql.
 	JoinedVia string
 	City      string
 	Country   string
 	AgeRange  string
 	Gender    string
-	// zt-hack-teams-redesign.sql. Read by ListTeamPeople and ListEventPeople
-	// (the organiser team list groups the latter by team); listPeople's own
-	// JSON does not expose it, since GET /people is not a team view.
+	// zt-hack-teams-redesign.sql.
 	Admin bool
 }
 
@@ -248,11 +226,6 @@ type FillPerson struct {
 }
 
 // FillSkippedTeam is a team with room the planner deliberately passed over.
-// Reported back so the preview can explain the skip ("Beta Builders isn't
-// taking new people, so it was skipped.") instead of silently starting a
-// new one-person team while that team still has room. Teams skipped because
-// they're already at the target size need no explanation, so those aren't
-// reported here.
 type FillSkippedTeam struct {
 	Team   string `json:"team"`
 	Name   string `json:"name"`

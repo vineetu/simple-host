@@ -3,6 +3,8 @@ package mcp
 import (
 	"strconv"
 	"time"
+
+	"github.com/vsriram/simple-host/host/edition"
 )
 
 // Limits are the operational times the tool descriptions, instructions and
@@ -20,6 +22,22 @@ type Limits struct {
 	DomainLapseWarnAfter time.Duration // DOMAIN_LAPSE_WARN_HOURS
 	DomainLapseAfter     time.Duration // DOMAIN_LAPSE_HOURS
 	FamilyUnprovenTTL    time.Duration // ADDRESS_FAMILY_UNPROVEN_HOURS
+}
+
+// LimitsOf maps the instance's limits to the ones the connector states.
+func LimitsOf(l edition.Limits) Limits {
+	return Limits{
+		DeletedRetention:     l.DeletedRetention,
+		PreviewLinkTTL:       l.PreviewLinkTTL,
+		ExportLinkTTL:        l.ExportLinkTTL,
+		IdleAfter:            l.IdleAfter,
+		IdleGrace:            l.IdleGrace,
+		DomainUnprovenTTL:    l.DomainUnprovenTTL,
+		DomainLapseWarnAfter: l.DomainLapseWarnAfter,
+		DomainLapseAfter:     l.DomainLapseAfter,
+		SiteViewersMax:       l.SiteViewersMax,
+		FamilyUnprovenTTL:    l.FamilyUnprovenTTL,
+	}
 }
 
 // DefaultLimits is today's behaviour. host/handler's tests check it

@@ -40,7 +40,7 @@ func TestHackFlatHostsRealEventWins(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE users SET handle=$1 WHERE id=$2`, flat, account); err != nil {
 		t.Fatal(err)
 	}
-	a.sites.SetGroupHosts(hackhttp.NewGroupHosts(a.database, func(w http.ResponseWriter, r *http.Request, u model.User) bool {
+	a.sites.Hosts.SetGroupHosts(hackhttp.NewGroupHosts(a.database, func(w http.ResponseWriter, r *http.Request, u model.User) bool {
 		if u.ID != account {
 			return false
 		}

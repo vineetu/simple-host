@@ -4,14 +4,14 @@ import (
 	"context"
 
 	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/oauth"
 	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/handler"
 )
 
 // OAuthSettings adapts configured sign-in providers for the HTTP transport.
-func OAuthSettings(cfg config.Config, service *accounts.Service) handler.OAuthSettings {
-	return handler.OAuthSettings{
+func OAuthSettings(cfg config.Config, service *accounts.Service) accesshttp.OAuthSettings {
+	return accesshttp.OAuthSettings{
 		PublicBaseURL: cfg.PublicBaseURL, SiteDomain: cfg.SiteDomain, ContentHost: cfg.ContentHost, CNAMETarget: cfg.CNAMETarget, CustomDomainIP: cfg.CustomDomainIP, CustomDomainIPAlso: cfg.CustomDomainIPAlso, OIDCLabel: cfg.OIDCLabel, EmailEnabled: cfg.EmailSignInEnabled(), PasswordEnabled: cfg.PasswordSignIn == "on", PasswordSelfSignup: cfg.PasswordSelfSignup != "off",
 		SignIn: configuredProviderSignIn(service, cfg),
 	}

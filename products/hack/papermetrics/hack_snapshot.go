@@ -10,8 +10,7 @@ import (
 	"time"
 )
 
-// These columns are also the export contract. Only stage is text, constrained
-// to the fixed lifecycle enum by the table. Identifiers stay in local variables.
+// These columns are also the export contract.
 var hackEventCols = []string{
 	"snapshot_day", "event_key", "run_id", "synthetic", "stage", "created_week", "duration_hours", "expected_participants",
 	"participants", "organisers", "judges", "applications", "applications_approved",
@@ -21,8 +20,7 @@ var hackEventCols = []string{
 	"votes", "announcements", "results_published", "deploys_total", "minutes_create_to_first_deploy",
 }
 
-// Every scalar is queried separately: a missing source column only leaves that
-// metric NULL; other columns and events are still snapshotted.
+// Every scalar is queried separately: a missing source column only leaves that metric NULL; other columns and events are still snapshotted.
 var hackEventQueries = map[string]string{
 	"participants":           `SELECT count(*) FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved'`,
 	"organisers":             `SELECT count(*) FROM event_members WHERE event_id=$1 AND role='organiser'`,
@@ -57,6 +55,7 @@ type hackSnapshotEvent struct {
 	values      map[string]any
 }
 
+// hackSnapshot records one row per Hack event for today, once a day: it loads the events, measures each, then writes them in one transaction.
 func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) (resultErr error) {
 	defer func() {
 		if resultErr != nil {
@@ -76,16 +75,27 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) (resultErr 
 	}
 	day := now.UTC().Format("2006-01-02")
 	var done bool
-	if err := c.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM paper_hack_event WHERE snapshot_day=$1)`, day).Scan(&done); err != nil {
+	if err := c.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM paper_hack_event WHERE snapshot_day=$1)`, day).Scan(&done); err != nil || done {
 		return err
 	}
-	if done {
-		return nil
-	}
-	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.account_id::text,k.event_key,k.synthetic,e.stage,date_trunc('week',e.created_at AT TIME ZONE 'UTC')::date FROM events e JOIN paper_hack_key k ON k.event_id=e.id`)
+	events, err := c.hackSnapshotEvents(ctx, day, run)
 	if err != nil {
 		return err
 	}
+	for _, e := range events {
+		c.measureHackEvent(ctx, e)
+		c.hackSiteSnapshot(ctx, e)
+	}
+	return c.writeHackEvents(ctx, events)
+}
+
+// hackSnapshotEvents loads every keyed event with its identifying columns.
+func (c *Collector) hackSnapshotEvents(ctx context.Context, day string, run int64) ([]hackSnapshotEvent, error) {
+	rows, err := c.db.QueryContext(ctx, `SELECT e.id::text,e.account_id::text,k.event_key,k.synthetic,e.stage,date_trunc('week',e.created_at AT TIME ZONE 'UTC')::date FROM events e JOIN paper_hack_key k ON k.event_id=e.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 	var events []hackSnapshotEvent
 	for rows.Next() {
 		e := hackSnapshotEvent{values: map[string]any{"snapshot_day": day}}
@@ -95,44 +105,50 @@ func (c *Collector) hackSnapshot(ctx context.Context, now time.Time) (resultErr 
 		var week time.Time
 		if err := rows.Scan(&e.id, &e.account, &key, &synthetic, &stage, &week); err != nil {
 			c.tracker.Fail("scan Hack metadata", err)
-			rows.Close()
-			return err
+			return nil, err
 		}
 		e.values["event_key"], e.values["run_id"], e.values["synthetic"], e.values["stage"], e.values["created_week"] = key, run, synthetic, stage, week
 		events = append(events, e)
 	}
-	rows.Close()
-	if rows.Err() != nil {
-		c.tracker.Fail("read Hack metadata", rows.Err())
-		return rows.Err()
+	if err := rows.Err(); err != nil {
+		c.tracker.Fail("read Hack metadata", err)
+		return nil, err
 	}
-	for _, e := range events {
-		for col, query := range hackEventQueries {
-			var value any
-			if err := c.db.QueryRowContext(ctx, query, e.id).Scan(&value); err != nil {
-				c.tracker.Fail("Hack column "+col, err)
-				log.Printf("paper metrics Hack column %s: %v", col, err)
-				continue
-			}
-			e.values[col] = value
+	return events, nil
+}
+
+// measureHackEvent runs each column's query for one event; a failing query is logged and leaves only that column NULL.
+func (c *Collector) measureHackEvent(ctx context.Context, e hackSnapshotEvent) {
+	for col, query := range hackEventQueries {
+		var value any
+		if err := c.db.QueryRowContext(ctx, query, e.id).Scan(&value); err != nil {
+			c.tracker.Fail("Hack column "+col, err)
+			log.Printf("paper metrics Hack column %s: %v", col, err)
+			continue
 		}
-		c.hackSiteSnapshot(ctx, e)
+		e.values[col] = value
 	}
+}
+
+// writeHackEvents inserts the day's rows, keeping daily history so stable event keys can be joined across snapshots.
+func (c *Collector) writeHackEvents(ctx context.Context, events []hackSnapshotEvent) error {
 	var written int64
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback() //nolint:errcheck
-	// Keep daily history so stable event keys can be joined across snapshots.
+	marks := make([]string, len(hackEventCols))
+	for i := range hackEventCols {
+		marks[i] = fmt.Sprintf("$%d", i+1)
+	}
+	insert := `INSERT INTO paper_hack_event (` + strings.Join(hackEventCols, ",") + `) VALUES (` + strings.Join(marks, ",") + `) ON CONFLICT (snapshot_day,event_key) DO NOTHING`
 	for _, e := range events {
 		values := make([]any, len(hackEventCols))
-		marks := make([]string, len(hackEventCols))
 		for i, col := range hackEventCols {
 			values[i] = e.values[col]
-			marks[i] = fmt.Sprintf("$%d", i+1)
 		}
-		if _, err := c.platform.ExecMetric(ctx, tx, &written, `INSERT INTO paper_hack_event (`+strings.Join(hackEventCols, ",")+`) VALUES (`+strings.Join(marks, ",")+`) ON CONFLICT (snapshot_day,event_key) DO NOTHING`, values...); err != nil {
+		if _, err := c.platform.ExecMetric(ctx, tx, &written, insert, values...); err != nil {
 			return err
 		}
 	}
@@ -183,8 +199,7 @@ func (c *Collector) hackSiteSnapshot(ctx context.Context, e hackSnapshotEvent) {
 			median = sizes[(len(sizes)-1)/2]
 		}
 		e.values["team_site_bytes_p50"] = median
-		// KV is not part of this counter: the shared daily
-		// kv_value_text_bytes series measures it.
+		// KV is not part of this counter: the shared daily kv_value_text_bytes series measures it.
 		e.values["event_storage_bytes"] = storage
 	}
 }

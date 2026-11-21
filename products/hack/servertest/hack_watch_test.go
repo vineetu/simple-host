@@ -3,6 +3,7 @@ package servertest
 import (
 	"fmt"
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +19,7 @@ import (
 func TestHackWatchPage(t *testing.T) {
 	sh := chromeTestHandlerWithBase(productedition.Hack, "https://simple-hack.app")
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
+	siteshttp.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	mountHackFiles(mux, sh)
 	hackhttp.RegisterHackHome(mux, sh.Pages(), hackAssetsFor(sh))
 	rec := get(t, mux, "simple-hack.app", "/watch")
@@ -48,7 +49,7 @@ func TestHackWatchPage(t *testing.T) {
 	}
 	sh2 := chromeTestHandlerWithBase(productedition.Hack, "https://hack.college.test")
 	mux2 := http.NewServeMux()
-	handler.RegisterUIRoutes(mux2, "https://simple-host.app", sh2)
+	siteshttp.RegisterUIRoutes(mux2, "https://simple-host.app", sh2)
 	mountHackFiles(mux2, sh2)
 	hackhttp.RegisterHackHome(mux2, sh2.Pages(), hackAssetsFor(sh2))
 	rewritten := get(t, mux2, "hack.college.test", "/watch").Body.String()
@@ -82,9 +83,9 @@ func TestHackWatchNarration(t *testing.T) {
 
 func TestHackWatchHostedOnly(t *testing.T) {
 	a := newHackApp(t)
-	sh, _, _ := handler.NewSiteHandlers(edition.Default(config.DefaultLimits()), "", a.database, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
+	sh, _, _ := handler.NewSiteHandlers(edition.Default(config.DefaultLimits()), "", a.database, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
 	mux := http.NewServeMux()
-	handler.RegisterUIRoutes(mux, "https://simple-host.app", sh)
+	siteshttp.RegisterUIRoutes(mux, "https://simple-host.app", sh)
 	for _, path := range []string{"/watch", "/hack-watch.html", "/v1/hack/demo", "/demo/join", "/demo/judge"} {
 		if rec := get(t, mux, "simple-host.app", path); rec.Code != 404 {
 			t.Errorf("unregistered hosted route %s: %d", path, rec.Code)

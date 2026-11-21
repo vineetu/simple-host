@@ -30,7 +30,7 @@ func TestTeamCodeFromInputTrailingSlashAndQuery(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := h.teamCodeFromInput(c.in); got != c.want {
+			if got := h.links.teamCodeFromInput(c.in); got != c.want {
 				t.Fatalf("%q: got %q want %q", c.in, got, c.want)
 			}
 		})

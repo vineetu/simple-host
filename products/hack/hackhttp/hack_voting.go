@@ -2,6 +2,7 @@ package hackhttp
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -27,7 +28,7 @@ func votingSettingsJSON(s entries.VotingConfig) map[string]any {
 }
 
 func (h *judgingHTTP) getVotingSettings(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -43,7 +44,7 @@ func (h *judgingHTTP) getVotingSettings(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *judgingHTTP) putVotingSettings(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -57,39 +58,19 @@ func (h *judgingHTTP) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	if err := entries.ValidateVotingEligibility(req.Eligibility); err != nil {
+	v, err := votingInput(a.event, req.Enabled, req.OpensAt, req.ClosesAt, req.Eligibility)
+	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	loc, err := time.LoadLocation(a.event.TimeZone)
-	if err != nil {
-		loc = time.UTC
-	}
-	var opens, closes sql.NullTime
-	if strings.TrimSpace(req.OpensAt) != "" {
-		opens, ok = parseEventTime(w, req.OpensAt, loc, "opens_at")
-		if !ok {
-			return
-		}
-	}
-	if strings.TrimSpace(req.ClosesAt) != "" {
-		closes, ok = parseEventTime(w, req.ClosesAt, loc, "closes_at")
-		if !ok {
-			return
-		}
-	}
-	if err := entries.ValidateVotingWindow(entries.VotingSettingsValue(req.Enabled, opens, closes, req.Eligibility)); err != nil {
-		writeHackError(w, err)
+	ev, s, removed, err := h.entries.ChangeVotingSettings(r.Context(), a.event.ID, v, req.ConfirmVoteRemoval)
+	var confirm *entries.VoteRemovalConfirmation
+	if errors.As(err, &confirm) {
+		httpx.WriteJSON(w, 409, map[string]any{"code": "vote_removal_confirmation", "error": "Confirm removal of earlier votes.", "votes_to_remove": confirm.Count})
 		return
 	}
-	ev, s, removed, err := h.entries.SaveVotingSettings(r.Context(), a.event.ID, entries.VotingSettingsValue(req.Enabled, opens, closes, req.Eligibility), req.ConfirmVoteRemoval)
 	if err != nil {
-		switch e := err.(type) {
-		case *entries.VoteRemovalConfirmation:
-			httpx.WriteJSON(w, 409, map[string]any{"code": "vote_removal_confirmation", "error": "Confirm removal of earlier votes.", "votes_to_remove": e.Count})
-		default:
-			writeHackError(w, err)
-		}
+		writeHackError(w, err)
 		return
 	}
 	out := votingSettingsJSON(s)
@@ -98,8 +79,30 @@ func (h *judgingHTTP) putVotingSettings(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, 200, out)
 }
 
+// votingInput reads a voting settings body: the eligibility, then the
+// window's times in the event's own zone (UTC when it has none that loads).
+func votingInput(ev hackmodel.Event, enabled bool, opensAt, closesAt, eligibility string) (entries.VotingConfig, error) {
+	v := entries.VotingSettingsValue(enabled, sql.NullTime{}, sql.NullTime{}, eligibility)
+	if err := entries.ValidateVotingEligibility(eligibility); err != nil {
+		return v, err
+	}
+	loc, err := time.LoadLocation(ev.TimeZone)
+	if err != nil {
+		loc = time.UTC
+	}
+	if strings.TrimSpace(opensAt) != "" {
+		if v.OpensAt, err = events.ParseEventTime(opensAt, loc, "opens_at"); err != nil {
+			return v, err
+		}
+	}
+	if strings.TrimSpace(closesAt) != "" {
+		v.ClosesAt, err = events.ParseEventTime(closesAt, loc, "closes_at")
+	}
+	return v, err
+}
+
 func (h *judgingHTTP) patchDirectoryListed(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -141,9 +144,8 @@ func (h *judgingHTTP) getVote(w http.ResponseWriter, r *http.Request) {
 	s, status := result.Settings, result.Status
 	out := map[string]any{"event": ev.Slug, "title": ev.Title, "status": status,
 		"opens_at": rfc3339UTC(s.OpensAt), "closes_at": rfc3339UTC(s.ClosesAt),
-		// time_zone lets the public vote page show the window in the
-		// event's own zone instead of the visitor's browser zone (Grok
-		// SIM-346 S5).
+		// time_zone lets the public vote page show the window in the event's own zone
+		// instead of the visitor's browser zone (Grok SIM-346 S5).
 		"time_zone": ev.TimeZone, "eligibility": s.Eligibility, "options": []any{}, "ranking": []any{}}
 	if status != "disabled" {
 		options := result.Options
@@ -154,7 +156,7 @@ func (h *judgingHTTP) getVote(w http.ResponseWriter, r *http.Request) {
 				title = v.Name
 			}
 			items = append(items, map[string]any{"team": v.Slug, "team_name": v.Name,
-				"title": title, "tagline": v.Tagline, "url": h.teamSiteURL(ev.Slug, v.Slug)})
+				"title": title, "tagline": v.Tagline, "url": h.links.teamSiteURL(ev.Slug, v.Slug)})
 		}
 		out["options"] = items
 		if status == "closed" {
@@ -250,11 +252,11 @@ func hackDirectoryRows(h *judgingHTTP, rows []events.Row) []map[string]any {
 		row := map[string]any{
 			"slug": ev.Slug, "title": ev.Title, "tagline": ev.Tagline, "stage": ev.Stage,
 			"time_zone": ev.TimeZone, "starts_at": rfc3339UTC(ev.StartsAt), "ends_at": rfc3339UTC(ev.EndsAt),
-			"url": h.EventURL(ev.Slug), "icon_url": h.iconURLSlug(ev.Slug), "color": hackEventColor(ev.Slug, ev.AccentColor),
+			"url": h.links.EventURL(ev.Slug), "icon_url": h.links.iconURLSlug(ev.Slug), "color": hackEventColor(ev.Slug, ev.AccentColor),
 		}
 		row["applications_open"] = ev.ApplicationsOpen
 		if ev.ApplicationsOpen {
-			row["apply_url"] = strings.TrimRight(h.publicBaseURL, "/") + "/e/" + ev.Slug + "/apply"
+			row["apply_url"] = strings.TrimRight(h.links.publicBaseURL, "/") + "/e/" + ev.Slug + "/apply"
 		}
 		out = append(out, row)
 	}

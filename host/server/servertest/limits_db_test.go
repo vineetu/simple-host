@@ -1,0 +1,250 @@
+package servertest
+
+import (
+	"context"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/vsriram/simple-host/host/access/accesshttp"
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
+	"github.com/vsriram/simple-host/host/edition"
+	model "github.com/vsriram/simple-host/host/model"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+)
+
+// near reports whether got is within a minute of want.
+func near(got, want time.Time) bool {
+	d := got.Sub(want)
+	return d > -time.Minute && d < time.Minute
+}
+
+// MAX_KEYS_PER_ACCOUNT caps the Keys panel, and the refusal says the number.
+func TestKeyLimitFollowsSetting(t *testing.T) {
+	l := WithLimits(t, map[string]string{"MAX_KEYS_PER_ACCOUNT": "3"})
+	a := NewConnectorApp(t, edition.Default(l))
+	p := a.NewPerson(t, "three-keys")
+	h := map[string]string{"X-API-Key": p.Key, "Content-Type": "application/json"}
+	for i := len(KeysOf(t, a, p.Key)); i < 3; i++ {
+		if r := a.Do(t, http.MethodPost, "/v1/me/keys", JSONBody(map[string]string{"name": "k"}), h); r.Status != http.StatusCreated {
+			t.Fatalf("key %d: %d %s", i, r.Status, r.Body)
+		}
+	}
+	r := a.Do(t, http.MethodPost, "/v1/me/keys", JSONBody(map[string]string{"name": "fourth"}), h)
+	if r.Status != http.StatusConflict || !strings.Contains(string(r.Body), "already holds 3 keys") {
+		t.Fatalf("over a limit of 3: %d %s", r.Status, r.Body)
+	}
+}
+
+// MAX_SITES_PER_ACCOUNT caps sites per account, and the refusal says the number.
+func TestSiteLimitFollowsSetting(t *testing.T) {
+	l := WithLimits(t, map[string]string{"MAX_SITES_PER_ACCOUNT": "2"})
+	a := NewPersonApp(t, "serve", edition.Default(l))
+	olive := a.NewPerson(t, "two-sites")
+	a.Deploy(t, olive, "one")
+	a.Deploy(t, olive, "two")
+	r := a.At(t, "POST", "simple-host.test", "/v1/sites/three/files",
+		map[string]any{"files": map[string]string{"index.html": "x"}}, map[string]string{"X-API-Key": olive.Key})
+	if r.Status != http.StatusForbidden || !strings.Contains(string(r.Body), "site_quota_reached") || !strings.Contains(string(r.Body), "at most 2 sites") {
+		t.Fatalf("third site under a cap of 2: %d %s", r.Status, r.Body)
+	}
+}
+
+// DELETED_RETENTION_DAYS sets how long Recently deleted keeps a site, and the
+// list says so.
+func TestDeletedRetentionFollowsSetting(t *testing.T) {
+	l := WithLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
+	a := NewPersonApp(t, "serve", edition.Default(l))
+	olive := a.NewPerson(t, "keeper")
+	key := map[string]string{"X-API-Key": olive.Key}
+	a.Deploy(t, olive, "gone")
+	if r := a.At(t, "DELETE", "simple-host.test", "/v1/sites/gone", nil, key); r.Status != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", r.Status, r.Body)
+	}
+	var out struct {
+		Sites []struct {
+			Name    string    `json:"name"`
+			PurgeAt time.Time `json:"purge_at"`
+		} `json:"sites"`
+		RetentionDays int `json:"retention_days"`
+	}
+	r := a.At(t, "GET", "simple-host.test", "/v1/me/deleted-sites", nil, key)
+	if err := json.Unmarshal(r.Body, &out); err != nil || out.RetentionDays != 30 || len(out.Sites) != 1 || !near(out.Sites[0].PurgeAt, time.Now().Add(30*24*time.Hour)) {
+		t.Fatalf("deleted list: %v %s", err, r.Body)
+	}
+}
+
+// The email-change codes and the undo link state SIGNIN_CODE_TTL_MINUTES and
+// EMAIL_CHANGE_UNDO_DAYS, and the undo link lasts that long.
+func TestEmailChangeWordingFollowsSetting(t *testing.T) {
+	l := WithLimits(t, map[string]string{"SIGNIN_CODE_TTL_MINUTES": "20", "EMAIL_CHANGE_UNDO_DAYS": "9"})
+	a, mb := NewAccountApp(t, edition.Default(l))
+	p := a.NewPerson(t, "wording")
+	key := map[string]string{"X-API-Key": p.Key}
+	newAddr := Uniq("worded") + "@example.org"
+	code, cur := RequestEmailChange(t, a, mb, key, p.Email, newAddr)
+	for _, n := range append(mb.To(newAddr), mb.To(p.Email)...) {
+		if strings.Contains(n, "confirm") && !strings.Contains(n, "It expires in 20 minutes.") {
+			t.Fatalf("code email does not say 20 minutes: %q", n)
+		}
+	}
+	if r := a.At(t, "POST", "simple-host.test", "/v1/me/email/verify", map[string]string{"code": code, "current_code": cur}, key); r.Status != 200 {
+		t.Fatalf("verify: %d %s", r.Status, r.Body)
+	}
+	old := mb.To(p.Email)
+	if n := old[len(old)-1]; !strings.Contains(n, "works for 9 days") {
+		t.Fatalf("undo notice: %q", n)
+	}
+	var exp time.Time
+	if err := a.Database.QueryRow(`SELECT expires_at FROM email_change_undos ORDER BY expires_at DESC LIMIT 1`).Scan(&exp); err != nil {
+		t.Fatal(err)
+	}
+	if !near(exp, time.Now().Add(9*24*time.Hour)) {
+		t.Fatalf("undo link expires %v, want 9 days out", exp)
+	}
+}
+
+// A visitor sign-in lives VISITOR_SESSION_DAYS (cookie and row) and slides
+// by VISITOR_SESSION_IDLE_DAYS.
+func TestVisitorSessionFollowsSetting(t *testing.T) {
+	l := WithLimits(t, map[string]string{"VISITOR_SESSION_DAYS": "60", "VISITOR_SESSION_IDLE_DAYS": "21"})
+	a, dir := NewSiteApp(t, "canonical", edition.Default(l))
+	a.WithOAuth(t)
+	olive := a.NewPerson(t, "sessions")
+	a.Deploy(t, olive, "shop")
+	_, oh := a.UserID(t, olive)
+	MarkReady(t, dir, oh)
+	host := "shop." + oh + "." + PcSiteDomain
+	returnTo := "https://" + host + "/"
+	state, nonce := a.SignInStart(t, host, returnTo)
+	loc := a.SignInCallback(t, state, "visitor", host)
+	h := NonceCookie(nonce)
+	h["X-Forwarded-For"] = "198.51.100.60"
+	r := a.At(t, "GET", host, loc.RequestURI(), nil, h)
+	var sess string
+	for _, c := range r.Header.Values("Set-Cookie") {
+		if strings.HasPrefix(c, accesshttp.VisitorCookieHost+"=") {
+			sess = strings.TrimPrefix(strings.SplitN(c, ";", 2)[0], accesshttp.VisitorCookieHost+"=")
+			if !strings.Contains(c, "Max-Age=5184000") {
+				t.Errorf("session cookie max age is not 60 days: %s", c)
+			}
+		}
+	}
+	if sess == "" {
+		t.Fatalf("no session: %d %v", r.Status, r.Header.Values("Set-Cookie"))
+	}
+	id, _ := hex.DecodeString(sess)
+	var exp, idle time.Time
+	if err := a.Database.QueryRow(`SELECT expires_at, idle_expires_at FROM visitor_sessions WHERE id = $1`, id).Scan(&exp, &idle); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	if !near(exp, now.Add(60*24*time.Hour)) || !near(idle, now.Add(21*24*time.Hour)) {
+		t.Fatalf("session expires %v, idle %v; want 60 and 21 days out", exp, idle)
+	}
+	if _, err := a.Database.Exec(`UPDATE visitor_sessions SET idle_expires_at = now() + interval '1 hour' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := accountsrepo.TouchVisitorSession(context.Background(), a.Database, id, l.VisitorSessionIdle); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Database.QueryRow(`SELECT idle_expires_at FROM visitor_sessions WHERE id = $1`, id).Scan(&idle); err != nil || !near(idle, now.Add(21*24*time.Hour)) {
+		t.Fatalf("slid idle expiry %v (%v), want 21 days out", idle, err)
+	}
+}
+
+// The failing-domain email states DOMAIN_LAPSE_WARN_HOURS and the time left
+// before DOMAIN_LAPSE_HOURS.
+func TestDomainFailingEmailFollowsSetting(t *testing.T) {
+	l := WithLimits(t, map[string]string{"DOMAIN_LAPSE_WARN_HOURS": "36", "DOMAIN_LAPSE_HOURS": "108"})
+	a := NewPersonApp(t, "serve", edition.Default(l))
+	m := &NoticeMailer{}
+	a.Sites.Mailer = m
+	a.Access.Mailer, a.Data.Mailer = a.Sites.Mailer, a.Sites.Mailer
+	olive := a.NewPerson(t, "lapsing")
+	a.Deploy(t, olive, "shop")
+	a.Sites.EmailDomainFailing(context.Background(), model.BoundDomain{SiteID: a.SiteID(t, olive, "shop"), Domain: "shop.example.test"}, "shop", "")
+	if len(m.Sent) != 1 || !strings.Contains(m.Sent[0], "failed every check for 36 hours.") || !strings.Contains(m.Sent[0], "still failing 3 days from now") {
+		t.Fatalf("failing email: %v", m.Sent)
+	}
+}
+
+// A deleted site keeps the purge date it was promised when it was deleted: a
+// shorter DELETED_RETENTION_DAYS set later applies to new deletions only.
+// Rows deleted before the date was stored fall back to the setting.
+func TestDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
+	l := WithLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})
+	a := NewPersonApp(t, "serve", edition.Default(l))
+	ctx := context.Background()
+	olive := a.NewPerson(t, "promised")
+	key := map[string]string{"X-API-Key": olive.Key}
+	for _, name := range []string{"kept", "legacy"} {
+		a.Deploy(t, olive, name)
+		if r := a.At(t, "DELETE", "simple-host.test", "/v1/sites/"+name, nil, key); r.Status != http.StatusNoContent {
+			t.Fatalf("delete %s: %d %s", name, r.Status, r.Body)
+		}
+	}
+	uid, _ := a.UserID(t, olive)
+	kept, legacy := a.SiteIDAny(t, uid, "kept"), a.SiteIDAny(t, uid, "legacy")
+	// a.sites keeps its own snapshot from construction (30 days); the
+	// shorter retention below is a new instance's, applied directly to the
+	// db-package calls that take it as an argument rather than through a
+	// second handler.
+	l2 := WithLimits(t, map[string]string{"DELETED_RETENTION_DAYS": "1"})
+	if _, err := a.Database.ExecContext(ctx, `UPDATE sites SET deleted_at = now() - interval '2 days' WHERE id IN ($1, $2)`, kept, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Database.ExecContext(ctx, `UPDATE sites SET purge_at = NULL WHERE id = $1`, legacy); err != nil {
+		t.Fatal(err)
+	}
+	purgeable, err := sitesrepo.ListPurgeableSites(ctx, a.Database, l2.DeletedRetention)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, d := range purgeable {
+		found[d.ID] = true
+	}
+	if found[kept] || !found[legacy] {
+		t.Fatalf("purgeable: kept %v (want false), legacy %v (want true)", found[kept], found[legacy])
+	}
+	d, err := sitesrepo.GetDeletedSiteByUser(ctx, a.Database, uid, "kept")
+	if err != nil || !near(d.PurgeAt(l2.DeletedRetention), time.Now().Add(30*24*time.Hour)) {
+		t.Fatalf("kept purges at %v (%v), want the promised 30 days after deletion", d.PurgeAt(l2.DeletedRetention), err)
+	}
+	if _, err := sitesrepo.PurgeDeletedSite(ctx, a.Database, kept, l2.DeletedRetention); err == nil {
+		t.Fatal("purged a site before its promised date")
+	}
+}
+
+// A failing domain whose owner was emailed is disconnected on the date the
+// email gave, not earlier when DOMAIN_LAPSE_HOURS is shortened afterwards.
+func TestDomainLapseKeepsPromisedDate(t *testing.T) {
+	a := NewPersonApp(t, "serve")
+	ctx := context.Background()
+	olive := a.NewPerson(t, "lapsedate")
+	a.Deploy(t, olive, "shop")
+	id := a.SiteID(t, olive, "shop")
+	domain := "shop-" + Uniq("") + ".example.test"
+	if _, err := a.Database.ExecContext(ctx, `UPDATE sites SET custom_domain = $2, domain_status = 'error', domain_verified_at = now() - interval '10 days',
+		domain_failing_since = now() - interval '100 hours', domain_lapse_notified_at = now() - interval '76 hours',
+		domain_release_at = now() + interval '1 hour' WHERE id = $1`, id, domain); err != nil {
+		t.Fatal(err)
+	}
+	bd := model.BoundDomain{SiteID: id, Domain: domain, Status: "error", Verified: true}
+	a.Sites.ApplyDomainCheck(ctx, bd, "error", "no answer", "")
+	var cur *string
+	if err := a.Database.QueryRowContext(ctx, `SELECT custom_domain FROM sites WHERE id = $1`, id).Scan(&cur); err != nil || cur == nil || *cur != domain {
+		t.Fatalf("disconnected before the emailed date: %v %v", cur, err)
+	}
+	if _, err := a.Database.ExecContext(ctx, `UPDATE sites SET domain_release_at = now() - interval '1 minute' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+	a.Sites.ApplyDomainCheck(ctx, bd, "error", "no answer", "")
+	if err := a.Database.QueryRowContext(ctx, `SELECT custom_domain FROM sites WHERE id = $1`, id).Scan(&cur); err != nil || cur != nil {
+		t.Fatalf("still connected after the emailed date: %v %v", cur, err)
+	}
+}

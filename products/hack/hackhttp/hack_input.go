@@ -28,15 +28,6 @@ func checkHackLine(w http.ResponseWriter, s, field string, min, max int) (string
 	return value, true
 }
 
-func parseEventTime(w http.ResponseWriter, s string, loc *time.Location, field string) (sql.NullTime, bool) {
-	value, err := events.ParseEventTime(s, loc, field)
-	if err != nil {
-		writeHackError(w, err)
-		return sql.NullTime{}, false
-	}
-	return value, true
-}
-
 func rfc3339UTC(t sql.NullTime) any {
 	if !t.Valid {
 		return nil

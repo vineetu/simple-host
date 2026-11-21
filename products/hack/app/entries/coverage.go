@@ -43,11 +43,85 @@ func (c SetupCoverage) Detail() string {
 
 // JudgingSetupCoverage uses the same prospective pool as generation and stage confirmation.
 func (s *Service) JudgingSetupCoverage(ctx context.Context, ev model.Event) (SetupCoverage, error) {
-	out := SetupCoverage{Target: ev.JudgesPerTeam, Short: []CoverageShort{}}
-	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
+	in, err := s.loadCoverage(ctx, ev)
+	if err != nil {
+		return SetupCoverage{Target: ev.JudgesPerTeam, Short: []CoverageShort{}}, err
+	}
+	out := in.coverage(ev.JudgesPerTeam)
+	target, teamSlug := in.fixTarget(out.Short)
+	out.FixTarget = target
+	link, err := navigation.Resolve(target, ev.Slug, map[string]string{"team": teamSlug})
 	if err != nil {
 		return out, err
 	}
+	out.FixHref = link.Href
+	return out, nil
+}
+
+// coverageInput is everything prospective coverage is decided from.
+type coverageInput struct {
+	mode        string
+	candidates  []model.NamedTeam
+	judges      []model.NamedJudge
+	conflicts   map[string]bool // judge/team keys
+	assigned    map[string]bool // judge/team keys
+	panels      map[string]bool // judge/track keys
+	tracks      map[string]*model.EventTrack
+	eventTracks int
+}
+
+// loadCoverage reads the pool, judges, conflicts, assignments and panels;
+// automatic mode replaces stored assignments with a fresh plan.
+func (s *Service) loadCoverage(ctx context.Context, ev model.Event) (coverageInput, error) {
+	in := coverageInput{mode: ev.JudgeAssignmentMode, conflicts: map[string]bool{}, assigned: map[string]bool{}, panels: map[string]bool{}}
+	teams, err := entryrepo.ListTeamsWithMembers(ctx, s.db, ev.ID)
+	if err != nil {
+		return in, err
+	}
+	if in.candidates, err = s.poolTeams(ctx, ev, teams); err != nil {
+		return in, err
+	}
+	if in.judges, err = entryrepo.ListEventJudges(ctx, s.db, ev.ID); err != nil {
+		return in, err
+	}
+	pairs, err := entryrepo.ListConflictPairs(ctx, s.db, ev.ID)
+	if err != nil {
+		return in, err
+	}
+	for _, p := range pairs {
+		in.conflicts[hackentries.JudgeTeamKey(p.JudgeID, p.TeamID)] = true
+	}
+	assignments, err := entryrepo.ListEventAssignments(ctx, s.db, ev.ID)
+	if err != nil {
+		return in, err
+	}
+	panels, err := entryrepo.ListTrackPanels(ctx, s.db, ev.ID)
+	if err != nil {
+		return in, err
+	}
+	for _, p := range panels {
+		in.panels[hackentries.JudgeTeamKey(p.JudgeID, p.TrackID)] = true
+	}
+	if in.tracks, err = entryrepo.EventTeamTracks(ctx, s.db, ev.ID); err != nil {
+		return in, err
+	}
+	if in.mode == "automatic" {
+		assignments, _ = hackentries.PlanAssignments(in.candidates, in.judges, in.conflicts, ev.JudgesPerTeam)
+	}
+	for _, a := range assignments {
+		in.assigned[hackentries.JudgeTeamKey(a.JudgeID, a.TeamID)] = true
+	}
+	if in.mode == "panel" && len(in.judges) > 0 {
+		eventTracks, err := eventrepo.ListEventTracks(ctx, s.db, ev.ID)
+		in.eventTracks = len(eventTracks)
+		return in, err
+	}
+	return in, nil
+}
+
+// poolTeams keeps the teams in the judging pool, counting a team without an
+// entry when its site is live.
+func (s *Service) poolTeams(ctx context.Context, ev model.Event, teams []model.NamedTeam) ([]model.NamedTeam, error) {
 	pool, err := s.JudgingPool(ctx, ev, teams, func(t model.NamedTeam) (bool, error) {
 		st, err := teamrepo.TeamWriteStateFor(ctx, s.db, t.ID, false)
 		if err != nil {
@@ -55,123 +129,86 @@ func (s *Service) JudgingSetupCoverage(ctx context.Context, ev model.Event) (Set
 		}
 		return s.siteLive != nil && s.siteLive(ctx, ev, t.Slug, st.SiteTakenDown), nil
 	})
-	if err != nil {
-		return out, err
-	}
 	candidates := []model.NamedTeam{}
 	for _, t := range teams {
 		if pool.In[t.ID] {
 			candidates = append(candidates, t)
 		}
 	}
-	judges, err := entryrepo.ListEventJudges(ctx, s.db, ev.ID)
-	if err != nil {
-		return out, err
+	return candidates, err
+}
+
+// eligible reports whether the assignment mode lets a judge score a team,
+// before conflicts are applied.
+func (in coverageInput) eligible(judgeID, teamID string) bool {
+	switch in.mode {
+	case "open":
+		return true
+	case "automatic", "manual":
+		return in.assigned[hackentries.JudgeTeamKey(judgeID, teamID)]
+	case "panel":
+		track := in.tracks[teamID]
+		return track != nil && in.panels[hackentries.JudgeTeamKey(judgeID, track.ID)]
 	}
-	pairs, err := entryrepo.ListConflictPairs(ctx, s.db, ev.ID)
-	if err != nil {
-		return out, err
-	}
-	conflicts := map[string]bool{}
-	for _, p := range pairs {
-		conflicts[hackentries.JudgeTeamKey(p.JudgeID, p.TeamID)] = true
-	}
-	assignments, err := entryrepo.ListEventAssignments(ctx, s.db, ev.ID)
-	if err != nil {
-		return out, err
-	}
-	panels, err := entryrepo.ListTrackPanels(ctx, s.db, ev.ID)
-	if err != nil {
-		return out, err
-	}
-	tracks, err := entryrepo.EventTeamTracks(ctx, s.db, ev.ID)
-	if err != nil {
-		return out, err
-	}
-	if ev.JudgeAssignmentMode == "automatic" {
-		assignments, _ = hackentries.PlanAssignments(candidates, judges, conflicts, ev.JudgesPerTeam)
-	}
-	out.Min = len(judges)
-	if ev.JudgeAssignmentMode == "open" {
-		out.Target = max(1, len(judges))
-	}
-	conflictShort := false
-	for _, t := range candidates {
-		have := 0
-		for _, j := range judges {
-			if conflicts[hackentries.JudgeTeamKey(j.ID, t.ID)] {
-				continue
-			}
-			eligible := ev.JudgeAssignmentMode == "open"
-			if ev.JudgeAssignmentMode == "automatic" || ev.JudgeAssignmentMode == "manual" {
-				for _, a := range assignments {
-					if a.JudgeID == j.ID && a.TeamID == t.ID {
-						eligible = true
-						break
-					}
-				}
-			}
-			if ev.JudgeAssignmentMode == "panel" && tracks[t.ID] != nil {
-				for _, p := range panels {
-					if p.JudgeID == j.ID && p.TrackID == tracks[t.ID].ID {
-						eligible = true
-						break
-					}
-				}
-			}
-			if eligible {
-				have++
-			}
-		}
-		if have < out.Min {
-			out.Min = have
-		}
-		if have > out.Max {
-			out.Max = have
-		}
-		if have < out.Target {
-			for _, j := range judges {
-				if conflicts[hackentries.JudgeTeamKey(j.ID, t.ID)] {
-					conflictShort = true
-				}
-			}
-			out.Short = append(out.Short, CoverageShort{TeamID: t.ID, Name: t.Name, Slug: t.Slug, Have: have, MissingTrack: ev.JudgeAssignmentMode == "panel" && tracks[t.ID] == nil})
+	return false
+}
+
+// judgesFor counts the unconflicted eligible judges of a team and whether any
+// judge is conflicted with it.
+func (in coverageInput) judgesFor(teamID string) (have int, conflicted bool) {
+	for _, j := range in.judges {
+		if in.conflicts[hackentries.JudgeTeamKey(j.ID, teamID)] {
+			conflicted = true
+		} else if in.eligible(j.ID, teamID) {
+			have++
 		}
 	}
-	if len(candidates) == 0 {
+	return have, conflicted
+}
+
+// coverage counts judges per candidate team and lists the teams under target.
+func (in coverageInput) coverage(perTeam int) SetupCoverage {
+	out := SetupCoverage{Target: perTeam, Min: len(in.judges), Short: []CoverageShort{}}
+	if in.mode == "open" {
+		out.Target = max(1, len(in.judges))
+	}
+	if len(in.candidates) == 0 {
 		out.Min = 0
 	}
-	out.FixTarget = "o.organiser-judges"
-	params := map[string]string{}
-	if len(judges) > 0 {
-		if ev.JudgeAssignmentMode == "manual" {
-			out.FixTarget = "o.assignments"
-		}
-		if ev.JudgeAssignmentMode == "panel" {
-			out.FixTarget = "o.panel-assignments"
-			for _, t := range out.Short {
-				if t.MissingTrack {
-					out.FixTarget = "o.team-track"
-					params["team"] = t.Slug
-					break
-				}
-			}
-			eventTracks, err := eventrepo.ListEventTracks(ctx, s.db, ev.ID)
-			if err != nil {
-				return out, err
-			}
-			if len(eventTracks) == 0 {
-				out.FixTarget = "o.tracks"
-			}
-		}
-		if conflictShort {
-			out.FixTarget = "o.conflicts"
+	for _, t := range in.candidates {
+		have, _ := in.judgesFor(t.ID)
+		out.Min, out.Max = min(out.Min, have), max(out.Max, have)
+		if have < out.Target {
+			out.Short = append(out.Short, CoverageShort{TeamID: t.ID, Name: t.Name, Slug: t.Slug, Have: have, MissingTrack: in.mode == "panel" && in.tracks[t.ID] == nil})
 		}
 	}
-	link, err := navigation.Resolve(out.FixTarget, ev.Slug, params)
-	if err != nil {
-		return out, err
+	return out
+}
+
+// fixTarget picks the navigation target that best fixes short coverage, and
+// the team slug the team-track target needs.
+func (in coverageInput) fixTarget(short []CoverageShort) (target, teamSlug string) {
+	if len(in.judges) == 0 {
+		return "o.organiser-judges", ""
 	}
-	out.FixHref = link.Href
-	return out, nil
+	for _, t := range short {
+		if _, conflicted := in.judgesFor(t.TeamID); conflicted {
+			return "o.conflicts", ""
+		}
+	}
+	switch in.mode {
+	case "manual":
+		return "o.assignments", ""
+	case "panel":
+		if in.eventTracks == 0 {
+			return "o.tracks", ""
+		}
+		for _, t := range short {
+			if t.MissingTrack {
+				return "o.team-track", t.Slug
+			}
+		}
+		return "o.panel-assignments", ""
+	}
+	return "o.organiser-judges", ""
 }

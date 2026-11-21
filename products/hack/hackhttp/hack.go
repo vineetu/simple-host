@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
@@ -55,22 +54,27 @@ var hackStages = map[string]bool{
 	"judging": true, "results": true, "archived": true,
 }
 
-// hackStagesOffered are the stages an organiser can set. Judging and results
-// are offered with M3: the public page names them, submissions stay closed,
-// and judges can no longer join once the stage is results.
-var hackStagesOffered = map[string]bool{
-	"draft": true, "open": true, "building": true, "closed": true,
-	"judging": true, "results": true, "archived": true,
-}
-
-// hackStagesOfferedList is hackStagesOffered in stage order, for the pages.
+// hackStagesOfferedList is every stage an organiser can set, in order, for
+// the pages.
 var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "judging", "results", "archived"}
 
-// HackHandler is the hosted-events API (EVENTS=hosted): event CRUD, the
-// startup setters, workers and the route table. Judging, participation, the
-// public event and the assistant are their own receivers over the same base.
+// HackHandler is the hosted-events API (EVENTS=hosted): event CRUD, the startup
+// setters, workers and the route table.
 type HackHandler struct {
-	*hackBase
+	events  *events.Service
+	entries *entries.Service
+	teams   *teams.Service
+	members *members.Service
+	links   *siteLinks
+	views   *views
+	limits  *productconfig.Limits
+	website *websiteLimits
+	codes   *codeLimiter
+	// mailer sends announcements, notices and the one archive warning.
+	mailer events.Mailer
+	// demoSlug is the demo event (RegisterDemo, after Register).
+	demoSlug string
+
 	caches             httpx.Caches
 	limitersOnce       sync.Once
 	contentOnce        sync.Once
@@ -95,42 +99,55 @@ type HackHandler struct {
 	assistant     *assistantHTTP
 }
 
-// hackBase is what every hack receiver shares: the services, the team-site
-// hooks, the instance addresses and limits, and the access checks and views
-// built only from those. One pointer, so a setter reaches every receiver.
-type hackBase struct {
+// views builds the member-facing JSON several receivers answer with: the event
+// view, the member's own and team blocks, entry list items and the checklist.
+type views struct {
 	database *sql.DB
 	events   *events.Service
 	entries  *entries.Service
 	teams    *teams.Service
 	members  *members.Service
-	// sites reaches the team sites (the SiteHandler). nil in tests that do
-	// not need it: team addresses then count as not ready.
-	sites hackSiteHooks
-	// mailer sends announcements, notices and the one archive warning. nil,
-	// or a sender that cannot send a notice, makes those log and do nothing.
-	mailer        events.Mailer
-	publicBaseURL string
-	siteDomain    string
-	// demoSlug is the demo event (RegisterDemo, after Register).
+	links    *siteLinks
+	// demoSlug is the demo event, scored while building (scoringStage).
 	demoSlug string
-	limits   productconfig.Limits
-	// siteArchiveDefault is the default per-site size cap when an account has
-	// no MAX_ARCHIVE_MB_OVERRIDES entry (SetSiteArchiveDefault).
-	siteArchiveDefault int64
-	codesIP            *httpx.RateLimiter // join, judge and team codes, per network address
-	codesUser          *httpx.RateLimiter // the same, per account
 }
 
 // judgingHTTP serves rubrics, scores, assignments, voting and results.
-type judgingHTTP struct{ *hackBase }
+type judgingHTTP struct {
+	events  *events.Service
+	entries *entries.Service
+	teams   *teams.Service
+	members *members.Service
+	links   *siteLinks
+	views   *views
+}
 
 // publicEventHTTP serves the public event JSON, content, icons and website.
-type publicEventHTTP struct{ *hackBase }
+type publicEventHTTP struct {
+	database *sql.DB
+	events   *events.Service
+	entries  *entries.Service
+	teams    *teams.Service
+	members  *members.Service
+	links    *siteLinks
+	limits   *productconfig.Limits
+	website  *websiteLimits
+	// mailer is HackHandler's (SetMailer sets both).
+	mailer events.Mailer
+}
 
 // participationHTTP serves teams, entries, registration and leaving.
 type participationHTTP struct {
-	*hackBase
+	database    *sql.DB
+	events      *events.Service
+	entries     *entries.Service
+	teams       *teams.Service
+	members     *members.Service
+	links       *siteLinks
+	views       *views
+	limits      *productconfig.Limits
+	website     *websiteLimits
+	codes       *codeLimiter
 	entryWrites *httpx.RateLimiter // entry and screenshot writes, per account
 	shotWrites  *httpx.RateLimiter // screenshot uploads, per account (2 MB each)
 	applyIP     *httpx.RateLimiter // applications without a join link, per network address
@@ -139,7 +156,12 @@ type participationHTTP struct {
 
 // assistantHTTP serves the organiser assistant (SIM-394).
 type assistantHTTP struct {
-	*hackBase
+	events  *events.Service
+	entries *entries.Service
+	members *members.Service
+	views   *views
+	limits  *productconfig.Limits
+	website *websiteLimits
 	// service is nil until SetAssistant: every route then answers as off.
 	service *events.AssistantService
 	writes  *httpx.RateLimiter // questions, per account
@@ -208,7 +230,7 @@ type hackSiteHooks interface {
 }
 
 // SetSites connects the team sites (hack_sites.go).
-func (h *HackHandler) SetSites(s hackSiteHooks) { h.sites = s }
+func (h *HackHandler) SetSites(s hackSiteHooks) { h.links.hooks = s }
 
 // ShareAssets makes h render through the site side's asset pipeline
 // (SiteHandler.Pages()); wired right after construction.
@@ -219,11 +241,10 @@ func (h *HackHandler) ShareAssets(pages hackPages) { h.assets = pages }
 func NewHackHandlerForTest(archiveLinkKey []byte, limits edition.Limits) *HackHandler {
 	lim := productconfig.DefaultLimits()
 	lim.Limits = limits
-	return &HackHandler{archiveLinkKey: archiveLinkKey, hackBase: &hackBase{limits: lim}}
+	return &HackHandler{archiveLinkKey: archiveLinkKey, limits: &lim, links: &siteLinks{}, codes: &codeLimiter{}, website: &websiteLimits{limits: &lim}}
 }
 
-// NewHackHandler builds the hosted-events API. publicBaseURL is the apex
-// (join/judge/manage links); siteDomain is the event host parent.
+// NewHackHandler builds the hosted-events API.
 func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions ...*edition.Edition) *HackHandler {
 	var ed *edition.Edition
 	if len(editions) > 0 {
@@ -231,41 +252,37 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 	}
 	lim := productconfig.DefaultLimits()
 	lim.Limits = ed.Limits()
-	b := &hackBase{
-		database:           database,
-		events:             events.New(database),
-		teams:              teams.New(database),
-		publicBaseURL:      strings.TrimRight(publicBaseURL, "/"),
-		siteDomain:         strings.Trim(strings.ToLower(siteDomain), "."),
-		limits:             lim,
-		siteArchiveDefault: defaultSiteArchiveSize,
-		codesIP:            httpx.NewRateLimiter(float64(lim.RateEventCodesIP.Burst), lim.RateEventCodesIP.PerSecond()),
-		codesUser:          httpx.NewRateLimiter(float64(lim.RateEventCodesUser.Burst), lim.RateEventCodesUser.PerSecond()),
-	}
-	b.entries = entries.New(database, b.entrySiteLive)
+	codes := newCodeLimiter(lim)
 	h := &HackHandler{
-		hackBase:       b,
+		events:         events.New(database),
+		teams:          teams.New(database),
+		limits:         &lim,
+		website:        &websiteLimits{database: database, limits: &lim, archiveDefault: defaultSiteArchiveSize},
+		codes:          &codes,
 		namesUser:      httpx.NewRateLimiter(float64(lim.RateEventNamesUser.Burst), lim.RateEventNamesUser.PerSecond()),
 		screenshotsIP:  httpx.NewRateLimiter(120, 5),
 		archiveLinkKey: newHackArchiveKey(),
-		judging:        &judgingHTTP{b},
-		publicEvent:    &publicEventHTTP{b},
-		participation: &participationHTTP{hackBase: b,
-			entryWrites: httpx.NewRateLimiter(30, 0.5),
-			shotWrites:  httpx.NewRateLimiter(5, 0.1),
-			applyIP:     httpx.NewRateLimiter(float64(lim.RateEventApplyIP.Burst), lim.RateEventApplyIP.PerSecond()),
-			applyUser:   httpx.NewRateLimiter(float64(lim.RateEventApplyUser.Burst), lim.RateEventApplyUser.PerSecond()),
-		},
-		// burst 40 (above the 30/day business limit and the 18-question eval
-		// set), refills one every 5s: abuse defense only
-		assistant: &assistantHTTP{hackBase: b, writes: httpx.NewRateLimiter(40, 0.2)},
 	}
-	b.members = members.New(database, h.archiveEventTx, h.deleteEventTx, func(ctx context.Context, ev hackmodel.Event) {
+	h.links = &siteLinks{teams: h.teams, publicBaseURL: strings.TrimRight(publicBaseURL, "/"), siteDomain: strings.Trim(strings.ToLower(siteDomain), ".")}
+	h.entries = entries.New(database, h.links.entrySiteLive)
+	h.members = members.New(database, h.archiveEventTx, h.deleteEventTx, func(ctx context.Context, ev hackmodel.Event) {
 		paperRecorder(ctx).RecordHackStage(ctx, ev.ID, ev.Stage, ev.UpdatedAt)
 		paperRecorder(ctx).HackPhasesChanged(ctx)
-		b.pinDue(ctx, ev.ID)
+		h.links.pinDue(ctx, ev.ID)
 		// requestEventCert is a no-op for archived events, as in setStage.
-	}, h.removeEventFiles, b.removeOrphanTeamSites)
+	}, h.removeEventFiles, h.links.removeOrphanTeamSites)
+	h.views = &views{database: database, events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links}
+	h.judging = &judgingHTTP{events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links, views: h.views}
+	h.publicEvent = &publicEventHTTP{database: database, events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links, limits: h.limits, website: h.website}
+	h.participation = &participationHTTP{database: database, events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links, views: h.views, limits: h.limits, website: h.website, codes: h.codes,
+		entryWrites: httpx.NewRateLimiter(30, 0.5),
+		shotWrites:  httpx.NewRateLimiter(5, 0.1),
+		applyIP:     httpx.NewRateLimiter(float64(lim.RateEventApplyIP.Burst), lim.RateEventApplyIP.PerSecond()),
+		applyUser:   httpx.NewRateLimiter(float64(lim.RateEventApplyUser.Burst), lim.RateEventApplyUser.PerSecond()),
+	}
+	// burst 40 (above the 30/day business limit and the 18-question eval
+	// set), refills one every 5s: abuse defense only
+	h.assistant = &assistantHTTP{events: h.events, entries: h.entries, members: h.members, views: h.views, limits: h.limits, website: h.website, writes: httpx.NewRateLimiter(40, 0.2)}
 	return h
 }
 
@@ -277,10 +294,10 @@ func (h *HackHandler) SetAssistant(a *events.AssistantService) { h.assistant.ser
 const defaultSiteArchiveSize int64 = 100 << 20
 
 // SetSiteArchiveDefault records the instance's default per-site size cap
-// (handler.SiteLimit(), after any MAX_ARCHIVE_MB override).
+// (sites.Upload.Body, after any MAX_ARCHIVE_MB override).
 func (h *HackHandler) SetSiteArchiveDefault(bytes int64) {
 	if bytes > 0 {
-		h.siteArchiveDefault = bytes
+		h.website.archiveDefault = bytes
 	}
 }
 
@@ -293,13 +310,7 @@ func newHackArchiveKey() []byte {
 	return key
 }
 
-// siteLimitFor is accounts.SiteLimit with siteArchiveDefault.
-func (h *hackBase) siteLimitFor(ctx context.Context, database *sql.DB, user *model.User) (limit int64, override bool) {
-	return accountapp.New(database).SiteLimit(ctx, user, h.limits.Limits, h.siteArchiveDefault)
-}
-
 // SetNamePeer: fn reports whether the peer instance holds name; nil = no peer.
-// An error means the name is refused with 503 code name_check_unavailable.
 func (h *HackHandler) SetNamePeer(fn func(ctx context.Context, name string) (bool, error)) {
 	h.namePeer = fn
 }
@@ -336,9 +347,8 @@ func (h *HackHandler) NameTaken(ctx context.Context, name string) (bool, error) 
 // SetProductLimits installs the validated product snapshot before routes start.
 func (h *HackHandler) SetProductLimits(limits productconfig.Limits) {
 	limits.Limits = h.limits.Limits
-	h.limits = limits
-	h.codesIP = httpx.NewRateLimiter(float64(limits.RateEventCodesIP.Burst), limits.RateEventCodesIP.PerSecond())
-	h.codesUser = httpx.NewRateLimiter(float64(limits.RateEventCodesUser.Burst), limits.RateEventCodesUser.PerSecond())
+	*h.limits = limits
+	*h.codes = newCodeLimiter(limits)
 	h.namesUser = httpx.NewRateLimiter(float64(limits.RateEventNamesUser.Burst), limits.RateEventNamesUser.PerSecond())
 	h.participation.applyIP = httpx.NewRateLimiter(float64(limits.RateEventApplyIP.Burst), limits.RateEventApplyIP.PerSecond())
 	h.participation.applyUser = httpx.NewRateLimiter(float64(limits.RateEventApplyUser.Burst), limits.RateEventApplyUser.PerSecond())

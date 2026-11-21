@@ -144,13 +144,21 @@ func stageIndex(s string) int {
 }
 
 // BuildChecklist selects and deduplicates stage rows and the first actionable required task.
-// now is explicit to keep callers and boundary tests on the same clock.
 func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 	out := Checklist{Role: in.Role, Stage: in.Stage, MapVersion: 1, Items: []ChecklistItem{}}
 	if in.Role == "" {
 		return out
 	}
 	_ = now // Evaluation timestamps are supplied in facts; never read an ambient clock.
+	out.Items = checklistItems(in)
+	if !in.ReadOnly && in.Stage != "archived" {
+		out.Next = checklistNextStep(out.Items, in)
+	}
+	return out
+}
+
+// checklistItems is the role's rows, grouped in display order: earlier required, current, earlier optional, history.
+func checklistItems(in ChecklistInput) []ChecklistItem {
 	groups := map[string][]ChecklistItem{}
 	for _, d := range ChecklistCatalogue() {
 		d, ok := checklistDefinition(d, in)
@@ -163,36 +171,43 @@ func BuildChecklist(in ChecklistInput, now time.Time) Checklist {
 			groups[item.Group] = append(groups[item.Group], item)
 		}
 	}
+	items := []ChecklistItem{}
 	for _, g := range []string{"earlier_required", "current", "earlier_optional", "history"} {
-		out.Items = append(out.Items, groups[g]...)
+		items = append(items, groups[g]...)
 	}
-	if in.ReadOnly || in.Stage == "archived" {
-		return out
-	}
-	for _, it := range out.Items {
-		if it.Optional || it.State != "todo" || !it.Actionable || (it.ID == "o.deadline" && in.Forward != nil && (in.Forward.Stage == "building" || in.Forward.Stage == "closed")) {
-			continue
-		}
-		if in.Role == "participant" && it.ID != "p."+in.ParticipantNext {
-			continue
-		}
-		out.Next = checklistNext(it, in)
-		return out
-	}
-	if in.Role == "organiser" {
-		out.Next = in.Forward
-	}
-	if in.Role == "judge" {
-		f := in.Facts["j.scores"]
-		if f.Done && f.BlockedReason == "" && f.Total != nil && *f.Total > 0 {
-			out.Next = &ChecklistNext{Kind: "link", ItemID: "j.scores", TargetID: "j.queue", Label: "Review my scores"}
-		}
-	}
-	return out
+	return items
 }
 
-// checklistDefinition is d as this role, mode and stage show it; false
-// leaves it out.
+// checklistNextStep is the first item that can lead; failing that, the organiser's stage move forward, or a judge's review of finished scores.
+func checklistNextStep(items []ChecklistItem, in ChecklistInput) *ChecklistNext {
+	for _, it := range items {
+		if checklistLeads(it, in) {
+			return checklistNext(it, in)
+		}
+	}
+	switch in.Role {
+	case "organiser":
+		return in.Forward
+	case "judge":
+		if f := in.Facts["j.scores"]; f.Done && f.BlockedReason == "" && f.Total != nil && *f.Total > 0 {
+			return &ChecklistNext{Kind: "link", ItemID: "j.scores", TargetID: "j.queue", Label: "Review my scores"}
+		}
+	}
+	return nil
+}
+
+// checklistLeads reports whether it can be the next step.
+func checklistLeads(it ChecklistItem, in ChecklistInput) bool {
+	if it.Optional || it.State != "todo" || !it.Actionable {
+		return false
+	}
+	if it.ID == "o.deadline" && in.Forward != nil && (in.Forward.Stage == "building" || in.Forward.Stage == "closed") {
+		return false
+	}
+	return in.Role != "participant" || it.ID == "p."+in.ParticipantNext
+}
+
+// checklistDefinition is d as this role, mode and stage show it; false leaves it out.
 func checklistDefinition(d ChecklistDefinition, in ChecklistInput) (ChecklistDefinition, bool) {
 	switch {
 	case d.ID[0] != in.Role[0]:
@@ -240,20 +255,16 @@ func checklistItem(d ChecklistDefinition, f ChecklistFact, in ChecklistInput) Ch
 	return item
 }
 
-// checklistGroup places an item; "" leaves it out. Only organisers see
-// earlier stages and history. An archived event's items are never
-// actionable (checklistItem), so its last rows stay current as plain records.
+// checklistGroup places an item; "" leaves it out.
 func checklistGroup(d ChecklistDefinition, f ChecklistFact, item ChecklistItem, in ChecklistInput) string {
-	if in.Role != "organiser" {
-		return "current"
-	}
-	isCurrent := d.Stage == in.Stage || (in.Stage == "building" && d.Stage == "open") || (in.Stage == "results" && (d.ID == "o.scores" || d.ID == "o.lock"))
 	switch {
+	case in.Role != "organiser":
+		return "current"
 	case in.Stage == "archived" && (d.ID == "o.end" || (d.ID == "o.publish" && f.Done)):
 		return "current"
 	case in.Stage == "archived":
 		return "history"
-	case isCurrent:
+	case checklistInStage(d, in.Stage):
 		return "current"
 	case stageIndex(d.Stage) >= stageIndex(in.Stage), !f.Done && f.BlockedReason != "":
 		return ""
@@ -263,6 +274,19 @@ func checklistGroup(d ChecklistDefinition, f ChecklistFact, item ChecklistItem, 
 		return "earlier_required"
 	}
 	return ""
+}
+
+// checklistInStage reports whether d belongs to stage: its own stage, open's rows while building, and scores and lock while in results.
+func checklistInStage(d ChecklistDefinition, stage string) bool {
+	switch stage {
+	case d.Stage:
+		return true
+	case "building":
+		return d.Stage == "open"
+	case "results":
+		return d.ID == "o.scores" || d.ID == "o.lock"
+	}
+	return false
 }
 
 // checklistNext is the next step for the first actionable required item.

@@ -11,15 +11,9 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// Organiser team messages (0003-hack-notices-judges-messages.sql): a notice
-// kind (team_message) like any other, with a durable history row
-// (event_team_messages) since notices are pruned after 30 days and exist
-// only per recipient.
+// Organiser team messages (0003-hack-notices-judges-messages.sql).
 
-// teamMessageRateWindow and teamMessageRateMax are the contract's DB-counted
-// rate limit: at most this many message rows per event per rolling window.
-// Counting the durable history rows is the "DB-counted" mechanism -- it
-// survives a restart without a separate counter table.
+// teamMessageRateWindow and teamMessageRateMax are the contract's DB-counted rate limit: at most this many message rows per event per rolling window.
 const (
 	teamMessageRateWindow = time.Hour
 	teamMessageRateMax    = 50
@@ -35,30 +29,7 @@ type TeamMessageSent struct {
 	Recipients int
 }
 
-// SendTeamMessage sends one message to each of teamIDs' current members, in
-// one transaction: the durable history row, then the notice to every
-// current member (team-scoped, so it stops reaching anyone who has since
-// left). teamIDs must all belong to ev and be distinct; the caller validates
-// shape and count (1..25) and text length before calling this.
-//
-// The handler's own checks (organiser membership, archived) ran before the
-// request body was read, which can take arbitrarily long (a slow client, a
-// large body up to the cap); by the time this runs, the sender may have
-// been removed as organiser or the event may have been archived or taken
-// down meanwhile. Inside the transaction, before anything else, this
-// re-reads both under the event row's FOR SHARE lock and refuses with the
-// same errors the handler would have (event_not_found for a sender who is
-// no longer an organiser -- the handler's own non-member/wrong-role
-// treatment -- event_closed for archived, event_taken_down for taken
-// down), rather than trusting the pre-body-read snapshot in ev.
-//
-// The same lock also serialises concurrent sends for this event: without
-// it, two sends arriving together could each count the rows already
-// there, each see themselves as under the 50/hour limit, and both insert,
-// letting the total cross it. pg_advisory_xact_lock (same mechanism
-// NextMailBatch uses, hashtextextended) makes the count-then-insert below
-// atomic across concurrent senders for this event, held until the
-// transaction ends.
+// SendTeamMessage sends one message to each of teamIDs' current members, in one transaction.
 func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs []string, text, senderID, senderName string) ([]TeamMessageSent, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -68,62 +39,30 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('hack-team-message:' || $1, 0))`, ev.ID); err != nil {
 		return nil, err
 	}
-	fresh, err := eventrepo.GetEventForShare(ctx, tx, ev.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, &Error{Code: "event_not_found", Message: "event not found"}
-	}
-	if err != nil {
+	if err := lockOpenEvent(ctx, tx, ev.ID); err != nil {
 		return nil, err
-	}
-	if fresh.Stage == "archived" {
-		return nil, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
-	}
-	if fresh.TakenDown() {
-		return nil, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
 	sender, err := eventrepo.GetEventMember(ctx, tx, ev.ID, senderID)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && sender.Role != "organiser") {
-		return nil, &Error{Code: "event_not_found", Message: "event not found"}
+		return nil, errEventNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
 	count, oldest, err := eventrepo.CountRecentTeamMessages(ctx, tx, ev.ID, time.Now().Add(-teamMessageRateWindow))
+	if err == nil {
+		err = rateLimit(count+len(teamIDs), teamMessageRateMax, oldest, teamMessageRateWindow)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if count+len(teamIDs) > teamMessageRateMax {
-		retry := teamMessageRateWindow
-		if oldest.Valid {
-			retry = teamMessageRateWindow - time.Since(oldest.Time)
-		}
-		if retry < time.Second {
-			retry = time.Second
-		}
-		return nil, &RateLimitError{RetryAfter: int(retry.Seconds()) + 1}
-	}
 	out := make([]TeamMessageSent, 0, len(teamIDs))
 	for _, teamID := range teamIDs {
-		team, err := teamrepo.GetEventTeamByID(ctx, tx, teamID)
-		if errors.Is(err, sql.ErrNoRows) || (err == nil && team.EventID != ev.ID) {
-			return nil, &Error{Code: "invalid_team", Message: "team_ids must be teams of this event"}
-		}
+		sent, err := messageTeam(ctx, tx, ev.ID, teamID, senderID, senderName, text)
 		if err != nil {
 			return nil, err
 		}
-		msg, err := eventrepo.InsertTeamMessage(ctx, tx, ev.ID, teamID, senderID, senderName, text, false)
-		if err != nil {
-			return nil, err
-		}
-		ids, err := eventrepo.TeamMemberIDs(ctx, tx, ev.ID, teamID, "")
-		if err != nil {
-			return nil, err
-		}
-		n, err := eventrepo.NotifyUsersCount(ctx, tx, ev.ID, eventrepo.NoticeTeamMessage, teamID, msg.ID, "", ids...)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, TeamMessageSent{TeamMessage: msg, TeamName: team.Name, Recipients: int(n)})
+		out = append(out, sent)
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -131,109 +70,152 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 	return out, nil
 }
 
+var errEventNotFound = &Error{Code: "event_not_found", Message: "event not found"}
+
+// lockOpenEvent holds the event row FOR SHARE and refuses an event that is gone, ended or taken down as it stands under that lock.
+func lockOpenEvent(ctx context.Context, tx *sql.Tx, eventID string) error {
+	fresh, err := eventrepo.GetEventForShare(ctx, tx, eventID)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return errEventNotFound
+	case err != nil:
+		return err
+	case fresh.Stage == "archived":
+		return &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
+	case fresh.TakenDown():
+		return &Error{Code: "event_taken_down", Message: "this event has been taken down"}
+	}
+	return nil
+}
+
+// rateLimit refuses when used messages would exceed limit in the rolling window, asking the sender to wait until the oldest counted one ages out.
+func rateLimit(used, limit int, oldest sql.NullTime, window time.Duration) error {
+	if used <= limit {
+		return nil
+	}
+	retry := window
+	if oldest.Valid {
+		retry = window - time.Since(oldest.Time)
+	}
+	retry = max(retry, time.Second)
+	return &RateLimitError{RetryAfter: int(retry.Seconds()) + 1}
+}
+
+// messageTeam stores one organiser message in the team's history and notifies the team's current members.
+func messageTeam(ctx context.Context, tx *sql.Tx, eventID, teamID, senderID, senderName, text string) (TeamMessageSent, error) {
+	team, err := teamrepo.GetEventTeamByID(ctx, tx, teamID)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && team.EventID != eventID) {
+		return TeamMessageSent{}, &Error{Code: "invalid_team", Message: "team_ids must be teams of this event"}
+	}
+	if err != nil {
+		return TeamMessageSent{}, err
+	}
+	msg, err := eventrepo.InsertTeamMessage(ctx, tx, eventID, teamID, senderID, senderName, text, false)
+	if err != nil {
+		return TeamMessageSent{}, err
+	}
+	ids, err := eventrepo.TeamMemberIDs(ctx, tx, eventID, teamID, "")
+	if err != nil {
+		return TeamMessageSent{}, err
+	}
+	n, err := eventrepo.NotifyUsersCount(ctx, tx, eventID, eventrepo.NoticeTeamMessage, teamID, msg.ID, "", ids...)
+	if err != nil {
+		return TeamMessageSent{}, err
+	}
+	return TeamMessageSent{TeamMessage: msg, TeamName: team.Name, Recipients: int(n)}, nil
+}
+
 // ListTeamMessages is the organiser's GET .../teams/{team}/messages.
 func (s *Service) ListTeamMessages(ctx context.Context, teamID string) ([]model.TeamMessage, error) {
 	return eventrepo.ListTeamMessages(ctx, s.db, teamID, 100)
 }
 
-// SendToOrganisers is a team member's message to the event's organisers
-// (SIM-443): one history row in the team's thread (from_team), then a
-// team_inbound notice to every organiser of the event. Like SendTeamMessage,
-// membership, event state and the rate limit are checked inside the
-// transaction, under the event row's lock and a per-team advisory lock, so a
-// member who has just left the team, an archived or taken-down event and two
-// concurrent sends are all handled at the moment of writing. Email goes only
-// to organisers whose "Email me when something waits on me" is on (the
-// notice queue's own rule, noticeEmails/emailableSQL); everyone else sees the
-// message in the app.
+// SendToOrganisers is a team member's message to the event's organisers.
 func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID, senderName, text string) (TeamMessageSent, error) {
-	var zero TeamMessageSent
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return zero, err
+		return TeamMessageSent{}, err
 	}
 	defer tx.Rollback()
-	fresh, err := eventrepo.GetEventForShare(ctx, tx, ev.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return zero, &Error{Code: "event_not_found", Message: "event not found"}
+	if err := lockOpenEvent(ctx, tx, ev.ID); err != nil {
+		return TeamMessageSent{}, err
+	}
+	teamID, err := senderTeam(ctx, tx, ev.ID, senderID)
+	if err != nil {
+		return TeamMessageSent{}, err
+	}
+	count, oldest, err := eventrepo.CountRecentTeamInbound(ctx, tx, teamID, time.Now().Add(-teamInboundRateWindow))
+	if err == nil {
+		err = rateLimit(count+1, teamInboundRateMax, oldest, teamInboundRateWindow)
 	}
 	if err != nil {
-		return zero, err
+		return TeamMessageSent{}, err
 	}
-	if fresh.Stage == "archived" {
-		return zero, &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
-	}
-	if fresh.TakenDown() {
-		return zero, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
-	}
-	status, teamID, _, err := eventrepo.NoticeMemberStatus(ctx, tx, ev.ID, senderID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return zero, &Error{Code: "event_not_found", Message: "event not found"}
+	sent, err := messageOrganisers(ctx, tx, ev.ID, teamID, senderID, senderName, text)
+	if err == nil {
+		err = tx.Commit()
 	}
 	if err != nil {
-		return zero, err
+		return TeamMessageSent{}, err
 	}
-	role, _, _, _, _, err := eventrepo.MailMember(ctx, tx, ev.ID, senderID)
-	if err != nil || role != "participant" {
-		return zero, &Error{Code: "event_not_found", Message: "event not found"}
+	return sent, nil
+}
+
+// senderTeam returns the team of an approved participant and takes the team's inbound lock.
+func senderTeam(ctx context.Context, tx *sql.Tx, eventID, senderID string) (string, error) {
+	status, teamID, _, err := eventrepo.NoticeMemberStatus(ctx, tx, eventID, senderID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", errEventNotFound
 	}
-	if status != "approved" {
-		return zero, &Error{Code: "approval_" + status, Message: "your application is " + status}
+	if err != nil {
+		return "", err
 	}
-	if !teamID.Valid {
-		return zero, &Error{Code: "no_team", Message: "join or start a team first"}
+	role, _, _, _, _, err := eventrepo.MailMember(ctx, tx, eventID, senderID)
+	switch {
+	case err != nil || role != "participant":
+		return "", errEventNotFound
+	case status != "approved":
+		return "", &Error{Code: "approval_" + status, Message: "your application is " + status}
+	case !teamID.Valid:
+		return "", errNoTeam
 	}
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('hack-team-inbound:' || $1, 0))`, teamID.String); err != nil {
-		return zero, err
+		return "", err
 	}
-	// Re-read the team after waiting on the lock: someone who left or moved
-	// meanwhile must not write into their former team's thread. (No member
-	// row lock: leave and move lock the team before other members' rows.)
-	if _, now, _, err := eventrepo.NoticeMemberStatus(ctx, tx, ev.ID, senderID); err != nil || now != teamID {
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return zero, err
-		}
-		return zero, &Error{Code: "no_team", Message: "join or start a team first"}
+	_, now, _, err := eventrepo.NoticeMemberStatus(ctx, tx, eventID, senderID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
 	}
-	count, oldest, err := eventrepo.CountRecentTeamInbound(ctx, tx, teamID.String, time.Now().Add(-teamInboundRateWindow))
+	if err != nil || now != teamID {
+		return "", errNoTeam
+	}
+	return teamID.String, nil
+}
+
+var errNoTeam = &Error{Code: "no_team", Message: "join or start a team first"}
+
+// messageOrganisers stores a team's message in its thread and notifies every organiser.
+func messageOrganisers(ctx context.Context, tx *sql.Tx, eventID, teamID, senderID, senderName, text string) (TeamMessageSent, error) {
+	team, err := teamrepo.GetEventTeamByID(ctx, tx, teamID)
 	if err != nil {
-		return zero, err
+		return TeamMessageSent{}, err
 	}
-	if count >= teamInboundRateMax {
-		retry := teamInboundRateWindow
-		if oldest.Valid {
-			retry = teamInboundRateWindow - time.Since(oldest.Time)
-		}
-		if retry < time.Second {
-			retry = time.Second
-		}
-		return zero, &RateLimitError{RetryAfter: int(retry.Seconds()) + 1}
-	}
-	team, err := teamrepo.GetEventTeamByID(ctx, tx, teamID.String)
+	msg, err := eventrepo.InsertTeamMessage(ctx, tx, eventID, teamID, senderID, senderName, text, true)
 	if err != nil {
-		return zero, err
+		return TeamMessageSent{}, err
 	}
-	msg, err := eventrepo.InsertTeamMessage(ctx, tx, ev.ID, teamID.String, senderID, senderName, text, true)
+	ids, err := eventrepo.OrganiserIDs(ctx, tx, eventID)
 	if err != nil {
-		return zero, err
+		return TeamMessageSent{}, err
 	}
-	ids, err := eventrepo.OrganiserIDs(ctx, tx, ev.ID)
+	n, err := eventrepo.NotifyUsersCount(ctx, tx, eventID, eventrepo.NoticeTeamInbound, teamID, msg.ID, "", ids...)
 	if err != nil {
-		return zero, err
-	}
-	n, err := eventrepo.NotifyUsersCount(ctx, tx, ev.ID, eventrepo.NoticeTeamInbound, teamID.String, msg.ID, "", ids...)
-	if err != nil {
-		return zero, err
-	}
-	if err := tx.Commit(); err != nil {
-		return zero, err
+		return TeamMessageSent{}, err
 	}
 	return TeamMessageSent{TeamMessage: msg, TeamName: team.Name, Recipients: int(n)}, nil
 }
 
-// OrganiserOpenedThread marks the organiser's unread notices about the
-// team's messages they were just shown seen; one that arrived after the read
-// keeps its Home line.
+// OrganiserOpenedThread marks the organiser's unread notices about the team's messages they were just shown seen.
 func (s *Service) OrganiserOpenedThread(ctx context.Context, eventID, userID, teamID string, read []model.TeamMessage) error {
 	if len(read) == 0 {
 		return nil

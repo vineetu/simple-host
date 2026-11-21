@@ -51,29 +51,7 @@ func siteReportingTools(limits Limits) []Tool {
 			InputSchema: object(map[string]any{"site": str(siteDesc)}, "site"),
 			// Computes a signed download URL without creating an export job.
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				var link struct {
-					Site      string `json:"site"`
-					URL       string `json:"url"`
-					ExpiresAt string `json:"expires_at"`
-				}
-				if err := c.doJSON("export_site", http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/export-link", nil, &link); err != nil {
-					return output{}, err
-				}
-				if link.URL == "" {
-					return output{}, errors.New("export_site failed: the server returned no link; try again in a moment")
-				}
-				if link.Site == "" {
-					link.Site = name
-				}
-				out := map[string]any{"site": link.Site, "url": link.URL, "expires_at": link.ExpiresAt}
-				text := fmt.Sprintf("Download link for a copy of %s (files and saved data), valid until %s: %s", link.Site, link.ExpiresAt, link.URL)
-				return output{Text: text, Structured: out}, nil
-			},
+			run:         runExportSite,
 		},
 	}
 }
@@ -150,4 +128,28 @@ func ownVisitsLine(totals any) string {
 	}
 	return "Your own visits, left out of person: " + strconv.FormatFloat(views, 'f', -1, 64) + " views from " +
 		strconv.FormatFloat(visitors, 'f', -1, 64) + " of your addresses in this window." + ownVisitsCaveat
+}
+
+func runExportSite(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	var link struct {
+		Site      string `json:"site"`
+		URL       string `json:"url"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := c.doJSON("export_site", http.MethodPost, "/v1/sites/"+url.PathEscape(name)+"/export-link", nil, &link); err != nil {
+		return output{}, err
+	}
+	if link.URL == "" {
+		return output{}, errors.New("export_site failed: the server returned no link; try again in a moment")
+	}
+	if link.Site == "" {
+		link.Site = name
+	}
+	out := map[string]any{"site": link.Site, "url": link.URL, "expires_at": link.ExpiresAt}
+	text := fmt.Sprintf("Download link for a copy of %s (files and saved data), valid until %s: %s", link.Site, link.ExpiresAt, link.URL)
+	return output{Text: text, Structured: out}, nil
 }

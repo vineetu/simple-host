@@ -28,7 +28,7 @@ func reminderSettingsJSON(ev model.Event) map[string]any {
 }
 
 func (h *HackHandler) getReminderSettings(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), false, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
 		return
 	}
@@ -36,7 +36,7 @@ func (h *HackHandler) getReminderSettings(w http.ResponseWriter, r *http.Request
 }
 
 func (h *HackHandler) putReminderSettings(w http.ResponseWriter, r *http.Request) {
-	a, ok := h.loadMember(w, r, r.PathValue("slug"), true, "organiser")
+	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
 		return
 	}
@@ -44,10 +44,8 @@ func (h *HackHandler) putReminderSettings(w http.ResponseWriter, r *http.Request
 		httpx.WriteError(w, http.StatusConflict, "event_closed", "an ended event cannot be changed")
 		return
 	}
-	// OffsetsMinutes is a pointer so a missing field (nil) can be told apart
-	// from an explicit [] (valid: turns reminders off for both audiences).
-	// Without this, {} decodes OffsetsMinutes to the same nil-turned-empty
-	// slice as [] and silently turns reminders off.
+	// OffsetsMinutes is a pointer so a missing field (nil) can be told apart from
+	// an explicit [] (valid: turns reminders off for both audiences).
 	var req struct {
 		OffsetsMinutes *[]int `json:"offsets_minutes"`
 	}

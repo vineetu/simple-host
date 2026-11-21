@@ -8,9 +8,7 @@ import (
 
 var memberHashSeed = maphash.MakeSeed()
 
-// Readers never lock or allocate. Only the first observation of a member in
-// this slot copies its shard's immutable map. IDs live in memory until drain.
-// Full string keys retain exact distinct counts, including hash collisions.
+// Readers never lock or allocate.
 type hackMemberSet struct{ shards [32]hackMemberShard }
 type hackMemberShard struct {
 	mu     sync.Mutex

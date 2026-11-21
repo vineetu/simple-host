@@ -80,199 +80,172 @@ func providerRandomRaw(n int) ([]byte, error) {
 	_, err := rand.Read(b)
 	return b, err
 }
+
+// Callback finishes a provider sign-in: the state it started with is spent,
+// the provider's code exchanged for an identity, the account found or made,
+// and either a dashboard sign-in link (owner) or a pending visitor session on
+// the site it started on is issued. Every refusal is a ProviderFailure.
 func (flow *ProviderSignIn) Callback(ctx context.Context, in ProviderCallbackInput) (ProviderResult, *ProviderFailure) {
-	st, err := repo.ConsumeOAuthState(ctx, flow.service.database, in.State)
-	if err != nil {
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
+	st, ident, fail := flow.callbackIdentity(ctx, in)
+	if fail != nil {
+		return ProviderResult{}, fail
 	}
-	if st.Provider != in.Name {
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
-	}
-	if in.ProviderError != "" || strings.TrimSpace(in.Code) == "" {
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
-	}
-
-	ident, err := flow.providers[in.Name].Exchange(ctx, strings.TrimSpace(in.Code), st.CodeVerifier)
-	if err != nil {
-		var refused *oauth.RefusalError
-		if errors.As(err, &refused) {
-			// A business-rule refusal (unverified email, domain not
-			// allowed): the message names no internals and is safe to show.
-			return ProviderResult{}, &ProviderFailure{Status: 403, Refusal: refused.Message}
-		}
-		log.Printf("oauth: %s exchange: %v", in.Name, err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
-	}
-	if ident.UserID == "" {
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
-	}
-
 	tx, err := flow.service.database.BeginTx(ctx, nil)
 	if err != nil {
-		log.Printf("oauth: begin: %v", err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
+		return ProviderResult{}, providerGatewayFailure("begin", err)
 	}
 	defer tx.Rollback()
-
-	user, created, err := resolveUser(ctx, tx, ident)
-	if errors.Is(err, errOAuthEmailRefused) || errors.Is(err, errOAuthAdminRefused) {
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
+	user, created, fail := callbackUser(ctx, tx, ident)
+	if fail != nil {
+		return ProviderResult{}, fail
 	}
-	if errors.Is(err, errOAuthPasswordRefused) {
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusConflict, Refusal: "This email already has a password account on this install. Sign in with the password instead."}
-	}
-	if err != nil {
-		log.Printf("oauth: resolve user: %v", err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
-	}
-	// Where a new account came from, recorded after the commit below so a
-	// failure to record it can never abort the sign-in.
-	var signup *model.Signup
-	if created {
-		sig := model.Signup{Source: model.SignupVisitor, Method: ident.Provider}
-		if st.Purpose == "owner" {
-			sig = in.Attribution(ctx, tx, st.ReturnTo, ident.Provider)
-		}
-		signup = &sig
-	}
-	recordAfterCommit := func() {
-		if signup != nil {
-			RecordSignup(ctx, flow.service.database, user.ID, *signup)
-		}
-	}
+	// Where a new account came from, recorded after the commit so a failure
+	// to record it can never abort the sign-in.
+	signup := callbackSignup(ctx, tx, in, st, ident, created)
 	// A suspended account signs in on no site. (A dashboard sign-in is
 	// refused, with the reason, when its token is redeemed at /v1/auth/verify.)
 	if susp, serr := repo.UserSuspended(ctx, tx, user.ID); st.Purpose != "owner" && (serr != nil || susp) {
 		return ProviderResult{}, &ProviderFailure{Status: http.StatusForbidden}
 	}
-
+	var result ProviderResult
 	if st.Purpose == "owner" {
-		if created || !user.Handle.Valid {
-			in.Assign(ctx, tx, user.ID, user.Username, in.RandomHandles)
-		}
-		linkToken, err := secureHex(24)
-		if err != nil {
-			log.Printf("oauth: owner link token: %v", err)
-			return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
-		}
-		code, err := numericCode(6)
-		if err != nil {
-			log.Printf("oauth: owner unused code: %v", err)
-			return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
-		}
-		// The one-time token is bound to the nonce of the tab that started
-		// this sign-in (cn in its return_to), so only that tab can redeem it.
-		if err := repo.CreateAuthToken(ctx, tx, user.Username, code, linkToken, time.Now().Add(in.AuthTTL), "dashboard", sql.NullString{}, in.NonceHash(st.ReturnTo)); err != nil {
-			log.Printf("oauth: owner auth token: %v", err)
-			return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
-		}
-		if err := tx.Commit(); err != nil {
-			log.Printf("oauth: commit: %v", err)
-			return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
-		}
-		recordAfterCommit()
-		return ProviderResult{State: st, LinkToken: linkToken}, nil
+		result, fail = ownerSignInLink(ctx, tx, in, st, user, created)
+	} else {
+		result, fail = siteSignInSession(ctx, tx, st, user)
 	}
+	if fail != nil {
+		return ProviderResult{}, fail
+	}
+	if signup != nil {
+		RecordSignup(ctx, flow.service.database, user.ID, *signup)
+	}
+	return result, nil
+}
 
-	// A site sign-in must have started on the site host, bound to a browser.
+// providerGatewayFailure logs a failed step and answers 502.
+func providerGatewayFailure(step string, err error) *ProviderFailure {
+	log.Printf("oauth: %s: %v", step, err)
+	return &ProviderFailure{Status: http.StatusBadGateway}
+}
+
+// callbackIdentity spends the sign-in's state and exchanges the provider's
+// code for the identity it names. A provider's business-rule refusal
+// (unverified email, domain not allowed) names no internals and is shown.
+func (flow *ProviderSignIn) callbackIdentity(ctx context.Context, in ProviderCallbackInput) (model.OAuthState, ProviderIdentity, *ProviderFailure) {
+	st, err := repo.ConsumeOAuthState(ctx, flow.service.database, in.State)
+	if err != nil || st.Provider != in.Name || in.ProviderError != "" || strings.TrimSpace(in.Code) == "" {
+		return st, ProviderIdentity{}, &ProviderFailure{Status: http.StatusBadRequest}
+	}
+	ident, err := flow.providers[in.Name].Exchange(ctx, strings.TrimSpace(in.Code), st.CodeVerifier)
+	if err != nil {
+		var refused *oauth.RefusalError
+		if errors.As(err, &refused) {
+			return st, ident, &ProviderFailure{Status: 403, Refusal: refused.Message}
+		}
+		return st, ident, providerGatewayFailure(in.Name+" exchange", err)
+	}
+	if ident.UserID == "" {
+		return st, ident, &ProviderFailure{Status: http.StatusBadGateway}
+	}
+	return st, ident, nil
+}
+
+// callbackUser is resolveUser with its refusals as failures.
+func callbackUser(ctx context.Context, tx *sql.Tx, ident ProviderIdentity) (model.User, bool, *ProviderFailure) {
+	user, created, err := resolveUser(ctx, tx, ident)
+	switch {
+	case errors.Is(err, errOAuthEmailRefused) || errors.Is(err, errOAuthAdminRefused):
+		return user, created, &ProviderFailure{Status: http.StatusBadRequest}
+	case errors.Is(err, errOAuthPasswordRefused):
+		return user, created, &ProviderFailure{Status: http.StatusConflict, Refusal: "This email already has a password account on this install. Sign in with the password instead."}
+	case err != nil:
+		return user, created, providerGatewayFailure("resolve user", err)
+	}
+	return user, created, nil
+}
+
+// callbackSignup is where a new account came from: a visitor sign-in, or
+// the owner sign-in's own attribution.
+func callbackSignup(ctx context.Context, tx *sql.Tx, in ProviderCallbackInput, st model.OAuthState, ident ProviderIdentity, created bool) *model.Signup {
+	if !created {
+		return nil
+	}
+	sig := model.Signup{Source: model.SignupVisitor, Method: ident.Provider}
+	if st.Purpose == "owner" {
+		sig = in.Attribution(ctx, tx, st.ReturnTo, ident.Provider)
+	}
+	return &sig
+}
+
+// ownerSignInLink issues the dashboard's one-time sign-in token, bound to
+// the nonce of the tab that started this sign-in (cn in its return_to), so
+// only that tab can redeem it, and commits.
+func ownerSignInLink(ctx context.Context, tx *sql.Tx, in ProviderCallbackInput, st model.OAuthState, user model.User, created bool) (ProviderResult, *ProviderFailure) {
+	if created || !user.Handle.Valid {
+		in.Assign(ctx, tx, user.ID, user.Username, in.RandomHandles)
+	}
+	linkToken, err := secureHex(24)
+	if err != nil {
+		return ProviderResult{}, providerGatewayFailure("owner link token", err)
+	}
+	code, err := numericCode(6)
+	if err != nil {
+		return ProviderResult{}, providerGatewayFailure("owner unused code", err)
+	}
+	if err := repo.CreateAuthToken(ctx, tx, user.Username, code, linkToken, time.Now().Add(in.AuthTTL), "dashboard", sql.NullString{}, in.NonceHash(st.ReturnTo)); err != nil {
+		return ProviderResult{}, providerGatewayFailure("owner auth token", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return ProviderResult{}, providerGatewayFailure("commit", err)
+	}
+	return ProviderResult{State: st, LinkToken: linkToken}, nil
+}
+
+// siteSignInSession issues a pending visitor session on the site the sign-in
+// started on, and the one-time token the site's own host redeems for it, and
+// commits. A site sign-in must have started on the site host, bound to a
+// browser.
+func siteSignInSession(ctx context.Context, tx *sql.Tx, st model.OAuthState, user model.User) (ProviderResult, *ProviderFailure) {
 	if !st.SiteID.Valid || st.SiteID.String == "" || st.Host == "" || !st.NonceHash.Valid || !providerNoncePattern.MatchString(st.NonceHash.String) {
 		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
 	}
-
 	sessionID, err := providerRandomRaw(32)
 	if err != nil {
-		log.Printf("oauth: session id: %v", err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
+		return ProviderResult{}, providerGatewayFailure("session id", err)
 	}
 	now := time.Now()
 	if err := repo.InsertPendingVisitorSession(ctx, tx, sessionID, user.ID, st.SiteID.String, st.Host, now.Add(time.Minute)); err != nil {
-		log.Printf("oauth: insert session: %v", err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
+		return ProviderResult{}, providerGatewayFailure("insert session", err)
 	}
-
 	once, err := secureHex(32)
 	if err != nil {
-		log.Printf("oauth: establish once: %v", err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
+		return ProviderResult{}, providerGatewayFailure("establish once", err)
 	}
 	if err := repo.InsertEstablishToken(ctx, tx, once, sessionID, st.Host, st.ReturnTo, st.NonceHash, now.Add(60*time.Second)); err != nil {
-		log.Printf("oauth: insert establish: %v", err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
+		return ProviderResult{}, providerGatewayFailure("insert establish", err)
 	}
 	if err := tx.Commit(); err != nil {
-		log.Printf("oauth: commit: %v", err)
-		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadGateway}
+		return ProviderResult{}, providerGatewayFailure("commit", err)
 	}
-	recordAfterCommit()
-
 	return ProviderResult{State: st, Once: once}, nil
 }
+
 func resolveUser(ctx context.Context, q repo.Querier, ident ProviderIdentity) (model.User, bool, error) {
-	// A re-login through an identity already linked here needs no
-	// password-account check to stay sound: the link itself was only ever
-	// made below, past that check, so it can never point at one of
-	// CreatePasswordAccount's accounts in the first place. The check here
-	// is defence in depth only, in case that ever stops being true.
 	existing, err := repo.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
 	if err == nil {
-		user, uerr := repo.GetUserByID(ctx, q, existing.UserID)
-		if uerr != nil {
-			return model.User{}, false, uerr
-		}
-		if pw, perr := repo.PasswordSignupAccount(ctx, q, user.ID); perr != nil {
-			return model.User{}, false, perr
-		} else if pw {
-			log.Printf("oauth: refused existing-identity link to a password account provider=%s", ident.Provider)
-			return model.User{}, false, errOAuthPasswordRefused
-		}
-		if terr := repo.TouchOAuthIdentity(ctx, q, existing.ID, ident.Email, ident.EmailVerified); terr != nil {
-			return model.User{}, false, terr
-		}
-		return user, false, nil
+		return relogin(ctx, q, ident, existing)
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return model.User{}, false, err
 	}
-
-	email, valid := authrules.NormalEmail(ident.Email)
-	if !valid || !ident.EmailVerified {
-		email = strings.ToLower(strings.TrimSpace(ident.Email))
-		if email == "" {
-			log.Printf("oauth: refused unverified or missing email provider=%s", ident.Provider)
-		} else {
-			log.Printf("oauth: refused unverified or missing email provider=%s email=%s", ident.Provider, redactEmail(email))
-		}
-		return model.User{}, false, errOAuthEmailRefused
-	}
-
-	user, err := repo.GetUserByUsername(ctx, q, email)
-	created := false
-	switch {
-	case err == nil:
-		if user.Username == "admin" {
-			log.Printf("oauth: refused admin link provider=%s", ident.Provider)
-			return model.User{}, false, errOAuthAdminRefused
-		}
-	case errors.Is(err, sql.ErrNoRows):
-		user, err = repo.CreateUser(ctx, q, email, "", false)
-		if err != nil {
-			if repo.IsUniqueConstraintViolation(err) {
-				user, err = repo.GetUserByUsername(ctx, q, email)
-			}
-			if err != nil {
-				return model.User{}, false, err
-			}
-		} else {
-			created = true
-		}
-		if user.Username == "admin" {
-			log.Printf("oauth: refused admin link provider=%s", ident.Provider)
-			return model.User{}, false, errOAuthAdminRefused
-		}
-	default:
+	email, err := verifiedProviderEmail(ident)
+	if err != nil {
 		return model.User{}, false, err
 	}
-
+	user, created, err := accountForProviderEmail(ctx, q, ident.Provider, email)
+	if err != nil {
+		return model.User{}, false, err
+	}
 	// An existing account under this address that CreatePasswordAccount made
 	// (admin-created; a self-signup password account's username is now a
 	// synthetic value and could never match email here in the first place)
@@ -281,27 +254,100 @@ func resolveUser(ctx context.Context, q repo.Querier, ident ProviderIdentity) (m
 	// whoever signs in here a password its creator already knows
 	// (pre-account hijacking). Refuse instead of resolving to or linking it.
 	if !created {
-		if pw, perr := repo.PasswordSignupAccount(ctx, q, user.ID); perr != nil {
-			return model.User{}, false, perr
-		} else if pw {
-			log.Printf("oauth: refused password-account link provider=%s", ident.Provider)
-			return model.User{}, false, errOAuthPasswordRefused
+		if err := refusePasswordLink(ctx, q, ident.Provider, user.ID, "password-account link"); err != nil {
+			return model.User{}, false, err
 		}
 	}
+	return linkProviderIdentity(ctx, q, ident, user, email, created)
+}
 
-	if _, err := repo.InsertOAuthIdentity(ctx, q, user.ID, ident.Provider, ident.UserID, email, ident.EmailVerified); err != nil {
-		if repo.IsUniqueConstraintViolation(err) {
-			// Concurrent callback won the race — reload the linked row.
-			linked, lerr := repo.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
-			if lerr != nil {
-				return model.User{}, false, lerr
-			}
-			user, uerr := repo.GetUserByID(ctx, q, linked.UserID)
-			return user, false, uerr
-		}
+// relogin is a sign-in through an identity already linked here. It needs no
+// password-account check to stay sound: the link itself was only ever made
+// past that check, so it can never point at one of CreatePasswordAccount's
+// accounts in the first place. The check is defence in depth only, in case
+// that ever stops being true.
+func relogin(ctx context.Context, q repo.Querier, ident ProviderIdentity, existing model.OAuthIdentity) (model.User, bool, error) {
+	user, err := repo.GetUserByID(ctx, q, existing.UserID)
+	if err != nil {
 		return model.User{}, false, err
 	}
+	if err := refusePasswordLink(ctx, q, ident.Provider, user.ID, "existing-identity link to a password account"); err != nil {
+		return model.User{}, false, err
+	}
+	if err := repo.TouchOAuthIdentity(ctx, q, existing.ID, ident.Email, ident.EmailVerified); err != nil {
+		return model.User{}, false, err
+	}
+	return user, false, nil
+}
+
+// refusePasswordLink refuses (errOAuthPasswordRefused) an account that
+// CreatePasswordAccount made.
+func refusePasswordLink(ctx context.Context, q repo.Querier, provider, userID, what string) error {
+	pw, err := repo.PasswordSignupAccount(ctx, q, userID)
+	if err != nil {
+		return err
+	}
+	if pw {
+		log.Printf("oauth: refused %s provider=%s", what, provider)
+		return errOAuthPasswordRefused
+	}
+	return nil
+}
+
+// verifiedProviderEmail is the identity's email when the provider verified
+// it; a first link is never made on an unverified or missing one.
+func verifiedProviderEmail(ident ProviderIdentity) (string, error) {
+	email, valid := authrules.NormalEmail(ident.Email)
+	if valid && ident.EmailVerified {
+		return email, nil
+	}
+	email = strings.ToLower(strings.TrimSpace(ident.Email))
+	if email == "" {
+		log.Printf("oauth: refused unverified or missing email provider=%s", ident.Provider)
+	} else {
+		log.Printf("oauth: refused unverified or missing email provider=%s email=%s", ident.Provider, redactEmail(email))
+	}
+	return "", errOAuthEmailRefused
+}
+
+// accountForProviderEmail is the account under email, made now when there
+// is none. The admin account is never linked.
+func accountForProviderEmail(ctx context.Context, q repo.Querier, provider, email string) (model.User, bool, error) {
+	user, err := repo.GetUserByUsername(ctx, q, email)
+	created := false
+	if errors.Is(err, sql.ErrNoRows) {
+		user, err = repo.CreateUser(ctx, q, email, "", false)
+		created = err == nil
+		if repo.IsUniqueConstraintViolation(err) {
+			user, err = repo.GetUserByUsername(ctx, q, email)
+		}
+	}
+	if err != nil {
+		return model.User{}, false, err
+	}
+	if user.Username == "admin" {
+		log.Printf("oauth: refused admin link provider=%s", provider)
+		return model.User{}, false, errOAuthAdminRefused
+	}
 	return user, created, nil
+}
+
+// linkProviderIdentity links the identity to user. A concurrent callback
+// that won the race has linked it already: its account is the one.
+func linkProviderIdentity(ctx context.Context, q repo.Querier, ident ProviderIdentity, user model.User, email string, created bool) (model.User, bool, error) {
+	_, err := repo.InsertOAuthIdentity(ctx, q, user.ID, ident.Provider, ident.UserID, email, ident.EmailVerified)
+	if err == nil {
+		return user, created, nil
+	}
+	if !repo.IsUniqueConstraintViolation(err) {
+		return model.User{}, false, err
+	}
+	linked, err := repo.GetOAuthIdentity(ctx, q, ident.Provider, ident.UserID)
+	if err != nil {
+		return model.User{}, false, err
+	}
+	user, err = repo.GetUserByID(ctx, q, linked.UserID)
+	return user, false, err
 }
 
 func redactEmail(email string) string {

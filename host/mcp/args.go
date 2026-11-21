@@ -112,6 +112,49 @@ func wholeNumber(args map[string]any, key string, required bool, min, max int) (
 	return int(value), true, nil
 }
 
+// boolArg reads an optional true/false argument; absent gives fallback.
+func boolArg(args map[string]any, key string, fallback bool) (bool, error) {
+	value, present, err := presentBool(args, key)
+	if !present {
+		return fallback, err
+	}
+	return value, err
+}
+
+// presentBool reads an optional true/false argument and says whether it was
+// sent. A null is refused: guessing a default could replace a whole site.
+func presentBool(args map[string]any, key string) (value, present bool, err error) {
+	raw, present := args[key]
+	if !present {
+		return false, false, nil
+	}
+	value, ok := raw.(bool)
+	if !ok {
+		return false, true, fmt.Errorf("%s must be true or false", key)
+	}
+	return value, true, nil
+}
+
+// stringListArg reads a list of strings, sent as an array or as a
+// JSON-encoded array, dropping blank entries. Absent gives nil.
+func stringListArg(args map[string]any, key string) ([]string, error) {
+	raw, present := args[key]
+	if !present || raw == nil {
+		return nil, nil
+	}
+	list, ok := listArg(raw)
+	if !ok {
+		return nil, fmt.Errorf("%s must be an array or JSON-encoded array", key)
+	}
+	var out []string
+	for _, item := range list {
+		if text, ok := item.(string); ok && strings.TrimSpace(text) != "" {
+			out = append(out, strings.TrimSpace(text))
+		}
+	}
+	return out, nil
+}
+
 // siteArg reads and shape-checks a site name. The REST layer validates it
 // again; checking here turns a refusal into a precise message.
 func siteArg(args map[string]any) (string, error) {

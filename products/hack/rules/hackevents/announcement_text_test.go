@@ -177,3 +177,20 @@ func TestAnnouncementURLAndNestedMarkup(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestCleanAnnouncementURLAccepts(t *testing.T) {
+	for raw, want := range map[string]string{
+		"https://example.com/a?x=1":           "https://example.com/a?x=1",
+		"http://example.com:8080/":            "http://example.com:8080/",
+		"https://example.com/café":            "https://example.com/caf%C3%A9",
+		"https://example.com/'x'":             "https://example.com/%27x%27",
+		"https://example.com:123456/":         "",
+		"https://bücher.example/":             "",
+		"https://" + strings.Repeat("a", 254): "",
+	} {
+		got, ok := cleanAnnouncementURL(raw)
+		if got != want || ok != (want != "") {
+			t.Errorf("%q: got %q %v, want %q", raw, got, ok, want)
+		}
+	}
+}

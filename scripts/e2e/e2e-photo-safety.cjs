@@ -20,7 +20,7 @@ const assert = require('node:assert/strict');
         });
         for (const uri of images) {
           const ext = uri.startsWith('data:image/jpeg') ? 'jpg' : uri.startsWith('data:image/webp') ? 'webp' : null;
-          if (ext) fs.writeFileSync(path.join(__dirname, '../../host/handler/testdata/photos/canvas-'+name+'.'+ext), Buffer.from(uri.split(',')[1],'base64'));
+          if (ext) fs.writeFileSync(path.join(__dirname, '../../host/web/testdata/photos/canvas-'+name+'.'+ext), Buffer.from(uri.split(',')[1],'base64'));
         }
         console.log('PASS '+name+' '+browser.version()+' canvas fixtures');
         continue;

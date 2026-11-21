@@ -1,0 +1,103 @@
+package web
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"net/http"
+	"path"
+	"sync"
+	"time"
+)
+
+// FilmTypes are the landing film's files (static/film/) and their types: H.264
+// MP4 first, and VP9 WebM for browsers built without H.264. The
+// type is set here rather than read from the system's mime table, which a
+// small container image may not have.
+var FilmTypes = map[string]string{
+	"host-film-390.mp4":         "video/mp4",
+	"host-film-1280.mp4":        "video/mp4",
+	"host-film-390.webm":        "video/webm",
+	"host-film-1280.webm":       "video/webm",
+	"host-film-390-poster.jpg":  "image/jpeg",
+	"host-film-1280-poster.jpg": "image/jpeg",
+}
+
+// ArtifactFilmTypes are the "everything you make with AI" film's files: the
+// home page plays it for visitors sent by artifact-hub.com (/?from=artifact-hub)
+// and by Vercel Ship's post-poll link (/?from=vercel-ship).
+var ArtifactFilmTypes = map[string]string{
+	"artifact-film-390.mp4":         "video/mp4",
+	"artifact-film-1280.mp4":        "video/mp4",
+	"artifact-film-390.webm":        "video/webm",
+	"artifact-film-1280.webm":       "video/webm",
+	"artifact-film-390-poster.jpg":  "image/jpeg",
+	"artifact-film-1280-poster.jpg": "image/jpeg",
+}
+
+// EnterpriseFilmTypes are the Enterprise film's files: /enterprise plays it.
+var EnterpriseFilmTypes = map[string]string{
+	"enterprise-film-390.mp4":         "video/mp4",
+	"enterprise-film-1280.mp4":        "video/mp4",
+	"enterprise-film-390.webm":        "video/webm",
+	"enterprise-film-1280.webm":       "video/webm",
+	"enterprise-film-390-poster.jpg":  "image/jpeg",
+	"enterprise-film-1280-poster.jpg": "image/jpeg",
+}
+
+// ServeFilm serves the landing film from the binary. http.ServeContent
+// answers Range requests with 206, which iPhone Safari needs before it plays
+// or seeks a video. The page asks for each file with a ?v= stamp, and the
+// ETag lets a cached copy revalidate cheaply.
+func ServeFilm(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("file")
+	ctype, ok := FilmTypes[name]
+	if !ok {
+		ctype, ok = ArtifactFilmTypes[name]
+	}
+	if !ok {
+		ctype, ok = EnterpriseFilmTypes[name]
+	}
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	f, err := EmbeddedTree.Open(path.Join("static/film", name))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Cache-Control", "public, max-age=604800")
+	w.Header().Set("ETag", filmETags()[name])
+	http.ServeContent(w, r, name, time.Time{}, f.(io.ReadSeeker))
+}
+
+// filmETags hashes each film file once, on first use.
+var filmETags = sync.OnceValue(func() map[string]string {
+	tags := make(map[string]string, len(FilmTypes)+len(ArtifactFilmTypes)+len(EnterpriseFilmTypes))
+	for name := range landingFilmTypes() {
+		b, err := EmbeddedTree.ReadFile(path.Join("static/film", name))
+		if err != nil {
+			continue
+		}
+		sum := sha256.Sum256(b)
+		tags[name] = `"` + hex.EncodeToString(sum[:8]) + `"`
+	}
+	return tags
+})
+
+func landingFilmTypes() map[string]string {
+	types := make(map[string]string, len(FilmTypes)+len(ArtifactFilmTypes)+len(EnterpriseFilmTypes))
+	for name, ctype := range FilmTypes {
+		types[name] = ctype
+	}
+	for name, ctype := range ArtifactFilmTypes {
+		types[name] = ctype
+	}
+	for name, ctype := range EnterpriseFilmTypes {
+		types[name] = ctype
+	}
+	return types
+}

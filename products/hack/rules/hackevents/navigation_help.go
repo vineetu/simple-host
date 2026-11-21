@@ -7,15 +7,7 @@ import (
 	"strings"
 )
 
-// navigation-help.json is the explanation layer of the shared navigation
-// map (navigation.json, SIM-388): one record per organiser setting, option,
-// feature and action, each tied to a navigation target for its link. It is
-// the organiser assistant's only product knowledge (organiser assistant v2,
-// 2026-11-09). Kept as a sibling file so GET /v1/hack/navigation and the
-// browser's generated navigation-data.js stay as they are; checked together
-// with navigation.json by scripts/build-hack-navigation.py --check and
-// TestNavigationHelp. A settings change is not done until its record here
-// says what it now does.
+// navigation-help.json is the explanation layer of the shared navigation map.
 //
 //go:embed navigation-help.json
 var navigationHelpJSON []byte
@@ -57,8 +49,7 @@ func NavigationHelp() NavigationHelpMap {
 	return m
 }
 
-// HelpText renders one record as the compact plain text the assistant's
-// prompt carries. href is the record's resolved link ("" leaves it off).
+// HelpText renders one record as the compact plain text the assistant's prompt carries.
 func (r HelpRecord) HelpText(href string) string {
 	var b strings.Builder
 	if href != "" {

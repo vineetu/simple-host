@@ -25,9 +25,7 @@ type EventMember = model.EventMember
 // RegistrationApplication aliases the shared model record.
 type RegistrationApplication = model.RegistrationApplication
 
-// ApplicantProfile is the optional fields an application (without a join
-// link) may answer: city, an ISO 3166-1 alpha-2 country code, an age range
-// and a gender. Every field is optional and blank means "not shared".
+// ApplicantProfile is the optional fields an application.
 type ApplicantProfile = model.ApplicantProfile
 
 // RegistrationSettings loads the registration questions and approval setting.
@@ -111,10 +109,7 @@ func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID
 	return out, rows.Err()
 }
 
-// ApplyParticipant is JoinParticipantRegistration for someone applying to an
-// event without a join link (D1): always pending and joined_via='application',
-// whatever the organiser's approval_required setting says, plus the
-// application's optional profile fields.
+// ApplyParticipant is JoinParticipantRegistration for someone applying to an event without a join link.
 func ApplyParticipant(ctx context.Context, q sqlkit.Querier, eventID, userID string, answers []SignupAnswer, p ApplicantProfile) (EventMember, error) {
 	raw, err := json.Marshal(answers)
 	if err != nil {
@@ -131,28 +126,21 @@ func ApplyParticipant(ctx context.Context, q sqlkit.Querier, eventID, userID str
 		) SELECT j.event_id,j.user_id,j.role,COALESCE(u.display_name,''),j.team_id,j.coc_accepted_at,j.joined_at FROM joined j JOIN users u ON u.id=j.user_id`, eventID, userID, raw, p.City, p.Country, p.AgeRange, p.Gender))
 }
 
-// CountPendingApplications is how many applications (joined_via='application'),
-// across every event, this person has waiting for a decision. Used for the
-// per-account cap (too_many_pending). Matches the partial index
-// event_members_pending_app_user_idx (zp-hack-applications.sql).
+// CountPendingApplications is how many applications (joined_via='application'), across every event, this person has waiting for a decision.
 func CountPendingApplications(ctx context.Context, q sqlkit.Querier, userID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `SELECT count(*) FROM event_members WHERE user_id=$1 AND joined_via='application' AND approval_status='pending'`, userID).Scan(&n)
 	return n, err
 }
 
-// CountPendingApplicationsForEvent is how many applications this one event
-// has waiting for a decision, for the per-event ceiling
-// (EVENT_APPLY_PENDING_PER_EVENT, event_applications_full). Matches the
-// partial index event_members_pending_app_event_idx (zp-hack-applications.sql).
+// CountPendingApplicationsForEvent is how many applications this one event has waiting for a decision, for the per-event ceiling.
 func CountPendingApplicationsForEvent(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `SELECT count(*) FROM event_members WHERE event_id=$1 AND joined_via='application' AND approval_status='pending'`, eventID).Scan(&n)
 	return n, err
 }
 
-// MemberStatus is the small summary GET .../apply's "me" needs for a caller
-// who is already a member: their role, approval status and how they joined.
+// MemberStatus is the small summary GET .../apply's "me" needs for a caller who is already a member: their role, approval status and how they joined.
 type MemberStatus = model.MemberStatus
 
 // GetMemberStatus loads MemberStatus. sql.ErrNoRows if the caller is not a member.
@@ -162,10 +150,7 @@ func GetMemberStatus(ctx context.Context, q sqlkit.Querier, eventID, userID stri
 	return m, err
 }
 
-// DecideRegistration approves or rejects one pending participant. Rejecting an
-// application also clears the optional profile fields it carried (city,
-// country, age range, gender): an organiser who said no has no further use for
-// them, and a minor's details should not outlive the decision.
+// DecideRegistration approves or rejects one pending participant.
 func DecideRegistration(ctx context.Context, q sqlkit.Querier, eventID, userID, actor, status string) (bool, error) {
 	result, err := q.ExecContext(ctx, `UPDATE event_members SET approval_status=$4,approval_decided_at=now(),approval_decided_by=$3,city=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE city END,country=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE country END,age_range=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE age_range END,gender=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE gender END WHERE event_id=$1 AND user_id=$2 AND role='participant' AND approval_status='pending'`, eventID, userID, actor, status)
 	if err != nil {
@@ -195,11 +180,7 @@ func ListEventTracks(ctx context.Context, q sqlkit.Querier, eventID string) ([]E
 
 // ReplaceEventTracks replaces the event’s tracks.
 func ReplaceEventTracks(ctx context.Context, q sqlkit.Querier, eventID string, tracks []EventTrack) error {
-	// No position column (plan: no schema change). Instead give each track in
-	// this save a distinct created_at, one microsecond apart in the submitted
-	// order, so `ORDER BY created_at,id` (ListEventTracks) returns tracks in
-	// the order they were saved -- for a fresh insert and for a reorder of
-	// existing tracks alike, since the UPDATE arm also rewrites created_at.
+	// No position column (plan: no schema change).
 	base := time.Now().UTC()
 	for i, t := range tracks {
 		createdAt := base.Add(time.Duration(i) * time.Microsecond)

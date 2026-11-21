@@ -2,6 +2,7 @@ package hackmcp
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/host/mcp"
 	"regexp"
@@ -31,34 +32,26 @@ const hackRecipeNote = `On Simple Hack (read this first; it overrides the Simple
 // eventRecipeSlug is the site-name shape event slugs share (rules/sites.ValidSiteName).
 var eventRecipeSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 
+// hackRecipeRefusals are the Simple Host topics Simple Hack cannot serve.
+// portal is a private page per client through named viewers, which Simple
+// Hack does not offer. comments needs the spam check, which Simple Hack
+// does not run (people sign in to post on wall). people: for, the people
+// pick list and the canonical-email resolution behind both are Host only
+// (SIM-358 review round 2, item D).
+var hackRecipeRefusals = map[string]string{
+	"portal":    "topic portal is not available on Simple Hack (it needs named viewers); use another topic",
+	"comments":  "topic comments is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post",
+	"guestbook": "topic guestbook is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post",
+	"people":    "topic people is not available on Simple Hack (for and the people pick list are Host only); use another topic",
+}
+
 // HackPageRecipe is PageRecipe as Simple Hack serves it.
 func HackPageRecipe(topic, site string) (string, error) {
 	if topic == "event" {
-		if !eventRecipeSlug.MatchString(site) {
-			return "", fmt.Errorf("site must be the event slug (lowercase letters, digits and hyphens)")
-		}
-		data, err := readEventRecipe()
-		if err != nil {
-			return "", err
-		}
-		return strings.ReplaceAll(string(data), "{event}", site), nil
+		return hackEventRecipe(site)
 	}
-	// A portal is a private page per client through named viewers, which
-	// Simple Hack does not offer: without them its documents would be public.
-	if topic == "portal" {
-		return "", fmt.Errorf("topic portal is not available on Simple Hack (it needs named viewers); use another topic")
-	}
-	// The comments recipe needs the spam check, which Simple Hack does not
-	// run; people sign in to post there (wall).
-	if topic == "comments" || topic == "guestbook" {
-		return "", fmt.Errorf("topic %s is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post", topic)
-	}
-	// for, the people pick list, and the canonical-email resolution behind
-	// both are Host only (SIM-358 review round 2, item D): named viewers
-	// and this email resolution are not a Simple Hack concept, and the
-	// REST/MCP paths both already refuse for on Simple Hack regardless.
-	if topic == "people" {
-		return "", fmt.Errorf("topic people is not available on Simple Hack (for and the people pick list are Host only); use another topic")
+	if refusal, refused := hackRecipeRefusals[topic]; refused {
+		return "", errors.New(refusal)
 	}
 	text, err := mcp.PageRecipe(topic, site)
 	if err != nil {
@@ -83,6 +76,17 @@ func HackPageRecipe(topic, site string) (string, error) {
 	return hackRecipeNote + text, nil
 }
 
+func hackEventRecipe(site string) (string, error) {
+	if !eventRecipeSlug.MatchString(site) {
+		return "", fmt.Errorf("site must be the event slug (lowercase letters, digits and hyphens)")
+	}
+	data, err := readEventRecipe()
+	if err != nil {
+		return "", err
+	}
+	return strings.ReplaceAll(string(data), "{event}", site), nil
+}
+
 // hackPageRecipeTool is get_page_recipe for Simple Hack sites. topic
 // people is removed from the enum entirely (not only refused at runtime,
 // review round 2 item D): for and the people pick list are Host only
@@ -95,45 +99,44 @@ func hackPageRecipeTool() mcp.Tool {
 	tool.Description = strings.Replace(tool.Description, "; the owner's own photos go through create_upload_link, no page code", "", 1)
 	tool.Description = strings.Replace(tool.Description, "people (one page, two views, for many signed-in visitors the owner also works with directly — a coach and clients, a tutor and students, a trainer and members: the owner picks a person, sees and adds to their rows, assigns from a template, replies by adding a row for them; each visitor sees only their own, marked as the owner's when the owner added it), ", "", 1)
 	tool.Description += " Topic event builds the organiser’s event website from the live public event feed. On Simple Hack the storage recipes start with a note on who the owner is there (the team, or the event's organisers) and which tools to use; topic portal is not available there, nor comments or guestbook (no spam check there: use wall, where people sign in to post); topic people does not exist there at all (for and the people pick list are Host only)."
-	hackTopics := []string{"event"}
+	tool.InputSchema = hackRecipeSchema(tool.InputSchema)
+	return mcp.WithRun(tool, runHackPageRecipe)
+}
+
+// hackRecipeSchema is the platform recipe schema with topic event added
+// and topic people taken out. The platform's maps are copied, not changed.
+func hackRecipeSchema(base map[string]any) map[string]any {
+	topics := []string{"event"}
 	for _, topic := range mcp.RecipeTopics() {
 		if topic != "people" {
-			hackTopics = append(hackTopics, topic)
+			topics = append(topics, topic)
 		}
 	}
-	props := map[string]any{}
-	for k, v := range tool.InputSchema["properties"].(map[string]any) {
-		props[k] = v
-	}
-	topicProp := map[string]any{}
-	for k, v := range props["topic"].(map[string]any) {
-		topicProp[k] = v
-	}
-	topicProp["enum"] = hackTopics
-	topicProp["description"] = "event (the organiser’s live event website), or " + topicProp["description"].(string)
-	props["topic"] = topicProp
-	schema := map[string]any{}
-	for k, v := range tool.InputSchema {
-		schema[k] = v
-	}
+	props := withFields(base["properties"].(map[string]any), nil)
+	topic := withFields(props["topic"].(map[string]any), nil)
+	topic["enum"] = topics
+	topic["description"] = "event (the organiser’s live event website), or " + topic["description"].(string)
+	props["topic"] = topic
+	schema := withFields(base, nil)
 	schema["properties"] = props
-	tool.InputSchema = schema
-	return mcp.WithRun(tool, func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-		topic, err := mcp.StringArg(args, "topic")
-		if err != nil {
-			return mcp.Output{}, err
-		}
-		site, err := mcp.OptionalString(args, "site")
-		if err != nil {
-			return mcp.Output{}, err
-		}
-		text, err := HackPageRecipe(topic, site)
-		if err != nil {
-			return mcp.Output{}, err
-		}
-		if topic == "event" {
-			text = hackInstanceReplace(text, c.APIHost())
-		}
-		return mcp.Output{Text: text, Structured: map[string]any{"topic": topic, "recipe": text}}, nil
-	})
+	return schema
+}
+
+func runHackPageRecipe(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	topic, err := mcp.StringArg(args, "topic")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	site, err := mcp.OptionalString(args, "site")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	text, err := HackPageRecipe(topic, site)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	if topic == "event" {
+		text = hackInstanceReplace(text, c.APIHost())
+	}
+	return mcp.Output{Text: text, Structured: map[string]any{"topic": topic, "recipe": text}}, nil
 }

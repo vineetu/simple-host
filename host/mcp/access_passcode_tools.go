@@ -15,7 +15,6 @@ import (
 const passcodeNotLogin = "It is a shared passcode, not a login: anyone given it can open the site and pass it on, and it does not make saved data private per person."
 
 func passcodeTools() []Tool {
-	path := func(name string) string { return "/v1/sites/" + url.PathEscape(name) + "/lock" }
 	site := map[string]any{"site": str(siteDesc)}
 	return []Tool{
 		{
@@ -27,13 +26,7 @@ func passcodeTools() []Tool {
 				"Use this before set_site_passcode, remove_site_passcode or sign_out_site_visitors, and when the person asks what their site's passcode is.",
 			InputSchema: object(site, "site"),
 			Annotations: readOnly(),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				return c.passcodeStatus(name)
-			},
+			run:         runGetSitePasscode,
 		},
 		{
 			policy:       toolPolicy{passcodeResult: "set", screen: "passcode", analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
@@ -54,34 +47,7 @@ func passcodeTools() []Tool {
 			// Replaces the earlier passcode for good and locks out everyone
 			// who used it: a hard-to-reverse change.
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				generate, _ := args["generate"].(bool)
-				raw, isText := args["passcode"].(string)
-				if v, present := args["passcode"]; present && v != nil && !isText {
-					return output{}, errors.New(`passcode must be text in quotes, such as "583194"`)
-				}
-				var body []byte
-				switch {
-				case generate && strings.TrimSpace(raw) != "":
-					return output{}, errors.New("send either passcode or generate: true, not both")
-				case generate:
-					body, _ = json.Marshal(map[string]bool{"generate": true})
-				case strings.TrimSpace(raw) == "":
-					return c.openPasscodeScreen(name)
-				default:
-					body, _ = json.Marshal(map[string]string{"passcode": raw})
-				}
-				out, err := c.passcodeOutput("set_site_passcode", name, c.do(http.MethodPut, path(name), body, nil))
-				if err == nil && generate {
-					out.Text = "A new passcode is set on " + name + ". " + c.passcodeDestination(name)
-					out.Structured["note"] = out.Text
-				}
-				return out, err
-			},
+			run:         runSetSitePasscode,
 		},
 		{
 			policy:       toolPolicy{passcodeResult: "remove", analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
@@ -95,16 +61,7 @@ func passcodeTools() []Tool {
 				"confirm": map[string]any{"type": "boolean", "description": "The person agreed, in this conversation, to remove the passcode after being told anyone with the link will then be able to open the site. Omit or send false to ask first; nothing is removed until this is true."},
 			}, "site"),
 			Annotations: writes(true, true, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				if ok, _ := args["confirm"].(bool); !ok {
-					return output{}, errors.New("ask the person first: tell them anyone with " + name + "'s link will be able to open it once the passcode is gone, then call again with confirm: true once they agree")
-				}
-				return c.passcodeOutput("remove_site_passcode", name, c.do(http.MethodDelete, path(name), nil, nil))
-			},
+			run:         runRemoveSitePasscode,
 		},
 		{
 			policy:       toolPolicy{passcodeResult: "signout", analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
@@ -118,13 +75,7 @@ func passcodeTools() []Tool {
 			// Every visitor's unlock ends at once and cannot be restored;
 			// each one must be given the passcode again to get back in.
 			Annotations: writes(true, false, true),
-			run: func(c *call, args map[string]any) (output, error) {
-				name, err := siteArg(args)
-				if err != nil {
-					return output{}, err
-				}
-				return c.passcodeOutput("sign_out_site_visitors", name, c.do(http.MethodPost, path(name)+"/sign-out-everyone", nil, nil))
-			},
+			run:         runSignOutSiteVisitors,
 		},
 	}
 }
@@ -235,4 +186,67 @@ func (c *call) openPasscodeScreen(name string) (output, error) {
 	}
 	out.Structured["note"] = out.Text
 	return out, nil
+}
+
+func runGetSitePasscode(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	return c.passcodeStatus(name)
+}
+
+func runSetSitePasscode(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	generate, err := boolArg(args, "generate", false)
+	if err != nil {
+		return output{}, err
+	}
+	raw, isText := args["passcode"].(string)
+	if v, present := args["passcode"]; present && v != nil && !isText {
+		return output{}, errors.New(`passcode must be text in quotes, such as "583194"`)
+	}
+	var body []byte
+	switch {
+	case generate && strings.TrimSpace(raw) != "":
+		return output{}, errors.New("send either passcode or generate: true, not both")
+	case generate:
+		body, _ = json.Marshal(map[string]bool{"generate": true})
+	case strings.TrimSpace(raw) == "":
+		return c.openPasscodeScreen(name)
+	default:
+		body, _ = json.Marshal(map[string]string{"passcode": raw})
+	}
+	out, err := c.passcodeOutput("set_site_passcode", name, c.do(http.MethodPut, sitePath(name, "/lock"), body, nil))
+	if err == nil && generate {
+		out.Text = "A new passcode is set on " + name + ". " + c.passcodeDestination(name)
+		out.Structured["note"] = out.Text
+	}
+	return out, err
+}
+
+func runRemoveSitePasscode(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	confirmed, err := boolArg(args, "confirm", false)
+	if err != nil {
+		return output{}, err
+	}
+	if !confirmed {
+		return output{}, errors.New("ask the person first: tell them anyone with " + name + "'s link will be able to open it once the passcode is gone, then call again with confirm: true once they agree")
+	}
+	return c.passcodeOutput("remove_site_passcode", name, c.do(http.MethodDelete, sitePath(name, "/lock"), nil, nil))
+}
+
+func runSignOutSiteVisitors(c *call, args map[string]any) (output, error) {
+	name, err := siteArg(args)
+	if err != nil {
+		return output{}, err
+	}
+	return c.passcodeOutput("sign_out_site_visitors", name, c.do(http.MethodPost, sitePath(name, "/lock/sign-out-everyone"), nil, nil))
 }

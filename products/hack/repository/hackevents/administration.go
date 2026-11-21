@@ -27,8 +27,7 @@ func DeleteOrganiserInvite(ctx context.Context, q sqlkit.Querier, eventID string
 	return err
 }
 
-// OrganiserInviteEvent refuses expired invitations and invitations whose issuer
-// no longer organises the event. A redeeming transaction locks the invitation.
+// OrganiserInviteEvent refuses expired invitations and invitations whose issuer no longer organises the event.
 func OrganiserInviteEvent(ctx context.Context, q sqlkit.Querier, hash string, lock bool) (Event, error) {
 	query := `SELECT e.slug FROM event_organiser_invites i JOIN events e ON e.id=i.event_id
  JOIN event_members m ON m.event_id=i.event_id AND m.user_id=i.created_by AND m.role='organiser'

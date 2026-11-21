@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,10 +26,6 @@ type Need struct {
 	Team string
 }
 
-func needsYouItem(kind, id string, count int, text, section string, at time.Time) Need {
-	return Need{Kind: kind, ID: id, Text: text, Section: section, Count: count, At: at}
-}
-
 // clip shortens a message to one line of at most n characters for a notice line.
 func clip(s string, n int) string {
 	s = oneLine(s)
@@ -39,89 +36,113 @@ func clip(s string, n int) string {
 	return strings.TrimSpace(string(r[:n])) + "…"
 }
 
-// NeedsYou lists what waits on this member in this event, live to-dos first,
-// then unseen news, newest first. Empty for the platform admin reading an
-// event it is not in, and for a taken-down event. judges is the entries
-// service's small interface (0003-hack-notices-judges-messages.sql),
-// needed for a judge's unscored-teams count; nil is safe (judging news is
-// simply dropped, same as any other stale notice).
+// NeedsYou lists what waits on this member in this event, live to-dos first, then unseen news, newest first.
 func (s *Service) NeedsYou(ctx context.Context, ev model.Event, m model.EventMember, judges EntryEvaluator) []Need {
 	items := []Need{}
 	if m.JoinedAt.IsZero() || ev.TakenDown() {
 		return items
 	}
-	finding := ev.TeamFinding && (ev.Stage == "open" || ev.Stage == "building")
 	switch m.Role {
 	case "organiser":
-		if ev.Stage == "archived" {
-			return items
-		}
-		if n, err := hackevents.CountWaitingApplications(ctx, s.db, ev.ID); err == nil && n > 0 {
-			text := fmt.Sprintf("%d applications are waiting for a decision.", n)
-			if n == 1 {
-				text = "1 application is waiting for a decision."
-			}
-			items = append(items, needsYouItem(hackevents.NoticeApplicationNew, "", n, text, "people", time.Time{}))
-		}
-		// SIM-443: teams that wrote to the organisers and this organiser has
-		// not opened yet. A to-do like applications: it goes away when they
-		// open the team's thread, and it never blocks a stage move.
-		if inbound, err := hackevents.ListInboundTeams(ctx, s.db, ev.ID, m.UserID); err == nil {
-			for _, t := range inbound {
-				text := t.TeamName + " wrote to the organisers: " + clip(t.Latest, 140)
-				if t.Count > 1 {
-					text = fmt.Sprintf("%s sent %d messages to the organisers. Latest: %s", t.TeamName, t.Count, clip(t.Latest, 140))
-				}
-				it := needsYouItem(hackevents.NoticeTeamInbound, "", t.Count, text, "team", time.Time{})
-				it.Team = t.TeamSlug
-				items = append(items, it)
-			}
-		}
-		return items
+		return append(items, s.organiserNeeds(ctx, ev, m.UserID)...)
 	case "judge":
-		news, err := hackevents.ListNews(ctx, s.db, ev.ID, m.UserID)
-		if err != nil || judges == nil {
-			return items
-		}
-		for _, n := range news {
-			if text, ok, err := s.judgingNoticeLine(ctx, s.db, n, ev.TimeZone, judges); err == nil && ok {
-				items = append(items, needsYouItem(n.Kind, n.ID, 1, text, "queue", n.CreatedAt))
-			}
-		}
-		return items
+		return append(items, s.judgeNeeds(ctx, ev, m.UserID, judges)...)
 	case "participant":
-	default:
+		return append(items, s.participantNeeds(ctx, ev, m.UserID)...)
+	}
+	return items
+}
+
+// organiserNeeds lists waiting applications and, SIM-443, teams that wrote to the organisers and this organiser has not opened yet.
+func (s *Service) organiserNeeds(ctx context.Context, ev model.Event, userID string) []Need {
+	if ev.Stage == "archived" {
+		return nil
+	}
+	var items []Need
+	if n, err := hackevents.CountWaitingApplications(ctx, s.db, ev.ID); err == nil && n > 0 {
+		items = append(items, Need{Kind: hackevents.NoticeApplicationNew, Count: n, Text: applicationsText(n), Section: "people"})
+	}
+	inbound, err := hackevents.ListInboundTeams(ctx, s.db, ev.ID, userID)
+	if err != nil {
 		return items
 	}
-	status, teamID, admin, err := hackevents.NoticeMemberStatus(ctx, s.db, ev.ID, m.UserID)
+	for _, t := range inbound {
+		text := t.TeamName + " wrote to the organisers: " + clip(t.Latest, 140)
+		if t.Count > 1 {
+			text = fmt.Sprintf("%s sent %d messages to the organisers. Latest: %s", t.TeamName, t.Count, clip(t.Latest, 140))
+		}
+		items = append(items, Need{Kind: hackevents.NoticeTeamInbound, Count: t.Count, Text: text, Section: "team", Team: t.TeamSlug})
+	}
+	return items
+}
+
+// applicationsText is the to-do line for n waiting applications.
+func applicationsText(n int) string {
+	if n == 1 {
+		return "1 application is waiting for a decision."
+	}
+	return fmt.Sprintf("%d applications are waiting for a decision.", n)
+}
+
+// judgeNeeds lists a judge's judging news that still holds.
+func (s *Service) judgeNeeds(ctx context.Context, ev model.Event, userID string, judges EntryEvaluator) []Need {
+	news, err := hackevents.ListNews(ctx, s.db, ev.ID, userID)
+	if err != nil || judges == nil {
+		return nil
+	}
+	var items []Need
+	for _, n := range news {
+		if text, ok, err := s.judgingNoticeLine(ctx, s.db, n, ev.TimeZone, judges); err == nil && ok {
+			items = append(items, Need{Kind: n.Kind, ID: n.ID, Count: 1, Text: text, Section: "queue", At: n.CreatedAt})
+		}
+	}
+	return items
+}
+
+// participantNeeds lists an approved participant's team to-dos while teams form.
+func (s *Service) participantNeeds(ctx context.Context, ev model.Event, userID string) []Need {
+	status, teamID, admin, err := hackevents.NoticeMemberStatus(ctx, s.db, ev.ID, userID)
 	if err != nil || status != "approved" {
-		return items
+		return nil
 	}
-	if finding && teamID.Valid && admin {
-		if reqs, err := hackevents.ListPendingJoinRequests(ctx, s.db, teamID.String); err == nil && len(reqs) > 0 {
-			team, _ := teamrepo.GetEventTeamByID(ctx, s.db, teamID.String)
-			items = append(items, needsYouItem(hackevents.NoticeJoinRequest, "", len(reqs), joinRequestText(reqs, team.Name), "team", time.Time{}))
-		}
+	var items []Need
+	if finding := ev.TeamFinding && (ev.Stage == "open" || ev.Stage == "building"); finding {
+		items = s.teamFindingNeeds(ctx, ev.ID, userID, teamID, admin)
 	}
-	if finding && !teamID.Valid {
-		if invites, err := hackevents.ListPendingInvites(ctx, s.db, ev.ID, m.UserID); err == nil && len(invites) > 0 {
-			text := fmt.Sprintf("%d teams invited you to join.", len(invites))
-			if len(invites) == 1 {
-				text = invites[0].TeamName + " invited you to join."
-			}
-			items = append(items, needsYouItem(hackevents.NoticeInvite, "", len(invites), text, "team", time.Time{}))
-		}
-	}
-	news, err := hackevents.ListNews(ctx, s.db, ev.ID, m.UserID)
+	news, err := hackevents.ListNews(ctx, s.db, ev.ID, userID)
 	if err != nil {
 		return items
 	}
 	for _, n := range news {
 		if text, section, ok := s.newsText(ctx, s.db, ev.Title, ev.TimeZone, n); ok {
-			items = append(items, needsYouItem(n.Kind, n.ID, 1, text, section, n.CreatedAt))
+			items = append(items, Need{Kind: n.Kind, ID: n.ID, Count: 1, Text: text, Section: section, At: n.CreatedAt})
 		}
 	}
 	return items
+}
+
+// teamFindingNeeds is the join requests a team admin must answer, or the invites a teamless participant has.
+func (s *Service) teamFindingNeeds(ctx context.Context, eventID, userID string, teamID sql.NullString, admin bool) []Need {
+	if !teamID.Valid {
+		invites, err := hackevents.ListPendingInvites(ctx, s.db, eventID, userID)
+		if err != nil || len(invites) == 0 {
+			return nil
+		}
+		text := fmt.Sprintf("%d teams invited you to join.", len(invites))
+		if len(invites) == 1 {
+			text = invites[0].TeamName + " invited you to join."
+		}
+		return []Need{{Kind: hackevents.NoticeInvite, Count: len(invites), Text: text, Section: "team"}}
+	}
+	if !admin {
+		return nil
+	}
+	reqs, err := hackevents.ListPendingJoinRequests(ctx, s.db, teamID.String)
+	if err != nil || len(reqs) == 0 {
+		return nil
+	}
+	team, _ := teamrepo.GetEventTeamByID(ctx, s.db, teamID.String)
+	return []Need{{Kind: hackevents.NoticeJoinRequest, Count: len(reqs), Text: joinRequestText(reqs, team.Name), Section: "team"}}
 }
 
 func joinRequestText(reqs []model.PendingJoinRequest, team string) string {
@@ -145,10 +166,7 @@ func hackNoticeTime(t time.Time, zone string) string {
 	return at.Format("Mon 2 Jan 2006, 3:04 pm") + " " + hackZoneAbbr(at, fallback)
 }
 
-// newsText is the line for one news notice, from the team's state now (a
-// renamed team reads with its new name), and its screen. ok=false when the
-// notice no longer holds: a take-down already reversed, admin since removed,
-// a team since unlocked or gone.
+// newsText is the line for one news notice, from the team's state now (a renamed team reads with its new name), and its screen.
 func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zone string, n model.Notice) (string, string, bool) {
 	var team model.EventTeam
 	if n.TeamID != "" {
@@ -158,6 +176,34 @@ func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zo
 		}
 		team = t
 	}
+	switch n.Kind {
+	case hackevents.NoticeDeadlineChanged:
+		st, err := teamrepo.TeamWriteStateFor(ctx, q, team.ID, false)
+		if err != nil {
+			return "", "", false
+		}
+		return deadlineNewsText(st, zone), "entry", true
+	case hackevents.TeamAdminNotice:
+		admin, err := hackevents.NoticeTeamAdmin(ctx, q, n.EventID, n.UserID, n.TeamID)
+		if err != nil || !admin {
+			return "", "", false
+		}
+		return "You're now an admin of " + team.Name + ". You answer requests to join and can lock the team.", "team", true
+	case hackevents.NoticeTeamMessage:
+		body, err := hackevents.NoticeTeamMessageBody(ctx, q, n.RefID, n.TeamID)
+		if err != nil {
+			return "", "", false
+		}
+		return "Message from the organisers: " + oneLine(body), "team", true
+	}
+	if text, section, ok := teamNewsText(eventTitle, team, n); ok {
+		return text, section, true
+	}
+	return "", "", false
+}
+
+// teamNewsText is the line and screen for news that reads only the notice and the team as it is now; ok=false when the news no longer holds.
+func teamNewsText(eventTitle string, team model.EventTeam, n model.Notice) (string, string, bool) {
 	teamName := team.Name
 	if teamName == "" {
 		teamName = "The team"
@@ -172,64 +218,34 @@ func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zo
 		// A rejection shows as the rejected card instead, never as a line.
 		return "Your application was approved. Welcome to " + eventTitle + ".", "home", n.Detail == "approved"
 	case hackevents.NoticeSiteTakenDown:
-		if !team.SiteTakenDownAt.Valid {
-			return "", "", false
-		}
 		text := "The organisers took your team's site down."
 		if r := oneLine(team.SiteTakenDownReason); r != "" {
 			text += " Their reason: " + r
 		}
-		return text, "website", true
+		return text, "website", team.SiteTakenDownAt.Valid
 	case hackevents.NoticeSiteRestored:
-		if team.SiteTakenDownAt.Valid {
-			return "", "", false
-		}
-		return "The organisers put your team's site back up.", "website", true
-	case hackevents.NoticeDeadlineChanged:
-		st, err := teamrepo.TeamWriteStateFor(ctx, q, team.ID, false)
-		if err != nil {
-			return "", "", false
-		}
-		if st.HasOverride && st.Deadline.Valid {
-			return "Your team has until " + hackNoticeTime(st.Deadline.Time, zone) + " to finish its entry.", "entry", true
-		}
-		text := "Your team's extra time was taken away."
-		if st.Deadline.Valid {
-			text += " Entries close " + hackNoticeTime(st.Deadline.Time, zone) + "."
-		}
-		return text, "entry", true
-	case hackevents.TeamAdminNotice:
-		admin, err := hackevents.NoticeTeamAdmin(ctx, q, n.EventID, n.UserID, n.TeamID)
-		if err != nil || !admin {
-			return "", "", false
-		}
-		return "You're now an admin of " + team.Name + ". You answer requests to join and can lock the team.", "team", true
+		return "The organisers put your team's site back up.", "website", !team.SiteTakenDownAt.Valid
 	case hackevents.NoticeTeamLocked:
-		if !team.Locked() {
-			return "", "", false
-		}
-		return team.Name + " is locked, so nobody new can join.", "team", true
+		return team.Name + " is locked, so nobody new can join.", "team", team.Locked()
 	case hackevents.NoticeTeamRemoved:
 		return oneLine(n.Detail), "team", n.Detail != ""
-	case hackevents.NoticeTeamMessage:
-		body, err := hackevents.NoticeTeamMessageBody(ctx, q, n.RefID, n.TeamID)
-		if err != nil {
-			return "", "", false
-		}
-		return "Message from the organisers: " + oneLine(body), "team", true
 	}
 	return "", "", false
 }
 
-// judgingNoticeLine re-reads the event and writes judging_open/
-// judging_reminder's line from state now. ok=false drops it: the event is
-// gone, the stage is no longer judging, judging is locked, the person is no
-// longer a judge, or (judging_reminder only) N is 0, judging_ends_at has
-// passed or been cleared, or the queued offset is stale (reminderOffsetStale:
-// removed from reminder_offsets, or judging_ends_at moved later). judging_
-// open never goes stale on the offset check -- it has no offset -- but
-// distinguishes an empty queue from one the judge has already finished
-// (QueueCounts' total vs unscored).
+// deadlineNewsText describes a team's deadline after an organiser changed its extra time.
+func deadlineNewsText(st model.TeamWriteState, zone string) string {
+	if st.HasOverride && st.Deadline.Valid {
+		return "Your team has until " + hackNoticeTime(st.Deadline.Time, zone) + " to finish its entry."
+	}
+	text := "Your team's extra time was taken away."
+	if st.Deadline.Valid {
+		text += " Entries close " + hackNoticeTime(st.Deadline.Time, zone) + "."
+	}
+	return text
+}
+
+// judgingNoticeLine re-reads the event and writes judging_open/ judging_reminder's line from state now.
 func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n model.Notice, zone string, judges EntryEvaluator) (string, bool, error) {
 	ev, err := hackevents.GetEventByID(ctx, q, n.EventID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -252,31 +268,42 @@ func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n mod
 	if err != nil {
 		return "", false, err
 	}
-	teams := func(n int) string {
-		if n == 1 {
-			return "1 team"
-		}
-		return fmt.Sprintf("%d teams", n)
-	}
 	if n.Kind == hackevents.NoticeJudgingOpen {
-		switch {
-		case total == 0:
-			return "Judging is open. No teams are in your queue yet.", true, nil
-		case count == 0:
-			return "Judging is open. You've scored every team in your queue.", true, nil
-		default:
-			return "Judging is open: you have " + teams(count) + " to score.", true, nil
-		}
+		return judgingOpenLine(total, count), true, nil
 	}
-	// judging_reminder
+	line, ok := judgingReminderLine(ev, n.Detail, count, zone)
+	return line, ok, nil
+}
+
+// judgingOpenLine tells a judge judging opened and what their queue holds: empty, all scored, or count teams still to score.
+func judgingOpenLine(total, count int) string {
+	switch {
+	case total == 0:
+		return "Judging is open. No teams are in your queue yet."
+	case count == 0:
+		return "Judging is open. You've scored every team in your queue."
+	}
+	return "Judging is open: you have " + teamCount(count) + " to score."
+}
+
+// judgingReminderLine writes a judging reminder for count unscored teams.
+func judgingReminderLine(ev model.Event, detail string, count int, zone string) (string, bool) {
 	if count == 0 || !ev.JudgingEndsAt.Valid || !ev.JudgingEndsAt.Time.After(time.Now()) {
-		return "", false, nil
+		return "", false
 	}
-	if reminderOffsetStale(ev.ReminderOffsets, n.Detail, ev.JudgingEndsAt.Time, time.Until(ev.JudgingEndsAt.Time)) {
-		return "", false, nil
+	if reminderOffsetStale(ev.ReminderOffsets, detail, ev.JudgingEndsAt.Time, time.Until(ev.JudgingEndsAt.Time)) {
+		return "", false
 	}
-	have := "You still have " + teams(count) + " to score."
-	return "Judging closes " + hackNoticeTime(ev.JudgingEndsAt.Time, zone) + " (" + ReminderIn(time.Until(ev.JudgingEndsAt.Time)) + "). " + have, true, nil
+	have := "You still have " + teamCount(count) + " to score."
+	return "Judging closes " + hackNoticeTime(ev.JudgingEndsAt.Time, zone) + " (" + ReminderIn(time.Until(ev.JudgingEndsAt.Time)) + "). " + have, true
+}
+
+// teamCount is "1 team" or "N teams".
+func teamCount(n int) string {
+	if n == 1 {
+		return "1 team"
+	}
+	return fmt.Sprintf("%d teams", n)
 }
 
 // sendNoticeBatch handles one person and kind. more=false when nothing was due.
@@ -296,162 +323,146 @@ func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 	}
 	defer tx.Rollback()
 	b, err := hackevents.NextMailBatch(ctx, tx, delay, window)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, 0, nil
-	}
-	if hackevents.IsMailBatchRaced(err) {
+	if errors.Is(err, sql.ErrNoRows) || hackevents.IsMailBatchRaced(err) {
 		return false, 0, nil
 	}
 	if err != nil {
 		return false, 0, err
 	}
-	var valid, stale []string
-	type eventLines struct {
-		slug, title string
-		lines       []string
-		apps        int
+	groups, valid, stale, err := s.groupMailLines(ctx, tx, b, evaluator)
+	if err == nil {
+		err = hackevents.FinishMailNotices(ctx, tx, stale, "skipped")
 	}
-	var order []string
-	byEvent := map[string]*eventLines{}
+	if err != nil {
+		return false, 0, err
+	}
+	if len(valid) > 0 {
+		// Once sending starts, worker cancellation must not roll back a successful provider response before its durable mark is committed.
+		if !stopCancel() || ctx.Err() != nil {
+			return false, 0, ctx.Err()
+		}
+		sendErr := sendMailNotice(ctx, sender, b.Recipient, noticeMailSubject(groups, b.Kind), noticeMailBody(groups, b.Kind, publicBaseURL))
+		finishCtx, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancelFinish()
+		defer context.AfterFunc(finishCtx, cancelTx)()
+		if err := markMailSent(finishCtx, tx, valid, sendErr); err != nil {
+			return false, 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return false, 0, err
+	}
+	return true, int64(len(stale) + len(valid)), nil
+}
+
+// mailGroup is one event's part of a notice email.
+type mailGroup struct {
+	slug, title string
+	lines       []string
+	apps        int
+}
+
+// groupMailLines re-checks each notice of the batch and groups the lines that still hold by event, in first-seen order.
+func (s *Service) groupMailLines(ctx context.Context, tx *sql.Tx, b model.MailBatch, evaluator EntryEvaluator) (groups []*mailGroup, valid, stale []string, err error) {
+	byEvent := map[string]*mailGroup{}
 	for _, n := range b.Notices {
 		line, ok, err := s.mailLine(ctx, tx, n, evaluator)
 		if err != nil {
-			return false, 0, err
+			return nil, nil, nil, err
 		}
 		if !ok || b.Recipient == "" {
 			stale = append(stale, n.ID)
 			continue
 		}
 		valid = append(valid, n.ID)
-		el := byEvent[n.EventID]
-		if el == nil {
-			el = &eventLines{slug: n.EventSlug, title: n.EventTitle}
-			byEvent[n.EventID] = el
-			order = append(order, n.EventID)
+		g := byEvent[n.EventID]
+		if g == nil {
+			g = &mailGroup{slug: n.EventSlug, title: n.EventTitle}
+			byEvent[n.EventID] = g
+			groups = append(groups, g)
 		}
-		if n.Kind == hackevents.NoticeApplicationNew {
-			el.apps++
-		} else if !containsString(el.lines, line) {
-			el.lines = append(el.lines, line)
+		switch {
+		case n.Kind == hackevents.NoticeApplicationNew:
+			g.apps++
+		case !slices.Contains(g.lines, line):
+			g.lines = append(g.lines, line)
 		}
 	}
-	if err := hackevents.FinishMailNotices(ctx, tx, stale, "skipped"); err != nil {
-		return false, 0, err
+	return groups, valid, stale, nil
+}
+
+// markMailSent records the send: delivered notices are finished, a failed delivery defers them for a later sweep.
+func markMailSent(ctx context.Context, tx *sql.Tx, valid []string, sendErr error) error {
+	if sendErr != nil {
+		log.Printf("hack: notice mail delivery failed: %v", sendErr)
+		return hackevents.DeferMailNotices(ctx, tx, valid)
 	}
-	if len(valid) == 0 {
-		err := tx.Commit()
-		if err != nil {
-			return false, 0, err
-		}
-		return true, int64(len(stale)), nil
+	return hackevents.FinishMailNotices(ctx, tx, valid, "sent")
+}
+
+// noticeMailSubject names the one event, or Simple Hack when the mail spans several.
+func noticeMailSubject(groups []*mailGroup, kind string) string {
+	if len(groups) == 1 {
+		return oneLine(groups[0].title) + ": " + noticeSubject(kind)
 	}
+	return "Simple Hack: " + noticeSubject(kind)
+}
+
+// noticeMailBody writes each event's lines (at most 20, then a count) and link, then the footer saying how to turn the mail off.
+func noticeMailBody(groups []*mailGroup, kind, publicBaseURL string) string {
 	var body strings.Builder
-	for i, id := range order {
-		el := byEvent[id]
+	for i, g := range groups {
 		if i > 0 {
 			body.WriteString("\n")
 		}
-		body.WriteString(oneLine(el.title) + "\n")
-		if el.apps > 0 {
-			if el.apps == 1 {
-				body.WriteString("1 new application is waiting for a decision.\n")
-			} else {
-				fmt.Fprintf(&body, "%d new applications are waiting for a decision.\n", el.apps)
-			}
+		body.WriteString(oneLine(g.title) + "\n")
+		switch {
+		case g.apps == 1:
+			body.WriteString("1 new application is waiting for a decision.\n")
+		case g.apps > 1:
+			fmt.Fprintf(&body, "%d new applications are waiting for a decision.\n", g.apps)
 		}
-		for j, line := range el.lines {
-			if j == 20 {
-				fmt.Fprintf(&body, "And %d more.\n", len(el.lines)-20)
-				break
-			}
+		for _, line := range g.lines[:min(len(g.lines), 20)] {
 			body.WriteString(line + "\n")
 		}
-		body.WriteString(s.noticeLink(b.Kind, el.slug, publicBaseURL) + "\n")
+		if len(g.lines) > 20 {
+			fmt.Fprintf(&body, "And %d more.\n", len(g.lines)-20)
+		}
+		body.WriteString(noticeLink(kind, g.slug, publicBaseURL) + "\n")
 	}
 	body.WriteString("\nYou get these because your Simple Hack account uses this address. Turn them off on your Account page: " + publicBaseURL + "/account\n")
-	subject := noticeSubject(b.Kind)
-	if len(order) == 1 {
-		subject = oneLine(byEvent[order[0]].title) + ": " + subject
-	} else {
-		subject = "Simple Hack: " + subject
-	}
-	// Once sending starts, worker cancellation must not roll back a
-	// successful provider response before its durable mark is committed.
-	if !stopCancel() || ctx.Err() != nil {
-		return false, 0, ctx.Err()
-	}
-	sendErr := sendMailNotice(ctx, sender, b.Recipient, subject, body.String())
-	ctx, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancelFinish()
-	stopFinish := context.AfterFunc(ctx, cancelTx)
-	defer stopFinish()
-	if err := sendErr; err != nil {
-		log.Printf("hack: notice mail delivery failed: %v", err)
-		if err := hackevents.DeferMailNotices(ctx, tx, valid); err != nil {
-			return false, 0, err
-		}
-		err := tx.Commit()
-		if err != nil {
-			return false, 0, err
-		}
-		return true, int64(len(stale) + len(valid)), nil
-	}
-	if err := hackevents.FinishMailNotices(ctx, tx, valid, "sent"); err != nil {
-		return false, 0, err
-	}
-	err = tx.Commit()
-	if err != nil {
-		return false, 0, err
-	}
-	return true, int64(len(stale) + len(valid)), nil
+	return body.String()
 }
 
-func containsString(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
+// noticeSubjects is the email subject for each notice kind.
+var noticeSubjects = map[string]string{
+	hackevents.NoticeJoinRequest:        "someone asked to join your team",
+	hackevents.NoticeInvite:             "a team invited you to join",
+	hackevents.NoticeRequestAnswered:    "your request to join a team has an answer",
+	hackevents.NoticeApplicationNew:     "applications are waiting for you",
+	hackevents.NoticeApplicationDecided: "your application has an answer",
+	hackevents.NoticeSiteTakenDown:      "your team's site was taken down",
+	hackevents.NoticeSiteRestored:       "your team's site is back up",
+	hackevents.NoticeDeadlineChanged:    "your team's deadline changed",
+	hackevents.TeamAdminNotice:          "you're now a team admin",
+	hackevents.NoticeTeamRemoved:        "you were taken off a team",
+	hackevents.NoticeEntryReminder:      "your entry is due soon",
+	hackevents.NoticeJudgingOpen:        "judging is open",
+	hackevents.NoticeJudgingReminder:    "judging closes soon",
+	hackevents.NoticeTeamMessage:        "a message from the organisers",
+	hackevents.NoticeTeamInbound:        "a team wrote to the organisers",
 }
 
+// noticeSubject is the subject for kind, with a generic one for unknown kinds.
 func noticeSubject(kind string) string {
-	switch kind {
-	case hackevents.NoticeJoinRequest:
-		return "someone asked to join your team"
-	case hackevents.NoticeInvite:
-		return "a team invited you to join"
-	case hackevents.NoticeRequestAnswered:
-		return "your request to join a team has an answer"
-	case hackevents.NoticeApplicationNew:
-		return "applications are waiting for you"
-	case hackevents.NoticeApplicationDecided:
-		return "your application has an answer"
-	case hackevents.NoticeSiteTakenDown:
-		return "your team's site was taken down"
-	case hackevents.NoticeSiteRestored:
-		return "your team's site is back up"
-	case hackevents.NoticeDeadlineChanged:
-		return "your team's deadline changed"
-	case hackevents.TeamAdminNotice:
-		return "you're now a team admin"
-	case hackevents.NoticeTeamRemoved:
-		return "you were taken off a team"
-	case hackevents.NoticeEntryReminder:
-		return "your entry is due soon"
-	case hackevents.NoticeJudgingOpen:
-		return "judging is open"
-	case hackevents.NoticeJudgingReminder:
-		return "judging closes soon"
-	case hackevents.NoticeTeamMessage:
-		return "a message from the organisers"
-	case hackevents.NoticeTeamInbound:
-		return "a team wrote to the organisers"
+	if subject, ok := noticeSubjects[kind]; ok {
+		return subject
 	}
 	return "something is waiting for you"
 }
 
-func (s *Service) noticeLink(kind, slug, publicBaseURL string) string {
+// noticeLink opens the screen a notice kind is about.
+func noticeLink(kind, slug, publicBaseURL string) string {
 	base := publicBaseURL + "/e/" + slug
 	switch kind {
 	case hackevents.NoticeApplicationNew:
@@ -464,95 +475,72 @@ func (s *Service) noticeLink(kind, slug, publicBaseURL string) string {
 		return base + "/team?s=entry"
 	case hackevents.NoticeJudgingOpen, hackevents.NoticeJudgingReminder:
 		return base + "/judge?s=queue"
-	case hackevents.NoticeTeamMessage:
-		return base + "/team?s=team"
 	case hackevents.NoticeTeamInbound:
 		return base + "/manage?s=teams"
 	}
 	return base + "/team?s=team"
 }
 
-// mailLine re-checks one pending notice against the state now and writes
-// its line. ok=false drops it: the request was answered or withdrawn, the
-// recipient is no longer that team's admin or an organiser, the application
-// was decided, the person left the event or the team, the event was taken
-// down. A join request names the person asking only to that team's current
-// admins; an application never names the applicant.
+// mailMember is the recipient's membership as a pending notice is re-checked.
+type mailMember struct {
+	role, status, stage string
+	teamID              sql.NullString
+	admin               bool
+}
+
+// receives reports whether n still concerns this member.
+func (m mailMember) receives(n model.MailNotice) bool {
+	onTeam := m.teamID.Valid && m.teamID.String == n.TeamID
+	if hackevents.NoticeTeamScoped(n.Kind) && !onTeam {
+		return false
+	}
+	finding := m.stage == "open" || m.stage == "building"
+	participant := m.role == "participant"
+	switch n.Kind {
+	case hackevents.NoticeJoinRequest:
+		return finding && m.admin && onTeam
+	case hackevents.NoticeInvite:
+		return finding && participant && !m.teamID.Valid
+	case hackevents.NoticeApplicationNew, hackevents.NoticeTeamInbound:
+		return m.role == "organiser" && m.stage != "archived"
+	case hackevents.NoticeApplicationDecided:
+		return participant && m.status == n.Detail
+	case hackevents.NoticeRequestAnswered, hackevents.NoticeTeamRemoved, hackevents.NoticeEntryReminder:
+		return participant
+	}
+	return true
+}
+
+// mailLine re-checks one pending notice against the state now and writes its line.
 func (s *Service) mailLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, evaluator EntryEvaluator) (string, bool, error) {
-	role, status, teamID, admin, stage, err := hackevents.MailMember(ctx, tx, n.EventID, n.UserID)
-	if errors.Is(err, sql.ErrNoRows) {
+	var m mailMember
+	var err error
+	m.role, m.status, m.teamID, m.admin, m.stage, err = hackevents.MailMember(ctx, tx, n.EventID, n.UserID)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !m.receives(n) {
 		return "", false, nil
 	}
 	if err != nil {
 		return "", false, err
 	}
-	onTeam := teamID.Valid && teamID.String == n.TeamID
-	if hackevents.NoticeTeamScoped(n.Kind) && !onTeam {
-		return "", false, nil
-	}
-	finding := stage == "open" || stage == "building"
 	switch n.Kind {
 	case hackevents.NoticeJoinRequest:
-		if !finding || !admin || !onTeam {
-			return "", false, nil
-		}
 		name, team, err := hackevents.MailRequest(ctx, tx, n.RefID, n.TeamID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", false, nil
-		}
-		if err != nil {
-			return "", false, err
-		}
-		return oneLine(name) + " asked to join " + oneLine(team) + ".", true, nil
+		return lineIfFound(oneLine(name)+" asked to join "+oneLine(team)+".", err)
 	case hackevents.NoticeInvite:
-		if !finding || teamID.Valid || role != "participant" {
-			return "", false, nil
-		}
 		team, err := hackevents.MailInvite(ctx, tx, n.RefID, n.UserID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", false, nil
-		}
-		if err != nil {
-			return "", false, err
-		}
-		return oneLine(team) + " invited you to join.", true, nil
+		return lineIfFound(oneLine(team)+" invited you to join.", err)
 	case hackevents.NoticeApplicationNew:
-		if role != "organiser" || stage == "archived" {
-			return "", false, nil
-		}
 		pending, err := hackevents.MailApplicationPending(ctx, tx, n.EventID, n.RefID)
-		if err != nil {
-			return "", false, err
-		}
-		return "", pending, nil
+		return "", pending && err == nil, err
 	case hackevents.NoticeApplicationDecided:
-		if role != "participant" || status != n.Detail {
-			return "", false, nil
-		}
 		if n.Detail == "approved" {
 			return "Your application was approved. You're in.", true, nil
 		}
 		return "Your application wasn't accepted this time.", true, nil
 	case hackevents.NoticeTeamInbound:
-		if role != "organiser" || stage == "archived" {
-			return "", false, nil
-		}
 		name, body, err := hackevents.NoticeTeamInboundLine(ctx, tx, n.RefID, n.TeamID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", false, nil
-		}
-		if err != nil {
-			return "", false, err
-		}
-		return oneLine(name) + " wrote to the organisers: " + clip(body, 200), true, nil
-	case hackevents.NoticeRequestAnswered, hackevents.NoticeTeamRemoved:
-		if role != "participant" {
-			return "", false, nil
-		}
+		return lineIfFound(oneLine(name)+" wrote to the organisers: "+clip(body, 200), err)
 	case hackevents.NoticeEntryReminder:
-		if role != "participant" {
-			return "", false, nil
-		}
 		return s.entryReminderLine(ctx, tx, n, evaluator)
 	case hackevents.NoticeJudgingOpen, hackevents.NoticeJudgingReminder:
 		text, ok, err := s.judgingNoticeLine(ctx, tx, n.Notice, n.EventTimeZone, evaluator)
@@ -560,6 +548,17 @@ func (s *Service) mailLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, 
 	}
 	text, _, ok := s.newsText(ctx, tx, n.EventTitle, n.EventTimeZone, n.Notice)
 	return oneLine(text), ok, nil
+}
+
+// lineIfFound keeps text when its lookup found a row, drops the line on sql.ErrNoRows, and fails on any other error.
+func lineIfFound(text string, err error) (string, bool, error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return text, true, nil
 }
 
 func hackEventLocation(zone string) (*time.Location, string) {
@@ -576,12 +575,7 @@ func hackEventLocation(zone string) (*time.Location, string) {
 
 var hackNumericZoneRe = regexp.MustCompile(`^[+-]\d`)
 
-// hackZoneAbbrFamiliar is the same fixed map ui.zoneAbbr (host/handler/
-// static/hack/ui.js) and the vote page's own copy of it use -- kept in step
-// by hand, since Go's tzdata and Intl don't always agree on which zones get
-// a real short code. Go already gets North America, the UK and Central
-// Europe (CET/CEST) and Australia (AEDT/AEST) right from tzdata directly;
-// this map only covers the zones tzdata leaves as a bare numeric offset.
+// hackZoneAbbrFamiliar is the same fixed map ui.zoneAbbr.
 var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Jakarta": "WIB", "Asia/Pontianak": "WIB",
 	"Asia/Makassar":  "WITA",
@@ -592,14 +586,7 @@ var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Kolkata":   "IST", "Asia/Calcutta": "IST",
 }
 
-// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"),
-// the way tech_notes asks for ("times in WIB"). Go's tzdata does not assign
-// every zone a short code; when what comes back looks like a bare UTC offset
-// ("+07") this checks the familiar-zone map first (SGT, WIB, WITA, WIT, JST,
-// KST, IST -- same table and same decision as the app's ui.zoneAbbr and the
-// vote page), then falls back to a GMT±N label built from the numeric
-// offset itself, never the IANA zone name ("Asia/Singapore") -- consistent
-// with what a browser without a named abbreviation for that zone shows.
+// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"), the way tech_notes asks for ("times in WIB").
 func hackZoneAbbr(t time.Time, ianaFallback string) string {
 	abbr, offsetSeconds := t.Zone()
 	if abbr != "" && !hackNumericZoneRe.MatchString(abbr) {
@@ -611,8 +598,7 @@ func hackZoneAbbr(t time.Time, ianaFallback string) string {
 	return hackGMTOffsetLabel(offsetSeconds)
 }
 
-// hackGMTOffsetLabel formats a UTC offset in seconds as "GMT", "GMT+9" or
-// "GMT+5:30" -- the same shape ui.zoneAbbr's gmtOffsetLabel builds.
+// hackGMTOffsetLabel formats a UTC offset in seconds as "GMT", "GMT+9" or "GMT+5:30" -- the same shape ui.zoneAbbr's gmtOffsetLabel builds.
 func hackGMTOffsetLabel(offsetSeconds int) string {
 	if offsetSeconds == 0 {
 		return "GMT"
@@ -669,9 +655,7 @@ type TodoEvent struct {
 	Items             []Need
 }
 
-// Todos collects pending work and email settings for a user. judges is the
-// entries service's small interface, needed for a judge's news
-// (0003-hack-notices-judges-messages.sql); nil is safe.
+// Todos collects pending work and email settings for a user.
 func (s *Service) Todos(ctx context.Context, userID string, judges EntryEvaluator) ([]TodoEvent, bool, bool, error) {
 	events, roles, err := hackevents.ListEventsForUser(ctx, s.db, userID)
 	if err != nil {

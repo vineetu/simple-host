@@ -69,65 +69,62 @@ func Middleware(adminAPIKey, adminUserID string, accountService *accounts.Servic
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			apiKey := r.Header.Get("X-API-Key")
 			if apiKey == "" {
-				// Most common mistake (humans and LLMs alike): sending the key as
-				// `Authorization: Bearer <key>`. This API only reads X-API-Key, so
-				// point them at the right header instead of a bare "unauthorized".
-				msg := "missing API key: send it as the header 'X-API-Key: <key>'. " +
-					"Get a key via POST /v1/auth then POST /v1/auth/verify. See /llms.txt."
-				code := "missing_api_key"
-				if r.Header.Get("Authorization") != "" {
-					msg = "missing X-API-Key header: this API authenticates with " +
-						"'X-API-Key: <key>', not 'Authorization: Bearer'. Resend your key " +
-						"in the X-API-Key header. See /llms.txt."
-					code = "wrong_auth_header"
-				}
-				httpx.WriteError(w, http.StatusUnauthorized, code, msg)
+				writeMissingKey(w, r)
 				return
 			}
-
 			// Check hardcoded admin key first. Constant-time compare so the
 			// match can't be inferred from response timing.
 			if subtle.ConstantTimeCompare([]byte(apiKey), []byte(adminAPIKey)) == 1 {
-				adminUser := &model.User{
-					ID:       adminUserID,
-					Username: "admin",
-					IsAdmin:  true,
-				}
-				ctx := context.WithValue(r.Context(), userContextKey, adminUser)
-				next.ServeHTTP(w, r.WithContext(ctx))
+				adminUser := &model.User{ID: adminUserID, Username: "admin", IsAdmin: true}
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey, adminUser)))
 				return
 			}
-
 			user, err := accountService.GetUserByAPIKey(r.Context(), apiKey, keyIdle)
 			if err != nil {
-				if errors.Is(err, model.ErrAccountSuspended) {
-					// The key is kept, not deleted, so re-enabling the account
-					// brings it back; the person sees why here.
-					note := ""
-					if r.URL.Path == "/v1/me/export.zip" || r.URL.Path == "/v1/me/export.tar.gz" {
-						// The right of access stands while suspended.
-						note = "; write to " + SupportContact + " for a copy of your data"
-					}
-					WriteSuspended(w, user.SuspendedReason, note)
-					return
-				}
-				if errors.Is(err, model.ErrKeyExpired) || errors.Is(err, model.ErrKeyExpiredIdle) {
-					msg, code := ExpiredKeyMessage(err, user.KeyExpiresAt, keyIdle)
-					httpx.WriteError(w, http.StatusUnauthorized, code, msg)
-					return
-				}
-				if errors.Is(err, sql.ErrNoRows) {
-					httpx.WriteError(w, http.StatusUnauthorized, "invalid_api_key", InvalidKeyMessage())
-					return
-				}
-
-				httpx.WriteInternal(w)
+				writeKeyRefused(w, r, err, user, keyIdle)
 				return
 			}
-
-			ctx := context.WithValue(r.Context(), userContextKey, &user)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userContextKey, &user)))
 		})
+	}
+}
+
+// writeMissingKey answers a request with no X-API-Key. The most common
+// mistake (humans and LLMs alike) is sending the key as `Authorization:
+// Bearer <key>`: this API only reads X-API-Key, so point them at the right
+// header instead of a bare "unauthorized".
+func writeMissingKey(w http.ResponseWriter, r *http.Request) {
+	msg := "missing API key: send it as the header 'X-API-Key: <key>'. " +
+		"Get a key via POST /v1/auth then POST /v1/auth/verify. See /llms.txt."
+	code := "missing_api_key"
+	if r.Header.Get("Authorization") != "" {
+		msg = "missing X-API-Key header: this API authenticates with " +
+			"'X-API-Key: <key>', not 'Authorization: Bearer'. Resend your key " +
+			"in the X-API-Key header. See /llms.txt."
+		code = "wrong_auth_header"
+	}
+	httpx.WriteError(w, http.StatusUnauthorized, code, msg)
+}
+
+// writeKeyRefused answers a key that does not sign anyone in: a suspended
+// account (its key is kept, not deleted, so re-enabling the account brings
+// it back; the person sees why here), an expired key, an unknown one.
+func writeKeyRefused(w http.ResponseWriter, r *http.Request, err error, user model.User, keyIdle time.Duration) {
+	switch {
+	case errors.Is(err, model.ErrAccountSuspended):
+		note := ""
+		if r.URL.Path == "/v1/me/export.zip" || r.URL.Path == "/v1/me/export.tar.gz" {
+			// The right of access stands while suspended.
+			note = "; write to " + SupportContact + " for a copy of your data"
+		}
+		WriteSuspended(w, user.SuspendedReason, note)
+	case errors.Is(err, model.ErrKeyExpired) || errors.Is(err, model.ErrKeyExpiredIdle):
+		msg, code := ExpiredKeyMessage(err, user.KeyExpiresAt, keyIdle)
+		httpx.WriteError(w, http.StatusUnauthorized, code, msg)
+	case errors.Is(err, sql.ErrNoRows):
+		httpx.WriteError(w, http.StatusUnauthorized, "invalid_api_key", InvalidKeyMessage())
+	default:
+		httpx.WriteInternal(w)
 	}
 }
 

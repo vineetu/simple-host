@@ -22,13 +22,7 @@ func hackBaseEventTools() []mcp.Tool {
 			Description:  "List every hackathon event this person is part of, with their role (organiser, participant or judge). Call this before changing an event. You can manage an event only when the role is organiser.",
 			InputSchema:  mcp.NoArgs(),
 			Annotations:  mcp.ReadOnly(),
-			run: func(c *mcp.Call, _ map[string]any) (mcp.Output, error) {
-				res := c.Do(http.MethodGet, "/v1/hack/events", nil, nil)
-				if !res.OK() {
-					return mcp.Output{}, hackRestError("hack_list_events", res)
-				}
-				return hackListOutput(res.Body())
-			},
+			run:          runListEvents,
 		},
 		{
 			OutputSchema: schemas.name,
@@ -39,17 +33,7 @@ func hackBaseEventTools() []mcp.Tool {
 				"slug": mcp.Str("The event name to check."),
 			}, "slug"),
 			Annotations: hackPublicReadOnly(),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				slug, err := eventSlug(args)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				res := c.Do(http.MethodGet, "/v1/hack/names/"+url.PathEscape(slug), nil, nil)
-				if !res.OK() {
-					return mcp.Output{}, hackRestError("hack_check_event_name", res)
-				}
-				return hackNameOutput(slug, res.Body())
-			},
+			run:         runCheckEventName,
 		},
 		{
 			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
@@ -70,21 +54,7 @@ func hackBaseEventTools() []mcp.Tool {
 				"time_zone":             mcp.Str("IANA time zone, optional. Defaults to UTC."),
 			}, "slug", "title", "organiser_name", "contact_email", "purpose", "expected_participants", "starts_at"),
 			Annotations: mcp.Writes(false, false, true),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				body, err := hackCreateBody(args)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				raw, err := json.Marshal(body)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				res := c.Do(http.MethodPost, "/v1/hack/events", raw, nil)
-				if !res.OK() {
-					return mcp.Output{}, hackRestError("hack_create_event", res)
-				}
-				return hackEventOutput("Created", res.Body())
-			},
+			run:         runCreateEvent,
 		},
 		{
 			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
@@ -94,17 +64,7 @@ func hackBaseEventTools() []mcp.Tool {
 			Description:  "Read one event: its page, submissions_public, overall_prizes, stage, settings and membership checklist. Use checklist.next for guided work; confirm actions before writing. When this person is the organiser, the answer includes the join and judge links and next_step, the one forward move the website offers (its one button) for the current stage. next_step.cue is set when a schedule row lining up with that move has come (e.g. \"Kickoff is now. Open sign-up?\"): ask the organiser, never move the stage on your own. Give those links exactly as returned. Records any due submission deadline pins.",
 			InputSchema:  mcp.Object(map[string]any{"slug": mcp.Str("The event name.")}, "slug"),
 			Annotations:  mcp.Writes(false, true, false),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				slug, err := eventSlug(args)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				res := c.Do(http.MethodGet, "/v1/hack/events/"+url.PathEscape(slug), nil, nil)
-				if !res.OK() {
-					return mcp.Output{}, hackRestError("hack_get_event", res)
-				}
-				return hackEventOutput("Event", res.Body())
-			},
+			run:          runGetEvent,
 		},
 		{
 			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
@@ -145,25 +105,7 @@ func hackBaseEventTools() []mcp.Tool {
 				"expected_participants": map[string]any{"type": "integer", "description": "How many participants are expected, from 1 to 100000."},
 			}, "slug"),
 			Annotations: mcp.Writes(true, true, true),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				slug, err := eventSlug(args)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				body, err := hackPatchBody(args)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				raw, err := json.Marshal(body)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				res := c.Do(http.MethodPatch, "/v1/hack/events/"+url.PathEscape(slug), raw, nil)
-				if !res.OK() {
-					return mcp.Output{}, hackRestError("hack_update_event", res)
-				}
-				return hackEventOutput("Updated", res.Body())
-			},
+			run:         runUpdateEvent,
 		},
 		{
 			policy:       toolPolicy{analytics: analyticsPolicy{secretText: true}},
@@ -183,146 +125,118 @@ func hackBaseEventTools() []mcp.Tool {
 				},
 			}, "slug", "stage"),
 			Annotations: mcp.Writes(true, true, true),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				slug, err := eventSlug(args)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				stage, err := mcp.StringArg(args, "stage")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				raw, err := json.Marshal(map[string]string{"stage": stage})
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				res := c.Do(http.MethodPost, "/v1/hack/events/"+url.PathEscape(slug)+"/stage", raw, nil)
-				if !res.OK() {
-					return mcp.Output{}, hackRestError("hack_set_event_stage", res)
-				}
-				return hackEventOutput("Stage", res.Body())
-			},
+			run:         runSetEventStage,
 		},
 	})...)
 	return tools
 }
 
+// eventField is one event setting the create and update tools send: its
+// argument name and how to read it.
+type eventField struct {
+	key  string
+	read func(args map[string]any, key string) (value any, present bool, err error)
+}
+
+var hackCreateFields = []eventField{
+	{"slug", slugField}, {"title", requiredText}, {"organiser_name", requiredText},
+	{"contact_email", requiredText}, {"purpose", requiredText},
+	{"expected_participants", requiredCount}, {"starts_at", requiredText},
+	{"organisation", nonEmptyText}, {"ends_at", nonEmptyText}, {"time_zone", nonEmptyText},
+}
+
+// hackUpdateFields are sent only when given; an empty text clears a field.
+var hackUpdateFields = []eventField{
+	{"title", clearableText}, {"tagline", clearableText}, {"about", clearableText},
+	{"rules", clearableText}, {"prizes", clearableText}, {"coc_text", clearableText},
+	{"time_zone", clearableText}, {"starts_at", clearableText}, {"ends_at", clearableText},
+	{"submission_deadline", clearableText}, {"judging_ends_at", clearableText},
+	{"organiser_name", clearableText}, {"organisation", clearableText},
+	{"contact_email", clearableText}, {"purpose", clearableText}, {"theme", clearableText},
+	{"team_size_max", countField}, {"expected_participants", countField},
+	{"overall_prizes", anyValue}, {"entry_required", fieldNames},
+	{"submissions_public", boolField}, {"gallery_open", boolField}, {"team_finding", boolField}, {"applications_open", boolField},
+}
+
 func hackCreateBody(args map[string]any) (map[string]any, error) {
-	slug, err := eventSlug(args)
-	if err != nil {
-		return nil, err
+	return eventBody(args, hackCreateFields)
+}
+
+func hackPatchBody(args map[string]any) (map[string]any, error) {
+	body, err := eventBody(args, hackUpdateFields)
+	if err == nil && len(body) == 0 {
+		err = errors.New("hack_update_event needs at least one field to change")
 	}
-	title, err := mcp.StringArg(args, "title")
-	if err != nil {
-		return nil, err
-	}
-	organiser, err := mcp.StringArg(args, "organiser_name")
-	if err != nil {
-		return nil, err
-	}
-	email, err := mcp.StringArg(args, "contact_email")
-	if err != nil {
-		return nil, err
-	}
-	purpose, err := mcp.StringArg(args, "purpose")
-	if err != nil {
-		return nil, err
-	}
-	n, _, err := mcp.WholeNumber(args, "expected_participants", true, math.MinInt32, math.MaxInt32)
-	if err != nil {
-		return nil, err
-	}
-	starts, err := mcp.StringArg(args, "starts_at")
-	if err != nil {
-		return nil, err
-	}
-	body := map[string]any{
-		"slug": slug, "title": title, "organiser_name": organiser,
-		"contact_email": email, "purpose": purpose,
-		"expected_participants": n, "starts_at": starts,
-	}
-	for _, key := range []string{"organisation", "ends_at", "time_zone"} {
-		value, present, err := presentString(args, key)
+	return body, err
+}
+
+func eventBody(args map[string]any, fields []eventField) (map[string]any, error) {
+	body := map[string]any{}
+	for _, field := range fields {
+		value, present, err := field.read(args, field.key)
 		if err != nil {
 			return nil, err
 		}
-		if present && value != "" {
-			body[key] = value
+		if present {
+			body[field.key] = value
 		}
 	}
 	return body, nil
 }
 
-func hackPatchBody(args map[string]any) (map[string]any, error) {
-	body := map[string]any{}
-	for _, key := range []string{
-		"title", "tagline", "about", "rules", "prizes", "coc_text", "time_zone",
-		"starts_at", "ends_at", "submission_deadline", "judging_ends_at", "organiser_name", "organisation", "contact_email", "purpose", "theme",
-	} {
-		value, present, err := presentString(args, key)
-		if err != nil {
-			return nil, err
-		}
-		if present {
-			body[key] = value
+func slugField(args map[string]any, _ string) (any, bool, error) {
+	slug, err := eventSlug(args)
+	return slug, true, err
+}
+
+func requiredText(args map[string]any, key string) (any, bool, error) {
+	value, err := mcp.StringArg(args, key)
+	return value, true, err
+}
+
+func nonEmptyText(args map[string]any, key string) (any, bool, error) {
+	value, present, err := presentString(args, key)
+	return value, present && value != "", err
+}
+
+func clearableText(args map[string]any, key string) (any, bool, error) {
+	return presentString(args, key)
+}
+
+func requiredCount(args map[string]any, key string) (any, bool, error) {
+	n, _, err := mcp.WholeNumber(args, key, true, math.MinInt32, math.MaxInt32)
+	return n, true, err
+}
+
+func countField(args map[string]any, key string) (any, bool, error) {
+	return mcp.WholeNumber(args, key, false, math.MinInt32, math.MaxInt32)
+}
+
+func anyValue(args map[string]any, key string) (any, bool, error) {
+	value, present := args[key]
+	return value, present, nil
+}
+
+func boolField(args map[string]any, key string) (any, bool, error) {
+	return mcp.PresentBool(args, key)
+}
+
+// fieldNames is a list of entry field names, sent as given.
+func fieldNames(args map[string]any, key string) (any, bool, error) {
+	raw, present := args[key]
+	if !present {
+		return nil, false, nil
+	}
+	list, ok := raw.([]any)
+	for _, field := range list {
+		if _, isText := field.(string); !isText {
+			ok = false
 		}
 	}
-	for _, key := range []string{"team_size_max", "expected_participants"} {
-		n, present, err := mcp.WholeNumber(args, key, false, math.MinInt32, math.MaxInt32)
-		if err != nil {
-			return nil, err
-		}
-		if present {
-			body[key] = n
-		}
+	if !ok {
+		return nil, false, errors.New(key + " must be a list of field names")
 	}
-	if raw, present := args["overall_prizes"]; present {
-		body["overall_prizes"] = raw
-	}
-	if raw, present := args["entry_required"]; present {
-		list, ok := raw.([]any)
-		if !ok {
-			return nil, errors.New("entry_required must be a list of field names")
-		}
-		for _, field := range list {
-			if _, ok := field.(string); !ok {
-				return nil, errors.New("entry_required must be a list of field names")
-			}
-		}
-		body["entry_required"] = list
-	}
-	if raw, present := args["submissions_public"]; present {
-		value, ok := raw.(bool)
-		if !ok {
-			return nil, errors.New("submissions_public must be true or false")
-		}
-		body["submissions_public"] = value
-	}
-	if raw, present := args["gallery_open"]; present {
-		open, ok := raw.(bool)
-		if !ok {
-			return nil, errors.New("gallery_open must be true or false")
-		}
-		body["gallery_open"] = open
-	}
-	if value, present := args["team_finding"]; present {
-		b, ok := value.(bool)
-		if !ok {
-			return nil, errors.New("team_finding must be true or false")
-		}
-		body["team_finding"] = b
-	}
-	if value, present := args["applications_open"]; present {
-		b, ok := value.(bool)
-		if !ok {
-			return nil, errors.New("applications_open must be true or false")
-		}
-		body["applications_open"] = b
-	}
-	if len(body) == 0 {
-		return nil, errors.New("hack_update_event needs at least one field to change")
-	}
-	return body, nil
+	return list, true, nil
 }
 
 type hackEventView struct {
@@ -349,42 +263,46 @@ type hackEventView struct {
 		TakenDown         bool     `json:"taken_down"`
 		StagesOffered     []string `json:"stages_offered"`
 	} `json:"event"`
-	Role     string          `json:"role"`
-	Can      map[string]bool `json:"can"`
-	NextStep *struct {
-		Kind           string  `json:"kind"`
-		Stage          string  `json:"stage"`
-		Label          string  `json:"label"`
-		DeadlinePassed bool    `json:"deadline_passed"`
-		Blocked        *string `json:"blocked"`
-		Cue            *struct {
-			Key     string  `json:"key"`
-			Title   string  `json:"title"`
-			StartAt string  `json:"start_at"`
-			EndAt   *string `json:"end_at"`
-			Fixed   bool    `json:"fixed"`
-			Now     bool    `json:"now"`
-			Text    string  `json:"text"`
-		} `json:"cue"`
-	} `json:"next_step"`
-	Organiser *struct {
-		OrganiserName        string `json:"organiser_name"`
-		Organisation         string `json:"organisation"`
-		ContactEmail         string `json:"contact_email"`
-		Purpose              string `json:"purpose"`
-		ExpectedParticipants *int   `json:"expected_participants"`
-		JoinCode             string `json:"join_code"`
-		JoinURL              string `json:"join_url"`
-		JudgeCode            string `json:"judge_code"`
-		JudgeURL             string `json:"judge_url"`
-		WebsiteSite          string `json:"website_site"`
-		Counts               struct {
-			Participants int `json:"participants"`
-			Teams        int `json:"teams"`
-			Judges       int `json:"judges"`
-			OnNoTeam     int `json:"on_no_team"`
-		} `json:"counts"`
-	} `json:"organiser"`
+	Role      string             `json:"role"`
+	Can       map[string]bool    `json:"can"`
+	NextStep  *hackNextStep      `json:"next_step"`
+	Organiser *hackOrganiserView `json:"organiser"`
+}
+
+type hackNextStep struct {
+	Kind           string  `json:"kind"`
+	Stage          string  `json:"stage"`
+	Label          string  `json:"label"`
+	DeadlinePassed bool    `json:"deadline_passed"`
+	Blocked        *string `json:"blocked"`
+	Cue            *struct {
+		Key     string  `json:"key"`
+		Title   string  `json:"title"`
+		StartAt string  `json:"start_at"`
+		EndAt   *string `json:"end_at"`
+		Fixed   bool    `json:"fixed"`
+		Now     bool    `json:"now"`
+		Text    string  `json:"text"`
+	} `json:"cue"`
+}
+
+type hackOrganiserView struct {
+	OrganiserName        string `json:"organiser_name"`
+	Organisation         string `json:"organisation"`
+	ContactEmail         string `json:"contact_email"`
+	Purpose              string `json:"purpose"`
+	ExpectedParticipants *int   `json:"expected_participants"`
+	JoinCode             string `json:"join_code"`
+	JoinURL              string `json:"join_url"`
+	JudgeCode            string `json:"judge_code"`
+	JudgeURL             string `json:"judge_url"`
+	WebsiteSite          string `json:"website_site"`
+	Counts               struct {
+		Participants int `json:"participants"`
+		Teams        int `json:"teams"`
+		Judges       int `json:"judges"`
+		OnNoTeam     int `json:"on_no_team"`
+	} `json:"counts"`
 }
 
 func hackEventOutput(verb string, body []byte) (mcp.Output, error) {
@@ -392,29 +310,15 @@ func hackEventOutput(verb string, body []byte) (mcp.Output, error) {
 	if err := json.Unmarshal(body, &view); err != nil || view.Event.Slug == "" {
 		return mcp.Output{}, errors.New("the server returned an event this tool could not read")
 	}
-	offered := append([]string{}, view.Event.StagesOffered...)
+	e := view.Event
 	out := map[string]any{
-		"slug":               view.Event.Slug,
-		"title":              view.Event.Title,
-		"tagline":            view.Event.Tagline,
-		"about":              view.Event.About,
-		"rules":              view.Event.Rules,
-		"prizes":             view.Event.Prizes,
-		"overall_prizes":     append([]string{}, view.Event.OverallPrizes...),
-		"submissions_public": view.Event.SubmissionsPublic,
-		"coc_text":           view.Event.CocText,
-		"theme":              view.Event.Theme,
-		"stage":              view.Event.Stage,
-		"role":               view.Role,
-		"url":                view.Event.URL,
-		"time_zone":          view.Event.TimeZone,
-		"team_size_max":      view.Event.TeamSizeMax,
-		"team_finding":       view.Event.TeamFinding,
-		"taken_down":         view.Event.TakenDown,
-		"stages_offered":     offered,
-		"starts_at":          nil,
-		"ends_at":            nil,
-		"judging_ends_at":    nil,
+		"slug": e.Slug, "title": e.Title, "tagline": e.Tagline, "about": e.About,
+		"rules": e.Rules, "prizes": e.Prizes, "overall_prizes": append([]string{}, e.OverallPrizes...),
+		"submissions_public": e.SubmissionsPublic, "coc_text": e.CocText, "theme": e.Theme,
+		"stage": e.Stage, "role": view.Role, "url": e.URL, "time_zone": e.TimeZone,
+		"team_size_max": e.TeamSizeMax, "team_finding": e.TeamFinding, "taken_down": e.TakenDown,
+		"stages_offered": append([]string{}, e.StagesOffered...),
+		"starts_at":      orNull(e.StartsAt), "ends_at": orNull(e.EndsAt), "judging_ends_at": orNull(e.JudgingEndsAt),
 	}
 	if view.Can != nil {
 		out["can"] = view.Can
@@ -422,67 +326,51 @@ func hackEventOutput(verb string, body []byte) (mcp.Output, error) {
 	if view.Checklist != nil {
 		out["checklist"] = view.Checklist
 	}
-	if view.Event.StartsAt != nil {
-		out["starts_at"] = *view.Event.StartsAt
+	if view.NextStep != nil {
+		out["next_step"] = view.NextStep.output()
 	}
-	if view.Event.EndsAt != nil {
-		out["ends_at"] = *view.Event.EndsAt
-	}
-	if view.Event.JudgingEndsAt != nil {
-		out["judging_ends_at"] = *view.Event.JudgingEndsAt
-	}
-	if n := view.NextStep; n != nil {
-		var blocked any
-		if n.Blocked != nil {
-			blocked = *n.Blocked
-		}
-		var cue any
-		if c := n.Cue; c != nil {
-			var end any
-			if c.EndAt != nil {
-				end = *c.EndAt
-			}
-			cue = map[string]any{"key": c.Key, "title": c.Title, "start_at": c.StartAt, "end_at": end, "fixed": c.Fixed, "now": c.Now, "text": c.Text}
-		}
-		out["next_step"] = map[string]any{
-			"kind":            n.Kind,
-			"stage":           n.Stage,
-			"label":           n.Label,
-			"deadline_passed": n.DeadlinePassed,
-			"blocked":         blocked,
-			"cue":             cue,
-		}
-	}
-	text := fmt.Sprintf("%s %s (%s), stage %s. Role: %s.", verb, view.Event.Title, view.Event.Slug, view.Event.Stage, view.Role)
-	if view.Event.URL != "" {
-		text += " Address: " + view.Event.URL
+	text := fmt.Sprintf("%s %s (%s), stage %s. Role: %s.", verb, e.Title, e.Slug, e.Stage, view.Role)
+	if e.URL != "" {
+		text += " Address: " + e.URL
 	}
 	if o := view.Organiser; o != nil {
-		var expected any
-		if o.ExpectedParticipants != nil {
-			expected = *o.ExpectedParticipants
-		}
-		out["organiser"] = map[string]any{
-			"organiser_name":        o.OrganiserName,
-			"organisation":          o.Organisation,
-			"contact_email":         o.ContactEmail,
-			"purpose":               o.Purpose,
-			"expected_participants": expected,
-			"join_code":             o.JoinCode,
-			"join_url":              o.JoinURL,
-			"judge_code":            o.JudgeCode,
-			"judge_url":             o.JudgeURL,
-			"website_site":          o.WebsiteSite,
-			"counts": map[string]any{
-				"participants": o.Counts.Participants,
-				"teams":        o.Counts.Teams,
-				"judges":       o.Counts.Judges,
-				"on_no_team":   o.Counts.OnNoTeam,
-			},
-		}
+		out["organiser"] = o.output()
 		text += "\nJoin link: " + o.JoinURL + "\nJudge link: " + o.JudgeURL
 	}
 	return mcp.Output{Text: text, Structured: out}, nil
+}
+
+// orNull is the pointed-to value, or nil.
+func orNull[T any](p *T) any {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func (n *hackNextStep) output() map[string]any {
+	var cue any
+	if c := n.Cue; c != nil {
+		cue = map[string]any{"key": c.Key, "title": c.Title, "start_at": c.StartAt, "end_at": orNull(c.EndAt), "fixed": c.Fixed, "now": c.Now, "text": c.Text}
+	}
+	return map[string]any{
+		"kind": n.Kind, "stage": n.Stage, "label": n.Label,
+		"deadline_passed": n.DeadlinePassed, "blocked": orNull(n.Blocked), "cue": cue,
+	}
+}
+
+func (o *hackOrganiserView) output() map[string]any {
+	return map[string]any{
+		"organiser_name": o.OrganiserName, "organisation": o.Organisation,
+		"contact_email": o.ContactEmail, "purpose": o.Purpose,
+		"expected_participants": orNull(o.ExpectedParticipants),
+		"join_code":             o.JoinCode, "join_url": o.JoinURL,
+		"judge_code": o.JudgeCode, "judge_url": o.JudgeURL, "website_site": o.WebsiteSite,
+		"counts": map[string]any{
+			"participants": o.Counts.Participants, "teams": o.Counts.Teams,
+			"judges": o.Counts.Judges, "on_no_team": o.Counts.OnNoTeam,
+		},
+	}
 }
 
 type hackListItem struct {
@@ -511,16 +399,10 @@ func hackListOutput(body []byte) (mcp.Output, error) {
 			"slug": row.Slug, "title": row.Title, "stage": row.Stage, "role": row.Role,
 			"ended_at": row.EndedAt,
 			"url":      row.URL, "manage_url": row.ManageURL, "time_zone": row.TimeZone,
-			"taken_down": row.TakenDown, "starts_at": nil, "ends_at": nil,
+			"taken_down": row.TakenDown, "starts_at": orNull(row.StartsAt), "ends_at": orNull(row.EndsAt),
 		}
 		if row.Can != nil {
 			item["can"] = row.Can
-		}
-		if row.StartsAt != nil {
-			item["starts_at"] = *row.StartsAt
-		}
-		if row.EndsAt != nil {
-			item["ends_at"] = *row.EndsAt
 		}
 		items = append(items, item)
 	}
@@ -575,89 +457,32 @@ func hackWebEventTools() []mcp.Tool {
 			Description:  "Set the event icon from base64 PNG, JPEG or WebP bytes. The server checks actual image type and its configured size limit. Ask before replacing the icon. Organiser only.",
 			InputSchema:  mcp.Object(map[string]any{"slug": slug["slug"], "content_type": map[string]any{"type": "string", "enum": []string{"image/png", "image/jpeg", "image/webp"}, "description": "The image's MIME type."}, "image_base64": mcp.Str("Base64-encoded image bytes, without a data: prefix.")}, "slug", "content_type", "image_base64"),
 			OutputSchema: generic, Annotations: mcp.Writes(true, true, true),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				path, err := hackWebPath(args, "/icon")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				typ, err := mcp.StringArg(args, "content_type")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				encoded, err := mcp.StringArg(args, "image_base64")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				if len(encoded) > base64.StdEncoding.EncodedLen(4<<20) {
-					return mcp.Output{}, errors.New("image_base64 exceeds the maximum allowed image size")
-				}
-				body, err := base64.StdEncoding.DecodeString(encoded)
-				if err != nil {
-					return mcp.Output{}, errors.New("image_base64 must be valid base64 image bytes")
-				}
-				if typ != "image/png" && typ != "image/jpeg" && typ != "image/webp" {
-					return mcp.Output{}, errors.New("content_type must be image/png, image/jpeg or image/webp")
-				}
-				return hackWebJSON(c, "hack_set_event_icon", http.MethodPut, path, body, map[string]string{"Content-Type": typ})
-			},
+			run: runSetEventIcon,
 		},
 		{
 			Name: "hack_clear_event_icon", Title: "Clear event icon",
 			Description: "Remove the uploaded event icon and restore its generated initial icon. Ask the organiser first. Organiser only.",
 			InputSchema: mcp.Object(slug, "slug"), OutputSchema: generic, Annotations: mcp.Writes(true, true, true),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				path, err := hackWebPath(args, "/icon")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				return hackWebJSON(c, "hack_clear_event_icon", http.MethodDelete, path, nil, nil)
-			},
+			run: hackWebRoute("hack_clear_event_icon", http.MethodDelete, "/icon"),
 		},
 		{
 			Name: "hack_get_public_event", Title: "Read public event data",
 			Description: "Read the credentialless public event feed, including submissions_public and the submissions array (submitted, non-excluded entry summary cards when enabled from Judging onward), overall_prizes, eligible gallery, published results and closed vote ranking. No private codes or contact email are returned. Build an event website from hack_get_page_recipe topic event: it reads the public event feed live, so the page updates itself at every stage, results included; never copy stage, announcements or results into the HTML.",
 			InputSchema: mcp.Object(slug, "slug"), OutputSchema: generic, Annotations: hackPublicReadOnly(),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				path, err := hackWebPath(args, "/public")
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				return hackWebJSON(c, "hack_get_public_event", http.MethodGet, path, nil, nil)
-			},
+			run: hackWebRoute("hack_get_public_event", http.MethodGet, "/public"),
 		},
 		{
 			Name: "hack_get_preferences", Title: "Read my Simple Hack preferences",
 			Description: "Read this account's theme and completed organiser/judge walkthrough flags.",
 			InputSchema: mcp.NoArgs(), OutputSchema: generic, Annotations: mcp.ReadOnly(),
-			run: func(c *mcp.Call, _ map[string]any) (mcp.Output, error) {
-				return hackWebJSON(c, "hack_get_preferences", http.MethodGet, "/v1/hack/preferences", nil, nil)
-			},
+			run: runGetPreferences,
 		},
 		{
 			Name: "hack_set_preferences", Title: "Set my Simple Hack preferences",
 			Description:  "Set this account's theme (system, light or dark) and/or whether each walkthrough is complete. Sends only supplied fields.",
 			InputSchema:  mcp.Object(map[string]any{"theme": map[string]any{"type": "string", "enum": []string{"system", "light", "dark"}, "description": "Colour theme for the person's Simple Hack pages: system follows their device."}, "organiser_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the organiser walkthrough as seen, so it stops showing."}, "judge_walkthrough_done": map[string]any{"type": "boolean", "description": "true marks the judge walkthrough as seen, so it stops showing."}}),
 			OutputSchema: generic, Annotations: mcp.Writes(true, true, false),
-			run: func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-				body := map[string]any{}
-				if theme, ok := args["theme"]; ok {
-					body["theme"] = theme
-				}
-				if done, ok := args["organiser_walkthrough_done"]; ok {
-					body["organiser_walkthrough_done"] = done
-				}
-				if done, ok := args["judge_walkthrough_done"]; ok {
-					body["judge_walkthrough_done"] = done
-				}
-				if len(body) == 0 {
-					return mcp.Output{}, errors.New("set at least one preference")
-				}
-				raw, err := json.Marshal(body)
-				if err != nil {
-					return mcp.Output{}, err
-				}
-				return hackWebJSON(c, "hack_set_preferences", http.MethodPatch, "/v1/hack/preferences", raw, nil)
-			},
+			run: runSetPreferences,
 		},
 	})
 }
@@ -761,4 +586,135 @@ type hackEventSchemaSet struct{ list, name, event map[string]any }
 
 func hackAbilitiesSchema() map[string]any {
 	return mcp.OutObject(map[string]any{"manage": mcp.OutBool("May manage the event."), "judge": mcp.OutBool("May enter judging."), "take_part": mcp.OutBool("May enter the participant area.")}, "manage", "judge", "take_part")
+}
+
+func runListEvents(c *mcp.Call, _ map[string]any) (mcp.Output, error) {
+	body, err := hackDo(c, "hack_list_events", http.MethodGet, "/v1/hack/events", nil)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	return hackListOutput(body)
+}
+
+func runCheckEventName(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	slug, err := eventSlug(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	body, err := hackDo(c, "hack_check_event_name", http.MethodGet, "/v1/hack/names/"+url.PathEscape(slug), nil)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	return hackNameOutput(slug, body)
+}
+
+func runCreateEvent(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	request, err := hackCreateBody(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	body, err := hackDo(c, "hack_create_event", http.MethodPost, "/v1/hack/events", request)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	return hackEventOutput("Created", body)
+}
+
+func runGetEvent(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	slug, err := eventSlug(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	body, err := hackDo(c, "hack_get_event", http.MethodGet, eventPath(slug, ""), nil)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	return hackEventOutput("Event", body)
+}
+
+func runUpdateEvent(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	slug, err := eventSlug(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	request, err := hackPatchBody(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	body, err := hackDo(c, "hack_update_event", http.MethodPatch, eventPath(slug, ""), request)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	return hackEventOutput("Updated", body)
+}
+
+func runSetEventStage(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	slug, err := eventSlug(args)
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	stage, err := mcp.StringArg(args, "stage")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	body, err := hackDo(c, "hack_set_event_stage", http.MethodPost, eventPath(slug, "/stage"), map[string]string{"stage": stage})
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	return hackEventOutput("Stage", body)
+}
+
+func runSetEventIcon(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	path, err := hackWebPath(args, "/icon")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	typ, err := mcp.StringArg(args, "content_type")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	encoded, err := mcp.StringArg(args, "image_base64")
+	if err != nil {
+		return mcp.Output{}, err
+	}
+	if len(encoded) > base64.StdEncoding.EncodedLen(4<<20) {
+		return mcp.Output{}, errors.New("image_base64 exceeds the maximum allowed image size")
+	}
+	image, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return mcp.Output{}, errors.New("image_base64 must be valid base64 image bytes")
+	}
+	if typ != "image/png" && typ != "image/jpeg" && typ != "image/webp" {
+		return mcp.Output{}, errors.New("content_type must be image/png, image/jpeg or image/webp")
+	}
+	return hackWebJSON(c, "hack_set_event_icon", http.MethodPut, path, image, map[string]string{"Content-Type": typ})
+}
+
+// hackWebRoute is a run function for an event route without a body.
+func hackWebRoute(tool, method, suffix string) func(*mcp.Call, map[string]any) (mcp.Output, error) {
+	return func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+		path, err := hackWebPath(args, suffix)
+		if err != nil {
+			return mcp.Output{}, err
+		}
+		return hackWebJSON(c, tool, method, path, nil, nil)
+	}
+}
+
+func runGetPreferences(c *mcp.Call, _ map[string]any) (mcp.Output, error) {
+	return hackWebJSON(c, "hack_get_preferences", http.MethodGet, "/v1/hack/preferences", nil, nil)
+}
+
+func runSetPreferences(c *mcp.Call, args map[string]any) (mcp.Output, error) {
+	body := map[string]any{}
+	for _, key := range []string{"theme", "organiser_walkthrough_done", "judge_walkthrough_done"} {
+		if value, ok := args[key]; ok {
+			body[key] = value
+		}
+	}
+	if len(body) == 0 {
+		return mcp.Output{}, errors.New("set at least one preference")
+	}
+	raw, _ := json.Marshal(body)
+	return hackWebJSON(c, "hack_set_preferences", http.MethodPatch, "/v1/hack/preferences", raw, nil)
 }

@@ -3,14 +3,11 @@ package mcp
 // Only the enabled get_site adds preview data. Keep its existing text and the
 // shared site summary (including list_sites) unchanged.
 func sitePreviewOutput(c *call, site restSite, data map[string]any) output {
-	out := output{Text: jsonText(data), Structured: data}
-	for _, screen := range c.server.enabledScreens(c.caller) {
-		if screen.ID == "site-preview" {
-			data["site_preview"] = map[string]any{
-				"open_to_anyone": site.OpenToAnyone && site.ActiveVersion > 0,
-				"canonical_url":  site.SiteURL,
-			}
-			break
+	out := jsonOutput(data)
+	if c.server.screenEnabled(c.caller, "site-preview") {
+		data["site_preview"] = map[string]any{
+			"open_to_anyone": site.OpenToAnyone && site.ActiveVersion > 0,
+			"canonical_url":  site.SiteURL,
 		}
 	}
 	return out

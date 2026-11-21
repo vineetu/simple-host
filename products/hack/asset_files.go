@@ -4,7 +4,6 @@ import "net/http"
 
 // assetReplacements is the explicit list of platform names supplied by Hack:
 // for each, Hack's file is served and the platform's is not consulted.
-// ".well-known" and "setup" are the platform's folders, so a directory read lists Hack's.
 func assetReplacements() map[string]string {
 	return map[string]string{
 		"setup/small-box-settings.json": "static/setup/small-box-settings.json",
@@ -26,11 +25,7 @@ func assetReplacements() map[string]string {
 	}
 }
 
-// ownAssetFiles are Hack's own file names. The platform's page pipeline reads
-// them (the pages it renders for Hack), and its file server never answers
-// them: over HTTP each is reachable only through RegisterOwnFiles or another
-// route Hack registered. A file added to the embed is unreachable until it is
-// listed in one of the two tables below.
+// ownAssetFiles are Hack's own file names.
 func ownAssetFiles() map[string]string {
 	own := servedOwnFiles()
 	for name, file := range pageOnlyFiles() {
@@ -132,8 +127,7 @@ func servedOwnFiles() map[string]string {
 	}
 }
 
-// ownFolders are the folders among servedOwnFiles. A folder also answers at
-// its name with a trailing slash.
+// ownFolders are the folders among servedOwnFiles.
 var ownFolders = []string{"hack", "hack/screens"}
 
 // pageOnlyFiles are own names that have no address of their own: each is a
