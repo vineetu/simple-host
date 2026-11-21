@@ -766,7 +766,7 @@ scoped to one site; only an owner's request to identify a submitter calls
 or entry details do not resolve emails. Viewer edits return only what changed, and signed
 links contain no readable internal IDs. The same principles cover Simple Hack results.
 ChatGPT and Codex connections list every operation individually, without `find_tools` or
-`run_tool`; other clients retain their existing inventories. Instructions call tools only
+`run_tool`; other clients list a core and reach the rest through them. Instructions call tools only
 within the requested task, and annotations describe each operation's actual effects.
 
 The OpenAI kits are `plugins/openai` (Simple Host) and `plugins/openai-hack` (Simple Hack), each
@@ -2466,7 +2466,7 @@ objects and the `X-Skill-Notice` header (§9; arrays stay bare) is the only in-b
 
 Current tool listings are generated in `docs/generated/mcp-tools.md`.
 
-Simple Host's connector lists operations individually for ChatGPT, OpenAI, and Codex. Other apps list its core and reach the rest through `find_tools` and `run_tool` (§ Connector, SIM-187). Simple Hack keeps its full listing on purpose (2026-10-23): a person's role (organiser, judge, participant) is per event, not per connection, so no one core fits; organisers chain dozens of distinct tools during a live event, where a find step before each would cost more than the shorter list saves; the Hack skills name about a hundred tools; and there is no Hack eval suite yet to prove a trimmed list does not break a live event. Next step if wanted: a Hack eval suite, then a core per role.
+Simple Host's connector lists operations individually for ChatGPT, OpenAI, and Codex. Other apps list its core and reach the rest through `find_tools` and `run_tool` (§ Connector, SIM-187). Simple Hack does the same since 2026-11-21 (FT-1), through the same mechanism (`Contribution.Discovery` in `host/mcp/contribution.go`; Hack's list and search words in `products/hack/mcp/hack_discovery.go`): apps other than ChatGPT, OpenAI and Codex list 34 core tools (each role's first moves: events, checklist and to-dos, event setup, joining, teams, the entry, the team site, judging) plus `find_tools` and `run_tool`, and the judge and organiser screen tools where their app is on offer. Every other tool still answers by name and through `run_tool`, which runs the same call with the same checks; `find_tools` searches only tools the full list would offer, never the screen tools. The short list's instructions end with one line on reaching the rest. ChatGPT's flat list (179 tools, the kit) is unchanged. The 2026-10-23 reasons for keeping the full list were met by the Hack eval suite (`scripts/mcpeval/hack.yaml`), which passed at 100% on both model sizes before and after.
 
 `/v1/me` account and credential actions (change display name, change or verify email, link or unlink a sign-in identity, rotate the personal API key, sign out everywhere, delete the account) have no MCP tool on Simple Host or Simple Hack by design, so that an AI app is never the thing that rotates or destroys a person's own credentials. `who_am_i` (`GET /v1/me`) is the one `/v1/me` route either tool index exposes, and it is read-only.
 

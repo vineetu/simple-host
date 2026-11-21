@@ -26,6 +26,26 @@ type Contribution struct {
 	// runs in the analytics worker, after the reply, with the call's original
 	// arguments; only the tags it returns are sent. Nil adds none.
 	AnalyticsTags func(ctx context.Context, caller Caller, tool string, args map[string]any) map[string]string
+	// Discovery, when set, shortens the product connection's tool list as
+	// Host's own is shortened, for every app except those that take the flat
+	// list (ChatGPT): it lists Discovery.Core, the product's screen tools,
+	// find_tools and run_tool. Every other tool stays callable by name and
+	// through run_tool, under the same checks. Nil lists every tool.
+	Discovery *ProductDiscovery
+}
+
+// ProductDiscovery is a product's short tool list and its search text.
+type ProductDiscovery struct {
+	// Core names the tools listed directly.
+	Core []string
+	// Aliases are job words for find_tools, by tool name (Host's own
+	// toolAliases format). Host tools keep Host's words as well.
+	Aliases map[string][]string
+	// Instructions is appended to the product's instructions when the short
+	// list is served: how to reach the other tools.
+	Instructions string
+	// Tool rewords find_tools and run_tool for the product's connection.
+	Tool func(Tool) Tool
 }
 
 // RetiredMutation is the refusal for one retired tool name.

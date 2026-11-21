@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -177,6 +178,9 @@ type Server struct {
 	coreTools            []Tool
 	deployByName         map[string]Tool
 	search, deploySearch *toolSearch
+	// productSearch is find_tools' index on a product connection with a
+	// short list (Contribution.Discovery); nil otherwise.
+	productSearch *toolSearch
 	// productTools is the contributed product's inventory. It is listed
 	// only when the caller mode is CallerModeEvents, so an ordinary instance
 	// keeps the website tools.
@@ -224,11 +228,18 @@ func newServer(cfg Config) *Server {
 	}
 	s.registry, s.policies = r, r.policyIndex()
 	s.coreTools, s.deployByName = core, deploy.byName
-	s.search, s.deploySearch = newToolSearch(host.tools), newToolSearch(deploy.tools)
+	s.search, s.deploySearch = newToolSearch(host.tools, coreToolNames, nil), newToolSearch(deploy.tools, coreToolNames, nil)
 	s.tools, s.byName, s.preOutputSchemaTools = host.tools, host.byName, coreBare
 	s.productTools = productInstanceTools(product.tools, cfg.APIHost, cfg.Contribution.Rewrite)
 	s.productByName = productInstanceToolMap(product.byName, cfg.APIHost, cfg.Contribution.Rewrite)
 	s.productBare = productInstanceTools(product.bare, cfg.APIHost, cfg.Contribution.Rewrite)
+	if d := cfg.Contribution.Discovery; d != nil {
+		full, _, _ := s.productPersonalInventory()
+		// Screen tools are listed whenever their app is on offer, so the
+		// index never offers one the listing withholds.
+		searchable := slices.DeleteFunc(full, func(t Tool) bool { return t.policy.showAllowed != nil })
+		s.productSearch = newToolSearch(searchable, d.Core, d.Aliases)
+	}
 	return s
 }
 
@@ -309,6 +320,9 @@ func (s *Server) baseListing(caller Caller) toolListing {
 		// A product connection, OAuth or the person's own key: the product's
 		// tools and the site tools, which name the account as owner.
 		full, bare, byName := s.productPersonalInventory()
+		if s.shortProductList(caller) {
+			return s.productCoreListing(full, byName)
+		}
 		return toolListing{full: full, bare: bare, byName: byName}
 	case flatListApp(caller.AppName):
 		l := toolListing{byName: make(map[string]Tool, len(allowed))}
@@ -323,6 +337,38 @@ func (s *Server) baseListing(caller Caller) toolListing {
 		return l
 	}
 	return toolListing{full: s.coreTools, bare: s.preOutputSchemaTools, byName: allowed}
+}
+
+// shortProductList: this product connection gets the short list
+// (Contribution.Discovery) rather than every tool.
+func (s *Server) shortProductList(caller Caller) bool {
+	return caller.Mode == CallerModeEvents && s.productSearch != nil && !flatListApp(caller.AppName)
+}
+
+// productCoreListing lists the product's core tools, its screen tools and
+// Host's find_tools and run_tool. Every tool of the full list stays callable.
+func (s *Server) productCoreListing(full []Tool, byName map[string]Tool) toolListing {
+	d := s.cfg.Contribution.Discovery
+	l := toolListing{byName: make(map[string]Tool, len(byName)+2)}
+	for name, tool := range byName {
+		l.byName[name] = tool
+	}
+	for _, tool := range full {
+		if slices.Contains(d.Core, tool.Name) || tool.policy.showAllowed != nil {
+			l.add(tool)
+		}
+	}
+	for _, name := range []string{"find_tools", "run_tool"} {
+		tool := s.byName[name]
+		if d.Tool != nil {
+			policy := tool.policy
+			tool = d.Tool(tool)
+			tool.policy = policy
+		}
+		l.byName[name] = tool
+		l.add(tool)
+	}
+	return l
 }
 
 // withPasscodeScreen adds the passcode screen's tool and, outside the flat
@@ -348,6 +394,9 @@ func (s *Server) withPasscodeScreen(l toolListing, caller Caller) toolListing {
 func (s *Server) instructionsFor(caller Caller) string {
 	if instructions := s.cfg.Contribution.Instructions; instructions != nil {
 		if text := instructions(caller.Mode); text != "" {
+			if s.shortProductList(caller) && s.cfg.Contribution.Discovery.Instructions != "" {
+				text += "\n\n" + s.cfg.Contribution.Discovery.Instructions
+			}
 			return s.productInstructions(text)
 		}
 	}

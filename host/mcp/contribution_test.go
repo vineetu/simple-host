@@ -141,3 +141,40 @@ func TestContributionMutationNames(t *testing.T) {
 		}
 	}
 }
+
+// Discovery gives a product connection Host's short list: the core tools,
+// find_tools and run_tool, every other tool reached by run_tool under the
+// same call. The flat list (ChatGPT) and a nil Discovery list every tool.
+func TestContributionDiscovery(t *testing.T) {
+	product := fixtureProduct()
+	product.Discovery = &ProductDiscovery{Core: []string{"fixture_read"}, Instructions: "More: find_tools.",
+		Aliases: map[string][]string{"storage_sql_schema": {"make a table"}},
+		Tool:    func(tool Tool) Tool { tool.Title = "Fixture " + tool.Name; return tool }}
+	s := NewServer(Config{Contribution: product, Events: &fakeEventsBackend{}})
+	caller := Caller{Mode: CallerModeEvents, GrantID: "grant"}
+	listed, _, byName := s.forCaller(caller)
+	var names []string
+	for _, tool := range listed {
+		names = append(names, tool.Name)
+	}
+	if strings.Join(names, ",") != "fixture_read,find_tools,run_tool" || byName["update_site"].run == nil || byName["run_tool"].Title != "Fixture run_tool" {
+		t.Fatalf("short list %v", names)
+	}
+	if text := s.instructionsFor(caller); !strings.HasSuffix(text, "\n\nMore: find_tools.") {
+		t.Fatalf("instructions %q", text)
+	}
+	if got := s.searchFor(caller).rank("make a table", 1); len(got) != 1 || got[0].tool.Name != "storage_sql_schema" {
+		t.Fatalf("product search %v", got)
+	}
+	flat := Caller{Mode: CallerModeEvents, GrantID: "grant", AppName: "ChatGPT"}
+	full, _, _ := s.forCaller(flat)
+	plain, _, _ := NewServer(Config{Contribution: fixtureProduct(), Events: &fakeEventsBackend{}}).forCaller(caller)
+	if len(full) != len(plain) || len(full) <= 3 || strings.Contains(s.instructionsFor(flat), "More: find_tools.") {
+		t.Fatalf("flat list %d tools, plain %d", len(full), len(plain))
+	}
+	for _, tool := range full {
+		if tool.Name == "find_tools" || tool.Name == "run_tool" {
+			t.Fatalf("flat list names %s", tool.Name)
+		}
+	}
+}

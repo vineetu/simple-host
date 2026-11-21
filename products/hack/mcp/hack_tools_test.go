@@ -281,10 +281,11 @@ func TestHackToolDispatch(t *testing.T) {
 }
 
 // A website tool Simple Hack shares with Simple Host keeps Host's hints, and
-// delete_site still asks for confirm_name.
+// delete_site still asks for confirm_name. The flat list (ChatGPT) carries
+// every shared tool.
 func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
 	s := newTestServer(nil)
-	site := listedTools(t, rpcAs(t, s, mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents, GrantID: "grant"}, "2025-06-18", "tools/list", nil, false))
+	site := listedTools(t, rpcAs(t, s, mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents, GrantID: "grant", AppName: "ChatGPT"}, "2025-06-18", "tools/list", nil, false))
 	hostByName := map[string]mcp.Tool{}
 	for _, tool := range mcp.Tools() {
 		hostByName[tool.Name] = tool

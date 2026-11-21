@@ -32,7 +32,7 @@ func Contribution() mcp.Contribution {
 			return ""
 		},
 		Rewrite: hackInstanceReplace, StorageError: hackStorageErrorMessage,
-		Apps: hackApps,
+		Apps: hackApps, Discovery: hackDiscovery(),
 		MutationNames: map[string]mcp.RetiredMutation{
 			"hack_lock_judging":   judgingLockRemoved,
 			"hack_unlock_judging": judgingLockRemoved,

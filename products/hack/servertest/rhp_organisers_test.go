@@ -217,10 +217,15 @@ func TestRhpStorageOnlyRefusals(t *testing.T) {
 				t.Fatalf("%s exposes retired tool %s", label, name)
 			}
 		}
-		for _, name := range []string{"storage_get_usage", "storage_set_resource"} {
-			if !hasTool(names, name) {
-				t.Fatalf("%s lost storage tool %s", label, name)
-			}
+		if !hasTool(names, "run_tool") || !hasTool(names, "find_tools") {
+			t.Fatalf("%s lists no find_tools/run_tool", label)
+		}
+	}
+	// Storage tools sit outside the short list; find_tools still offers them.
+	for _, name := range []string{"storage_get_usage", "storage_set_resource"} {
+		r := a.rpc(t, access, "tools/call", map[string]any{"name": "find_tools", "arguments": map[string]any{"query": name, "limit": 1}})
+		if !strings.Contains(string(r.body), `"name":"`+name+`"`) {
+			t.Fatalf("find_tools lost storage tool %s: %s", name, r.body)
 		}
 	}
 	for _, name := range []string{"get_state", "list_data", "get_site_passcode", "set_site_passcode"} {

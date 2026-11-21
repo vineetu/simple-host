@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -175,10 +176,12 @@ func searchStem(word string) string {
 	return word
 }
 
-func newToolSearch(tools []Tool) *toolSearch {
+// newToolSearch indexes tools for find_tools. core names the tools listed
+// directly; extra adds job words to toolAliases' own, by tool name.
+func newToolSearch(tools []Tool, core []string, extra map[string][]string) *toolSearch {
 	s := &toolSearch{idf: map[string]float64{}}
 	listed := map[string]bool{}
-	for _, name := range coreToolNames {
+	for _, name := range core {
 		listed[name] = true
 	}
 	for _, tool := range tools {
@@ -196,7 +199,7 @@ func newToolSearch(tools []Tool) *toolSearch {
 		add(tool.Name, 4)
 		add(tool.Title, 2)
 		add(tool.Description, 0.5)
-		for _, alias := range toolAliases[tool.Name] {
+		for _, alias := range append(slices.Clip(toolAliases[tool.Name]), extra[tool.Name]...) {
 			add(alias, 3)
 			terms := searchTerms(alias)
 			if len(terms) > 1 {
@@ -316,6 +319,9 @@ func (s *Server) searchFor(caller Caller) *toolSearch {
 	search := s.search
 	if caller.DeployOnly {
 		search = s.deploySearch
+	}
+	if caller.Mode == CallerModeEvents && s.productSearch != nil {
+		search = s.productSearch
 	}
 	flat := caller.Mode != CallerModeEvents && flatListApp(caller.AppName)
 	context := s.analytics != nil

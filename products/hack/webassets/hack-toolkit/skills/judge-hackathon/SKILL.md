@@ -6,6 +6,7 @@ description: "Judge entries in a Simple Hack event on simple-hack.app: join as j
 # Judge a hackathon
 
 Needs the Simple Hack connector, `https://simple-hack.app/mcp`. In ChatGPT: Plugins, **Add**, **Add custom MCP server**, paste that address. In Claude: **Settings**, **Connectors**, **Browse connectors**, **Simple Hack**, **Connect**. The person signs in in that window and chooses **Allow**. Never ask for or handle a sign-in code, key, password or passcode in chat. Use returned event, team and criterion IDs and the exact tool schemas.
+Call the named tool directly, using its input schema. If your app does not list it, call `find_tools` with the job, then `run_tool` with `{"name": ..., "arguments": {...}}`.
 
 Start with `hack_get_checklist` (event slug, `role: "judge"`) and follow `checklist.next`; confirm any change before writing.
 

@@ -6,6 +6,7 @@ description: Build, publish and update a static Simple Hack team site, or an org
 # Publish a Simple Hack website
 
 Needs the Simple Hack connector, `https://simple-hack.app/mcp`. In ChatGPT: Plugins, **Add**, **Add custom MCP server**, paste that address. In Claude: **Settings**, **Connectors**, **Browse connectors**, **Simple Hack**, **Connect**. The person signs in in that window and chooses **Allow**. Never ask for or handle a sign-in code, key, password or passcode in chat. Use only the connector's event and team permissions.
+Call the named tool directly, using its input schema. If your app does not list it, call `find_tools` with the job, then `run_tool` with `{"name": ..., "arguments": {...}}`.
 
 ## Identify the site
 

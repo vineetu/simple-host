@@ -6,6 +6,7 @@ description: "Join and participate in a Simple Hack event on simple-hack.app: si
 # Join a hackathon
 
 Needs the Simple Hack connector, `https://simple-hack.app/mcp`. In ChatGPT: Plugins, **Add**, **Add custom MCP server**, paste that address. In Claude: **Settings**, **Connectors**, **Browse connectors**, **Simple Hack**, **Connect**. The person signs in in that window and chooses **Allow**; if the connection drops, ask them to reconnect it. Never ask for or handle a sign-in code, API key, password or passcode in chat. Use the tool schemas and the identifiers they return; role and team membership are checked on every call.
+Call the named tool directly, using its input schema. If your app does not list it, call `find_tools` with the job, then `run_tool` with `{"name": ..., "arguments": {...}}`.
 
 No coding needed. Ask what the participant wants to build in plain language, then build their team's site for them with `website-deploy` (for example: "an app that matches volunteers to shifts"). Follow the event's rules and rubric.
 
