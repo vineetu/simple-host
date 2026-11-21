@@ -87,6 +87,9 @@ type Site struct {
 	NamedViewers bool
 }
 
+// The site-state predicates. Each meaning has one of these, and its SQL form
+// is defined once in host/sites/repo/site_state.go.
+
 // Suspended reports whether the site is taken down, by itself or through its
 // owner's account.
 func (s Site) Suspended() bool { return s.SiteSuspended || s.OwnerSuspended }
@@ -96,6 +99,9 @@ func (s Site) Gated() bool { return s.Passcode || s.NamedViewers }
 
 // Live: the site is served at all: not offline and not taken down.
 func (s Site) Live() bool { return !s.Offline && !s.Suspended() }
+
+// HasVersion: the site has a live version to serve.
+func (s Site) HasVersion() bool { return s.ActiveVersion > 0 }
 
 // OpenToAnyone: anyone with the link can open the site right now.
 func (s Site) OpenToAnyone() bool { return !s.Gated() && s.Live() }

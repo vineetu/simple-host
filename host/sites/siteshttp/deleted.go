@@ -30,19 +30,6 @@ func toDeletedSiteResponse(d model.DeletedSite, retention time.Duration) deleted
 	return deletedSiteResponse{Name: d.Name, DeletedAt: d.DeletedAt.UTC(), PurgeAt: d.PurgeAt(retention).UTC(), CustomDomain: d.CustomDomain.String}
 }
 
-func deletedNameMessage(d model.DeletedSite, retention time.Duration) string {
-	return "you deleted a site named " + d.Name + " recently; it is in Recently deleted until " +
-		d.PurgeAt(retention).UTC().Format("2 Jan 2006") + ". Restore it, or pick another name"
-}
-
-func (h *SiteHandler) deletedNameConflict(ctx context.Context, userID, name string) (string, bool) {
-	d, err := h.SitesSvc().GetDeletedSiteByUser(ctx, userID, name)
-	if err != nil {
-		return "", false
-	}
-	return deletedNameMessage(d, h.Limits.DeletedRetention), true
-}
-
 // deleteSite moves a site to Recently deleted: marked in the database, and its
 // files moved out of every served path, in that order with the commit last so
 // a failure leaves the site live and whole.

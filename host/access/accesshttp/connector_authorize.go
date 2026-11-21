@@ -305,9 +305,6 @@ func (h *ConnectorHandler) renderConsent(w http.ResponseWriter, r *http.Request,
 // product that has teams calls it at startup.
 func (h *ConnectorHandler) SetTeamConnections(on bool) { h.teamConnections = on }
 
-// SetSignInAlerts shares the sign-in alert sender (UserHandler.SignInAlerts).
-func (h *ConnectorHandler) SetSignInAlerts(a *SignInAlerts) { h.alerts = a }
-
 // resolveConsentUser authenticates the person deciding, by the API key the
 // sign-in on this page (or the dashboard) left in the browser.
 func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (model.User, int, string) {

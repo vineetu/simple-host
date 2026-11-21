@@ -26,7 +26,9 @@ type AccessHandler struct {
 	Hosts *sites.Hosts
 	// siteFiles is the sites service the account routes export, erase and
 	// rename with (NewSiteHandlers builds it).
-	SiteFiles          *sites.Service
+	SiteFiles *sites.Service
+	// SiteArchive writes a site's files and saved data into the account export.
+	SiteArchive        *operations.SiteArchive
 	Ed                 *edition.Edition
 	Limits             edition.Limits
 	Database           *sql.DB
@@ -109,13 +111,10 @@ func (h *AccessHandler) pipeline() *web.AssetPipeline {
 func (h *AccessHandler) sitesSvc() *sites.Service {
 	deps := sites.Deps{
 		SiteViewersMax: h.Limits.SiteViewersMax, ContentHost: h.ContentHost, SiteDomain: h.SiteDomain,
-		LockSite: func(userID, name string) func() { return sites.LockSiteName(h.UploadLocks, userID, name) },
+		Locks: h.UploadLocks,
 	}
 	if h.Ed != nil {
 		deps.PersonalSitesEnabled = h.Ed.Identity().PersonalSites
-	}
-	if h.Notify != nil {
-		deps.DeleteViewerPush = h.Notify.DeleteViewerPush
 	}
 	return sites.New(h.Database, h.Disk, nil, 0, deps)
 }

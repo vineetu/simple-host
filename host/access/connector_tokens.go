@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,13 +22,38 @@ import (
 type Connector struct {
 	database              *sql.DB
 	Now                   func() time.Time
-	NormalizeResource     func(string) (string, bool)
+	Issuer                string // the authorization server, e.g. https://simple-host.app
 	TeamConnections       bool
 	AccessTTL, RefreshTTL time.Duration
 }
 
-func NewConnector(database *sql.DB, now func() time.Time, normalize func(string) (string, bool), teams bool, access, refresh time.Duration) *Connector {
-	return &Connector{database, now, normalize, teams, access, refresh}
+func NewConnector(database *sql.DB, now func() time.Time, issuer string, teams bool, access, refresh time.Duration) *Connector {
+	return &Connector{database, now, issuer, teams, access, refresh}
+}
+
+// NormalizeConnectorResource maps a requested resource to the audience stored
+// on the grant and token for the authorization server issuer: empty means
+// issuer itself; issuer+"/mcp" (and simple-host.app's mcp.simple-host.app
+// alias) is the MCP server.
+func NormalizeConnectorResource(issuer, raw string) (string, bool) {
+	mcpResource := issuer + "/mcp"
+	if raw == "" {
+		return issuer, true
+	}
+	u, err := url.Parse(raw)
+	if err != nil || !u.IsAbs() || u.Fragment != "" || u.RawQuery != "" {
+		return "", false
+	}
+	trimmed := strings.TrimRight(raw, "/")
+	switch {
+	case strings.EqualFold(trimmed, mcpResource):
+		return mcpResource, true
+	case strings.EqualFold(issuer, "https://simple-host.app") && strings.EqualFold(trimmed, "https://mcp.simple-host.app/mcp"):
+		return mcpResource, true
+	case strings.EqualFold(trimmed, issuer):
+		return issuer, true
+	}
+	return "", false
 }
 
 type ConnectorTokenInput struct{ Code, RedirectURI, Verifier, Resource, RefreshToken, Scope string }
@@ -176,7 +202,7 @@ func (h *Connector) checkRedemption(ctx context.Context, tx *sql.Tx, stored mode
 		return invalidGrant("code_verifier sent for a code issued without code_challenge")
 	}
 	if res := in.Resource; res != "" {
-		if norm, ok := h.NormalizeResource(res); !ok || norm != stored.Resource {
+		if norm, ok := NormalizeConnectorResource(h.Issuer, res); !ok || norm != stored.Resource {
 			return &ConnectorError{Code: "invalid_target", Description: "resource does not match the authorization request", Internal: false}
 		}
 	}
@@ -261,7 +287,7 @@ func (h *Connector) checkRefreshRequest(ctx context.Context, tx *sql.Tx, tok mod
 		return &ConnectorError{Code: "invalid_scope", Description: "scope exceeds the original grant", Internal: false}
 	}
 	if res := in.Resource; res != "" {
-		if norm, ok := h.NormalizeResource(res); !ok || norm != tok.Resource {
+		if norm, ok := NormalizeConnectorResource(h.Issuer, res); !ok || norm != tok.Resource {
 			return &ConnectorError{Code: "invalid_target", Description: "resource does not match the original grant", Internal: false}
 		}
 	}

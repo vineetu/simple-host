@@ -8,6 +8,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	siterules "github.com/vsriram/simple-host/host/rules/sites"
 )
 
 // ---- argument helpers -------------------------------------------------------
@@ -155,22 +157,21 @@ func stringListArg(args map[string]any, key string) ([]string, error) {
 	return out, nil
 }
 
-// siteArg reads and shape-checks a site name. The REST layer validates it
-// again; checking here turns a refusal into a precise message.
+// siteArg reads and shape-checks a site name with the Sites name rule
+// (host/rules/sites.ValidateShape, which the REST layer applies too); checking
+// here turns a refusal into a precise message.
 func siteArg(args map[string]any) (string, error) {
 	site, err := stringArg(args, "site")
 	if err != nil {
 		return "", err
 	}
 	site = strings.ToLower(site)
-	for _, r := range site {
-		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
-			text := fmt.Sprintf("site %q is not a valid site name: use lowercase letters, numbers and hyphens only (e.g. \"birthday-rsvp\")", site)
-			if guess := siteNameFromAddress(site); guess != "" {
-				text = fmt.Sprintf("site %q is an address, not a site name: pass just the name (here probably %q); list_sites shows the exact names", site, guess)
-			}
-			return "", codedError("invalid_site_name", text)
+	if siterules.ValidateShape(site) != nil {
+		text := fmt.Sprintf("site %q is not a valid site name: use lowercase letters, numbers and hyphens only (e.g. \"birthday-rsvp\")", site)
+		if guess := siteNameFromAddress(site); guess != "" {
+			text = fmt.Sprintf("site %q is an address, not a site name: pass just the name (here probably %q); list_sites shows the exact names", site, guess)
 		}
+		return "", codedError("invalid_site_name", text)
 	}
 	return site, nil
 }
@@ -186,10 +187,8 @@ func siteNameFromAddress(s string) string {
 	if !dotted || label == "" || label == "www" {
 		return ""
 	}
-	for _, r := range label {
-		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
-			return ""
-		}
+	if siterules.ValidateShape(label) != nil {
+		return ""
 	}
 	return label
 }

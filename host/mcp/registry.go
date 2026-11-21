@@ -1,6 +1,10 @@
 package mcp
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/vsriram/simple-host/host/access/auth"
+)
 
 // toolFamily names one capability family of MCP tools (docs/architecture/
 // target.md §6). Every registered tool belongs to exactly one family. A
@@ -40,15 +44,19 @@ type toolPolicy struct {
 	visitorParams, pagedStorage                                                bool
 	judgeParameter, includeEmails, recordsPins, screenshot, optionalBody       bool
 
-	connectorHidden, notDeployOnly, unlisted, notSearchable bool
-	listWithPasscode                                        bool
-	preserveNumbers                                         bool
-	screenOnly, unwrap, discovery, notificationID           bool
-	screen                                                  string
-	showAllowed                                             func(Caller, bool) bool
-	flatList                                                func(Tool) Tool
-	analytics                                               analyticsPolicy
-	noSpamCheck                                             func(Tool) Tool
+	connectorHidden, unlisted, notSearchable bool
+	// route is the REST route the tool stands for, when it names one: a
+	// deploy-only key's listing leaves the tool out when auth.DeployKeyAllows
+	// refuses that route (calling it is refused there either way).
+	route                                         string
+	listWithPasscode                              bool
+	preserveNumbers                               bool
+	screenOnly, unwrap, discovery, notificationID bool
+	screen                                        string
+	showAllowed                                   func(Caller, bool) bool
+	flatList                                      func(Tool) Tool
+	analytics                                     analyticsPolicy
+	noSpamCheck                                   func(Tool) Tool
 	// unlistedArgs are accepted although the schema no longer lists them,
 	// for apps that keep an older tool list.
 	unlistedArgs []string
@@ -162,7 +170,7 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, deploy bool) 
 	v := registryView{byName: map[string]Tool{}}
 	for _, entry := range r.entries {
 		tool, p := entry.tool, entry.tool.policy
-		if entry.edition != edition || p.connectorHidden || (deploy && p.notDeployOnly) {
+		if entry.edition != edition || p.connectorHidden || (deploy && p.route != "" && !auth.DeployKeyAllows(p.route)) {
 			continue
 		}
 		if site && (p.unlisted || !slices.Contains(cfg.Contribution.HostTools, tool.Name)) {

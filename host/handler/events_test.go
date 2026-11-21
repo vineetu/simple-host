@@ -1,4 +1,4 @@
-package datahttp
+package handler
 
 import (
 	"bytes"
@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/data/datahttp"
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
 func TestNotificationMissingKeyMCPDiscovery(t *testing.T) {
-	h := &DataHandler{PasscodeKeys: &accounts.PasscodeKeys{}}
-	server := mcp.NewServer(mcp.Config{Events: h.EventsBackend()})
+	h := &datahttp.DataHandler{PasscodeKeys: &accounts.PasscodeKeys{}}
+	server := mcp.NewServer(mcp.Config{Events: EventsBackend(h)})
 	for _, method := range []string{"server/discover", "events/subscribe"} {
 		body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": map[string]any{"_meta": map[string]any{"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": map[string]any{}}}})
 		req := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))

@@ -171,12 +171,9 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	})
 	// Take-down markers on disk follow the database (suspend.go).
 	accessHandler.SyncSuspendMarkers(context.Background())
-	oauthHandler := accesshttp.NewOAuthHandler(db, accountsService, OAuthSettings(cfg, accountsService), ed)
+	oauthHandler := accesshttp.NewOAuthHandler(db, accountsService, OAuthSettings(cfg, accountsService), accessHandler, ed)
 	oauthHandler.ShareAssets(siteHandler.Pages())
-	oauthHandler.SetPersonSiteResolver(hosts.ReturnSite)
-	oauthHandler.SetPasscodeCheck(accessHandler.PasscodeLetsIn)
 	accessHandler.SetSSOHop(oauthHandler)
-	oauthHandler.SetSiteBases(hosts.ServedBases(), hosts.SameUserHost)
 	oauthHandler.Register(mux)
 
 	// Deploy-only keys are refused everywhere but the deploy routes, in this one
@@ -191,15 +188,12 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	gated := web.APIErrors(mux, scoped, cfg.PublicBaseURL)
 	// The connector's text names people's addresses under the base in use.
 	mcp.SetAddressBase(cfg.SiteDomain, siteHandler.HandoutBase())
-	connector := accesshttp.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, hosted, ed)
+	connector := accesshttp.NewConnectorHandler(db, cfg.PublicBaseURL, cfg.AdminAPIKey, cfg.SiteDomain, cfg.ContentHost, pluginVersion, gated, hosted, accessHandler, userHandler.SignInAlerts(), ed)
 	connector.ShareAssets(siteHandler.Pages())
-	connector.SetVisitorReferences(accessHandler)
 	handler.SetVisitorTools(connector, accessHandler, dataHandler, oauthHandler)
 	connector.SetPreviewBases(siteHandler.ServedBases())
 	connector.OfferSpamCheck(dataHandler.SpamCheckEnabled())
-	if events := dataHandler.EventsBackend(); events != nil {
-		connector.SetEventsBackend(events)
-	}
+	connector.SetEventsBackend(handler.EventsBackend(dataHandler))
 	connector.Register(mux, authMW)
 	if err := connector.EnsureBuiltinClients(context.Background()); err != nil {
 		log.Printf("connector: built-in clients: %v", err)
@@ -208,7 +202,6 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	userHandler.SetReviewerEmail(cfg.ReviewAccountEmail)
 	userHandler.SetPreviewAccounts(cfg.PreviewAccounts)
 	dataHandler.SetWebPushAccounts(cfg.WebPushAccounts, cfg.WebPushAccountsAll)
-	connector.SetSignInAlerts(userHandler.SignInAlerts())
 	web.RegisterOpenAIAppsChallenge(mux, cfg.OpenAIAppsChallenge)
 	siteshttp.RegisterUIRoutes(mux, cfg.PublicBaseURL, siteHandler)
 	for pattern, target := range redirects {
@@ -491,7 +484,6 @@ func configureSites(cfg config.Config, db *sql.DB, site *siteshttp.SiteHandler, 
 	if cfg.Limits.SitePasscodes && cfg.PasscodeEncKey == "" && !site.SharedOrigin() {
 		log.Printf("site passcodes: PASSCODE_ENC_KEY is not set, so no site can get a passcode")
 	}
-	user.SetPublicPage(site.PersonPageURL)
 	// One namespace across every domain people's addresses live under.
 	accountrepo.SetPlatformDomains(site.HandoutBase(), site.ServedBases()...)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
@@ -508,11 +500,14 @@ func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mu
 	if cfg.EventDNSToken == "" || len(cfg.EventDomains) == 0 {
 		return nil
 	}
-	eventSvc := sites.New(db, nil, nil, 0, sites.Deps{EventDNS: eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), EventProbe: eventdns.NewLiveProbe(), EventDomains: cfg.EventDomains, EventTTL: ed.Limits().EventTTL, EventMaxClaims: ed.Limits().EventMaxClaims})
-	ev := siteshttp.NewEventDomainHandler(eventSvc, cfg.EventDomains)
-	if cfg.EventNamePeer != "" && !ed.Routes().HostedEvents {
+	deps := sites.Deps{EventDNS: eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), EventProbe: eventdns.NewLiveProbe(), EventDomains: cfg.EventDomains, EventTTL: ed.Limits().EventTTL, EventMaxClaims: ed.Limits().EventMaxClaims}
+	peered := cfg.EventNamePeer != "" && !ed.Routes().HostedEvents
+	if peered {
 		// One name list with the hackathon platform.
-		ev.SetNamePeer(siteshttp.NamePeerClient(cfg.EventNamePeer))
+		deps.EventNamePeer = eventdns.NewNamePeer(cfg.EventNamePeer)
+	}
+	ev := siteshttp.NewEventDomainHandler(sites.New(db, nil, nil, 0, deps), cfg.EventDomains)
+	if peered {
 		siteshttp.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)
 		log.Printf("event hostnames: names checked with %s", cfg.EventNamePeer)
 	}

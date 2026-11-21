@@ -101,6 +101,9 @@ func (h *SiteHandler) AddPhotos(w http.ResponseWriter, r *http.Request) {
 		h.writePhotoSaveError(w, r, input, err)
 		return
 	}
+	if result.Published {
+		h.noteDeployed(r.Context(), user, result)
+	}
 	response := h.siteResponseFromState(result.Site, result.ResponseState.(siteResponseState))
 	results := make([]photoResult, 0, len(uploads))
 	for i, p := range uploads {

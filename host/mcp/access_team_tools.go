@@ -80,10 +80,9 @@ func teamCall(c *call, tool, method, path string, body any) (map[string]any, err
 }
 
 func teamTools() []Tool {
-	policy := toolPolicy{notDeployOnly: true}
 	return []Tool{
 		{
-			policy:       policy,
+			policy:       toolPolicy{route: "POST /v1/teams"},
 			OutputSchema: teamSchema(),
 			Name:         "create_team", Title: "Create a team",
 			Description: "Create a team: an account that owns sites, which people join. You become its first member. Its name becomes its address, https://<site>.<name>.simple-host.app/, so it follows the address rules: lowercase letters, numbers and hyphens, no dots. A team cannot be renamed later. Ask the person for the name first.",
@@ -92,7 +91,7 @@ func teamTools() []Tool {
 			run:         runCreateTeam,
 		},
 		{
-			policy: policy,
+			policy: toolPolicy{route: "GET /v1/teams"},
 			OutputSchema: outObject(map[string]any{
 				"teams":       outArray("The teams you belong to.", teamSchema()),
 				"invitations": outArray("Invitations to join a team that wait for your answer (answer_team_invitation).", invitationSchema(false)),
@@ -104,7 +103,7 @@ func teamTools() []Tool {
 			run:         runListTeams,
 		},
 		{
-			policy: policy,
+			policy: toolPolicy{route: "GET /v1/teams/{team}/members"},
 			OutputSchema: outObject(map[string]any{
 				"team":        teamSchema(),
 				"members":     outArray("The team's members, earliest first. Emails are never shown.", memberSchema()),
@@ -117,7 +116,7 @@ func teamTools() []Tool {
 			run:         runListTeamMembers,
 		},
 		{
-			policy: policy,
+			policy: toolPolicy{route: "POST /v1/teams/{team}/members"},
 			OutputSchema: outObject(map[string]any{
 				"invited":         outBool("Always true: the answer is the same whether or not anyone has that email."),
 				"expires_in_days": outInteger("Days the invitation waits for an answer."),
@@ -130,7 +129,7 @@ func teamTools() []Tool {
 			run:         runAddTeamMember,
 		},
 		{
-			policy: policy,
+			policy: toolPolicy{route: "DELETE /v1/teams/{team}/invitations/{invitation}"},
 			OutputSchema: outObject(map[string]any{
 				"cancelled": outString("The invitation's id."),
 			}, "cancelled"),
@@ -141,7 +140,7 @@ func teamTools() []Tool {
 			run:         runCancelTeamInvitation,
 		},
 		{
-			policy: policy,
+			policy: toolPolicy{route: "POST /v1/me/team-invitations/{invitation}"},
 			OutputSchema: outObject(map[string]any{
 				"team":   outString("The team's handle."),
 				"answer": outString("accept or decline."),
@@ -157,7 +156,7 @@ func teamTools() []Tool {
 			run:         runAnswerTeamInvitation,
 		},
 		{
-			policy: policy,
+			policy: toolPolicy{route: "DELETE /v1/teams/{team}/members/{member}"},
 			OutputSchema: outObject(map[string]any{
 				"removed": outString("The handle or id that was removed."),
 			}, "removed"),
@@ -168,7 +167,7 @@ func teamTools() []Tool {
 			run:         runRemoveTeamMember,
 		},
 		{
-			policy: policy,
+			policy: toolPolicy{route: "DELETE /v1/teams/{team}"},
 			OutputSchema: outObject(map[string]any{
 				"deleted": outString("The team's handle."),
 			}, "deleted"),

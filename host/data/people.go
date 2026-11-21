@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	accountapp "github.com/vsriram/simple-host/host/access"
+
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	model "github.com/vsriram/simple-host/host/model"
 
@@ -65,7 +67,7 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 		out[i].NamedViewer = true
 	}
 	for i := range out {
-		email, err := s.deps.VisitorEmail(ctx, out[i].VisitorID)
+		email, err := accountapp.VisitorEmail(ctx, s.db, out[i].VisitorID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, &Error{Code: "internal_error", Message: "internal server error"}
 		}

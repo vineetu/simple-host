@@ -52,9 +52,8 @@ func (a *PrivateApp) WithOAuth(t *testing.T) *accesshttp.OAuthHandler {
 		SSOKeyLimiter: httpx.NewRateLimiter(10000, 10000),
 		LookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },
 		LookupCNAME:   func(context.Context, string) (string, error) { return "cname." + PcSiteDomain + ".", nil },
+		Access:        a.Access,
 	}
-	oh.SetPersonSiteResolver(a.Sites.Hosts.ReturnSite)
-	oh.SetPasscodeCheck(a.Access.PasscodeLetsIn)
 	oh.Register(a.Mux)
 	return oh
 }

@@ -35,17 +35,16 @@ type IdleArchiveInput struct {
 func (svc *Service) RemoveIdleSite(ctx context.Context, in IdleArchiveInput) {
 	s, now := in.Site, in.Now
 	d := svc.deps.IdleArchive
-	unlock := svc.deps.LockSite(s.UserID, s.Name)
+	unlock := svc.lockSite(s.UserID, s.Name)
 	defer unlock()
 	site, err := repo.GetSiteByUser(ctx, svc.database, s.UserID, s.Name)
 	if err != nil || site.ID != s.SiteID || !site.Live() {
 		return
 	}
-	trashSvc := *svc
-	trashSvc.deps.DeletedTransaction = func(tx *sql.Tx) error {
+	markIdle := func(tx *sql.Tx) error {
 		return repo.MarkIdleRemoved(ctx, tx, d.Exempt, site.ID, now.Add(-d.After))
 	}
-	if err := trashSvc.Trash(ctx, TrashInput{Site: site}); err != nil {
+	if err := svc.trash(ctx, site, markIdle); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			ReportWorkerFailure(ctx, "remove idle site", err)
 			log.Printf("idle-site cleanup: remove %s: %v", s.SiteID, err)

@@ -16,8 +16,7 @@ const (
 // notifications carry, so one visitor has one reference everywhere.
 func TestConnectorUsesSiteVisitorKey(t *testing.T) {
 	h := &accesshttp.AccessHandler{ExportKey: []byte("accesstest-export-key-0123456789")}
-	connector := &accesshttp.ConnectorHandler{}
-	connector.SetVisitorReferences(h)
+	connector := accesshttp.NewConnectorHandler(nil, "https://simple-host.app", "", "simple-host.app", "sites.simple-host.app", "1.0.0", nil, false, h, nil)
 	ref, err := connector.MCPConfig.VisitorRefs.Encode(opaqueSite, opaqueOwner)
 	expected, _ := access.NewVisitorReferences(h.ExportKey).Encode(opaqueSite, opaqueOwner)
 	if err != nil || ref != expected {

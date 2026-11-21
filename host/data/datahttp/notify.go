@@ -13,7 +13,6 @@ import (
 	notifications "github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/workers"
 )
@@ -53,7 +52,7 @@ func (h *DataHandler) SealNotificationSecrets(ctx context.Context, database *sql
 	if !env.Ready() {
 		return 0, nil
 	}
-	return notifications.SealNotificationSecrets(ctx, database, env.SealSecret)
+	return notifications.SealNotificationSecrets(ctx, database, env)
 }
 
 // notifyStatus is the HTTP status of each notification refusal code.
@@ -84,35 +83,15 @@ func notifyError(w http.ResponseWriter, status int, code string) {
 	httpx.WriteError(w, status, code, strings.ReplaceAll(code, "_", " "))
 }
 
-// EmitNotification queues a committed storage write's event. Called only
-// after the write commits: notification trouble never changes the answer.
-// An owner write stays silent unless it is to a visitor's row (so that
-// visitor's own push devices hear of it).
+// EmitNotification queues a committed storage write's event
+// (appstorage.EmitEvent decides who hears of it).
 func (h *DataHandler) EmitNotification(c StorageCall, name string, data map[string]any) {
-	if _, ok := data["row_visitor_id"]; c.Owner && !ok {
-		return
-	}
-	h.Notifier().Emit(func(ctx context.Context) { h.storeNotificationContext(ctx, c, name, data) })
+	appstorage.EmitEvent(h.Notifier(), h.Hosts, appstorage.Event{Call: c, Name: name, Data: data})
 }
 
 // StoreNotification stores a record event synchronously.
 func (h *DataHandler) StoreNotification(c StorageCall, name string, data map[string]any) {
-	h.storeNotificationContext(context.Background(), c, name, data)
-}
-
-func (h *DataHandler) storeNotificationContext(parent context.Context, c StorageCall, name string, data map[string]any) {
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
-	defer cancel()
-	e := h.Notifier()
-	site, ok := e.EventSite(ctx, c.SiteID, name, "", 0)
-	if !ok {
-		return
-	}
-	siteName, siteURL, err := h.Hosts.NotificationSite(ctx, site)
-	if err != nil {
-		return
-	}
-	e.StoreRecordEvent(ctx, notifications.RecordEvent{SiteID: c.SiteID, Name: name, SiteName: siteName, SiteURL: siteURL, Resource: c.ResourceName, Kind: c.Resource.Kind, Writer: appstorage.StampID(c.Owner, c.VisitorID), Data: data})
+	appstorage.StoreEvent(context.Background(), h.Notifier(), h.Hosts, appstorage.Event{Call: c, Name: name, Data: data})
 }
 
 // EmitSiteNotification queues a site event: a new version live, a custom
@@ -169,26 +148,4 @@ func (h *DataHandler) PendingNotificationsForTest() int { return h.Notifier().Pe
 // DeliverNotificationForTest drains one delivery. Test hook.
 func (h *DataHandler) DeliverNotificationForTest(ctx context.Context) bool {
 	return h.DeliverNotification(ctx)
-}
-
-// notificationBackend is MCP Events' backend: the engine with the
-// handler's current keys.
-type notificationBackend struct{ h *DataHandler }
-
-func (h *DataHandler) EventsBackend() mcp.EventsBackend { return notificationBackend{h} }
-
-func (b notificationBackend) EventsAvailability() error {
-	return notifications.EventsAvailability(b.h.NotifyEnv())
-}
-
-func (b notificationBackend) Subscribe(ctx context.Context, c mcp.Caller, req mcp.EventSubscribeRequest) (mcp.EventSubscribeResult, error) {
-	return b.h.Notifier().Subscribe(ctx, b.h.NotifyEnv(), eventSubscriber(c), req)
-}
-
-func (b notificationBackend) Unsubscribe(ctx context.Context, c mcp.Caller, req mcp.EventUnsubscribeRequest) error {
-	return b.h.Notifier().Unsubscribe(ctx, eventSubscriber(c), req)
-}
-
-func eventSubscriber(c mcp.Caller) notifications.Subscriber {
-	return notifications.Subscriber{Owner: c.Owner, GrantID: c.OAuthGrantID, AppName: c.AppName, DeployOnly: c.DeployOnly}
 }

@@ -17,7 +17,8 @@ func (s *Service) checkFileCaps(ctx context.Context, user *model.User, site mode
 	if !s.deps.FileCaps {
 		return nil
 	}
-	siteMB, accountMB := s.deps.CapLimits(ctx, user)
+	handles := s.accounts.SiteAccountHandles(ctx, user)
+	siteMB, accountMB := s.deps.Limits.SiteTotalMBFor(handles...), s.deps.Limits.AccountMBFor(handles...)
 	cutoff, err := time.Parse(time.RFC3339, s.deps.CapCutoff)
 	if err != nil || site.CreatedAt.Before(cutoff) {
 		siteMB = 0
@@ -33,7 +34,7 @@ func (s *Service) checkFileCaps(ctx context.Context, user *model.User, site mode
 	for _, b := range files {
 		incoming += int64(len(b))
 	}
-	keep, err := s.deps.Retention(ctx, user, site)
+	keep, err := s.retention(ctx, user.ID, site.KeepVersions)
 	if err != nil {
 		return err
 	}

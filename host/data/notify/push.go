@@ -83,7 +83,7 @@ func (e *Engine) VAPIDKeys(ctx context.Context, env Env) (pub, priv string, err 
 	if err != nil {
 		return "", "", err
 	}
-	if priv, err = env.open("vapid", sealed); err != nil {
+	if priv, err = env.Secrets().OpenBound("vapid", sealed); err != nil {
 		return "", "", errors.New("vapid private key unreadable (did PASSCODE_ENC_KEY change?)")
 	}
 	e.push.pub, e.push.priv, e.push.ready = pub, priv, true
@@ -103,7 +103,7 @@ func (e *Engine) storedVAPIDKeys(ctx context.Context, env Env) (pub, sealed stri
 	if err != nil {
 		return "", "", err
 	}
-	sealedNew, err := env.seal("vapid", newPriv)
+	sealedNew, err := env.Secrets().SealBound("vapid", newPriv)
 	if err != nil {
 		return "", "", err
 	}

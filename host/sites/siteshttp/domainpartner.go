@@ -9,7 +9,6 @@ import (
 	"github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
-	"github.com/vsriram/simple-host/host/web"
 )
 
 // www and the bare domain.
@@ -27,45 +26,13 @@ import (
 // before the check asks the issuer again (the issuer's own retry wait).
 const partnerRetryAfter = 6 * time.Hour
 
-// domainPartner is the www / bare partner of a custom domain: www.<apex> for
-// an apex, the apex for www.<apex>, "" for any other name.
-func domainPartner(domain string) string {
-	domain = strings.ToLower(strings.TrimSpace(domain))
-	if rest, ok := strings.CutPrefix(domain, "www."); ok && web.IsApexDomain(rest) {
-		return rest
-	}
-	if web.IsApexDomain(domain) {
-		return "www." + domain
-	}
-	return ""
-}
-
 // partnerOf is the partner of a site's custom domain, or "" when it has none
 // (a claimed <name>.<SITE_DOMAIN> never has one).
 func (h *SiteHandler) partnerOf(domain string) string {
 	if domain == "" || h.Hosts.IsPlatformSubdomain(domain) {
 		return ""
 	}
-	return domainPartner(domain)
-}
-
-// partnerBoundElsewhere reports whether the partner of a site's domain is
-// bound to another site (any account's): it is then never asked for, and
-// the issuer skips it too (deploy/domain-certs/issue.sh partner_blocked).
-func (h *SiteHandler) partnerBoundElsewhere(ctx context.Context, partner, siteID string) bool {
-	if h.Database == nil || partner == "" {
-		return false
-	}
-	bound, err := h.opsSitesSvc().DomainBoundToOtherSite(ctx, partner, siteID)
-	return err != nil || bound
-}
-
-func (h *SiteHandler) RequestablePartner(ctx context.Context, d model.BoundDomain) string {
-	p := domainPartner(d.Domain)
-	if h.partnerBoundElsewhere(ctx, p, d.SiteID) {
-		return ""
-	}
-	return p
+	return sites.DomainPartner(domain)
 }
 
 // partnerState reads the partner's state from the issuer's ready marker for
@@ -112,7 +79,7 @@ func (h *SiteHandler) PartnerInfoFor(domain, siteID string) *partnerInfo {
 	// Only where the issuer sets partners up (DOMAIN_CERT_DIR): elsewhere
 	// (certificates by hand, Caddy on event boxes) nothing would serve it,
 	// so it is not offered. Nor when another site has bound the partner.
-	if p == "" || h.Hosts.DomainCertDir() == "" || h.partnerBoundElsewhere(context.Background(), p, siteID) {
+	if p == "" || h.Hosts.DomainCertDir() == "" || h.SitesSvc().PartnerBoundElsewhere(context.Background(), p, siteID) {
 		return nil
 	}
 	rec := h.dnsRecordFor(p)
@@ -129,7 +96,7 @@ func (h *SiteHandler) PartnerInfoFor(domain, siteID string) *partnerInfo {
 // partnerRetryAfter (and keeps a request the issuer has not taken yet).
 func (h *SiteHandler) wantPartnerCert(ctx context.Context, d model.BoundDomain, ours map[string]bool) bool {
 	p := h.partnerOf(d.Domain)
-	if p == "" || h.Hosts.DomainCertDir() == "" || h.partnerBoundElsewhere(ctx, p, d.SiteID) {
+	if p == "" || h.Hosts.DomainCertDir() == "" || h.SitesSvc().PartnerBoundElsewhere(ctx, p, d.SiteID) {
 		return false
 	}
 	state, _, since := h.partnerState(d.Domain)

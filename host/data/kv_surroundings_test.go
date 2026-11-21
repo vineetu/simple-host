@@ -12,22 +12,13 @@ import (
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
-type kvTestDisk string
-
-func (d kvTestDisk) SiteDir(string, string) string { return string(d) }
-
 func TestKVResourceDeleteRestoresWALAndSHM(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "rollback"}[fail], func(t *testing.T) {
 			s, c := kvFixture(t, false)
 			ctx := context.Background()
-			dir := t.TempDir()
-			root := filepath.Join(dir, "runtime")
-			if err := os.Rename(c.RuntimeDir, root); err != nil {
-				t.Fatal(err)
-			}
-			c.RuntimeDir = root
-			s.deps.Disk = kvTestDisk(dir)
+			// The fixture's runtime directory is the one its disk stages.
+			root := c.RuntimeDir
 			path := runtime.RuntimeKVPath(root, "data")
 			conn, done, err := runtime.OpenRuntimeKV(ctx, path, true, false)
 			if err != nil {

@@ -232,7 +232,7 @@ func (e *Engine) Subscribe(ctx context.Context, env Env, c Subscriber, req Event
 // saveMCP saves the proved subscription and answers with its replay
 // watermark; a previous "ok" is no error to report.
 func (e *Engine) saveMCP(ctx context.Context, env Env, n model.Notification, cursor *int64, old model.Notification) (EventSubscribeResult, error) {
-	refreshed, truncated, err := repo.SaveNotification(ctx, e.db, n, e.limits.NotifyMaxPerSite, cursor, e.limits.NotifyHistoryDays, env.Secrets(), notificationAccess{})
+	refreshed, truncated, err := repo.SaveNotification(ctx, e.db, n, e.limits.NotifyMaxPerSite, cursor, e.limits.NotifyHistoryDays, env.Secrets())
 	switch {
 	case errors.Is(err, model.ErrNotificationAccess):
 		return EventSubscribeResult{}, eventError(EventCodeForbidden, "reason", "notification_access_ended")

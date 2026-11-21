@@ -160,7 +160,6 @@ func TestRulesPeopleAuthorTracking(t *testing.T) {
 			if _, err := s.db.Exec(`INSERT INTO site_visitor_signins(site_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, c.SiteID, c.OwnerID); err != nil {
 				t.Fatal(err)
 			}
-			s.deps.VisitorEmail = func(context.Context, string) (string, error) { return "visitor@example.com", nil }
 			for _, ownerTools := range []bool{true, false} {
 				c.Owner, c.OwnerOnSite = ownerTools, !ownerTools
 				people, err := s.SitePeople(context.Background(), c)

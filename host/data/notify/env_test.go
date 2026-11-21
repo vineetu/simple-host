@@ -144,11 +144,11 @@ func TestSealedDelivery(t *testing.T) {
 
 func TestVAPIDSealIsBoundToItsPurpose(t *testing.T) {
 	env := testEnv(t, 1)
-	sealed, err := env.seal("vapid", "private")
+	sealed, err := env.Secrets().SealBound("vapid", "private")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := env.open("vapid", sealed); err != nil || got != "private" {
+	if got, err := env.Secrets().OpenBound("vapid", sealed); err != nil || got != "private" {
 		t.Fatal("vapid round trip")
 	}
 	if _, err := env.OpenSecret("vapid", sealed); err == nil {

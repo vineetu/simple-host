@@ -6,10 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
-
-	accountapp "github.com/vsriram/simple-host/host/access"
-	"github.com/vsriram/simple-host/host/papermetrics"
 
 	"github.com/vsriram/simple-host/host/access/auth"
 	appstorage "github.com/vsriram/simple-host/host/data"
@@ -29,7 +25,7 @@ func (h *DataHandler) SetStorageBindings(p appstorage.BindingProvider) {
 	if err != nil {
 		panic(err)
 	}
-	// Nil keeps the platform's own rules (storageBindingProvider); a product
+	// Nil keeps the platform's own rules (data.DefaultProvider); a product
 	// provider (Simple Hack) switches the product-only storage behaviour.
 	h.storageBindings = p
 	h.storageBindingSchema = schema
@@ -39,63 +35,36 @@ func (h *DataHandler) SetStorageBindings(p appstorage.BindingProvider) {
 	}
 }
 
-func (h *DataHandler) storageBindingProvider() appstorage.BindingProvider {
-	if h.storageBindings != nil {
-		return h.storageBindings
-	}
-	return appstorage.DefaultProvider{DB: h.Database}
-}
-
 func (h *DataHandler) StorageDeps() appstorage.Deps {
-	deps := appstorage.Deps{
-		Bindings:             h.storageBindingProvider(),
+	return appstorage.Deps{
+		Bindings:             h.storageBindings,
 		BindingSchema:        h.storageBindingSchema,
 		ProductBindingSchema: h.storageProductBindingSchema,
 		SpamCheckAvailable:   h.turnstile != nil,
+		Disk:                 h.Disk,
 		SiteSlots:            h.SqliteSites,
 		Locks:                h.UploadLocks, CombinedPool: h.Ed.Storage().CombinedPool,
 		SiteLimit: os.Getenv("SITE_STORAGE_MAX_BYTES"), FilesLimit: os.Getenv("SITE_STORAGE_FILES_MAX_BYTES"),
 		SpamCheckedMaxBytes: h.Limits.SpamCheckedMaxBytes, SpamCheckedMaxLinks: h.Limits.SpamCheckedMaxLinks,
 		VisitorSessionIdle: h.Limits.VisitorSessionIdle,
+		ExportKey:          h.ExportKey,
 	}
-	deps.VisitorEmail = func(ctx context.Context, id string) (string, error) {
-		return accountapp.VisitorEmail(ctx, h.Database, id)
-	}
-	deps.OpenFileToken = func(token string) ([]byte, error) { return httpx.OpenLink(h.ExportKey, "site storage file v1", token) }
-	deps.FileResourceExists = func(ctx context.Context, siteID, name string) bool {
-		resource, err := h.LoadStorageResource(ctx, siteID, name)
-		return err == nil && resource.Kind == "files"
-	}
-	deps.FilePath = func(call appstorage.Call, path string) string {
-		return storageFileOnDisk(h.Disk, call.OwnerID, call.SiteName, call.ResourceName, path)
-	}
-	return deps
 }
 
 // StorageFor is the storage service for one call: its SQLite database, the
-// timeouts of the caller's role, the write lock's resource recheck and the
-// effects of a committed write.
+// timeouts of the caller's role, the write lock's resource recheck and where
+// a committed write's event goes.
 func (h *DataHandler) StorageFor(c StorageCall) *appstorage.Service {
 	deps := h.StorageDeps()
-	deps.Disk = h.Disk
 	deps.SQLitePath = h.StorageSQLPath(c)
 	deps.SQLiteGate = h.Sqlite
 	deps.SQLiteTimeout, deps.WriteTimeout = h.Limits.StorageVisitorQueryTimeout, h.Limits.StorageVisitorWriteTimeout
 	if c.Owner {
 		deps.SQLiteTimeout, deps.WriteTimeout = h.Limits.StorageOwnerTimeout, h.Limits.StorageOwnerTimeout
 	}
-	deps.WriteLockWait = h.Limits.StorageWriteLockWait
-	deps.Recheck = func(ctx context.Context) bool {
-		current, err := h.LoadStorageResource(ctx, c.SiteID, c.ResourceName)
-		return err == nil && current.Fingerprint() == c.Resource.Fingerprint()
-	}
-	deps.Committed = func(ctx context.Context) { papermetrics.From(ctx).WriteCommitted(ctx) }
-	deps.FileToken = func(_ appstorage.Call, path string, expires time.Time) string {
-		return h.StorageFileToken(c, path, expires)
-	}
-	deps.MarkChanged = h.Disk.MarkChanged
+	deps.WriteLockWait, deps.RecheckResource = h.Limits.StorageWriteLockWait, true
 	deps.FileObjectsLimit = h.Limits.StorageFileObjects
-	deps.Notify = func(_ appstorage.Call, name string, data map[string]any) { h.EmitNotification(c, name, data) }
+	deps.Notifications, deps.Hosts = h.Notifier(), h.Hosts
 	return appstorage.New(h.Database, deps)
 }
 

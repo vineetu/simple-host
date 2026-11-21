@@ -16,8 +16,6 @@ import (
 	"sync"
 	"time"
 
-	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
-
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
@@ -57,19 +55,11 @@ type OAuthHandler struct {
 	httpCaches        httpx.Caches
 	ed                *edition.Edition
 	Limits            edition.Limits
-	// personSite resolves a return_to on a person host to its site
-	// (SiteHandler.PersonReturnSite); nil when person hosts are not wired.
-	PersonSite func(ctx context.Context, host, path string) (string, bool)
-	// passcodeOK reports whether a request may sign in on a site with a
-	// passcode (SiteHandler.PasscodeLetsIn). Unset: such a site signs nobody
-	// in.
-	passcodeOK func(r *http.Request, siteID string) bool
-	// siteBases are the domains people's addresses live under (SITE_DOMAIN,
-	// plus SITE_BASE_DOMAIN while it moves; sitebase.go) and sameHost says
-	// whether two hosts are one address across them. Unset: SITE_DOMAIN
-	// alone and exact matching.
-	siteBases []string
-	sameHost  func(a, b string) bool
+	// Access is the visitor gate of the sites sign-in returns to: their
+	// addresses (Hosts) and whether one takes a sign-in now. Nil (tests): no
+	// person hosts, SITE_DOMAIN alone with exact matching, and no site signs
+	// anyone in.
+	Access *AccessHandler
 
 	Database      *sql.DB
 	Accounts      *accounts.Service
@@ -109,7 +99,8 @@ func (h *OAuthHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
 	h.geoBlock = guard
 }
 
-func NewOAuthHandler(database *sql.DB, service *accounts.Service, cfg OAuthSettings, editions ...*edition.Edition) *OAuthHandler {
+// NewOAuthHandler builds sign-in for the sites access guards.
+func NewOAuthHandler(database *sql.DB, service *accounts.Service, cfg OAuthSettings, access *AccessHandler, editions ...*edition.Edition) *OAuthHandler {
 	var ed *edition.Edition
 	if len(editions) > 0 {
 		ed = editions[0]
@@ -121,6 +112,7 @@ func NewOAuthHandler(database *sql.DB, service *accounts.Service, cfg OAuthSetti
 	h := &OAuthHandler{
 		ed:            ed,
 		Limits:        lim,
+		Access:        access,
 		Database:      database,
 		Accounts:      service,
 		Cfg:           cfg,
@@ -135,36 +127,31 @@ func NewOAuthHandler(database *sql.DB, service *accounts.Service, cfg OAuthSetti
 	return h
 }
 
-// SetPersonSiteResolver lets sign-in return to a site on a person host.
-func (h *OAuthHandler) SetPersonSiteResolver(f func(ctx context.Context, host, path string) (string, bool)) {
-	h.PersonSite = f
+// hosts is Access's addressing, nil without it.
+func (h *OAuthHandler) hosts() *appsites.Hosts {
+	if h.Access == nil {
+		return nil
+	}
+	return h.Access.Hosts
 }
 
-// SetPasscodeCheck wires SiteHandler.PasscodeLetsIn: visitor sign-in on a
-// site with a passcode needs the unlock first (passcode.go).
-func (h *OAuthHandler) SetPasscodeCheck(f func(r *http.Request, siteID string) bool) {
-	h.passcodeOK = f
-}
-
-// SetSiteBases wires the base domains of people's addresses
-// (SiteHandler.ServedBases) and their equivalence (SiteHandler.SameUserHost).
-func (h *OAuthHandler) SetSiteBases(bases []string, sameHost func(a, b string) bool) {
-	h.siteBases = bases
-	h.sameHost = sameHost
-}
-
-// bases is siteBases, or SITE_DOMAIN alone when not wired.
+// bases are the domains people's addresses live under (SITE_DOMAIN, plus
+// SITE_BASE_DOMAIN while it moves; sitebase.go), or SITE_DOMAIN alone without
+// access.
 func (h *OAuthHandler) bases() []string {
-	if len(h.siteBases) > 0 {
-		return h.siteBases
+	if hosts := h.hosts(); hosts != nil {
+		if b := hosts.ServedBases(); len(b) > 0 {
+			return b
+		}
 	}
 	return []string{h.Cfg.SiteDomain}
 }
 
-// sameAddress is sameHost, or an exact match when not wired.
+// sameAddress: a and b are one address across the served bases, or an exact
+// match without access.
 func (h *OAuthHandler) sameAddress(a, b string) bool {
-	if h.sameHost != nil {
-		return h.sameHost(a, b)
+	if hosts := h.hosts(); hosts != nil {
+		return hosts.SameUserHost(a, b)
 	}
 	return strings.EqualFold(a, b)
 }
@@ -364,12 +351,9 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out, failure := h.SignIn.Callback(r.Context(), accounts.ProviderCallbackInput{
-		Name: name, State: state, Code: q.Get("code"), ProviderError: q.Get("error"), RandomHandles: h.ed.Identity().RandomHandles, AuthTTL: h.Limits.SigninCodeTTL, NonceHash: returnToNonceHash,
+		Name: name, State: state, Code: q.Get("code"), ProviderError: q.Get("error"), RandomHandles: h.ed.Identity().RandomHandles, AuthTTL: h.Limits.SigninCodeTTL,
 		Attribution: func(ctx context.Context, q sqlkit.Querier, returnTo, provider string) model.Signup {
 			return SignupForOwnerReturnTo(ctx, q, r, returnTo, provider)
-		},
-		Assign: func(ctx context.Context, q sqlkit.Querier, id, email string, random bool) {
-			accounts.AssignHandle(ctx, q, id, email, random)
 		},
 	})
 	if failure != nil {
@@ -445,8 +429,8 @@ func (h *OAuthHandler) SanitizeReturnTo(ctx context.Context, raw string) (string
 	// A person host (<handle>.<SITE_DOMAIN>) is that person's own origin: the
 	// site is the first path segment and must be theirs. The platform owns the
 	// zone, so the account's handle is the proof (no DNS lookup).
-	if h.PersonSite != nil {
-		if siteID, ok := h.PersonSite(ctx, host, parsed.Path); ok {
+	if hosts := h.hosts(); hosts != nil {
+		if siteID, ok := hosts.ReturnSite(ctx, host, parsed.Path); ok {
 			return parsed.String(), sql.NullString{String: siteID, Valid: true}, host, "site", nil
 		}
 	}
@@ -604,7 +588,7 @@ func dashboardReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 		}
 		q.Del(key)
 	}
-	if len(q) != 1 || len(q["cn"]) != 1 || !nonceHashRe.MatchString(q.Get("cn")) {
+	if len(q) != 1 || len(q["cn"]) != 1 || !accounts.NonceHashShape.MatchString(q.Get("cn")) {
 		return false
 	}
 	same := *parsed
@@ -622,25 +606,12 @@ func connectReturnToOK(parsed *url.URL, publicBaseURL string) bool {
 	if _, has := q["token"]; has {
 		return false
 	}
-	if cn := q["cn"]; len(cn) != 1 || !nonceHashRe.MatchString(cn[0]) {
+	if cn := q["cn"]; len(cn) != 1 || !accounts.NonceHashShape.MatchString(cn[0]) {
 		return false
 	}
 	same := *parsed
 	same.Path, same.RawQuery, same.RawPath = "/", "", ""
 	return ownerReturnToOK(&same, publicBaseURL)
-}
-
-// returnToNonceHash is the cn a validated owner return_to carries.
-func returnToNonceHash(returnTo string) sql.NullString {
-	u, err := url.Parse(returnTo)
-	if err != nil {
-		return sql.NullString{}
-	}
-	h, ok := nonceHashParam(u.Query().Get("cn"))
-	if !ok {
-		return sql.NullString{}
-	}
-	return h
 }
 
 // ownerLandingURL is where an owner Google sign-in lands with its one-time
@@ -695,7 +666,7 @@ func (h *OAuthHandler) proveCustomDomainControl(ctx context.Context, host string
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	target := strings.ToLower(strings.TrimSuffix(h.Cfg.CNAMETarget, "."))
 
-	if h.Cfg.CustomDomainIP != "" && web.IsApexDomain(host) {
+	if h.Cfg.CustomDomainIP != "" && appsites.IsApexDomain(host) {
 		ips, err := h.LookupIP(ctx, host)
 		if err != nil {
 			return err
@@ -768,35 +739,28 @@ func RandomHex(n int) (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// Shared by the legacy provider start and the SSO start on the site host.
+// siteSignInAllowed writes the refusal when site siteID takes no visitor
+// sign-in now (AccessHandler.siteSignIn). Shared by the legacy provider start
+// and the SSO start on the site host. Without Access no site signs anyone in.
 func (h *OAuthHandler) siteSignInAllowed(w http.ResponseWriter, r *http.Request, siteID string) bool {
-	// An offline site signs nobody in (offline.go).
-	if off, err := sitesrepo.SiteOffline(r.Context(), h.Database, siteID); err != nil {
-		httpx.WriteInternal(w)
-		return false
-	} else if off {
-		web.WriteSiteOffline(w)
-		return false
-	}
-	// Nor does a taken-down one (suspend.go).
-	if susp, reason, err := sitesrepo.SiteSuspension(r.Context(), h.Database, siteID); err != nil {
-		httpx.WriteInternal(w)
-		return false
-	} else if susp {
-		web.WriteSiteSuspended(w, reason)
-		return false
-	}
-	// Nor does one behind a passcode, until this browser has entered it
-	// (passcode.go).
-	if row, err := sitesrepo.GetSitePasscode(r.Context(), h.Database, siteID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteInternal(w)
-		return false
-	} else if err == nil && row.Enc != nil && (h.passcodeOK == nil || !h.passcodeOK(r, siteID)) {
+	if h.Access == nil {
 		writeSiteLocked(w)
 		return false
 	}
-
-	return true
+	refusal, reason, err := h.Access.siteSignIn(r, siteID)
+	switch {
+	case err != nil:
+		httpx.WriteInternal(w)
+	case refusal == signInOffline:
+		web.WriteSiteOffline(w)
+	case refusal == signInSuspended:
+		web.WriteSiteSuspended(w, reason)
+	case refusal == signInLocked:
+		writeSiteLocked(w)
+	default:
+		return true
+	}
+	return false
 }
 
 func (h *OAuthHandler) HTTPCaches() workers.Owner { return &h.httpCaches }

@@ -10,6 +10,7 @@ import (
 
 	"log"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -73,8 +74,34 @@ type ProviderCallbackInput struct {
 	RandomHandles                    bool
 	AuthTTL                          time.Duration
 	Attribution                      func(context.Context, sqlkit.Querier, string, string) model.Signup
-	Assign                           func(context.Context, sqlkit.Querier, string, string, bool)
-	NonceHash                        func(string) sql.NullString
+}
+
+// NonceHashShape is the shape of a SHA-256 digest in unpadded base64url.
+var NonceHashShape = regexp.MustCompile(`^[A-Za-z0-9_-]{43}$`)
+
+// NonceHashParam validates an optional nonce hash sent by a sign-in page.
+func NonceHashParam(s string) (sql.NullString, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return sql.NullString{}, true
+	}
+	if !NonceHashShape.MatchString(s) {
+		return sql.NullString{}, false
+	}
+	return sql.NullString{String: s, Valid: true}, true
+}
+
+// returnToNonceHash is the cn a validated owner return_to carries.
+func returnToNonceHash(returnTo string) sql.NullString {
+	u, err := url.Parse(returnTo)
+	if err != nil {
+		return sql.NullString{}
+	}
+	h, ok := NonceHashParam(u.Query().Get("cn"))
+	if !ok {
+		return sql.NullString{}
+	}
+	return h
 }
 
 func providerRandomRaw(n int) ([]byte, error) {
@@ -170,7 +197,7 @@ func (flow *ProviderSignIn) callbackIdentity(ctx context.Context, in ProviderCal
 // only that tab can redeem it, and commits.
 func ownerSignInLink(ctx context.Context, tx *sql.Tx, in ProviderCallbackInput, st model.OAuthState, user model.User, created bool) (ProviderResult, *ProviderFailure) {
 	if created || !user.Handle.Valid {
-		in.Assign(ctx, tx, user.ID, user.Username, in.RandomHandles)
+		AssignHandle(ctx, tx, user.ID, user.Username, in.RandomHandles)
 	}
 	linkToken, err := secureHex(24)
 	if err != nil {
@@ -180,7 +207,7 @@ func ownerSignInLink(ctx context.Context, tx *sql.Tx, in ProviderCallbackInput, 
 	if err != nil {
 		return ProviderResult{}, providerGatewayFailure("owner unused code", err)
 	}
-	if err := repo.CreateAuthToken(ctx, tx, user.Username, code, linkToken, time.Now().Add(in.AuthTTL), "dashboard", sql.NullString{}, in.NonceHash(st.ReturnTo)); err != nil {
+	if err := repo.CreateAuthToken(ctx, tx, user.Username, code, linkToken, time.Now().Add(in.AuthTTL), "dashboard", sql.NullString{}, returnToNonceHash(st.ReturnTo)); err != nil {
 		return ProviderResult{}, providerGatewayFailure("owner auth token", err)
 	}
 	if err := tx.Commit(); err != nil {

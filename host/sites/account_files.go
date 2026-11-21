@@ -33,7 +33,7 @@ func (s *Service) LockAccountSites(ctx context.Context, userID string) (func(), 
 	for try := 0; err == nil; try++ {
 		slices.SortFunc(names, byKey)
 		for _, n := range names {
-			unlocks = append(unlocks, s.deps.LockSite(n[0], n[1]))
+			unlocks = append(unlocks, s.lockSite(n[0], n[1]))
 		}
 		var again [][2]string
 		again, err = repo.AccountSiteKeys(ctx, s.database, userID)

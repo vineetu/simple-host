@@ -1,5 +1,6 @@
 # Changelog
 
+2026-11-21: One visitor gate decides pages, saved-data routes, sign-in routes and visitor tools; who gets in is unchanged. A connector site name must also follow the site name rule (no leading or trailing hyphen, at most 63 characters), as the API already required.
 2026-11-21: Simple Hack's connector lists a short set of tools to Claude and other apps, as Simple Host's does: 34 tools each role needs first, plus `find_tools` (search the rest by job) and `run_tool` (call one by name, with the same checks as a direct call). What every tool does and who may call it is unchanged, and ChatGPT still lists all 179 tools. The tool list and instructions an app reads at the start of every conversation drop from about 135,000 to about 35,000 characters (about 48,000 to 12,500 tokens). The Hack skills say to use `find_tools` and `run_tool` when the app does not list a tool.
 
 2026-11-21: The account deletion email, the delete screen and the privacy page now say plainly that what you saved on other people's sites stays there, no longer linked to your name or email (the account row, the only place those live, is deleted). Removed an erasure step that cleared a history column nothing writes.

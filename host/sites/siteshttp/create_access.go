@@ -10,7 +10,6 @@ import (
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 )
@@ -40,14 +39,6 @@ func (h *SiteHandler) readCreateAccess(w http.ResponseWriter, r *http.Request, a
 		return false
 	}
 	in.Viewers = append(in.Viewers, emails...)
-	in.NamedViewersRefusal = func(handle, name string) (string, string) {
-		site := model.Site{OwnerHandle: handle, Name: name}
-		var refusal *accounts.Refusal
-		if errors.As(accounts.NamedViewersRefusal(model.SitePasscodeRow{}, h.Hosts.GateSite(site, h.noVisitorSignIn)), &refusal) {
-			return refusal.Code, refusal.Message
-		}
-		return "", ""
-	}
 	*r = *r.WithContext(context.WithValue(r.Context(), createAccessKey{}, in))
 	return true
 }

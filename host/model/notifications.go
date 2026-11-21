@@ -58,11 +58,6 @@ type Notification struct {
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
-// NotificationSecrets uses the handler's passcode AEAD without giving the DB a key.
-type NotificationSecrets struct {
-	Seal func(id, plaintext string) (string, error)
-	Open func(id, stored string) (string, error)
-}
 type NotificationDelivery struct {
 	Seq            int64
 	SubscriptionID string

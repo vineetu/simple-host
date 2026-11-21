@@ -24,7 +24,7 @@ func (s *Service) SuspendHeldSite(ctx context.Context, in HeldSiteSuspension) er
 	if in.Prefix == "" {
 		return errors.New("held-site suspension requires a non-empty prefix")
 	}
-	unlock := s.deps.LockSite(in.AccountID, in.Name)
+	unlock := s.lockSite(in.AccountID, in.Name)
 	defer unlock()
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {

@@ -48,7 +48,12 @@ func kvRulesGet(t *testing.T, s *Service, c Call, key, want string) VisibleKVIte
 
 func kvRulesDelete(t *testing.T, s *Service, c Call, key, want string) {
 	t.Helper()
-	auth, err := s.DeleteKV(context.Background(), KVDeleteInput{Call: c, Key: key})
+	kvRulesDeleteContext(t, context.Background(), s, c, key, want)
+}
+
+func kvRulesDeleteContext(t *testing.T, ctx context.Context, s *Service, c Call, key, want string) {
+	t.Helper()
+	auth, err := s.DeleteKV(ctx, KVDeleteInput{Call: c, Key: key})
 	if got := readCode(TableResult{Authorization: auth}, err); got != want {
 		t.Fatalf("delete %s: got %s want %s", key, got, want)
 	}
@@ -207,7 +212,7 @@ func TestKVRulesFailedChecksRollbackAndKeepAuthor(t *testing.T) {
 	}
 	var event string
 	var data map[string]any
-	s.deps.Notify = func(_ Call, name string, fields map[string]any) { event, data = name, fields }
+	s.notified = func(ev Event) { event, data = ev.Name, ev.Data }
 	c.VisitorID = "editor"
 	kvRulesPut(t, s, c, "key", `2`, "", "")
 	after, _ = kvRulesSnapshot(t, c)
@@ -285,7 +290,7 @@ func TestKVRulesCheckedPostLimitsAndMissingDelete(t *testing.T) {
 	kvRulesPut(t, s, c, "links", `"http://a http://b"`, "", "too_many_links")
 	kvRulesPut(t, s, c, "ok", `"http://a"`, "", "")
 	notifications := 0
-	s.deps.Notify = func(Call, string, map[string]any) { notifications++ }
+	s.notified = func(Event) { notifications++ }
 	kvRulesDelete(t, s, c, "missing", "")
 	if notifications != 0 {
 		t.Fatal("missing delete notified")
@@ -305,9 +310,9 @@ func TestKVRulesIdleDeleteCallsCommitted(t *testing.T) {
 	owner.Owner, owner.VisitorID = true, ""
 	rows, meta := kvRulesSnapshot(t, c)
 	committed, notifications := 0, 0
-	s.deps.Committed = func(context.Context) { committed++ }
-	s.deps.Notify = func(Call, string, map[string]any) { notifications++ }
-	kvRulesDelete(t, s, owner, "missing", "")
+	s.notified = func(Event) { notifications++ }
+	counted := countCommits(context.Background(), &committed)
+	kvRulesDeleteContext(t, counted, s, owner, "missing", "")
 	if committed != 1 || notifications != 0 {
 		t.Fatalf("idle delete: committed=%d notifications=%d, want 1 and 0", committed, notifications)
 	}
@@ -316,7 +321,7 @@ func TestKVRulesIdleDeleteCallsCommitted(t *testing.T) {
 		t.Fatalf("idle delete changed the store: before %+v %+v, after %+v %+v", rows, meta, afterRows, afterMeta)
 	}
 	// A refused idle delete (the right depends on the row) is not a commit.
-	kvRulesDelete(t, s, c, "missing", "key_not_found")
+	kvRulesDeleteContext(t, counted, s, c, "missing", "key_not_found")
 	if committed != 1 {
 		t.Fatalf("refused delete called committed: %d", committed)
 	}

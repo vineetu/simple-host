@@ -246,13 +246,13 @@ func TestDomainPartnerBoundElsewhere(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := model.BoundDomain{SiteID: shop, Domain: apex, UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
-	if got := a.Sites.RequestablePartner(ctx, d); got != "www."+apex {
+	if got := a.Sites.SitesSvc().RequestablePartner(ctx, d.Domain, d.SiteID); got != "www."+apex {
 		t.Fatalf("free partner: %q", got)
 	}
 	if _, err := a.Database.Exec(`UPDATE sites SET custom_domain = $2 WHERE id = $1`, grab, "www."+apex); err != nil {
 		t.Fatal(err)
 	}
-	if got := a.Sites.RequestablePartner(ctx, d); got != "" {
+	if got := a.Sites.SitesSvc().RequestablePartner(ctx, d.Domain, d.SiteID); got != "" {
 		t.Fatalf("partner bound to another account's site still asked for: %q", got)
 	}
 	a.domainCertDir(t)

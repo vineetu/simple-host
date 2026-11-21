@@ -41,20 +41,6 @@ func PutBytes(put ArchivePut, name string, b []byte) error {
 	return put(name, time.Now(), int64(len(b)), bytes.NewReader(b))
 }
 
-// WriteArchive streams one site (its files, data and rules, as Export
-// yields them while it holds the site lock) into put under prefix.
-func (s *Service) WriteArchive(ctx context.Context, put ArchivePut, prefix, siteID string, files FileVersion) error {
-	for entry, err := range s.Export(ctx, ExportInput{Prefix: prefix, SiteID: siteID, Files: files}) {
-		if err != nil {
-			return err
-		}
-		if err := put(entry.Name, entry.ModTime, entry.Size, entry.Reader); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // TrashTeamSite moves the holding account's site of that name to Recently
 // deleted (its team is gone). Nothing when there is none, or when it is
 // taken down (an operator hold keeps it).

@@ -298,16 +298,37 @@ func (h *AccessHandler) SiteGate() http.Handler {
 	})
 }
 
-// GateRefuses reads the opened folder's markers, asks accounts.DecideVisit
-// and answers every verdict but serve.
+// GateRefuses reads the opened folder's markers, measures the visitor, asks
+// accounts.DecideVisit and renders every verdict but serve as a page.
 func (h *AccessHandler) GateRefuses(w http.ResponseWriter, r *http.Request, s appsites.Serving) bool {
 	present := func(name string) bool { _, err := s.Root.Lstat(name); return err == nil }
-	v := accounts.Visit{Suspended: present("suspended"), Offline: present("offline"), Protected: present("passcode"), Bound: true,
+	v := accounts.Visit{Kind: accounts.VisitPage, Suspended: present("suspended"), Offline: present("offline"), Protected: present("passcode"), Bound: true,
 		SharedHost: h.Hosts.IsSharedHost(httpx.HostName(r))}
+	var sess model.VisitorSession
+	var email string
 	if v.Protected && !v.Suspended && !v.Offline {
 		v.Row, v.RowErr = h.siteProtectionRow(r, s.Root, s.UserID, s.Name)
+		if v.RowErr == nil && !v.SharedHost {
+			v.Who, sess, email = h.visitorFacts(r, v.Row, accounts.VisitPage, false)
+		}
 	}
-	switch accounts.DecideVisit(v) {
+	verdict := accounts.DecideVisit(v)
+	gated := v.RowErr == nil && (v.Row.Enc != nil || v.Row.NamedViewers)
+	if gated {
+		protectedHeaders(w)
+	}
+	if v.Row.NamedViewers && (verdict == accounts.VisitServe || verdict == accounts.VisitNeedPasscode) {
+		// Past the named-viewers rule.
+		if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
+			_ = h.StoreAccounts().TouchVisitorSession(r.Context(), sess.ID, h.Limits.VisitorSessionIdle)
+		}
+		// Browsers without fetch metadata still honour this: only the
+		// site's own pages may frame it.
+		if !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors 'self'") {
+			w.Header().Add("Content-Security-Policy", "frame-ancestors 'self'")
+		}
+	}
+	switch verdict {
 	case accounts.VisitServe:
 		return false
 	case accounts.VisitTakedown:
@@ -317,16 +338,72 @@ func (h *AccessHandler) GateRefuses(w http.ResponseWriter, r *http.Request, s ap
 	case accounts.VisitNotFound:
 		http.NotFound(w, r)
 	case accounts.VisitServiceError:
-		log.Printf("passcode: site %s/%s: %v", s.UserID, s.Name, v.RowErr)
+		if v.RowErr != nil {
+			log.Printf("passcode: site %s/%s: %v", s.UserID, s.Name, v.RowErr)
+		} else {
+			log.Printf("viewers: site %s: %v", v.Row.SiteID, v.Who.ListErr)
+		}
 		web.RenderServiceErrorPage(w, r, h.pipeline())
 	case accounts.VisitElsewhere:
-		protectedHeaders(w)
 		h.passcodeElsewhere(w, r, v.Row, s.Rel)
-	case accounts.VisitCheckVisitor:
-		protectedHeaders(w)
-		return h.visitorRefused(w, r, v.Row)
+	case accounts.VisitFramedOut:
+		writeOAuthHTMLError(h.pipeline(), w, http.StatusForbidden)
+	case accounts.VisitNeedSignIn:
+		if !h.startGateSSO(w, r) {
+			h.serveViewerPage(w, r, viewerPageSignIn, gateNext(r), "", "")
+		}
+	case accounts.VisitNotListed:
+		// The owner hears about it once a day per person, for a page visit
+		// only (a stray subresource is not someone asking to be let in).
+		if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
+			h.emitSiteEvent(appsites.SiteEvent{SiteID: v.Row.SiteID, Name: "viewer.access_requested", Data: map[string]any{"visitor": sess.UserID}, Dedupe: 24 * time.Hour})
+		}
+		h.serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "", h.ssoBaseURL)
+	case accounts.VisitNeedPasscode:
+		h.servePasscodeGate(w, r, gateNext(r), "", 0)
 	}
 	return true
+}
+
+// visitorFacts measures what the request carries toward a protected site,
+// for accounts.DecideVisit: only the facts the row and the request make
+// relevant are looked up; keys says whether the request's key counts (never
+// for a page, nor for a caller storage classed as a visitor). It also returns the visitor's session and, for a signed-in person, the
+// address they present (the private page names it).
+func (h *AccessHandler) visitorFacts(r *http.Request, row model.SitePasscodeRow, kind accounts.VisitKind, keys bool) (who accounts.Visitor, sess model.VisitorSession, email string) {
+	pass := r.Header.Get(VisitorPassHeader) != ""
+	who = accounts.Visitor{
+		Read:       r.Method == http.MethodGet || r.Method == http.MethodHead,
+		CrossSite:  crossSiteSubresource(r),
+		Framed:     framedElsewhere(r),
+		SameOrigin: pass || httpx.SameOrigin(r),
+	}
+	if kind != accounts.VisitPage {
+		if keys {
+			who.OwnerKey, who.AdminKey = h.KeyActsFor(r, row)
+		}
+		who.Preview = who.Read && h.previewRefererFor(r, row.SiteID)
+	}
+	if row.Enc != nil {
+		who.Unlocked = h.unlocked(r, row.SiteID, row.Generation)
+	}
+	// The session and the list are looked up only when the named-viewers rule
+	// will read them, so a request costs the queries it did before the gate
+	// was one decision.
+	needSession := !who.CrossSite && !who.Framed
+	if kind != accounts.VisitPage {
+		needSession = !who.OwnerKey && !who.AdminKey && !(who.Read && who.Preview) && (who.SameOrigin || who.Read && needSession)
+	}
+	if row.NamedViewers && kind != accounts.VisitSignIn && needSession {
+		sess, who.Session = h.viewerSession(r, row.SiteID)
+		if who.Session {
+			if kind != accounts.VisitPage && who.SameOrigin && !pass {
+				papermetrics.From(r.Context()).Member(r.Context(), sess.UserID)
+			}
+			who.Listed, email, who.ListErr = h.viewerAllowed(r, row, sess.UserID)
+		}
+	}
+	return who, sess, email
 }
 
 // ownerFrameGuard: a page the site's owner opens while signed in on this
@@ -373,27 +450,6 @@ func protectedHeaders(w http.ResponseWriter) {
 	w.Header().Add("Vary", "Cookie")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 	w.Header().Set("X-Robots-Tag", "noindex, nofollow")
-}
-
-// visitorRefused answers a protected site on its own address: named viewers
-// must be signed in here and on the list (viewers.go), then the passcode
-// needs this browser's unlock.
-func (h *AccessHandler) visitorRefused(w http.ResponseWriter, r *http.Request, row model.SitePasscodeRow) bool {
-	if row.NamedViewers {
-		if h.viewerGate(w, r, row) {
-			return true
-		}
-		// Browsers without fetch metadata still honour this: only the
-		// site's own pages may frame it.
-		if !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors 'self'") {
-			w.Header().Add("Content-Security-Policy", "frame-ancestors 'self'")
-		}
-	}
-	if accounts.PasscodeLetsVisitorIn(row, row.Enc != nil && h.unlocked(r, row.SiteID, row.Generation), crossSiteSubresource(r)) {
-		return false
-	}
-	h.servePasscodeGate(w, r, gateNext(r), "", 0)
-	return true
 }
 
 // siteProtectionRow binds the by-name lookup to the directory being served.
@@ -677,6 +733,10 @@ func (h *AccessHandler) signInGate(next http.Handler) http.Handler {
 }
 
 func (h *AccessHandler) siteDataGate(next http.Handler, viewers bool) http.Handler {
+	kind := accounts.VisitData
+	if !viewers {
+		kind = accounts.VisitSignIn
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
@@ -695,14 +755,18 @@ func (h *AccessHandler) siteDataGate(next http.Handler, viewers bool) http.Handl
 		}
 		allowed, private, gated := true, false, false
 		for id := range ids {
-			ok, priv, g, err := h.siteAccessAllows(r, id, viewers)
-			if err != nil {
+			v := h.decideData(r, id, kind)
+			switch v.verdict {
+			case accounts.VisitServe:
+			case accounts.VisitServiceError:
 				httpx.WriteInternal(w)
 				return
+			case accounts.VisitNeedSignIn, accounts.VisitNotListed:
+				allowed, private = false, true
+			default:
+				allowed = false
 			}
-			allowed = allowed && ok
-			private = private || priv
-			gated = gated || g
+			gated = gated || v.gated
 		}
 		if allowed {
 			if gated {
@@ -730,80 +794,50 @@ func writeSiteLocked(w http.ResponseWriter) {
 }
 
 // PasscodeLetsIn reports whether a request may act on site siteID as a
-// visitor: the site has no passcode, or the request passes it (see
-// passcodeAllows). Errors count as no.
+// visitor by the passcode rule (accounts.PasscodeAdmits for the API): the
+// site has no passcode, or the request passes it. Errors count as no.
 func (h *AccessHandler) PasscodeLetsIn(r *http.Request, siteID string) bool {
-	ok, err := h.passcodeAllows(r, siteID)
-	return err == nil && ok
+	return h.decideData(r, siteID, accounts.VisitSignIn).verdict == accounts.VisitServe
 }
 
-// passcodeAllows reports whether a data request may reach site siteID: it
-// has no passcode, or the request carries the owner's or the admin's key
-// (the admin's use is logged), this host's unlock cookie, or (reads only)
-// comes from a preview page of this site.
-func (h *AccessHandler) passcodeAllows(r *http.Request, siteID string) (bool, error) {
-	ok, _, _, err := h.siteAccessAllows(r, siteID, false)
-	return ok, err
+// dataVisit is the visitor gate's answer for one site's data request, with
+// the protection row it was decided on.
+type dataVisit struct {
+	verdict accounts.VisitVerdict
+	gated   bool // the site has a passcode or named viewers
+	row     model.SitePasscodeRow
+	who     accounts.Visitor
 }
 
-// siteAccessAllows is passcodeAllows plus, when viewers, the named-viewers
-// rule (viewers.go): the owner's or admin's key, a preview read, or the owner
-// or a named viewer signed in on this host. private reports a refusal by the
-// named-viewers rule.
-func (h *AccessHandler) siteAccessAllows(r *http.Request, siteID string, viewers bool) (ok, private, gated bool, err error) {
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return true, false, false, nil
+// decideData loads site siteID's protection row and asks accounts.DecideVisit
+// for an API request of the given kind.
+func (h *AccessHandler) decideData(r *http.Request, siteID string, kind accounts.VisitKind) dataVisit {
+	v := accounts.Visit{Kind: kind, Protected: true}
+	v.Row, v.RowErr = h.sitesSvc().GetSitePasscode(r.Context(), siteID)
+	gated := v.RowErr == nil && (v.Row.Enc != nil || v.Row.NamedViewers)
+	if gated {
+		v.Who, _, _ = h.visitorFacts(r, v.Row, kind, true)
 	}
-	if err != nil {
-		return false, false, false, err
+	verdict := accounts.DecideVisit(v)
+	if verdict == accounts.VisitServe && v.Who.AdminKey && !v.Who.OwnerKey {
+		log.Printf("site_gate_admin_bypass %s %s site_id=%s", r.Method, r.Pattern, siteID)
 	}
-	gated = row.Enc != nil || row.NamedViewers
-	if row.Enc == nil && !(viewers && row.NamedViewers) {
-		return true, false, gated, nil
-	}
-	if row.Enc != nil {
-		if ok, err = h.passcodeRowAllows(r, row); err != nil || !ok {
-			return ok, false, gated, err
-		}
-	}
-	if !viewers || !row.NamedViewers || h.OwnerOrAdminKey(r, row) {
-		return true, false, gated, nil
-	}
-	ok, err = h.viewersLetIn(r, row)
-	return ok, !ok, gated, err
+	return dataVisit{verdict: verdict, gated: gated, row: v.Row, who: v.Who}
 }
 
-// OwnerOrAdminKey: the request carries the key (or connector token) of
-// someone who acts as the site's owner (accounts.ActsAsOwner) or of the
-// admin; the admin's use is logged.
-func (h *AccessHandler) OwnerOrAdminKey(r *http.Request, row model.SitePasscodeRow) bool {
+// KeyActsFor: the request carries the key (or connector token) of someone who
+// acts as the site's owner (accounts.ActsAsOwner), or of the admin.
+func (h *AccessHandler) KeyActsFor(r *http.Request, row model.SitePasscodeRow) (owner, admin bool) {
 	key := r.Header.Get("X-API-Key")
 	if key == "" {
-		return false
+		return false, false
 	}
 	u, ok, err := h.resolveWriterKey(r.Context(), key)
 	if err != nil || !ok {
-		return false
+		return false, false
 	}
-	if owner, err := accounts.ActsAsOwner(r.Context(), h.Database, u.ID, row.UserID, row.Name); err == nil && owner {
-		return true
-	}
-	if u.IsAdmin {
-		log.Printf("site_gate_admin_bypass %s %s site_id=%s by=%s", r.Method, r.Pattern, row.SiteID, u.ID)
-	}
-	return u.IsAdmin
-}
-
-// passcodeRowAllows is the passcode rule for a site that has one.
-func (h *AccessHandler) passcodeRowAllows(r *http.Request, row model.SitePasscodeRow) (bool, error) {
-	if h.OwnerOrAdminKey(r, row) {
-		return true, nil
-	}
-	if h.unlocked(r, row.SiteID, row.Generation) && !crossSiteSubresource(r) {
-		return true, nil
-	}
-	return (r.Method == http.MethodGet || r.Method == http.MethodHead) && h.previewRefererFor(r, row.SiteID), nil
+	owner, err = accounts.ActsAsOwner(r.Context(), h.Database, u.ID, row.UserID, row.Name)
+	return err == nil && owner, u.IsAdmin
 }
 
 // previewRefererFor: the request comes from a preview page of this site on

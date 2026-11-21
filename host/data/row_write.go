@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/host/papermetrics"
+
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
@@ -120,11 +122,9 @@ func (s *Service) finishTableWrite(conn *sqlite3.Conn, c Call, commit func() err
 	}
 	a.Committed()
 	// These remain mandatory even when checkpointing panics after a durable write.
-	defer s.deps.MarkChanged()
+	defer s.deps.Disk.MarkChanged()
 	defer func() {
-		if s.deps.Committed != nil {
-			s.deps.Committed(c.Context)
-		}
+		papermetrics.From(c.Context).WriteCommitted(c.Context)
 	}()
 	s.sqliteStage("after_commit")
 	if err := runtime.CheckpointRows(conn); err != nil {
@@ -153,7 +153,7 @@ func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, err
 			if id != 0 {
 				// in.Values was stamped in place (stampInsertValues): its
 				// visitor_id, if any, is the new row's own.
-				*out = TableResult{Body: map[string]any{"changes": 1, "last_insert_id": id}, Notify: s.rowNotification(t.c, in.Table, "record.added", "", id, in.Values, rowValueVisitorID(in.Values))}
+				*out = TableResult{Body: map[string]any{"changes": 1, "last_insert_id": id}, Event: rowNotification(t.c, in.Table, "record.added", "", id, in.Values, rowValueVisitorID(in.Values))}
 			}
 		}()
 		return s.addTableRow(t.conn, t.c, in, t.meta, t.a, &id)
@@ -333,7 +333,7 @@ func (s *Service) TableEdit(ctx context.Context, in TableInput) (TableResult, er
 		// Editing visitor_id itself is refused, so the value is the same
 		// before and after this write.
 		rowVisitorID := lookupRowVisitorID(t.conn, t.meta, in.Table, t.meta.rowid, in.ID)
-		*out = TableResult{Body: map[string]any{"changes": 1}, Notify: s.rowNotification(t.c, in.Table, "record.changed", "edited", in.ID, in.Values, rowVisitorID)}
+		*out = TableResult{Body: map[string]any{"changes": 1}, Event: rowNotification(t.c, in.Table, "record.changed", "edited", in.ID, in.Values, rowVisitorID)}
 		return s.finishTableWrite(t.conn, t.c, commit, t.a)
 	})
 }
@@ -469,47 +469,42 @@ func rowValueVisitorID(values map[string]json.RawMessage) string {
 	return id
 }
 
-// rowNotification builds the deferred notify callback for one row write.
+// rowNotification is the event for one row write, nil when nobody hears of it.
 // rowVisitorID is the row's own visitor_id (who the data belongs to, not
 // necessarily who wrote it). ownerWrite is true for the owner's key and for
 // an owner-on-behalf-of add (OwnerFor): neither notifies the owner's own
 // webhook or MCP-event subscriptions, but an on-behalf-of add has a real
 // rowVisitorID and must still reach that visitor's push devices. Plain
 // OwnerOnSite stays an ordinary signed-in write here.
-func (s *Service) rowNotification(c Call, table, name, change string, id int64, values map[string]json.RawMessage, rowVisitorID string) func() {
-	return func() {
-		if s.deps.Notify == nil {
-			return
-		}
-		ownerWrite := c.Owner || c.OwnerFor != ""
-		if ownerWrite && rowVisitorID == "" {
-			// Owner write unrelated to any visitor's row: nobody to tell.
-			return
-		}
-		data := map[string]any{"table": table, "row_id": id, "owner_write": ownerWrite}
-		if rowVisitorID != "" {
-			data["row_visitor_id"] = rowVisitorID
-		}
-		if change != "" {
-			data["change"] = change
-		}
-		if values != nil {
-			fields := map[string]any{}
-			for k, v := range values {
-				if k != "visitor_id" {
-					var value any
-					dec := json.NewDecoder(bytes.NewReader(v))
-					dec.UseNumber()
-					if !json.Valid(v) || dec.Decode(&value) != nil {
-						value = string(v)
-					}
-					fields[k] = value
-				}
-			}
-			data["fields"] = fields
-		}
-		s.deps.Notify(c, name, data)
+func rowNotification(c Call, table, name, change string, id int64, values map[string]json.RawMessage, rowVisitorID string) *Event {
+	ownerWrite := c.Owner || c.OwnerFor != ""
+	if ownerWrite && rowVisitorID == "" {
+		// Owner write unrelated to any visitor's row: nobody to tell.
+		return nil
 	}
+	data := map[string]any{"table": table, "row_id": id, "owner_write": ownerWrite}
+	if rowVisitorID != "" {
+		data["row_visitor_id"] = rowVisitorID
+	}
+	if change != "" {
+		data["change"] = change
+	}
+	if values != nil {
+		fields := map[string]any{}
+		for k, v := range values {
+			if k != "visitor_id" {
+				var value any
+				dec := json.NewDecoder(bytes.NewReader(v))
+				dec.UseNumber()
+				if !json.Valid(v) || dec.Decode(&value) != nil {
+					value = string(v)
+				}
+				fields[k] = value
+			}
+		}
+		data["fields"] = fields
+	}
+	return &Event{Call: c, Name: name, Data: data}
 }
 
 // TableRemove performs an authorized delete of one visible row.
@@ -527,7 +522,7 @@ func (s *Service) TableRemove(ctx context.Context, in TableInput) (TableResult, 
 			return err
 		}
 		defer rollback()
-		*out = TableResult{Body: map[string]any{"deleted": true}, Notify: s.rowNotification(t.c, in.Table, "record.changed", "deleted", in.ID, nil, rowVisitorID)}
+		*out = TableResult{Body: map[string]any{"deleted": true}, Event: rowNotification(t.c, in.Table, "record.changed", "deleted", in.ID, nil, rowVisitorID)}
 		return s.finishTableWrite(t.conn, t.c, commit, t.a)
 	})
 }

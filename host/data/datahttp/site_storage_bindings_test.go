@@ -51,7 +51,9 @@ func TestSetStorageBindings(t *testing.T) {
 	}
 	h := &DataHandler{}
 	h.SetStorageBindings(nil)
-	if _, ok := h.StorageDeps().Bindings.(appstorage.DefaultProvider); !ok {
-		t.Fatal("nil did not select platform provider")
+	// No provider: the storage service answers with the platform's own
+	// (data.DefaultProvider), chosen where it is used.
+	if h.StorageDeps().Bindings != nil {
+		t.Fatal("nil did not leave the platform provider")
 	}
 }

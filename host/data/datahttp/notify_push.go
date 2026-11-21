@@ -260,7 +260,7 @@ func (h *DataHandler) sqliteColumnMayExist(ctx context.Context, site model.Site,
 }
 
 // DeletePushForEmail removes the push devices of a named viewer removed
-// from siteID (appsites.Deps.DeleteViewerPush); its caller logs the error.
+// from siteID (the cleanup operations.RemoveSiteViewer does); its caller logs the error.
 func (h *DataHandler) DeletePushForEmail(ctx context.Context, siteID, email string) error {
 	return h.Notifier().DeleteViewerPush(ctx, siteID, email)
 }

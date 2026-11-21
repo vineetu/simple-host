@@ -78,8 +78,8 @@ func (h *DataHandler) storageRowsWrite(w http.ResponseWriter, r *http.Request, i
 	h.CreateIdempotency.WrapAccount(account, in.Call.SiteID, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		result = h.storageRowsApply(w, r, svc, in, action)
 	})).ServeHTTP(w, r)
-	if result.Notify != nil {
-		result.Notify()
+	if result.Event != nil {
+		svc.Emit(*result.Event)
 	}
 }
 
@@ -107,7 +107,7 @@ func (h *DataHandler) storageRowsFor(w http.ResponseWriter, r *http.Request, svc
 }
 
 // storageRowsApply reads the values and runs the write; it answers and
-// returns the result whose Notify runs once the response is written.
+// returns the result whose Event is sent once the response is written.
 func (h *DataHandler) storageRowsApply(w http.ResponseWriter, r *http.Request, svc *appstorage.Service, in appstorage.TableInput, action string) appstorage.TableResult {
 	if action != "delete" {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 64<<10))

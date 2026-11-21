@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/vsriram/simple-host/host/sites"
@@ -117,7 +118,7 @@ func TestRhhRestoreSuspensionSeed(t *testing.T) {
 			if err := disk.SetTrashedSuspended(d.UserID, d.ID, tc.current != "" || tc.owner); err != nil {
 				t.Fatal(err)
 			}
-			deps := sites.Deps{GroupGate: teams.SiteGate{}, LockSite: func(string, string) func() { return func() {} }}
+			deps := sites.Deps{GroupGate: teams.SiteGate{}, Locks: &sync.Map{}}
 			if tc.nilGate {
 				deps.GroupGate = nil
 			}
@@ -167,10 +168,6 @@ func TestRhhRestoreSuspensionFailure(t *testing.T) {
 				if site.Deleted || site.ID != d.ID {
 					t.Fatal("hook ran before RestoreDeletedSite")
 				}
-				var alsoDone bool
-				if err := tx.QueryRow(`SELECT offline_at IS NOT NULL FROM sites WHERE id=$1`, d.ID).Scan(&alsoDone); err != nil || !alsoDone {
-					t.Fatalf("hook ran before also(tx): %v", err)
-				}
 				if failure == "hook" {
 					return "", "", injected
 				}
@@ -188,10 +185,7 @@ func TestRhhRestoreSuspensionFailure(t *testing.T) {
 			if failure == "marker" {
 				disk.markerError = injected
 			}
-			svc := sites.New(db, disk, nil, 0, sites.Deps{GroupGate: gate, DeletedTransaction: func(tx *sql.Tx) error {
-				_, err := tx.Exec(`UPDATE sites SET offline_at=now() WHERE id=$1`, d.ID)
-				return err
-			}})
+			svc := sites.New(db, disk, nil, 0, sites.Deps{GroupGate: gate})
 			_, err := svc.RestoreTrashed(ctx, sites.RestoreTrashedInput{Site: d})
 			if err == nil || (failure == "hook" && !errors.Is(err, injected)) || (failure == "marker" && !errors.Is(err, sites.ErrRestoreFiles)) {
 				t.Fatalf("restore error: %v", err)

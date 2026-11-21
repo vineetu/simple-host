@@ -84,11 +84,9 @@ func NewPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	handler.Register(mux, a.Sites, a.Access, a.Data, authMW, web.NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.Data.WaitNotifications)
 	users.SetSites(a.Access)
-	users.SetPublicPage(a.Sites.PersonPageURL)
 	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, nil)
-	a.Conn = accesshttp.NewConnectorHandler(database, base, adminKey, PcSiteDomain, PcContentHost, "1.0.0", gated, false, ed)
+	a.Conn = accesshttp.NewConnectorHandler(database, base, adminKey, PcSiteDomain, PcContentHost, "1.0.0", gated, false, a.Access, users.SignInAlerts(), ed)
 	a.Conn.Register(mux, authMW)
-	a.Conn.SetSignInAlerts(users.SignInAlerts())
 	app := web.SecurityHeaders(web.CORS(a.Conn.BearerAuth(gated)))
 	// The same chain as cmd/server/main.go.
 	root = a.Sites.FamilyHosts(app, a.Sites.SiteBaseHosts(a.Sites.BoundSubdomains(app, a.Sites.SiteHosts(app, a.Sites.PersonHosts(app, a.Sites.LegacyHostRedirect(app))))))

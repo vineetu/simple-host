@@ -1,10 +1,8 @@
 package siteshttp
 
 import (
-	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
@@ -89,21 +87,4 @@ func (h *SiteHandler) renderGroupNotFound(w http.ResponseWriter, r *http.Request
 		texts.NotFoundTitle,
 		texts.NotFoundBody,
 		h.mainSiteURL(), "Go to "+h.SiteDomain)
-}
-
-// groupPinnedFloor lowers a prune threshold so a team's deadline version is
-// kept whatever the retention.
-func (h *SiteHandler) groupPinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
-	if h.Hosts.Groups() == nil {
-		return keepFrom
-	}
-	v, ok, err := h.Hosts.Groups().PinnedVersion(ctx, userID, siteName)
-	if err != nil {
-		log.Printf("prune versions for %s: pinned version: %v", siteName, err)
-		return 0 // keep everything rather than guess
-	}
-	if ok && v < keepFrom {
-		return v
-	}
-	return keepFrom
 }

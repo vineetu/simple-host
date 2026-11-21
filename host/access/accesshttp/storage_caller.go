@@ -3,6 +3,7 @@ package accesshttp
 import (
 	"database/sql"
 	"errors"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"net/http"
 	"strings"
 
@@ -135,9 +136,13 @@ func (h *AccessHandler) StorageVisitor(r *http.Request, c *appstorage.Call) {
 	c.PasscodeOK, c.ViewersOK = h.storageGates(r, c.SiteID)
 }
 
-// storageGates is the passcode rule (passcodeAllows) and the named-viewers
-// rule (viewersLetIn) for a visitor's data request, from one passcode row.
-// Errors count as no.
+// storageGates is the passcode rule (accounts.PasscodeAdmits) and the
+// named-viewers rule (accounts.ViewersAdmit) for a caller storage classed as
+// a visitor, from one passcode row. The named-viewers rule is decided from the
+// visitor alone: a key the request also carries never names them a viewer
+// (the passcode still takes it, as it always has). A viewers list that cannot
+// be read refuses the viewers rule only (site_private, failing closed); a row
+// that cannot be read refuses both.
 func (h *AccessHandler) storageGates(r *http.Request, siteID string) (passcode, viewers bool) {
 	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -146,13 +151,14 @@ func (h *AccessHandler) storageGates(r *http.Request, siteID string) (passcode, 
 	if err != nil {
 		return false, false
 	}
-	passcode = row.Enc == nil
+	visitor, _, _ := h.visitorFacts(r, row, accounts.VisitData, false)
+	passcode = accounts.PasscodeAdmits(accounts.VisitData, row, visitor)
 	if !passcode {
-		ok, err := h.passcodeRowAllows(r, row)
-		passcode = err == nil && ok
+		who := visitor
+		who.OwnerKey, who.AdminKey = h.KeyActsFor(r, row)
+		passcode = accounts.PasscodeAdmits(accounts.VisitData, row, who)
 	}
-	ok, err := h.viewersLetIn(r, row)
-	return passcode, err == nil && ok
+	return passcode, visitor.ListErr == nil && accounts.ViewersAdmit(accounts.VisitData, row, visitor) == accounts.VisitServe
 }
 
 // storageSameSiteRequest: a browser's data request without a credential is

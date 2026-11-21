@@ -296,6 +296,9 @@ func checkRulesModule() error {
 func main() {
 	err := checkRulesModule()
 	if err == nil {
+		err = checkFuncFields(".")
+	}
+	if err == nil {
 		err = run(".", os.Stdout)
 	}
 	if err != nil {

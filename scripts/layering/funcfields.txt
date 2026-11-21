@@ -1,0 +1,15 @@
+# Func-typed struct fields allowed in host/access, host/sites, host/data and host/ops
+# (routes packages aside): scripts/layering/funcfields.go. One per line:
+# <dir> <Struct.Field>  # why it stays. A new field fails the check; a removed one must leave.
+host/access Connector.Now  # clock (tests set it)
+host/access ProviderCallbackInput.Attribution  # the route reads the original request (arrival headers) for a new account, inside the callback transaction once the state is spent
+host/access/repo activationQuery.scan  # local row scanner of one query table inside the repo (iterator adapter, not a cross-module hook)
+host/data Service.sqliteHook  # package tests only: observes SQLite stages
+host/data Service.notified  # package tests only: observes the events Service.Emit sends, as sqliteHook observes SQLite stages
+host/data SiteSlots.admitHook  # package tests only: asserts admission is never nested on a goroutine
+host/data/notify client.resolver  # external provider mechanics: DNS lookup for the SSRF check (tests set it)
+host/sites Deps.ResponseState  # the response is read under the deploy locks (cleanup/4.3 review fix); moving the read out changes what a concurrent deploy can report
+host/sites Deps.Sitemap  # product extension point: the product filters its own sites out of the sitemap
+host/sites HeldSiteSuspension.Also  # product extension point: the product writes its own held-site rows in the same transaction (Hack TeamSiteChanger)
+host/sites/idempotency Store.now  # clock (tests set it)
+host/sites/redirects Options.Exists  # local file-tree check the redirects parser runs over the deploy being built

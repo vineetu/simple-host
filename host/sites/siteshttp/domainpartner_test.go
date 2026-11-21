@@ -21,8 +21,8 @@ func TestDomainPartner(t *testing.T) {
 		"shop.brand.com":     "",
 		"www.shop.brand.com": "",
 	} {
-		if got := domainPartner(in); got != want {
-			t.Fatalf("domainPartner(%q) = %q, want %q", in, got, want)
+		if got := sites.DomainPartner(in); got != want {
+			t.Fatalf("sites.DomainPartner(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -43,7 +43,7 @@ func TestDomainPartnerHandOff(t *testing.T) {
 	}
 	h.Hosts.SetDomainCertDir(dir)
 	d := model.BoundDomain{Domain: "brand.com", UserID: "u", Name: "shop", Token: "sh-0123456789abcdef0123456789abcdef"}
-	if body := sites.DomainCertRequestBody(d, domainPartner(d.Domain)); !strings.HasSuffix(body, "\nwww.brand.com\n") {
+	if body := sites.DomainCertRequestBody(d, sites.DomainPartner(d.Domain)); !strings.HasSuffix(body, "\nwww.brand.com\n") {
 		t.Fatalf("request body: %q", body)
 	}
 	if body := sites.DomainCertRequestBody(model.BoundDomain{Domain: "shop.brand.com", UserID: "u", Name: "s", Token: d.Token}, ""); strings.Count(body, "\n") != 2 {
@@ -90,7 +90,7 @@ func TestDomainPartnerHandOff(t *testing.T) {
 		t.Fatal("partner points elsewhere: should not ask")
 	}
 	// A pending request is kept until the issuer takes it.
-	if err := os.WriteFile(filepath.Join(dir, "requests", "brand.com"), []byte(sites.DomainCertRequestBody(d, domainPartner(d.Domain))), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "requests", "brand.com"), []byte(sites.DomainCertRequestBody(d, sites.DomainPartner(d.Domain))), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if !h.wantPartnerCert(context.Background(), d, ours) {

@@ -22,23 +22,6 @@ func init() {
 	}
 }
 
-// The active version is never a candidate, which matters after a rollback: an
-// instance keeping one version whose active is v3 out of v10 must not delete
-// v4 through v10, because active is below them. It keeps more than asked for
-// until the next deploy, which then makes active the newest again and clears
-// the backlog in one pass. Keeping too much is recoverable; deleting the tree
-// someone is looking at is not.
-func pruneThreshold(activeVersion, keep int) (keepFrom int, ok bool) {
-	if keep <= 0 {
-		return 0, false
-	}
-	keepFrom = activeVersion - keep + 1
-	if keepFrom < 2 {
-		return 0, false // nothing below v1 exists to remove
-	}
-	return keepFrom, true
-}
-
 // maxSiteKeepVersions bounds the per-site setting. It is a retention count,
 // not a quota; the bound only keeps a typo from reading as "keep forever".
 const maxSiteKeepVersions = 1000

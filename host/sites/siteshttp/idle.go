@@ -141,7 +141,7 @@ func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
 
 func (h *SiteHandler) idleArchiveSvc() *sites.Service {
 	return sites.New(h.Database, h.Disk, nil, 0, sites.Deps{
-		LockSite: h.LockSite, DeletedRetention: h.Limits.DeletedRetention,
+		Locks: &h.UploadLocks, DeletedRetention: h.Limits.DeletedRetention,
 		IdleArchive: sites.IdleArchiveDeps{
 			Exempt: sites.IdleExempt{Handles: h.IdleExempt.Handles, ReviewerEmail: h.IdleExempt.ReviewerEmail, FamilySites: h.IdleExempt.FamilySites},
 			After:  operations.IdleRemoveAfter(h.Ed),

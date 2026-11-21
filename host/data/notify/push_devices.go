@@ -304,7 +304,7 @@ func DeletePushSubscriptionsForFamily(ctx context.Context, db *sql.DB, family st
 	return repo.DeletePushSubscriptionsForFamily(ctx, db, family)
 }
 
-// SealNotificationSecrets seals every stored receiver secret with seal.
-func SealNotificationSecrets(ctx context.Context, db *sql.DB, seal func(string, string) (string, error)) (int64, error) {
-	return repo.SealNotificationSecrets(ctx, db, seal)
+// SealNotificationSecrets seals every stored receiver secret with env's key.
+func SealNotificationSecrets(ctx context.Context, db *sql.DB, env Env) (int64, error) {
+	return repo.SealNotificationSecrets(ctx, db, env.Secrets())
 }

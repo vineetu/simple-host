@@ -25,6 +25,10 @@ func TestAreaAndFineContract(t *testing.T) {
 		want     bool
 	}{
 		{"handler", "app/sites", true},
+		// Only the connector's routes host the MCP server.
+		{"access/accesshttp", "mcp", true},
+		{"sites/siteshttp", "mcp", false},
+		{"data/datahttp", "mcp", false},
 		{"handler", "@/products/hack/app/teams", false},
 		{"repository/sites", "handler", false},
 		{"server", "extension", true},

@@ -12,7 +12,10 @@ ops/** -> access/** sites/** data/** ops/** !access/accesshttp !sites/siteshttp 
 # The pages and HTTP refusals every route package shares sit above the modules.
 web -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !server/** !extension !testdb !geoip/geoiptest
 # A module's routes may import every module, web and the kernel; never another module's routes.
-{access/accesshttp,sites/siteshttp,data/datahttp} -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !server/** !extension !testdb !geoip/geoiptest
+{access/accesshttp,sites/siteshttp,data/datahttp} -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !mcp !server/** !extension !testdb !geoip/geoiptest
+# The one routes package that may import the MCP server: the connector (accesshttp/connector*.go,
+# visitor_tools.go) is the /mcp endpoint, its OAuth and the visitor tools it serves.
+access/accesshttp -> mcp
 # The HTTP and MCP layers and the composition roots may import every module.
 {handler,mcp,server,server/servertest,extension} -> /** !testdb !geoip/geoiptest
 # A module's route suite builds that module's routes alone, on the modules, so a change to one

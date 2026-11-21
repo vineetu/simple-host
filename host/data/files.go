@@ -14,11 +14,33 @@ import (
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	repository "github.com/vsriram/simple-host/host/data/repo"
+	httpx "github.com/vsriram/simple-host/host/httpx"
 	model "github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/papermetrics"
 	siterepo "github.com/vsriram/simple-host/host/sites/repo"
 	mechanics "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
+
+// fileLinkPurpose separates file download links from other sealed links.
+const fileLinkPurpose = "site storage file v1"
+
+// FilePath is where a files resource keeps one stored file on disk.
+func FilePath(disk *mechanics.DiskStorage, c Call, p string) string {
+	return filepath.Join(disk.SiteDir(c.OwnerID, c.SiteName), "runtime", "files", c.ResourceName, filepath.FromSlash(p))
+}
+
+func (s *Service) filePath(c Call, p string) string { return FilePath(s.deps.Disk, c, p) }
+
+// FileToken seals a download link for one stored file until expires;
+// DownloadFile opens it.
+func FileToken(key []byte, c Call, p string, expires time.Time) string {
+	payload := c.OwnerID + "." + c.SiteID + "." + c.ResourceName + "." + base64.RawURLEncoding.EncodeToString([]byte(p)) + "." + strconv.FormatInt(expires.Unix(), 10)
+	if c.LinkScope != "" {
+		payload += "." + base64.RawURLEncoding.EncodeToString([]byte(c.LinkScope))
+	}
+	return httpx.SealLink(key, fileLinkPurpose, []byte(payload))
+}
 
 // fileRulesTable is what file rules are written against, in the same words as
 // key-value rules: one row per file, its path and its uploader (visitor_id,
@@ -103,12 +125,12 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	if err != nil {
 		return FilePutResult{}, nil, &Error{Code: "invalid_file", Message: "file too large; shrink photos to about 1600 px WebP"}
 	}
-	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call, true)
 	if err != nil {
 		return FilePutResult{}, nil, err
 	}
 	defer unlock()
-	dest := s.deps.FilePath(call, in.Path)
+	dest := s.filePath(call, in.Path)
 	oldBytes, existed, err := storedFileSize(dest)
 	if err != nil {
 		return FilePutResult{}, nil, err
@@ -126,15 +148,15 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 	if err = s.publishFile(ctx, call, dest, in.Path, body, existed, rowVisitorID); err != nil {
 		return FilePutResult{}, nil, err
 	}
-	s.deps.Committed(ctx)
-	s.deps.MarkChanged()
+	papermetrics.From(ctx).WriteCommitted(ctx)
+	s.deps.Disk.MarkChanged()
 	unlock()
 	result := FilePutResult{Bytes: len(body), ContentType: mechanics.DetectContentType(body)}
 	data := map[string]any{"path": in.Path, "size": result.Bytes, "content_type": result.ContentType, "owner_write": call.Owner}
 	if rowVisitorID != "" {
 		data["row_visitor_id"] = rowVisitorID
 	}
-	s.deps.Notify(call, "file.uploaded", data)
+	s.Emit(Event{Call: call, Name: "file.uploaded", Data: data})
 	return result, nil, nil
 }
 
@@ -252,11 +274,11 @@ func (s *Service) CreateFileLink(ctx context.Context, in FileLinkInput) (FileLin
 	if !in.Call.Owner {
 		return FileLink{}, &Error{Code: "forbidden", Message: "owner credential required"}
 	}
-	if _, err := os.Stat(s.deps.FilePath(in.Call, in.Path)); err != nil {
+	if _, err := os.Stat(s.filePath(in.Call, in.Path)); err != nil {
 		return FileLink{}, &Error{Code: "file_not_found", Message: "file not found"}
 	}
 	expires := time.Now().Add(10 * time.Minute).Truncate(time.Second)
-	return FileLink{Token: s.deps.FileToken(in.Call, in.Path, expires), Expires: expires}, nil
+	return FileLink{Token: FileToken(s.deps.ExportKey, in.Call, in.Path, expires), Expires: expires}, nil
 }
 
 // FileDeleteInput identifies a file and its caller.
@@ -273,7 +295,7 @@ func (s *Service) DeleteFile(ctx context.Context, in FileDeleteInput) (*Error, e
 	if auth != nil {
 		return auth, nil
 	}
-	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call, true)
 	if err != nil {
 		return nil, err
 	}
@@ -285,14 +307,14 @@ func (s *Service) DeleteFile(ctx context.Context, in FileDeleteInput) (*Error, e
 			return nil, &Error{Code: "file_not_found", Message: "file not found"}
 		}
 	}
-	if err := os.Remove(s.deps.FilePath(call, in.Path)); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(s.filePath(call, in.Path)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
 	if err := repository.DeleteFile(ctx, s.db, call.SiteID, call.ResourceName, in.Path); err != nil {
 		return nil, err
 	}
-	s.deps.Committed(ctx)
-	s.deps.MarkChanged()
+	papermetrics.From(ctx).WriteCommitted(ctx)
+	s.deps.Disk.MarkChanged()
 	unlock()
 	return nil, nil
 }
@@ -319,7 +341,7 @@ func (s *Service) OpenFile(ctx context.Context, in FileReadInput) (*os.File, os.
 			return nil, nil, nil, &Error{Code: "file_not_found", Message: "file not found"}
 		}
 	}
-	f, err := os.Open(s.deps.FilePath(call, in.Path))
+	f, err := os.Open(s.filePath(call, in.Path))
 	if err != nil {
 		return nil, nil, nil, &Error{Code: "file_not_found", Message: "file not found"}
 	}
@@ -392,7 +414,7 @@ func (s *Service) listUploaderFiles(ctx context.Context, call Call, in FileListI
 		if !mechanics.ValidObjectPath(p) || rule != nil && !rule(p, uploader) {
 			return true, nil
 		}
-		item, ok, err := regularFileItem(s.deps.FilePath(call, p), p)
+		item, ok, err := regularFileItem(s.filePath(call, p), p)
 		if ok {
 			mine := true
 			item.Mine = &mine
@@ -507,7 +529,7 @@ func (s *Service) DownloadFile(ctx context.Context, token string) (*os.File, os.
 	invalid := func() (*os.File, os.FileInfo, string, error) {
 		return nil, nil, "", &Error{Code: "file_link_invalid", Message: "link invalid"}
 	}
-	raw, err := s.deps.OpenFileToken(token)
+	raw, err := httpx.OpenLink(s.deps.ExportKey, fileLinkPurpose, token)
 	if err != nil {
 		return invalid()
 	}
@@ -522,7 +544,7 @@ func (s *Service) DownloadFile(ctx context.Context, token string) (*os.File, os.
 		return invalid()
 	}
 	site, err := siterepo.GetSiteByID(ctx, s.db, siteID)
-	if err != nil || site.Deleted || site.UserID != ownerID || site.OwnerSuspended || site.SiteSuspended {
+	if err != nil || site.Deleted || site.UserID != ownerID || site.Suspended() {
 		return invalid()
 	}
 	if len(fields) == 6 {
@@ -531,7 +553,7 @@ func (s *Service) DownloadFile(ctx context.Context, token string) (*os.File, os.
 			return invalid()
 		}
 	}
-	if !s.deps.FileResourceExists(ctx, siteID, name) {
+	if resource, err := s.LoadResource(ctx, siteID, name); err != nil || resource.Kind != "files" {
 		return invalid()
 	}
 	call := Call{SiteID: siteID, OwnerID: ownerID, SiteName: site.Name, ResourceName: name, Owner: true}

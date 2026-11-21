@@ -19,7 +19,7 @@ func (s *Service) WebsiteUploadLimit(ctx context.Context, in WebsiteLimitsInput)
 	if err != nil {
 		return s.deps.WebsiteArchiveDefault
 	}
-	limit, _ := s.deps.WebsiteLimit(ctx, &holder)
+	limit, _ := s.accounts.SiteLimit(ctx, &holder, s.deps.Limits, s.deps.WebsiteArchiveDefault)
 	return limit
 }
 
@@ -29,7 +29,7 @@ func (s *Service) WebsiteUploadLimits(ctx context.Context, in WebsiteLimitsInput
 	if err != nil {
 		return "Upload limits are unavailable."
 	}
-	limit, override := s.deps.WebsiteLimit(ctx, &holder)
+	limit, override := s.accounts.SiteLimit(ctx, &holder, s.deps.Limits, s.deps.WebsiteArchiveDefault)
 	total, file, entries := tarball.FileLimits(ExtractBudget(limit, override), s.deps.MaxFilesPerSite)
 	return fmt.Sprintf("Zip up to %d MB. Unpacked, up to %d MB in total, %d MB per file and %d files.", limit>>20, total>>20, file>>20, entries)
 }

@@ -25,6 +25,6 @@ func testOAuthSettings(cfg config.Config, service *accounts.Service) accesshttp.
 		SignIn: accounts.NewProviderSignIn(service, providers),
 	}
 }
-func NewTestOAuthHandler(database *sql.DB, service *accounts.Service, cfg config.Config, editions ...*edition.Edition) *accesshttp.OAuthHandler {
-	return accesshttp.NewOAuthHandler(database, service, testOAuthSettings(cfg, service), editions...)
+func NewTestOAuthHandler(database *sql.DB, service *accounts.Service, cfg config.Config, access *accesshttp.AccessHandler, editions ...*edition.Edition) *accesshttp.OAuthHandler {
+	return accesshttp.NewOAuthHandler(database, service, testOAuthSettings(cfg, service), access, editions...)
 }

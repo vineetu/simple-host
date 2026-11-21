@@ -67,7 +67,7 @@ func (s *Service) UpdateProfile(ctx context.Context, in ProfileInput) (model.Use
 		if err := s.disk.EnsureHandleLink(updated.Handle.String, updated.ID); err != nil {
 			log.Printf("handle rename: ensure handle link %s: %v", updated.Handle.String, err)
 		}
-		s.deps.RequestCert(updated.Handle.String)
+		s.requestCert(updated.Handle.String)
 	}
 	return updated, alertsOn, nil
 }

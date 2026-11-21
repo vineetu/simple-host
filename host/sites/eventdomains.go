@@ -141,7 +141,7 @@ func (s *Service) checkEventNameFree(ctx context.Context, req EventClaimInput) e
 	// The hackathon platform hands out names under the same zone from its
 	// own database; it is asked, and a failure to answer refuses the name.
 	if s.deps.EventNamePeer != nil {
-		held, err := s.deps.EventNamePeer(ctx, req.Domain, req.Name)
+		held, err := s.deps.EventNamePeer.Taken(ctx, req.Domain, req.Name)
 		if err != nil {
 			log.Printf("event claim: name peer %s.%s: %v", req.Name, req.Domain, err)
 			return &EventDomainError{Code: "unavailable", Message: "could not check that name; try again", WireCode: "name_check_unavailable"}
@@ -279,8 +279,4 @@ func NormalizeEventName(name string) (string, error) {
 		err = errors.New("event name must be 3 to 39 letters, digits or single hyphens, and not a reserved name")
 	}
 	return n, err
-}
-
-func (s *Service) SetEventNamePeer(fn func(context.Context, string, string) (bool, error)) {
-	s.deps.EventNamePeer = fn
 }

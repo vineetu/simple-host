@@ -191,7 +191,7 @@ func (h *UserHandler) undoLink(tok string) string {
 // emailOldAddress tells the old address where the account went, masked,
 // with the undo link.
 func (h *UserHandler) emailOldAddress(oldEmail, newEmail, undoToken string) {
-	accounts.NotifyEmailChanged(h.mailer, oldEmail, newEmail, h.undoLink(undoToken), h.Limits.EmailChangeUndoTTL, web.SupportText, h.Alerts.Run)
+	accounts.NotifyEmailChanged(h.mailer, oldEmail, newEmail, h.undoLink(undoToken), h.Limits.EmailChangeUndoTTL, web.SupportText, h.Alerts.run)
 }
 
 // undoEmailChange GET /v1/me/email/undo?t= shows the Undo button; POST (the

@@ -47,7 +47,7 @@ func mustRuleWrite(t *testing.T, s *Service, c Call, action string, id int64, bo
 	if want == "" && out.Body == nil {
 		t.Fatal("successful write returned no result")
 	}
-	if want != "" && (out.Body != nil || out.Notify != nil) {
+	if want != "" && (out.Body != nil || out.Event != nil) {
 		t.Fatal("refused write returned data or notification")
 	}
 	return out
@@ -135,9 +135,7 @@ func TestRulesOneEntryPerPerson(t *testing.T) {
 	))
 	owner := c
 	owner.Owner = true
-	_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: owner, Mode: "schema", ReadBody: func() ([]byte, error) {
-		return json.Marshal(map[string]string{"sql": "CREATE UNIQUE INDEX entries_one_per_person ON entries(visitor_id);"})
-	}})
+	_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: owner, Mode: "schema", Body: jsonBody(t, map[string]string{"sql": "CREATE UNIQUE INDEX entries_one_per_person ON entries(visitor_id);"})})
 	if err != nil {
 		t.Fatal(err)
 	}

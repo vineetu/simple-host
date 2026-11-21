@@ -244,7 +244,7 @@ func (e *Engine) Create(ctx context.Context, env Env, s Subject, in CreateInput)
 	}
 	now := time.Now()
 	n := model.Notification{ID: RandomID("sub_", 12), SiteID: s.Site.ID, OwnerID: s.Person, Product: s.Member, Source: "owner", URL: in.URL, Events: in.Events, Storage: in.Storage, Secret: in.Secret, Label: in.Label, AuthHeaderName: in.HeaderName, AuthHeaderValue: in.HeaderValue, VerifiedAt: &now}
-	_, _, err := repo.SaveNotification(ctx, e.db, n, e.limits.NotifyMaxPerSite, nil, e.limits.NotifyHistoryDays, env.Secrets(), notificationAccess{})
+	_, _, err := repo.SaveNotification(ctx, e.db, n, e.limits.NotifyMaxPerSite, nil, e.limits.NotifyHistoryDays, env.Secrets())
 	switch {
 	case errors.Is(err, model.ErrNotificationAccess):
 		return n, "", refusal("notification_access_ended")

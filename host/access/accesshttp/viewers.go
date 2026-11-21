@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"html"
 	"log"
 	"net/http"
@@ -19,7 +20,6 @@ import (
 	authrules "github.com/vsriram/simple-host/host/access/rules"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -64,69 +64,6 @@ func (h *AccessHandler) viewerAllowed(r *http.Request, row model.SitePasscodeRow
 	return accounts.ViewerAllowed(r.Context(), h.Database, row, userID)
 }
 
-// viewerGate answers a named-viewers site's file request for someone who may
-// not open it, and reports whether it did. Signed out: the sign-in page (401).
-// Signed in but not on the list: the private page (403). A cross-site
-// subresource never gets in. The caller has set the private-cache headers.
-func (h *AccessHandler) viewerGate(w http.ResponseWriter, r *http.Request, row model.SitePasscodeRow) bool {
-	if crossSiteSubresource(r) || framedElsewhere(r) {
-		writeOAuthHTMLError(h.pipeline(), w, http.StatusForbidden)
-		return true
-	}
-	sess, ok := h.viewerSession(r, row.SiteID)
-	if !ok {
-		if h.startGateSSO(w, r) {
-			return true
-		}
-		h.serveViewerPage(w, r, viewerPageSignIn, gateNext(r), "", "")
-		return true
-	}
-	allowed, email, err := h.viewerAllowed(r, row, sess.UserID)
-	if err != nil {
-		log.Printf("viewers: site %s: %v", row.SiteID, err)
-		web.RenderServiceErrorPage(w, r, h.pipeline())
-		return true
-	}
-	if !allowed {
-		// The owner hears about it once a day per person, for a page visit
-		// only (a stray subresource is not someone asking to be let in).
-		if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
-			h.emitSiteEvent(sites.SiteEvent{SiteID: row.SiteID, Name: "viewer.access_requested", Data: map[string]any{"visitor": sess.UserID}, Dedupe: 24 * time.Hour})
-		}
-		h.serveViewerPage(w, r, viewerPagePrivate, gateNext(r), email, "", h.ssoBaseURL)
-		return true
-	}
-	if dest := r.Header.Get("Sec-Fetch-Dest"); dest == "" || dest == "document" {
-		_ = h.StoreAccounts().TouchVisitorSession(r.Context(), sess.ID, h.Limits.VisitorSessionIdle)
-	}
-	return false
-}
-
-// viewersLetIn reports whether a data request may reach a named-viewers site
-// as a visitor: the owner's or admin's key (passcodeAllows checks those
-// first), a read from a preview page, or a same-origin request from the
-// owner or a named viewer signed in on this host. Not a named-viewers site:
-// true.
-func (h *AccessHandler) viewersLetIn(r *http.Request, row model.SitePasscodeRow) (bool, error) {
-	if !row.NamedViewers {
-		return true, nil
-	}
-	if (r.Method == http.MethodGet || r.Method == http.MethodHead) && h.previewRefererFor(r, row.SiteID) {
-		return true, nil
-	}
-	// A same-origin request from the site's page, or a reading navigation
-	// (a link to a stored file), never another site's subresource or frame.
-	sess, ok := h.StrictVisitorSession(r, row.SiteID)
-	if !ok && (r.Method == http.MethodGet || r.Method == http.MethodHead) && !crossSiteSubresource(r) && !framedElsewhere(r) {
-		sess, ok = h.viewerSession(r, row.SiteID)
-	}
-	if !ok {
-		return false, nil
-	}
-	allowed, _, err := h.viewerAllowed(r, row, sess.UserID)
-	return allowed, err
-}
-
 // framedElsewhere: another site's page is loading this one in a frame (every
 // person's sites are one "site" to the browser until the base domain is on the
 // Public Suffix List, so the Lax cookie would go along). A named-viewers
@@ -141,18 +78,11 @@ func framedElsewhere(r *http.Request) bool {
 	return sfs != "" && sfs != "same-origin" && sfs != "none"
 }
 
-// ViewersLetIn is viewersLetIn for a site id, for storage (site_storage.go):
-// errors count as no.
+// ViewersLetIn is the named-viewers rule (accounts.ViewersAdmit) for a data
+// request to site siteID, for the visitor tools: errors count as no.
 func (h *AccessHandler) ViewersLetIn(r *http.Request, siteID string) bool {
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), siteID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return true
-	}
-	if err != nil {
-		return false
-	}
-	ok, err := h.viewersLetIn(r, row)
-	return err == nil && ok
+	v := h.decideData(r, siteID, accounts.VisitData)
+	return v.verdict != accounts.VisitServiceError && accounts.ViewersAdmit(accounts.VisitData, v.row, v.who) == accounts.VisitServe
 }
 
 func writeSitePrivate(w http.ResponseWriter) {
@@ -677,7 +607,7 @@ func (h *AccessHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer unlock()
-	removed, err := h.sitesSvc().RemoveSiteViewer(r.Context(), site.ID, e)
+	removed, err := operations.RemoveSiteViewer(r.Context(), h.Database, h.Notify, site.ID, e)
 	if err != nil {
 		web.WriteSiteLookupError(w, err)
 		return
@@ -686,8 +616,8 @@ func (h *AccessHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request)
 		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: e + " is not a named viewer of this site", Code: "viewer_not_found"})
 		return
 	}
-	// A removed named viewer stops receiving push too: RemoveSiteViewer
-	// already ran appsites.Deps.DeleteViewerPush for every caller.
+	// A removed named viewer stops receiving push too: operations.RemoveSiteViewer
+	// deleted their push devices on the site.
 	log.Printf("site_viewers removed=1 site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
 	note := e + " can no longer open the site."
 	h.writeSiteAccess(w, r, site, siteAccessResponse{Removed: e, Note: note})

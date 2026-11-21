@@ -26,7 +26,6 @@ import (
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
-	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 const notifyTestSecret = "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
@@ -284,13 +283,6 @@ func notificationsSvc(h *datahttp.DataHandler) notifyStore { return notifyStore{
 
 type notifyStore struct{ db *sql.DB }
 
-// siteAccess is the engine's ownership check for saved subscriptions.
-type siteAccess struct{}
-
-func (siteAccess) ActsOnSite(ctx context.Context, q sqlkit.Querier, siteID, person string) (bool, error) {
-	return notifyapp.MayActOnSite(ctx, q, siteID, person)
-}
-
 func (s notifyStore) GetNotification(ctx context.Context, id string) (model.Notification, error) {
 	return notificationsrepo.GetNotification(ctx, s.db, id)
 }
@@ -311,8 +303,8 @@ func (s notifyStore) ListVisitorPushDevices(ctx context.Context, site, visitorID
 	return notificationsrepo.ListVisitorPushDevices(ctx, s.db, site, visitorID)
 }
 
-func (s notifyStore) SaveNotification(ctx context.Context, n model.Notification, max int, cursor *int64, historyDays int, secrets model.NotificationSecrets) (bool, bool, error) {
-	return notificationsrepo.SaveNotification(ctx, s.db, n, max, cursor, historyDays, secrets, siteAccess{})
+func (s notifyStore) SaveNotification(ctx context.Context, n model.Notification, max int, cursor *int64, historyDays int, secrets notificationsrepo.Secrets) (bool, bool, error) {
+	return notificationsrepo.SaveNotification(ctx, s.db, n, max, cursor, historyDays, secrets)
 }
 
 // mailbox captures notices.

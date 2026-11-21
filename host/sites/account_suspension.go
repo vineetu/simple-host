@@ -18,25 +18,28 @@ func (s *Service) SyncSiteSuspensionMarker(site model.Site) error {
 	if site.Suspended() {
 		return suspendedMarker(s, site)
 	}
-	return s.withFreshMarkerSite(context.Background(), site, func(fresh model.Site) error { return suspendedMarker(s, fresh) })
-}
-
-// Before removing markers, re-read under the name lock. Never apply an old
-// site's verdict to a replacement at the same name. Additions need no lock.
-func (s *Service) withFreshMarkerSite(ctx context.Context, site model.Site, repair func(model.Site) error) error {
-	unlock := s.deps.LockSite(site.UserID, site.Name)
+	unlock := s.lockSite(site.UserID, site.Name)
 	defer unlock()
-	fresh, err := repo.GetSiteByUser(ctx, s.database, site.UserID, site.Name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
+	fresh, same, err := s.sameSiteAtName(context.Background(), site)
+	if !same {
 		return err
 	}
-	if fresh.ID != site.ID {
-		return nil
+	return suspendedMarker(s, fresh)
+}
+
+// sameSiteAtName re-reads site under its name lock, which the caller holds,
+// before markers are removed: same is false when the name now holds another
+// site or none, so an old site's verdict never reaches a replacement at the
+// same name. Additions need no lock.
+func (s *Service) sameSiteAtName(ctx context.Context, site model.Site) (fresh model.Site, same bool, err error) {
+	fresh, err = repo.GetSiteByUser(ctx, s.database, site.UserID, site.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fresh, false, nil
 	}
-	return repair(fresh)
+	if err != nil {
+		return fresh, false, err
+	}
+	return fresh, fresh.ID == site.ID, nil
 }
 func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
 	sites, err := repo.ListAllSites(ctx, svc.database)
@@ -77,10 +80,12 @@ func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
 		}
 	}
 	for _, site := range removals {
-		err := svc.withFreshMarkerSite(ctx, site, func(fresh model.Site) error {
+		unlock := svc.lockSite(site.UserID, site.Name)
+		fresh, same, err := svc.sameSiteAtName(ctx, site)
+		if same {
 			repair(fresh, true)
-			return nil
-		})
+		}
+		unlock()
 		if err != nil {
 			ReportWorkerFailure(ctx, "sync site markers", err)
 		}
@@ -105,7 +110,7 @@ func (s *Service) SuspendSite(ctx context.Context, id, reason, adminID string, o
 	}
 	// Lock, then re-read so a rename or delete cannot be undone by stale markers.
 	for {
-		unlock := s.deps.LockSite(site.UserID, site.Name)
+		unlock := s.lockSite(site.UserID, site.Name)
 		fresh, err := repo.GetSiteByID(ctx, s.database, id)
 		if err != nil {
 			unlock()

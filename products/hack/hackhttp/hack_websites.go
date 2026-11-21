@@ -6,9 +6,7 @@ import (
 	"errors"
 	"net/http"
 
-	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
@@ -111,10 +109,8 @@ type websiteLimits struct {
 func (l *websiteLimits) sites() *appsites.Service {
 	return appsites.New(l.database, nil, nil, 0, appsites.Deps{
 		WebsiteArchiveDefault: l.archiveDefault,
-		WebsiteLimit: func(ctx context.Context, user *model.User) (int64, bool) {
-			return accountapp.New(l.database).SiteLimit(ctx, user, l.limits.Limits, l.archiveDefault)
-		},
-		MaxFilesPerSite: l.limits.MaxFilesPerSite,
+		Limits:                l.limits.Limits,
+		MaxFilesPerSite:       l.limits.MaxFilesPerSite,
 	})
 }
 

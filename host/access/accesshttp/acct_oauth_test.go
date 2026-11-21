@@ -25,5 +25,5 @@ func testOAuthSettings(cfg config.Config, service *accounts.Service) OAuthSettin
 	}
 }
 func newTestOAuthHandler(database *sql.DB, service *accounts.Service, cfg config.Config, editions ...*edition.Edition) *OAuthHandler {
-	return NewOAuthHandler(database, service, testOAuthSettings(cfg, service), editions...)
+	return NewOAuthHandler(database, service, testOAuthSettings(cfg, service), nil, editions...)
 }

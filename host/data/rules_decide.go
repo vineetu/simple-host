@@ -68,10 +68,7 @@ func (s *Service) compileCallRules(c *Call, table ruleengine.Table) error {
 }
 
 func (s *Service) ruleValues(ctx context.Context, c *Call, op ruleengine.Op, refreshOwner bool, additional ...ruleengine.Op) error {
-	provider := s.deps.Bindings
-	if provider == nil {
-		provider = DefaultProvider{DB: s.db}
-	}
+	provider := s.bindings()
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	if refreshOwner && c.OwnerOnSite {

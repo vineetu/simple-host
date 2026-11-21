@@ -71,7 +71,7 @@ func (s *Service) PutStorageResource(ctx context.Context, in ResourceInput) (Res
 	if !call.Owner {
 		return ResourceResult{}, &Error{Code: "forbidden", Message: "owner credential required"}
 	}
-	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, nil)
+	ctx, unlock, err := s.writeLock(ctx, call, false)
 	if err != nil {
 		return ResourceResult{}, err
 	}
@@ -218,7 +218,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 	if !call.Owner {
 		return &Error{Code: "forbidden", Message: "owner credential required"}
 	}
-	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call, true)
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 			return &Error{Code: "internal_error", Message: "resource removed but staging cleanup failed"}
 		}
 	}
-	s.deps.MarkChanged()
+	s.deps.Disk.MarkChanged()
 	unlock()
 	return nil
 }

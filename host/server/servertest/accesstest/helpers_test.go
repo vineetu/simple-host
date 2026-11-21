@@ -357,7 +357,7 @@ func NewAccountApp(t *testing.T, eds ...*edition.Edition) (*App, *Mailbox) {
 	t.Helper()
 	mb := &Mailbox{}
 	a := NewAppMailer(t, mb, eds...)
-	a.Users.Alerts.Run = func(f func()) { f() }
+	a.Users.Alerts.Inline = true
 	a.Users.EmailLimiter = httpx.NewRateLimiter(1000, 1000)
 	return a, mb
 }
@@ -458,9 +458,8 @@ func (a *App) WithOAuth(t *testing.T) *accesshttp.OAuthHandler {
 		SSOKeyLimiter: httpx.NewRateLimiter(10000, 10000),
 		LookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },
 		LookupCNAME:   func(context.Context, string) (string, error) { return "cname." + rt.SiteDomain + ".", nil },
+		Access:        a.Access,
 	}
-	oh.SetPersonSiteResolver(a.Hosts.ReturnSite)
-	oh.SetPasscodeCheck(a.Access.PasscodeLetsIn)
 	oh.Register(a.Mux)
 	return oh
 }

@@ -1,7 +1,6 @@
 package datahttp
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,10 +23,7 @@ func (h *DataHandler) StorageFilesDir(c StorageCall) string {
 	return filepath.Join(h.StorageRuntimeDir(c), "files", c.ResourceName)
 }
 func (h *DataHandler) StorageFilePath(c StorageCall, p string) string {
-	return storageFileOnDisk(h.Disk, c.OwnerID, c.SiteName, c.ResourceName, p)
-}
-func storageFileOnDisk(disk interface{ SiteDir(string, string) string }, ownerID, siteName, resourceName, p string) string {
-	return filepath.Join(disk.SiteDir(ownerID, siteName), "runtime", "files", resourceName, filepath.FromSlash(p))
+	return appstorage.FilePath(h.Disk, c, p)
 }
 
 // storageFiles serves the file routes: GET .../objects lists, and GET, PUT
@@ -107,11 +103,7 @@ func streamStorageFile(w http.ResponseWriter, r *http.Request, f *os.File, fi os
 }
 
 func (h *DataHandler) StorageFileToken(c StorageCall, p string, expires time.Time) string {
-	payload := c.OwnerID + "." + c.SiteID + "." + c.ResourceName + "." + base64.RawURLEncoding.EncodeToString([]byte(p)) + "." + strconv.FormatInt(expires.Unix(), 10)
-	if c.LinkScope != "" {
-		payload += "." + base64.RawURLEncoding.EncodeToString([]byte(c.LinkScope))
-	}
-	return httpx.SealLink(h.ExportKey, "site storage file v1", []byte(payload))
+	return appstorage.FileToken(h.ExportKey, c, p, expires)
 }
 func (h *DataHandler) createStorageFileLink(w http.ResponseWriter, r *http.Request, c StorageCall) {
 	c, ok := h.storageResourceFor(w, r, c, "files")

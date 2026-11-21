@@ -39,8 +39,7 @@ const idleLastActivity = `GREATEST(
 // reviewer address, in IdleExempt.args order. Not in Recently deleted is
 // checked by the caller (the removal runs after the row is marked deleted).
 func idleEligible(p int) string {
-	return fmt.Sprintf(`s.suspended_at IS NULL
-	AND s.offline_at IS NULL
+	return fmt.Sprintf(sqlSiteLive("s.")+`
 	AND u.suspended_at IS NULL
 	AND NOT u.is_admin
 	AND NOT s.idle_keep

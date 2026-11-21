@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -145,5 +146,10 @@ func (h *AccessHandler) VisitorSignedIn(r *http.Request, siteID, userID string, 
 	if h.ownerMarks == nil || siteID == "" || userID == "" {
 		return
 	}
-	sites.New(h.Database, nil, nil, 0, sites.Deps{OwnerMarks: sites.OwnerMarkDeps{Mark: h.ownerMarks.Mark}}).NoteOwnerVisitorSignIn(r.Context(), sites.OwnerMarkInput{SiteID: siteID, UserID: userID, IP: httpx.ClientIP(r)})
+	if !sites.New(h.Database, nil, nil, 0, sites.Deps{}).IsSiteOwner(r.Context(), siteID, userID) {
+		return
+	}
+	if err := h.ownerMarks.Mark(r.Context(), userID, httpx.ClientIP(r)); err != nil {
+		log.Printf("owner marks: visitor sign-in user=%s: %v", userID, err)
+	}
 }

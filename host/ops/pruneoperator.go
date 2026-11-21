@@ -9,7 +9,6 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/access"
 	accounts "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
 	db "github.com/vsriram/simple-host/host/sites/repo"
 )
@@ -29,14 +28,7 @@ func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk appsites.Dis
 
 	acct := accountapp.New(database)
 	pruner := appsites.New(database, disk, nil, 0, appsites.Deps{
-		AccountRetention: func(ctx context.Context, id string, siteKeep int) (int, error) {
-			keep, _, err := acct.SiteRetention(ctx, id, siteKeep, keepVersions, l)
-			return keep, err
-		},
-		RetainedFloor: func(versions []model.Version, keep, active, siteKeep int) int {
-			return appsites.RetainedFloor(versions, keep)
-		},
-		PinnedFloor: func(_ context.Context, _, _ string, floor int) int { return floor },
+		DefaultRetention: keepVersions, Limits: l,
 	})
 
 	var freed int64

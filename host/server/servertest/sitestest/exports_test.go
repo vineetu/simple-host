@@ -87,7 +87,7 @@ func TestExportSurvivesUnreadableFiles(t *testing.T) {
 	archive := func(siteID string, files sites.FileVersion) map[string]string {
 		t.Helper()
 		contents := map[string]string{}
-		err := a.Sites.LifecycleSvc().WriteArchive(context.Background(), func(name string, _ time.Time, _ int64, r io.Reader) error {
+		err := a.Sites.SiteArchive().WriteArchive(context.Background(), func(name string, _ time.Time, _ int64, r io.Reader) error {
 			b, err := io.ReadAll(r)
 			contents[name] = string(b)
 			return err

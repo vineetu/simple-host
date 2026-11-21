@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/vsriram/simple-host/host/papermetrics"
+
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/host/data/rules"
 	"github.com/vsriram/simple-host/host/storage"
@@ -24,7 +26,7 @@ var writtenByColumnRE = regexp.MustCompile(`(?i)\bwritten_by\b`)
 type LegacySQLInput struct {
 	Call        Call
 	Mode        string
-	ReadBody    func() ([]byte, error)
+	Body        io.Reader // read only once the mode is known; nil reads as empty
 	ResultLimit int
 }
 
@@ -49,7 +51,7 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (LegacySQLRe
 	if !legacySQLModes[in.Mode] {
 		return LegacySQLResult{}, &Error{Code: "not_found", Message: "not found"}
 	}
-	req, err := readLegacySQLRequest(in.ReadBody)
+	req, err := readLegacySQLRequest(in.Body)
 	if err != nil {
 		return LegacySQLResult{}, err
 	}
@@ -73,7 +75,7 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (LegacySQLRe
 		}
 	} else {
 		var unlock func()
-		ctx, unlock, err = s.writeLock(ctx, in.Call.OwnerID+"/"+in.Call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+		ctx, unlock, err = s.writeLock(ctx, in.Call, true)
 		if err != nil {
 			return LegacySQLResult{}, err
 		}
@@ -119,8 +121,11 @@ type legacySQLRequest struct {
 }
 
 // readLegacySQLRequest reads the body as exactly one JSON object of at most 64 KB.
-func readLegacySQLRequest(read func() ([]byte, error)) (legacySQLRequest, error) {
-	body, readErr := read()
+func readLegacySQLRequest(r io.Reader) (legacySQLRequest, error) {
+	if r == nil {
+		r = bytes.NewReader(nil)
+	}
+	body, readErr := io.ReadAll(io.LimitReader(r, (64<<10)+1))
 	var req legacySQLRequest
 	var reader io.Reader = bytes.NewReader(body)
 	if len(body) > 64<<10 {
@@ -302,9 +307,9 @@ func (s *Service) changeLegacySQL(ctx context.Context, conn *sqlite3.Conn, stmt 
 		if !a.committed {
 			return
 		}
-		s.deps.MarkChanged()
-		if (authz.DidWrite || authz.DidSchema) && s.deps.Committed != nil {
-			s.deps.Committed(ctx)
+		s.deps.Disk.MarkChanged()
+		if authz.DidWrite || authz.DidSchema {
+			papermetrics.From(ctx).WriteCommitted(ctx)
 		}
 	}()
 	s.sqliteStage("after_step")

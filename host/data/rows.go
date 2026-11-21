@@ -54,7 +54,9 @@ func (s *Service) AuthorizeTableWrite(ctx context.Context, in TableInput, action
 type TableResult struct {
 	Body          map[string]any
 	Authorization *Error
-	Notify        func()
+	// Event is the committed write's notification, sent by the caller
+	// (Service.Emit) once the response is written; nil sends nothing.
+	Event *Event
 }
 
 // openTableConn opens the per-site database and translates runtime errors.
@@ -209,7 +211,7 @@ func (s *Service) withTable(ctx context.Context, in TableInput, action string, w
 	op := tableActionOps[action]
 	write := op != ruleengine.OpRead
 	if write {
-		lockCtx, unlock, err := s.writeLock(ctx, c.OwnerID+"/"+c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+		lockCtx, unlock, err := s.writeLock(ctx, c, true)
 		if err != nil {
 			return TableResult{}, err
 		}

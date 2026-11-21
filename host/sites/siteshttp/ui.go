@@ -10,31 +10,12 @@ import (
 
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/web"
 )
 
 func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
 	registerPhotosUI(mux, publicBaseURL, sh)
 	mux.HandleFunc("GET /auth.md", sh.serveAuthMarkdown)
-	// The connector's page recipes (get_page_recipe), for agents that read
-	// llms.txt without the connector: the same text, with a placeholder site.
-	mux.HandleFunc("GET /recipes/{topic}", func(w http.ResponseWriter, r *http.Request) {
-		topic := strings.TrimSuffix(r.PathValue("topic"), ".md")
-		text, err := mcp.PageRecipe(topic, "")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		body := []byte(text)
-		if web.InstanceHosts != nil {
-			body = web.InstanceHosts.Apply(body)
-		}
-		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Cache-Control", "public, max-age=300")
-		_, _ = w.Write(body)
-	})
 	assets := sh.Pages()
 	// The docs website is gone: its old addresses point at the API
 	// description and llms.txt.

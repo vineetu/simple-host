@@ -77,12 +77,5 @@ func (h *SiteHandler) requestDomainCert(ctx context.Context, d model.BoundDomain
 }
 
 func (h *SiteHandler) domainCertSvc() *sites.Service {
-	return sites.New(h.Database, nil, nil, 0, sites.Deps{DomainCerts: sites.DomainCertDeps{
-		Partner: func(ctx context.Context, domain, siteID string) string {
-			return h.RequestablePartner(ctx, model.BoundDomain{Domain: domain, SiteID: siteID})
-		},
-		Allow: func(ctx context.Context, userID, domain string) (bool, error) {
-			return h.SitesSvc().AllowDomainCertRequest(ctx, userID, domain, h.Limits.DomainCertsDaily)
-		},
-	}})
+	return sites.New(h.Database, nil, nil, 0, sites.Deps{Limits: h.Limits})
 }

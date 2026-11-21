@@ -1,41 +1,22 @@
 package siteshttp
 
 import (
-	"context"
-	"database/sql"
-
-	appstorage "github.com/vsriram/simple-host/host/data"
-	"github.com/vsriram/simple-host/host/data/repo"
 	"github.com/vsriram/simple-host/host/model"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/sites"
 )
 
-func (h *SiteHandler) LifecycleSvc() *sites.Service { return h.lifecycleSvcWithTransaction(nil) }
-
-// lifecycleSvcWithTransaction runs also inside the delete transaction (the idle cleanup's companion write).
-func (h *SiteHandler) lifecycleSvcWithTransaction(also func(*sql.Tx) error) *sites.Service {
+func (h *SiteHandler) LifecycleSvc() *sites.Service {
 	return sites.New(h.Database, h.Disk, h.PreviewAccounts, h.PreviewTTL, sites.Deps{
-		GroupGate:          h.groupGate,
-		DeletedTransaction: also,
+		GroupGate: h.groupGate,
 		ResponseState: func(site model.Site, version int, preview, footprint bool) any {
 			return h.captureSiteResponseState(site, version, preview, footprint)
 		},
-		LockSite: h.LockSite, DeletedRetention: h.Limits.DeletedRetention,
-		HasLiveFamilies: h.Hosts.HasLiveFamilies, SyncRedirect: h.Hosts.SyncDomainRedirect,
-		RequestCert: h.RequestSiteCert, CancelDomainCert: h.Hosts.CancelDomainCert,
-		AdmitSQLite: func(ctx context.Context, siteID string, fn func(context.Context) error) error {
-			return h.SqliteSites.Admit(ctx, siteID, func(ctx context.Context, _ *appstorage.Admission) error { return fn(ctx) })
-		},
-		ExportResources: func(ctx context.Context, siteID string) ([]map[string]any, error) {
-			list, err := repo.ListResources(ctx, h.Database, siteID)
-			if err != nil {
-				return nil, err
-			}
-			resources := []map[string]any{}
-			for _, x := range list {
-				resources = append(resources, appstorage.ResourceRulesJSON(x, nil))
-			}
-			return resources, nil
-		},
+		Locks: &h.UploadLocks, Hosts: h.Hosts, DeletedRetention: h.Limits.DeletedRetention,
 	})
+}
+
+// SiteArchive exports a site's files and saved data (operations.SiteArchive).
+func (h *SiteHandler) SiteArchive() *operations.SiteArchive {
+	return &operations.SiteArchive{Database: h.Database, Disk: h.Disk, Locks: &h.UploadLocks, Slots: h.SqliteSites}
 }

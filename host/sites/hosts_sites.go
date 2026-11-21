@@ -561,7 +561,7 @@ func (h *Hosts) groupSiteExists(ctx context.Context, eventSlug, teamSlug string)
 		return false
 	}
 	site, err := repo.GetSiteByUser(ctx, h.db, ev.AccountID, teamSlug)
-	return err == nil && site.ActiveVersion > 0
+	return err == nil && site.HasVersion()
 }
 
 // GateSite is what the passcode and named-viewers rules read about a site

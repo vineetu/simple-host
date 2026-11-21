@@ -17,6 +17,7 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/idempotency"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -24,7 +25,7 @@ import (
 // they share (limits, caches, idempotency, the passcode key, notifications,
 // the visitor gate). productInstanceURL is a product edition's own public
 // address (the pipeline's InkBaseURL; "" takes the edition's canonical one).
-func NewSiteHandlers(ed *edition.Edition, productInstanceURL string, database *sql.DB, disk sites.Disk, hosts *sites.Hosts, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, adminUserID string, mailer email.Sender, emailLimiter *httpx.RateLimiter) (*siteshttp.SiteHandler, *accesshttp.AccessHandler, *datahttp.DataHandler) {
+func NewSiteHandlers(ed *edition.Edition, productInstanceURL string, database *sql.DB, disk *storage.DiskStorage, hosts *sites.Hosts, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, adminUserID string, mailer email.Sender, emailLimiter *httpx.RateLimiter) (*siteshttp.SiteHandler, *accesshttp.AccessHandler, *datahttp.DataHandler) {
 	lim := ed.Limits()
 	if hosts == nil {
 		hosts = sites.NewHosts(database, disk, ed, siteDomain, contentHost, cnameTarget, customDomainIP)
@@ -94,7 +95,7 @@ func NewSiteHandlers(ed *edition.Edition, productInstanceURL string, database *s
 	data.SqliteSites = appstorage.NewSiteSlots(lim.StorageSiteInflight, data.Sqlite, lim.StorageAcquireWait)
 	data.Notifications = notify.NewEngine(database, ed, lim, siteDomain)
 	h.SqliteSites, h.Notify, access.Notify = data.SqliteSites, data.Notifications, data.Notifications
-	access.SiteFiles = h.LifecycleSvc()
+	access.SiteFiles, access.SiteArchive = h.LifecycleSvc(), h.SiteArchive()
 	h.Gate = access.SiteGate()
 	return h, access, data
 }

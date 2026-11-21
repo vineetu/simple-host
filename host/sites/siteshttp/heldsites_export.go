@@ -48,7 +48,7 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 	tw := tar.NewWriter(gz)
 	for _, site := range sites {
 		files := appsites.FileVersion{UserID: site.UserID, SiteName: site.Name, Version: site.ActiveVersion}
-		if err := h.LifecycleSvc().WriteArchive(r.Context(), appsites.TarPut(tw), site.Name, site.ID, files); err != nil {
+		if err := h.SiteArchive().WriteArchive(r.Context(), appsites.TarPut(tw), site.Name, site.ID, files); err != nil {
 			panic(http.ErrAbortHandler)
 		}
 	}

@@ -258,7 +258,9 @@ type restSite struct {
 	} `json:"views"`
 }
 
-// liveURL is the one address to give people (REST's live_url, sites.LiveURL).
+// liveURL is the one address to give people: REST's live_url (sites.LiveURL
+// decides it), or the site_url of a REST response that has no live_url (a
+// rename). The tool never works an address out itself.
 func (s restSite) liveURL() string {
 	if s.LiveURL != "" {
 		return s.LiveURL

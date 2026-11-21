@@ -21,8 +21,7 @@ type visitorFixture struct {
 func NewVisitorFixture(t *testing.T) visitorFixture {
 	t.Helper()
 	s := NewStorageTestSite(t)
-	o := NewTestOAuthHandler(s.A.Database, accountapp.New(s.A.Database), config.Config{PublicBaseURL: s.A.Srv.URL, SiteDomain: PcSiteDomain, ContentHost: PcContentHost, CNAMETarget: "cname." + PcSiteDomain})
-	o.SetPersonSiteResolver(s.A.Sites.Hosts.ReturnSite)
+	o := NewTestOAuthHandler(s.A.Database, accountapp.New(s.A.Database), config.Config{PublicBaseURL: s.A.Srv.URL, SiteDomain: PcSiteDomain, ContentHost: PcContentHost, CNAMETarget: "cname." + PcSiteDomain}, s.A.Access)
 	handler.SetVisitorTools(s.A.Conn, s.A.Access, s.A.Data, o)
 	// These fixtures use an already verified account, then exercise the real
 	// OAuth authorization and MCP boundary as a different person from the owner.

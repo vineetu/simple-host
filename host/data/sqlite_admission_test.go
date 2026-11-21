@@ -100,7 +100,7 @@ func admissionFixture(t *testing.T, db *sql.DB) (*Service, Call) {
 		t.Fatal(err)
 	}
 	gate := NewSQLiteGate(2, time.Second)
-	return New(db, Deps{SQLitePath: path, SQLiteGate: gate, SiteSlots: NewSiteSlots(1, gate, time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 256 << 20, Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: time.Second, MarkChanged: func() {}}), Call{Owner: true, SiteID: "11111111-1111-1111-1111-111111111111", OwnerID: "owner", SiteName: "site", ResourceName: "data", RuntimeDir: dir}
+	return New(db, Deps{Disk: testDisk(t), SQLitePath: path, SQLiteGate: gate, SiteSlots: NewSiteSlots(1, gate, time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 256 << 20, Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: time.Second}), Call{Owner: true, SiteID: "11111111-1111-1111-1111-111111111111", OwnerID: "owner", SiteName: "site", ResourceName: "data", RuntimeDir: dir}
 }
 
 func runAdmissionRow(s *Service, c Call, operation string) (TableResult, error) {
@@ -139,9 +139,8 @@ func TestRowAdmissionInjectedPanics(t *testing.T) {
 			t.Run(operation+"/"+stage, func(t *testing.T) {
 				s, c := admissionFixture(t, db)
 				ctx, checkClosed := observeAdmissionConnection(t)
-				committed, changed := 0, 0
-				s.deps.Committed = func(context.Context) { committed++ }
-				s.deps.MarkChanged = func() { changed++ }
+				committed, changesBefore := 0, s.deps.Disk.Changes()
+				ctx = countCommits(ctx, &committed)
 				s.sqliteHook = func(at string) {
 					if at == stage {
 						panic("injected")
@@ -164,6 +163,7 @@ func TestRowAdmissionInjectedPanics(t *testing.T) {
 				if success && operation != "get" && operation != "list" {
 					wantCommits = 1
 				}
+				changed := int(s.deps.Disk.Changes() - changesBefore)
 				if committed != wantCommits || changed != wantCommits {
 					t.Fatalf("commit callbacks: metric=%d changed=%d want=%d", committed, changed, wantCommits)
 				}

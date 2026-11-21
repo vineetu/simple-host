@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -253,7 +254,7 @@ func TestRulesReadInvalidAndOwnerRepair(t *testing.T) {
 			readGet(t, s, c, "entries", 1, "rules_invalid")
 			c.Owner = true
 			readGet(t, s, c, "entries", 1, "")
-			result, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "query", ReadBody: func() ([]byte, error) { return []byte(`{"sql":"SELECT * FROM entries"}`), nil }, ResultLimit: 1 << 20})
+			result, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "query", Body: bytes.NewReader([]byte(`{"sql":"SELECT * FROM entries"}`)), ResultLimit: 1 << 20})
 			if err != nil || len(result.Rows) != 1 {
 				t.Fatalf("owner query: %+v %v", result, err)
 			}
@@ -267,10 +268,7 @@ func TestRulesReadRawSQLRefused(t *testing.T) {
 		for _, mode := range []string{"query", "execute", "schema"} {
 			for _, onSite := range []bool{false, true} {
 				c.OwnerOnSite = onSite
-				_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: mode, ReadBody: func() ([]byte, error) {
-					t.Fatal("visitor SQL body was read")
-					return json.Marshal(map[string]string{"sql": sql})
-				}})
+				_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: mode, Body: fatalReader{t}})
 				if e, ok := err.(*Error); !ok || e.Code != "fixed_routes_required" {
 					t.Fatalf("%s %s: %v", mode, sql, err)
 				}
@@ -284,7 +282,7 @@ func TestRulesOwnerSchemaColumnsRenameAndNotes(t *testing.T) {
 	c.Owner = true
 	schema := func(sql, want string) LegacySQLResult {
 		t.Helper()
-		result, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "schema", ReadBody: func() ([]byte, error) { return json.Marshal(map[string]string{"sql": sql}) }})
+		result, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "schema", Body: jsonBody(t, map[string]string{"sql": sql})})
 		code := ""
 		if err != nil {
 			code = err.(*Error).Code
@@ -397,7 +395,7 @@ func TestRulesOwnerSchemaRequiredColumnsSurvive(t *testing.T) {
 				s.deps.Bindings = nil
 			}
 			schema := func(sql string) (LegacySQLResult, error) {
-				return s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "schema", ReadBody: func() ([]byte, error) { return json.Marshal(map[string]string{"sql": sql}) }})
+				return s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "schema", Body: jsonBody(t, map[string]string{"sql": sql})})
 			}
 			result, err := schema(`CREATE TABLE more(body TEXT)`)
 			if err != nil {

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -45,7 +46,7 @@ func TestLegacyAdmissionInjectedPanics(t *testing.T) {
 						panic("injected")
 					}
 				}
-				out, err := s.LegacySQL(ctx, LegacySQLInput{Call: c, Mode: mode, ReadBody: func() ([]byte, error) { return body, nil }, ResultLimit: 1 << 20})
+				out, err := s.LegacySQL(ctx, LegacySQLInput{Call: c, Mode: mode, Body: bytes.NewReader(body), ResultLimit: 1 << 20})
 				// Exec includes SQLite's implicit commit. An after-step panic on that
 				// path must keep the inserted id, just like an after-commit panic.
 				success := stage == "close" || stage == "after_commit" || (mode == "execute" && stage == "after_step")
@@ -140,7 +141,7 @@ func TestLegacyAdmissionMemoryPanic(t *testing.T) {
 			panic("sqlite3: out of memory")
 		}
 	}
-	_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "query", ReadBody: func() ([]byte, error) { return []byte(`{"sql":"SELECT * FROM notes"}`), nil }, ResultLimit: 1 << 20})
+	_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "query", Body: bytes.NewReader([]byte(`{"sql":"SELECT * FROM notes"}`)), ResultLimit: 1 << 20})
 	if e, ok := err.(*Error); !ok || e.Code != "query_too_expensive" {
 		t.Fatal(err)
 	}
@@ -148,7 +149,7 @@ func TestLegacyAdmissionMemoryPanic(t *testing.T) {
 	// Keep the real parser diagnostic, rather than swallowing it in recovery.
 	s.sqliteHook = nil
 	body, _ := json.Marshal(map[string]string{"sql": "SELECT " + strings.Repeat("abs(", 1100) + "1" + strings.Repeat(")", 1100)})
-	_, err = s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "query", ReadBody: func() ([]byte, error) { return body, nil }, ResultLimit: 1 << 20})
+	_, err = s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "query", Body: bytes.NewReader(body), ResultLimit: 1 << 20})
 	if e, ok := err.(*Error); !ok || e.Code != "sql_error" {
 		t.Fatal(err)
 	}

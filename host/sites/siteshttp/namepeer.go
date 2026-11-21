@@ -2,18 +2,17 @@ package siteshttp
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/sites/eventdns"
 )
 
 // ---- One name list with the peer instance ---------------------------------
@@ -69,40 +68,10 @@ func directLoopback(r *http.Request) bool {
 }
 
 // NamePeerClient asks the peer at base (http://127.0.0.1:<port>) whether it
-// holds name under zone. Any failure is an error: callers refuse the name.
+// holds name under zone (eventdns.NamePeer). Any failure is an error: callers
+// refuse the name.
 func NamePeerClient(base string) func(ctx context.Context, zone, name string) (bool, error) {
-	client := &http.Client{Timeout: 3 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	return func(ctx context.Context, zone, name string) (bool, error) {
-		u := base + "/internal/names/taken?zone=" + url.QueryEscape(zone) + "&name=" + url.QueryEscape(name)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-		if err != nil {
-			return false, err
-		}
-		res, err := client.Do(req)
-		if err != nil {
-			return false, err
-		}
-		defer res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			return false, &peerStatusError{res.StatusCode}
-		}
-		var out struct {
-			Taken *bool `json:"taken"`
-		}
-		if err := json.NewDecoder(http.MaxBytesReader(nil, res.Body, 4096)).Decode(&out); err != nil || out.Taken == nil {
-			return false, &peerStatusError{0}
-		}
-		return *out.Taken, nil
-	}
-}
-
-type peerStatusError struct{ status int }
-
-func (e *peerStatusError) Error() string {
-	if e.status == 0 {
-		return "name peer: unreadable answer"
-	}
-	return "name peer: status " + http.StatusText(e.status)
+	return eventdns.NewNamePeer(base).Taken
 }
 
 // DirUsage returns the bytes of regular files under dir, measured at most

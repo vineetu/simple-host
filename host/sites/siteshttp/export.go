@@ -92,5 +92,5 @@ func finishSiteTar(tw *tar.Writer, gz *gzip.Writer) {
 }
 
 func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix string, site model.Site) error {
-	return h.LifecycleSvc().WriteArchive(ctx, sites.TarPut(tw), prefix, site.ID, sites.FileVersion{UserID: site.UserID, SiteName: site.Name})
+	return h.SiteArchive().WriteArchive(ctx, sites.TarPut(tw), prefix, site.ID, sites.FileVersion{UserID: site.UserID, SiteName: site.Name})
 }

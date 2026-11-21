@@ -1956,8 +1956,8 @@
       "method": "GET",
       "path": "/recipes/{topic}",
       "feature_id": "storage-recipes",
-      "source": "host/sites/siteshttp/ui.go",
-      "package": "host/sites/siteshttp",
+      "source": "host/handler/routes.go",
+      "package": "host/handler",
       "dynamic": false
     },
     {

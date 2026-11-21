@@ -245,14 +245,14 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 	// deploy is owner-intent: assign before building the path-model site URL.
 	access := creationAccess(r)
 	result, err := h.SitesSvc().Create(r.Context(), sites.CreateInput{
-		Access: access.Access, Viewers: access.Viewers, NamedViewersRefusal: access.NamedViewersRefusal,
+		Access: access.Access, Viewers: access.Viewers,
 		User: user, Name: siteName,
 		ArchiveSHA: archiveSHA, Author: versionAuthor(r), Files: files, OrUpdate: orUpdate,
 	})
-	return h.respondCreate(w, user, result, err)
+	return h.respondCreate(w, r.Context(), user, result, err)
 }
 
-func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *model.User, result sites.CreateResult, err error) bool {
+func (h *SiteHandler) respondCreate(w http.ResponseWriter, ctx context.Context, user *model.User, result sites.CreateResult, err error) bool {
 	if result.Exists {
 		return true
 	}
@@ -260,6 +260,7 @@ func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *model.User, res
 		writeCreateError(w, err)
 		return false
 	}
+	h.countDeploy(ctx, user)
 	state := result.ResponseState.(siteResponseState)
 	state.fileBytes = result.FileBytes
 	httpx.WriteJSON(w, http.StatusCreated, h.siteResponseFromState(result.Site, state))
@@ -365,7 +366,7 @@ func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, u
 
 func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, user *model.User, siteName string, input sites.UpdateInput, respond func(SiteResponse)) {
 	access := creationAccess(r)
-	input.Access, input.Viewers, input.NamedViewersRefusal = access.Access, access.Viewers, access.NamedViewersRefusal
+	input.Access, input.Viewers = access.Access, access.Viewers
 	input.ExpectedID, input.CheckID = r.Context().Value(web.AdminSiteKey{}).(string)
 	ifMatch, ok := h.ifMatchVersion(w, r)
 	if !ok {
@@ -374,7 +375,7 @@ func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, 
 	input.IfMatch = ifMatch
 	result, err := h.SitesSvc().Update(r.Context(), input)
 	if result.Created != nil {
-		h.respondCreate(w, user, *result.Created, err)
+		h.respondCreate(w, r.Context(), user, *result.Created, err)
 		return
 	}
 	if err != nil {
@@ -385,6 +386,7 @@ func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, 
 		h.writeUnpublishedState(w, user, result.Site, result.Version, result.ResponseState.(siteResponseState))
 		return
 	}
+	h.noteDeployed(r.Context(), user, result)
 	respond(h.siteResponseFromState(result.Site, result.ResponseState.(siteResponseState)))
 }
 
@@ -518,6 +520,9 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 			writeSitesError(w, err, siteName)
 		}
 		return
+	}
+	if !result.Unchanged && result.PreviousVersion != result.Site.ActiveVersion {
+		h.emitDeployed(result.Site.ID, result.Site.ActiveVersion, result.PreviousVersion, "active_version")
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.siteResponseFromState(result.Site, result.ResponseState.(siteResponseState)))
 }

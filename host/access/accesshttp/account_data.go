@@ -181,7 +181,7 @@ func (h *AccessHandler) writeAccountArchive(ctx context.Context, zw *zip.Writer,
 	}
 	for _, s := range a.sites {
 		files := appsites.FileVersion{UserID: s.UserID, SiteName: s.Name}
-		if err := h.SiteFiles.WriteArchive(ctx, put, a.root+"/sites/"+s.Name, s.ID, files); err != nil {
+		if err := h.SiteArchive.WriteArchive(ctx, put, a.root+"/sites/"+s.Name, s.ID, files); err != nil {
 			return err
 		}
 	}
@@ -194,7 +194,7 @@ func (h *AccessHandler) writeAccountArchive(ctx context.Context, zw *zip.Writer,
 			return err
 		}
 		files := appsites.FileVersion{UserID: d.UserID, SiteName: d.Name, TrashID: d.ID}
-		if err := h.SiteFiles.WriteArchive(ctx, put, prefix, d.ID, files); err != nil {
+		if err := h.SiteArchive.WriteArchive(ctx, put, prefix, d.ID, files); err != nil {
 			return err
 		}
 	}

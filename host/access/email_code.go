@@ -44,22 +44,29 @@ type VerifyCodeRequest struct {
 }
 
 // CodeFailure describes a sign-in refusal without an HTTP response writer.
+// A refusal the route words itself names its Refusal (Wrong with TriesLeft);
+// any other carries its text here.
 type CodeFailure struct {
+	Refusal                                       CodeRefusal
 	Error, Code, Reason, Address, SuggestedHandle string
 	TriesLeft                                     *int
 }
-type CodeMessages struct {
-	Expired                                                         func(time.Duration) CodeFailure
-	Wrong                                                           func(int) CodeFailure
-	UsedUp, LinkOtherBrowser, RateLimited, InvalidEmail, SendFailed func() CodeFailure
-	Off, Blocked                                                    CodeFailure
-}
-type HandleActions struct {
-	Judge   func(context.Context, string, string) (model.HandleVerdict, error)
-	Suggest func(context.Context, string) string
-	Address func(string) string
-	Assign  func(context.Context, string, string, bool)
-}
+
+// CodeRefusal is a sign-in refusal whose words the route supplies.
+type CodeRefusal int
+
+const (
+	CodeWorded           CodeRefusal = iota // the text is in the CodeFailure
+	CodeExpired                             // the code or link is past its time
+	CodeWrong                               // the code is not right; TriesLeft remain
+	CodeUsedUp                              // the code was used or its tries are spent
+	CodeLinkOtherBrowser                    // the link was opened in another browser
+	CodeRateLimited
+	CodeInvalidEmail
+	CodeSendFailed
+	CodeSignInOff // EMAIL_SIGNIN=off
+	CodeBlocked   // sign-up refused from this country
+)
 
 const maxCodeAttempts = 3
 
@@ -76,23 +83,23 @@ const maxCodeAttempts = 3
 // refusal is simpler and sufficient). geoBlock's zero value (the default,
 // feature off) never looks anything up, so this is a no-op for every caller
 // until the knob is set.
-func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow func(string) bool, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock SignupGeoBlock, authTTL time.Duration, enabled bool, messages CodeMessages, handles HandleActions) (string, int, int, CodeFailure) {
+func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow func(string) bool, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock SignupGeoBlock, authTTL time.Duration, enabled bool) (string, int, int, CodeFailure) {
 	if !enabled {
-		return "", 0, http.StatusForbidden, messages.Off
+		return "", 0, http.StatusForbidden, CodeFailure{Refusal: CodeSignInOff}
 	}
 	address, ok := authrules.NormalEmail(address)
 	if !ok {
-		return "", 0, http.StatusBadRequest, messages.InvalidEmail()
+		return "", 0, http.StatusBadRequest, CodeFailure{Refusal: CodeInvalidEmail}
 	}
 
 	if _, blocked := geoBlock.BlockedCountry(ip); blocked {
-		return "", 0, http.StatusForbidden, messages.Blocked
+		return "", 0, http.StatusForbidden, CodeFailure{Refusal: CodeBlocked}
 	}
 
 	// Per-address throttle: stops one email from being mail-bombed even if the
 	// attacker rotates source IPs.
 	if !allow(model.BaseEmail(address)) {
-		return "", 0, http.StatusTooManyRequests, messages.RateLimited()
+		return "", 0, http.StatusTooManyRequests, CodeFailure{Refusal: CodeRateLimited}
 	}
 
 	code, err := numericCode(6)
@@ -125,7 +132,7 @@ func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow f
 		// Don't expose details to the caller, but log loudly — this is the
 		// most likely failure mode in production (Resend misconfig, DNS, etc).
 		log.Printf("auth: mailer.SendSignInCode(%s): %v", redactedEmail(address), err)
-		return "", 0, http.StatusInternalServerError, messages.SendFailed()
+		return "", 0, http.StatusInternalServerError, CodeFailure{Refusal: CodeSendFailed}
 	}
 
 	return address, int(authTTL.Seconds()), 0, CodeFailure{}
@@ -135,20 +142,20 @@ func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow f
 // returns the account it signs in, creating it on first use. A refusal is its
 // HTTP status and body; status 0 is success. The steps run in this order, so
 // every refusal is decided before the next step can change anything.
-func (s *Service) VerifyEmailCode(ctx context.Context, allow func(string) bool, req VerifyCodeRequest, purpose string, siteID sql.NullString, randomHandles bool, authTTL time.Duration, enabled bool, messages CodeMessages, handles HandleActions) (model.User, bool, int, CodeFailure) {
+func (s *Service) VerifyEmailCode(ctx context.Context, allow func(string) bool, req VerifyCodeRequest, purpose string, siteID sql.NullString, randomHandles bool, authTTL time.Duration, enabled bool) (model.User, bool, int, CodeFailure) {
 	req = normalizeVerifyRequest(req)
-	tok, status, fail := s.lookupCodeToken(ctx, req, purpose, siteID, authTTL, enabled, messages)
+	tok, status, fail := s.lookupCodeToken(ctx, req, purpose, siteID, authTTL, enabled)
 	if status != 0 {
 		return model.User{}, false, status, fail
 	}
-	if status, fail := s.checkCodeToken(ctx, tok, req, allow, messages); status != 0 {
+	if status, fail := s.checkCodeToken(ctx, tok, req, allow); status != 0 {
 		return model.User{}, false, status, fail
 	}
-	chosen, status, fail := s.chooseNewHandle(ctx, tok, req, purpose, randomHandles, handles)
+	chosen, status, fail := s.chooseNewHandle(ctx, tok, req, purpose, randomHandles)
 	if status != 0 {
 		return model.User{}, false, status, fail
 	}
-	user, created, status, fail := s.spendCodeToken(ctx, tok, authTTL, messages)
+	user, created, status, fail := s.spendCodeToken(ctx, tok, authTTL)
 	if status != 0 {
 		return model.User{}, false, status, fail
 	}
@@ -158,7 +165,7 @@ func (s *Service) VerifyEmailCode(ctx context.Context, allow func(string) bool, 
 		}
 	}
 	if purpose == "dashboard" && (created || !user.Handle.Valid) {
-		user = s.assignCodeHandle(ctx, user, tok.Email, chosen, created, randomHandles, handles)
+		user = s.assignCodeHandle(ctx, user, tok.Email, chosen, created, randomHandles)
 	}
 	return user, created, 0, CodeFailure{}
 }
@@ -177,7 +184,7 @@ func normalizeVerifyRequest(req VerifyCodeRequest) VerifyCodeRequest {
 
 // lookupCodeToken finds the token the request redeems: a dashboard link by
 // its token, else the address's latest code for this purpose and site.
-func (s *Service) lookupCodeToken(ctx context.Context, req VerifyCodeRequest, purpose string, siteID sql.NullString, authTTL time.Duration, enabled bool, messages CodeMessages) (model.AuthToken, int, CodeFailure) {
+func (s *Service) lookupCodeToken(ctx context.Context, req VerifyCodeRequest, purpose string, siteID sql.NullString, authTTL time.Duration, enabled bool) (model.AuthToken, int, CodeFailure) {
 	var tok model.AuthToken
 	var err error
 	switch {
@@ -185,14 +192,14 @@ func (s *Service) lookupCodeToken(ctx context.Context, req VerifyCodeRequest, pu
 		tok, err = repo.GetAuthTokenByLink(ctx, s.database, req.Token)
 	case req.Email != "" && req.Code != "":
 		if !enabled {
-			return tok, http.StatusForbidden, messages.Off
+			return tok, http.StatusForbidden, CodeFailure{Refusal: CodeSignInOff}
 		}
 		tok, err = repo.GetLatestAuthTokenForEmail(ctx, s.database, req.Email, purpose, siteID)
 	default:
 		return tok, http.StatusBadRequest, CodeFailure{Error: "supply token or email+code"}
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		return tok, http.StatusUnauthorized, messages.Expired(authTTL)
+		return tok, http.StatusUnauthorized, CodeFailure{Refusal: CodeExpired}
 	}
 	if err != nil {
 		log.Printf("auth: lookup token: %v", err)
@@ -205,9 +212,9 @@ func (s *Service) lookupCodeToken(ctx context.Context, req VerifyCodeRequest, pu
 // checkCodeToken refuses a token whose tries are used up, a link opened in
 // another browser than the one that asked for it, and a wrong code. Every
 // wrong answer spends a try.
-func (s *Service) checkCodeToken(ctx context.Context, tok model.AuthToken, req VerifyCodeRequest, allow func(string) bool, messages CodeMessages) (int, CodeFailure) {
+func (s *Service) checkCodeToken(ctx context.Context, tok model.AuthToken, req VerifyCodeRequest, allow func(string) bool) (int, CodeFailure) {
 	if tok.Attempts >= maxCodeAttempts {
-		return http.StatusUnauthorized, messages.UsedUp()
+		return http.StatusUnauthorized, CodeFailure{Refusal: CodeUsedUp}
 	}
 	// A sign-in link works only in the browser that asked for it: the token
 	// is redeemed together with the nonce whose hash was stored with it. A
@@ -216,22 +223,22 @@ func (s *Service) checkCodeToken(ctx context.Context, tok model.AuthToken, req V
 	if req.Token != "" {
 		if !tok.NonceHash.Valid || !nonceMatches(req.Nonce, tok.NonceHash.String) {
 			_ = repo.IncrementAuthTokenAttempts(ctx, s.database, tok.ID)
-			return http.StatusUnauthorized, messages.LinkOtherBrowser()
+			return http.StatusUnauthorized, CodeFailure{Refusal: CodeLinkOtherBrowser}
 		}
 		return 0, CodeFailure{}
 	}
 	// Throttle guesses against a specific address across tokens, on top of
 	// the per-token maxCodeAttempts cap.
 	if !allow(model.BaseEmail(tok.Email)) {
-		return http.StatusTooManyRequests, messages.RateLimited()
+		return http.StatusTooManyRequests, CodeFailure{Refusal: CodeRateLimited}
 	}
 	if subtle.ConstantTimeCompare([]byte(req.Code), []byte(tok.Code)) != 1 {
 		_ = repo.IncrementAuthTokenAttempts(ctx, s.database, tok.ID)
 		left := maxCodeAttempts - (tok.Attempts + 1)
 		if left <= 0 {
-			return http.StatusUnauthorized, messages.UsedUp()
+			return http.StatusUnauthorized, CodeFailure{Refusal: CodeUsedUp}
 		}
-		return http.StatusUnauthorized, messages.Wrong(left)
+		return http.StatusUnauthorized, CodeFailure{Refusal: CodeWrong, TriesLeft: &left}
 	}
 	return 0, CodeFailure{}
 }
@@ -239,7 +246,7 @@ func (s *Service) checkCodeToken(ctx context.Context, tok model.AuthToken, req V
 // chooseNewHandle is the address a new account asked for, judged now, before
 // anything is created or the code is spent, so a refusal can be retried. A
 // new account that has not chosen yet is asked to (choose_handle).
-func (s *Service) chooseNewHandle(ctx context.Context, tok model.AuthToken, req VerifyCodeRequest, purpose string, randomHandles bool, handles HandleActions) (string, int, CodeFailure) {
+func (s *Service) chooseNewHandle(ctx context.Context, tok model.AuthToken, req VerifyCodeRequest, purpose string, randomHandles bool) (string, int, CodeFailure) {
 	if purpose != "dashboard" || randomHandles || (req.Handle == nil && !req.ChooseHandle) {
 		return "", 0, CodeFailure{}
 	}
@@ -247,7 +254,7 @@ func (s *Service) chooseNewHandle(ctx context.Context, tok model.AuthToken, req 
 	switch {
 	case errors.Is(lerr, sql.ErrNoRows) && req.Handle != nil:
 		chosen := strings.ToLower(strings.TrimSpace(*req.Handle))
-		v, jerr := handles.Judge(ctx, "", chosen)
+		v, jerr := JudgeHandle(ctx, s.database, "", chosen)
 		if jerr != nil {
 			status, fail := internalCodeFailure()
 			return "", status, fail
@@ -257,10 +264,10 @@ func (s *Service) chooseNewHandle(ctx context.Context, tok model.AuthToken, req 
 		}
 		return chosen, 0, CodeFailure{}
 	case errors.Is(lerr, sql.ErrNoRows):
-		sug := handles.Suggest(ctx, tok.Email)
+		sug := SuggestHandle(ctx, s.database, tok.Email)
 		return "", http.StatusConflict, CodeFailure{
 			Error: "Choose your address before the account is created: send the same code again with \"handle\". You can change it later, not more than once in 30 days.",
-			Code:  "choose_handle", SuggestedHandle: sug, Address: handles.Address(sug),
+			Code:  "choose_handle", SuggestedHandle: sug, Address: HandleAddress(sug),
 		}
 	case lerr != nil:
 		log.Printf("auth: lookup before choosing a handle: %v", lerr)
@@ -278,7 +285,7 @@ func (s *Service) chooseNewHandle(ctx context.Context, tok model.AuthToken, req 
 // the two serialize on the token row: either this verify finds the account
 // under the old address (before the change commits), or the token is already
 // spent. Never an empty new account under the old one.
-func (s *Service) spendCodeToken(ctx context.Context, tok model.AuthToken, authTTL time.Duration, messages CodeMessages) (model.User, bool, int, CodeFailure) {
+func (s *Service) spendCodeToken(ctx context.Context, tok model.AuthToken, authTTL time.Duration) (model.User, bool, int, CodeFailure) {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		status, fail := internalCodeFailure()
@@ -290,7 +297,7 @@ func (s *Service) spendCodeToken(ctx context.Context, tok model.AuthToken, authT
 		status, fail := internalCodeFailure()
 		return model.User{}, false, status, fail
 	} else if !ok {
-		return model.User{}, false, http.StatusUnauthorized, messages.Expired(authTTL)
+		return model.User{}, false, http.StatusUnauthorized, CodeFailure{Refusal: CodeExpired}
 	}
 	user, err := repo.GetUserByUsername(ctx, tx, tok.Email)
 	if cerr := tx.Commit(); err == nil || errors.Is(err, sql.ErrNoRows) {
@@ -363,7 +370,7 @@ func (s *Service) refusePasswordAccount(ctx context.Context, userID string) (int
 // lazy-backfills an older row that still has none): the one it chose when
 // still free, else the old rule. ClaimHandle only writes WHERE handle IS
 // NULL, so existing handles are never overwritten.
-func (s *Service) assignCodeHandle(ctx context.Context, user model.User, address, chosen string, created, randomHandles bool, handles HandleActions) model.User {
+func (s *Service) assignCodeHandle(ctx context.Context, user model.User, address, chosen string, created, randomHandles bool) model.User {
 	claimed := false
 	if created && chosen != "" {
 		ok, err := repo.ClaimHandle(ctx, s.database, user.ID, chosen)
@@ -374,7 +381,7 @@ func (s *Service) assignCodeHandle(ctx context.Context, user model.User, address
 	}
 	if !claimed {
 		// Not asked, or taken in the moment since the check: the old rule.
-		handles.Assign(ctx, user.ID, address, randomHandles)
+		AssignHandle(ctx, s.database, user.ID, address, randomHandles)
 	}
 	refetched, err := repo.GetUserByUsername(ctx, s.database, address)
 	if err != nil {

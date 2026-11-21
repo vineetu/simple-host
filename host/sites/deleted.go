@@ -26,13 +26,17 @@ type RestoreTrashedInput struct {
 	Handle string
 }
 
-// Trash moves a live site to Recently deleted: marked in the database
-// (plus whatever also records in the same transaction), and its files moved
-// out of every served path, with the commit last so a failure leaves the site
-// live and whole. The caller holds the site's lock. sql.ErrNoRows when the
-// site is no longer live.
+// Trash moves a live site to Recently deleted: marked in the database, and
+// its files moved out of every served path, with the commit last so a failure
+// leaves the site live and whole. The caller holds the site's lock.
+// sql.ErrNoRows when the site is no longer live.
 func (s *Service) Trash(ctx context.Context, in TrashInput) error {
-	site, also := in.Site, s.deps.DeletedTransaction
+	return s.trash(ctx, in.Site, nil)
+}
+
+// trash is Trash with also, when not nil, recording in the same transaction
+// (the idle cleanup's re-check).
+func (s *Service) trash(ctx context.Context, site repo.Site, also func(*sql.Tx) error) error {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -60,11 +64,11 @@ func (s *Service) Trash(ctx context.Context, in TrashInput) error {
 }
 
 // RestoreTrashed brings a site in Recently deleted back exactly as it
-// was (plus whatever also records in the same transaction). handle is the
+// was. handle is the
 // owner's current handle ("" if none). The caller holds the site's lock.
 // sql.ErrNoRows when it is not (or no longer) in Recently deleted.
 func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (repo.Site, error) {
-	d, handle, also := in.Site, in.Handle, s.deps.DeletedTransaction
+	d, handle := in.Site, in.Handle
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return repo.Site{}, err
@@ -72,11 +76,6 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (r
 	defer tx.Rollback()
 	if err := repo.RestoreDeletedSite(ctx, tx, d.ID); err != nil {
 		return repo.Site{}, err
-	}
-	if also != nil {
-		if err := also(tx); err != nil {
-			return repo.Site{}, err
-		}
 	}
 	full, err := repo.GetSiteByID(ctx, tx, d.ID)
 	if err != nil {
@@ -128,7 +127,7 @@ func (s *Service) RestoreTrashed(ctx context.Context, in RestoreTrashedInput) (r
 		if err := s.disk.EnsureHandleLink(handle, d.UserID); err != nil {
 			log.Printf("restore site: ensure handle link %s: %v", handle, err)
 		}
-		s.deps.RequestCert(handle)
+		s.requestCert(handle)
 	}
 	site, err := repo.GetSiteByUser(ctx, s.database, d.UserID, d.Name)
 	if err != nil {
@@ -151,7 +150,7 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 		return
 	}
 	for _, d := range list {
-		unlock := s.deps.LockSite(d.UserID, d.Name)
+		unlock := s.lockSite(d.UserID, d.Name)
 		domains, err := repo.PurgeDeletedSite(ctx, s.database, d.ID, s.deps.DeletedRetention, accounts.PlatformDomains()...)
 		unlock()
 		if err != nil {
@@ -179,7 +178,7 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 				continue
 			}
 			if mine {
-				s.deps.CancelDomainCert(dom)
+				s.deps.Hosts.CancelDomainCert(dom)
 			}
 		}
 		ReportWorkerProgress(ctx)
@@ -209,7 +208,7 @@ func (s *Service) Delete(ctx context.Context, in DeleteInput) error {
 	if _, err := lookup(); errors.Is(err, sql.ErrNoRows) {
 		return &Error{Code: "delete_not_found"}
 	}
-	unlock := s.deps.LockSite(in.UserID, in.Name)
+	unlock := s.lockSite(in.UserID, in.Name)
 	defer unlock()
 	site, err := lookup()
 	if err != nil {
@@ -247,7 +246,7 @@ func (s *Service) Restore(ctx context.Context, in RestoreInput) (RestoreResult, 
 	// Lock only a name really held in Recently deleted; check again under it.
 	unlock := func() {}
 	if _, err := repo.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name); err == nil {
-		unlock = s.deps.LockSite(in.UserID, in.Name)
+		unlock = s.lockSite(in.UserID, in.Name)
 	}
 	defer func() { unlock() }()
 	d, err := repo.GetDeletedSiteByUser(ctx, s.database, in.UserID, in.Name)
@@ -272,8 +271,6 @@ func (s *Service) Restore(ctx context.Context, in RestoreInput) (RestoreResult, 
 			return RestoreResult{}, err
 		}
 	}
-	if s.deps.HasLiveFamilies() {
-		s.deps.SyncRedirect(ctx, site.ID)
-	}
+	s.syncFamilyRedirect(ctx, site.ID)
 	return RestoreResult{Site: site, ResponseState: s.deps.ResponseState(site, 0, false, false)}, nil
 }

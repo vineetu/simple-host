@@ -52,8 +52,9 @@ func kvFixture(t *testing.T, combined bool) (*Service, Call) {
 			delete(held, id)
 		}
 	}
-	s := New(db, Deps{CombinedPool: combined, SiteSlots: slots, Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: 30 * time.Second, SQLiteTimeout: 30 * time.Second, Committed: func(context.Context) {}, Notify: func(Call, string, map[string]any) {}, MarkChanged: func() {}})
-	c := Call{Owner: true, OwnerID: owner, SiteID: site, SiteName: "kv-test", ResourceName: "data", RuntimeDir: t.TempDir()}
+	disk := testDisk(t)
+	s := New(db, Deps{Disk: disk, CombinedPool: combined, SiteSlots: slots, Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: 30 * time.Second, SQLiteTimeout: 30 * time.Second})
+	c := Call{Owner: true, OwnerID: owner, SiteID: site, SiteName: "kv-test", ResourceName: "data", RuntimeDir: filepath.Join(disk.SiteDir(owner, "kv-test"), "runtime")}
 	result, err := s.PutStorageResource(context.Background(), ResourceInput{Call: c, Name: "data", Kind: "kv"})
 	if err != nil {
 		t.Fatal(err)
@@ -173,9 +174,7 @@ func TestKVAdmissionBesideOtherStorage(t *testing.T) {
 	rc := c
 	rc.ResourceName = "rows"
 	rc.Resource = model.Resource{Kind: "sqlite"}
-	_, err := s.LegacySQL(ctx, LegacySQLInput{Call: rc, Mode: "schema", ReadBody: func() ([]byte, error) {
-		return []byte(`{"sql":"CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}`), nil
-	}})
+	_, err := s.LegacySQL(ctx, LegacySQLInput{Call: rc, Mode: "schema", Body: strings.NewReader(`{"sql":"CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,9 +195,6 @@ func TestKVAdmissionBesideOtherStorage(t *testing.T) {
 	upload.ResourceName = "uploads"
 	upload.Resource = result.Resource
 	s.deps.FileObjectsLimit = 1000
-	s.deps.FilePath = func(call Call, path string) string {
-		return filepath.Join(call.RuntimeDir, "files", call.ResourceName, path)
-	}
 	if _, auth, err := s.PutFile(ctx, FilePutInput{Call: upload, Path: "example.txt", Body: strings.NewReader("file")}); err != nil || auth != nil {
 		t.Fatalf("mixed upload: %+v %v", auth, err)
 	}

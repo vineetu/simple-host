@@ -8,9 +8,9 @@ import (
 )
 
 func TestWriteLockDeadline(t *testing.T) {
-	s := New(nil, Deps{Locks: &sync.Map{}})
 	for _, timeout := range []time.Duration{time.Second, 2 * time.Second} {
-		ctx, release, err := s.writeLock(context.Background(), "site", time.Second, timeout, nil)
+		s := New(nil, Deps{Locks: &sync.Map{}, WriteLockWait: time.Second, WriteTimeout: timeout})
+		ctx, release, err := s.writeLock(context.Background(), Call{OwnerID: "owner", SiteName: "site"}, false)
 		if err != nil {
 			t.Fatal(err)
 		}

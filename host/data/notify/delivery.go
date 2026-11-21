@@ -181,7 +181,7 @@ func (e *Engine) subscriberAllowed(ctx context.Context, n model.Notification, si
 	case siteOwner == n.OwnerID:
 		return true, true
 	default:
-		allowed, err = MayActOnSite(ctx, e.db, n.SiteID, n.OwnerID)
+		allowed, err = repo.MayActOnSite(ctx, e.db, n.SiteID, n.OwnerID)
 		if err != nil {
 			e.delivery.Fail("check member access", err)
 		}

@@ -6,16 +6,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/storage"
+	"golang.org/x/net/publicsuffix"
 )
-
-// DomainCertDeps supplies partner eligibility and certificate request quotas.
-type DomainCertDeps struct {
-	Partner func(context.Context, string, string) string
-	Allow   func(context.Context, string, string) (bool, error)
-}
 
 // DomainCertRequestBody is what a request file holds: the site's ownership
 // token (the issuer checks the TXT record against it), the domain link's
@@ -41,7 +37,7 @@ func (s *Service) RequestDomainCert(ctx context.Context, in DomainCertInput) boo
 	if p == "" || in.Token == "" || in.UserID == "" || in.Name == "" {
 		return false
 	}
-	want := DomainCertRequestBody(model.BoundDomain{Token: in.Token, UserID: in.UserID, Name: in.Name}, s.deps.DomainCerts.Partner(ctx, in.Domain, in.SiteID))
+	want := DomainCertRequestBody(model.BoundDomain{Token: in.Token, UserID: in.UserID, Name: in.Name}, s.RequestablePartner(ctx, in.Domain, in.SiteID))
 	cur, err := os.ReadFile(p)
 	switch {
 	case err == nil && string(cur) == want:
@@ -49,7 +45,7 @@ func (s *Service) RequestDomainCert(ctx context.Context, in DomainCertInput) boo
 	case err == nil:
 	// Out of date (the site was renamed): rewrite, not a new request.
 	case errors.Is(err, os.ErrNotExist):
-		ok, err := s.deps.DomainCerts.Allow(ctx, in.UserID, in.Domain)
+		ok, err := s.AllowDomainCertRequest(ctx, in.UserID, in.Domain, s.deps.Limits.DomainCertsDaily)
 		if err != nil {
 			log.Printf("domain certs: cap check %s: %v", in.Domain, err)
 			return false
@@ -79,4 +75,46 @@ func (s *Service) CancelDomainCert(_ context.Context, in DomainCertInput) {
 	if _, err := storage.UpdateCertRequest(storage.CertRequest{Directory: filepath.Dir(filepath.Dir(in.Path)), Key: filepath.Base(in.Path), Mode: storage.CertRequestRemove}); err != nil {
 		log.Printf("domain certs: withdraw %s: %v", in.Domain, err)
 	}
+}
+
+// IsApexDomain reports whether domain is a registrable domain itself
+// (brand.com, brand.co.uk), not a name under one.
+func IsApexDomain(domain string) bool {
+	etld1, err := publicsuffix.EffectiveTLDPlusOne(domain)
+	return err == nil && etld1 == domain
+}
+
+// DomainPartner is the www / bare partner of a custom domain: www.<apex> for
+// an apex, the apex for www.<apex>, "" for any other name.
+func DomainPartner(domain string) string {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	if rest, ok := strings.CutPrefix(domain, "www."); ok && IsApexDomain(rest) {
+		return rest
+	}
+	if IsApexDomain(domain) {
+		return "www." + domain
+	}
+	return ""
+}
+
+// PartnerBoundElsewhere reports whether the partner of a site's domain is
+// bound to another site (any account's): it is then never asked for, and
+// the issuer skips it too (deploy/domain-certs/issue.sh partner_blocked). A
+// failed lookup counts as bound.
+func (s *Service) PartnerBoundElsewhere(ctx context.Context, partner, siteID string) bool {
+	if s.database == nil || partner == "" {
+		return false
+	}
+	bound, err := s.DomainBoundToOtherSite(ctx, partner, siteID)
+	return err != nil || bound
+}
+
+// RequestablePartner is the partner to put on the domain's certificate
+// request, "" when it has none or another site holds it.
+func (s *Service) RequestablePartner(ctx context.Context, domain, siteID string) string {
+	p := DomainPartner(domain)
+	if s.PartnerBoundElsewhere(ctx, p, siteID) {
+		return ""
+	}
+	return p
 }

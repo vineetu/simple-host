@@ -260,7 +260,7 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	if !call.VisitorAI {
 		requested = ""
 	}
-	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -288,7 +288,7 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	if writer != "" {
 		data["row_visitor_id"] = writer
 	}
-	s.deps.Notify(call, name, data)
+	s.Emit(Event{Call: call, Name: name, Data: data})
 	return value, nil, nil
 }
 
@@ -364,7 +364,7 @@ func (s *Service) DeleteKV(ctx context.Context, in KVDeleteInput) (*Error, error
 		if writer != "" {
 			data["row_visitor_id"] = writer
 		}
-		s.deps.Notify(in.Call, name, data)
+		s.Emit(Event{Call: in.Call, Name: name, Data: data})
 	}
 	return nil, nil
 }

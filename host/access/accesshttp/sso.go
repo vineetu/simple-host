@@ -491,7 +491,7 @@ func ssoReturnToOK(u *url.URL, base string) bool {
 		return false
 	}
 	q := u.Query()
-	if len(q) != 2 || len(q["state"]) != 1 || len(q["cn"]) != 1 || len(q.Get("state")) != 64 || !nonceHashRe.MatchString(q.Get("cn")) {
+	if len(q) != 2 || len(q["state"]) != 1 || len(q["cn"]) != 1 || len(q.Get("state")) != 64 || !accounts.NonceHashShape.MatchString(q.Get("cn")) {
 		return false
 	}
 	same := *u

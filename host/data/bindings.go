@@ -101,6 +101,14 @@ type DefaultProvider struct {
 	DB *sql.DB
 }
 
+// bindings is the program's provider, the platform's own when none is set.
+func (s *Service) bindings() BindingProvider {
+	if s.deps.Bindings != nil {
+		return s.deps.Bindings
+	}
+	return DefaultProvider{DB: s.db}
+}
+
 func (p DefaultProvider) OwnerOnSite(ctx context.Context, siteID, userID string) (bool, error) {
 	if userID == "" {
 		return false, nil

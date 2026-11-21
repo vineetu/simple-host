@@ -17,16 +17,12 @@ import (
 // steps could change in between, and these are the hottest lookups. This
 // file is the one place outside Access that reads users
 // (scripts/split/table-owner-exceptions.txt); ownerFrom, ownerCols and
-// ownerHeld name the account columns Sites knows about.
+// sqlTakenDown name the account columns Sites knows about.
 
 const ownerFrom = ` FROM sites s JOIN users o ON o.id = s.user_id`
 
 // ownerCols scan into ownerDest.
 const ownerCols = `o.username, COALESCE(o.handle, ''), o.suspended_at IS NOT NULL, COALESCE(o.suspended_reason, '')`
-
-// ownerHeld is true when the site is down by the operator, by its own flag
-// or through its owner's account.
-const ownerHeld = `(s.suspended_at IS NOT NULL OR o.suspended_at IS NOT NULL)`
 
 // ownerDest is where ownerCols go; the username only where withUsername
 // (the admin views), as before.
@@ -124,8 +120,8 @@ func ListAllSites(ctx context.Context, db *sql.DB) ([]Site, error) {
 // profile listing. The caller checks live files and the site's own indexing
 // preferences.
 func ListSitemapSites(ctx context.Context, db *sql.DB) ([]Site, error) {
-	return listSites(ctx, db, false, `s.deleted_at IS NULL AND s.offline_at IS NULL AND NOT `+ownerHeld+`
-		AND s.passcode_enc IS NULL AND s.access = 'anyone' AND s.expires_at IS NULL ORDER BY s.id`)
+	return listSites(ctx, db, false, `s.deleted_at IS NULL AND s.offline_at IS NULL AND NOT `+sqlTakenDown+`
+		AND `+sqlNotGated+` AND s.expires_at IS NULL ORDER BY s.id`)
 }
 
 // VisitorSharedSites lists, in name order, the live sites email is a named
@@ -176,7 +172,7 @@ func SiteSuspension(ctx context.Context, q Querier, siteID string) (bool, string
 // sites in Recently deleted too.
 func LiveSiteNames(ctx context.Context, q Querier, accountID string, withDeleted bool) ([]string, error) {
 	return scanNames(q.QueryContext(ctx, `SELECT s.name`+ownerFrom+`
-		 WHERE s.user_id = $1 AND ($2 OR s.deleted_at IS NULL) AND NOT `+ownerHeld+`
+		 WHERE s.user_id = $1 AND ($2 OR s.deleted_at IS NULL) AND NOT `+sqlTakenDown+`
 		 ORDER BY s.name`, accountID, withDeleted))
 }
 
@@ -200,7 +196,7 @@ func scanNames(rows *sql.Rows, err error) ([]string, error) {
 // or through the account), so the purge keeps it.
 func AccountSiteTakenDown(ctx context.Context, q Querier, accountID string) (bool, error) {
 	var down bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1`+ownerFrom+` WHERE s.user_id = $1 AND `+ownerHeld+`)`, accountID).Scan(&down)
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1`+ownerFrom+` WHERE s.user_id = $1 AND `+sqlTakenDown+`)`, accountID).Scan(&down)
 	return down, err
 }
 
@@ -208,7 +204,7 @@ func AccountSiteTakenDown(ctx context.Context, q Querier, accountID string) (boo
 // taken-down ones (DeleteExpiredSite checks again as it deletes).
 func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
 	rows, err := db.QueryContext(ctx, `SELECT s.id, s.user_id, s.name`+ownerFrom+`
-		WHERE s.expires_at IS NOT NULL AND s.expires_at < now() AND s.deleted_at IS NULL AND NOT `+ownerHeld+`
+		WHERE s.expires_at IS NOT NULL AND s.expires_at < now() AND s.deleted_at IS NULL AND NOT `+sqlTakenDown+`
 		ORDER BY s.expires_at LIMIT 500`)
 	if err != nil {
 		return nil, err
@@ -230,7 +226,7 @@ func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
 func ListPurgeableSites(ctx context.Context, database *sql.DB, retention time.Duration) ([]DeletedSite, error) {
 	rows, err := database.QueryContext(ctx, `SELECT s.id, s.user_id, s.name, s.deleted_at, s.custom_domain, s.purge_at`+ownerFrom+`
 		WHERE s.deleted_at IS NOT NULL AND COALESCE(s.purge_at, s.deleted_at + ($1 * interval '1 second')) < now()
-		  AND NOT `+ownerHeld+` ORDER BY s.deleted_at LIMIT 500`, int64(retention.Seconds()))
+		  AND NOT `+sqlTakenDown+` ORDER BY s.deleted_at LIMIT 500`, int64(retention.Seconds()))
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +251,7 @@ func ListDomainsToCheck(ctx context.Context, database *sql.DB, activeAge time.Du
 	rows, err := database.QueryContext(ctx, `
 		SELECT s.id, s.custom_domain, COALESCE(s.domain_status, ''), s.domain_verified_at IS NOT NULL, COALESCE(s.previous_domain, ''),
 		       s.user_id, s.name, COALESCE(s.domain_token, ''), COALESCE(s.custom_domain = ANY(s.domain_proof_exempt), false),
-		       `+ownerHeld+ownerFrom+`
+		       `+sqlTakenDown+ownerFrom+`
 		WHERE s.custom_domain IS NOT NULL AND s.custom_domain <> '' AND s.deleted_at IS NULL
 		  AND (s.domain_status IS DISTINCT FROM 'active' OR s.domain_verified_at IS NULL
 		       OR s.domain_verified_at < now() - ($1 * interval '1 second'))

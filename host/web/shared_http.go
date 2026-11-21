@@ -11,7 +11,6 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
-	"golang.org/x/net/publicsuffix"
 )
 
 // HTTP answers and request rules the site, access and data routes share.
@@ -197,13 +196,6 @@ func WithVisitorPath(r *http.Request) *http.Request {
 // passcodeRewritePrefix is where nginx and Caddy send a protected site's
 // request (rewrite ^ /internal/passcode$uri): the visitor asked for the rest.
 const passcodeRewritePrefix = "/internal/passcode"
-
-// IsApexDomain reports whether domain is its own registrable apex (eTLD+1),
-// i.e. it has no subdomain label (agent-deploy.dev -> true, x.agent-deploy.dev -> false).
-func IsApexDomain(domain string) bool {
-	etld1, err := publicsuffix.EffectiveTLDPlusOne(domain)
-	return err == nil && etld1 == domain
-}
 
 // AdminSiteMismatch reports a request from asSiteOwner whose site, found again
 // by owner and name, is not the one the admin named by id.

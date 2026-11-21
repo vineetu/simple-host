@@ -179,16 +179,49 @@ func (h *AccessHandler) establishSession(r *http.Request, tok model.EstablishTok
 	return sess, 0, ""
 }
 
+// signInRefusal is why a site takes no visitor sign-in now.
+type signInRefusal int
+
+const (
+	signInOpen signInRefusal = iota
+	signInOffline
+	signInSuspended
+	signInLocked // its passcode does not let this browser in yet
+)
+
+// siteSignIn decides whether site siteID takes a visitor sign-in from this
+// request: it is not offline (offline.go), not taken down (suspend.go), and
+// its passcode lets the browser in (PasscodeLetsIn). On a failed read, err is
+// set and the refusal names the check that failed. reason is the take-down's.
+// The OAuth starts and the sign-in establish both ask it.
+func (h *AccessHandler) siteSignIn(r *http.Request, siteID string) (refusal signInRefusal, reason string, err error) {
+	if off, err := h.sitesSvc().SiteOffline(r.Context(), siteID); err != nil || off {
+		return signInOffline, "", err
+	}
+	if susp, reason, err := h.sitesSvc().SiteSuspension(r.Context(), siteID); err != nil || susp {
+		return signInSuspended, reason, err
+	}
+	switch h.decideData(r, siteID, accountapp.VisitSignIn).verdict {
+	case accountapp.VisitServe:
+		return signInOpen, "", nil
+	case accountapp.VisitServiceError:
+		return signInLocked, "", errSignInPasscodeRead
+	}
+	return signInLocked, "", nil
+}
+
+var errSignInPasscodeRead = errors.New("site passcode: read failed")
+
 // establishSiteOpen: a company sign-in's site still takes sign-ins and its
 // passcode (reason "passcode") lets the browser in.
 func (h *AccessHandler) establishSiteOpen(r *http.Request, siteID string) (int, string) {
-	if off, err := h.sitesSvc().SiteOffline(r.Context(), siteID); err != nil || off {
+	refusal, _, _ := h.siteSignIn(r, siteID)
+	switch refusal {
+	case signInOffline:
 		return 403, "site_offline"
-	}
-	if susp, _, err := h.sitesSvc().SiteSuspension(r.Context(), siteID); err != nil || susp {
+	case signInSuspended:
 		return 403, "site_suspended"
-	}
-	if !h.PasscodeLetsIn(r, siteID) {
+	case signInLocked:
 		return 0, "passcode"
 	}
 	return 0, ""

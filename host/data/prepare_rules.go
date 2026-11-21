@@ -33,7 +33,7 @@ func (s *Service) prepareResourceTables(ctx context.Context, call Call, resource
 		var err error
 		existing, err = runtime.PrepareRulesDatabase(ctx, path, s.deps.SQLiteMaxMemory, SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool), s.BudgetUsed(usage), fi.Size(), requireEmpty, clearIDs, own, hold, func(err error) {
 			log.Printf("storage: site %s %s: checkpoint after rules: %v", call.SiteID, resource.Name, err)
-		}, s.deps.MarkChanged, func(tables map[string]bool) {
+		}, s.deps.Disk.MarkChanged, func(tables map[string]bool) {
 			existing = tables
 			a.Committed()
 		})

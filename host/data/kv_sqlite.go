@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/host/papermetrics"
+
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
@@ -126,7 +128,7 @@ func (s *Service) commitKVSQLite(ctx context.Context, conn *sqlite3.Conn, a *Adm
 		return err
 	}
 	a.Committed()
-	s.deps.Committed(ctx)
+	papermetrics.From(ctx).WriteCommitted(ctx)
 	if err := conn.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		log.Print("storage: KV checkpoint failed after commit")
 	}
@@ -134,7 +136,7 @@ func (s *Service) commitKVSQLite(ctx context.Context, conn *sqlite3.Conn, a *Adm
 }
 
 func (s *Service) deleteKVSQLite(ctx context.Context, call Call, key string) (n int64, writer string, err error) {
-	ctx, unlock, err := s.writeLock(ctx, call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+	ctx, unlock, err := s.writeLock(ctx, call, true)
 	if err != nil {
 		return 0, "", err
 	}
@@ -145,7 +147,7 @@ func (s *Service) deleteKVSQLite(ctx context.Context, call Call, key string) (n 
 		}
 		item, e := runtime.RuntimeKVGet(conn, key, "")
 		if errors.Is(e, sql.ErrNoRows) {
-			s.deps.Committed(ctx)
+			papermetrics.From(ctx).WriteCommitted(ctx)
 			return nil
 		}
 		if e != nil {
@@ -419,7 +421,7 @@ func (s *Service) deleteRuleKVSQLite(ctx context.Context, conn *sqlite3.Conn, a 
 		}
 		// A delete that succeeds without removing anything still counts as a
 		// committed write, as for the owner (R3-S5a ruling 5).
-		s.deps.Committed(ctx)
+		papermetrics.From(ctx).WriteCommitted(ctx)
 		return nil
 	}
 	if err := kvRuleExec(conn, `UPDATE kv_meta SET entries=entries-1,logical_bytes=logical_bytes-? WHERE id=1`, []ruleengine.Value{ruleengine.Int(int64(len(key) + len(item.Value)))}); err != nil {

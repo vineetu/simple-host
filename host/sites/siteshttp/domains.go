@@ -104,7 +104,7 @@ type dnsRecord struct {
 // An apex/registrable domain (e.g. agent-deploy.dev) can't use a CNAME, so it gets
 // an A record to the box IP; a subdomain (e.g. recipes.brand.com) gets a CNAME.
 func (h *SiteHandler) dnsRecordFor(domain string) dnsRecord {
-	if h.CustomDomainIP != "" && web.IsApexDomain(domain) {
+	if h.CustomDomainIP != "" && sites.IsApexDomain(domain) {
 		return dnsRecord{Type: "A", Host: domain, Value: h.CustomDomainIP}
 	}
 	return dnsRecord{

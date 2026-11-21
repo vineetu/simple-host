@@ -134,7 +134,10 @@ func (h *ConnectorHandler) MCPUpstreamForTest() http.Handler {
 // NewConnectorHandler builds the connector. upstream is the application mux
 // behind the key scope gate (auth.ScopeGate): MCP tool calls are served into
 // it in process, so a deploy-only key's tools meet the same route table.
-func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler, hostedEvents bool, editions ...*edition.Edition) *ConnectorHandler {
+// access gives tools the visitor reference key notifications use
+// (AccessHandler.VisitorRefKey); alerts emails the owner when an app is
+// connected (UserHandler.SignInAlerts). Either may be nil.
+func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomain, contentHost, skillVersion string, upstream http.Handler, hostedEvents bool, access *AccessHandler, alerts *SignInAlerts, editions ...*edition.Edition) *ConnectorHandler {
 	var ed *edition.Edition
 	if len(editions) > 0 {
 		ed = editions[0]
@@ -161,6 +164,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		mcpResource:  issuer + "/mcp",
 		adminAPIKey:  adminAPIKey,
 		consentKey:   key,
+		alerts:       alerts,
 		// Registration: a chat app registers once per install, so a handful
 		// an hour per address is plenty. Authorize and token: one person's
 		// sign-in or a client's refresh loop, with room for retries.
@@ -207,6 +211,11 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// Teams are offered where accounts own their own sites.
 		Teams: ed.Identity().PersonalSites,
 	}
+	// Tools hand out the same opaque visitor reference notifications carry
+	// (derived from PASSCODE_ENC_KEY, else the process-local export key).
+	if access != nil {
+		h.MCPConfig.VisitorRefs = accounts.NewVisitorReferences(access.VisitorRefKey())
+	}
 	// Another Simple Host server names itself in the connector's text, with
 	// the rewriter its llms.txt and Get started use (SetInstanceHosts runs
 	// first). Simple Hack rewrites its own simple-hack.app mentions
@@ -224,14 +233,6 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	}
 	h.mcp = mcp.NewServer(h.MCPConfig)
 	return h
-}
-
-// SetVisitorReferences shares the site handler's visitor reference key
-// (derived from PASSCODE_ENC_KEY, else the process-local export key).
-// Call once at startup, before serving.
-func (h *ConnectorHandler) SetVisitorReferences(sites *AccessHandler) {
-	h.MCPConfig.VisitorRefs = accounts.NewVisitorReferences(sites.VisitorRefKey())
-	h.mcp = mcp.NewServer(h.MCPConfig)
 }
 
 // SetPreviewBases follows the same served bases as the site's URL routing.
@@ -444,23 +445,7 @@ func redirectTarget(raw string) string {
 // grant: this server's /mcp, or the server as a whole. Anything else is not a
 // resource this server serves.
 func (h *ConnectorHandler) normalizeResource(raw string) (string, bool) {
-	if raw == "" {
-		return h.Issuer, true
-	}
-	u, err := url.Parse(raw)
-	if err != nil || !u.IsAbs() || u.Fragment != "" || u.RawQuery != "" {
-		return "", false
-	}
-	trimmed := strings.TrimRight(raw, "/")
-	switch {
-	case strings.EqualFold(trimmed, h.mcpResource):
-		return h.mcpResource, true
-	case strings.EqualFold(h.Issuer, "https://simple-host.app") && strings.EqualFold(trimmed, "https://mcp.simple-host.app/mcp"):
-		return h.mcpResource, true
-	case strings.EqualFold(trimmed, h.Issuer):
-		return h.Issuer, true
-	}
-	return "", false
+	return accounts.NormalizeConnectorResource(h.Issuer, raw)
 }
 
 // ---- dynamic client registration (RFC 7591) ------------------------------------
@@ -726,7 +711,7 @@ func analyticsProduct(name string) string {
 
 func (h *ConnectorHandler) accountsSvc() *accounts.Service { return accounts.New(h.database) }
 func (h *ConnectorHandler) connectorSvc() *accounts.Connector {
-	return accounts.NewConnector(h.database, h.now, h.normalizeResource, h.teamConnections, h.Limits.OAuthAccessTTL, h.Limits.OAuthRefreshTTL)
+	return accounts.NewConnector(h.database, h.now, h.Issuer, h.teamConnections, h.Limits.OAuthAccessTTL, h.Limits.OAuthRefreshTTL)
 }
 func (h *ConnectorHandler) writeConnectorTokens(w http.ResponseWriter, reply accounts.ConnectorTokens, err error) {
 	if err != nil {

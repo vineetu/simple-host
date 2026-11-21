@@ -26,8 +26,13 @@ type recorderKey struct{}
 // With supplies the request recorder before dispatching to the transport.
 func With(next http.Handler, recorder Recorder) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), recorderKey{}, recorder)))
+		next.ServeHTTP(w, r.WithContext(WithRecorder(r.Context(), recorder)))
 	})
+}
+
+// WithRecorder is ctx carrying recorder, for work that runs outside a request.
+func WithRecorder(ctx context.Context, recorder Recorder) context.Context {
+	return context.WithValue(ctx, recorderKey{}, recorder)
 }
 
 // From is the request's recorder, or one that records nothing.

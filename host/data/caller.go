@@ -55,7 +55,7 @@ func (s *Service) OwnerOnSite(ctx context.Context, call Call) bool {
 	if call.Owner || call.VisitorAI || call.VisitorID == "" || !call.OnOwnAddress || call.Resource.BeforePresets {
 		return false
 	}
-	ok, err := s.deps.Bindings.OwnerOnSite(ctx, call.SiteID, call.VisitorID)
+	ok, err := s.bindings().OwnerOnSite(ctx, call.SiteID, call.VisitorID)
 	return err == nil && ok
 }
 

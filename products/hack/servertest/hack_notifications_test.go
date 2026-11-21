@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/host/handler"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -136,7 +137,7 @@ func newHackNotifyFixture(t *testing.T) hackNotifyFixture {
 	roots := x509.NewCertPool()
 	roots.AddCert(x.server.Certificate())
 	a.data.SetNotifyClientForTest(roots)
-	a.conn.SetEventsBackend(a.data.EventsBackend())
+	a.conn.SetEventsBackend(handler.EventsBackend(a.data))
 	org, member, other := a.newPerson(t, "hn-org"), a.newPerson(t, "hn-member"), a.newPerson(t, "hn-other")
 	slug := a.makeEvent(t, org)
 	a.join(t, slug, member, org)

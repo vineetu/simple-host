@@ -3,6 +3,7 @@ package servertest
 import (
 	"context"
 	"database/sql"
+	"github.com/vsriram/simple-host/host/handler"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -197,7 +198,7 @@ func TestRkNotifyConnectorRefusesDeployScope(t *testing.T) {
 	if err := a.Access.SetPasscodeKey(TestPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	a.Conn.SetEventsBackend(a.Data.EventsBackend())
+	a.Conn.SetEventsBackend(handler.EventsBackend(a.Data))
 	owner := a.NewPerson(t, "notify-deploy")
 	dk, _ := rkMintDeploy(t, a, owner)
 	rpc := func(method string) Resp {

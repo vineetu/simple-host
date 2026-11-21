@@ -34,11 +34,6 @@ type EventDomainHandler struct {
 	limiter *httpx.RateLimiter
 }
 
-// SetNamePeer sets the peer instance asked before a name is claimed.
-func (h *EventDomainHandler) SetNamePeer(fn func(ctx context.Context, zone, name string) (bool, error)) {
-	h.service.SetEventNamePeer(fn)
-}
-
 // NameClaimed reports whether name is claimed under zone here: what this
 // instance answers the peer.
 func (h *EventDomainHandler) NameClaimed(ctx context.Context, zone, name string) (bool, error) {

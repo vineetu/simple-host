@@ -40,9 +40,9 @@ type UserHandler struct {
 	passwordEnabled, passwordSelfSignup     bool
 	passwordLoginLimiter, passwordIPLimiter *httpx.RateLimiter
 
-	// publicPage builds an account's public page address (SiteHandler.PersonPageURL).
-	publicPage func(handle string) string
-	siteFiles  *AccessHandler
+	// siteFiles is Access over the account's sites (SetSites): file usage,
+	// the address and the public page GET /v1/me names.
+	siteFiles *AccessHandler
 
 	// alerts emails the owner after each sign-in (signin_alert.go).
 	Alerts *SignInAlerts
@@ -88,9 +88,6 @@ func (h *UserHandler) SetReviewerEmail(address string) {
 	h.reviewerEmail = strings.TrimSpace(address)
 	h.Alerts.reviewerEmail = h.reviewerEmail
 }
-
-// SetPublicPage sets how GET /v1/me names the account's public page.
-func (h *UserHandler) SetPublicPage(f func(handle string) string) { h.publicPage = f }
 
 type authRequest struct {
 	Email string `json:"email"`
@@ -229,7 +226,7 @@ func (h *UserHandler) requestSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nonceHash, ok := nonceHashParam(req.NonceHash)
+	nonceHash, ok := accounts.NonceHashParam(req.NonceHash)
 	if !ok {
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "nonce_hash must be base64url SHA-256 (43 characters)"})
 		return
@@ -412,8 +409,8 @@ func (h *UserHandler) meFor(ctx context.Context, userID string) (meResponse, err
 		}
 		resp.HasPassword, resp.Login = &has, login
 	}
-	if h.publicPage != nil && user.Handle.String != "" {
-		resp.PublicPage = h.publicPage(user.Handle.String)
+	if h.siteFiles != nil && user.Handle.String != "" {
+		resp.PublicPage = h.siteFiles.Hosts.Addressing().PersonPageURL(user.Handle.String)
 	}
 	return resp, h.mePersonalSites(ctx, &user, &resp)
 }

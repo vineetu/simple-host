@@ -17,9 +17,3 @@ func (h *SiteHandler) fileCapsEnabled() bool {
 	l := h.Limits
 	return h.Ed.Storage().FileCaps && (l.MaxSiteTotalMB > 0 || l.MaxAccountMB > 0 || l.MaxSiteTotalOverrides != "" || l.MaxAccountOverrides != "")
 }
-func (h *SiteHandler) LockAccountFiles(userID string) func() {
-	if !h.fileCapsEnabled() {
-		return func() {}
-	}
-	return h.LockSite(userID, "")
-}

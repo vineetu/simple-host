@@ -120,13 +120,10 @@ func NewAppMailer(t *testing.T, mailer email.Sender, eds ...*edition.Edition) *A
 	access.Passcode.Limits = lim
 	access.Notify = notify.NewEngine(database, ed, lim, rt.SiteDomain)
 	access.SiteFiles = sites.New(database, disk, nil, 0, sites.Deps{
-		LockSite:         func(userID, name string) func() { return sites.LockSiteName(uploadLocks, userID, name) },
+		Locks: uploadLocks, Hosts: hosts,
 		DeletedRetention: lim.DeletedRetention,
-		HasLiveFamilies:  hosts.HasLiveFamilies, SyncRedirect: hosts.SyncDomainRedirect,
-		RequestCert: func(string) {}, CancelDomainCert: hosts.CancelDomainCert,
-		// Data's saved-data resources go into an export; none are saved here.
-		ExportResources: func(context.Context, string) ([]map[string]any, error) { return nil, nil },
 	})
+	access.SiteArchive = &operations.SiteArchive{Database: database, Disk: disk, Locks: uploadLocks, Slots: appstorage.NewSiteSlots(lim.StorageSiteInflight, appstorage.NewSQLiteGate(lim.StorageSQLConcurrency, lim.StorageAcquireWait), lim.StorageAcquireWait)}
 	access.Reporting = operations.NewReporting(database)
 	a.Access = access
 	siteOps := httpx.NewRateLimiterFor(lim.RateSiteOps.Burst, lim.RateSiteOps.Every)
@@ -135,7 +132,6 @@ func NewAppMailer(t *testing.T, mailer email.Sender, eds ...*edition.Edition) *A
 	access.RegisterAccountRoutes(a.Mux, authMW, siteOps, exports)
 	access.RegisterGateRoutes(a.Mux, authMW, notice, siteOps)
 	users.SetSites(access)
-	users.SetPublicPage(func(handle string) string { return "https://" + handle + "." + rt.SiteDomain + "/" })
 
 	probe := access.StorageCaller(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := appstorage.CallFrom(r.Context())
@@ -163,9 +159,8 @@ func NewAppMailer(t *testing.T, mailer email.Sender, eds ...*edition.Edition) *A
 	})))
 
 	gated := auth.ScopeGate(accountapp.New(database), a.Mux, lim.KeyIdleExpiry, nil)
-	a.Conn = accesshttp.NewConnectorHandler(database, base, adminKey, rt.SiteDomain, rt.ContentHost, "1.0.0", gated, false, ed)
+	a.Conn = accesshttp.NewConnectorHandler(database, base, adminKey, rt.SiteDomain, rt.ContentHost, "1.0.0", gated, false, access, users.SignInAlerts(), ed)
 	a.Conn.Register(a.Mux, authMW)
-	a.Conn.SetSignInAlerts(users.SignInAlerts())
 	app := web.SecurityHeaders(web.CORS(a.Conn.BearerAuth(gated)))
 	gate := access.SiteGate()
 	root = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	accountapp "github.com/vsriram/simple-host/host/access"
+
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	repository "github.com/vsriram/simple-host/host/data/repo"
 )
@@ -42,7 +44,7 @@ func (s *Service) Visitors(ctx context.Context, in VisitorsInput) ([]Visitor, er
 	for _, id := range in.IDs {
 		v := Visitor{VisitorID: id}
 		if wrote[id] {
-			email, err := s.deps.VisitorEmail(ctx, id)
+			email, err := accountapp.VisitorEmail(ctx, s.db, id)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return nil, err
 			}
@@ -75,7 +77,7 @@ var errAmbiguousVisitorEmail = errors.New("ambiguous visitor email")
 
 // resolveSignedInVisitorByEmail finds the one person, among those the
 // server has recorded as signed in on this site, whose current canonical
-// sign-in email (resolved the same way s.deps.VisitorEmail/
+// sign-in email (resolved the same way accountapp.VisitorEmail/
 // storage_visitor_emails does for the forward direction — not just a raw
 // username or OAuth-identity row match, which CandidateVisitorIDsForEmail
 // alone would be) case-insensitively equals email. "" is returned if the
@@ -89,7 +91,7 @@ func (s *Service) resolveSignedInVisitorByEmail(ctx context.Context, siteID, ema
 	}
 	match := ""
 	for _, id := range candidates {
-		canonical, err := s.deps.VisitorEmail(ctx, id)
+		canonical, err := accountapp.VisitorEmail(ctx, s.db, id)
 		if err != nil || canonical == "" {
 			continue // gone, or this id does not resolve forward; not a match
 		}
@@ -147,35 +149,34 @@ func (s *Service) ResolveOwnerFor(ctx context.Context, c Call, ref string) (stri
 type VisitorToolWriteInput struct {
 	SiteID, UserID, App, Action, Resource, Kind string
 	Cap                                         int
-	Write                                       func(action string) (any, error)
 }
 
-// VisitorToolWrite counts the attempt, writes the resource and records its app label.
-func (s *Service) VisitorToolWrite(ctx context.Context, in VisitorToolWriteInput) (any, error) {
+// CountVisitorToolWrite counts a visitor tool's write attempt before it runs,
+// refusing once the day's cap is reached. Attempts count too, so failures and
+// concurrent retries cannot evade the cap.
+func (s *Service) CountVisitorToolWrite(ctx context.Context, in VisitorToolWriteInput) error {
 	err := repository.CountVisitorAIWrite(ctx, s.db, in.UserID, in.SiteID, in.Cap)
 	if err == sql.ErrNoRows {
-		return nil, &Error{Code: "visitor_write_limit", Message: fmt.Sprintf("visitor_write_limit: daily limit of %d writes on this site reached; try again tomorrow (UTC)", in.Cap)}
+		return &Error{Code: "visitor_write_limit", Message: fmt.Sprintf("visitor_write_limit: daily limit of %d writes on this site reached; try again tomorrow (UTC)", in.Cap)}
 	}
-	if err != nil {
-		return nil, err
-	}
-	// Attempts count too, so failures and concurrent retries cannot evade the cap.
-	result, err := in.Write(in.Action)
-	if err != nil {
-		return nil, err
-	}
+	return err
+}
+
+// RecordVisitorToolWrite marks a written entry as the visitor's own and
+// records the write's app label in data history.
+func (s *Service) RecordVisitorToolWrite(ctx context.Context, in VisitorToolWriteInput, result any) any {
 	if entry, ok := result.(map[string]any); ok {
 		entry["mine"] = true
 	}
 	// A history marker has no earlier value and therefore cannot be restored.
-	err = repository.RecordVisitorAIWrite(ctx, s.db, in.SiteID, in.Resource, in.Action+" "+in.Kind, in.UserID, in.App)
+	err := repository.RecordVisitorAIWrite(ctx, s.db, in.SiteID, in.Resource, in.Action+" "+in.Kind, in.UserID, in.App)
 	if err != nil {
-		return map[string]any{"entry": result, "note": "Saved, but the app label could not be recorded in data history."}, nil
+		return map[string]any{"entry": result, "note": "Saved, but the app label could not be recorded in data history."}
 	}
-	return result, nil
+	return result
 }
 
-// PruneVisitorAIWrites deletes the write records VisitorToolWrite keeps once
+// PruneVisitorAIWrites deletes the write records RecordVisitorToolWrite keeps once
 // they are 30 days old, as the privacy page promises.
 func PruneVisitorAIWrites(ctx context.Context, db *sql.DB) (int64, error) {
 	return repository.PruneVisitorAIWrites(ctx, db)

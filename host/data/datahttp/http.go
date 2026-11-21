@@ -13,6 +13,7 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/idempotency"
+	"github.com/vsriram/simple-host/host/storage"
 )
 
 // DataHandler serves a site's saved data: storage, notifications, web push
@@ -22,7 +23,7 @@ type DataHandler struct {
 	Ed                *edition.Edition
 	Limits            edition.Limits
 	Database          *sql.DB
-	Disk              sites.Disk
+	Disk              *storage.DiskStorage
 	Mailer            email.Sender
 	ExportKey         []byte
 	publicBaseURL     string

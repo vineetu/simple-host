@@ -23,10 +23,10 @@ type SignInAlerts struct {
 	mailer        signInCodeSender
 	publicBaseURL string
 	reviewerEmail string
-	// run sends in the background so a sign-in never waits on the mail
-	// provider; tests make it synchronous.
-	Run func(func())
-	now func() time.Time
+	// Inline sends before the request answers instead of in the background
+	// (tests); a sign-in otherwise never waits on the mail provider.
+	Inline bool
+	now    func() time.Time
 }
 
 func newSignInAlerts(service *accounts.Service, mailer signInCodeSender, publicBaseURL string) *SignInAlerts {
@@ -34,7 +34,6 @@ func newSignInAlerts(service *accounts.Service, mailer signInCodeSender, publicB
 		accounts:      service,
 		mailer:        mailer,
 		publicBaseURL: strings.TrimRight(publicBaseURL, "/"),
-		Run:           func(f func()) { go f() },
 		now:           time.Now,
 	}
 }
@@ -51,13 +50,22 @@ func (a *SignInAlerts) Alert(userID, userAgent, app string) {
 	}
 	at := a.now().UTC()
 	summary := summarizeUserAgent(userAgent)
-	a.Run(func() {
+	a.run(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		a.accounts.DeliverSignInAlert(ctx, userID, a.reviewerEmail, summary, app, mailer, func(email, handle string) (string, string) {
 			return signInAlertText(email, a.ownerAppURL(handle), summary, app, at)
 		})
 	})
+}
+
+// run sends f in the background, or now when Inline.
+func (a *SignInAlerts) run(f func()) {
+	if a.Inline {
+		f()
+		return
+	}
+	go f()
 }
 
 // ownerAppURL is where the account's "Sign out everywhere" and the alert

@@ -395,11 +395,10 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour, func(ctx context.Context, user *model.User, site string) (int, string, string, error) {
 		return sitesapp.CheckWrite(ctx, database, gate, user, site)
 	})
-	a.conn = accesshttp.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, ed)
+	a.conn = accesshttp.NewConnectorHandler(database, a.srv.URL, adminKey, tsDomain, "sites."+tsDomain, "1.0.0", gated, true, a.access, users.SignInAlerts(), ed)
 	a.conn.Register(mux, authMW)
 	a.conn.SetTools(hackmcp.Contribution())
 	a.conn.SetTeamConnections(true)
-	a.conn.SetSignInAlerts(users.SignInAlerts())
 	app := web.SecurityHeaders(web.CORS(a.conn.BearerAuth(gated)))
 	root = a.sites.FamilyHosts(app, a.sites.SiteBaseHosts(a.sites.BoundSubdomains(app, a.sites.SiteHosts(app, a.sites.PersonHosts(app, a.sites.LegacyHostRedirect(app))))))
 	return a

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/vsriram/simple-host/host/sites"
 	siterepo "github.com/vsriram/simple-host/host/sites/repo"
-	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/storage"
 )
 
@@ -58,7 +58,7 @@ func runSiteSummaryBackfill(args []string) int {
 		if err != nil && !os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "read index.html for %s: %v (treating as empty)\n", site.Name, err)
 		}
-		summary := siteshttp.ExtractSiteSummary(map[string][]byte{"index.html": data})
+		summary := sites.ExtractSiteSummary(map[string][]byte{"index.html": data})
 		if err := siterepo.UpdateSiteSummaryIfUnset(ctx, database, site.ID, summary); err != nil {
 			fmt.Fprintln(os.Stderr, "store summary:", err)
 			return 1

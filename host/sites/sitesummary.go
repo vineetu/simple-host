@@ -1,4 +1,4 @@
-package siteshttp
+package sites
 
 import (
 	"bytes"

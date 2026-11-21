@@ -341,10 +341,10 @@ func TestPasscodeKeyIsActsAsOwner(t *testing.T) {
 	addMember(t, p.App, p.Olive, team, m)
 	req := httptest.NewRequest("GET", "https://"+p.Host+"/", nil)
 	req.Header.Set("X-API-Key", m.Key)
-	if !p.Access.OwnerOrAdminKey(req, model.SitePasscodeRow{UserID: teamPerson(t, p.App, team).ID, Name: "site"}) {
+	if owner, _ := p.Access.KeyActsFor(req, model.SitePasscodeRow{UserID: teamPerson(t, p.App, team).ID, Name: "site"}); !owner {
 		t.Fatal("team member's own key refused at the team's gate")
 	}
-	if p.Access.OwnerOrAdminKey(req, model.SitePasscodeRow{UserID: p.Olive.ID, Name: "trip"}) {
+	if owner, admin := p.Access.KeyActsFor(req, model.SitePasscodeRow{UserID: p.Olive.ID, Name: "trip"}); owner || admin {
 		t.Fatal("member key passed someone else's gate")
 	}
 	if _, err := p.Database.Exec(`UPDATE api_keys SET expires_at = now() - interval '1 second' WHERE user_id = $1`, p.Olive.ID); err != nil {

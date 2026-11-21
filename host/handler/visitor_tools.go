@@ -195,9 +195,8 @@ func (t VisitorTools) resourceEntries(r *http.Request, c datahttp.StorageCall) (
 // on, with its columns when they may read or add.
 func (t VisitorTools) tableEntries(r *http.Request, c datahttp.StorageCall, svc *appstorage.Service) ([]map[string]any, error) {
 	list := []map[string]any{}
-	rec := httptest.NewRecorder()
-	ok := t.Data.InspectStorage(rec, r, c, false, func(conn datahttp.StorageInspection) error {
-		tables, err := datahttp.StorageSQLTables(conn)
+	err := svc.Inspect(r.Context(), c, false, func(conn *appstorage.Inspection) error {
+		tables, err := conn.Tables()
 		if err != nil {
 			return err
 		}
@@ -217,14 +216,16 @@ func (t VisitorTools) tableEntries(r *http.Request, c datahttp.StorageCall, svc 
 		}
 		return nil
 	})
-	if !ok {
+	if err != nil {
+		rec := httptest.NewRecorder()
+		datahttp.WriteStorageError(rec, err, 400)
 		return nil, accesshttp.VisitorResponseError(rec)
 	}
 	return list, nil
 }
 
 // tableEntry is one table's listing, nil when the visitor has no rights on it.
-func (t VisitorTools) tableEntry(r *http.Request, c datahttp.StorageCall, svc *appstorage.Service, conn datahttp.StorageInspection, table string) (map[string]any, error) {
+func (t VisitorTools) tableEntry(r *http.Request, c datahttp.StorageCall, svc *appstorage.Service, conn *appstorage.Inspection, table string) (map[string]any, error) {
 	rights, err := svc.RuleRights(r.Context(), c, table)
 	if err != nil || !visitorRightsAny(rights) {
 		return nil, err
@@ -233,7 +234,7 @@ func (t VisitorTools) tableEntry(r *http.Request, c datahttp.StorageCall, svc *a
 	if rights["read"] != true && rights["add"] != true {
 		return entry, nil
 	}
-	cols, _, err := datahttp.StorageTableInfo(conn, table)
+	cols, _, err := conn.TableInfo(table)
 	if err != nil {
 		return nil, err
 	}
@@ -286,13 +287,19 @@ func (t VisitorTools) write(r *http.Request, siteID, userID, app, tool string, a
 	}
 	resource, _ := accesshttp.VisitorString(args, "resource")
 	kind, _ := accesshttp.VisitorString(args, "kind")
-	return t.Data.StorageSvc().VisitorToolWrite(r.Context(), appstorage.VisitorToolWriteInput{
+	svc := t.Data.StorageSvc()
+	in := appstorage.VisitorToolWriteInput{
 		SiteID: siteID, UserID: userID, App: app, Action: action,
 		Resource: resource, Kind: kind, Cap: t.Access.Limits.VisitorAIWritesPerDay,
-		Write: func(action string) (any, error) {
-			return t.resourceRequest(r, args, action)
-		},
-	})
+	}
+	if err := svc.CountVisitorToolWrite(r.Context(), in); err != nil {
+		return nil, err
+	}
+	result, err := t.resourceRequest(r, args, action)
+	if err != nil {
+		return nil, err
+	}
+	return svc.RecordVisitorToolWrite(r.Context(), in, result), nil
 }
 
 // visitorMethods is the storage route method for each visitor action.

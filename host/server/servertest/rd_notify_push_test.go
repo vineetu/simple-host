@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -129,8 +130,8 @@ func TestRDWebPushSignOutOnlyDeletesThatSessionsDevice(t *testing.T) {
 	}
 }
 
-// Removing a named viewer through the Sites service itself (not the HTTP
-// route) also deletes that person's push devices on the site.
+// Removing a named viewer through operations.RemoveSiteViewer itself (not
+// the HTTP route) also deletes that person's push devices on the site.
 func TestRDWebPushServiceLayerViewerRemovalCleansUpPush(t *testing.T) {
 	s, srv := rdPushFixture(t)
 	email := ""
@@ -141,7 +142,7 @@ func TestRDWebPushServiceLayerViewerRemovalCleansUpPush(t *testing.T) {
 		t.Fatalf("grant viewer: %d %s", r.Status, r.Body)
 	}
 	id := rdSubscribe(t, s, s.Callers["alice"], rdPushBody(t, srv.URL))
-	removed, err := s.A.Sites.SitesSvc().RemoveSiteViewer(context.Background(), s.Sid, email)
+	removed, err := operations.RemoveSiteViewer(context.Background(), s.A.Database, s.A.Sites.Notify, s.Sid, email)
 	if err != nil || !removed {
 		t.Fatalf("RemoveSiteViewer: removed=%v err=%v", removed, err)
 	}

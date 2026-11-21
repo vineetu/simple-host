@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
 
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
@@ -100,14 +99,6 @@ func wakeDeliveries(ctx context.Context, tx *sql.Tx, id string) error {
 	return err
 }
 
-// sealLegacy preserves ciphertext and empty values, including during rotation.
-func sealLegacy(id, value string, seal func(string, string) (string, error)) (string, error) {
-	if value == "" || strings.HasPrefix(value, "enc1:") {
-		return value, nil
-	}
-	return seal(id, value)
-}
-
 // storedNotification is the row SaveNotification replaces, read under its lock.
 type storedNotification struct {
 	site, state, secret, prev, auth string
@@ -117,7 +108,7 @@ type storedNotification struct {
 
 // SaveNotification accepts plaintext secrets and stores only sealed values.
 // Lock the site before counting, so concurrent REST and MCP creates share the cap.
-func SaveNotification(ctx context.Context, database *sql.DB, n model.Notification, max int, cursor *int64, historyDays int, secrets model.NotificationSecrets, access AccessChecks) (bool, bool, error) {
+func SaveNotification(ctx context.Context, database *sql.DB, n model.Notification, max int, cursor *int64, historyDays int, secrets Secrets) (bool, bool, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, false, err
@@ -127,7 +118,7 @@ func SaveNotification(ctx context.Context, database *sql.DB, n model.Notificatio
 	if err != nil {
 		return false, false, err
 	}
-	if err = checkSave(ctx, tx, n, old, max, access); err != nil {
+	if err = checkSave(ctx, tx, n, old, max); err != nil {
 		return false, false, err
 	}
 	n = withDefaultKindRole(n)
@@ -172,9 +163,9 @@ func lockStoredNotification(ctx context.Context, tx *sql.Tx, n model.Notificatio
 
 // checkSave refuses a product save by someone who may no longer act for the
 // site, and a new subscription over the site's cap.
-func checkSave(ctx context.Context, tx *sql.Tx, n model.Notification, old storedNotification, max int, access AccessChecks) error {
+func checkSave(ctx context.Context, tx *sql.Tx, n model.Notification, old storedNotification, max int) error {
 	if n.Product {
-		ok, err := access.ActsOnSite(ctx, tx, n.SiteID, n.OwnerID)
+		ok, err := MayActOnSite(ctx, tx, n.SiteID, n.OwnerID)
 		if err != nil {
 			return err
 		}
@@ -210,7 +201,7 @@ func withDefaultKindRole(n model.Notification) model.Notification {
 // row lock, since random nonces cannot indicate a change; a stored secret
 // this key cannot open (the key changed) is replaced, and no unreadable
 // previous secret is kept.
-func sealForSave(n *model.Notification, old storedNotification, secrets model.NotificationSecrets) (prev string, changed bool, err error) {
+func sealForSave(n *model.Notification, old storedNotification, secrets Secrets) (prev string, changed bool, err error) {
 	prev = old.prev
 	if old.exists {
 		plain, openErr := secrets.Open(n.ID, old.secret)
@@ -221,7 +212,7 @@ func sealForSave(n *model.Notification, old storedNotification, secrets model.No
 		case changed:
 			prev = old.secret
 		}
-		n.AuthHeaderValue, err = sealLegacy(n.ID+":header", old.auth, secrets.Seal)
+		n.AuthHeaderValue, err = secrets.sealLegacy(n.ID+":header", old.auth)
 	} else {
 		n.AuthHeaderValue, err = secrets.Seal(n.ID+":header", n.AuthHeaderValue)
 	}
@@ -231,7 +222,7 @@ func sealForSave(n *model.Notification, old storedNotification, secrets model.No
 	if n.Secret, err = secrets.Seal(n.ID, n.Secret); err != nil {
 		return "", false, err
 	}
-	prev, err = sealLegacy(n.ID, prev, secrets.Seal)
+	prev, err = secrets.sealLegacy(n.ID, prev)
 	return prev, changed, err
 }
 
@@ -314,7 +305,7 @@ func PauseNotification(ctx context.Context, database *sql.DB, id string, paused 
 
 // RotateNotification accepts a plaintext replacement and keeps a readable current
 // secret for the rotation grace period. Both signing secrets use the same AD.
-func RotateNotification(ctx context.Context, database *sql.DB, id, secret string, secrets model.NotificationSecrets) (*time.Time, error) {
+func RotateNotification(ctx context.Context, database *sql.DB, id, secret string, secrets Secrets) (*time.Time, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -327,11 +318,11 @@ func RotateNotification(ctx context.Context, database *sql.DB, id, secret string
 	if _, err := secrets.Open(id, old); err != nil {
 		old = ""
 	}
-	old, err = sealLegacy(id, old, secrets.Seal)
+	old, err = secrets.sealLegacy(id, old)
 	if err != nil {
 		return nil, err
 	}
-	header, err = sealLegacy(id+":header", header, secrets.Seal)
+	header, err = secrets.sealLegacy(id+":header", header)
 	if err != nil {
 		return nil, err
 	}
@@ -352,14 +343,14 @@ const legacySecrets = `(secret<>'' AND secret NOT LIKE 'enc1:%') OR (prev_secret
 
 // SealNotificationSecrets is a data-only sweep, safe to rerun alongside writers.
 // The count is rows updated. Locked rows are skipped until the next start.
-func SealNotificationSecrets(ctx context.Context, database *sql.DB, seal func(string, string) (string, error)) (int64, error) {
+func SealNotificationSecrets(ctx context.Context, database *sql.DB, secrets Secrets) (int64, error) {
 	pending, err := legacySecretIDs(ctx, database)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
 	for _, id := range pending {
-		updated, err := sealLegacyRow(ctx, database, id, seal)
+		updated, err := sealLegacyRow(ctx, database, id, secrets)
 		if err != nil {
 			return count, err
 		}
@@ -390,7 +381,7 @@ func legacySecretIDs(ctx context.Context, database *sql.DB) ([]string, error) {
 
 // sealLegacyRow seals one subscription's unsealed values in its own
 // transaction. It reports false when the row is locked or already sealed.
-func sealLegacyRow(ctx context.Context, database *sql.DB, id string, seal func(string, string) (string, error)) (bool, error) {
+func sealLegacyRow(ctx context.Context, database *sql.DB, id string, secrets Secrets) (bool, error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
@@ -404,13 +395,13 @@ func sealLegacyRow(ctx context.Context, database *sql.DB, id string, seal func(s
 	if err != nil {
 		return false, err
 	}
-	if secret, err = sealLegacy(id, secret, seal); err != nil {
+	if secret, err = secrets.sealLegacy(id, secret); err != nil {
 		return false, err
 	}
-	if prev, err = sealLegacy(id, prev, seal); err != nil {
+	if prev, err = secrets.sealLegacy(id, prev); err != nil {
 		return false, err
 	}
-	if header, err = sealLegacy(id+":header", header, seal); err != nil {
+	if header, err = secrets.sealLegacy(id+":header", header); err != nil {
 		return false, err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE site_notifications SET secret=$2,prev_secret=$3,auth_header_value=$4 WHERE id=$1`, id, secret, prev, header); err != nil {
@@ -893,12 +884,6 @@ func SetPushRule(ctx context.Context, q sqlkit.Querier, rule model.PushRule) err
  ON CONFLICT(site_id,resource) DO UPDATE SET recipients=EXCLUDED.recipients,title=EXCLUDED.title,body_column=EXCLUDED.body_column,updated_at=now()`,
 		rule.SiteID, rule.Resource, rule.Recipients, rule.Title, rule.BodyColumn)
 	return err
-}
-
-// AccessChecks rechecks, under the site lock, that a person saving a
-// subscription on an account's site may still act for it.
-type AccessChecks interface {
-	ActsOnSite(ctx context.Context, q sqlkit.Querier, siteID, person string) (bool, error)
 }
 
 // VerifiedAt is when owner last verified url for an MCP Events subscription.
