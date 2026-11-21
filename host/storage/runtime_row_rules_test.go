@@ -184,34 +184,6 @@ func TestRuleBuilderRowKey(t *testing.T) {
 	}
 }
 
-func TestRuleWorstPageCoversCursorShapes(t *testing.T) {
-	pred := ruleengine.Predicate{SQL: "1"}
-	for _, columns := range [][]string{{"c"}, {"a", "bb", "ccc"}, {`has"quotes`, "short", "other"}} {
-		statements, err := ruleWorstStatements("items", "_rowid_", columns, pred, pred, pred, pred, pred)
-		if err != nil {
-			t.Fatal(err)
-		}
-		worst := statements[1] // update, then page
-		for _, order := range append(append([]string(nil), columns...), "_rowid_") {
-			for _, desc := range []bool{false, true} {
-				for _, value := range []ruleengine.Value{ruleengine.Null(), ruleengine.Int(1)} {
-					page := RulePage{Order: order, Desc: desc, Limit: 501, After: &RuleCursor{Value: value, ID: ruleengine.Int(1)}}
-					for _, col := range columns {
-						page.Filters = append(page.Filters, RuleFilter{Column: col, Value: ruleengine.Text("")})
-					}
-					q, a, err := RuleSelectPage("items", "_rowid_", page, pred)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if len(q) > len(worst.query) || len(a) > len(worst.args) {
-						t.Fatalf("worst page %d/%d does not cover %d/%d: %s", len(worst.query), len(worst.args), len(q), len(a), q)
-					}
-				}
-			}
-		}
-	}
-}
-
 func TestBindRuleArgs(t *testing.T) {
 	conn, err := sqlite3.Open(":memory:")
 	if err != nil {

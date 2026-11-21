@@ -4,10 +4,6 @@ import "maps"
 
 const analyticsContextDescription = "Optional: why this call, in 15 to 25 words, third person. No names, emails, or secrets."
 
-func (s *Server) offersAnalyticsContext(caller Caller) bool {
-	return s.analytics != nil
-}
-
 func withAnalyticsContext(tool Tool) Tool {
 	props, _ := tool.InputSchema["properties"].(map[string]any)
 	if _, own := props["context"]; own {

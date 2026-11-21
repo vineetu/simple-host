@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// NewEventInput is an organiser's new-event form as sent.
 type NewEventInput struct {
 	Slug                 string
 	Title                string
@@ -19,7 +18,6 @@ type NewEventInput struct {
 	TimeZone             string
 }
 
-// NewEvent is a checked new-event form.
 type NewEvent struct {
 	Title, OrganiserName, Organisation, ContactEmail, Purpose, TimeZone string
 	ExpectedParticipants                                                int
@@ -44,7 +42,6 @@ func CheckNewEvent(in NewEventInput) (NewEvent, error) {
 	return out, err
 }
 
-// checkTimes checks the zone, the start and the optional end.
 func (out *NewEvent) checkTimes(in NewEventInput) error {
 	tz, loc, err := EventTimeZone(in.TimeZone)
 	if err != nil {
@@ -63,7 +60,6 @@ func (out *NewEvent) checkTimes(in NewEventInput) error {
 	return EventEnds(out.StartsAt, out.EndsAt, tz)
 }
 
-// firstFailure runs steps in order and stops at the first error.
 func firstFailure(steps ...func() error) error {
 	for _, step := range steps {
 		if err := step(); err != nil {

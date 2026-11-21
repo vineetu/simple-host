@@ -30,14 +30,6 @@ func LiveSiteNames(ctx context.Context, q Querier, accountID string, withDeleted
 	return out, rows.Err()
 }
 
-// SiteExists reports whether the account has a site of that name that is
-// not in Recently deleted.
-func SiteExists(ctx context.Context, q Querier, accountID, name string) (bool, error) {
-	var ok bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sites WHERE user_id = $1 AND name = $2 AND deleted_at IS NULL)`, accountID, name).Scan(&ok)
-	return ok, err
-}
-
 // SiteEverNamed reports whether the account has or had a site of that name,
 // Recently deleted included.
 func SiteEverNamed(ctx context.Context, q Querier, accountID, name string) (bool, error) {

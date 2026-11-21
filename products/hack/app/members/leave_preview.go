@@ -32,7 +32,6 @@ type LeavePreview struct {
 	Blocked           *LeaveBlock      `json:"blocked"`
 }
 
-// LeaveTeam is what leaving does to a participant's team.
 type LeaveTeam struct {
 	Slug        string   `json:"slug"`
 	Name        string   `json:"name"`
@@ -43,14 +42,12 @@ type LeaveTeam struct {
 	Frozen         bool `json:"frozen"`
 }
 
-// LeaveSuccessor is an organiser the creator may hand the event to.
 type LeaveSuccessor struct {
 	UserID      string `json:"user_id"`
 	DisplayName string `json:"display_name"`
 	Email       string `json:"email"`
 }
 
-// LeaveBlock is why nobody may leave the event now.
 type LeaveBlock struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -152,7 +149,6 @@ func previewTeam(ctx context.Context, db sqlkit.Querier, teamID, userID string) 
 		DeletedOnLeave: len(teammates) == 0 && !kept, Frozen: kept}, nil
 }
 
-// scoredTeams counts the teams the caller has scored in the event.
 func scoredTeams(ctx context.Context, db sqlkit.Querier, eventID, userID string) (*int, error) {
 	_, scores, err := entryrepo.ScoreCoverage(ctx, db, eventID)
 	n := scores[userID]
@@ -169,7 +165,6 @@ func closeOptions(ctx context.Context, db sqlkit.Querier, eventID string) (map[s
 	return map[string]any{"end": end, "delete": map[string]any{"allowed": true}}, err
 }
 
-// organiserNames lists the other organisers' display names.
 func organiserNames(others []model.OtherOrganiser) []string {
 	names := make([]string, 0, len(others))
 	for _, o := range others {

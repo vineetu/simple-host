@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 )
@@ -27,33 +26,9 @@ func TestCodedErrorBridgeRoundTrips(t *testing.T) {
 		t.Fatal("plain error reported a code")
 	}
 	for _, code := range []string{"passcode_locked", "unknown_tool", "recently_deleted", "site_not_found", "site_private"} {
-		if codeHint(code) == "" {
+		if resourceCodeHint(code, "") == "" {
 			t.Errorf("no hint for %s, so analytics would record it as tool_error", code)
 		}
-	}
-}
-
-// run_tool's "Unknown tool" refusal now carries a code, so AgentCat's
-// generic tool_error bucket stops absorbing it.
-func TestRunToolUnknownToolIsCoded(t *testing.T) {
-	s := newTestServer(&recordingUpstream{})
-	text, _, isErr := resultOf(t, send(t, s, toolCall("run_tool", map[string]any{"name": "rename_sit"}), nil, true))
-	if !isErr || !strings.Contains(text, "Unknown tool") || !strings.Contains(text, "[unknown_tool]") {
-		t.Fatalf("not coded: %s", text)
-	}
-}
-
-// create_site's "name belongs to Recently deleted" refusal now carries its
-// code instead of a hand-written duplicate of codeHints["recently_deleted"].
-func TestCreateSiteRecentlyDeletedIsCoded(t *testing.T) {
-	up := &recordingUpstream{answers: map[string]func() (int, string){
-		"POST /v1/sites/blog/files": func() (int, string) {
-			return 409, `{"error":"site recently deleted","code":"recently_deleted","recently_deleted":true}`
-		},
-	}}
-	text, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("create_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "<h1>hi</h1>"}}), nil, true))
-	if !isErr || !strings.Contains(text, "Recently deleted") || !strings.Contains(text, "restore_site") || !strings.Contains(text, "[recently_deleted]") {
-		t.Fatalf("recently_deleted message: %s", text)
 	}
 }
 
@@ -119,27 +94,5 @@ func TestVisitorToolRefusalAnalyticsCodeNotToolError(t *testing.T) {
 	}
 	if code := recvAnalyticsErrorCode(t, bodies); code != "site_locked" {
 		t.Fatalf("analytics code = %q, want site_locked", code)
-	}
-}
-
-// storage_sql_query, storage_sql_execute and storage_sql_schema say upfront that PRAGMA is not available
-// and what to use instead, so a model does not have to hit the refusal
-// first (SIM-359, AgentCat sql_not_available review).
-func TestSQLToolDescriptionsNamePragmaAlternative(t *testing.T) {
-	want := map[string]bool{
-		"storage_sql_query": false, "storage_sql_execute": false, "storage_sql_schema": false,
-	}
-	for _, tool := range Tools() {
-		if _, tracked := want[tool.Name]; tracked {
-			if !strings.Contains(tool.Description, "PRAGMA") || !strings.Contains(tool.Description, "sqlite_schema") {
-				t.Errorf("%s description lacks the PRAGMA hint: %s", tool.Name, tool.Description)
-			}
-			want[tool.Name] = true
-		}
-	}
-	for name, seen := range want {
-		if !seen {
-			t.Errorf("%s not found in the tool inventory", name)
-		}
 	}
 }

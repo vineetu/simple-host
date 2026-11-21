@@ -46,7 +46,9 @@ func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
 	}
 	switch tool.Name {
 	case "storage_set_resource":
-		tool.Description = storageRulesSetDescription
+		// Who "owner" is matters where the rules are written; the product
+		// instructions say it once for the other tools.
+		tool.Description = storageRulesSetDescription + ` Owner on a team site means a current approved teammate until the team's submission deadline, subject to stage and take-down checks; after that the teammate is an ordinary visitor. On the event's own website it means a current organiser until the event ends.`
 	case "storage_list_resources":
 		tool.Description = storageRulesListDescription
 	case "storage_sql_query":
@@ -56,7 +58,6 @@ func (s *Server) storageRulesTool(tool Tool, caller Caller) Tool {
 	default:
 		return tool
 	}
-	tool.Description += ` Owner on a team site means a current approved teammate until the team's submission deadline, subject to stage and take-down checks; after that the teammate is an ordinary visitor. On the event's own website it means a current organiser until the event ends.`
 	tool.Description = s.productInstructions(tool.Description)
 	return tool
 }

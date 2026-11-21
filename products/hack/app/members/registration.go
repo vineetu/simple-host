@@ -13,22 +13,18 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
 
-// Registration returns an event's registration settings.
 func (s *Service) Registration(ctx context.Context, eventID string) ([]model.SignupQuestion, bool, error) {
 	return eventrepo.RegistrationSettings(ctx, s.db, eventID)
 }
 
-// Applications lists registration applications.
 func (s *Service) Applications(ctx context.Context, eventID string) ([]model.RegistrationApplication, error) {
 	return eventrepo.ListRegistrationApplications(ctx, s.db, eventID)
 }
 
-// Tracks lists event tracks.
 func (s *Service) Tracks(ctx context.Context, eventID string) ([]model.EventTrack, error) {
 	return eventrepo.ListEventTracks(ctx, s.db, eventID)
 }
 
-// SetRegistration changes settings and optionally admits pending link sign-ups.
 func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, questions []model.SignupQuestion, approval, admit bool) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -46,7 +42,7 @@ func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, q
 		return err
 	}
 	if !approval && admit {
-		// D5: Approval settings govern link sign-ups, not applications.
+		// Approval settings govern link sign-ups, not applications.
 		if _, err = eventrepo.AdmitPending(ctx, tx, eventID, userID); err != nil {
 			return err
 		}
@@ -54,7 +50,6 @@ func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, q
 	return tx.Commit()
 }
 
-// DecideApplication decides a pending application and queues its notice.
 func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorID, decision string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -75,14 +70,13 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 	if !updated {
 		return &Error{Code: "application_not_pending", Message: "only pending applications can be decided"}
 	}
-	// Decision notices reach the app and email (INTENT 2026-11-02), superseding the earlier no-email decision.
+	// Decision notices reach the app and email.
 	if err = eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeApplicationDecided, "", "", decision, userID); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-// SetTracks replaces an event's tracks.
 func (s *Service) SetTracks(ctx context.Context, eventID string, tracks []model.EventTrack) ([]model.EventTrack, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -105,7 +99,6 @@ func (s *Service) SetTracks(ctx context.Context, eventID string, tracks []model.
 	return eventrepo.ListEventTracks(ctx, s.db, eventID)
 }
 
-// ChooseTrack updates a team's selected track.
 func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string, organiser ...bool) (*model.EventTrack, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -130,7 +123,6 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string,
 	return track, nil
 }
 
-// lockTrackChoice locks the event, then the team, and refuses the change.
 func lockTrackChoice(ctx context.Context, tx *sql.Tx, eventID, teamID string, managing bool) error {
 	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
@@ -152,7 +144,6 @@ func lockTrackChoice(ctx context.Context, tx *sql.Tx, eventID, teamID string, ma
 	return nil
 }
 
-// ValidateQuestions validates and normalizes sign-up questions.
 func (s *Service) ValidateQuestions(in []model.SignupQuestion) ([]model.SignupQuestion, error) {
 	out, e := hackevents.Questions(in)
 	if e != nil {
@@ -161,7 +152,6 @@ func (s *Service) ValidateQuestions(in []model.SignupQuestion) ([]model.SignupQu
 	return out, nil
 }
 
-// ValidateTracks validates and normalizes tracks.
 func (s *Service) ValidateTracks(in []model.EventTrack) ([]model.EventTrack, error) {
 	out, e := hackevents.Tracks(in)
 	if e != nil {
@@ -170,7 +160,6 @@ func (s *Service) ValidateTracks(in []model.EventTrack) ([]model.EventTrack, err
 	return out, nil
 }
 
-// ValidateDecision checks an application decision.
 func (s *Service) ValidateDecision(decision string) error {
 	if decision != "approved" && decision != "rejected" {
 		return &Error{Code: "invalid_decision", Message: "decision must be approved or rejected"}
@@ -178,7 +167,6 @@ func (s *Service) ValidateDecision(decision string) error {
 	return nil
 }
 
-// ValidateTrackStage checks whether team choices are open.
 func (s *Service) ValidateTrackStage(stage string) error {
 	if !hackteams.ParticipantTeamStages(stage) {
 		return &Error{Code: "teams_locked", Message: "team choices are closed"}
@@ -186,7 +174,6 @@ func (s *Service) ValidateTrackStage(stage string) error {
 	return nil
 }
 
-// ValidateTrackChoice checks and normalizes a selected track.
 func (s *Service) ValidateTrackChoice(choice string) (string, error) {
 	slug := strings.TrimSpace(choice)
 	if slug != "" && !hackevents.TrackSlug(slug) {

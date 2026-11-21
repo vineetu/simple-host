@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/vsriram/simple-host/host/data/rules"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
@@ -15,7 +15,7 @@ type Querier interface {
 }
 
 // Resource is the storage resource record shared with policy rules.
-type Resource = rules.Resource
+type Resource = model.Resource
 
 // ResourceColumns is the ordered list of columns read by ScanResource.
 const ResourceColumns = `name,kind,read_policy,write_policy,site_passcode,write_mode,acc_read IS NULL,rules`
@@ -45,16 +45,16 @@ func LoadResource(ctx context.Context, q Querier, siteID, name string) (Resource
 }
 
 // LoadTables reads the per-table rules for a resource.
-func LoadTables(ctx context.Context, q Querier, siteID, name string) (map[string]rules.TableRule, error) {
+func LoadTables(ctx context.Context, q Querier, siteID, name string) (map[string]model.TableRule, error) {
 	rows, err := q.QueryContext(ctx, `SELECT table_name,rules FROM site_storage_tables WHERE site_id=$1 AND resource_name=$2`, siteID, name)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := map[string]rules.TableRule{}
+	out := map[string]model.TableRule{}
 	for rows.Next() {
 		var n string
-		var t rules.TableRule
+		var t model.TableRule
 		var rawRules []byte
 		if err := rows.Scan(&n, &rawRules); err != nil {
 			return nil, err

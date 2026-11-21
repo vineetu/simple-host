@@ -14,7 +14,6 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// votingStatus keeps the existing handler callers on the shared voting rule.
 func votingStatus(ev hackmodel.Event, s hackmodel.VotingSettings, now time.Time) string {
 	return entries.VotingStatus(ev, entries.VotingSettingsValue(s.Enabled, s.OpensAt, s.ClosesAt, s.Eligibility), now)
 }
@@ -144,8 +143,7 @@ func (h *judgingHTTP) getVote(w http.ResponseWriter, r *http.Request) {
 	s, status := result.Settings, result.Status
 	out := map[string]any{"event": ev.Slug, "title": ev.Title, "status": status,
 		"opens_at": rfc3339UTC(s.OpensAt), "closes_at": rfc3339UTC(s.ClosesAt),
-		// time_zone lets the public vote page show the window in the event's own zone
-		// instead of the visitor's browser zone (Grok SIM-346 S5).
+		// time_zone lets the public vote page show the window in the event's own zone instead of the visitor's browser zone.
 		"time_zone": ev.TimeZone, "eligibility": s.Eligibility, "options": []any{}, "ranking": []any{}}
 	if status != "disabled" {
 		options := result.Options

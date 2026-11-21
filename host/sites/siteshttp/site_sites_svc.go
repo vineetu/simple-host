@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	accountapp "github.com/vsriram/simple-host/host/access"
-	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/papermetrics"
@@ -53,7 +52,7 @@ func (h *SiteHandler) SitesSvc() *sites.Service {
 		RetainedFloor: func(versions []model.Version, keep, active, siteKeep int) int {
 			floor := sites.RetainedFloor(versions, keep)
 			if h.Ed.Storage().EventVersionRetention {
-				floor, _ = pruneThreshold(active, effectiveKeepVersions(siteKeep))
+				floor, _ = pruneThreshold(active, sites.EffectiveKeepVersions(siteKeep, web.DefaultKeepVersions))
 			}
 			return floor
 		},
@@ -71,7 +70,7 @@ func (h *SiteHandler) SitesSvc() *sites.Service {
 			h.Notify.EmitSiteEvent(h.Hosts, sites.SiteEvent{SiteID: siteID, Name: "site.deployed", Data: map[string]any{"version": version, "previous_version": prev, "via": "active_version"}})
 		},
 		Assign: func(ctx context.Context, user *model.User) {
-			accounts.AssignHandle(ctx, h.Database, user.ID, sites.HandleSeed(user, h.SiteDomain), h.Ed.Identity().RandomHandles)
+			accountapp.AssignHandle(ctx, h.Database, user.ID, sites.HandleSeed(user, h.SiteDomain), h.Ed.Identity().RandomHandles)
 		},
 		NotifyCreate: func(ctx context.Context, user *model.User, site model.Site, files map[string][]byte) {
 			if h.Ed.Identity().PaperMetrics && user.Member != nil {
@@ -89,7 +88,6 @@ func (h *SiteHandler) SitesSvc() *sites.Service {
 		}, LockAccount: h.LockAccountFiles, Summarize: ExtractSiteSummary, Conflict: h.deletedNameConflict, RequestCert: h.RequestSiteCert, HasLiveFamilies: h.Hosts.HasLiveFamilies, SyncRedirect: h.Hosts.SyncDomainRedirect, DeployEnabled: h.DeployScript != ""})
 }
 
-// writeSitesError answers a site workflow refusal at its code's status.
 func writeSitesError(w http.ResponseWriter, err error, siteName string) {
 	var siteErr *sites.Error
 	if errors.As(err, &siteErr) {
@@ -108,7 +106,6 @@ func writeSitesError(w http.ResponseWriter, err error, siteName string) {
 	httpx.WriteInternal(w)
 }
 
-// writeRollbackGateError maps a transaction gate decision to its HTTP response.
 func writeRollbackGateError(w http.ResponseWriter, e *sites.GateError) {
 	status := e.Status
 	switch {

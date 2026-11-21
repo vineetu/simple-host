@@ -2,10 +2,13 @@ package notify
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"slices"
 	"strings"
 	"time"
+
+	repo "github.com/vsriram/simple-host/host/data/repo/notify"
 
 	"github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/model"
@@ -65,7 +68,7 @@ func (e *Engine) pushIdentity(ctx context.Context, c PushCaller) (role, subscrib
 	if c.VisitorID == "" {
 		return "", "", "", &Error{Code: "forbidden", Message: "sign in on this site first"}
 	}
-	if owner, err := access.ActsAsOwner(ctx, e.svc.database, c.VisitorID, c.AccountID, c.SiteName); err == nil && owner && c.OnOwnAddress {
+	if owner, err := access.ActsAsOwner(ctx, e.db, c.VisitorID, c.AccountID, c.SiteName); err == nil && owner && c.OnOwnAddress {
 		return "owner", c.AccountID, c.VisitorFamily, nil
 	}
 	return "visitor", c.VisitorID, c.VisitorFamily, nil
@@ -78,7 +81,7 @@ func (e *Engine) PushSubscribable(ctx context.Context, env Env, siteID, accountI
 	if err := e.pushOffered(ctx, siteID); err != nil {
 		return err
 	}
-	team, err := access.New(e.svc.database).IsTeam(ctx, accountID)
+	team, err := access.New(e.db).IsTeam(ctx, accountID)
 	if err != nil {
 		return err
 	}
@@ -127,7 +130,7 @@ func (e *Engine) SubscribePush(ctx context.Context, env Env, c PushCaller, in Pu
 	}
 	now := time.Now()
 	n := model.Notification{SiteID: c.SiteID, OwnerID: subscriber, Source: "owner", URL: in.Endpoint, Events: events, Storage: resource, Label: in.Label, Kind: "web-push", SubscriberRole: role, PushP256dh: in.P256dh, PushAuth: in.Auth, DeviceLabel: in.Label, VerifiedAt: &now, PushFamily: family}
-	id, _, err = e.svc.UpsertPushSubscription(ctx, n, RandomID("push_", 12), e.limits.NotifyMaxPerSite)
+	id, _, err = repo.UpsertPushSubscription(ctx, e.db, n, RandomID("push_", 12), e.limits.NotifyMaxPerSite)
 	if errors.Is(err, model.ErrNotificationCap) {
 		return "", "", refusal("too_many_notifications")
 	}
@@ -149,7 +152,7 @@ func (e *Engine) UnsubscribePush(ctx context.Context, c PushCaller, id string) (
 	if role != "visitor" {
 		subscriber = ""
 	}
-	return e.svc.DeleteNotificationForOwner(ctx, c.SiteID, id, subscriber)
+	return repo.DeleteNotificationForOwner(ctx, e.db, c.SiteID, id, subscriber)
 }
 
 // MutePush replaces one device's per-resource mute list (at most 50),
@@ -159,7 +162,7 @@ func (e *Engine) MutePush(ctx context.Context, c PushCaller, id string, resource
 	if err != nil {
 		return err
 	}
-	n, err := e.svc.GetNotification(ctx, id)
+	n, err := repo.GetNotification(ctx, e.db, id)
 	if err != nil || n.SiteID != c.SiteID || n.Kind != "web-push" || role == "visitor" && (n.SubscriberRole != "visitor" || n.OwnerID != subscriber) {
 		return refusal("not_found")
 	}
@@ -169,13 +172,13 @@ func (e *Engine) MutePush(ctx context.Context, c PushCaller, id string, resource
 	if len(resources) > 50 {
 		return refusal("too_many_resources")
 	}
-	return e.svc.SetMutedResources(ctx, id, resources)
+	return repo.SetMutedResources(ctx, e.db, id, resources)
 }
 
 // OwnerPushSite is the account's site name for an owner push route, when
 // it may use web push.
 func (e *Engine) OwnerPushSite(ctx context.Context, accountID, name string) (model.Site, error) {
-	site, err := sitesrepo.GetSiteByUser(ctx, e.svc.database, accountID, strings.ToLower(strings.TrimSpace(name)))
+	site, err := sitesrepo.GetSiteByUser(ctx, e.db, accountID, strings.ToLower(strings.TrimSpace(name)))
 	if err != nil {
 		return model.Site{}, refusal("site_not_found")
 	}
@@ -196,7 +199,7 @@ func (e *Engine) PushDevices(ctx context.Context, accountID, name string) ([]map
 	if err != nil {
 		return nil, err
 	}
-	devices, err := e.svc.ListPushDevices(ctx, site.ID)
+	devices, err := repo.ListPushDevices(ctx, e.db, site.ID)
 	out := make([]map[string]any, 0, len(devices))
 	for _, d := range devices {
 		out = append(out, map[string]any{"id": d.ID, "subscriber_role": d.SubscriberRole, "label": d.DeviceLabel, "device_label": d.DeviceLabel, "storage": d.Storage, "events": d.Events, "muted_resources": d.MutedResources, "state": d.State, "created_at": d.CreatedAt, "last_success_at": d.LastSuccessAt, "last_result": d.LastResult})
@@ -211,7 +214,7 @@ func (e *Engine) DeleteSitePush(ctx context.Context, accountID, name string) (in
 	if err != nil {
 		return 0, err
 	}
-	return e.svc.DeletePushSubscriptionsForSite(ctx, site.ID)
+	return repo.DeletePushSubscriptionsForSite(ctx, e.db, site.ID)
 }
 
 // DeletePushDevice removes one push device (never another kind of
@@ -221,11 +224,11 @@ func (e *Engine) DeletePushDevice(ctx context.Context, accountID, name, id strin
 	if err != nil {
 		return err
 	}
-	n, err := e.svc.GetNotification(ctx, id)
+	n, err := repo.GetNotification(ctx, e.db, id)
 	if err != nil || n.SiteID != site.ID || n.Kind != "web-push" {
 		return refusal("not_found")
 	}
-	_, err = e.svc.DeleteNotification(ctx, id)
+	_, err = repo.DeleteNotification(ctx, e.db, id)
 	return err
 }
 
@@ -235,7 +238,7 @@ func (e *Engine) PushRules(ctx context.Context, accountID, name string) ([]model
 	if err != nil {
 		return nil, err
 	}
-	return e.svc.ListPushRules(ctx, site.ID)
+	return repo.ListPushRules(ctx, e.db, site.ID)
 }
 
 // SavePushRule validates and stores one rule on site: the resource must
@@ -257,7 +260,7 @@ func (e *Engine) SavePushRule(ctx context.Context, site model.Site, rule model.P
 		return refusal("invalid_body_column")
 	}
 	rule.SiteID = site.ID
-	return e.svc.SetPushRule(ctx, rule)
+	return repo.SetPushRule(ctx, e.db, rule)
 }
 
 // pushPlainText rejects control characters: a title shows verbatim on a
@@ -276,7 +279,7 @@ func pushPlainText(s string) bool {
 // email, push rows by user id). Every device is tried; the last failure
 // is returned.
 func (e *Engine) DeleteViewerPush(ctx context.Context, siteID, email string) error {
-	devices, err := e.svc.ListPushDevices(ctx, siteID)
+	devices, err := repo.ListPushDevices(ctx, e.db, siteID)
 	if err != nil {
 		return err
 	}
@@ -285,12 +288,23 @@ func (e *Engine) DeleteViewerPush(ctx context.Context, siteID, email string) err
 		if d.SubscriberRole != "visitor" {
 			continue
 		}
-		if got, err := access.VisitorEmail(ctx, e.svc.database, d.OwnerID); err != nil || !strings.EqualFold(got, email) {
+		if got, err := access.VisitorEmail(ctx, e.db, d.OwnerID); err != nil || !strings.EqualFold(got, email) {
 			continue
 		}
-		if _, err := e.svc.DeleteNotification(ctx, d.ID); err != nil {
+		if _, err := repo.DeleteNotification(ctx, e.db, d.ID); err != nil {
 			lastErr = err
 		}
 	}
 	return lastErr
+}
+
+// DeletePushSubscriptionsForFamily removes every push device of one visitor
+// sign-in family, for callers outside the engine (sign-out everywhere).
+func DeletePushSubscriptionsForFamily(ctx context.Context, db *sql.DB, family string) (int64, error) {
+	return repo.DeletePushSubscriptionsForFamily(ctx, db, family)
+}
+
+// SealNotificationSecrets seals every stored receiver secret with seal.
+func SealNotificationSecrets(ctx context.Context, db *sql.DB, seal func(string, string) (string, error)) (int64, error) {
+	return repo.SealNotificationSecrets(ctx, db, seal)
 }

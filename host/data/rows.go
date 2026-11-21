@@ -92,8 +92,8 @@ func (s *Service) openTableConn(ctx context.Context, c Call, write bool) (*sqlit
 	}
 }
 
-// tableMetadata applies the checks shared by table reads and writes, in the
-// same order as the original handler workflow.
+// rowMetadata is a table's checked columns, rowid expression and whether new
+// rows wait for approval.
 type rowMetadata struct {
 	cols  map[string]string
 	order []string
@@ -111,6 +111,7 @@ func declaredColumn(cols map[string]string, name string) string {
 	return ""
 }
 
+// tableMetadata applies the checks shared by table reads and writes.
 func tableMetadata(conn *sqlite3.Conn, c Call, table string) (rowMetadata, error) {
 	var m rowMetadata
 	var err error
@@ -382,8 +383,6 @@ func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, er
 // filters, for the rules' query builder.
 type rowPage struct {
 	limit      int
-	order      string
-	desc       bool
 	orderIndex int
 	after      *rowCursor
 	rule       runtime.RulePage
@@ -405,17 +404,15 @@ func parseRowPage(q url.Values, c Call, meta rowMetadata) (*rowPage, error) {
 	if !ok {
 		return nil, invalid("invalid limit")
 	}
-	p := &rowPage{limit: limit, order: cmp.Or(q.Get("order"), meta.rowid)}
-	if _, known := meta.cols[p.order]; !known && p.order != meta.rowid || hiddenColumn(c, p.order) {
+	order := cmp.Or(q.Get("order"), meta.rowid)
+	if _, known := meta.cols[order]; !known && order != meta.rowid || hiddenColumn(c, order) {
 		return nil, invalid("invalid row request")
 	}
 	desc := q.Get("desc")
 	if desc != "" && desc != "0" && desc != "1" {
 		return nil, invalid("desc is 0 or 1")
 	}
-	p.desc = desc == "1"
-	p.orderIndex = slices.Index(meta.order, p.order)
-	p.rule = runtime.RulePage{Order: p.order, Desc: p.desc, Limit: limit + 1}
+	p := &rowPage{limit: limit, orderIndex: slices.Index(meta.order, order), rule: runtime.RulePage{Order: order, Desc: desc == "1", Limit: limit + 1}}
 	keys := []string{}
 	for k := range q {
 		if strings.HasPrefix(k, "where.") {
@@ -436,7 +433,7 @@ func parseRowPage(q url.Values, c Call, meta rowMetadata) (*rowPage, error) {
 	if after := q.Get("after"); after != "" {
 		b, err := base64.RawURLEncoding.DecodeString(after)
 		var cur rowCursor
-		if err != nil || json.Unmarshal(b, &cur) != nil || cur.Order != p.order || cur.Desc != p.desc || cur.Value == nil || !runtime.StorageScalar(cur.Value) {
+		if err != nil || json.Unmarshal(b, &cur) != nil || cur.Order != order || cur.Desc != p.rule.Desc || cur.Value == nil || !runtime.StorageScalar(cur.Value) {
 			return nil, invalid("invalid after")
 		}
 		value, err := ruleScalar(cur.Value)
@@ -461,22 +458,22 @@ func (p *rowPage) query(table, rowid string, approvedOnly bool) (string, []json.
 		params = append(params, rowJSON(f.Value.Text))
 	}
 	direction, op := " ASC", ">"
-	if p.desc {
+	if p.rule.Desc {
 		direction, op = " DESC", "<"
 	}
-	order := runtime.Quote(p.order)
-	if p.order == rowid {
+	order := runtime.Quote(p.rule.Order)
+	if p.rule.Order == rowid {
 		order = rowid
 	}
 	switch {
 	case p.after == nil:
-	case string(p.after.Value) == "null" && p.desc:
+	case string(p.after.Value) == "null" && p.rule.Desc:
 		where = append(where, "("+order+" IS NULL AND "+rowid+op+"?)")
 	case string(p.after.Value) == "null":
 		where = append(where, "("+order+" IS NOT NULL OR ("+order+" IS NULL AND "+rowid+op+"?))")
 	default:
 		nulls := ""
-		if p.desc {
+		if p.rule.Desc {
 			nulls = order + " IS NULL OR "
 		}
 		where = append(where, "("+nulls+order+op+"? OR ("+order+" = ? AND "+rowid+op+"?))")
@@ -515,7 +512,14 @@ func (s *Service) readRowPage(stmt *sqlite3.Stmt, p *rowPage, c Call, columns []
 		}
 		size += len(encoded)
 		rows, mine = append(rows, row), append(mine, m)
-		next = p.cursor(row, stmt.ColumnInt64(len(columns)))
+		id := stmt.ColumnInt64(len(columns))
+		value := any(id)
+		if p.orderIndex >= 0 {
+			value = row[p.orderIndex]
+		}
+		raw, _ := json.Marshal(value)
+		b, _ := json.Marshal(rowCursor{p.rule.Order, p.rule.Desc, raw, id})
+		next = base64.RawURLEncoding.EncodeToString(b)
 	}
 	if err := stmt.Err(); err != nil {
 		return TableResult{}, sqliteRowFailure(err, &Error{Code: "invalid_rows", Message: "query failed"})
@@ -530,16 +534,8 @@ func (s *Service) readRowPage(stmt *sqlite3.Stmt, p *rowPage, c Call, columns []
 	return TableResult{Body: body}, nil
 }
 
-func (p *rowPage) cursor(row []any, id int64) string {
-	value := any(id)
-	if p.orderIndex >= 0 {
-		value = row[p.orderIndex]
-	}
-	raw, _ := json.Marshal(value)
-	b, _ := json.Marshal(rowCursor{p.order, p.desc, raw, id})
-	return base64.RawURLEncoding.EncodeToString(b)
-}
 func rowJSON(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
+
 func rowBindAll(stmt *sqlite3.Stmt, params []json.RawMessage) error {
 	if len(params) != stmt.BindCount() {
 		return fmt.Errorf("parameter count")
@@ -551,6 +547,7 @@ func rowBindAll(stmt *sqlite3.Stmt, params []json.RawMessage) error {
 	}
 	return nil
 }
+
 func rowReadAuthorizer(conn *sqlite3.Conn, owner bool) error {
 	if owner {
 		return conn.SetAuthorizer(nil)

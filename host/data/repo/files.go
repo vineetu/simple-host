@@ -3,16 +3,10 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"github.com/lib/pq"
 	"strings"
-)
 
-// FileOwned reports whether the specified visitor authored a file.
-func FileOwned(ctx context.Context, db *sql.DB, site, resource, path, visitor string) (bool, error) {
-	var mine bool
-	err := db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_storage_files WHERE site_id=$1 AND resource_name=$2 AND path=$3 AND writer_id=$4)`, site, resource, path, visitor).Scan(&mine)
-	return mine, err
-}
+	"github.com/lib/pq"
+)
 
 // DeleteFile deletes a file's author record.
 func DeleteFile(ctx context.Context, db *sql.DB, site, resource, path string) error {

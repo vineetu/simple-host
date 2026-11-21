@@ -1,4 +1,3 @@
-// famHackEvents organiser administration and shared REST route adapters.
 package hackmcp
 
 import (
@@ -12,11 +11,9 @@ import (
 	"strings"
 )
 
-// hackRouteTool is deliberately only a REST adapter. The existing event
-// handlers remain the source of validation, permission checks and errors.
+// hackRouteTool is only a REST adapter: the event handlers stay the source of
+// validation, permission checks and errors.
 type hackRouteTool struct {
-	// These hints make the pass-through body usable from a tool listing without
-	// restating REST validation rules in the connector.
 	bodyDescription                        string
 	name, title, description, method, path string
 	body                                   bool
@@ -25,9 +22,8 @@ type hackRouteTool struct {
 	policy                                 toolPolicy
 }
 
-// HackOrganiserTools covers the event administration routes not already
-// exposed by HackTools. A personal connection may call these across events;
-// the REST handler verifies organiser membership for each request.
+// HackOrganiserTools covers the event administration routes HackTools does not;
+// the REST handler verifies organiser membership on each request.
 func HackOrganiserTools() []mcp.Tool {
 	return append(hackOrganiserEventTools(), hackOrganiserEntryTools()...)
 }
@@ -47,7 +43,6 @@ func hackRouteTools(routes []hackRouteTool) []mcp.Tool {
 	return tools
 }
 
-// params are the route's path parameters, in path order.
 func (r hackRouteTool) params() []string {
 	var params []string
 	for _, m := range pathParam.FindAllStringSubmatch(r.path, -1) {
@@ -58,14 +53,21 @@ func (r hackRouteTool) params() []string {
 
 var pathParam = regexp.MustCompile(`\{([a-z_]+)\}`)
 
+// routeParams describes each path parameter a route tool takes.
+var routeParams = map[string]string{
+	"slug": "Event name.", "team": "The team's name as it appears in its address (its slug, e.g. blue-fox): team.slug in hack_get_judge_queue or hack_get_entries, or slug in hack_get_teams.", "team_id": "Team ID.",
+	"user_id": "The person's user ID.", "announcement": "Announcement ID.",
+	"code": "Code from the invite link.", "kind": "join or judge.",
+}
+
 func (r hackRouteTool) inputSchema() map[string]any {
 	props := map[string]any{}
 	required := r.params()
 	for _, p := range required {
-		props[p] = mcp.Str("REST path parameter: " + p + ".")
+		props[p] = mcp.Str(routeParams[p])
 	}
 	if r.body {
-		props["body"] = map[string]any{"type": "object", "description": r.bodyDescription + " The REST route validates each field and returns its own errors.", "additionalProperties": true}
+		props["body"] = map[string]any{"type": "object", "description": r.bodyDescription, "additionalProperties": true}
 		required = append(required, "body")
 	}
 	if announcement := announcementBodySchema(r.name); announcement != nil {
@@ -80,7 +82,6 @@ func (r hackRouteTool) inputSchema() map[string]any {
 	return mcp.Object(props, required...)
 }
 
-// announcementBodySchema is the closed body of the two announcement writes.
 func announcementBodySchema(name string) map[string]any {
 	if name != "hack_post_announcement" && name != "hack_edit_announcement" {
 		return nil
@@ -116,12 +117,10 @@ func (r hackRouteTool) outputSchema() map[string]any {
 func (r hackRouteTool) annotations() map[string]any {
 	switch {
 	case r.policy.recordsPins:
-		// These reads record deadline pins when due.
 		return mcp.Writes(false, true, false)
 	case r.method == http.MethodGet || r.archive:
-		annotations := mcp.ReadOnly()
-		annotations["openWorldHint"] = r.public
-		return annotations
+		// A read stays inside the service even when what it reads is public.
+		return mcp.ReadOnly()
 	}
 	return mcp.Writes(r.destructive, r.idempotent, r.public)
 }
@@ -134,9 +133,9 @@ func hackOrganiserEventRoutes() []hackRouteTool {
 		{name: "hack_get_announcements", title: "Read announcements", description: "Read event announcements as any member, pinned first; body_html is safe server-rendered HTML.", method: "GET", path: "/v1/hack/events/{slug}/announcements", idempotent: true},
 		{bodyDescription: "title and body, or pinned boolean alone to pin/unpin. Pinning replaces the previous pin. Editing does not send a new email.", name: "hack_edit_announcement", title: "Edit an announcement", description: "Edit title and body, or pinned boolean alone to pin/unpin. Pinning replaces the previous pin. The body takes the same formatting as hack_post_announcement. Editing does not send a new email. Organiser only.", method: "PUT", path: "/v1/hack/events/{slug}/announcements/{announcement}", body: true, destructive: true, idempotent: true, public: true},
 		{name: "hack_delete_announcement", title: "Delete an announcement", description: "Delete an announcement. Ask first. Organiser only.", method: "DELETE", path: "/v1/hack/events/{slug}/announcements/{announcement}", destructive: true, idempotent: true, public: true},
-		{bodyDescription: "title, body, optional pinned and email_participants booleans. When true, email goes to every approved participant with an email-shaped username, plus one copy to the posting organiser if their own username is email-shaped too (never a duplicate if they are also a participant).", name: "hack_post_announcement", title: "Post an announcement", description: "Post an event announcement; optional pinned replaces the previous pin. Supports labelled links [label](https://...), **bold**, - bullets and line breaks; only http/https links. A Zoom/Meet/Teams/YouTube address on its own line shows as a card. Body includes text and optional email flag; email sends it to every approved participant with an email-shaped username, plus a copy to the posting organiser when their own username is email-shaped (one delivery, never duplicated if they are also a participant). The response's emails_queued is the real count actually queued, not an estimate; organiser_copied says whether one of those is the organiser's own copy. Ask the person before posting or emailing. Organiser only.", method: "POST", path: "/v1/hack/events/{slug}/announcements", body: true, destructive: true, public: true},
+		{bodyDescription: "title, body, optional pinned and email_participants booleans. When true, email goes to every approved participant with an email-shaped username, plus one copy to the posting organiser if their own username is email-shaped too (never a duplicate if they are also a participant).", name: "hack_post_announcement", title: "Post an announcement", description: "Post an event announcement; pinned replaces the previous pin. The body supports [label](https://...) links, **bold**, - bullets and line breaks; a Zoom/Meet/Teams/YouTube address on its own line shows as a card. email_participants also emails every approved participant and the posting organiser; emails_queued is the real count. Ask the person before posting or emailing. Organiser only.", method: "POST", path: "/v1/hack/events/{slug}/announcements", body: true, destructive: true, public: true},
 		{name: "hack_get_registration", title: "Read registration", description: "Read signup questions and approval settings. Organiser only.", method: "GET", path: "/v1/hack/events/{slug}/registration", idempotent: true},
-		{bodyDescription: "questions [{id,prompt,required}], approval_required boolean (join-link sign-ups only), optional admit_pending boolean (approves join-link pending only; applications always stay pending).", name: "hack_set_registration", title: "Replace registration", description: "Replace signup questions and approval_required. approval_required and admit_pending govern join-link sign-ups only; an application (from hack_apply_to_event) always stays pending until decided, whatever this says. When turning approval off, ask whether to approve waiting join-link sign-ups with admit_pending: true in this request or leave them pending. Ask before overwriting existing questions. Organiser only.", method: "PUT", path: "/v1/hack/events/{slug}/registration", body: true, destructive: true, idempotent: true},
+		{bodyDescription: "questions [{id (unique lowercase name, e.g. tshirt),prompt,required}], approval_required boolean (join-link sign-ups only), optional admit_pending boolean (approves join-link pending only; applications always stay pending).", name: "hack_set_registration", title: "Replace registration", description: "Replace signup questions and approval_required. approval_required and admit_pending govern join-link sign-ups only; an application (from hack_apply_to_event) always stays pending until decided, whatever this says. When turning approval off, ask whether to approve waiting join-link sign-ups with admit_pending: true in this request or leave them pending. Ask before overwriting existing questions. Organiser only.", method: "PUT", path: "/v1/hack/events/{slug}/registration", body: true, destructive: true, idempotent: true},
 		{policy: toolPolicy{analytics: analyticsPolicy{applicationAnswers: true}},
 			name: "hack_get_applications", title: "List applications", description: "Read pending and decided applications, with joined_via, city, country, age_range and gender for each. An application (joined_via application) always needs a decision, even when approval is off for join-link sign-ups. An under_18 applicant deserves the organiser's attention (no extra data is collected). Organiser only.", method: "GET", path: "/v1/hack/events/{slug}/applications", idempotent: true},
 		{policy: toolPolicy{organiserResult: "decision"}, bodyDescription: "decision: approved or rejected.", name: "hack_decide_application", title: "Decide application", description: "Approve or reject an applicant using body.decision. Ask before rejecting. Organiser only.", method: "POST", path: "/v1/hack/events/{slug}/applications/{user_id}/decision", body: true, destructive: true},
@@ -211,8 +210,6 @@ func runHackRoute(c *mcp.Call, route hackRouteTool, args map[string]any) (mcp.Ou
 	return routeOutput(c, route, args, res, includeEmails)
 }
 
-// routePath fills each {key} in path with the required argument key, the
-// event slug in lower case.
 func routePath(path string, args map[string]any) (string, error) {
 	for _, m := range pathParam.FindAllStringSubmatch(path, -1) {
 		value, err := mcp.StringArg(args, m[1])
@@ -227,8 +224,6 @@ func routePath(path string, args map[string]any) (string, error) {
 	return path, nil
 }
 
-// routeBody is the body argument as JSON. Generating assignments takes an
-// optional body (include_organisers).
 func routeBody(route hackRouteTool, args map[string]any) ([]byte, error) {
 	_, hasBody := args["body"]
 	if !route.body || (!hasBody && route.policy.optionalBody) {
@@ -268,7 +263,5 @@ func routeOutput(c *mcp.Call, route hackRouteTool, args map[string]any, res mcp.
 	return mcp.Output{Text: mcp.JSONText(structured), Structured: structured}, nil
 }
 
-// hackSetEntryExcludedTool is hack_set_entry_excluded: a toggle over the
-// website's two REST actions, POST .../teams/{team}/entry/exclude and
-// .../include, chosen by the excluded bool (parity rule, build-plan.md
-// section 4.5: everything on the website must exist in the AI apps too).
+// hackSetEntryExcludedTool is a toggle over the website's two REST actions
+// (POST .../entry/exclude and .../include), chosen by the excluded bool.

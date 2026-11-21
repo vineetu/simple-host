@@ -3,12 +3,13 @@ package data
 import (
 	"context"
 	"encoding/json"
-	sqlite3 "github.com/ncruces/go-sqlite3"
-	runtime "github.com/vsriram/simple-host/host/storage"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	sqlite3 "github.com/ncruces/go-sqlite3"
+	runtime "github.com/vsriram/simple-host/host/storage"
 
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )

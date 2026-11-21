@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/storage"
 )
 
@@ -14,6 +15,21 @@ import (
 type DomainCertDeps struct {
 	Partner func(context.Context, string, string) string
 	Allow   func(context.Context, string, string) (bool, error)
+}
+
+// DomainCertRequestBody is what a request file holds: the site's ownership
+// token (the issuer checks the TXT record against it), the domain link's
+// target (the issuer acts only while the link still points at this site) and
+// the domain's www / bare partner, if it may have one (partner, from
+// RequestablePartner).
+func DomainCertRequestBody(d model.BoundDomain, partner string) string {
+	body := d.Token + "\n" + filepath.Join("..", "by-id", d.UserID, d.Name) + "\n"
+	// Line 3: the www / bare partner, put on the same certificate as a
+	// redirect when it passes the issuer's checks (domainpartner.go).
+	if partner != "" {
+		body += partner + "\n"
+	}
+	return body
 }
 
 // DomainCertInput contains a validated hand-off path and the site's identity.
@@ -25,11 +41,7 @@ func (s *Service) RequestDomainCert(ctx context.Context, in DomainCertInput) boo
 	if p == "" || in.Token == "" || in.UserID == "" || in.Name == "" {
 		return false
 	}
-	partner := s.deps.DomainCerts.Partner(ctx, in.Domain, in.SiteID)
-	want := in.Token + "\n" + filepath.Join("..", "by-id", in.UserID, in.Name) + "\n"
-	if partner != "" {
-		want += partner + "\n"
-	}
+	want := DomainCertRequestBody(model.BoundDomain{Token: in.Token, UserID: in.UserID, Name: in.Name}, s.deps.DomainCerts.Partner(ctx, in.Domain, in.SiteID))
 	cur, err := os.ReadFile(p)
 	switch {
 	case err == nil && string(cur) == want:

@@ -7,17 +7,15 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-type SignInIdentity = model.SignInIdentity
-
-func ListSignInIdentities(ctx context.Context, database *sql.DB, userID string) ([]SignInIdentity, error) {
+func ListSignInIdentities(ctx context.Context, database *sql.DB, userID string) ([]model.SignInIdentity, error) {
 	rows, err := database.QueryContext(ctx, `SELECT id::text, provider, COALESCE(email, ''), created_at FROM oauth_identities WHERE user_id = $1 ORDER BY created_at`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []SignInIdentity
+	var out []model.SignInIdentity
 	for rows.Next() {
-		var s SignInIdentity
+		var s model.SignInIdentity
 		if err := rows.Scan(&s.ID, &s.Provider, &s.Email, &s.LinkedAt); err != nil {
 			return nil, err
 		}

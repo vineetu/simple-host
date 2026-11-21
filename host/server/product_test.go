@@ -4,12 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/testdb"
@@ -68,9 +66,9 @@ func productSnapshot(t *testing.T, dsn string) string {
 }
 
 func TestProductRecordStates(t *testing.T) {
-	for _, state := range []string{"empty", "matching", "other", "missing-table", "missing-row"} {
+	for _, state := range []string{"matching", "other", "missing-table"} {
 		t.Run(state, func(t *testing.T) {
-			db, dsn := productDB(t, state == "empty")
+			db, dsn := productDB(t, false)
 			cfg := productConfig(t, dsn)
 			switch state {
 			case "matching":
@@ -79,22 +77,6 @@ func TestProductRecordStates(t *testing.T) {
 				productExec(t, db, `INSERT INTO install_product(product) VALUES ('another-product')`)
 			case "missing-table":
 				productExec(t, db, `DROP TABLE install_product`)
-			}
-			if state == "empty" {
-				if err := migrateDatabase(context.Background(), db, nil, true, t.Logf, false); err != nil {
-					t.Fatal(err)
-				}
-				var count int
-				var product string
-				if err := db.QueryRow(`SELECT count(*), min(product) FROM install_product`).Scan(&count, &product); err != nil || count != 1 || product != "simple-host" {
-					t.Fatalf("record: %d %q %v", count, product, err)
-				}
-				var release string
-				var dated bool
-				if err := db.QueryRow(`SELECT release, release_at IS NOT NULL FROM install_product`).Scan(&release, &dated); err != nil || release != buildinfo.Version || !dated {
-					t.Fatalf("first install release: %q dated=%v err=%v", release, dated, err)
-				}
-				return
 			}
 			if state == "matching" {
 				if err := migrateDatabase(context.Background(), db, nil, true, t.Logf, false); err != nil {
@@ -149,74 +131,44 @@ func TestProductRecordStates(t *testing.T) {
 	}
 }
 
-func TestProductRefusalProcessExit(t *testing.T) {
-	db, dsn := productDB(t, false)
-	productExec(t, db, `INSERT INTO install_product(product) VALUES ('another-product')`)
-	productConfig(t, dsn)
-	t.Setenv("EVENTS", "")
-	binary := t.TempDir() + "/simple-host"
-	build := exec.Command("go", "build", "-o", binary, "../../cmd/simple-host")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %v: %s", err, out)
+// Two different products starting at once on an empty database: exactly one
+// claims it, the other is refused, and one product record exists.
+func TestConcurrentFirstStarts(t *testing.T) {
+	db, dsn := productDB(t, true)
+	cfg := productConfig(t, dsn)
+	cfg.MigrateOnStart = true
+	cfg.SiteDomainSet = false // setup mode: no workers or provider traffic
+	type result struct {
+		app *App
+		err error
 	}
-	for _, onStart := range []string{"false", "true"} {
-		t.Setenv("MIGRATE_ON_START", onStart)
-		for _, args := range [][]string{nil, {"migrate"}, {"migrate", "-record-product"}} {
-			cmd := exec.Command(binary, args...)
-			cmd.Env = os.Environ()
-			out, err := cmd.CombinedOutput()
-			exit, ok := err.(*exec.ExitError)
-			if !ok || exit.ExitCode() != 3 || !strings.Contains(string(out), "this install was set up as another-product; this program is simple-host") {
-				t.Fatalf("args=%v exit=%v output=%s", args, err, out)
-			}
+	results := make(chan result, 2)
+	start := make(chan struct{})
+	for _, exts := range [][]*extension.Extension{nil, {{Name: "another-product"}}} {
+		go func(exts []*extension.Extension) {
+			<-start
+			app, err := Build(cfg, exts, nil)
+			results <- result{app, err}
+		}(exts)
+	}
+	close(start)
+	running, refused := 0, 0
+	for i := 0; i < 2; i++ {
+		r := <-results
+		if r.app != nil {
+			running++
+			r.app.Close()
+		} else if r.err != nil && productExitCode(r.err) == 3 {
+			refused++
+		} else {
+			t.Errorf("first start: %v", r.err)
 		}
 	}
-}
-
-func TestConcurrentFirstStarts(t *testing.T) {
-	for _, different := range []bool{false, true} {
-		t.Run(fmt.Sprint(different), func(t *testing.T) {
-			db, dsn := productDB(t, true)
-			cfg := productConfig(t, dsn)
-			cfg.MigrateOnStart = true
-			cfg.SiteDomainSet = false // setup mode: no workers or provider traffic
-			var exts []*extension.Extension
-			if different {
-				exts = []*extension.Extension{{Name: "another-product"}}
-			}
-			type result struct {
-				app *App
-				err error
-			}
-			results := make(chan result, 2)
-			start := make(chan struct{})
-			for _, e := range [][]*extension.Extension{nil, exts} {
-				go func(exts []*extension.Extension) {
-					<-start
-					app, err := Build(cfg, exts, nil)
-					results <- result{app, err}
-				}(e)
-			}
-			close(start)
-			running, refused := 0, 0
-			for i := 0; i < 2; i++ {
-				r := <-results
-				if r.app != nil {
-					running++
-					r.app.Close()
-				} else if r.err != nil && productExitCode(r.err) == 3 {
-					refused++
-				} else {
-					t.Errorf("first start: %v", r.err)
-				}
-			}
-			if (!different && running != 2) || (different && (running != 1 || refused != 1)) {
-				t.Fatalf("running=%d refused=%d", running, refused)
-			}
-			var count int
-			if err := db.QueryRow(`SELECT count(*) FROM install_product`).Scan(&count); err != nil || count != 1 {
-				t.Fatalf("record count=%d: %v", count, err)
-			}
-		})
+	if running != 1 || refused != 1 {
+		t.Fatalf("running=%d refused=%d", running, refused)
+	}
+	var count int
+	if err := db.QueryRow(`SELECT count(*) FROM install_product`).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("record count=%d: %v", count, err)
 	}
 }

@@ -14,6 +14,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	repo "github.com/vsriram/simple-host/host/data/repo/notify"
+
 	"github.com/vsriram/simple-host/host/model"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
@@ -42,14 +44,14 @@ func EventID() string {
 // same visitor was stored within dedupe, and the site's event caps allow
 // one more. Lookup failures are recorded and drop the event.
 func (e *Engine) EventSite(ctx context.Context, siteID, name, visitor string, dedupe time.Duration) (model.Site, bool) {
-	yes, err := e.svc.HasNotificationsFor(ctx, siteID, name)
+	yes, err := repo.HasNotificationsFor(ctx, e.db, siteID, name)
 	if err != nil {
 		e.emits.Fail("lookup subscriptions", err)
 	}
 	if err != nil || !yes {
 		return model.Site{}, false
 	}
-	site, err := sitesrepo.GetSiteByID(ctx, e.svc.database, siteID)
+	site, err := sitesrepo.GetSiteByID(ctx, e.db, siteID)
 	if err != nil {
 		e.emits.Fail("load event site", err)
 		return model.Site{}, false
@@ -58,7 +60,7 @@ func (e *Engine) EventSite(ctx context.Context, siteID, name, visitor string, de
 		return model.Site{}, false
 	}
 	if dedupe > 0 && visitor != "" {
-		if recent, err := e.svc.RecentSiteEvent(ctx, siteID, name, visitor, dedupe); err != nil || recent {
+		if recent, err := repo.RecentSiteEvent(ctx, e.db, siteID, name, visitor, dedupe); err != nil || recent {
 			return model.Site{}, false
 		}
 	}
@@ -120,7 +122,7 @@ func (e *Engine) StoreRecordEvent(ctx context.Context, ev RecordEvent) {
 	if err != nil {
 		return
 	}
-	e.stored(e.svc.EmitSiteEventFor(ctx, ev.SiteID, EventID(), ev.Name, ev.Resource, raw, pushActor, pushTarget), true)
+	e.stored(repo.EmitSiteEventFor(ctx, e.db, ev.SiteID, EventID(), ev.Name, ev.Resource, raw, pushActor, pushTarget), true)
 }
 
 // SiteEvent is a site-level event (a deploy, a domain's status, a
@@ -148,10 +150,10 @@ func (e *Engine) StoreSiteEvent(ctx context.Context, ev SiteEvent) {
 		return
 	}
 	if ev.Dedupe <= 0 || ev.Visitor == "" {
-		e.stored(e.svc.EmitSiteEvent(ctx, ev.SiteID, EventID(), ev.Name, "", raw), true)
+		e.stored(repo.EmitSiteEvent(ctx, e.db, ev.SiteID, EventID(), ev.Name, "", raw), true)
 		return
 	}
-	stored, err := e.svc.EmitSiteEventOnce(ctx, ev.SiteID, EventID(), ev.Name, raw, ev.Visitor, ev.Dedupe)
+	stored, err := repo.EmitSiteEventOnce(ctx, e.db, ev.SiteID, EventID(), ev.Name, raw, ev.Visitor, ev.Dedupe)
 	e.stored(err, stored)
 }
 

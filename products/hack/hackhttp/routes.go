@@ -59,7 +59,7 @@ func (h *HackHandler) Register(mux *http.ServeMux, authMW func(http.Handler) htt
 	mux.Handle("POST /v1/hack/events/{slug}/teams/{team}/members", wrap(h.participation.moveMember))
 	mux.Handle("DELETE /v1/hack/events/{slug}/teams/{team}/members/{user_id}", wrap(h.participation.removeTeamMember))
 	mux.Handle("DELETE /v1/hack/events/{slug}/teams/{team}", wrap(h.participation.deleteTeam))
-	// Teams redesign (owner 2026-10-31): team admins, locking, the team link.
+	// Team admins, locking and the team link.
 	mux.Handle("PATCH /v1/hack/events/{slug}/team", wrap(h.participation.patchTeam))
 	mux.Handle("PUT /v1/hack/events/{slug}/team/lock", wrap(h.participation.setMyTeamLock))
 	mux.Handle("PUT /v1/hack/events/{slug}/team/members/{user_id}/admin", wrap(h.participation.setMyTeammateAdmin))

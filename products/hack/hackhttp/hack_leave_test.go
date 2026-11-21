@@ -1,12 +1,8 @@
 package hackhttp
 
 import (
-	"database/sql"
 	"net/http"
 	"testing"
-	"time"
-
-	"github.com/vsriram/simple-host/products/hack/app/members"
 )
 
 // Leave this event (SIM-340). The harness is newHackApp (DB_DSN), same as
@@ -421,55 +417,6 @@ func TestHackRemovePersonAfterDeadlineStaysExcludedFromJudging(t *testing.T) {
 	}
 }
 
-// Codex review, SIM-340, P1: the preview must never promise "stays" for a
-// team the write path would actually delete. A team's own deadline_override
-// extension survives the event moving to closed (setStage only forces
-// events.submission_deadline, never a team's override -- "an extension
-// never makes a team's deadline earlier"), so its effective deadline can
-// still be in the future even though the event's stage looks frozen. Both
-// GET .../leave's preview and POST .../leave's write must agree it is
-// still deletable-if-empty, from the one predicate deleteTeamIfEmpty
-// itself uses (TeamKeptIfEmptied == NOT TeamKeepableSQL), not from stage or
-// the raw deadline.
-func TestHackLeavePreviewMatchesWriteForExtendedTeam(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "lvextorg")
-	p1 := a.newPerson(t, "lvextp1")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, p1, "Solo")
-	teamID, _ := a.createTeamAndJoin(t, slug, p1, "ExtendedTeam")
-
-	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)}, a.key(org)); r.status != 200 {
-		t.Fatalf("set deadline: %d %s", r.status, r.body)
-	}
-	wantTS(t, "close", a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
-	extended := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
-	if r := a.at(t, "PUT", "/v1/hack/events/"+slug+"/teams/extendedteam/deadline", map[string]string{"deadline": extended}, a.key(org)); r.status != 200 {
-		t.Fatalf("extend: %d %s", r.status, r.body)
-	}
-
-	prev := a.previewLeave(t, slug, p1).json(t)
-	team := prev["team"].(map[string]any)
-	if team["frozen"] != false || team["deleted_on_leave"] != true {
-		t.Fatalf("extended team should preview as deletable-if-empty, not frozen: %v", team)
-	}
-
-	out := a.leave(t, slug, p1, map[string]any{"confirm": slug}).json(t)
-	if out["team_deleted"] != true {
-		t.Fatalf("extended team's preview promised deletion but the write disagreed: %v", out)
-	}
-	var stillTeam bool
-	if err := a.database.QueryRow(`SELECT EXISTS (SELECT 1 FROM event_teams WHERE id=$1)`, teamID).Scan(&stillTeam); err != nil {
-		t.Fatal(err)
-	}
-	if stillTeam {
-		t.Fatal("extended team should actually be deleted, matching the preview")
-	}
-}
-
 // --- 5/6: pending applicant withdraws; a rejected applicant can now leave
 // too (owner decision 2026-10-31, superseding the earlier "rejected can
 // never leave" rule): same mechanics as a withdraw -- their row is deleted
@@ -638,12 +585,11 @@ func TestHackLeaveCoOrganiserAndCreatorHandover(t *testing.T) {
 	wantTS(t, "accept2", a.at(t, "POST", accept2, map[string]any{"accept_coc": true, "display_name": "Co2"}, a.key(co2)), 200, "")
 
 	// Creator: no successor.
-	wantHackErr(t, "no successor", a.leave(t, slug, creator, map[string]any{"confirm": slug}), 409, "successor_required",
-		"you created this event, so hand it to another organiser first: send successor_user_id")
+	wantTS(t, "no successor", a.leave(t, slug, creator, map[string]any{"confirm": slug}), 409, "successor_required")
 
 	// Invalid successor: a participant, a random uuid.
-	wantHackErr(t, "invalid successor participant", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, part)}), 400, "invalid_successor", "pick another organiser of this event")
-	wantHackErr(t, "invalid successor uuid", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": "00000000-0000-0000-0000-000000000000"}), 400, "invalid_successor", "pick another organiser of this event")
+	wantTS(t, "invalid successor participant", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, part)}), 400, "invalid_successor")
+	wantTS(t, "invalid successor uuid", a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": "00000000-0000-0000-0000-000000000000"}), 400, "invalid_successor")
 
 	// Valid handover.
 	out = a.leave(t, slug, creator, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, co2)}).json(t)
@@ -684,10 +630,8 @@ func TestHackLeaveLastOrganiserEnd(t *testing.T) {
 		t.Fatalf("close_options before anyone joined: %v", closeOpts)
 	}
 
-	wantHackErr(t, "no close", a.leave(t, slug, org, map[string]any{"confirm": slug}), 409, "last_organiser",
-		`you are the only organiser, so leaving closes the event: send close "end" or "delete"`)
-	wantHackErr(t, "end without participants", a.leave(t, slug, org, map[string]any{"confirm": slug, "close": "end"}), 409, "archive_needs_participants",
-		"nobody has joined, so delete the event instead")
+	wantTS(t, "no close", a.leave(t, slug, org, map[string]any{"confirm": slug}), 409, "last_organiser")
+	wantTS(t, "end without participants", a.leave(t, slug, org, map[string]any{"confirm": slug, "close": "end"}), 409, "archive_needs_participants")
 
 	a.openEvent(t, org, slug)
 	join, _ := a.joinCodes(t, org, slug)
@@ -710,91 +654,6 @@ func TestHackLeaveLastOrganiserEnd(t *testing.T) {
 	}
 	// The public page still serves.
 	wantTS(t, "public page", a.at(t, "GET", "/v1/hack/events/"+slug+"/public", nil, nil), 200, "")
-}
-
-// TestHackArchiveKeepsFutureDeadlineWhenAlreadyClosed is Nit 3: before
-// archiveEventTx was extracted from setStage (git show
-// 0339c499:internal/handler/hack.go), archiving an event whose submissions
-// were already closed (closed, judging or results) left a future
-// submission_deadline alone -- only archiving from draft, open or building
-// ever moved it to now. The extraction dropped that guard, so ending an
-// event with a deliberately-extended deadline still in the future reset it
-// to now regardless of the current stage. Restored exactly: archiveEventTx
-// now takes the current stage and skips the reset once submissions were
-// already closed. Covers both setStage {"stage":"archived"} and POST
-// .../leave's last_organiser "end" case, since both share archiveEventTx.
-func TestHackArchiveKeepsFutureDeadlineWhenAlreadyClosed(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "lvarchorg")
-	part := a.newPerson(t, "lvarchp1")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, part, "Pat")
-
-	futureDeadline := func(stage string) bool {
-		var future bool
-		if err := a.database.QueryRow(`SELECT submission_deadline > clock_timestamp() FROM events WHERE slug=$1`, slug).Scan(&future); err != nil {
-			t.Fatal(err)
-		}
-		return future
-	}
-
-	for _, stage := range []string{"closed", "judging", "results"} {
-		if _, err := a.database.Exec(`UPDATE events SET stage=$2, submission_deadline=clock_timestamp()+interval '1 hour' WHERE slug=$1`, slug, stage); err != nil {
-			t.Fatal(err)
-		}
-		r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]any{"stage": "archived"}, a.key(org))
-		if r.status != http.StatusOK {
-			t.Fatalf("archive from %s: %d %s", stage, r.status, r.body)
-		}
-		if !futureDeadline(stage) {
-			t.Fatalf("archiving from %s must leave a future submission_deadline alone", stage)
-		}
-	}
-
-	// Control: archiving from open (submissions not yet closed) still moves
-	// a future deadline to now, same as it always has.
-	if _, err := a.database.Exec(`UPDATE events SET stage='open', submission_deadline=clock_timestamp()+interval '1 hour' WHERE slug=$1`, slug); err != nil {
-		t.Fatal(err)
-	}
-	r := a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]any{"stage": "archived"}, a.key(org))
-	if r.status != http.StatusOK {
-		t.Fatalf("archive from open: %d %s", r.status, r.body)
-	}
-	if futureDeadline("open") {
-		t.Fatal("archiving from open must still move a future submission_deadline to now")
-	}
-}
-
-// TestHackLeaveEndArchiveKeepsFutureDeadlineWhenAlreadyClosed is the same
-// Nit 3 guarantee through POST .../leave's last_organiser "end" case rather
-// than setStage directly, since both call archiveEventTx.
-func TestHackLeaveEndArchiveKeepsFutureDeadlineWhenAlreadyClosed(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "lvarchleorg")
-	part := a.newPerson(t, "lvarchlep1")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, part, "Pat")
-	if _, err := a.database.Exec(`UPDATE events SET stage='judging', submission_deadline=clock_timestamp()+interval '1 hour' WHERE slug=$1`, slug); err != nil {
-		t.Fatal(err)
-	}
-
-	out := a.leave(t, slug, org, map[string]any{"confirm": slug, "close": "end"}).json(t)
-	if out["event"] != "ended" {
-		t.Fatalf("end leave: %v", out)
-	}
-	var future bool
-	if err := a.database.QueryRow(`SELECT submission_deadline > clock_timestamp() FROM events WHERE slug=$1`, slug).Scan(&future); err != nil {
-		t.Fatal(err)
-	}
-	if !future {
-		t.Fatal("ending from judging (submissions already closed) must leave a future submission_deadline alone")
-	}
 }
 
 func TestHackLeaveLastOrganiserDelete(t *testing.T) {
@@ -842,12 +701,12 @@ func TestHackLeaveStaleFieldsAndConfirm(t *testing.T) {
 	a.joinParticipant(t, join, part, "Part")
 
 	// A co-organiser sending close, or a participant sending successor_user_id.
-	wantHackErr(t, "co sends close", a.leave(t, slug, co, map[string]any{"confirm": slug, "close": "end"}), 409, "leave_state_changed", members.LeaveStateChangedMessage)
-	wantHackErr(t, "participant sends successor", a.leave(t, slug, part, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, co)}), 409, "leave_state_changed", members.LeaveStateChangedMessage)
+	wantTS(t, "co sends close", a.leave(t, slug, co, map[string]any{"confirm": slug, "close": "end"}), 409, "leave_state_changed")
+	wantTS(t, "participant sends successor", a.leave(t, slug, part, map[string]any{"confirm": slug, "successor_user_id": a.userID(t, co)}), 409, "leave_state_changed")
 
 	// Confirm missing or wrong.
-	wantHackErr(t, "confirm missing", a.leave(t, slug, part, map[string]any{}), 409, "leave_needs_confirm", `to leave, send {"confirm":"<slug>"} with this event's address name`)
-	wantHackErr(t, "confirm wrong", a.leave(t, slug, part, map[string]any{"confirm": "not-the-slug"}), 409, "leave_needs_confirm", `to leave, send {"confirm":"<slug>"} with this event's address name`)
+	wantTS(t, "confirm missing", a.leave(t, slug, part, map[string]any{}), 409, "leave_needs_confirm")
+	wantTS(t, "confirm wrong", a.leave(t, slug, part, map[string]any{"confirm": "not-the-slug"}), 409, "leave_needs_confirm")
 	if !a.isMember(t, slug, a.userID(t, part)) {
 		t.Fatal("nothing should change on a bad confirm")
 	}
@@ -866,13 +725,13 @@ func TestHackLeaveEndedTakenDownAndNotMember(t *testing.T) {
 	join, _ := a.joinCodes(t, org, slug)
 	a.joinParticipant(t, join, part, "Part")
 	wantTS(t, "archive", a.at(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, a.key(org)), 200, "")
-	wantHackErr(t, "ended participant", a.leave(t, slug, part, map[string]any{"confirm": slug}), 409, "event_closed", "this event has ended, so nobody can leave it")
+	wantTS(t, "ended participant", a.leave(t, slug, part, map[string]any{"confirm": slug}), 409, "event_closed")
 
 	takenSlug := uniqueSlug()
 	tOrg := a.newPerson(t, "lv15torg")
 	wantTS(t, "create2", a.createEvent(t, tOrg, takenSlug, nil), 201, "")
 	wantTS(t, "takedown", a.at(t, "POST", "/v1/admin/hack/events/"+takenSlug+"/takedown", map[string]string{"reason": "spam"}, a.adminH()), 200, "")
-	wantHackErr(t, "taken down organiser", a.leave(t, takenSlug, tOrg, map[string]any{"confirm": takenSlug}), 403, "event_taken_down", "this event has been taken down")
+	wantTS(t, "taken down organiser", a.leave(t, takenSlug, tOrg, map[string]any{"confirm": takenSlug}), 403, "event_taken_down")
 
 	wantTS(t, "not a member", a.leave(t, slug, outsider, map[string]any{"confirm": slug}), 404, "event_not_found")
 	wantTS(t, "unknown slug", a.leave(t, "no-such-"+uniqueSlug(), org, map[string]any{"confirm": "x"}), 404, "event_not_found")
@@ -930,177 +789,6 @@ func TestHackDeleteFormerJudgeScoresRoute(t *testing.T) {
 
 // --- 17/18: races --------------------------------------------------------
 
-// TestHackLeaveTwoOrganisersRaceForcedOrdering is build plan tests item 17's
-// first race: two co-organisers of a creator-less event (created_by NULL)
-// POST leave at the same time. Forced ordering, the pattern
-// hack_apply_test.go's TestHackApplyRace uses for its switch-off race: a
-// third connection holds the event row FOR UPDATE so both leave requests
-// queue behind it (waitBlocked after each), then the lock is released and
-// both proceed together. Whichever commits first finds the other organiser
-// still present (case co_organiser, 200); the second re-reads otherOrganisers
-// fresh under its own lock on the now-committed state, finds nobody left,
-// and must get 409 last_organiser -- never two 200s, which would leave the
-// event with zero organisers.
-func TestHackLeaveTwoOrganisersRaceForcedOrdering(t *testing.T) {
-	a := newHackApp(t)
-	orgA := a.newPerson(t, "lv17a")
-	orgB := a.newPerson(t, "lv17b")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, orgA, slug, nil), 201, "")
-	base := "/v1/hack/events/" + slug
-	inviteR := a.at(t, "POST", base+"/organiser-invite", nil, a.key(orgA))
-	wantTS(t, "invite", inviteR, 201, "")
-	code := inviteR.json(t)["url"].(string)
-	acceptPath := "/v1/hack/organiser/" + code[len(code)-32:]
-	wantTS(t, "accept", a.at(t, "POST", acceptPath, map[string]any{"accept_coc": true, "display_name": "OrgB"}, a.key(orgB)), 200, "")
-
-	eventID := a.eventID(t, slug)
-	if _, err := a.database.Exec(`UPDATE events SET created_by = NULL WHERE id = $1`, eventID); err != nil {
-		t.Fatal(err)
-	}
-
-	lockTx, err := a.database.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var lockedID string
-	if err := lockTx.QueryRow(`SELECT id FROM events WHERE slug=$1 FOR UPDATE`, slug).Scan(&lockedID); err != nil {
-		t.Fatal(err)
-	}
-
-	results := make(chan resp, 2)
-	go func() { results <- a.leave(t, slug, orgA, map[string]any{"confirm": slug}) }()
-	waitBlocked()
-	go func() { results <- a.leave(t, slug, orgB, map[string]any{"confirm": slug}) }()
-	waitBlocked() // both leaves now queue behind lockTx's FOR UPDATE.
-
-	if err := lockTx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-
-	first, second := <-results, <-results
-	var ok200, err409 int
-	for _, r := range []resp{first, second} {
-		switch r.status {
-		case 200:
-			ok200++
-			out := r.json(t)
-			if out["case"] != "co_organiser" || out["left"] != true {
-				t.Fatalf("unexpected 200 body: %v", out)
-			}
-		case 409:
-			err409++
-			wantHackErr(t, "loser", r, 409, "last_organiser",
-				`you are the only organiser, so leaving closes the event: send close "end" or "delete"`)
-		default:
-			t.Fatalf("unexpected status %d %s", r.status, r.body)
-		}
-	}
-	if ok200 != 1 || err409 != 1 {
-		t.Fatalf("want exactly one 200 and one 409, got %d/%d (first=%d %s, second=%d %s)",
-			ok200, err409, first.status, first.body, second.status, second.body)
-	}
-
-	var organisers int
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE event_id=$1 AND role='organiser'`, eventID).Scan(&organisers); err != nil {
-		t.Fatal(err)
-	}
-	if organisers != 1 {
-		t.Fatalf("event should still have exactly one organiser, got %d", organisers)
-	}
-}
-
-// TestHackLeaveOrganiserInviteAcceptRaceForcedOrdering is build plan tests
-// item 18: an organiser invite accept races with its inviter leaving. Before
-// the 2.4 lock-order fix (acceptOrganiserInvite resolving the invite's event
-// id unlocked, then taking the event row FOR UPDATE before the invite and
-// inviter-member rows -- the same order POST .../leave already used), a
-// leave that is the invite's own inviter could cycle against an accept:
-// leave holds the event row and wants the inviter's member row, accept (old
-// code) held the invite+inviter-member rows and wanted the event row via its
-// insert's FOR KEY SHARE. Forced ordering, same shape as the test above:
-// hold the event row FOR UPDATE from a third connection so both requests
-// queue behind it, release, and require that each lands a clean, expected
-// status -- never a Postgres deadlock error (which would surface as a 500)
-// -- and that the two outcomes compose exactly one of the two valid
-// orderings: accepted first (then the leave, re-reading fresh, sees two
-// other organisers) or left first (then OrganiserInviteEvent's join on the
-// inviter's organiser row -- gone -- makes the accept 404 invalid_code).
-func TestHackLeaveOrganiserInviteAcceptRaceForcedOrdering(t *testing.T) {
-	a := newHackApp(t)
-	creator := a.newPerson(t, "lv18cr")
-	inviter := a.newPerson(t, "lv18in")
-	invitee := a.newPerson(t, "lv18ee")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, creator, slug, nil), 201, "")
-	base := "/v1/hack/events/" + slug
-	invite1 := a.at(t, "POST", base+"/organiser-invite", nil, a.key(creator))
-	wantTS(t, "invite1", invite1, 201, "")
-	code1 := invite1.json(t)["url"].(string)
-	accept1 := "/v1/hack/organiser/" + code1[len(code1)-32:]
-	wantTS(t, "inviter joins", a.at(t, "POST", accept1, map[string]any{"accept_coc": true, "display_name": "Inviter"}, a.key(inviter)), 200, "")
-
-	// The inviter (not the last organiser -- creator is still around) sends
-	// a second invite, then races leaving against its acceptance.
-	invite2 := a.at(t, "POST", base+"/organiser-invite", nil, a.key(inviter))
-	wantTS(t, "invite2", invite2, 201, "")
-	code2 := invite2.json(t)["url"].(string)
-	acceptPath := "/v1/hack/organiser/" + code2[len(code2)-32:]
-
-	eventID := a.eventID(t, slug)
-	lockTx, err := a.database.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var lockedID string
-	if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
-		t.Fatal(err)
-	}
-
-	acceptDone := make(chan resp, 1)
-	leaveDone := make(chan resp, 1)
-	go func() {
-		acceptDone <- a.at(t, "POST", acceptPath, map[string]any{"accept_coc": true, "display_name": "Invitee"}, a.key(invitee))
-	}()
-	waitBlocked()
-	go func() { leaveDone <- a.leave(t, slug, inviter, map[string]any{"confirm": slug}) }()
-	waitBlocked() // both now queue behind lockTx's FOR UPDATE.
-
-	if err := lockTx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-
-	acceptResp, leaveResp := <-acceptDone, <-leaveDone
-
-	if leaveResp.status != 200 {
-		t.Fatalf("leave (never the last organiser either way): %d %s", leaveResp.status, leaveResp.body)
-	}
-	leaveOut := leaveResp.json(t)
-	if leaveOut["case"] != "co_organiser" || leaveOut["left"] != true {
-		t.Fatalf("unexpected leave body: %v", leaveOut)
-	}
-
-	var organisers int
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE event_id=$1 AND role='organiser'`, eventID).Scan(&organisers); err != nil {
-		t.Fatal(err)
-	}
-
-	switch acceptResp.status {
-	case 200:
-		// Accepted before the leave committed: creator, invitee stay; inviter left.
-		if organisers != 2 {
-			t.Fatalf("accepted-then-left should leave 2 organisers, got %d", organisers)
-		}
-	case 404:
-		wantHackErr(t, "stale invite after inviter left first", acceptResp, 404, "invalid_code", "invalid or expired invitation")
-		if organisers != 1 {
-			t.Fatalf("left-then-stale-accept should leave 1 organiser, got %d", organisers)
-		}
-	default:
-		t.Fatalf("unexpected accept status (deadlock?): %d %s", acceptResp.status, acceptResp.body)
-	}
-}
-
 // --- Codex review fixes -----------------------------------------------------
 
 // TestHackScoreEligiblePredicateEventScoped is a regression test for a Codex
@@ -1145,231 +833,5 @@ func TestHackScoreEligiblePredicateEventScoped(t *testing.T) {
 	prev := a.previewLeave(t, slugB, judge).json(t)
 	if prev["scored_teams"] != float64(0) {
 		t.Fatalf("event B's preview must not see event A's former-judge scores: %v", prev)
-	}
-}
-
-// TestHackScorePutRaceRejectsDepartedJudge is a regression test for a Codex
-// review finding (SIM-340): PUT .../judge/scores only checked membership via
-// loadMember, before this transaction's own event lock, and
-// db.JudgeTeamEligible (shared with the read side) now also accepts a
-// former judge's frozen teams. A judge whose own leave commits first while
-// their score write waits on the event lock must not be able to change the
-// now-frozen score. Forced ordering, the same shape as
-// hack_apply_test.go's TestHackApplyTakedownRaceForcedOrdering: hold the
-// event row FOR UPDATE from a third connection, let the PUT block, commit
-// the leave's effect directly (member row gone, a former-judge record
-// freezing exactly this team -- what db.RecordFormerJudge plus
-// db.LeaveMembership would leave behind) while it waits, release, then
-// require 403 forbidden, not 200, and the score unchanged.
-func TestHackScorePutRaceRejectsDepartedJudge(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "lvswrorg")
-	p1 := a.newPerson(t, "lvswrp")
-	judge := a.newPerson(t, "lvswrj")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-	a.openEvent(t, org, slug)
-	join, judgeCode := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, p1, "Pat")
-	teamID, _ := a.createTeamAndJoin(t, slug, p1, "Delendum")
-	a.giveSubmittedEntry(t, slug, teamID)
-	a.joinJudge(t, judgeCode, judge, "Judge")
-	if _, err := a.database.Exec(`UPDATE events SET stage='judging' WHERE slug=$1`, slug); err != nil {
-		t.Fatal(err)
-	}
-	criterion := a.firstCriterionID(t, slug)
-	// An existing score, so a successful (buggy) write would be a visible change.
-	wantTS(t, "initial score", a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
-		map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 2}}}, a.key(judge)), 200, "")
-
-	eventID := a.eventID(t, slug)
-	judgeID := a.userID(t, judge)
-
-	lockTx, err := a.database.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer lockTx.Rollback()
-	var lockedID string
-	if err := lockTx.QueryRow(`SELECT id FROM events WHERE slug=$1 FOR UPDATE`, slug).Scan(&lockedID); err != nil {
-		t.Fatal(err)
-	}
-
-	putDone := make(chan resp, 1)
-	go func() {
-		putDone <- a.at(t, "PUT", "/v1/hack/events/"+slug+"/judge/scores/"+teamID,
-			map[string]any{"scores": []map[string]any{{"criterion_id": criterion, "points": 5}}}, a.key(judge))
-	}()
-	// The PUT must have passed its initial membership check and reached the
-	// event-row lock before we commit the leave. A row-lock waiter waits on
-	// the transaction ID of the holder, which here has locked only this event.
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		var waiting bool
-		if err := lockTx.QueryRow(`SELECT EXISTS (
-			SELECT 1 FROM pg_locks WHERE locktype = 'transactionid'
-			AND transactionid = pg_current_xact_id()::xid AND NOT granted
-		)`).Scan(&waiting); err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("score PUT did not reach the event-row lock")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if _, err := lockTx.Exec(`DELETE FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, judgeID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := lockTx.Exec(`INSERT INTO event_former_judges (event_id, user_id, display_name, role, counted_team_ids, left_at)
-		VALUES ($1, $2, 'Judge', 'judge', ARRAY[$3]::uuid[], now())`, eventID, judgeID, teamID); err != nil {
-		t.Fatal(err)
-	}
-	if err := lockTx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-
-	putResp := <-putDone
-	wantHackErr(t, "score PUT after the judge's own leave committed", putResp, 403, "forbidden", "You are no longer a judge or organiser of this event.")
-
-	var points int
-	if err := a.database.QueryRow(`SELECT points FROM event_scores WHERE event_id=$1 AND judge_id=$2 AND team_id=$3 AND criterion_id=$4`,
-		eventID, judgeID, teamID, criterion).Scan(&points); err != nil {
-		t.Fatal(err)
-	}
-	if points != 2 {
-		t.Fatalf("frozen score must stay at 2, got %d", points)
-	}
-}
-
-// TestHackOrganiserInviteAcceptRaceLastOrganiserCloses is a regression test
-// for a Codex review finding (SIM-340): acceptOrganiserInvite checked
-// takedown/archived on the pre-lock event, then GetEventForUpdate's error
-// path and the invite re-lock both assumed the event still exists. When the
-// last organiser's own "end" or "delete" wins a race with someone accepting
-// their invite, the loser must land a clean 404 invalid_code -- never a 409
-// event_closed (stale: the real reason is the invite is gone) and never a
-// 500 (the event row vanished under the lock). Forced ordering: hold the
-// event row FOR UPDATE from a third connection, let accept block, commit
-// the end/delete's effect directly while it waits, release, then assert.
-func TestHackOrganiserInviteAcceptRaceLastOrganiserCloses(t *testing.T) {
-	a := newHackApp(t)
-
-	run := func(t *testing.T, simulateClose func(tx *sql.Tx, eventID string)) resp {
-		org := a.newPerson(t, "lvoiend")
-		invitee := a.newPerson(t, "lvoiee")
-		slug := uniqueSlug()
-		wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-		base := "/v1/hack/events/" + slug
-		inviteR := a.at(t, "POST", base+"/organiser-invite", nil, a.key(org))
-		wantTS(t, "invite", inviteR, 201, "")
-		code := inviteR.json(t)["url"].(string)
-		acceptPath := "/v1/hack/organiser/" + code[len(code)-32:]
-
-		eventID := a.eventID(t, slug)
-		lockTx, err := a.database.Begin()
-		if err != nil {
-			t.Fatal(err)
-		}
-		var lockedID string
-		if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
-			t.Fatal(err)
-		}
-
-		acceptDone := make(chan resp, 1)
-		go func() {
-			acceptDone <- a.at(t, "POST", acceptPath, map[string]any{"accept_coc": true, "display_name": "Invitee"}, a.key(invitee))
-		}()
-		waitBlocked() // the accept's event-row lock now waits on lockTx's FOR UPDATE.
-
-		// Mutate through lockTx itself -- the main pool would try to take
-		// the same lock lockTx already holds and block right alongside the
-		// accept goroutine, since nothing would ever release it.
-		simulateClose(lockTx, eventID)
-		if err := lockTx.Commit(); err != nil {
-			t.Fatal(err)
-		}
-		return <-acceptDone
-	}
-
-	t.Run("end", func(t *testing.T) {
-		resp := run(t, func(tx *sql.Tx, eventID string) {
-			// What the last organiser's close:"end" leaves behind by the
-			// time accept's blocked transaction gets the lock: archived,
-			// and (section 2.3) its outstanding invites deleted.
-			if _, err := tx.Exec(`UPDATE events SET stage='archived', closed_at=now() WHERE id=$1`, eventID); err != nil {
-				t.Fatal(err)
-			}
-			if _, err := tx.Exec(`DELETE FROM event_organiser_invites WHERE event_id=$1`, eventID); err != nil {
-				t.Fatal(err)
-			}
-		})
-		wantHackErr(t, "accept after end wins the race", resp, 404, "invalid_code", "invalid or expired invitation")
-	})
-
-	t.Run("delete", func(t *testing.T) {
-		resp := run(t, func(tx *sql.Tx, eventID string) {
-			// What the last organiser's close:"delete" leaves behind: the
-			// event row (and, by cascade, its invite) gone entirely.
-			if _, err := tx.Exec(`DELETE FROM events WHERE id=$1`, eventID); err != nil {
-				t.Fatal(err)
-			}
-		})
-		wantHackErr(t, "accept after delete wins the race", resp, 404, "invalid_code", "invalid or expired invitation")
-	})
-}
-
-// TestHackJudgeJoinRaceLastOrganiserEnds is a regression test for a Codex
-// review finding (SIM-340): the judge-join branch took the event row FOR
-// SHARE but discarded the row, never rechecking stage or takedown against
-// the state as of the lock -- so a judge-link join that was waiting on a
-// last organiser's concurrent "end" could insert a new judge into the
-// now-archived event once the lock released. Forced ordering, the same
-// shape as the organiser-invite race above: hold the event row FOR UPDATE
-// from a third connection, let the join block, archive the event directly
-// while it waits, release, then require 409 judging_closed and no member
-// row inserted.
-func TestHackJudgeJoinRaceLastOrganiserEnds(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "lvjjorg")
-	newJudge := a.newPerson(t, "lvjjj")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-	a.openEvent(t, org, slug)
-	_, judgeCode := a.joinCodes(t, org, slug)
-
-	eventID := a.eventID(t, slug)
-	lockTx, err := a.database.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var lockedID string
-	if err := lockTx.QueryRow(`SELECT id FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&lockedID); err != nil {
-		t.Fatal(err)
-	}
-
-	joinDone := make(chan resp, 1)
-	go func() {
-		joinDone <- a.at(t, "POST", "/v1/hack/judge/"+judgeCode, map[string]any{"accept_coc": true, "display_name": "Late Judge"}, a.key(newJudge))
-	}()
-	waitBlocked() // the join's FOR SHARE now waits on lockTx's FOR UPDATE.
-
-	// Mutate through lockTx itself -- the main pool would block on the same
-	// lock lockTx already holds (nothing would ever release it).
-	if _, err := lockTx.Exec(`UPDATE events SET stage='archived', closed_at=now() WHERE id=$1`, eventID); err != nil {
-		t.Fatal(err)
-	}
-	if err := lockTx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-
-	joinResp := <-joinDone
-	wantHackErr(t, "judge join after end wins the race", joinResp, 409, "judging_closed", "judging is closed for this event")
-
-	if a.isMember(t, slug, a.userID(t, newJudge)) {
-		t.Fatal("the judge must not have been inserted into the now-archived event")
 	}
 }

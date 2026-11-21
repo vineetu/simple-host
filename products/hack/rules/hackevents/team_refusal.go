@@ -1,6 +1,5 @@
 package hackevents
 
-// TeamRefusalMessage returns the message for a team write refusal.
 func TeamRefusalMessage(code string) string {
 	switch code {
 	case "event_taken_down":

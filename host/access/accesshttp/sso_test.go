@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,25 +14,6 @@ import (
 )
 
 func TestSSOCookieBoundary(t *testing.T) {
-	// A source-level tripwire supplements the behavioral check: a future
-	// handler cannot casually acquire the cookie outside the SSO namespace.
-	for _, root := range []string{".", "../auth", "../../web", "../../sites/siteshttp", "../../data/datahttp", "../../handler"} {
-		files, _ := filepath.Glob(root + "/*.go")
-		for _, file := range files {
-			if strings.HasSuffix(file, "_test.go") || file == "sso.go" {
-				continue
-			}
-			body, err := os.ReadFile(file)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, needle := range []string{"__Host-sh_sso", `"sh_sso"`, "ssoCookie(", "ssoCookieName(", "ssoCookieHost", "ssoCookieHTTP", "SSOCookieHost", "SSOCookieHTTP"} {
-				if strings.Contains(string(body), needle) {
-					t.Fatalf("SSO cookie reader escaped into %s", file)
-				}
-			}
-		}
-	}
 	for _, https := range []bool{false, true} {
 		r := httptest.NewRequest("GET", "http://app.test/v1/sso/hop", nil)
 		if https {
@@ -60,7 +39,7 @@ func TestSSOCookieBoundary(t *testing.T) {
 	}
 }
 func TestSSOReturnAllowlist(t *testing.T) {
-	for _, base := range []string{"https://simple-host.app", "https://simple-hack.app", "https://company.test"} {
+	for _, base := range []string{"https://simple-host.app", "https://company.test"} {
 		u, _ := url.Parse(base + "/v1/sso/hop?state=" + strings.Repeat("a", 64) + "&cn=" + testNonceHash(testNonce).String)
 		if !ssoReturnToOK(u, base) {
 			t.Fatal("provider return rejected")

@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// TeamWriteState is a shared Hack record.
 type TeamWriteState struct {
 	TeamID          string
 	EventID         string
@@ -24,18 +23,15 @@ type TeamWriteState struct {
 	TeamDeadlineSet sql.NullTime
 }
 
-// MyTeam is a shared Hack record.
 type MyTeam struct {
 	TeamID, TeamName, TeamSlug, EventSlug, EventTitle string
 }
 
-// Frozen reports whether submissions are closed.
 func (s TeamWriteState) Frozen() bool {
 	return s.Stage == "judging" || s.Stage == "results" || s.Stage == "archived" ||
 		(s.Deadline.Valid && !s.Now.Before(s.Deadline.Time))
 }
 
-// WriteRefusal returns the reason writes are refused, if any.
 func (s TeamWriteState) WriteRefusal() string {
 	switch {
 	case s.EventTakenDown:

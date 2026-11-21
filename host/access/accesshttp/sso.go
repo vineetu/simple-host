@@ -67,7 +67,7 @@ func issueSSOPass(w http.ResponseWriter, r *http.Request, service *accounts.Serv
 	if err != nil {
 		return err
 	}
-	if err = service.ReplaceSSOPass(r.Context(), HashSecret(raw), keyHash, HashSecret(ssoCookie(r)), ttl, idle, keyIdle); err != nil {
+	if err = service.ReplaceSSOPass(r.Context(), accounts.HashSecret(raw), keyHash, accounts.HashSecret(ssoCookie(r)), ttl, idle, keyIdle); err != nil {
 		return err
 	}
 	setSSOCookie(w, r, raw, int(ttl/time.Second))
@@ -133,12 +133,12 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	// Stored full account keys only. Internal connector and deploy keys cannot
 	// manufacture a browser sign-in that outlives their authority.
-	keyHash := HashSecret(key)
+	keyHash := accounts.HashSecret(key)
 	if !h.SSOKeyLimiter.AllowHTTP(w, keyHash) {
 		httpx.TooManyRequests(w)
 		return
 	}
-	if p, err := h.Accounts.GetSSOPass(r.Context(), HashSecret(ssoCookie(r)), h.Limits.KeyIdleExpiry); err == nil && p.ParentKeyHash == keyHash {
+	if p, err := h.Accounts.GetSSOPass(r.Context(), accounts.HashSecret(ssoCookie(r)), h.Limits.KeyIdleExpiry); err == nil && p.ParentKeyHash == keyHash {
 		if err := h.Accounts.TouchSSOPass(r.Context(), p.Hash, h.Limits.VisitorSessionIdle); err != nil {
 			writeOAuthHTMLError(h.pipeline(), w, 500)
 			return
@@ -223,7 +223,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	// An OAuth callback carries a browser-bound account token. Redeem that on
 	// the apex before using any existing pass, including when switching people.
-	p, err := h.Accounts.GetSSOPass(r.Context(), HashSecret(ssoCookie(r)), h.Limits.KeyIdleExpiry)
+	p, err := h.Accounts.GetSSOPass(r.Context(), accounts.HashSecret(ssoCookie(r)), h.Limits.KeyIdleExpiry)
 	if err != nil || r.URL.Query().Get("token") != "" {
 		if r.Method == "POST" {
 			logSignInFail(r, "sso_consent", "no_pass", state)
@@ -244,7 +244,7 @@ func (h *OAuthHandler) hopSSO(w http.ResponseWriter, r *http.Request) {
 // metadata, needs no form. Otherwise it serves the consent form and
 // reports false.
 func (h *OAuthHandler) ssoConsented(w http.ResponseWriter, r *http.Request, hop model.SSOHop, p model.SSOPass, state string) bool {
-	email, err := VisitorEmail(r.Context(), h.Database, p.UserID)
+	email, err := accounts.VisitorEmail(r.Context(), h.Database, p.UserID)
 	if err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 500)
 		return false
@@ -320,7 +320,7 @@ func (h *OAuthHandler) redeemSSOHop(w http.ResponseWriter, r *http.Request, stat
 func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	formHash := ""
-	cookieHash := HashSecret(ssoCookie(r))
+	cookieHash := accounts.HashSecret(ssoCookie(r))
 	if r.Method == "POST" {
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if r.ParseForm() != nil {
@@ -328,7 +328,7 @@ func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		token = r.PostForm.Get("token")
-		formHash = HashSecret(r.PostForm.Get("form_token"))
+		formHash = accounts.HashSecret(r.PostForm.Get("form_token"))
 	} else if !h.signoutConfirmed(w, r, token, cookieHash) {
 		return
 	}
@@ -363,7 +363,7 @@ func (h *OAuthHandler) signoutConfirmed(w http.ResponseWriter, r *http.Request, 
 		writeOAuthHTMLError(h.pipeline(), w, 500)
 		return false
 	}
-	if err := h.Accounts.SetSSOSignoutForm(r.Context(), token, HashSecret(form), cookieHash); err != nil {
+	if err := h.Accounts.SetSSOSignoutForm(r.Context(), token, accounts.HashSecret(form), cookieHash); err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 500)
 		return false
 	}
@@ -376,8 +376,8 @@ func (h *OAuthHandler) signoutConfirmed(w http.ResponseWriter, r *http.Request, 
 }
 
 // deleteFamilyPush deletes the push subscriptions of a sign-in family
-// (FIX 10, Codex round 2): the sign-in-everywhere apex signing out the
-// whole family's dashboard key (RevokeVisitorSSO's sibling path). The pass
+// when the sign-in-everywhere apex signs out the whole family's dashboard
+// key (RevokeVisitorSSO's sibling path). The pass
 // hash is the family's own (compared directly against
 // sso_passes/visitor_sessions.sso_pass_hash by CompleteSSOSignout's own
 // query), the exact value DeletePushSubscriptionsForFamily matches
@@ -385,7 +385,7 @@ func (h *OAuthHandler) signoutConfirmed(w http.ResponseWriter, r *http.Request, 
 // family's sign-in created is deleted here too, not only the one site a
 // plain current-site sign-out would have reached.
 func deleteFamilyPush(r *http.Request, database *sql.DB, passHash string) {
-	if n, err := notifications.New(database).DeletePushSubscriptionsForFamily(r.Context(), passHash); err != nil {
+	if n, err := notifications.DeletePushSubscriptionsForFamily(r.Context(), database, passHash); err != nil {
 		log.Printf("web push: delete on SSO sign-out: %v", err)
 	} else if n > 0 {
 		log.Printf("web push: deleted %d subscription(s) on SSO sign-out", n)
@@ -469,14 +469,14 @@ func (h *AccessHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next 
 	if err = h.StoreAccounts().RevokeVisitorSSO(r.Context(), sess, token, back); err != nil {
 		return "", err
 	}
-	// FIX 10, Codex round 2: RevokeVisitorSSO deletes the dashboard key
+	// RevokeVisitorSSO deletes the dashboard key
 	// that cascades to every sibling session this family's sign-in
 	// created, across whichever sites they are on; push subscriptions
 	// those sessions created follow the same family scope (pushFamilyFor,
 	// notify_push.go), so this one call reaches every site's push rows
 	// too, not only the current one a plain sign-out would scope to.
 	if family := notifications.PushFamily(sess); family != "" {
-		if n, perr := notifications.New(h.Database).DeletePushSubscriptionsForFamily(r.Context(), family); perr != nil {
+		if n, perr := notifications.DeletePushSubscriptionsForFamily(r.Context(), h.Database, family); perr != nil {
 			log.Printf("web push: delete on SSO revoke: %v", perr)
 		} else if n > 0 {
 			log.Printf("web push: deleted %d subscription(s) on SSO revoke", n)

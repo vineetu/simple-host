@@ -10,10 +10,8 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// VotingSettings holds an event’s voting configuration.
 type VotingSettings = model.VotingSettings
 
-// GetVotingSettings loads an event’s voting configuration.
 func GetVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string) (VotingSettings, error) {
 	var s VotingSettings
 	err := q.QueryRowContext(ctx, `SELECT voting_enabled, voting_opens_at, voting_closes_at,
@@ -22,7 +20,6 @@ func GetVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string) (V
 	return s, err
 }
 
-// SaveVotingSettings updates an event’s voting configuration.
 func SaveVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string, s VotingSettings) error {
 	_, err := q.ExecContext(ctx, `UPDATE events SET voting_enabled = $2, voting_opens_at = $3,
 		voting_closes_at = $4, voting_eligibility = $5, directory_listed = $6,
@@ -31,13 +28,11 @@ func SaveVotingSettings(ctx context.Context, q sqlkit.Querier, eventID string, s
 	return err
 }
 
-// SetDirectoryListed updates an event’s directory flag.
 func SetDirectoryListed(ctx context.Context, q sqlkit.Querier, eventID string, listed bool) error {
 	_, err := q.ExecContext(ctx, `UPDATE events SET directory_listed = $2, updated_at = now() WHERE id = $1`, eventID, listed)
 	return err
 }
 
-// VoteOption describes a project and its vote count.
 type VoteOption = model.VoteOption
 
 // VoteOptions uses the same live-site gate as the event gallery.
@@ -84,7 +79,6 @@ func VoteFinalRanking(ctx context.Context, q sqlkit.Querier, eventID string, sho
 	return out, rows.Err()
 }
 
-// OwnVote returns the team selected by a voter.
 func OwnVote(ctx context.Context, q sqlkit.Querier, eventID, canonicalEmail string) (string, error) {
 	var slug string
 	err := q.QueryRowContext(ctx, `SELECT t.slug FROM event_votes v
@@ -112,7 +106,6 @@ func VoterEligible(ctx context.Context, q sqlkit.Querier, eventID, eligibility, 
 	return allowed, err
 }
 
-// VoteWindow is the locked voting configuration and event state.
 type VoteWindow struct {
 	Enabled, GalleryOpen bool
 	Opens, Closes        sql.NullTime
@@ -129,21 +122,18 @@ func LockVoteWindow(ctx context.Context, tx *sql.Tx, eventID string) (VoteWindow
 	return v, err
 }
 
-// VoteClock reads the database clock used for the voting window.
 func VoteClock(ctx context.Context, q sqlkit.Querier) (time.Time, error) {
 	var now time.Time
 	err := q.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&now)
 	return now, err
 }
 
-// VoteTeamID finds a live project by slug.
 func VoteTeamID(ctx context.Context, q sqlkit.Querier, eventID string, live []string, teamSlug string) (string, error) {
 	var teamID string
 	err := q.QueryRowContext(ctx, `SELECT t.id `+GalleryLiveFrom+` AND t.slug = $3`, eventID, pq.Array(live), teamSlug).Scan(&teamID)
 	return teamID, err
 }
 
-// VoteOwnTeam reports whether the voter belongs to the selected team.
 func VoteOwnTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID, canonicalEmail string) (bool, error) {
 	var own bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members m JOIN users u ON u.id = m.user_id
@@ -152,7 +142,6 @@ func VoteOwnTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID, canonic
 	return own, err
 }
 
-// SaveVote inserts or changes a vote; no row means the selection was unchanged.
 func SaveVote(ctx context.Context, q sqlkit.Querier, eventID, canonicalEmail, teamID string) (bool, error) {
 	var created bool
 	err := q.QueryRowContext(ctx, `INSERT INTO event_votes (event_id, voter_email, team_id)

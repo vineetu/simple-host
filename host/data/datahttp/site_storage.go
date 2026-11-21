@@ -152,13 +152,11 @@ func (h *DataHandler) deleteStorageResource(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *DataHandler) ListStorageResourceRows(ctx context.Context, siteID string) ([]StorageResource, error) {
-	return h.StorageSvc().ListResourceRecords(ctx, appstorage.ResourceListInput{SiteID: siteID})
+	return h.StorageSvc().ListResourceRecords(ctx, siteID)
 }
 func storageResultLimitBytes() int {
 	return appstorage.ResultLimitBytes(os.Getenv("SITE_STORAGE_SQL_RESULT_MAX_BYTES"))
 }
-
-type SiteStorageUsage = appstorage.Usage
 
 func storagePage(r *http.Request) (string, string, int, bool) {
 	q := r.URL.Query()

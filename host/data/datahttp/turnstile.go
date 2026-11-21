@@ -15,11 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 )
 
-// The spam check (owner decision 2026-10-14, INTENT.md): anyone may add to
+// The spam check: anyone may add to
 // a resource whose add rule uses auth.checked without signing in, once Cloudflare Turnstile says the browser passed its check.
 // The check is Cloudflare's, not ours.
 //
@@ -186,46 +185,6 @@ func (h *DataHandler) storageSpamCheck(w http.ResponseWriter, r *http.Request, c
 		return true
 	}
 	c.SpamCheck = "ok"
-	return true
-}
-
-// storagePostLimits keeps a post from someone not signed in small and
-// mostly free of links. raw is the JSON the page sent.
-func storagePostLimits(w http.ResponseWriter, raw []byte, lim edition.Limits) bool {
-	if len(raw) > lim.SpamCheckedMaxBytes {
-		httpx.WriteError(w, 413, "post_too_large", fmt.Sprintf("a post here is at most %d bytes", lim.SpamCheckedMaxBytes))
-		return false
-	}
-	var v any
-	if json.Unmarshal(raw, &v) != nil {
-		httpx.WriteError(w, 400, "invalid_value", "valid JSON required")
-		return false
-	}
-	var b strings.Builder
-	var walk func(any)
-	walk = func(x any) {
-		switch t := x.(type) {
-		case string:
-			b.WriteString(strings.ToLower(t))
-			b.WriteByte(' ')
-		case []any:
-			for _, e := range t {
-				walk(e)
-			}
-		case map[string]any:
-			for k, e := range t {
-				walk(k)
-				walk(e)
-			}
-		}
-	}
-	walk(v)
-	text := b.String()
-	links := strings.Count(text, "http://") + strings.Count(text, "https://") + strings.Count(text, "www.")
-	if links > lim.SpamCheckedMaxLinks {
-		httpx.WriteError(w, 400, "too_many_links", fmt.Sprintf("a post here may hold at most %d links", lim.SpamCheckedMaxLinks))
-		return false
-	}
 	return true
 }
 

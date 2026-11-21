@@ -30,9 +30,7 @@ func (h *participationHTTP) listPeople(w http.ResponseWriter, r *http.Request) {
 			"team":              nil,
 			"joined_at":         rfc3339Time(p.JoinedAt),
 			"coc_accepted_at":   rfc3339UTC(p.CocAcceptedAt),
-			// zp-hack-applications.sql. The profile fields (city, country,
-			// age_range, gender) stay off this list by design (D3): they
-			// are only in the Applications list and the participants CSV.
+			// The profile fields (city, country, age_range, gender) stay off this list by design: they are only in the Applications list and the participants CSV.
 			"joined_via": p.JoinedVia,
 		}
 		if p.TeamSlug.Valid {
@@ -108,7 +106,6 @@ func (h *participationHTTP) teamOrganiserJSON(ctx context.Context, team model.Ev
 	return teamOrganiserJSONFrom(team, people, h.links.teamLinkURL(team.Code)), nil
 }
 
-// teamOrganiserJSONFrom is teamOrganiserJSON with the members already read.
 func teamOrganiserJSONFrom(team model.EventTeam, people []model.EventPerson, link string) map[string]any {
 	members := make([]map[string]any, 0, len(people))
 	for _, p := range people {

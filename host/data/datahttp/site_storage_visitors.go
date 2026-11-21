@@ -7,7 +7,7 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 )
 
-// Who sent each record (2026-10-10). A visitor's saves carry an opaque
+// Who sent each record. A visitor's saves carry an opaque
 // visitor_id: the visitor_id column of a read-own SQLite table, and, for the
 // owner only, visitor_id on KV keys and stored files. GET
 // /v1/sites/{sitename}/storage/visitors?id=<visitor_id>[,<visitor_id>...]
@@ -18,8 +18,7 @@ import (
 // with their site. Emails are never stored in a site's data and never reach a
 // visitor.
 //
-// ?email=<address>[,<address>...] resolves the other direction (2026-11-06,
-// SIM-358): the visitor_id each address signed in as on this site, for
+// ?email=<address>[,<address>...] resolves the other direction: the visitor_id each address signed in as on this site, for
 // building a POST .../tables/{t}/rows?for=<visitor_id or email> request, or
 // for ResolveOwnerFor directly with the address itself. id and email may be
 // combined in one call; each is resolved independently and the results
@@ -72,7 +71,7 @@ type storagePerson struct {
 
 // storagePeople serves GET /v1/sites/{sitename}/storage/people: the site's
 // people with saved data or named-viewer status, for the owner to pick
-// whom a new row is for (SIM-358). Owner credential, or the owner signed in
+// whom a new row is for. Owner credential, or the owner signed in
 // on the site's own address (SH.me().site_owner), only.
 func (h *DataHandler) storagePeople(w http.ResponseWriter, r *http.Request, c StorageCall) {
 	// Named viewers (one input to this list) are not a Simple Hack concept,

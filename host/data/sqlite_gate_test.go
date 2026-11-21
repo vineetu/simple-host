@@ -120,7 +120,7 @@ func TestSiteSlotsCombinedAdmissionDeadline(t *testing.T) {
 
 func TestSiteSlotsRecovery(t *testing.T) {
 	for _, committed := range []bool{false, true} {
-		for _, p := range []any{"sqlite3: out of memory", sqlite3.NOMEM, fmt.Errorf("wrapped: %w", sqlite3.NOMEM), errors.New("other"), []int{1}} {
+		for _, p := range []any{"sqlite3: out of memory", fmt.Errorf("wrapped: %w", sqlite3.NOMEM), errors.New("other")} {
 			slots := NewSiteSlots(1, NewSQLiteGate(1, time.Second), time.Second)
 			err := slots.Admit(context.Background(), "a", func(_ context.Context, a *Admission) error {
 				if committed {

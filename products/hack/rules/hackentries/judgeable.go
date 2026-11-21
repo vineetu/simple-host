@@ -11,14 +11,12 @@ func Judgeable(e model.EventEntry) bool {
 	return e.Exists && (e.SubmittedAt.Valid || e.SubmitSettledAt.Valid) && !e.ExcludedAt.Valid
 }
 
-// JudgeableCase describes an entry and its expected eligibility.
 type JudgeableCase struct {
 	Name  string
 	Entry model.EventEntry
 	Want  bool
 }
 
-// JudgeableCases is the shared set of Go and SQL eligibility cases.
 var JudgeableCases = []JudgeableCase{
 	{"no entry row", model.EventEntry{}, false},
 	{"draft", model.EventEntry{Exists: true}, false},

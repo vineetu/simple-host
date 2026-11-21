@@ -8,15 +8,13 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/host/access/auth"
-	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/server/servertest"
 	"github.com/vsriram/simple-host/host/web"
 )
 
 // hostedDomainLeak reports every captured string (sign-in codes, the
 // sign-in link, and every notice's to|subject|text) that names either
 // hosted domain or the hosted support address, case-insensitively.
-func hostedDomainLeak(mb *servertest.Mailbox, links []string) []string {
+func hostedDomainLeak(mb *Mailbox, links []string) []string {
 	var hits []string
 	check := func(label, s string) {
 		low := strings.ToLower(s)
@@ -54,15 +52,11 @@ func TestSelfHostedEmailsNeverNameHostedService(t *testing.T) {
 	web.SetInstanceHosts("hack.example.test", "", "")
 	defer web.SetInstanceHosts("simple-host.app", "", "")
 
-	mb := &servertest.Mailbox{}
-	a := servertest.NewPrivateAppMailerBase(t, mb, "https://hack.example.test")
-	a.Users.Alerts.Run = func(f func()) { f() } // synchronous for the test
-	a.Users.EmailLimiter = httpx.NewRateLimiter(1000, 1000)
+	a, mb := NewAccountApp(t)
 
 	p := a.NewPerson(t, "selfhosted-mail")
-	key := map[string]string{"X-API-Key": p.Key}
-	_, handle := a.UserID(t, p)
-	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM auth_tokens WHERE email = $1`, p.Email) })
+	key := p.Header()
+	handle := p.Handle
 
 	// ---- 1. email sign-in code + the sign-in alert it triggers on
 	//         completion (finishSignIn -> SignInAlerts.Alert) ----
@@ -82,11 +76,10 @@ func TestSelfHostedEmailsNeverNameHostedService(t *testing.T) {
 	// ---- 2. email change: both the new-address code and the
 	//         current-address notice (host/app/accounts/email_change_mail.go) ----
 	newAddr := "selfhosted-mail-moved-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.org"
-	newCode, curCode := servertest.RequestEmailChange(t, a, mb, key, p.Email, newAddr)
+	newCode, curCode := RequestEmailChange(t, a, mb, key, p.Email, newAddr)
 	if r := a.At(t, "POST", a.AppHost(), "/v1/me/email/verify", map[string]string{"code": newCode, "current_code": curCode}, key); r.Status != http.StatusOK {
 		t.Fatalf("email change verify: %d %s", r.Status, r.Body)
 	}
-	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM auth_tokens WHERE email = $1`, newAddr) })
 
 	// ---- 3. the account-deletion notice (account_data.go's SupportText
 	//         path, the other SendNotice call site besides email-change) ----

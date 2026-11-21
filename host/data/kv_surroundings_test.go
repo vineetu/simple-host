@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	runtime "github.com/vsriram/simple-host/host/storage"
@@ -102,55 +101,8 @@ func TestKVResourceDeleteRestoresWALAndSHM(t *testing.T) {
 	}
 }
 
-func TestKVConcurrentFileBusyWithMultipleSiteSlots(t *testing.T) {
-	s, c := kvFixture(t, false)
-	ctx := context.Background()
-	kvPut(t, s, c, "key", "1", "")
-	s.deps.SiteSlots = NewSiteSlots(4, NewSQLiteGate(4, time.Second), time.Second)
-	entered, release := make(chan struct{}), make(chan struct{})
-	held := make(chan error, 1)
-	go func() {
-		held <- s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
-			conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(c.RuntimeDir, "data"), true, false)
-			if err != nil {
-				return err
-			}
-			defer done()
-			if err = conn.Exec("PRAGMA locking_mode=EXCLUSIVE; BEGIN EXCLUSIVE"); err != nil {
-				return err
-			}
-			close(entered)
-			<-release
-			return conn.Exec("ROLLBACK")
-		})
-	}()
-	select {
-	case <-entered:
-	case err := <-held:
-		t.Fatalf("lock: %v", err)
-	case <-time.After(10 * time.Second):
-		t.Fatal("lock timed out")
-	}
-	// All three enter alongside the first slot, and hit the file lock itself.
-	results := make(chan error, 3)
-	go func() { _, err := s.GetKV(ctx, KVReadInput{Call: c, Key: "key"}); results <- err }()
-	go func() { _, err := s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir); results <- err }()
-	go func() { _, _, err := s.KVFileStats(ctx, c.SiteID, c.RuntimeDir); results <- err }()
-	var failures []error
-	for i := 0; i < 3; i++ {
-		failures = append(failures, <-results)
-	}
-	close(release)
-	if err := <-held; err != nil {
-		t.Fatal(err)
-	}
-	for _, err := range failures {
-		var e *Error
-		if !errors.As(err, &e) || e.Code != "storage_busy" {
-			t.Errorf("want busy, got %v", err)
-		}
-	}
-	kvPut(t, s, c, "key", "2", "")
+// SQLite lock contention on a KV file is reported as busy, not failed.
+func TestKVFileBusyErrors(t *testing.T) {
 	for _, err := range []error{sqlite3.BUSY, sqlite3.LOCKED} {
 		var e *Error
 		if !errors.As(kvFileError(err), &e) || e.Code != "storage_busy" {

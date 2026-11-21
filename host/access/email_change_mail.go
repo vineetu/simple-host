@@ -2,9 +2,10 @@ package access
 
 import (
 	"log"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/config"
 )
 
 type CodeSender interface {
@@ -14,21 +15,6 @@ type NoticeSender interface {
 	SendNotice(string, string, string) error
 }
 
-func mailSpan(d time.Duration) string {
-	n, unit := int(d/time.Second), "second"
-	switch {
-	case d >= 24*time.Hour && d%(24*time.Hour) == 0:
-		n, unit = int(d/(24*time.Hour)), "day"
-	case d >= time.Hour && d%time.Hour == 0:
-		n, unit = int(d/time.Hour), "hour"
-	case d >= time.Minute && d%time.Minute == 0:
-		n, unit = int(d/time.Minute), "minute"
-	}
-	if n == 1 {
-		return "one " + unit
-	}
-	return strconv.Itoa(n) + " " + unit + "s"
-}
 func maskEmail(address string) string {
 	local, domain, ok := strings.Cut(address, "@")
 	if !ok || local == "" {
@@ -47,7 +33,7 @@ Your confirmation code:
 
     `+code+`
 
-It expires in `+mailSpan(ttl)+`. If you didn't ask for this, ignore this email: nothing changes.
+It expires in `+config.Span(ttl)+`. If you didn't ask for this, ignore this email: nothing changes.
 
 Simple Host
 `)
@@ -64,7 +50,7 @@ If that was you, enter this code together with the one sent to the new address:
 
     `+code+`
 
-It expires in `+mailSpan(ttl)+`. If it wasn't you, do not share this code: without it nothing changes. Someone has one of your keys, so sign in and remove the keys you don't recognise, or write to support@simple-host.app.
+It expires in `+config.Span(ttl)+`. If it wasn't you, do not share this code: without it nothing changes. Someone has one of your keys, so sign in and remove the keys you don't recognise, or write to support@simple-host.app.
 
 Simple Host
 `))
@@ -73,7 +59,7 @@ Simple Host
 func EmailChangedNotice(newEmail, undoLink string, undoTTL time.Duration) string {
 	text := "Your Simple Host sign-in email was changed to " + maskEmail(newEmail) + `. From now on you sign in with that address.
 
-If this wasn't you, undo it (opens a page with an Undo button; works for ` + mailSpan(undoTTL) + `):
+If this wasn't you, undo it (opens a page with an Undo button; works for ` + config.Span(undoTTL) + `):
 ` + undoLink + `
 
 Undoing puts the account back on this address, signs out every key and every sign-in on sites, and removes Google or GitHub sign-ins and connected apps added since the change. Questions: support@simple-host.app.

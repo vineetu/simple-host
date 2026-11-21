@@ -147,6 +147,26 @@ func (c *capture) Write(p []byte) (int, error) {
 	return c.body.Write(p)
 }
 
+// upstreamMessage is a refused REST call's error text and code.
+func upstreamMessage(u upstreamResult) (string, string) {
+	var payload struct {
+		Error string `json:"error"`
+		Code  string `json:"code"`
+	}
+	_ = json.Unmarshal(u.body, &payload)
+	msg := payload.Error
+	if msg == "" {
+		msg = strings.TrimSpace(string(u.body))
+		if len(msg) > 300 {
+			msg = msg[:300]
+		}
+	}
+	if msg == "" {
+		msg = http.StatusText(u.status)
+	}
+	return msg, payload.Code
+}
+
 // restError turns a refused REST call into a message a model can act on: the
 // server's own error, plus what to do about it.
 func restError(tool string, u upstreamResult) error {
@@ -202,16 +222,9 @@ func (e *refusalError) Error() string { return e.text }
 // can tell a wrong site name from a wrong argument.
 func codedError(code, text string) error { return &refusalError{text: text, code: code} }
 
-// CodedError lets another package in this binary (the visitor tool bridge in
-// host/handler, which runs outside the MCP boundary as a site's own
-// visitor rather than its owner) make a refusal that codeHints/
-// selfExplainedCodes and analytics treat exactly like one made in this
-// package: the code travels with the error instead of only appearing as text
-// a human would have to parse back out. The caller writes the complete,
-// actionable text itself (this package's own direct codedError calls do the
-// same; only restError pulls a hint from codeHints automatically); add the
-// code to codeHints or selfExplainedCodes too, or analytics still records it
-// as tool_error.
+// CodedError makes, from another package, a refusal that analytics treats
+// like one made here. The caller writes the complete text; add the code to
+// codeHints or selfExplainedCodes too, or analytics records it as tool_error.
 func CodedError(code, text string) error { return codedError(code, text) }
 
 // RefusalCode returns the code of an error made with CodedError or
@@ -252,8 +265,8 @@ var codeHints = map[string]string{
 	"name_reserved":                  "That name is reserved by Simple Host and cannot be used. Ask the person for a different name.",
 	"invalid_domain":                 "That is not a domain that can be connected. Send a bare hostname the person owns (e.g. shop.example.com or example.com), or a free <name>.simple-host.app address.",
 	"site_quota_reached":             "This account has as many sites as it may hold. Tell the person; a site must be deleted (delete_site) before another can be created. Do not retry.",
-	"site_total_too_large":           "The website exceeds its whole-file allowance after pruning. Follow the tips and check who_am_i and list_sites before trying smaller files.",
-	"account_storage_full":           "The account is out of website file space. Follow the tips; ask the person which old sites to delete before deleting anything.",
+	"site_total_too_large":           "The website exceeds its whole-file allowance after pruning. Shrink or drop large files (who_am_i and list_sites show what is used), then publish again.",
+	"account_storage_full":           "The account is out of website file space. Shrink or drop large files, or ask the person which old sites to delete; delete nothing without a yes.",
 	"keep_versions_fixed":            "Simple Host keeps your 4 latest versions. This account cannot change that count.",
 	"site_too_large":                 "The site is bigger than this account may deploy (the error names the limit). Make it smaller (shrink or drop large images, video and unused files) and deploy again, or tell the person; do not retry the same files.",
 	"custom_domain_required":         "This needs the site to have its own address first. Give it one with connect_domain (a free <name>.simple-host.app is active at once), then call again.",
@@ -286,10 +299,12 @@ var codeHints = map[string]string{
 	"passcode_set":                   "This site has a passcode, and a site has a passcode or named viewers, not both. Ask the person whether to remove the passcode (remove_site_passcode) and use named viewers instead; do not remove it without a yes.",
 	"named_viewers_set":              "This site is open only to named viewers, and a site has named viewers or a passcode, not both. Ask the person whether to open it to anyone (set_site_access access anyone) first; do not change it without a yes.",
 	"named_viewers_need_own_address": "Named viewers work only on a site served at its own address (https://<site>.<handle>.simple-host.app/). Tell the person; do not retry.",
+	"not_offered":                    "This is not offered here. Tell the person; do not retry.",
 	"named_viewers_unavailable":      "Named viewers are not offered here. Tell the person; do not retry.",
 	"sign_in_unavailable":            "Visitors cannot sign in on this server (no email codes or Google set up), so named viewers cannot work here. Tell the person; do not retry.",
 	"invalid_email":                  "That is not an email address. Ask the person for the exact address, then call again.",
 	"too_many_viewers":               "A site can name only so many viewers (the message says how many). Remove some with revoke_site_viewer after the person agrees, or tell the person.",
+	"person_not_found":               "No account has that handle. Ask the person for the exact handle (the name in that person's own site addresses); an email is not a handle.",
 	"viewer_not_found":               "That email is not a named viewer of this site; list_site_viewers shows who is.",
 	"invalid_visitor_id":             "Visitor ids are the visitor_id values from the rows (like 1b4e28ba-2fa1-11d2-883f-0016d3cca427), 1 to 100 per call.",
 	"invalid_json":                   "The data holds text the database cannot store: a NUL character (\\u0000), half of a surrogate pair, or bytes that are not UTF-8. Remove it and call again.",
@@ -323,6 +338,8 @@ var codeHints = map[string]string{
 	"file_exists":                    "A file at that path already exists. Choose another path, or ask the person before replacing it.",
 	"key_exists":                     "That key already exists. Choose another key, or ask the person before replacing its value.",
 	"name_taken":                     "That event name is already in use. Pick another; do not retry the same name.",
+	"entry_changed":                  "A teammate changed the entry since you read it. Read it again with hack_get_entry and redo the change on the fresh copy.",
+	"invalid_display_name":           "Ask the person once for the name to show in the event, then send it as display_name.",
 	"name_check_unavailable":         "The event name could not be checked. Call hack_check_event_name again in a moment.",
 	"too_many_events_today":          "This person has created as many events as today allows. Tell them; do not retry.",
 	"too_many_active_events":         "This person already has as many active events as this instance allows. Tell them; do not retry.",
@@ -340,10 +357,6 @@ var codeHints = map[string]string{
 	"editor_scope":                   "You publish only your own team's site. Organisers manage everything else of the event.",
 	"organiser_read_only":            "Organisers read team sites but do not change them. Take the site down or change the team's deadline instead.",
 	"unknown_tool":                   "No tool of that name exists on this connector. Call find_tools with the job, or pick one of the closest tools named above, instead of guessing the name again.",
-}
-
-func codeHint(code string) string {
-	return resourceCodeHint(code, "")
 }
 
 func resourceCodeHint(code, kind string) string {

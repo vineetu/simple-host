@@ -11,8 +11,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Organiser team messages (0003-hack-notices-judges-messages.sql): a notice
-// kind like any other, with a durable history row for the two read routes.
+// Organiser team messages: a notice kind like any other, with a durable history row for the two read routes.
 
 func teamMessageJSON(m model.TeamMessage) map[string]any {
 	return map[string]any{
@@ -73,8 +72,6 @@ func writeMessageRefusal(w http.ResponseWriter, err error, limited string) {
 	httpx.WriteError(w, http.StatusTooManyRequests, "rate_limited", limited)
 }
 
-// getOrganiserTeamMessages is GET .../teams/{team}/messages: the organiser's
-// read of one team's message history.
 func (h *participationHTTP) getOrganiserTeamMessages(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
@@ -127,8 +124,6 @@ func (h *participationHTTP) postMyTeamMessage(w http.ResponseWriter, r *http.Req
 	httpx.WriteJSON(w, http.StatusCreated, map[string]any{"message": postedTeamMessageJSON(sent)})
 }
 
-// getMyTeamMessages is GET .../team/messages: a participant's own team's
-// message history, empty when they are on no team.
 func (h *participationHTTP) getMyTeamMessages(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
 	if !ok {

@@ -254,7 +254,7 @@ func (h *AccessHandler) logoutVisitor(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, 403, httpx.ErrorResponse{Error: "sign out on the site's own page"})
 		return
 	}
-	// SIM-360 privacy guardrail: the one Sign out ends push on that
+	// Privacy guardrail: the one Sign out ends push on that
 	// device. auth.js's SH.signOut() already unsubscribes the browser's
 	// own PushSubscription and calls /push/unsubscribe itself, but that is
 	// a second, client-initiated request; resolve the session being
@@ -364,7 +364,7 @@ func (h *AccessHandler) signedInMe(r *http.Request, siteID string, sess model.Vi
 		expires = sess.IdleExpiresAt
 	}
 	resp := h.visitorSignedInResponse(r, expires, "", "")
-	email, err := VisitorEmail(r.Context(), h.Database, sess.UserID)
+	email, err := accountapp.VisitorEmail(r.Context(), h.Database, sess.UserID)
 	resp.Email = email
 	if err != nil {
 		return resp, err
@@ -482,12 +482,6 @@ func (h *AccessHandler) StrictVisitorSession(r *http.Request, siteID string) (mo
 	return sess, ok
 }
 
-// visitorEmail is the address an account presents to other people's sites
-// (accountapp.VisitorEmail).
-func VisitorEmail(ctx context.Context, database *sql.DB, userID string) (string, error) {
-	return accountapp.VisitorEmail(ctx, database, userID)
-}
-
 // onOwnDomain: this request arrived on the site's own origin — its proven own
 
 // deleteVisitorPushOnSignOut is the server-side half of "Sign out ends push
@@ -501,7 +495,7 @@ func (h *AccessHandler) deleteVisitorPushOnSignOut(r *http.Request) {
 	if err != nil || sess.UserID == "" || sess.SiteID == "" {
 		return
 	}
-	if _, err := notifications.New(h.Database).DeletePushSubscriptionsForFamily(r.Context(), notifications.PushFamily(sess)); err != nil {
+	if _, err := notifications.DeletePushSubscriptionsForFamily(r.Context(), h.Database, notifications.PushFamily(sess)); err != nil {
 		log.Printf("web push: delete on sign-out for site %s: %v", sess.SiteID, err)
 	}
 }

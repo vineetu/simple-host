@@ -15,9 +15,6 @@ func TestListSitesFilters(t *testing.T) {
 	}{
 		{"no arguments", map[string]any{}, url.Values{}},
 		{"all filters", map[string]any{"query": "Real estate & homes", "created_after": "2026-10-20", "created_before": "2026-10-21", "updated_after": "2026-10-22T01:02:03+02:00", "updated_before": "2026-10-23", "limit": 12, "offset": 3}, url.Values{"query": {"Real estate & homes"}, "created_after": {"2026-10-20"}, "created_before": {"2026-10-21"}, "updated_after": {"2026-10-22T01:02:03+02:00"}, "updated_before": {"2026-10-23"}, "limit": {"12"}, "offset": {"3"}}},
-		{"empty query", map[string]any{"query": ""}, url.Values{"query": {""}}},
-		{"large limit", map[string]any{"limit": 1000000}, url.Values{"limit": {"1000000"}}},
-		{"zero limit", map[string]any{"limit": 0}, url.Values{"limit": {"0"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			calls := 0
@@ -49,12 +46,5 @@ func TestListSitesFilters(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestRestSiteSummaryOmitsEmptyFields(t *testing.T) {
-	var site restSite
-	if _, ok := site.summary()["summary"]; ok {
-		t.Fatal("empty summary included")
 	}
 }

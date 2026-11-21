@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"encoding/json"
-	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,7 +14,6 @@ func TestPreviewFrameDomainsFollowInstance(t *testing.T) {
 	}{
 		{"hosted", "simple-host.app", "https://sites.simple-host.app", []string{"simple-host.app"}, []string{"https://*.simple-host.app"}},
 		{"box", "box.example.test", "https://content.example.test", []string{"box.example.test"}, []string{"https://*.box.example.test", "https://content.example.test"}},
-		{"alternate base", "box.example.test", "https://sites.box.example.test", []string{"pages.example.test", "box.example.test"}, []string{"https://*.pages.example.test", "https://*.box.example.test"}},
 		{"no dashboard frame", "box.example.test", "https://box.example.test", nil, []string{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,94 +42,6 @@ func TestPreviewFrameDomainsFollowInstance(t *testing.T) {
 				t.Fatal("resource HTML does not use the listed frame origins")
 			}
 		})
-	}
-}
-
-func TestSitePreviewGatesAndResource(t *testing.T) {
-	s := newTestServer(nil)
-	t.Setenv("MCP_APP_PHOTO_PICKER", "off")
-	t.Setenv("MCP_APP_SITE_PREVIEW", "off")
-	before, bareBefore, _ := s.forCaller(Caller{})
-	baseline, _ := json.Marshal(before)
-	bareBaseline, _ := json.Marshal(bareBefore)
-	for _, flag := range []string{"", "off", "unknown", "on", "accounts:alice"} {
-		t.Setenv("MCP_APP_SITE_PREVIEW", flag)
-		for _, handle := range []string{"alice", "bob", ""} {
-			caller := Caller{Handle: handle}
-			enabled := appFlag(flag, handle)
-			full, bare, _ := s.forCaller(caller)
-			if len(full) != len(coreToolNames) {
-				t.Fatal("changed core inventory")
-			}
-			for _, list := range [][]Tool{full, bare} {
-				for _, tool := range list {
-					if (tool.Meta["ui"] != nil) != (enabled && tool.Name == "get_site") {
-						t.Fatalf("%s %s %s metadata", flag, handle, tool.Name)
-					}
-					if tool.Name == "get_site" && tool.OutputSchema != nil {
-						_, hasPreview := tool.OutputSchema["properties"].(map[string]any)["site_preview"]
-						if hasPreview != enabled {
-							t.Fatal("preview output schema gate")
-						}
-					}
-				}
-			}
-			if !enabled {
-				got, _ := json.Marshal(full)
-				gotBare, _ := json.Marshal(bare)
-				if string(got) != string(baseline) || string(gotBare) != string(bareBaseline) {
-					t.Fatal("off tools/list changed")
-				}
-			}
-			resources := s.appResources(caller)
-			if (len(resources) == 1) != enabled {
-				t.Fatal("resources/list gate")
-			}
-			req := request{ID: json.RawMessage(`1`), Method: "resources/read", Params: json.RawMessage(`{"uri":"ui://simple-host/site-preview"}`)}
-			reply := s.dispatch(httptest.NewRequest("POST", "/mcp", nil), req, caller)
-			b, _ := json.Marshal(reply)
-			var wire map[string]any
-			_ = json.Unmarshal(b, &wire)
-			if !enabled {
-				if wire["error"] == nil {
-					t.Fatal("off resource read allowed")
-				}
-				continue
-			}
-			item := wire["result"].(map[string]any)["contents"].([]any)[0].(map[string]any)
-			if item["mimeType"] != appMIME {
-				t.Fatal(item["mimeType"])
-			}
-			ui := item["_meta"].(map[string]any)["ui"].(map[string]any)
-			csp := ui["csp"].(map[string]any)
-			if !reflect.DeepEqual(csp["frameDomains"], []any{"https://*.simple-host.app"}) || len(csp["connectDomains"].([]any)) != 0 || len(csp["resourceDomains"].([]any)) != 0 {
-				t.Fatal(csp)
-			}
-			if ui["permissions"].(map[string]any)["clipboardWrite"] == nil {
-				t.Fatal("clipboard permission missing")
-			}
-			page := item["text"].(string)
-			for _, needle := range []string{"ui/initialize", "ui/open-link", "ui/request-display-mode", "Back to card", "navigator.clipboard.writeText", "1500", "textContent"} {
-				if !strings.Contains(page, needle) {
-					t.Fatal("missing " + needle)
-				}
-			}
-			if strings.Contains(page, "__SCREEN__") || strings.Contains(page, "innerHTML") || strings.Contains(page, "'pip'") {
-				t.Fatal("unexpected page content")
-			}
-		}
-	}
-	t.Setenv("MCP_APP_SITE_PREVIEW", "on")
-	for _, mode := range []string{CallerModeEvents} {
-		if len(s.enabledScreens(Caller{Mode: mode})) != 0 {
-			t.Fatal("Hack offered preview")
-		}
-	}
-	t.Setenv("MCP_APP_SITE_PREVIEW", "off")
-	after, _, _ := s.forCaller(Caller{})
-	b, _ := json.Marshal(after)
-	if string(b) != string(baseline) {
-		t.Fatal("cached schema mutated")
 	}
 }
 

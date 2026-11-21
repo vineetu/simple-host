@@ -1,7 +1,6 @@
 package accesshttp
 
 import (
-	"context"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -24,7 +23,7 @@ import (
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Named viewers: who can open a site (owner decision 2026-10-10; INTENT.md).
+// Named viewers: who can open a site.
 //
 // A site's access is "anyone" (the default: anyone with the address, or with
 // the passcode when the site has one) or "specific": only its owner and the
@@ -59,21 +58,10 @@ func (h *AccessHandler) viewerSession(r *http.Request, siteID string) (model.Vis
 	return sess, err == nil
 }
 
-// viewerAllowed reports whether account userID may open the site: its owner,
-// or a named viewer by the address the account signs in with (visitorEmail,
-// the address other people's sites see). A suspended account never is. email
-// is that address ("" for the owner).
+// viewerAllowed reports whether account userID may open the site
+// (accounts.ViewerAllowed).
 func (h *AccessHandler) viewerAllowed(r *http.Request, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
-	return h.viewerAllowedCtx(r.Context(), row, userID)
-}
-
-// viewerAllowedCtx is viewerAllowed's body without the *http.Request: the
-// check only ever needed the context, never anything else about the
-// request, so an async caller (SIM-360 push delivery, which has no request
-// at all) can run the exact same named-viewers decision a live HTTP
-// request would.
-func (h *AccessHandler) viewerAllowedCtx(ctx context.Context, row model.SitePasscodeRow, userID string) (ok bool, email string, err error) {
-	return accounts.ViewerAllowed(ctx, h.Database, row, userID)
+	return accounts.ViewerAllowed(r.Context(), h.Database, row, userID)
 }
 
 // viewerGate answers a named-viewers site's file request for someone who may
@@ -442,7 +430,7 @@ func (h *AccessHandler) viewerVerifyCode(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	if created {
-		recordSignup(r.Context(), h.Database, user.ID, model.Signup{Source: model.SignupVisitor, Method: model.SignupMethodEmail})
+		accounts.RecordSignup(r.Context(), h.Database, user.ID, model.Signup{Source: model.SignupVisitor, Method: model.SignupMethodEmail})
 	}
 	start, err := h.StoreAccounts().StartVisitorSession(r.Context(), user.ID, siteID, httpx.HostName(r), h.Limits.VisitorSessionTTL, h.Limits.VisitorSessionIdle)
 	if errors.Is(err, model.ErrAccountSuspended) {
@@ -698,20 +686,14 @@ func (h *AccessHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request)
 		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: e + " is not a named viewer of this site", Code: "viewer_not_found"})
 		return
 	}
-	// SIM-360 privacy guardrail: a removed named viewer stops receiving
-	// push too. RemoveSiteViewer itself already ran this (appsites.Deps.
-	// DeleteViewerPush, FIX 9) for every caller of that service method,
-	// not just this handler, so there is nothing left to do here.
+	// A removed named viewer stops receiving push too: RemoveSiteViewer
+	// already ran appsites.Deps.DeleteViewerPush for every caller.
 	log.Printf("site_viewers removed=1 site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
 	note := e + " can no longer open the site."
 	h.writeSiteAccess(w, r, site, siteAccessResponse{Removed: e, Note: note})
 }
 
-// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
-// (host/geoip, GEOIP_DIR) so every visitor email-code sign-in or sign-up
-// attempt from a blocked country is refused before anything is created or
-// emailed — a new account and an existing one alike. geo may be nil;
-// countries may be empty — either turns this off.
+// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES for visitor email-code sign-ins.
 func (h *AccessHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
 	h.geoBlock = guard
 }

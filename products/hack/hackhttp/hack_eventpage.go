@@ -32,9 +32,7 @@ type hackEventPage struct {
 	ApplyURL string
 	IconURL  string
 	Color    string
-	// Theme is the Look setting (SIM-353, 0011-hack-event-theme.sql): "" is
-	// Classic, today's look, with no themes.css link and no data-theme attribute
-	// at all, so Classic renders byte-identical to before this field existed.
+	// Theme is the Look setting: "" is Classic, rendered with no themes.css link and no data-theme attribute.
 	Theme           string
 	TakenDown       bool
 	TakenDownReason string
@@ -51,8 +49,7 @@ type hackEventPage struct {
 	Fixed []hackFixedRow
 }
 
-// hackAnnouncementView carries the raw time so the public page can format it in
-// the event's own time zone (tech_notes: "Announcement dates ...
+// hackAnnouncementView carries the raw time so the page can format it in the event's own time zone.
 type hackAnnouncementView struct {
 	Title, Body string
 	CreatedAt   time.Time
@@ -87,23 +84,13 @@ type hackResultsRow struct {
 	Overall   bool
 	Score     string
 	ScoreMode string
-	// Card is this team's public summary card (build-plan §4.6), nil for a row
-	// from a snapshot published before slice 3, or for a team whose snapshot entry
-	// was somehow never written.
+	// Card is this team's public summary card; nil for a row from an older snapshot or a team whose snapshot entry was never written.
 	Card *hackResultCard
-	// Shot is the template-ready absolute screenshot URL (hack_wire.go's
-	// HackEventPage), set only when the gallery is public and this team's
-	// site is live right now -- the same freshness gate the Team sites
-	// section already applies, reused here instead of trusting the
-	// publish-time has_screenshot forever.
+	// Shot is the absolute screenshot URL, set only when the gallery is public and the team's site is live right now (the same freshness gate as the Team sites section).
 	Shot string
 }
 
-// hackResultCard is one ranked team's public entry summary (build-plan §4.6),
-// round-tripped through JSON from the snapshot's per-row "entry" field (see
-// resultsSnapshotJSON/resultsEntryCards in hack_judging.go) so its field tags
-// double as the wire shape for GET .../results, GET .../public and the MCP
-// reads that proxy them.
+// hackResultCard is one ranked team's public entry summary, round-tripped through JSON from the snapshot's per-row "entry" field (resultsSnapshotJSON/resultsEntryCards in hack_judging.go); its tags are the wire shape for GET .../results, .../public and the MCP reads.
 type hackResultCard struct {
 	Title         string            `json:"title"`
 	Tagline       string            `json:"tagline"`
@@ -120,10 +107,7 @@ type hackResultCard struct {
 	HasScreenshot bool              `json:"has_screenshot"`
 }
 
-// hackMaturityLabel is the plain word for what works today, kept in step by
-// hand with ui.js's MATURITY table (build-plan §6 point "Maturity wording
-// must match what slice 1 uses elsewhere") since this is a server-rendered
-// page with no script of its own to share that table with.
+// hackMaturityLabel is the plain word for what works today; keep in step with ui.js's MATURITY table (this server-rendered page has no script to share it).
 func hackMaturityLabel(m string) string { return hackMaturityLabels[m] }
 
 var hackMaturityLabels = map[string]string{"working": "Demo-ready", "partial": "Partly working", "concept": "Concept"}
@@ -134,7 +118,6 @@ type hackResultsView struct {
 	Rows        []hackResultsRow
 }
 
-// hackGalleryCard is one project on the public event page.
 type hackGalleryCard struct {
 	Title, Tagline, Team string
 	Shot, URL            string
@@ -146,9 +129,7 @@ type hackGalleryCard struct {
 	TeamID string
 }
 
-// HackEventPages owns the parsed hack-event.html template that the public event
-// page, HackEventPage's SiteHandler hook and their shared not-found response
-// all render from.
+// HackEventPages owns the parsed hack-event.html template.
 type HackEventPages struct {
 	fsys fs.FS
 	once sync.Once
@@ -156,13 +137,11 @@ type HackEventPages struct {
 	err  error
 }
 
-// NewHackEventPages builds a template cache for hack-event.html, read from
-// fsys (the product's embed, products/hack/webassets.Static) on first use.
+// NewHackEventPages reads hack-event.html from fsys on first use.
 func NewHackEventPages(fsys fs.FS) *HackEventPages {
 	return &HackEventPages{fsys: fsys}
 }
 
-// template parses hack-event.html once, lazily, from p.fsys.
 func (p *HackEventPages) template() (*template.Template, error) {
 	p.once.Do(func() {
 		p.tmpl, p.err = template.New("hack-event.html").ParseFS(p.fsys, "static/hack-event.html")
@@ -177,7 +156,6 @@ type hackCTA struct {
 	Strong     bool
 }
 
-// hackChip is one "on this page" jump link.
 type hackChip struct{ ID, Label string }
 
 // hackStageCardView is the one stage-specific card under the header
@@ -185,10 +163,7 @@ type hackChip struct{ ID, Label string }
 type hackStageCardView struct {
 	Kicker, Heading, Body, Note string
 	Primary, Secondary          *hackCTA
-	// Extra is a third button, shown between Primary and Secondary: today
-	// only Building + a live gallery + applications open, where "See team
-	// sites" already holds Primary and "Already joined? Sign in" holds
-	// Secondary, so Apply gets this third slot instead of displacing either.
+	// Extra is a third button between Primary and Secondary, used only for Building + live gallery + applications open.
 	Extra *hackCTA
 	// The live countdown (an inline <span id="countdown">, enhanced by the one
 	// nonce script) sits in Note for Open and in Body for Building — never both.
@@ -211,8 +186,7 @@ type hackResultsBlockView struct {
 	AnyRanked       bool
 	ShowScoreHeader bool
 	Rows            []hackResultsRowView
-	// HasCards is true once any row carries a public summary card (build-plan
-	// §4.6).
+	// HasCards is true once any row carries a public summary card.
 	HasCards bool
 }
 
@@ -221,13 +195,9 @@ type hackResultsRowView struct {
 	Avatar     string // team initials when no screenshot is available
 	WinnerPill bool
 	TrackPill  string
-	// Score shadows hackResultsRow.Score (same name, outer field wins over the
-	// embedded one): the template only ever sees this trimmed-for- display form,
-	// set by buildHackResultsBlock.
+	// Score shadows hackResultsRow.Score: the template only sees this trimmed display form.
 	Score string
-	// ShotLetter and MaturityLabel are template-only strings the Go template
-	// itself cannot compute (hackEventTmpl registers no custom funcs, so every bit
-	// of formatting happens here first, same as Score above).
+	// ShotLetter and MaturityLabel are formatted here because the template has no custom funcs.
 	ShotLetter    string
 	MaturityLabel string
 }
@@ -243,22 +213,14 @@ type hackEventView struct {
 	StagePill                   string
 	IconURL, Initial, Color     string
 	Ink                         string // text colour that reads on --ev (hackEventInk)
-	// Theme (SIM-353): "" is Classic, never rendered as an attribute or a
-	// themes.css link, so a classic event's HTML is unchanged from before
-	// this field existed.
+	// Theme: "" is Classic, rendered with no attribute or themes.css link.
 	Theme string
-	// Slug (Grok retest, Cosmetic #3): the stage card's own script reads it to ask
-	// the app's API, cross-origin, whether the signed-in visitor already belongs
-	// to this event, and swap out "Join with the link from the organisers...
+	// Slug: the stage card's script reads it to ask the app's API (cross-origin) whether the signed-in visitor already belongs to this event.
 	Slug            string
 	AppURL          string
 	TakenDown       bool
 	TakenDownReason string
-	// NotFound renders the same .pub shell's own "not found" state, for a slug
-	// that no longer resolves to an event (deleted, or never existed): the same
-	// top bar and footer as a live event page, instead of generic site chrome
-	// (Grok SIM-346 S15: "a deleted event shows a participant only a bare 'event
-	// not found'").
+	// NotFound renders the .pub shell's not-found state for a slug that no longer resolves (deleted or never existed), with the same top bar and footer as a live page.
 	NotFound            bool
 	Teams, Participants int
 	CountLine           string
@@ -291,8 +253,6 @@ type hackEventView struct {
 	VoteURL               string
 }
 
-// hackAnnouncementLine is one announcement as the page shows it: the date
-// already formatted in the event's own time zone.
 type hackAnnouncementLine struct {
 	Title, Body, When string
 	// BodyHTML is the body rendered by rules.AnnouncementHTML, which escapes
@@ -315,11 +275,7 @@ func renderHackEventPage(w http.ResponseWriter, r *http.Request, p hackEventPage
 	writeHackEventHTML(w, r, p.AppURL, status, p.TakenDown || p.Stage == "draft", page)
 }
 
-// writeHackEventNotFound renders the public event page's own "not found"
-// state at /e/{slug} when the slug no longer resolves to an event (deleted,
-// or never existed): the same top bar and footer as a live event page,
-// instead of generic site chrome (Grok SIM-346 S15: "a deleted event shows
-// a participant only a bare 'event not found'").
+// writeHackEventNotFound renders the not-found state at /e/{slug} for a slug that no longer resolves.
 func writeHackEventNotFound(w http.ResponseWriter, r *http.Request, appURL string, pages *HackEventPages) {
 	v := hackEventView{NotFound: true, Title: "Event not found", AppURL: strings.TrimRight(appURL, "/")}
 	page, err := pages.execute("hack-event.html", v)
@@ -351,7 +307,6 @@ func writeHackEventHTML(w http.ResponseWriter, r *http.Request, appURL string, s
 	_, _ = w.Write(httpx.StampNonce(r, page))
 }
 
-// hackEventPageCSP is the public event page's Content-Security-Policy.
 func hackEventPageCSP(app, nonce string) string {
 	return fmt.Sprintf(
 		"default-src 'none'; script-src 'nonce-%s'; style-src %s 'unsafe-inline'; img-src 'self' %s data: https://i.ytimg.com; font-src %s data:; connect-src %s; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
@@ -363,10 +318,7 @@ func hackEventPageCSP(app, nonce string) string {
 // under the header). "sites" only renders when the gallery has cards.
 var hackStageSectionOrder = map[string][]string{
 	"draft": {"about", "tracks", "prizes", "schedule", "rules", "faq", "sponsors", "announcements"},
-	// "sites" sits right after "tracks", the same adjacency building (and
-	// every later stage) keeps between the two (review 2026-10-30 item 3):
-	// the old page showed team sites from sign-up on, whenever the gallery
-	// switch is on, and this restores that for the open stage too.
+	// "sites" sits right after "tracks", as in building and every later stage: team sites show from sign-up on whenever the gallery switch is on.
 	"open":     {"about", "tracks", "sites", "prizes", "schedule", "faq", "rules", "sponsors", "announcements"},
 	"building": {"announcements", "schedule", "sites", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
 	"closed":   {"sites", "announcements", "schedule", "tracks", "about", "prizes", "rules", "faq", "sponsors"},
@@ -382,12 +334,10 @@ var hackSectionChipLabel = map[string]string{
 	"submissions": "Submissions",
 }
 
-// resultsPublished is whether there are published results to show.
 func (p hackEventPage) resultsPublished() bool {
 	return p.Results != nil && len(p.Results.Rows) > 0
 }
 
-// hackSectionPresent is whether a section has anything to show.
 var hackSectionPresent = map[string]func(v *hackEventView) bool{
 	"about":         func(v *hackEventView) bool { return len(v.About) > 0 },
 	"tracks":        func(v *hackEventView) bool { return len(v.Tracks) > 0 },
@@ -422,8 +372,7 @@ func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, erro
 	return pages.execute("hack-event.html", v)
 }
 
-// hackEventPageView decides everything the page shows, before any section
-// renders: header, stage card, voting, results and the section data.
+// hackEventPageView decides everything the page shows before any section renders.
 func hackEventPageView(p hackEventPage, now time.Time) hackEventView {
 	app := strings.TrimRight(p.AppURL, "/")
 	loc, zoneFallback := hackEventLocation(p.TimeZone)
@@ -460,8 +409,6 @@ func hackEventPageView(p hackEventPage, now time.Time) hackEventView {
 	return v
 }
 
-// hackEventHeader is the header's part of the view: title, organiser,
-// stage pill, colours, dates and the share-preview fields.
 func hackEventHeader(p hackEventPage, pageStage string, resultsPublished bool, loc *time.Location, zoneFallback string, now time.Time) hackEventView {
 	color := strings.TrimSpace(p.Color)
 	if color == "" {
@@ -493,7 +440,6 @@ func hackEventHeader(p hackEventPage, pageStage string, resultsPublished bool, l
 	return v
 }
 
-// hackFirstTime is the first of ts that is set.
 func hackFirstTime(ts ...time.Time) time.Time {
 	for _, t := range ts {
 		if !t.IsZero() {
@@ -517,8 +463,6 @@ func hackSponsorViews(sponsors []hackSponsor) []hackSponsorView {
 	return out
 }
 
-// hackAnnouncementLines are the first three announcements and the rest,
-// dated in the event's zone.
 func hackAnnouncementLines(anns []hackAnnouncementView, loc *time.Location) (first, more []hackAnnouncementLine) {
 	for i, a := range anns {
 		line := hackAnnouncementLine{Title: a.Title, Body: a.Body, When: a.CreatedAt.In(loc).Format("2 Jan 2006"), Pinned: a.Pinned,
@@ -532,7 +476,6 @@ func hackAnnouncementLines(anns []hackAnnouncementView, loc *time.Location) (fir
 	return first, more
 }
 
-// hackSubmissionViews adds each submission's maturity wording.
 func hackSubmissionViews(subs []hackSubmission) []hackSubmissionView {
 	var out []hackSubmissionView
 	for _, c := range subs {
@@ -541,7 +484,6 @@ func hackSubmissionViews(subs []hackSubmission) []hackSubmissionView {
 	return out
 }
 
-// execute renders one named template of hack-event.html.
 func (p *HackEventPages) execute(name string, data any) ([]byte, error) {
 	tmpl, err := p.template()
 	if err != nil {

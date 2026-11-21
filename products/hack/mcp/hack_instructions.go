@@ -2,9 +2,8 @@ package hackmcp
 
 import "github.com/vsriram/simple-host/host/mcp"
 
-// HackInstructions describes the one hosted personal connection. Every tool
-// acts as the person; site and storage tools name the event as owner, and
-// the platform checks membership, stage and deadline on every request.
+// HackInstructions describes the one hosted personal connection: every tool acts
+// as the person, and the platform checks membership, stage and deadline.
 func HackInstructions() string {
 	return hackInstructionsText
 }

@@ -20,8 +20,7 @@ func hackOrganisedBy(name, org string) string {
 	return "Organised by " + name + org
 }
 
-// hackStagePills is the short phrase in the event header's stage pill
-// (spec sections "Event header": "[stage pill] Sign-up is open").
+// hackStagePills is the short phrase in the event header's stage pill.
 var hackStagePills = map[string]string{
 	"draft": "Not open yet", "open": "Sign-up is open", "building": "Teams are building",
 	"closed": "Entries are closed", "judging": "Judging is under way",
@@ -56,8 +55,6 @@ var hackLateStageCards = map[string]hackStageCardView{
 	"archived": {Kicker: "This event has ended", Heading: "Thanks to everyone who took part"},
 }
 
-// buildHackStageCard is the one card under the header (spec
-// "primary_action_by_stage" and "sections": "Stage card: ...").
 func buildHackStageCard(in hackStageCardInput) *hackStageCardView {
 	var card *hackStageCardView
 	switch in.Stage {
@@ -81,7 +78,6 @@ func buildHackStageCard(in hackStageCardInput) *hackStageCardView {
 	return card
 }
 
-// hackSignInCTA is the quiet link for someone who already joined.
 func hackSignInCTA(appURL string) *hackCTA {
 	return &hackCTA{Label: "Already joined? Sign in", URL: appURL + "/events"}
 }
@@ -138,7 +134,6 @@ func hackBuildingStageCard(in hackStageCardInput) *hackStageCardView {
 	return card
 }
 
-// hackLateStageCard is the closed, judging, results or archived card.
 func hackLateStageCard(in hackStageCardInput) *hackStageCardView {
 	base, ok := hackLateStageCards[in.Stage]
 	if !ok || events.ResultsReplaceStageCard(in.Stage, in.ResultsPublished) {
@@ -182,9 +177,7 @@ func buildHackPeoplesChoice(status, voteURL string) *hackPeoplesChoiceView {
 	}
 }
 
-// buildHackResultsBlock turns the DB-facing hackResultsView into the
-// template-ready form: avatars, the "Winner" pill and the one score-method
-// line are all decided here (spec "Results" section, decision on score wording).
+// buildHackResultsBlock turns the DB-facing hackResultsView into the template-ready form: avatars, the "Winner" pill and the score-method line are decided here.
 func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 	out := &hackResultsBlockView{Heading: "Winners"}
 	if res.FullRanking {
@@ -204,7 +197,6 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 	return out
 }
 
-// hackScoreNote is the one plain-English line on how scores were decided.
 func hackScoreNote(mode string) string {
 	if mode == "normalised" {
 		return "Scores are adjusted so strict and generous judges count the same."
@@ -212,7 +204,6 @@ func hackScoreNote(mode string) string {
 	return "Scores are the judges' average."
 }
 
-// hackResultsRowViewOf is one results row as the template shows it.
 func hackResultsRowViewOf(row hackResultsRow, fullRanking bool) hackResultsRowView {
 	rv := hackResultsRowView{hackResultsRow: row, Score: trimScoreZeros(row.Score), Avatar: hackInitials(row.TeamName),
 		ShotLetter: hackInitials(row.TeamName), WinnerPill: !fullRanking && row.Overall, TrackPill: hackTrackPill(row)}
@@ -226,7 +217,6 @@ func hackResultsRowViewOf(row hackResultsRow, fullRanking bool) hackResultsRowVi
 	return rv
 }
 
-// hackTrackPill is "<track> winner · <prize>" for a track winner, else "".
 func hackTrackPill(row hackResultsRow) string {
 	if !row.TrackWinner {
 		return ""

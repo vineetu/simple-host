@@ -1,4 +1,3 @@
-// famHackAppOnly registers the judge screen alongside its app resources.
 package hackmcp
 
 import (
@@ -16,18 +15,16 @@ import (
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
-// hackAppFiles holds Simple Hack's own screen files. The bridge every screen
-// shares stays with the tool server (mcp.AppFiles).
+// hackAppFiles holds Simple Hack's own screen files; the bridge shared by every
+// screen stays with the tool server (mcp.AppFiles).
 //
 //go:embed apps/*.html apps/*.js apps/*.css
 var hackAppFiles embed.FS
 
-// hackScreens is one tool server's Simple Hack screens, built once per
-// server from what the server says about itself (Contribution.Apps). It
-// holds no request data.
+// hackScreens is one tool server's Simple Hack screens, built once per server
+// from Contribution.Apps. It holds no request data.
 type hackScreens struct{ ctx mcp.AppContext }
 
-// hackApps is Contribution.Apps.
 func hackApps(ctx mcp.AppContext) mcp.AppContribution {
 	s := &hackScreens{ctx: ctx}
 	return mcp.AppContribution{
@@ -47,62 +44,47 @@ func hackApps(ctx mcp.AppContext) mcp.AppContribution {
 	}
 }
 
-// Simple Hack's own MCP Apps, extending the tool server's machinery
-// (host/mcp's apps.go and clientui.go) rather than duplicating it: the
-// same screen shape (mcp.AppScreen), the same per-connection flag format
-// (mcp.AppFlag: "on" or "accounts:a,b"), the same shared bridge.js, and the
-// server's own memory of whether a connection declared MCP Apps UI support.
+// Simple Hack's own MCP Apps extend the tool server's machinery (host/mcp's
+// apps.go and clientui.go): the same screen shape (mcp.AppScreen), per-connection
+// flag format (mcp.AppFlag: "on" or "accounts:a,b"), shared bridge.js and
+// UI-support memory.
 //
-// Kept separate from the tool server's own screens because those are
-// deliberately Simple-Host-only: its enabledScreens refuses every screen but
-// my-sites/dashboard once c.Mode is set, which is exactly the boundary
-// TestHackAppsGatesAndUnchangedInventory holds a Hack connection to. Hack's
-// own screens get their own small, parallel gate instead of loosening that
-// one.
+// They are kept apart from the tool server's own screens because those are
+// deliberately Simple-Host-only: enabledScreens refuses every screen but
+// my-sites/dashboard once c.Mode is set (the boundary
+// TestHackAppsGatesAndUnchangedInventory holds a Hack connection to). Hack's
+// screens get their own parallel gate instead of loosening that one.
 //
-// Phase 0 (foundation), Phase 1 (judge) and Phase 2 (organiser core, SIM-344)
-// so far: two resources, ui://simple-hack/judge and
-// ui://simple-hack/organiser, and two show tools, hack_show_judge and
-// hack_show_organiser. The participant resource and the rest of the
-// organiser surface (teams, entries, results, event page) are later
-// phases.
+// Resources: ui://simple-hack/judge and ui://simple-hack/organiser, opened by
+// the show tools hack_show_judge and hack_show_organiser.
 //
-// apps/hack-judge-bundle.js/apps/hack-judge-kit.css and
-// apps/hack-organiser-bundle.js/apps/hack-organiser-kit.css are generated
-// from products/hack/webassets/static/hack by products/hack/mcp/apps/bundlegen; after
-// changing any judge or organiser screen, or kit.css, regenerate with:
+// apps/hack-{judge,organiser}-bundle.js and -kit.css are generated from
+// products/hack/webassets/static/hack by apps/bundlegen; after changing a judge
+// or organiser screen, or kit.css, regenerate with:
 //
 //go:generate go run ./apps/gentool
-//
-// TestHackJudgeBundleFresh and TestHackOrganiserBundleFresh rebuild them in
-// the test binary and fail if the checked-in copies have drifted.
+// TestHackJudgeBundleFresh and TestHackOrganiserBundleFresh fail if the
+// checked-in copies drift.
 
-// hackAppScreens lists Simple Hack's MCP App resources. Each screen's ID
-// also names its own generated/hand-written asset files -- readHackApp
-// below derives "<ID>-kit.css", "<ID>-stubs.js", "<ID>-bundle.js" and
-// "<ID>-view.js" from it, so adding a screen here needs no change to the
-// serving code, only the asset files themselves.
+// hackAppScreens lists Simple Hack's MCP App resources. A screen's ID names its
+// asset files ("<ID>-kit.css", "-stubs.js", "-bundle.js", "-view.js", read by
+// readHackApp), so adding a screen needs only the asset files.
 var hackAppScreens = []mcp.AppScreen{
 	{
 		ID: "hack-judge", Flag: "MCP_APP_HACK_JUDGE", URI: "ui://simple-hack/judge", Label: "Judge", HTML: "hack-judge.html",
 		CSP: map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 	},
 	{
-		// clipboardWrite: organiser-overview.js's join/judge link Copy
-		// buttons and organiser-people.js's co-organiser invite Copy
-		// button all call navigator.clipboard.writeText directly (not
-		// ui.copyButton), same as passcode/site-preview's own Copy.
+		// clipboardWrite: the Copy buttons in organiser-overview.js and
+		// organiser-people.js call navigator.clipboard.writeText directly.
 		ID: "hack-organiser", Flag: "MCP_APP_HACK_ORGANISER", URI: "ui://simple-hack/organiser", Label: "Organiser", HTML: "hack-organiser.html",
 		CSP:         map[string][]string{"connectDomains": {}, "resourceDomains": {}, "frameDomains": {}, "baseUriDomains": {}},
 		Permissions: map[string]any{"clipboardWrite": map[string]any{}},
 	},
 }
 
-// hackEnabledScreens is hackAppScreens filtered to this connection: a
-// personal event connection (CallerModeEvents -- the mode HackMemberTools'
-// judge tools are listed under; see server.go's forCaller) with its flag
-// on for this account. Unlike enabledScreens, there is no my-sites/
-// dashboard exception to protect, since this list has nothing else in it.
+// hackEnabledScreens is hackAppScreens filtered to this connection: a personal
+// event connection (CallerModeEvents) with its flag on for this account.
 func (s *hackScreens) hackEnabledScreens(c mcp.Caller) []mcp.AppScreen {
 	if c.Mode != mcp.CallerModeEvents {
 		return nil
@@ -116,8 +98,8 @@ func (s *hackScreens) hackEnabledScreens(c mcp.Caller) []mcp.AppScreen {
 	return screens
 }
 
-// allowed mirrors readHackApp's: resources/list must not even name a
-// resource a connection could not read (Grok security review, SIM-344).
+// allowed mirrors readHackApp's: resources/list must not name a resource the
+// connection could not read.
 func (s *hackScreens) hackAppResources(c mcp.Caller, allowed bool) []map[string]any {
 	resources := []map[string]any{}
 	if !allowed {
@@ -129,15 +111,12 @@ func (s *hackScreens) hackAppResources(c mcp.Caller, allowed bool) []map[string]
 	return resources
 }
 
-// freshNonce is a per-read token for this resource's own
-// Content-Security-Policy, independent of (and inside) the host-declared
-// one in _meta.ui.csp: script-src 'nonce-<this>', no unsafe-inline, so an
-// injected script element or an onerror= handler cannot run even if some
-// escaping is missed somewhere upstream (see hack_apps_judge_test.go's
-// XSS cases). A fresh value every resources/read call, never reused. No
-// fallback on a crypto/rand failure (Grok security review, SIM-344): a
-// predictable, clock-derived nonce defeats the one thing this value is
-// for, so the read fails outright instead of serving a weakened page.
+// freshNonce is a per-read token for this resource's Content-Security-Policy,
+// inside the host-declared one in _meta.ui.csp: script-src 'nonce-<this>', no
+// unsafe-inline, so an injected script element or onerror= handler cannot run
+// even if escaping is missed upstream. A fresh value every resources/read. No
+// fallback on a crypto/rand failure: a predictable nonce defeats its purpose,
+// so the read fails instead.
 func freshNonce() (string, error) {
 	buf := make([]byte, 18)
 	if _, err := rand.Read(buf); err != nil {
@@ -146,18 +125,13 @@ func freshNonce() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// readHackApp mirrors the tool server's readApp for Simple Hack's own screens: it
-// is tried by dispatch only after readApp itself reports the URI is not
-// one of its (Simple Host) screens, so neither function's tests need to
-// know about the other's resources. allowed is the common three-part gate
-// every Hack MCP App shares (hackAppsGate: events mode, not ChatGPT/OpenAI/
-// Codex, UI declared) -- a resource read reaches here through its own URI,
-// not through listing, so without this a connection the tool list already
-// hides every hack_show_* tool from could still read a resource directly
-// by guessing or being given its URI (Grok security review, SIM-344). The
-// per-screen flag (MCP_APP_HACK_JUDGE, MCP_APP_HACK_ORGANISER, ...) is
-// checked separately, inside hackEnabledScreens, so one flag being off
-// never hides a screen whose own flag is on.
+// readHackApp mirrors the tool server's readApp for Simple Hack's screens; it
+// is tried only after readApp reports the URI is not a Simple Host screen.
+// allowed is the shared three-part gate (hackAppsGate). A read reaches here by
+// URI, not listing, so without it a connection hidden from every hack_show_*
+// tool could still read a resource by guessing its URI. The per-screen flag is
+// checked in hackEnabledScreens, so one flag being off never hides a screen
+// whose own flag is on.
 func (s *hackScreens) readHackApp(req mcp.Request, caller mcp.Caller, allowed bool) mcp.Response {
 	if !allowed {
 		return mcp.Failure(req.ID, mcp.CodeInvalidParams, "resource not available", nil)
@@ -183,13 +157,12 @@ func (s *hackScreens) readHackApp(req mcp.Request, caller mcp.Caller, allowed bo
 	return mcp.Failure(req.ID, mcp.CodeInvalidParams, "resource not available", nil)
 }
 
-// appPage is a screen's HTML with its style, bridge, bundle and view
-// script inlined under a fresh nonce. The organiser bundle (only, so far)
-// carries its own __ORIGIN__ placeholder for the real website's origin
-// (frame/organiser-nav.js), substituted before the bundle becomes a
-// replacement value, since strings.Replacer never scans the values it
-// substitutes in. The judge bundle never contains it (bundlegen.GenerateJS
-// fails generation if it does).
+// appPage is a screen's HTML with its style, bridge, bundle and view script
+// inlined under a fresh nonce. The organiser bundle carries an __ORIGIN__
+// placeholder for the website's origin (frame/organiser-nav.js), substituted
+// before the bundle becomes a replacement value, since strings.Replacer never
+// scans the values it substitutes in. The judge bundle never contains it
+// (bundlegen.GenerateJS fails if it does).
 func (s *hackScreens) appPage(screen mcp.AppScreen) (string, error) {
 	asset := func(name string) string { b, _ := hackAppFiles.ReadFile("apps/" + name); return string(b) }
 	bridge, _ := mcp.AppFiles().ReadFile("apps/bridge.js")
@@ -207,27 +180,20 @@ func (s *hackScreens) appPage(screen mcp.AppScreen) (string, error) {
 	).Replace(asset(screen.HTML)), nil
 }
 
-// --- hack_show_judge: the one tool that opens the judge app -------------
+// --- hack_show_judge: the one tool that opens the judge app ---
 //
-// Every other judge tool (hack_get_judge_queue, hack_score_team, ...)
-// keeps exactly the result it has today; linking an app to one of them
-// would render a frame on every read, which the spec has no per-call
-// opt-out for (INTENT, 2026-10-23). This tool exists only to open the
-// view, and like every Hack tool its result stays fully readable as plain
-// text for a host or a model with no UI at all.
+// Every other judge tool keeps its plain result: linking an app to one of them
+// would render a frame on every read, and the spec has no per-call opt-out.
+// Results stay readable as plain text for a host or model with no UI.
 
-// hackAppsGate is the three-part gate the owner set (2026-10-31), shared by
-// every Hack MCP App: a personal event connection, never ChatGPT/OpenAI/
-// Codex app names (the submitted ChatGPT app's pinned tool list must not
-// change), and only once this connection has actually declared MCP Apps UI
-// support -- a client that has not would get a tool whose only job is
-// opening a view it cannot show. The per-screen flag (MCP_APP_HACK_JUDGE,
-// MCP_APP_HACK_ORGANISER, ...) is deliberately NOT part of this shared
-// gate: each show-tool-specific *Allowed function below checks its own
-// flag on top, so one app's flag being off can never hide a different
-// app's resource or show tool, and a resource read's shared `allowed`
-// parameter (readHackApp, hackAppResources) can stay a single bool that
-// hackEnabledScreens then narrows per screen.
+// hackAppsGate is the three-part gate shared by every Hack MCP App: a personal
+// event connection, never ChatGPT/OpenAI/Codex app names (the submitted ChatGPT
+// app's pinned tool list must not change), and only once the connection has
+// declared MCP Apps UI support. The per-screen flag is deliberately not part of
+// it: each show-tool *Allowed function checks its own flag on top, so one app's
+// flag being off never hides another app's resource or show tool, and the
+// resource-read `allowed` parameter can stay a single bool that
+// hackEnabledScreens narrows per screen.
 func (s *hackScreens) hackAppsGate(c mcp.Caller, uiCapable bool) bool {
 	return c.Mode == mcp.CallerModeEvents && !mcp.FlatListApp(c.AppName) && uiCapable
 }
@@ -277,10 +243,8 @@ func (s *hackScreens) runHackShowJudge(c *mcp.Call, args map[string]any) (mcp.Ou
 	return mcp.Output{}, errors.New("view must be invite, queue, score or rubric")
 }
 
-// showJudgeInvite opens the invite view. No organiser-authored title (or
-// anything else from the REST body) in the text: a fixed sentence only
-// (Grok security review, SIM-344), since that text is as visible to the
-// model as to the frame.
+// showJudgeInvite opens the invite view. Its text is a fixed sentence with no
+// organiser-authored title or REST-body content, since the model sees it too.
 func showJudgeInvite(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	code, err := mcp.StringArg(args, "code")
 	if err != nil {
@@ -294,12 +258,9 @@ func showJudgeInvite(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 
 var judgeViewNames = map[string]string{"queue": "the judging queue", "score": "scoring", "rubric": "the rubric"}
 
-// showJudgeEvent opens a judging view of one event, for a judge of it
-// (the same canonical capability as the website). The text is a fixed
-// sentence: slug is a constrained identifier, not open text (Grok security
-// review, SIM-344). About/rules/prizes (judge-rubric.js's brief card) ride
-// in _meta, the channel a model never reads (bridge.js callToolResult),
-// never in content or structuredContent.
+// showJudgeEvent opens a judging view of one event for a judge of it. The text
+// is a fixed sentence (slug is a constrained identifier). About/rules/prizes
+// ride in _meta, which a model never reads (bridge.js callToolResult).
 func showJudgeEvent(c *mcp.Call, args map[string]any, view string) (mcp.Output, error) {
 	slug, err := eventSlug(args)
 	if err != nil {
@@ -336,17 +297,14 @@ func showJudgeEvent(c *mcp.Call, args map[string]any, view string) (mcp.Output, 
 	return out, nil
 }
 
-// hackShowJudgeEventFields is the only shape of an event this tool's
-// content/structuredContent ever carries, in the model's own context as
-// much as the view's: the fields the judge screens read that double as
-// judging state a model might reasonably act on (scoring_open,
-// judging_locked_at, results_published, submission_deadline -- hack_get_
-// event's own output deliberately drops these for the model, see this
-// file's comment on refreshEvent in hack-judge-view.js), never the full
-// raw REST body, which can carry an organiser's join_code/judge_code when
-// the caller is also that event's organiser (Grok security review,
-// SIM-344). about/rules/prizes are organiser-written prose with no
-// judging-state reason to reach the model at all; see hackShowJudgeEventText.
+// hackShowJudgeEventFields is the only shape of an event that content/
+// structuredContent ever carries: the fields judge screens read that double as
+// judging state (scoring_open, judging_locked_at, results_published,
+// submission_deadline; hack_get_event drops these for the model, see
+// refreshEvent in hack-judge-view.js), never the full REST body, which can
+// carry an organiser's join_code/judge_code when the caller also organises the
+// event. about/rules/prizes have no judging-state reason to reach the model;
+// see hackShowJudgeEventText.
 func hackShowJudgeEventFields(event map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, key := range []string{
@@ -360,10 +318,8 @@ func hackShowJudgeEventFields(event map[string]any) map[string]any {
 	return out
 }
 
-// hackShowJudgeEventText is judge-rubric.js's "About this event" card
-// (about/rules/prizes) and nothing else -- view-only, carried in the tool
-// result's _meta rather than content or structuredContent, which a model
-// sees exactly as the view does.
+// hackShowJudgeEventText is the "About this event" card (about/rules/prizes)
+// and nothing else: view-only, carried in _meta rather than content.
 func hackShowJudgeEventText(event map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, key := range []string{"about", "rules", "prizes"} {

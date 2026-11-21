@@ -9,7 +9,6 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 )
 
-// filterSiteList answers sites.FilterSiteList refusals as a 400 body.
 func filterSiteList(list []model.Site, params url.Values) ([]model.Site, *httpx.ErrorResponse) {
 	filtered, err := sites.FilterSiteList(list, params)
 	var siteErr *sites.Error

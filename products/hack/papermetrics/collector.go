@@ -31,11 +31,9 @@ func (c *Collector) Snapshot(ctx context.Context, now time.Time) error {
 	return c.hackSnapshot(ctx, now)
 }
 
-// Refresh drains phase notices and refreshes the metadata snapshot.
 func (c *Collector) Refresh(ctx context.Context)    { c.refreshHackBackground(ctx) }
 func (c *Collector) RefreshSignal() <-chan struct{} { return c.hack.refresh }
 
-// Flush persists the completed Hack slots.
 func (c *Collector) Flush(ctx context.Context, now time.Time) { c.flushHack(ctx, now) }
 func (c *Collector) Histories(class int) []*platform.ClassHist {
 	histories := make([]*platform.ClassHist, 0, len(c.hack.hist))
@@ -97,7 +95,6 @@ func (c *Collector) buildExports() platform.ProductExports {
 	}
 }
 
-// Shared measurement types retain the same representation across the move.
 type Table = platform.Table
 type SiteFootprint = platform.SiteFootprint
 type ClassHist = platform.ClassHist
@@ -120,5 +117,4 @@ var classNames = append([]string{""}, platform.ClassNames()...)
 
 func ToInt(v any) int64 { return platform.ToInt(v) }
 
-// Export delegates the shared admin contract and response encoding.
 func (c *Collector) Export(who platform.Who) http.Handler { return c.platform.Export(who) }

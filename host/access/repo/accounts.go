@@ -71,48 +71,25 @@ func HashAPIKey(key string) string {
 // GetUserByID loads a users row by primary key, including whether the
 // operator has suspended it (callers that authenticate must check Suspended).
 func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
-	const query = `
+	return getUser(ctx, q, "id", id)
+}
+
+// getUser loads the users row whose column (id or username) is value.
+func getUser(ctx context.Context, q Querier, column, value string) (User, error) {
+	var user User
+	err := q.QueryRowContext(ctx, `
 		SELECT id, username, is_admin, created_at, handle, display_name,
 		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
 		FROM users
-		WHERE id = $1
-	`
-
-	var user User
-	err := q.QueryRowContext(ctx, query, id).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-		&user.Suspended,
-		&user.SuspendedReason,
-	)
+		WHERE `+column+` = $1`, value).Scan(
+		&user.ID, &user.Username, &user.IsAdmin, &user.CreatedAt, &user.Handle,
+		&user.DisplayName, &user.Suspended, &user.SuspendedReason)
 	return user, err
 }
 
 // GetUserByUsername preserves the shared accounts lookup.
 func GetUserByUsername(ctx context.Context, q Querier, username string) (User, error) {
-	const query = `
-		SELECT id, username, is_admin, created_at, handle, display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
-		FROM users
-		WHERE username = $1
-	`
-
-	var user User
-	err := q.QueryRowContext(ctx, query, username).Scan(
-		&user.ID,
-		&user.Username,
-		&user.IsAdmin,
-		&user.CreatedAt,
-		&user.Handle,
-		&user.DisplayName,
-		&user.Suspended,
-		&user.SuspendedReason,
-	)
-	return user, err
+	return getUser(ctx, q, "username", username)
 }
 
 // PasswordSignupAccount reports whether id was created by
@@ -314,12 +291,6 @@ func TouchVisitorSession(ctx context.Context, q Querier, id []byte, idle time.Du
 func EndVisitorSessions(ctx context.Context, q Querier, userID string) error {
 	_, err := q.ExecContext(ctx, `DELETE FROM visitor_sessions WHERE user_id = $1`, userID)
 	return err
-}
-
-// SetPlatformDomain sets SITE_DOMAIN for the namespace checks. Empty (the
-// default) disables them: an instance with no domain has no names to share.
-func SetPlatformDomain(domain string) {
-	SetPlatformDomains(domain)
 }
 
 // SetPlatformDomains sets the domain names are handed out under (primary:

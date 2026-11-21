@@ -25,7 +25,7 @@ var runConfigKeys = []string{"limits", "events", "write_auth_mode", "person_host
 
 // WithCommit sets the build commit used for provenance (paper_run.vcs_revision
 // and its "-dirty" flag, when the VCS stamp from debug.ReadBuildInfo is itself
-// unavailable). The caller (cmd/server) passes buildinfo.Commit; this leaf
+// unavailable). The server passes buildinfo.Commit; this leaf
 // package does not import host/buildinfo (see check-layering.sh).
 func (c *Collector) WithCommit(commit string) *Collector {
 	c.commit = commit
@@ -161,6 +161,3 @@ func (c *Collector) EnsureRun(ctx context.Context) (int64, error) {
 	}
 	return id, err
 }
-
-// RegisterRun records provenance only while collection is enabled.
-func (c *Collector) RegisterRun(ctx context.Context) error { _, err := c.EnsureRun(ctx); return err }

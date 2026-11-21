@@ -13,19 +13,19 @@ import (
 // now. Read with TeamWriteStateFor.
 type TeamWriteState = hackmodel.TeamWriteState
 
-// Frozen: judging has started, the event ended, or the team deadline passed.
-
-// WriteRefusal says why the team may not change its site or entry now:
-// "" when it may. Codes: event_taken_down, event_closed (ended),
-// team_site_taken_down, submissions_closed.
-
 // TeamWriteStateFor reads a team's write state. In a transaction with share
 // set, the team row is held FOR SHARE until the transaction ends, so the
 // deadline pin (PinDueTeams, FOR UPDATE) waits for a deploy that was let in
 // before the deadline and then pins what it made live. The time compared is
 // clock_timestamp(), not the transaction's start.
 func TeamWriteStateFor(ctx context.Context, q Querier, teamID string, share bool) (TeamWriteState, error) {
-	return hackevents.TeamWriteStateFor(ctx, q, teamID, share)
+	lock := ""
+	if share {
+		lock = " FOR SHARE OF t"
+	}
+	return scanTeamWriteState(q.QueryRowContext(ctx, `SELECT `+teamWriteStateCols+`
+		  FROM event_teams t JOIN events e ON e.id = t.event_id
+		 WHERE t.id = $1::uuid`+lock, teamID))
 }
 
 // TeamWriteStateBySlug is TeamWriteStateFor for the event's team whose site

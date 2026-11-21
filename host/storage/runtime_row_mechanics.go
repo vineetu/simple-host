@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
@@ -29,9 +28,6 @@ func CheckpointRows(conn *sqlite3.Conn) error {
 	_, _, err := conn.WALCheckpoint("main", sqlite3.CHECKPOINT_TRUNCATE)
 	return err
 }
-
-// RemoveStagedRuntime removes an already staged runtime directory.
-func RemoveStagedRuntime(path string) error { return os.RemoveAll(path) }
 
 // RowUpdateStatement builds the update from validated columns and decisions.
 func RowUpdateStatement(table, rowid string, names []string, values map[string]json.RawMessage, id json.RawMessage, owner, hideHeld bool) (string, []json.RawMessage) {

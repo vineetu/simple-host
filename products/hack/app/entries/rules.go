@@ -15,19 +15,16 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// ImpactTeam identifies an entry affected by a rule change.
 type ImpactTeam struct {
 	ID, Name string
 	Missing  []string
 }
 
-// RulesImpact counts entries affected by a rule change.
 type RulesImpact struct {
 	SubmittedMissing, DraftsNewlyBlocked int
 	Teams                                []ImpactTeam
 }
 
-// RulesResult contains the result of an update or preview.
 type RulesResult struct {
 	Impact     RulesImpact
 	Preset     string
@@ -79,7 +76,6 @@ func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev model.Eve
 	return out, nil
 }
 
-// RulesUpdate contains the requested rule changes.
 type RulesUpdate struct {
 	Preset     *string
 	Fields     map[string]string
@@ -87,7 +83,6 @@ type RulesUpdate struct {
 	DryRun     bool
 }
 
-// PutRules updates entry rules or previews their impact.
 func (s *Service) PutRules(ctx context.Context, eventID string, req RulesUpdate) (RulesResult, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -176,7 +171,6 @@ func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.Even
 	return hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track), nil
 }
 
-// Progress contains the facts used to render the participant checklist.
 type Progress struct {
 	Entry                           model.EventEntry
 	Filled, Of                      int

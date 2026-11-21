@@ -7,7 +7,6 @@ import (
 	"sort"
 )
 
-// TeamResult is one team's computed standing.
 type TeamResult[T any] struct {
 	TeamID          string
 	TeamName        string
@@ -27,7 +26,6 @@ type TeamResult[T any] struct {
 	JudgesScored    int
 }
 
-// RankOverride is one team's chosen final place within its own tied group.
 type RankOverride struct {
 	TeamID string
 	Rank   int
@@ -114,7 +112,6 @@ func rerankAfterOverrides[T any](results []TeamResult[T], groupOf map[string]int
 	}
 }
 
-// JudgeEntry holds one judge’s weighted score for a team.
 type JudgeEntry struct {
 	Team, Judge string
 	Raw         float64
@@ -169,7 +166,6 @@ func normalisedEntries(entries []JudgeEntry) map[string]float64 {
 	return out
 }
 
-// ResultsInput holds the data needed to compute standings.
 type ResultsInput[T any] struct {
 	Rubric          []model.RubricCriterion
 	Teams           []model.NamedTeam
@@ -182,7 +178,6 @@ type ResultsInput[T any] struct {
 	HasTieCriterion bool
 }
 
-// ComputeResults calculates the event standings.
 func ComputeResults[T any](in ResultsInput[T]) []TeamResult[T] {
 	entries := judgeEntries(in.Rubric, in.Raw, in.Eligible)
 	normalised := normalisedEntries(entries)

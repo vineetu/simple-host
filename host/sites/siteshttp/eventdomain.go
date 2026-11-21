@@ -11,6 +11,7 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/eventdns"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
@@ -41,7 +42,7 @@ func (h *EventDomainHandler) SetNamePeer(fn func(ctx context.Context, zone, name
 // NameClaimed reports whether name is claimed under zone here: what this
 // instance answers the peer.
 func (h *EventDomainHandler) NameClaimed(ctx context.Context, zone, name string) (bool, error) {
-	return h.eventSitesSvc().EventNameClaimed(ctx, sites.EventNameInput{Name: name, Zone: zone})
+	return h.service.EventNameClaimed(ctx, sites.EventNameInput{Name: name, Zone: zone})
 }
 
 func NewEventDomainHandler(service *sites.Service, domains []string) *EventDomainHandler {
@@ -100,7 +101,7 @@ func (h *EventDomainHandler) Claim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Name = name
-	canonicalIP, err := sites.ValidatePublicIP(req.IP)
+	canonicalIP, err := eventdns.ValidatePublicIP(req.IP)
 	if err != nil {
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
 		return
@@ -112,7 +113,7 @@ func (h *EventDomainHandler) Claim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.eventSitesSvc().ClaimEventDomain(r.Context(), sites.EventClaimInput{UserID: user.ID, Name: req.Name, Domain: req.Domain, IP: req.IP, Move: req.Move})
+	result, err := h.service.ClaimEventDomain(r.Context(), sites.EventClaimInput{UserID: user.ID, Name: req.Name, Domain: req.Domain, IP: req.IP, Move: req.Move})
 	if writeEventDomainError(w, err) {
 		return
 	}
@@ -130,7 +131,7 @@ func (h *EventDomainHandler) Release(w http.ResponseWriter, r *http.Request) {
 	if domain == "" && len(h.domains) > 0 {
 		domain = h.domains[0]
 	}
-	if writeEventDomainError(w, h.eventSitesSvc().ReleaseEventDomain(r.Context(), sites.EventReleaseInput{UserID: user.ID, IsAdmin: user.IsAdmin, Name: name, Domain: domain})) {
+	if writeEventDomainError(w, h.service.ReleaseEventDomain(r.Context(), sites.EventReleaseInput{UserID: user.ID, IsAdmin: user.IsAdmin, Name: name, Domain: domain})) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -142,7 +143,7 @@ func (h *EventDomainHandler) List(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
 		return
 	}
-	list, err := h.eventSitesSvc().ListEventDomains(r.Context(), sites.EventListInput{UserID: user.ID})
+	list, err := h.service.ListEventDomains(r.Context(), sites.EventListInput{UserID: user.ID})
 	if writeEventDomainError(w, err) {
 		return
 	}
@@ -151,20 +152,13 @@ func (h *EventDomainHandler) List(w http.ResponseWriter, r *http.Request) {
 		out = append(out, eventDomainResponse(e))
 	}
 	// The configured domains ship with the listing so an agent can discover them
-	// by asking rather than by provoking an error. The skill told agents to ask
-	// the instance which domains it offers, and until now the only way to find
-	// out was to submit a bad claim and read the rejection.
+	// by asking rather than by provoking an error.
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"events": out, "domains": h.domains})
 }
 
-// StartSweep deletes records for claims nobody tore down.
-//
-// This is the whole reason expires_at exists. An organiser who forgets leaves a
-// name pointing at a cloud address that provider will hand to someone else.
-func (h *EventDomainHandler) Owner() workers.Owner           { return h.service.EventDNSOwner() }
-func (h *EventDomainHandler) StartSweep(every time.Duration) { h.service.StartEventDNSSweep(every) }
-func (h *EventDomainHandler) SweepOnce(ctx context.Context)  { h.service.SweepEventDomains(ctx) }
-func (h *EventDomainHandler) eventSitesSvc() *sites.Service  { return h.service }
+func (h *EventDomainHandler) Owner() workers.Owner { return h.service.EventDNSOwner() }
+
+func (h *EventDomainHandler) SweepOnce(ctx context.Context) { h.service.SweepEventDomains(ctx) }
 
 func eventDomainResponse(e sites.EventDomainResult) map[string]any {
 	return map[string]any{"host": e.Host, "content_host": e.ContentHost, "ip": e.IP, "expires_at": e.ExpiresAt.UTC().Format(time.RFC3339)}

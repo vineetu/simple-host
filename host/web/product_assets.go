@@ -42,22 +42,22 @@ type ProductAssetHooks struct {
 
 type ProductAssets struct {
 	Replace map[string]string
-	// own are the product's own file names (name -> file in files). The page
+	// Own are the product's own file names (name -> file in files). The page
 	// pipeline reads them like any static name; over HTTP only the handler
 	// ProductFiles returns answers them.
 	Own map[string]string
-	// fileServer answers the own names; RegisterUIRoutes builds it.
+	// FileServer answers the own names; RegisterUIRoutes builds it.
 	FileServer http.Handler
 	Files      fs.FS
 	Skills     fs.FS
 	Hooks      ProductAssetHooks
 	Rewrite    func(string, []byte) []byte
-	// styleVersion is the cache-busting version of the product's stylesheet,
+	// StyleVersion is the cache-busting version of the product's stylesheet,
 	// worked out once when the contribution is installed.
 	StyleVersion string
 }
 
-// file is the product file behind a static name: a replaced platform name
+// File is the product file behind a static name: a replaced platform name
 // first, then one of the product's own names. There is no fallback from a
 // listed name to the platform's file.
 func (a ProductAssets) File(name string) (string, bool) {
@@ -136,5 +136,3 @@ func (p *AssetPipeline) ProductInstanceText(b []byte) []byte {
 type assetFiles struct{ fs.FS }
 
 func (f assetFiles) ReadFile(name string) ([]byte, error) { return fs.ReadFile(f.FS, name) }
-
-func (p *AssetPipeline) productStyleVersion() string { return p.Product.StyleVersion }

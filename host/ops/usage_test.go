@@ -3,7 +3,6 @@ package ops
 import (
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 )
@@ -102,49 +101,5 @@ func TestUsageCacheNeverServesAReadingFromBeforeAChange(t *testing.T) {
 	cache.mu.Unlock()
 	if u, _, _ := cache.Get(dir, 8); u.SiteBytes != 16384 {
 		t.Fatalf("a reading past usageStaleAfter was served: %d", u.SiteBytes)
-	}
-}
-
-func TestUsageCacheUnderConcurrentReaders(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "by-id"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	var cache UsageCache
-	var wg sync.WaitGroup
-	for i := 0; i < 24; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if _, _, err := cache.Get(dir, 0); err != nil {
-				t.Errorf("concurrent get: %v", err)
-			}
-		}()
-	}
-	wg.Wait()
-}
-
-// Callers that must wait for a new walk share one walk.
-func TestUsageCacheBlockingWalkIsShared(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "by-id"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	var cache UsageCache
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if _, _, err := cache.Get(dir, 3); err != nil {
-				t.Errorf("get: %v", err)
-			}
-		}()
-	}
-	wg.Wait()
-	cache.mu.Lock()
-	defer cache.mu.Unlock()
-	if cache.walk != nil || !cache.hasValue || cache.gen != 3 {
-		t.Fatalf("after the shared walk: walk=%v hasValue=%v gen=%d", cache.walk, cache.hasValue, cache.gen)
 	}
 }

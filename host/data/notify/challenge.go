@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	repo "github.com/vsriram/simple-host/host/data/repo/notify"
+
 	"github.com/vsriram/simple-host/host/model"
 )
 
@@ -85,7 +87,7 @@ func (e *Engine) Test(ctx context.Context, env Env, s Subject, siteName, siteURL
 		payload, _ := json.Marshal(map[string]any{"title": "Test notification", "body": "Your push notification is working.", "url": siteURL, "tag": "notification.test"})
 		return e.sendPush(ctx, env, n, payload), nil
 	}
-	cursor, err := e.svc.NotificationCursor(ctx, n.ID, n.SiteID)
+	cursor, err := repo.NotificationCursor(ctx, e.db, n.ID, n.SiteID)
 	if err != nil {
 		return Result{}, err
 	}

@@ -69,7 +69,7 @@ func sqlRouteMismatch(mode, sql string, readOnly, didWrite, didSchema, noopCreat
 			return sqlRefuse("sql_use_execute", sqlUseExecute)
 		}
 	case "execute":
-		if didSchema || !didWrite && sqlLooksLikeSchema(sql) {
+		if didSchema || !didWrite && rules.SQLLooksLikeSchema(sql) {
 			return sqlRefuse("sql_use_schema", sqlUseSchema)
 		}
 		if !didWrite {
@@ -86,20 +86,6 @@ func sqlRouteMismatch(mode, sql string, readOnly, didWrite, didSchema, noopCreat
 	}
 	return nil
 }
-
-func sqlLooksLikeSchema(sql string) bool { return rules.SQLLooksLikeSchema(sql) }
-
-func sqlSecondStatement(tail string) string { return rules.SQLSecondStatement(tail) }
-
-func sqlMultipleStatements(second string) *sqlRefusal {
-	return sqlRefuse("sql_multiple_statements", rules.SQLMultipleStatements(second))
-}
-
-func sqlParamCount(placeholders, params int) *sqlRefusal {
-	return sqlRefuse("sql_param_count", rules.SQLParamCount(placeholders, params))
-}
-
-func sqlClip(s string, n int) string { return rules.SQLClip(s, n) }
 
 func sqliteText(err error) string {
 	var se *sqlite3.Error
@@ -178,7 +164,7 @@ func sqlMissingName(conn *sqlite3.Conn, owner bool, sql, msg string) *sqlRefusal
 	}
 	if m := sqlNoNamedRe.FindStringSubmatch(msg); m != nil {
 		out := "column " + m[2] + " does not exist in " + m[1]
-		if cols := sqlColumnNames(conn, m[1]); owner && len(cols) > 0 {
+		if cols := runtime.LegacyColumnNames(conn, m[1]); owner && len(cols) > 0 {
 			out += ". Columns in " + m[1] + ": " + strings.Join(cols, ", ")
 		}
 		return sqlRefuse("sql_no_such_column", out)
@@ -187,7 +173,7 @@ func sqlMissingName(conn *sqlite3.Conn, owner bool, sql, msg string) *sqlRefusal
 		out := "column " + m[1] + " does not exist"
 		if owner {
 			for _, t := range sqlTablesIn(conn, sql) {
-				if cols := sqlColumnNames(conn, t); len(cols) > 0 {
+				if cols := runtime.LegacyColumnNames(conn, t); len(cols) > 0 {
 					out += ". Columns in " + t + ": " + strings.Join(cols, ", ")
 				}
 			}
@@ -200,7 +186,7 @@ func sqlMissingName(conn *sqlite3.Conn, owner bool, sql, msg string) *sqlRefusal
 // sqlSyntax explains a statement SQLite could not parse.
 func sqlSyntax(msg string) *sqlRefusal {
 	if m := sqlNearRe.FindStringSubmatch(msg); m != nil {
-		return sqlRefuse("sql_syntax", fmt.Sprintf("SQLite syntax error near %q: fix the statement at that word (put values in params with ? placeholders)", sqlClip(m[1], 60)))
+		return sqlRefuse("sql_syntax", fmt.Sprintf("SQLite syntax error near %q: fix the statement at that word (put values in params with ? placeholders)", rules.SQLClip(m[1], 60)))
 	}
 	if msg == "incomplete input" {
 		return sqlRefuse("sql_syntax", "SQLite syntax error: the statement ends too early (incomplete input); look for a missing closing bracket or quote, or a clause cut short")
@@ -238,7 +224,7 @@ func sqlConstraint(conn *sqlite3.Conn, err error, owner bool, msg, writeTable st
 		case !owner:
 			return sqlRefuse(c.code, c.visitor)
 		case c.clip > 0:
-			return sqlRefuse(c.code, fmt.Sprintf(c.owner, sqlClip(m[1], c.clip)))
+			return sqlRefuse(c.code, fmt.Sprintf(c.owner, rules.SQLClip(m[1], c.clip)))
 		default:
 			return sqlRefuse(c.code, fmt.Sprintf(c.owner, m[1]))
 		}
@@ -260,7 +246,7 @@ func sqlForeignKey(conn *sqlite3.Conn, owner bool, table string, action sqlite3.
 	}
 	out := "a value must match an existing row in the table it points at (FOREIGN KEY)"
 	if owner && table != "" && conn != nil {
-		if refs := sqlForeignKeys(conn, table); len(refs) > 0 {
+		if refs := runtime.LegacyForeignKeys(conn, table); len(refs) > 0 {
 			out = "a value must match an existing row (FOREIGN KEY): " + strings.Join(refs, "; ")
 		}
 	}
@@ -287,16 +273,8 @@ func sqlTableNames(conn *sqlite3.Conn) []string {
 	return names
 }
 
-func sqlColumnNames(conn *sqlite3.Conn, table string) []string {
-	return runtime.LegacyColumnNames(conn, table)
-}
-
 // sqlTablesIn names the database's tables that the statement mentions, at
 // most three, so a missing column can be shown next to the real ones.
 func sqlTablesIn(conn *sqlite3.Conn, sql string) []string {
 	return rules.SQLTablesIn(sqlTableNames(conn), sql)
-}
-
-func sqlForeignKeys(conn *sqlite3.Conn, table string) []string {
-	return runtime.LegacyForeignKeys(conn, table)
 }

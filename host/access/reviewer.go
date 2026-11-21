@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-func (s *Service) ReviewerAccount(ctx context.Context, email string, randomHandles bool, assign func(context.Context, AttributionStore, string, string, bool)) (model.User, error) {
+func (s *Service) ReviewerAccount(ctx context.Context, email string, randomHandles bool, assign func(context.Context, sqlkit.Querier, string, string, bool)) (model.User, error) {
 	user, err := repo.GetUserByUsername(ctx, s.database, email)
 	if errors.Is(err, sql.ErrNoRows) {
 		user, err = repo.CreateUser(ctx, s.database, email, "", false)

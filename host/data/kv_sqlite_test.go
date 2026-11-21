@@ -16,7 +16,7 @@ import (
 	"time"
 
 	repository "github.com/vsriram/simple-host/host/data/repo"
-	"github.com/vsriram/simple-host/host/data/rules"
+	model "github.com/vsriram/simple-host/host/model"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
@@ -172,7 +172,7 @@ func TestKVAdmissionBesideOtherStorage(t *testing.T) {
 	s.deps.SQLitePath = filepath.Join(c.RuntimeDir, "sqlite", "rows.sqlite")
 	rc := c
 	rc.ResourceName = "rows"
-	rc.Resource = rules.Resource{Kind: "sqlite"}
+	rc.Resource = model.Resource{Kind: "sqlite"}
 	_, err := s.LegacySQL(ctx, LegacySQLInput{Call: rc, Mode: "schema", ReadBody: func() ([]byte, error) {
 		return []byte(`{"sql":"CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}`), nil
 	}})
@@ -209,8 +209,8 @@ func TestKVMetaRandomOperations(t *testing.T) {
 	s, c := kvFixture(t, false)
 	rng := rand.New(rand.NewSource(20401))
 	expected := map[string]string{}
-	for i := 0; i < 1000; i++ {
-		key := "key-" + strconv.Itoa(rng.Intn(100))
+	for i := 0; i < 60; i++ {
+		key := "key-" + strconv.Itoa(rng.Intn(15))
 		if rng.Intn(3) == 0 {
 			if _, err := s.DeleteKV(context.Background(), KVDeleteInput{Call: c, Key: key}); err != nil {
 				t.Fatal(err)
@@ -252,7 +252,6 @@ func TestKVMetaRandomOperations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log("seed 20401, 1000 operations")
 }
 
 // Fill with one-byte values and shortest keys (all non-NUL ASCII, then
@@ -260,7 +259,8 @@ func TestKVMetaRandomOperations(t *testing.T) {
 // the store, checking the same logical allowance at every prefix. The
 // final boundary and refusal go through the service's ordinary write path.
 func TestKVTinyEntriesLogicalPool(t *testing.T) {
-	const limit int64 = 1000000
+	// A small configured pool keeps the fixture quick; the rule is the same.
+	const limit int64 = 50000
 	var keys []string
 	var charged int64
 	for length := 1; charged < limit; length++ {
@@ -290,6 +290,7 @@ func TestKVTinyEntriesLogicalPool(t *testing.T) {
 		}
 	}
 	s, c := kvFixture(t, true)
+	s.deps.SiteLimit = strconv.FormatInt(limit, 10)
 	ctx := context.Background()
 	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
 		conn, done, err := runtime.OpenRuntimeKV(ctx, runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName), true, false)

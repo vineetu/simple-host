@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"html"
 	"html/template"
 	"io/fs"
@@ -57,14 +58,7 @@ var (
 		"hostedStart": func() template.HTML { return template.HTML("<!--sh:hosted-->") },
 		"hostedEnd":   func() template.HTML { return template.HTML("<!--/sh:hosted-->") },
 	}).ParseFS(StaticFiles, "static/partials/*.html"))
-	hostInkVersion = func() string {
-		b, err := StaticFiles.ReadFile("static/host-ink.css")
-		if err != nil {
-			panic(err)
-		}
-		sum := sha256.Sum256(b)
-		return hex.EncodeToString(sum[:])[:10]
-	}()
+	hostInkVersion = staticHash("host-ink.css")
 	// Bare gates remain self-contained: handwriting is an embedded data font.
 	HostStatusCSS = func() string {
 		b, err := StaticFiles.ReadFile("static/host-status.css")
@@ -75,28 +69,24 @@ var (
 	}()
 
 	// SiteCSSVersion busts caches on site.css whenever its bytes change.
-	SiteCSSVersion = func() string {
-		b, err := StaticFiles.ReadFile("static/site.css")
-		if err != nil {
-			panic("site.css missing from the embedded static files: " + err.Error())
-		}
-		sum := sha256.Sum256(b)
-		return hex.EncodeToString(sum[:])[:10]
-	}()
+	SiteCSSVersion = staticHash("site.css")
+
+	// SigninJSVersion is the ?v= hash of the served (message-injected) signin.js bytes.
+	SigninJSVersion = sync.OnceValue(func() string { return shortHash(servedSigninJS()) })
 )
 
-var (
-	signinVerOnce sync.Once
-	signinVer     string
-)
+// staticHash is the cache-busting ?v= value of an embedded static file.
+func staticHash(name string) string {
+	b, err := StaticFiles.ReadFile("static/" + name)
+	if err != nil {
+		panic(name + " missing from the embedded static files: " + err.Error())
+	}
+	return shortHash(b)
+}
 
-// SigninJSVersion is the ?v= hash of the served (message-injected) signin.js bytes.
-func SigninJSVersion() string {
-	signinVerOnce.Do(func() {
-		sum := sha256.Sum256(servedSigninJS())
-		signinVer = hex.EncodeToString(sum[:])[:10]
-	})
-	return signinVer
+func shortHash(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])[:10]
 }
 
 // ChromeData is everything the partials vary on. Every field is drawn from a
@@ -112,9 +102,8 @@ type ChromeData struct {
 	// Current names the page being served, for aria-current. Empty when the
 	// page is not in the nav (a showcase, a 404).
 	Current string
-	// Hack is the simple-hack.app chrome (the pipeline's chromeHack, fixed at
-	// construction from the edition's Presentation().ProductAssets); false
-	// leaves the header and footer as they are.
+	// Product is the product's (Simple Hack's) chrome; false leaves the
+	// header and footer as they are.
 	Product    bool
 	CSSVersion string
 	// SigninVersion busts caches on /signin.js, the same way CSSVersion does
@@ -125,10 +114,8 @@ type ChromeData struct {
 	// simple-hack.app, for the line naming who runs the service. Empty on
 	// every other instance, which someone else runs under their own name.
 	Owner string
-	// PrivacyURL is PRIVACY_URL, this install's own privacy policy. The
-	// footer partial links to it, on a self-hosted instance only ({{if
-	// .PrivacyURL}}, inside an <!--sh:self--> block so it never reaches a
-	// hosted page's rendered bytes even if somehow set there).
+	// PrivacyURL is PRIVACY_URL. The footer links it inside an <!--sh:self-->
+	// block, so it never reaches a hosted page even if set there.
 	PrivacyURL string
 }
 
@@ -140,7 +127,7 @@ func (p *AssetPipeline) HostedOwner() string {
 		}
 		return ""
 	}
-	if !p.Pres.ProductAssets && InstanceIsHostedService {
+	if InstanceIsHostedService {
 		return "Simple Host"
 	}
 	return ""
@@ -172,7 +159,7 @@ var navKeys = map[string]string{
 func (p *AssetPipeline) ChromeDataFor(r *http.Request, base string) ChromeData {
 	current := navKeys[r.URL.Path]
 	return ChromeData{
-		ProductStyleVersion: p.productStyleVersion(), ProductStylePath: p.Pres.StylePath, ProductStyleClass: p.Pres.StyleClass,
+		ProductStyleVersion: p.Product.StyleVersion, ProductStylePath: p.Pres.StylePath, ProductStyleClass: p.Pres.StyleClass,
 		Base:          base,
 		Current:       current,
 		Product:       p.ChromeProduct,
@@ -183,15 +170,10 @@ func (p *AssetPipeline) ChromeDataFor(r *http.Request, base string) ChromeData {
 	}
 }
 
-// RenderAppShell is static/hack/app.html (body) with its chrome applied: the
-// kit's own presentation (ChromeData.Hack=false, since the kit already
-// carries Simple Hack's own look), and the sign-in script tag only when
-// signin is true (only /signin mounts window.SHSignIn; every other route
-// strips the marker instead of loading it).
-//
-// Exported for hackPages (cleanup 3.2 slice 2a): RegisterHackUI
-// (hack_ui.go), moving to host/hackhttp, used to do this inline with
-// withChrome/ChromeData directly, both unexported handler types/functions.
+// RenderAppShell is static/hack/app.html (body) with its chrome applied:
+// Product=false, since the kit already carries Simple Hack's own look, and
+// the sign-in script tag only when signin is true (only /signin mounts
+// window.SHSignIn).
 func (p *AssetPipeline) RenderAppShell(r *http.Request, body []byte, signin bool) ([]byte, error) {
 	if !signin {
 		body = bytes.ReplaceAll(body, []byte(markerSignin), nil)
@@ -202,29 +184,22 @@ func (p *AssetPipeline) RenderAppShell(r *http.Request, body []byte, signin bool
 	if err != nil {
 		return nil, err
 	}
-	// app.html carries its own install's contact in a data attribute (shell.js
-	// reads it for the Help menu's "Contact support" link, never spliced into
-	// its script -- see rewriteSupportAddress); this page does not otherwise
-	// go through chromePage, so it needs the same self-hosted pass applied
-	// here.
+	// app.html does not go through BuildChromePage, so it needs the
+	// self-hosted pass here (shell.js reads the contact from a data attribute).
 	if p.HostedOwner() == "" {
 		page = p.selfHostedChromeRewrite(page)
 	}
 	return page, nil
 }
 
-// withChrome replaces each marker in page with its rendered partial. Each
-// marker is replaced once; a page's source is checked by tests to carry each
-// exactly once.
-// WithChromeForTest applies p's chrome to page the way withChrome(page,
-// p.ChromeDataFor(r, base)) does. Test hook (cleanup 3.2 slice 3): the
-// moved hack_eventpage_test.go (TestHackChromeHeader) checks raw
-// chrome-marker substitution directly; ChromeData and withChrome are both
-// unexported, so a cross-package caller cannot build the call itself.
+// WithChromeForTest is withChrome(page, p.ChromeDataFor(r, base)), for the
+// product packages' chrome tests.
 func (p *AssetPipeline) WithChromeForTest(r *http.Request, base string, page []byte) ([]byte, error) {
 	return withChrome(page, p.ChromeDataFor(r, base))
 }
 
+// withChrome replaces each marker in page with its rendered partial. Each
+// marker is replaced once; tests check a page's source carries each exactly once.
 func withChrome(page []byte, d ChromeData) ([]byte, error) {
 	if !bytes.Contains(page, []byte("<!--sh:")) {
 		return page, nil
@@ -301,7 +276,7 @@ func addProductInk(page []byte, base, version, path, class string) []byte {
 // Go-built status pages were themed at package init, before hosted mode is known.
 func (p *AssetPipeline) HostedStatusPage(page string) []byte {
 	if p.ChromeProduct {
-		d := ChromeData{Product: true, ProductStyleVersion: p.productStyleVersion(), ProductStylePath: p.Pres.StylePath, ProductStyleClass: p.Pres.StyleClass, Base: p.inkBaseURL(), CSSVersion: SiteCSSVersion, SigninVersion: SigninJSVersion()}
+		d := ChromeData{Product: true, ProductStyleVersion: p.Product.StyleVersion, ProductStylePath: p.Pres.StylePath, ProductStyleClass: p.Pres.StyleClass, Base: p.InkBaseURL(), CSSVersion: SiteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
 			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
 		} else {
@@ -316,7 +291,7 @@ func (p *AssetPipeline) HostedStatusPage(page string) []byte {
 		if err == nil {
 			return p.ProductInstanceText(out)
 		}
-		return addProductInk([]byte(page), p.inkBaseURL(), p.productStyleVersion(), p.Pres.StylePath, p.Pres.StyleClass)
+		return addProductInk([]byte(page), p.InkBaseURL(), p.Product.StyleVersion, p.Pres.StylePath, p.Pres.StyleClass)
 	}
 	if strings.Contains(page, "</head>") && !strings.Contains(page, `name="viewport"`) {
 		page = strings.Replace(page, "</head>", `<meta name="viewport" content="width=device-width,initial-scale=1"></head>`, 1)
@@ -330,7 +305,7 @@ func (p *AssetPipeline) HostedStatusPage(page string) []byte {
 	return []byte(page)
 }
 
-// themed fills the theme marker of a page built in Go that has no other
+// Themed fills the theme marker of a page built in Go that has no other
 // chrome. It runs once, at package init.
 func Themed(page string) string {
 	b, err := withChrome([]byte(page), ChromeData{})
@@ -349,7 +324,7 @@ type chromeCacheKey struct {
 // a handful of ChromeData values.
 var ChromeCache sync.Map
 
-// chromePage returns the embedded static/<name> with its chrome filled in and
+// BuildChromePage returns the embedded static/<name> with its chrome filled in and
 // this install's limits in its copy (limitstext.go). The enterprise-* pages
 // describe the other product, whose limits are its own, so they keep theirs.
 func (p *AssetPipeline) BuildChromePage(name string, d ChromeData) ([]byte, error) {
@@ -379,28 +354,12 @@ func (p *AssetPipeline) PresentChromePage(name string, page []byte) []byte {
 	return page
 }
 
-// selfHostedChromeRewrite is the one centralized self-hosted pass every
-// chromed page gets, not just the five enumerated RewrittenAssets
-// (instancehost.go). Runs only when HostedOwner() == "" -- a genuinely
-// self-hosted instance, never simple-host.app or simple-hack.app themselves
-// (InstanceHosts can be non-nil there too, since a Hack instance's own
-// SITE_DOMAIN differs from the Host-specific CanonicalSiteDomain constant;
-// HostedOwner() is what actually tells the two apart, so gating on it here
-// is what keeps the hosted edition's served bytes untouched).
-//
-// By the time this runs, hostedBlocks has already dropped every
-// <!--sh:hosted-->-wrapped block: the plugins, the connector directory, our
-// own self-host marketing. What is left and still names
-// simple-host.app/simple-hack.app is a link to an equivalent page on this
-// install (a dashboard, a skill download, a docs command, an og:url) --
-// exactly what InstanceHosts already knows how to repoint, the same
-// substitution the five RewrittenAssets have always gotten (ui.go,
-// instancehost.go). The one address InstanceHosts cannot safely guess is
-// the operator's own support contact: SUPPORT_EMAIL (or IDLE_REPLY_TO,
-// SupportText's older mechanism) replaces support@simple-host.app in text
-// and mailto: links; left unset, an operator sees the plain string removed
-// nowhere -- call sites that want "no address at all" check
-// auth.SupportContact themselves (account_data.go's SupportText).
+// selfHostedChromeRewrite is the self-hosted pass every chromed page gets.
+// Callers gate it on HostedOwner() == "", not on InstanceHosts (which is
+// non-nil on simple-hack.app too), so the hosted services' bytes stay
+// untouched. hostedBlocks has already dropped the hosted-only blocks; what
+// still names simple-host.app is a link InstanceHosts repoints, plus the
+// support address, which only SUPPORT_EMAIL (or IDLE_REPLY_TO) can replace.
 func (p *AssetPipeline) selfHostedChromeRewrite(page []byte) []byte {
 	// Must run before InstanceHosts.apply: that pass's blanket
 	// "simple-host.app" -> siteDomain replacement would otherwise mangle
@@ -415,30 +374,17 @@ func (p *AssetPipeline) selfHostedChromeRewrite(page []byte) []byte {
 // shape: no query string, visible text identical to the address).
 var supportMailtoLinkRe = regexp.MustCompile(`<a href="mailto:support@simple-host\.app(?:\?[^"]*)?">support@simple-host\.app</a>`)
 
-// codeScriptRe matches one <script ...>...</script> element whose content is
-// JavaScript, as opposed to a data island such as
-// type="application/ld+json" or "application/json" (which carries JSON text,
-// not code, and stays eligible for the plain-text swap below). Simple Host's
-// own markup never nests or malforms a script tag, so a non-greedy match is
-// exact.
+// codeScriptRe matches one <script ...>...</script> element. Simple Host's own
+// markup never nests or malforms a script tag, so a non-greedy match is exact.
 var codeScriptRe = regexp.MustCompile(`(?is)<script([^>]*)>.*?</script>`)
 var jsonScriptTypeRe = regexp.MustCompile(`(?i)type\s*=\s*["']?application/(?:ld\+json|json)["']?`)
 
-// rewriteOutsideScript applies htmlFn to every part of page that is not
-// inside a <script> element carrying JavaScript, and jsonFn instead to the
-// content of a JSON data island (type="application/ld+json" or
-// "application/json"): that content is JSON text, not HTML, so it must get
-// a JSON-safe substitution, never an HTML-escaped one (HTML entities such
-// as &amp; are not decoded by a JSON/schema.org consumer, they would just
-// be literal characters in the data). SUPPORT_EMAIL is validated strictly
-// at config load (limits.go's supportEmailShape) precisely so it can never
-// contain a character that breaks out of a JS string literal or expands in a
-// regexp substitution -- but IDLE_REPLY_TO (this value's older, looser
-// fallback) is not validated as strictly, so this pass is a second,
-// structural guard rather than relying on that validation alone: text this
-// install's own contact gets spliced into never runs as code. A page whose
-// script needs the contact (report.html) reads it from a data attribute set
-// outside any script element instead of having it spliced into its source.
+// rewriteOutsideScript applies htmlFn to every part of page outside a
+// JavaScript <script> element, and jsonFn to the content of a JSON data
+// island (application/ld+json or application/json), which needs JSON-safe,
+// not HTML-escaped, substitution. IDLE_REPLY_TO is not validated as strictly
+// as SUPPORT_EMAIL, so this is the structural guard that the contact never
+// lands inside code; a script that needs it reads a data attribute instead.
 func rewriteOutsideScript(page []byte, htmlFn, jsonFn func([]byte) []byte) []byte {
 	var out []byte
 	last := 0
@@ -455,10 +401,7 @@ func rewriteOutsideScript(page []byte, htmlFn, jsonFn func([]byte) []byte) []byt
 	return append(out, htmlFn(page[last:])...)
 }
 
-// jsonStringBody is s as it would appear inside a JSON string's quotes
-// (json.Marshal's output with the surrounding quotes stripped): the
-// JSON-safe analogue of html.EscapeString, for splicing into a JSON-LD or
-// JSON data island instead of HTML text.
+// jsonStringBody is s as it would appear inside a JSON string's quotes.
 func jsonStringBody(s string) string {
 	b, err := json.Marshal(s)
 	if err != nil || len(b) < 2 {
@@ -468,25 +411,14 @@ func jsonStringBody(s string) string {
 }
 
 // rewriteSupportAddress swaps the hosted service's support address for this
-// install's own contact. When an operator set SUPPORT_EMAIL or
-// IDLE_REPLY_TO, auth.SupportContact is a real address and the mailto link
-// keeps working, now pointed at it (existing behaviour). Left unset,
-// SupportContact is just a phrase ("whoever runs this server") with no "@",
-// so there is no address to link to: the whole anchor is replaced with
-// plain text, and the plain-text mentions (features.html, docs pages) with
-// the same phrase, so a self-hosted install never shows Vineet's inbox as if
-// it were its own.
+// install's own contact. With no configured address (auth.SupportContact has
+// no "@"), the mailto anchor and plain mentions become a phrase instead, so a
+// self-hosted install never shows the hosted inbox as its own.
 //
-// Every replacement is literal (ReplaceAllLiteral, never ReplaceAll, so a $
-// in the configured contact can never expand as a submatch reference),
-// HTML-escaped before insertion into ordinary page text (JSON-safe instead
-// inside a JSON-LD/JSON data island, jsonStringBody), and skipped inside
-// executable <script> elements (rewriteOutsideScript) --
-// SUPPORT_EMAIL=o'connor@example.org broke /report's inline script before
-// this, splicing an apostrophe into a JS string literal, and an
-// HTML-escaped address spliced into a JSON-LD island broke its JSON (an
-// "&" would otherwise become the four literal characters "&amp;" in data a
-// JSON parser reads, not HTML a browser renders).
+// Every replacement is literal (ReplaceAllLiteral, so a $ in the contact never
+// expands), HTML-escaped in page text, JSON-escaped in data islands, and
+// skipped inside executable scripts: an apostrophe in SUPPORT_EMAIL once broke
+// /report's inline script.
 func rewriteSupportAddress(page []byte) []byte {
 	if strings.Contains(auth.SupportContact, "@") {
 		escAddr := []byte(html.EscapeString(auth.SupportContact))
@@ -520,20 +452,10 @@ func hostedBlocks(page []byte, hosted bool) []byte {
 	return stripMarkedBlocks(page, keepName, dropName)
 }
 
-// hasHackBlocks keeps the text that is true only where Simple Hack exists:
-// the two real hosted services (each advertises the other, unchanged) and
-// any Hack-edition instance, self-hosted or not (where HackInstanceText has
-// already localized every plain "simple-hack.app" mention to this
-// instance's own address, so the content is accurate there too). The one
-// case this strips is a self-hosted Host edition -- EVENTS=off, no Hack
-// feature at all -- where a page's cross-product help ("Simple Hack",
-// simple-hack.app/events, the connector's event-management steps) would
-// otherwise describe a service this install does not run.
-//
-// A page marks that content with
-// <!--sh:hashack-->...<!--/sh:hashack-->, and the alternative wording (or
-// nothing) for a self-hosted Host edition with
-// <!--sh:nohack-->...<!--/sh:nohack-->.
+// hasProductBlocks keeps <!--sh:hashack-->...<!--/sh:hashack--> text only
+// where Simple Hack exists (the hosted services and any product-edition
+// instance) and <!--sh:nohack--> wording on a self-hosted Host edition, which
+// runs no events.
 func hasProductBlocks(page []byte, hasProduct bool) []byte {
 	keepName, dropName := "hashack", "nohack"
 	if !hasProduct {
@@ -543,33 +465,41 @@ func hasProductBlocks(page []byte, hasProduct bool) []byte {
 }
 
 // stripMarkedBlocks removes every <!--sh:dropName-->...<!--/sh:dropName-->
-// span (markers and content together) and unwraps every
-// <!--sh:keepName-->/<!--/sh:keepName--> pair (markers removed, content
-// kept), for one keep/drop marker-name pair at a time -- hostedBlocks and
-// hasHackBlocks each call this once, so a page may carry both pairs
-// independently.
+// span with its content and unwraps every keepName pair.
 func stripMarkedBlocks(page []byte, keepName, dropName string) []byte {
 	if !bytes.Contains(page, []byte("<!--sh:")) {
 		return page
 	}
-	open, end := []byte("<!--sh:"+dropName+"-->"), []byte("<!--/sh:"+dropName+"-->")
+	return stripSpans(page, "<!--sh:%s-->", "<!--/sh:%s-->", keepName, dropName)
+}
+
+// stripBracketMarkers is stripMarkedBlocks for [[name]]...[[/name]] markers,
+// in the one asset (features.json) whose markers never become HTML comments.
+func stripBracketMarkers(body []byte, keepName, dropName string) []byte {
+	return stripSpans(body, "[[%s]]", "[[/%s]]", keepName, dropName)
+}
+
+// stripSpans drops each open/close span named dropName with its content and
+// removes the markers named keepName; openFmt and closeFmt are fmt patterns.
+func stripSpans(page []byte, openFmt, closeFmt, keepName, dropName string) []byte {
+	dropOpen, dropEnd := []byte(fmt.Sprintf(openFmt, dropName)), []byte(fmt.Sprintf(closeFmt, dropName))
 	for {
-		i := bytes.Index(page, open)
+		i := bytes.Index(page, dropOpen)
 		if i < 0 {
 			break
 		}
-		j := bytes.Index(page[i:], end)
+		j := bytes.Index(page[i:], dropEnd)
 		if j < 0 {
 			break
 		}
-		page = append(page[:i:i], page[i+j+len(end):]...)
+		page = append(page[:i:i], page[i+j+len(dropEnd):]...)
 	}
-	page = bytes.ReplaceAll(page, []byte("<!--sh:"+keepName+"-->"), nil)
-	return bytes.ReplaceAll(page, []byte("<!--/sh:"+keepName+"-->"), nil)
+	page = bytes.ReplaceAll(page, []byte(fmt.Sprintf(openFmt, keepName)), nil)
+	return bytes.ReplaceAll(page, []byte(fmt.Sprintf(closeFmt, keepName)), nil)
 }
 
 // The cache key carries no product identity: it assumes one product's files
-// per process (ChromeData.Hack and ProductStyleVersion separate the editions).
+// per process (ChromeData.Product and ProductStyleVersion separate the editions).
 func (p *AssetPipeline) chromePageRaw(name string, d ChromeData) ([]byte, error) {
 	key := chromeCacheKey{name, d}
 	if v, ok := ChromeCache.Load(key); ok {
@@ -628,4 +558,13 @@ func (p *AssetPipeline) ChromeFileServer(fsys fs.FS, next http.Handler) http.Han
 		// exactly what the file server sent for these pages before.
 		http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(httpx.StampNonce(r, body)))
 	})
+}
+
+// SupportText puts this install's contact (auth.SupportContact) where s
+// names the hosted service's support address.
+func SupportText(s string) string {
+	if auth.SupportContact == "support@simple-host.app" {
+		return s
+	}
+	return strings.ReplaceAll(s, "support@simple-host.app", auth.SupportContact)
 }

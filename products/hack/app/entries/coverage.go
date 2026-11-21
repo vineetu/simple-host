@@ -58,7 +58,6 @@ func (s *Service) JudgingSetupCoverage(ctx context.Context, ev model.Event) (Set
 	return out, nil
 }
 
-// coverageInput is everything prospective coverage is decided from.
 type coverageInput struct {
 	mode        string
 	candidates  []model.NamedTeam
@@ -166,7 +165,6 @@ func (in coverageInput) judgesFor(teamID string) (have int, conflicted bool) {
 	return have, conflicted
 }
 
-// coverage counts judges per candidate team and lists the teams under target.
 func (in coverageInput) coverage(perTeam int) SetupCoverage {
 	out := SetupCoverage{Target: perTeam, Min: len(in.judges), Short: []CoverageShort{}}
 	if in.mode == "open" {

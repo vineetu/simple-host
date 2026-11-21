@@ -26,6 +26,15 @@ func WithPolicy(tool Tool, options ...Policy) Tool {
 	tool.policy = policy
 	return tool
 }
+
+// AcceptUnlisted lets a call keep sending arguments the tool's schema no
+// longer advertises: an app that froze an older tool list still sends them.
+// They reach the tool's run as before.
+func AcceptUnlisted(tool Tool, names ...string) Tool {
+	tool.policy.unlistedArgs = append(append([]string(nil), tool.policy.unlistedArgs...), names...)
+	return tool
+}
+
 func MemberResult(kind string) Policy { return func(p *toolPolicy) { p.memberResult = kind } }
 func OrganiserResult(kind string) Policy {
 	return func(p *toolPolicy) { p.organiserResult = kind }

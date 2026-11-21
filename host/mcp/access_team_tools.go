@@ -1,6 +1,6 @@
 package mcp
 
-// Teams family (owner decisions 2026-11-19): a team is an account that owns
+// Teams family: a team is an account that owns
 // sites and that people join. One role: any member manages the team's sites
 // (every site and storage tool takes owner=<team>), invites people and
 // removes members, and deletes it once it owns no live sites. Nobody joins
@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,7 +19,7 @@ import (
 const teamArgDesc = "The team's handle, as list_teams shows it (the <team> in https://<site>.<team>.simple-host.app/)."
 
 // ownerArgDesc is the owner argument every site and storage tool takes.
-const ownerArgDesc = "Act on the sites of this account instead of your own: a team you belong to (its handle from list_teams), or an account whose site you edit. Leave it out for your own sites. You act with your own sign-in; the account's other people see what you change."
+const ownerArgDesc = "For a team's site, the team's handle (list_teams); for a site you edit for someone, their handle. Leave out for your own sites."
 
 func teamSchema() map[string]any {
 	return outObject(map[string]any{
@@ -151,7 +152,8 @@ func teamTools() []Tool {
 				"invitation": str("The invitation's id."),
 				"answer":     map[string]any{"type": "string", "enum": []string{"accept", "decline"}, "description": "accept or decline."},
 			}, "invitation", "answer"),
-			Annotations: writes(false, false, false),
+			// Declining removes the invitation for good.
+			Annotations: writes(true, false, false),
 			run:         runAnswerTeamInvitation,
 		},
 		{
@@ -207,6 +209,19 @@ func ownerTools(tools []Tool) []Tool {
 		tools[i].InputSchema = schema
 	}
 	return tools
+}
+
+// withOwnerArg gives a tool's owner argument another description.
+func withOwnerArg(tool Tool, desc string) Tool {
+	props, _ := tool.InputSchema["properties"].(map[string]any)
+	if _, ok := props["owner"]; !ok {
+		return tool
+	}
+	copied := maps.Clone(props)
+	copied["owner"] = str(desc)
+	tool.InputSchema = maps.Clone(tool.InputSchema)
+	tool.InputSchema["properties"] = copied
+	return tool
 }
 
 // takeTeamArguments moves owner and expected_version from a tool's arguments

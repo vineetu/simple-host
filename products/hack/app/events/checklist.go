@@ -29,7 +29,6 @@ type TargetResolver interface {
 	Resolve(targetID, slug string, params map[string]string) (Link, bool)
 }
 
-// ChecklistService owns checklist fact gathering and explicit writes.
 type ChecklistService struct {
 	db      *sql.DB
 	entries *entries.Service
@@ -43,7 +42,6 @@ func NewChecklist(database *sql.DB, entryService *entries.Service, targets Targe
 	return &ChecklistService{database, entryService, targets}
 }
 
-// Read computes a role-specific checklist.
 func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role string, adminView bool, forward *rules.ChecklistNext, now time.Time) (Checklist, error) {
 	ev, err := eventrepo.GetEventByID(ctx, s.db, eventID)
 	if err != nil {
@@ -95,7 +93,6 @@ func (s *ChecklistService) checklistMember(ctx context.Context, eventID, actorID
 	return member, false, err
 }
 
-// readableRole resolves the requested checklist role against the membership.
 func readableRole(role, memberRole string, readOnly bool) (string, error) {
 	if role == "" {
 		role = memberRole
@@ -166,7 +163,6 @@ func tracklessTeam(c entries.SetupCoverage) (string, bool) {
 	return "", false
 }
 
-// linkChecklist resolves the links of every item and of the next step.
 func (s *ChecklistService) linkChecklist(out *Checklist, slug string, params map[string]string) {
 	for i := range out.Items {
 		if link, ok := s.targets.Resolve(out.Items[i].TargetID, slug, params); ok {
@@ -203,7 +199,6 @@ func judgeFacts(ev model.Event, member model.EventMember, judging entries.Checkl
 	facts["j.closes"] = rules.ChecklistFact{Done: ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "archived", Detail: detail, BlockedReason: "informational"}
 }
 
-// judgeScoredAll reports whether the judge has a queue and scored all of it.
 func judgeScoredAll(j entries.ChecklistJudgingFacts) bool {
 	return j.OwnTotal > 0 && j.OwnDone == j.OwnTotal
 }
@@ -273,7 +268,6 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	return nil
 }
 
-// organiserSetupFacts fills the done state of the event setup items.
 func organiserSetupFacts(ev model.Event, rubric []model.RubricCriterion, content eventrepo.EventContent, tracks []model.EventTrack, f map[string]rules.ChecklistFact) {
 	for id, done := range map[string]bool{
 		"o.entry-rules":    ev.EntryRulesChosen && entryRulesValid(ev.EntryRules),
@@ -298,7 +292,6 @@ func organiserSetupFacts(ev model.Event, rubric []model.RubricCriterion, content
 	}
 }
 
-// organiserJudgingFacts fills the judging and results items from the judging facts.
 func organiserJudgingFacts(ev model.Event, j entries.ChecklistJudgingFacts, f map[string]rules.ChecklistFact) {
 	f["o.judges"] = rules.ChecklistFact{Done: j.Judges+j.Organisers > 0, Detail: judgeSelectionDetail(j.Judges + j.Organisers)}
 	f["o.assignments"] = rules.ChecklistFact{Done: j.AssignmentsReady, Detail: j.AssignmentDetail, TargetID: j.Coverage.FixTarget}
@@ -345,7 +338,6 @@ func blockOrganiserFacts(ev model.Event, noParticipants bool, f map[string]rules
 	}
 }
 
-// blockFacts sets reason as the blocked reason of each id, keeping the rest of the fact.
 func blockFacts(f map[string]rules.ChecklistFact, reason string, ids ...string) {
 	for _, id := range ids {
 		v := f[id]
@@ -418,7 +410,6 @@ func sponsorsReady(raw []byte) bool {
 	return slices.ContainsFunc(sponsors, func(r struct{ Name string }) bool { return strings.TrimSpace(r.Name) != "" })
 }
 
-// trackValid reports whether a track passes the track rules on its own.
 func trackValid(t model.EventTrack) bool {
 	_, err := rules.Tracks([]model.EventTrack{t})
 	return err == nil

@@ -11,8 +11,8 @@ type countryLookup map[string]string
 
 func (g countryLookup) CountryISO(ip string) string { return g[ip] }
 
-// geoBlockFor builds a signupGeoBlock whose lookup maps ip to iso.
-func geoBlockFor(t *testing.T, ip, iso string, blocked []string) signupGeoBlock {
+// geoBlockFor builds a accounts.SignupGeoBlock whose lookup maps ip to iso.
+func geoBlockFor(t *testing.T, ip, iso string, blocked []string) accounts.SignupGeoBlock {
 	t.Helper()
-	return accounts.NewSignupGeoBlock(buildGeo(t, ip, iso), blocked)
+	return accounts.NewSignupGeoBlock(countryLookup{ip: iso}, blocked)
 }

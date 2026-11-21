@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/vsriram/simple-host/host/data/rules"
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // ListResources reads resources in name order, followed by their table rules.
@@ -47,7 +47,7 @@ func ClearFileWriters(ctx context.Context, tx *sql.Tx, siteID, name string) (sql
 // kind. A resource with no stored rules (saved before rules) changes only its
 // site_passcode. A rules save also sets acc_read, which marks the resource as
 // saved after presets (ResourceColumns reads it as BeforePresets).
-func UpsertResource(ctx context.Context, tx *sql.Tx, siteID string, x rules.Resource) (sql.Result, error) {
+func UpsertResource(ctx context.Context, tx *sql.Tx, siteID string, x model.Resource) (sql.Result, error) {
 	if x.Rules == nil {
 		return tx.ExecContext(ctx, `UPDATE site_storage_resources SET site_passcode=$3 WHERE site_id=$1 AND name=$2 AND kind=$4`, siteID, x.Name, x.SitePasscode, x.Kind)
 	}
@@ -60,7 +60,7 @@ func DeleteResourceTables(ctx context.Context, tx *sql.Tx, siteID, name string) 
 }
 
 // InsertResourceTable saves one per-table rule set.
-func InsertResourceTable(ctx context.Context, tx *sql.Tx, siteID, name, table string, t rules.TableRule) (sql.Result, error) {
+func InsertResourceTable(ctx context.Context, tx *sql.Tx, siteID, name, table string, t model.TableRule) (sql.Result, error) {
 	return tx.ExecContext(ctx, `INSERT INTO site_storage_tables(site_id,resource_name,table_name,rules) VALUES($1,$2,$3,$4)`, siteID, name, table, nullableJSON(t.Rules))
 }
 

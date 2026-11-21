@@ -17,7 +17,6 @@ import (
 
 type createAccessKey struct{}
 
-// Creation access is validated before either upload path can write anything.
 func (h *SiteHandler) readCreateAccess(w http.ResponseWriter, r *http.Request, access *string, viewers []string) bool {
 	if r.Method == http.MethodPut && r.URL.Query().Get("create") != "1" && r.URL.Query().Get("create") != "true" && (access != nil || viewers != nil) {
 		httpx.WriteJSON(w, 400, httpx.ErrorResponse{Code: "invalid_request", Error: "access is chosen at creation; later use set_site_access / grant_site_viewer"})

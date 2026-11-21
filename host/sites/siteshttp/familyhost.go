@@ -13,7 +13,7 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 )
 
-// Address families (owner decision 2026-09-29; INTENT.md).
+// Address families.
 //
 // An account connects *.<suffix> once (model.AddressFamily). Every site of that
 // account named <prefix><label> then answers at <label>.<suffix>, where
@@ -37,7 +37,6 @@ import (
 // name: ranking is own domain > the most specific canonical family > the
 // site host. Every family address of a site keeps working either way.
 
-// familyCertNameRE is a certbot lineage name (the operator's certificate).
 var familyCertNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,252}$`)
 
 // familyPrefixRE is a family's site-name prefix ("" or up to 40 characters,
@@ -55,11 +54,6 @@ func (h *SiteHandler) SetAddressFamilies(certDir string) {
 	h.Caches.Rate("http.site.familyCheckUserLimiter", h.familyCheckUserLimiter, 10*time.Minute, 30*time.Minute)
 }
 
-// StartAddressFamilies loads the live families now and keeps them fresh,
-// and runs the families' DNS checks, until ctx ends.
-func (h *SiteHandler) StartAddressFamilies(ctx context.Context) {
-	h.siteLoop("sites.address_families").Start(ctx)
-}
 func (h *SiteHandler) startAddressFamilies(ctx context.Context) {
 	o := h.siteLoop("sites.address_families")
 	initialized := make(chan struct{})
@@ -79,8 +73,8 @@ func (h *SiteHandler) startAddressFamilies(ctx context.Context) {
 			}
 		}
 	})
-	// Preserve the synchronous initial cache load while retaining the work in
-	// the Runner so Stop cancels it and Wait includes it.
+	// The first cache load finishes before this returns; the work still runs
+	// in the Runner so Stop cancels it and Wait includes it.
 	if o.Status()[0].Running {
 		<-initialized
 	}
@@ -109,7 +103,7 @@ func (h *SiteHandler) FamilyHosts(api, next http.Handler) http.Handler {
 			return
 		}
 		// A custom domain bound here under the family: the exact name wins.
-		if _, err := h.siteFacts().GetSiteByCustomDomain(r.Context(), host); err == nil {
+		if _, err := h.SitesSvc().GetSiteByCustomDomain(r.Context(), host); err == nil {
 			next.ServeHTTP(w, r)
 			return
 		}

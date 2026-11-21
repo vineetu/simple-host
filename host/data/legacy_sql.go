@@ -12,11 +12,12 @@ import (
 	"strings"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
+	"github.com/vsriram/simple-host/host/data/rules"
 	"github.com/vsriram/simple-host/host/storage"
 )
 
 // writtenByColumnRE matches the written_by identifier anywhere in a raw SQL
-// statement, quoted or not (SIM-358 review fix).
+// statement, quoted or not.
 var writtenByColumnRE = regexp.MustCompile(`(?i)\bwritten_by\b`)
 
 // LegacySQLInput contains the request and a deferred body reader.
@@ -40,28 +41,6 @@ type LegacySQLResult struct {
 
 var legacySQLModes = map[string]bool{"query": true, "execute": true, "schema": true}
 
-// legacySQLRun is one owner SQL statement on its way through the database:
-// the request, the storage budget measured for a change, and the open
-// connection with its authorizer's findings.
-type legacySQLRun struct {
-	s           *Service
-	c           Call
-	mode, sql   string
-	params      []json.RawMessage
-	resultLimit int
-
-	usage     Usage
-	dbBytes   int64
-	newDB     bool
-	committed bool
-
-	ctx    context.Context
-	conn   *sqlite3.Conn
-	authz  storage.LegacyAuthorizerState
-	before map[string]bool
-	result LegacySQLResult
-}
-
 // LegacySQL executes a single legacy SQLite request.
 func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (LegacySQLResult, error) {
 	if !in.Call.Owner {
@@ -77,42 +56,55 @@ func (s *Service) LegacySQL(ctx context.Context, in LegacySQLInput) (LegacySQLRe
 	if e := ValidateLegacySQL(req.SQL, req.Params); e != nil {
 		return LegacySQLResult{}, e
 	}
-	// written_by (SIM-358) is server-owned on the table-rows path. The
-	// owner's console may still set visitor_id (long-standing) but must not
-	// forge written_by, so any change naming it is refused, schema changes
-	// too: a trigger or view naming it could set it during a row-route
-	// insert, which runs with no authorizer for the owner (runTableWrite).
+	// written_by is server-owned on the table-rows path. The owner's console
+	// may still set visitor_id but must not forge written_by, so any change
+	// naming it is refused, schema changes too: a trigger or view naming it
+	// could set it during a row-route insert, which runs with no authorizer
+	// for the owner (runTableWrite).
 	if in.Mode != "query" && writtenByColumnRE.MatchString(req.SQL) {
 		return LegacySQLResult{}, &Error{Code: "server_column", Message: "written_by is set by the server; raw SQL may not reference it, including inside a trigger or view"}
 	}
-	r := &legacySQLRun{s: s, c: in.Call, mode: in.Mode, sql: req.SQL, params: req.Params, resultLimit: in.ResultLimit}
 	dbPath := s.deps.SQLitePath
+	uri, room := dbPath, SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
+	committed := false
 	if in.Mode == "query" {
-		uri, err := storage.LegacySQLiteQueryURI(dbPath)
-		if err != nil {
+		if uri, err = storage.LegacySQLiteQueryURI(dbPath); err != nil {
 			return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
 		}
-		return r.admit(ctx, uri)
+	} else {
+		var unlock func()
+		ctx, unlock, err = s.writeLock(ctx, in.Call.OwnerID+"/"+in.Call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
+		if err != nil {
+			return LegacySQLResult{}, err
+		}
+		defer unlock()
+		var newDB bool
+		if room, newDB, err = s.legacySQLRoom(ctx, in.Call, dbPath); err != nil {
+			return LegacySQLResult{}, err
+		}
+		if newDB {
+			defer func() {
+				if !committed {
+					storage.RemoveNewSQLite(dbPath)
+				}
+			}()
+		}
+		if err := storage.EnsureSQLiteDirectory(dbPath); err != nil {
+			return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
+		}
 	}
-	ctx, unlock, err := s.writeLock(ctx, r.c.OwnerID+"/"+r.c.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout, s.deps.Recheck)
-	if err != nil {
-		return LegacySQLResult{}, err
-	}
-	defer unlock()
-	if err := r.measure(ctx, dbPath); err != nil {
-		return LegacySQLResult{}, err
-	}
-	if r.newDB {
-		defer func() {
-			if !r.committed {
-				storage.RemoveNewSQLite(dbPath)
-			}
-		}()
-	}
-	if err := storage.EnsureSQLiteDirectory(dbPath); err != nil {
-		return LegacySQLResult{}, &Error{Code: "internal_error", Message: "internal server error"}
-	}
-	return r.admit(ctx, dbPath)
+	// A failure clears the result; a panic after the commit keeps it, so a
+	// committed change is not reported as lost.
+	var result LegacySQLResult
+	err = s.deps.SiteSlots.Admit(ctx, in.Call.SiteID, func(ctx context.Context, a *Admission) error {
+		defer func() { committed = a.committed }()
+		err := s.runLegacySQL(ctx, a, in, req, uri, room, &result)
+		if err != nil {
+			result = LegacySQLResult{}
+		}
+		return err
+	})
+	return result, err
 }
 
 var errLegacyBodyTooLarge = errors.New("legacy SQL body too large")
@@ -145,105 +137,98 @@ func readLegacySQLRequest(read func() ([]byte, error)) (legacySQLRequest, error)
 	return req, nil
 }
 
-// measure records the site's storage use and database size before a change,
-// refusing to create a database when the site has no room for its first pages.
-func (r *legacySQLRun) measure(ctx context.Context, dbPath string) error {
-	usage, err := r.s.MeasureSiteStorage(ctx, r.c.SiteID, r.c.RuntimeDir)
+// legacySQLRoom returns the storage a change may use (the site's remaining
+// room plus the database's current size) and whether the database is new,
+// refusing to create one when the site has no room for its first pages.
+func (s *Service) legacySQLRoom(ctx context.Context, c Call, dbPath string) (int64, bool, error) {
+	usage, err := s.MeasureSiteStorage(ctx, c.SiteID, c.RuntimeDir)
 	if err != nil {
 		var storageErr *Error
 		if errors.As(err, &storageErr) && storageErr.Code == "storage_busy" {
-			return storageErr
+			return 0, false, storageErr
 		}
-		return &Error{Code: "internal_error", Message: "internal server error"}
+		return 0, false, &Error{Code: "internal_error", Message: "internal server error"}
 	}
-	r.usage = usage
-	if r.dbBytes, r.newDB, err = storage.LegacySQLiteSize(dbPath); err != nil {
-		return &Error{Code: "internal_error", Message: "internal server error"}
+	dbBytes, newDB, err := storage.LegacySQLiteSize(dbPath)
+	if err != nil {
+		return 0, false, &Error{Code: "internal_error", Message: "internal server error"}
 	}
-	if r.dbBytes == 0 && r.s.BudgetUsed(usage)+8192 > SiteLimitBytes(r.s.deps.SiteLimit, r.s.deps.CombinedPool) {
-		return &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
+	limit := SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
+	if dbBytes == 0 && s.BudgetUsed(usage)+8192 > limit {
+		return 0, false, &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
 	}
-	return nil
+	return dbBytes + limit - s.BudgetUsed(usage), newDB, nil
 }
 
-// admit runs the statement inside the site's admission. A failure clears the
-// result; a panic after the commit keeps it, so a committed change is not
-// reported as lost.
-func (r *legacySQLRun) admit(ctx context.Context, uri string) (LegacySQLResult, error) {
-	err := r.s.deps.SiteSlots.Admit(ctx, r.c.SiteID, func(ctx context.Context, a *Admission) error {
-		err := r.execute(ctx, a, uri)
-		if err != nil {
-			r.result = LegacySQLResult{}
-		}
-		return err
-	})
-	return r.result, err
-}
-
-// execute opens the database, compiles and checks the statement, then runs
-// it as a query or a change. A schema change runs in its own transaction.
-func (r *legacySQLRun) execute(ctx context.Context, a *Admission, uri string) error {
-	ctx, cancel := context.WithTimeout(ctx, r.s.deps.SQLiteTimeout)
+// runLegacySQL opens the database, compiles and checks the statement, then
+// runs it as a query or a change. A schema change runs in its own
+// transaction. The result is written to out as soon as it exists, so a panic
+// after the commit still reports it.
+func (s *Service) runLegacySQL(ctx context.Context, a *Admission, in LegacySQLInput, req legacySQLRequest, uri string, room int64, out *LegacySQLResult) error {
+	ctx, cancel := context.WithTimeout(ctx, s.deps.SQLiteTimeout)
 	defer cancel()
-	r.ctx = ctx
-	limit := SiteLimitBytes(r.s.deps.SiteLimit, r.s.deps.CombinedPool)
-	conn, err := storage.OpenLegacySQLite(ctx, uri, r.s.deps.SQLiteMaxMemory, min(limit, r.available()), r.mode != "query")
+	limit := SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
+	conn, err := storage.OpenLegacySQLite(ctx, uri, s.deps.SQLiteMaxMemory, min(limit, room), in.Mode != "query")
 	if conn != nil {
-		defer closeSQLite(func() { defer conn.Close(); r.s.sqliteStage("close") })
+		defer closeSQLite(func() { defer conn.Close(); s.sqliteStage("close") })
 	}
 	if err != nil {
 		return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
-	r.conn = conn
-	r.s.sqliteStage("after_open")
-	if err := r.capChange(); err != nil {
-		return err
+	s.sqliteStage("after_open")
+	if in.Mode != "query" {
+		err := storage.SetLegacySQLiteLimit(conn, room)
+		if errors.Is(err, storage.ErrTableFull) {
+			return &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
+		}
+		if err != nil {
+			return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+		}
 	}
-	if r.mode == "schema" {
+	var before map[string]bool
+	if in.Mode == "schema" {
 		// A schema change keeps every column the rules need (ensureSchemaRules).
-		if r.before, err = storage.SQLTables(conn); err != nil || conn.Exec("BEGIN IMMEDIATE") != nil {
+		if before, err = storage.SQLTables(conn); err != nil || conn.Exec("BEGIN IMMEDIATE") != nil {
 			return &Error{Code: "storage_busy", Message: "could not start the schema change because the database is busy; call once more in a second"}
 		}
 		defer func() { _ = conn.SetAuthorizer(nil); _ = conn.Exec("ROLLBACK") }()
 	}
-	stmt, tail, err := r.compile()
+	var authz storage.LegacyAuthorizerState
+	fail := func(err error) error {
+		if errors.Is(err, sqlite3.NOMEM) {
+			return sqliteFailure(err)
+		}
+		return sqlFailure(ctx, conn, err, in.Call.Owner, req.SQL, authz.WriteTable, authz.WriteAction, s.deps.SQLiteTimeout)
+	}
+	stmt, err := s.prepareLegacySQL(conn, in.Mode, req, &authz, fail)
 	if err != nil {
 		return err
 	}
-	defer storage.CloseLegacyStatement(stmt)
-	if err := r.check(stmt, tail); err != nil {
-		return err
-	}
-	if r.mode == "query" {
-		return r.query(stmt)
-	}
-	return r.change(stmt, a)
-}
-
-// available is the storage a change may use: the site's remaining room plus
-// the database's current size.
-func (r *legacySQLRun) available() int64 {
-	return r.dbBytes + SiteLimitBytes(r.s.deps.SiteLimit, r.s.deps.CombinedPool) - r.s.BudgetUsed(r.usage)
-}
-
-// capChange caps the database's growth for a change at the available storage.
-func (r *legacySQLRun) capChange() error {
-	if r.mode == "query" {
+	defer stmt.Close()
+	if in.Mode == "query" {
+		rows, err := storage.LegacyQueryResult(stmt, in.ResultLimit)
+		switch err {
+		case nil:
+		case storage.ErrLegacyQueryRows:
+			return &Error{Code: "result_too_large", Message: "query returned more than 500 rows"}
+		case storage.ErrLegacyQuerySize:
+			return &Error{Code: "result_too_large", Message: "query result is too large"}
+		default:
+			return fail(err)
+		}
+		s.sqliteStage("after_step")
+		*out = LegacySQLResult{Query: true, Columns: rows.Columns, Rows: rows.Rows}
 		return nil
 	}
-	err := storage.SetLegacySQLiteLimit(r.conn, r.available())
-	if errors.Is(err, storage.ErrTableFull) {
-		return &Error{Code: "site_full", Message: "KV and SQLite storage is full; remove unused data before retrying"}
-	}
-	if err != nil {
-		return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
-	}
-	return nil
+	return s.changeLegacySQL(ctx, conn, stmt, a, in.Call, in.Mode == "schema", before, &authz, fail, out)
 }
 
-// compile prepares the statement under the route's authorizer. A refused
-// statement names the first rule the authorizer applied.
-func (r *legacySQLRun) compile() (*sqlite3.Stmt, string, error) {
+// prepareLegacySQL compiles the statement under the route's authorizer and
+// refuses one that is not alone, lacks a value for a placeholder or belongs
+// to another route, then binds the params. A refused statement names the
+// first rule the authorizer applied. The statement is closed here unless it
+// is returned without error, even when a step panics.
+func (s *Service) prepareLegacySQL(conn *sqlite3.Conn, mode string, req legacySQLRequest, authz *storage.LegacyAuthorizerState, fail func(error) error) (*sqlite3.Stmt, error) {
 	var denial *sqlRefusal
 	deny := func(why *sqlRefusal) sqlite3.AuthorizerReturnCode {
 		if denial == nil {
@@ -251,149 +236,118 @@ func (r *legacySQLRun) compile() (*sqlite3.Stmt, string, error) {
 		}
 		return sqlite3.AUTH_DENY
 	}
-	if err := storage.LegacyAuthorizer(r.conn, r.mode, &r.authz, deny, sqlAuthorizerDenial); err != nil {
-		return nil, "", sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+	if err := storage.LegacyAuthorizer(conn, mode, authz, deny, sqlAuthorizerDenial); err != nil {
+		return nil, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
-	stmt, tail, err := storage.PrepareLegacyStatement(r.conn, r.sql)
+	stmt, tail, err := conn.Prepare(req.SQL)
 	switch {
 	case err == nil && stmt != nil:
-		return stmt, tail, nil
 	case denial != nil:
-		return nil, "", denial
+		return nil, denial
 	case err != nil:
-		return nil, "", r.fail(err)
+		return nil, fail(err)
+	default:
+		return nil, &Error{Code: "sql_request", Message: "sql holds no statement (only blank space or comments): send one SQL statement"}
 	}
-	return nil, "", &Error{Code: "sql_request", Message: "sql holds no statement (only blank space or comments): send one SQL statement"}
-}
-
-// check refuses a compiled statement that is not alone, lacks a value for a
-// placeholder or belongs to another route, then binds the params.
-func (r *legacySQLRun) check(stmt *sqlite3.Stmt, tail string) error {
-	r.s.sqliteStage("after_prepare")
-	if second := sqlSecondStatement(tail); second != "" {
-		return sqlMultipleStatements(second)
+	ok := false
+	defer func() {
+		if !ok {
+			stmt.Close()
+		}
+	}()
+	s.sqliteStage("after_prepare")
+	if second := rules.SQLSecondStatement(tail); second != "" {
+		return nil, sqlRefuse("sql_multiple_statements", rules.SQLMultipleStatements(second))
 	}
-	bindCount, readOnly := storage.LegacyStatementInfo(stmt)
-	if len(r.params) != bindCount {
-		return sqlParamCount(bindCount, len(r.params))
+	bindCount, readOnly := stmt.BindCount(), stmt.ReadOnly()
+	if len(req.Params) != bindCount {
+		return nil, sqlRefuse("sql_param_count", rules.SQLParamCount(bindCount, len(req.Params)))
 	}
 	// CREATE TRIGGER IF NOT EXISTS on a trigger that already exists compiles to
 	// a read-only no-op, so the authorizer never sees a schema change (tables
 	// and views still report theirs; an existing index compiles as a write and
 	// stays refused); the owner's setup is meant to be rerunnable, so that
 	// no-op passes the schema route.
-	noopCreate := r.mode == "schema" && !r.authz.DidSchema && !r.authz.DidWrite && readOnly && storage.CreateIfNotExists(r.sql)
-	if refusal := sqlRouteMismatch(r.mode, r.sql, readOnly, r.authz.DidWrite, r.authz.DidSchema, noopCreate); refusal != nil {
-		return refusal
+	noopCreate := mode == "schema" && !authz.DidSchema && !authz.DidWrite && readOnly && storage.CreateIfNotExists(req.SQL)
+	if refusal := sqlRouteMismatch(mode, req.SQL, readOnly, authz.DidWrite, authz.DidSchema, noopCreate); refusal != nil {
+		return nil, refusal
 	}
-	if i := storage.BindLegacyStatement(stmt, r.params); i >= 0 {
-		return &Error{Code: "sql_params", Message: fmt.Sprintf("params[%d] could not be used: each param must be a string, a number that fits in 64 bits, true, false or null", i)}
+	if i := storage.BindLegacyStatement(stmt, req.Params); i >= 0 {
+		return nil, &Error{Code: "sql_params", Message: fmt.Sprintf("params[%d] could not be used: each param must be a string, a number that fits in 64 bits, true, false or null", i)}
 	}
-	return nil
+	ok = true
+	return stmt, nil
 }
 
-// fail explains a SQLite error from compiling or running the statement.
-func (r *legacySQLRun) fail(err error) error {
-	if errors.Is(err, sqlite3.NOMEM) {
-		return sqliteFailure(err)
-	}
-	return sqlFailure(r.ctx, r.conn, err, r.c.Owner, r.sql, r.authz.WriteTable, r.authz.WriteAction, r.s.deps.SQLiteTimeout)
-}
-
-// query reads the statement's rows, within the row and size caps.
-func (r *legacySQLRun) query(stmt *sqlite3.Stmt) error {
-	rows, err := storage.LegacyQueryResult(stmt, r.resultLimit)
-	switch err {
-	case nil:
-	case storage.ErrLegacyQueryRows:
-		return &Error{Code: "result_too_large", Message: "query returned more than 500 rows"}
-	case storage.ErrLegacyQuerySize:
-		return &Error{Code: "result_too_large", Message: "query result is too large"}
-	default:
-		return r.fail(err)
-	}
-	r.s.sqliteStage("after_step")
-	r.result = LegacySQLResult{Query: true, Columns: rows.Columns, Rows: rows.Rows}
-	return nil
-}
-
-// change runs an execute or schema statement and commits it. An execute
-// commits inside Exec (SQLite's implicit transaction), so success is recorded
-// straight afterwards, before any checkpoint or cleanup can panic; a schema
-// change commits only after finishSchema accepts it.
-func (r *legacySQLRun) change(stmt *sqlite3.Stmt, a *Admission) error {
-	schema := r.mode == "schema"
+// changeLegacySQL runs an execute or schema statement and commits it. An
+// execute commits inside Exec (SQLite's implicit transaction), so success is
+// recorded straight afterwards, before any checkpoint or cleanup can panic; a
+// schema change commits only after finishSchema accepts it. Once committed,
+// the site is told even if a later step fails.
+func (s *Service) changeLegacySQL(ctx context.Context, conn *sqlite3.Conn, stmt *sqlite3.Stmt, a *Admission, c Call, schema bool, before map[string]bool, authz *storage.LegacyAuthorizerState, fail func(error) error, out *LegacySQLResult) error {
 	if !schema {
-		r.s.sqliteStage("before_commit")
+		s.sqliteStage("before_commit")
 	}
-	if err := storage.ExecuteLegacyStatement(stmt); err != nil {
+	if err := stmt.Exec(); err != nil {
 		if errors.Is(err, sqlite3.FULL) {
 			return &Error{Code: "sqlite_full", Message: "SQLite cannot allocate more storage or row IDs"}
 		}
-		return r.fail(err)
+		return fail(err)
 	}
-	r.result = LegacySQLResult{Changes: r.conn.Changes(), LastInsertID: r.conn.LastInsertRowID(), Schema: schema}
+	*out = LegacySQLResult{Changes: conn.Changes(), LastInsertID: conn.LastInsertRowID(), Schema: schema}
 	if !schema {
-		r.markCommitted(a)
+		a.Committed()
 	}
-	defer r.announce()
-	r.s.sqliteStage("after_step")
+	defer func() {
+		if !a.committed {
+			return
+		}
+		s.deps.MarkChanged()
+		if (authz.DidWrite || authz.DidSchema) && s.deps.Committed != nil {
+			s.deps.Committed(ctx)
+		}
+	}()
+	s.sqliteStage("after_step")
 	if schema {
-		notes, err := r.finishSchema(stmt)
+		notes, err := s.finishSchema(conn, stmt, c, before)
 		if err != nil {
 			return err
 		}
-		r.result.Changes, r.result.Notes = r.conn.Changes(), notes
-		r.s.sqliteStage("before_commit")
-		if err := r.conn.Exec("COMMIT"); err != nil {
-			return r.fail(err)
+		out.Changes, out.Notes = conn.Changes(), notes
+		s.sqliteStage("before_commit")
+		if err := conn.Exec("COMMIT"); err != nil {
+			return fail(err)
 		}
-		r.markCommitted(a)
+		a.Committed()
 	}
-	r.s.sqliteStage("after_commit")
-	if err := storage.CloseLegacyStatement(stmt); err != nil {
+	s.sqliteStage("after_commit")
+	if err := stmt.Close(); err != nil {
 		return &Error{Code: "internal_error", Message: "SQL commit failed"}
 	}
 	// Committed already: a failed checkpoint must not read as a failed
 	// change (a retried INSERT would be a duplicate).
-	if err := storage.CheckpointLegacySQLite(r.conn); err != nil {
-		log.Printf("storage: site %s %s: checkpoint after commit: %v", r.c.SiteID, r.c.ResourceName, err)
+	if err := storage.CheckpointLegacySQLite(conn); err != nil {
+		log.Printf("storage: site %s %s: checkpoint after commit: %v", c.SiteID, c.ResourceName, err)
 	}
 	return nil
-}
-
-func (r *legacySQLRun) markCommitted(a *Admission) {
-	a.Committed()
-	r.committed = true
-}
-
-// announce tells the site a committed change happened.
-func (r *legacySQLRun) announce() {
-	if !r.committed {
-		return
-	}
-	r.s.deps.MarkChanged()
-	if (r.authz.DidWrite || r.authz.DidSchema) && r.s.deps.Committed != nil {
-		r.s.deps.Committed(r.ctx)
-	}
 }
 
 // finishSchema checks a schema change before it commits and says which rules
 // each new table gets. A table with its own rules must not lose them to a
 // rename: the new name would fall back to the database's rules, which may be
 // wider. Author-tracked rules tables keep their columns (ensureSchemaRules).
-func (r *legacySQLRun) finishSchema(stmt *sqlite3.Stmt) ([]string, error) {
+func (s *Service) finishSchema(conn *sqlite3.Conn, stmt *sqlite3.Stmt, c Call, before map[string]bool) ([]string, error) {
 	columnsLost := &Error{Code: "visitor_id_required", Message: "every author-tracked rules table must keep its visitor_id TEXT column"}
-	if storage.CloseLegacyStatement(stmt) != nil || r.conn.SetAuthorizer(nil) != nil {
+	if stmt.Close() != nil || conn.SetAuthorizer(nil) != nil {
 		return nil, columnsLost
 	}
-	after, err := storage.SQLTables(r.conn)
+	after, err := storage.SQLTables(conn)
 	if err != nil {
 		return nil, columnsLost
 	}
-	res := r.c.Resource
+	res := c.Resource
 	hasOwn := func(t string) bool { _, own := res.Tables[strings.ToLower(t)]; return own }
-	renamed, added := storage.SchemaTableChanges(r.before, after, hasOwn)
+	renamed, added := storage.SchemaTableChanges(before, after, hasOwn)
 	var notes []string
 	for _, t := range added {
 		switch {
@@ -405,7 +359,7 @@ func (r *legacySQLRun) finishSchema(stmt *sqlite3.Stmt) ([]string, error) {
 			notes = append(notes, "new table "+t+" uses the database rules; give it its own with storage_set_resource tables if it should be narrower")
 		}
 	}
-	ruleNotes, err := r.s.ensureSchemaRules(r.conn, r.c, r.before)
+	ruleNotes, err := s.ensureSchemaRules(conn, c, before)
 	if err != nil {
 		return nil, columnsLost
 	}

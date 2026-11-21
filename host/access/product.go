@@ -37,11 +37,6 @@ func UserByID(ctx context.Context, q sqlkit.Querier, id string) (model.User, err
 	return repo.GetUserByID(ctx, q, id)
 }
 
-// HandleAliases lists an account's earlier handles.
-func HandleAliases(ctx context.Context, db *sql.DB, id string) ([]string, error) {
-	return repo.ListHandleAliases(ctx, db, id)
-}
-
 // LockDisplayName reads an account's name, locking its row.
 func LockDisplayName(ctx context.Context, q sqlkit.Querier, id string) (string, error) {
 	return repo.LockDisplayName(ctx, q, id)

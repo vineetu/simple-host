@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-// Recently deleted sites (completeness plan, 2026-09-27).
+// Recently deleted sites.
 //
 // A deleted site's directory moves from by-id/<userID>/<site> to
 // deleted/<userID>/<siteID>. Nothing serves from deleted/ (nginx and Caddy

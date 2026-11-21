@@ -40,14 +40,10 @@ func (h *AccessHandler) resolveSiteIDBare(r *http.Request, siteName string) (str
 
 // resolveWriteSiteID is resolveSiteID for the page-facing storage routes: a
 // bare name means the key holder's own site of that name when there is one.
-// The storage gate still decides whether the caller may write.
+// The storage gate still decides whether the caller may write. It also serves
+// speculative access-gate lookups, so it must not record that the operation
+// selected a site.
 func (h *AccessHandler) resolveWriteSiteID(r *http.Request, siteName string) (string, error) {
-	return h.resolveWriteSiteIDBare(r, siteName)
-}
-
-// resolveWriteSiteIDBare also serves speculative access-gate lookups, which
-// must not become evidence that the operation selected a site.
-func (h *AccessHandler) resolveWriteSiteIDBare(r *http.Request, siteName string) (string, error) {
 	id, bare, err := h.resolveSiteIDBare(r, siteName)
 	if !bare {
 		return id, err

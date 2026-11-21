@@ -94,8 +94,7 @@ func applyFill(ctx context.Context, tx *sql.Tx, ev model.Event, userID string, p
 	return nil
 }
 
-// insertFillTeam creates a planned team under a fresh code and records its
-// site name. event_teams.open is no longer written (deprecated 2026-10-31).
+// insertFillTeam creates a planned team under a fresh code and records its site name.
 func insertFillTeam(ctx context.Context, tx *sql.Tx, ev model.Event, userID string, p model.FillPlacement) error {
 	code, err := hackevents.RandomCode(teamCodeLength)
 	if err != nil {

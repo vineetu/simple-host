@@ -12,7 +12,6 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// teamSiteJSON is a team's site as the events API shows it.
 func (h *siteLinks) teamSiteJSON(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) map[string]any {
 	var site *model.Site
 	if h.hooks != nil {
@@ -26,7 +25,6 @@ func (h *siteLinks) teamSiteJSON(ctx context.Context, ev hackmodel.Event, team h
 	return h.teamSiteJSONFrom(ev, team, site, h.teamSitesReady(ev.Slug))
 }
 
-// teamSiteJSONFrom is teamSiteJSON with the site already read (nil: none).
 func (h *siteLinks) teamSiteJSONFrom(ev hackmodel.Event, team hackmodel.EventTeam, site *model.Site, ready bool) map[string]any {
 	out := map[string]any{
 		"name":              team.Slug,
@@ -72,7 +70,6 @@ func (tl teamList) site(name string) *model.Site {
 	return nil
 }
 
-// teamDeadlineJSON adds the team's effective deadline fields to obj.
 func (h *views) teamDeadlineJSON(ctx context.Context, team hackmodel.EventTeam, obj map[string]any) {
 	obj["deadline"] = nil
 	obj["frozen"] = false
@@ -85,7 +82,6 @@ func (h *views) teamDeadlineJSON(ctx context.Context, team hackmodel.EventTeam, 
 	teamStateJSON(st, obj)
 }
 
-// teamStateJSON fills the deadline fields from a team's write state.
 func teamStateJSON(st hackmodel.TeamWriteState, obj map[string]any) {
 	obj["extended"] = st.HasOverride
 	obj["deadline"] = rfc3339UTC(st.Deadline)
@@ -106,7 +102,6 @@ func participantTeam(w http.ResponseWriter, r *http.Request, svc *teams.Service,
 	return team, true
 }
 
-// organiserTeam loads {team} of the event for an organiser write.
 func (h *participationHTTP) organiserTeam(w http.ResponseWriter, r *http.Request) (hackAccess, hackmodel.EventTeam, bool) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
@@ -120,8 +115,6 @@ func (h *participationHTTP) organiserTeam(w http.ResponseWriter, r *http.Request
 	return a, team, true
 }
 
-// teamOrganiserFull is the organiser's view of a team with its site and
-// deadline.
 func (h *participationHTTP) teamOrganiserFull(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam) (map[string]any, error) {
 	tl, err := h.links.loadTeamList(ctx, ev)
 	if err != nil {
@@ -133,7 +126,6 @@ func (h *participationHTTP) teamOrganiserFull(ctx context.Context, ev hackmodel.
 	return h.teamOrganiserFrom(ctx, ev, team, tl)
 }
 
-// teamOrganiserFrom is the organiser's view of one team from a teamList.
 func (h *participationHTTP) teamOrganiserFrom(ctx context.Context, ev hackmodel.Event, team hackmodel.EventTeam, tl teamList) (map[string]any, error) {
 	obj := teamOrganiserJSONFrom(team, tl.members[team.ID], h.links.teamLinkURL(team.Code))
 	track, err := h.teams.Track(ctx, team.ID)
@@ -156,7 +148,6 @@ func (h *participationHTTP) teamOrganiserFrom(ctx context.Context, ev hackmodel.
 	return obj, nil
 }
 
-// setTeamDeadline gives one team until a later time (or takes that back).
 func (h *participationHTTP) setTeamDeadline(w http.ResponseWriter, r *http.Request) {
 	a, team, ok := h.organiserTeam(w, r)
 	if !ok {
@@ -211,7 +202,6 @@ func (h *participationHTTP) restoreTeamSite(w http.ResponseWriter, r *http.Reque
 	h.writeTeamFull(w, r, a.event, team, err)
 }
 
-// myTeams lists the caller's teams, for the connector's choice of site.
 func (h *participationHTTP) myTeams(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
@@ -243,7 +233,6 @@ func (h *participationHTTP) myTeams(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"teams": out, "blocked": blocked})
 }
 
-// pinDue pins the event's teams whose deadline has passed.
 func (h *siteLinks) pinDue(ctx context.Context, eventID string) {
 	if err := h.teams.PinDue(ctx, eventID); err != nil {
 		log.Printf("hack: pin %s: %v", eventID, err)
@@ -253,14 +242,16 @@ func (h *siteLinks) pinDue(ctx context.Context, eventID string) {
 // removeOrphanTeamSites moves the event's sites whose team is gone to
 // Recently deleted (the hourly sweep catches anything missed here).
 func (h *siteLinks) removeOrphanTeamSites(ctx context.Context, ev hackmodel.Event) {
-	var trash func(context.Context, string, string) error
-	if h.hooks != nil {
-		trash = h.hooks.TrashTeamSite
-	}
-	h.teams.RemoveOrphanTeamSites(ctx, ev, trash)
+	h.teams.RemoveOrphanTeamSites(ctx, ev, h.trash())
 }
 
-// requestEventCert asks for *.<event>.<SITE_DOMAIN> once the event opens.
+func (h *siteLinks) trash() func(context.Context, string, string) error {
+	if h.hooks == nil {
+		return nil
+	}
+	return h.hooks.TrashTeamSite
+}
+
 func (h *siteLinks) requestEventCert(ev hackmodel.Event) {
 	var request func(string)
 	if h.hooks != nil {

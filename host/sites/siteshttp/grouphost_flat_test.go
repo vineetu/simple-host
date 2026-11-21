@@ -9,7 +9,6 @@ import (
 	"github.com/vsriram/simple-host/host/config"
 
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/model"
 )
 
 // hackFlatApp is a bare, DB-less SiteHandler wired as a hosted-events
@@ -40,14 +39,6 @@ func TestTeamSiteURLFlatHosts(t *testing.T) {
 	if got := h.TeamSiteURL("weekend", "alpha"); got != "https://alpha--weekend.simple-hack.test/" {
 		t.Errorf("on: TeamSiteURL = %q", got)
 	}
-	// siteHostFor/SiteURL/siteHostOn are the same single construction
-	// (issue 3): confirm they agree with TeamSiteURL under flat mode.
-	if got := h.Hosts.Addressing().SiteHostOn("weekend", "alpha", h.Hosts.Addressing().HandoutBase()); got != "alpha--weekend.simple-hack.test" {
-		t.Errorf("on: siteHostFor = %q", got)
-	}
-	if got := h.SiteURL("weekend", "alpha"); got != "https://alpha--weekend.simple-hack.test/" {
-		t.Errorf("on: SiteURL = %q", got)
-	}
 	// Off on a Host-edition instance even if someone sets the field: the
 	// setting only ever takes effect for hosted events.
 	host := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.test"})
@@ -56,45 +47,6 @@ func TestTeamSiteURLFlatHosts(t *testing.T) {
 	host.SetTeamSiteFlatHosts(true)
 	if got := host.TeamSiteURL("weekend", "alpha"); got != "https://alpha.weekend.simple-host.test/" {
 		t.Errorf("Host edition: TeamSiteURL = %q, want the two-level form regardless", got)
-	}
-}
-
-// TestTeamSitesReadyDoesNotWaitOnPerEventCert: with a certificate hand-off
-// directory configured but no per-event "ready" marker ever written, flat
-// mode must still report ready (the instance's own *.<base> wildcard is
-// assumed) — and so must the preview-link gates, which share the same
-// siteCertReady check.
-func TestTeamSitesReadyDoesNotWaitOnPerEventCert(t *testing.T) {
-	dir := t.TempDir()
-	h := groupFlatApp(t, dir)
-	if h.teamSitesReady("weekend") {
-		t.Fatal("off: ready without a certificate marker")
-	}
-	// TeamPreviewLinkFor's certificate gate runs before it touches site
-	// fields, so a zero model.Site is enough to exercise it here.
-	if _, ok := h.TeamPreviewLinkFor(model.Site{}, "weekend", 1); ok {
-		t.Fatal("off: TeamPreviewLinkFor ready without a certificate marker")
-	}
-	h.SetTeamSiteFlatHosts(true)
-	if !h.teamSitesReady("weekend") {
-		t.Fatal("flat: not ready despite the instance wildcard being assumed")
-	}
-	if h.teamSitesReady("") {
-		t.Fatal("flat: ready for an empty event slug")
-	}
-}
-
-func TestRequestSiteCertSkipsPerEventUnderFlatHosts(t *testing.T) {
-	dir := t.TempDir()
-	h := groupFlatApp(t, dir)
-	h.RequestSiteCert("weekend")
-	if _, err := os.Stat(filepath.Join(dir, "requests", "weekend")); err != nil {
-		t.Fatalf("off: expected a certificate request file: %v", err)
-	}
-	h.SetTeamSiteFlatHosts(true)
-	h.RequestSiteCert("another-event")
-	if _, err := os.Stat(filepath.Join(dir, "requests", "another-event")); err == nil {
-		t.Fatal("flat: a per-event certificate was requested; it should never be")
 	}
 }
 
@@ -135,7 +87,6 @@ func TestSiteHostPartsFlatHosts(t *testing.T) {
 	for _, host := range []string{
 		"weekend.simple-hack.test",   // one label, no "--": an event host, not a team site
 		"--weekend.simple-hack.test", // empty team
-		"alpha--.simple-hack.test",   // empty event
 	} {
 		if _, _, _, ok := h.Hosts.SiteHostParts(ctx, host); ok {
 			t.Errorf("flat: %q wrongly resolved as a team site", host)

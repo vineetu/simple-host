@@ -59,7 +59,6 @@ func submissionCards(ctx context.Context, db *sql.DB, ev model.Event, siteURL fu
 	return out, nil
 }
 
-// submissionCard is one submission's public card.
 func submissionCard(sub entries.Submission, siteURL, screenshotBase string) hackSubmission {
 	e, t := sub.Entry, sub.Team
 	c := hackSubmission{hackResultCard: hackResultCard{Title: e.Title, Tagline: e.Tagline, Problem: e.Problem, Audience: e.Audience, Tools: nonNilStrings(e.Tools), Maturity: e.Maturity, Track: sub.Track, VideoURL: e.VideoURL, CodeURL: e.CodeURL, SiteURL: siteURL, HasScreenshot: e.HasScreenshot}, TeamName: t.Name, Team: t.Slug, teamID: t.ID}

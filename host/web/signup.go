@@ -2,6 +2,7 @@ package web
 
 import (
 	"github.com/vsriram/simple-host/host/model"
+	operations "github.com/vsriram/simple-host/host/ops"
 )
 
 // arrivalSource names an outside place that links people in with
@@ -19,4 +20,20 @@ var ArrivalSources = map[string]arrivalSource{
 	model.SignupArtifactHub: {Label: "Artifact Hub", Where: "artifact-hub.com"},
 	model.SignupVercelShip:  {Label: "Vercel Ship", Where: "ship.vineetsriram.com"},
 	model.SignupAgentCon:    {Label: "Agent Con", Where: "Agent Con, San Jose"},
+}
+
+type SignupGroup = operations.SignupGroup
+
+func CohortSources() map[string]operations.SignupGroup {
+	out := make(map[string]operations.SignupGroup, len(ArrivalSources))
+	for k, v := range ArrivalSources {
+		out[k] = operations.SignupGroup{Key: k, Label: v.Label, Where: v.Where}
+	}
+	return out
+}
+
+func SignupGroupOf(source string) string { return operations.SignupGroupOf(source, CohortSources()) }
+
+func SignupGroups(present map[string]bool) []SignupGroup {
+	return operations.SignupGroups(present, CohortSources())
 }

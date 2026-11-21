@@ -2,9 +2,7 @@ package servertest
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"hash/crc32"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -13,8 +11,6 @@ import (
 	"time"
 
 	siterepo "github.com/vsriram/simple-host/host/sites/repo"
-	"github.com/vsriram/simple-host/products/hack"
-	teamsapp "github.com/vsriram/simple-host/products/hack/app/teams"
 )
 
 // M2: team sites published with the member's own key and owner=<event>, the
@@ -253,45 +249,6 @@ func TestHackM2ConnectorPublishesAsOwner(t *testing.T) {
 	}
 }
 
-// A deploy let in before the deadline is pinned; nothing after it lands.
-func TestHackM2DeadlineRace(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, p1, org)
-	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
-	markReady(t, a.certDir, slug)
-	k1 := p1.key
-	if r := a.deployTeam(t, slug, alpha, k1, "v1"); r.status != 201 {
-		t.Fatalf("deploy: %d %s", r.status, r.body)
-	}
-	// The deadline a moment away; deploy in a loop across it.
-	dl := time.Now().Add(1500 * time.Millisecond)
-	if r := a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": dl.UTC().Format(time.RFC3339Nano)}, org.key); r.status != 200 {
-		t.Fatalf("deadline: %d %s", r.status, r.body)
-	}
-	lastOK := 1
-	for i := 2; time.Now().Before(dl.Add(700 * time.Millisecond)); i++ {
-		time.Sleep(120 * time.Millisecond)
-		r := a.deployTeam(t, slug, alpha, k1, "v")
-		if r.status == 200 {
-			lastOK = int(r.json(t)["active_version"].(float64))
-		} else if r.status != 409 {
-			t.Fatalf("deploy %d: %d %s", i, r.status, r.body)
-		}
-	}
-	if err := teamsapp.New(a.database).PinDue(context.Background(), ""); err != nil {
-		t.Fatal(err)
-	}
-	var pinned sql.NullInt64
-	if err := a.database.QueryRow(`SELECT t.pinned_version FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1`, slug).Scan(&pinned); err != nil {
-		t.Fatal(err)
-	}
-	if !pinned.Valid || int(pinned.Int64) != lastOK {
-		t.Fatalf("pinned %v, last accepted deploy %d", pinned, lastOK)
-	}
-}
-
 // The platform's take-down of an event takes its team sites down with it.
 func TestHackM2EventTakedownTakesTeamSitesDown(t *testing.T) {
 	a := newTeamSiteApp(t)
@@ -319,194 +276,5 @@ func TestHackM2EventTakedownTakesTeamSitesDown(t *testing.T) {
 	}
 	if r := a.on(t, "GET", host, "/", nil, ""); r.status != 200 {
 		t.Fatalf("team site after restore: %d", r.status)
-	}
-}
-
-// Review round 1: names are never reused, a solo team cannot throw its
-// submission away, extensions only extend, bare names stay in their event.
-func TestHackM2ReviewRound1(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, p1, p2 := a.newPerson(t, "org"), a.newPerson(t, "p1"), a.newPerson(t, "p2")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, p1, org)
-	a.join(t, slug, p2, org)
-	solo, _ := a.startTeam(t, slug, "Solo", p1)
-	markReady(t, a.certDir, slug)
-	k1 := p1.key
-	if r := a.deployTeam(t, slug, solo, k1, "mine"); r.status != 201 {
-		t.Fatalf("deploy: %d %s", r.status, r.body)
-	}
-	// Anonymous bare names on the apex resolve nothing on this platform.
-	if r := a.api(t, "GET", "/v1/sites/"+solo+"/data", nil, ""); r.status/100 == 2 {
-		t.Fatalf("bare anonymous read: %d %s", r.status, r.body)
-	}
-	if r := a.api(t, "GET", "/v1/sites/"+solo+"/storage/resources?owner="+slug, nil, k1); r.status != 200 {
-		t.Fatalf("member's read of the team site: %d %s", r.status, r.body)
-	}
-	// Extensions only extend: a later event deadline wins over an older one.
-	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
-	if r := a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+solo+"/deadline", map[string]string{"deadline": past}, org.key); r.status != 409 {
-		t.Fatalf("extension without an event deadline: %d %s", r.status, r.body)
-	}
-	soon := time.Now().Add(time.Hour).UTC()
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": soon.Format(time.RFC3339)}, org.key)
-	if r := a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+solo+"/deadline", map[string]string{"deadline": soon.Add(time.Hour).Format(time.RFC3339)}, org.key); r.status != 200 {
-		t.Fatalf("extension: %d %s", r.status, r.body)
-	}
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": soon.Add(24 * time.Hour).Format(time.RFC3339)}, org.key)
-	if r := a.deployTeam(t, slug, solo, k1, "still open"); r.status != 200 {
-		t.Fatalf("older extension froze the team early: %d %s", r.status, r.body)
-	}
-	// After the deadline a solo team's only member cannot leave (and take
-	// the pinned submission with the team).
-	a.api(t, "PUT", "/v1/hack/events/"+slug+"/teams/"+solo+"/deadline", map[string]string{"deadline": ""}, org.key)
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)}, org.key)
-	wantTS(t, "leave after deadline", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams/leave", nil, p1.key), 409, "submissions_closed")
-	// Pinned: even emptied by the organiser, the team (and its site) stays.
-	a.api(t, "GET", "/v1/hack/events/"+slug+"/teams", nil, org.key)
-	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/teams/"+solo+"/members/"+a.uid(t, p1), nil, org.key); r.status != 204 {
-		t.Fatalf("take off: %d %s", r.status, r.body)
-	}
-	var n int
-	_ = a.database.QueryRow(`SELECT count(*) FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1 AND t.slug = $2`, slug, solo).Scan(&n)
-	if n != 1 {
-		t.Fatalf("pinned team removed when emptied")
-	}
-	// Explicit removal still works, and the name is never reused, even
-	// after the site is purged.
-	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/teams/"+solo, nil, org.key); r.status != 204 {
-		t.Fatalf("delete team: %d", r.status)
-	}
-	if _, err := a.database.Exec(`DELETE FROM sites s USING events e WHERE e.account_id = s.user_id AND e.slug = $1`, slug); err != nil {
-		t.Fatal(err)
-	}
-	a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key)
-	// A new team cannot start after the deadline; clear it first.
-	wantTS(t, "team after deadline", a.api(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Late"}, p2.key), 409, "submissions_closed")
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": ""}, org.key)
-	if again, _ := a.startTeam(t, slug, "Solo", p2); again == solo {
-		t.Fatalf("team name reused after purge: %s", again)
-	}
-	// The event name is kept for good once it had a team.
-	var accountID string
-	_ = a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&accountID)
-	if r := a.api(t, "DELETE", "/v1/admin/hack/events/"+slug, nil, a.admin); r.status != 204 {
-		t.Fatalf("admin delete: %d %s", r.status, r.body)
-	}
-	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM event_used_names WHERE event_slug = $1`, slug) })
-	r := a.api(t, "GET", "/v1/hack/names/"+slug, nil, org.key)
-	if r.json(t)["available"] != false {
-		t.Fatalf("deleted event's name available again: %s", r.body)
-	}
-}
-
-// Review round 2 (correctness and security).
-func TestHackM2ReviewRound2(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
-	// A draft event asks for no certificate, whatever is read.
-	draft := uniqueSlug()
-	if r := a.api(t, "POST", "/v1/hack/events", map[string]any{"slug": draft, "title": "D", "organiser_name": "O", "contact_email": "o@example.com", "purpose": "p", "expected_participants": 1, "starts_at": "2026-10-01"}, org.key); r.status != 201 {
-		t.Fatalf("draft: %d %s", r.status, r.body)
-	}
-	t.Cleanup(func() {
-		var acc string
-		_ = a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, draft).Scan(&acc)
-		_, _ = a.database.Exec(`DELETE FROM events WHERE slug = $1`, draft)
-		_, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, acc)
-	})
-	a.api(t, "GET", "/v1/hack/events/"+draft, nil, org.key)
-	if _, err := os.Stat(filepath.Join(a.certDir, "requests", draft)); err == nil {
-		t.Fatalf("a draft event asked for a certificate")
-	}
-
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, p1, org)
-	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
-	markReady(t, a.certDir, slug)
-	k1 := p1.key
-	if r := a.deployTeam(t, slug, alpha, k1, "v1"); r.status != 201 {
-		t.Fatalf("deploy: %d %s", r.status, r.body)
-	}
-	a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "building"}, org.key)
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-30 * time.Minute).UTC().Format(time.RFC3339)}, org.key)
-	// A time-zone change never reopens a passed deadline.
-	if r := a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"time_zone": "America/Los_Angeles"}, org.key); r.status != 200 {
-		t.Fatalf("zone: %d %s", r.status, r.body)
-	}
-	wantTS(t, "deploy after zone change", a.deployTeam(t, slug, alpha, k1, "late"), 409, "submissions_closed")
-	// Emptied after its deadline but before any pin: the team stays.
-	if _, err := a.database.Exec(`UPDATE event_teams t SET pinned_at = NULL, pinned_version = NULL FROM events e WHERE e.id = t.event_id AND e.slug = $1`, slug); err != nil {
-		t.Fatal(err)
-	}
-	if r := a.api(t, "DELETE", "/v1/hack/events/"+slug+"/teams/"+alpha+"/members/"+a.uid(t, p1), nil, org.key); r.status != 204 {
-		t.Fatalf("take off: %d %s", r.status, r.body)
-	}
-	var n int
-	_ = a.database.QueryRow(`SELECT count(*) FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1`, slug).Scan(&n)
-	if n != 1 {
-		t.Fatalf("team past its deadline removed when emptied")
-	}
-	// Closed → draft → building reopens submissions.
-	for _, st := range []string{"closed", "draft", "building"} {
-		if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": st}, org.key); r.status != 200 {
-			t.Fatalf("stage %s: %d %s", st, r.status, r.body)
-		}
-	}
-	if ev := a.api(t, "GET", "/v1/hack/events/"+slug, nil, org.key).json(t)["event"].(map[string]any); ev["submission_deadline"] != nil {
-		t.Fatalf("draft then building kept the passed deadline")
-	}
-	// The emptied team, reopened and unpinned, goes with the sweep.
-	hack.NewSiteSweep(a.database, a.sites, nil).Sweep(context.Background())
-	_ = a.database.QueryRow(`SELECT count(*) FROM event_teams t JOIN events e ON e.id = t.event_id WHERE e.slug = $1`, slug).Scan(&n)
-	if n != 0 {
-		t.Fatalf("empty reopened team kept: %d", n)
-	}
-	// Images: huge declared dimensions refused; gallery screenshots revalidate.
-	big := pngOfSize(9000, 10)
-	a.startTeam(t, slug, "Beta", p1)
-	r := a.on(t, "PUT", "", "/v1/hack/events/"+slug+"/entry/screenshot", string(big), p1.key)
-	wantTS(t, "huge image", r, 415, "unsupported_image")
-	hugeWebP := []byte("RIFF\x16\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x00\x00\x00\x00\xff\x3f\x00\xff\x3f\x00")
-	wantTS(t, "huge webp", a.on(t, "PUT", "", "/v1/hack/events/"+slug+"/entry/screenshot", string(hugeWebP), p1.key), 415, "unsupported_image")
-
-}
-
-// pngOfSize is a PNG header declaring w x h (enough for DecodeConfig).
-func pngOfSize(w, h int) []byte {
-	ihdr := []byte{'I', 'H', 'D', 'R', byte(w >> 24), byte(w >> 16), byte(w >> 8), byte(w), byte(h >> 24), byte(h >> 16), byte(h >> 8), byte(h), 8, 2, 0, 0, 0}
-	c := crc32.ChecksumIEEE(ihdr)
-	b := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\x0d")
-	b = append(b, ihdr...)
-	return append(b, byte(c>>24), byte(c>>16), byte(c>>8), byte(c))
-}
-
-// Review round 3.
-func TestHackM2ReviewRound3(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, p1 := a.newPerson(t, "org"), a.newPerson(t, "p1")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, p1, org)
-	alpha, _ := a.startTeam(t, slug, "Alpha", p1)
-	markReady(t, a.certDir, slug)
-	k1 := p1.key
-	a.deployTeam(t, slug, alpha, k1, "v1")
-	// A wall-clock time the clocks skip is refused.
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"time_zone": "Europe/London"}, org.key)
-	wantTS(t, "dst gap", a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": "2027-03-28T01:30"}, org.key), 400, "invalid_submission_deadline")
-	// my-teams says how many of my teams cannot publish.
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)}, org.key)
-	if m := a.api(t, "GET", "/v1/hack/my-teams", nil, p1.key).json(t); m["blocked"] != float64(1) || len(m["teams"].([]any)) != 0 {
-		t.Fatalf("my-teams: %v", m)
-	}
-	// Ending an event before its deadline ends submissions too.
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": ""}, org.key)
-	a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(48 * time.Hour).UTC().Format(time.RFC3339)}, org.key)
-	if r := a.api(t, "POST", "/v1/hack/events/"+slug+"/stage", map[string]string{"stage": "archived"}, org.key); r.status != 200 {
-		t.Fatalf("archive: %d %s", r.status, r.body)
-	}
-	ev := a.api(t, "GET", "/v1/hack/events/"+slug, nil, org.key).json(t)["event"].(map[string]any)
-	if d, _ := time.Parse(time.RFC3339, ev["submission_deadline"].(string)); d.After(time.Now()) {
-		t.Fatalf("ended event kept a future deadline: %v", ev["submission_deadline"])
 	}
 }

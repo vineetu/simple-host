@@ -55,12 +55,6 @@ func newFakeSiteverify(t *testing.T, answer func(token string) map[string]any) *
 	return f
 }
 
-func (f *fakeSiteverify) calls() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return len(f.forms)
-}
-
 // passing is siteverify's answer for a token solved on host for resource.
 func passing(app, host, resource string) map[string]any {
 	return map[string]any{"success": true, "action": TurnstileAction, "hostname": app,

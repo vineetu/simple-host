@@ -52,7 +52,6 @@ func (h *SiteHandler) exportLinkBase() string {
 	return "https://" + h.SiteDomain
 }
 
-// SignExportToken binds a token to one owner, one site and an expiry.
 func (h *SiteHandler) SignExportToken(userID, siteID string, expires time.Time) string {
 	payload := userID + "." + siteID + "." + strconv.FormatInt(expires.Unix(), 10)
 	return httpx.SealLink(h.ExportKey, ExportLinkDomain, []byte(payload))
@@ -83,8 +82,6 @@ func (h *SiteHandler) CheckExportToken(token string, now time.Time) (userID, sit
 	return parts[0], parts[1], nil
 }
 
-// createExportLink POST /v1/sites/{sitename}/export-link — the owner mints a
-// download link for their own site's export.
 func (h *SiteHandler) createExportLink(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {

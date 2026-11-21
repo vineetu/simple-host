@@ -49,7 +49,7 @@ func NewTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, teamSlug, u
 
 // lockRequestTeam locks the prospective member, then the team, as code
 // joining does. Only an approved participant without a team may be asked
-// for, and a locked team takes nobody by request or invite (decision 9);
+// for, and a locked team takes nobody by request or invite;
 // every unlocked team is askable.
 func lockRequestTeam(ctx context.Context, q *sql.Tx, eventID, teamSlug, userID string) (EventTeam, error) {
 	m, err := LockMember(ctx, q, eventID, userID)
@@ -78,7 +78,6 @@ type requestFacts struct {
 	existingID, existingKind string
 }
 
-// readRequestFacts reads the requestFacts for a team and a participant.
 func readRequestFacts(ctx context.Context, q *sql.Tx, eventID, teamID, actor, userID string) (f requestFacts, err error) {
 	if err = q.QueryRowContext(ctx, `SELECT m.looking, EXISTS(SELECT 1 FROM event_members a WHERE a.event_id=$1 AND a.user_id=$3 AND a.team_id=$2 AND a.approval_status='approved') FROM event_members m WHERE m.event_id=$1 AND m.user_id=$4`, eventID, teamID, actor, userID).Scan(&f.looking, &f.teammate); err != nil {
 		return f, err

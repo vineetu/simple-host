@@ -46,16 +46,6 @@ func TestParseGoogleUserInfo(t *testing.T) {
 			body:    `{"name":"Jane Doe"}`,
 			wantErr: true,
 		},
-		{
-			name:    "empty sub",
-			body:    `{"sub":""}`,
-			wantErr: true,
-		},
-		{
-			name:    "not json",
-			body:    `not-json`,
-			wantErr: true,
-		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

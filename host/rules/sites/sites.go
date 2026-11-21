@@ -1,3 +1,6 @@
+// Package sites holds pure, deterministic site- and handle-name rules shared
+// by Host and Hack HTTP: shape and reservation checks over constant tables
+// and regexps, with no SQL, filesystem, provider call or ambient clock.
 package sites
 
 import (
@@ -103,10 +106,10 @@ var reservedSubdomainLabels = []string{
 	"sf-fog", "gods-eye", "paragliding-beginners-map", "lab",
 }
 
-// ReservedSubdomainSet is every reserved name in the one shared namespace
-// (owner decision 2026-09-25): the labels above plus every reserved handle,
-// since a handle is also an address (<handle>.<SITE_DOMAIN>) and a claimed
-// name is also a path segment on the legacy content host.
+// ReservedSubdomainSet is every reserved name in the one shared namespace:
+// the labels above plus every reserved handle, since a handle is also an
+// address (<handle>.<SITE_DOMAIN>) and a claimed name is also a path segment
+// on the legacy content host.
 var ReservedSubdomainSet = func() map[string]bool {
 	m := make(map[string]bool, len(reservedSubdomainLabels)+len(reservedHandles))
 	for _, l := range reservedSubdomainLabels {
@@ -124,7 +127,7 @@ func LabelReserved(label string) bool {
 	return ReservedSubdomainSet[strings.ToLower(label)]
 }
 
-// reservedNewNames (owner decision 2026-09-27) are names that read as the
+// reservedNewNames are names that read as the
 // platform, its operator or a sensitive function, so a stranger holding one
 // could pass for Simple Host. They are refused to NEW claims only: a new or
 // changed handle, a newly claimed <name>.<SITE_DOMAIN>, and (the subset in
@@ -194,9 +197,22 @@ func EventNameShape(name string) bool {
 	return len(name) >= 3 && VisitorHandle.MatchString(name) && HandleIsLabel(name) && !strings.Contains(name, "--")
 }
 
-// VisitorHandle / visitorSitenameRe (host/handler/oauth.go) are the
-// path-model segments allowed in return_to (SPEC §2.1).
+// VisitorHandle is the path-model segment allowed in return_to (SPEC §2.1).
 var VisitorHandle = regexp.MustCompile(`^[a-z0-9-]{1,39}$`)
 
 // UUIDShape guards id path values before they reach a uuid column.
 var UUIDShape = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// PlatformNameLabel is host's single label under one of domains, if it is one.
+func PlatformNameLabel(host string, domains []string) (string, bool) {
+	host = strings.ToLower(strings.TrimSpace(host))
+	for _, d := range domains {
+		if !strings.HasSuffix(host, "."+d) {
+			continue
+		}
+		if label := strings.TrimSuffix(host, "."+d); label != "" && !strings.Contains(label, ".") {
+			return label, true
+		}
+	}
+	return "", false
+}

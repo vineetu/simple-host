@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,10 +14,10 @@ import (
 	"time"
 )
 
-// flush moves the in-memory histograms into paper_latency_daily and
+// Flush moves the in-memory histograms into paper_latency_daily and
 // paper_class_daily. Counters are swapped to zero first, so a failed write
 // loses at most one minute rather than double counting.
-func (c *Collector) flush(ctx context.Context) {
+func (c *Collector) Flush(ctx context.Context) {
 	day := time.Now().UTC().Format("2006-01-02")
 	type row struct {
 		class                         string
@@ -116,10 +115,10 @@ type sample struct {
 	valid             bool
 }
 
-// takeSample records this process, Postgres, nginx and the box as a whole.
+// TakeSample records this process, Postgres, nginx and the box as a whole.
 // CPU is the share of one core used since the previous sample (so 1.0 is a
 // whole core); memory is resident bytes now.
-func (c *Collector) takeSample(ctx context.Context) {
+func (c *Collector) TakeSample(ctx context.Context) {
 	var ru syscall.Rusage
 	_ = syscall.Getrusage(syscall.RUSAGE_SELF, &ru)
 	now := sample{
@@ -249,11 +248,11 @@ func load1() float64 {
 	return v
 }
 
-// dailySnapshot stores counts as of the end of yesterday (UTC), once.
+// DailySnapshot stores counts as of the end of yesterday (UTC), once.
 // Each metric is one query against current state; a failing query skips
 // only its own metric, so a schema difference on another instance (Simple
 // Hack, a small box) costs a number, not the snapshot.
-func (c *Collector) dailySnapshot(ctx context.Context, now time.Time) (resultErr error) {
+func (c *Collector) DailySnapshot(ctx context.Context, now time.Time) (resultErr error) {
 	defer func() {
 		if resultErr != nil {
 			c.tracker.Fail("dailySnapshot", resultErr)
@@ -404,7 +403,11 @@ func (c *Collector) kvFileTotals(ctx context.Context) (entries, bytes, skipped i
 		return 0, 0, 0, err
 	}
 	for _, id := range ids {
-		n, b, e := c.readKVFileStats(ctx, id)
+		if c.KVFileStats == nil {
+			skipped++
+			continue
+		}
+		n, b, e := c.KVFileStats(ctx, id)
 		if e != nil {
 			skipped++
 			continue
@@ -413,11 +416,4 @@ func (c *Collector) kvFileTotals(ctx context.Context) (entries, bytes, skipped i
 		bytes += b
 	}
 	return entries, bytes, skipped, nil
-}
-
-func (c *Collector) readKVFileStats(ctx context.Context, siteID string) (int64, int64, error) {
-	if c.KVFileStats == nil {
-		return 0, 0, fmt.Errorf("KV file statistics reader is not configured")
-	}
-	return c.KVFileStats(ctx, siteID)
 }

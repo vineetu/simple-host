@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// EventEntry is one team's entry (event_entries).
 type EventEntry struct {
 	TeamID          string
 	EventID         string
@@ -31,10 +30,9 @@ type EventEntry struct {
 	Exists          bool
 }
 
-// Status is the participant-facing entry status (section 4.1): "draft" before
-// anything is decided, "submitted" once complete and submitted (by the team or
-// the deadline sweep), "not_submitted" once the sweep has settled it
-// incomplete.
+// Status is the participant-facing entry status: "draft" before anything is
+// decided, "submitted" once complete and submitted (by the team or the deadline
+// sweep), "not_submitted" once the sweep has settled it incomplete.
 func (e EventEntry) Status() string {
 	switch {
 	case e.SubmittedAt.Valid:
@@ -46,7 +44,6 @@ func (e EventEntry) Status() string {
 	}
 }
 
-// EventTrack describes a track in an event.
 type EventTrack struct {
 	ID        string `json:"id"`
 	Slug      string `json:"slug"`

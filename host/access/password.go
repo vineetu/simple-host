@@ -13,12 +13,12 @@ import (
 
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 func NormalizeLogin(login string) string { return strings.ToLower(strings.TrimSpace(login)) }
 
-// validLogin is a sanity limit, not format gating (owner decision,
-// 2026-11-05): the person may type any email or made-up login they like --
+// validLogin is a sanity limit, not format gating: the person may type any email or made-up login they like --
 // no character class, no email-only allowlist. It is already normalized
 // (NormalizeLogin: trimmed, lower-cased) by the time it reaches here. Only
 // empty, over-long or control-character input is refused.
@@ -113,17 +113,6 @@ func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPasswo
 		}
 	}
 	return user, tx.Commit()
-}
-
-// HasPassword reports whether userID has a password row, so the dashboard
-// and Hack account screens know whether to show the Password card
-// (GET /v1/me, PASSWORD_SIGNIN on only).
-func (s *Service) HasPassword(ctx context.Context, userID string) (bool, error) {
-	_, err := repo.PasswordHashByID(ctx, s.database, userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
 }
 
 // PasswordLogin reports a password account's own login for display (GET
@@ -222,7 +211,7 @@ func temporaryPassword(password string) (string, error) {
 // password: an admin's temporary one (the account is named login), or a
 // person's own sign-up (the account gets a random synthetic name). It
 // returns the password in force.
-func (s *Service) CreatePasswordAccount(ctx context.Context, login, password string, temporary, randomHandles bool, assign func(context.Context, AttributionStore, string, string, bool)) (model.User, string, error) {
+func (s *Service) CreatePasswordAccount(ctx context.Context, login, password string, temporary, randomHandles bool, assign func(context.Context, sqlkit.Querier, string, string, bool)) (model.User, string, error) {
 	login = NormalizeLogin(login)
 	password, hash, err := checkedPassword(login, password, temporary)
 	if err != nil {

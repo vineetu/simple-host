@@ -3,9 +3,10 @@ package repo
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"github.com/vsriram/simple-host/host/model"
 	"sync"
 	"time"
+
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // Internal credentials let in-process callers (the MCP connector, and a
@@ -41,11 +42,6 @@ func issueInternal(userID string, visitor *InternalVisitorPass) (key string, rev
 	internalKeys.Store(key, InternalCred{UserID: userID, Visitor: visitor, Expires: time.Now().Add(internalKeyTTL)})
 	sweepInternalKeys()
 	return key, func() { internalKeys.Delete(key) }, nil
-}
-
-func LookupInternalKey(key string) (string, bool) {
-	c, ok := LookupInternalCred(key)
-	return c.UserID, ok && c.Visitor == nil
 }
 
 func LookupInternalCred(key string) (InternalCred, bool) {

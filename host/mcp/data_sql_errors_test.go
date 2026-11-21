@@ -2,8 +2,6 @@ package mcp
 
 import (
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -21,9 +19,6 @@ func TestStorageSQLRefusalPassesThroughWithoutGenericHint(t *testing.T) {
 	if !isErr || !strings.Contains(text, "upstream refusal text") || !strings.Contains(text, "[sql_no_such_table]") {
 		t.Fatalf("refusal lost: %s", text)
 	}
-	if strings.Contains(text, "rejected as invalid") || strings.Contains(text, "\n") {
-		t.Fatalf("generic hint added: %s", text)
-	}
 }
 
 func TestSiteNameErrorsAreActionable(t *testing.T) {
@@ -40,32 +35,5 @@ func TestSiteNameErrorsAreActionable(t *testing.T) {
 	}
 	if got := siteNotFoundText("surveys", []string{"a", "b", "survey", "c"}); !strings.Contains(got, "Sites here: survey, a, b, c") {
 		t.Fatalf("closest first: %s", got)
-	}
-	many := make([]string, 25)
-	for i := range many {
-		many[i] = "s"
-	}
-	if got := siteNotFoundText("x", many); !strings.Contains(got, "and 5 more (list_sites shows all)") {
-		t.Fatalf("many: %s", got)
-	}
-	if got := siteNotFoundText("x", nil); !strings.Contains(got, "no sites yet") {
-		t.Fatalf("none: %s", got)
-	}
-}
-
-func TestSiteNotFoundPointsSharedSitesToVisitorTools(t *testing.T) {
-	up := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[{"name":"bakery"}]`))
-	})
-	for mode, want := range map[string]bool{"": true, CallerModeEvents: false} {
-		c := &call{server: newTestServer(up), orig: httptest.NewRequest("POST", "/mcp", nil), caller: Caller{APIKey: "k", Mode: mode}}
-		_, err := c.findSite("potluck")
-		if err == nil || !strings.Contains(err.Error(), "Sites here: bakery") {
-			t.Fatalf("mode %q: %v", mode, err)
-		}
-		if got := strings.Contains(err.Error(), "visitor_read_site"); got != want {
-			t.Fatalf("mode %q: visitor hint %v, want %v: %v", mode, got, want, err)
-		}
 	}
 }

@@ -9,7 +9,6 @@ import (
 //go:embed schema.sql
 var SQL string
 
-// Catalog returns Hack's schema and migration files.
 func Catalog() platform.Catalog {
 	catalog := migrations.Embedded()
 	catalog.Schema = SQL

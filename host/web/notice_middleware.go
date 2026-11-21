@@ -3,7 +3,6 @@ package web
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -46,33 +45,19 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 			for k, vs := range rec.Header() {
 				w.Header()[k] = vs
 			}
-
-			contentType := rec.Header().Get("Content-Type")
-			isJSON := strings.HasPrefix(contentType, "application/json")
-			if !isJSON {
-				if rec.Status() != 0 {
-					w.WriteHeader(rec.Status())
+			body := rec.Body()
+			if strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") {
+				notice := noticeText(serverVersion, requestBaseURL(r))
+				w.Header().Set("X-Skill-Notice", notice)
+				if injected, ok := injectNotice(body, notice); ok {
+					body = injected
+					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 				}
-				_, _ = w.Write(rec.Body())
-				return
 			}
-
-			notice := noticeText(serverVersion, requestBaseURL(r))
-			w.Header().Set("X-Skill-Notice", notice)
-			injected, ok := injectNotice(rec.Body(), notice)
-			if !ok {
-				if rec.Status() != 0 {
-					w.WriteHeader(rec.Status())
-				}
-				_, _ = w.Write(rec.Body())
-				return
-			}
-
-			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(injected)))
 			if rec.Status() != 0 {
 				w.WriteHeader(rec.Status())
 			}
-			if _, err := w.Write(injected); err != nil {
+			if _, err := w.Write(body); err != nil {
 				log.Printf("notice middleware write: %v", err)
 			}
 		})
@@ -84,7 +69,7 @@ func NoticeMiddleware(serverVersion string) func(http.Handler) http.Handler {
 // A missing header means no skill is involved (curl, CI, scripts, the
 // dashboard): never notify, since there is nothing to update. Otherwise notify
 // only when the SERVER is genuinely newer. A client that is ahead of the
-// server is not stale: `npx skills add` installs straight from the source repository
+// server is not stale: `npx skills add` installs straight from the source
 // repository, so a user can legitimately be running a version that this server
 // has not been redeployed with yet. Telling them to "update" would send them in
 // a circle. An unparseable version falls back to plain inequality.

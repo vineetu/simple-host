@@ -33,14 +33,6 @@ const OwnerMarkDays = 30
 // rebuild files past visits by the marks that exist now, not the ones that
 // existed then.
 
-// VisitorSalt returns hex(sha256(secret + "|visitor")), the salt the
-// ingester derives from ADMIN_API_KEY when ANALYTICS_SALT is not set.
-func VisitorSalt(secret string) string { return visitorSalt(secret) }
-
-// HashIP returns sha256(salt + remoteAddr)[:16], byte-identical to the
-// ip_hash the ingester writes for the same salt and address.
-func HashIP(salt, remoteAddr string) []byte { return hashIP(salt, remoteAddr) }
-
 // markThrottle is how long a (user, hash) pair is not written again after a
 // write; markRecentMax bounds the throttle map (it is dropped whole beyond it).
 const (
@@ -61,7 +53,7 @@ type OwnerMarks struct {
 
 // NewOwnerMarks derives the salt exactly like
 // NewIngester(db, "", saltSecret, "", "").WithSalt(explicitSalt): the explicit
-// ANALYTICS_SALT when set, else VisitorSalt(saltSecret).
+// ANALYTICS_SALT when set, else visitorSalt(saltSecret).
 func NewOwnerMarks(database *sql.DB, saltSecret, explicitSalt string) *OwnerMarks {
 	salt := visitorSalt(saltSecret)
 	if explicitSalt != "" {

@@ -45,13 +45,18 @@ type ConnectorTokens struct {
 	Scope        string `json:"scope"`
 }
 
+// Prefixes make a leaked token recognisable to secret scanners and to a
+// person reading a log, and let /v1 tell our token from a misplaced key.
 const (
-	prefixCode    = "shac_"
+	PrefixAccess  = "shat_"
 	prefixRefresh = "shrt_"
-	prefixAccess  = "shat_"
+	PrefixCode    = "shac_"
+	PrefixClient  = "shc_"
+	PrefixSecret  = "shcs_"
 )
 
-func randomToken(prefix string, n int) string {
+// RandomToken is prefix plus n random bytes, base64url-encoded.
+func RandomToken(prefix string, n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
 		panic("connector: no randomness: " + err.Error())
@@ -59,14 +64,16 @@ func randomToken(prefix string, n int) string {
 	return prefix + base64.RawURLEncoding.EncodeToString(b)
 }
 
-// hashSecret is how every connector secret is stored and looked up. The
+// HashSecret is how every connector secret is stored and looked up. The
 // secrets are 256-bit random values, so a fast hash is the right one: there is
 // nothing to brute-force.
-func hashSecret(s string) string {
+func HashSecret(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
 }
-func validPKCEValue(s string) bool {
+
+// ValidPKCEValue reports whether s is a well-formed PKCE verifier or challenge (RFC 7636).
+func ValidPKCEValue(s string) bool {
 	if len(s) < 43 || len(s) > 128 {
 		return false
 	}
@@ -89,10 +96,10 @@ func pkceS256(verifier, challenge string) bool {
 // code is spent once found, whatever happens next: a failed check commits
 // the spend, so a failed guess cannot be retried.
 func (h *Connector) RedeemCode(ctx context.Context, in ConnectorTokenInput, client model.OAuthClient) (ConnectorTokens, error) {
-	if in.Code == "" || !strings.HasPrefix(in.Code, prefixCode) {
+	if in.Code == "" || !strings.HasPrefix(in.Code, PrefixCode) {
 		return ConnectorTokens{}, &ConnectorError{Code: "invalid_grant", Description: "unknown code", Internal: false}
 	}
-	codeHash := hashSecret(in.Code)
+	codeHash := HashSecret(in.Code)
 	tx, err := h.database.BeginTx(ctx, nil)
 	if err != nil {
 		return ConnectorTokens{}, connectorServerError()
@@ -162,7 +169,7 @@ func (h *Connector) checkRedemption(ctx context.Context, tx *sql.Tx, stored mode
 		return invalidGrant("code expired")
 	case in.RedirectURI != stored.RedirectURI:
 		return invalidGrant("redirect_uri does not match the authorization request")
-	case stored.CodeChallenge != "" && (!validPKCEValue(in.Verifier) || !pkceS256(in.Verifier, stored.CodeChallenge)):
+	case stored.CodeChallenge != "" && (!ValidPKCEValue(in.Verifier) || !pkceS256(in.Verifier, stored.CodeChallenge)):
 		return invalidGrant("PKCE verification failed")
 	case stored.CodeChallenge == "" && in.Verifier != "":
 		return invalidGrant("code_verifier sent for a code issued without code_challenge")
@@ -186,7 +193,7 @@ func (h *Connector) Refresh(ctx context.Context, in ConnectorTokenInput, client 
 	if !strings.HasPrefix(in.RefreshToken, prefixRefresh) {
 		return ConnectorTokens{}, invalidGrant("unknown refresh token")
 	}
-	tokenHash := hashSecret(in.RefreshToken)
+	tokenHash := HashSecret(in.RefreshToken)
 	tx, err := h.database.BeginTx(ctx, nil)
 	if err != nil {
 		return ConnectorTokens{}, connectorServerError()
@@ -281,14 +288,14 @@ func scopeWithin(asked, granted string) bool {
 // issueTokens mints an access token and a refresh token in grantID, commits
 // the transaction, and writes the token response.
 func (h *Connector) issueTokens(ctx context.Context, tx *sql.Tx, grantID, scope string) (ConnectorTokens, error) {
-	access := randomToken(prefixAccess, 32)
-	refresh := randomToken(prefixRefresh, 32)
+	access := RandomToken(PrefixAccess, 32)
+	refresh := RandomToken(prefixRefresh, 32)
 	now := h.Now()
-	if err := repo.InsertOAuthToken(ctx, tx, hashSecret(access), grantID, "access", now.Add(h.AccessTTL)); err != nil {
+	if err := repo.InsertOAuthToken(ctx, tx, HashSecret(access), grantID, "access", now.Add(h.AccessTTL)); err != nil {
 		log.Printf("connector: insert access token: %v", err)
 		return ConnectorTokens{}, &ConnectorError{Code: "server_error", Internal: true}
 	}
-	if err := repo.InsertOAuthToken(ctx, tx, hashSecret(refresh), grantID, "refresh", now.Add(h.RefreshTTL)); err != nil {
+	if err := repo.InsertOAuthToken(ctx, tx, HashSecret(refresh), grantID, "refresh", now.Add(h.RefreshTTL)); err != nil {
 		log.Printf("connector: insert refresh token: %v", err)
 		return ConnectorTokens{}, &ConnectorError{Code: "server_error", Internal: true}
 	}

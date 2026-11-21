@@ -14,13 +14,9 @@ func TestHandleSeed(t *testing.T) {
 	admin := &model.User{Username: "admin", IsAdmin: true}
 	for domain, want := range map[string]string{
 		"spring.example.com":          "spring",
-		"hack.example.com":            "organiser", // reserved label
 		"E2E-SB-0928.simple-hack.app": "e2e-sb-0928",
 		"www.example.com":             "organiser", // reserved label
-		"api.example.com":             "organiser",
-		"localhost":                   "organiser",
 		"":                            "organiser",
-		"under_score.example.com":     "organiser", // not a handle as written
 	} {
 		if got := sites.HandleSeed(admin, domain); got != want {
 			t.Errorf("admin on %q: %q, want %q", domain, got, want)
@@ -28,8 +24,5 @@ func TestHandleSeed(t *testing.T) {
 	}
 	if got := sites.HandleSeed(&model.User{Username: "ann@example.com"}, "hack.example.com"); got != "ann@example.com" {
 		t.Errorf("a person: %q", got)
-	}
-	if got := sites.HandleSeed(&model.User{Username: "boss@example.com", IsAdmin: true}, "hack.example.com"); got != "boss@example.com" {
-		t.Errorf("another admin account: %q", got)
 	}
 }

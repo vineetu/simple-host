@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
+
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/host/model"
-	"strings"
 )
 
 // LockAccountForDelete locks the account row inside tx. sql.ErrNoRows when
@@ -213,14 +214,14 @@ func lockErasedSites(ctx context.Context, tx *sql.Tx, userID string) error {
 // up after the commit: the sites with their claimed addresses (which become
 // retired names), the old handles and the address families.
 func collectErasedNames(ctx context.Context, tx *sql.Tx, userID string, ops ErasureOperations, out *model.ErasedAccount) error {
-	err := scanEach(ctx, tx, `SELECT id, name FROM sites WHERE user_id = $1 ORDER BY name`, userID, func(rows *sql.Rows) error {
+	err := scanEach(ctx, tx, `SELECT id, name FROM sites WHERE user_id = $1 ORDER BY name`, func(rows *sql.Rows) error {
 		var s model.ErasedSite
 		if err := rows.Scan(&s.ID, &s.Name); err != nil {
 			return err
 		}
 		out.Sites = append(out.Sites, s)
 		return nil
-	})
+	}, userID)
 	if err != nil {
 		return err
 	}
@@ -242,9 +243,9 @@ func collectErasedNames(ctx context.Context, tx *sql.Tx, userID string, ops Eras
 	return err
 }
 
-// scanEach runs q with one argument and calls scan for each row.
-func scanEach(ctx context.Context, tx *sql.Tx, q, arg string, scan func(*sql.Rows) error) error {
-	rows, err := tx.QueryContext(ctx, q, arg)
+// scanEach runs query and calls scan for each row.
+func scanEach(ctx context.Context, q Querier, query string, scan func(*sql.Rows) error, args ...any) error {
+	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -257,17 +258,17 @@ func scanEach(ctx context.Context, tx *sql.Tx, q, arg string, scan func(*sql.Row
 	return rows.Err()
 }
 
-// scanStrings is the single text column q returns for arg.
-func scanStrings(ctx context.Context, tx *sql.Tx, q, arg string) ([]string, error) {
+// scanStrings is the single text column query returns, nil when there are no rows.
+func scanStrings(ctx context.Context, q Querier, query string, args ...any) ([]string, error) {
 	var out []string
-	err := scanEach(ctx, tx, q, arg, func(rows *sql.Rows) error {
+	err := scanEach(ctx, q, query, func(rows *sql.Rows) error {
 		var v string
 		if err := rows.Scan(&v); err != nil {
 			return err
 		}
 		out = append(out, v)
 		return nil
-	})
+	}, args...)
 	return out, err
 }
 

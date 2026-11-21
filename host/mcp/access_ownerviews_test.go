@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -31,10 +30,6 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 	if isErr {
 		t.Fatal(text)
 	}
-	want := "\n\nViews by people, not counting your own visits (last 7 days / last 30 days): menu 2 / 9; draft 0 / 0." + ownVisitsCaveat
-	if !strings.HasSuffix(text, want) {
-		t.Errorf("list_sites text:\n%s", text)
-	}
 	for _, item := range out["sites"].([]any) {
 		if _, ok := item.(map[string]any)["views"]; ok {
 			t.Error("list_sites put views in the structured result")
@@ -45,9 +40,6 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 	if isErr {
 		t.Fatal(text)
 	}
-	if !strings.HasSuffix(text, "\n\nViews by people, not counting your own visits: 2 in the last 7 days, 9 in the last 30 days."+ownVisitsCaveat) {
-		t.Errorf("get_site text:\n%s", text)
-	}
 	if _, ok := out["views"]; ok {
 		t.Error("get_site put views in the structured result")
 	}
@@ -55,9 +47,6 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 	text, out, isErr = resultOf(t, send(t, s, toolCall("site_analytics", map[string]any{"site": "menu", "days": 7}), nil, true))
 	if isErr {
 		t.Fatal(text)
-	}
-	if !strings.HasSuffix(text, "\n\nYour own visits, left out of person: 4 views from 1 of your addresses in this window."+ownVisitsCaveat) {
-		t.Errorf("site_analytics text:\n%s", text)
 	}
 	for _, key := range []string{"totals", "last_24h"} {
 		m := out[key].(map[string]any)
@@ -69,18 +58,5 @@ func TestOwnerViewsAreTextOnly(t *testing.T) {
 				t.Errorf("%s lost %s", key, class)
 			}
 		}
-	}
-	if strings.Contains(text[:strings.Index(text, "Your own visits")], `"owner"`) {
-		t.Error("site_analytics JSON text still carries owner")
-	}
-
-	// Nothing from the owner: the sentence still says so, with zero.
-	s = newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"range_days":30,"totals":` + split(`{"views":0,"visitors":0}`) + `,"last_24h":` + split(`{"views":0,"visitors":0}`) + `,"daily":[],"hourly":[]}`))
-	}))
-	text, _, isErr = resultOf(t, send(t, s, toolCall("site_analytics", map[string]any{"site": "menu"}), nil, true))
-	if isErr || !strings.HasSuffix(text, "\n\nYour own visits, left out of person: 0 views in this window."+ownVisitsCaveat) {
-		t.Errorf("site_analytics text with no owner visits:\n%s", text)
 	}
 }

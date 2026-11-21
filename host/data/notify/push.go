@@ -14,12 +14,14 @@ import (
 	"sync"
 	"time"
 
+	repo "github.com/vsriram/simple-host/host/data/repo/notify"
+
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/vsriram/simple-host/host/model"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
-// SIM-360: Web Push is a delivery kind of this engine (webhook | mcp-event
+// Web Push is a delivery kind of this engine (webhook | mcp-event
 // | web-push), gated by WEB_PUSH_ACCOUNTS. A push subscription is a row in
 // site_notifications like any other: same event filter, outbox, retries,
 // budgets and dashboard list. A signed-in visitor may subscribe their own
@@ -53,7 +55,7 @@ func (e *Engine) PushAllowed(ctx context.Context, siteID string) (bool, error) {
 	if e.ed.Notifications().EventScoped {
 		return false, nil
 	}
-	handle, _, _, err := sitesrepo.GetSiteOwner(ctx, e.svc.database, siteID)
+	handle, _, _, err := sitesrepo.GetSiteOwner(ctx, e.db, siteID)
 	if err != nil {
 		return false, err
 	}
@@ -93,7 +95,7 @@ func (e *Engine) VAPIDKeys(ctx context.Context, env Env) (pub, priv string, err 
 // request must not abort a write every later caller depends on. The pair
 // is read back, since a concurrent first boot may have won the race.
 func (e *Engine) storedVAPIDKeys(ctx context.Context, env Env) (pub, sealed string, err error) {
-	pub, sealed, err = vapidConfigRead(ctx, e.svc.database)
+	pub, sealed, err = vapidConfigRead(ctx, e.db)
 	if err != nil || pub != "" && sealed != "" {
 		return pub, sealed, err
 	}
@@ -107,11 +109,11 @@ func (e *Engine) storedVAPIDKeys(ctx context.Context, env Env) (pub, sealed stri
 	}
 	writeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := vapidConfigInsertIfAbsent(writeCtx, e.svc.database, newPub, sealedNew); err != nil {
+	if err := vapidConfigInsertIfAbsent(writeCtx, e.db, newPub, sealedNew); err != nil {
 		return "", "", err
 	}
 	log.Printf("web push: generated the install's VAPID keypair")
-	return vapidConfigRead(ctx, e.svc.database)
+	return vapidConfigRead(ctx, e.db)
 }
 
 func vapidConfigRead(ctx context.Context, db *sql.DB) (pub, sealed string, err error) {
@@ -205,7 +207,7 @@ func (e *Engine) sendPush(ctx context.Context, env Env, n model.Notification, bo
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
-		if _, err := e.svc.DeleteNotification(ctx, n.ID); err != nil {
+		if _, err := repo.DeleteNotification(ctx, e.db, n.ID); err != nil {
 			log.Printf("web push: delete unregistered subscription %s: %v", n.ID, err)
 		}
 		return Result{Status: resp.StatusCode, Result: "unregistered"}

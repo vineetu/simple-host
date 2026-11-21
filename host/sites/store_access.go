@@ -7,6 +7,7 @@ import (
 
 	accounts "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
+	rules "github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/host/sites/repo"
 )
 
@@ -53,12 +54,10 @@ func (svc *Service) GetSiteByCustomDomain(ctx context.Context, domain string) (m
 	return repo.GetSiteByCustomDomain(ctx, svc.database, domain, accounts.HostForms(domain))
 }
 
-// GetSiteByUser forwards to the sites repository.
 func (svc *Service) GetSiteByUser(ctx context.Context, userID string, name string) (model.Site, error) {
 	return repo.GetSiteByUser(ctx, svc.database, userID, name)
 }
 
-// GetSiteDomainInfo forwards to the sites repository.
 func (svc *Service) GetSiteDomainInfo(ctx context.Context, siteID string) (model.SiteDomainInfo, bool, error) {
 	return repo.GetSiteDomainInfo(ctx, svc.database, siteID)
 }
@@ -90,7 +89,6 @@ func (svc *Service) ListFamiliesToCheck(ctx context.Context, recheck time.Durati
 	return repo.ListFamiliesToCheck(ctx, svc.database, recheck)
 }
 
-// ListSitesByUser forwards to the sites repository.
 func (svc *Service) ListSitesByUser(ctx context.Context, userID string) ([]model.Site, error) {
 	return repo.ListSitesByUser(ctx, svc.database, userID)
 }
@@ -143,4 +141,17 @@ func GetSiteByCustomDomain(ctx context.Context, db *sql.DB, domain string) (mode
 }
 func HomeSite(ctx context.Context, db *sql.DB, userID string) (model.Site, bool, error) {
 	return repo.HomeSite(ctx, db, userID)
+}
+
+func (svc *Service) GetSiteByID(ctx context.Context, id string) (model.Site, error) {
+	return repo.GetSiteByID(ctx, svc.database, id)
+}
+
+func (svc *Service) GetDeletedSiteByUser(ctx context.Context, userID, name string) (repo.DeletedSite, error) {
+	return repo.GetDeletedSiteByUser(ctx, svc.database, userID, name)
+}
+
+// MoveSiteBase moves stored platform addresses while preserving reserved names.
+func (svc *Service) MoveSiteBase(ctx context.Context, from, to string, apply bool) (repo.MoveSiteBaseReport, error) {
+	return repo.MoveSiteBase(ctx, svc.database, from, to, rules.LabelReserved, apply)
 }

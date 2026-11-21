@@ -123,10 +123,10 @@ func TestPlatformOnExistingCombinedDatabase(t *testing.T) {
 	ctx := context.Background()
 	product := Catalog()
 	combined := migrations.Set{Platform: schema.Catalog(), Product: &product, ProductOrder: productmigrations.ProductOrder}
-	if _, err := combined.Init(ctx, db, nil); err != nil {
+	if _, err := lockedInit(ctx, combined, db); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := combined.Apply(ctx, db, nil); err != nil {
+	if _, err := lockedApply(ctx, combined, db); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := func() string {
@@ -143,7 +143,7 @@ func TestPlatformOnExistingCombinedDatabase(t *testing.T) {
 	before := snapshot()
 	platform := migrations.Set{Platform: schema.Catalog()}
 	for range 2 {
-		if ran, err := platform.Apply(ctx, db, nil); err != nil || len(ran) > 0 {
+		if ran, err := lockedApply(ctx, platform, db); err != nil || len(ran) > 0 {
 			t.Fatalf("platform Apply: %v, %v", ran, err)
 		}
 		if err := operationrepo.VerifySchema(ctx, db); err != nil {
@@ -182,4 +182,21 @@ func TestPlatformPartsCopy(t *testing.T) {
 	if !reflect.DeepEqual(statement.Find(original), statement.Find(copy)) || statement.Find(copy) == nil {
 		t.Fatal("platform paper_run statement changed")
 	}
+}
+
+// lockedApply and lockedInit run ApplyConn and InitConn under the migration lock.
+func lockedApply(ctx context.Context, s migrations.Set, db *sql.DB) (ran []string, err error) {
+	err = migrations.WithLock(ctx, db, func(conn *sql.Conn) (e error) {
+		ran, e = s.ApplyConn(ctx, conn, nil)
+		return e
+	})
+	return ran, err
+}
+
+func lockedInit(ctx context.Context, s migrations.Set, db *sql.DB) (built bool, err error) {
+	err = migrations.WithLock(ctx, db, func(conn *sql.Conn) (e error) {
+		built, e = s.InitConn(ctx, conn, "", nil)
+		return e
+	})
+	return built, err
 }

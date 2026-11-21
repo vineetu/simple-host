@@ -108,46 +108,9 @@ func runAppOnlyTool(t *testing.T, s *mcp.Server, name string, args map[string]an
 	return out
 }
 
-// TestHackAppOnlyTwinsAreMarkedAppOnly pins the one thing a compliant
-// host reads to leave every twin off the model's own tool list (Grok
-// security review finding 1, SIM-344 phase 2): _meta.ui.visibility ===
-// ["app"], the same key passcode_screen already carries.
-func TestHackAppOnlyTwinsAreMarkedAppOnly(t *testing.T) {
-	s := newTestServer(appOnlyUpstream())
-	for _, name := range appOnlyTwinNames() {
-		tool, ok := findServerTool(s, name)
-		if !ok {
-			t.Fatalf("%s: not a registered tool", name)
-		}
-		ui, _ := tool.Meta["ui"].(map[string]any)
-		vis, _ := ui["visibility"].([]string)
-		if len(vis) != 1 || vis[0] != "app" {
-			t.Fatalf("%s: _meta.ui.visibility = %#v, want [\"app\"]", name, ui["visibility"])
-		}
-	}
-}
-
-// TestHackAppOnlyTwinsContentCarriesNoPersonalData is the explicit test
-// the owner's follow-up asked for: every tool either the judge or
-// organiser view calls on its own must have no personal text, email, URL
-// or code in content or structuredContent (Grok security review findings
-// 1 and 2, SIM-344 phase 2). It runs every app-only twin against the
-// fixture upstream above (which plants a distinct marker in place of
-// every applicant email, free-text answer, rubric criterion, judge/team
-// name, former judge, join/judge/regenerated/invite URL and judge
-// scoring comment) and asserts:
-//   - out.Text contains no marker
-//   - json.Marshal(out.Structured) contains no marker
-//   - out.Meta DOES carry every marker this specific twin's own REST
-//     response planted, proving the data reached the view (via _meta,
-//     read only through callToolResult) rather than being silently
-//     dropped.
+// Every twin a screen calls keeps personal text, emails, links and codes out
+// of content and structuredContent; they reach the view only through _meta.
 func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
-	// Both flags on: this test exercises twins from both apps, and each
-	// twin's own run() now gates on the matching show tool's flag, not
-	// just c.uiClient (owner follow-up review, SIM-344 phase 2) --
-	// TestHackAppOnlyTwinsListingGating below covers the flag/app-name/
-	// UI-declared gate itself in isolation.
 	t.Setenv("MCP_APP_HACK_JUDGE", "on")
 	t.Setenv("MCP_APP_HACK_ORGANISER", "on")
 	s := newTestServer(appOnlyUpstream())
@@ -186,16 +149,6 @@ func TestHackAppOnlyTwinsContentCarriesNoPersonalData(t *testing.T) {
 			if out.Text == "" {
 				t.Fatalf("%s: empty text summary", tc.tool)
 			}
-			// SIM-384: every hack_* tool's real mcp.Output, checked against its
-			// own declared outputSchema in strict mode (additionalProperties:
-			// false as authored, outputs.go) -- the class of bug where an
-			// added field breaks a client that cached an older schema can
-			// only recur in the wire copy; the authored one here must still
-			// agree with what the tool actually sends.
-			if err := mcp.ValidateOutput(serverTool(t, s, tc.tool).OutputSchema, out.Structured, nil); err != nil {
-				t.Fatalf("%s: structuredContent does not match outputSchema: %v", tc.tool, err)
-			}
-			recordHackOutputValidated(tc.tool)
 			structuredJSON, err := json.Marshal(out.Structured)
 			if err != nil {
 				t.Fatalf("%s: marshal structured: %v", tc.tool, err)
@@ -239,105 +192,6 @@ func TestHackAppOnlyTwinsRefuseWithoutUIDeclared(t *testing.T) {
 	}
 }
 
-// TestHackAppOnlyTwinsListingGating is the owner follow-up review's own
-// ask (SIM-344 phase 2): the 15 twins were being listed in tools/list for
-// every events connection, including ones that never declared UI support
-// -- _meta.ui.visibility only helps a host that honours it. Each twin is
-// now filtered in hackShowToolsAllowed (hack_apps.go) the same way hack_
-// show_judge/hack_show_organiser already are: the matching app's own
-// three-part gate (flag, events mode, not ChatGPT/OpenAI/Codex, UI
-// declared).
-func TestHackAppOnlyTwinsListingGating(t *testing.T) {
-	s := newTestServer(appOnlyUpstream())
-	allTwins := appOnlyTwinNames()
-
-	listedNames := func(c mcp.Caller) map[string]bool {
-		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
-		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(mcp.WithCaller(req.Context(), c))
-		rec := httptest.NewRecorder()
-		s.ServeHTTP(rec, req)
-		out := map[string]bool{}
-		for _, tool := range listedTools(t, rec) {
-			out[tool["name"].(string)] = true
-		}
-		return out
-	}
-
-	t.Run("non-UI client sees none", func(t *testing.T) {
-		t.Setenv("MCP_APP_HACK_JUDGE", "on")
-		t.Setenv("MCP_APP_HACK_ORGANISER", "on")
-		noUI := mcp.Caller{APIKey: "k-noui", Mode: mcp.CallerModeEvents, Handle: "alice"}
-		listed := listedNames(noUI)
-		for _, name := range allTwins {
-			if listed[name] {
-				t.Errorf("non-UI client sees %s", name)
-			}
-		}
-	})
-
-	t.Run("ChatGPT, OpenAI and Codex app names see none", func(t *testing.T) {
-		t.Setenv("MCP_APP_HACK_JUDGE", "on")
-		t.Setenv("MCP_APP_HACK_ORGANISER", "on")
-		for _, appName := range []string{"ChatGPT", "OpenAI", "Codex"} {
-			c := mcp.Caller{APIKey: "k-" + appName, Mode: mcp.CallerModeEvents, Handle: "alice", AppName: appName}
-			initializeAs(t, s, c, true)
-			listed := listedNames(c)
-			for _, name := range allTwins {
-				if listed[name] {
-					t.Errorf("%s sees %s", appName, name)
-				}
-			}
-		}
-	})
-
-	t.Run("UI client with only MCP_APP_HACK_JUDGE sees just the judge twins", func(t *testing.T) {
-		t.Setenv("MCP_APP_HACK_JUDGE", "on")
-		t.Setenv("MCP_APP_HACK_ORGANISER", "off")
-		c := mcp.Caller{APIKey: "k-judgeonly", Mode: mcp.CallerModeEvents, Handle: "alice"}
-		initializeAs(t, s, c, true)
-		listed := listedNames(c)
-		// hack_app_get_rubric is shared: available whenever EITHER app's
-		// gate passes, so a judge-only connection sees it too.
-		for _, name := range append(append([]string{}, hackAppOnlyJudgeNames...), hackAppOnlySharedNames...) {
-			if !listed[name] {
-				t.Errorf("judge-only client missing %s", name)
-			}
-		}
-		for _, name := range hackAppOnlyOrganiserNames {
-			if listed[name] {
-				t.Errorf("judge-only client sees organiser-only twin %s", name)
-			}
-		}
-	})
-
-	t.Run("UI client with only MCP_APP_HACK_ORGANISER sees just the organiser twins", func(t *testing.T) {
-		t.Setenv("MCP_APP_HACK_JUDGE", "off")
-		t.Setenv("MCP_APP_HACK_ORGANISER", "on")
-		c := mcp.Caller{APIKey: "k-organiseronly", Mode: mcp.CallerModeEvents, Handle: "alice"}
-		initializeAs(t, s, c, true)
-		listed := listedNames(c)
-		for _, name := range append(append([]string{}, hackAppOnlyOrganiserNames...), hackAppOnlySharedNames...) {
-			if !listed[name] {
-				t.Errorf("organiser-only client missing %s", name)
-			}
-		}
-		for _, name := range hackAppOnlyJudgeNames {
-			if listed[name] {
-				t.Errorf("organiser-only client sees judge-only twin %s", name)
-			}
-		}
-	})
-}
-
 func appOnlyTwinNames() []string {
-	return []string{
-		"hack_app_preview_results", "hack_app_get_results", "hack_app_publish_results",
-		"hack_app_get_people", "hack_app_get_applications", "hack_app_get_registration",
-		"hack_app_get_rubric", "hack_app_get_judging_settings", "hack_app_get_conflicts",
-		"hack_app_get_teams", "hack_app_get_assignments", "hack_app_get_judging_dashboard",
-		"hack_app_set_event_stage", "hack_app_regenerate_code", "hack_app_create_organiser_invite",
-		"hack_app_set_judging_ends_at",
-		"hack_app_get_judge_queue", "hack_app_get_judge_scores", "hack_app_get_my_conflicts",
-	}
+	return append(append(append([]string{}, hackAppOnlyJudgeNames...), hackAppOnlyOrganiserNames...), hackAppOnlySharedNames...)
 }

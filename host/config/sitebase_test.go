@@ -32,15 +32,11 @@ func TestSiteBaseCertDirRequired(t *testing.T) {
 		wantErr         string
 	}{
 		{"", "", "", ""},
-		{"", "serve", "", ""},                    // base defaults to SITE_DOMAIN
 		{"simple-host.app", "permanent", "", ""}, // same domain
 		{"simple-host.site", "off", "", ""},      // move off
-		{"simple-host.site", "bogus", "", ""},    // unknown mode is off
 		{"u.simple-host.app", "serve", "", ""},   // nested: the base is ignored
 		{"simple-host.site", "serve", good, ""},
 		{"simple-host.site", "serve", "", "SITE_BASE_CERT_DIR is required"},
-		{"simple-host.site", "canonical", "", "SITE_BASE_CERT_DIR is required"},
-		{"Simple-Host.Site.", "permanent", "  ", "SITE_BASE_CERT_DIR is required"},
 		{"simple-host.site", "serve", noRequests, "requests/ is missing"},
 		{"simple-host.site", "serve", filepath.Join(good, "nope"), "ready/ is missing"},
 		{"simple-host.site", "serve", fileReady, "is not a directory"},

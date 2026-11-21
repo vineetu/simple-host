@@ -20,7 +20,6 @@ func ApplicationsClosedReason(open, listed bool, stage string) any {
 	return "signup_over"
 }
 
-// countryCodeShape is two ASCII letters.
 var countryCodeShape = regexp.MustCompile(`^[A-Z]{2}$`)
 
 // countryExcluded is the gap between language.Region.IsCountry() plus "is its own canonical form" and an actual, choosable country, matched to the fixed list screens/public-apply.js offers.
@@ -46,7 +45,6 @@ func Country(s string) (string, bool) {
 	return region.String(), true
 }
 
-// Enum reports whether an optional value is in the allowed list.
 func Enum(s string, allowed []string) bool {
 	if s == "" {
 		return true

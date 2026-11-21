@@ -12,24 +12,19 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
-// Applying to a hackathon without a join link.
-
 // pendingPerAccount caps how many applications one account may have waiting.
 const pendingPerAccount = 20
 
-// ApplicationInput contains the supplied application fields.
 type ApplicationInput struct {
 	Display, City, Country, AgeRange, Gender string
 	Answers                                  map[string]string
 }
 
-// ApplyResult is the caller's membership after applying.
 type ApplyResult struct {
 	Event  model.Event
 	Member model.EventMember
 }
 
-// ApplyPage is what GET .../apply shows.
 type ApplyPage struct {
 	Event        model.Event
 	Open         bool
@@ -38,14 +33,12 @@ type ApplyPage struct {
 	Me           *ApplyMe
 }
 
-// ApplyMe is the caller's own standing in the event.
 type ApplyMe struct {
 	Role           string `json:"role"`
 	JoinedVia      string `json:"joined_via"`
 	ApprovalStatus string `json:"approval_status,omitempty"`
 }
 
-// errAlreadyMember refuses an application from someone with another role.
 func errAlreadyMember() error {
 	return &Error{Code: "already_member", Message: "you already have a different role in this event"}
 }

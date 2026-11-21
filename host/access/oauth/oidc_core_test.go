@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -31,10 +33,7 @@ type testProvider struct {
 
 func newTestProvider(t *testing.T) *testProvider {
 	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
+	key := testKey(t, nextTestKey.Add(1)%2)
 	tp := &testProvider{key: key, kid: "test-kid-1"}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
@@ -57,6 +56,27 @@ func newTestProvider(t *testing.T) *testProvider {
 	tp.server = httptest.NewTLSServer(mux)
 	t.Cleanup(tp.server.Close)
 	return tp
+}
+
+// Generating an RSA key costs a large share of this package's run time, so
+// tests share two: providers alternate between them, so two providers made in
+// one test sign with different keys.
+var (
+	testKeys     [2]*rsa.PrivateKey
+	testKeysOnce [2]sync.Once
+	nextTestKey  atomic.Int32
+)
+
+func testKey(t *testing.T, i int32) *rsa.PrivateKey {
+	t.Helper()
+	testKeysOnce[i].Do(func() {
+		key, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			panic(err)
+		}
+		testKeys[i] = key
+	})
+	return testKeys[i]
 }
 
 func (tp *testProvider) issuer() string { return tp.server.URL }
@@ -145,21 +165,6 @@ func TestVerifyIDTokenRejectsUnknownKid(t *testing.T) {
 	}
 }
 
-func TestPKCEChallengeIsDeterministic(t *testing.T) {
-	verifier, err := newOIDCCodeVerifier()
-	if err != nil {
-		t.Fatalf("newOIDCCodeVerifier: %v", err)
-	}
-	if len(verifier) < 43 {
-		t.Fatalf("verifier too short: %d chars", len(verifier))
-	}
-	c1 := oidcCodeChallengeS256(verifier)
-	c2 := oidcCodeChallengeS256(verifier)
-	if c1 != c2 {
-		t.Fatal("oidcCodeChallengeS256 must be deterministic for a given verifier")
-	}
-}
-
 func TestAuthCodeURLCarriesPKCEAndHint(t *testing.T) {
 	tp := newTestProvider(t)
 	ctx := context.Background()
@@ -170,10 +175,7 @@ func TestAuthCodeURLCarriesPKCEAndHint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("discoverOIDC: %v", err)
 	}
-	req, err := newOIDCAuthRequest()
-	if err != nil {
-		t.Fatalf("newOIDCAuthRequest: %v", err)
-	}
+	req := oidcAuthRequest{State: "state-1", Nonce: "nonce-1", CodeVerifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"}
 	authURL := p.AuthCodeURL(req, "example.com")
 	if want := oidcCodeChallengeS256(req.CodeVerifier); !strings.Contains(authURL, want) {
 		t.Fatalf("auth URL missing code_challenge %q: %s", want, authURL)

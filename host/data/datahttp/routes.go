@@ -79,7 +79,7 @@ func (h *DataHandler) RegisterWebPush(mux *http.ServeMux, passcodeGate, caller, 
 	// One device, including a visitor's own: the generic DELETE
 	// /notifications/{id} requires n.OwnerID==the caller's own account
 	// id, which a visitor-role push row never satisfies even for the
-	// site's owner (FIX 12/adversary review, Codex round 2) -- this is
+	// site's owner -- this is
 	// the owner-authorized path the dashboard's per-row Remove uses for
 	// any push device on their site.
 	mux.Handle("DELETE /v1/sites/{sitename}/push/devices/{id}", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(limiter, http.HandlerFunc(h.pushDeviceDeleteRoute)))))

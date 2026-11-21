@@ -35,12 +35,11 @@ type SiteResponse struct {
 	DomainStatus  string    `json:"domain_status,omitempty"`
 	// Only in the site list: compact content from the latest uploaded index.
 	Summary *siteSummaryFields `json:"summary,omitempty"`
-	// Only in the site list, on every item when the analytics log is read:
-	// views by people over the rolling
-	// last 7 and 30 days, the owner's own visits excluded (operations.SiteViews).
+	// Only in the site list: views by people over the last 7 and 30 days, the owner's own visits
+	// excluded (operations.SiteViews); on every item when the analytics log is read.
 	Views *operations.SiteViews `json:"views,omitempty"`
-	// Only in the site list: what is wrong with a domain that is not active
-	// yet, the DNS record it needs, and when an unproven binding lapses.
+	// Only in the site list: what is wrong with a domain that is not active yet, the DNS record it
+	// needs, and when an unproven binding lapses.
 	DomainLastError string     `json:"domain_last_error,omitempty"`
 	DomainDNS       *dnsRecord `json:"domain_dns,omitempty"`
 	// DomainDNSTXT is the ownership record the domain also needs (TXT
@@ -50,57 +49,44 @@ type SiteResponse struct {
 	// DomainCertStatus is the pending domain's certificate (pending, issuing,
 	// live, failed) and PreviousDomain the earlier address the site keeps
 	// answering at until the new domain is live.
-	DomainCertStatus string `json:"domain_certificate_status,omitempty"`
-	PreviousDomain   string `json:"previous_domain,omitempty"`
-	// DomainPartner is the custom domain's www / bare partner, a
-	// redirect-only host (see GET /domain: partner_domain and friends).
+	DomainCertStatus    string     `json:"domain_certificate_status,omitempty"`
+	PreviousDomain      string     `json:"previous_domain,omitempty"`
 	DomainPartner       string     `json:"domain_partner,omitempty"`
 	DomainPartnerDNS    *dnsRecord `json:"domain_partner_dns,omitempty"`
 	DomainPartnerStatus string     `json:"domain_partner_status,omitempty"`
 	DomainPartnerNote   string     `json:"domain_partner_note,omitempty"`
-	// DeployedAt is when the newest version went live (site list only).
-	DeployedAt    *time.Time `json:"deployed_at,omitempty"`
-	Visibility    string     `json:"visibility,omitempty"`
-	OwnerUsername string     `json:"owner_username,omitempty"`
-	// Owner and AccessRole: on GET /v1/sites?owner=<team>, the team's
-	// handle and member (the caller holds these sites as a member). Absent
-	// from a listing of your own sites, which is unchanged.
+	DeployedAt          *time.Time `json:"deployed_at,omitempty"`
+	Visibility          string     `json:"visibility,omitempty"`
+	OwnerUsername       string     `json:"owner_username,omitempty"`
+	// Owner and AccessRole: on GET /v1/sites?owner=<team>, the team's handle and the caller's member role.
+	// Absent from a listing of your own sites.
 	Owner      string `json:"owner,omitempty"`
 	AccessRole string `json:"access_role,omitempty"`
 	Note       string `json:"note,omitempty"`
-	// Suspended: the operator has taken the site down (by itself or with its
-	// owner's account). It keeps everything and refuses changes until restored.
+	// Suspended: the operator has taken the site down; it keeps everything and refuses changes until restored.
 	Suspended       bool   `json:"suspended,omitempty"`
 	SuspendedReason string `json:"suspended_reason,omitempty"`
-	// Offline: its owner has taken it offline (every address shows "This
-	// site is offline", visitor saves are refused; nothing is deleted).
+	// Offline: its owner took it offline (every address shows "This site is offline", visitor saves refused; nothing deleted).
 	Offline bool `json:"offline,omitempty"`
-	// PasscodeProtected: the site asks visitors for a passcode on every
-	// address (passcode.go). The passcode itself is only in GET .../lock.
-	PasscodeProtected bool `json:"passcode_protected,omitempty"`
-	// Access: who can open the site, "anyone" or "specific" (named viewers; viewers.go).
-	Access       string `json:"access,omitempty"`
-	OpenToAnyone bool   `json:"open_to_anyone"` // model.Site.OpenToAnyone
+	// PasscodeProtected: visitors are asked for a passcode on every address (passcode.go); the passcode is only in GET .../lock.
+	PasscodeProtected bool   `json:"passcode_protected,omitempty"`
+	Access            string `json:"access,omitempty"`
+	OpenToAnyone      bool   `json:"open_to_anyone"` // model.Site.OpenToAnyone
 	// Only on a deploy with publish=false: the version it stored (not live)
 	// and an hour-long, owner-only preview link for it (preview.go).
 	UnpublishedVersion int        `json:"unpublished_version,omitempty"`
 	PreviewURL         string     `json:"preview_url,omitempty"`
 	PreviewExpiresAt   *time.Time `json:"preview_expires_at,omitempty"`
-	// AddressState: present while the site is handed out at its interim
-	// address (<handle>.<SITE_DOMAIN>/<site>/) because its owner's
-	// certificate is not ready yet — waiting or failing, with a rough time.
+	// AddressState: present while the site is at its interim address (<handle>.<SITE_DOMAIN>/<site>/) because
+	// its owner's certificate is not ready yet (waiting or failing, with a rough time).
 	AddressState *sites.AddressState `json:"address_state,omitempty"`
-	// Keep: the owner marked the site to stay up for good; it is never
-	// removed as idle (site list only).
+	// Keep: the owner marked the site never to be removed as idle (site list only).
 	Keep bool `json:"keep,omitempty"`
-	// KeepVersions: how many deploys of this site are kept, when the owner
-	// set it (PUT .../keep-versions); absent = the instance setting.
+	// KeepVersions: how many deploys are kept when the owner set it (PUT .../keep-versions); absent = the instance setting.
 	KeepVersions int   `json:"keep_versions,omitempty"`
 	FileBytes    int64 `json:"file_bytes"`
-	// FamilyAddress is the site's address under its account's most specific
-	// live address family (the one handed out: its main address unless it
-	// has a domain of its own); FamilyAddresses every family address it
-	// answers at. site_url stays the site's own Simple Host address.
+	// FamilyAddress is the site's address under its account's most specific live address family;
+	// FamilyAddresses every family address it answers at. site_url stays the site's own Simple Host address.
 	FamilyAddress   string   `json:"family_address,omitempty"`
 	FamilyAddresses []string `json:"family_addresses,omitempty"`
 }
@@ -150,13 +136,9 @@ func (h *SiteHandler) captureSiteResponseState(site model.Site, version int, pre
 	return state
 }
 
-func (h *SiteHandler) siteResponseFromState(user *model.User, site model.Site, state siteResponseState) SiteResponse {
+func (h *SiteHandler) siteResponseFromState(site model.Site, state siteResponseState) SiteResponse {
 	resp := h.toSiteResponseState(site, "", state)
 	resp.FileBytes = state.fileBytes
-	return h.siteResponseForCaller(user, resp)
-}
-
-func (h *SiteHandler) siteResponseForCaller(user *model.User, resp SiteResponse) SiteResponse {
 	return resp
 }
 
@@ -281,9 +263,8 @@ func (h *SiteHandler) writeUnpublishedState(w http.ResponseWriter, user *model.U
 	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
-// writeDeploySiteNotFound answers a deploy (PUT) to a site the account does
-// not have. The error text and code stay what clients already read; the hint
-// names the exact call that creates it.
+// writeDeploySiteNotFound answers a deploy (PUT) to a site the account does not have; the hint names the
+// call that creates it.
 func writeDeploySiteNotFound(w http.ResponseWriter, r *http.Request, siteName string) {
 	name := hintName(siteName)
 	path := "/v1/sites/" + name
@@ -297,9 +278,8 @@ func writeDeploySiteNotFound(w http.ResponseWriter, r *http.Request, siteName st
 	})
 }
 
-// writeSiteNotFound answers a call about a site the account does not have
-// (versions, rollback, settings). Same "site not found" text as before, plus
-// a code and a hint that points at the list of the account's sites.
+// writeSiteNotFound answers a call about a site the account does not have, with a code and a hint
+// pointing at the account's site list.
 func writeSiteNotFound(w http.ResponseWriter, siteName string) {
 	httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{
 		Error: "site not found",

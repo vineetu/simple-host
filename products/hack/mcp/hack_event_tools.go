@@ -1,4 +1,3 @@
-// famHackEvents declares events, members, teams, connections and organiser administration.
 package hackmcp
 
 import (
@@ -131,8 +130,6 @@ func hackBaseEventTools() []mcp.Tool {
 	return tools
 }
 
-// eventField is one event setting the create and update tools send: its
-// argument name and how to read it.
 type eventField struct {
 	key  string
 	read func(args map[string]any, key string) (value any, present bool, err error)
@@ -221,7 +218,6 @@ func boolField(args map[string]any, key string) (any, bool, error) {
 	return mcp.PresentBool(args, key)
 }
 
-// fieldNames is a list of entry field names, sent as given.
 func fieldNames(args map[string]any, key string) (any, bool, error) {
 	raw, present := args[key]
 	if !present {
@@ -340,7 +336,6 @@ func hackEventOutput(verb string, body []byte) (mcp.Output, error) {
 	return mcp.Output{Text: text, Structured: out}, nil
 }
 
-// orNull is the pointed-to value, or nil.
 func orNull[T any](p *T) any {
 	if p == nil {
 		return nil
@@ -690,7 +685,6 @@ func runSetEventIcon(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	return hackWebJSON(c, "hack_set_event_icon", http.MethodPut, path, image, map[string]string{"Content-Type": typ})
 }
 
-// hackWebRoute is a run function for an event route without a body.
 func hackWebRoute(tool, method, suffix string) func(*mcp.Call, map[string]any) (mcp.Output, error) {
 	return func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 		path, err := hackWebPath(args, suffix)

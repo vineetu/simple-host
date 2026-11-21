@@ -13,7 +13,7 @@ import (
 )
 
 func registerPhotosUI(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler) {
-	assets := sh.Pipeline()
+	assets := sh.Pages()
 	photos := sh.Ed.Storage().Photos
 	mux.Handle("GET /photos", web.PhotosHostOnly(photos, web.AccountAuthOnly(publicBaseURL, assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Bitmap previews need blob URLs. Only the decoder worker compiles Wasm.

@@ -12,13 +12,10 @@ import (
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 
-// Event aliases the shared model record.
 type Event = model.Event
 
-// AdminEvent aliases the shared model record.
 type AdminEvent = model.AdminEvent
 
-// EventPerson aliases the shared model record.
 type EventPerson = model.EventPerson
 
 // EventColumns is the event scan column order.
@@ -34,7 +31,6 @@ const EventColumns = `
 	score_mode, tie_criterion_id, public_scores, public_ranks, team_finding, applications_open, directory_listed,
 	entry_preset, entry_rules, judge_first, reminder_offsets, judging_ends_at, entry_rules_chosen, theme, organiser_judges, overall_prizes`
 
-// ScanEventFields returns destinations in EventColumns order.
 func ScanEventFields(e *Event) []any {
 	return []any{
 		&e.ID, &e.Slug, &e.AccountID, &e.CreatedBy, &e.Title, &e.Stage,
@@ -50,7 +46,6 @@ func ScanEventFields(e *Event) []any {
 	}
 }
 
-// ScanEvent scans one event row.
 func ScanEvent(row *sql.Row) (Event, error) {
 	var e Event
 	err := row.Scan(ScanEventFields(&e)...)
@@ -92,7 +87,6 @@ func scanEventRole(rows *sql.Rows) (Event, string, error) {
 	return e, role, err
 }
 
-// GetEventBySlug loads an event by its slug.
 func GetEventBySlug(ctx context.Context, q sqlkit.Querier, slug string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE slug = $1`, slug))
 }
@@ -111,12 +105,10 @@ func GetDemoEvent(ctx context.Context, q sqlkit.Querier, slug string) (Event, er
 		ORDER BY created_at DESC LIMIT 1`, slug))
 }
 
-// GetEventByAccount loads the event held by the given users row.
 func GetEventByAccount(ctx context.Context, q sqlkit.Querier, accountID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE account_id = $1`, accountID))
 }
 
-// SetEventWebsiteMode switches the event host between the built-in and custom page.
 func SetEventWebsiteMode(ctx context.Context, q sqlkit.Querier, eventID, organiserID, mode string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `UPDATE events SET website_mode = $2, updated_at = now()
 		WHERE id = $1 AND stage <> 'archived' AND taken_down_at IS NULL
@@ -124,17 +116,14 @@ func SetEventWebsiteMode(ctx context.Context, q sqlkit.Querier, eventID, organis
 		RETURNING `+EventColumns, eventID, mode, organiserID))
 }
 
-// GetEventByJoinCode looks up an event by its participant join code (already normalised).
 func GetEventByJoinCode(ctx context.Context, q sqlkit.Querier, code string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE join_code = $1`, code))
 }
 
-// GetEventByJudgeCode looks up an event by its judge code (already normalised).
 func GetEventByJudgeCode(ctx context.Context, q sqlkit.Querier, code string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE judge_code = $1`, code))
 }
 
-// CountEventMembers returns how many participants, teams and judges an event has.
 func CountEventMembers(ctx context.Context, q sqlkit.Querier, eventID string) (participants, teams, judges int, err error) {
 	err = q.QueryRowContext(ctx, `
 		SELECT
@@ -152,7 +141,6 @@ func CountEligibleJudges(ctx context.Context, q sqlkit.Querier, eventID string) 
 	return n, err
 }
 
-// CountOnNoTeam is participants of the event with no team.
 func CountOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `
@@ -170,7 +158,6 @@ func CountEmailableParticipants(ctx context.Context, q sqlkit.Querier, eventID s
 	return n, err
 }
 
-// EventSlugTaken reports whether an events row already uses slug.
 func EventSlugTaken(ctx context.Context, q sqlkit.Querier, slug string) (bool, error) {
 	var taken bool
 	// A name that had a participant, judge or team stays taken after its event is gone (event_used_names): its team origins never pass to someone else.
@@ -180,7 +167,6 @@ func EventSlugTaken(ctx context.Context, q sqlkit.Querier, slug string) (bool, e
 	return taken, err
 }
 
-// CountEventCreatesSince counts events created since t that still exist.
 func CountEventCreatesSince(ctx context.Context, q sqlkit.Querier, userID string, since time.Time) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `
@@ -203,7 +189,6 @@ func InsertEventCreateLog(ctx context.Context, q sqlkit.Querier, userID string) 
 	return err
 }
 
-// InsertEvent writes a new events row.
 func InsertEvent(ctx context.Context, q sqlkit.Querier, e Event) (Event, error) {
 	// entry_preset/entry_rules: new events start on the "video or website" preset.
 	row := q.QueryRowContext(ctx, `
@@ -230,7 +215,6 @@ func InsertEvent(ctx context.Context, q sqlkit.Querier, e Event) (Event, error) 
 	return out, err
 }
 
-// UpdateEventPatch writes the editable fields and bumps updated_at.
 func UpdateEventPatch(ctx context.Context, q sqlkit.Querier, e Event) (Event, error) {
 	row := q.QueryRowContext(ctx, `
 		UPDATE events SET
@@ -249,7 +233,7 @@ func UpdateEventPatch(ctx context.Context, q sqlkit.Querier, e Event) (Event, er
 	return ScanEvent(row)
 }
 
-// SetEventReminderOffsets saves the validated, normalised reminder offsets (0003-hack-notices-judges-messages.sql).
+// SetEventReminderOffsets saves the validated, normalised reminder offsets.
 func SetEventReminderOffsets(ctx context.Context, q sqlkit.Querier, eventID string, offsets []int64) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `
 		UPDATE events SET reminder_offsets = $2, updated_at = now() WHERE id = $1 RETURNING `+EventColumns,
@@ -266,7 +250,7 @@ func GetEventForShare(ctx context.Context, q *sql.Tx, eventID string) (Event, er
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1 FOR SHARE`, eventID))
 }
 
-// UpdateEventEntrySettings writes the M2 settings: the submission deadline, the required entry fields and whether the gallery is open.
+// UpdateEventEntrySettings writes the submission deadline, the required entry fields and whether the gallery is open.
 func UpdateEventEntrySettings(ctx context.Context, q sqlkit.Querier, eventID string, deadline sql.NullTime, required []string, gallery bool) (Event, error) {
 	if required == nil {
 		required = []string{}
@@ -291,13 +275,11 @@ func SetEventStage(ctx context.Context, q sqlkit.Querier, eventID, stage string)
 	return ScanEvent(row)
 }
 
-// SetEventJoinCode replaces the participant join code.
 func SetEventJoinCode(ctx context.Context, q sqlkit.Querier, eventID, code string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `
 		UPDATE events SET join_code = $2, updated_at = now() WHERE id = $1 RETURNING `+EventColumns, eventID, code))
 }
 
-// SetEventJudgeCode replaces the judge code.
 func SetEventJudgeCode(ctx context.Context, q sqlkit.Querier, eventID, code string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `
 		UPDATE events SET judge_code = $2, updated_at = now() WHERE id = $1 RETURNING `+EventColumns, eventID, code))
@@ -336,7 +318,7 @@ func DeleteEventAndAccount(ctx context.Context, q *sql.Tx, ev Event, lockSites, 
 		ON CONFLICT DO NOTHING`, ev.ID, ev.Slug); err != nil {
 		return err
 	}
-	// event_notices has no foreign key to events (zw-hack-wait-notices.sql).
+	// event_notices has no foreign key to events.
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_notices WHERE event_id = $1`, ev.ID); err != nil {
 		return err
 	}
@@ -399,7 +381,6 @@ func ListAdminEvents(ctx context.Context, q sqlkit.Querier) ([]AdminEvent, error
 	return out, rows.Err()
 }
 
-// GetEventMember loads one membership. sql.ErrNoRows if none.
 func GetEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID string) (EventMember, error) {
 	return scanMember(q.QueryRowContext(ctx, `
 		SELECT m.event_id, m.user_id, m.role, COALESCE(u.display_name,''), m.team_id, m.coc_accepted_at, m.joined_at
@@ -454,7 +435,6 @@ func ListEventPeople(ctx context.Context, q sqlkit.Querier, eventID string) ([]E
 	return out, rows.Err()
 }
 
-// ListParticipantsOnNoTeam is the organiser teams view's unteamed people.
 func ListParticipantsOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, COALESCE(u.display_name,''), m.role, m.team_id,
@@ -479,7 +459,6 @@ func ListParticipantsOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID str
 	return out, rows.Err()
 }
 
-// isUniqueViolation detects a Postgres unique-constraint violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false

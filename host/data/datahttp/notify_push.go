@@ -17,7 +17,7 @@ import (
 	"github.com/vsriram/simple-host/host/webassets"
 )
 
-// Web push (SIM-360): the routes read the request, call the engine, and
+// Web push: the routes read the request, call the engine, and
 // answer; the rules live in host/data/notify.
 
 // pushSWModTime is used only for the service worker's conditional-GET
@@ -51,9 +51,6 @@ func (h *DataHandler) pushSWRoute(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, "sw.js", pushSWModTime, bytes.NewReader(pushSWBytes))
 }
-
-// pushFamilyFor is a visitor session's push-cleanup key (notify.PushFamily).
-func pushFamilyFor(sess model.VisitorSession) string { return notifications.PushFamily(sess) }
 
 // pushCaller is the push engine's view of a visitor-facing call.
 func pushCaller(c StorageCall) notifications.PushCaller {

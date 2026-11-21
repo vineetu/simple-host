@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	httpx "github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
@@ -250,7 +251,7 @@ func VisitorResponseError(rec *httptest.ResponseRecorder) error {
 }
 
 func (h *AccessHandler) visitorSharedSites(ctx context.Context, userID string) ([]map[string]any, error) {
-	email, err := VisitorEmail(ctx, h.Database, userID)
+	email, err := accounts.VisitorEmail(ctx, h.Database, userID)
 	if err != nil {
 		return nil, err
 	}

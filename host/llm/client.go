@@ -1,6 +1,6 @@
 // Package llm is a tiny OpenAI-compatible chat-completions client (net/http
-// only, no third-party SDK). It exists for SIM-394's hack organiser
-// assistant, which talks to a configurable OpenAI-compatible endpoint (today,
+// only, no third-party SDK). It exists for the hack organiser assistant,
+// which talks to a configurable OpenAI-compatible endpoint (today,
 // DeepSeek hosted on Ollama Cloud). It is infrastructure: no imports of any
 // other internal package (scripts/layering/rules.txt).
 package llm
@@ -88,8 +88,7 @@ type streamOptions struct {
 type chatChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string `json:"content"`
-			Reasoning string `json:"reasoning,omitempty"`
+			Content string `json:"content"`
 		} `json:"delta"`
 		// FinishReason is nil until the final chunk for a choice, which
 		// carries a real value (e.g. "stop"). Used to tell a clean EOF
@@ -178,9 +177,8 @@ func (c *Client) Stream(ctx context.Context, messages []Message, onDelta func(st
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Never echo the response body: it is provider content (never
-		// logged or surfaced -- see Ask's "never the key or bodies" rule),
-		// and may itself carry sensitive detail.
+		// Never echo the response body: it is provider content and may
+		// carry sensitive detail.
 		return usage, fmt.Errorf("llm: upstream status %d", resp.StatusCode)
 	}
 

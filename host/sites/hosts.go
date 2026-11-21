@@ -130,8 +130,6 @@ func (h *Hosts) SetGroupHosts(g GroupHosts) { h.groups = g }
 
 func (h *Hosts) Addressing() Addressing { return h.addr }
 func (h *Hosts) Groups() GroupHosts     { return h.groups }
-func (h *Hosts) CNAMETarget() string    { return h.cnameTarget }
-func (h *Hosts) ServerIP() string       { return h.serverIP }
 func (h *Hosts) PlatformZones() []string {
 	return h.platformZones
 }

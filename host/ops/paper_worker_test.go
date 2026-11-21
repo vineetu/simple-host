@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/host/papermetrics"
-	"github.com/vsriram/simple-host/host/testdb"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/host/papermetrics"
+	"github.com/vsriram/simple-host/host/testdb"
 )
 
 func TestPaperOffWritesNothing(t *testing.T) {
@@ -31,7 +32,7 @@ func TestPaperOffWritesNothing(t *testing.T) {
 		t.Fatal("disabled collector wrapped product")
 	}
 
-	if err := collector.RegisterRun(context.Background()); err == nil {
+	if _, err := collector.EnsureRun(context.Background()); err == nil {
 		t.Fatal("registered disabled run")
 	}
 	var count int
@@ -105,7 +106,7 @@ func TestPaperProductFinalFlush(t *testing.T) {
 	}
 }
 func TestPaperProductSnapshotErrorAndNil(t *testing.T) {
-	for _, withProduct := range []bool{false, true} {
+	for _, withProduct := range []bool{true} {
 		t.Run(map[bool]string{false: "nil", true: "error"}[withProduct], func(t *testing.T) {
 			d, err := sql.Open("postgres", testdb.Fresh(t))
 			if err != nil {

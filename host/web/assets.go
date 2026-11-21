@@ -14,18 +14,17 @@ import (
 
 // AssetPipeline is everything the static asset and chrome pipeline reads that
 // depends on the product or the instance: which product's assets and copy it
-// serves, the hack chrome, the hack instance's own address, and the cache of
-// swapped embedded files. A SiteHandler owns one (h.assets), built from its
-// Edition in NewSiteHandlers; the pipeline's methods read only these fields.
-// Every field below is set once, in NewAssetPipeline, and never changed: the
-// pipeline is immutable after construction.
+// serves, the product chrome, the product instance's own address, and the
+// cache of swapped embedded files. A SiteHandler owns one (h.Assets), built
+// from its Edition in NewSiteHandlers. Its fields are set at startup (the
+// product's assets once they are installed) and only read while serving.
 //
 // The base-swap settings (baseTextTo, authJSBases, InstanceIsHostedService,
 // the host rewriter) stay package settings: they describe the instance's
 // addresses, not the product.
 type AssetPipeline struct {
 	Product ProductAssets
-	// pres is the edition's presentation policy: ProductAssets selects Simple
+	// Pres is the edition's presentation policy: ProductAssets selects Simple
 	// Hack's skills, auth.js and copy.
 	Pres edition.PresentationPolicy
 	// hostedEvents is the edition's Routes().HostedEvents (pricing numbers).
@@ -36,13 +35,12 @@ type AssetPipeline struct {
 	// never drifts from enforcement.
 	limits     edition.Limits
 	limitsText *limitsRewriter
-	// chromeHack renders the simple-hack.app header, footer and ink: always
-	// pres.ProductAssets, kept as its own field because that is the question
+	// ChromeProduct renders the product's header, footer and ink: always
+	// Pres.ProductAssets, kept as its own field because that is the question
 	// this pipeline's callers ask.
 	ChromeProduct bool
-	// inkBase is this Hack instance's public address (the instanceURL
-	// constructor argument), canonicalHackBaseURL by default. Read via
-	// inkBaseURL. Meaningless when !chromeHack.
+	// inkBase is this product instance's public address (the instanceURL
+	// constructor argument). Meaningless when !ChromeProduct.
 	inkBase string
 	// text holds swapped copies of embedded files, by base and name
 	// (baseTextFS.Open).
@@ -62,9 +60,8 @@ type cachedZip struct {
 	err   error
 }
 
-// NewAssetPipeline builds the pipeline for ed (nil = Host) and its Hack
-// instance address ("" = canonicalHackBaseURL, the default every Hack
-// instance starts from unless it is self-hosted under its own domain), and
+// NewAssetPipeline builds the pipeline for ed (nil = Host) and its product
+// instance address ("" = the edition's CanonicalBaseURL), and
 // registers it so the base-text setters, which have no handler in reach,
 // still reach its swapped-file cache.
 func NewAssetPipeline(ed *edition.Edition, instanceURL string) *AssetPipeline {
@@ -92,33 +89,19 @@ func NewAssetPipeline(ed *edition.Edition, instanceURL string) *AssetPipeline {
 	return p
 }
 
-// inkBaseURL is the pipeline's hack instance address.
-func (p *AssetPipeline) inkBaseURL() string { return p.inkBase }
-
-// InkBaseURL is inkBaseURL, exported for the hackPages interface (hack.go):
-// moving Hack code reaches the pipeline only through that interface, whose
-// methods must be exported (cleanup 3.2 slice 2a).
-func (p *AssetPipeline) InkBaseURL() string { return p.inkBaseURL() }
+// InkBaseURL is the pipeline's product instance address.
+func (p *AssetPipeline) InkBaseURL() string { return p.inkBase }
 
 // IsCanonicalInstance reports whether this is simple-hack.app itself, not a
-// self-hosted or otherwise addressed instance. Exported for hackPages.
+// self-hosted or otherwise addressed instance.
 func (p *AssetPipeline) IsCanonicalInstance() bool {
-	return p.Pres.CanonicalBaseURL != "" && p.inkBaseURL() == p.Pres.CanonicalBaseURL
+	return p.Pres.CanonicalBaseURL != "" && p.InkBaseURL() == p.Pres.CanonicalBaseURL
 }
 
-// StaticFS is the embedded static/ tree as this pipeline serves it
-// (TextFS), as a plain fs.FS for hackPages.
+// StaticFS is TextFS as a plain fs.FS, for the product's hackPages interface.
 func (p *AssetPipeline) StaticFS() fs.FS { return p.TextFS() }
 
-// EmbeddedStatic is ui.go's StaticFiles (the embedded tree, product-
-// neutral), exported for moving code (cleanup 3.2 slice 2a) that has no
-// pipeline in reach at the point it needs it, e.g. hack_eventpage.go's
-// package-level hack-event.html template parse.
-func EmbeddedStatic() fs.FS { return StaticFiles }
-
-// SkillsModTime is skillsModTime (ui.go), exported for hackPages: the one
-// Last-Modified every skills/plugin download serves (set once at process
-// start).
+// SkillsModTime is the one Last-Modified every skills/plugin download serves.
 func (p *AssetPipeline) SkillsModTime() time.Time { return SkillsModTime }
 
 // ChromePage is the static page name as ServeStaticPage builds it, before
@@ -138,25 +121,11 @@ func (p *AssetPipeline) RenderPage(r *http.Request, name string, raw []byte) ([]
 	return httpx.StampNonce(r, p.PresentChromePage(name, page)), nil
 }
 
-// UICSP is uiCSP (ui.go), exported for hackPages.
-func (p *AssetPipeline) UICSP(next http.Handler, frameSrc string) http.Handler {
-	return p.uiCSP(next, frameSrc)
-}
-
-// NewPages builds a pipeline for ed (nil = Host) and its Hack instance
-// address ("" = canonicalHackBaseURL), exported for moving Hack code
-// (cleanup 3.2 slice 2a) that has no SiteHandler.Pages() to call: the
-// pipeline()/self-construct fallback a bare &HackHandler{} (most tests)
-// falls back to when ShareAssets was never called.
-func NewPages(ed *edition.Edition, instanceURL string) *AssetPipeline {
-	return NewAssetPipeline(ed, instanceURL)
-}
-
 // Rewritten reports whether the text assets (llms.txt, the spec, ...) need a
 // rewriting handler rather than the plain file server.
 func (p *AssetPipeline) Rewritten() bool { return InstanceHosts != nil || p.limitsText != nil }
 
-// staticFS is the embedded tree as this pipeline serves it.
+// TextFS is the embedded tree as this pipeline serves it.
 func (p *AssetPipeline) TextFS() baseTextFS {
 	return baseTextFS{fsys: selectedAssets{p}, p: p}
 }
@@ -178,18 +147,6 @@ func clearAssetText() {
 			p.Text.Clear()
 		}
 	}
-}
-
-// HackHandler's ShareAssets moved to hack.go (cleanup 3.2 slice 1c): a
-// method with a *HackHandler receiver must live in the same package as
-// that type, which moves to host/hackhttp.
-
-// SkillServedText is skillServedText (skillshub.go), exported for hackPages
-// (host/hackhttp): a test hook (cleanup 3.2 slice 3) for the moved
-// hack_instance_test.go, which checks one skill file's Rewritten text
-// without building the whole zip.
-func (p *AssetPipeline) SkillServedText(path string, data []byte) []byte {
-	return p.skillServedText(path, data)
 }
 
 type selectedAssets struct{ p *AssetPipeline }

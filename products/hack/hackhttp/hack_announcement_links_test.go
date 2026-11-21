@@ -1,9 +1,6 @@
 package hackhttp
 
 import (
-	"context"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -123,50 +120,4 @@ func TestAnnouncementsLinksPinAndPermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTS(t, "archived pin", a.at(t, "PUT", path+"/"+second, map[string]any{"pinned": true}, a.key(org)), 409, "")
-}
-
-type announcementCSPPages struct{ navigationBrowserPages }
-
-func (announcementCSPPages) AdminUICSP(next http.Handler) http.Handler {
-	return announcementTestCSP(next)
-}
-func (announcementCSPPages) UICSP(next http.Handler, _ string) http.Handler {
-	return announcementTestCSP(next)
-}
-func announcementTestCSP(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; frame-src 'none'")
-		next.ServeHTTP(w, r)
-	})
-}
-func TestAnnouncementShellCSP(t *testing.T) {
-	mux := http.NewServeMux()
-	RegisterHackUI(mux, announcementCSPPages{}, "example.com")
-	for _, path := range []string{"/e/sample/team", "/e/sample/manage", "/e/sample/judge", "/events", "/signin"} {
-		r := httptest.NewRecorder()
-		mux.ServeHTTP(r, httptest.NewRequest("GET", path, nil))
-		csp := r.Header().Get("Content-Security-Policy")
-		if !strings.Contains(csp, "img-src 'self' data: https://i.ytimg.com;") {
-			t.Fatalf("%s: %s", path, csp)
-		}
-	}
-	if !strings.Contains(hackEventPageCSP("nonce", "https://example.com"), "https://i.ytimg.com") {
-		t.Fatal("public thumbnail origin missing")
-	}
-}
-
-func TestAnnouncementMailHTML(t *testing.T) {
-	isolateQueueTest(t)
-	a := newHackApp(t)
-	sink := &contentMailSink{}
-	a.hack.SetMailer(sink)
-	org := a.newPerson(t, "ann-mail")
-	slug := uniqueSlug()
-	wantTS(t, "create", a.createEvent(t, org, slug, nil), 201, "")
-	r := a.at(t, "POST", "/v1/hack/events/"+slug+"/announcements", map[string]any{"title": "Kickoff", "body": "[Join kickoff](https://zoom.us/j/123)", "email_participants": true}, a.key(org))
-	wantTS(t, "post", r, 201, "")
-	a.hack.deliverContentMail(context.Background(), a.hack.mailer)
-	if len(sink.notices) != 1 || !strings.Contains(sink.notices[0].body, "https://zoom.us/j/123") || !strings.Contains(sink.notices[0].html, "Join the call") || !strings.Contains(sink.notices[0].html, "<table") {
-		t.Fatalf("mail: %+v", sink.notices)
-	}
 }

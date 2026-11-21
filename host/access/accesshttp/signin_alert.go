@@ -188,12 +188,3 @@ func summarizeUserAgent(ua string) string {
 	}
 	return "an unknown browser or app"
 }
-
-// maskEmail shows enough of an address to recognise it: n***@example.com.
-func maskEmail(address string) string {
-	local, domain, ok := strings.Cut(address, "@")
-	if !ok || local == "" {
-		return "***"
-	}
-	return local[:1] + "***@" + domain
-}

@@ -50,7 +50,6 @@ var textFields = []textField{
 
 var maturities = map[string]bool{"": true, "working": true, "partial": true, "concept": true}
 
-// TextWrite checks a text change and turns it into the "text" WriteRequest.
 func TextWrite(in TextInput) (WriteRequest, error) {
 	req := WriteRequest{Kind: "text", UpdatedAt: in.UpdatedAt, Fields: map[string]string{}}
 	for _, f := range textFields {
@@ -85,7 +84,6 @@ func TextWrite(in TextInput) (WriteRequest, error) {
 	return req, nil
 }
 
-// clean checks one text field's value.
 func (f textField) clean(s string) (string, error) {
 	if f.validURL {
 		return s, checkURL(s, f.name)

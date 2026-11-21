@@ -17,7 +17,7 @@ import (
 	"github.com/vsriram/simple-host/host/sites/repo"
 )
 
-// Address families (owner decision 2026-09-29; INTENT.md).
+// Address families.
 //
 // An account connects *.<suffix> once (model.AddressFamily). Every site of
 // that account named <prefix><label> then answers at <label>.<suffix>.

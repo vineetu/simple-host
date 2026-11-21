@@ -22,13 +22,9 @@ import (
 
 // NewSiteHandlers builds the site, access and data handlers and the state
 // they share (limits, caches, idempotency, the passcode key, notifications,
-// the visitor gate). It is the one place the three modules meet.
-
-// hackInstanceURL is this instance's own public address, used only when ed is
-// the Hack edition (the pipeline's inkBaseURL; "" takes canonicalHackBaseURL).
+// the visitor gate). productInstanceURL is a product edition's own public
+// address (the pipeline's InkBaseURL; "" takes the edition's canonical one).
 func NewSiteHandlers(ed *edition.Edition, productInstanceURL string, database *sql.DB, disk sites.Disk, hosts *sites.Hosts, siteDomain, contentHost, cnameTarget, customDomainIP, deployScript, adminAPIKey string, previewAccounts map[string]bool, previewTTL time.Duration, adminUserID string, mailer email.Sender, emailLimiter *httpx.RateLimiter) (*siteshttp.SiteHandler, *accesshttp.AccessHandler, *datahttp.DataHandler) {
-	// Uploads: ~6/min/IP, burst 30. State writes: ~1/s/IP sustained, burst 60
-	// (a browser app may persist state on each interaction).
 	lim := ed.Limits()
 	if hosts == nil {
 		hosts = sites.NewHosts(database, disk, ed, siteDomain, contentHost, cnameTarget, customDomainIP)

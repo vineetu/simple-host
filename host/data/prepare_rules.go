@@ -6,14 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/vsriram/simple-host/host/data/rules"
+	model "github.com/vsriram/simple-host/host/model"
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
 // prepareResourceTables readies the SQLite database before its rules are
 // saved: the author and approval columns the rules need, and, on a database
 // pages wrote with SQL before presets, an empty database or cleared authors.
-func (s *Service) prepareResourceTables(ctx context.Context, call Call, resource rules.Resource, requireEmpty, clearIDs bool, own, hold func(string) bool) (map[string]bool, error) {
+func (s *Service) prepareResourceTables(ctx context.Context, call Call, resource model.Resource, requireEmpty, clearIDs bool, own, hold func(string) bool) (map[string]bool, error) {
 	existing := map[string]bool{}
 	path := filepath.Join(call.RuntimeDir, "sqlite", resource.Name+".sqlite")
 	if _, err := os.Stat(path); os.IsNotExist(err) {

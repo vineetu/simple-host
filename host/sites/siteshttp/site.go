@@ -47,9 +47,7 @@ type SiteHandler struct {
 	siteWorkers     *siteWorkerGroup
 	// limits is ed.Limits(), held once so a request does not copy the
 	// whole snapshot on every read.
-	Limits edition.Limits
-	// assets is the static asset and chrome pipeline for ed (assets.go);
-	// read it through pipeline().
+	Limits            edition.Limits
 	Assets            *web.AssetPipeline
 	assetsOnce        sync.Once
 	CreateIdempotency *idempotency.Store
@@ -70,20 +68,13 @@ type SiteHandler struct {
 	usage     operations.UsageCache
 	Reporting *operations.Reporting
 
-	// netUsage reads the box's network counters (netusage.go); nil when off.
-	// trafficOn: the analytics log is read, so traffic figures exist.
 	Network   *operations.NetworkUsage
 	trafficOn bool
-	// ownerMarks notes the addresses an account is seen signed in from, so
-	// the owner's own visits are filed apart from People (ownermarks.go);
-	// nil when the analytics log is off.
+	// ownerMarks files the owner's own visits apart from People (ownermarks.go); nil when the analytics log is off.
 	ownerMarks *operations.OwnerMarks
 
-	// uploadLimiter throttles create/update uploads per client IP. See
-	// ratelimit.go.
-	UploadLimiter      *httpx.RateLimiter
-	DomainCheckLimiter *httpx.RateLimiter
-	// domainCheckUserLimiter: "Check again" per account.
+	UploadLimiter          *httpx.RateLimiter
+	DomainCheckLimiter     *httpx.RateLimiter
 	DomainCheckUserLimiter *httpx.RateLimiter
 
 	// previewAccounts (by username/email) get ephemeral sites: a site they create
@@ -91,17 +82,13 @@ type SiteHandler struct {
 	PreviewAccounts map[string]bool
 	PreviewTTL      time.Duration
 
-	// hosts answers which site a host names and which address a site has.
-	Hosts *sites.Hosts
-	// gate is the visitor gate every site file is served through
-	// (AccessHandler.SiteGate, composed by NewSiteHandlers).
+	Hosts                  *sites.Hosts
 	Gate                   http.Handler
 	noVisitorSignIn        bool
 	familyCheckLimiter     *httpx.RateLimiter
 	familyCheckUserLimiter *httpx.RateLimiter
-	// idleCleanup is IDLE_CLEANUP=on (idle.go).
-	idleCleanup bool
-	IdleExempt  model.IdleExempt
+	idleCleanup            bool
+	IdleExempt             model.IdleExempt
 
 	// exportKey signs short-lived export download links (exportlink.go); per
 	// process, used for nothing else. publicBaseURL is the apex they point at.
@@ -109,15 +96,11 @@ type SiteHandler struct {
 
 	publicBaseURL string
 
-	// showcaseLimiter bounds public showcase reads per account and address
-	// (60 burst, 30 a second).
 	ShowcaseLimiter *httpx.RateLimiter
 	groupGate       sites.GroupGate
 }
 
-// lockSite acquires the per-site upload mutex for one account's site name and
-// returns its unlock func. Keyed by account and name: two people's sites of the
-// same name never wait on each other.
+// lockSite acquires the per-site upload mutex, keyed by account and name so two people's same-named sites never wait.
 func (h *SiteHandler) LockSite(userID, name string) func() {
 	return sites.LockSiteName(&h.UploadLocks, userID, name)
 }
@@ -128,8 +111,6 @@ func (h *SiteHandler) startExpirySweepContext(ctx context.Context, every time.Du
 }
 func (h *SiteHandler) SweepExpiredSites() { h.SitesSvc().SweepExpiredSites(context.Background()) }
 
-// renameSite renames the caller's site oldName to newName (PATCH with
-// {"name": ...}, see patchSite).
 func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName, newName string) {
 	user := auth.GetUser(r.Context())
 	result, err := h.SitesSvc().Rename(r.Context(), sites.RenameInput{UserID: user.ID, OldName: oldName, NewName: newName, Handle: user.Handle.String})
@@ -163,7 +144,6 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 	}
 	site, oldURL, newURL, domain := result.Site, result.OldURL, result.NewURL, result.Domain
 
-	// The main address may change with the name (address families).
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{
 		"id": site.ID, "old_name": oldName, "name": newName,
 		"old_url": oldURL, "site_url": newURL, "old_url_status": "redirects",
@@ -172,9 +152,8 @@ func (h *SiteHandler) renameSite(w http.ResponseWriter, r *http.Request, oldName
 	})
 }
 
-// setAllowedOrigins lets a site owner list extra origins (scheme://host) that may
-// call the site's API cross-origin — so a page hosted anywhere
-// (external hosting, Netlify, …) can use this site as its backend. Owner-only.
+// setAllowedOrigins lets a site owner list extra origins that may call the site's API cross-origin, so a page
+// hosted anywhere can use this site as its backend. Owner-only.
 func (h *SiteHandler) setAllowedOrigins(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -251,10 +230,8 @@ func (h *SiteHandler) createSite(w http.ResponseWriter, r *http.Request) {
 	h.commitCreate(w, r, user, siteName, files, archiveSHA, false)
 }
 
-// createOrUpdateSite is the commit for PUT ?create=1: it creates the site, and
-// when a concurrent call created it first (two CI jobs racing), commits the
-// upload as an update instead of answering site_exists to a caller that asked
-// for create-or-update.
+// createOrUpdateSite is the commit for PUT ?create=1: when a concurrent call created the site first
+// (two CI jobs racing), the upload is committed as an update instead of answering site_exists.
 func (h *SiteHandler) createOrUpdateSite(w http.ResponseWriter, r *http.Request, user *model.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: files, ArchiveSHA: archiveSHA, Author: versionAuthor(r), Publish: publish, CreateIfMissing: true}, func(site SiteResponse) { httpx.WriteJSON(w, http.StatusOK, site) })
 }
@@ -275,7 +252,6 @@ func (h *SiteHandler) commitCreate(w http.ResponseWriter, r *http.Request, user 
 	return h.respondCreate(w, user, result, err)
 }
 
-// respondCreate maps a completed create workflow to its existing HTTP response.
 func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *model.User, result sites.CreateResult, err error) bool {
 	if result.Exists {
 		return true
@@ -286,7 +262,7 @@ func (h *SiteHandler) respondCreate(w http.ResponseWriter, user *model.User, res
 	}
 	state := result.ResponseState.(siteResponseState)
 	state.fileBytes = result.FileBytes
-	httpx.WriteJSON(w, http.StatusCreated, h.siteResponseFromState(user, result.Site, state))
+	httpx.WriteJSON(w, http.StatusCreated, h.siteResponseFromState(result.Site, state))
 	return false
 }
 
@@ -318,15 +294,11 @@ func writeCreateError(w http.ResponseWriter, err error) {
 	}
 }
 
-// publishStatus is the status of a publish refusal that create and update
-// answer the same way, with its code and message.
 var publishStatus = map[string]int{
 	"named_viewers_unavailable": 409, "sign_in_unavailable": 409, "named_viewers_need_own_address": 409, "access_differs": 409,
 	"too_many_viewers": 400, "redirects_invalid": 400, "access_marker": 500,
 }
 
-// writePublishRefusal answers the refusals create and update share:
-// access and redirect rules, and the site and account size caps.
 func writePublishRefusal(w http.ResponseWriter, err error) bool {
 	var siteErr *sites.Error
 	if !errors.As(err, &siteErr) {
@@ -384,13 +356,9 @@ func (h *SiteHandler) updateSite(w http.ResponseWriter, r *http.Request) {
 	h.commitSiteUpdate(w, r, user, siteName, files, archiveSHA, publish)
 }
 
-// commitSiteUpdate appends a new version to an existing owned site and promotes
-// it after commit. Shared by the archive upload (updateSite) and the JSON upload
-// (UpdateSiteFiles).
-//
-// publish=false stores the version without making it live (see preview.go):
-// `current`, active_version and what visitors see stay as they are, and the
-// answer names the new version and a preview link for it.
+// commitSiteUpdate appends a new version to an owned site and promotes it after commit (archive and JSON uploads).
+// publish=false stores the version without making it live (see preview.go): `current`, active_version and
+// what visitors see stay as they are, and the answer names the new version and a preview link.
 func (h *SiteHandler) commitSiteUpdate(w http.ResponseWriter, r *http.Request, user *model.User, siteName string, files map[string][]byte, archiveSHA string, publish bool) {
 	h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: files, ArchiveSHA: archiveSHA, Author: versionAuthor(r), Publish: publish}, func(site SiteResponse) { httpx.WriteJSON(w, http.StatusOK, site) })
 }
@@ -417,7 +385,7 @@ func (h *SiteHandler) respondSiteUpdate(w http.ResponseWriter, r *http.Request, 
 		h.writeUnpublishedState(w, user, result.Site, result.Version, result.ResponseState.(siteResponseState))
 		return
 	}
-	respond(h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState)))
+	respond(h.siteResponseFromState(result.Site, result.ResponseState.(siteResponseState)))
 }
 
 func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Request, siteName string, input sites.UpdateInput, err error) {
@@ -442,7 +410,6 @@ func (h *SiteHandler) writeSiteUpdateError(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// writeCreatePreflight maps the upload eligibility decision to its HTTP response.
 func writeCreatePreflight(w http.ResponseWriter, err error) bool {
 	if err == nil {
 		return true
@@ -462,9 +429,6 @@ func writeCreatePreflight(w http.ResponseWriter, err error) bool {
 	return false
 }
 
-// listVersions returns the full version history of a site for the
-// authenticated owner. Each row includes the version number, status,
-// created_at, and a flag for which one is currently active.
 func (h *SiteHandler) listVersions(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -488,7 +452,7 @@ func (h *SiteHandler) listVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	versions, err := h.SitesSvc().ListVersions(r.Context(), site.ID)
+	versions, err := h.SitesSvc().ListVersionsBySite(r.Context(), site.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -514,10 +478,8 @@ func (h *SiteHandler) listVersions(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
-// setActiveVersion points the site's `current` symlink at the requested
-// version and updates sites.active_version. Used for rollbacks (target
-// older) and roll-forwards (target newer). Idempotent if the target is
-// already active.
+// setActiveVersion points `current` at the requested version and updates sites.active_version (rollback or
+// roll-forward). Idempotent if the target is already active.
 func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -557,12 +519,10 @@ func (h *SiteHandler) setActiveVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState)))
+	httpx.WriteJSON(w, http.StatusOK, h.siteResponseFromState(result.Site, result.ResponseState.(siteResponseState)))
 }
 
-// setVisibility toggles a site's showcase visibility ('public' | 'unlisted').
-// Owner-only: the site is resolved via GetSiteByUser, so a user can only change
-// their own sites.
+// setVisibility toggles a site's showcase visibility ('public' | 'unlisted'); owner-only via GetSiteByUser.
 func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -596,10 +556,8 @@ func (h *SiteHandler) setVisibility(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]string{"name": siteName, "visibility": vis})
 }
 
-// listSites serves GET /v1/sites?[query, created_*, updated_*, limit, offset,
-// order, all]. Every caller, including the admin, sees only their own
-// sites by default, newest edited first; ?all=1 is an admin-only switch to
-// every account's sites (SIM-329).
+// listSites serves GET /v1/sites. Every caller, the admin included, sees only their own sites by default;
+// ?all=1 is an admin-only switch to every account's sites.
 func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -626,7 +584,6 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 		sites, err = h.SitesSvc().ListSitesByUser(r.Context(), user.ID)
 	}
 	if err == nil && user.Member != nil && user.Member.Edits != nil {
-		// An editor sees only the sites they edit.
 		kept := sites[:0]
 		for _, s := range sites {
 			if slices.Contains(user.Member.Edits, strings.ToLower(s.Name)) {
@@ -698,8 +655,7 @@ func (h *SiteHandler) listSites(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, response)
 }
 
-// adminUsers returns every registered user with their sites nested (admin only).
-// Powers the /admin dashboard. API keys are never included.
+// adminUsers returns every registered user with their sites nested (admin only). API keys are never included.
 func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
@@ -724,7 +680,6 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Group sites under their owner.
 	byUser := make(map[string][]map[string]any, len(users))
 	for _, s := range listing {
 		m := h.adminSiteRow(s)
@@ -753,11 +708,8 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 		out = append(out, map[string]any{
 			"id":       u.ID,
 			"username": u.Username,
-			// Login is this account's own login (account_passwords.login),
-			// "" for an account with no password row. A self sign-up's
-			// Username above is a synthetic value, never what it actually
-			// signs in with: the page must show Login instead whenever it
-			// is present.
+			// Login is the account's own login (account_passwords.login), "" with no password row. A self sign-up's
+			// Username above is synthetic, so the page must show Login whenever present.
 			"login":            logins[u.ID],
 			"handle":           u.Handle.String,
 			"page_url":         h.PersonPageURL(u.Handle.String),
@@ -770,34 +722,20 @@ func (h *SiteHandler) adminUsers(w http.ResponseWriter, r *http.Request) {
 			"sites":            list,
 			"suspended":        u.Suspended,
 			"suspended_reason": u.SuspendedReason,
-			// Where the account came from (users.signup_*): "" for accounts
-			// from before it was recorded.
+			// Where the account came from (users.signup_*); "" for accounts from before it was recorded.
 			"signup_source":   u.Signup.Source,
 			"signup_agent":    u.Signup.Agent,
 			"signup_method":   u.Signup.Method,
 			"signup_inferred": u.Signup.Inferred,
-			// The group the admin page counts it under, and the outside
-			// link it is credited to (null when none).
-			"signup_group":  group,
-			"signup_detail": u.Signup.Detail,
+			"signup_group":    group,
+			"signup_detail":   u.Signup.Detail,
 		})
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"users": out, "user_count": len(byUser), "site_count": len(listing), "signup_groups": web.SignupGroups(present)})
 }
 
-// ReadAndValidateFilesForTest is readAndValidateFiles, exported as a test
-// hook (cleanup 3.2 slice 3): hack_uploads_test.go (hack-prefixed, but this
-// one test exercises this Host-only validation path directly, with no
-// HackHandler involved) moved to host/hackhttp along with the rest of
-// its file.
-func (h *SiteHandler) ReadAndValidateFilesForTest(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	return h.readAndValidateFiles(w, r, siteName)
-}
-
-// readAndValidateFiles reads the archive body, verifies an optional
-// X-Content-Digest header against the SHA-256 of the raw archive bytes,
-// extracts and validates the entries, and returns the files plus the hex
-// digest (recorded on the version row for integrity/audit).
+// readAndValidateFiles reads the archive body, verifies an optional X-Content-Digest against its SHA-256,
+// validates the entries, and returns the files plus the hex digest (recorded on the version row).
 func (h *SiteHandler) readAndValidateFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
 	limit, override := accounts.New(h.Database).SiteLimit(r.Context(), auth.GetUser(r.Context()), h.Limits, sites.Upload.Body)
 	body, err := ReadLimitedBody(w, r, limit)
@@ -839,7 +777,6 @@ func ReadLimitedBody(w http.ResponseWriter, r *http.Request, limit int64) ([]byt
 	return body, nil
 }
 
-// writeTooLarge answers 413 for an upload over this account's per-site limit.
 func writeTooLarge(w http.ResponseWriter, limit int64, detail string) {
 	e := sites.TooLarge(limit, detail)
 	httpx.WriteJSON(w, http.StatusRequestEntityTooLarge, httpx.ErrorResponse{Error: e.Message, Code: e.Code, Hint: sites.StorageTips})
@@ -853,13 +790,10 @@ func archiveFilename(siteName string, body []byte) string {
 	return siteName + ".tar.gz"
 }
 
-// ifMatchVersion reads the optional If-Match header of a deploy, update or
-// rollback: the active version the caller last read, as "3" (or 3). It is
-// optional everywhere; agents send it on sites other people also publish (a
-// team's), so two members never overwrite each other unknowingly. 0 when
-// absent or *. A malformed value is refused (400 invalid_if_match). Read
-// only where teams are (the Simple Host program); elsewhere it is ignored as
-// before.
+// ifMatchVersion reads the optional If-Match header of a deploy, update or rollback: the active version the
+// caller last read, "3" or 3. Agents send it on sites other people also publish so two members never
+// overwrite each other unknowingly. 0 when absent or *; a malformed value is refused (400 invalid_if_match).
+// Read only where teams are (the Simple Host program).
 func (h *SiteHandler) ifMatchVersion(w http.ResponseWriter, r *http.Request) (int, bool) {
 	raw := strings.TrimSpace(r.Header.Get("If-Match"))
 	if raw == "" || raw == "*" || !h.Ed.Identity().PersonalSites {

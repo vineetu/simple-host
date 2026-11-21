@@ -32,7 +32,7 @@ import (
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Site passcodes (owner decision 2026-09-29; INTENT.md).
+// Site passcodes.
 //
 // An owner may put one passcode on a whole site. Every address of the site
 // then answers an "Enter the passcode" page (401, noindex, nothing of the
@@ -168,8 +168,7 @@ func passcodeMatches(try, real string) bool {
 }
 
 // normalizePasscode trims surrounding white space and checks the length.
-// There are no other rules: any characters, digits only included (owner
-// decision 2026-09-29). Control characters are refused because the gate's
+// There are no other rules: any characters, digits only included. Control characters are refused because the gate's
 // one-line box could never send them.
 func normalizePasscode(code string, min int) (string, error) {
 	code = strings.TrimSpace(code)
@@ -558,7 +557,7 @@ func (h *AccessHandler) UnlockSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if wait > 0 {
-		h.servePasscodeGate(w, r, next, "Too many tries. Try again in "+web.StoreSpan(roundUpMinute(wait))+".", wait)
+		h.servePasscodeGate(w, r, next, "Too many tries. Try again in "+web.LimitSpan(roundUpMinute(wait))+".", wait)
 		return
 	}
 	if !matched {
@@ -691,7 +690,7 @@ func (h *AccessHandler) siteDataGate(next http.Handler, viewers bool) http.Handl
 		if id, _, err := h.resolveSiteIDBare(r, siteName); err == nil {
 			ids[id] = true
 		}
-		if id, err := h.resolveWriteSiteIDBare(r, siteName); err == nil {
+		if id, err := h.resolveWriteSiteID(r, siteName); err == nil {
 			ids[id] = true
 		}
 		allowed, private, gated := true, false, false

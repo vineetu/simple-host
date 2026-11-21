@@ -9,7 +9,6 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// OpenTeam is a team shown in the finding directory.
 type OpenTeam struct {
 	id                     string
 	Slug, Name, LookingFor string
@@ -17,16 +16,13 @@ type OpenTeam struct {
 	Track                  *model.EventTrack
 }
 
-// SoloPerson is an opted-in participant without a team.
 type SoloPerson struct{ UserID, DisplayName, Intro string }
 
-// FindingTeamState describes the caller's team.
 type FindingTeamState struct {
 	LookingFor    string
 	Locked, Admin bool
 }
 
-// FindingDirectory contains the results of the finding reads.
 type FindingDirectory struct {
 	Teams   []OpenTeam
 	Solo    []SoloPerson
@@ -36,7 +32,6 @@ type FindingDirectory struct {
 	Team    *FindingTeamState
 }
 
-// ListOpenTeams reads the finding directory a member sees; empty when team finding is off.
 func (s *Service) ListOpenTeams(ctx context.Context, ev model.Event, userID string, member model.EventMember) (out FindingDirectory, err error) {
 	if !ev.TeamFinding {
 		return out, nil
@@ -72,7 +67,6 @@ func (s *Service) ListOpenTeams(ctx context.Context, ev model.Event, userID stri
 	return out, err
 }
 
-// openTeams lists the unlocked teams with their members' names.
 func (s *Service) openTeams(ctx context.Context, eventID string) ([]OpenTeam, error) {
 	rows, err := teamrepo.ListFindingTeams(ctx, s.db, eventID)
 	teams, err := collect(rows, err, func(r *sql.Rows, t *OpenTeam) error {
@@ -114,7 +108,6 @@ func (s *Service) findingTeamState(ctx context.Context, eventID, userID string, 
 	return &t, err
 }
 
-// collect scans every row of a query into a non-nil slice and closes it.
 func collect[T any](rows *sql.Rows, err error, scan func(*sql.Rows, *T) error) ([]T, error) {
 	out := []T{}
 	if err != nil {

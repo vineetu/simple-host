@@ -11,7 +11,7 @@ func NewPersonApp(t *testing.T, mode string, eds ...*edition.Edition) *PrivateAp
 	t.Helper()
 	a := NewPrivateApp(t, eds...)
 	a.Sites.Hosts.SetPersonHosts(mode)
-	accountsrepo.SetPlatformDomain(PcSiteDomain)
-	t.Cleanup(func() { accountsrepo.SetPlatformDomain("") })
+	accountsrepo.SetPlatformDomains(PcSiteDomain)
+	t.Cleanup(func() { accountsrepo.SetPlatformDomains("") })
 	return a
 }

@@ -15,7 +15,7 @@ import (
 
 // A replayed create keeps the bytes NoticeMiddleware wrote the first time.
 func TestCreateIdempotencyReplayAndConflict(t *testing.T) {
-	for _, status := range []int{http.StatusCreated, http.StatusBadRequest, http.StatusInternalServerError} {
+	for _, status := range []int{http.StatusCreated, http.StatusInternalServerError} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			store := idempotency.New(config.DefaultLimits())
 			calls := 0

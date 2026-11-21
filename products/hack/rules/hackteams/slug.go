@@ -6,15 +6,12 @@ import (
 )
 
 // DefaultMaxTeamSlugLen is the longest a team slug may be on the two-level
-// <team>.<event>.<host> form (each label has its own 63-character DNS
-// budget, so a team slug never has to share it with the event's).
+// <team>.<event>.<host> form (each label has its own 63-character DNS budget).
 const DefaultMaxTeamSlugLen = 30
 
 // MaxTeamSlugLen is the longest a team slug may be: DefaultMaxTeamSlugLen
-// normally, or, under the flat <team>--<event> single-label host
-// (TEAM_SITE_FLAT_HOSTS), capped so "<team>--<event>" never exceeds the
-// 63-character DNS label limit (63, less 2 for "--", less the event slug's own
-// length).
+// normally, or, under the flat <team>--<event> host (TEAM_SITE_FLAT_HOSTS),
+// capped so "<team>--<event>" fits the 63-character DNS label limit.
 func MaxTeamSlugLen(eventSlug string, flat bool) int {
 	if !flat {
 		return DefaultMaxTeamSlugLen

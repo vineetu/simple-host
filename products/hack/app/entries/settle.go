@@ -81,7 +81,6 @@ func (s *Service) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID 
 	return nil
 }
 
-// SettleTeam locks the team, then its entry, and settles it in its own transaction.
 func (s *Service) SettleTeam(ctx context.Context, teamID string, progress ...func()) error {
 	changed := false
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -154,7 +153,6 @@ func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string, p
 	return nil
 }
 
-// SweepReport receives committed entry settlement outcomes.
 type SweepReport interface {
 	Progress()
 	Fail(string, error)

@@ -29,7 +29,6 @@ var (
 		id: regexp.MustCompile(`^[A-Za-z0-9_-]{20,100}$`), player: "https://drive.google.com/file/d/{id}/preview"}
 )
 
-// videoServices maps each accepted host to its service.
 var videoServices = map[string]videoService{
 	"youtube.com": videoYouTube, "www.youtube.com": videoYouTube, "m.youtube.com": videoYouTube,
 	"youtu.be":  videoYouTuBe,
@@ -47,8 +46,7 @@ var videoFrameOrigins = []string{
 	"https://drive.google.com",
 }
 
-// videoEmbed turns an entry's demo video link into a player URL the judge
-// screen may frame (build-plan.md section 4.5).
+// videoEmbed turns an entry's demo video link into a player URL the judge screen may frame.
 func videoEmbed(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.Port() != "" {

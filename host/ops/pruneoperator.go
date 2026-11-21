@@ -17,8 +17,7 @@ import (
 
 // PruneFixedAccounts is the hosted one-time cleanup. It deliberately visits
 // only non-deleted sites outside KEEP_VERSIONS_SELF_SET, and uses the same
-// rows-first, folders-second path as deploys. l is the instance's limits
-// snapshot (config.LoadLimits), since this runs outside any server edition.
+// rows-first, folders-second path as deploys.
 func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk appsites.Disk, ed *edition.Edition, keepVersions int, apply bool, out io.Writer) error {
 	l := ed.Limits()
 	if l.KeepVersionsSelfSet == "" || keepVersions <= 0 {

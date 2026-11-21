@@ -6,12 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// www and the bare domain (completeness plan, 2026-09-27).
+// www and the bare domain.
 //
 // Connecting brand.com or www.brand.com also sets up the other name, its
 // partner, as a redirect-only host (301 to the name chosen). The ownership
@@ -59,8 +60,6 @@ func (h *SiteHandler) partnerBoundElsewhere(ctx context.Context, partner, siteID
 	return err != nil || bound
 }
 
-// RequestablePartner is the partner a certificate request for d names: its
-// www / bare partner, unless another site has bound that name.
 func (h *SiteHandler) RequestablePartner(ctx context.Context, d model.BoundDomain) string {
 	p := domainPartner(d.Domain)
 	if h.partnerBoundElsewhere(ctx, p, d.SiteID) {
@@ -101,7 +100,6 @@ func (h *SiteHandler) partnerState(domain string) (state, note string, since tim
 	return "not_set_up", "", st.ModTime()
 }
 
-// partnerInfo is the API view of a domain's partner.
 type partnerInfo struct {
 	Domain string
 	DNS    *dnsRecord
@@ -149,7 +147,7 @@ func (h *SiteHandler) wantPartnerCert(ctx context.Context, d model.BoundDomain, 
 		return false
 	}
 	for _, ip := range ips {
-		if ours[ip] && isPublicIP(ip) {
+		if ours[ip] && notify.PublicIP(ip) {
 			return true
 		}
 	}

@@ -6,7 +6,6 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// NoticeMemberStatus reads the member's current approval and team.
 func NoticeMemberStatus(ctx context.Context, q sqlkit.Querier, eventID, userID string) (string, sql.NullString, bool, error) {
 	var status string
 	var team sql.NullString
@@ -15,14 +14,12 @@ func NoticeMemberStatus(ctx context.Context, q sqlkit.Querier, eventID, userID s
 	return status, team, admin, err
 }
 
-// NoticeTeamAdmin checks current team administration.
 func NoticeTeamAdmin(ctx context.Context, q sqlkit.Querier, eventID, userID, teamID string) (bool, error) {
 	var admin bool
 	err := q.QueryRowContext(ctx, `SELECT team_admin FROM event_members WHERE event_id = $1 AND user_id = $2 AND team_id = $3`, eventID, userID, teamID).Scan(&admin)
 	return admin, err
 }
 
-// MailMember reads the recipient's current event membership.
 func MailMember(ctx context.Context, q sqlkit.Querier, eventID, userID string) (string, string, sql.NullString, bool, string, error) {
 	var role, status, stage string
 	var team sql.NullString
@@ -33,7 +30,6 @@ func MailMember(ctx context.Context, q sqlkit.Querier, eventID, userID string) (
 	return role, status, team, admin, stage, err
 }
 
-// MailRequest reads a pending join request.
 func MailRequest(ctx context.Context, q sqlkit.Querier, refID, teamID string) (string, string, error) {
 	var name, team string
 	err := q.QueryRowContext(ctx, `
@@ -44,7 +40,6 @@ func MailRequest(ctx context.Context, q sqlkit.Querier, refID, teamID string) (s
 	return name, team, err
 }
 
-// MailInvite reads a pending invitation's team.
 func MailInvite(ctx context.Context, q sqlkit.Querier, refID, userID string) (string, error) {
 	var team string
 	err := q.QueryRowContext(ctx, `
@@ -53,14 +48,13 @@ func MailInvite(ctx context.Context, q sqlkit.Querier, refID, userID string) (st
 	return team, err
 }
 
-// NoticeTeamMessageBody reads a team message's text for the notice line (0003-hack-notices-judges-messages.sql).
+// NoticeTeamMessageBody reads a team message's text for the notice line.
 func NoticeTeamMessageBody(ctx context.Context, q sqlkit.Querier, id, teamID string) (string, error) {
 	var body string
 	err := q.QueryRowContext(ctx, `SELECT body FROM event_team_messages WHERE id = $1 AND team_id = $2`, id, teamID).Scan(&body)
 	return body, err
 }
 
-// MailApplicationPending checks whether an application still awaits a decision.
 func MailApplicationPending(ctx context.Context, q sqlkit.Querier, eventID, userID string) (bool, error) {
 	var pending bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2

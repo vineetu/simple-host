@@ -16,7 +16,6 @@ type PaperRecorder interface {
 
 type paperRecorderKey struct{}
 
-// WithPaperRecorder supplies the request recorder before dispatching to the transport.
 func WithPaperRecorder(next http.Handler, recorder PaperRecorder) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), paperRecorderKey{}, recorder)))

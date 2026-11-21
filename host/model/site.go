@@ -1,3 +1,6 @@
+// Package model holds shared records and value types used across HTTP
+// transports and services, without SQL or transport concerns of their own
+// (docs/architecture/target.md §2).
 package model
 
 import (
@@ -126,4 +129,16 @@ type ExpiredSite struct {
 	ID     string
 	UserID string
 	Name   string
+}
+
+type ShowcasePreference struct {
+	Pinned bool `json:"pinned"`
+	Order  int  `json:"order"`
+}
+
+// TeamSite is a Hack team site's state as the events API shows it.
+type TeamSite struct {
+	Exists        bool
+	ActiveVersion int
+	Suspended     bool
 }

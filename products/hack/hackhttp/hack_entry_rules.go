@@ -10,20 +10,10 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Entry rules, slice 1 of the entries and participant journey package
-// (build-plan.md). This file is the one place that answers "is this entry
-// complete" (section 3), and the settle sweep that runs it against the
-// deadline.
-//
-// Coordinator decision, 2026-11-02 (recorded in INTENT.md, the owner may
-// overrule it): at the deadline an incomplete draft is still judged, with an
-// "Incomplete" flag organisers and judges see, rather than dropped from
-// judging. Organisers can exclude a flagged entry by hand on the Entries
-// screen, with a confirm. This replaces the build plan's "an incomplete
-// draft is not submitted and is not judged" rule for this slice.
+// Entry rules: this file is the one place that answers "is this entry complete", plus the settle sweep that runs it against the deadline.
+// At the deadline an incomplete draft is still judged, with an "Incomplete" flag organisers and judges see, rather than dropped from judging. Organisers can exclude a flagged entry by hand on the Entries screen, with a confirm.
 
-// writeHackErrMissing is writeHackErr with a "missing" array attached, for
-// the entry refusals a client maps to field errors (section 4.1).
+// writeHackErrMissing is writeHackErr with a "missing" array attached, for entry refusals a client maps to field errors.
 func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, missing []string) {
 	if missing == nil {
 		missing = []string{}
@@ -31,10 +21,7 @@ func writeHackErrMissing(w http.ResponseWriter, status int, code, msg string, mi
 	httpx.WriteJSON(w, status, map[string]any{"error": msg, "code": code, "missing": missing})
 }
 
-// entrySiteState reads the team's site once for the entry view: whether it
-// exists at all, its live version (nil when it has none), and whether it
-// counts as the "site" rules field -- a live version, not taken down
-// (section 4.1): entries.TeamSiteLive, from the site-info row.
+// entrySiteState reads the team's site once for the entry view: whether it exists, its live version (nil when none), and whether it counts as the "site" rules field (a live version, not taken down: entries.TeamSiteLive).
 func (h *siteLinks) entrySiteState(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) (exists bool, liveVersion any, live bool) {
 	if h.hooks == nil {
 		return false, nil, false
@@ -57,7 +44,7 @@ func (h *siteLinks) entrySiteLive(ctx context.Context, ev model.Event, teamSlug 
 	return live
 }
 
-// entryRulesView is GET/PUT .../entry-rules's body (section 4.2).
+// entryRulesView is GET/PUT .../entry-rules's body.
 func entryRulesView(ev model.Event, hasTracks, editable bool) map[string]any {
 	fields := entries.LoadRules(ev.EntryRules)
 	return map[string]any{
@@ -137,7 +124,6 @@ func (h *views) entryProgressJSON(ctx context.Context, ev model.Event, team mode
 	return map[string]any{"steps": steps, "next": p.Next, "deadline": rfc3339UTC(st.Deadline), "deadline_is_extension": st.HasOverride, "event_deadline": rfc3339UTC(st.EventDeadline), "server_now": rfc3339Time(p.Now)}, nil
 }
 
-// SettleDueEntries runs the deadline sweep for every event.
 func (h *HackHandler) SettleDueEntries(ctx context.Context) {
 	h.entries.SettleDue(ctx, siteSweepReport{ctx: ctx})
 }

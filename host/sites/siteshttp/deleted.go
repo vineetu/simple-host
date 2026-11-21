@@ -14,14 +14,10 @@ import (
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Recently deleted (completeness plan, 2026-09-27).
-//
-// DELETE /v1/sites/{site} takes a site offline at once and keeps it — files,
-// every version, saved data, claimed
-// names, custom domain — for db.DeletedSiteRetention() with its name held.
-// GET /v1/me/deleted-sites lists them, POST /v1/sites/{site}/restore brings one
-// back exactly as it was, and an in-process sweep removes them for good after
-// the window. Deleting a whole account (admin) stays immediate.
+// Recently deleted: DELETE /v1/sites/{site} takes a site offline at once and keeps it
+// (files, versions, saved data, claimed names, custom domain) for
+// db.DeletedSiteRetention() with its name held; restore brings it back as it was and an
+// in-process sweep removes it after the window. Deleting a whole account (admin) is immediate.
 
 type deletedSiteResponse struct {
 	Name         string    `json:"name"`
@@ -34,15 +30,11 @@ func toDeletedSiteResponse(d model.DeletedSite, retention time.Duration) deleted
 	return deletedSiteResponse{Name: d.Name, DeletedAt: d.DeletedAt.UTC(), PurgeAt: d.PurgeAt(retention).UTC(), CustomDomain: d.CustomDomain.String}
 }
 
-// deletedNameMessage is the answer when a name is held by a site in Recently
-// deleted: the owner can restore it, or wait until it is gone.
 func deletedNameMessage(d model.DeletedSite, retention time.Duration) string {
 	return "you deleted a site named " + d.Name + " recently; it is in Recently deleted until " +
 		d.PurgeAt(retention).UTC().Format("2 Jan 2006") + ". Restore it, or pick another name"
 }
 
-// deletedNameConflict reports whether the account's name is held by a site in
-// Recently deleted, with the message to show.
 func (h *SiteHandler) deletedNameConflict(ctx context.Context, userID, name string) (string, bool) {
 	d, err := h.SitesSvc().GetDeletedSiteByUser(ctx, userID, name)
 	if err != nil {
@@ -84,7 +76,6 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// listDeletedSites: GET /v1/me/deleted-sites.
 func (h *SiteHandler) listDeletedSites(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -103,8 +94,6 @@ func (h *SiteHandler) listDeletedSites(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"sites": out, "retention_days": int(h.Limits.DeletedRetention / (24 * time.Hour))})
 }
 
-// restoreSite: POST /v1/sites/{sitename}/restore. The site comes back under
-// the same name, with the same versions, data, claimed names and domain.
 func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -136,16 +125,6 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 
 func (h *SiteHandler) PurgeDeletedSites(ctx context.Context) { h.LifecycleSvc().PurgeDeleted(ctx) }
 
-// StartDeletedSitePurge runs the purge now and then every interval until ctx
-// ends.
-func (h *SiteHandler) StartDeletedSitePurge(ctx context.Context, every time.Duration) {
-	o := h.siteLoop("sites.trash_purge")
-	o.once.Do(func() {
-		if o.enabled() {
-			h.startDeletedSitePurge(ctx, every)
-		}
-	})
-}
 func (h *SiteHandler) startDeletedSitePurge(ctx context.Context, every time.Duration) {
 	o := h.siteLoop("sites.trash_purge")
 	o.periodicTicker(ctx, 0, every, func(ctx context.Context) { h.PurgeDeletedSites(ctx) })

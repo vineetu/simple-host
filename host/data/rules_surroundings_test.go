@@ -81,8 +81,12 @@ func TestRulesForReadShapes(t *testing.T) {
 }
 
 func TestRulesForMixedCaseAuthorColumns(t *testing.T) {
-	for _, writtenBy := range []string{"", "Written_By"} {
-		for _, ownerTools := range []bool{false, true} {
+	for _, tc := range []struct {
+		writtenBy  string
+		ownerTools bool
+	}{{"", false}, {"Written_By", true}} {
+		writtenBy, ownerTools := tc.writtenBy, tc.ownerTools
+		{
 			t.Run(fmt.Sprintf("written_by=%s/owner_tools=%t", writtenBy, ownerTools), func(t *testing.T) {
 				schema := `CREATE TABLE entries(body TEXT, VISITOR_ID TEXT`
 				if writtenBy != "" {

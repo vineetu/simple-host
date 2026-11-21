@@ -10,21 +10,11 @@ import (
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 
-// OtherOrganiser aliases the shared model record.
 type OtherOrganiser = model.OtherOrganiser
 
-// FormerJudge aliases the shared model record.
 type FormerJudge = model.FormerJudge
 
-// LeaveOperations connects membership cleanup to the transitional team operations.
-type LeaveOperations struct {
-	LockMember        func(context.Context, sqlkit.Querier, string, string) (model.EventMember, error)
-	LockTeam          func(context.Context, sqlkit.Querier, string) (model.EventTeam, error)
-	DeleteTeamIfEmpty func(context.Context, sqlkit.Querier, string) error
-	EnsureTeamAdmin   func(context.Context, sqlkit.Querier, string) error
-}
-
-// EffectiveDeadlineSQL is the team deadline expression over events e and event_teams t.
+// EffectiveDeadlineSQL is the team deadline over events e and event_teams t.
 const EffectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
 
 // TeamKeepableSQL is the predicate for deleting an empty team.
@@ -44,7 +34,6 @@ func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lo
 	return m, status, err
 }
 
-// OtherEventOrganisers is every organiser of the event except userID, ordered by display name.
 func OtherEventOrganisers(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]OtherOrganiser, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, COALESCE(u.display_name,''), u.username FROM event_members m
@@ -75,35 +64,6 @@ func TeamKeptIfEmptied(ctx context.Context, q sqlkit.Querier, teamID string) (bo
 	return kept, err
 }
 
-// LeaveMembership is the shared core of a person losing their event membership, whether they chose it.
-func LeaveMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string, selfLeave bool, ops LeaveOperations) (string, error) {
-	m, err := ops.LockMember(ctx, q, eventID, userID)
-	if err != nil {
-		return "", err
-	}
-	if m.TeamID.Valid {
-		if _, err := ops.LockTeam(ctx, q, m.TeamID.String); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return "", err
-		}
-	}
-	if err := dropMembership(ctx, q, eventID, userID); err != nil || !m.TeamID.Valid {
-		return "", err
-	}
-	team := m.TeamID.String
-	if err := ops.DeleteTeamIfEmpty(ctx, q, team); err != nil {
-		return "", err
-	}
-	if selfLeave {
-		if err := MarkTeamKeptAfterLeave(ctx, q, team); err != nil {
-			return "", err
-		}
-	}
-	if err := ops.EnsureTeamAdmin(ctx, q, team); err != nil {
-		return "", err
-	}
-	return team, nil
-}
-
 // leaveQueuedSQL drops what was waiting on the leaver, each taking.
 var leaveQueuedSQL = []string{
 	`DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`,
@@ -119,8 +79,8 @@ var leaveMemberSQL = []string{
 	`DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`,
 }
 
-// dropMembership reserves the event's name, drops everything queued for the leaver and their checklist acknowledgements, then the membership itself.
-func dropMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string) error {
+// DropMembership reserves the event's name, drops everything queued for the leaver and their checklist acknowledgements, then the membership itself.
+func DropMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string) error {
 	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
 		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID); err != nil {
 		return err
@@ -134,7 +94,6 @@ func dropMembership(ctx context.Context, q sqlkit.Querier, eventID, userID strin
 	return execForMember(ctx, q, leaveMemberSQL, eventID, userID)
 }
 
-// execForMember runs each statement with (event, user), stopping at the first error.
 func execForMember(ctx context.Context, q sqlkit.Querier, stmts []string, eventID, userID string) error {
 	for _, stmt := range stmts {
 		if _, err := q.ExecContext(ctx, stmt, eventID, userID); err != nil {
@@ -189,7 +148,6 @@ func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, r
 	return err
 }
 
-// ListFormerJudges is every former judge of the event, oldest departure first.
 func ListFormerJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]FormerJudge, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT f.user_id, COALESCE(u.display_name,''), f.role, f.left_at FROM event_former_judges f JOIN users u ON u.id=f.user_id
@@ -243,63 +201,8 @@ func DeleteFormerJudgeScores(ctx context.Context, q *sql.Tx, eventID, userID str
 	return true, nil
 }
 
-// RemoveCoOrganiser drops an organiser.
-func RemoveCoOrganiser(ctx context.Context, q *sql.Tx, eventID, actorID, userID string, ops LeaveOperations) error {
-	// Serialise removals so a legacy event without its creator cannot lose both remaining organisers through concurrent requests.
-	var createdBy sql.NullString
-	if err := q.QueryRowContext(ctx, `SELECT created_by FROM events WHERE id=$1 FOR UPDATE`, eventID).Scan(&createdBy); err != nil {
-		return err
-	}
-	var role string
-	err := q.QueryRowContext(ctx, `SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2 FOR UPDATE`, eventID, userID).Scan(&role)
-	if errors.Is(err, sql.ErrNoRows) {
-		return sql.ErrNoRows
-	}
-	if err != nil {
-		return err
-	}
-	if role != "organiser" || (createdBy.Valid && createdBy.String == userID) {
-		return sql.ErrNoRows
-	}
-	var actorIsOrganiser, anotherOrganiser bool
-	if err := q.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2 AND role='organiser'),
-		       EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND role='organiser' AND user_id<>$3)`,
-		eventID, actorID, userID).Scan(&actorIsOrganiser, &anotherOrganiser); err != nil {
-		return err
-	}
-	if !actorIsOrganiser || !anotherOrganiser {
-		return sql.ErrNoRows
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, userID); err != nil {
-		return err
-	}
-	_, err = LeaveMembership(ctx, q, eventID, userID, false, ops)
-	return err
-}
-
-// ErrHackCannotRemoveOrganiser prevents removal through the participant path.
 var ErrHackCannotRemoveOrganiser = errors.New("cannot remove organiser")
 
-// RemovePersonFromEvent deletes a participant or judge.
-func RemovePersonFromEvent(ctx context.Context, q sqlkit.Querier, eventID, userID string, ops LeaveOperations) error {
-	m, err := ops.LockMember(ctx, q, eventID, userID)
-	if err != nil {
-		return err
-	}
-	if m.Role == "organiser" {
-		return ErrHackCannotRemoveOrganiser
-	}
-	if m.Role == "judge" {
-		if err := RecordFormerJudge(ctx, q, eventID, userID, m.Role); err != nil {
-			return err
-		}
-	}
-	_, err = LeaveMembership(ctx, q, eventID, userID, false, ops)
-	return err
-}
-
-// UserEmail is users.username for a person (the address they signed in with).
 func UserEmail(ctx context.Context, q sqlkit.Querier, userID string) (string, error) {
 	var email string
 	err := q.QueryRowContext(ctx, `SELECT username FROM users WHERE id = $1`, userID).Scan(&email)

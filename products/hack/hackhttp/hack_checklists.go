@@ -38,7 +38,6 @@ func (h *views) readChecklist(ctx context.Context, ev model.Event, m model.Event
 	return h.checklistService().Read(ctx, ev.ID, m.UserID, role, m.JoinedAt.IsZero(), forward, time.Now())
 }
 
-// checklistForView keeps the event-view integration to a single additive call.
 func (h *views) checklistForView(ctx context.Context, ev model.Event, m model.EventMember) any {
 	list, err := h.readChecklist(ctx, ev, m, "")
 	if err != nil {

@@ -4,50 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/vsriram/simple-host/host/testdb"
 )
 
-// isolatedDB applies host/db/schema.sql to a throwaway Postgres schema, so a
+// isolatedDB gives the test its own clone of the platform database, so a
 // rebuild (which empties every aggregate table) cannot touch data other tests
 // share. Needs DB_DSN.
 func isolatedDB(t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN not set")
-	}
-	admin, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { admin.Close() })
-	schema := fmt.Sprintf("analytics_test_%d", time.Now().UnixNano())
-	if _, err := admin.Exec(`CREATE SCHEMA ` + schema); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`) })
-	sep := "?"
-	if strings.Contains(dsn, "?") {
-		sep = "&"
-	}
-	db, err := sql.Open("postgres", dsn+sep+"search_path="+schema)
+	db, err := sql.Open("postgres", testdb.Fresh(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	ddl, err := os.ReadFile("../../db/schema.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(string(ddl)); err != nil {
-		t.Fatalf("apply schema: %v", err)
-	}
 	return db
 }
 
@@ -92,7 +65,7 @@ func TestRebuildWithoutLiveLogDoesNotRecount(t *testing.T) {
 
 	// The log comes back with one new line; the next pass counts only that.
 	writePlain(t, live, line(6))
-	if err := ing.runOnce(ctx); err != nil {
+	if err := ing.RunOnce(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if got := views(); got != 6 {

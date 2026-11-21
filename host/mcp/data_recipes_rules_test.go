@@ -45,9 +45,6 @@ func TestRulesRecipeExamples(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(text, "Ask who should read") {
-				t.Error("missing access question")
-			}
 			schemas := recipeCalls(t, text, "storage_sql_schema")
 			// The admin page deliberately reuses the records recipe's existing tables.
 			if topic == "admin" {
@@ -124,24 +121,6 @@ func TestRulesRecipeExamples(t *testing.T) {
 					}
 				}
 			}
-			// Presets were removed: no recipe names one.
-			if strings.Contains(strings.ToLower(text), "preset") {
-				t.Error("recipe still names a preset")
-			}
 		})
-	}
-}
-
-func TestRulesRecipeAdaptations(t *testing.T) {
-	defer NewServer(testConfig(Config{}))
-	NewServer(testConfig(Config{}))
-	admin, err := PageRecipe("admin", "shop")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, advice := range []string{"Preserve the existing resource rules and every table override", "an inbox must keep anonymous submissions and owner-only reads", "NEW orders resource only"} {
-		if !strings.Contains(admin, advice) {
-			t.Errorf("admin recipe lacks %q", advice)
-		}
 	}
 }

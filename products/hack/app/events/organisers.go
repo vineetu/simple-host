@@ -8,6 +8,7 @@ import (
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
@@ -21,12 +22,10 @@ func (s *Service) CreateOrganiserInvite(ctx context.Context, eventID, userID str
 	return code, expiry, err
 }
 
-// RevokeOrganiserInvite removes an invitation.
 func (s *Service) RevokeOrganiserInvite(ctx context.Context, eventID string) error {
 	return eventrepo.DeleteOrganiserInvite(ctx, s.db, eventID)
 }
 
-// OrganiserInvite finds an invitation's event.
 func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event, error) {
 	return eventrepo.OrganiserInviteEvent(ctx, s.db, hackevents.HashCode(hackevents.NormalizeCode(code)), false)
 }
@@ -34,7 +33,7 @@ func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event
 // AcceptOrganiserInvite joins through a reusable invitation, locking the event before the invite and member.
 func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (model.Event, model.EventMember, error) {
 	hash := hackevents.HashCode(hackevents.NormalizeCode(code))
-	// Find the event before locking, then lock the event before the invite and inviter's member row, matching leave's lock order (SIM-340 2.4).
+	// Find the event before locking, then lock the event before the invite and inviter's member row, matching leave's lock order.
 	unlocked, err := eventrepo.OrganiserInviteEvent(ctx, s.db, hash, false)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, inviteRefusal(err)
@@ -55,7 +54,6 @@ func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name 
 	return ev, member, tx.Commit()
 }
 
-// inviteRefusal turns a missing event or invitation into invalid_code.
 func inviteRefusal(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return &Error{Code: "invalid_code", Message: "invalid or expired invitation"}
@@ -111,7 +109,7 @@ func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorI
 		return err
 	}
 	defer tx.Rollback()
-	if err = eventrepo.RemoveCoOrganiser(ctx, tx, event.ID, actorID, userID, eventLeaveOperations()); errors.Is(err, sql.ErrNoRows) {
+	if err = teamrepo.RemoveCoOrganiser(ctx, tx, event.ID, actorID, userID); errors.Is(err, sql.ErrNoRows) {
 		return &Error{Code: "event_not_found", Message: "event not found"}
 	} else if err != nil {
 		return err
@@ -125,7 +123,6 @@ func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorI
 	return tx.Commit()
 }
 
-// RegenerateCode replaces the event's join or judge code, retrying collisions.
 func (s *Service) RegenerateCode(ctx context.Context, eventID, kind string, length int) (model.Event, error) {
 	var updated model.Event
 	var err error

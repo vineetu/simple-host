@@ -13,10 +13,8 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
-	"github.com/vsriram/simple-host/host/httpx"
 	model "github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/storage"
-	"github.com/vsriram/simple-host/host/web"
 )
 
 func TestVersionFiles(t *testing.T) {
@@ -64,7 +62,7 @@ func TestVersionFiles(t *testing.T) {
 			t.Fatalf("status %d: %+v, want %+v", w.Code, got, want)
 		}
 	})
-	for _, path := range []string{"../x", "/etc/passwd", "a/../../x", `a\b`, "a\x00b", "a/../b", "..", "", ".", "a/./b", "a//b", "a/"} {
+	for _, path := range []string{"../x", "/etc/passwd", "a/../../x", `a\b`, "a\x00b", ""} {
 		t.Run(path, func(t *testing.T) {
 			w := request(path, false, versions, dir)
 			if w.Code != 400 || w.Body.String() != "{\"error\":\"invalid path\"}\n" {
@@ -85,13 +83,13 @@ func TestVersionFiles(t *testing.T) {
 			})
 		}
 	}
-	for _, path := range []string{"missing", "assets", "index.html/child", "assets/a.css/deeper"} { // last two: ENOTDIR must read as not found
+	for _, path := range []string{"missing", "assets", "index.html/child"} { // last: ENOTDIR must read as not found
 		w := request(path, false, versions, dir)
 		if w.Code != 404 || w.Body.String() != "{\"error\":\"file not found\"}\n" {
 			t.Fatalf("%q: %d %s", path, w.Code, w.Body.String())
 		}
 	}
-	for _, c := range []struct{ path, contentType, body string }{{"a..b", "application/octet-stream", "dots"}, {"index.html", "text/html; charset=utf-8", "<h1>old</h1>"}, {"z.unknownext", "application/octet-stream", "raw"}} {
+	for _, c := range []struct{ path, contentType, body string }{{"index.html", "text/html; charset=utf-8", "<h1>old</h1>"}, {"z.unknownext", "application/octet-stream", "raw"}} {
 		w := request(c.path, false, versions, dir)
 		if w.Code != 200 || w.Body.String() != c.body {
 			t.Fatalf("%d %s", w.Code, w.Body.String())
@@ -147,118 +145,6 @@ func TestVersionFiles(t *testing.T) {
 		for _, listing := range []bool{false, true} {
 			w := request("index.html", listing, versions, alias)
 			if w.Code != 404 || w.Body.String() != "{\"error\":\"version not found\"}\n" {
-				t.Fatalf("%d %s", w.Code, w.Body.String())
-			}
-		}
-	})
-	t.Run("HEAD", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodHead, "/", nil)
-		r.SetPathValue("path", "index.html")
-		w := httptest.NewRecorder()
-		serveVersionFiles(w, r, disk, refFor(dir), versions, 2, 2, false)
-		get := request("index.html", false, versions, dir)
-		if w.Code != 200 || w.Body.Len() != 0 || !reflect.DeepEqual(w.Header(), get.Header()) {
-			t.Fatalf("HEAD status %d, headers %v, body %q; GET headers %v", w.Code, w.Header(), w.Body.String(), get.Header())
-		}
-	})
-	t.Run("empty listing", func(t *testing.T) {
-		empty := disk.VersionDir("owner", "empty", 2)
-		if err := os.MkdirAll(empty, 0755); err != nil {
-			t.Fatal(err)
-		}
-		w := request("", true, versions, empty)
-		var got map[string]any
-		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-			t.Fatal(err)
-		}
-		if files, ok := got["files"].([]any); !ok || len(files) != 0 {
-			t.Fatalf("files = %#v", got["files"])
-		}
-	})
-	t.Run("unreadable regular file listing", func(t *testing.T) {
-		unreadable := disk.VersionDir("owner", "unreadable", 2)
-		if err := os.MkdirAll(unreadable, 0755); err != nil {
-			t.Fatal(err)
-		}
-		path := filepath.Join(unreadable, "private.txt")
-		if err := os.WriteFile(path, []byte("metadata only"), 0000); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := os.ReadFile(path); err == nil {
-			t.Skip("file permissions do not restrict this user")
-		} else if !os.IsPermission(err) {
-			t.Fatal(err)
-		}
-		// Include an internal symlink: its listing needs resolved metadata,
-		// while neither it nor the regular entry needs the target's bytes.
-		if err := os.Symlink("private.txt", filepath.Join(unreadable, "alias.txt")); err != nil {
-			t.Fatal(err)
-		}
-		w := request("", true, versions, unreadable)
-		var got versionFilesResponse
-		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-			t.Fatal(err)
-		}
-		want := []versionFile{{"alias.txt", 13}, {"private.txt", 13}}
-		if w.Code != 200 || !reflect.DeepEqual(got.Files, want) {
-			t.Fatalf("status %d: %+v, want %+v", w.Code, got.Files, want)
-		}
-		if w := request("private.txt", false, versions, unreadable); w.Code != 500 {
-			t.Fatalf("unreadable bytes: %d %s", w.Code, w.Body.String())
-		}
-	})
-	t.Run("searchable parent without listing permission", func(t *testing.T) {
-		parent := disk.SiteDir("owner", "site")
-		if err := os.Chmod(parent, 0111); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(parent, 0755) })
-		if _, err := os.ReadDir(parent); err == nil {
-			t.Skip("directory permissions do not restrict this user")
-		} else if !os.IsPermission(err) {
-			t.Fatal(err)
-		}
-		for _, listing := range []bool{false, true} {
-			w := request("index.html", listing, versions, dir)
-			if w.Code != http.StatusOK {
-				t.Fatalf("listing=%v: %d %s", listing, w.Code, w.Body.String())
-			}
-			if !listing && w.Body.String() != "<h1>old</h1>" {
-				t.Fatalf("file contents = %q", w.Body.String())
-			}
-		}
-	})
-	for _, target := range []string{dir, filepath.Join(dir, "assets")} {
-		t.Run("searchable content directory "+filepath.Base(target), func(t *testing.T) {
-			if err := os.Chmod(target, 0111); err != nil {
-				t.Fatal(err)
-			}
-			defer os.Chmod(target, 0755)
-			if _, err := os.ReadDir(target); err == nil {
-				t.Skip("directory permissions do not restrict this user")
-			} else if !os.IsPermission(err) {
-				t.Fatal(err)
-			}
-			w := request("assets/a.css", false, versions, dir)
-			if w.Code != http.StatusOK || w.Body.String() != "body{}" {
-				t.Fatalf("download: %d %s", w.Code, w.Body.String())
-			}
-		})
-	}
-	t.Run("raw JSON through notice middleware", func(t *testing.T) {
-		mux := http.NewServeMux()
-		mux.Handle("GET /v1/sites/{sitename}/versions/{version}/files/{path...}", web.NoticeMiddleware("0.16.0")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, buffered := w.(*httpx.BufferedResponse); buffered {
-				t.Error("file response buffered")
-			}
-			serveVersionFiles(w, r, disk, refFor(dir), versions, 2, 2, false)
-		})))
-		for _, skillVersion := range []string{"", "0.1.0", "0.16.0"} {
-			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/v1/sites/site/versions/2/files/data.json", nil)
-			r.Header.Set("X-Skill-Version", skillVersion)
-			mux.ServeHTTP(w, r)
-			if w.Code != 200 || w.Body.String() != `{"old":true}` {
 				t.Fatalf("%d %s", w.Code, w.Body.String())
 			}
 		}

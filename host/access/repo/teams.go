@@ -3,12 +3,10 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"time"
 
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/host/model"
-	siterules "github.com/vsriram/simple-host/host/rules/sites"
 )
 
 // Teams (0025-teams.sql): a team is a users row with is_team set; people
@@ -19,16 +17,7 @@ import (
 // no team has it, including when a person does). A value no handle could
 // have (a NUL byte, a slash) is sql.ErrNoRows too, without a query.
 func GetTeamByHandle(ctx context.Context, q Querier, handle string) (model.User, error) {
-	var u model.User
-	handle = strings.ToLower(strings.TrimSpace(handle))
-	if !siterules.VisitorHandle.MatchString(handle) {
-		return u, sql.ErrNoRows
-	}
-	err := q.QueryRowContext(ctx, `
-		SELECT id, username, created_at, handle, display_name, suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
-		FROM users WHERE handle = $1 AND is_team`, handle).Scan(
-		&u.ID, &u.Username, &u.CreatedAt, &u.Handle, &u.DisplayName, &u.Suspended, &u.SuspendedReason)
-	return u, err
+	return accountByHandle(ctx, q, handle, " AND is_team")
 }
 
 // LockTeam locks the team's row for a membership or lifecycle change, so two
@@ -129,28 +118,13 @@ func ListTeamsOf(ctx context.Context, q Querier, userID string) ([]model.Team, e
 
 // ListTeamMembers lists the team's members, earliest first.
 func ListTeamMembers(ctx context.Context, q Querier, teamID string) ([]model.TeamMember, error) {
-	rows, err := q.QueryContext(ctx, `
+	return scanTeamMembers(q.QueryContext(ctx, `
 		SELECT u.id, COALESCE(u.handle, ''), COALESCE(u.display_name, ''), COALESCE(a.handle, ''), m.added_at
 		FROM team_members m
 		JOIN users u ON u.id = m.user_id
 		LEFT JOIN users a ON a.id = m.added_by
 		WHERE m.team_id = $1
-		ORDER BY m.added_at, u.handle`, teamID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []model.TeamMember{}
-	for rows.Next() {
-		var m model.TeamMember
-		var at time.Time
-		if err := rows.Scan(&m.ID, &m.Handle, &m.DisplayName, &m.AddedBy, &at); err != nil {
-			return nil, err
-		}
-		m.AddedAt = &at
-		out = append(out, m)
-	}
-	return out, rows.Err()
+		ORDER BY m.added_at, u.handle`, teamID))
 }
 
 // InsertTeamAudit records a team's creation or deletion, a member's removal,
@@ -167,20 +141,7 @@ func InsertTeamAudit(ctx context.Context, q Querier, teamID, teamHandle, actorID
 // TeamIDsOf lists the ids of the teams userID belongs to, in id order (the
 // order their rows are locked in when the account is deleted).
 func TeamIDsOf(ctx context.Context, q Querier, userID string) ([]string, error) {
-	rows, err := q.QueryContext(ctx, `SELECT team_id FROM team_members WHERE user_id = $1 ORDER BY team_id`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
+	return scanStrings(ctx, q, `SELECT team_id FROM team_members WHERE user_id = $1 ORDER BY team_id`, userID)
 }
 
 // IsTeamAccount reports whether the account id is a team.
@@ -232,6 +193,25 @@ func InvitationsFor(ctx context.Context, q Querier, email string) ([]model.TeamI
 		FROM team_invitations i JOIN users t ON t.id = i.team_id JOIN users b ON b.id = i.invited_by
 		WHERE i.addressed_to = $1 AND $1 <> '' AND `+liveInvitation+`
 		ORDER BY i.created_at DESC`, email))
+}
+
+// scanTeamMembers reads (id, handle, display name, added by, added at) rows.
+func scanTeamMembers(rows *sql.Rows, err error) ([]model.TeamMember, error) {
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []model.TeamMember{}
+	for rows.Next() {
+		var m model.TeamMember
+		var at time.Time
+		if err := rows.Scan(&m.ID, &m.Handle, &m.DisplayName, &m.AddedBy, &at); err != nil {
+			return nil, err
+		}
+		m.AddedAt = &at
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }
 
 func scanInvitations(rows *sql.Rows, err error) ([]model.TeamInvitation, error) {

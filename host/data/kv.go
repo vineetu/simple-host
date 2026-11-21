@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strings"
+
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
-	"io"
-	"strings"
 
 	"golang.org/x/text/unicode/norm"
 )
@@ -26,8 +27,9 @@ func StampID(owner bool, visitorID string) string {
 	return visitorID
 }
 
-// validateKVPost applies the existing checked-post limits.
-func validateKVPost(value json.RawMessage, maxBytes, maxLinks int) error {
+// CheckPostLimits keeps a post from someone not signed in small and mostly
+// free of links. value is the JSON the page sent.
+func CheckPostLimits(value json.RawMessage, maxBytes, maxLinks int) error {
 	if len(value) > maxBytes {
 		return &Error{Code: "post_too_large", Message: fmt.Sprintf("a post here is at most %d bytes", maxBytes)}
 	}
@@ -276,7 +278,7 @@ func (s *Service) PutKV(ctx context.Context, in KVPutInput) (json.RawMessage, *E
 	name, data := finishKVWrite(unlock, in.Key, value, exists)
 	// writer is the key's own author (from prepareKVWrite, already read):
 	// the actor's own id for a visitor's own write, or -- for an owner's
-	// write to an existing key -- whoever wrote it first. SIM-360 web-push
+	// write to an existing key -- whoever wrote it first. Web-push
 	// fan-out keys off this the same way row_write.go's row_visitor_id
 	// does; call.Owner (specifically, not OwnerOnSite -- D1's own write
 	// stays an ordinary notifying write, as it always has been) is the
@@ -331,7 +333,7 @@ func (s *Service) writeKVSQLite(ctx context.Context, conn *sqlite3.Conn, admissi
 		return writer, exists, err
 	}
 	if call.CheckedPost {
-		if err := validateKVPost(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
+		if err := CheckPostLimits(value, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
 			return writer, exists, err
 		}
 	}

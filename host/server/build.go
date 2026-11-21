@@ -97,7 +97,7 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	}
 	hosted := ed.Routes().HostedEvents
 	// The product instance's own public address (the asset pipeline's
-	// inkBaseURL), captured before setup may rewrite cfg.PublicBaseURL to a
+	// InkBaseURL), captured before setup may rewrite cfg.PublicBaseURL to a
 	// saved domain, so construction always sees the configured address.
 	var productInstanceURL string
 	if hosted {
@@ -511,7 +511,7 @@ func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mu
 	eventSvc := sites.New(db, nil, nil, 0, sites.Deps{EventDNS: eventdns.NewVercel(cfg.EventDNSToken, cfg.EventDNSTeamID), EventProbe: eventdns.NewLiveProbe(), EventDomains: cfg.EventDomains, EventTTL: ed.Limits().EventTTL, EventMaxClaims: ed.Limits().EventMaxClaims})
 	ev := siteshttp.NewEventDomainHandler(eventSvc, cfg.EventDomains)
 	if cfg.EventNamePeer != "" && !ed.Routes().HostedEvents {
-		// One name list with the hackathon platform (hack_mode.go).
+		// One name list with the hackathon platform.
 		ev.SetNamePeer(siteshttp.NamePeerClient(cfg.EventNamePeer))
 		siteshttp.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)
 		log.Printf("event hostnames: names checked with %s", cfg.EventNamePeer)
@@ -521,14 +521,13 @@ func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mu
 	return ev
 }
 
-// paperMetrics (SIM-335) collects latency per route class, process samples and
+// paperMetrics collects latency per route class, process samples and
 // aggregate snapshots for the research papers. PAPER_METRICS=off returns nil.
 func paperMetrics(cfg config.Config, db *sql.DB, hosted bool, data *datahttp.DataHandler, parts extension.Parts, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *papermetrics.Collector {
-	paperOn := papermetrics.Enabled()
-	if !paperOn {
+	if !papermetrics.Enabled() {
 		return nil
 	}
-	runConfig := map[string]any{"limits": cfg.Limits, "events": map[bool]string{false: "off", true: "hosted"}[hosted], "person_hosts": cfg.PersonHosts, "site_hosts": cfg.SiteHosts, "paper_metrics": paperOn}
+	runConfig := map[string]any{"limits": cfg.Limits, "events": map[bool]string{false: "off", true: "hosted"}[hosted], "person_hosts": cfg.PersonHosts, "site_hosts": cfg.SiteHosts, "paper_metrics": true}
 	apex := []string{cfg.SiteDomain}
 	if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
 		apex = append(apex, u.Hostname())

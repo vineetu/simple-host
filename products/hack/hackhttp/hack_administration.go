@@ -187,7 +187,6 @@ func (h *HackHandler) exportAdministrationCSV(w http.ResponseWriter, r *http.Req
 	writeCSV(w, rows)
 }
 
-// writeCSV writes rows with every cell made spreadsheet-safe.
 func writeCSV(w http.ResponseWriter, rows [][]string) {
 	cw := csv.NewWriter(w)
 	defer cw.Flush()
@@ -201,7 +200,6 @@ func writeCSV(w http.ResponseWriter, rows [][]string) {
 	}
 }
 
-// rfc3339Or is t in RFC 3339, or "" when unset.
 func rfc3339Or(t sql.NullTime) string {
 	if !t.Valid {
 		return ""
@@ -209,7 +207,6 @@ func rfc3339Or(t sql.NullTime) string {
 	return rfc3339Time(t.Time)
 }
 
-// participantRows lists approved participants.
 func (h *HackHandler) participantRows(ctx context.Context, ev model.Event) ([][]string, error) {
 	people, err := h.events.EventPeople(ctx, ev.ID)
 	if err != nil {
@@ -228,7 +225,6 @@ func (h *HackHandler) participantRows(ctx context.Context, ev model.Event) ([][]
 	return rows, nil
 }
 
-// teamRows lists teams with their member counts and site addresses.
 func (h *HackHandler) teamRows(ctx context.Context, ev model.Event) ([][]string, error) {
 	teams, err := h.teams.EventTeams(ctx, ev.ID)
 	if err != nil {
@@ -251,7 +247,6 @@ func (h *HackHandler) teamRows(ctx context.Context, ev model.Event) ([][]string,
 	return rows, nil
 }
 
-// entryRows lists every entry with what it still misses.
 func (h *HackHandler) entryRows(ctx context.Context, ev model.Event) ([][]string, error) {
 	stored, err := h.entries.EventEntries(ctx, ev.ID)
 	if err != nil {
@@ -348,7 +343,6 @@ func (h *HackHandler) eventUsage(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, u)
 }
 
-// exportEventProjects resolves product-owned team names after authorization.
 func (h *HackHandler) exportEventProjects(w http.ResponseWriter, r *http.Request, sites hackAdministrationSites, ev model.Event, ownSlug string) {
 	teams, err := h.teams.SiteTeams(r.Context(), ev.ID)
 	if err != nil {

@@ -15,8 +15,7 @@ var TakedownPage = Themed(`<!doctype html>
 </head><body><h1>This site has been taken down</h1><p>It is no longer available.</p></body></html>
 `)
 
-// OfflinePage is served on the site's own origins (custom domains included),
-// so it loads nothing and names no one.
+// OfflinePage is plain for the same reason.
 var OfflinePage = Themed(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><!--sh:theme--><title>Site offline</title>
@@ -24,26 +23,24 @@ var OfflinePage = Themed(`<!doctype html>
 </head><body><h1>This site is offline</h1><p>Its owner has taken it offline for now.</p></body></html>
 `)
 
-// ServeTakedownPage writes the take-down page. 410 so it is not cached as the
-// site's content; no-store so a restore takes effect on the next load.
+// ServeTakedownPage writes the take-down page: 410, so it is not cached as
+// the site's content.
 func ServeTakedownPage(w http.ResponseWriter, r *http.Request, pages *AssetPipeline) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Robots-Tag", "noindex")
-	w.WriteHeader(http.StatusGone)
-	if r.Method != http.MethodHead {
-		_, _ = w.Write(pages.HostedStatusPage(TakedownPage))
-	}
+	serveStatusPage(w, r, http.StatusGone, pages.HostedStatusPage(TakedownPage))
 }
 
-// ServeOfflinePage writes the offline page: 503 (a pause, not a removal) and
-// no-store, so switching the site back on takes effect on the next load.
+// ServeOfflinePage writes the offline page: 503, a pause, not a removal.
 func ServeOfflinePage(w http.ResponseWriter, r *http.Request, pages *AssetPipeline) {
+	serveStatusPage(w, r, http.StatusServiceUnavailable, pages.HostedStatusPage(OfflinePage))
+}
+
+// serveStatusPage is no-store, so restoring the site takes effect on the next load.
+func serveStatusPage(w http.ResponseWriter, r *http.Request, status int, page []byte) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Robots-Tag", "noindex")
-	w.WriteHeader(http.StatusServiceUnavailable)
+	w.WriteHeader(status)
 	if r.Method != http.MethodHead {
-		_, _ = w.Write(pages.HostedStatusPage(OfflinePage))
+		_, _ = w.Write(page)
 	}
 }

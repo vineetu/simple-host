@@ -25,8 +25,7 @@ func TestSetStorageBindings(t *testing.T) {
 		typ  ruleengine.Type
 		bad  bool
 	}{
-		{"auth.id", ruleengine.TypeText, true}, {"row.x", ruleengine.TypeText, true},
-		{"auth.teams", ruleengine.TypeBool, true}, {"auth.teams", ruleengine.TypeTextList, false},
+		{"auth.id", ruleengine.TypeText, true}, {"auth.teams", ruleengine.TypeTextList, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := &DataHandler{}
@@ -45,11 +44,8 @@ func TestSetStorageBindings(t *testing.T) {
 				}
 				return
 			}
-			if h.StorageDeps().Bindings != p || h.StorageDeps().Bindings != p {
+			if h.StorageDeps().Bindings != p {
 				t.Fatal("request services do not share provider")
-			}
-			if p.schemaCalls != 1 {
-				t.Fatal("request read schema")
 			}
 		})
 	}

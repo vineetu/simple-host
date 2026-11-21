@@ -147,10 +147,7 @@ func (c *recordingConn) Prepare(q string) (driver.Stmt, error) {
 	if e != nil {
 		return nil, e
 	}
-	if recordingCopy(q) {
-		c.r.record(q)
-	}
-	return &recordingStmt{Stmt: s, query: q, r: c.r, copy: recordingCopy(q)}, nil
+	return c.stmt(s, q), nil
 }
 func (c *recordingConn) PrepareContext(ctx context.Context, q string) (driver.Stmt, error) {
 	if p, ok := c.Conn.(driver.ConnPrepareContext); ok {
@@ -158,10 +155,7 @@ func (c *recordingConn) PrepareContext(ctx context.Context, q string) (driver.St
 		if e != nil {
 			return nil, e
 		}
-		if recordingCopy(q) {
-			c.r.record(q)
-		}
-		return &recordingStmt{Stmt: s, query: q, r: c.r, copy: recordingCopy(q)}, nil
+		return c.stmt(s, q), nil
 	}
 	select {
 	case <-ctx.Done():
@@ -170,78 +164,72 @@ func (c *recordingConn) PrepareContext(ctx context.Context, q string) (driver.St
 		return c.Prepare(q)
 	}
 }
+
+// stmt wraps a prepared statement. A COPY is recorded once here, not per row.
+func (c *recordingConn) stmt(s driver.Stmt, q string) driver.Stmt {
+	isCopy := recordingCopy(q)
+	if isCopy {
+		c.r.record(q)
+	}
+	return &recordingStmt{Stmt: s, query: q, r: c.r, copy: isCopy}
+}
+
+// recorded records q, then runs it. A statement the driver did not run
+// (ErrSkip, ErrBadConn: database/sql tries another path) is taken back out.
+func recorded[T any](r *Recorder, q string, run func() (T, error)) (T, error) {
+	id := r.record(q)
+	v, e := run()
+	if errors.Is(e, driver.ErrSkip) || errors.Is(e, driver.ErrBadConn) {
+		r.skip(id)
+	}
+	return v, e
+}
+
 func (c *recordingConn) ExecContext(ctx context.Context, q string, a []driver.NamedValue) (driver.Result, error) {
 	ex, ok := c.Conn.(driver.ExecerContext)
 	if !ok {
 		return nil, driver.ErrSkip
 	}
-	id := c.r.record(q)
-	v, e := ex.ExecContext(ctx, q, a)
-	if errors.Is(e, driver.ErrSkip) || errors.Is(e, driver.ErrBadConn) {
-		c.r.skip(id)
-	}
-	return v, e
+	return recorded(c.r, q, func() (driver.Result, error) { return ex.ExecContext(ctx, q, a) })
 }
 func (c *recordingConn) QueryContext(ctx context.Context, q string, a []driver.NamedValue) (driver.Rows, error) {
 	ex, ok := c.Conn.(driver.QueryerContext)
 	if !ok {
 		return nil, driver.ErrSkip
 	}
-	id := c.r.record(q)
-	v, e := ex.QueryContext(ctx, q, a)
-	if errors.Is(e, driver.ErrSkip) || errors.Is(e, driver.ErrBadConn) {
-		c.r.skip(id)
-	}
-	return v, e
+	return recorded(c.r, q, func() (driver.Rows, error) { return ex.QueryContext(ctx, q, a) })
 }
 func (c *recordingConn) Exec(q string, a []driver.Value) (driver.Result, error) {
 	ex, ok := c.Conn.(driver.Execer)
 	if !ok {
 		return nil, driver.ErrSkip
 	}
-	id := c.r.record(q)
-	v, e := ex.Exec(q, a)
-	if errors.Is(e, driver.ErrSkip) || errors.Is(e, driver.ErrBadConn) {
-		c.r.skip(id)
-	}
-	return v, e
+	return recorded(c.r, q, func() (driver.Result, error) { return ex.Exec(q, a) })
 }
 func (c *recordingConn) Query(q string, a []driver.Value) (driver.Rows, error) {
 	ex, ok := c.Conn.(driver.Queryer)
 	if !ok {
 		return nil, driver.ErrSkip
 	}
-	id := c.r.record(q)
-	v, e := ex.Query(q, a)
-	if errors.Is(e, driver.ErrSkip) || errors.Is(e, driver.ErrBadConn) {
-		c.r.skip(id)
-	}
-	return v, e
+	return recorded(c.r, q, func() (driver.Rows, error) { return ex.Query(q, a) })
 }
 func (c *recordingConn) Begin() (driver.Tx, error) {
-	id := c.r.record("BEGIN")
-	t, e := c.Conn.Begin()
-	if errors.Is(e, driver.ErrSkip) || errors.Is(e, driver.ErrBadConn) {
-		c.r.skip(id)
-	}
+	t, e := recorded(c.r, "BEGIN", c.Conn.Begin)
 	if e != nil {
 		return nil, e
 	}
 	return &recordingTx{t, c.r}, nil
 }
 func (c *recordingConn) BeginTx(ctx context.Context, o driver.TxOptions) (driver.Tx, error) {
-	if b, ok := c.Conn.(driver.ConnBeginTx); ok {
-		id := c.r.record("BEGIN")
-		t, e := b.BeginTx(ctx, o)
-		if errors.Is(e, driver.ErrSkip) || errors.Is(e, driver.ErrBadConn) {
-			c.r.skip(id)
-		}
-		if e != nil {
-			return nil, e
-		}
-		return &recordingTx{t, c.r}, nil
+	b, ok := c.Conn.(driver.ConnBeginTx)
+	if !ok {
+		return c.Begin()
 	}
-	return c.Begin()
+	t, e := recorded(c.r, "BEGIN", func() (driver.Tx, error) { return b.BeginTx(ctx, o) })
+	if e != nil {
+		return nil, e
+	}
+	return &recordingTx{t, c.r}, nil
 }
 func (c *recordingConn) Ping(ctx context.Context) error {
 	if p, ok := c.Conn.(driver.Pinger); ok {
@@ -284,35 +272,23 @@ func recordingCopy(q string) bool {
 	fields := strings.Fields(q)
 	return len(fields) > 0 && strings.EqualFold(fields[0], "COPY")
 }
-func (s *recordingStmt) start() uint64 {
+
+// runStmt records the statement once per execution; a COPY was recorded at prepare.
+func runStmt[T any](s *recordingStmt, call func() (T, error)) (T, error) {
 	if s.copy {
-		return 0
+		return call()
 	}
-	return s.r.record(s.query)
-}
-func (s *recordingStmt) finish(id uint64, err error) {
-	if errors.Is(err, driver.ErrSkip) || errors.Is(err, driver.ErrBadConn) {
-		s.r.skip(id)
-	}
+	return recorded(s.r, s.query, call)
 }
 func (s *recordingStmt) Exec(a []driver.Value) (driver.Result, error) {
-	id := s.start()
-	v, e := s.Stmt.Exec(a)
-	s.finish(id, e)
-	return v, e
+	return runStmt(s, func() (driver.Result, error) { return s.Stmt.Exec(a) })
 }
 func (s *recordingStmt) Query(a []driver.Value) (driver.Rows, error) {
-	id := s.start()
-	v, e := s.Stmt.Query(a)
-	s.finish(id, e)
-	return v, e
+	return runStmt(s, func() (driver.Rows, error) { return s.Stmt.Query(a) })
 }
 func (s *recordingStmt) ExecContext(ctx context.Context, a []driver.NamedValue) (driver.Result, error) {
 	if p, ok := s.Stmt.(driver.StmtExecContext); ok {
-		id := s.start()
-		v, e := p.ExecContext(ctx, a)
-		s.finish(id, e)
-		return v, e
+		return runStmt(s, func() (driver.Result, error) { return p.ExecContext(ctx, a) })
 	}
 	v, e := recordingValues(ctx, a)
 	if e != nil {
@@ -322,10 +298,7 @@ func (s *recordingStmt) ExecContext(ctx context.Context, a []driver.NamedValue) 
 }
 func (s *recordingStmt) QueryContext(ctx context.Context, a []driver.NamedValue) (driver.Rows, error) {
 	if p, ok := s.Stmt.(driver.StmtQueryContext); ok {
-		id := s.start()
-		v, e := p.QueryContext(ctx, a)
-		s.finish(id, e)
-		return v, e
+		return runStmt(s, func() (driver.Rows, error) { return p.QueryContext(ctx, a) })
 	}
 	v, e := recordingValues(ctx, a)
 	if e != nil {

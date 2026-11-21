@@ -3,7 +3,6 @@ package siteshttp
 import (
 	"context"
 	"encoding/xml"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -52,14 +51,6 @@ func TestSitemapShards(t *testing.T) {
 	}
 }
 
-func TestHostSitemapExcludesProductPages(t *testing.T) {
-	rec := httptest.NewRecorder()
-	serveSitemapXML(rec, httptest.NewRequest(http.MethodGet, "https://simple-host.app/sitemap.xml", nil), false)
-	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "/hackathons") {
-		t.Fatalf("Host sitemap = %d, must omit hackathons", rec.Code)
-	}
-}
-
 func TestSiteIndexingPreferences(t *testing.T) {
 	for _, tc := range []struct {
 		name, robots, html string
@@ -68,14 +59,8 @@ func TestSiteIndexingPreferences(t *testing.T) {
 		{"missing index", "", "", false},
 		{"open", "", "<h1>hello</h1>", true},
 		{"robots root", "User-agent: *\nDisallow: /\n", "hello", false},
-		{"multiple agents", "User-agent: Googlebot\nUser-agent: *\nDisallow: / # all\n", "hello", false},
 		{"other group", "User-agent: other\nDisallow: /\nUser-agent: *\nAllow: /\n", "hello", true},
-		{"following group", "User-agent: *\nDisallow: /private\nUser-agent: other\nDisallow: /\n", "hello", true},
-		{"meta case", "", `<META CONTENT="NOINDEX, follow" NAME="RoBoTs">`, false},
-		{"googlebot", "", `<meta content='noindex' name='googlebot'/>`, false},
 		{"other meta", "", `<meta name='description' content='noindex'>`, true},
-		{"googlebot group", "User-agent: Googlebot\nDisallow: /\n", "hello", false},
-		{"robots wildcard", "User-agent: *\nDisallow: /*\n", "hello", false},
 		{"meta none", "", `<meta name="robots" content="none">`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"sort"
 )
 
-// JudgeTeamKey identifies a judge and team pair.
 func JudgeTeamKey(judgeID, teamID string) string {
 	return judgeID + "\x00" + teamID
 }

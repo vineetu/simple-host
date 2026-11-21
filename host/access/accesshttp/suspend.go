@@ -29,21 +29,8 @@ import (
 
 const maxSuspendReason = 300
 
-// ServeTakedownForTest is ServeTakedown, exported as a test hook (cleanup
-// 3.2 slice 3): the moved hack_ink_browser_test.go (an opt-in Playwright
-// rehearsal fixture) mounts it at a debug path.
-func (h *AccessHandler) ServeTakedownForTest(w http.ResponseWriter, r *http.Request) {
-	h.ServeTakedown(w, r)
-}
-
 func (h *AccessHandler) ServeTakedown(w http.ResponseWriter, r *http.Request) {
 	web.ServeTakedownPage(w, r, h.pipeline())
-}
-
-// suspendedPage answers /internal/suspended, where nginx and Caddy send a
-// request for a site whose folder carries the marker.
-func (h *AccessHandler) suspendedPage(w http.ResponseWriter, r *http.Request) {
-	h.ServeTakedown(w, r)
 }
 
 // refuseSuspendedSiteID is RefuseSuspendedSite for handlers that hold only
@@ -86,11 +73,6 @@ func readSuspendReason(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	return reason, true
-}
-
-// syncSiteMarker makes the disk marker match the site's effective state.
-func (h *AccessHandler) syncSiteMarker(site model.Site) error {
-	return h.sitesSvc().SyncSiteSuspensionMarker(site)
 }
 
 // SyncSuspendMarkers makes every site's disk marker match the database. Run
@@ -165,7 +147,7 @@ func (h *AccessHandler) setUserSuspension(on bool) http.HandlerFunc {
 			return
 		}
 
-		out, err := h.sitesSvc().SuspendAccount(r.Context(), appsites.SuspensionInput{ID: id, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, Marker: h.syncSiteMarker})
+		out, err := h.sitesSvc().SuspendAccount(r.Context(), appsites.SuspensionInput{ID: id, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, Marker: h.sitesSvc().SyncSiteSuspensionMarker})
 		if err != nil {
 			var failure *accounts.LifecycleError
 			if errors.As(err, &failure) && failure.Code == "admin_account" {

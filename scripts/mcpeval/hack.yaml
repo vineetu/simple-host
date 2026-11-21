@@ -1,0 +1,188 @@
+# Simple Hack scenarios for run.py; the format is described in host.yaml.
+# Accounts (as): organiser (user.key) runs mcpjam-hack (open, team Byte Club)
+# and mcpjam-judging (in judging, Pixel Pushers' entry submitted);
+# participant is in both teams; judge judges both; newcomer is in no event.
+# {join_code} is mcpjam-hack's join code. Team sites live under the event:
+# live: mcpjam-hack/<team site>.
+
+# Organiser
+- id: create_event
+  prompt: "Check whether eval-jam is free. If it is, create a draft hackathon called Eval Jam with that name, organised by Eval Club, contact eval@example.com, for about 30 people, starting 2030-03-01, purpose: a weekend build for students. Yes, go ahead and create it."
+  must_not_call: [hack_set_event_stage, hack_delete_event]
+  checks:
+    - {tool: hack_get_event, args: {slug: eval-jam}, match: "\"stage\": \"draft\""}
+
+- id: create_and_open
+  prompt: ["Create a hackathon called Spring Jam (name spring-jam), organised by Eval Club, contact eval@example.com, about 40 people, on 2030-04-04, purpose: a spring build day. Then open sign-ups.", "Yes, create it and open it, with the default entry rules."]
+  checks:
+    - {tool: hack_get_event, args: {slug: spring-jam}, match: "\"stage\": \"open\""}
+
+- id: open_and_share_link
+  setup:
+    - {tool: hack_create_event, args: {slug: review-build-day, title: Review Build Day, organiser_name: Eval Club, contact_email: eval@example.com, purpose: A one-day build., expected_participants: 20, starts_at: "2030-05-02", ends_at: "2030-05-02"}}
+  prompt: ["Open sign-up for review-build-day and give me the join link.", "Yes, open it, with the default entry rules."]
+  must_call: [hack_set_event_stage]
+  says: "/join/"
+  checks:
+    - {tool: hack_get_event, args: {slug: review-build-day}, match: "\"stage\": \"open\""}
+
+- id: read_teams
+  prompt: Which teams have formed in my event mcpjam-hack so far?
+  must_not_call: [hack_delete_team, hack_move_member]
+  says: "Byte Club"
+
+- id: announce_no_email
+  prompt: "Post an announcement on mcpjam-hack: Kickoff is at 9am in Hall B. Do not email anyone. Post it now."
+  must_call: [hack_post_announcement]
+  must_not_call: [hack_message_team]
+  checks:
+    - {tool: hack_get_announcements, args: {slug: mcpjam-hack}, match: "Hall B"}
+
+- id: registration
+  prompt: ["On mcpjam-hack, I want to approve each new sign-up myself, and ask everyone: What is your T-shirt size?", "Yes, save that."]
+  checks:
+    - {tool: hack_get_registration, args: {slug: mcpjam-hack}, match: "\"approval_required\": true"}
+    - {tool: hack_get_registration, args: {slug: mcpjam-hack}, match: "T-shirt"}
+
+- id: tracks
+  prompt: ["Add two tracks to mcpjam-hack: Climate (challenge: cut campus energy use) and Health (challenge: better sleep for students).", "Yes, save them."]
+  checks:
+    - {tool: hack_get_tracks, args: {slug: mcpjam-hack}, match: "Climate.*Health|Health.*Climate"}
+
+- id: rubric
+  prompt: ["Set the judging rubric for mcpjam-hack: Impact 50%, Execution 30%, Demo 20%, each scored out of 5.", "Yes, save it."]
+  checks:
+    - {tool: hack_get_rubric, args: {slug: mcpjam-hack}, match: "Impact"}
+    - {tool: hack_get_rubric, args: {slug: mcpjam-hack}, match: "\"weight\": 50"}
+
+- id: entry_rules
+  prompt: ["In mcpjam-hack every team must hand in a demo video. A website is optional.", "Yes, save that."]
+  must_call: [hack_set_entry_rules]
+  checks:
+    - {tool: hack_get_entry_rules, args: {slug: mcpjam-hack}, match: "\"video_url\": \"required\""}
+
+- id: publish_results
+  prompt: ["Publish the results for mcpjam-judging.", "Yes, publish them."]
+  must_call: [hack_publish_results]
+  checks:
+    - {tool: hack_get_event, args: {slug: mcpjam-judging}, match: "\"stage\": \"results\""}
+
+- id: organiser_reads_team_site
+  setup:
+    - {as: participant, tool: create_site, args: {site: byte-club, owner: mcpjam-hack, files: {index.html: "<h1>Byte Club</h1><p>We build a study timer.</p>"}}}
+  prompt: What is team Byte Club building in mcpjam-hack? Look at their team website.
+  says: "study timer"
+  must_not_call: [update_site, create_site, hack_take_down_team_site]
+
+# Participant
+- id: newcomer_joins
+  as: newcomer
+  prompt: "Join the hackathon with join code {join_code}. I have read the code of conduct and I accept it. My name is Nia Newcomer."
+  must_call: [hack_join_event]
+  must_not_call: [hack_leave_event]
+  checks:
+    - {as: newcomer, tool: hack_list_events, args: {}, match: "mcpjam-hack"}
+
+- id: newcomer_joins_and_makes_team
+  as: newcomer
+  prompt: ["Join the hackathon with join code {join_code}. I have read the code of conduct and I accept it. Then create a team called Review Rockets.", "Yes, go ahead. My name is Rae Rocket."]
+  checks:
+    - {as: newcomer, tool: hack_get_my_teams, args: {}, match: "Review Rockets"}
+
+- id: create_team
+  as: newcomer
+  setup:
+    - {as: newcomer, tool: hack_join_event, args: {code: "{join_code}", accept_coc: true, display_name: Nia Newcomer}}
+  prompt: ["In mcpjam-hack, create a team called Night Owls for me.", "Yes, create it."]
+  must_call: [hack_create_team]
+  checks:
+    - {as: newcomer, tool: hack_get_my_teams, args: {}, match: "Night Owls"}
+
+- id: publish_team_site
+  as: participant
+  prompt: ["Publish a one-page website for my team Byte Club in mcpjam-hack that says what we are building: a study timer.", "Yes, publish it."]
+  must_not_call: [delete_site]
+  checks:
+    - {live: mcpjam-hack/byte-club, match: "study timer"}
+
+- id: update_team_site
+  as: participant
+  setup:
+    - {as: participant, tool: create_site, args: {site: byte-club, owner: mcpjam-hack, files: {index.html: "<h1>Byte Club</h1><p>We build a study timer.</p>", team.html: "<h1>Team</h1><p>Pat</p>"}}}
+  prompt: On our Byte Club team website for mcpjam-hack, change "study timer" to "focus timer". Keep the rest.
+  checks:
+    - {live: mcpjam-hack/byte-club, match: "focus timer"}
+    - {live: mcpjam-hack/byte-club/team.html, match: "Pat"}
+
+- id: submit_entry
+  as: participant
+  prompt: ["Fill in Byte Club's project entry for mcpjam-hack: title Study Timer; problem: students lose focus; tagline: a timer that blocks distractions; built with HTML and JavaScript; it is working; demo video https://example.com/demo. Then submit it.", "Yes, submit it."]
+  must_call: [hack_submit_entry]
+  checks:
+    - {as: participant, tool: hack_get_entry, args: {slug: mcpjam-hack}, match: "submitted"}
+
+- id: participant_todos
+  as: participant
+  prompt: What do I still need to do for mcpjam-hack?
+  must_not_call: [hack_update_entry, hack_submit_entry, create_site]
+
+# Judge
+- id: judge_queue
+  as: judge
+  prompt: Which projects do I still have to judge in mcpjam-judging?
+  must_not_call: [hack_score_team]
+  says: "Pixel Pushers|Lunch Line"
+
+- id: judge_scores
+  as: judge
+  prompt: ["I am judging mcpjam-judging. Give Pixel Pushers 4 out of 5 on every criterion with the comment: Clear demo.", "Yes, save those scores."]
+  must_call: [hack_score_team]
+  must_not_call: [hack_set_rubric]
+  checks:
+    - {tool: hack_export_scores, args: {slug: mcpjam-judging}, match: "Clear demo"}
+
+- id: judge_conflict
+  as: judge
+  prompt: ["In mcpjam-judging I know the Pixel Pushers team personally. Record that so I don't judge them.", "Yes, go ahead."]
+  must_call: [hack_declare_my_conflict]
+  checks:
+    - {as: judge, tool: hack_get_my_conflicts, args: {slug: mcpjam-judging}, match: "Pixel Pushers|team_id"}
+
+# Refusals: the server must refuse, and the model must say so
+- id: participant_tries_organiser_action
+  as: participant
+  prompt: Move mcpjam-hack to the building stage now.
+  checks:
+    - {tool: hack_get_event, args: {slug: mcpjam-hack}, match: "\"stage\": \"open\""}
+  says: "organi[sz]er|not allowed|permission|can.t|cannot|unable"
+
+- id: publish_after_deadline
+  as: participant
+  setup:
+    - {tool: hack_set_event_stage, args: {slug: mcpjam-hack, stage: building}}
+    - {tool: hack_set_event_stage, args: {slug: mcpjam-hack, stage: closed}}
+  prompt: ["Publish a one-page website for my team Byte Club in mcpjam-hack saying: Final version.", "Yes, publish it."]
+  checks:
+    - {live: mcpjam-hack/byte-club, error: true}
+  says: "closed|deadline|no longer|ended|not open"
+
+- id: outsider_scores
+  as: newcomer
+  prompt: Give Pixel Pushers 5 out of 5 on everything in mcpjam-judging.
+  must_not_call: [hack_join_judge, hack_join_event]
+  says: "judge|not allowed|permission|can.t|cannot|unable"
+
+# Not for this connector
+- id: no_theme_ideas
+  prompt: Give me ten theme ideas for a student hackathon.
+  max_calls: 0
+
+- id: no_flask_api
+  as: participant
+  prompt: Deploy our team's Flask API with a Postgres database for our hackathon project.
+  must_not_call: [create_site, update_site]
+
+- id: no_devpost
+  as: newcomer
+  prompt: Register me for a hackathon listed on devpost.com.
+  must_not_call: [hack_join_event, hack_apply_to_event]

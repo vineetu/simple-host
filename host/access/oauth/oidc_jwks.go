@@ -31,7 +31,6 @@ const jwksRefreshInterval = 10 * time.Minute
 type jwk struct {
 	Kty string `json:"kty"`
 	Use string `json:"use"`
-	Alg string `json:"alg"`
 	Kid string `json:"kid"`
 	N   string `json:"n"`
 	E   string `json:"e"`
@@ -46,11 +45,9 @@ type jwksCache struct {
 	client *http.Client
 	uri    string
 
-	mu       sync.Mutex
-	fetched  time.Time
-	byKid    map[string]*rsa.PublicKey
-	lastErr  error
-	fetching bool
+	mu      sync.Mutex
+	fetched time.Time
+	byKid   map[string]*rsa.PublicKey
 }
 
 func newJWKSCache(client *http.Client, uri string) *jwksCache {

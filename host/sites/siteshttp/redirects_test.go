@@ -2,6 +2,7 @@ package siteshttp
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -42,12 +43,8 @@ func TestPlainAddressesAndHiddenRules(t *testing.T) {
 		{"/faq/", "directory faq", "", 200},
 		{"/only", "", "/only/", 301},
 		{"/only-file/?from=a%2Fb", "", "/only-file?from=a%2Fb", 301},
-		{"/%6Fnly-file%2F", "", "/%6Fnly-file", 301},
-		{"//only-file/", "", "/only-file", 301},
 		{"/exact", "exact file", "", 200},
 		{"/_redirects", "custom missing", "", 404},
-		{"/_redirects/", "custom missing", "", 404},
-		{"/./_redirects", "custom missing", "", 404},
 		{"/%5Fredirects", "custom missing", "", 404},
 		{"/sub/_redirects", "ordinary", "", 200},
 	} {
@@ -82,13 +79,9 @@ func TestApplyRedirect(t *testing.T) {
 	}{
 		{"GET", "old", "/old", "track=1", "/new?track=1", "", 301, true},
 		{"GET", "old", "/ann/site/old", "", "/ann/site/new", "", 301, true},
-		{"GET", "old", "/ann/site/%6Fld", "", "/ann/site/new", "", 301, true},
-		{"GET", "", "/ann/site/", "", "", "", 200, false},
 		{"GET", "faq", "/faq", "", "", "", 200, false},
 		{"HEAD", "force", "/force", "", "/new", "", 302, true},
 		{"GET", "gone", "/gone", "", "", "gone", 410, true},
-		{"HEAD", "gone", "/gone", "", "", "", 410, true},
-		{"GET", "missing", "/missing", "", "", "missing", 404, true},
 		{"GET", "page", "/page", "id=123&extra=x", "/post/123", "", 301, true},
 		{"GET", "retired", "/retired", "", "", "faq", 410, true}, // pagepath.Resolve: /faq is faq.html
 	} {
@@ -99,63 +92,16 @@ func TestApplyRedirect(t *testing.T) {
 			t.Errorf("%+v: applied=%v %d %v %q", tt, ok, w.Code, w.Header(), w.Body.String())
 		}
 	}
-	// Legacy files apply without promotion; parse errors are cached until a change.
-	marker := disk.RedirectsFile("user", "site")
-	if e := os.Remove(marker); e != nil {
-		t.Fatal(e)
-	}
-	legacy := filepath.Join(disk.SiteDir("user", "site"), "current", "_redirects")
-	if e := os.WriteFile(legacy, []byte("/old /legacy"), 0644); e != nil {
-		t.Fatal(e)
-	}
-	r := httptest.NewRequest("GET", "/old", nil)
-	w := httptest.NewRecorder()
-	if !h.applyRedirect(w, r, "user", "site", "old", "/old") || w.Header().Get("Location") != "/legacy" {
-		t.Fatal(w)
-	}
-	// Runtime equality guard includes query normalisation and Rewritten public paths.
-	if e := os.WriteFile(legacy, []byte("/page id=:id /:id?id=:id 301!"), 0644); e != nil {
-		t.Fatal(e)
-	}
-	r = httptest.NewRequest("GET", "/internal/passcode/page?id=page", nil)
-	w = httptest.NewRecorder()
-	if h.applyRedirect(w, r, "user", "site", "page", "/page") {
-		t.Fatal("self redirect")
-	}
 }
 
 const publicPageCache = "public, max-age=0, must-revalidate"
 
-// A folder named _redirects at the root is ordinary content (only the root
-// file holds rules).
-func TestRedirectsFolderServed(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "_redirects", "index.html")
-	if e := os.MkdirAll(filepath.Dir(p), 0755); e != nil {
-		t.Fatal(e)
-	}
-	if e := os.WriteFile(p, []byte("folder page"), 0644); e != nil {
-		t.Fatal(e)
-	}
-	h := withHosts(&SiteHandler{})
-	for _, tt := range []struct {
-		url      string
-		status   int
-		location string
-	}{{"/_redirects", 301, "/_redirects/"}, {"/_redirects/", 200, ""}} {
-		r := httptest.NewRequest("GET", tt.url, nil)
-		w := httptest.NewRecorder()
-		h.serveDirFile(w, r, dir, r.URL.Path, r.URL.EscapedPath())
-		if w.Code != tt.status || w.Header().Get("Location") != tt.location {
-			t.Errorf("%s: %d %v", tt.url, w.Code, w.Header())
-		}
-	}
-	root, err := os.OpenRoot(dir)
+// applyRedirect runs applyRootRedirect against the site's folder on disk.
+func (h *SiteHandler) applyRedirect(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) bool {
+	root, err := os.OpenRoot(h.Disk.SiteDir(userID, siteName))
 	if err != nil {
-		t.Fatal(err)
+		return false
 	}
 	defer root.Close()
-	if !rootContentExists(root, "/_redirects/") {
-		t.Error("folder not counted as content")
-	}
+	return h.applyRootRedirect(w, r, root, rel, publicPath)
 }

@@ -3,7 +3,6 @@ package papermetrics
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/host/testdb"
 
 	_ "github.com/lib/pq"
 )
@@ -95,39 +96,15 @@ func BenchmarkWrap(b *testing.B) {
 	}
 }
 
+// isolatedDB gives the test its own clone of the platform database.
 func isolatedDB(t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN not set")
-	}
-	admin, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { admin.Close() })
-	schema := fmt.Sprintf("paper_test_%d", time.Now().UnixNano())
-	if _, err := admin.Exec(`CREATE SCHEMA ` + schema); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`) })
-	sep := "?"
-	if strings.Contains(dsn, "?") {
-		sep = "&"
-	}
-	d, err := sql.Open("postgres", dsn+sep+"search_path="+schema)
+	d, err := sql.Open("postgres", testdb.Fresh(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	d.SetMaxOpenConns(1)
 	t.Cleanup(func() { d.Close() })
-	ddl, err := os.ReadFile("../db/schema.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := d.Exec(string(ddl)); err != nil {
-		t.Fatalf("apply schema: %v", err)
-	}
 	return d
 }
 
@@ -149,7 +126,7 @@ func TestCollectAndExport(t *testing.T) {
 	}
 
 	c := New(d, dir, "simple-host.app")
-	c.flush(ctx)
+	c.Flush(ctx)
 	if c.tracker.Snapshot().LastProgress != nil {
 		t.Fatal("empty flush reported progress")
 	}
@@ -157,28 +134,28 @@ func TestCollectAndExport(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "http://menu.p.simple-host.app/", nil))
 	}
-	c.flush(ctx)
+	c.Flush(ctx)
 	if c.tracker.Snapshot().LastProgress == nil {
 		t.Fatal("committed flush did not report progress")
 	}
 	before := c.tracker.Snapshot().LastProgress
-	c.flush(ctx)
+	c.Flush(ctx)
 	if !c.tracker.Snapshot().LastProgress.Equal(*before) {
 		t.Fatal("empty flush advanced progress")
 	}
-	c.takeSample(ctx)
+	c.TakeSample(ctx)
 	c.lastSample.at = c.lastSample.at.Add(-time.Minute) // a second sample needs a gap
-	c.takeSample(ctx)
+	c.TakeSample(ctx)
 	now := time.Now().UTC()
-	if err := c.dailySnapshot(ctx, now); err != nil {
+	if err := c.DailySnapshot(ctx, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.weeklyFootprint(ctx, now); err != nil {
+	if err := c.WeeklyFootprint(ctx, now); err != nil {
 		t.Fatal(err)
 	}
 	// Both snapshots are once only.
 	before = c.tracker.Snapshot().LastProgress
-	if err := c.weeklyFootprint(ctx, now); err != nil {
+	if err := c.WeeklyFootprint(ctx, now); err != nil {
 		t.Fatal(err)
 	}
 	if !c.tracker.Snapshot().LastProgress.Equal(*before) {

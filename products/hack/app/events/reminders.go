@@ -17,8 +17,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// Entry deadline reminders (entries slice 3, zx-hack-entry-reminders.sql).
-
 // QueueEntryReminders claims each due team once per reminder per deadline, then queues its members in the same transaction.
 func (s *Service) QueueEntryReminders(ctx context.Context) (written int64, firstErr error) {
 	due, err := eventrepo.DueEntryReminders(ctx, s.db)
@@ -80,19 +78,18 @@ func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder)
 	return n + 1, nil
 }
 
-// EntryEvaluator is the events service's small interface over the entries service (0003-hack-notices-judges-messages.sql: "like EntryEvaluator"), wired from hackhttp so this package never imports app/hack/entries directly.
+// EntryEvaluator is the events service's small interface over the entries service, wired from hackhttp so this package never imports app/hack/entries directly.
 type EntryEvaluator interface {
 	EvaluateEntryTx(context.Context, *sql.Tx, model.Event, model.TeamWriteState, string, model.EventEntry) (hackentries.Check, error)
 	UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error)
 	QueueCounts(ctx context.Context, ev model.Event, judgeID string) (total, unscored int, err error)
 }
 
-// reminderDetail is a queued reminder's stored detail.
 func reminderDetail(label string, deadline time.Time) string {
 	return label + "@" + deadline.UTC().Format(time.RFC3339)
 }
 
-// reminderOffsetStale reports whether a queued reminder.
+// reminderOffsetStale reports whether a queued reminder's offset no longer matches the current deadline.
 func reminderOffsetStale(offsets []int64, detail string, currentDeadline time.Time, remaining time.Duration) bool {
 	label, deadlineStr, hasDeadline := strings.Cut(detail, "@")
 	for _, o := range offsets {

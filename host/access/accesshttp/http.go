@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 
+	accounts "github.com/vsriram/simple-host/host/access"
+
 	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/sites/idempotency"
@@ -54,7 +56,7 @@ type AccessHandler struct {
 	// geoBlock gates a visitor's email-code sign-in on a site by the
 	// request's country (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See
 	// signupgeo.go.
-	geoBlock signupGeoBlock
+	geoBlock accounts.SignupGeoBlock
 
 	Pages             *web.AssetPipeline
 	pagesOnce         sync.Once

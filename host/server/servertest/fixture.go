@@ -1,8 +1,10 @@
 // Package servertest provides product-independent fixtures for the composed
 // server: Build and Config for the whole program, and NewPrivateApp (the
 // router as host/handler composes it, with people, sites and sessions) for
-// the end-to-end suites in accesstest, datatest and sitestest and for this
-// package's own cross-module tests.
+// the products' suites and this package's own few cross-module journeys.
+// One module's route tests do not belong here: they live in accesstest,
+// datatest and sitestest, which build that module's routes alone
+// (routetest), so a change to one module's routes reruns only its suite.
 package servertest
 
 import (

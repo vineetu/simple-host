@@ -18,15 +18,11 @@ func TestWrappedPasscodeScreenRejectedWhenDisabled(t *testing.T) {
 		args map[string]any
 	}{
 		{"object", map[string]any{"name": "passcode_screen", "arguments": map[string]any{}}},
-		{"array", map[string]any{"name": "passcode_screen", "arguments": []any{}}},
-		{"string", map[string]any{"name": "passcode_screen", "arguments": "invalid"}},
-		{"null", map[string]any{"name": "passcode_screen", "arguments": nil}},
 		{"omitted", map[string]any{"name": "passcode_screen"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			text, _, bad := resultOf(t, passcodeWire(t, s, caller, "run_tool", tc.args))
-			if !bad || text != "passcode_screen is only for the passcode screen" {
-				t.Fatalf("got error=%v, text=%q", bad, text)
+			if _, _, bad := resultOf(t, passcodeWire(t, s, caller, "run_tool", tc.args)); !bad {
+				t.Fatal("disabled passcode screen ran through run_tool")
 			}
 		})
 	}

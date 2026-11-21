@@ -2,10 +2,11 @@ package servertest
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/host/config"
 	"net/http"
 	"net/url"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/config"
 
 	"github.com/vsriram/simple-host/host/edition"
 )

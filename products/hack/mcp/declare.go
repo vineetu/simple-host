@@ -4,8 +4,7 @@ package hackmcp
 
 import "github.com/vsriram/simple-host/host/mcp"
 
-// decl is one tool as this package writes it: the listed fields, the
-// declaration options and the function that runs it.
+// decl is one tool as this package writes it.
 type decl struct {
 	Name, Title, Description               string
 	InputSchema, OutputSchema, Annotations map[string]any
@@ -29,7 +28,6 @@ func declare(decls []decl) []mcp.Tool {
 	return tools
 }
 
-// toolPolicy names the declaration options Hack's tools use.
 type toolPolicy struct {
 	memberResult, organiserResult                                        string
 	judgeParameter, includeEmails, recordsPins, screenshot, optionalBody bool

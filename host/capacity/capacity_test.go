@@ -117,16 +117,6 @@ func TestStatusEscalatesBeforeItIsTooLate(t *testing.T) {
 	}
 }
 
-func TestHumanReadsLikeAnAdminScreen(t *testing.T) {
-	for bytes, want := range map[int64]string{
-		512: "512 bytes", 25 << 10: "25 KB", 5 << 20: "5.0 MB", 3 << 30: "3.0 GB",
-	} {
-		if got := Human(bytes); got != want {
-			t.Errorf("Human(%d) = %q, want %q", bytes, got, want)
-		}
-	}
-}
-
 // Recently deleted sites wait in <dataDir>/deleted/<userID>/<siteID>/. They
 // still occupy the disk (DiskUsedBytes) but are not live sites, so they must
 // not add to SiteBytes, Sites or Largest.

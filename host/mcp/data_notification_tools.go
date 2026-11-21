@@ -62,7 +62,7 @@ func notificationTools() []Tool {
 			OutputSchema: outObject(map[string]any{"deleted": outBool("Whether the subscription was removed.")}, "deleted"),
 			Annotations:  writes(true, true, false),
 			run: func(c *call, args map[string]any) (output, error) {
-				path, err := notificationPath(c, args, true)
+				path, err := notificationPath(args, true)
 				if err != nil {
 					return output{}, err
 				}
@@ -76,7 +76,7 @@ func notificationTools() []Tool {
 }
 
 func listNotifications(c *call, args map[string]any) (output, error) {
-	path, err := notificationPath(c, args, false)
+	path, err := notificationPath(args, false)
 	if err != nil {
 		return output{}, err
 	}
@@ -94,11 +94,9 @@ func listNotifications(c *call, args map[string]any) (output, error) {
 	fields := notificationSchema()["properties"].(map[string]any)
 	notifications := make([]any, 0, len(body.Notifications))
 	for _, row := range body.Notifications {
-		// SIM-360 privacy guardrail: a web-push device's endpoint is personal
-		// data and must never reach AgentCat, which captures every MCP tool
-		// call's result. This tool lists webhook subscriptions; push devices
-		// are managed by GET/PUT .../push/devices and .../push/rules instead,
-		// neither of which is an MCP tool.
+		// A web-push device's endpoint is personal data and must never reach
+		// AgentCat, which captures every tool result; this tool lists
+		// webhook subscriptions only.
 		if kind, _ := row["kind"].(string); kind != "web-push" {
 			notifications = append(notifications, publicNotification(row, fields))
 		}
@@ -132,7 +130,7 @@ func publicNotification(row, declared map[string]any) map[string]any {
 	return item
 }
 
-func notificationPath(c *call, args map[string]any, required bool) (string, error) {
+func notificationPath(args map[string]any, required bool) (string, error) {
 	site := ""
 	if _, ok := args["site"]; ok || required {
 		var err error

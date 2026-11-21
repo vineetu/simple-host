@@ -28,7 +28,6 @@ func TeamMessage(stage, text string) (string, error) {
 	return messageText(text)
 }
 
-// messageText validates a message body.
 func messageText(s string) (string, error) {
 	v, e := eventapp.Text(s, "text", 1, 1000)
 	if e != nil {

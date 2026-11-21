@@ -4,7 +4,6 @@ package oauth
 
 import (
 	"context"
-	"strings"
 )
 
 // Identity is the stable provider user id plus a verified-email snapshot.
@@ -21,9 +20,4 @@ type Provider interface {
 	Name() string
 	AuthCodeURL(state, verifier string) string
 	Exchange(ctx context.Context, code, verifier string) (Identity, error)
-}
-
-// RedirectURI is {PUBLIC_BASE_URL}/v1/auth/oauth/{name}/callback.
-func RedirectURI(publicBaseURL, name string) string {
-	return strings.TrimRight(publicBaseURL, "/") + "/v1/auth/oauth/" + name + "/callback"
 }

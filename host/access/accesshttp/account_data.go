@@ -20,8 +20,7 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-// Download my data and Delete my account (GDPR self-service, owner decision
-// 2026-09-27).
+// Download my data and Delete my account (GDPR self-service).
 //
 //   GET    /v1/me/export.zip     one .zip of everything held about the
 //                                caller (/v1/me/export.tar.gz serves the same
@@ -73,7 +72,7 @@ func (h *AccessHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 	// Every site's lock first, then the account row: a deploy, rollback,
 	// rename or take-down in flight finishes before the erasure, and one that
 	// was waiting finds the site gone.
-	unlock, err := h.lockAccountSites(r.Context(), user.ID)
+	unlock, err := h.sitesSvc().LockAccountSites(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -98,16 +97,6 @@ func (h *AccessHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// lockAccountSites takes the per-site lock (site.go lockSite) of every site
-// the account has, live and Recently deleted, in the same sorted order rename
-// uses, and returns the func that releases them all. A rename that lands
-// between listing and locking changes the names, so the list is read again
-// under the locks and the locks retaken until it holds still (a few tries;
-// the account row lock in the erasure then stops anything new).
-func (h *AccessHandler) lockAccountSites(ctx context.Context, userID string) (func(), error) {
-	return h.sitesSvc().LockAccountSites(ctx, userID)
-}
-
 // eraseAccountFiles removes on disk what the account service removed from the
 // database. It runs after the commit, never before: the other order means a
 // commit failure leaves a live account whose content is gone. A failure here
@@ -122,13 +111,9 @@ func (h *AccessHandler) eraseAccountFiles(ctx context.Context, e model.ErasedAcc
 }
 
 // sweepOrphanTeamSites removes (to Recently deleted) any team site left
-// behind when EraseAccount deleted a team outright because the erased
-// account was its only member: the site itself lives on the event's
-// holding account, not this account, so DELETE FROM sites above never
-// touched it. Mirrors HackHandler.removeOrphanTeamSites; this handler
-// (not HackHandler) runs it because it already holds the site-trashing
-// capability itself (Grok security review, 2026-11-01). Logs and
-// continues on error, the same as the ordinary per-event sweep.
+// behind when the erase deleted a team whose only member was this account:
+// the site lives on the event's holding account, so the erase never touched
+// it. Logs and continues on error.
 func (h *AccessHandler) sweepOrphanTeamSites(ctx context.Context, ids []string) {
 	h.StoreAccounts().SweepErasedGroups(ctx, ids, h.SiteFiles.TrashTeamSite)
 }
@@ -170,8 +155,7 @@ func (h *AccessHandler) exportMe(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	// One .zip (owner decision 2026-09-27): it opens with a double click on
-	// every computer. The old .tar.gz address serves the same zip.
+	// One .zip: it opens with a double click on every computer. The old .tar.gz address serves the same zip.
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, a.root))
 	if err := h.writeAccountArchive(r.Context(), zip.NewWriter(w), a); err != nil {

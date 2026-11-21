@@ -40,7 +40,7 @@ type ErasedAccount struct {
 	// AffectedEventAccounts are the holding accounts of hosted events whose
 	// team this person admined and whose team row was deleted outright
 	// below (not kept): the caller sweeps orphan team sites for each, the
-	// same way leaveTeam does (Grok security review, 2026-11-01).
+	// same way leaveTeam does.
 	AffectedEventAccounts []string
 }
 

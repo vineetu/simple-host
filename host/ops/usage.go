@@ -42,7 +42,7 @@ const (
 // cause of a full disk, not so many that the admin screen becomes a file browser.
 const usageLargestSites = 10
 
-// get returns a reading of dataDir no older than the last change to it (gen,
+// Get returns a reading of dataDir no older than the last change to it (gen,
 // the DiskStorage change count now).
 func (c *UsageCache) Get(dataDir string, gen int64) (capacity.Usage, time.Time, error) {
 	c.mu.Lock()

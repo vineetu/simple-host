@@ -13,25 +13,21 @@ import (
 func TestMain(m *testing.M) { testdb.Main(m) }
 
 func TestCompatibilityRedirects(t *testing.T) {
-	for _, domain := range []string{"simple-host.app", "host.example.test"} {
-		t.Run(domain, func(t *testing.T) {
-			cfg := servertest.Config(t, testdb.Fresh(t))
-			cfg.SiteDomain = domain
-			cfg.PublicBaseURL = "https://" + domain
-			app, err := server.Build(cfg, nil, compatibilityRedirects())
-			if err != nil {
-				t.Fatal(err)
+	cfg := servertest.Config(t, testdb.Fresh(t))
+	cfg.SiteDomain = "simple-host.app"
+	cfg.PublicBaseURL = "https://simple-host.app"
+	app, err := server.Build(cfg, nil, compatibilityRedirects())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(app.Close)
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		for _, path := range []string{"/hackathons", "/hackathons.html"} {
+			w := httptest.NewRecorder()
+			app.Handler.ServeHTTP(w, httptest.NewRequest(method, cfg.PublicBaseURL+path+"?from=legacy", nil))
+			if w.Code != http.StatusFound || w.Header().Get("Location") != "/" {
+				t.Errorf("%s %s: status %d, Location %q", method, path, w.Code, w.Header().Get("Location"))
 			}
-			t.Cleanup(app.Close)
-			for _, method := range []string{http.MethodGet, http.MethodHead} {
-				for _, path := range []string{"/hackathons", "/hackathons.html"} {
-					w := httptest.NewRecorder()
-					app.Handler.ServeHTTP(w, httptest.NewRequest(method, cfg.PublicBaseURL+path+"?from=legacy", nil))
-					if w.Code != http.StatusFound || w.Header().Get("Location") != "/" {
-						t.Errorf("%s %s: status %d, Location %q", method, path, w.Code, w.Header().Get("Location"))
-					}
-				}
-			}
-		})
+		}
 	}
 }

@@ -11,11 +11,10 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
-	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Per-person addresses (owner decision 2026-09-25).
+// Per-person addresses.
 //
 // Every account's handle is also a host: <handle>.<SITE_DOMAIN>. Its root is
 // the person's page (their public sites), and each site lives under it at
@@ -29,21 +28,12 @@ import (
 // address handed out is still the path URL) or canonical (person hosts answer
 // and are the address handed out everywhere).
 
-type personHostMode = appsites.HostMode
-
-const (
-	personHostsOff       = appsites.HostsOff
-	personHostsServe     = appsites.HostsServe
-	personHostsCanonical = appsites.HostsCanonical
-)
-
 // SiteURL is the address handed out for a site: the person address in
 // canonical mode, else the path URL on the content host. "" without a handle.
 func (h *SiteHandler) SiteURL(handle, name string) string {
 	return h.Hosts.Addressing().SiteURL(handle, name)
 }
 
-// PersonPageURL is the address of an account's public page.
 func (h *SiteHandler) PersonPageURL(handle string) string {
 	return h.Hosts.Addressing().PersonPageURL(handle)
 }
@@ -65,14 +55,14 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, err := h.siteFacts().GetUserByHandle(r.Context(), label)
+		user, err := h.storeAccounts().GetUserByHandle(r.Context(), label)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("person host %s: %v", host, err)
 				h.renderServiceError(w, r)
 				return
 			}
-			if current, aerr := h.siteFacts().ResolveHandleAlias(r.Context(), label); aerr == nil && sites.HandleAddressable(current) {
+			if current, aerr := h.storeAccounts().ResolveHandleAlias(r.Context(), label); aerr == nil && sites.HandleAddressable(current) {
 				http.Redirect(w, r, "https://"+h.Hosts.Addressing().PersonHostOn(current, base)+r.URL.RequestURI(), http.StatusMovedPermanently)
 				return
 			}
@@ -91,7 +81,6 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 	})
 }
 
-// servePersonHost answers a non-API request on a person host under base.
 func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, user model.User, base string) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
@@ -117,7 +106,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	site, err := h.siteFacts().AddressedSite(r.Context(), user.ID, seg)
+	site, err := h.SitesSvc().AddressedSite(r.Context(), user.ID, seg)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			h.renderServiceError(w, r)
@@ -150,7 +139,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 		h.servePreview(w, r, site, strings.TrimPrefix(tail, web.PreviewPathSegment+"/"), "/"+site.Name+"/"+web.PreviewPathSegment+"/")
 		return
 	}
-	if appsites.ContentHostOnly(handle, site.Name) {
+	if sites.ContentHostOnly(handle, site.Name) {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, h.contentBaseURL()+"/"+handle+"/"+site.Name+"/"+escTail+query, http.StatusFound)
 		return
@@ -173,8 +162,6 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	h.ServeSiteFileRel(w, r, site.UserID, site.Name, "/"+rel)
 }
 
-// renderPersonNotFound is the branded 404 for a miss on a person host, with
-// the way back to that person's page.
 func (h *SiteHandler) renderPersonNotFound(w http.ResponseWriter, r *http.Request, handle string) {
 	h.renderNotFoundPage(w, r,
 		"That page isn’t here",
@@ -219,7 +206,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	user, err := h.siteFacts().GetUserByHandleOrAlias(r.Context(), handle)
+	user, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
 	if err != nil {
 		h.RenderNotFound(w, r, "/"+handle)
 		return
@@ -238,7 +225,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		return
 	}
 	rest := "/" + strings.TrimPrefix(r.PathValue("rest"), "/")
-	site, err := h.siteFacts().AddressedSite(r.Context(), user.ID, name)
+	site, err := h.SitesSvc().AddressedSite(r.Context(), user.ID, name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// An old name of a renamed site: its current address.

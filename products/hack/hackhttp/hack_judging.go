@@ -14,10 +14,7 @@ import (
 
 func paperHackTimes(r *http.Request) { paperRecorder(r.Context()).HackPhasesChanged(r.Context()) }
 
-// Judging setup: the rubric, how judges are spread, conflicts, and the
-// organiser's dashboard. Scoring, the lock itself, publishing and results
-// are the next pass. The lock column is already checked here so a locked
-// event cannot have its rubric rewritten out from under stored scores.
+// Judging setup: the rubric, how judges are spread, conflicts, and the organiser's dashboard. The lock column is checked here so a locked event cannot have its rubric rewritten out from under stored scores.
 
 func rubricJSON(items []model.RubricCriterion) map[string]any {
 	out := make([]map[string]any, 0, len(items))
@@ -35,9 +32,7 @@ func rubricJSON(items []model.RubricCriterion) map[string]any {
 }
 
 func (h *judgingHTTP) getRubric(w http.ResponseWriter, r *http.Request) {
-	// Teams can see the rubric (2026-11-02, audit item 1): an approved participant
-	// reads the same criteria judges and organisers do -- names, descriptions,
-	// weights and max points, never a score.
+	// Teams can see the rubric: an approved participant reads the same criteria judges and organisers do -- names, descriptions, weights and max points, never a score.
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser", "judge", "participant")
 	if !ok {
 		return
@@ -138,7 +133,6 @@ func (h *judgingHTTP) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	h.writeJudgingSettings(w, r, ev)
 }
 
-// poolSiteLive is siteLiveCheck in the shape the judging pool asks it.
 func (h *siteLinks) poolSiteLive(ctx context.Context, ev model.Event) func(model.NamedTeam) (bool, error) {
 	live := h.siteLiveCheck(ctx, ev)
 	return func(t model.NamedTeam) (bool, error) { return live(t.ID, t.Slug) }
@@ -218,10 +212,7 @@ func conflictJSON(c entryapp.EventConflict) map[string]any {
 		"team_id":     c.TeamID,
 		"team_name":   c.TeamName,
 		"declared_by": c.DeclaredBy,
-		// had_score (Codex review, Grok retest 3 Cosmetic #4): whether the
-		// judge already has score rows for this team -- the judge-queue
-		// undo dialog uses this directly instead of probing
-		// .../judge/scores/{team}, which 403s for a conflicted team.
+		// had_score: whether the judge already has score rows for this team; the judge-queue undo dialog uses it instead of probing .../judge/scores/{team}, which 403s for a conflicted team.
 		"had_score": c.HadScore,
 	}
 }
@@ -285,7 +276,6 @@ func (h *judgingHTTP) deleteConflict(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// conflictCaller is the caller of a conflict route.
 func conflictCaller(a hackAccess) entryapp.ConflictCaller {
 	return entryapp.ConflictCaller{UserID: a.user.ID, Organiser: a.member.Role == "organiser"}
 }
@@ -295,7 +285,7 @@ func (h *judgingHTTP) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// TODO(4.1): This prospective pool includes unsettled entries and live sites; the queue requires judgeable entries.
+	// TODO: this prospective pool includes unsettled entries and live sites; the queue requires judgeable entries.
 	d, err := h.entries.JudgingDashboard(r.Context(), a.event, h.links.poolSiteLive(r.Context(), a.event))
 	if err != nil {
 		writeHackError(w, err)
@@ -304,7 +294,6 @@ func (h *judgingHTTP) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, dashboardJSON(d))
 }
 
-// dashboardJSON is the judging dashboard's body.
 func dashboardJSON(d entryapp.Dashboard) map[string]any {
 	teams := make([]map[string]any, 0, len(d.Teams))
 	for _, t := range d.Teams {
@@ -325,9 +314,7 @@ func dashboardJSON(d entryapp.Dashboard) map[string]any {
 	}
 }
 
-// deleteFormerJudgeScores handles removal at
-// .../judging/former-judges/{user_id} (SIM-340): an organiser dropping a
-// departed judge's scores so they stop counting.
+// deleteFormerJudgeScores drops a departed judge's scores so they stop counting (.../judging/former-judges/{user_id}).
 func (h *judgingHTTP) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
@@ -338,10 +325,7 @@ func (h *judgingHTTP) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 		httpx.WriteError(w, http.StatusNotFound, "former_judge_not_found", "former judge not found")
 		return
 	}
-	// Destructive, like delete-event and leave's close:"delete" (Grok
-	// security review, SIM-340): confirm must repeat the event's address
-	// name, so an agent or a stray retry can't drop a judge's scores without
-	// the person having agreed to exactly this event.
+	// Destructive, like delete-event and leave's close:"delete": confirm must repeat the event's address name, so an agent or a stray retry can't drop a judge's scores without the person having agreed to exactly this event.
 	var req struct {
 		Confirm string `json:"confirm"`
 	}
@@ -359,8 +343,6 @@ func (h *judgingHTTP) deleteFormerJudgeScores(w http.ResponseWriter, r *http.Req
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-
-// --- M3 pass 2: scoring, lock/unlock, publish, results, exports ----------
 
 func (h *judgingHTTP) judgingLockRemoved(w http.ResponseWriter, r *http.Request) {
 	if _, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser"); !ok {

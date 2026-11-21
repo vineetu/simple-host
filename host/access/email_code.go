@@ -63,6 +63,19 @@ type HandleActions struct {
 
 const maxCodeAttempts = 3
 
+// IssueEmailCode normalizes the address and sends a challenge. The email
+// carries a sign-in link only for a dashboard request that sent a nonce hash
+// (the link then works only in the browser holding that nonce); otherwise it
+// carries the code alone.
+//
+// ip and geoBlock gate every request, new address or existing: when the
+// request's country is on SIGNUP_BLOCKED_COUNTRIES, no code is ever sent and
+// no auth_token row is created — there is no "does this address already have
+// an account" check first (deliberately: that lookup is itself the thing a
+// probe could use to enumerate addresses, and the owner decided a blanket
+// refusal is simpler and sufficient). geoBlock's zero value (the default,
+// feature off) never looks anything up, so this is a no-op for every caller
+// until the knob is set.
 func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow func(string) bool, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock SignupGeoBlock, authTTL time.Duration, enabled bool, messages CodeMessages, handles HandleActions) (string, int, int, CodeFailure) {
 	if !enabled {
 		return "", 0, http.StatusForbidden, messages.Off

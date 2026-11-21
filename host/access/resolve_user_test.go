@@ -11,6 +11,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/host/access/repo"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 func TestRedactEmail(t *testing.T) {
@@ -267,7 +268,7 @@ func TestCreateAccountsCaseVariantDoesNotAbortBatch(t *testing.T) {
 // handle lands, so a real assign is required, not a no-op. The account's
 // own id (always unique, always lowercase hex at its first 8 characters) is
 // a cheap valid, collision-free handle.
-func testAssignHandle(ctx context.Context, q AttributionStore, id, _ string, _ bool) {
+func testAssignHandle(ctx context.Context, q sqlkit.Querier, id, _ string, _ bool) {
 	n := 8
 	if len(id) < n {
 		n = len(id)

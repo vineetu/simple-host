@@ -9,7 +9,6 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 )
 
-// writePreparationError retains each upload route's error shape and precedence.
 func (h *SiteHandler) writePreparationError(w http.ResponseWriter, err error, limit int64, archive bool) {
 	var e *sites.UploadError
 	if !errors.As(err, &e) {

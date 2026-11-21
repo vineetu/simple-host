@@ -3,7 +3,6 @@ package servertest
 import (
 	"context"
 	"encoding/hex"
-	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/config"

@@ -9,10 +9,8 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// TeamMessage aliases the shared model record (0003-hack-notices-judges-messages.sql).
 type TeamMessage = model.TeamMessage
 
-// InsertTeamMessage writes one event_team_messages row: the durable history.
 func InsertTeamMessage(ctx context.Context, q sqlkit.Querier, eventID, teamID, senderID, senderName, body string, fromTeam bool) (TeamMessage, error) {
 	var sender sql.NullString
 	if senderID != "" {
@@ -27,7 +25,6 @@ func InsertTeamMessage(ctx context.Context, q sqlkit.Querier, eventID, teamID, s
 	return m, err
 }
 
-// ListTeamMessages is one team's message history, newest first, at most limit rows.
 func ListTeamMessages(ctx context.Context, q sqlkit.Querier, teamID string, limit int) ([]TeamMessage, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT id, event_id, team_id, sender_id, sender_name, body, created_at, from_team
@@ -67,13 +64,11 @@ func CountRecentTeamInbound(ctx context.Context, q sqlkit.Querier, teamID string
 	return n, oldest, err
 }
 
-// InboundTeam is one team with messages the organiser has not opened yet.
 type InboundTeam struct {
 	TeamSlug, TeamName, Latest string
 	Count                      int
 }
 
-// ListInboundTeams lists the teams whose messages to the organisers this organiser has not read.
 func ListInboundTeams(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]InboundTeam, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.slug, t.name, g.n,

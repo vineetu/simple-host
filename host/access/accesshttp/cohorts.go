@@ -16,7 +16,7 @@ import (
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Sign-ups by source (admin only, INTENT 2026-10-15): every account is put in
+// Sign-ups by source (admin only): every account is put in
 // one group from its signup_source, the Overview counts them, and a group
 // opens to the accounts in it with what each did after joining.
 

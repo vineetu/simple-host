@@ -9,16 +9,15 @@ import (
 	"unicode/utf8"
 )
 
-// ValidationError describes a rejected field.
 type ValidationError struct{ Code, Message string }
 
 var trackSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$`)
 
-// TrackSlug reports whether a track or question slug is valid.
 func TrackSlug(s string) bool { return trackSlug.MatchString(s) }
-func text(s, field string, min, max int) (string, *ValidationError) {
+
+func Text(s, field string, min, max int) (string, *ValidationError) {
 	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
+	if HasBadControls(s) {
 		return "", &ValidationError{"invalid_" + field, field + " contains characters that are not allowed"}
 	}
 	n := utf8.RuneCountInString(s)
@@ -31,25 +30,17 @@ func text(s, field string, min, max int) (string, *ValidationError) {
 	return s, nil
 }
 
-// line rejects line breaks, collapses runs of spaces and requires visible content.
-func line(s, field string, min, max int) (string, *ValidationError) {
+func Line(s, field string, min, max int) (string, *ValidationError) {
 	if strings.ContainsAny(strings.TrimSpace(s), "\n\r\t\u0085\u2028\u2029") {
 		return "", &ValidationError{"invalid_" + field, field + " must be one line"}
 	}
 	s = strings.Join(strings.Fields(s), " ")
-	if min > 0 && !hasVisible(s) {
+	if min > 0 && !HasVisible(s) {
 		return "", &ValidationError{"invalid_" + field, field + " is required"}
 	}
-	return text(s, field, min, max)
+	return Text(s, field, min, max)
 }
 
-// Text validates and normalizes a text field.
-func Text(s, field string, min, max int) (string, *ValidationError) { return text(s, field, min, max) }
-
-// Line validates and normalizes a single-line field.
-func Line(s, field string, min, max int) (string, *ValidationError) { return line(s, field, min, max) }
-
-// Questions validates and normalizes sign-up questions.
 func Questions(in []model.SignupQuestion) ([]model.SignupQuestion, *ValidationError) {
 	if len(in) > 8 {
 		return nil, &ValidationError{"too_many_questions", "up to eight sign-up questions are allowed"}
@@ -65,7 +56,7 @@ func Questions(in []model.SignupQuestion) ([]model.SignupQuestion, *ValidationEr
 			return nil, &ValidationError{"invalid_question_id", "question ids must be unique lowercase names"}
 		}
 		seen[id] = true
-		prompt, e := line(q.Prompt, "question", 1, 160)
+		prompt, e := Line(q.Prompt, "question", 1, 160)
 		if e != nil {
 			return nil, e
 		}
@@ -74,7 +65,6 @@ func Questions(in []model.SignupQuestion) ([]model.SignupQuestion, *ValidationEr
 	return out, nil
 }
 
-// Tracks validates and normalizes event tracks.
 func Tracks(in []model.EventTrack) ([]model.EventTrack, *ValidationError) {
 	if len(in) > 12 {
 		return nil, &ValidationError{"too_many_tracks", "up to twelve tracks are allowed"}
@@ -87,15 +77,15 @@ func Tracks(in []model.EventTrack) ([]model.EventTrack, *ValidationError) {
 			return nil, &ValidationError{"invalid_track_slug", "track " + t.Name + ": slug must be a unique lowercase name up to 80 characters"}
 		}
 		seen[slug] = true
-		name, e := line(t.Name, "track_name", 1, 80)
+		name, e := Line(t.Name, "track_name", 1, 80)
 		if e != nil {
 			return nil, e
 		}
-		challenge, e := text(t.Challenge, "challenge", 0, 3000)
+		challenge, e := Text(t.Challenge, "challenge", 0, 3000)
 		if e != nil {
 			return nil, e
 		}
-		prize, e := text(t.Prize, "track_prize", 0, 1000)
+		prize, e := Text(t.Prize, "track_prize", 0, 1000)
 		if e != nil {
 			return nil, e
 		}
@@ -104,8 +94,8 @@ func Tracks(in []model.EventTrack) ([]model.EventTrack, *ValidationError) {
 	return out, nil
 }
 
-// hasBadControls rejects bidi controls that can disguise text, while retaining joiners, direction marks, soft hyphens and emoji tags needed by real text.
-func hasBadControls(s string) bool {
+// HasBadControls reports controls that can disguise text (bidi overrides, zero-width space, BOM); joiners, direction marks, soft hyphens and emoji tags stay allowed.
+func HasBadControls(s string) bool {
 	for _, r := range s {
 		if r == '\n' || r == '\t' {
 			continue
@@ -121,8 +111,8 @@ func hasBadControls(s string) bool {
 	return false
 }
 
-// hasVisible: s has at least one character that shows (not only spaces, marks or blank-looking letters such as the Hangul filler).
-func hasVisible(s string) bool {
+// HasVisible reports whether s has at least one character that shows (not only spaces, marks or blank-looking letters such as the Hangul filler).
+func HasVisible(s string) bool {
 	for _, r := range s {
 		switch r {
 		case 0x3164, 0x115F, 0x1160, 0xFFA0, 0x2800, 0x180E:

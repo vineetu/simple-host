@@ -1,6 +1,12 @@
 package server
 
-import "github.com/vsriram/simple-host/host/extension"
+import (
+	"database/sql"
+	"fmt"
+	"os"
+
+	"github.com/vsriram/simple-host/host/extension"
+)
 
 type command struct {
 	name string
@@ -23,4 +29,20 @@ func commands(exts []*extension.Extension) []command {
 		{"version", versionCommand},
 		{"--version", versionCommand},
 	}
+}
+
+// openCommandDB opens DB_DSN for a command; on failure it has said why and
+// returns nil and the command's exit code.
+func openCommandDB() (*sql.DB, int) {
+	dsn := os.Getenv("DB_DSN")
+	if dsn == "" {
+		fmt.Fprintln(os.Stderr, "DB_DSN is not set")
+		return nil, 2
+	}
+	database, err := sql.Open("postgres", dsn)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "open postgres:", err)
+		return nil, 1
+	}
+	return database, 0
 }

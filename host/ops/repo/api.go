@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/lib/pq"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"log"
 	"time"
 )
@@ -99,9 +100,7 @@ func APISummary(ctx context.Context, database *sql.DB, retention int) (APIAnalyt
 	return out, nil
 }
 
-func FlushAPIIP(ctx context.Context, q interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, ip string, calls int64, lastRoute string) (sql.Result, error) {
+func FlushAPIIP(ctx context.Context, q sqlkit.Querier, ip string, calls int64, lastRoute string) (sql.Result, error) {
 	return q.ExecContext(ctx, `
 			INSERT INTO api_ip_daily (day, ip, calls, last_route, last_seen)
 			VALUES (CURRENT_DATE, $1, $2, $3, now())
@@ -111,34 +110,26 @@ func FlushAPIIP(ctx context.Context, q interface {
 				last_seen = now()`, ip, calls, lastRoute)
 }
 
-func FlushAPISelf(ctx context.Context, q interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, route string, status int, calls int64) (sql.Result, error) {
+func FlushAPISelf(ctx context.Context, q sqlkit.Querier, route string, status int, calls int64) (sql.Result, error) {
 	return q.ExecContext(ctx, `
 			INSERT INTO api_self_daily (day, route, status, calls)
 			VALUES (CURRENT_DATE, $1, $2, $3)
 			ON CONFLICT (day, route, status) DO UPDATE SET calls = api_self_daily.calls + EXCLUDED.calls`, route, status, calls)
 }
 
-func FlushAPIRoute(ctx context.Context, q interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, route string, status int, calls int64) (sql.Result, error) {
+func FlushAPIRoute(ctx context.Context, q sqlkit.Querier, route string, status int, calls int64) (sql.Result, error) {
 	return q.ExecContext(ctx, `
 			INSERT INTO api_request_daily (day, route, status, calls)
 			VALUES (CURRENT_DATE, $1, $2, $3)
 			ON CONFLICT (day, route, status) DO UPDATE SET calls = api_request_daily.calls + EXCLUDED.calls`, route, status, calls)
 }
 
-func PruneAPI(ctx context.Context, q interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, kind string, days int) (sql.Result, error) {
+func PruneAPI(ctx context.Context, q sqlkit.Querier, kind string, days int) (sql.Result, error) {
 	queries := map[string]string{"requests": `DELETE FROM api_request_daily WHERE day < CURRENT_DATE - $1::int`, "ips": `DELETE FROM api_ip_daily WHERE day < CURRENT_DATE - $1::int`, "self": `DELETE FROM api_self_daily WHERE day < CURRENT_DATE - $1::int`, "growth": `DELETE FROM api_growth_daily WHERE day < CURRENT_DATE - $1::int`}
 	return q.ExecContext(ctx, queries[kind], days)
 }
 
-func FlushGrowth(ctx context.Context, q interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, day string, dims, keys []string, calls []int64) error {
+func FlushGrowth(ctx context.Context, q sqlkit.Querier, day string, dims, keys []string, calls []int64) error {
 	dayExpr := "CURRENT_DATE"
 	args := []any{pq.Array(dims), pq.Array(keys), pq.Array(calls)}
 	if day != "" {

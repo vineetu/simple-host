@@ -16,9 +16,8 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-// publicSitesBase reconstructs the scheme://host the browser reached the content
-// host on (e.g. https://sites.simple-host.app), used to build site + showcase
-// links. Behind nginx, Host is preserved and X-Forwarded-Proto carries scheme.
+// publicSitesBase reconstructs the scheme://host the browser reached the content host on. Behind nginx,
+// Host is preserved and X-Forwarded-Proto carries the scheme.
 func (h *SiteHandler) publicSitesBase(r *http.Request) string {
 	scheme := r.Header.Get("X-Forwarded-Proto")
 	if scheme == "" {
@@ -39,10 +38,9 @@ func (h *SiteHandler) mainSiteURL() string {
 	return "https://" + d
 }
 
-// showcase renders a user's public profile at sites.<domain>/<handle>. nginx
-// proxies the single-segment path here as GET /internal/showcase/{handle}. The
-// server always renders the PUBLIC view (safe default); the page hydrates into
-// the owner view client-side when a matching same-origin API key is present.
+// showcase renders a user's public profile at sites.<domain>/<handle> (nginx proxies it here as
+// GET /internal/showcase/{handle}). Always the PUBLIC view; the page hydrates into the owner view
+// client-side when a matching same-origin API key is present.
 func (h *SiteHandler) Showcase(w http.ResponseWriter, r *http.Request) {
 	handle := strings.ToLower(strings.TrimSpace(r.PathValue("handle")))
 	if h.redirectHandleAlias(w, r, handle) {
@@ -70,9 +68,7 @@ func (h *SiteHandler) Showcase(w http.ResponseWriter, r *http.Request) {
 	h.renderShowcase(w, r, handle)
 }
 
-// redirectHandleAlias: handle is an old handle kept as an alias (the account
-// changed its address), so /<old> 302s to /<current> on the same host — the
-// owner app on the base origin, the showcase on the content host.
+// redirectHandleAlias: handle is an old handle kept as an alias, so /<old> 302s to /<current> on the same host.
 func (h *SiteHandler) redirectHandleAlias(w http.ResponseWriter, r *http.Request, handle string) bool {
 	if !sites.ShowcaseHandle(handle) {
 		return false
@@ -94,17 +90,12 @@ func (h *SiteHandler) redirectHandleAlias(w http.ResponseWriter, r *http.Request
 	return true
 }
 
-// OwnerAppOrStatic serves the per-user OWNER APP on the base origin
-// (<domain>/<handle>) when the single path segment resolves to a real handle,
-// otherwise falls through to the static file server (landing page, docs, install
-// page, assets, SPA). The page it renders hydrates into the full owner dashboard
-// client-side, because on the base origin the API key is already in localStorage
-// from login — no paste, no redirect. The cheap dot/charset filter means the DB
-// lookup only fires for handle-shaped paths, never for a static asset request.
+// OwnerAppOrStatic serves the per-user OWNER APP on the base origin (<domain>/<handle>) when the single path
+// segment resolves to a real handle, otherwise falls through to the static file server. The cheap dot/charset
+// filter keeps the DB lookup off static-asset requests.
 func (h *SiteHandler) OwnerAppOrStatic(fileServer http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seg := strings.Trim(r.URL.Path, "/")
-		// The hackathon platform has no person pages (hack_mode.go).
 		if seg != "" && !h.Ed.Routes().HostedEvents && !strings.ContainsAny(seg, "/.") &&
 			sites.ShowcaseHandle(strings.ToLower(seg)) {
 			if _, err := h.storeAccounts().GetUserByHandle(r.Context(), strings.ToLower(seg)); err == nil {
@@ -119,10 +110,8 @@ func (h *SiteHandler) OwnerAppOrStatic(fileServer http.Handler) http.Handler {
 	})
 }
 
-// contentBaseURL is the absolute base for user site + showcase links — always the
-// content host (sites.<domain>), regardless of which origin served the page, so
-// the rendered links are correct whether it came from the base app or the
-// content host.
+// contentBaseURL is the absolute base for user site and showcase links: always the content host,
+// whichever origin served the page.
 func (h *SiteHandler) contentBaseURL() string {
 	host := h.ContentHost
 	if host == "" {
@@ -131,9 +120,8 @@ func (h *SiteHandler) contentBaseURL() string {
 	return "https://" + host
 }
 
-// renderShowcase renders the per-user showcase for `handle`. Same output on both
-// origins (all links absolute): served on the content host it's the public,
-// read-only view; served on the base app it hydrates into the owner dashboard.
+// renderShowcase renders the per-user showcase for handle: public read-only view on the content host,
+// hydrates into the owner dashboard on the base app.
 func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, handle string) {
 	if handle == "" || !sites.ShowcaseHandle(handle) {
 		h.RenderNotFound(w, r, "/"+handle)
@@ -156,7 +144,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	page, err := h.Pipeline().ShowcasePage(h.Pipeline().ChromeDataFor(r, h.chromeBase(r)), data)
+	page, err := h.Pages().ShowcasePage(h.Pages().ChromeDataFor(r, h.chromeBase(r)), data)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
@@ -169,7 +157,6 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 	_, _ = w.Write(httpx.StampNonce(r, page))
 }
 
-// publicShowcaseData is the single public projection used by HTML and the JSON feed.
 func (h *SiteHandler) publicShowcaseData(ctx context.Context, user model.User) (web.ShowcaseData, error) {
 	sites, err := h.SitesSvc().ListSitesByUser(ctx, user.ID)
 	if err != nil {
@@ -263,7 +250,6 @@ func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	// Every spelling/host uses the user ID.
 	if h.ShowcaseLimiter != nil && !h.ShowcaseLimiter.Allow("showcase:"+user.ID+":"+httpx.ClientIP(r)) {
 		httpx.TooManyRequests(w)
 		return
@@ -294,10 +280,8 @@ func (h *SiteHandler) NotFound(w http.ResponseWriter, r *http.Request) {
 	h.RenderNotFound(w, r, orig)
 }
 
-// renamedContentPath: uri (a content-host request URI, escaped, with any
-// query) is /<handle>/<name>/... where name is an old name of one of that
-// person's renamed sites and no site has it now. Returns the site's current
-// address with the rest of the path and the query.
+// renamedContentPath: uri is /<handle>/<name>/... where name is an old name of one of that person's
+// renamed sites and no site has it now. Returns the site's current address with the rest of the path and query.
 func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (string, bool) {
 	p, query, hasQuery := strings.Cut(uri, "?")
 	parts := strings.SplitN(strings.TrimPrefix(p, "/"), "/", 3)
@@ -305,11 +289,11 @@ func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (strin
 		return "", false
 	}
 	handle, name := strings.ToLower(parts[0]), parts[1]
-	user, err := h.siteFacts().ContentPathOwner(ctx, handle, name)
+	user, err := h.SitesSvc().ContentPathOwner(ctx, handle, name)
 	if err != nil {
 		return "", false
 	}
-	if _, err := h.siteFacts().AddressedSite(ctx, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
+	if _, err := h.SitesSvc().AddressedSite(ctx, user.ID, name); !errors.Is(err, sql.ErrNoRows) {
 		return "", false // a real site (a missing file), or a lookup error
 	}
 	rest := ""
@@ -326,10 +310,8 @@ func (h *SiteHandler) renamedContentPath(ctx context.Context, uri string) (strin
 	return target, true
 }
 
-// RenderNotFound serves the branded 404. If the first path segment is a real
-// handle, the back-link points at that user's showcase (owner's stated
-// priority); otherwise it points at the main page. Only regex-validated handles
-// that resolve to a real user are ever echoed back into the page.
+// RenderNotFound serves the branded 404. If the first path segment is a real handle the back-link points at
+// that user's showcase, else the main page. Only regex-validated handles that resolve to a real user are echoed.
 func (h *SiteHandler) RenderNotFound(w http.ResponseWriter, r *http.Request, origPath string) {
 	if i := strings.IndexByte(origPath, '?'); i >= 0 {
 		origPath = origPath[:i]
@@ -350,14 +332,14 @@ func (h *SiteHandler) RenderNotFound(w http.ResponseWriter, r *http.Request, ori
 	// must stay byte-identical there. A self-hosted install has no business
 	// sending anyone to simple-host.app, so it names itself instead.
 	backLabel := "Go to simple-host.app"
-	if h.Pipeline().HostedOwner() == "" {
+	if h.Pages().HostedOwner() == "" {
 		backLabel = "Go to " + h.SiteDomain
 	}
 
 	if len(segs) >= 1 {
 		handle := strings.ToLower(segs[0])
 		if sites.ShowcaseHandle(handle) {
-			if _, err := h.siteFacts().GetUserByHandle(r.Context(), handle); err == nil {
+			if _, err := h.storeAccounts().GetUserByHandle(r.Context(), handle); err == nil {
 				message = "That page isn’t here"
 				subtext = "This site or page doesn’t exist under @" + handle + "."
 				backURL = h.PersonPageURL(handle)
@@ -372,7 +354,6 @@ func (h *SiteHandler) RenderNotFound(w http.ResponseWriter, r *http.Request, ori
 	h.renderNotFoundPage(w, r, message, subtext, backURL, backLabel)
 }
 
-// renderNotFoundPage writes the branded 404 with the given words and way back.
 func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request, message, subtext, backURL, backLabel string) {
 	w.Header().Add("Vary", "Accept")
 	if httpx.AcceptsMarkdown(r) {
@@ -381,23 +362,17 @@ func (h *SiteHandler) renderNotFoundPage(w http.ResponseWriter, r *http.Request,
 		_, _ = w.Write([]byte("# 404: Page not found\n\nThe page you requested does not exist.\n"))
 		return
 	}
-	h.renderMessagePage(w, r, http.StatusNotFound, message, subtext, backURL, backLabel)
+	// message and subtext are inserted as given: escape anything that did not
+	// come from this code.
+	h.Pages().WriteMessagePage(w, r, h.chromeBase(r), http.StatusNotFound, message, subtext, backURL, backLabel, "")
 }
 
-// renderMessagePage is the branded one-message page (the not-found page's
-// layout) with any status. message and subtext are inserted as given: escape
-// anything that did not come from this code.
-func (h *SiteHandler) renderMessagePage(w http.ResponseWriter, r *http.Request, status int, message, subtext, backURL, backLabel string) {
-	h.Pipeline().WriteMessagePage(w, r, h.chromeBase(r), status, message, subtext, backURL, backLabel, "")
-}
-
-// RenderServiceErrorForTest is renderServiceError, exported as a test hook
-// (cleanup 3.2 slice 3): the moved hack_ink_browser_test.go (an opt-in
-// Playwright rehearsal fixture) mounts it at a debug path.
+// RenderServiceErrorForTest is renderServiceError, exported for a
+// cross-package browser fixture.
 func (h *SiteHandler) RenderServiceErrorForTest(w http.ResponseWriter, r *http.Request) {
 	h.renderServiceError(w, r)
 }
 
 func (h *SiteHandler) renderServiceError(w http.ResponseWriter, r *http.Request) {
-	web.RenderServiceErrorPage(w, r, h.Pipeline())
+	web.RenderServiceErrorPage(w, r, h.Pages())
 }

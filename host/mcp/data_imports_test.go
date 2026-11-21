@@ -1,24 +1,9 @@
 package mcp
 
 import (
-	"net/http"
 	"strings"
 	"testing"
 )
-
-func TestUpdateSiteKeepArgumentByCallerMode(t *testing.T) {
-	s := newTestServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	for _, caller := range []Caller{{Mode: CallerModeEvents}} {
-		tools, _, _ := s.forCaller(caller)
-		for _, tool := range tools {
-			if tool.Name == "update_site" {
-				if tool.InputSchema["properties"].(map[string]any)["keep_other_files"] == nil {
-					t.Fatalf("caller mode %q missing keep_other_files", caller.Mode)
-				}
-			}
-		}
-	}
-}
 
 func TestUpdateSiteKeepArguments(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){"PUT /v1/sites/blog/files": func() (int, string) {

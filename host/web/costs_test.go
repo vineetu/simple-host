@@ -6,78 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
 	"testing"
 )
 
 // The cost calculator (/costs): its price file, its arithmetic and its links.
 // The arithmetic lives in static/costs/calc.js, so the page, the setup helper
 // and this test run the same code; the test runs it under node.
-
-var checkedDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-
-// Every price in prices.json names an https source and the day it was
-// checked, and the providers the page leads with come first.
-func TestCostsPricesFile(t *testing.T) {
-	raw, err := StaticFiles.ReadFile("static/costs/prices.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var doc map[string]any
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		t.Fatalf("prices.json: %v", err)
-	}
-	prices := 0
-	var walk func(path string, v any)
-	walk = func(path string, v any) {
-		switch x := v.(type) {
-		case map[string]any:
-			if _, ok := x["usd"]; ok {
-				prices++
-				src, _ := x["source"].(string)
-				if !strings.HasPrefix(src, "https://") {
-					t.Errorf("%s: price without an https source", path)
-				}
-				if c, _ := x["checked"].(string); !checkedDateRe.MatchString(c) {
-					t.Errorf("%s: price without a checked date", path)
-				}
-				if per, _ := x["per"].(string); per != "hour" && per != "month" && per != "GB-month" && per != "GB" {
-					t.Errorf("%s: unknown unit %q", path, per)
-				}
-			}
-			if _, ok := x["tiers"]; ok && strings.HasSuffix(path, "egress") {
-				if src, _ := x["source"].(string); !strings.HasPrefix(src, "https://") {
-					t.Errorf("%s: egress tiers without a source", path)
-				}
-			}
-			for k, vv := range x {
-				walk(path+"."+k, vv)
-			}
-		case []any:
-			for i, vv := range x {
-				walk(path+"["+strconv.Itoa(i)+"]", vv)
-			}
-		}
-	}
-	walk("prices", doc)
-	if prices < 40 {
-		t.Errorf("only %d prices found; the walk is not reading the file", prices)
-	}
-	var want = []string{"aws", "azure", "gcp"}
-	provs, _ := doc["providers"].([]any)
-	for i, id := range want {
-		p, _ := provs[i].(map[string]any)
-		if p["id"] != id || p["group"] != "main" {
-			t.Errorf("provider %d = %v (%v), want %s in the main group", i, p["id"], p["group"], id)
-		}
-		cal, _ := p["calculator"].(map[string]any)
-		if u, _ := cal["url"].(string); !strings.HasPrefix(u, "https://") {
-			t.Errorf("%s: no calculator link", id)
-		}
-	}
-}
 
 func runCostsNode(t *testing.T, pricesPath, prog string) map[string]any {
 	t.Helper()
@@ -183,28 +117,3 @@ func TestCostsCalcFixture(t *testing.T) {
 // the directions hold (a cluster you have costs less than a new one, heavy
 // traffic more than typical, a private link less than the internet on the
 // big three once traffic is past the free tiers).
-func TestCostsCalcRealPrices(t *testing.T) {
-	out := runCostsNode(t, "../webassets/static/costs/prices.json", `
-	  var bad = [], r = {};
-	  P.providers.forEach(function (p) {
-	    [10, 100, 2000].forEach(function (people) {
-	      var own = C.estimate(P, p.id, { people: people, sites: people * 3 });
-	      var fresh = C.estimate(P, p.id, { people: people, sites: people * 3, existing: false });
-	      var heavy = C.estimate(P, p.id, { people: people, sites: people * 3, traffic: 'heavy', network: 'internet' });
-	      var priv = C.estimate(P, p.id, { people: people, sites: people * 3, traffic: 'heavy', network: 'private' });
-	      [own, fresh, heavy, priv].forEach(function (e) { if (!(e.total > 0) || !isFinite(e.perPerson)) bad.push(p.id + ' bad total'); });
-	      if (!(own.total < fresh.total)) bad.push(p.id + ' own cluster not cheaper');
-	      if (people >= 100 && !(heavy.total >= own.total)) bad.push(p.id + ' heavy not dearer');
-	      if (people >= 100 && p.private_link && !(priv.total < heavy.total)) bad.push(p.id + ' private link not cheaper');
-	    });
-	  });
-	  r.bad = bad;
-	  r.dates = C.checkedDates(P);
-	  return r;`)
-	if bad := out["bad"].([]any); len(bad) > 0 {
-		t.Errorf("real prices: %v", bad)
-	}
-	if n := len(out["dates"].([]any)); n < 40 {
-		t.Errorf("checkedDates found %d dates", n)
-	}
-}

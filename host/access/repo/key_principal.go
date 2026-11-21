@@ -39,9 +39,3 @@ func KeyPrincipal(ctx context.Context, db Querier, apiKey string) (User, *time.T
 	)
 	return user, expiresAt, idleFrom, lastUsed, now, err
 }
-
-func StoredKeyScope(ctx context.Context, q Querier, apiKey string) (string, error) {
-	var scope string
-	err := q.QueryRowContext(ctx, `SELECT scope FROM api_keys WHERE key_hash = $1`, HashAPIKey(apiKey)).Scan(&scope)
-	return scope, err
-}

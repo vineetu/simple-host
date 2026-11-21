@@ -70,7 +70,7 @@ func TestZPHackApplicationsMigratesPreExistingRows(t *testing.T) {
 	set := composed()
 	db := openTestDB(t)
 	ctx := context.Background()
-	if _, err := set.Init(ctx, db, nil); err != nil {
+	if _, err := lockedInit(ctx, set, db); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,7 +117,7 @@ func TestZPHackApplicationsMigratesPreExistingRows(t *testing.T) {
 		db.Exec(`DELETE FROM users WHERE id IN ($1, $2)`, accountID, memberID)
 	})
 
-	if _, err := set.Apply(ctx, db, nil); err != nil {
+	if _, err := lockedApply(ctx, set, db); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestZPHackApplicationsMigratesPreExistingRows(t *testing.T) {
 	}
 
 	// The file is idempotent and now recorded: a second run is a no-op.
-	if ran, err := set.Apply(ctx, db, nil); err != nil || len(ran) != 0 {
+	if ran, err := lockedApply(ctx, set, db); err != nil || len(ran) != 0 {
 		t.Errorf("second run: ran %v, err %v; want a no-op", ran, err)
 	}
 }
@@ -176,7 +176,7 @@ func TestUpgradeFromHackV0813(t *testing.T) {
 		catalog := set
 		catalog.Platform.Schema = setup.schema
 		catalog.Product = nil
-		built, err := catalog.Init(ctx, setup.db, nil)
+		built, err := lockedInit(ctx, catalog, setup.db)
 		if err != nil || !built {
 			t.Fatalf("Init: built %v: %v", built, err)
 		}
@@ -190,7 +190,7 @@ func TestUpgradeFromHackV0813(t *testing.T) {
 	}
 	saved := set
 	set = migrations.Set{Platform: migrations.Catalog{FS: filtered, Legacy: hackmigrations.ProductOrder}}
-	if ran, err := set.Apply(ctx, old, nil); err != nil || len(ran) != len(recorded) {
+	if ran, err := lockedApply(ctx, set, old); err != nil || len(ran) != len(recorded) {
 		t.Fatalf("release Apply ran %v: %v", ran, err)
 	}
 	set = saved
@@ -200,14 +200,14 @@ func TestUpgradeFromHackV0813(t *testing.T) {
 			want = append(want, n)
 		}
 	}
-	ran, err := set.Apply(ctx, old, nil)
+	ran, err := lockedApply(ctx, set, old)
 	if err != nil {
 		t.Fatalf("upgrade applied %v: %v", ran, err)
 	}
 	if !reflect.DeepEqual(ran, want) {
 		t.Errorf("upgrade applied %v; want %v", ran, want)
 	}
-	if _, err := set.Apply(ctx, fresh, nil); err != nil {
+	if _, err := lockedApply(ctx, set, fresh); err != nil {
 		t.Fatalf("fresh Apply: %v", err)
 	}
 	queries := map[string]string{
@@ -253,4 +253,21 @@ func TestUpgradeFromHackV0813(t *testing.T) {
 	if len(diffs) > 0 {
 		t.Errorf("schema differences:\n%s", strings.Join(diffs, "\n"))
 	}
+}
+
+// lockedApply and lockedInit run ApplyConn and InitConn under the migration lock.
+func lockedApply(ctx context.Context, s migrations.Set, db *sql.DB) (ran []string, err error) {
+	err = migrations.WithLock(ctx, db, func(conn *sql.Conn) (e error) {
+		ran, e = s.ApplyConn(ctx, conn, nil)
+		return e
+	})
+	return ran, err
+}
+
+func lockedInit(ctx context.Context, s migrations.Set, db *sql.DB) (built bool, err error) {
+	err = migrations.WithLock(ctx, db, func(conn *sql.Conn) (e error) {
+		built, e = s.InitConn(ctx, conn, "", nil)
+		return e
+	})
+	return built, err
 }

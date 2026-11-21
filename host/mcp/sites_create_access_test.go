@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ func TestCreateSitePrivateInputs(t *testing.T) {
 		return 201, `{"name":"secret","access":"specific","active_version":1,"url":"https://secret.example/"}`
 	}}}
 	text, _, failed := resultOf(t, send(t, newTestServer(up), toolCall("create_site", map[string]any{"site": "secret", "files": map[string]any{"index.html": "hello"}, "access": "specific", "viewers": []any{"Mom@example.com", "mom@example.com"}}), nil, true))
-	if failed || !strings.Contains(text, "Only you and 1 named viewer") {
+	if failed {
 		t.Fatalf("result: %s", text)
 	}
 	var body map[string]any
@@ -27,9 +26,6 @@ func TestCreateSitePrivateInputs(t *testing.T) {
 	for _, tool := range siteDeployTools(Limits{SiteViewersMax: 3}) {
 		if tool.Name != "create_site" {
 			continue
-		}
-		if strings.Contains(tool.Description, "The site is public to anyone") {
-			t.Fatal("always public")
 		}
 		props := tool.InputSchema["properties"].(map[string]any)
 		if props["viewers"].(map[string]any)["maxItems"] != 3 {

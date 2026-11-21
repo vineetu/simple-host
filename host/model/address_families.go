@@ -53,8 +53,6 @@ type FamilyCheck struct {
 	ReleaseAt    sql.NullTime
 }
 
-func (f AddressFamily) Verified() bool { return f.VerifiedAt.Valid }
-
 var (
 	// ErrFamilyTaken: another account holds the name (a verified family
 	// that overlaps it, or a custom domain under it).

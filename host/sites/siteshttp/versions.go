@@ -22,9 +22,6 @@ func init() {
 	}
 }
 
-// pruneThreshold returns the lowest version number to keep, and whether there
-// is anything to remove at all.
-//
 // The active version is never a candidate, which matters after a rollback: an
 // instance keeping one version whose active is v3 out of v10 must not delete
 // v4 through v10, because active is below them. It keeps more than asked for
@@ -46,21 +43,9 @@ func pruneThreshold(activeVersion, keep int) (keepFrom int, ok bool) {
 // not a quota; the bound only keeps a typo from reading as "keep forever".
 const maxSiteKeepVersions = 1000
 
-// effectiveKeepVersions is the retention that applies to one site: its own
-// setting (sites.keep_versions) when it has one, else the instance's
-// KEEP_VERSIONS. 0 means keep every version.
-func effectiveKeepVersions(siteKeep int) int {
-	return sites.EffectiveKeepVersions(siteKeep, web.DefaultKeepVersions)
-}
-
-// setKeepVersions sets how many deploys of one site are kept and applies it at
-// once, through the same prune a deploy runs.
-//
-// PUT /v1/sites/{sitename}/keep-versions  {"keep_versions": N}
-//
-// 0 returns the site to the instance setting (KEEP_VERSIONS); N >= 1 keeps the
-// newest N plus always the live one. Lowering it deletes older versions for
-// good, which is why a deploy-only key cannot call it (auth/scope.go).
+// setKeepVersions (PUT /v1/sites/{sitename}/keep-versions) sets how many deploys of one site are kept and prunes
+// at once. 0 returns the site to the instance setting; N >= 1 keeps the newest N plus the live one. Lowering it
+// deletes older versions for good, which is why a deploy-only key cannot call it (auth/scope.go).
 func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -103,9 +88,8 @@ func (h *SiteHandler) setKeepVersions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// versionAuthor reads ?author= on a deploy route (sites.VersionAuthor); "" when
-// the deploy did not say. A team member's deploy that names no author
-// is credited to the member's handle, so the team sees who published it.
+// versionAuthor reads ?author= on a deploy route; a team member's deploy that names none is credited to
+// the member's handle so the team sees who published it.
 func versionAuthor(r *http.Request) string {
 	s := sites.VersionAuthor(r.URL.Query().Get("author"))
 	if u := auth.GetUser(r.Context()); s == "" && u != nil && u.Member != nil {
@@ -114,8 +98,6 @@ func versionAuthor(r *http.Request) string {
 	return s
 }
 
-// pendingParam reads ?pending= on the version list: 1, true or yes narrows it
-// to versions stored with publish=false that nobody has made live.
 func pendingParam(r *http.Request) bool {
 	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("pending"))) {
 	case "1", "true", "yes":
@@ -124,16 +106,10 @@ func pendingParam(r *http.Request) bool {
 	return false
 }
 
-// discardVersion discards one version a deploy stored with publish=false and
-// nobody has made live since: its files go, and its row stays as a tombstone
-// (status 'discarded') so the number is never handed to a later deploy.
-//
-// DELETE /v1/sites/{sitename}/versions/{version}
-//
-// The live version and any version that has been live are refused (409):
-// those leave through retention (keep_versions), never by hand. A deploy-only
-// key or a site editor cannot call this (auth/scope.go lists neither route). The admin
-// mirror DELETE /v1/admin/sites/{id}/versions/{version} runs the same handler.
+// discardVersion (DELETE /v1/sites/{sitename}/versions/{version}) discards a version stored with publish=false
+// that nobody has made live: its files go and its row stays as a tombstone (status 'discarded') so the number is
+// never reused. The live version and any that has been live are refused (409): those leave through retention.
+// A deploy-only key or site editor cannot call it (auth/scope.go). The admin mirror runs the same handler.
 func (h *SiteHandler) discardVersion(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {

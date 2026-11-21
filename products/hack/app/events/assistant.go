@@ -19,10 +19,9 @@ import (
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
-// AssistantMaxTokens is the max_tokens sent with every assistant request.
 const AssistantMaxTokens = 800
 
-// Caps on how much of the event view and the docs text are embedded in the system prompt (SIM-394 API contract).
+// Caps on how much of the event view and the docs text are embedded in the system prompt.
 const (
 	assistantEventViewCapBytes = 24 * 1024
 	assistantDocsCapBytes      = 16 * 1024
@@ -33,7 +32,6 @@ type AssistantLLM interface {
 	Stream(ctx context.Context, messages []llm.Message, onDelta func(string)) (llm.Usage, error)
 }
 
-// ChatMessage is one request message.
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -42,7 +40,7 @@ type ChatMessage struct {
 // DocsTextFunc returns the pre-built, already-capped DOCS block (each page as "## [<title>](<url>)" plus its extracted text).
 type DocsTextFunc func() string
 
-// AssistantConfig is the SIM-394 assistant's settings (host/config ASSISTANT_* env vars), threaded through from cmd/server.
+// AssistantConfig holds the assistant's settings (ASSISTANT_* env vars), threaded through from cmd/server.
 type AssistantConfig struct {
 	BaseURL               string
 	Model                 string
@@ -63,7 +61,6 @@ type AssistantService struct {
 	enabled  bool
 }
 
-// NewAssistant builds the service.
 func NewAssistant(database *sql.DB, llmClient AssistantLLM, cfg AssistantConfig, docsText DocsTextFunc) *AssistantService {
 	return &AssistantService{
 		db:       database,
@@ -74,10 +71,8 @@ func NewAssistant(database *sql.DB, llmClient AssistantLLM, cfg AssistantConfig,
 	}
 }
 
-// Enabled reports whether the assistant is configured on this instance.
 func (s *AssistantService) Enabled() bool { return s.enabled }
 
-// AssistantStatus is the GET /v1/hack/events/{slug}/assistant payload.
 type AssistantStatus struct {
 	Enabled        bool
 	DailyLimit     int
@@ -88,7 +83,7 @@ type AssistantStatus struct {
 	Resets string
 }
 
-// AssistantRefusal is every way Ask.
+// AssistantRefusal is every way Ask can refuse.
 type AssistantRefusal struct {
 	Code    string
 	Message string
@@ -99,7 +94,7 @@ type AssistantRefusal struct {
 
 func (e *AssistantRefusal) Error() string { return e.Message }
 
-// errAssistantEmptyAnswer is logged.
+// errAssistantEmptyAnswer is only logged.
 var errAssistantEmptyAnswer = errors.New("stream succeeded but produced no non-whitespace content")
 
 func assistantDay(t time.Time) time.Time {
@@ -120,7 +115,6 @@ func usdToMicro(usd float64) int64 {
 	return int64(math.Round(usd * 1_000_000))
 }
 
-// Status builds the GET payload for userID (an organiser; the HTTP layer has already checked that).
 func (s *AssistantService) Status(ctx context.Context, userID string) (AssistantStatus, error) {
 	if !s.enabled {
 		return AssistantStatus{Enabled: false}, nil
@@ -150,12 +144,10 @@ func (s *AssistantService) Status(ctx context.Context, userID string) (Assistant
 	}, nil
 }
 
-// AskResult is Ask's successful outcome (the "done" SSE event's payload).
 type AskResult struct {
 	RemainingToday int
 }
 
-// assistantMaxTurnRunes is the per-message cap, in runes.
 const (
 	assistantMaxTurnRunes  = 2000
 	assistantMaxTotalRunes = 12000
@@ -192,7 +184,6 @@ func validateAssistantMessages(messages []ChatMessage) *AssistantRefusal {
 	return nil
 }
 
-// truncateRunes returns s cut to at most max runes (not bytes), leaving it unchanged when it is already within the limit.
 func truncateRunes(s string, max int) string {
 	if utf8.RuneCountInString(s) <= max {
 		return s
@@ -201,7 +192,7 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max])
 }
 
-// AskContext is everything about the asking organiser's event and screen that the prompt is built from (organiser assistant v2, 2026-11-09).
+// AskContext is everything about the asking organiser's event and screen that the prompt is built from.
 type AskContext struct {
 	Slug      string
 	CanJudge  bool
@@ -211,7 +202,6 @@ type AskContext struct {
 	Tab       string
 }
 
-// buildSystemPrompt assembles the whole system prompt.
 func (s *AssistantService) buildSystemPrompt(in AskContext, now time.Time) string {
 	var b strings.Builder
 	b.WriteString(assistantPromptRules)
@@ -239,7 +229,6 @@ func (s *AssistantService) buildSystemPrompt(in AskContext, now time.Time) strin
 	return b.String()
 }
 
-// assistantPlaces lists every organiser link.
 func assistantPlaces(nav rules.NavigationMap, slug string, canJudge bool) string {
 	var b strings.Builder
 	seen := make(map[string]bool)
@@ -258,7 +247,6 @@ func assistantPlaces(nav rules.NavigationMap, slug string, canJudge bool) string
 	return b.String()
 }
 
-// capText cuts s to at most n bytes, marking the cut.
 func capText(s string, n int) string {
 	if len(s) > n {
 		return s[:n] + "...(truncated)"
@@ -266,7 +254,6 @@ func capText(s string, n int) string {
 	return s
 }
 
-// assistantKnowledge renders every explanation record with its link.
 func assistantKnowledge(slug string) string {
 	assistantKnowledgeOnce.Do(func() {
 		var b strings.Builder
@@ -357,15 +344,12 @@ func estimateTokens(byteLen int) int {
 	return byteLen / 3
 }
 
-// assistantTypicalPromptBytes is a fixed stand-in for a whole system prompt.
 const assistantTypicalPromptBytes = 64 * 1024
 
-// minReserveMicro is the smallest reservation a real question could need.
 func (s *AssistantService) minReserveMicro() int64 {
 	return s.costMicro(estimateTokens(assistantTypicalPromptBytes), AssistantMaxTokens)
 }
 
-// costMicro prices a request in micro-dollars from its input and output token counts at the configured per-million-token prices.
 func (s *AssistantService) costMicro(inputTokens, outputTokens int) int64 {
 	return int64(math.Round(float64(inputTokens)*s.cfg.PriceInputPerMTokUSD + float64(outputTokens)*s.cfg.PriceOutputPerMTokUSD))
 }
@@ -402,7 +386,7 @@ func (s *AssistantService) Ask(ctx context.Context, userID string, in AskContext
 	defer cancel()
 
 	if streamErr != nil {
-		// A client cancel (the request context is done.
+		// Log only provider failures, not a client cancel (request context done).
 		if ctx.Err() == nil {
 			log.Printf("hack: assistant provider: %v", streamErr)
 			if answer.Len() == 0 {
@@ -429,7 +413,6 @@ func (s *AssistantService) Ask(ctx context.Context, userID string, in AskContext
 	return AskResult{RemainingToday: max(s.cfg.DailyQuestions-usedToday, 0)}, nil
 }
 
-// assistantConversation prefixes the system prompt to the organiser's turns and returns the provider messages with their total content bytes.
 func assistantConversation(systemPrompt string, messages []ChatMessage) ([]llm.Message, int) {
 	full := []llm.Message{{Role: "system", Content: systemPrompt}}
 	inputBytes := len(systemPrompt)
@@ -459,7 +442,6 @@ func (s *AssistantService) reserveRefusal(err error, now time.Time) error {
 	return err
 }
 
-// settle moves this month's ledger from the reservation to the provider's reported cost.
 func (s *AssistantService) settle(ctx context.Context, month time.Time, usage llm.Usage, reserveMicro int64) {
 	if usage.PromptTokens <= 0 && usage.CompletionTokens <= 0 {
 		return

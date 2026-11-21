@@ -1,4 +1,3 @@
-// famHackEvents supplies the Hack identity tool used by personal connections.
 package hackmcp
 
 import (
@@ -7,9 +6,9 @@ import (
 	"net/http"
 )
 
-// hackWhoAmITool is who_am_i on Simple Hack. A person there owns no sites of
-// their own, so it names the signed-in person, never a personal site
-// address: their team's site is published with owner set to the event.
+// hackWhoAmITool is who_am_i on Simple Hack. A person owns no sites there, so it
+// names the signed-in person, never a site address (the team site is published
+// with owner set to the event).
 func hackWhoAmITool() mcp.Tool {
 	return decl{
 		Name:        "who_am_i",

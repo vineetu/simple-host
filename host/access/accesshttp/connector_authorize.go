@@ -18,7 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/host/access/auth"
+	authrules "github.com/vsriram/simple-host/host/access/rules"
+
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 )
@@ -123,7 +125,7 @@ func (h *ConnectorHandler) authorizeClient(ctx context.Context, q url.Values) (m
 // The redirect URI tells us which app it was; the client ID itself may be
 // anything the person typed (an email), so only its shape is logged.
 func unknownClientError(clientID, redirect string) *authzError {
-	museHelp := redirect == MuseRedirectURI || !(strings.HasPrefix(clientID, prefixClient) || strings.Contains(clientID, "://"))
+	museHelp := redirect == MuseRedirectURI || !(strings.HasPrefix(clientID, accounts.PrefixClient) || strings.Contains(clientID, "://"))
 	log.Printf("connector: unknown client_id (%s) redirect_uri=%q", clientIDShape(clientID), truncate(redirect, 300))
 	if museHelp {
 		return &authzError{code: "invalid_client", museHelp: true, museTypo: museKeyboardMangled(clientID), description: "The Client ID entered in the app is not one Simple Host knows."}
@@ -155,7 +157,7 @@ func pkceProblem(challenge, method string, required bool) string {
 		return "PKCE is required: send code_challenge with code_challenge_method=S256"
 	case challenge != "" && method != "S256":
 		return "only code_challenge_method=S256 is supported"
-	case challenge != "" && !validPKCEValue(challenge):
+	case challenge != "" && !accounts.ValidPKCEValue(challenge):
 		return "code_challenge is malformed"
 	}
 	return ""
@@ -166,9 +168,9 @@ func pkceProblem(challenge, method string, required bool) string {
 // stays "sites": clients already ask for that, and the consent page chooses.
 func (h *ConnectorHandler) scopesSupported() []string {
 	if h.teamConnections {
-		return []string{auth.OAuthScope, auth.GroupManagementScope}
+		return []string{authrules.OAuthScope, authrules.GroupManagementScope}
 	}
-	return []string{auth.OAuthScope}
+	return []string{authrules.OAuthScope}
 }
 
 // redirectWith builds the redirect back to the app, keeping any query the
@@ -306,18 +308,6 @@ func (h *ConnectorHandler) SetTeamConnections(on bool) { h.teamConnections = on 
 // SetSignInAlerts shares the sign-in alert sender (UserHandler.SignInAlerts).
 func (h *ConnectorHandler) SetSignInAlerts(a *SignInAlerts) { h.alerts = a }
 
-// connectedAppName is how a sign-in alert names the app: the name it
-// registered with (self-declared, so the alert quotes it).
-func connectedAppName(name string) string { return httpx.CleanClientName(name) }
-
-// ResolveConsentUserForTest is resolveConsentUser, exported as a test hook
-// (cleanup 3.2 slice 3): the moved hack_m2_test.go
-// (TestHackM2ConnectorBoundToTeam) checks that a team key fails consent
-// resolution.
-func (h *ConnectorHandler) ResolveConsentUserForTest(ctx context.Context, key string) (model.User, int, string) {
-	return h.resolveConsentUser(ctx, key)
-}
-
 // resolveConsentUser authenticates the person deciding, by the API key the
 // sign-in on this page (or the dashboard) left in the browser.
 func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (model.User, int, string) {
@@ -338,8 +328,7 @@ func (h *ConnectorHandler) resolveConsentUser(ctx context.Context, key string) (
 		return model.User{}, http.StatusInternalServerError, "internal server error"
 	}
 	// The built-in admin-key account is not a person and never connects an
-	// app. A person who happens to be an admin connects like anyone else
-	// (owner decision 2026-09-24).
+	// app. A person who happens to be an admin connects like anyone else.
 	if user.Username == "admin" {
 		return model.User{}, http.StatusForbidden, "This account cannot connect apps. Sign in with a personal account."
 	}
@@ -379,7 +368,7 @@ func (h *ConnectorHandler) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("connector: consent user_id=%s client_id=%s", user.ID, req.Client.ClientID)
-	h.alerts.Alert(user.ID, r.UserAgent(), connectedAppName(req.Client.Name))
+	h.alerts.Alert(user.ID, r.UserAgent(), httpx.CleanClientName(req.Client.Name))
 	httpx.WriteJSON(w, http.StatusOK, map[string]string{"redirect_to": h.redirectWith(req.RedirectURI, map[string]string{"code": code, "state": req.State})})
 }
 
@@ -434,20 +423,20 @@ func (h *ConnectorHandler) consentRequest(w http.ResponseWriter, r *http.Request
 // asked to reload the current consent page.
 func (h *ConnectorHandler) consentScope(w http.ResponseWriter, body consentDecision) (string, bool) {
 	if !h.teamConnections {
-		return auth.OAuthScope, true
+		return authrules.OAuthScope, true
 	}
 	if body.Mode != "" || body.TeamID != "" {
 		httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: "The connection options changed. Reload this page and allow again.", Code: "consent_updated"})
 		return "", false
 	}
-	return auth.OAuthScope + " " + auth.GroupManagementScope, true
+	return authrules.OAuthScope + " " + authrules.GroupManagementScope, true
 }
 
 // mintAuthorizationCode is the only place an authorization code is minted:
 // for this request, this person and scope, short-lived.
 func (h *ConnectorHandler) mintAuthorizationCode(r *http.Request, req authzRequest, user model.User, scope string) (string, error) {
-	code := randomToken(prefixCode, 32)
-	err := h.accountsSvc().InsertOAuthCode(r.Context(), HashSecret(code), model.OAuthCode{
+	code := accounts.RandomToken(accounts.PrefixCode, 32)
+	err := h.accountsSvc().InsertOAuthCode(r.Context(), accounts.HashSecret(code), model.OAuthCode{
 		ClientID:      req.Client.ClientID,
 		UserID:        user.ID,
 		RedirectURI:   req.RedirectURI,

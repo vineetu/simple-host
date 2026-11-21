@@ -2,14 +2,12 @@ package access
 
 import (
 	"context"
+	"time"
+
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
-	"time"
 )
 
-func (s *Service) InsertVisitorSession(ctx context.Context, id []byte, userID, siteID, host string, expiresAt, idleExpiresAt time.Time) (bool, error) {
-	return repo.InsertVisitorSession(ctx, s.database, id, userID, siteID, host, expiresAt, idleExpiresAt)
-}
 func (s *Service) ActivateVisitorSession(ctx context.Context, id []byte, ttl, idle time.Duration) (bool, error) {
 	return repo.ActivateVisitorSession(ctx, s.database, id, ttl, idle)
 }

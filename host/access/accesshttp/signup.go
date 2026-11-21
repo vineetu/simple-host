@@ -11,6 +11,7 @@ import (
 	accounts "github.com/vsriram/simple-host/host/access"
 	httpx "github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -22,16 +23,10 @@ import (
 // signupAgentMax bounds the agent name kept for an API sign-up.
 const signupAgentMax = 40
 
-// recordSignup stores s for a just-created account. A failure is logged and
-// never fails the sign-in: the label is not worth refusing a person over.
-func recordSignup(ctx context.Context, q accountQuerier, userID string, s model.Signup) {
-	accounts.RecordSignup(ctx, q, userID, s)
-}
-
 // signupForVerify says where an account created by POST /v1/auth/verify came
 // from: the /mcp consent page (it names the app's client_id), one of the
 // site's own pages (a same-site browser request), or an agent calling the API.
-func signupForVerify(ctx context.Context, q accountQuerier, r *http.Request, publicBaseURL, clientID string, viaLink bool) model.Signup {
+func signupForVerify(ctx context.Context, q sqlkit.Querier, r *http.Request, publicBaseURL, clientID string, viaLink bool) model.Signup {
 	method := model.SignupMethodEmail
 	if clientID = strings.TrimSpace(clientID); clientID != "" {
 		if s, ok := connectorSignup(ctx, q, clientID, method); ok {
@@ -45,14 +40,14 @@ func signupForVerify(ctx context.Context, q accountQuerier, r *http.Request, pub
 }
 
 // connectorSignup names the app registered as clientID.
-func connectorSignup(ctx context.Context, q accountQuerier, clientID, method string) (model.Signup, bool) {
+func connectorSignup(ctx context.Context, q sqlkit.Querier, clientID, method string) (model.Signup, bool) {
 	return accounts.SignupForClient(ctx, q, clientID, method, httpx.CleanClientName)
 }
 
 // SignupForOwnerReturnTo says where a Google or GitHub sign-up that started on one of
 // the site's pages came from: the consent page (/oauth/authorize, whose query
 // names the app) or anywhere else on the site.
-func SignupForOwnerReturnTo(ctx context.Context, q accountQuerier, r *http.Request, returnTo, provider string) model.Signup {
+func SignupForOwnerReturnTo(ctx context.Context, q sqlkit.Querier, r *http.Request, returnTo, provider string) model.Signup {
 	// The callback query belongs to the identity provider. Attribution travels
 	// only in the return URL saved with the existing OAuth state.
 	r = r.Clone(ctx)

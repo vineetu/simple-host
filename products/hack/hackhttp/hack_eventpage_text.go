@@ -4,15 +4,13 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 
-// hackEventLocation loads the event's IANA zone, falling back to UTC (and
-// reporting "UTC" as the fallback name) when it is empty or invalid.
+// hackEventLocation loads the event's IANA zone, falling back to UTC when it is empty or invalid.
 func hackEventLocation(zone string) (*time.Location, string) {
 	loc, err := time.LoadLocation(zone)
 	if err != nil || loc == nil {
@@ -27,10 +25,7 @@ func hackEventLocation(zone string) (*time.Location, string) {
 
 var hackNumericZoneRe = regexp.MustCompile(`^[+-]\d`)
 
-// hackZoneAbbrFamiliar is the same fixed map ui.zoneAbbr (host/handler/
-// static/hack/ui.js) and the vote page's own copy of it use -- kept in step by
-// hand, since Go's tzdata and Intl don't always agree on which zones get a real
-// short code.
+// hackZoneAbbrFamiliar is the same fixed map as ui.zoneAbbr (host/handler/static/hack/ui.js) and the vote page's copy; keep in step by hand, since Go's tzdata and Intl disagree on which zones get a short code.
 var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Jakarta": "WIB", "Asia/Pontianak": "WIB",
 	"Asia/Makassar":  "WITA",
@@ -41,8 +36,7 @@ var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Kolkata":   "IST", "Asia/Calcutta": "IST",
 }
 
-// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"), the
-// way tech_notes asks for ("times in WIB").
+// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT").
 func hackZoneAbbr(t time.Time, ianaFallback string) string {
 	abbr, offsetSeconds := t.Zone()
 	if abbr != "" && !hackNumericZoneRe.MatchString(abbr) {
@@ -54,8 +48,7 @@ func hackZoneAbbr(t time.Time, ianaFallback string) string {
 	return hackGMTOffsetLabel(offsetSeconds)
 }
 
-// hackGMTOffsetLabel formats a UTC offset in seconds as "GMT", "GMT+9" or
-// "GMT+5:30" -- the same shape ui.zoneAbbr's gmtOffsetLabel builds.
+// hackGMTOffsetLabel formats a UTC offset in seconds as "GMT", "GMT+9" or "GMT+5:30".
 func hackGMTOffsetLabel(offsetSeconds int) string {
 	if offsetSeconds == 0 {
 		return "GMT"
@@ -84,10 +77,7 @@ func hackEventDateRange(starts, ends time.Time, loc *time.Location) string {
 	if start.IsZero() && end.IsZero() {
 		return ""
 	}
-	// events.Midnight is the same local-midnight check the fixed-row classifier
-	// uses (hack_schedule.go hackFixedSchedule, via events.Midnight): hour, minute
-	// AND second, so a stray 00:00:30 doesn't read as date-only here while the
-	// classifier disagrees.
+	// events.Midnight is the same local-midnight check the fixed-row classifier uses: hour, minute AND second, so a stray 00:00:30 doesn't read as date-only here while the classifier disagrees.
 	startDateOnly := start.IsZero() || events.Midnight(start, loc)
 	endDateOnly := end.IsZero() || events.Midnight(end, loc)
 	if !startDateOnly || !endDateOnly {
@@ -131,11 +121,7 @@ func hackDateRange(a, b time.Time) string {
 	return a.Format("2 January 2006") + "–" + b.Format("2 January 2006")
 }
 
-// hackScheduleViews sorts rows by start time (Grok re-test cosmetic #4: rows
-// used to list in whatever order the organiser entered them, so "Demos" could
-// print above "Kickoff" and the Next badge landed on the wrong row), marks
-// Now/Next, and shows the end date too when an item spans more than one day
-// (tech_notes/fixes: "Multi-day schedule items showed only the end time").
+// hackScheduleViews sorts rows by start time, marks Now/Next, and shows the end date too when an item spans more than one day.
 func hackScheduleViews(items []hackScheduleItem, fixed []hackFixedRow, loc *time.Location, zoneFallback string) []hackScheduleView {
 	rows := hackTimedRows(items, fixed, loc)
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].sortAt.Before(rows[j].sortAt) })
@@ -190,8 +176,7 @@ func hackScheduleWhen(r hackTimedRow, loc *time.Location, zoneFallback string) s
 	return ls.Format("Mon 2 Jan 3:04 pm") + " – " + le.Format("Mon 2 Jan 3:04 pm") + " " + abbr
 }
 
-// hackCountdownText is the server-rendered, non-live value the countdown
-// script enhances in place (tech_notes: "the date alone without it").
+// hackCountdownText is the server-rendered, non-live value the countdown script enhances in place.
 func hackCountdownText(now, deadline time.Time) string {
 	if !now.Before(deadline) {
 		return "Entries are closed."
@@ -219,19 +204,7 @@ func hackPlural(n int, unit string) string {
 	return fmt.Sprintf("%d %ss", n, unit)
 }
 
-// hackScoreText formats a score for display: full precision (two decimals,
-// matching the data everywhere else stores it), with trailing zeros trimmed so
-// "100.00" reads "100" and "42.50" reads "42.5" (Grok SIM-346 Part B
-// hack-event.html item 4) -- but, after review #8, never rounded to fewer
-// decimals than it actually has: "81.25" must stay "81.25", not become "81.3"
-// or "81.2".
-func hackScoreText(score float64) string {
-	return trimScoreZeros(strconv.FormatFloat(score, 'f', 2, 64))
-}
-
-// trimScoreZeros trims trailing zeros (then a bare trailing ".") off an
-// already-formatted decimal string, for display -- it never rounds, so it
-// can't drop a real digit the way reformatting at fewer decimal places can.
+// trimScoreZeros trims trailing zeros and a bare trailing "." from a formatted decimal; it never rounds.
 func trimScoreZeros(s string) string {
 	if s == "" || !strings.Contains(s, ".") {
 		return s
@@ -240,9 +213,7 @@ func trimScoreZeros(s string) string {
 	return strings.TrimSuffix(s, ".")
 }
 
-// hackInitials is one or two upper-case letters for an avatar with no image:
-// the first letter of up to the first two words, or just the first letter of
-// a single word.
+// hackInitials is the first letter of up to the first two words of name.
 func hackInitials(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {

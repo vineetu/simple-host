@@ -10,18 +10,9 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/members"
 )
 
-// Applying to a hackathon without a join link (zp-hack-applications.sql,
-// owner 2026-10-31): GET/POST /v1/hack/events/{slug}/apply. D2: a separate
-// route from /v1/hack/join/{code}, so the join code stays a private
-// capability and this stays a public action keyed by the event's slug, with
-// its own rules (the organiser's switch, and an application is always
-// pending — D1).
+// Applying to a hackathon without a join link: GET/POST /v1/hack/events/{slug}/apply. A separate route from /v1/hack/join/{code}, so the join code stays a private capability and this stays a public action keyed by the event's slug, with its own rules (the organiser's switch; an application is always pending).
 
-// hackUnder18Note is plain prose for non-browser consumers of GET .../apply;
-// the public-apply.js form itself never renders this string -- it builds the
-// same sentence with "Terms" as a real link to /terms (review item 6: the API's
-// own copy of this sentence must not bake the URL into visible text either,
-// since a client showing it verbatim would repeat the same mistake).
+// hackUnder18Note is plain prose for non-browser consumers of GET .../apply; the public-apply.js form builds the same sentence with "Terms" as a real link to /terms, so the API's copy must not bake the URL into visible text.
 const hackUnder18Note = "If you're under 18, a parent or guardian needs to agree to Simple Hack's Terms for you."
 
 func hackApplyFields() map[string]any {
@@ -42,7 +33,6 @@ func hackApplyFields() map[string]any {
 	}
 }
 
-// getApply is GET /v1/hack/events/{slug}/apply.
 func (h *participationHTTP) getApply(w http.ResponseWriter, r *http.Request) {
 	caller := ""
 	accountName := ""
@@ -78,9 +68,7 @@ func (h *participationHTTP) getApply(w http.ResponseWriter, r *http.Request) {
 		"closed_reason":     page.ClosedReason,
 		"fields":            hackApplyFields(),
 	}
-	// Questions and the organiser's own code of conduct are only for a
-	// signed-in caller while applications are open (security review #5);
-	// `me` is shown to any signed-in caller.
+	// Questions and the organiser's own code of conduct are only for a signed-in caller while applications are open; `me` is shown to any signed-in caller.
 	if caller != "" {
 		if page.Open {
 			out["signup_questions"] = page.Questions
@@ -102,8 +90,7 @@ type postApplyReq struct {
 	Answers     map[string]string `json:"answers"`
 }
 
-// postApply is POST /v1/hack/events/{slug}/apply: D1, every application is
-// pending whatever approval_required says, and always joined_via='application'.
+// postApply is POST .../apply: every application is pending whatever approval_required says, and always joined_via='application'.
 func (h *participationHTTP) postApply(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {

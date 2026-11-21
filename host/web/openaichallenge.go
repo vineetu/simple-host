@@ -8,8 +8,7 @@ import (
 // RegisterOpenAIAppsChallenge serves the OpenAI plugin portal's domain
 // verification token at /.well-known/openai-apps-challenge: the token and
 // nothing else, as plain text. The portal requires exactly that body (not
-// JSON, not a list). With no token configured the path is a 404, as it was
-// before this existed.
+// JSON, not a list). With no token configured the path is a 404.
 func RegisterOpenAIAppsChallenge(mux *http.ServeMux, token string) {
 	token = strings.TrimSpace(token)
 	mux.HandleFunc("GET /.well-known/openai-apps-challenge", func(w http.ResponseWriter, r *http.Request) {

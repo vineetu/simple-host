@@ -1,11 +1,12 @@
 package siteshttp
 
 import (
-	"github.com/vsriram/simple-host/host/web"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/web"
 )
 
 func TestHostServesPublicSpec(t *testing.T) {

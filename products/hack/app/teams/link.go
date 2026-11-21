@@ -10,7 +10,6 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// LinkPreview contains the data needed to display a team link.
 type LinkPreview struct {
 	Event            model.Event
 	Team             model.EventTeam
@@ -22,7 +21,6 @@ type LinkPreview struct {
 	HasOtherTeamName bool
 }
 
-// errLinkNotFound refuses a team link or code that matches no live team.
 func errLinkNotFound() error {
 	return &Error{Code: "team_link_not_found", Message: "that link or code doesn't match a team in this event"}
 }

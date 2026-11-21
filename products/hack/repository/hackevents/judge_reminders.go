@@ -10,7 +10,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// JudgeReminderDue aliases the shared model record (0003-hack-notices-judges-messages.sql).
 type JudgeReminderDue = model.JudgeReminderDue
 
 // DueJudgeReminders lists (event, judge) pairs due a judging-close reminder now, from judging_ends_at and the event's own reminder_offsets.

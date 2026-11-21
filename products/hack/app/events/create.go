@@ -21,7 +21,6 @@ import (
 
 func unique(err error) bool { return hackevents.UniqueError(err) }
 
-// CreateEvent creates an event and its organiser in one transaction.
 func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organiserName, organisation, contact, purpose, tz string, expected int, startsAt, endsAt sql.NullTime, perDay, maxActive, teamSize, joinLen, judgeLen int) (model.Event, model.EventMember, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -47,7 +46,6 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 		ID: eventID, Slug: slug, AccountID: accountID, CreatedBy: sql.NullString{String: userID, Valid: true}, Stage: "draft",
 		Title: title, OrganiserName: organiserName, Organisation: organisation, ContactEmail: contact, Purpose: purpose,
 		ExpectedParticipants: sql.NullInt64{Int64: int64(expected), Valid: true}, TimeZone: tz, StartsAt: startsAt, EndsAt: endsAt, TeamSizeMax: teamSize,
-		// New events start on the "video or website" preset.
 		EntryPreset: "video_or_website",
 		EntryRules:  hackentries.MarshalRules(hackentries.ExpandPreset("video_or_website")),
 	}, joinLen, judgeLen)
@@ -115,7 +113,6 @@ func insertWithCodes(ctx context.Context, tx *sql.Tx, ev model.Event, joinLen, j
 	return model.Event{}, errNameTaken
 }
 
-// seedEvent gives a new event its starter rubric.
 func seedEvent(ctx context.Context, tx *sql.Tx, eventID, userID, organiserName string) error {
 	if err := entryrepo.ReplaceRubric(ctx, tx, eventID, hackentries.DefaultEventRubric()); err != nil {
 		return err
@@ -131,7 +128,6 @@ func seedEvent(ctx context.Context, tx *sql.Tx, eventID, userID, organiserName s
 	return SyncAccess(ctx, tx, eventID)
 }
 
-// SetStage changes the event stage and settles entries within the transaction.
 func (s *Service) SetStage(ctx context.Context, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
 	if event.Stage == "archived" && stage != "archived" {
 		return model.Event{}, "", &Error{Code: "event_closed", Message: "an ended event cannot be reopened"}
@@ -161,7 +157,6 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 	return updated, current, nil
 }
 
-// SetStageTx is SetStage's work inside the caller's transaction.
 func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
 	var current string
 	if err := eventrepo.LockWorkflowStage(ctx, tx, event.ID).Scan(&current); err != nil {
@@ -191,7 +186,6 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 	return updated, current, nil
 }
 
-// moveStage moves a live event from current to stage.
 func moveStage(ctx context.Context, tx *sql.Tx, eventID, current, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, error) {
 	if err := moveSubmissionDeadline(ctx, tx, eventID, current, stage); err != nil {
 		return model.Event{}, err
@@ -203,7 +197,7 @@ func moveStage(ctx context.Context, tx *sql.Tx, eventID, current, stage string, 
 	if err := teamrepo.UnpinReopened(ctx, tx, eventID); err != nil {
 		return model.Event{}, err
 	}
-	// Section 7: settle every due entry in the same transaction as a move that freezes submissions, so judging never waits for the sweep.
+	// Settle every due entry in the same transaction as a move that freezes submissions, so judging never waits for the sweep.
 	if hackevents.SubmissionsClosedStage(stage) {
 		if err := settle(ctx, tx, eventID); err != nil {
 			return model.Event{}, err
@@ -237,7 +231,7 @@ func moveSubmissionDeadline(ctx context.Context, tx *sql.Tx, eventID, current, s
 	return nil
 }
 
-// syncJudgingLock makes the judging lock follow the stage (SIM-416): moving to Results locks it, moving back to Judging or earlier clears it.
+// syncJudgingLock makes the judging lock follow the stage: moving to Results locks it, moving back to Judging or earlier clears it.
 func syncJudgingLock(ctx context.Context, tx *sql.Tx, eventID, current, stage string, updated model.Event) (model.Event, error) {
 	if stage == "results" && current != "results" {
 		return eventrepo.SetJudgingLock(ctx, tx, eventID, true, "")
@@ -248,7 +242,6 @@ func syncJudgingLock(ctx context.Context, tx *sql.Tx, eventID, current, stage st
 	return updated, nil
 }
 
-// DeleteEvent checks and deletes an event under its lock.
 func (s *Service) DeleteEvent(ctx context.Context, event model.Event, userID string, confirm *string, trash func(context.Context, string, string) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -301,7 +294,7 @@ func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, curre
 	if err := teamrepo.UnpinReopened(ctx, tx, eventID); err != nil {
 		return model.Event{}, err
 	}
-	// Section 7: an event ending always freezes every remaining draft.
+	// An event ending always freezes every remaining draft.
 	if err := settle(ctx, tx, eventID); err != nil {
 		return model.Event{}, err
 	}
@@ -335,7 +328,6 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event,
 	return eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, sites.DeleteProductAccount)
 }
 
-// PatchEvent applies p to the event row under its lock.
 func (s *Service) PatchEvent(ctx context.Context, eventID string, p EventPatch) (updated model.Event, deadlineChanged bool, err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -422,8 +414,4 @@ func savepoint(ctx context.Context, q sqlkit.Querier, fn func() error) error {
 	}
 	_, err := eventrepo.ReleaseWorkflowSavepoint(ctx, q)
 	return err
-}
-
-func eventLeaveOperations() eventrepo.LeaveOperations {
-	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: teamrepo.EnsureTeamAdmin}
 }

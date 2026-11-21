@@ -121,7 +121,7 @@ func accessTools() []Tool {
 			OutputSchema: siteAccessSchema("note"),
 			Name:         "set_site_access",
 			Title:        "Choose who can open a site",
-			Description: "Set who can open a whole site. access `specific`: only the owner and the named viewers (grant_site_viewer adds them, and also turns this on); everyone else sees a sign-in page (\"This site is private\"), and a signed-in person who is not named sees \"You do not have access\". access `anyone`: open to anyone with the address again (the named viewers are kept for next time). " +
+			Description: "Set who can open a whole site. access `specific`: only the owner and the named viewers (grant_site_viewer adds them, and also turns this on); everyone else sees a sign-in page. access `anyone`: open to anyone with the address again (the named viewers are kept for next time). " +
 				accessToolsWhen + " list_site_viewers shows the full list. ASK THE PERSON FIRST, naming the site and what changes. The owner's key and this connector keep working either way.",
 			InputSchema: object(map[string]any{
 				"site":   str(siteDesc),
@@ -175,14 +175,9 @@ func accessTools() []Tool {
 }
 
 // storageVisitorEmailsTool turns visitor_id values from a site's saved data
-// into the email each person signed in with, for the owner, or (emails,
-// added 2026-11-06 for SIM-358, the owner-adds-a-row-for-a-visitor ticket)
-// the other direction: an email into the visitor reference that names them
-// on this site, for ResolveOwnerFor or a later storage_sql_execute for
-// call. Reusing this existing tool's input, rather than a new tool, keeps
-// the tool list unchanged (ChatGPT freezes it); the output shape is also
-// unchanged, since visitor_id already carried an opaque reference either
-// way.
+// into the email each person signed in with, for the owner, or (emails) the
+// other direction: an email into the visitor reference that names them on
+// this site, for a later storage_sql_execute for call.
 func storageVisitorEmailsTool() Tool {
 	return Tool{
 		policy: toolPolicy{analytics: analyticsPolicy{structuredText: true, emailIdentity: true}, groupSiteExcluded: true},

@@ -37,6 +37,9 @@ type User struct {
 	Member *MemberIdentity
 }
 
+// DeployOnly reports the scope of a stored deployment credential.
+func (u User) DeployOnly() bool { return u.KeyScope == KeyScopeDeploy }
+
 // MemberIdentity is the person behind a request that acts for a team.
 type MemberIdentity struct {
 	PersonID     string
@@ -132,4 +135,11 @@ type SiteDomainInfo struct {
 	// ProofExempt: Domain was verified before the TXT proof existed and keeps
 	// working without it while it stays verified.
 	ProofExempt bool
+}
+
+type HandleVerdict struct {
+	Status  int
+	Code    string
+	Error   string
+	Address string
 }

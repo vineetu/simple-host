@@ -1,0 +1,197 @@
+# Simple Host scenarios for run.py. Each: id, prompt (a list types follow-up
+# turns into the same chat), as (account: user), optional setup (tool calls
+# made first), and what passes: checks (tool calls against the server, or
+# live: <owner>/<site>[/<path>], the file the web server serves, with match/no_match regexes and error: true|false),
+# must_call / must_not_call / max_calls on the model's tool use, says (a
+# regex on its replies). The fixture account is mcpjam-ci; seed.py gives it
+# eval-cafe ("Open 8am to 6pm", kv menu, sqlite bookings, files photos).
+
+# Publish and change
+- id: publish_new_site
+  prompt: ["Put a one-page website online for my bakery, Rise and Shine, as a new site named rise-and-shine. It should list our opening hours: Monday to Friday 7 to 3, Saturday 8 to 1.", "Yes, go ahead."]
+  must_call: [create_site]
+  checks:
+    - {live: mcpjam-ci/rise-and-shine, match: "Rise and Shine"}
+
+- id: asks_before_creating
+  prompt: Make me a website for my dog walking business, Happy Paws.
+  must_not_call: [create_site]
+  says: "\\?"
+
+- id: read_hours
+  prompt: What opening hours does the home page of my site eval-cafe show right now?
+  must_not_call: [update_site, create_site]
+  says: "8\\s?a\\.?m"
+
+- id: change_one_page
+  setup:
+    - {tool: update_site, args: {site: eval-cafe, keep_other_files: true, files: {menu.html: "<h1>Menu</h1><p>Tomato soup 5</p>", about.html: "<h1>About us</h1><p>Family run since 1999.</p>"}}}
+  prompt: On my site eval-cafe, change the opening hours on the home page to 7am to 8pm. Keep everything else.
+  must_not_call: [create_site, delete_site]
+  checks:
+    - {live: mcpjam-ci/eval-cafe, match: "7\\s?am.*8\\s?pm"}
+    - {live: mcpjam-ci/eval-cafe/menu.html, match: "Tomato soup"}
+    - {live: mcpjam-ci/eval-cafe/about.html, match: "Family run"}
+
+- id: add_page
+  prompt: ["Add an About page to eval-cafe that says we are family run since 1999, and link to it from the home page.", "Yes, go ahead."]
+  must_not_call: [create_site]
+  checks:
+    - {live: mcpjam-ci/eval-cafe, match: "Open 8\\s?am"}
+    - {tool: get_site, args: {site: eval-cafe}, match: "about"}
+
+# Saved data
+- id: kv_special
+  prompt: On eval-cafe, set today's special in the menu data to lemon cake.
+  must_not_call: [update_site]
+  checks:
+    - {tool: storage_get_kv, args: {site: eval-cafe, name: menu, key: today}, match: "lemon cake"}
+
+- id: count_bookings
+  setup:
+    - {tool: storage_sql_execute, args: {site: eval-cafe, name: bookings, sql: "INSERT INTO bookings (guest, party_size) VALUES ('Ana', 2), ('Ben', 4), ('Cy', 3)"}}
+  prompt: How many bookings are saved on my site eval-cafe?
+  must_not_call: [storage_sql_execute, update_site]
+  says: "\\b(3|three)\\b"
+
+- id: list_photos
+  prompt: List the photos uploaded to the photos storage on eval-cafe.
+  must_call: [storage_list_file_objects]
+
+- id: photo_link
+  prompt: I have pictures on my phone to add to my eval-cafe site. Send me the link so I can choose them.
+  must_call: [create_upload_link]
+  must_not_call: [create_site, update_site]
+  says: "photos\\?site=eval-cafe"
+
+- id: photos_to_menu
+  prompt: I have photos of this week's dishes on my phone. Add them to the menu on my site eval-cafe.
+  must_call: [create_upload_link]
+  must_not_call: [storage_set_resource]
+
+- id: notes_ask_first
+  prompt: I want a page on eval-cafe that saves customer notes. What do you need to know before setting up access? Do not change anything yet.
+  must_not_call: [storage_set_resource, update_site]
+  says: "(who|which people).*(read|see)"
+
+- id: contact_form
+  prompt: ["Add a contact form to eval-cafe so customers can send us a message with their name and email. I want to read the messages later.", "Yes, go ahead. Only I should read the messages."]
+  must_call: [get_page_recipe]
+  checks:
+    - {tool: storage_list_resources, args: {site: eval-cafe}, match: "\"kind\": \"\\w+\", \"name\": \"(?!(bookings|menu|photos)\")"}
+    - {tool: get_site, args: {site: eval-cafe}, no_match: "mailto:"}
+  says: "messages|entries"
+
+- id: data_private
+  prompt: ["On eval-cafe, the menu data should only be readable by me, not the public.", "Yes, change it."]
+  checks:
+    - {tool: storage_list_resources, args: {site: eval-cafe}, no_match: "\"name\": \"menu\", \"rules\": \\{\"policies\": \\[[^\\]]*\"using\": \"true\""}
+
+- id: data_anyone_writes
+  prompt: ["On eval-cafe, set up a guestbook: anyone, even without signing in, can add a note, and everyone can read the notes. Just the saved data for now, no page yet.", "Yes, go ahead."]
+  must_call: [storage_set_resource]
+  checks:
+    - {tool: storage_list_resources, args: {site: eval-cafe}, match: "\"check\": \"(true|auth\\.checked)\", \"command\": \"(add|all)\""}
+
+- id: explain_access
+  prompt: On my site eval-cafe, which saved data can anyone read, and who can add to each one?
+  must_call: [storage_list_resources]
+  must_not_call: [storage_set_resource]
+  says: "menu"
+
+- id: recipe_booking
+  prompt: Read the booking page recipe for eval-cafe and explain its access rules. Signed-in customers should add bookings and read only their own; only the owner changes status. Do not publish or change resources yet.
+  must_call: [get_page_recipe]
+  must_not_call: [storage_set_resource, update_site]
+
+# Access and addresses
+- id: connect_domain
+  prompt: ["Connect my own domain cornercafe-example.com to my site eval-cafe.", "Yes, go ahead."]
+  must_call: [connect_domain]
+  says: "TXT"
+  checks:
+    - {tool: domain_status, args: {site: eval-cafe}, match: "cornercafe-example\\.com"}
+
+- id: passcode
+  prompt: ["Put the passcode cafe2026 on my site eval-cafe so only people I give it to can open it.", "Yes, go ahead."]
+  must_call: [set_site_passcode]
+  checks:
+    - {tool: list_sites, args: {}, match: "\"passcode_protected\": true"}
+
+- id: named_viewers
+  prompt: ["Make eval-cafe private so only sam@example.com and I can see it.", "Yes, go ahead."]
+  checks:
+    - {tool: list_sites, args: {}, match: "\"access\": \"specific\""}
+    - {tool: list_site_viewers, args: {site: eval-cafe}, match: "sam@example\\.com"}
+
+- id: rollback
+  setup:
+    - {tool: update_site, args: {site: eval-cafe, files: {index.html: "<!DOCTYPE html><title>Corner Cafe</title><h1>Corner Cafe</h1><p>Closed for good.</p>"}}}
+  prompt: ["I published a mistake on eval-cafe just now. Put the previous version back.", "Yes, go ahead."]
+  must_call: [rollback_site]
+  checks:
+    - {live: mcpjam-ci/eval-cafe, match: "Open 8am"}
+
+- id: delete_confirmed
+  setup:
+    - {tool: create_site, args: {site: old-promo, files: {index.html: "<h1>Summer promo</h1>"}}}
+  prompt: ["Delete my site old-promo, I don't need it any more.", "Yes, delete it."]
+  must_call: [delete_site]
+  checks:
+    - {tool: list_sites, args: {}, no_match: "\"name\": \"old-promo\""}
+
+- id: delete_asks_first
+  setup:
+    - {tool: create_site, args: {site: old-promo, files: {index.html: "<h1>Summer promo</h1>"}}}
+  prompt: Delete my site old-promo.
+  checks:
+    - {tool: list_sites, args: {}, match: "\"name\": \"old-promo\""}
+
+# Teams and editors
+- id: team_invite
+  prompt: ["Create a team called rise-bakery-crew so my staff can work on our sites, and invite sam@example.com to it.", "Yes, go ahead."]
+  must_call: [create_team, add_team_member]
+  checks:
+    - {tool: list_team_members, args: {team: rise-bakery-crew}, match: "sam@example\\.com"}
+
+- id: publish_as_team
+  setup:
+    - {tool: create_team, args: {name: cafe-crew}}
+  prompt: ["Publish a one-page site called crew-notes for our team cafe-crew. It just says: Shift notes coming soon.", "Yes, go ahead."]
+  checks:
+    - {live: cafe-crew/crew-notes, match: "Shift notes"}
+
+- id: site_editor
+  prompt: ["Let my friend edit my site eval-cafe too. Their Simple Host handle is mcpjam-friend.", "Yes, go ahead."]
+  must_call: [add_site_editor]
+  checks:
+    - {tool: list_site_editors, args: {site: eval-cafe}, match: "mcpjam-friend"}
+
+# Reading
+- id: analytics
+  prompt: How many people visited eval-cafe this week, and which pages did they read?
+  must_call: [site_analytics]
+  must_not_call: [update_site]
+
+- id: versions
+  prompt: Which versions of my site eval-cafe are kept, and which one is live?
+  must_call: [list_versions]
+  must_not_call: [update_site, rollback_site]
+
+- id: notifications
+  prompt: Which webhook notifications are set up for my site eval-cafe?
+  must_call: [list_notifications]
+  must_not_call: [create_site, update_site]
+
+# Not for this connector
+- id: no_brainstorm
+  prompt: Help me brainstorm names for my new hair salon.
+  max_calls: 0
+
+- id: no_node_api
+  prompt: Deploy my Node.js API with a Postgres database to production.
+  must_not_call: [create_site, update_site]
+
+- id: no_summarise_web
+  prompt: Summarize what is on https://example.com for me.
+  must_not_call: [create_site, update_site, visitor_read_site]

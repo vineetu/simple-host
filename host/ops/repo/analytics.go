@@ -469,58 +469,45 @@ func classifierCutover(ctx context.Context, database *sql.DB) (string, error) {
 // counted twice.
 func legacyDaily(ctx context.Context, database *sql.DB, siteID, from, to string) (map[string]Counts, error) {
 	out := map[string]Counts{}
-
-	rows, err := database.QueryContext(ctx, `
+	if err := addLegacyDays(ctx, database, out, func(c *Counts, n int64) { c.Views = n }, `
 		SELECT day::text, views
 		FROM site_view_daily
 		WHERE site_id = $1 AND day >= $2::date AND day < $3::date
-	`, siteID, from, to)
-	if err != nil {
+	`, siteID, from, to); err != nil {
 		return nil, err
+	}
+	if err := addLegacyDays(ctx, database, out, func(c *Counts, n int64) { c.Visitors = n }, `
+		SELECT day::text, COUNT(*)
+		FROM site_visitor_daily
+		WHERE site_id = $1 AND day >= $2::date AND day < $3::date
+		GROUP BY day
+	`, siteID, from, to); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// addLegacyDays runs a (day, count) query and sets each day's count in out.
+func addLegacyDays(ctx context.Context, database *sql.DB, out map[string]Counts, set func(*Counts, int64), query string, args ...any) error {
+	rows, err := database.QueryContext(ctx, query, args...)
+	if err != nil {
+		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var day string
 		var n int64
 		if err := rows.Scan(&day, &n); err != nil {
-			return nil, err
+			return err
 		}
 		if len(day) >= 10 {
 			day = day[:10]
 		}
 		c := out[day]
-		c.Views = n
+		set(&c, n)
 		out[day] = c
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close()
-
-	vrows, err := database.QueryContext(ctx, `
-		SELECT day::text, COUNT(*)
-		FROM site_visitor_daily
-		WHERE site_id = $1 AND day >= $2::date AND day < $3::date
-		GROUP BY day
-	`, siteID, from, to)
-	if err != nil {
-		return nil, err
-	}
-	defer vrows.Close()
-	for vrows.Next() {
-		var day string
-		var n int64
-		if err := vrows.Scan(&day, &n); err != nil {
-			return nil, err
-		}
-		if len(day) >= 10 {
-			day = day[:10]
-		}
-		c := out[day]
-		c.Visitors = n
-		out[day] = c
-	}
-	return out, vrows.Err()
+	return rows.Err()
 }
 
 // visitorsByClass counts distinct ip_hash per class over an arbitrary window.

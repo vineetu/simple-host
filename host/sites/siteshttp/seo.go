@@ -23,8 +23,6 @@ import (
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// hostSitemapPaths and hackSitemapPaths are the platform's own public
-// marketing pages, one list per brand, followed by eligible hosted sites.
 var (
 	hostSitemapPaths = []string{
 		"/", "/features", "/pricing", "/install.html",
@@ -33,8 +31,6 @@ var (
 	}
 )
 
-// isHackHost reports whether the request arrived on the simple-hack.app
-// brand, the same Host-prefix check ChromeDataFor uses for nav rendering.
 func sitemapBase(r *http.Request, hostedEvents bool, policies ...edition.PresentationPolicy) (string, bool) {
 	if len(policies) > 0 && policies[0].CanonicalBaseURL != "" {
 		host := r.Host
@@ -51,12 +47,9 @@ func sitemapBase(r *http.Request, hostedEvents bool, policies ...edition.Present
 	return "https://" + web.InstanceSiteDomain, hostedEvents
 }
 
-// serveRobotsTxt and serveSitemapXML answer the platform's own robots.txt and
-// sitemap.xml for the apex marketing site, host-aware. Pages that must not be
-// indexed already carry their own noindex meta tag or X-Robots-Tag header
-// (admin.html, the signed-out events flow, offline/suspended/preview tenant
-// pages), so this stays a plain allow-all plus a pointer at the sitemap
-// rather than duplicating that per-path logic here.
+// serveRobotsTxt answers the apex site's robots.txt, host-aware.
+// Pages that must not be indexed carry their own noindex meta tag or X-Robots-Tag, so this stays allow-all
+// plus a sitemap pointer.
 func serveRobotsTxt(w http.ResponseWriter, r *http.Request, hostedEvents bool, policies ...edition.PresentationPolicy) {
 	base, _ := sitemapBase(r, hostedEvents, policies...)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -82,12 +75,6 @@ type sitemapCache struct {
 type cachedSitemaps struct {
 	Expires time.Time
 	files   map[string][]byte
-}
-
-// serveSitemapXML preserves the pages-only helper used by standalone callers.
-func serveSitemapXML(w http.ResponseWriter, r *http.Request, hostedEvents bool, policies ...edition.PresentationPolicy) {
-	base, product := sitemapBase(r, hostedEvents, policies...)
-	serveSitemapFile(w, r, buildSitemaps(base, sitemapPages(base, product, policies...), nil))
 }
 
 func sitemapPages(base string, product bool, policies ...edition.PresentationPolicy) []sitemapURL {
@@ -152,7 +139,6 @@ func serveSitemapFile(w http.ResponseWriter, r *http.Request, files map[string][
 	}
 }
 
-// SetSitemapFilter installs the product filter before serving requests.
 func (h *SiteHandler) SetSitemapFilter(filter appsites.SitemapFilter) {
 	h.sitemapFilter = filter
 }
@@ -163,7 +149,7 @@ func (h *SiteHandler) ServeSitemap(w http.ResponseWriter, r *http.Request) {
 	cached, ok := h.Sitemaps.ByBrand[base]
 	if !ok || time.Now().After(cached.Expires) {
 		var urls []sitemapURL
-		if h.Pipeline().HostedOwner() != "" {
+		if h.Pages().HostedOwner() != "" {
 			sites, err := h.SitesSvc().ListSitemapSites(r.Context())
 			if err != nil {
 				log.Printf("sitemap: %v", err)
@@ -277,8 +263,8 @@ func robotsDisallowRoot(body string) bool {
 	return false
 }
 
-// markRestrictedSite preserves noindex before an address redirect can return;
-// the file-serving gates retain their own headers, including disk-only gates.
+// markRestrictedSite sets noindex before an address redirect can return; the
+// file-serving gates set their own headers, including disk-only gates.
 func markRestrictedSite(w http.ResponseWriter, site model.Site) {
 	if !site.OpenToAnyone() {
 		w.Header().Set("X-Robots-Tag", "noindex, nofollow")

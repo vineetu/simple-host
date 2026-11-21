@@ -36,6 +36,7 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 const (
@@ -223,7 +224,7 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 // use the way a first verified email code does. An admin account is refused:
 // the reviewer must never hold more than a normal person's power.
 func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (model.User, error) {
-	return h.accountsSvc().ReviewerAccount(ctx, email, h.ed.Identity().RandomHandles, func(ctx context.Context, q accounts.AttributionStore, id, email string, random bool) {
+	return h.accountsSvc().ReviewerAccount(ctx, email, h.ed.Identity().RandomHandles, func(ctx context.Context, q sqlkit.Querier, id, email string, random bool) {
 		accounts.AssignHandle(ctx, q, id, email, random)
 	})
 }

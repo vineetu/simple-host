@@ -2,14 +2,8 @@ package siteshttp
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/sites"
 )
 
 func TestSiteLoopCancellationAndStatus(t *testing.T) {
@@ -36,41 +30,5 @@ func TestSiteLoopCancellationAndStatus(t *testing.T) {
 	}
 	if o.Status()[0].Running {
 		t.Fatal("joined loop still running")
-	}
-}
-
-func TestSiteLoopDisabled(t *testing.T) {
-	o := newSiteLoop("sites.disabled", func() bool { return false }, func(context.Context) { t.Fatal("disabled loop started") })
-	o.Start(context.Background())
-	o.Stop()
-	o.Wait()
-	s := o.Status()[0]
-	if s.Enabled || s.Running || s.LastAttempt != nil || s.Pending != nil {
-		t.Fatalf("unexpected disabled status: %+v", s)
-	}
-}
-
-func TestSiteCertPendingCountsSharedIssuerDirectoryOnce(t *testing.T) {
-	dir := t.TempDir()
-	requests := filepath.Join(dir, "requests")
-	if err := os.Mkdir(requests, 0755); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"olive", "cedar"} {
-		if err := os.WriteFile(filepath.Join(requests, name), nil, 0644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := os.Mkdir(filepath.Join(requests, "nested"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	hosts := sites.NewHosts(nil, nil, edition.Default(config.DefaultLimits()), "example.test", "", "", "")
-	hosts.SetSiteHosts("off", dir)
-	hosts.SetSiteBase("other.test", "serve", dir)
-	h := &SiteHandler{SiteDomain: "example.test", Hosts: hosts}
-	h.updateSiteCertPending(context.Background())
-	pending := h.siteLoop("sites.cert_requests").tracker.Snapshot().Pending
-	if pending == nil || *pending != 2 {
-		t.Fatalf("pending=%v; want two regular request files", pending)
 	}
 }

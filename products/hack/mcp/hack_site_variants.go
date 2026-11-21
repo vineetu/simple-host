@@ -1,4 +1,3 @@
-// Hack-site variants are referenced by their Host declarations.
 package hackmcp
 
 import (
@@ -71,12 +70,16 @@ func hackSiteStorageGetUsage(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 	return tool
 }
 
+// hackSiteStorageSqlExecute drops for, table and values from the schema:
+// adding a row for one visitor is Simple Host's alone. A call from an older
+// tool list may still send them; they are accepted and behave as before
+// (table and values are ignored beside sql, and for is refused by the route).
 func hackSiteStorageSqlExecute(tool mcp.Tool, limits mcp.Limits) mcp.Tool {
 	tool.InputSchema = maps.Clone(tool.InputSchema)
 	props := maps.Clone(tool.InputSchema["properties"].(map[string]any))
-	field := maps.Clone(props["for"].(map[string]any))
-	field["description"] = strings.Replace(field["description"].(string), "Available to account owners.", "Host only, not Simple Hack.", 1)
-	props["for"] = field
+	delete(props, "for")
+	delete(props, "table")
+	delete(props, "values")
 	tool.InputSchema["properties"] = props
-	return tool
+	return mcp.AcceptUnlisted(tool, "for", "table", "values")
 }

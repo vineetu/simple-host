@@ -19,14 +19,6 @@ type signInCodeSender interface {
 	SendSignInCode(address, code, link string) error
 }
 
-// accountQuerier lets legacy entry points pass an existing transaction to the
-// application workflow without importing a database package into the transport.
-type accountQuerier interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}
-
 func codeFailureResponse(f accounts.CodeFailure) httpx.ErrorResponse {
 	return httpx.ErrorResponse{Error: f.Error, Code: f.Code, Reason: f.Reason, Address: f.Address, SuggestedHandle: f.SuggestedHandle, TriesLeft: f.TriesLeft}
 }
@@ -48,10 +40,10 @@ func codeMessages() accounts.CodeMessages {
 func codeHandleActions(database *sql.DB) accounts.HandleActions {
 	return accounts.HandleActions{
 		Judge: func(ctx context.Context, userID, handle string) (model.HandleVerdict, error) {
-			return JudgeHandle(ctx, database, userID, handle)
+			return accounts.JudgeHandle(ctx, database, userID, handle)
 		},
-		Suggest: func(ctx context.Context, email string) string { return suggestHandle(ctx, database, email) },
-		Address: handleAddress,
+		Suggest: func(ctx context.Context, email string) string { return accounts.SuggestHandle(ctx, database, email) },
+		Address: accounts.HandleAddress,
 		Assign: func(ctx context.Context, userID, email string, random bool) {
 			accounts.AssignHandle(ctx, database, userID, email, random)
 		},

@@ -152,7 +152,7 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 	}
 	for _, d := range list {
 		unlock := s.deps.LockSite(d.UserID, d.Name)
-		domains, err := s.purgeDeletedSite(ctx, d.ID)
+		domains, err := repo.PurgeDeletedSite(ctx, s.database, d.ID, s.deps.DeletedRetention, accounts.PlatformDomains()...)
 		unlock()
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -185,10 +185,6 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 		ReportWorkerProgress(ctx)
 		log.Printf("deleted-site purge: removed %s (%s)", d.Name, d.ID)
 	}
-}
-
-func (s *Service) purgeDeletedSite(ctx context.Context, siteID string) ([]string, error) {
-	return repo.PurgeDeletedSite(ctx, s.database, siteID, s.deps.DeletedRetention, accounts.PlatformDomains()...)
 }
 
 // DeleteInput identifies an owner request and any site selected by an administrator.

@@ -39,7 +39,6 @@ import (
 // certificate (the operator's wildcard lineage), the proof exemption and
 // disconnecting.
 
-// isPlatformZoneHost: host is (or is under) one of the platform's zones.
 func (h *SiteHandler) isPlatformZoneHost(host string) bool {
 	if isOwnHost(host, h.ContentHost) {
 		return true
@@ -88,7 +87,6 @@ func (h *SiteHandler) normalizeFamilySuffix(raw string) (string, error) {
 	return suffix, nil
 }
 
-// isFamilyRequest: the domain the caller asked for is a wildcard (*.x).
 func isFamilyRequest(raw string) bool {
 	s := strings.TrimSpace(raw)
 	if i := strings.Index(s, "://"); i >= 0 {
@@ -97,7 +95,6 @@ func isFamilyRequest(raw string) bool {
 	return strings.HasPrefix(s, "*.")
 }
 
-// familyCert is a family's certificate as the API shows it.
 type familyCert struct {
 	// Mode is wildcard (the operator's certificate for *.<suffix>).
 	Mode string `json:"mode"`
@@ -109,17 +106,14 @@ type familyCert struct {
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
-// familySite is one of the account's sites and its family address.
 type familySite struct {
 	Site    string `json:"site"`
 	Address string `json:"address"`
-	// Main: this is the address handed out for the site.
-	Main bool `json:"main"`
+	Main    bool   `json:"main"`
 	// LivesAt: the site lives on a domain of its own; this address redirects there.
 	LivesAt string `json:"lives_at,omitempty"`
 }
 
-// familyResponse is the API view of a family.
 type familyResponse struct {
 	ID         string     `json:"id"`
 	Family     string     `json:"family"` // *.<suffix>
@@ -145,10 +139,9 @@ type familyResponse struct {
 	Certificate familyCert   `json:"certificate"`
 	ExampleURL  string       `json:"example_url,omitempty"`
 	Sites       []familySite `json:"sites,omitempty"`
-	// Admin view only.
-	Owner    string `json:"owner,omitempty"`
-	OwnerID  string `json:"owner_id,omitempty"`
-	CertName string `json:"cert_name,omitempty"`
+	Owner       string       `json:"owner,omitempty"`
+	OwnerID     string       `json:"owner_id,omitempty"`
+	CertName    string       `json:"cert_name,omitempty"`
 }
 
 func timePtr(t sql.NullTime) *time.Time {
@@ -188,7 +181,6 @@ func (h *SiteHandler) familyCertOf(f model.AddressFamily) familyCert {
 	return c
 }
 
-// familyReadyValue is one key=value line of the family's ready marker.
 func (h *SiteHandler) familyReadyValue(suffix, key string) string {
 	if h.Hosts.FamilyCertDir() == "" || !sites.ValidFamilyKey(suffix) {
 		return ""
@@ -262,7 +254,6 @@ type familyRequest struct {
 	ProofExempt bool   `json:"proof_exempt"`
 }
 
-// familiesAvailable writes the refusal when families cannot be used here.
 func (h *SiteHandler) familiesAvailable(w http.ResponseWriter) bool {
 	if h.Hosts.FamiliesOn() {
 		return true
@@ -271,10 +262,8 @@ func (h *SiteHandler) familiesAvailable(w http.ResponseWriter) bool {
 	return false
 }
 
-// validRank is the range a family's rank may take.
 func validRank(n int) bool { return n >= 0 && n <= 1000 }
 
-// createFamily POST /v1/me/address-families.
 func (h *SiteHandler) createFamily(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -373,7 +362,6 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 	httpx.WriteJSON(w, http.StatusCreated, h.familyResponseFor(r.Context(), f, false))
 }
 
-// certNameRE is a certbot lineage name.
 var certNameRE = familyCertNameRE
 
 func adminName(r *http.Request) string {
@@ -383,7 +371,6 @@ func adminName(r *http.Request) string {
 	return "?"
 }
 
-// listFamilies GET /v1/me/address-families.
 func (h *SiteHandler) listFamilies(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -423,7 +410,6 @@ func (h *SiteHandler) callerFamily(w http.ResponseWriter, r *http.Request) (mode
 	return f, true
 }
 
-// getFamily GET /v1/me/address-families/{suffix}.
 func (h *SiteHandler) getFamily(w http.ResponseWriter, r *http.Request) {
 	f, ok := h.callerFamily(w, r)
 	if !ok {
@@ -438,7 +424,6 @@ type familyPatchRequest struct {
 	Canonical  *bool   `json:"canonical"`
 }
 
-// patchFamily PATCH /v1/me/address-families/{suffix}.
 func (h *SiteHandler) patchFamily(w http.ResponseWriter, r *http.Request) {
 	f, ok := h.callerFamily(w, r)
 	if !ok {
@@ -470,7 +455,6 @@ func (h *SiteHandler) patchFamily(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, h.familyResponseFor(r.Context(), f, false))
 }
 
-// deleteFamily DELETE /v1/me/address-families/{suffix}.
 func (h *SiteHandler) deleteFamily(w http.ResponseWriter, r *http.Request) {
 	f, ok := h.callerFamily(w, r)
 	if !ok {
@@ -483,7 +467,6 @@ func (h *SiteHandler) deleteFamily(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// checkFamilyNow POST /v1/me/address-families/{suffix}/check.
 func (h *SiteHandler) checkFamilyNow(w http.ResponseWriter, r *http.Request) {
 	f, ok := h.callerFamily(w, r)
 	if !ok {
@@ -554,8 +537,6 @@ func (h *SiteHandler) syncFamilyRequest(f model.AddressFamily, contexts ...conte
 	})
 }
 
-// --- Checks ---
-
 // CheckFamilies is one pass: drop pending families that never proved
 // themselves, then check every family that is due.
 func (h *SiteHandler) CheckFamilies(ctx context.Context) {
@@ -612,7 +593,7 @@ func (h *SiteHandler) verifyFamilyDNS(ctx context.Context, f model.AddressFamily
 		if !ours[ip] {
 			return false, "*." + f.Suffix + " resolves to " + ip + ", which is not this server (remove any other A or AAAA record for *." + f.Suffix + ")"
 		}
-		if isPublicIP(ip) {
+		if notifications.PublicIP(ip) {
 			here = true
 		}
 	}
@@ -649,7 +630,7 @@ func (h *SiteHandler) probeFamily(ctx context.Context, f model.AddressFamily, ou
 		}
 		ip := ""
 		for _, a := range ips {
-			if ours[a] && isPublicIP(a) {
+			if ours[a] && notifications.PublicIP(a) {
 				ip = a
 				break
 			}
@@ -739,12 +720,12 @@ func (h *SiteHandler) CheckFamily(ctx context.Context, f model.AddressFamily, ou
 			return
 		}
 		h.emailFamilyNotice(ctx, f, "Your address family *."+f.Suffix+" was disconnected",
-			fmt.Sprintf("*.%s failed every check for %s, so it was disconnected from your Simple Host account. Your sites answer at their own Simple Host addresses again.\n\nWhat the last check saw: %s\n\nConnecting it again needs its DNS ownership record (TXT %s) once more.\n\nSimple Host\n", f.Suffix, web.StoreSpan(failing.Round(time.Hour)), why, domainProofHost(f.Suffix)))
+			fmt.Sprintf("*.%s failed every check for %s, so it was disconnected from your Simple Host account. Your sites answer at their own Simple Host addresses again.\n\nWhat the last check saw: %s\n\nConnecting it again needs its DNS ownership record (TXT %s) once more.\n\nSimple Host\n", f.Suffix, web.LimitSpan(failing.Round(time.Hour)), why, domainProofHost(f.Suffix)))
 	case failing >= lim.FamilyLapseWarnAfter && !check.Notified:
 		releaseAt := time.Now().Add(lim.FamilyLapseAfter - lim.FamilyLapseWarnAfter)
 		if h.emailFamilyNotice(ctx, f, "Your address family *."+f.Suffix+" has stopped working",
 			fmt.Sprintf("Your sites answer at <site>.%s, and that address family has failed every check for %s.\n\nWhat the last check saw: %s\n\nIf you moved the domain on purpose, there is nothing to do. Otherwise check its DNS records at your registrar (the wildcard record *.%s and the TXT record %s).\n\nIf it is still failing %s from now, *.%s is disconnected from your account and your sites answer at their own Simple Host addresses again.\n\nSimple Host\n",
-				f.Suffix, web.StoreSpan(lim.FamilyLapseWarnAfter), why, f.Suffix, domainProofHost(f.Suffix), web.StoreSpan(lim.FamilyLapseAfter-lim.FamilyLapseWarnAfter), f.Suffix)) {
+				f.Suffix, web.LimitSpan(lim.FamilyLapseWarnAfter), why, f.Suffix, domainProofHost(f.Suffix), web.LimitSpan(lim.FamilyLapseAfter-lim.FamilyLapseWarnAfter), f.Suffix)) {
 			if err := h.SitesSvc().MarkFamilyLapseNotified(ctx, f.ID, releaseAt); err != nil {
 				sites.ReportWorkerFailure(ctx, "check address family", err)
 			}
@@ -752,14 +733,10 @@ func (h *SiteHandler) CheckFamily(ctx context.Context, f model.AddressFamily, ou
 	}
 }
 
-// emailFamilyNotice sends one plain notice to the family's owner.
 func (h *SiteHandler) emailFamilyNotice(ctx context.Context, f model.AddressFamily, subject, text string) bool {
 	return (&notifications.StoreMail{Mailer: h.Mailer}).FamilyNotice(ctx, f, subject, text)
 }
 
-// --- Admin ---
-
-// adminListFamilies GET /v1/admin/address-families.
 func (h *SiteHandler) adminListFamilies(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
@@ -778,7 +755,6 @@ func (h *SiteHandler) adminListFamilies(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"address_families": out, "available": h.Hosts.FamiliesOn()})
 }
 
-// adminCreateFamily POST /v1/admin/users/{id}/address-families.
 func (h *SiteHandler) adminCreateFamily(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
@@ -791,7 +767,6 @@ func (h *SiteHandler) adminCreateFamily(w http.ResponseWriter, r *http.Request) 
 	h.createFamilyFor(w, r, id, true)
 }
 
-// adminFamily loads the family {id}.
 func (h *SiteHandler) adminFamily(w http.ResponseWriter, r *http.Request) (model.AddressFamily, bool) {
 	if !auth.Admin(w, r) {
 		return model.AddressFamily{}, false
@@ -896,7 +871,6 @@ func (h *SiteHandler) adminDeleteFamily(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// adminCheckFamily POST /v1/admin/address-families/{id}/check: check now.
 func (h *SiteHandler) adminCheckFamily(w http.ResponseWriter, r *http.Request) {
 	f, ok := h.adminFamily(w, r)
 	if !ok {

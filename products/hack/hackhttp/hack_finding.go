@@ -36,9 +36,7 @@ func (h *participationHTTP) listOpenTeams(w http.ResponseWriter, r *http.Request
 	httpx.WriteJSON(w, http.StatusOK, out)
 }
 
-// setTeamFinding is the deprecated PUT .../team/finding (replaced by PATCH
-// .../team): admin only now, writes only looking_for, ignores open. Kept
-// for one release so an older cached tool call still works.
+// setTeamFinding is the deprecated PUT .../team/finding (replaced by PATCH .../team): admin only, writes only looking_for, ignores open.
 func (h *participationHTTP) setTeamFinding(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant", "organiser")
 	if !ok {

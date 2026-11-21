@@ -23,12 +23,12 @@ func Validate(data []byte, maxDimension int) (image.Config, string, error) {
 	switch {
 	case len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
 		ext = "webp"
-		if err = CheckWebP(data); err == nil {
+		if err = checkWebP(data); err == nil {
 			cfg, err = webp.DecodeConfig(bytes.NewReader(data))
 		}
 	case len(data) >= 3 && bytes.Equal(data[:3], []byte{255, 216, 255}):
 		ext = "jpg"
-		if err = CheckJPEG(data); err == nil {
+		if err = checkJPEG(data); err == nil {
 			cfg, err = jpeg.DecodeConfig(bytes.NewReader(data))
 		}
 	default:

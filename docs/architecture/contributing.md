@@ -165,7 +165,7 @@ both aggregate targets and skips if the directory is unreadable.
 | Workflow | Trigger / work |
 |---|---|
 | `.github/workflows/ci.yml` | Push/PR: Go from go.mod, Node 22, PyYAML, nginx, Postgres 16 service; `make check`, then `make check-release` |
-| `mcpjam.yml` | Main push/PR: local server/DB fixture and `check-release.sh --mcpjam`; weekly/manual main-only evals use the configured Anthropic key |
+| `mcpjam.yml` | Main push/PR and weekly: `make connector-check NO_EVALS=1` per product (fixture, MCPJam conformance, annotation and kit checks, tool listing size); the model evals run locally |
 | `release.yml` | On `v*` tags, checks boundaries and charts, then builds two stamped programs, three multiarchitecture images, two Helm charts, and installation, toolkit and plugin downloads |
 
 ## Cut a release

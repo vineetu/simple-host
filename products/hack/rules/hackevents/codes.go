@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// codeAlphabet avoids visually confusable characters.
 const codeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 
 // RandomCode returns n random characters from codeAlphabet, rejection sampling each byte so every character is equally likely.

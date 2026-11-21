@@ -7,8 +7,9 @@ import (
 )
 
 func TestSubmissionToolsMatchChatGPTListing(t *testing.T) {
-	// Production Host enables Events, which adds the two notification tools.
-	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}}))
+	// Production Host enables Events (the two notification tools) and Teams
+	// (teams and site editors).
+	s := NewServer(testConfig(Config{Events: &fakeEventsBackend{}, Teams: true}))
 	result := eventResult(t, sendEvent(t, s, "tools/list", nil, eventTestCaller(), false), false)
 	listed := result["tools"].([]any)
 

@@ -1,7 +1,6 @@
 package accesshttp
 
 import (
-	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -136,9 +135,6 @@ func (h *UserHandler) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-func (h *UserHandler) AssignPasswordHandle(ctx context.Context, q accounts.AttributionStore, id, name string, random bool) {
-	accounts.AssignHandle(ctx, q, id, name, random)
-}
 func (h *UserHandler) passwordSignup(w http.ResponseWriter, r *http.Request) {
 	if !h.passwordEnabled || !h.passwordSelfSignup {
 		passwordNotFound(w)
@@ -159,7 +155,7 @@ func (h *UserHandler) passwordSignup(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusForbidden, signupBlockedError)
 		return
 	}
-	user, _, err := h.accounts.CreatePasswordAccount(r.Context(), req.Username, req.Password, false, h.ed.Identity().RandomHandles, h.AssignPasswordHandle)
+	user, _, err := h.accounts.CreatePasswordAccount(r.Context(), req.Username, req.Password, false, h.ed.Identity().RandomHandles, accounts.AssignHandle)
 	if writeLifecycleFailure(w, err) {
 		return
 	}
@@ -195,7 +191,7 @@ func (h *UserHandler) createPasswordUser(w http.ResponseWriter, r *http.Request)
 	if !httpx.DecodeJSON(w, r, 64<<10, &req) {
 		return
 	}
-	user, password, err := h.accounts.CreatePasswordAccount(r.Context(), req.Username, req.Password, true, h.ed.Identity().RandomHandles, h.AssignPasswordHandle)
+	user, password, err := h.accounts.CreatePasswordAccount(r.Context(), req.Username, req.Password, true, h.ed.Identity().RandomHandles, accounts.AssignHandle)
 	if writeLifecycleFailure(w, err) {
 		return
 	}

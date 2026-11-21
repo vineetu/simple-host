@@ -78,10 +78,3 @@ const liveSSOParent = `k.scope = 'full' AND u.suspended_at IS NULL
  AND (k.expires_at IS NULL OR k.expires_at > now())
  AND ($2::float8 <= 0 OR GREATEST(k.idle_from, COALESCE(k.last_used_at, k.idle_from)) + make_interval(secs => $2::float8) > now())`
 const liveSSOPass = `p.expires_at > now() AND p.idle_expires_at > now() AND ` + liveSSOParent
-
-func KeyExpired(now time.Time, expiresAt *time.Time, idleFrom time.Time, lastUsed *time.Time, keyIdle time.Duration) string {
-	return authrules.KeyExpired(now, expiresAt, idleFrom, lastUsed, keyIdle)
-}
-func IdleExpiresAt(idleFrom time.Time, lastUsed *time.Time, keyIdle time.Duration) *time.Time {
-	return authrules.IdleExpiresAt(idleFrom, lastUsed, keyIdle)
-}

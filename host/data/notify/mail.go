@@ -11,15 +11,20 @@ import (
 	repo "github.com/vsriram/simple-host/host/data/repo/notify"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/workers"
 )
 
-func (s *Service) NotifySuspension(ctx context.Context, n model.Notification, mailer email.NoticeSender, tracker *workers.Tracker) {
-	to, err := repo.SiteOwnerEmail(ctx, s.database, n.SiteID)
+// NotifySuspension mails n's site owner that n was suspended (no mailer:
+// nothing).
+func (e *Engine) NotifySuspension(ctx context.Context, mailer email.NoticeSender, n model.Notification) {
+	if mailer == nil {
+		return
+	}
+	tracker := e.retention
+	to, err := repo.SiteOwnerEmail(ctx, e.db, n.SiteID)
 	if err != nil || !strings.Contains(to, "@") {
 		return
 	}
-	claimed, err := s.ClaimNotificationEmail(ctx, n.ID)
+	claimed, err := repo.ClaimNotificationEmail(ctx, e.db, n.ID)
 	if err != nil {
 		tracker.Fail("claim suspension email", err)
 	}
@@ -30,7 +35,7 @@ func (s *Service) NotifySuspension(ctx context.Context, n model.Notification, ma
 		tracker.Fail("send suspension email", notificationMailError(err))
 		retryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if err := repo.ResetSuspensionEmail(retryCtx, s.database, n.ID); err != nil {
+		if err := repo.ResetSuspensionEmail(retryCtx, e.db, n.ID); err != nil {
 			tracker.Fail("reset suspension email", err)
 		}
 	} else {
@@ -60,16 +65,18 @@ func notificationMailError(err error) error {
 	return errors.New("mail provider delivery failed")
 }
 
-func (s *Service) SweepSuspensionEmails(ctx context.Context, days int, mailer email.NoticeSender, t *workers.Tracker) {
+// Sweep prunes delivery history and mails suspension notices still owed.
+func (e *Engine) Sweep(ctx context.Context, mailer email.NoticeSender) {
+	t := e.retention
 	t.Attempt()
-	n, err := s.SweepNotificationsCount(ctx, days)
+	n, err := repo.SweepNotificationsCount(ctx, e.db, e.limits.NotifyHistoryDays)
 	if err != nil {
 		t.Fail("sweep history", err)
 	}
 	if n > 0 {
 		t.Progress()
 	}
-	ids, readErr, err := repo.SuspensionEmails(ctx, s.database)
+	ids, readErr, err := repo.SuspensionEmails(ctx, e.db)
 	if err != nil {
 		t.Fail("list suspension emails", err)
 		return
@@ -78,8 +85,8 @@ func (s *Service) SweepSuspensionEmails(ctx context.Context, days int, mailer em
 		t.Fail("read suspension emails", readErr)
 	}
 	for _, id := range ids {
-		if n, err := s.GetNotification(ctx, id); err == nil && mailer != nil {
-			s.NotifySuspension(ctx, n, mailer, t)
+		if n, err := repo.GetNotification(ctx, e.db, id); err == nil && mailer != nil {
+			e.NotifySuspension(ctx, mailer, n)
 		}
 	}
 }

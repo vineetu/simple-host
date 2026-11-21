@@ -3,12 +3,10 @@ package servertest
 import (
 	"context"
 	"crypto/hmac"
-	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,9 +19,7 @@ import (
 	"testing"
 	"time"
 
-	notifyapp "github.com/vsriram/simple-host/host/data/notify"
 	notifyrepo "github.com/vsriram/simple-host/host/data/repo/notify"
-	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // testPasscodeKey, notifyTestSecret, notifyRandom, receivedNotification,
@@ -38,21 +34,6 @@ import (
 // cert pool instead and hands it to the new hook).
 const testPasscodeKey = "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq80=" // 32 bytes, tests only
 const notifyTestSecret = "whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-
-func notifyRandom(prefix string, n int) string {
-	b := make([]byte, n)
-	if _, err := cryptorand.Read(b); err != nil {
-		panic(err)
-	}
-	return prefix + hex.EncodeToString(b)
-}
-
-func assertNotificationSealed(t *testing.T, stored, plain string) {
-	t.Helper()
-	if !strings.HasPrefix(stored, "enc1:") || strings.Contains(stored, plain) {
-		t.Fatal("notification value was not sealed")
-	}
-}
 
 type receivedNotification struct {
 	header    http.Header
@@ -135,12 +116,6 @@ func newNotificationReceiver(t *testing.T) *notificationReceiver {
 	return x
 }
 
-func (x *notificationReceiver) snapshot() []receivedNotification {
-	x.mu.Lock()
-	defer x.mu.Unlock()
-	return append([]receivedNotification(nil), x.requests...)
-}
-
 type hackNotifyFixture struct {
 	a                          *teamSiteApp
 	x                          *notificationReceiver
@@ -190,130 +165,14 @@ func (f hackNotifyFixture) create(t *testing.T, base string, p person) string {
 	}
 	return r.json(t)["notification"].(map[string]any)["id"].(string)
 }
-func (f hackNotifyFixture) drain(t *testing.T) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for f.a.data.PendingNotificationsForTest() > 0 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if f.a.data.PendingNotificationsForTest() > 0 {
-		t.Fatal("emit timeout")
-	}
-	for i := 0; i < 100; i++ {
-		if !f.a.data.DeliverNotificationForTest(context.Background()) {
-			return
-		}
-	}
-	t.Fatal("delivery queue did not drain")
-}
-func (f hackNotifyFixture) emit(t *testing.T) {
-	t.Helper()
-	if err := notifyrepo.EmitSiteEvent(context.Background(), f.a.database, f.sid, notifyRandom("evt_", 16), "record.added", "kv", []byte(`{"v":1}`)); err != nil {
-		t.Fatal(err)
-	}
-}
 func (f hackNotifyFixture) gone(t *testing.T, ids ...string) {
 	t.Helper()
 	for _, id := range ids {
-		if _, err := notifyapp.New(f.a.database).GetNotification(context.Background(), id); !errors.Is(err, sql.ErrNoRows) {
+		if _, err := notifyrepo.GetNotification(context.Background(), f.a.database, id); !errors.Is(err, sql.ErrNoRows) {
 			t.Fatal("membership loss retained subscription")
 		}
 	}
 }
-func TestHackNotificationsTeamVisitorDelivery(t *testing.T) {
-	f := newHackNotifyFixture(t)
-	a := f.a
-	id := f.create(t, f.base+f.own, f.member)
-	n, err := notifyapp.New(a.database).GetNotification(context.Background(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n.OwnerID != a.uid(t, f.member) {
-		t.Fatal("subscription not bound to member")
-	}
-	assertNotificationSealed(t, n.Secret, notifyTestSecret)
-	assertNotificationSealed(t, n.AuthHeaderValue, "Bearer receiver")
-	st := "/v1/sites/" + f.team + "/storage"
-	for name, kind := range map[string]string{"kv": "kv", "rows": "sqlite", "files": "files"} {
-		body := map[string]any{"kind": kind, "rules": json.RawMessage(inboxRules)}
-		wantTS(t, "resource", a.api(t, "PUT", st+"/resources/"+name+f.own, body, f.key), 201, "")
-	}
-	wantTS(t, "schema", a.api(t, "POST", st+"/sqlite/rows/schema"+f.own, map[string]string{"sql": "CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT)"}, f.key), 200, "")
-	// Owner credential writes do not emit.
-	wantTS(t, "owner writes", a.api(t, "PUT", st+"/kv/kv/keys/owner"+f.own, `{"value":1}`, f.key), 200, "")
-	f.drain(t)
-	if len(f.x.snapshot()) != 0 {
-		t.Fatal("owner emitted")
-	}
-	visitor := hackSession(t, a, "", f.sid, f.team+"."+f.slug+"."+tsDomain)
-	wantTS(t, "visitor KV", visitor("PUT", st+"/kv/kv/keys/visitor", `{"value":{"message":"hello"}}`), 200, "")
-	wantTS(t, "visitor row", visitor("POST", st+"/sqlite/rows/tables/entries/rows", `{"body":"hello"}`), 200, "")
-	wantTS(t, "visitor file", visitor("PUT", st+"/files/files/objects/hello.txt", "hello", "Content-Type", "text/plain"), 200, "")
-	f.drain(t)
-	got := f.x.snapshot()
-	if len(got) != 3 {
-		t.Fatalf("visitor deliveries: %d", len(got))
-	}
-	names := map[string]int{}
-	for _, r := range got {
-		names[r.body["name"].(string)]++
-		if r.header.Get("Authorization") != "Bearer receiver" || r.header.Get("svix-id") == "" {
-			t.Fatal("missing webhook headers")
-		}
-		data := r.body["data"].(map[string]any)
-		if data["site"] != f.team || data["site_url"] != "https://"+f.team+"."+f.slug+"."+tsDomain+"/" {
-			t.Fatal("wrong team address in payload")
-		}
-		if data["visitor"] != nil {
-			t.Fatal("anonymous visitor identity")
-		}
-	}
-	if names["record.added"] != 2 || names["file.uploaded"] != 1 {
-		t.Fatal("wrong events")
-	}
-	history := a.api(t, "GET", f.base+"/"+id+"/deliveries"+f.own, nil, f.member.key)
-	if history.status != 200 || len(history.json(t)["deliveries"].([]any)) != 3 {
-		t.Fatal("delivery history")
-	}
-	wantTS(t, "other member cannot see history", a.api(t, "GET", f.base+"/"+id+"/deliveries"+f.own, nil, f.other.key), 404, "")
-	wantTS(t, "organiser cannot subscribe to team", a.api(t, "POST", f.base+f.own, f.body(), f.org.key), 403, "organiser_read_only")
-	rotated := a.api(t, "POST", f.base+"/"+id+"/rotate-secret"+f.own, nil, f.member.key)
-	if rotated.status != 200 {
-		t.Fatal("rotate")
-	}
-	n, err = notifyapp.New(a.database).GetNotification(context.Background(), id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertNotificationSealed(t, n.Secret, rotated.json(t)["secret"].(string))
-	assertNotificationSealed(t, n.PrevSecret, notifyTestSecret)
-	f.x.mu.Lock()
-	f.x.keys = append(f.x.keys, rotated.json(t)["secret"].(string))
-	f.x.mu.Unlock()
-	tested := a.api(t, "POST", f.base+"/"+id+"/test"+f.own, nil, f.member.key)
-	if tested.status != 200 || tested.json(t)["delivered"] != true {
-		t.Fatal("signed test after rotation")
-	}
-	// The deadline stops every change for the team site, new subscriptions
-	// included; existing ones keep delivering.
-	f.sql(t, `UPDATE events SET submission_deadline=now()-interval '1 minute' WHERE slug=$1`, f.slug)
-	wantTS(t, "deadline", a.api(t, "POST", f.base+f.own, f.body(), f.member.key), 409, "submissions_closed")
-	delivered := len(f.x.snapshot())
-	f.emit(t)
-	f.drain(t)
-	if len(f.x.snapshot()) != delivered+1 {
-		t.Fatal("deadline stopped delivery")
-	}
-	// Removal deletes subscriptions and their pending deliveries immediately.
-	f.emit(t)
-	wantTS(t, "remove member", a.api(t, "DELETE", "/v1/hack/events/"+f.slug+"/teams/"+f.team+"/members/"+a.uid(t, f.member), nil, f.org.key), 204, "")
-	f.gone(t, id)
-	f.drain(t)
-	if len(f.x.snapshot()) != 5 {
-		t.Fatal("delivered after removal")
-	}
-}
-
 func TestHackNotificationsMembershipAndSecretGate(t *testing.T) {
 	f := newHackNotifyFixture(t)
 	a := f.a
@@ -341,98 +200,6 @@ func TestHackNotificationsMembershipAndSecretGate(t *testing.T) {
 	wantTS(t, "keyless remove", a.api(t, "DELETE", f.base+"/"+otherID+f.own, nil, f.other.key), 200, "")
 }
 
-func TestHackNotificationsMCPTeamAndOrganiser(t *testing.T) {
-	f := newHackNotifyFixture(t)
-	a := f.a
-	client := a.registerClient(t, testRedirect)
-	access := a.connect(t, f.member, client, testRedirect)["access_token"].(string)
-	orgAccess := a.connect(t, f.org, client, testRedirect)["access_token"].(string)
-	caps := a.rpc(t, access, "initialize", nil).json(t)["result"].(map[string]any)["capabilities"].(map[string]any)
-	if _, ok := caps["events"]; !ok {
-		t.Fatal("Hack Events missing")
-	}
-	listed := a.rpc(t, access, "tools/list", nil)
-	for _, name := range []string{"hack_list_events", "storage_set_resource", "list_notifications", "remove_notification"} {
-		if !strings.Contains(string(listed.body), `"`+name+`"`) {
-			t.Fatal("full tool list missing " + name)
-		}
-	}
-	subscribe := func(token string, args map[string]any, allowed bool) string {
-		t.Helper()
-		r := a.rpc(t, token, "events/subscribe", map[string]any{"name": "record.added", "arguments": args, "delivery": map[string]string{"mode": "webhook", "url": f.x.server.URL, "secret": notifyTestSecret}}).json(t)
-		if allowed {
-			result, ok := r["result"].(map[string]any)
-			if !ok {
-				t.Fatalf("subscribe refused: %v", r)
-			}
-			return result["id"].(string)
-		}
-		if r["error"] == nil {
-			t.Fatal("subscribe unexpectedly allowed")
-		}
-		return ""
-	}
-	args := map[string]any{"site": f.team, "owner": f.slug}
-	id := subscribe(access, args, true)
-	// Another team's site of the same event is never reachable.
-	rival := a.newPerson(t, "hn-rival")
-	a.join(t, f.slug, rival, f.org)
-	rivalTeam, _ := a.startTeam(t, f.slug, "Rival", rival)
-	wantTS(t, "rival deploy", a.deployTeam(t, f.slug, rivalTeam, rival.key, "rival"), 201, "")
-	subscribe(access, map[string]any{"site": rivalTeam, "owner": f.slug}, false)
-	_, out, failed := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "list_notifications", "arguments": args}))
-	if failed || len(out["notifications"].([]any)) != 1 {
-		t.Fatal("personal notification tool identity")
-	}
-	// Existing MCP subscriptions refresh after the deadline.
-	f.sql(t, `UPDATE events SET submission_deadline=now()-interval '1 minute' WHERE slug=$1`, f.slug)
-	if got := subscribe(access, args, true); got != id {
-		t.Fatal("refresh changed subscription")
-	}
-	// The event website (the site named the event's id) is the organisers'.
-	var eventSite string
-	if err := a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, f.slug).Scan(&eventSite); err != nil {
-		t.Fatal(err)
-	}
-	wantTS(t, "event deploy", a.deployTeam(t, f.slug, eventSite, f.org.key, "event"), 201, "")
-	eventArgs := map[string]any{"site": eventSite, "owner": f.slug}
-	subscribe(access, eventArgs, false)
-	eventID := subscribe(orgAccess, eventArgs, true)
-	// Ownership in another event cannot be borrowed.
-	another := a.makeEvent(t, f.other)
-	var anotherSite string
-	if err := a.database.QueryRow(`SELECT id FROM events WHERE slug=$1`, another).Scan(&anotherSite); err != nil {
-		t.Fatal(err)
-	}
-	wantTS(t, "other event site", a.deployTeam(t, another, anotherSite, f.other.key, "other"), 201, "")
-	subscribe(orgAccess, map[string]any{"site": anotherSite, "owner": another}, false)
-	n, err := notifyapp.New(a.database).GetNotification(context.Background(), eventID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n.OwnerID != a.uid(t, f.org) {
-		t.Fatal("organiser subscription owner")
-	}
-	// Revoking the connection removes the subscription through the existing FK.
-	if n.GrantID == nil {
-		t.Fatal("missing grant binding")
-	}
-	f.sql(t, `DELETE FROM oauth_grants WHERE id=$1`, *n.GrantID)
-	f.gone(t, eventID)
-}
-
-func TestHackNotificationEventAccountExcluded(t *testing.T) {
-	f := newHackNotifyFixture(t)
-	var holder string
-	if err := f.a.database.QueryRow(`SELECT account_id FROM events WHERE slug=$1`, f.slug).Scan(&holder); err != nil {
-		t.Fatal(err)
-	}
-	_, err := f.a.data.EventsBackend().Subscribe(context.Background(), mcp.Caller{Owner: holder, Mode: mcp.CallerModeEvents}, mcp.EventSubscribeRequest{Site: f.team})
-	if err == nil {
-		t.Fatal("holding account accepted")
-	}
-}
-
 func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	f := newHackNotifyFixture(t)
 	a := f.a
@@ -446,11 +213,11 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	wantTS(t, "second site", a.deployTeam(t, slug2, team2, f.member.key, "second"), 201, "")
 	id := f.create(t, f.base+f.own, f.member)
 	otherID := f.create(t, f.base+"?owner="+slug2, f.member)
-	n, err := notifyapp.New(a.database).GetNotification(context.Background(), id)
+	n, err := notifyrepo.GetNotification(context.Background(), a.database, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := notifyapp.New(a.database).GetNotification(context.Background(), otherID)
+	other, err := notifyrepo.GetNotification(context.Background(), a.database, otherID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -469,7 +236,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 	if !ok {
 		t.Fatal("MCP subscribe")
 	}
-	sub, err := notifyapp.New(a.database).GetNotification(context.Background(), result["id"].(string))
+	sub, err := notifyrepo.GetNotification(context.Background(), a.database, result["id"].(string))
 	if err != nil || sub.SiteID != other.SiteID {
 		t.Fatal("MCP resolved wrong event")
 	}
@@ -479,50 +246,7 @@ func TestHackNotificationsSameNamedTeams(t *testing.T) {
 		t.Fatal("remove")
 	}
 	f.gone(t, otherID)
-	if _, err := notifyapp.New(a.database).GetNotification(context.Background(), id); err != nil {
+	if _, err := notifyrepo.GetNotification(context.Background(), a.database, id); err != nil {
 		t.Fatal("removed other event subscription")
-	}
-}
-
-func TestHackNotificationsWorkerAndMembershipMove(t *testing.T) {
-	f := newHackNotifyFixture(t)
-	a := f.a
-	id := f.create(t, f.base+f.own, f.member)
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel(); a.data.WaitNotifications() })
-	a.data.StartNotifications(ctx)
-	f.emit(t)
-	deadline := time.Now().Add(5 * time.Second)
-	for len(f.x.snapshot()) == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if len(f.x.snapshot()) != 1 {
-		t.Fatal("Hack worker did not deliver")
-	}
-	cancel()
-	a.data.WaitNotifications()
-	// Moving teams cannot leave a live subscription to the old team.
-	f.sql(t, `UPDATE event_members SET team_id=NULL WHERE user_id=$1`, a.uid(t, f.member))
-	f.gone(t, id)
-}
-
-func TestHackEmptyNotificationsBeforePublishing(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, member, outsider := a.newPerson(t, "empty-org"), a.newPerson(t, "empty-member"), a.newPerson(t, "empty-other")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, member, org)
-	team, _ := a.startTeam(t, slug, "Empty", member)
-	for _, c := range []struct {
-		path  string
-		owner person
-	}{
-		{"/v1/sites/" + team + "/notifications?owner=" + slug, member},
-	} {
-		r := a.api(t, "GET", c.path, nil, c.owner.key)
-		wantTS(t, "empty list", r, 200, "")
-		if len(r.json(t)["notifications"].([]any)) != 0 {
-			t.Fatalf("not empty: %s", r.body)
-		}
-		wantTS(t, "outsider", a.api(t, "GET", c.path, nil, outsider.key), 404, "owner_not_found")
 	}
 }

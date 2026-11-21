@@ -107,14 +107,5 @@ func toolsAs(t *testing.T, s *mcp.Server, caller mcp.Caller, ui bool) ([]wireToo
 	return reply.Result.Tools, byName
 }
 
-// callAs is one tools/call as caller, in an initialize-era revision.
-func callAs(t *testing.T, s *mcp.Server, caller mcp.Caller, name string, args map[string]any) *httptest.ResponseRecorder {
-	t.Helper()
-	if args == nil {
-		args = map[string]any{}
-	}
-	return rpcAs(t, s, caller, "2025-06-18", "tools/call", map[string]any{"name": name, "arguments": args}, false)
-}
-
 // wireEvents turns the Events tools and capability on; listing never calls it.
 type wireEvents struct{ mcp.EventsBackend }

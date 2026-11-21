@@ -26,7 +26,6 @@ func adminSiteTime(s model.Site) time.Time {
 	return s.CreatedAt
 }
 
-// Sort before pagination, with a stable id tie-breaker across requests.
 func sortAdminSites(rows []adminSiteEntry, key string, ascending bool) {
 	sort.Slice(rows, func(i, j int) bool {
 		a, b := rows[i], rows[j]

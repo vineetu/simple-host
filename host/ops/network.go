@@ -20,9 +20,6 @@ import (
 // site_traffic_daily) and the box's own bytes in and out this month
 // (host/netusage), against NETWORK_MONTHLY_ALLOWANCE_GB.
 
-// trafficTopSites is how many sites the "most traffic" table names.
-const trafficTopSites = 10
-
 // SetNetworkUsage turns on the box's network counters. iface is
 // NETWORK_INTERFACE. Inside a container the default route is the container's
 // own interface, not the box's, so there it stays off unless iface is set.
@@ -43,8 +40,8 @@ func inContainer() bool {
 	return err == nil
 }
 
-// StartNetworkUsage samples the counters every NETWORK_SAMPLE_MINUTES.
-// NetworkUsageWorker is nil when network accounting is disabled.
+// NetworkUsageWorker samples the counters every NETWORK_SAMPLE_MINUTES; it is
+// nil when network accounting is off.
 func (h *NetworkUsage) NetworkUsageWorker() workers.Owner {
 	if h.netUsage == nil {
 		return nil
@@ -96,13 +93,8 @@ func (w *networkUsageWorker) Start(ctx context.Context) {
 		})
 	})
 }
-func (h *NetworkUsage) StartNetworkUsage(ctx context.Context) {
-	if w := h.NetworkUsageWorker(); w != nil {
-		w.Start(ctx)
-	}
-}
 
-// networkUsage is the "network" object of GET /v1/admin/usage. Each half is
+// Report is the "network" object of GET /v1/admin/usage. Each half is
 // null when it is off or could not be read, and the rest still answers.
 func (h *NetworkUsage) Report(ctx context.Context, now time.Time) map[string]any {
 	lim := h.ed.Limits()

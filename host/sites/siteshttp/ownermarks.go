@@ -11,14 +11,13 @@ import (
 	operations "github.com/vsriram/simple-host/host/ops"
 )
 
-// Owner visit marks (SIM-151, 2026-11-02; host/app/operations/ownermarks.go).
+// Owner visit marks.
 // The server notes the address an account is seen signed in from so the
 // ingester can file that account's own visits to its sites as class 'owner'
 // and leave them out of People. Best effort throughout: a failed mark is
 // logged and never changes a response.
 
-// SetOwnerMarks turns mark writing on. Left unset (an install without the
-// analytics log) nothing is written.
+// SetOwnerMarks turns mark writing on; unset (no analytics log) nothing is written.
 func (h *SiteHandler) SetOwnerMarks(m *operations.OwnerMarks) {
 	h.ownerMarks = m
 }

@@ -769,22 +769,20 @@ ChatGPT and Codex connections list every operation individually, without `find_t
 `run_tool`; other clients retain their existing inventories. Instructions call tools only
 within the requested task, and annotations describe each operation's actual effects.
 
-The OpenAI package is version 1.0.2. Its listing describes hosting sites people or their AI
-have made, and its independently maintained skills call named tools directly and give DNS
-records and registrar dashboard steps without requesting credentials. `plugins/openai/SUBMISSION.md`
-and `chatgpt-app-submission.json` share five positive and three negative cases, including an
-RSVP count without emails and an explicit single-submitter lookup. The submission lists 57
-tools with MCP Events enabled, including notification listing and removal, without discovery
-wrappers. A Go test compares the submitted names and annotations with ChatGPT `tools/list`.
-The privacy page explains storage rules and owner reads; consent includes
-private-data reads, downloads,
-visitor counts, and notification management. Live reviewer tests and the portal tool rescan
-are required before resubmission; package preparation is not a deployment record.
+The OpenAI kits are `plugins/openai` (Simple Host) and `plugins/openai-hack` (Simple Hack), each
+led by its `SUBMISSION.md` and built by `scripts/build-openai-plugin.sh host|hack`; the routine is
+`plugins/ROUTINE.md`. Each kit has five positive and three negative cases. The Simple Host kit
+lists 68 tools with MCP Events and Teams on, without discovery wrappers; Simple Hack's lists 179.
+Go tests compare each kit's names and annotations with ChatGPT `tools/list`, and one annotation
+rule per product is checked against every tool. The privacy page explains storage rules and
+owner reads; consent includes private-data reads, downloads, visitor counts, and notification
+management. Live reviewer tests and the portal tool rescan are required before submission;
+package preparation is not a deployment record.
 
 Host and Hack publish `GET /.well-known/agent-card.json` and `GET /.well-known/mcp/server-card.json` (also `/mcp/server-card`), with their product name, configured issuer, build version, and local MCP endpoint. `GET /.well-known/ai-catalog.json` links both cards and OpenAPI. The Hack agent card describes organiser, participant, judge, and selected-team capabilities from the full Hack inventory, without account, event, or team data. Hack retains its full tool listing; personal and team instructions stay under 2,000 characters, including long company hostnames.
 The hosted Simple Host server is listed under `app.simple-host/mcp` on the official registry (registry.modelcontextprotocol.io, DNS-verified for simple-host.app, 2026-10-23); mcp.so and Smithery listings are pending, both require signing in as the owner.
 
-Connector usage analytics is off unless `AGENTCAT_PROJECT_ID` is set. AgentCat receives a random event ID, project ID, daily session ID derived from the actor hash and client name, event type `mcp:tools/call`, tool name, integer duration in milliseconds, UTC timestamp with milliseconds, error flag and one of this server's own error codes or `tool_error` on failure, a 16-character SHA-256 actor hash keyed with a server secret (owner ID, falling back to user ID, omitted if both are empty), the app name when it is a known app (Claude, ChatGPT, Codex, Cursor and similar; otherwise `other`, or `api-key`), server name and version, SDK language `go`, and `tags: {env: prod}` on simple-host.app (`dev` elsewhere). One JSON POST per completed known tool run goes to `https://api.agentcat.com/v1/public/events/`, without an auth header. Since 2026-10-29, each event also includes `parameters: {arguments: ...}`, the client result in `response` (content, structuredContent when present, and isError), and `user_intent` from the agent's optional `context` input. Arguments and results are each capped at 8 KB of JSON; intent is capped at 2,048 characters. Wrapped calls record the inner operation's name and arguments, sanitized once; unknown, retired, or discovery targets and non-object inner arguments send only `arguments: "[removed]"`. Before enqueueing, a separate copy replaces passcodes, credential keys, tokens, signing secrets, and signed links by field name, replaces file contents (including HTML, edits, base64 payloads, and data URIs) with size and type, and replaces raw visitor emails with a reference from the same object or `[removed]`. The account email and Hack `contact_email` are also removed. SQL rows are traversed once with their column field policies and a 32-level recursion bound. Malformed edit entries and unknown edit fields become file metadata. Intent data URIs and large base64 strings are replaced before the length cap. Secret-bearing tool text is omitted, and text copies of JSON results receive the same treatment as structured results. SDK sanitization removes non-text binary content and large unlabelled base64 strings, followed by depth, breadth, string, and byte limits. AgentCat's server-side redaction removes personal identifiers before storage; we do not pattern-match personal data. Ordinary site names, KV key names, and conversation text are sent. The event's `error` remains a short code only; the response includes the tool's error result. Request headers and UI metadata are never sent. AgentCat never receives the IP address a person connects from. The optional context schema is offered to every caller, ChatGPT, OpenAI, and Codex included, whenever analytics is enabled (owner, 2026-10-29, superseding the earlier pending-plugin-approval exclusion). Every caller can supply it; it is stripped before validation and execution unless the tool owns that field. Listings are copied, and server instructions and client results stay unchanged. Simple Hack, Enterprise, and self-hosted installs are not enrolled and send nothing.
+Connector usage analytics is off unless `AGENTCAT_PROJECT_ID` is set. AgentCat receives a random event ID, project ID, daily session ID derived from the actor hash and client name, event type `mcp:tools/call`, tool name, integer duration in milliseconds, UTC timestamp with milliseconds, error flag and one of this server's own error codes or `tool_error` on failure, a 16-character SHA-256 actor hash keyed with a server secret (owner ID, falling back to user ID, omitted if both are empty), the app name when it is a known app (Claude, ChatGPT, Codex, Cursor and similar; otherwise `other`, or `api-key`), server name and version, SDK language `go`, and `tags: {env: prod}` on simple-host.app (`dev` elsewhere). One JSON POST per completed known tool run goes to `https://api.agentcat.com/v1/public/events/`, without an auth header. Since 2026-10-29, each event also includes `parameters: {arguments: ...}`, the client result in `response` (content, structuredContent when present, and isError), and `user_intent` from the agent's optional `context` input. Arguments and results are each capped at 8 KB of JSON; intent is capped at 2,048 characters. Wrapped calls record the inner operation's name and arguments, sanitized once; unknown, retired, or discovery targets and non-object inner arguments send only `arguments: "[removed]"`. Before enqueueing, a separate copy replaces passcodes, credential keys, tokens, signing secrets, and signed links by field name, replaces file contents (including HTML, edits, base64 payloads, and data URIs) with size and type, and replaces raw visitor emails with a reference from the same object or `[removed]`. The account email and Hack `contact_email` are also removed. SQL rows are traversed once with their column field policies and a 32-level recursion bound. Malformed edit entries and unknown edit fields become file metadata. Intent data URIs and large base64 strings are replaced before the length cap. Secret-bearing tool text is omitted, and text copies of JSON results receive the same treatment as structured results. SDK sanitization removes non-text binary content and large unlabelled base64 strings, followed by depth, breadth, string, and byte limits. AgentCat's server-side redaction removes personal identifiers before storage. Since 2026-11-21 the server also pattern-scrubs free text (the stated intent, argument names and, on Simple Hack, every string) for email addresses, capability links, UUIDs, key-like strings and code-shaped words, and Simple Hack copies drop people's names, account IDs, contact fields, codes and applicants' free text by class of field (see docs/advanced/observability.md). Ordinary site names, KV key names, and conversation text are sent. The event's `error` remains a short code only; a failed call's response is only `Refused: <code>.`, never the tool's error text. Request headers and UI metadata are never sent. AgentCat never receives the IP address a person connects from. The optional context schema is offered to every caller, ChatGPT, OpenAI, and Codex included, whenever analytics is enabled (owner, 2026-10-29, superseding the earlier pending-plugin-approval exclusion). Every caller can supply it; it is stripped before validation and execution unless the tool owns that field. Listings are copied, and server instructions and client results stay unchanged. Any install with `AGENTCAT_PROJECT_ID` set sends; an install without it sends nothing. 2026-11-21 (owner): hosted Simple Hack sends the same set into the same project as Simple Host, every event tagged `product` (`simple-host`/`simple-hack`) and `protocol`, Hack events also `role` (the caller's role in the named event) and `stage`, looked up after the reply; refusal codes from this server's REST API are recorded as they are; Hack tools' copies also drop other people's raw account IDs. See docs/advanced/observability.md.
 
 JSON body read deadlines allow the body allowance at 250,000 bytes/s plus ten minutes, never below fifteen minutes. Partial file updates sanitize and validate the patch before deploy locks, allow an empty sanitized patch, and hold the site lock through live-file merge and commit, using the ordinary unpacked-file caps and final merged sanitization.
 
@@ -1259,32 +1257,7 @@ ChatGPT app's own 58-tool list.
 against the real stack (real Postgres, real OAuth, a team with an entry whose
 title, tagline and description carry `<script>`/`onerror=` payloads), plus
 `TestHackJudgeAppShowToolReflectsLockMidSession` (an organiser locks judging
-mid-session; the next `hack_show_judge` call reflects it), and, behind
-`HACK_JUDGE_APP_FIXTURE`, serves a fixture for `scripts/hack-judge-app-browser.mjs`
-(the existing Playwright fake-host harness, extended): it renders all four
-views at 390 and 1280 px against a realistic host-served header CSP
-(`script-src 'self' 'unsafe-inline'`, proving the resource's own stricter
-nonce'd meta CSP — not the header — is what actually holds), injects raw,
-unescaped `<img onerror>` directly into the live DOM (bypassing the screens'
-own escaping entirely, simulating an escaping bug rather than assuming one
-away) and asserts the handler never runs, scores a team by tapping a point
-chip (asserting both the save lands via `hack_score_team` and that the chips
-are actually on screen — non-zero size, inside the frame's own width — not
-just present in the DOM, which the phone-width scoring view's own layout
-regression would otherwise have passed on text content alone), declares a
-conflict through the confirm dialog (asserting `hack_declare_my_conflict`),
-submits a real invite acceptance and confirms it lands on the judge's queue
-in-frame rather than navigating away, reopens the invite as an already-joined
-member and confirms "Open it" opens the queue (not the invite again), goes
-score → rubric → Back and confirms the same team's scoring is what comes
-back, and asserts the hostile team/entry text appears only as escaped text —
-no `<script>`/`<img onerror>` element is ever created and no `alert()`/native
-dialog fires. Every screenshot now also checks its own PNG's byte count: a
-day-one-of-this-review screenshot at phone width was fully blank — a timing
-race in Chromium's own `page.screenshot({fullPage:true})` capture against an
-iframe resizing on its own postMessage'd schedule, not a layout bug (the live
-DOM was provably correct throughout; see `scripts/hack-judge-app-browser.mjs`'s
-`waitForStableFrame`/`shot` for the full account and the retry-based fix).
+mid-session; the next `hack_show_judge` call reflects it).
 
 MCP: `hack_app_get_judge_queue`, `hack_app_get_judge_scores`, `hack_app_get_my_conflicts`.
 
@@ -1410,8 +1383,7 @@ at 4, serialising all 17 write tools one at a time. A frame-level Back
 control (the same tiny view-history stack as the judge app's) appears
 whenever there is somewhere to go back to, since none of these three
 screens carries a Back link of its own (that normally comes from the shell
-this frame leaves out) — `scripts/hack-organiser-app-browser.mjs` exercises
-it by returning from Judging to Overview.
+this frame leaves out).
 
 CSP, nonce and gating follow the judge app's own pattern exactly: `_meta.ui.csp`
 domains are all empty; `clipboardWrite` is declared (the join/judge link and
@@ -1435,15 +1407,7 @@ regardless of `approval_required`) whose display name and sign-up answer
 both carry `<script>`/`onerror=` payloads, a team with a hostile name, a
 judge connection correctly refused by `hack_show_organiser`, and the
 join/judge codes proven absent from model-visible content while present in
-`_meta`; and, behind `HACK_ORGANISER_APP_FIXTURE`, serves a fixture for
-`scripts/hack-organiser-app-browser.mjs` (the same Playwright fake-host
-harness pattern as the judge app's), which renders all three views at 390
-and 1280 px against a realistic host-served header CSP, injects a raw
-`<img onerror>` directly into the live DOM and asserts the nonce CSP (not
-escaping) stops it, asserts the pending application's hostile text appears
-only as escaped text, exercises Approve and Reject's own confirm dialog
-through the real tool calls, and confirms the Back control returns from
-Judging to Overview.
+`_meta`.
 
 Known gap (Grok security review finding 4, SIM-344 phase 2): the view's own
 confirm dialogs (Reject, End event, Finish judging, ...) ask the person

@@ -55,7 +55,7 @@ type UserHandler struct {
 
 	// geoBlock gates email-code sign-in and sign-up by the request's country
 	// (SIGNUP_BLOCKED_COUNTRIES). Zero value: off. See signupgeo.go.
-	geoBlock signupGeoBlock
+	geoBlock accounts.SignupGeoBlock
 
 	// assets is the asset/chrome pipeline for ed and publicBaseURL (the
 	// message pages in account_email.go); read it through pipeline().
@@ -74,11 +74,7 @@ func (h *UserHandler) pipeline() *web.AssetPipeline {
 	return h.assets
 }
 
-// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
-// (host/geoip, GEOIP_DIR) so every dashboard email-code sign-in or
-// sign-up attempt from a blocked country is refused before anything is
-// created or emailed — a new account and an existing one alike. geo may be
-// nil; countries may be empty — either turns this off.
+// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES for dashboard email-code sign-ins.
 func (h *UserHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
 	h.geoBlock = guard
 }
@@ -283,7 +279,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 		if _, err := h.accounts.GetSSOHop(r.Context(), req.SSOState, false); req.SSOState != "" && err == nil {
 			source.Source = "visitor_sso"
 		}
-		recordSignup(r.Context(), h.database, user.ID, source)
+		accounts.RecordSignup(r.Context(), h.database, user.ID, source)
 	}
 
 	h.finishSignIn(w, r, user, created, req)
@@ -295,7 +291,7 @@ func signInKeyName(req VerifyRequest) (string, error) {
 		keyName = n
 	} else {
 		var err error
-		keyName, err = normalizeKeyName(req.Name)
+		keyName, err = accounts.NormalizeKeyName(req.Name)
 		if err != nil {
 			return "", err
 		}

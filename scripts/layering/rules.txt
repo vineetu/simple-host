@@ -14,7 +14,13 @@ web -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !server/*
 # A module's routes may import every module, web and the kernel; never another module's routes.
 {access/accesshttp,sites/siteshttp,data/datahttp} -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !server/** !extension !testdb !geoip/geoiptest
 # The HTTP and MCP layers and the composition roots may import every module.
-{handler,mcp,server/**,extension} -> /** !testdb !geoip/geoiptest
+{handler,mcp,server,server/servertest,extension} -> /** !testdb !geoip/geoiptest
+# A module's route suite builds that module's routes alone, on the modules, so a change to one
+# module's routes reruns only its own suite; the cross-module journeys are server/servertest's.
+server/servertest/routetest -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !mcp !server !server/servertest/** !extension !geoip/geoiptest
+server/servertest/accesstest -> /** !sites/siteshttp !data/datahttp !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
+server/servertest/datatest -> /** !access/accesshttp !sites/siteshttp !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
+server/servertest/sitestest -> /** !access/accesshttp !data/datahttp !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
 # servertest is itself a test fixture: it builds the server on a disposable database.
 server/servertest -> testdb geoip/geoiptest
 # A product may import the platform and itself, never a module's repository; no platform row lists a product.
@@ -30,7 +36,7 @@ server/servertest -> testdb geoip/geoiptest
 /** -> testdb geoip/geoiptest
 @/** -> testdb geoip/geoiptest @/products/hack/testdb
 # Only the composition roots' tests build the whole server (servertest).
-{server/**,@/cmd/**,@/products/**} -> server/servertest
+{server,server/servertest,@/cmd/**,@/products/**} -> server/servertest
 @/products/hack/** -> {access,sites,data,ops}/repo/**
 [transitional]
 # Must remain empty: every transitional edge now fails the check.

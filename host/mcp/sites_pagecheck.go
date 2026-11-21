@@ -98,8 +98,8 @@ func (p *pageCheck) checkAuthJS(path, text, code, local string) {
 	}
 }
 
-// checkTextAfterHTML: text after </html> means a splice went wrong (SIM-331:
-// a JavaScript replace with "$'" in it pasted the file's tail into a
+// checkTextAfterHTML: text after </html> means a splice went wrong (e.g. a
+// JavaScript replace with "$'" in it pasted the file's tail into a
 // script), so the script breaks and its code shows on the page. Scripts are
 // skipped, as the browser does: a "</html>" in a script string does not end
 // the page.
@@ -251,7 +251,6 @@ func tableWarnings(c *call, base, resource string, used map[string]bool, add fun
 	}
 }
 
-// sqliteTables lists a SQLite resource's own tables.
 func sqliteTables(c *call, base, resource string) ([]string, bool) {
 	body, _ := json.Marshal(map[string]any{"sql": "SELECT name FROM sqlite_master WHERE type = 'table'", "params": []any{}})
 	q := c.do(http.MethodPost, base+"/sqlite/"+url.PathEscape(resource)+"/query", body, nil)

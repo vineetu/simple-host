@@ -24,16 +24,10 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Entries: the text, links and screenshot a team submits, kept apart from
-// the team site (hosted events, M2; docs/designs/simple-hack-platform.md).
-// A participant reads and writes only their own team's entry. Organisers
-// and judges read every team's entry and screenshots.
+// Entries: the text, links and screenshot a team submits, kept apart from the team site. A participant reads and writes only their own team's entry; organisers and judges read every team's entry and screenshots.
 
-// hackScreenshotMax is the largest screenshot stored: 2 MiB.
 const hackScreenshotMax = 2 << 20
 
-// hackScreenshotMaxSide is the largest width or height a screenshot may
-// declare.
 const hackScreenshotMaxSide = 8000
 
 func (h *participationHTTP) getEntry(w http.ResponseWriter, r *http.Request) {
@@ -88,8 +82,7 @@ func (h *participationHTTP) putEntry(w http.ResponseWriter, r *http.Request) {
 	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 
-// submitEntry is POST .../entry/submit (section 4.1): the explicit move from
-// draft to submitted, enforced against the event's rules.
+// submitEntry moves the entry from draft to submitted, enforced against the event's rules.
 func (h *participationHTTP) submitEntry(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant")
 	if !ok {
@@ -98,8 +91,7 @@ func (h *participationHTTP) submitEntry(w http.ResponseWriter, r *http.Request) 
 	if _, ok := participantTeam(w, r, h.teams, a); !ok {
 		return
 	}
-	// The body is optional (section 4.1: "an empty body, or {updated_at}"):
-	// a bodyless POST submits unconditionally.
+	// The body is optional: a bodyless POST submits unconditionally.
 	var req struct {
 		UpdatedAt *string `json:"updated_at"`
 	}
@@ -124,8 +116,6 @@ func (h *participationHTTP) submitEntry(w http.ResponseWriter, r *http.Request) 
 	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 
-// unsubmitEntry is POST .../entry/unsubmit: any current member can put the
-// entry back to draft before the deadline.
 func (h *participationHTTP) unsubmitEntry(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "participant")
 	if !ok {
@@ -141,9 +131,7 @@ func (h *participationHTTP) unsubmitEntry(w http.ResponseWriter, r *http.Request
 	h.writeOwnEntry(w, r, a.event, teamID, a.user.ID)
 }
 
-// excludeEntry and includeEntry are the organiser's hand exclude of a
-// flagged (or any) entry from judging, with a confirm on the client side
-// (coordinator decision 2026-11-02, INTENT.md).
+// excludeEntry and includeEntry are the organiser's manual exclusion of an entry from judging (the client confirms).
 func (h *participationHTTP) excludeEntry(w http.ResponseWriter, r *http.Request) {
 	h.setEntryExcluded(w, r, true)
 }
@@ -261,8 +249,7 @@ func (h *participationHTTP) getTeamScreenshot(w http.ResponseWriter, r *http.Req
 		httpx.WriteInternal(w)
 		return
 	}
-	// Section 4.5: a judge sees screenshots only for teams in their queue
-	// (assignment mode, conflicts, and now entry judgeability).
+	// A judge sees screenshots only for teams in their queue (assignment mode, conflicts, entry judgeability).
 	if a.member.Role == "judge" {
 		eligible, err := h.entries.JudgeTeamEligible(r.Context(), a.event.ID, a.user.ID, team.ID)
 		if err != nil {
@@ -278,8 +265,6 @@ func (h *participationHTTP) getTeamScreenshot(w http.ResponseWriter, r *http.Req
 	h.serveTeamScreenshot(w, r, team.ID)
 }
 
-// listEntries is every team of the event with its entry, for organisers and
-// judges.
 func (h *participationHTTP) listEntries(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser", "judge")
 	if !ok {
@@ -294,7 +279,6 @@ func (h *participationHTTP) listEntries(w http.ResponseWriter, r *http.Request) 
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"required": entryRequiredList(a.event.EntryRequired), "entries": out, "counts": counts})
 }
 
-// entryList is every team's entry list item, by team name, with the tallies.
 func (h *participationHTTP) entryList(ctx context.Context, a hackAccess) ([]map[string]any, entries.EntryCounts, error) {
 	ev := a.event
 	tl, err := h.links.loadTeamList(ctx, ev)
@@ -337,7 +321,6 @@ func (h *participationHTTP) entryList(ctx context.Context, a hackAccess) ([]map[
 	return out, counts, nil
 }
 
-// entriesByTeam is the event's stored entries by team id.
 func (h *participationHTTP) entriesByTeam(ctx context.Context, eventID string) (map[string]model.EventEntry, error) {
 	stored, err := h.entries.Entries(ctx, eventID)
 	byTeam := make(map[string]model.EventEntry, len(stored))
@@ -347,7 +330,6 @@ func (h *participationHTTP) entriesByTeam(ctx context.Context, eventID string) (
 	return byTeam, err
 }
 
-// judgeSiteLinkGate is entries.JudgeSiteLinks for the caller.
 func (h *views) judgeSiteLinkGate(ctx context.Context, a hackAccess) (func(teamID string) bool, error) {
 	return h.entries.JudgeSiteLinks(ctx, a.event, a.user.ID, a.admin || a.member.Role == "organiser", h.scoringStage(ctx, a.event))
 }
@@ -365,7 +347,6 @@ func redactEntrySiteLinks(item map[string]any) {
 	}
 }
 
-// entryWrite maps service refusals to the existing participant responses.
 func (h *participationHTTP) entryWrite(w http.ResponseWriter, r *http.Request, a hackAccess, req entries.WriteRequest) (string, bool) {
 	req.Event, req.UserID = a.event, a.user.ID
 	id, missing, err := h.entries.Write(r.Context(), req)
@@ -405,9 +386,7 @@ func (h *participationHTTP) writeOwnEntry(w http.ResponseWriter, r *http.Request
 	httpx.WriteJSON(w, http.StatusOK, body)
 }
 
-// ownEntryJSON is the participant's view of their team's entry (section 4.1):
-// the summary card, the submit state, the event's rules and summary sentence,
-// completeness, and the Home progress checklist.
+// ownEntryJSON is the participant's view of their team's entry: summary card, submit state, rules, completeness and the Home progress checklist.
 func (h *participationHTTP) ownEntryJSON(ctx context.Context, ev model.Event, teamID, userID string) (map[string]any, error) {
 	e, err := h.entries.Entry(ctx, teamID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -456,7 +435,6 @@ func (h *participationHTTP) ownEntryJSON(ctx context.Context, ev model.Event, te
 	}, nil
 }
 
-// entryTrack says whether the event has tracks and which one the team chose.
 func (h *views) entryTrack(ctx context.Context, eventID, teamID string) (bool, *model.EventTrack, error) {
 	tracks, err := h.events.EventTracks(ctx, eventID)
 	if err != nil {
@@ -466,8 +444,6 @@ func (h *views) entryTrack(ctx context.Context, eventID, teamID string) (bool, *
 	return len(tracks) > 0, track, err
 }
 
-// teamProgressJSON is the Home progress checklist for one of the team's
-// people, with the names of their teammates.
 func (h *views) teamProgressJSON(ctx context.Context, ev model.Event, team model.EventTeam, userID string, st model.TeamWriteState) (map[string]any, error) {
 	people, err := h.teams.TeamPeople(ctx, team.ID)
 	if err != nil {
@@ -482,7 +458,6 @@ func (h *views) teamProgressJSON(ctx context.Context, ev model.Event, team model
 	return h.entryProgressJSON(ctx, ev, team, teammates, st)
 }
 
-// entryCardJSON is the summary card fields both entry views show.
 func entryCardJSON(e model.EventEntry) map[string]any {
 	var updated any
 	if e.Exists {
@@ -495,7 +470,6 @@ func entryCardJSON(e model.EventEntry) map[string]any {
 	}
 }
 
-// trackJSON is the team's track, nil when none; withID adds its id.
 func trackJSON(track *model.EventTrack, withID bool) any {
 	if track == nil {
 		return nil
@@ -507,7 +481,6 @@ func trackJSON(track *model.EventTrack, withID bool) any {
 	return out
 }
 
-// orNil is v, or nil when v is its zero value.
 func orNil[T comparable](v T) any {
 	var zero T
 	if v == zero {
@@ -523,10 +496,7 @@ func nonNilStrings(s []string) []string {
 	return s
 }
 
-// entryListItem is one team's entry as organisers and judges see it
-// (section 4.5): the summary card, status, missing and the video and site
-// evidence, with the embeddable video player (videoEmbed) and whether the
-// judge screen may frame the site (entrySiteView).
+// entryListItem is one team's entry as organisers and judges see it, with the video embed and whether the judge screen may frame the site.
 func (h *views) entryListItem(ctx context.Context, ev model.Event, team model.EventTeam, e model.EventEntry, fields map[string]string, hasTracks bool, tl teamList) (map[string]any, error) {
 	st := tl.states[team.ID]
 	site := tl.site(team.Slug)
@@ -578,7 +548,6 @@ func (h *views) entryListItem(ctx context.Context, ev model.Event, team model.Ev
 	return item, nil
 }
 
-// entryVideoJSON is the entry's video link with its host and embed address.
 func entryVideoJSON(raw string) any {
 	if raw == "" {
 		return nil
@@ -605,9 +574,7 @@ func (h *views) entrySiteView(ctx context.Context, ev model.Event, team model.Ev
 	if err != nil {
 		return nil, err
 	}
-	// Security review F1 (2026-11-02): a preview link carries no passcode,
-	// viewer or offline check of its own (servePreview checks only the
-	// token), so a site that can't be framed gets no preview link at all.
+	// A preview link carries no passcode, viewer or offline check of its own (servePreview checks only the token), so a site that can't be framed gets no preview link at all.
 	var previewJSON any
 	if why == "" {
 		previewJSON = orNil(preview)
@@ -621,8 +588,7 @@ func (h *views) entrySiteView(ctx context.Context, ev model.Event, team model.Ev
 	}, nil
 }
 
-// notFrameableWhy names the first reason the team's site can't be framed,
-// for the screen's one-line explanation ("" when it can).
+// notFrameableWhy names the first reason the site can't be framed ("" when it can).
 func (h *views) notFrameableWhy(ctx context.Context, site *hostmodel.Site, st model.TeamWriteState, previewReady bool) (string, error) {
 	switch {
 	case st.SiteTakenDown || st.EventTakenDown || site.Suspended():
@@ -646,8 +612,6 @@ func (h *views) notFrameableWhy(ctx context.Context, site *hostmodel.Site, st mo
 	return "", nil
 }
 
-// hackURLHost is the host shown next to a link (judge/organiser views, never
-// the public page in this slice).
 func hackURLHost(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -656,7 +620,6 @@ func hackURLHost(raw string) string {
 	return u.Host
 }
 
-// readEntryImage reads a screenshot body.
 func readEntryImage(w http.ResponseWriter, r *http.Request) ([]byte, string, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, hackScreenshotMax+1)
 	data, err := io.ReadAll(r.Body)

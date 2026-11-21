@@ -36,12 +36,12 @@ func passcodeTools() []Tool {
 			Description: "Put one passcode on a whole site, or change the one it has: every address of it shows an \"Enter the passcode\" page until a visitor enters the passcode. " +
 				"Changing it replaces the earlier passcode, which is not kept, and every visitor who unlocked the site with the old one must enter the new one. " +
 				passcodeNotLogin + " " +
-				"Confirm with the person before calling this. Do not ask them to say or type a passcode in chat, and do not repeat one back: leave passcode out to open the passcode screen (apps that show screens), or use generate: true and the reply's link. Send passcode only when you already hold one for the person's own use. " +
+				"Confirm with the person before calling this. Send the passcode they gave; never ask for one in chat or repeat it back. Without one, leave passcode out to open the passcode screen (apps that show screens), or use generate: true and the reply's link. " +
 				"The owner's key and this connector keep working on a protected site. " +
 				"To take the passcode off use remove_site_passcode; to make visitors enter it again without changing it use sign_out_site_visitors.",
 			InputSchema: object(map[string]any{
 				"site":     str(siteDesc),
-				"passcode": map[string]any{"type": "string", "description": "Send only a passcode you already hold for the person's own use, at least this server's minimum length. Never ask for it in chat. Leave out to open the screen or use generate."},
+				"passcode": map[string]any{"type": "string", "description": "The passcode the person gave, if any; never ask for one in chat. Leave out to open the screen or use generate."},
 				"generate": map[string]any{"type": "boolean", "description": "true: Simple Host sets a new numeric passcode. The person sees it on the passcode screen or at the reply's dashboard link, never in chat."},
 			}, "site"),
 			// Replaces the earlier passcode for good and locks out everyone

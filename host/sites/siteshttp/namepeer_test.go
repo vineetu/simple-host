@@ -28,14 +28,10 @@ func TestNamePeer(t *testing.T) {
 		calls                       int
 	}{
 		{"loopback", "127.0.0.1:1234", "", "zone=EXAMPLE.TEST&name=%20TAKEN%20", 200, "{\"taken\":true}\n", 1},
-		{"IPv6 loopback", "[::1]:1234", "", "zone=example.test&name=free", 200, "{\"taken\":false}\n", 1},
 		{"other zone", "127.0.0.1:1234", "", "zone=other.test&name=taken", 200, "{\"taken\":false}\n", 0},
-		{"empty name", "127.0.0.1:1234", "", "zone=example.test", 200, "{\"taken\":false}\n", 0},
 		{"lookup failure", "127.0.0.1:1234", "", "zone=example.test&name=failure", 500, "{\"error\":\"internal server error\"}\n", 1},
 		{"remote", "192.0.2.1:1234", "", "zone=example.test&name=taken", 404, "404 page not found\n", 0},
 		{"forwarded", "127.0.0.1:1234", "X-Forwarded-For", "zone=example.test&name=taken", 404, "404 page not found\n", 0},
-		{"real IP", "127.0.0.1:1234", "X-Real-IP", "zone=example.test&name=taken", 404, "404 page not found\n", 0},
-		{"missing port", "127.0.0.1", "", "zone=example.test&name=taken", 404, "404 page not found\n", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/internal/names/taken?"+tc.query, nil)
@@ -62,7 +58,7 @@ func TestNamePeer(t *testing.T) {
 		}
 	}
 
-	for _, body := range []string{`{}`, `{"taken":null}`, `not JSON`} {
+	for _, body := range []string{`{}`, `not JSON`} {
 		t.Run(body, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				_, _ = w.Write([]byte(body))

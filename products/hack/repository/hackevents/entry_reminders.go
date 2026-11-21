@@ -9,10 +9,8 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// NoticeEntryReminder is the entry deadline reminder.
 const NoticeEntryReminder = "entry_reminder"
 
-// EntryReminder is one team that is due a reminder now.
 type EntryReminder = model.EntryReminder
 
 // reminderOffsetKindSQL is the label for an offset of M minutes, the same rule Go's ReminderLabel uses.

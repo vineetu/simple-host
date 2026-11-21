@@ -41,13 +41,9 @@ func AcceptsMarkdown(r *http.Request) bool {
 // spreadsheets show as plain text. JSON numbers never reach here, so a
 // negative number stays a number.
 //
-// Security review (Grok 7): a leading Unicode format character (category
-// Cf, e.g. U+200E LEFT-TO-RIGHT MARK) or run of whitespace does not change
-// what a spreadsheet does with the formula that follows it, but it does
-// move the formula past byte 0, where the check above never saw it. Walk
-// past those before testing the first real character, so "<LRM>=HYPERLINK(...)"
-// is still caught; the apostrophe is still prefixed to the original
-// string, not the trimmed one, so nothing is lost from the cell.
+// Leading whitespace and Unicode format characters (U+200E and the like) do
+// not stop a spreadsheet running the formula after them, so the test skips
+// them; the apostrophe still goes on the original string.
 func CSVSafe(s string) string {
 	if s == "" {
 		return s

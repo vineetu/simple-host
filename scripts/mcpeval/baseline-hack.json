@@ -1,0 +1,9 @@
+{
+ "pass_rate": {
+  "small": 100,
+  "mid": 100
+ },
+ "tokens": 47283,
+ "tools": 179,
+ "model_facing_bytes": 133303
+}

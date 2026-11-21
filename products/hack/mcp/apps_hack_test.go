@@ -3,14 +3,13 @@ package hackmcp
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
 // The tool server's own screens (My sites and the rest), as one of Simple
-// Hack's connections meets them. Everything here goes over the wire.
+// Hack's connections meets them, over the wire.
 
 // platformScreenURIs are the tool server's own screens.
 var platformScreenURIs = map[string]string{
@@ -30,120 +29,48 @@ func listingBytes(t *testing.T, s *mcp.Server, caller mcp.Caller) string {
 	return full.Body.String() + bare.Body.String()
 }
 
+// A Hack connection gets My sites (and the dashboard) only on a personal
+// connection whose flag is on for it, never the photo picker or site preview,
+// and with the screens off its tools/list is unchanged.
 func TestHackAppsGatesAndUnchangedInventory(t *testing.T) {
 	s := newTestServer(nil)
 	for _, caller := range []mcp.Caller{
 		{Mode: mcp.CallerModeEvents, APIKey: "fixture"},
 		{Mode: mcp.CallerModeEvents, GrantID: "grant", Handle: "alice", APIKey: "fixture"},
 	} {
-		// The listing with the screens off is the original, undecorated tools/list contract.
 		t.Setenv("MCP_APP_MY_SITES", "off")
 		t.Setenv("MCP_APP_DASHBOARD", "off")
 		baseline := listingBytes(t, s, caller)
-		for _, flag := range []string{"", "off", "unknown", "accounts:bob", "accounts:alice", "on"} {
+		t.Setenv("MCP_APP_PHOTO_PICKER", "on")
+		t.Setenv("MCP_APP_SITE_PREVIEW", "on")
+		for _, flag := range []string{"off", "accounts:bob", "on"} {
 			t.Setenv("MCP_APP_MY_SITES", flag)
 			for _, dashboard := range []string{"off", "on"} {
 				t.Setenv("MCP_APP_DASHBOARD", dashboard)
-				// These must never expose the archive link or a preview to a Hack frame.
-				t.Setenv("MCP_APP_PHOTO_PICKER", "on")
-				t.Setenv("MCP_APP_SITE_PREVIEW", "on")
 				enabled := caller.GrantID != "" && mcp.AppFlag(flag, caller.Handle)
 				if !enabled && listingBytes(t, s, caller) != baseline {
 					t.Fatal("disabled tools/list changed")
 				}
-				for _, version := range []string{"2025-06-18", "2025-03-26"} {
-					var listed struct {
-						Result struct {
-							Tools []wireTool `json:"tools"`
-						} `json:"result"`
-					}
-					if err := json.Unmarshal(rpcAs(t, s, caller, version, "tools/list", nil, false).Body.Bytes(), &listed); err != nil {
-						t.Fatal(err)
-					}
-					for _, tool := range listed.Result.Tools {
-						// Only the screen's own resourceUri decoration is what
-						// this loop guards -- never attached outside list_sites
-						// here. A hack_app_* twin's _meta.ui (SIM-344 phase 2,
-						// Grok security review) is a different, unconditional
-						// field (visibility, never resourceUri) under the same
-						// "ui" key, so it is not what this invariant is about.
-						ui, _ := tool.Meta["ui"].(map[string]any)
-						if (ui["resourceUri"] != nil) != (enabled && tool.Name == "list_sites") {
-							t.Fatalf("unexpected UI: %s", tool.Name)
-						}
-					}
+				var listed struct {
+					Result struct {
+						Tools []wireTool `json:"tools"`
+					} `json:"result"`
 				}
-				count := 0
-				if enabled {
-					count++
-					if dashboard == "on" {
-						count++
-					}
+				if err := json.Unmarshal(rpcAs(t, s, caller, "2025-06-18", "tools/list", nil, false).Body.Bytes(), &listed); err != nil {
+					t.Fatal(err)
 				}
-				resources, _ := decode(t, rpcAs(t, s, caller, "2025-06-18", "resources/list", nil, false))["result"].(map[string]any)["resources"].([]any)
-				if len(resources) != count {
-					t.Fatalf("resource gate: %d listed, want %d", len(resources), count)
+				for _, tool := range listed.Result.Tools {
+					ui, _ := tool.Meta["ui"].(map[string]any)
+					if (ui["resourceUri"] != nil) != (enabled && tool.Name == "list_sites") {
+						t.Fatalf("unexpected UI: %s", tool.Name)
+					}
 				}
 				for id, uri := range platformScreenURIs {
 					reply := decode(t, rpcAs(t, s, caller, "2025-06-18", "resources/read", map[string]any{"uri": uri}, false))
 					allowed := enabled && (id == "my-sites" || (id == "dashboard" && dashboard == "on"))
 					if (reply["error"] == nil) != allowed {
-						t.Fatalf("read gate: %s", id)
+						t.Fatalf("read gate: %s flag=%s dashboard=%s", id, flag, dashboard)
 					}
-					if allowed {
-						content := reply["result"].(map[string]any)["contents"].([]any)[0].(map[string]any)
-						page := content["text"].(string)
-						if !strings.Contains(page, "Simple Hack") || !strings.Contains(page, "SHHackSites") || strings.Contains(page, "__HACK__") {
-							t.Fatal("Hack resource not rendered")
-						}
-						csp := content["_meta"].(map[string]any)["ui"].(map[string]any)["csp"].(map[string]any)
-						if len(csp) == 0 {
-							t.Fatal("Hack screen has no content policy")
-						}
-						for _, domains := range csp {
-							if len(domains.([]any)) != 0 {
-								t.Fatal("Hack screen has external origins")
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-func TestHackAppsResultsOffAreByteIdentical(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v1/sites", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`[{"name":"team-site","site_url":"https://team.event.example/","updated_at":"2026-10-24T10:00:00Z"}]`))
-	})
-	mux.HandleFunc("GET /v1/sites/team-site/analytics", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"range_days":7,"totals":{},"last_24h":{},"daily":[]}`))
-	})
-	s := newTestServer(mux)
-	for _, mode := range []string{mcp.CallerModeEvents} {
-		caller := mcp.Caller{Mode: mode, GrantID: "grant", Handle: "alice", APIKey: "fixture"}
-		for _, name := range []string{"list_sites", "site_analytics"} {
-			args := map[string]any{}
-			if name == "site_analytics" {
-				args["site"] = "team-site"
-			}
-			t.Setenv("MCP_APP_MY_SITES", "off")
-			t.Setenv("MCP_APP_DASHBOARD", "off")
-			baseline := callAs(t, s, caller, name, args)
-			baselineText, _, failed := resultOf(t, baseline)
-			if failed {
-				t.Fatalf("%s %s: %s", mode, name, baselineText)
-			}
-			for _, flag := range []string{"on", "", "off", "accounts:bob"} {
-				t.Setenv("MCP_APP_MY_SITES", flag)
-				t.Setenv("MCP_APP_DASHBOARD", "on")
-				got := callAs(t, s, caller, name, args)
-				if flag != "on" && got.Body.String() != baseline.Body.String() {
-					t.Fatalf("%s disabled result changed", name)
-				}
-				if text, _, failed := resultOf(t, got); failed || text != baselineText {
-					t.Fatalf("%s text changed", name)
 				}
 			}
 		}

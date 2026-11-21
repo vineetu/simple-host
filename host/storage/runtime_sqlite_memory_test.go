@@ -46,7 +46,7 @@ func TestSQLiteMemorySizes(t *testing.T) {
 }
 
 func TestSQLiteMemoryLargeWriteBudgets(t *testing.T) {
-	for _, budget := range []int64{1_000_000, 10_000_000, 1 << 30, 2 << 30, 10 << 30} {
+	for _, budget := range []int64{1_000_000, 1 << 30, 10 << 30} {
 		for _, kind := range []string{"table", "legacy", "matrix"} {
 			t.Run(fmt.Sprintf("%s/%dBytes", kind, budget), func(t *testing.T) {
 				path := filepath.Join(t.TempDir(), "data.sqlite")

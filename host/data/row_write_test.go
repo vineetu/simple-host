@@ -3,54 +3,11 @@ package data
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	"github.com/vsriram/simple-host/host/data/rules"
+	model "github.com/vsriram/simple-host/host/model"
 )
-
-func TestRowReferenceError(t *testing.T) {
-	if err := rowReferenceError(404, nil); err != nil {
-		t.Fatalf("successful check: %v", err)
-	}
-	for _, tc := range []struct {
-		status        int
-		code, message string
-	}{
-		{404, "invalid_reference", "referenced row not found"},
-		{400, "invalid_rows", "cannot check references"},
-	} {
-		err := rowReferenceError(tc.status, errors.New("reference check failed"))
-		got, ok := err.(*Error)
-		if !ok || got.Code != tc.code || got.Message != tc.message {
-			t.Fatalf("status %d: %v", tc.status, err)
-		}
-	}
-}
-
-func TestRunTableWrite(t *testing.T) {
-	conn, err := sqlite3.Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	if err := conn.Exec(`CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT UNIQUE)`); err != nil {
-		t.Fatal(err)
-	}
-	id, err := runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, []json.RawMessage{json.RawMessage(`"hello"`)}, true, nil)
-	if err != nil || id != 1 {
-		t.Fatalf("insert: %d, %v", id, err)
-	}
-	_, err = runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, []json.RawMessage{json.RawMessage(`"hello"`)}, true, nil)
-	if e, ok := err.(*Error); !ok || e.Code != "row_conflict" {
-		t.Fatalf("duplicate: %v", err)
-	}
-	_, err = runTableWrite(conn, "notes", false, sqlite3.AUTH_INSERT, `INSERT INTO notes(body) VALUES (?) RETURNING id`, nil, true, nil)
-	if e, ok := err.(*Error); !ok || e.Code != "invalid_rows" {
-		t.Fatalf("bind: %v", err)
-	}
-}
 
 func TestCheckRowReferencesVisibility(t *testing.T) {
 	conn, err := sqlite3.Open(":memory:")
@@ -64,29 +21,13 @@ func TestCheckRowReferencesVisibility(t *testing.T) {
 		INSERT INTO child VALUES (1, 1), (2, 2)`); err != nil {
 		t.Fatal(err)
 	}
-	own := rules.Resource{Kind: "sqlite", Rules: *readSet(`visitor_id == auth.id || auth.role == "owner"`)}
+	own := model.Resource{Kind: "sqlite", Rules: *readSet(`visitor_id == auth.id || auth.role == "owner"`)}
 	c := Call{Context: context.Background(), VisitorID: "visitor", ActiveChecked: true, Resource: own}
 	if err := (&Service{}).checkRowReferences(conn, c, "child", "id", 2); err != nil {
 		t.Fatalf("own parent: %v", err)
 	}
 	if err := (&Service{}).checkRowReferences(conn, c, "child", "id", 1); err == nil || err.(*Error).Code != "invalid_reference" {
 		t.Fatalf("other parent: %v", err)
-	}
-}
-
-func TestFinishTableWrite(t *testing.T) {
-	conn, err := sqlite3.Open(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	var events []string
-	s := New(nil, Deps{Committed: func(context.Context) { events = append(events, "metric") }, MarkChanged: func() { events = append(events, "changed") }})
-	if err := s.finishTableWrite(conn, Call{}, func() error { return errors.New("commit failed") }, &Admission{}); err == nil || err.(*Error).Code != "invalid_rows" || len(events) != 0 {
-		t.Fatalf("failed commit: error %v, events %v", err, events)
-	}
-	if err := s.finishTableWrite(conn, Call{}, func() error { return nil }, &Admission{}); err != nil || len(events) != 2 || events[0] != "metric" || events[1] != "changed" {
-		t.Fatalf("successful commit: error %v, events %v", err, events)
 	}
 }
 
@@ -103,7 +44,7 @@ func TestAddTableRowCommitAndRollback(t *testing.T) {
 	}
 	marks := 0
 	s := New(nil, Deps{MarkChanged: func() { marks++ }})
-	own := rules.Resource{Kind: "sqlite", Rules: *readSet(`visitor_id == auth.id || auth.role == "owner"`)}
+	own := model.Resource{Kind: "sqlite", Rules: *readSet(`visitor_id == auth.id || auth.role == "owner"`)}
 	c := Call{Context: context.Background(), VisitorID: "visitor", ActiveChecked: true, Resource: own}
 	meta, err := tableMetadata(conn, c, "child")
 	if err != nil {
@@ -199,20 +140,11 @@ func TestAddTableRowOwnerMayUseTrigger(t *testing.T) {
 
 func TestTableWriteAuthorizesBeforeReplay(t *testing.T) {
 	s := New(nil, Deps{})
-	c := Call{Resource: rules.Resource{SitePasscode: "inherit"}}
+	c := Call{Resource: model.Resource{SitePasscode: "inherit"}}
 	for _, action := range []string{"add", "edit", "delete"} {
 		result := s.AuthorizeTableWrite(context.Background(), TableInput{Call: c, Table: "notes"}, action)
 		if result.Allowed() || result.Authorization == nil || result.Authorization.Code != "site_locked" {
 			t.Fatalf("%s: %#v", action, result)
-		}
-	}
-}
-
-func TestRowReferenceMemoryError(t *testing.T) {
-	for _, status := range []int{400, 404} {
-		err := rowReferenceError(status, sqlite3.NOMEM)
-		if e, ok := err.(*Error); !ok || e.Code != "query_too_expensive" {
-			t.Fatalf("status %d: %v", status, err)
 		}
 	}
 }

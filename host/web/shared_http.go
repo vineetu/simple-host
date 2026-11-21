@@ -1,19 +1,16 @@
 package web
 
 import (
+	"database/sql"
 	"errors"
-	operations "github.com/vsriram/simple-host/host/ops"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
-	"time"
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
-	appsites "github.com/vsriram/simple-host/host/sites"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -84,7 +81,7 @@ func WriteAccessError(w http.ResponseWriter, err error) {
 }
 
 func WriteAccessMutationError(w http.ResponseWriter, err error) {
-	var marker *appsites.Error
+	var marker *sites.Error
 	if errors.As(err, &marker) && marker.Code == "access_marker" {
 		httpx.WriteJSON(w, 500, httpx.ErrorResponse{Error: marker.Message})
 		return
@@ -197,23 +194,6 @@ func WithVisitorPath(r *http.Request) *http.Request {
 	return r2
 }
 
-// StoreSpan formats durations for messages and emails.
-func StoreSpan(d time.Duration) string {
-	n, unit := int(d/time.Second), "second"
-	switch {
-	case d >= 24*time.Hour && d%(24*time.Hour) == 0:
-		n, unit = int(d/(24*time.Hour)), "day"
-	case d >= time.Hour && d%time.Hour == 0:
-		n, unit = int(d/time.Hour), "hour"
-	case d >= time.Minute && d%time.Minute == 0:
-		n, unit = int(d/time.Minute), "minute"
-	}
-	if n == 1 {
-		return "one " + unit
-	}
-	return strconv.Itoa(n) + " " + unit + "s"
-}
-
 // passcodeRewritePrefix is where nginx and Caddy send a protected site's
 // request (rewrite ^ /internal/passcode$uri): the visitor asked for the rest.
 const passcodeRewritePrefix = "/internal/passcode"
@@ -247,13 +227,69 @@ func SiteAccessOf(s model.Site) string {
 	return AccessAnyone
 }
 
-func SignupGroupOf(source string) string { return operations.SignupGroupOf(source, CohortSources()) }
+// DefaultKeepVersions is the instance retention: how many deploys of a site
+// are kept, 0 for all. Hosted Simple Host sets 4 and Simple Hack 2.
+var DefaultKeepVersions = 0
 
-func SignupGroups(present map[string]bool) []SignupGroup {
-	return operations.SignupGroups(present, CohortSources())
+// AdminSiteKey is the request-context key holding the site id an admin named
+// (AdminSiteMismatch).
+type AdminSiteKey struct{}
+
+// StripPasscodeRewrite turns nginx's or Caddy's /internal/passcode/<path>
+// back into the <path> the visitor asked for; any other path is unchanged.
+func StripPasscodeRewrite(p string) string {
+	if rest, ok := strings.CutPrefix(p, passcodeRewritePrefix); ok && (rest == "" || rest[0] == '/' || rest[0] == '?') {
+		return "/" + strings.TrimPrefix(rest, "/")
+	}
+	return p
 }
 
-// keepVersions is the instance retention (0 keeps all). Hosted Simple Host
-// sets 4; self-hosters retain the existing unset default and Simple Hack sets 2.
-// Account and site defaults are resolved in accountRetention.
-var DefaultKeepVersions = 0
+func WriteSiteLookupError(w http.ResponseWriter, err error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found", Code: "site_not_found"})
+		return
+	}
+	httpx.WriteInternal(w)
+}
+
+func WriteAccountAuthUnavailable(w http.ResponseWriter, baseHost string) {
+	w.Header().Set("Cache-Control", "no-store")
+	httpx.WriteJSON(w, http.StatusForbidden, httpx.ErrorResponse{
+		Code:  "account_auth_unavailable",
+		Error: "Account sign-in is only served on the app's own address.",
+		Hint:  "For a page's visitors use visitor sign-in on the site's own address: load https://" + baseHost + "/auth.js, call SH.mount('#sh-auth'), and await SH.requireSignIn() before saving. Visitor sign-in never returns an API key.",
+	})
+}
+
+// normalizedOrigin is scheme://host[:port] in lower case with the scheme's
+// default port dropped, so https://simple-host.app:443 equals https://simple-host.app.
+func normalizedOrigin(u *url.URL) string {
+	scheme := strings.ToLower(u.Scheme)
+	host := strings.ToLower(u.Hostname())
+	port := u.Port()
+	if (scheme == "https" && port == "443") || (scheme == "http" && port == "80") {
+		port = ""
+	}
+	if port != "" {
+		host += ":" + port
+	}
+	return scheme + "://" + host
+}
+
+func IsLoopbackHost(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
+func PhotosHostOnly(enabled bool, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !enabled {
+			if isAPIPath(r.URL.Path) {
+				httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "photos are not offered here", Code: "not_offered"})
+			} else {
+				http.NotFound(w, r)
+			}
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}

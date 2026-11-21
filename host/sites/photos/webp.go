@@ -16,8 +16,8 @@ type webpFile struct {
 	flags                           byte
 }
 
-// CheckWebP walks all RIFF chunks, not just the first header read by DecodeConfig.
-func CheckWebP(b []byte) error {
+// checkWebP walks all RIFF chunks, not just the first header read by DecodeConfig.
+func checkWebP(b []byte) error {
 	if uint64(binary.LittleEndian.Uint32(b[4:8]))+8 != uint64(len(b)) {
 		return ErrContainer
 	}

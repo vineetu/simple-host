@@ -145,6 +145,8 @@ func TestExtractRejectsOversizeFile(t *testing.T) {
 }
 
 func TestExtractRejectsTooManyEntries(t *testing.T) {
+	restoreLimits(t)
+	SetSiteLimit(64 << 10) // a small budget keeps the archive small: 16 entries
 	entries := make([]tarEntry, entriesFor(siteBudget, maxEntriesCeiling)+1)
 	for i := range entries {
 		entries[i] = tarEntry{name: "f" + itoa(i) + ".txt", content: []byte("x")}

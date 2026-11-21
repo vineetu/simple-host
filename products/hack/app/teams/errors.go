@@ -11,7 +11,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
 
-// Error is the shared hack workflow refusal.
 type Error = hackmodel.Error
 
 func internalError(err error) error { return &Error{Code: "internal", Message: err.Error()} }
@@ -22,7 +21,6 @@ const (
 	msgArchived = "an archived event cannot be changed"
 )
 
-// errTeamsLocked refuses a participant team change outside team building.
 func errTeamsLocked() error {
 	return &Error{Code: "teams_locked", Message: "teams cannot be changed at this stage"}
 }
@@ -30,7 +28,6 @@ func errTeamsLocked() error {
 // errEventNotFound is the 404 that never confirms where someone belongs.
 func errEventNotFound() error { return &Error{Code: "event_not_found", Message: "event not found"} }
 
-// errDeadlinePassed refuses a team write after its submission deadline.
 func errDeadlinePassed() error {
 	return &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
 }
@@ -53,13 +50,10 @@ func organiserStage(stage, msg string) error {
 	return nil
 }
 
-// isID reports whether s has the shape of a user, team or request id.
 func isID(s string) bool { return sites.UUIDShape.MatchString(s) }
 
-// normSlug is a team slug as a path names it: trimmed, lower case.
 func normSlug(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 
-// notFoundAs turns a missing row into want, leaving other errors alone.
 func notFoundAs(err, want error) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return want
@@ -67,7 +61,6 @@ func notFoundAs(err, want error) error {
 	return err
 }
 
-// checkLine validates a one-line field; a refusal is invalid_<field>.
 func checkLine(s, field string, min, max int) (string, error) {
 	v, e := eventapp.Line(s, field, min, max)
 	if e != nil {

@@ -42,10 +42,7 @@ func (h *participationHTTP) getTeamLink(w http.ResponseWriter, r *http.Request) 
 			"title": ev.Title,
 			"url":   h.links.EventURL(ev.Slug),
 			"stage": ev.Stage,
-			// Matches the public application API: the organiser's switch
-			// alone isn't enough, since an unlisted or closed-stage event
-			// never actually takes an application either (Codex review,
-			// 2026-11-01; was the raw ApplicationsOpen column).
+			// Matches the public application API: the organiser's switch alone isn't enough, since an unlisted or closed-stage event never actually takes an application either.
 			"applications_open": events.ApplicationsOpenNow(ev.ApplicationsOpen, ev.DirectoryListed, ev.Stage, ev.TakenDown()),
 		},
 		"team": map[string]any{

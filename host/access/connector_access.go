@@ -11,7 +11,7 @@ import (
 // ConnectorAccess resolves an access token to its person, the connection's
 // mode ("events" for a product connection, teamConnections set) and its grant.
 func (s *Service) ConnectorAccess(ctx context.Context, token string, now func() time.Time, teamConnections bool, audiences ...string) (model.User, string, model.OAuthTokenGrant, bool) {
-	tok, err := s.GetOAuthToken(ctx, hashSecret(token))
+	tok, err := s.GetOAuthToken(ctx, HashSecret(token))
 	if err != nil || tok.Kind != "access" || now().After(tok.ExpiresAt) {
 		return model.User{}, "", model.OAuthTokenGrant{}, false
 	}

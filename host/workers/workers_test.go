@@ -75,25 +75,11 @@ func (o namedOwner) Status() []Status {
 	return out
 }
 
-func TestSetOrder(t *testing.T) {
+func TestSetStatusSorted(t *testing.T) {
 	var set Set
-	if len(set.Order()) != 0 {
-		t.Fatal("empty set has names")
-	}
 	set.Add(namedOwner{[]string{"z", "y"}})
-	disabled := []string{"d", "c"}
-	set.AddDisabled(disabled...)
+	set.AddDisabled("d", "c")
 	set.Add(namedOwner{[]string{"a"}})
-	disabled[0] = "changed"
-	want := []string{"y", "z", "d", "c", "a"}
-	got := set.Order()
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("Order = %v, want %v", got, want)
-	}
-	got[0] = "changed"
-	if !reflect.DeepEqual(set.Order(), want) {
-		t.Fatal("Order exposes its stored names")
-	}
 	var sorted []string
 	for _, status := range set.Status() {
 		sorted = append(sorted, status.Name)

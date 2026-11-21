@@ -1,15 +1,8 @@
 // Package capacity reports what an instance is actually using, and how much
-// room is left.
-//
-// It used to project how many people would fit, by assuming every participant
-// filled a per-site cap. Measured against 89 real sites, that model was wrong
-// by more than three orders of magnitude: the median site is 25 KB, 89% are
-// under 1 MB, and the whole set occupies 450 MB. A projection built on the cap
-// rather than on real sizes produced numbers like "145 people on a 200 GB disk",
-// and then refused to create accounts past them.
-//
-// So there is no projection here and no limit derived from one. There is what
-// is used, what is free, and enough warning to act before it matters.
+// room is left. There is deliberately no projection of how many people fit:
+// one built on the per-site cap rather than real sizes (the median site is
+// 25 KB) was off by three orders of magnitude and refused accounts the disk
+// had room for.
 package capacity
 
 import (

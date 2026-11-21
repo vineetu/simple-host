@@ -21,7 +21,10 @@ func TestLogHistogramMerge(t *testing.T) {
 		}
 	}
 	a := all.Snapshot()
-	merged := MergeHistograms(left.Snapshot(), right.Snapshot())
+	var mergedLog LogHistogram
+	mergedLog.Merge(left.Snapshot())
+	mergedLog.Merge(right.Snapshot())
+	merged := mergedLog.Snapshot()
 	if a.N != merged.N || a.SumUS != merged.SumUS || a.MaxUS != merged.MaxUS || a.Offset != merged.Offset || fmt.Sprint(a.Counts) != fmt.Sprint(merged.Counts) {
 		t.Fatal("merge differs from one histogram")
 	}

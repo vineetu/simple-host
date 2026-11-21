@@ -2,7 +2,6 @@ package hackhttp
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"net/http"
@@ -51,7 +50,6 @@ func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
 
 var errNameCheckUnavailable = errors.New("name check unavailable")
 
-// slugVerdict is the create/check result for an event slug.
 func (h *HackHandler) slugVerdict(ctx context.Context, slug string) (code, errMsg string, err error) {
 	if !sites.EventNameShape(slug) {
 		return "invalid_name", "use 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen, and never two hyphens in a row", nil
@@ -154,7 +152,6 @@ func (h *HackHandler) createEvent(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, h.views.eventView(r.Context(), ev, member, true))
 }
 
-// slugFree writes the refusal when slug cannot be a new event's name.
 func (h *HackHandler) slugFree(w http.ResponseWriter, r *http.Request, slug string) bool {
 	code, errMsg, err := h.slugVerdict(r.Context(), slug)
 	switch {
@@ -258,18 +255,6 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, h.views.eventView(r.Context(), updated, a.member, true))
 }
 
-// archiveEventTx archives the event: locks event_teams (as every other
-// deadline-affecting write does), closes the submission deadline now -- unless
-// it already passed, or submissions were already closed (closed, judging or
-// results: Nit 3, restoring setStage's original condition,
-// `!events.SubmissionsClosedStage(current)`, that archiveEventTx dropped when
-// it was extracted) -- sets stage to archived, then clears any pin that no
-// longer applies (UnpinReopened is a no-op once the stage read back is
-// archived).
-func (h *HackHandler) archiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (hackmodel.Event, error) {
-	return h.events.ArchiveEventTx(ctx, tx, eventID, current, h.entries.SettleEventTx)
-}
-
 func (h *HackHandler) regenCode(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), true, "organiser")
 	if !ok {
@@ -315,30 +300,10 @@ func (h *HackHandler) deleteEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var trash func(context.Context, string, string) error
-	if h.links.hooks != nil {
-		trash = h.links.hooks.TrashTeamSite
-	}
-	if err := h.events.DeleteEvent(r.Context(), a.event, a.user.ID, req.Confirm, trash); err != nil {
+	if err := h.events.DeleteEvent(r.Context(), a.event, a.user.ID, req.Confirm, h.links.trash()); err != nil {
 		writeHackError(w, err)
 		return
 	}
-	h.removeEventFiles(a.event)
+	h.links.removeEventFiles(a.event)
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// deleteEventTx trashes every team site (the same removal as deleting a team;
-// the holding-account deletion below then purges its Recently deleted sites
-// too, so there is no event undo), then deletes the event and its holding
-// account.
-func (h *HackHandler) deleteEventTx(ctx context.Context, tx *sql.Tx, ev hackmodel.Event) error {
-	var trash func(context.Context, string, string) error
-	if h.links.hooks != nil {
-		trash = h.links.hooks.TrashTeamSite
-	}
-	return h.events.DeleteEventTx(ctx, tx, ev, trash)
-}
-
-func organiserTeamStages(stage string) bool {
-	return stage != "archived"
 }

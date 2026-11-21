@@ -10,16 +10,13 @@ import (
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 
-// GalleryCard is one team on an event's public gallery.
 type GalleryCard = model.GalleryCard
 
-// galleryLiveFrom is shared with voting.
 const galleryLiveFrom = hackentries.GalleryLiveFrom
 
-// galleryHasShot is an entry screenshot the gallery can show: bytes of one of the three types an entry stores (hack2-team-sites.sql).
+// galleryHasShot is an entry screenshot the gallery can show: bytes of one of the three types an entry stores.
 const galleryHasShot = `COALESCE(e.screenshot_type, '') IN ('image/png', 'image/jpeg', 'image/webp') AND COALESCE(octet_length(e.screenshot), 0) > 0`
 
-// ListGalleryCards returns the event's gallery cards.
 func ListGalleryCards(ctx context.Context, q sqlkit.Querier, eventID string, live []string) ([]GalleryCard, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.id, t.slug, t.name, COALESCE(e.title, ''), COALESCE(e.tagline, ''), COALESCE(e.tools, '{}'),
@@ -41,7 +38,6 @@ func ListGalleryCards(ctx context.Context, q sqlkit.Querier, eventID string, liv
 	return out, rows.Err()
 }
 
-// GalleryScreenshot returns that team's screenshot.
 func GalleryScreenshot(ctx context.Context, q sqlkit.Querier, eventID string, live []string, teamSlug string) (data []byte, contentType string, err error) {
 	err = q.QueryRowContext(ctx, `
 		SELECT e.screenshot, e.screenshot_type

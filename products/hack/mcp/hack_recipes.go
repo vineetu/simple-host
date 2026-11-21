@@ -19,8 +19,8 @@ func readEventRecipe() ([]byte, error) {
 	return hackRecipeFiles.ReadFile("recipes/hack-event.md")
 }
 
-// hackRecipeNote opens every recipe on Simple Hack: who "owner" is there and
-// which tools stand in for the Simple Host ones (owner decision 2026-10-10).
+// hackRecipeNote opens every recipe: who "owner" is on Simple Hack and which
+// tools stand in for the Simple Host ones.
 const hackRecipeNote = `On Simple Hack (read this first; it overrides the Simple Host wording below):
 - Team site: run the storage_* setup with site set to your team's site and owner set to the event's name (hack_get_my_teams lists both). "Owner" is the team: these tools, and a team member signed in on the team site's own address, https://<team>.<event>.simple-hack.app/, with the email they use on Simple Hack (the one this connection signed in with). That member's page gets owner rights for saved data until the team's submission deadline, the same moment the team stops being able to change its site; after it they are an ordinary visitor there.
 - Organiser's event website: where the recipe says get_page_recipe, use hack_get_page_recipe; call storage_* and update_site with site set to the event website's site name (organiser.website_site from hack_get_event) and owner set to the event's name, and use the event slug as the page's site name (window.SH_CONFIG = { site: "<event slug>" }). "Owner" is the event's organisers: these tools, and an organiser signed in on https://<event>.simple-hack.app/ with their Simple Hack email, until the event ends.
@@ -29,15 +29,11 @@ const hackRecipeNote = `On Simple Hack (read this first; it overrides the Simple
 
 `
 
-// eventRecipeSlug is the site-name shape event slugs share (rules/sites.ValidSiteName).
 var eventRecipeSlug = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 
-// hackRecipeRefusals are the Simple Host topics Simple Hack cannot serve.
-// portal is a private page per client through named viewers, which Simple
-// Hack does not offer. comments needs the spam check, which Simple Hack
-// does not run (people sign in to post on wall). people: for, the people
-// pick list and the canonical-email resolution behind both are Host only
-// (SIM-358 review round 2, item D).
+// hackRecipeRefusals are the Simple Host topics Simple Hack cannot serve:
+// portal (named viewers) is not offered, comments needs a spam check Hack does
+// not run, and people/for (pick list, canonical-email resolution) are Host only.
 var hackRecipeRefusals = map[string]string{
 	"portal":    "topic portal is not available on Simple Hack (it needs named viewers); use another topic",
 	"comments":  "topic comments is not available on Simple Hack (it needs the spam check); use topic wall, where people sign in to post",
@@ -45,7 +41,6 @@ var hackRecipeRefusals = map[string]string{
 	"people":    "topic people is not available on Simple Hack (for and the people pick list are Host only); use another topic",
 }
 
-// HackPageRecipe is PageRecipe as Simple Hack serves it.
 func HackPageRecipe(topic, site string) (string, error) {
 	if topic == "event" {
 		return hackEventRecipe(site)
@@ -87,13 +82,10 @@ func hackEventRecipe(site string) (string, error) {
 	return strings.ReplaceAll(string(data), "{event}", site), nil
 }
 
-// hackPageRecipeTool is get_page_recipe for Simple Hack sites. topic
-// people is removed from the enum entirely (not only refused at runtime,
-// review round 2 item D): for and the people pick list are Host only
-// (named viewers and the canonical-email resolution behind both are not a
-// Simple Hack concept), so there is no Simple Hack version of this recipe
-// to offer, unlike portal/comments/guestbook below, which stay
-// listed and are refused with a reason when picked.
+// hackPageRecipeTool is get_page_recipe for Simple Hack sites. Topic people is
+// removed from the enum entirely (for and the people pick list are Host only),
+// unlike portal/comments/guestbook, which stay listed and are refused with a
+// reason when picked.
 func hackPageRecipeTool() mcp.Tool {
 	tool := mcp.PageRecipeTool()
 	tool.Description = strings.Replace(tool.Description, "; the owner's own photos go through create_upload_link, no page code", "", 1)
@@ -103,8 +95,8 @@ func hackPageRecipeTool() mcp.Tool {
 	return mcp.WithRun(tool, runHackPageRecipe)
 }
 
-// hackRecipeSchema is the platform recipe schema with topic event added
-// and topic people taken out. The platform's maps are copied, not changed.
+// hackRecipeSchema is the platform recipe schema with topic event added and
+// topic people removed. The platform's maps are copied, not changed.
 func hackRecipeSchema(base map[string]any) map[string]any {
 	topics := []string{"event"}
 	for _, topic := range mcp.RecipeTopics() {

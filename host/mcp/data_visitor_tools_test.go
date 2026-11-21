@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"net/http"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -18,9 +17,6 @@ func TestVisitorToolInventoriesAndTelemetry(t *testing.T) {
 
 	t.Cleanup(func() { close(s.analytics.queue) })
 	for _, name := range []string{"visitor_read_site", "visitor_add_entry", "visitor_change_entry"} {
-		if slices.Contains(coreToolNames, name) != (name == "visitor_read_site") {
-			t.Errorf("%s core membership wrong", name)
-		}
 		if _, ok := s.byName[name]; !ok {
 			t.Errorf("%s unavailable", name)
 		}

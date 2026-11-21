@@ -17,13 +17,9 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 )
 
-// Report a page (GET /report, POST /report).
-//
-// Anyone can report a page hosted here: its address, a reason from a short
-// list, optional details and an optional email. The report is emailed to the
-// support address through the app's own mail sender (Resend); nothing is
-// stored. The form is the on-platform notice the terms point to (intimate
-// images, CSAM, phishing and the rest), next to plain email.
+// Report a page (GET /report, POST /report). Anyone can report a page hosted here; the report is emailed
+// to the support address through the app's mail sender and nothing is stored. The form is the on-platform
+// notice the terms point to (intimate images, CSAM, phishing and the rest).
 
 const (
 	reportMaxURL     = 2048
@@ -32,7 +28,6 @@ const (
 	reportMaxBody    = 16 << 10
 )
 
-// reportReasons maps each reason the form offers to the words in the email.
 var reportReasons = map[string]string{
 	"phishing":   "Phishing or scam",
 	"malware":    "Malware",
@@ -44,13 +39,10 @@ var reportReasons = map[string]string{
 	"other":      "Other",
 }
 
-// replyNoticeSender is the part of the mailer that sends a notice people can
-// answer (Reply-To support).
 type replyNoticeSender interface {
 	SendNoticeReplyTo(toEmail, replyTo, subject, text string) error
 }
 
-// reportHandler holds what POST /report needs, so tests can swap each part.
 type ReportHandler struct {
 	mailer replyNoticeSender
 	to     string
@@ -61,8 +53,7 @@ type ReportHandler struct {
 	global *httpx.RateLimiter
 }
 
-// ReportHandler builds POST /report for this server: mail goes out through
-// the site handler's mailer to the support contact.
+// ReportHandler builds POST /report, mailing the support contact through the site handler's mailer.
 func (h *SiteHandler) ReportHandler() http.Handler {
 	rh := &ReportHandler{
 		to:     auth.SupportContact,
@@ -79,7 +70,6 @@ func (h *SiteHandler) ReportHandler() http.Handler {
 			}
 			_, err := h.SitesSvc().GetSiteByCustomDomain(ctx, host)
 			if errors.Is(err, sql.ErrNoRows) {
-				// A site's address under a live address family.
 				_, ok, ferr := h.Hosts.FamilySiteForHost(ctx, host)
 				return ok, ferr
 			}
@@ -93,7 +83,6 @@ func (h *SiteHandler) ReportHandler() http.Handler {
 	return rh
 }
 
-// isPlatformHost: host is the platform domain or any name under it.
 func isPlatformHost(host, siteDomain string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	siteDomain = strings.ToLower(siteDomain)

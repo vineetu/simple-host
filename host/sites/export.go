@@ -1,7 +1,6 @@
 package sites
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,16 +46,10 @@ func (s *Service) Export(ctx context.Context, in ExportInput) iter.Seq2[ExportEn
 	}
 }
 
-type archivePut func(string, time.Time, int64, io.Reader) error
-
-func putBytes(put archivePut, name string, b []byte) error {
-	return put(name, time.Now(), int64(len(b)), bytes.NewReader(b))
-}
-
 // writeSiteArchive writes one site under prefix: storage/ (the site's saved
 // data) and files/ (the version in current, the site's live folder or, for a
 // site in Recently deleted, the one waiting in trash).
-func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, siteID string, files storage.FileVersion) error {
+func (s *Service) writeSiteArchive(ctx context.Context, put ArchivePut, prefix, siteID string, files storage.FileVersion) error {
 	ownerID, siteName, err := repo.ExportOwner(ctx, s.database, siteID)
 	if err != nil {
 		return err
@@ -74,7 +67,7 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 	if _, err := s.disk.StatVersion(ctx, files); err != nil {
 		return nil // nothing published yet; saved and runtime data still export
 	}
-	// Keep the existing export of the live redirects marker, also from trash.
+	// The live redirects marker is exported too, also from trash.
 	var rules []byte
 	if files.TrashID != "" {
 		rules, err = s.disk.ReadTrashedRedirects(files.UserID, files.TrashID)
@@ -82,7 +75,7 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 		rules, err = s.disk.ReadRedirects(files.UserID, files.SiteName)
 	}
 	if err == nil {
-		if err := putBytes(put, prefix+"/files/_redirects", rules); err != nil {
+		if err := PutBytes(put, prefix+"/files/_redirects", rules); err != nil {
 			return err
 		}
 	}
@@ -104,7 +97,7 @@ func (s *Service) writeSiteArchive(ctx context.Context, put archivePut, prefix, 
 
 // writeStorageArchive writes the site's saved data under prefix/storage/:
 // resources, file writers and KV entries as JSON, then the runtime tree.
-func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
+func (s *Service) writeStorageArchive(ctx context.Context, put ArchivePut, prefix, siteID, runtime string) error {
 	resources, err := s.deps.ExportResources(ctx, siteID)
 	if err != nil {
 		return err
@@ -114,7 +107,7 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 		if err != nil {
 			return err
 		}
-		if err := putBytes(put, prefix+"/storage/resources.json", b); err != nil {
+		if err := PutBytes(put, prefix+"/storage/resources.json", b); err != nil {
 			return err
 		}
 	}
@@ -127,7 +120,7 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 		if err != nil {
 			return err
 		}
-		if err := putBytes(put, prefix+"/storage/file-writers.json", b); err != nil {
+		if err := PutBytes(put, prefix+"/storage/file-writers.json", b); err != nil {
 			return err
 		}
 	}
@@ -140,7 +133,7 @@ func (s *Service) writeStorageArchive(ctx context.Context, put archivePut, prefi
 		if err != nil {
 			return err
 		}
-		if err := putBytes(put, prefix+"/storage/kv.json", b); err != nil {
+		if err := PutBytes(put, prefix+"/storage/kv.json", b); err != nil {
 			return err
 		}
 	}
@@ -185,7 +178,7 @@ func (s *Service) exportKVEntries(ctx context.Context, siteID, runtime string) (
 // writeRuntimeArchive copies the runtime tree under prefix/storage/runtime/,
 // checkpointing each SQLite database first and leaving out the KV folder,
 // half-deleted folders and SQLite side files.
-func (s *Service) writeRuntimeArchive(ctx context.Context, put archivePut, prefix, siteID, runtime string) error {
+func (s *Service) writeRuntimeArchive(ctx context.Context, put ArchivePut, prefix, siteID, runtime string) error {
 	if _, err := os.Stat(runtime); os.IsNotExist(err) {
 		return nil
 	} else if err != nil {

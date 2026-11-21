@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -75,7 +76,7 @@ type Config struct {
 	PreviewAccounts map[string]bool
 	PreviewTTL      time.Duration
 
-	// WebPushAccounts gates SIM-360 web push: WEB_PUSH_ACCOUNTS is a
+	// WebPushAccounts gates web push: WEB_PUSH_ACCOUNTS is a
 	// comma-separated list of account handles/usernames allowed to use it
 	// (push routes otherwise 404, and auth.js's SH.push.* refuses), or
 	// "all"/"*" to enable it for every account. Empty: off everywhere.
@@ -115,14 +116,14 @@ type Config struct {
 	EventDNSTeamID string
 	EventDomains   []string
 
-	// PersonHosts is off | serve | canonical (owner decision 2026-09-25).
+	// PersonHosts is off | serve | canonical.
 	// off: sites live only at <content host>/<handle>/<site>/ (the default, and
 	// what event and self-hosted instances keep). serve: <handle>.<SITE_DOMAIN>
 	// answers too, but every address the product hands out is still the path
 	// URL. canonical: person hosts answer and are the address handed out.
 	PersonHosts string
 
-	// SiteHosts is off | serve | canonical (owner decision 2026-09-26): each
+	// SiteHosts is off | serve | canonical: each
 	// site at its own origin <site>.<handle>.<SITE_DOMAIN>. Needs PersonHosts
 	// on. off (default): no site hosts. serve: they answer, addresses handed
 	// out stay the person-path form. canonical: they are the address handed
@@ -141,7 +142,7 @@ type Config struct {
 	// wildcard certificate (*.<SITE_DOMAIN>) and one ingress rule cover every
 	// event and team instead of a certificate SAN and a Helm upgrade per
 	// event (AWS ALB's cert-SAN and rule limits). Hosted simple-hack.app
-	// keeps this off: with it off, behaviour is byte-for-byte unchanged.
+	// keeps this off.
 	TeamSiteFlatHosts bool
 	// SiteCertDir holds the per-person certificate hand-off with the root
 	// issuer: requests/<handle> (written here) and ready/<handle> (written by
@@ -151,9 +152,8 @@ type Config struct {
 	SiteCertDir string
 	// SiteBaseDomain is SITE_BASE_DOMAIN: the domain people's addresses live
 	// under (<handle>.<base>, <site>.<handle>.<base>, free <name>.<base>),
-	// when that is not the app's own domain (owner decision 2026-09-28: the
-	// hosted move is paused 2026-10-09). Default: SITE_DOMAIN,
-	// which is today's single-domain behaviour exactly. The app itself —
+	// when that is not the app's own domain. Default: SITE_DOMAIN, the
+	// single-domain behaviour. The app itself —
 	// dashboard, sign-in, API, emails, the content host and the CNAME target
 	// — always stays on SITE_DOMAIN.
 	SiteBaseDomain string
@@ -239,7 +239,7 @@ type Config struct {
 	OpenAIAppsChallenge string
 	// ReviewAccountEmail and ReviewAccountPasswordHash turn on the plugin
 	// reviewer's password sign-in for that one account on the connector's
-	// consent page. Both or neither; see host/handler/reviewer.go.
+	// consent page. Both or neither; see host/access/reviewer.go.
 	ReviewAccountEmail        string
 	ReviewAccountPasswordHash string
 
@@ -252,7 +252,7 @@ type Config struct {
 	// and an existing one alike; an API key keeps working regardless of
 	// where a request comes from (that is not a sign-in), and a request
 	// whose country cannot be resolved is always allowed. See
-	// host/handler/signupgeo.go.
+	// host/access/signupgeo.go.
 	SignupBlockedCountries []string
 
 	// Limits is every operational time and limit (limits.go,
@@ -260,84 +260,69 @@ type Config struct {
 	Limits Limits
 }
 
-// Load keeps the original warning, file-read and error order. Pure environment
-// reads within each error-free phase are grouped by SettingGroups area; they
-// have no side effects. Areas recur where combining them would change which
-// warning or validation error is observed first (notably proxy before OIDC,
-// events before site certificates, and limits before the database pool).
+// Load reads every setting. Warnings and errors come out in a fixed order
+// (proxy before OIDC, events before site certificates, limits before the
+// database pool), so reads that log or fail stay in that sequence.
 func Load() (Config, error) {
 	var cfg Config
-	for _, load := range []func(*Config) error{
-		loadServer,
-		loadStoragePaths,
-		loadEmail,
-		loadDomains,
-		loadObservability,
-		loadAccounts,
-		loadDataSpamCheck,
-		loadPasscodeKey,
-		loadAccountProviders,
-		loadStorageStartup,
-		loadServerProxy,
-		validateAccountSignIn,
-		loadServerPersonHosts,
-		loadGroupAddresses,
-		loadServerSiteAddresses,
-		loadCleanup,
-		loadSitesPreview,
-		loadWebPush,
-		loadOperationalLimits,
-		loadStoragePool,
-		validateRequiredSettings,
-	} {
-		if err := load(&cfg); err != nil {
-			return Config{}, err
+	loadPlain(&cfg)
+	cidrs, err := parseCIDRList(os.Getenv("TRUSTED_PROXY_CIDRS"))
+	if err != nil {
+		return Config{}, fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	}
+	cfg.TrustedProxyCIDRs = cidrs
+	if err := loadSignIn(&cfg); err != nil {
+		return Config{}, err
+	}
+	cfg.PersonHosts = getenvMode("PERSON_HOSTS", "off", "serve", "canonical")
+	cfg.EventNamePeer = strings.TrimRight(strings.TrimSpace(os.Getenv("EVENT_NAME_PEER")), "/")
+	if p := cfg.EventNamePeer; p != "" {
+		u, err := url.Parse(p)
+		if err != nil || u.Scheme != "http" || !isLoopbackHost(u.Hostname()) || u.Path != "" {
+			return Config{}, fmt.Errorf("EVENT_NAME_PEER must be http://127.0.0.1:<port> (a loopback address), not %q", p)
 		}
+	}
+	cfg.TeamSiteFlatHosts = getenvIs("TEAM_SITE_FLAT_HOSTS", "true")
+	if err := loadSiteAddresses(&cfg); err != nil {
+		return Config{}, err
+	}
+	if cfg.Limits, err = LoadLimits(os.Getenv); err != nil {
+		return Config{}, err
+	}
+	if err := loadDBPool(&cfg); err != nil {
+		return Config{}, err
+	}
+	if cfg.DBDSN == "" {
+		return Config{}, errors.New("DB_DSN is required")
+	}
+	if cfg.AdminAPIKey == "" {
+		return Config{}, errors.New("ADMIN_API_KEY is required (no default — set it explicitly so the public source doesn't ship a known key)")
 	}
 	return cfg, nil
 }
 
-func loadServer(cfg *Config) error {
+// loadPlain does the reads that cannot fail.
+func loadPlain(cfg *Config) {
 	cfg.SiteDomain = getEnvOrDefault("SITE_DOMAIN", defaultSiteDomain)
 	cfg.Port = getEnvOrDefault("PORT", defaultPort)
 	cfg.BindAddr = strings.TrimSpace(os.Getenv("BIND_ADDR"))
 	cfg.DeployScript = getEnvOrDefault("DEPLOY_SCRIPT", defaultDeployScript)
 	cfg.PublicBaseURL = getEnvOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL)
-	// CONTENT_HOST defaults to sites.<SITE_DOMAIN> so prod/test need no extra env.
 	cfg.ContentHost = getEnvOrDefault("CONTENT_HOST", "sites."+cfg.SiteDomain)
-	// Event hostnames: handed to a hackathon organiser under a domain we own,
-	// pointing at their server. Unset means the feature is off and organisers
-	// must bring their own domain.
-	// Whether an operator actually chose a hostname. SiteDomain itself always
-	// has a value because it falls back to the canonical host, so it cannot
-	// answer this: an unset SITE_DOMAIN and one deliberately set to the
-	// canonical host are indistinguishable by the time it is read.
+	// SiteDomain always has a value (it falls back to the canonical host), so
+	// only this says whether an operator actually chose a hostname.
 	cfg.SiteDomainSet = strings.TrimSpace(os.Getenv("SITE_DOMAIN")) != ""
-
 	// Setup mode: where to claim a free hostname from, and an optional password
 	// supplied through the provider's user-data field at creation.
 	cfg.SetupPublicAPI = getEnvOrDefault("SETUP_PUBLIC_API", "https://"+canonicalPublicHost)
 	cfg.SetupPassword = os.Getenv("SETUP_PASSWORD")
-
 	cfg.OpenAIAppsChallenge = strings.TrimSpace(os.Getenv("OPENAI_APPS_CHALLENGE"))
-	return nil
-}
 
-func loadStoragePaths(cfg *Config) error {
 	cfg.DBDSN = os.Getenv("DB_DSN")
 	cfg.DataDir = getEnvOrDefault("DATA_DIR", defaultDataDir)
-	return nil
-}
-
-func loadEmail(cfg *Config) error {
 	cfg.MailFrom = getEnvOrDefault("MAIL_FROM", defaultMailFrom)
 	cfg.ResendAPIKey = os.Getenv("RESEND_API_KEY")
-	return nil
-}
 
-func loadDomains(cfg *Config) error {
-	// CNAME_TARGET defaults to cname.<SITE_DOMAIN> — the record humans add when
-	// binding a custom domain.
 	cfg.CNAMETarget = getEnvOrDefault("CNAME_TARGET", "cname."+cfg.SiteDomain)
 	cfg.CustomDomainIP = os.Getenv("CUSTOM_DOMAIN_IP")
 	for _, ip := range strings.Split(os.Getenv("CUSTOM_DOMAIN_IP_ALSO"), ",") {
@@ -345,25 +330,17 @@ func loadDomains(cfg *Config) error {
 			cfg.CustomDomainIPAlso = append(cfg.CustomDomainIPAlso, ip)
 		}
 	}
+	// Event hostnames are handed to hackathon organisers under a domain we
+	// own; unset means organisers must bring their own domain.
 	cfg.EventDNSToken = os.Getenv("EVENT_DNS_TOKEN")
 	cfg.EventDNSTeamID = os.Getenv("EVENT_DNS_TEAM_ID")
-	for _, d := range strings.Split(os.Getenv("EVENT_DOMAINS"), ",") {
-		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
-			cfg.EventDomains = append(cfg.EventDomains, d)
-		}
-	}
-	return nil
-}
+	cfg.EventDomains = getenvLowerList("EVENT_DOMAINS")
 
-func loadObservability(cfg *Config) error {
 	cfg.AnalyticsLog = os.Getenv("ANALYTICS_LOG")
 	cfg.NetworkInterface = strings.TrimSpace(os.Getenv("NETWORK_INTERFACE"))
 	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
 	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
-	return nil
-}
 
-func loadAccounts(cfg *Config) error {
 	cfg.AdminAPIKey = os.Getenv("ADMIN_API_KEY")
 	cfg.ReviewAccountEmail = os.Getenv("REVIEW_ACCOUNT_EMAIL")
 	cfg.ReviewAccountPasswordHash = os.Getenv("REVIEW_ACCOUNT_PASSWORD_HASH")
@@ -379,20 +356,8 @@ func loadAccounts(cfg *Config) error {
 	}
 	cfg.GoogleOAuthClientID = os.Getenv("GOOGLE_OAUTH_CLIENT_ID")
 	cfg.GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-	return nil
-}
-
-func loadDataSpamCheck(cfg *Config) error {
 	cfg.TurnstileSiteKey, cfg.TurnstileSecret = loadTurnstile()
-	return nil
-}
-
-func loadPasscodeKey(cfg *Config) error {
 	cfg.PasscodeEncKey = strings.TrimSpace(os.Getenv("PASSCODE_ENC_KEY"))
-	return nil
-}
-
-func loadAccountProviders(cfg *Config) error {
 	cfg.GitHubOAuthClientID = os.Getenv("GITHUB_OAUTH_CLIENT_ID")
 	cfg.GitHubOAuthClientSecret = os.Getenv("GITHUB_OAUTH_CLIENT_SECRET")
 	if xorNonEmpty(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret) {
@@ -401,35 +366,38 @@ func loadAccountProviders(cfg *Config) error {
 	if xorNonEmpty(cfg.GitHubOAuthClientID, cfg.GitHubOAuthClientSecret) {
 		log.Printf("warning: optional OAuth provider is misconfigured (need both GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET); treating as off")
 	}
-
 	cfg.OIDCIssuer = strings.TrimSpace(os.Getenv("OIDC_ISSUER"))
 	cfg.OIDCClientID = strings.TrimSpace(os.Getenv("OIDC_CLIENT_ID"))
 	cfg.OIDCClientSecret = os.Getenv("OIDC_CLIENT_SECRET")
-	for _, d := range strings.Split(os.Getenv("ALLOWED_EMAIL_DOMAINS"), ",") {
-		if d = strings.ToLower(strings.TrimSpace(d)); d != "" {
-			cfg.AllowedEmailDomains = append(cfg.AllowedEmailDomains, d)
+	cfg.AllowedEmailDomains = getenvLowerList("ALLOWED_EMAIL_DOMAINS")
+	cfg.OIDCLabel = getEnvOrDefault("OIDC_LABEL", "your company account")
+	cfg.OIDCInsecureAllowed = getenvIs("OIDC_INSECURE_ALLOWED", "true")
+	cfg.MigrateOnStart = getenvIs("MIGRATE_ON_START", "true")
+
+	cfg.IdleCleanup = getenvIs("IDLE_CLEANUP", "on")
+	cfg.IdleCleanupExemptHandles = getenvLowerList("IDLE_CLEANUP_EXEMPT_HANDLES")
+	cfg.PreviewAccounts = map[string]bool{}
+	for _, a := range getenvLowerList("PREVIEW_ACCOUNTS") {
+		cfg.PreviewAccounts[a] = true
+	}
+	cfg.PreviewTTL = 48 * time.Hour
+	if v := os.Getenv("PREVIEW_TTL_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.PreviewTTL = time.Duration(n) * time.Hour
 		}
 	}
-	cfg.OIDCLabel = getEnvOrDefault("OIDC_LABEL", "your company account")
-	cfg.OIDCInsecureAllowed = strings.EqualFold(strings.TrimSpace(os.Getenv("OIDC_INSECURE_ALLOWED")), "true")
-	return nil
-}
-
-func loadStorageStartup(cfg *Config) error {
-	cfg.MigrateOnStart = strings.EqualFold(strings.TrimSpace(os.Getenv("MIGRATE_ON_START")), "true")
-	return nil
-}
-
-func loadServerProxy(cfg *Config) error {
-	cidrs, err := parseCIDRList(os.Getenv("TRUSTED_PROXY_CIDRS"))
-	if err != nil {
-		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	// WEB_PUSH_ACCOUNTS is an allowlist of account handles, or "all"/"*".
+	cfg.WebPushAccounts = map[string]bool{}
+	for _, a := range getenvLowerList("WEB_PUSH_ACCOUNTS") {
+		if a == "all" || a == "*" {
+			cfg.WebPushAccountsAll = true
+		} else {
+			cfg.WebPushAccounts[a] = true
+		}
 	}
-	cfg.TrustedProxyCIDRs = cidrs
-	return nil
 }
 
-func validateAccountSignIn(cfg *Config) error {
+func loadSignIn(cfg *Config) error {
 	if set := nonEmptyCount(cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret); set > 0 && set < 3 {
 		log.Printf("warning: company sign-in is misconfigured (need all of OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET); treating as off")
 		cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret = "", "", ""
@@ -456,11 +424,11 @@ func validateAccountSignIn(cfg *Config) error {
 		cfg.EmailSignIn = "on"
 	}
 	cfg.PasswordSignIn = "off"
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("PASSWORD_SIGNIN")), "on") {
+	if getenvIs("PASSWORD_SIGNIN", "on") {
 		cfg.PasswordSignIn = "on"
 	}
 	cfg.PasswordSelfSignup = "on"
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("PASSWORD_SELF_SIGNUP")), "off") {
+	if getenvIs("PASSWORD_SELF_SIGNUP", "off") {
 		cfg.PasswordSelfSignup = "off"
 	}
 	if cfg.EmailSignIn == "off" && !cfg.CompanySignInEnabled() && cfg.PasswordSignIn != "on" {
@@ -469,55 +437,14 @@ func validateAccountSignIn(cfg *Config) error {
 	return nil
 }
 
-func loadServerPersonHosts(cfg *Config) error {
-	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("PERSON_HOSTS"))); mode {
-	case "off", "serve", "canonical":
-		cfg.PersonHosts = mode
-	case "":
-		cfg.PersonHosts = "off"
-	default:
-		log.Printf("warning: invalid PERSON_HOSTS %q; treating as off", mode)
-		cfg.PersonHosts = "off"
-	}
-	return nil
-}
-
-func loadGroupAddresses(cfg *Config) error {
-	cfg.EventNamePeer = strings.TrimRight(strings.TrimSpace(os.Getenv("EVENT_NAME_PEER")), "/")
-	if p := cfg.EventNamePeer; p != "" {
-		u, err := url.Parse(p)
-		if err != nil || u.Scheme != "http" || !isLoopbackHost(u.Hostname()) || u.Path != "" {
-			return fmt.Errorf("EVENT_NAME_PEER must be http://127.0.0.1:<port> (a loopback address), not %q", p)
-		}
-	}
-	cfg.TeamSiteFlatHosts = strings.EqualFold(strings.TrimSpace(os.Getenv("TEAM_SITE_FLAT_HOSTS")), "true")
-	return nil
-}
-
-func loadServerSiteAddresses(cfg *Config) error {
-	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_HOSTS"))); mode {
-	case "off", "serve", "canonical":
-		cfg.SiteHosts = mode
-	case "":
-		cfg.SiteHosts = "off"
-	default:
-		log.Printf("warning: invalid SITE_HOSTS %q; treating as off", mode)
-		cfg.SiteHosts = "off"
-	}
+func loadSiteAddresses(cfg *Config) error {
+	cfg.SiteHosts = getenvMode("SITE_HOSTS", "off", "serve", "canonical")
 	cfg.SiteCertDir = strings.TrimSpace(os.Getenv("SITE_CERT_DIR"))
 	cfg.SiteBaseDomain = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(os.Getenv("SITE_BASE_DOMAIN")), "."))
 	if cfg.SiteBaseDomain == "" {
 		cfg.SiteBaseDomain = cfg.SiteDomain
 	}
-	switch mode := strings.ToLower(strings.TrimSpace(os.Getenv("SITE_BASE_MOVE"))); mode {
-	case "off", "serve", "canonical", "redirect", "permanent":
-		cfg.SiteBaseMove = mode
-	case "":
-		cfg.SiteBaseMove = "off"
-	default:
-		log.Printf("warning: invalid SITE_BASE_MOVE %q; treating as off", mode)
-		cfg.SiteBaseMove = "off"
-	}
+	cfg.SiteBaseMove = getenvMode("SITE_BASE_MOVE", "off", "serve", "canonical", "redirect", "permanent")
 	cfg.SiteBaseCertDir = strings.TrimSpace(os.Getenv("SITE_BASE_CERT_DIR"))
 	if err := checkSiteBaseCertDir(*cfg); err != nil {
 		return err
@@ -527,58 +454,7 @@ func loadServerSiteAddresses(cfg *Config) error {
 	return nil
 }
 
-func loadCleanup(cfg *Config) error {
-	cfg.IdleCleanup = strings.EqualFold(strings.TrimSpace(os.Getenv("IDLE_CLEANUP")), "on")
-	for _, hd := range strings.Split(os.Getenv("IDLE_CLEANUP_EXEMPT_HANDLES"), ",") {
-		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
-			cfg.IdleCleanupExemptHandles = append(cfg.IdleCleanupExemptHandles, hd)
-		}
-	}
-	return nil
-}
-
-// loadWebPush reads WEB_PUSH_ACCOUNTS: a comma-separated allowlist of
-// account handles, or "all"/"*" to enable web push for every account.
-func loadWebPush(cfg *Config) error {
-	cfg.WebPushAccounts = map[string]bool{}
-	for _, a := range strings.Split(os.Getenv("WEB_PUSH_ACCOUNTS"), ",") {
-		if a = strings.TrimSpace(strings.ToLower(a)); a == "" {
-			continue
-		} else if a == "all" || a == "*" {
-			cfg.WebPushAccountsAll = true
-		} else {
-			cfg.WebPushAccounts[a] = true
-		}
-	}
-	return nil
-}
-
-func loadSitesPreview(cfg *Config) error {
-	cfg.PreviewAccounts = map[string]bool{}
-	for _, a := range strings.Split(os.Getenv("PREVIEW_ACCOUNTS"), ",") {
-		if a = strings.TrimSpace(strings.ToLower(a)); a != "" {
-			cfg.PreviewAccounts[a] = true
-		}
-	}
-	cfg.PreviewTTL = 48 * time.Hour
-	if v := os.Getenv("PREVIEW_TTL_HOURS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.PreviewTTL = time.Duration(n) * time.Hour
-		}
-	}
-	return nil
-}
-
-func loadOperationalLimits(cfg *Config) error {
-	limits, err := limitsFromEnv()
-	if err != nil {
-		return err
-	}
-	cfg.Limits = limits
-	return nil
-}
-
-func loadStoragePool(cfg *Config) error {
+func loadDBPool(cfg *Config) error {
 	// A zero open limit would restore database/sql's unbounded default.
 	for _, setting := range []struct {
 		name, raw string
@@ -610,14 +486,34 @@ func loadStoragePool(cfg *Config) error {
 	return nil
 }
 
-func validateRequiredSettings(cfg *Config) error {
-	if cfg.DBDSN == "" {
-		return errors.New("DB_DSN is required")
+// getenvMode reads a setting that must be one of modes. Unset is modes[0];
+// anything else not listed logs a warning and is modes[0] too.
+func getenvMode(name string, modes ...string) string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+	if slices.Contains(modes, mode) {
+		return mode
 	}
-	if cfg.AdminAPIKey == "" {
-		return errors.New("ADMIN_API_KEY is required (no default — set it explicitly so the public source doesn't ship a known key)")
+	if mode != "" {
+		log.Printf("warning: invalid %s %q; treating as %s", name, mode, modes[0])
 	}
-	return nil
+	return modes[0]
+}
+
+// getenvLowerList splits a comma-separated setting into trimmed, lowercased,
+// non-empty items (nil when there are none).
+func getenvLowerList(name string) []string {
+	var out []string
+	for _, item := range strings.Split(os.Getenv(name), ",") {
+		if item = strings.ToLower(strings.TrimSpace(item)); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+// getenvIs reports whether a setting is want, ignoring case and spaces.
+func getenvIs(name, want string) bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(name)), want)
 }
 
 // checkSiteBaseCertDir refuses a split base without its certificate hand-off.
@@ -809,12 +705,4 @@ func parseCIDRList(raw string) ([]*net.IPNet, error) {
 		out = append(out, network)
 	}
 	return out, nil
-}
-
-// SpamCheckConfigured reports whether this install offers the spam check, read
-// the way the server reads it. Operator commands use it so the rules they
-// compile are the rules the server will accept.
-func SpamCheckConfigured() bool {
-	key, secret := loadTurnstile()
-	return key != "" && secret != ""
 }

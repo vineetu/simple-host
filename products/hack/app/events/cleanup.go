@@ -141,7 +141,6 @@ Simple Hack
 	log.Printf("event-site cleanup: warned organiser of %s", ev.Slug)
 }
 
-// CleanupReport receives real cleanup outcomes from the lifecycle owner.
 type CleanupReport interface {
 	Progress()
 	Fail(string, error)

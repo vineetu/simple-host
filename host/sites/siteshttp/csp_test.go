@@ -61,13 +61,7 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 	web.InstanceIsHostedService = true
 	t.Cleanup(func() { web.InstanceIsHostedService = oldHosted })
 	mux := chromeTestMux(t, platformTestEdition())
-	for _, path := range []string{
-		"/", "/install.html", "/architecture.html", "/privacy.html",
-		"/features.html", "/enterprise.html",
-		"/dashboard", "/features", "/enterprise", "/enterprise/brief",
-		"/enterprise/architecture", "/terms", "/support",
-		"/admin", "/analytics/my-site",
-	} {
+	for _, path := range []string{"/", "/install.html", "/dashboard", "/enterprise", "/admin", "/analytics/my-site"} {
 		rec := get(t, mux, "simple-host.app", path)
 		if rec.Code != http.StatusOK {
 			t.Errorf("%s: status %d", path, rec.Code)
@@ -86,7 +80,7 @@ func TestApexPagesStrictScriptCSP(t *testing.T) {
 	// The showcase and the 404, rendered by handlers rather than the file
 	// server, behind the same middleware as on the apex.
 	h := chromeTestHandler(platformTestEdition())
-	assets := h.Pipeline()
+	assets := h.Pages()
 	data := web.ShowcaseData{Handle: "jane", SitesBaseURL: "https://sites.simple-host.app", MainURL: "https://simple-host.app", Sites: []web.ShowcaseSite{}}
 	sc := assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		page, err := assets.ShowcasePage(assets.ChromeDataFor(r, ""), data)

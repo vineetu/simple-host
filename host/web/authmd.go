@@ -4,26 +4,10 @@ import (
 	"strings"
 )
 
-// These are the same configuration facts used by the instance's llms.txt.
+// AuthSignInMethods is the auth guide's sign-in sentence, from the same facts
+// as the instance's llms.txt.
 func AuthSignInMethods() string {
-	var ways []string
-	if EmailSignInEnabled {
-		ways = append(ways, "an emailed code")
-	}
-	for _, provider := range CurrentInstance.SignInProviders {
-		switch provider {
-		case "google":
-			ways = append(ways, "Google")
-		case "github":
-			ways = append(ways, "GitHub")
-		case "oidc":
-			label := CurrentInstance.OIDCLabel
-			if label == "" {
-				label = "your company account"
-			}
-			ways = append(ways, label+" (company OpenID Connect)")
-		}
-	}
+	ways := signInWays(EmailSignInEnabled, CurrentInstance, " (company OpenID Connect)")
 	text := "Browser sign-in is unavailable on this server. Ask the operator about access."
 	if len(ways) > 0 {
 		text = "Sign in in the browser with " + strings.Join(ways, " or ") + "."

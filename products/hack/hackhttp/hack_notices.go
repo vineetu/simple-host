@@ -11,11 +11,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Notify people when something waits on them (2026-11-02, audit item 7).
-// What each person sees is computed in the events service, so the website's
-// badges and Needs you lines, GET /v1/hack/todos and the AI apps
-// (hack_get_my_todos, hack_get_team_status) always say the same thing.
-// Storage and the email queue: host/repository/hackevents/notices.go and notice_delivery.go.
+// Notify people when something waits on them. What each person sees is computed in the events service, so the website's badges and Needs you lines, GET /v1/hack/todos and the AI apps (hack_get_my_todos, hack_get_team_status) always say the same thing. Storage and the email queue: host/repository/hackevents/notices.go and notice_delivery.go.
 
 // getTodos is GET /v1/hack/todos: what waits on the person in every event
 // they are in. Events with nothing waiting are left out.
@@ -71,7 +67,6 @@ func (h *HackHandler) markNoticesSeen(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "marked": n})
 }
 
-// noticeMailPolicy is the sweep's timing; tests shorten it.
 type noticeMailPolicy struct{ delay, window time.Duration }
 
 func (h *HackHandler) noticePolicy() noticeMailPolicy {

@@ -84,8 +84,7 @@ func validateProduct(ctx context.Context, conn *sql.Conn, exts []*extension.Exte
 	return
 }
 
-// productEvidence is the sole platform probe of a product table. See the
-// D3-S6a ruling in refactor-board/NOTES.md, 2026-11-16 07:20 UTC.
+// productEvidence is the platform's only probe of a product table.
 func productEvidence(ctx context.Context, conn *sql.Conn) (bool, error) {
 	var exists bool
 	if err := conn.QueryRowContext(ctx, `SELECT to_regclass('public.events') IS NOT NULL`).Scan(&exists); err != nil || !exists {

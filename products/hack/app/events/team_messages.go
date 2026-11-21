@@ -11,8 +11,6 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// Organiser team messages (0003-hack-notices-judges-messages.sql).
-
 // teamMessageRateWindow and teamMessageRateMax are the contract's DB-counted rate limit: at most this many message rows per event per rolling window.
 const (
 	teamMessageRateWindow = time.Hour
@@ -22,7 +20,6 @@ const (
 	teamInboundRateMax    = 10
 )
 
-// TeamMessageSent is one team's message, as the POST response shows it.
 type TeamMessageSent struct {
 	model.TeamMessage
 	TeamName   string
@@ -125,7 +122,6 @@ func messageTeam(ctx context.Context, tx *sql.Tx, eventID, teamID, senderID, sen
 	return TeamMessageSent{TeamMessage: msg, TeamName: team.Name, Recipients: int(n)}, nil
 }
 
-// ListTeamMessages is the organiser's GET .../teams/{team}/messages.
 func (s *Service) ListTeamMessages(ctx context.Context, teamID string) ([]model.TeamMessage, error) {
 	return eventrepo.ListTeamMessages(ctx, s.db, teamID, 100)
 }

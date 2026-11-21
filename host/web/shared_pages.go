@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"html"
 	"net/http"
 	"net/url"
@@ -36,8 +37,10 @@ func ConfirmForm(action string, fields map[string]string, button string) string 
 }
 
 // FragmentLinkGET answers the GET of an emailed link that carries its token
-// in the fragment (no ?t=): the page that reads it and posts it back. It
-// reports whether it wrote the response.
+// in the fragment (no ?t=), so the token never reaches a server or proxy log:
+// the page's script posts it back with peek=1, and the handler shows its
+// confirmation page (peek never acts). It reports whether it wrote the
+// response. Older ?t= links keep working on GET until they expire.
 func FragmentLinkGET(assets *AssetPipeline, w http.ResponseWriter, r *http.Request, base, action string) bool {
 	if r.Method == http.MethodPost || r.URL.Query().Get("t") != "" {
 		return false
@@ -66,7 +69,7 @@ func LinkConfirming(r *http.Request) bool {
 	return r.Method != http.MethodPost || r.PostFormValue("peek") == "1"
 }
 
-// linkToken is an emailed link's token: from the posted form on POST, from
+// LinkToken is an emailed link's token: from the posted form on POST, from
 // the query on GET (older links).
 func LinkToken(w http.ResponseWriter, r *http.Request) string {
 	if r.Method == http.MethodPost {
@@ -127,7 +130,14 @@ func OpenPreviewToken(key []byte, ttl time.Duration, token string, now time.Time
 // These pages keep the account API key in localStorage, so script-src carries
 // no 'unsafe-inline': an injected <script> or on*= attribute cannot run and read
 // it. The pages' own inline scripts run under a per-response nonce, which the
-// handlers stamp onto them with stampNonce. Inline styles stay allowed.
+// handlers stamp onto them with httpx.StampNonce. Inline styles stay allowed.
 func (p *AssetPipeline) AdminUICSP(next http.Handler) http.Handler {
-	return p.uiCSP(next, "'self' blob:")
+	return p.UICSP(next, "'self' blob:")
 }
+
+// PreviewLinkDomain separates preview-link tokens (one kept version of one
+// site, sealed with the per-process key export links use) from export links
+// and anything else the key could be asked to sign.
+const PreviewLinkDomain = "simple-host version preview v1"
+
+var errPreviewLink = errors.New("this preview link is not valid or has expired")

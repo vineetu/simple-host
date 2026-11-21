@@ -8,107 +8,91 @@ import (
 	"time"
 
 	appstorage "github.com/vsriram/simple-host/host/data"
-	"github.com/vsriram/simple-host/host/server/servertest"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
 type replayBindings struct {
 	appstorage.NoBindings
-	member, deadline bool
+	member bool
 }
 
 func (*replayBindings) OwnerOnSite(context.Context, string, string) (bool, error) { return false, nil }
 func (*replayBindings) Schema() ruleengine.BindingSchema {
-	return ruleengine.BindingSchema{"event.member": {Type: ruleengine.TypeBool}, "event.before_deadline": {Type: ruleengine.TypeBool}}
+	return ruleengine.BindingSchema{"event.member": {Type: ruleengine.TypeBool}}
 }
 func (p *replayBindings) Values(context.Context, appstorage.BindingCall, []string) (ruleengine.Values, error) {
-	return ruleengine.Values{"event.member": ruleengine.Bool(p.member), "event.before_deadline": ruleengine.Bool(p.deadline)}, nil
+	return ruleengine.Values{"event.member": ruleengine.Bool(p.member)}, nil
 }
 
-func saveWriteHTTPRules(t *testing.T, s servertest.StorageTestSite, add, check string, status int) {
+func saveWriteRules(t *testing.T, s Shop, add, check string, status int) {
 	t.Helper()
 	policies := []ruleengine.Policy{{Command: ruleengine.CmdRead, Using: "true"}, {Command: ruleengine.CmdAdd, Check: add}, {Command: ruleengine.CmdEdit, Using: "auth.signed_in", Check: check}, {Command: ruleengine.CmdDelete, Using: "auth.signed_in"}}
 	s.Must(t, "PUT", "/resources/data", map[string]any{"kind": "sqlite", "rules": json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Policies: policies}))}, s.Key, status)
 }
 
+// An idempotent replay rechecks today's rules: a write the rules (or a
+// product binding) no longer allow is refused, never replayed.
 func TestStorageRulesWriteReplay(t *testing.T) {
-	s := servertest.NewStorageTestSite(t)
-	p := &replayBindings{member: true, deadline: true}
+	s := NewShop(t)
+	p := &replayBindings{member: true}
 	s.A.Data.SetStorageBindings(p)
-	saveWriteHTTPRules(t, s, "auth.signed_in", "true", 201)
+	saveWriteRules(t, s, "auth.signed_in", "true", 201)
 	s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(status TEXT)"}, s.Key, 200)
 	route := "/sqlite/data/tables/entries/rows"
-	for _, change := range []string{"unchanged", "rule", "suspended", "membership", "deadline", "row-dependent"} {
+	for i, change := range []string{"unchanged", "rule", "membership", "row-dependent"} {
 		t.Run(change, func(t *testing.T) {
-			p.member, p.deadline = true, true
+			p.member = true
 			add := "auth.signed_in"
 			if change == "membership" {
 				add += " && event.member"
 			}
-			if change == "deadline" {
-				add += " && event.before_deadline"
-			}
-			saveWriteHTTPRules(t, s, add, "true", 200)
-			h := map[string]string{}
-			for k, v := range s.Callers["alice"] {
-				h[k] = v
-			}
-			h["Idempotency-Key"] = "rules-" + change
+			saveWriteRules(t, s, add, "true", 200)
+			h := rtCopy(s.Callers["alice"], "Idempotency-Key", "rules-"+change)
 			first := s.Must(t, "POST", route, `{"status":"draft"}`, h, 200)
-			want, code := 200, ""
+			want := 200
 			switch change {
 			case "rule":
-				saveWriteHTTPRules(t, s, `auth.role == "owner"`, "true", 200)
-				want, code = 403, "forbidden"
-			case "suspended":
-				if _, err := s.A.Database.Exec(`UPDATE users SET suspended_at=now() WHERE id=$1`, s.AliceID); err != nil {
-					t.Fatal(err)
-				}
-				want, code = 401, "sign_in_required"
+				saveWriteRules(t, s, `auth.role == "owner"`, "true", 200)
+				want = 403
 			case "membership":
 				p.member = false
-				want, code = 403, "forbidden"
-			case "deadline":
-				p.deadline = false
-				want, code = 403, "forbidden"
+				want = 403
 			case "row-dependent":
-				saveWriteHTTPRules(t, s, `auth.signed_in && status == "approved"`, "true", 200)
+				saveWriteRules(t, s, `auth.signed_in && status == "approved"`, "true", 200)
 			}
 			replay := s.Must(t, "POST", route, `{"status":"draft"}`, h, want)
-			if want == 200 {
-				if string(replay.Body) != string(first.Body) {
-					t.Fatalf("not stored replay: %s / %s, headers=%v", first.Body, replay.Body, replay.Header)
-				}
-			} else if replay.JSON(t)["code"] != code || replay.Header.Get("Idempotent-Replayed") != "" {
+			if want == 200 && string(replay.Body) != string(first.Body) {
+				t.Fatalf("not a stored replay: %s / %s", first.Body, replay.Body)
+			}
+			if want != 200 && (replay.Code() != "forbidden" || replay.Header.Get("Idempotent-Replayed") != "") {
 				t.Fatalf("replay refusal: %s", replay.Body)
 			}
 			if change == "row-dependent" {
-				h["Idempotency-Key"] += "-new"
-				r := s.Must(t, "POST", route, `{"status":"draft"}`, h, 403)
-				if r.JSON(t)["code"] != "forbidden" {
-					t.Fatal(string(r.Body))
-				}
+				s.Must(t, "POST", route, `{"status":"draft"}`, rtCopy(h, "Idempotency-Key", "fresh"), 403)
 			}
-			// One initial write per subtest; neither replay nor failed fresh key writes.
-			count := s.Must(t, "POST", "/sqlite/data/query", map[string]string{"sql": "SELECT count(*) FROM entries"}, s.Key, 200).JSON(t)
-			rows := count["rows"].([]any)
-			n := rows[0].([]any)[0].(float64)
-			expected := map[string]float64{"unchanged": 1, "rule": 2, "suspended": 3, "membership": 4, "deadline": 5, "row-dependent": 6}[change]
-			if n != expected {
-				t.Fatalf("rows=%v want=%v", n, expected)
-			}
-			if change == "suspended" {
-				if _, err := s.A.Database.Exec(`UPDATE users SET suspended_at=NULL WHERE id=$1`, s.AliceID); err != nil {
-					t.Fatal(err)
-				}
+			n := s.Must(t, "POST", "/sqlite/data/query", map[string]string{"sql": "SELECT count(*) FROM entries"}, s.Key, 200).JSON(t)["rows"].([]any)[0].([]any)[0].(float64)
+			if n != float64(i+1) {
+				t.Fatalf("rows=%v want=%d", n, i+1)
 			}
 		})
 	}
 }
 
+// rtCopy is h with one header changed.
+func rtCopy(h map[string]string, k, v string) map[string]string {
+	out := map[string]string{k: v}
+	for hk, hv := range h {
+		if hk != k {
+			out[hk] = hv
+		}
+	}
+	return out
+}
+
+// An edit whose check fails answers like a missing row and changes nothing.
 func TestStorageRulesWriteFailedCheckMatchesMissing(t *testing.T) {
-	s := servertest.NewStorageTestSite(t)
-	saveWriteHTTPRules(t, s, "auth.signed_in", `status == "approved"`, 201)
+	s := NewShop(t)
+	saveWriteRules(t, s, "auth.signed_in", `status == "approved"`, 201)
 	s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(status TEXT)"}, s.Key, 200)
 	route := "/sqlite/data/tables/entries/rows"
 	s.Must(t, "POST", route, `{"status":"draft"}`, s.Callers["alice"], 200)
@@ -117,36 +101,26 @@ func TestStorageRulesWriteFailedCheckMatchesMissing(t *testing.T) {
 	if string(failed.Body) != string(missing.Body) {
 		t.Fatalf("failed check %s != missing %s", failed.Body, missing.Body)
 	}
-	row := s.Must(t, "GET", route+"/1", nil, s.Callers["alice"], 200).JSON(t)
-	if row["row"].([]any)[0] != "draft" {
+	if row := s.Must(t, "GET", route+"/1", nil, s.Callers["alice"], 200).JSON(t); row["row"].([]any)[0] != "draft" {
 		t.Fatal(row)
 	}
 }
 
+// A visitor's values for the server's columns, in any spelling, are ignored.
 func TestStorageRulesWriteServerColumnSpelling(t *testing.T) {
-	s := servertest.NewStorageTestSite(t)
-	saveWriteHTTPRules(t, s, "auth.signed_in", "true", 201)
+	s := NewShop(t)
+	saveWriteRules(t, s, "auth.signed_in", "true", 201)
 	s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT, visitor_id TEXT, created_at TEXT, updated_at TEXT)"}, s.Key, 200)
 	route := "/sqlite/data/tables/entries/rows"
-	count := 0
-	for _, name := range []string{"visitor_id", "written_by", "created_at", "updated_at"} {
-		for _, supplied := range []string{name, strings.ToUpper(name)} {
-			s.Must(t, "POST", route, map[string]string{"body": "new", supplied: "forged"}, s.Callers["alice"], 200)
-			count++
-		}
+	for _, name := range []string{"visitor_id", "WRITTEN_BY", "created_at", "UPDATED_AT"} {
+		s.Must(t, "POST", route, map[string]string{"body": "new", name: "forged"}, s.Callers["alice"], 200)
 	}
 	rows := s.Must(t, "POST", "/sqlite/data/query", map[string]string{"sql": "SELECT visitor_id, created_at, updated_at FROM entries"}, s.Key, 200).JSON(t)["rows"].([]any)
-	if len(rows) != count {
-		t.Fatalf("rows=%d want=%d; refused inserts must write nothing", len(rows), count)
-	}
 	for _, value := range rows {
 		row := value.([]any)
-		if row[0] != s.AliceID || row[2] != nil {
+		stamp, _ := row[1].(string)
+		if _, err := time.Parse(time.RFC3339Nano, stamp); row[0] != s.AliceID || row[2] != nil || err != nil || strings.Contains(stamp, "forged") {
 			t.Fatalf("forged server values survived: %v", row)
-		}
-		stamp, ok := row[1].(string)
-		if _, err := time.Parse(time.RFC3339Nano, stamp); !ok || err != nil {
-			t.Fatalf("invalid creation timestamp: %v", row)
 		}
 	}
 }

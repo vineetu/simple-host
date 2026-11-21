@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// Event is one row of events (host/db/migrations/hack1-events.sql).
 type Event struct {
 	ID                   string
 	Slug                 string
@@ -22,8 +21,7 @@ type Event struct {
 	WebsiteMode          string
 	IconMediaType        string
 	AccentColor          string
-	// 0011-hack-event-theme.sql (SIM-353): whole-page style for the public event
-	// page; "" is Classic (today's look).
+	// Whole-page style for the public event page; "" is Classic.
 	Theme              string
 	About              string
 	Rules              string
@@ -48,12 +46,11 @@ type Event struct {
 	TakenDownReason    string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-	// M2 (hack2-team-sites.sql): which entry fields are required, and
-	// whether the public gallery is open.
+	// Which entry fields are required, and whether the public gallery is open.
 	EntryRequired     []string
 	SubmissionsPublic bool
 	GalleryOpen       bool
-	// M3 (hack3-judging.sql): how judges are spread, and the score lock.
+	// How judges are spread, and the score lock.
 	OrganiserJudges     []string
 	JudgeAssignmentMode string
 	JudgesPerTeam       int
@@ -71,8 +68,7 @@ type Event struct {
 	EntryPreset string
 	EntryRules  []byte
 	JudgeFirst  string
-	// 0005-hack-entry-rules-chosen.sql (SIM-382): whether an organiser has ever
-	// saved entry rules on this event.
+	// Whether an organiser has ever saved entry rules on this event.
 	EntryRulesChosen bool
 	// 0003-hack-notices-judges-messages.sql: minutes before a deadline, 0..5
 	// entries each 15..20160, distinct, stored sorted descending.
@@ -94,14 +90,13 @@ type EventMember struct {
 
 // EventTeam is one row of event_teams.
 type EventTeam struct {
-	ID        string
-	EventID   string
-	Slug      string
-	Name      string
-	Code      string
-	CreatedBy sql.NullString
-	CreatedAt time.Time
-	// M2 (hack2-team-sites.sql).
+	ID                  string
+	EventID             string
+	Slug                string
+	Name                string
+	Code                string
+	CreatedBy           sql.NullString
+	CreatedAt           time.Time
 	DeadlineOverride    sql.NullTime
 	PinnedVersion       sql.NullInt64
 	PinnedAt            sql.NullTime
@@ -114,7 +109,6 @@ type EventTeam struct {
 	LockedBy sql.NullString
 }
 
-// AdminEvent is one row of GET /v1/admin/hack/events.
 type AdminEvent struct {
 	Event
 	CreatorEmail string
@@ -123,7 +117,6 @@ type AdminEvent struct {
 	Judges       int
 }
 
-// EventPerson is a member as shown in event people lists.
 type EventPerson struct {
 	UserID         string
 	Email          string
@@ -145,27 +138,22 @@ type EventPerson struct {
 	Admin bool
 }
 
-// TakenDown reports whether the platform admin has taken the event down.
 func (e Event) TakenDown() bool { return e.TakenDownAt.Valid }
 
-// Locked reports whether the team currently takes nobody new.
 func (t EventTeam) Locked() bool { return t.LockedAt.Valid }
 
-// SignupQuestion is a registration question.
 type SignupQuestion struct {
 	ID       string `json:"id"`
 	Prompt   string `json:"prompt"`
 	Required bool   `json:"required"`
 }
 
-// SignupAnswer is an answer to a registration question.
 type SignupAnswer struct {
 	ID     string `json:"id"`
 	Prompt string `json:"prompt"`
 	Answer string `json:"answer"`
 }
 
-// RegistrationApplication is a participant application.
 type RegistrationApplication struct {
 	UserID      string         `json:"user_id"`
 	Email       string         `json:"email"`
@@ -181,17 +169,14 @@ type RegistrationApplication struct {
 	Gender    string `json:"gender"`
 }
 
-// ApplicantProfile contains optional application profile fields.
 type ApplicantProfile struct {
 	City, Country, AgeRange, Gender string
 }
 
-// MemberStatus records a membership’s registration status.
 type MemberStatus struct {
 	Role, ApprovalStatus, JoinedVia string
 }
 
-// EventStorageUsage counts an event account’s stored data.
 type EventStorageUsage struct {
 	Sites           int64 `json:"sites"`
 	Versions        int64 `json:"versions"`
@@ -199,7 +184,6 @@ type EventStorageUsage struct {
 	FileBytes       int64 `json:"file_bytes"`
 }
 
-// TeamRequest records a request or invitation to join a team.
 type TeamRequest struct {
 	ID          string    `json:"id"`
 	TeamID      string    `json:"team_id"`
@@ -211,7 +195,6 @@ type TeamRequest struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// FillPlacement describes a proposed team placement.
 type FillPlacement struct {
 	Team    string       `json:"team"`
 	Name    string       `json:"name"`
@@ -219,7 +202,6 @@ type FillPlacement struct {
 	Members []FillPerson `json:"members"`
 }
 
-// FillPerson identifies a participant in a fill plan.
 type FillPerson struct {
 	UserID      string `json:"user_id"`
 	DisplayName string `json:"display_name"`

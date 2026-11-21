@@ -10,22 +10,16 @@ import (
 	"time"
 )
 
-// SignupQuestion aliases the shared model record.
 type SignupQuestion = model.SignupQuestion
 
-// SignupAnswer aliases the shared model record.
 type SignupAnswer = model.SignupAnswer
 
-// Alias (cleanup 4.1): defined in host/model.
 type EventTrack = model.EventTrack
 
-// EventMember aliases the shared model record.
 type EventMember = model.EventMember
 
-// RegistrationApplication aliases the shared model record.
 type RegistrationApplication = model.RegistrationApplication
 
-// ApplicantProfile is the optional fields an application.
 type ApplicantProfile = model.ApplicantProfile
 
 // RegistrationSettings loads the registration questions and approval setting.
@@ -46,7 +40,6 @@ func RegistrationSettings(ctx context.Context, q sqlkit.Querier, eventID string)
 	return questions, approval, nil
 }
 
-// SetRegistrationSettings updates registration questions and approval.
 func SetRegistrationSettings(ctx context.Context, q sqlkit.Querier, eventID string, questions []SignupQuestion, approval bool) error {
 	raw, err := json.Marshal(questions)
 	if err != nil {
@@ -56,14 +49,12 @@ func SetRegistrationSettings(ctx context.Context, q sqlkit.Querier, eventID stri
 	return err
 }
 
-// MemberApprovalStatus loads a member’s approval status.
 func MemberApprovalStatus(ctx context.Context, q sqlkit.Querier, eventID, userID string) (string, error) {
 	var status string
 	err := q.QueryRowContext(ctx, `SELECT approval_status FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, userID).Scan(&status)
 	return status, err
 }
 
-// JoinParticipantRegistration creates a participant registration.
 func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID, userID string, answers []SignupAnswer, pending bool) (EventMember, error) {
 	raw, err := json.Marshal(answers)
 	if err != nil {
@@ -84,7 +75,6 @@ func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID,
 		) SELECT j.event_id,j.user_id,j.role,COALESCE(u.display_name,''),j.team_id,j.coc_accepted_at,j.joined_at FROM joined j JOIN users u ON u.id=j.user_id`, eventID, userID, raw, status))
 }
 
-// ListRegistrationApplications lists participant registrations.
 func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID string) ([]RegistrationApplication, error) {
 	rows, err := queryContext(ctx, q, `SELECT m.user_id,u.username,COALESCE(u.display_name,''),m.approval_status,m.signup_answers,m.joined_at,
 		m.joined_via,m.city,m.country,m.age_range,m.gender
@@ -160,7 +150,6 @@ func DecideRegistration(ctx context.Context, q sqlkit.Querier, eventID, userID, 
 	return n == 1, err
 }
 
-// ListEventTracks lists the event’s tracks.
 func ListEventTracks(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventTrack, error) {
 	rows, err := queryContext(ctx, q, `SELECT id,slug,name,challenge,prize FROM event_tracks WHERE event_id=$1 ORDER BY created_at,id`, eventID)
 	if err != nil {
@@ -178,7 +167,6 @@ func ListEventTracks(ctx context.Context, q sqlkit.Querier, eventID string) ([]E
 	return out, rows.Err()
 }
 
-// ReplaceEventTracks replaces the event’s tracks.
 func ReplaceEventTracks(ctx context.Context, q sqlkit.Querier, eventID string, tracks []EventTrack) error {
 	// No position column (plan: no schema change).
 	base := time.Now().UTC()
@@ -192,12 +180,11 @@ func ReplaceEventTracks(ctx context.Context, q sqlkit.Querier, eventID string, t
 	for _, t := range tracks {
 		slugs = append(slugs, t.Slug)
 	}
-	// Deletion of an unlisted track clears its teams' selection through the FK.
+	// No position column.
 	_, err := q.ExecContext(ctx, `DELETE FROM event_tracks WHERE event_id=$1 AND NOT(slug=ANY($2))`, eventID, pq.Array(slugs))
 	return err
 }
 
-// SetTeamTrack assigns a track to a team.
 func SetTeamTrack(ctx context.Context, q sqlkit.Querier, eventID, teamID, slug string) (string, error) {
 	var id sql.NullString
 	if slug != "" {
@@ -219,7 +206,6 @@ func SetTeamTrack(ctx context.Context, q sqlkit.Querier, eventID, teamID, slug s
 	return id.String, nil
 }
 
-// TeamTrack loads the team’s selected track.
 func TeamTrack(ctx context.Context, q sqlkit.Querier, teamID string) (*EventTrack, error) {
 	var t EventTrack
 	err := q.QueryRowContext(ctx, `SELECT x.id,x.slug,x.name,x.challenge,x.prize FROM event_teams t JOIN event_tracks x ON x.id=t.track_id WHERE t.id=$1`, teamID).Scan(&t.ID, &t.Slug, &t.Name, &t.Challenge, &t.Prize)

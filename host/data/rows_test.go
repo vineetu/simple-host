@@ -8,7 +8,7 @@ import (
 	"time"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
-	"github.com/vsriram/simple-host/host/data/rules"
+	model "github.com/vsriram/simple-host/host/model"
 )
 
 func TestGetRowVisibility(t *testing.T) {
@@ -22,7 +22,7 @@ func TestGetRowVisibility(t *testing.T) {
 	}
 	conn.Close()
 	s := New(nil, Deps{SQLitePath: path, SiteSlots: NewSiteSlots(1, NewSQLiteGate(1, time.Second), time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536})
-	c := Call{VisitorID: "visitor", ActiveChecked: true, ViewersOK: true, Resource: rules.Resource{Kind: "sqlite", Rules: *readSet("true")}}
+	c := Call{VisitorID: "visitor", ActiveChecked: true, ViewersOK: true, Resource: model.Resource{Kind: "sqlite", Rules: *readSet("true")}}
 	got, err := s.TableGet(context.Background(), TableInput{Call: c, Table: "notes", ID: 1})
 	if err != nil || got.Authorization != nil {
 		t.Fatalf("read: %+v %v", got, err)
@@ -53,7 +53,7 @@ func TestListRowsPaginationAndVisibility(t *testing.T) {
 	}
 	conn.Close()
 	s := New(nil, Deps{SQLitePath: path, SiteSlots: NewSiteSlots(1, NewSQLiteGate(1, time.Second), time.Second), SQLiteTimeout: time.Second, SQLiteMaxMemory: 4096 * 65536})
-	c := Call{VisitorID: "visitor", ActiveChecked: true, ViewersOK: true, Resource: rules.Resource{Kind: "sqlite", Rules: *readSet("true")}}
+	c := Call{VisitorID: "visitor", ActiveChecked: true, ViewersOK: true, Resource: model.Resource{Kind: "sqlite", Rules: *readSet("true")}}
 	in := TableInput{Call: c, Table: "notes", Query: url.Values{"limit": {"1"}}}
 	first, err := s.TableList(context.Background(), in)
 	if err != nil || first.Authorization != nil {

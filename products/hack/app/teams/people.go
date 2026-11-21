@@ -8,27 +8,22 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// ListPeople reads the event's people.
 func (s *Service) ListPeople(ctx context.Context, eventID string) ([]model.EventPerson, error) {
 	return eventrepo.ListEventPeople(ctx, s.db, eventID)
 }
 
-// ListTeams reads the event teams in their existing order.
 func (s *Service) ListTeams(ctx context.Context, eventID string) ([]model.EventTeam, error) {
 	return teamrepo.ListEventTeams(ctx, s.db, eventID)
 }
 
-// ListParticipantsOnNoTeam reads participants without a team.
 func (s *Service) ListParticipantsOnNoTeam(ctx context.Context, eventID string) ([]model.EventPerson, error) {
 	return eventrepo.ListParticipantsOnNoTeam(ctx, s.db, eventID)
 }
 
-// GetTeam reads a team by ID.
 func (s *Service) GetTeam(ctx context.Context, teamID string) (model.EventTeam, error) {
 	return teamrepo.GetEventTeamByID(ctx, s.db, teamID)
 }
 
-// TeamPeople reads a team's roster.
 func (s *Service) TeamPeople(ctx context.Context, teamID string) ([]model.EventPerson, error) {
 	return teamrepo.ListTeamPeople(ctx, s.db, teamID)
 }

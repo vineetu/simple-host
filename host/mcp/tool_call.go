@@ -4,11 +4,14 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -53,37 +56,48 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 		return failure(req.ID, codeInvalidParams, "params could not be read", nil)
 	}
 	_, _, byName := s.forCaller(caller)
-	a := &callAnalytics{s: s, caller: caller, event: params.Name, started: time.Now(),
-		secrets: analyticsSecretValues(s.policy(params.Name), params.Arguments, s.policy)}
-	a.intent, _ = takeAnalyticsContext(byName[params.Name], params.Arguments)
+	_, runTool := byName["run_tool"]
+	wrapped := runTool && byName[params.Name].policy.unwrap
+	a := s.startCallAnalytics(caller, params, byName, wrapped)
+	a.protocol = requestedVersion(r, req)
 	defer func() { a.send(params.Arguments, reply) }()
 	refuse := func(err error, text string) response {
 		a.record(err)
 		return toolResult(req.ID, text, nil, true, modern)
 	}
 	// Unwrap before lookup so direct and wrapped calls share the same checks.
-	_, runTool := byName["run_tool"]
-	wrapped := runTool && byName[params.Name].policy.unwrap
 	if wrapped {
-		name, args, text, err := s.unwrapRunTool(byName, params.Arguments, a)
+		name, args, err := s.unwrapRunTool(byName, params.Arguments)
 		if err != nil {
-			return refuse(err, text)
+			return refuse(err, err.Error())
 		}
 		params.Name, params.Arguments = name, args
 	}
 	tool, known := byName[params.Name]
-	if inner, present := takeAnalyticsContext(tool, params.Arguments); present {
-		a.intent = inner
-	}
 	if !known {
 		return s.unknownTool(req.ID, params.Name, caller, wrapped, modern, a.record)
 	}
 	if params.Arguments == nil {
 		params.Arguments = map[string]any{}
 	}
-	c, text, err := s.prepareCall(r, tool, params, caller, wrapped, modern)
-	if err != nil {
-		return refuse(err, text)
+	if err := checkArguments(tool, params.Arguments, wrapped); err != nil {
+		// Some apps (ChatGPT custom servers) keep the tool list from when the
+		// person connected, so a stale schema is common: give the current one.
+		text := argumentMessage(err, tool)
+		if !wrapped {
+			text += "\n" + staleToolsHint
+		}
+		return refuse(codedError("invalid_argument", err.Error()), text)
+	}
+	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
+	if err := c.takeTeamArguments(params.Arguments); err != nil {
+		return refuse(codedError("invalid_argument", err.Error()), argumentMessage(err, tool))
+	}
+	a.owner = c.owner
+	s.setClientUI(c, params.Meta, caller, modern)
+	// A host draws a screen for the tool it listed, never for run_tool.
+	if wrapped {
+		c.wrapped, c.textOnlyClient = true, true
 	}
 	if s.analytics != nil && a.parameters == nil {
 		a.parameters = analyticsParametersForPolicy(s.policy(a.event), params.Arguments)
@@ -105,71 +119,25 @@ func (s *Server) callTool(r *http.Request, req request, caller Caller, modern bo
 }
 
 // unwrapRunTool reads run_tool's own arguments: the tool to run and its
-// arguments. The refusal comes with the text the caller reads.
-func (s *Server) unwrapRunTool(byName map[string]Tool, outer map[string]any, a *callAnalytics) (name string, args map[string]any, text string, err error) {
+// arguments. A refusal's text is what the caller reads.
+func (s *Server) unwrapRunTool(byName map[string]Tool, outer map[string]any) (string, map[string]any, error) {
 	name, nameErr := stringArg(outer, "name")
-	inner, objectArgs := outer["arguments"].(map[string]any)
-	if intent, present := takeAnalyticsContext(byName[name], inner); present {
-		a.intent = intent
-	}
-	target, known := byName[name]
-	validTarget := known && !target.policy.discovery
-	if validTarget {
-		a.event = name
-	}
-	_, present := outer["arguments"]
-	if s.analytics != nil {
-		a.parameters = map[string]any{"arguments": "[removed]"}
-		if validTarget && (objectArgs || !present) {
-			a.parameters = analyticsParametersForPolicy(s.policy(name), inner)
-		}
-	}
-	if err := runToolRefusal(byName, outer, nameErr, s.policy(name).screenOnly, target.policy.discovery); err != nil {
-		return "", nil, err.Error(), err
-	}
-	if present && !objectArgs {
-		err := errors.New("arguments must be an object")
-		return "", nil, argumentMessage(err, target), err
-	}
-	return name, inner, "", nil
-}
-
-// runToolRefusal is why run_tool may not run this call, or nil.
-func runToolRefusal(byName map[string]Tool, outer map[string]any, nameErr error, screenOnly, discovery bool) error {
+	target := byName[name]
 	switch err := unexpectedArgument(byName["run_tool"], outer); {
 	case err != nil:
-		return err
+		return "", nil, err
 	case nameErr != nil:
-		return nameErr
-	case screenOnly:
-		return errors.New("passcode_screen is only for the passcode screen")
-	case discovery:
-		return errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
+		return "", nil, nameErr
+	case s.policy(name).screenOnly:
+		return "", nil, errors.New("passcode_screen is only for the passcode screen")
+	case target.policy.discovery:
+		return "", nil, errors.New("Nested discovery cannot call another discovery tool. Choose the required operation from the tool list.")
 	}
-	return nil
-}
-
-// prepareCall checks the arguments and builds the call the tool runs in.
-func (s *Server) prepareCall(r *http.Request, tool Tool, params callParams, caller Caller, wrapped, modern bool) (*call, string, error) {
-	if argErr := checkArguments(tool, params.Arguments, wrapped); argErr != nil {
-		// Some apps (ChatGPT custom servers) keep the tool list from when the
-		// person connected, so a stale schema is common: give the current one.
-		message := argumentMessage(argErr, tool)
-		if !wrapped {
-			message += "\n" + staleToolsHint
-		}
-		return nil, message, codedError("invalid_argument", argErr.Error())
+	inner, objectArgs := outer["arguments"].(map[string]any)
+	if _, present := outer["arguments"]; present && !objectArgs {
+		return "", nil, errors.New(argumentMessage(errors.New("arguments must be an object"), target))
 	}
-	c := &call{server: s, orig: r, caller: caller, policy: tool.policy}
-	if err := c.takeTeamArguments(params.Arguments); err != nil {
-		return nil, argumentMessage(err, tool), codedError("invalid_argument", err.Error())
-	}
-	s.setClientUI(c, params.Meta, caller, modern)
-	// A host draws a screen for the tool it listed, never for run_tool.
-	if wrapped {
-		c.wrapped, c.textOnlyClient = true, true
-	}
-	return c, "", nil
+	return name, inner, nil
 }
 
 // callAnalytics is what one tools/call reports to usage analytics.
@@ -182,6 +150,39 @@ type callAnalytics struct {
 	started, completed time.Time
 	recorded           bool
 	err                error
+	protocol           string
+	owner              string
+}
+
+// startCallAnalytics takes the analytics context out of the arguments. A call
+// through run_tool reports as the tool it names when that is a real,
+// non-discovery tool, and never reports arguments that are not an object.
+func (s *Server) startCallAnalytics(caller Caller, params callParams, byName map[string]Tool, wrapped bool) *callAnalytics {
+	outer := params.Arguments
+	a := &callAnalytics{s: s, caller: caller, event: params.Name, started: time.Now(),
+		secrets: analyticsSecretValues(s.policy(params.Name), outer, s.policy)}
+	a.intent, _ = takeAnalyticsContext(byName[params.Name], outer)
+	if !wrapped {
+		return a
+	}
+	name, _ := stringArg(outer, "name")
+	inner, objectArgs := outer["arguments"].(map[string]any)
+	_, present := outer["arguments"]
+	if intent, ok := takeAnalyticsContext(byName[name], inner); ok {
+		a.intent = intent
+	}
+	target, known := byName[name]
+	validTarget := known && !target.policy.discovery
+	if validTarget {
+		a.event = name
+	}
+	if s.analytics != nil {
+		a.parameters = map[string]any{"arguments": "[removed]"}
+		if validTarget && (objectArgs || !present) {
+			a.parameters = analyticsParametersForPolicy(s.policy(name), inner)
+		}
+	}
+	return a
 }
 
 func (a *callAnalytics) record(err error) {
@@ -202,9 +203,33 @@ func (a *callAnalytics) send(args map[string]any, reply response) {
 	if parameters == nil {
 		parameters = analyticsParametersForPolicy(policy, args)
 	}
+	result := analyticsResponseForPolicy(policy, reply.Result)
+	if a.err != nil && !policy.analytics.redactAll {
+		result = analyticsRefusalResponse(a.err)
+	}
 	a.s.analytics.enqueue(a.caller, a.event, a.completed.Sub(a.started), a.completed, a.err,
-		redactAnalyticsSecrets(parameters, a.secrets), redactAnalyticsSecrets(analyticsResponseForPolicy(policy, reply.Result), a.secrets),
-		capAnalyticsIntent(redactAnalyticsSecrets(intent, a.secrets).(string)))
+		redactAnalyticsSecrets(parameters, a.secrets), redactAnalyticsSecrets(result, a.secrets),
+		capAnalyticsIntent(redactAnalyticsSecrets(intent, a.secrets).(string)),
+		analyticsCall{protocol: a.protocol, lateTags: a.productTags(args)})
+}
+
+// productTags defers the product's tags for this call to the worker, with a
+// copy of its arguments.
+func (a *callAnalytics) productTags(args map[string]any) func(context.Context) map[string]string {
+	product := a.s.cfg.Contribution
+	if product == nil || product.AnalyticsTags == nil {
+		return nil
+	}
+	caller, tool, args := a.caller, a.event, maps.Clone(args)
+	if a.owner != "" {
+		// takeTeamArguments moved owner onto the call; the product's tags
+		// name the account (a Hack event) the call was about.
+		if args == nil {
+			args = map[string]any{}
+		}
+		args["owner"] = a.owner
+	}
+	return func(ctx context.Context) map[string]string { return product.AnalyticsTags(ctx, caller, tool, args) }
 }
 
 // unknownTool answers a call naming no tool of this connection: a retired
@@ -308,12 +333,9 @@ func argumentMessage(err error, tool Tool) string {
 func unexpectedArgument(tool Tool, args map[string]any) error {
 	props, _ := tool.InputSchema["properties"].(map[string]any)
 	for key := range args {
-		if _, ok := props[key]; !ok {
-			// Name the fields the schema actually has: a near-miss guess
-			// (a plausible-but-wrong name borrowed from a sibling tool)
-			// deserves to be told what to use, not just that the call was
-			// refused; argumentMessage/staleToolsHint cover the separate
-			// case of a client whose cached copy of this tool is stale.
+		if _, ok := props[key]; !ok && !slices.Contains(tool.policy.unlistedArgs, key) {
+			// Name the fields the schema has, so a near-miss guess is told
+			// what to use.
 			names := make([]string, 0, len(props))
 			for name := range props {
 				names = append(names, name)
@@ -325,12 +347,8 @@ func unexpectedArgument(tool Tool, args map[string]any) error {
 	return nil
 }
 
-// argAliasFor names a one-off alias a model guesses from a sibling tool
-// family's word for the same concept: storage_* tools call the saved-data resource "name", while visitor_read_site/
-// visitor_add_entry/visitor_change_entry call the same concept "resource";
-// find_tools's argument is "query", not the "task" a model familiar with
-// other search tools may send; get_page_recipe's is "topic", not the
-// "kind" a model familiar with the storage tools' kind argument may send.
+// argAliasFor names the word a model borrows from a sibling tool family for
+// the same argument (storage_* say "name", visitor_* say "resource").
 func argAliasFor(name string) (canonical, alias string) {
 	switch {
 	case name == "find_tools":
@@ -345,16 +363,10 @@ func argAliasFor(name string) (canonical, alias string) {
 	return "", ""
 }
 
-// resolveArgAlias renames args[alias] to args[canonical] in place, before
-// the schema's additionalProperties check (unexpectedArgument) runs and
-// before the advertised InputSchema is ever consulted, so the alias is
-// accepted silently: it is never added to a tool's schema, which would
-// change the frozen tool list some clients cache (ChatGPT keeps the one
-// from the day it connected). Only applied when the tool's schema actually
-// declares canonical and does not itself declare alias as a real, distinct
-// argument (storage_get_usage has no "name", so is untouched either way; a
-// hypothetical tool that legitimately takes both a "name" and a "resource"
-// is also left alone, since the alias word is already spoken for there).
+// resolveArgAlias renames args[alias] to args[canonical] before the schema
+// check. The alias is never added to a schema, which would change the tool
+// list some clients freeze. It applies only when the schema declares
+// canonical and not alias.
 func resolveArgAlias(tool Tool, args map[string]any) error {
 	canonical, alias := argAliasFor(tool.Name)
 	if canonical == "" {

@@ -53,9 +53,8 @@ func (h *SiteHandler) previewBase(site model.Site) (string, bool) {
 // one origin (no per-site or per-person addresses: a small box).
 func (h *SiteHandler) SharedOrigin() bool { return h.Hosts.Addressing().SharedOrigin() }
 
-// noPreviewWhy says why a site has no preview link. A preview is served on
-// the site's own address (its own browser origin); a server that gives sites
-// none (SITE_HOSTS and PERSON_HOSTS off, as on a small box) never has one.
+// noPreviewWhy says why a site has no preview link: previews are served on the site's own address, which a
+// server that gives sites none (SITE_HOSTS and PERSON_HOSTS off, a small box) does not have.
 func (h *SiteHandler) noPreviewWhy() string {
 	if h.SharedOrigin() {
 		return "preview links need a per-site address, and this server serves every site on one shared address, so it makes none. " +
@@ -64,7 +63,6 @@ func (h *SiteHandler) noPreviewWhy() string {
 	return "this site has no address of its own yet to preview on (its address is still being set up); try again later"
 }
 
-// previewLink mints a preview address for version n of site.
 func (h *SiteHandler) previewLink(site model.Site, n int) (string, time.Time, bool) {
 	base, ok := h.previewBase(site)
 	if !ok {
@@ -74,8 +72,7 @@ func (h *SiteHandler) previewLink(site model.Site, n int) (string, time.Time, bo
 	return base + strconv.Itoa(n) + "/" + h.SignPreviewToken(site.ID, n, expires) + "/", expires, true
 }
 
-// createPreviewLink is POST /v1/sites/{sitename}/versions/{version}/preview-link:
-// the owner mints an hour-long preview address for one kept version.
+// createPreviewLink is POST /v1/sites/{sitename}/versions/{version}/preview-link: an hour-long owner preview address.
 func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -125,9 +122,7 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// servePreview answers <prefix><n>/<token>/<rest> for site, where tail is
-// everything after "__preview/" (decoded) and prefix the escaped path up to
-// and including it.
+// servePreview answers <prefix><n>/<token>/<rest>; tail is the decoded path after "__preview/".
 func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site model.Site, tail, prefix string) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
@@ -161,7 +156,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 		return
 	}
 	if h.Disk.IsSuspended(site.UserID, site.Name) {
-		web.ServeTakedownPage(w, r, h.Pipeline())
+		web.ServeTakedownPage(w, r, h.Pages())
 		return
 	}
 	kept, err := h.SitesSvc().VersionKept(r.Context(), site.ID, n)
@@ -177,12 +172,10 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 	// The link is the admission: the gate adds only the owner's frame guard.
 	then := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if h.Ed.Storage().JudgePreviewFrames && !strings.Contains(strings.Join(w.Header().Values("Content-Security-Policy"), ";"), "frame-ancestors") {
-			// The judge's scoring screen on the app origin frames the submitted
-			// version of a team site (hackAppCSP, entryListItem's frameable).
-			// Only that origin, never any other site: a CSP frame-ancestors
-			// also overrides the proxy's X-Frame-Options SAMEORIGIN, which would
-			// otherwise refuse the app. A signed-in member's own pages keep
-			// ownerFrameGuard's 'self' (checked above).
+			// The judge's scoring screen on the app origin frames the submitted version of a team site
+			// (hackAppCSP, entryListItem's frameable). Only that origin: a CSP frame-ancestors also overrides the
+			// proxy's X-Frame-Options SAMEORIGIN, which would otherwise refuse the app. A signed-in member's own
+			// pages keep ownerFrameGuard's 'self' (checked above).
 			w.Header().Add("Content-Security-Policy", "frame-ancestors 'self' "+h.mainSiteURL())
 		}
 		h.serveDirFile(w, r, h.Disk.VersionDir(site.UserID, site.Name, n), "/"+rest, r.URL.EscapedPath())

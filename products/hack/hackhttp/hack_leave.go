@@ -9,8 +9,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/members"
 )
 
-// previewLeaveEvent is GET .../leave: read-only, every case, never errors for a
-// member beyond 404 (build plan 2.1).
+// previewLeaveEvent is GET .../leave: read-only, every case, never errors for a member beyond 404.
 func (h *participationHTTP) previewLeaveEvent(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
@@ -25,9 +24,7 @@ func (h *participationHTTP) previewLeaveEvent(w http.ResponseWriter, r *http.Req
 		return
 	}
 	paperHackKnownMember(r, preview.Event, user.ID)
-	// The creator case carries other organisers' login emails (Grok security
-	// review, SIM-340); X-API-Key auth means a cache is not required to skip
-	// storing the GET, so say so explicitly.
+	// The creator case carries other organisers' login emails; X-API-Key auth means a cache is not required to skip storing the GET, so say so explicitly.
 	w.Header().Set("Cache-Control", "private, no-store")
 	httpx.WriteJSON(w, http.StatusOK, preview)
 }
@@ -54,7 +51,7 @@ func (h *participationHTTP) postLeaveEvent(w http.ResponseWriter, r *http.Reques
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "successor_user_id must be an id")
 		return
 	}
-	result, err := h.members.Leave(r.Context(), eventSlug(r), user.ID, members.LeaveRequest{Confirm: req.Confirm, SuccessorID: req.SuccessorUserID, Close: req.Close})
+	result, err := h.members.Leave(r.Context(), eventSlug(r), user.ID, members.LeaveRequest{Confirm: req.Confirm, SuccessorID: req.SuccessorUserID, Close: req.Close}, h.links.trash())
 	if result.Event.ID != "" {
 		paperHackEvent(r, result.Event)
 	}
@@ -62,11 +59,20 @@ func (h *participationHTTP) postLeaveEvent(w http.ResponseWriter, r *http.Reques
 		writeHackError(w, err)
 		return
 	}
+	switch {
+	case result.Outcome == "ended":
+		paperHackStage(r, result.Event)
+		paperHackTimes(r)
+		h.links.pinDue(r.Context(), result.Event.ID)
+	case result.Outcome == "deleted":
+		h.links.removeEventFiles(result.Event)
+	case result.Case == "participant":
+		h.links.removeOrphanTeamSites(r.Context(), result.Event)
+	}
 	w.Header().Set("Cache-Control", "private, no-store")
 	httpx.WriteJSON(w, http.StatusOK, result)
 }
 
-// eventSlug is the event slug in a route path.
 func eventSlug(r *http.Request) string {
 	return strings.ToLower(strings.TrimSpace(r.PathValue("slug")))
 }

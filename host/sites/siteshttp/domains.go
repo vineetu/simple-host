@@ -25,15 +25,12 @@ func (h *SiteHandler) normalizeDomain(raw string) (string, error) {
 		return "", errors.New("domain is required")
 	}
 
-	// Strip scheme if present (http://example.com or https://example.com/path).
 	if i := strings.Index(s, "://"); i >= 0 {
 		s = s[i+3:]
 	}
-	// Strip path / query / fragment after first '/'.
 	if i := strings.IndexByte(s, '/'); i >= 0 {
 		s = s[:i]
 	}
-	// Strip port if someone pasted host:port (rare for custom domains).
 	if i := strings.IndexByte(s, ':'); i >= 0 {
 		s = s[:i]
 	}
@@ -85,7 +82,6 @@ func domainCandidate(raw string) string {
 	return strings.ToLower(strings.TrimSuffix(strings.TrimSpace(s), "."))
 }
 
-// isOwnHost reports whether host equals base or is a subdomain of base.
 func isOwnHost(host, base string) bool {
 	host = strings.ToLower(strings.TrimSpace(host))
 	base = strings.ToLower(strings.TrimSpace(base))
@@ -98,7 +94,6 @@ func isOwnHost(host, base string) bool {
 	return strings.HasSuffix(host, "."+base)
 }
 
-// dnsRecord is the DNS record (A or CNAME) the site owner must create.
 type dnsRecord struct {
 	Type  string `json:"type"`
 	Host  string `json:"host"`
@@ -164,7 +159,6 @@ type domainResponse struct {
 	PartnerNote   string     `json:"partner_note,omitempty"`
 }
 
-// domainResponseFor is the API view of a site's binding.
 func (h *SiteHandler) domainResponseFor(info model.SiteDomainInfo) domainResponse {
 	resp := domainResponse{
 		Domain:         info.Domain,
@@ -195,7 +189,6 @@ func (h *SiteHandler) domainResponseFor(info model.SiteDomainInfo) domainRespons
 	return resp
 }
 
-// bindDomain POST /v1/sites/{sitename}/domain — bind one custom domain (pending DNS).
 func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -336,7 +329,6 @@ func (h *SiteHandler) connectDomain(w http.ResponseWriter, r *http.Request, site
 	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
-// getDomain GET /v1/sites/{sitename}/domain — current binding + DNS hint.
 func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -393,7 +385,6 @@ func setDomainTimes(resp *domainResponse, info model.SiteDomainInfo, ttl, maxAge
 	}
 }
 
-// deleteDomain DELETE /v1/sites/{sitename}/domain — unbind custom domain.
 func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -489,7 +480,7 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.siteFacts().GetSiteByCustomDomain(r.Context(), domain)
+	_, err = h.SitesSvc().GetSiteByCustomDomain(r.Context(), domain)
 	if err != nil {
 		// sql.ErrNoRows or any DB error → deny (never 500 to Caddy on a miss).
 		w.WriteHeader(http.StatusForbidden)
@@ -507,12 +498,12 @@ func (h *SiteHandler) tlsAsk(w http.ResponseWriter, r *http.Request) {
 func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 	handle := strings.TrimSpace(r.PathValue("handle"))
 	name := strings.TrimSpace(r.PathValue("sitename"))
-	user, err := h.siteFacts().GetUserByHandle(r.Context(), handle)
+	user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
-	site, err := h.siteFacts().GetSiteByUser(r.Context(), user.ID, name)
+	site, err := h.SitesSvc().GetSiteByUser(r.Context(), user.ID, name)
 	if err != nil {
 		http.NotFound(w, r)
 		return

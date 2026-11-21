@@ -35,6 +35,17 @@ func TestAreaAndFineContract(t *testing.T) {
 		{"@/products/hack", "extension", true},
 		{"@/cmd/simple-host", "@/products/hack", false},
 		{"@/products/hack", "@/products/other", false},
+		// Each module's route suite builds only its own routes (locality).
+		{"server/servertest/datatest", "data/datahttp", true},
+		{"server/servertest/datatest", "access/accesshttp", false},
+		{"server/servertest/datatest", "sites/siteshttp", false},
+		{"server/servertest/datatest", "server/servertest", false},
+		{"server/servertest/accesstest", "access/accesshttp", true},
+		{"server/servertest/accesstest", "data/datahttp", false},
+		{"server/servertest/sitestest", "sites/siteshttp", true},
+		{"server/servertest/sitestest", "handler", false},
+		{"server/servertest/sitestest", "server/servertest/routetest", true},
+		{"server/servertest/routetest", "sites/siteshttp", false},
 	} {
 		for _, kind := range []string{"production", "test"} {
 			issues, _ := evaluate(rules, trans, map[edge]bool{{tc.from, tc.to, kind}: true})

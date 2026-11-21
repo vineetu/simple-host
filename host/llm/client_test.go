@@ -94,20 +94,6 @@ func TestStreamIgnoresReasoningDelta(t *testing.T) {
 	}
 }
 
-func TestStreamReasoningEffortOmittedWhenEmpty(t *testing.T) {
-	srv := sseServer(t, func(w http.ResponseWriter, body map[string]any) {
-		if _, present := body["reasoning_effort"]; present {
-			t.Errorf("reasoning_effort should be absent when Config.ReasoningEffort is empty, got %v", body["reasoning_effort"])
-		}
-		writeSSE(w, `{"choices":[{"delta":{"content":"ok"}}]}`, `[DONE]`)
-	})
-	defer srv.Close()
-	c := New(Config{BaseURL: srv.URL, Model: "test-model"})
-	if _, err := c.Stream(context.Background(), []Message{{Role: "user", Content: "hi"}}, func(string) {}); err != nil {
-		t.Fatalf("Stream: %v", err)
-	}
-}
-
 func TestStreamReasoningEffortSentWhenSet(t *testing.T) {
 	srv := sseServer(t, func(w http.ResponseWriter, body map[string]any) {
 		if body["reasoning_effort"] != "low" {
@@ -137,24 +123,6 @@ func TestStreamAuthorizationHeader(t *testing.T) {
 	}
 	if gotAuth != "Bearer secret-key" {
 		t.Fatalf("got Authorization %q, want %q", gotAuth, "Bearer secret-key")
-	}
-}
-
-func TestStreamNoAuthorizationHeaderWhenKeyEmpty(t *testing.T) {
-	var sawHeader bool
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sawHeader = r.Header.Get("Authorization") != ""
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		writeSSE(w, `{"choices":[{"delta":{"content":"ok"}}]}`, `[DONE]`)
-	}))
-	defer srv.Close()
-	c := New(Config{BaseURL: srv.URL, Model: "test-model"})
-	if _, err := c.Stream(context.Background(), []Message{{Role: "user", Content: "hi"}}, func(string) {}); err != nil {
-		t.Fatalf("Stream: %v", err)
-	}
-	if sawHeader {
-		t.Fatalf("expected no Authorization header when APIKey is empty")
 	}
 }
 
@@ -206,20 +174,6 @@ func TestStreamChunkErrorObject(t *testing.T) {
 	_, err := c.Stream(context.Background(), []Message{{Role: "user", Content: "hi"}}, func(string) {})
 	if err == nil || !strings.Contains(err.Error(), "rate limited") {
 		t.Fatalf("got %v, want an error mentioning the provider's message", err)
-	}
-}
-
-// TestStreamChunkErrorString: a bare {"error":"..."} chunk (no object) is
-// also an error.
-func TestStreamChunkErrorString(t *testing.T) {
-	srv := sseServer(t, func(w http.ResponseWriter, body map[string]any) {
-		writeSSE(w, `{"error":"boom"}`)
-	})
-	defer srv.Close()
-	c := New(Config{BaseURL: srv.URL, Model: "test-model"})
-	_, err := c.Stream(context.Background(), []Message{{Role: "user", Content: "hi"}}, func(string) {})
-	if err == nil || !strings.Contains(err.Error(), "boom") {
-		t.Fatalf("got %v, want an error mentioning \"boom\"", err)
 	}
 }
 

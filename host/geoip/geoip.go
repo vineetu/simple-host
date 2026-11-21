@@ -9,7 +9,7 @@
 // Data: DB-IP "IP to City Lite" and "IP to ASN Lite", CC BY 4.0. Attribution
 // required wherever the results are shown: "IP Geolocation by DB-IP"
 // <https://db-ip.com>. Refreshed monthly by scripts/geoip-refresh.sh, which
-// swaps each file with an atomic rename; Watch notices the new file and
+// swaps each file with an atomic rename; WatchWorker notices the new file and
 // reopens it without a restart.
 //
 // Memory: files are mmap'd read-only, so they live in the shared page cache
@@ -89,19 +89,14 @@ func Open(dir string) *DB {
 	return d
 }
 
-// Dir is the directory the databases are read from.
-func (d *DB) Dir() string { return d.dir }
-
-// Watch polls the files every interval and reopens any that changed. The
-// refresh script replaces files by rename, which changes size/mtime; polling a
-// stat once a minute costs nothing and needs no inotify dependency.
-func (d *DB) Watch(interval time.Duration) { d.WatchWorker(interval).Start(context.Background()) }
-
 type watchWorker struct {
 	*DB
 	interval time.Duration
 }
 
+// WatchWorker polls the files every interval and reopens any that changed. The
+// refresh script replaces files by rename, which changes size/mtime; polling a
+// stat once a minute costs nothing and needs no inotify dependency.
 func (d *DB) WatchWorker(interval time.Duration) workers.Owner { return &watchWorker{d, interval} }
 func (w *watchWorker) Start(ctx context.Context) {
 	w.startOnce.Do(func() {

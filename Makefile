@@ -13,7 +13,7 @@
 # (`make check FULL=1`, what installs and CI run) runs every package.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./host/server/servertest/datatest RUN='^TestNotify' COUNT=5
-.PHONY: check check-release inventory test test-rules test-integration test-db boundary-report check-boundaries browser
+.PHONY: check check-release connector-check inventory test test-rules test-integration test-db boundary-report check-boundaries browser
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -72,6 +72,11 @@ check:
 	bash deploy/digitalocean/droplet/test/pins_test.sh
 	bash scripts/check-fresh-install.sh
 	@bash scripts/check-prices-age.sh || echo "WARNING: the cost calculator's prices need their monthly check (not a failure)"
+
+# The MCP connector check of one product (plugins/ROUTINE.md):
+#   make connector-check PRODUCT=host|hack [NO_EVALS=1]
+connector-check:
+	PRODUCT=$(or $(PRODUCT),host) bash scripts/mcpeval/check.sh
 
 # Publication, cross-repository and HTTP/server fixtures need network access.
 check-release:

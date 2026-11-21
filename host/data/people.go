@@ -4,15 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
+	model "github.com/vsriram/simple-host/host/model"
+
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	repository "github.com/vsriram/simple-host/host/data/repo"
-	"github.com/vsriram/simple-host/host/data/rules"
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
@@ -76,8 +77,8 @@ func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
 // siteDataWriters returns the visitors with a KV key, stored file or SQLite
 // row here. KV and file writer_id are server-stamped and already
 // trustworthy, but a SQLite row's visitor_id can be whatever the owner's raw
-// storage_sql_execute wrote, including another account's id entirely
-// (review fix, SIM-358). Every candidate, from every source, is confirmed
+// storage_sql_execute wrote, including another account's id entirely.
+// Every candidate, from every source, is confirmed
 // against the server's own site_visitor_signins record before it is listed
 // or its email resolved — never trust a value read back out of a table.
 func (s *Service) siteDataWriters(ctx context.Context, c Call) ([]string, error) {
@@ -140,7 +141,7 @@ func (s *Service) namedViewers(ctx context.Context, c Call) (ids []string, byEma
 // s.deps.SQLitePath, which is bound to one resource): the pick list spans
 // every resource on the site.
 func (s *Service) sqliteRowVisitors(ctx context.Context, c Call) ([]string, error) {
-	resources, err := s.ListResourceRecords(ctx, ResourceListInput{SiteID: c.SiteID})
+	resources, err := s.ListResourceRecords(ctx, c.SiteID)
 	if err != nil {
 		return nil, &Error{Code: "internal_error", Message: "internal server error"}
 	}
@@ -175,7 +176,7 @@ func (s *Service) sqliteRowVisitors(ctx context.Context, c Call) ([]string, erro
 	return out, nil
 }
 
-func (s *Service) distinctRowVisitors(conn *sqlite3.Conn, r rules.Resource) ([]string, error) {
+func (s *Service) distinctRowVisitors(conn *sqlite3.Conn, r model.Resource) ([]string, error) {
 	tables, err := runtime.SQLTables(conn)
 	if err != nil {
 		return nil, err

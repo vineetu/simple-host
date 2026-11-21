@@ -116,25 +116,6 @@ func resultOf(t *testing.T, rec *httptest.ResponseRecorder) (string, map[string]
 	return text, structured, res["isError"].(bool)
 }
 
-// Existing dispatch fixtures exercise the base event/entry schema declarations.
-func hackOutputSchemas() map[string]map[string]any {
-	schemas := map[string]map[string]any{}
-	for _, tool := range append(hackBaseEventTools(), hackBaseEntryTools()...) {
-		schemas[tool.Name] = tool.OutputSchema
-	}
-	return schemas
-}
-
-var hackRouteBodyDescriptions = func() map[string]string {
-	descriptions := map[string]string{}
-	for _, route := range hackOrganiserRoutes() {
-		if route.bodyDescription != "" {
-			descriptions[route.name] = route.bodyDescription
-		}
-	}
-	return descriptions
-}()
-
 // toolNamed finds one declaration, hidden ones included.
 func toolNamed(t *testing.T, name string) mcp.Tool {
 	t.Helper()

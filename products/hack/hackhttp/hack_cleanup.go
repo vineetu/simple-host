@@ -8,7 +8,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/events"
 )
 
-// Archive cleanup (M4). Once an event is archived, its team sites stay up
+// Archive cleanup. Once an event is archived, its team sites stay up
 // for EventSitesKeep. EventRemovalWarn before they go, the organiser gets
 // one email. At the end of the keep window each team's site moves to
 // Recently deleted; the event page and the results stay. keep_sites, set by
@@ -22,12 +22,9 @@ const (
 // SetMailer is the notice sender for the archive warning. Call once at startup.
 func (h *HackHandler) SetMailer(m events.Mailer) {
 	h.mailer = m
-	if h.publicEvent != nil {
-		h.publicEvent.mailer = m
-	}
+	_, h.publicEvent.canEmail = noticeSender(m)
 }
 
-// StartEventCleanup runs the sweep shortly after boot and then daily.
 func (h *HackHandler) StartEventCleanup(ctx context.Context) { h.EventCleanupOwner().Start(ctx) }
 
 func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
@@ -35,13 +32,9 @@ func (h *HackHandler) runEventCleanup(ctx context.Context, now time.Time) {
 }
 func (h *HackHandler) runEventCleanupTracked(ctx context.Context, now time.Time, report *workers.Tracker) {
 	send := events.ArchiveWarningSender(h.mailer)
-	var trash func(context.Context, string, string) error
-	if h.links.hooks != nil {
-		trash = h.links.hooks.TrashTeamSite
-	}
 	var reports []events.CleanupReport
 	if report != nil {
 		reports = append(reports, report)
 	}
-	h.events.RunEventCleanup(ctx, now, h.limits.EventSitesKeep, h.limits.EventRemovalWarn, trash, send, h.limits.IdleReplyTo, reports...)
+	h.events.RunEventCleanup(ctx, now, h.limits.EventSitesKeep, h.limits.EventRemovalWarn, h.links.trash(), send, h.limits.IdleReplyTo, reports...)
 }

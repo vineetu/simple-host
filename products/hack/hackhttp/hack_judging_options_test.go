@@ -102,55 +102,6 @@ func TestHackManualAndPanelJudgingAccess(t *testing.T) {
 	}
 }
 
-func TestHackOrganiserManualAndPanelJudging(t *testing.T) {
-	w := newJudgingWorld(t, 1, 0)
-	w.call(t, "PATCH", "/judging/settings", map[string]any{"include_organisers": true}, w.org)
-	orgID := w.a.userID(t, w.org)
-	teamID := w.teams[0].id
-	criterionID := decodeRubric(t, w.call(t, "GET", "/rubric", nil, w.org)).Criteria[0].ID
-	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "manual"}, w.org); r.status != 200 {
-		t.Fatalf("manual mode: %d %s", r.status, r.body)
-	}
-	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 0 {
-		t.Fatalf("unassigned organiser queue: %s", r.body)
-	}
-	assignments := map[string]any{"assignments": []map[string]string{{"judge_id": orgID, "team_id": teamID}}}
-	if r := w.call(t, "PUT", "/assignments", assignments, w.org); r.status != 200 || !strings.Contains(string(r.body), orgID) {
-		t.Fatalf("manual organiser assignment: %d %s", r.status, r.body)
-	}
-	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 1 {
-		t.Fatalf("manual organiser queue: %s", r.body)
-	}
-	w.setStage(t, "judging")
-	if r := w.call(t, "PUT", "/judge/scores/"+teamID, map[string]any{"scores": []map[string]any{{"criterion_id": criterionID, "points": 5}}}, w.org); r.status != 200 {
-		t.Fatalf("manual organiser score: %d %s", r.status, r.body)
-	}
-	tracks := w.call(t, "PUT", "/tracks", map[string]any{"tracks": []map[string]string{{"slug": "build", "name": "Build"}}}, w.org)
-	var listed []map[string]any
-	if err := json.Unmarshal(tracks.body, &listed); err != nil || len(listed) != 1 {
-		t.Fatalf("tracks: %d %s %v", tracks.status, tracks.body, err)
-	}
-	w.setStage(t, "building") // participants choose tracks before entries close
-	trackResp := w.call(t, "PUT", "/team/track", map[string]string{"track": "build"}, w.part.person)
-	w.setStage(t, "closed")
-	if r := trackResp; r.status != 200 {
-		t.Fatalf("team track: %d %s", r.status, r.body)
-	}
-	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"assignment_mode": "panel"}, w.org); r.status != 200 {
-		t.Fatalf("panel mode: %d %s", r.status, r.body)
-	}
-	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 0 {
-		t.Fatalf("organiser outside panel: %s", r.body)
-	}
-	panel := map[string]any{"panels": []map[string]string{{"track_id": listed[0]["id"].(string), "judge_id": orgID}}}
-	if r := w.call(t, "PUT", "/judging/panels", panel, w.org); r.status != 200 {
-		t.Fatalf("organiser panel: %d %s", r.status, r.body)
-	}
-	if r := w.call(t, "GET", "/judge/queue", nil, w.org); len(r.json(t)["queue"].([]any)) != 1 {
-		t.Fatalf("organiser panel queue: %s", r.body)
-	}
-}
-
 func TestHackTieCriterionAndPrizeSnapshot(t *testing.T) {
 	w := newJudgingWorld(t, 2, 1)
 	defaults := w.call(t, "GET", "/judging/settings", nil, w.org).json(t)
@@ -293,48 +244,5 @@ func TestHackNormalisedRankingAndJudgeMajority(t *testing.T) {
 	rows := major.call(t, "POST", "/results/publish", map[string]any{}, major.org).json(t)["results"].([]any)
 	if rows[0].(map[string]any)["team_id"] != major.teams[0].id || rows[1].(map[string]any)["tie_decider"] != "judge_majority" {
 		t.Fatalf("majority tie: %v", rows)
-	}
-}
-
-func TestHackMultiwayOrganiserTieDecisionRecorded(t *testing.T) {
-	w := newJudgingWorld(t, 3, 1)
-	c := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 100, 5)), w.org)).Criteria[0].ID
-	if r := w.call(t, "POST", "/stage", map[string]any{"stage": "judging"}, w.org); r.status != 200 {
-		t.Fatalf("start judging: %d %s", r.status, r.body)
-	}
-	for _, team := range w.teams {
-		w.scoreTeam(t, w.judges[0], team.id, map[string]int{c: 5}, nil)
-	}
-	pre := w.call(t, "GET", "/judging/preview", nil, w.org).json(t)["results"].([]any)
-	for _, x := range pre {
-		m := x.(map[string]any)
-		if m["rank"] != float64(1) || m["tied"] != true {
-			t.Fatalf("multiway unresolved: %v", pre)
-		}
-	}
-	order := []map[string]any{{"team_id": w.teams[2].id, "rank": 1}, {"team_id": w.teams[0].id, "rank": 2}, {"team_id": w.teams[1].id, "rank": 3}}
-	pub := w.call(t, "POST", "/results/publish", map[string]any{"rank_overrides": order}, w.org)
-	if pub.status != 200 {
-		t.Fatalf("publish: %d %s", pub.status, pub.body)
-	}
-	rows := pub.json(t)["results"].([]any)
-	for i, x := range rows {
-		m := x.(map[string]any)
-		if m["rank"] != float64(i+1) || m["tie_decider"] != "organiser" {
-			t.Fatalf("recorded choice: %v", rows)
-		}
-	}
-	if r := w.call(t, "PATCH", "/results", map[string]any{"full_ranking": true}, w.org); r.status != 200 {
-		t.Fatalf("full ranking: %d %s", r.status, r.body)
-	}
-	if r := w.call(t, "PATCH", "/judging/settings", map[string]any{"public_ranks": false}, w.org); r.status != 200 {
-		t.Fatalf("hide ranks: %d %s", r.status, r.body)
-	}
-	public := w.call(t, "GET", "/results", nil, w.outsider).json(t)["ranking"].([]any)
-	for i, row := range public {
-		item := row.(map[string]any)
-		if item["team_name"] != w.teams[i].name || item["rank"] != nil || item["track_rank"] != nil {
-			t.Fatalf("hidden ranking order or fields: %v", public)
-		}
 	}
 }

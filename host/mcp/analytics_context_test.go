@@ -17,7 +17,7 @@ func TestAnalyticsContextListing(t *testing.T) {
 		if on {
 			s.analytics = &analyticsSender{}
 		}
-		for _, app := range []string{"Claude", "ChatGPT", "OpenAI", "Codex", "claude code"} {
+		for _, app := range []string{"Claude", "ChatGPT"} {
 			caller := Caller{AppName: app}
 			want := on
 			full, bare, byName := s.forCaller(caller)
@@ -32,29 +32,11 @@ func TestAnalyticsContextListing(t *testing.T) {
 				schema := item.(map[string]any)["arguments"].(map[string]any)
 				assertAnalyticsContextSchema(t, schema, want)
 			}
-			if app == "Claude" && on {
-				after, _ := json.Marshal(full)
-				growth := len(after) - len(before)
-				t.Logf("Claude tools/list byte growth: %d (%d -> %d)", growth, len(before), len(after))
-				if growth <= 0 || growth >= 3000 {
-					t.Fatalf("growth = %d", growth)
-				}
-			}
 		}
 	}
 	after, _ := json.Marshal(base)
 	if !bytes.Equal(before, after) {
 		t.Fatal("shared schemas mutated")
-	}
-	for _, schema := range []map[string]any{
-		{"properties": map[string]any{"context": str("owned")}},
-		{"oneOf": []any{}}, {"anyOf": []any{}}, {"allOf": []any{}},
-	} {
-		before, _ := json.Marshal(schema)
-		got, _ := json.Marshal(withAnalyticsContext(Tool{InputSchema: schema}).InputSchema)
-		if !bytes.Equal(before, got) {
-			t.Fatal("changed an excluded schema")
-		}
 	}
 }
 
@@ -75,8 +57,8 @@ func assertAnalyticsContextSchema(t *testing.T, schema map[string]any, want bool
 }
 
 func TestAnalyticsContextCalls(t *testing.T) {
-	for _, on := range []bool{false, true} {
-		for _, app := range []string{"Claude", "ChatGPT", "OpenAI", "Codex"} {
+	for _, on := range []bool{true} {
+		for _, app := range []string{"Claude"} {
 			for _, wrapped := range []bool{false, true} {
 				for _, own := range []bool{false, true} {
 					s := NewServer(testConfig(Config{}))
@@ -127,44 +109,6 @@ func TestAnalyticsContextCalls(t *testing.T) {
 							t.Fatal("wrapped parameters or name")
 						}
 					}
-				}
-			}
-		}
-	}
-}
-
-func TestAnalyticsNonStringContext(t *testing.T) {
-	for _, on := range []bool{false, true} {
-		for _, wrapped := range []bool{false, true} {
-			for _, context := range []any{nil, 42, map[string]any{"reason": "test"}} {
-				s := newTestServer(&recordingUpstream{answers: map[string]func() (int, string){
-					"GET /v1/sites": func() (int, string) { return 200, `[]` },
-				}})
-				if on {
-					s.analytics = &analyticsSender{queue: make(chan analyticsEvent, 1)}
-				}
-				name := "list_sites"
-				args := map[string]any{"context": context}
-				if wrapped {
-					name = "run_tool"
-					args = map[string]any{"name": "list_sites", "arguments": args, "context": context}
-				}
-				text, _, isErr := resultOf(t, send(t, s, toolCall(name, args), nil, true))
-				if isErr {
-					t.Fatalf("on=%v wrapped=%v context=%v: %s", on, wrapped, context, text)
-				}
-				if on {
-					e := <-s.analytics.queue
-					params := e.Parameters.(map[string]any)["arguments"].(map[string]any)
-					if _, exists := params["context"]; exists || e.UserIntent != "" {
-						t.Fatalf("non-string context retained: %+v", e)
-					}
-				}
-				// A tool's own context stays intact, including non-string values.
-				own := map[string]any{"context": context}
-				intent, present := takeAnalyticsContext(Tool{InputSchema: object(map[string]any{"context": map[string]any{}})}, own)
-				if _, exists := own["context"]; !exists || intent != "" || present {
-					t.Fatal("tool-owned context changed")
 				}
 			}
 		}

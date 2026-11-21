@@ -8,9 +8,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Reminder offset settings (0003-hack-notices-judges-messages.sql). One list
-// per event drives both audiences: entry reminders to participants and
-// judging reminders to judges.
+// Reminder offset settings. One list per event drives both audiences: entry reminders to participants and judging reminders to judges.
 
 func reminderSettingsJSON(ev model.Event) map[string]any {
 	offsets := ev.ReminderOffsets

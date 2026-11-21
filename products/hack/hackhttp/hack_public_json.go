@@ -71,7 +71,6 @@ func (h *publicEventHTTP) publicEventFeed(ctx context.Context, ev hackmodel.Even
 	return out, nil
 }
 
-// publicEventPath is the event's built-in page on the app, plus suffix.
 func (h *publicEventHTTP) publicEventPath(ev hackmodel.Event, suffix string) string {
 	return strings.TrimRight(h.links.publicBaseURL, "/") + "/e/" + ev.Slug + suffix
 }
@@ -109,14 +108,12 @@ func (h *publicEventHTTP) feedSubmissions(ctx context.Context, ev hackmodel.Even
 	return err
 }
 
-// feedCounts are the participant and team counts.
 func (h *publicEventHTTP) feedCounts(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
 	n, t, _, err := h.events.CountEventMembersLookup(ctx, ev.ID)
 	out["participants"], out["teams"] = n, t
 	return err
 }
 
-// feedTracks are the event's tracks.
 func (h *publicEventHTTP) feedTracks(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
 	tracks, err := h.events.EventTracks(ctx, ev.ID)
 	tr := make([]any, 0, len(tracks))
@@ -151,7 +148,6 @@ func (h *publicEventHTTP) feedFixedSchedule(ctx context.Context, ev hackmodel.Ev
 	return err
 }
 
-// feedAnnouncements are the announcements, newest as stored.
 func (h *publicEventHTTP) feedAnnouncements(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
 	anns, err := h.events.EventAnnouncements(ctx, ev.ID)
 	aa := make([]any, 0, len(anns))

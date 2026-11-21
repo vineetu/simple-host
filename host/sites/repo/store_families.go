@@ -11,7 +11,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-// Address families (owner decision 2026-09-29; handler/familyhost.go).
+// Address families (handler/familyhost.go).
 //
 // An account connects *.<suffix> once; every site of that account named
 // <SitePrefix><label> then also answers at <label>.<suffix>. A family is
@@ -72,12 +72,6 @@ func ListFamiliesByUser(ctx context.Context, q familyQuerier, userID string) ([]
 // ListAllFamilies is every family on the instance (admin view).
 func ListAllFamilies(ctx context.Context, q familyQuerier) ([]AddressFamily, error) {
 	return queryFamilies(ctx, q, `ORDER BY f.suffix, f.created_at`)
-}
-
-// ListVerifiedFamilies is every family that has proved itself: the ones that
-// may serve (the handler adds the certificate check).
-func ListVerifiedFamilies(ctx context.Context, q familyQuerier) ([]AddressFamily, error) {
-	return queryFamilies(ctx, q, `WHERE f.verified_at IS NOT NULL ORDER BY f.suffix`)
 }
 
 // GetFamilyByUserSuffix is one account's family. sql.ErrNoRows if none.

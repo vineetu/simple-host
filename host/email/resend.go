@@ -85,15 +85,10 @@ func (s *ResendSender) mailResult(outcome, detail string) {
 // The code appears in the subject line so the user can read it without opening
 // the mail; the link gives them a one-click browser sign-in.
 func (s *ResendSender) SendSignInCode(toEmail, code, link string) error {
-	if s.apiKey == "" {
-		s.mailResult("failed", "reason=missing_key")
-		return errors.New("RESEND_API_KEY not configured")
-	}
 	subject, text, html := s.signInCodeMessage(code, link)
-	return s.send(toEmail, subject, text, html)
+	return s.sendWithCtx(context.Background(), toEmail, "", subject, text, html)
 }
 
-// signInCodeMessage builds the sign-in email's subject and bodies.
 func (s *ResendSender) signInCodeMessage(code, link string) (subject, text, html string) {
 	textLink, htmlLink := "", ""
 	if link != "" {
@@ -128,24 +123,13 @@ func (s *ResendSender) SendNotice(toEmail, subject, text string) error {
 
 // SendNoticeCtx delivers a notice with cancellation from its caller.
 func (s *ResendSender) SendNoticeCtx(ctx context.Context, toEmail, subject, text string) error {
-	if s.apiKey == "" {
-		s.mailResult("failed", "reason=missing_key")
-		return errors.New("RESEND_API_KEY not configured")
-	}
-	html := `<!DOCTYPE html>
-<html><body style="font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; max-width: 520px; margin: 0 auto; padding: 24px; white-space: pre-wrap;">` +
-		htmlpkg.EscapeString(text) + `</body></html>`
-	return s.sendWithCtx(ctx, toEmail, "", subject, text, html)
+	return s.SendNoticeReplyToCtx(ctx, toEmail, "", subject, text)
 }
 
 // SendRichNoticeCtx delivers a notice with its own HTML part (already built
 // and escaped by the caller) next to the text part. Used for announcements,
 // whose HTML carries buttons for calls and videos.
 func (s *ResendSender) SendRichNoticeCtx(ctx context.Context, toEmail, subject, text, html string) error {
-	if s.apiKey == "" {
-		s.mailResult("failed", "reason=missing_key")
-		return errors.New("RESEND_API_KEY not configured")
-	}
 	return s.sendWithCtx(ctx, toEmail, "", subject, text, html)
 }
 
@@ -158,23 +142,20 @@ func (s *ResendSender) SendNoticeReplyTo(toEmail, replyTo, subject, text string)
 	return s.SendNoticeReplyToCtx(context.Background(), toEmail, replyTo, subject, text)
 }
 
-// SendNoticeReplyToCtx delivers a notice with Reply-To and caller cancellation.
+// SendNoticeReplyToCtx is SendNoticeReplyTo with caller cancellation; an
+// empty replyTo sends none.
 func (s *ResendSender) SendNoticeReplyToCtx(ctx context.Context, toEmail, replyTo, subject, text string) error {
-	if s.apiKey == "" {
-		s.mailResult("failed", "reason=missing_key")
-		return errors.New("RESEND_API_KEY not configured")
-	}
 	html := `<!DOCTYPE html>
 <html><body style="font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; max-width: 520px; margin: 0 auto; padding: 24px; white-space: pre-wrap;">` +
 		htmlpkg.EscapeString(text) + `</body></html>`
 	return s.sendWithCtx(ctx, toEmail, replyTo, subject, text, html)
 }
 
-func (s *ResendSender) send(toEmail, subject, text, html string) error {
-	return s.sendWithCtx(context.Background(), toEmail, "", subject, text, html)
-}
-
 func (s *ResendSender) sendWithCtx(ctx context.Context, toEmail, replyTo, subject, text, html string) error {
+	if s.apiKey == "" {
+		s.mailResult("failed", "reason=missing_key")
+		return errors.New("RESEND_API_KEY not configured")
+	}
 	msg := map[string]any{
 		"from":    s.from,
 		"to":      []string{toEmail},

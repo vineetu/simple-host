@@ -6,21 +6,18 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// LockEventDeadline locks and reads the event deadline.
 func LockEventDeadline(ctx context.Context, q *sql.Tx, eventID string) (sql.NullTime, error) {
 	var t sql.NullTime
 	err := q.QueryRowContext(ctx, `SELECT submission_deadline FROM events WHERE id = $1 FOR UPDATE`, eventID).Scan(&t)
 	return t, err
 }
 
-// LockTeamDeadline locks and reads the team's override.
 func LockTeamDeadline(ctx context.Context, q *sql.Tx, teamID string) (sql.NullTime, error) {
 	var t sql.NullTime
 	err := q.QueryRowContext(ctx, `SELECT deadline_override FROM event_teams WHERE id = $1 FOR UPDATE`, teamID).Scan(&t)
 	return t, err
 }
 
-// SetTeamDeadline writes the team's override.
 func SetTeamDeadline(ctx context.Context, q sqlkit.Querier, teamID string, t sql.NullTime) error {
 	var arg any
 	if t.Valid {
@@ -30,7 +27,6 @@ func SetTeamDeadline(ctx context.Context, q sqlkit.Querier, teamID string, t sql
 	return err
 }
 
-// ParticipantTeamCount counts a person's team memberships.
 func ParticipantTeamCount(ctx context.Context, q sqlkit.Querier, userID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `

@@ -12,9 +12,6 @@ import (
 var (
 	ErrMaintenanceRunning = errors.New("a maintenance command is running on this data directory")
 	ErrDataDirInUse       = errors.New("the server (or another maintenance command) is using this data directory; stop it first")
-	// ErrDataDirOwner is returned when a maintenance command is run by a user
-	// who does not own the data directory.
-	ErrDataDirOwner = errors.New("this user does not own the data directory")
 )
 
 const (
@@ -72,24 +69,6 @@ func fileOwner(path string) string {
 		return "owner unknown"
 	}
 	return fmt.Sprintf("owned by uid %d, mode %04o; this process runs as uid %d", st.Uid, info.Mode().Perm(), os.Geteuid())
-}
-
-// CheckDataDirOwner refuses a data directory that euid does not own. A command
-// run as another user (root, usually) would leave directories and files the
-// server's user cannot open. It reads only; a missing directory is refused too.
-func CheckDataDirOwner(dataDir string, euid int) error {
-	info, err := os.Stat(dataDir)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrDataDirOwner, err)
-	}
-	st, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || !info.IsDir() {
-		return fmt.Errorf("%w: %s is not a directory whose owner can be read", ErrDataDirOwner, dataDir)
-	}
-	if int(st.Uid) != euid {
-		return fmt.Errorf("%w: %s is owned by uid %d and this command runs as uid %d; run it as the user the server runs as", ErrDataDirOwner, dataDir, st.Uid, euid)
-	}
-	return nil
 }
 
 // InstallIDPath is the file that carries the install identity. The same value

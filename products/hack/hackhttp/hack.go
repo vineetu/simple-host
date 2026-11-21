@@ -19,15 +19,13 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
-	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 // HackDefaultCoC is the default code of conduct shown when an organiser has
 // not written their own. Plain text; never turned into HTML.
 const HackDefaultCoC = "This event is a respectful, harassment-free space. Treat everyone with care, whatever their background or experience.\n\nDo not post hateful, sexual or abusive content. Do not copy or interfere with another team's work.\n\nIf something is wrong, tell the organiser. Organisers may remove anyone who breaks this code."
 
-// extraEventReserved is the extra names the spec refuses for an event slug,
-// on top of labelReservedForNew / judgeHandle.
+// extraEventReserved is the extra names refused for an event slug, on top of labelReservedForNew / judgeHandle.
 var extraEventReserved = map[string]bool{
 	"www": true, "api": true, "admin": true, "app": true,
 	"judge": true, "judges": true, "vote": true, "results": true,
@@ -54,8 +52,6 @@ var hackStages = map[string]bool{
 	"judging": true, "results": true, "archived": true,
 }
 
-// hackStagesOfferedList is every stage an organiser can set, in order, for
-// the pages.
 var hackStagesOfferedList = []string{"draft", "open", "building", "closed", "judging", "results", "archived"}
 
 // HackHandler is the hosted-events API (EVENTS=hosted): event CRUD, the startup
@@ -70,10 +66,7 @@ type HackHandler struct {
 	limits  *productconfig.Limits
 	website *websiteLimits
 	codes   *codeLimiter
-	// mailer sends announcements, notices and the one archive warning.
-	mailer events.Mailer
-	// demoSlug is the demo event (RegisterDemo, after Register).
-	demoSlug string
+	mailer  events.Mailer
 
 	caches             httpx.Caches
 	limitersOnce       sync.Once
@@ -86,8 +79,7 @@ type HackHandler struct {
 	namePeer           func(ctx context.Context, name string) (bool, error)
 	usageFn            func(ctx context.Context) (int64, error)
 	archiveLinkKey     []byte
-	// noticeTiming overrides the notice email delay and window (tests only;
-	// hack_notices.go).
+	// noticeTiming overrides the notice email delay and window (tests only).
 	noticeTiming *noticeMailPolicy
 	// assets is the asset/chrome pipeline for RegisterDemo's pages
 	// (hack_watch.go), set once by ShareAssets right after construction.
@@ -99,8 +91,7 @@ type HackHandler struct {
 	assistant     *assistantHTTP
 }
 
-// views builds the member-facing JSON several receivers answer with: the event
-// view, the member's own and team blocks, entry list items and the checklist.
+// views builds the member-facing JSON: event view, member and team blocks, entry list items, checklist.
 type views struct {
 	database *sql.DB
 	events   *events.Service
@@ -108,11 +99,9 @@ type views struct {
 	teams    *teams.Service
 	members  *members.Service
 	links    *siteLinks
-	// demoSlug is the demo event, scored while building (scoringStage).
 	demoSlug string
 }
 
-// judgingHTTP serves rubrics, scores, assignments, voting and results.
 type judgingHTTP struct {
 	events  *events.Service
 	entries *entries.Service
@@ -122,7 +111,6 @@ type judgingHTTP struct {
 	views   *views
 }
 
-// publicEventHTTP serves the public event JSON, content, icons and website.
 type publicEventHTTP struct {
 	database *sql.DB
 	events   *events.Service
@@ -132,11 +120,9 @@ type publicEventHTTP struct {
 	links    *siteLinks
 	limits   *productconfig.Limits
 	website  *websiteLimits
-	// mailer is HackHandler's (SetMailer sets both).
-	mailer events.Mailer
+	canEmail bool
 }
 
-// participationHTTP serves teams, entries, registration and leaving.
 type participationHTTP struct {
 	database    *sql.DB
 	events      *events.Service
@@ -154,7 +140,6 @@ type participationHTTP struct {
 	applyUser   *httpx.RateLimiter // the same, per account
 }
 
-// assistantHTTP serves the organiser assistant (SIM-394).
 type assistantHTTP struct {
 	events  *events.Service
 	entries *entries.Service
@@ -162,58 +147,36 @@ type assistantHTTP struct {
 	views   *views
 	limits  *productconfig.Limits
 	website *websiteLimits
-	// service is nil until SetAssistant: every route then answers as off.
 	service *events.AssistantService
 	writes  *httpx.RateLimiter // questions, per account
 }
 
-// HandleVerdict is the Host handle check for one name: Status 0 means free.
-type HandleVerdict = events.HandleVerdict
-
-// SetHandleChecker injects the Host handle namespace check (handler.JudgeHandle),
-// which this package may not import.
+// SetHandleChecker injects the Host handle check, which this package may not import.
 func (h *HackHandler) SetHandleChecker(fn events.HandleChecker) {
 	h.events.SetHandleChecker(fn)
 }
 
-// hackPages is what Hack pages need of the site's asset/chrome pipeline
-// (*assetPipeline in host/handler, which this package may not import).
+// hackPages is what Hack pages need of the site's asset/chrome pipeline (*assetPipeline in host/handler, which this package may not import).
 type hackPages interface {
-	// InkBaseURL is this Hack instance's public address.
 	InkBaseURL() string
-	// IsCanonicalInstance reports whether this is simple-hack.app itself,
-	// not a self-hosted or otherwise addressed instance.
+	// IsCanonicalInstance reports whether this is simple-hack.app itself, not a self-hosted instance.
 	IsCanonicalInstance() bool
-	// StaticFS is the embedded static/ tree.
 	StaticFS() fs.FS
-	// SkillsModTime is the one Last-Modified every skills/plugin download serves.
 	SkillsModTime() time.Time
-	// ServeStaticPage serves one embedded static/<name> with its chrome.
 	ServeStaticPage(name string) http.Handler
-	// ChromePage is one embedded static/<name> with its chrome, before the
-	// response's script nonce is stamped (httpx.StampNonce).
+	// ChromePage is one embedded static/<name> with its chrome, before the script nonce is stamped.
 	ChromePage(r *http.Request, name string) ([]byte, error)
-	// RenderPage applies the instance chrome and text to a product-owned page.
 	RenderPage(r *http.Request, name string, raw []byte) ([]byte, error)
-	// AdminUICSP is the standard admin-app Content-Security-Policy wrapper.
 	AdminUICSP(next http.Handler) http.Handler
-	// UICSP is AdminUICSP with an extended frame-src.
 	UICSP(next http.Handler, frameSrc string) http.Handler
-	// RenderAppShell is static/hack/app.html with its chrome applied: the
-	// kit's own presentation, not the product chrome, and the sign-in
-	// script tag only when signin is true.
+	// RenderAppShell is static/hack/app.html with its chrome applied; the sign-in script tag only when signin is true.
 	RenderAppShell(r *http.Request, body []byte, signin bool) ([]byte, error)
-	// LandingMarkdownHandler serves one landing page's copy as markdown.
 	LandingMarkdownHandler(file, title, description, publicBaseURL string, hackAssets bool) http.HandlerFunc
-	// WriteMessagePage writes the one-message page (showcase.go).
 	WriteMessagePage(w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string)
-	// SkillServedText rewrites one skill file's served text for this instance.
 	SkillServedText(path string, data []byte) []byte
-	// RegisterSkillsHub mounts the standard (non-Hack-prefixed) skills catalog.
 	RegisterSkillsHub(mux *http.ServeMux, publicBaseURL string)
 }
 
-// hackSiteHooks is what the events API needs of the site side.
 type hackSiteHooks interface {
 	TeamSitesReady(eventSlug string) bool
 	TeamSiteURL(eventSlug, teamSlug string) string
@@ -225,26 +188,13 @@ type hackSiteHooks interface {
 	RequestSiteCert(handle string)
 	RemoveAccountFiles(userID, handle string) error
 	SyncAccountMarkers(ctx context.Context, accountID string) error
-	// TeamSiteFlatHostsOn reports whether TEAM_SITE_FLAT_HOSTS is on.
 	TeamSiteFlatHostsOn() bool
 }
 
-// SetSites connects the team sites (hack_sites.go).
 func (h *HackHandler) SetSites(s hackSiteHooks) { h.links.hooks = s }
 
-// ShareAssets makes h render through the site side's asset pipeline
-// (SiteHandler.Pages()); wired right after construction.
 func (h *HackHandler) ShareAssets(pages hackPages) { h.assets = pages }
 
-// NewHackHandlerForTest builds a *HackHandler with a given archive-link key
-// and limits, for host/handler's opaque token test.
-func NewHackHandlerForTest(archiveLinkKey []byte, limits edition.Limits) *HackHandler {
-	lim := productconfig.DefaultLimits()
-	lim.Limits = limits
-	return &HackHandler{archiveLinkKey: archiveLinkKey, limits: &lim, links: &siteLinks{}, codes: &codeLimiter{}, website: &websiteLimits{limits: &lim}}
-}
-
-// NewHackHandler builds the hosted-events API.
 func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions ...*edition.Edition) *HackHandler {
 	var ed *edition.Edition
 	if len(editions) > 0 {
@@ -265,12 +215,7 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 	}
 	h.links = &siteLinks{teams: h.teams, publicBaseURL: strings.TrimRight(publicBaseURL, "/"), siteDomain: strings.Trim(strings.ToLower(siteDomain), ".")}
 	h.entries = entries.New(database, h.links.entrySiteLive)
-	h.members = members.New(database, h.archiveEventTx, h.deleteEventTx, func(ctx context.Context, ev hackmodel.Event) {
-		paperRecorder(ctx).RecordHackStage(ctx, ev.ID, ev.Stage, ev.UpdatedAt)
-		paperRecorder(ctx).HackPhasesChanged(ctx)
-		h.links.pinDue(ctx, ev.ID)
-		// requestEventCert is a no-op for archived events, as in setStage.
-	}, h.removeEventFiles, h.links.removeOrphanTeamSites)
+	h.members = members.New(database, h.events, h.entries)
 	h.views = &views{database: database, events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links}
 	h.judging = &judgingHTTP{events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links, views: h.views}
 	h.publicEvent = &publicEventHTTP{database: database, events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links, limits: h.limits, website: h.website}
@@ -280,28 +225,23 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 		applyIP:     httpx.NewRateLimiter(float64(lim.RateEventApplyIP.Burst), lim.RateEventApplyIP.PerSecond()),
 		applyUser:   httpx.NewRateLimiter(float64(lim.RateEventApplyUser.Burst), lim.RateEventApplyUser.PerSecond()),
 	}
-	// burst 40 (above the 30/day business limit and the 18-question eval
-	// set), refills one every 5s: abuse defense only
+	// Rate limit: burst 40 (above the 30/day business limit and the 18-question eval set), refills one every 5s; abuse defense only.
 	h.assistant = &assistantHTTP{events: h.events, entries: h.entries, members: h.members, views: h.views, limits: h.limits, website: h.website, writes: httpx.NewRateLimiter(40, 0.2)}
 	return h
 }
 
-// SetAssistant wires the SIM-394 organiser assistant (main builds it: it
-// needs host/llm and the docs text). Unset, every assistant route is off.
+// SetAssistant wires the organiser assistant (needs host/llm and the docs text). Unset, every assistant route is off.
 func (h *HackHandler) SetAssistant(a *events.AssistantService) { h.assistant.service = a }
 
-// defaultSiteArchiveSize is the per-site cap before SetSiteArchiveDefault.
 const defaultSiteArchiveSize int64 = 100 << 20
 
-// SetSiteArchiveDefault records the instance's default per-site size cap
-// (sites.Upload.Body, after any MAX_ARCHIVE_MB override).
+// SetSiteArchiveDefault records the instance's default per-site size cap.
 func (h *HackHandler) SetSiteArchiveDefault(bytes int64) {
 	if bytes > 0 {
 		h.website.archiveDefault = bytes
 	}
 }
 
-// newHackArchiveKey is 32 random bytes; it panics only without randomness.
 func newHackArchiveKey() []byte {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -344,7 +284,6 @@ func (h *HackHandler) NameTaken(ctx context.Context, name string) (bool, error) 
 	return taken, err
 }
 
-// SetProductLimits installs the validated product snapshot before routes start.
 func (h *HackHandler) SetProductLimits(limits productconfig.Limits) {
 	limits.Limits = h.limits.Limits
 	*h.limits = limits

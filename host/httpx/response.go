@@ -36,10 +36,8 @@ type ErrorResponse struct {
 	Hint string `json:"hint,omitempty"`
 }
 
-// WriteJSON encodes v as status.
-//
-// Older refusals omitted a code when the status had only one meaning. Keep
-// specific route codes, and fill these existing common codes only.
+// WriteJSON encodes v as status. An ErrorResponse with no Code gets the
+// common code for 401, 429 and 413; any other status keeps it empty.
 func WriteJSON(w http.ResponseWriter, status int, v any) {
 	if response, ok := v.(ErrorResponse); ok && response.Code == "" {
 		switch status {

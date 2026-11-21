@@ -10,8 +10,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-// HomepageLinks is the homepage's Link header value. Exported (cleanup 3.2
-// slice 2a): hack_home.go, moving to host/hackhttp, sets it too.
+// HomepageLinks is the homepage's Link header value, for every product's home.
 const HomepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </.well-known/api-catalog>; rel="api-catalog", </openapi.json>; rel="service-desc"`
 
 // homepageMarkdown reads only the landing's marked copy, excluding the film
@@ -82,12 +81,8 @@ func HomepageMarkdownHandler(assets *AssetPipeline, publicBaseURL string, produc
 	return assets.LandingMarkdownHandler("host-story.html", "Simple Host", "Describe a website. It goes online.", publicBaseURL, productAssets)
 }
 
-// LandingMarkdownHandler serves one landing page's copy as markdown.
-//
-// Exported, a method rather than a free function taking *AssetPipeline
-// (cleanup 3.2 slice 2a): hack_home.go, moving to host/hackhttp, reaches
-// it through the hackPages interface (hack.go), whose methods must be
-// exported and must not name AssetPipeline itself.
+// LandingMarkdownHandler serves one landing page's copy as markdown. It is a
+// method because the product reaches it through its hackPages interface.
 func (p *AssetPipeline) LandingMarkdownHandler(file, title, description, publicBaseURL string, productAssets bool) http.HandlerFunc {
 	page, err := p.TextFS().ReadFile("static/" + file)
 	if err != nil {
@@ -110,8 +105,7 @@ func (p *AssetPipeline) LandingMarkdownHandler(file, title, description, publicB
 
 // Both discovery files name the configured server, like the served API spec.
 func DiscoveryDocument(assets *AssetPipeline, productAssets bool, name, contentType, publicBaseURL string) http.HandlerFunc {
-	source := name
-	body, err := assets.TextFS().ReadFile("static/.well-known/" + source)
+	body, err := assets.TextFS().ReadFile("static/.well-known/" + name)
 	if err != nil {
 		panic(err)
 	}

@@ -97,7 +97,6 @@ func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, bo
 	return a, queued, organiserCopied, err
 }
 
-// SetAnnouncementPin pins or unpins one announcement.
 func SetAnnouncementPin(ctx context.Context, tx *sql.Tx, eventID, id string, pinned bool) (int64, error) {
 	if pinned {
 		if _, err := tx.ExecContext(ctx, `UPDATE event_announcements SET pinned_at = NULL

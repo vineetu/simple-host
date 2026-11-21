@@ -27,8 +27,6 @@ import (
 
 var siteIDShape = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// asSiteOwner runs next for the admin as the owner of the site {id}, with
-// {sitename} set to that site's name.
 func (h *SiteHandler) asSiteOwner(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !auth.Admin(w, r) {

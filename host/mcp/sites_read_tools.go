@@ -325,6 +325,9 @@ func (c *call) findSite(name string) (restSite, error) {
 		}
 		names = append(names, s.Name)
 	}
+	if c.caller.Mode == CallerModeEvents && c.owner == "" {
+		return restSite{}, codedError("no_personal_sites", fmt.Sprintf("no site named %q: sites here belong to an event, so name the event as owner", name))
+	}
 	text := siteNotFoundText(name, names)
 	if c.caller.Mode != CallerModeEvents {
 		// Simple Hack lists no visitor tools.
@@ -352,8 +355,7 @@ func ownerViewsLine(sites []restSite) string {
 	return "Views by people, not counting your own visits (last 7 days / last 30 days): " + strings.Join(parts, "; ") + "." + ownVisitsCaveat
 }
 
-// ownVisitsCaveat goes wherever the owner-excluded figures do (INTENT.md,
-// 2026-11-02 "Your own visits are not counted as people").
+// ownVisitsCaveat goes wherever the owner-excluded figures do.
 const ownVisitsCaveat = " A device never used while signed in to Simple Host still counts as a person, and other people behind an address you were signed in from are left out while that mark lasts (30 days)."
 
 // maxFileText bounds how much of one file read_site_file hands back, so one

@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	repo "github.com/vsriram/simple-host/host/data/repo/notify"
+
 	"github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/model"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
@@ -61,16 +63,16 @@ func (e *Engine) mcpSite(ctx context.Context, c Subscriber, req EventSubscribeRe
 	}
 	accountID := c.Owner
 	if req.Owner != "" {
-		acct, err := access.New(e.svc.database).AccountByHandle(ctx, req.Owner)
+		acct, err := access.New(e.db).AccountByHandle(ctx, req.Owner)
 		if err != nil {
 			return model.Site{}, errSiteForbidden
 		}
-		if ok, err := access.ActsAsOwner(ctx, e.svc.database, c.Owner, acct.ID, req.Site); err != nil || !ok {
+		if ok, err := access.ActsAsOwner(ctx, e.db, c.Owner, acct.ID, req.Site); err != nil || !ok {
 			return model.Site{}, errSiteForbidden
 		}
 		accountID = acct.ID
 	}
-	site, err := sitesrepo.GetSiteByUser(ctx, e.svc.database, accountID, req.Site)
+	site, err := sitesrepo.GetSiteByUser(ctx, e.db, accountID, req.Site)
 	if err != nil {
 		return model.Site{}, errSiteForbidden
 	}
@@ -132,14 +134,14 @@ func (e *Engine) mcpNotification(c Subscriber, req EventSubscribeRequest, site m
 // prior is the existing subscription with n's id; one on another site is
 // deleted (and siteChanged), so the move is proved afresh.
 func (e *Engine) prior(ctx context.Context, n model.Notification) (old model.Notification, siteChanged bool, err error) {
-	old, err = e.svc.GetNotification(ctx, n.ID)
+	old, err = repo.GetNotification(ctx, e.db, n.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.Notification{}, false, nil
 	}
 	if err != nil || old.SiteID == n.SiteID {
 		return old, false, err
 	}
-	_, err = e.svc.DeleteNotification(ctx, n.ID)
+	_, err = repo.DeleteNotification(ctx, e.db, n.ID)
 	return model.Notification{}, true, err
 }
 
@@ -147,14 +149,14 @@ func (e *Engine) prior(ctx context.Context, n model.Notification) (old model.Not
 // no recent proof or the subscription moved site, otherwise the existing
 // proof's time (a refresh never extends its 30-day lifetime).
 func (e *Engine) prove(ctx context.Context, env Env, n *model.Notification, siteChanged bool) error {
-	verified, err := e.svc.RecentlyVerifiedNotification(ctx, n.OwnerID, n.URL)
+	verified, err := repo.RecentlyVerifiedNotification(ctx, e.db, n.OwnerID, n.URL)
 	if err != nil {
 		return err
 	}
 	if !verified || siteChanged {
 		return e.challengeURL(ctx, env, *n)
 	}
-	at, err := e.svc.VerifiedAt(ctx, n.OwnerID, n.URL)
+	at, err := repo.VerifiedAt(ctx, e.db, n.OwnerID, n.URL)
 	n.VerifiedAt = &at
 	return err
 }
@@ -230,7 +232,7 @@ func (e *Engine) Subscribe(ctx context.Context, env Env, c Subscriber, req Event
 // saveMCP saves the proved subscription and answers with its replay
 // watermark; a previous "ok" is no error to report.
 func (e *Engine) saveMCP(ctx context.Context, env Env, n model.Notification, cursor *int64, old model.Notification) (EventSubscribeResult, error) {
-	refreshed, truncated, err := e.svc.SaveNotification(ctx, n, e.limits.NotifyMaxPerSite, cursor, e.limits.NotifyHistoryDays, env.Secrets())
+	refreshed, truncated, err := repo.SaveNotification(ctx, e.db, n, e.limits.NotifyMaxPerSite, cursor, e.limits.NotifyHistoryDays, env.Secrets(), notificationAccess{})
 	switch {
 	case errors.Is(err, model.ErrNotificationAccess):
 		return EventSubscribeResult{}, eventError(EventCodeForbidden, "reason", "notification_access_ended")
@@ -239,7 +241,7 @@ func (e *Engine) saveMCP(ctx context.Context, env Env, n model.Notification, cur
 	case err != nil:
 		return EventSubscribeResult{}, err
 	}
-	seq, err := e.svc.NotificationCursor(ctx, n.ID, n.SiteID)
+	seq, err := repo.NotificationCursor(ctx, e.db, n.ID, n.SiteID)
 	if err != nil {
 		return EventSubscribeResult{}, err
 	}
@@ -259,6 +261,6 @@ func (e *Engine) Unsubscribe(ctx context.Context, c Subscriber, req EventUnsubsc
 	if c.Owner == "" || c.DeployOnly {
 		return eventError(EventCodeForbidden, "reason", "owner_required")
 	}
-	_, err := e.svc.DeleteNotification(ctx, mcpID(c.Owner, c.GrantID, req.URL, req.Name, req.CanonicalArgs))
+	_, err := repo.DeleteNotification(ctx, e.db, mcpID(c.Owner, c.GrantID, req.URL, req.Name, req.CanonicalArgs))
 	return err
 }

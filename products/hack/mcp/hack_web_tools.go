@@ -1,4 +1,3 @@
-// famSites declares Hack website tools and shared web REST adapters.
 package hackmcp
 
 import (
@@ -8,9 +7,8 @@ import (
 	"net/http"
 )
 
-// hackWebTools forwards website actions to the
-// hosted REST API. The REST handlers remain responsible for permissions and
-// validation; custom event hosts never receive a credential from these tools.
+// hackWebTools forwards website actions to the hosted REST API; custom event
+// hosts never receive a credential from these tools.
 func hackWebTools() []mcp.Tool {
 	slug := map[string]any{"slug": mcp.Str("Event name.")}
 	generic := map[string]any{"type": "object", "additionalProperties": true}

@@ -43,7 +43,7 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 	// A binding still waiting for its proof is served too: nginx serves the
 	// same domain straight from disk when the site has no marker, and the
 	// proof itself fetches this page.
-	info, err := h.siteFacts().GetSiteByCustomDomain(r.Context(), host)
+	info, err := h.SitesSvc().GetSiteByCustomDomain(r.Context(), host)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("passcode: domain %s: %v", host, err)
@@ -54,7 +54,7 @@ func (h *SiteHandler) passcodePageHandler(w http.ResponseWriter, r *http.Request
 			return
 		} else if ferr != nil {
 			log.Printf("passcode: family host %s: %v", host, ferr)
-			web.RenderServiceErrorPage(w, r, h.Pipeline())
+			web.RenderServiceErrorPage(w, r, h.Pages())
 			return
 		}
 		h.Gate.ServeHTTP(w, r) // no site: the closed page

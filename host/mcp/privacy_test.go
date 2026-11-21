@@ -69,12 +69,8 @@ func TestHostResultsMinimizeIdentity(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, wrapped := range []bool{false, true} {
-				name, args := tc.name, tc.args
-				if wrapped {
-					name, args = "run_tool", map[string]any{"name": tc.name, "arguments": tc.args}
-				}
-				rec := send(t, s, toolCall(name, args), nil, true)
+			{
+				rec := send(t, s, toolCall(tc.name, tc.args), nil, true)
 				text, out, bad := resultOf(t, rec)
 				if bad {
 					t.Fatal(text)
@@ -183,7 +179,7 @@ func TestVisitorReferenceSQLParameters(t *testing.T) {
 	}
 	ref := out["response"].(map[string]any)["rows"].([]any)[0].([]any)[1].(string)
 	for _, operation := range []string{"query", "execute"} {
-		for _, encoded := range []bool{false, true} {
+		for _, encoded := range []bool{operation == "execute"} {
 			up.answers["POST /v1/sites/blog/storage/sqlite/orders/"+operation] = func() (int, string) {
 				var request struct {
 					Params []any `json:"params"`

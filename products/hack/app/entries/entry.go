@@ -14,7 +14,6 @@ import (
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
-// SetExcluded changes the organiser's exclusion of an existing team entry.
 func (s *Service) SetExcluded(ctx context.Context, eventID, userID, slug string, excluded bool) (model.EventTeam, error) {
 	team, err := teamrepo.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -32,7 +31,6 @@ func (s *Service) SetExcluded(ctx context.Context, eventID, userID, slug string,
 	return team, err
 }
 
-// WriteRequest describes a participant's entry change.
 type WriteRequest struct {
 	Event        model.Event
 	UserID, Kind string
@@ -174,7 +172,6 @@ func (s *Service) writeScreenshot(ctx context.Context, tx *sql.Tx, req WriteRequ
 	return s.keepComplete(ctx, tx, req.Event, st, id, before.SubmittedAt.Valid)
 }
 
-// entryOrNone treats a missing entry as an empty one.
 func entryOrNone(e model.EventEntry, err error) (model.EventEntry, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return model.EventEntry{}, nil
@@ -217,27 +214,22 @@ func (s *Service) keepComplete(ctx context.Context, tx *sql.Tx, ev model.Event, 
 	return nil, nil
 }
 
-// Screenshot reads an entry's stored screenshot.
 func (s *Service) Screenshot(ctx context.Context, teamID string) ([]byte, string, error) {
 	return entryrepo.GetEventScreenshot(ctx, s.db, teamID)
 }
 
-// Entries lists the stored entries for an event.
 func (s *Service) Entries(ctx context.Context, eventID string) ([]model.EventEntry, error) {
 	return entryrepo.ListEventEntries(ctx, s.db, eventID)
 }
 
-// Entry reads a team's entry.
 func (s *Service) Entry(ctx context.Context, teamID string) (model.EventEntry, error) {
 	return entryrepo.GetEventEntry(ctx, s.db, teamID)
 }
 
-// JudgeTeamEligible checks whether the judge can see the team's entry.
 func (s *Service) JudgeTeamEligible(ctx context.Context, eventID, userID, teamID string) (bool, error) {
 	return entryrepo.JudgeTeamEligible(ctx, s.db, eventID, userID, teamID)
 }
 
-// EligibleJudgeTeams returns the teams available to a judge.
 func (s *Service) EligibleJudgeTeams(ctx context.Context, eventID, userID string) (map[string]bool, error) {
 	return entryrepo.EligibleJudgeTeams(ctx, s.db, eventID, userID)
 }

@@ -34,6 +34,7 @@ type skillEntry struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	URL         string `json:"url"`
+	dir         string
 }
 
 type skillsCatalog struct {
@@ -71,30 +72,19 @@ func parseSkillFrontmatter(md string) (name, desc string) {
 	return name, desc
 }
 
-// listBundledSkills walks the embedded skills/ dir and returns each skill's
-// frontmatter (skipping any dir without a readable SKILL.md).
+// listBundledSkills returns each bundled skill's frontmatter.
 func (p *AssetPipeline) listBundledSkills() []skillEntry {
 	var out []skillEntry
-	entries, err := fs.ReadDir(p.servedSkillFS(), "skills")
-	if err != nil {
-		return out
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		if !p.SkillAvailable(e.Name()) {
-			continue
-		}
-		data, err := p.servedSkillFS().ReadFile("skills/" + e.Name() + "/SKILL.md")
+	for _, dir := range p.BundledSkillDirs() {
+		data, err := p.servedSkillFS().ReadFile("skills/" + dir + "/SKILL.md")
 		if err != nil {
 			continue
 		}
 		name, desc := parseSkillFrontmatter(string(data))
 		if name == "" {
-			name = e.Name()
+			name = dir
 		}
-		out = append(out, skillEntry{Name: name, Description: desc})
+		out = append(out, skillEntry{Name: name, Description: desc, dir: dir})
 	}
 	return out
 }
@@ -109,10 +99,7 @@ func (p *AssetPipeline) BundledSkillDirs() []string {
 	}
 	var out []string
 	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		if !p.SkillAvailable(e.Name()) {
+		if !e.IsDir() || !p.SkillAvailable(e.Name()) {
 			continue
 		}
 		if _, err := fs.Stat(p.servedSkillFS(), "skills/"+e.Name()+"/SKILL.md"); err != nil {
@@ -135,11 +122,8 @@ func (p *AssetPipeline) SkillFiles(dir string) []string {
 	}
 	var out []string
 	_ = fs.WalkDir(root, ".", func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
+		if walkErr != nil || path == "." || d.IsDir() {
 			return walkErr
-		}
-		if path == "." || d.IsDir() {
-			return nil
 		}
 		out = append(out, path)
 		return nil
@@ -196,17 +180,20 @@ func (p *AssetPipeline) serveSkillDoc(w http.ResponseWriter, r *http.Request) {
 		writeSkillNotFound(w, r, "skill not found")
 		return
 	}
-	data = p.skillServedText(name+"/SKILL.md", data)
+	writeSkillMarkdown(w, p.SkillServedText(name+"/SKILL.md", data))
+}
+
+func writeSkillMarkdown(w http.ResponseWriter, data []byte) {
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	_, _ = w.Write(data)
 }
 
-// skillServedText is a skill file as this instance serves it: its hostnames
+// SkillServedText is a skill file as this instance serves it: its hostnames
 // and limits (MAX_ARCHIVE_MB and the knobs) put in, as the zips and
 // /skills/<name>/SKILL.md do, except for a control-plane skill, which states
 // the public instance's (see copyRewritten). path is relative to skills/.
-func (p *AssetPipeline) skillServedText(path string, data []byte) []byte {
+func (p *AssetPipeline) SkillServedText(path string, data []byte) []byte {
 	if p.Pres.ProductAssets {
 		return p.ProductInstanceText(p.limitsText.apply(data))
 	}
@@ -245,10 +232,7 @@ func (p *AssetPipeline) ServeSkillReference(w http.ResponseWriter, r *http.Reque
 		writeSkillNotFound(w, r, "reference not found")
 		return
 	}
-	data = p.skillServedText(name+"/references/"+file, data)
-	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=300")
-	_, _ = w.Write(data)
+	writeSkillMarkdown(w, p.SkillServedText(name+"/references/"+file, data))
 }
 
 // wellKnownEntry is one item in /.well-known/skills/index.json (the convention
@@ -263,18 +247,10 @@ type wellKnownEntry struct {
 // discover this site's skills. Each skill's files live at
 // /.well-known/skills/<name>/SKILL.md.
 func (p *AssetPipeline) serveWellKnownSkillsIndex(w http.ResponseWriter, r *http.Request) {
-	dirs := p.BundledSkillDirs()
-	entries := make([]wellKnownEntry, 0, len(dirs))
-	for _, dir := range dirs {
-		data, err := p.servedSkillFS().ReadFile("skills/" + dir + "/SKILL.md")
-		if err != nil {
-			continue
-		}
-		name, desc := parseSkillFrontmatter(string(data))
-		if name == "" {
-			name = dir
-		}
-		entries = append(entries, wellKnownEntry{Name: name, Description: desc, Files: p.SkillFiles(dir)})
+	skills := p.listBundledSkills()
+	entries := make([]wellKnownEntry, 0, len(skills))
+	for _, s := range skills {
+		entries = append(entries, wellKnownEntry{Name: s.Name, Description: s.Description, Files: p.SkillFiles(s.dir)})
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=300")

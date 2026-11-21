@@ -58,7 +58,7 @@ func (s *Service) RemovePerson(ctx context.Context, ev model.Event, userID strin
 		return internalError(err)
 	}
 	oldTeam := memberTeamID(ctx, tx, ev.ID, userID)
-	err = eventrepo.RemovePersonFromEvent(ctx, tx, ev.ID, userID, eventLeaveOperations())
+	err = teamrepo.RemovePersonFromEvent(ctx, tx, ev.ID, userID)
 	if errors.Is(err, ErrCannotRemoveOrganiser) {
 		return &Error{Code: "cannot_remove_organiser", Message: "an organiser cannot be removed from the event"}
 	}
@@ -84,7 +84,6 @@ func rotateIfKept(ctx context.Context, tx *sql.Tx, teamID string) error {
 	return rotateTeamCode(ctx, tx, teamID)
 }
 
-// syncAndCommit syncs the event's site access and commits.
 func syncAndCommit(ctx context.Context, tx *sql.Tx, eventID string) error {
 	if err := eventapp.SyncAccess(ctx, tx, eventID); err != nil {
 		return internalError(err)
@@ -174,9 +173,7 @@ func (s *Service) removalTeam(ctx context.Context, ev model.Event, caller model.
 	return team.Slug, team.Name, nil
 }
 
-// checkRemover rechecks a participant remover's authority under locks:
-// both member rows sorted by user id, then the team row. Removal no
-// longer requires team finding.
+// checkRemover rechecks a participant remover's authority under locks: both member rows sorted by user id, then the team row.
 func checkRemover(ctx context.Context, tx *sql.Tx, eventID, actorID, userID, slug string) error {
 	if _, err := teamrepo.LockRemovalMembers(ctx, tx, eventID, actorID, userID); err != nil {
 		return internalError(err)
@@ -239,7 +236,6 @@ func (s *Service) teamDeadlinePassed(ctx context.Context, teamID string) (bool, 
 	return passed, err
 }
 
-// teamNameTaken checks for another team with the same name, ignoring case.
 func teamNameTaken(ctx context.Context, q sqlkit.Querier, eventID, name string) (bool, error) {
 	var taken bool
 	err := teamrepo.TeamNameExists(ctx, q, eventID, name).Scan(&taken)
@@ -270,8 +266,4 @@ func memberTeamID(ctx context.Context, q *sql.Tx, eventID, userID string) string
 		return ""
 	}
 	return team.String
-}
-
-func eventLeaveOperations() eventrepo.LeaveOperations {
-	return eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: teamrepo.EnsureTeamAdmin}
 }

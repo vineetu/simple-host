@@ -168,16 +168,3 @@ const (
 	True
 	Unknown
 )
-
-type Matrix struct{ Read, Add, Edit, Delete string }
-type ConvertInput struct {
-	Default      Matrix
-	Tables       map[string]Matrix
-	ApproveFirst bool
-	Kind         string
-}
-type ConvertOutput struct {
-	Default PolicySet
-	Tables  map[string]PolicySet
-	Manual  []string
-}

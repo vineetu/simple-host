@@ -4,8 +4,8 @@ import "strings"
 
 const hackPhotoTip = "Compress photos before deploying: about 1600 px wide, WebP or JPEG at about 80% quality; phone photos are often 4–12 MB."
 
-// Shared Host refusal hints are written for the owner's own connector. Keep
-// the actual REST refusal and code; Hack callers reconnect in the app.
+// Host refusal hints are written for the owner's connector: keep the REST
+// refusal and code; Hack callers reconnect in the app.
 func hackStorageErrorMessage(message string) string {
 	if strings.Contains(message, "[key_expired]") || strings.Contains(message, "[key_expired_idle]") {
 		first, _, _ := strings.Cut(message, "\n")
@@ -14,12 +14,9 @@ func hackStorageErrorMessage(message string) string {
 	return message
 }
 
-// hackInstanceReplace is hackInstanceInstructions' one-line replace, shared
-// with hackInstanceTools/hackInstanceToolMap below. On simple-hack.app
-// itself cfg.APIHost is "simple-hack.app" too, so this is an identity
-// replace there -- same as hackInstanceInstructions already relied on for
-// the top-level instructions text; a self-hosted instance's own APIHost
-// makes it a real substitution.
+// hackInstanceReplace is the one-line replace shared by the instance
+// instructions and tools. On simple-hack.app itself APIHost is the same, so it
+// is an identity replace; a self-hosted APIHost makes it a real substitution.
 func hackInstanceReplace(text, apiHost string) string {
 	if apiHost != "" {
 		text = strings.ReplaceAll(text, "simple-hack.app", apiHost)

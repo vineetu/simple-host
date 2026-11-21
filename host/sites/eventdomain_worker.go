@@ -13,7 +13,7 @@ type eventDNSState struct {
 	owner *eventDNSSweep
 }
 
-// eventDNSSweep retains the original delay-after-work cadence and status name.
+// eventDNSSweep runs the sweep with the delay counted after each pass.
 type eventDNSSweep struct {
 	*workers.Runner
 	tracker *workers.Tracker
@@ -29,11 +29,10 @@ func (s *Service) eventDNSWorker() *eventDNSSweep {
 	return s.eventSweep.owner
 }
 func (s *Service) EventDNSOwner() workers.Owner { return s.eventDNSWorker() }
-func (s *Service) StartEventDNSSweep(every time.Duration) {
-	s.eventDNSWorker().start(context.Background(), every)
-}
-func (o *eventDNSSweep) Start(ctx context.Context) { o.start(ctx, time.Hour) }
-func (o *eventDNSSweep) start(ctx context.Context, every time.Duration) {
+
+// Start sweeps hourly until ctx ends.
+func (o *eventDNSSweep) Start(ctx context.Context) {
+	const every = time.Hour
 	o.once.Do(func() {
 		o.Go(ctx, func(ctx context.Context) {
 			timer := time.NewTimer(every)

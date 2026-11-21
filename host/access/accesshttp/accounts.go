@@ -1,7 +1,6 @@
 package accesshttp
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -32,19 +31,6 @@ type bulkUsersRequest struct {
 	Prefix *string   `json:"prefix"`
 }
 
-// requestedCount reports how many accounts a request asks for, validating its
-// shape but generating nothing. The capacity check runs on this number before
-// bulkUsernames allocates a slice the size of the answer.
-func requestedCount(req bulkUsersRequest) (int, error) {
-	if (req.Emails == nil) == (req.Count == nil) || (req.Emails != nil && req.Prefix != nil) {
-		return 0, errors.New("provide exactly one of emails or count with optional prefix")
-	}
-	if req.Emails != nil {
-		return len(*req.Emails), nil
-	}
-	return *req.Count, nil
-}
-
 func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 	if (req.Emails == nil) == (req.Count == nil) || (req.Emails != nil && req.Prefix != nil) {
 		return nil, errors.New("provide exactly one of emails or count with optional prefix")
@@ -73,8 +59,6 @@ func bulkUsernames(req bulkUsersRequest) ([]string, error) {
 	return accounts.BulkAccountNames(prefix, *req.Count)
 }
 
-func ValidateHandle(handle string) error { return accounts.CheckNewHandle(handle) }
-
 func normalizeDisplayName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if utf8.RuneCountInString(name) > 100 {
@@ -101,9 +85,7 @@ func (h *AccessHandler) createAccounts(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-	out, err := h.StoreAccounts().CreateAccounts(r.Context(), names, h.Ed.Identity().RandomHandles, func(ctx context.Context, q accounts.AttributionStore, id, name string, random bool) {
-		accounts.AssignHandle(ctx, q, id, name, random)
-	})
+	out, err := h.StoreAccounts().CreateAccounts(r.Context(), names, h.Ed.Identity().RandomHandles, accounts.AssignHandle)
 	if writeLifecycleFailure(w, err) {
 		return
 	}
@@ -120,7 +102,7 @@ func (h *AccessHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	// Account ids are lowercase uuids (users.id::text); the site locks are
 	// keyed by that exact string, so take them before the row, as DELETE /v1/me does.
 	id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
-	unlock, err := h.lockAccountSites(r.Context(), id)
+	unlock, err := h.sitesSvc().LockAccountSites(r.Context(), id)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -180,7 +162,7 @@ func (h *AccessHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 	// A new address is judged first, so a taken, reserved or malformed one
 	// is refused at once with the address named (JudgeHandle).
 	if req.Handle != nil && *req.Handle != user.Handle.String {
-		v, jerr := JudgeHandle(r.Context(), h.Database, user.ID, *req.Handle)
+		v, jerr := accounts.JudgeHandle(r.Context(), h.Database, user.ID, *req.Handle)
 		if jerr != nil {
 			httpx.WriteInternal(w)
 			return
@@ -210,7 +192,7 @@ func (h *AccessHandler) patchMe(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if failure.Code == "handle_taken" {
-				httpx.WriteJSON(w, 409, httpx.ErrorResponse{Error: handleTakenMsg(*req.Handle), Code: "handle_taken", Address: handleAddress(*req.Handle)})
+				httpx.WriteJSON(w, 409, httpx.ErrorResponse{Error: accounts.HandleTakenMessage(*req.Handle), Code: "handle_taken", Address: accounts.HandleAddress(*req.Handle)})
 				return
 			}
 		}
@@ -239,7 +221,7 @@ func validateProfile(req *profileRequest) error {
 		*req.DisplayName = name
 	}
 	if req.Handle != nil {
-		return ValidateHandle(*req.Handle)
+		return accounts.CheckNewHandle(*req.Handle)
 	}
 	return nil
 }

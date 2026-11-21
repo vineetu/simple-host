@@ -75,7 +75,6 @@ func setFindingNote(ctx context.Context, tx *sql.Tx, eventID, userID, note strin
 	return err
 }
 
-// SetLooking sets whether a participant is looking for a team, with intro.
 func (s *Service) SetLooking(ctx context.Context, ev model.Event, caller model.EventMember, userID string, looking bool, rawIntro string) error {
 	if err := findingWrite(ev); err != nil {
 		return err
@@ -154,7 +153,6 @@ func (s *Service) requestTarget(ctx context.Context, caller model.EventMember, a
 	return team.Slug, invitee, "invite", nil
 }
 
-// resolveActions are the answers a team request takes.
 var resolveActions = map[string]bool{"accept": true, "decline": true, "withdraw": true}
 
 // ResolveTeamRequest accepts, declines or withdraws request id.

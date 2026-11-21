@@ -10,7 +10,6 @@ import (
 
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
-	"github.com/vsriram/simple-host/host/server/servertest"
 )
 
 // A new account chooses its address at sign-up (owner decision 2026-09-28):
@@ -18,19 +17,18 @@ import (
 // handle does not use up the code; the chosen one is the account's address.
 // An existing account signs in as before.
 func TestSignUpChoosesHandle(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	taken := a.NewPerson(t, "taken")
-	takenHandle := a.Do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": taken.Key}).JSON(t)["handle"].(string)
+	takenHandle := taken.Handle
 
 	stamp := strconv.FormatInt(time.Now().UnixNano(), 36)
 	addr := "newbie-" + stamp + "@example.com"
-	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM users WHERE username = $1`, addr) })
 	lt, _ := auth.GenerateAPIKey()
 	if err := accountsrepo.CreateAuthToken(context.Background(), a.Database, addr, "424242", lt, time.Now().Add(5*time.Minute), "dashboard", sql.NullString{}, sql.NullString{}); err != nil {
 		t.Fatal(err)
 	}
-	verify := func(body map[string]any) servertest.Resp {
-		return a.Do(t, http.MethodPost, "/v1/auth/verify", servertest.JSONBody(body), map[string]string{"Content-Type": "application/json"})
+	verify := func(body map[string]any) Resp {
+		return a.Do(t, http.MethodPost, "/v1/auth/verify", body, map[string]string{"Content-Type": "application/json"})
 	}
 	exists := func() bool {
 		var n int
@@ -45,23 +43,11 @@ func TestSignUpChoosesHandle(t *testing.T) {
 	if exists() {
 		t.Fatal("choose_handle created the account")
 	}
-	for _, c := range []struct {
-		handle string
-		status int
-		code   string
-	}{
-		// One refusal here: every verify counts against the address's
-		// sign-in limit (5 at once); the other refusals are the same
-		// JudgeHandle, covered by TestHandleCheck.
-		{takenHandle, http.StatusConflict, "handle_taken"},
-	} {
-		r := verify(map[string]any{"email": addr, "code": "424242", "handle": c.handle})
-		if r.Status != c.status || r.JSON(t)["code"] != c.code {
-			t.Fatalf("handle %q: %d %s", c.handle, r.Status, r.Body)
-		}
-		if exists() {
-			t.Fatalf("handle %q created the account", c.handle)
-		}
+	// One refusal here: every verify counts against the address's sign-in
+	// limit; the other refusals are the same JudgeHandle, covered by TestHandleCheck.
+	r = verify(map[string]any{"email": addr, "code": "424242", "handle": takenHandle})
+	if r.Status != http.StatusConflict || r.Code() != "handle_taken" || exists() {
+		t.Fatalf("taken handle: %d %s", r.Status, r.Body)
 	}
 	want := "chosen-" + stamp
 	r = verify(map[string]any{"email": addr, "code": "424242", "handle": want})
@@ -83,10 +69,10 @@ func TestSignUpChoosesHandle(t *testing.T) {
 // GET /v1/handles/check: available, taken, reserved, malformed; your own
 // handle is yours; a cross-site browser request is refused.
 func TestHandleCheck(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	p := a.NewPerson(t, "checker")
-	own := a.Do(t, http.MethodGet, "/v1/me", nil, map[string]string{"X-API-Key": p.Key}).JSON(t)["handle"].(string)
-	check := func(h string, hdr map[string]string) servertest.Resp {
+	own := p.Handle
+	check := func(h string, hdr map[string]string) Resp {
 		return a.Do(t, http.MethodGet, "/v1/handles/check?handle="+h, nil, hdr)
 	}
 	stamp := strconv.FormatInt(time.Now().UnixNano(), 36)

@@ -235,7 +235,7 @@ case $command in
     git archive --format=tar HEAD:plugins/simple-host | tar -x -C "$stage/host-claude"
     cp -a "$stage/skills/." "$stage/host-claude/skills/"
     kit=products/hack/webassets/hack-toolkit
-    cp -a "$kit"/{build.py,metadata,skills,CLAUDE-README.md,SUBMISSION.md} "$stage/hack-toolkit/"
+    cp -a "$kit"/{build.py,metadata,skills,CLAUDE-README.md} "$stage/hack-toolkit/"
     python3 - "$version" "$stage/plugins/openai/plugin.json" "$stage/host-claude/.claude-plugin/plugin.json" \
       "$stage/hack-toolkit/metadata/"{listing,claude-plugin}.json <<'PY'
 import json

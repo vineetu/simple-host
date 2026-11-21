@@ -44,13 +44,11 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/products/hack"
-	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
 	"github.com/vsriram/simple-host/products/hack/hackhttp"
-	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Shared composition fixtures for tests spanning Host HTTP, Hack HTTP and MCP.
@@ -76,9 +74,9 @@ func jsonBody(v any) io.Reader {
 	return strings.NewReader(string(b))
 }
 
-func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (hackhttp.HandleVerdict, error) {
-	v, err := accesshttp.JudgeHandle(ctx, q, "", h)
-	return hackhttp.HandleVerdict{Status: v.Status, Code: v.Code}, err
+func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (events.HandleVerdict, error) {
+	v, err := accountapp.JudgeHandle(ctx, q, "", h)
+	return events.HandleVerdict{Status: v.Status, Code: v.Code}, err
 }
 
 type replyMailer struct {
@@ -124,7 +122,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	users := accesshttp.NewUserHandler(database, accountapp.New(database), email.NewResendSender("", "test@example.com"), srv.URL, ed)
 	users.Register(mux, authMW, web.NoticeMiddleware("1.0.0"))
 	h := hackhttp.NewHackHandler(database, srv.URL, "simple-hack.test", ed)
-	h.ShareAssets(web.NewPages(ed, srv.URL))
+	h.ShareAssets(web.NewAssetPipeline(ed, srv.URL))
 	h.SetHandleChecker(hackHandleCheckerForTest)
 	h.Register(mux, authMW)
 	root = mux
@@ -184,36 +182,6 @@ func (a *hackApp) newPerson(t *testing.T, label string) person {
 	return person{email: addr, key: key}
 }
 
-// newKeyOnlyPerson makes an account with an "@"-less username, the shape of
-// Simple Hack's key-only test accounts (no email on file): CreateUser places
-// no format constraint on username beyond uniqueness, so this is a
-// first-class way to get a person an announcement's email_participants
-// cannot reach.
-func (a *hackApp) newKeyOnlyPerson(t *testing.T, label string) person {
-	t.Helper()
-	username := "k" + label + strings.ReplaceAll(uniqueSlug(), "-", "")
-	key, _ := auth.GenerateAPIKey()
-	u, err := accountrepo.CreateUser(context.Background(), a.database, username, key, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handle := "u" + uniqueSlug()
-	if _, err := a.database.Exec(`UPDATE users SET handle = $1 WHERE id = $2`, handle, u.ID); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, u.ID) })
-	return person{email: username, key: key}
-}
-
-func (a *hackApp) userID(t *testing.T, p person) string {
-	t.Helper()
-	var id string
-	if err := a.database.QueryRow(`SELECT id FROM users WHERE username = $1`, p.email).Scan(&id); err != nil {
-		t.Fatal(err)
-	}
-	return id
-}
-
 func (a *hackApp) cleanupEvent(slug string) {
 	var accountID string
 	_ = a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&accountID)
@@ -221,29 +189,6 @@ func (a *hackApp) cleanupEvent(slug string) {
 	if accountID != "" {
 		_, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, accountID)
 	}
-}
-
-type mailbox struct {
-	mu      sync.Mutex
-	codes   map[string]string // address -> last sign-in code
-	notices []string          // "to|subject|text"
-}
-
-func (m *mailbox) SendSignInCode(to, code, _ string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.codes == nil {
-		m.codes = map[string]string{}
-	}
-	m.codes[to] = code
-	return nil
-}
-
-func (m *mailbox) SendNotice(to, subject, text string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.notices = append(m.notices, to+"|"+subject+"|"+text)
-	return nil
 }
 
 func tarGzOf(t *testing.T, n int) string {
@@ -266,22 +211,6 @@ func tarGzOf(t *testing.T, n int) string {
 		t.Fatal(err)
 	}
 	return buf.String()
-}
-
-func wantCode(t *testing.T, what string, r resp, status int, code string) {
-	t.Helper()
-	if r.status != status {
-		t.Fatalf("%s: %d %s, want %d %s", what, r.status, r.body, status, code)
-	}
-	if code != "" {
-		var body struct {
-			Code string `json:"code"`
-		}
-		_ = json.Unmarshal(r.body, &body)
-		if body.Code != code {
-			t.Fatalf("%s: code %q (%s), want %q", what, body.Code, r.body, code)
-		}
-	}
 }
 
 func uniqueSlug() string {
@@ -336,142 +265,12 @@ func (a *hackApp) openEvent(t *testing.T, p person, slug string) {
 	}
 }
 
-// createEvent creates a draft event without opening it (hackApp's own
-// semantics, duplicated here).
-func (a *teamSiteApp) createEvent(t *testing.T, p person, slug string, extra map[string]any) resp {
-	t.Helper()
-	body := map[string]any{
-		"slug": slug, "title": "Spring hack", "organiser_name": "Ada Lovelace", "organisation": "Analytic Club",
-		"contact_email": "ada@example.com", "purpose": "build something kind", "expected_participants": 80,
-		"starts_at": "2026-10-01", "ends_at": "2026-10-03", "time_zone": "UTC",
-	}
-	for k, v := range extra {
-		if v == nil {
-			delete(body, k)
-		} else {
-			body[k] = v
-		}
-	}
-	r := a.api(t, "POST", "/v1/hack/events", body, p.key)
-	if r.status == http.StatusCreated {
-		t.Cleanup(func() {
-			var accountID string
-			_ = a.database.QueryRow(`SELECT account_id FROM events WHERE slug = $1`, slug).Scan(&accountID)
-			_, _ = a.database.Exec(`DELETE FROM events WHERE slug = $1`, slug)
-			if accountID != "" {
-				_, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, accountID)
-			}
-		})
-	}
-	return r
-}
+var ()
 
-func get(t *testing.T, h http.Handler, host, path string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
-	if host != "" {
-		req.Host = host
-	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	return rec
-}
-
-func chromeTestHandler(kind productedition.Kind) *siteshttp.SiteHandler {
-	return chromeTestHandlerWithBase(kind, "")
-}
-
-func chromeTestHandlerWithBase(kind productedition.Kind, base string) *siteshttp.SiteHandler {
-	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(kind), base, nil, nil, nil, "simple-host.app", "sites.simple-host.app", "", "", "", "", nil, 0, "", nil, nil)
-	if kind == productedition.Hack {
-		installAssets(sh, nil)
-	}
-	return sh
-}
-
-func chromeTestMux(t *testing.T, kind productedition.Kind) *http.ServeMux {
-	t.Helper()
-	mux := http.NewServeMux()
-	sh := chromeTestHandler(kind)
-	if kind == productedition.Hack {
-		installAssets(sh, mux)
-	}
-	siteshttp.RegisterUIRoutes(mux, "https://simple-host.app", sh)
-	return mux
-}
-
-var (
-	chromeScriptTagRe  = regexp.MustCompile(`<script\b[^>]*>`)
-	chromeScriptSrcRe  = regexp.MustCompile(`script-src ([^;]*)`)
-	chromeCSPNonceRe   = regexp.MustCompile(`'nonce-([A-Za-z0-9+/=]+)'`)
-	chromeInlineAttrRe = regexp.MustCompile(`<[a-zA-Z][^<>]*\son[a-z]+\s*=`)
-)
-
-// assertStrictScriptCSP checks one apex HTML response: script-src carries a
-// nonce and no 'unsafe-inline', every inline <script> carries that nonce,
-// and no element uses an on*= handler attribute (a nonce does not cover
-// those).
-func assertStrictScriptCSP(t *testing.T, label string, rec *httptest.ResponseRecorder) {
-	t.Helper()
-	csp := rec.Header().Get("Content-Security-Policy")
-	m := chromeScriptSrcRe.FindStringSubmatch(csp)
-	if m == nil {
-		t.Errorf("%s: no script-src in CSP %q", label, csp)
-		return
-	}
-	if strings.Contains(m[1], "unsafe-inline") {
-		t.Errorf("%s: script-src allows 'unsafe-inline': %q", label, m[1])
-	}
-	n := chromeCSPNonceRe.FindStringSubmatch(m[1])
-	if n == nil {
-		t.Errorf("%s: script-src has no nonce: %q", label, m[1])
-		return
-	}
-	body := rec.Body.String()
-	inline := 0
-	for _, tag := range chromeScriptTagRe.FindAllString(body, -1) {
-		if strings.Contains(tag, " src=") || strings.Contains(tag, `type="application/json"`) {
-			continue
-		}
-		inline++
-		if !strings.Contains(tag, `nonce="`+n[1]+`"`) {
-			t.Errorf("%s: inline script without the response nonce: %s", label, tag)
-		}
-	}
-	if inline == 0 {
-		t.Errorf("%s: no inline scripts found; the check is not looking at a real page", label)
-	}
-	if hit := chromeInlineAttrRe.FindString(body); hit != "" {
-		t.Errorf("%s: inline event handler attribute, blocked by the CSP: %s", label, hit)
-	}
-}
-
-type contentMailSink struct {
-	notices []struct{ to, subject, body string }
-}
-
-func (*contentMailSink) SendSignInCode(string, string, string) error { return nil }
-func (s *contentMailSink) SendNotice(to, subject, body string) error {
-	s.notices = append(s.notices, struct{ to, subject, body string }{to, subject, body})
-	return nil
-}
 func (m *replyMailer) messages() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]string(nil), m.sent...)
-}
-
-// Composed tests run the extracted worker workflows with a test clock and
-// timing, while HTTP assertions continue through the real registered routes.
-func sweepNoticeMail(a *teamSiteApp, delay time.Duration) {
-	ctx := context.Background()
-	s := events.New(a.database)
-	s.PruneNotices(ctx)
-	// The caller installs this sink before triggering a sweep.
-	s.DeliverNoticeMail(ctx, a.noticeSink, delay, 15*time.Minute, a.srv.URL, entries.New(a.database, func(ctx context.Context, ev hackmodel.Event, slug string, takenDown bool) bool {
-		info, _, err := a.sites.TeamSiteInfo(ctx, ev.AccountID, slug)
-		return err == nil && info.Exists && info.ActiveVersion > 0 && !info.Suspended && !takenDown
-	}))
 }
 
 func runComposedCleanup(a *teamSiteApp, mail *replyMailer, now time.Time) {
@@ -519,19 +318,18 @@ func markReady(t *testing.T, dir, handle string) {
 }
 
 type teamSiteApp struct {
-	srv        *httptest.Server
-	database   *sql.DB
-	admin      string
-	mux        *http.ServeMux
-	conn       *accesshttp.ConnectorHandler
-	sites      *siteshttp.SiteHandler
-	access     *accesshttp.AccessHandler
-	data       *datahttp.DataHandler
-	users      *accesshttp.UserHandler
-	hack       *hackhttp.HackHandler
-	certDir    string
-	disk       fixtureDisk
-	noticeSink *contentMailSink
+	srv      *httptest.Server
+	database *sql.DB
+	admin    string
+	mux      *http.ServeMux
+	conn     *accesshttp.ConnectorHandler
+	sites    *siteshttp.SiteHandler
+	access   *accesshttp.AccessHandler
+	data     *datahttp.DataHandler
+	users    *accesshttp.UserHandler
+	hack     *hackhttp.HackHandler
+	certDir  string
+	disk     fixtureDisk
 }
 
 func newTeamSiteApp(t *testing.T) *teamSiteApp {
@@ -557,8 +355,8 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 		}
 	}
 	oldDomain := accountrepo.CurrentPlatformDomain()
-	accountrepo.SetPlatformDomain(tsDomain)
-	t.Cleanup(func() { accountrepo.SetPlatformDomain(oldDomain) })
+	accountrepo.SetPlatformDomains(tsDomain)
+	t.Cleanup(func() { accountrepo.SetPlatformDomains(oldDomain) })
 
 	adminKey, _ := auth.GenerateAPIKey()
 	adminID, err := accountrepo.EnsureAdminUser(context.Background(), database)
@@ -870,19 +668,6 @@ func wantTS(t *testing.T, what string, r resp, status int, code string) {
 			t.Fatalf("%s: code %q want %q: %s", what, got, code, r.body)
 		}
 	}
-}
-
-// hackAssetsFor is the product's Assets for a handler whose routes a test
-// registers one by one (the server passes the one from Extension.Assets).
-func hackAssetsFor(sh *siteshttp.SiteHandler) *hackhttp.Assets {
-	return hackhttp.NewAssets(sh.AssetServices(), sh.Pages().InkBaseURL())
-}
-
-// mountHackFiles mounts Hack's file route and film files on a mux a test
-// builds route by route (the server mounts them through Extension.Assets).
-func mountHackFiles(mux *http.ServeMux, sh *siteshttp.SiteHandler) {
-	hack.RegisterOwnFiles(mux, sh.AssetServices().ProductFiles())
-	hackhttp.RegisterHackFilm(mux)
 }
 
 func installAssets(sh *siteshttp.SiteHandler, mux *http.ServeMux) {

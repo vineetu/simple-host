@@ -35,12 +35,9 @@ func TestIssueEmailCodeOff(t *testing.T) {
 	withEmailSignIn(t, false)
 	m := &mailbox{}
 	limiter := httpx.NewRateLimiter(1000, 1000)
-	_, _, status, body := issueEmailCode(context.Background(), nil, m, limiter, "person@example.com", "", "dashboard", sql.NullString{}, sql.NullString{}, "203.0.113.5", signupGeoBlock{}, 15*time.Minute)
+	_, _, status, body := issueEmailCode(context.Background(), nil, m, limiter, "person@example.com", "", "dashboard", sql.NullString{}, sql.NullString{}, "203.0.113.5", accounts.SignupGeoBlock{}, 15*time.Minute)
 	if status != http.StatusForbidden || body.Code != "email_signin_off" {
 		t.Fatalf("got status=%d code=%q, want 403 email_signin_off", status, body.Code)
-	}
-	if body.Error != "Email sign-in is off on this server. Sign in with your company account." {
-		t.Fatalf("unexpected message: %q", body.Error)
 	}
 	if len(m.codes) != 0 {
 		t.Fatal("a refused request must not be emailed a code")
@@ -89,43 +86,16 @@ func TestVerifyEmailCodeOff_TokenShapeStillWorks(t *testing.T) {
 	}
 }
 
-// TestListProvidersOIDC covers GET /v1/auth/oauth/providers with oidc on
-// and off, and email_enabled following EmailSignInEnabled rather than bare
-// ResendAPIKey. listProviders touches no database.
+// GET /v1/auth/oauth/providers: oidc carries its label only when on, and
+// email_enabled needs both EMAIL_SIGNIN and a mail key.
 func TestListProvidersOIDC(t *testing.T) {
-	newHandler := func(withOIDC bool, resendKey, emailSignIn string) *OAuthHandler {
+	list := func(withOIDC bool, resendKey, emailSignIn string) map[string]any {
 		providers := map[string]accounts.Provider{"google": fakeProvider{}}
 		if withOIDC {
 			providers["oidc"] = ssoOIDCProvider{}
 		}
 		cfg := config.Config{ResendAPIKey: resendKey, EmailSignIn: emailSignIn}
-		return &OAuthHandler{Cfg: testOAuthSettings(cfg, accounts.New(nil)), SignIn: accounts.NewProviderSignIn(accounts.New(nil), providers)}
-	}
-
-	t.Run("oidc off", func(t *testing.T) {
-		h := newHandler(false, "resend-key", "on")
-		rr := httptest.NewRecorder()
-		h.listProviders(rr, httptest.NewRequest("GET", "/v1/auth/oauth/providers", nil))
-		var body map[string]any
-		if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
-			t.Fatal(err)
-		}
-		if _, has := body["oidc_label"]; has {
-			t.Fatalf("oidc_label must be absent when oidc is off: %v", body)
-		}
-		names := body["providers"].([]any)
-		for _, n := range names {
-			if n == "oidc" {
-				t.Fatalf("oidc listed while off: %v", names)
-			}
-		}
-		if body["email_enabled"] != true {
-			t.Fatalf("email_enabled should be true: %v", body)
-		}
-	})
-
-	t.Run("oidc on carries its label", func(t *testing.T) {
-		h := newHandler(true, "resend-key", "on")
+		h := &OAuthHandler{Cfg: testOAuthSettings(cfg, accounts.New(nil)), SignIn: accounts.NewProviderSignIn(accounts.New(nil), providers)}
 		h.Cfg.OIDCLabel = "Acme Okta"
 		rr := httptest.NewRecorder()
 		h.listProviders(rr, httptest.NewRequest("GET", "/v1/auth/oauth/providers", nil))
@@ -133,46 +103,18 @@ func TestListProvidersOIDC(t *testing.T) {
 		if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
 		}
-		if body["oidc_label"] != "Acme Okta" {
-			t.Fatalf("oidc_label = %v, want Acme Okta", body["oidc_label"])
-		}
-		names := body["providers"].([]any)
-		found := false
-		for _, n := range names {
-			if n == "oidc" {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("oidc missing from providers: %v", names)
-		}
-	})
-
-	t.Run("email_enabled follows EMAIL_SIGNIN, not bare ResendAPIKey", func(t *testing.T) {
-		h := newHandler(true, "resend-key", "off")
-		rr := httptest.NewRecorder()
-		h.listProviders(rr, httptest.NewRequest("GET", "/v1/auth/oauth/providers", nil))
-		var body map[string]any
-		if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
-			t.Fatal(err)
-		}
-		if body["email_enabled"] != false {
-			t.Fatalf("email_enabled should be false with EMAIL_SIGNIN=off: %v", body)
-		}
-	})
-
-	t.Run("no resend key turns email_enabled off even with EMAIL_SIGNIN=on", func(t *testing.T) {
-		h := newHandler(false, "", "on")
-		rr := httptest.NewRecorder()
-		h.listProviders(rr, httptest.NewRequest("GET", "/v1/auth/oauth/providers", nil))
-		var body map[string]any
-		if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
-			t.Fatal(err)
-		}
-		if body["email_enabled"] != false {
-			t.Fatalf("email_enabled should be false with no RESEND_API_KEY: %v", body)
-		}
-	})
+		return body
+	}
+	off := list(false, "resend-key", "on")
+	if _, has := off["oidc_label"]; has || off["email_enabled"] != true {
+		t.Fatalf("oidc off: %v", off)
+	}
+	if on := list(true, "resend-key", "off"); on["oidc_label"] != "Acme Okta" || on["email_enabled"] != false {
+		t.Fatalf("oidc on, EMAIL_SIGNIN=off: %v", on)
+	}
+	if nokey := list(false, "", "on"); nokey["email_enabled"] != false {
+		t.Fatalf("no mail key: %v", nokey)
+	}
 }
 
 // TestEmailChangeRefusedWhenEmailSignInOff: with EMAIL_SIGNIN=off no

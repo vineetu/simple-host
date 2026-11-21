@@ -8,30 +8,23 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// RubricCriterion is one row of rubric_criteria, in position order.
 type RubricCriterion = model.RubricCriterion
 
-// NamedTeam is a team id, display name and URL slug.
 type NamedTeam = model.NamedTeam
 
-// NamedJudge is a judge's user id and the display name they joined with.
 type NamedJudge = model.NamedJudge
 
-// EventConflict is one declared judge/team conflict, with names filled in.
 type EventConflict struct {
 	JudgeID, JudgeName, TeamID, TeamName, DeclaredBy string
 	HadScore                                         bool
 }
 
-// ConflictPair is a judge who must not be assigned to a team.
 type ConflictPair struct {
 	JudgeID, TeamID string
 }
 
-// JudgeAssignment is one judge assigned to one team.
 type JudgeAssignment = model.JudgeAssignment
 
-// ListRubric returns the event's criteria in position order.
 func ListRubric(ctx context.Context, q sqlkit.Querier, eventID string) ([]RubricCriterion, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT id, position, name, description, weight, max_points
@@ -84,7 +77,6 @@ func ReplaceRubric(ctx context.Context, q sqlkit.Querier, eventID string, items 
 	return nil
 }
 
-// ListEventJudges is every member eligible to judge the event, by user id.
 func ListEventJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]NamedJudge, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT user_id, COALESCE(u.display_name,''), role FROM event_members m JOIN users u ON u.id=m.user_id JOIN events e ON e.id=m.event_id
@@ -106,11 +98,10 @@ func ListEventJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]N
 }
 
 // ListTeamsWithMembers is every team that still needs judging, by team id: one
-// with someone on it (the same exclusion DeleteEmptyOpenTeams uses for an
-// abandoned team nobody ever really used), OR one kept_after_leave marked
-// (owner decision 2026-10-31: leaving an event never deletes a team it empties,
-// so its entry must keep being judged and ranked exactly as if the leaver
-// hadn't left).
+// with someone on it (the exclusion DeleteEmptyOpenTeams uses for an abandoned
+// team), or one marked kept_after_leave. Leaving an event never deletes a team
+// it empties, so its entry keeps being judged and ranked as if the leaver had
+// not left.
 func ListTeamsWithMembers(ctx context.Context, q sqlkit.Querier, eventID string) ([]NamedTeam, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT t.id, t.name, t.slug FROM event_teams t
@@ -132,7 +123,6 @@ func ListTeamsWithMembers(ctx context.Context, q sqlkit.Querier, eventID string)
 	return out, rows.Err()
 }
 
-// EventTeamInEvent loads a team only when it belongs to this event.
 func EventTeamInEvent(ctx context.Context, q sqlkit.Querier, eventID, teamID string) (NamedTeam, error) {
 	var t NamedTeam
 	err := q.QueryRowContext(ctx, `
@@ -140,7 +130,6 @@ func EventTeamInEvent(ctx context.Context, q sqlkit.Querier, eventID, teamID str
 	return t, err
 }
 
-// EventJudge loads a member eligible to judge this event.
 func EventJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (NamedJudge, error) {
 	var j NamedJudge
 	err := q.QueryRowContext(ctx, `
@@ -181,7 +170,6 @@ func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 	return out, rows.Err()
 }
 
-// GetEventConflict loads one conflict with names. sql.ErrNoRows when there is none.
 func GetEventConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) (EventConflict, error) {
 	var c EventConflict
 	err := q.QueryRowContext(ctx, `
@@ -196,7 +184,6 @@ func GetEventConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, t
 	return c, err
 }
 
-// DeclareConflict inserts a conflict.
 func DeclareConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID, declaredBy string) error {
 	_, err := q.ExecContext(ctx, `
 		INSERT INTO event_conflicts (event_id, judge_id, team_id, declared_by)
@@ -206,7 +193,6 @@ func DeclareConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, te
 	return err
 }
 
-// DeleteConflict removes one conflict. The bool is false when no row matched.
 func DeleteConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) (bool, error) {
 	res, err := q.ExecContext(ctx, `
 		DELETE FROM event_conflicts
@@ -218,7 +204,6 @@ func DeleteConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, tea
 	return n > 0, err
 }
 
-// ListConflictPairs is every conflict of the event, without names.
 func ListConflictPairs(ctx context.Context, q sqlkit.Querier, eventID string) ([]ConflictPair, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT judge_id, team_id FROM event_conflicts WHERE event_id = $1`, eventID)
@@ -237,7 +222,6 @@ func ListConflictPairs(ctx context.Context, q sqlkit.Querier, eventID string) ([
 	return out, rows.Err()
 }
 
-// ReplaceAssignments replaces every assignment of the event with rows.
 func ReplaceAssignments(ctx context.Context, q sqlkit.Querier, eventID string, rows []JudgeAssignment) error {
 	if _, err := q.ExecContext(ctx, `DELETE FROM event_assignments WHERE event_id = $1`, eventID); err != nil {
 		return err
@@ -273,8 +257,7 @@ func ScoreCoverage(ctx context.Context, q sqlkit.Querier, eventID string) (byTea
 // scoreEligiblePredicate counts a score either the ordinary way (the judge is
 // still a member, in good standing with today's mode, conflicts and
 // assignments) or, for someone who left, when a former-judge record froze this
-// exact team as one that counted at the moment they left (section 3: Leave this
-// event, SIM-340).
+// exact team as one that counted when they left.
 var scoreEligiblePredicate = `(((
   EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND ` + judgeMemberSQL("m", "e") + `)
   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
@@ -316,22 +299,16 @@ func countGroups(ctx context.Context, q sqlkit.Querier, query, eventID string) (
 	return out, rows.Err()
 }
 
-// --- M3 pass 2: scoring, lock/unlock, publish, results -------------------
-
-// JudgeScore is one judge's points for one criterion.
 type JudgeScore struct {
 	CriterionID string
 	Points      int
 }
 
-// GetJudgeTeamScores returns a judge's current scores for a team (whatever
-// rows exist; an absent criterion is simply not in the slice) and the
-// comment stored on those rows (empty string if none exist yet).
+// GetJudgeTeamScores returns a judge's current scores for a team and the comment
+// stored on those rows (empty if none exist yet).
 func GetJudgeTeamScores(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) ([]JudgeScore, string, error) {
-	// UpsertJudgeScores keeps every row for a (judge, team) pair holding the
-	// same comment, so any row's value would do; ORDER BY updated_at DESC
-	// is a defensive tie-break (the most recently touched row wins) rather
-	// than a load-bearing requirement.
+	// All rows for a (judge, team) pair hold the same comment; ORDER BY updated_at
+	// DESC is a defensive tie-break, not a requirement.
 	rows, err := queryContext(ctx, q, `
 		SELECT criterion_id, points, comment FROM event_scores
 		 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3
@@ -358,14 +335,12 @@ func GetJudgeTeamScores(ctx context.Context, q sqlkit.Querier, eventID, judgeID,
 	return out, comment, rows.Err()
 }
 
-// UpsertJudgeScores writes each given score (ON CONFLICT DO UPDATE, so a
-// retried write never double-counts) and, when comment is non-nil, sets it on
-// every row for this (judge, team) pair — not just the ones named in this
-// call — so every row always agrees on the one comment.
+// UpsertJudgeScores writes each given score (ON CONFLICT DO UPDATE, so a retried
+// write never double-counts) and, when comment is non-nil, sets it on every row
+// for this (judge, team) pair so every row agrees on the one comment.
 func UpsertJudgeScores(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string, scores []JudgeScore, comment *string) ([]JudgeScore, string, error) {
-	// The comment is stored once per criterion row (there is no separate comment
-	// table), so every row for this (judge, team) pair must always hold the SAME
-	// value or "the" comment is ambiguous.
+	// The comment is stored once per criterion row (no separate table), so every
+	// row for a (judge, team) pair must hold the same value.
 	for _, s := range scores {
 		if _, err := q.ExecContext(ctx, `
 			INSERT INTO event_scores (event_id, judge_id, team_id, criterion_id, points, comment)
@@ -378,9 +353,8 @@ func UpsertJudgeScores(ctx context.Context, q sqlkit.Querier, eventID, judgeID, 
 		}
 	}
 	if comment != nil {
-		// A comment-only call (scores empty) needs at least one existing row to hold
-		// it; the handler already refuses that case when none exists, so this is a
-		// no-op rather than an error if ever called directly with nothing to update.
+		// A comment-only call (scores empty) needs an existing row to hold it; the
+		// handler refuses that case, so this is a no-op rather than an error.
 		if _, err := q.ExecContext(ctx, `
 			UPDATE event_scores SET comment = $4, updated_at = now()
 			 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3`,
@@ -391,8 +365,6 @@ func UpsertJudgeScores(ctx context.Context, q sqlkit.Querier, eventID, judgeID, 
 	return GetJudgeTeamScores(ctx, q, eventID, judgeID, teamID)
 }
 
-// CriterionIDsForEvent is the set of criterion ids currently in the event's
-// rubric, for validating a score write's criterion_ids belong to it.
 func CriterionIDsForEvent(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]int, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT id, max_points FROM rubric_criteria WHERE event_id = $1`, eventID)
@@ -443,7 +415,6 @@ func ListRawScores(ctx context.Context, q sqlkit.Querier, eventID string) ([]Raw
 	return out, rows.Err()
 }
 
-// EventResultsRow is the stored event_results row.
 type EventResultsRow struct {
 	Published   bool
 	PublishedAt sql.NullTime
@@ -451,7 +422,6 @@ type EventResultsRow struct {
 	Snapshot    []byte // raw JSON, the caller decodes into whatever shape it wants
 }
 
-// GetEventResults loads the stored snapshot.
 func GetEventResults(ctx context.Context, q sqlkit.Querier, eventID string) (EventResultsRow, error) {
 	var row EventResultsRow
 	err := q.QueryRowContext(ctx, `
@@ -479,7 +449,6 @@ func UpsertEventResults(ctx context.Context, q sqlkit.Querier, eventID, publishe
 	return err
 }
 
-// SetResultsFullRanking flips the display switch on an existing row.
 func SetResultsFullRanking(ctx context.Context, q sqlkit.Querier, eventID string, full bool) (bool, error) {
 	res, err := q.ExecContext(ctx, `
 		UPDATE event_results SET full_ranking = $2 WHERE event_id = $1`, eventID, full)
@@ -495,9 +464,8 @@ func SetResultsFullRanking(ctx context.Context, q sqlkit.Querier, eventID string
 // particular judge).
 func TeamComments(ctx context.Context, q sqlkit.Querier, eventID, teamID string) ([]string, error) {
 	// A conflicted judge's score is excluded from the team's total (see
-	// computeResults); their comment is excluded here for the same reason —
-	// someone who declared a conflict with this team isn't a fair reviewer
-	// of it, and the team should not be shown their feedback as if it were.
+	// computeResults); their comment is excluded too, since the team should not see
+	// feedback from someone who declared a conflict with it.
 	rows, err := queryContext(ctx, q, `
 		SELECT DISTINCT ON (s.judge_id) s.comment FROM event_scores s JOIN events e ON e.id=s.event_id
 		 WHERE s.event_id = $1 AND s.team_id = $2 AND s.comment <> '' AND `+scoreEligiblePredicate+`

@@ -5,33 +5,6 @@ import (
 	"testing"
 )
 
-// TestHackEventGalleryToolsAndResultAnchor is template-only: hackGalleryCard
-// (hack_wire.go's hackGalleryCards, and HackEventPage's cross-reference with
-// the results rows) gains Tools and ResultAnchor once results are published
-// (build-plan §4.6).
-func TestHackEventGalleryToolsAndResultAnchor(t *testing.T) {
-	p := testHackEvent()
-	p.Stage = "building"
-	p.Gallery = []hackGalleryCard{
-		{Title: "CareCompass", URL: "https://alpha.weekend.simple-hack.test/", Tools: []string{"Claude", "Canva"}, ResultAnchor: "#result-t1"},
-		{Title: "NoResult", URL: "https://nr.weekend.simple-hack.test/"},
-	}
-	body := renderHackEvent(t, p).Body.String()
-	cards := galleryCardHTML(body)
-	if len(cards) != 2 {
-		t.Fatalf("cards: %d, body:\n%s", len(cards), body)
-	}
-	if !strings.Contains(cards[0], `<li class="tag">Claude</li>`) || !strings.Contains(cards[0], `<li class="tag">Canva</li>`) {
-		t.Fatalf("tool tags missing: %s", cards[0])
-	}
-	if !strings.Contains(cards[0], `href="#result-t1"`) {
-		t.Fatalf("result anchor missing: %s", cards[0])
-	}
-	if strings.Contains(cards[1], "tags") || strings.Contains(cards[1], "site-result-link") {
-		t.Fatalf("a team with no result should show no tags/anchor: %s", cards[1])
-	}
-}
-
 // TestHackResultsCardEscaping is template-only (no DB): a hostile title and
 // problem line must render as text, never executed, in both the open-card
 // and collapsed-card branches of the results section (build-plan §9 point

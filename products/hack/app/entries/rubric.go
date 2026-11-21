@@ -12,7 +12,6 @@ import (
 	"strings"
 )
 
-// Rubric returns the event's criteria.
 func (s *Service) Rubric(ctx context.Context, eventID string) ([]model.RubricCriterion, error) {
 	return entryrepo.ListRubric(ctx, s.db, eventID)
 }
@@ -117,7 +116,6 @@ func scoreDeletionWarnings(ctx context.Context, q sqlkit.Querier, eventID string
 	return warnings, nil
 }
 
-// RubricVersion identifies the ordered content returned to the caller.
 func RubricVersion(criteria []model.RubricCriterion) string {
 	return rules.RubricFingerprint(criteria)
 }

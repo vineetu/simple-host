@@ -2,26 +2,19 @@ package access
 
 import (
 	"context"
-	"database/sql"
 	"log"
 
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// AttributionStore may be the sign-in transaction; recording never opens a nested transaction.
-type AttributionStore interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
-func RecordSignup(ctx context.Context, q AttributionStore, userID string, signup model.Signup) {
+func RecordSignup(ctx context.Context, q sqlkit.Querier, userID string, signup model.Signup) {
 	if err := repo.SetSignup(ctx, q, userID, signup); err != nil {
 		log.Printf("signup: record source user_id=%s: %v", userID, err)
 	}
 }
-func SignupForClient(ctx context.Context, q AttributionStore, clientID, method string, clean func(string) string) (model.Signup, bool) {
+func SignupForClient(ctx context.Context, q sqlkit.Querier, clientID, method string, clean func(string) string) (model.Signup, bool) {
 	client, err := repo.GetOAuthClient(ctx, q, clientID)
 	if err != nil {
 		return model.Signup{}, false

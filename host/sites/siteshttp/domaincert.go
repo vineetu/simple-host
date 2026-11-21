@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/vsriram/simple-host/host/model"
@@ -67,21 +66,6 @@ func (h *SiteHandler) DomainCertProgress(ctx context.Context, d model.BoundDomai
 		return "failed", fmt.Sprintf("this account has asked for %d new domain certificates in the last day; this one is asked for automatically once that day is over", h.Limits.DomainCertsDaily)
 	}
 	return "issuing", ""
-}
-
-// DomainCertRequestBody is what a request file holds: the site's ownership
-// token (the issuer checks the TXT record against it), the domain link's
-// target (the issuer acts only while the link still points at this site) and
-// the domain's www / bare partner, if it may have one (partner, from
-// RequestablePartner).
-func DomainCertRequestBody(d model.BoundDomain, partner string) string {
-	body := d.Token + "\n" + filepath.Join("..", "by-id", d.UserID, d.Name) + "\n"
-	// Line 3: the www / bare partner, put on the same certificate as a
-	// redirect when it passes the issuer's checks (domainpartner.go).
-	if partner != "" {
-		body += partner + "\n"
-	}
-	return body
 }
 
 // requestDomainCert writes DOMAIN_CERT_DIR/requests/<domain> (or brings an

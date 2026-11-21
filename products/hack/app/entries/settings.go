@@ -3,14 +3,13 @@ package entries
 import (
 	"context"
 
-	model "github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/rules/sites"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
-// JudgingSettings contains the optional settings to change.
 type JudgingSettings struct {
 	OrganiserJudges           *[]string
 	IncludeOrganisers         *bool
@@ -20,7 +19,6 @@ type JudgingSettings struct {
 	PublicScores, PublicRanks *bool
 }
 
-// UpdateJudgingSettings applies settings under the event lock.
 func (s *Service) UpdateJudgingSettings(ctx context.Context, eventID string, req JudgingSettings) (hackmodel.Event, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -98,7 +96,6 @@ func saveJudgingSettings(ctx context.Context, q sqlkit.Querier, eventID string, 
 	return eventrepo.UpdateScoreSettings(ctx, q, eventID, valueOrNil(req.ScoreMode), req.TieCriterionID != nil, valueOrNil(req.TieCriterionID), valueOrNil(req.PublicScores), valueOrNil(req.PublicRanks))
 }
 
-// valueOrNil passes an unset optional setting to SQL as NULL.
 func valueOrNil[T any](p *T) any {
 	if p == nil {
 		return nil
@@ -121,7 +118,7 @@ func updateOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string
 		}
 	}
 	for _, id := range ids {
-		if !model.ValidUUID(id) {
+		if !sites.UUIDShape.MatchString(id) {
 			return &Error{Code: "invalid_organiser_judges", Message: "Choose current organisers of this event."}
 		}
 	}

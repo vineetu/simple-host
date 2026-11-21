@@ -1,172 +1,21 @@
 package accesstest
 
 import (
-	"bytes"
-	"context"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/vsriram/simple-host/host/access"
-	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/accesshttp"
-	"github.com/vsriram/simple-host/host/data/datahttp"
-	"github.com/vsriram/simple-host/host/server/servertest"
-	"github.com/vsriram/simple-host/host/sites/siteshttp"
-	"github.com/vsriram/simple-host/host/web"
-
-	"github.com/vsriram/simple-host/host/config"
-
-	httpx "github.com/vsriram/simple-host/host/httpx"
-	model "github.com/vsriram/simple-host/host/model"
 )
 
-const opaqueOwner = "1b4e28ba-2fa1-11d2-883f-0016d3cca427"
-const opaqueSite = "2b4e28ba-2fa1-11d2-883f-0016d3cca427"
-const opaqueTeam = "3b4e28ba-2fa1-11d2-883f-0016d3cca427"
+const (
+	opaqueOwner = "1b4e28ba-2fa1-11d2-883f-0016d3cca427"
+	opaqueSite  = "2b4e28ba-2fa1-11d2-883f-0016d3cca427"
+)
 
-func assertOpaqueToken(t *testing.T, token string) {
-	t.Helper()
-	raw, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{opaqueOwner, opaqueSite, opaqueTeam} {
-		uuidBytes, _ := hex.DecodeString(strings.ReplaceAll(id, "-", ""))
-		for _, representation := range []string{id, strings.ReplaceAll(id, "-", ""), hex.EncodeToString([]byte(id)), base64.RawURLEncoding.EncodeToString([]byte(id)), base64.StdEncoding.EncodeToString([]byte(id)), base64.RawURLEncoding.EncodeToString(uuidBytes)} {
-			if strings.Contains(token, representation) || bytes.Contains(raw, []byte(representation)) {
-				t.Fatal("token reveals an internal identifier")
-			}
-		}
-		if bytes.Contains(raw, uuidBytes) {
-			t.Fatal("decoded token reveals UUID bytes")
-		}
-	}
-}
-
-func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
-	key := siteshttp.NewExportKey()
-	h := servertest.WithHosts(&siteshttp.SiteHandler{ExportKey: key, Limits: config.DefaultLimits()})
-	d := &datahttp.DataHandler{ExportKey: key, Limits: h.Limits}
-	now := time.Now().Truncate(time.Second)
-	expiry := now.Add(time.Minute)
-	storage := datahttp.StorageCall{OwnerID: opaqueOwner, SiteID: opaqueSite, ResourceName: "photos", LinkScope: "team:" + opaqueTeam}
-	cases := []struct {
-		name, domain string
-		mint         func() string
-	}{
-		{"export", siteshttp.ExportLinkDomain, func() string { return h.SignExportToken(opaqueOwner, opaqueSite, expiry) }},
-		{"preview", web.PreviewLinkDomain, func() string { return h.SignPreviewToken(opaqueSite, 2, expiry) }},
-		{"file", "site storage file v1", func() string { return d.StorageFileToken(storage, "a/photo.png", expiry) }},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			token := tc.mint()
-			assertOpaqueToken(t, token)
-			if token == tc.mint() {
-				t.Error("nonce reused")
-			}
-			plain, err := httpx.OpenLink(key, tc.domain, token)
-			if err != nil || !bytes.Contains(plain, []byte(opaqueSite)) {
-				t.Fatal("payload failed to round trip")
-			}
-			raw, _ := base64.RawURLEncoding.DecodeString(token)
-			raw[len(raw)/2] ^= 1
-			for _, bad := range []string{"", token[:len(token)/2], base64.RawURLEncoding.EncodeToString(raw)} {
-				if _, err := httpx.OpenLink(key, tc.domain, bad); err == nil {
-					t.Error("tampered token accepted")
-				}
-			}
-			if _, err := httpx.OpenLink(siteshttp.NewExportKey(), tc.domain, token); err == nil {
-				t.Error("wrong key accepted")
-			}
-			if _, err := httpx.OpenLink(key, tc.domain+"other", token); err == nil {
-				t.Error("wrong link kind accepted")
-			}
-		})
-	}
-	if owner, site, err := h.CheckExportToken(cases[0].mint(), now); err != nil || owner != opaqueOwner || site != opaqueSite {
-		t.Fatal("export binding lost")
-	}
-	if site, version, err := h.CheckPreviewToken(cases[1].mint(), now); err != nil || site != opaqueSite || version != 2 {
-		t.Fatal("preview binding lost")
-	}
-	raw, err := httpx.OpenLink(key, "site storage file v1", cases[2].mint())
-	expected := opaqueOwner + "." + opaqueSite + ".photos." + base64.RawURLEncoding.EncodeToString([]byte("a/photo.png")) + "."
-	if err != nil || !strings.HasPrefix(string(raw), expected) || !strings.HasSuffix(string(raw), "."+base64.RawURLEncoding.EncodeToString([]byte(storage.LinkScope))) {
-		t.Fatal("file scope lost")
-	}
-	for _, exp := range []time.Time{now.Add(-time.Second), now.Add(time.Hour + time.Minute)} {
-		if _, _, err := h.CheckPreviewToken(h.SignPreviewToken(opaqueSite, 2, exp), now); err == nil {
-			t.Error("preview expiry accepted")
-		}
-	}
-	// Invalid file tokens must fail before any database access.
-	for _, token := range []string{"bad", d.StorageFileToken(storage, "a/photo.png", now.Add(-time.Minute)), d.StorageFileToken(storage, "a/photo.png", now.Add(time.Hour))} {
-		w := httptest.NewRecorder()
-		d.DownloadStorageFile(w, httptest.NewRequest("GET", "/v1/storage-download?token="+token, nil))
-		if w.Code != 404 {
-			t.Errorf("invalid file link: %d", w.Code)
-		}
-	}
-}
-
-func TestMCPNotificationVisitorReferences(t *testing.T) {
-	h := &datahttp.DataHandler{ExportKey: siteshttp.NewExportKey(), PasscodeKeys: &accounts.PasscodeKeys{}, Limits: config.DefaultLimits()}
-	refs := access.NewVisitorReferences(h.ExportKey)
-	expected, _ := refs.Encode(opaqueSite, opaqueOwner)
-	for _, name := range []string{"record.added", "record.changed", "file.uploaded"} {
-		for _, visitor := range []any{opaqueOwner, nil} {
-			raw, _ := json.Marshal(map[string]any{"visitor": visitor, "site": "blog", "fields": map[string]any{"item": "cake", "number": json.Number("9007199254740993")}})
-			d := model.NotificationDelivery{EventID: "evt_test", Name: name, Data: raw}
-			for _, source := range []string{"mcp", "webhook"} {
-				body := notificationBody(h, context.Background(), model.Notification{Source: source, SiteID: opaqueSite}, d, 1)
-				var payload struct {
-					Data map[string]any `json:"data"`
-				}
-				if err := json.Unmarshal(body, &payload); err != nil {
-					t.Fatal(err)
-				}
-				want := visitor
-				if source == "mcp" && visitor != nil {
-					want = expected
-				}
-				if payload.Data["visitor"] != want {
-					t.Fatalf("%s %s visitor = %v", name, source, payload.Data["visitor"])
-				}
-				if source == "mcp" && bytes.Contains(body, []byte(opaqueOwner)) {
-					t.Fatal("notification leaks account ID")
-				}
-				var exact struct {
-					Data struct {
-						Fields struct {
-							Number json.Number `json:"number"`
-						} `json:"fields"`
-					} `json:"data"`
-				}
-				if err := json.Unmarshal(body, &exact); err != nil || exact.Data.Fields.Number.String() != "9007199254740993" {
-					t.Fatal("notification changed numeric precision")
-				}
-				if !bytes.Equal(d.Data, raw) {
-					t.Fatal("stored event mutated")
-				}
-			}
-		}
-	}
-	h.Ed = servertest.GroupTestEdition()
-	raw, _ := json.Marshal(map[string]any{"visitor": opaqueOwner})
-	body := notificationBody(h, context.Background(), model.Notification{Source: "mcp", SiteID: opaqueSite}, model.NotificationDelivery{Data: raw}, 1)
-	if !bytes.Contains(body, []byte(opaqueOwner)) {
-		t.Fatal("Hack notification changed")
-	}
-}
-
+// The connector hands tools the same opaque visitor reference that
+// notifications carry, so one visitor has one reference everywhere.
 func TestConnectorUsesSiteVisitorKey(t *testing.T) {
-	h := &accesshttp.AccessHandler{ExportKey: siteshttp.NewExportKey()}
+	h := &accesshttp.AccessHandler{ExportKey: []byte("accesstest-export-key-0123456789")}
 	connector := &accesshttp.ConnectorHandler{}
 	connector.SetVisitorReferences(h)
 	ref, err := connector.MCPConfig.VisitorRefs.Encode(opaqueSite, opaqueOwner)

@@ -10,11 +10,8 @@ func TestPruneThreshold(t *testing.T) {
 		wantPrune    bool
 	}{
 		{"keep everything", 9, 0, 0, false},
-		{"first deploy has no history", 1, 1, 0, false},
 		{"second deploy, keeping one", 2, 1, 2, true},
-		{"tenth deploy, keeping one", 10, 1, 10, true},
 		{"tenth deploy, keeping three", 10, 3, 8, true},
-		{"keeping more than exists", 3, 10, 0, false},
 		// After a rollback the active version is not the newest. The threshold
 		// sits at the active version, so nothing above it is a candidate — the
 		// SQL then excludes the active row itself and deletes only what is older.

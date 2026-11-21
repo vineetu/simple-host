@@ -20,10 +20,10 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	model "github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/server/servertest"
+	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 )
 
-func mcpToolNames(t *testing.T, r servertest.Resp) []string {
+func mcpToolNames(t *testing.T, r Resp) []string {
 	t.Helper()
 	if r.Status != http.StatusOK {
 		t.Fatalf("mcp: %d %s", r.Status, r.Body)
@@ -46,8 +46,8 @@ func hasTool(names []string, want string) bool {
 }
 
 func TestConnectorMetadataAndChallenge(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	r := a.Do(t, http.MethodPost, "/mcp", servertest.JSONBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}), nil)
+	a := NewApp(t)
+	r := a.Do(t, http.MethodPost, "/mcp", rt.JSONBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "initialize"}), nil)
 	want := `Bearer resource_metadata="` + a.Srv.URL + `/.well-known/oauth-protected-resource/mcp"`
 	if r.Status != http.StatusUnauthorized || !strings.HasPrefix(r.Header.Get("WWW-Authenticate"), want) {
 		t.Fatalf("unauthenticated /mcp: %d %q", r.Status, r.Header.Get("WWW-Authenticate"))
@@ -68,14 +68,14 @@ func TestConnectorMetadataAndChallenge(t *testing.T) {
 	if pre.Header.Get("Access-Control-Allow-Origin") != "*" || !strings.Contains(pre.Header.Get("Access-Control-Allow-Headers"), "Authorization") {
 		t.Fatalf("CORS preflight on /mcp: %v", pre.Header)
 	}
-	bad := a.Do(t, http.MethodPost, "/mcp", servertest.JSONBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "ping"}), map[string]string{"Authorization": "Bearer shat_nope"})
+	bad := a.Do(t, http.MethodPost, "/mcp", rt.JSONBody(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "ping"}), map[string]string{"Authorization": "Bearer shat_nope"})
 	if bad.Status != http.StatusUnauthorized || !strings.Contains(bad.Header.Get("WWW-Authenticate"), `error="invalid_token"`) {
 		t.Fatalf("bad token: %d %q", bad.Status, bad.Header.Get("WWW-Authenticate"))
 	}
 }
 
 func TestConnectorRegistration(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	h := map[string]string{"Content-Type": "application/json"}
 	for _, body := range []map[string]any{
 		{"redirect_uris": []string{"http://evil.example/cb"}},
@@ -83,17 +83,17 @@ func TestConnectorRegistration(t *testing.T) {
 		{"redirect_uris": []string{"https://ok.example/cb"}, "grant_types": []string{"password"}},
 		{"redirect_uris": []string{"https://ok.example/cb"}, "token_endpoint_auth_method": "private_key_jwt"},
 	} {
-		if r := a.Do(t, http.MethodPost, "/oauth/register", servertest.JSONBody(body), h); r.Status != http.StatusBadRequest {
+		if r := a.Do(t, http.MethodPost, "/oauth/register", rt.JSONBody(body), h); r.Status != http.StatusBadRequest {
 			t.Errorf("accepted %v: %d", body, r.Status)
 		}
 	}
-	conf := a.Do(t, http.MethodPost, "/oauth/register", servertest.JSONBody(map[string]any{"redirect_uris": []string{"https://ok.example/cb"}, "client_name": "Conf"}), h).JSON(t)
-	if conf["token_endpoint_auth_method"] != "client_secret_basic" || !strings.HasPrefix(conf["client_secret"].(string), accesshttp.PrefixSecret) {
+	conf := a.Do(t, http.MethodPost, "/oauth/register", rt.JSONBody(map[string]any{"redirect_uris": []string{"https://ok.example/cb"}, "client_name": "Conf"}), h).JSON(t)
+	if conf["token_endpoint_auth_method"] != "client_secret_basic" || !strings.HasPrefix(conf["client_secret"].(string), accountapp.PrefixSecret) {
 		t.Fatalf("default registration should be confidential: %v", conf)
 	}
 	var stored string
 	_ = a.Database.QueryRow(`SELECT client_secret_hash FROM oauth_clients WHERE client_id = $1`, conf["client_id"]).Scan(&stored)
-	if stored == conf["client_secret"] || stored != accesshttp.HashSecret(conf["client_secret"].(string)) {
+	if stored == conf["client_secret"] || stored != accountapp.HashSecret(conf["client_secret"].(string)) {
 		t.Fatal("client secret not stored as a hash")
 	}
 }
@@ -101,10 +101,10 @@ func TestConnectorRegistration(t *testing.T) {
 // TestConnectorCursorFlow replays what Cursor sends (2026-10-15: a real
 // Cursor user got 400 from /oauth/register for its cursor:// redirect).
 func TestConnectorCursorFlow(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ann := a.NewPerson(t, "ann")
 	const redirect = "cursor://anysphere.cursor-mcp/oauth/callback"
-	reg := a.Do(t, http.MethodPost, "/oauth/register", servertest.JSONBody(map[string]any{
+	reg := a.Do(t, http.MethodPost, "/oauth/register", rt.JSONBody(map[string]any{
 		"client_name": "Cursor", "redirect_uris": []string{redirect}, "token_endpoint_auth_method": "none",
 		"grant_types": []string{"authorization_code", "refresh_token"}, "response_types": []string{"code"},
 	}), map[string]string{"Content-Type": "application/json"})
@@ -114,16 +114,16 @@ func TestConnectorCursorFlow(t *testing.T) {
 	clientID := reg.JSON(t)["client_id"].(string)
 
 	// PKCE stays mandatory for an app-scheme client.
-	noPKCE := servertest.AuthorizeQuery(clientID, redirect, "")
+	noPKCE := AuthorizeQuery(clientID, redirect, "")
 	noPKCE.Del("code_challenge")
 	noPKCE.Del("code_challenge_method")
 	if r := a.Do(t, http.MethodGet, "/oauth/authorize?"+noPKCE.Encode(), nil, nil); r.Status != http.StatusFound || !strings.Contains(r.Header.Get("Location"), "error=invalid_request") {
 		t.Fatalf("authorize without PKCE: %d %s", r.Status, r.Header.Get("Location"))
 	}
 
-	_, challenge := servertest.NewVerifier()
-	page := a.Do(t, http.MethodGet, "/oauth/authorize?"+servertest.AuthorizeQuery(clientID, redirect, challenge).Encode(), nil, nil)
-	m := servertest.ConnectDataRe.FindSubmatch(page.Body)
+	_, challenge := NewVerifier()
+	page := a.Do(t, http.MethodGet, "/oauth/authorize?"+AuthorizeQuery(clientID, redirect, challenge).Encode(), nil, nil)
+	m := ConnectDataRe.FindSubmatch(page.Body)
 	if page.Status != http.StatusOK || m == nil {
 		t.Fatalf("authorize page: %d", page.Status)
 	}
@@ -134,36 +134,33 @@ func TestConnectorCursorFlow(t *testing.T) {
 	}
 
 	tok := a.Connect(t, ann, clientID, redirect)
-	if !strings.HasPrefix(tok["access_token"].(string), accesshttp.PrefixAccess) {
+	if !strings.HasPrefix(tok["access_token"].(string), accountapp.PrefixAccess) {
 		t.Fatalf("tokens: %v", tok)
 	}
-	if init := a.Rpc(t, tok["access_token"].(string), "tools/list", map[string]any{}); !strings.Contains(string(init.Body), `"create_site"`) {
-		t.Fatalf("tools/list: %s", init.Body)
+	if list := a.Rpc(t, tok["access_token"].(string), "tools/list", map[string]any{}); !strings.Contains(string(list.Body), `"who_am_i"`) {
+		t.Fatalf("tools/list: %s", list.Body)
 	}
 }
 
-func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+func TestConnectorHappyPathThroughMCP(t *testing.T) {
+	a := NewApp(t)
 	ann := a.NewPerson(t, "ann")
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
+	clientID := a.RegisterClient(t, TestRedirect)
 
-	verifier, challenge := servertest.NewVerifier()
-	q := servertest.AuthorizeQuery(clientID, servertest.TestRedirect, challenge)
+	verifier, challenge := NewVerifier()
+	q := AuthorizeQuery(clientID, TestRedirect, challenge)
 	q.Set("resource", a.Srv.URL+"/mcp")
 	page := a.Do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil)
 	if !strings.Contains(page.Header.Get("Content-Security-Policy"), "frame-ancestors 'none'") || page.Header.Get("X-Frame-Options") != "DENY" {
 		t.Fatal("consent page can be framed")
 	}
-	if !strings.Contains(string(page.Body), `class="sh-header"`) || !strings.Contains(string(page.Body), "Test Chat") {
-		t.Fatal("consent page lacks the site chrome or the app name")
-	}
 	redirectTo := a.Consent(t, q, ann.Key, "allow")
 	u, _ := url.Parse(redirectTo)
-	if !strings.HasPrefix(redirectTo, servertest.TestRedirect+"?") || u.Query().Get("state") != "st4te" || u.Query().Get("iss") != a.Srv.URL {
+	if !strings.HasPrefix(redirectTo, TestRedirect+"?") || u.Query().Get("state") != "st4te" || u.Query().Get("iss") != a.Srv.URL {
 		t.Fatalf("redirect %s", redirectTo)
 	}
 	tok := a.Form(t, "/oauth/token", url.Values{
-		"grant_type": {"authorization_code"}, "code": {u.Query().Get("code")}, "redirect_uri": {servertest.TestRedirect},
+		"grant_type": {"authorization_code"}, "code": {u.Query().Get("code")}, "redirect_uri": {TestRedirect},
 		"client_id": {clientID}, "code_verifier": {verifier}, "resource": {a.Srv.URL + "/mcp"},
 	}, nil)
 	if tok.Status != http.StatusOK || tok.Header.Get("Cache-Control") != "no-store" {
@@ -171,7 +168,7 @@ func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
 	}
 	tokens := tok.JSON(t)
 	access := tokens["access_token"].(string)
-	if !strings.HasPrefix(access, accesshttp.PrefixAccess) || tokens["expires_in"].(float64) != 3600 || tokens["token_type"] != "Bearer" {
+	if !strings.HasPrefix(access, accountapp.PrefixAccess) || tokens["expires_in"].(float64) != 3600 || tokens["token_type"] != "Bearer" {
 		t.Fatalf("tokens: %v", tokens)
 	}
 	var n int
@@ -185,27 +182,17 @@ func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
 		t.Fatalf("initialize: %s", init.Body)
 	}
 	list := a.Rpc(t, access, "tools/list", map[string]any{})
-	if !strings.Contains(string(list.Body), `"create_site"`) {
+	if !strings.Contains(string(list.Body), `"who_am_i"`) {
 		t.Fatalf("tools/list: %s", list.Body)
 	}
-	text, s, isErr := servertest.ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "create_site", "arguments": map[string]any{
-		"site": "hello-connector", "files": map[string]any{"index.html": "<h1>hi</h1>"},
-	}}))
-	if isErr || s["active_version"].(float64) != 1 || !strings.Contains(s["url"].(string), "/hello-connector/") {
-		t.Fatalf("create_site: %s", text)
-	}
 	// The email is left out unless the person asks for it (2026-10-28).
-	text, s, isErr = servertest.ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
+	text, s, isErr := ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
 	if isErr || s["email"] != "" || strings.Contains(text, ann.Email) {
 		t.Fatalf("who_am_i: %s", text)
 	}
-	text, s, isErr = servertest.ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{"include_email": true}}))
+	text, s, isErr = ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{"include_email": true}}))
 	if isErr || s["email"] != ann.Email {
 		t.Fatalf("who_am_i include_email: %s", text)
-	}
-	text, _, isErr = servertest.ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "read_site_file", "arguments": map[string]any{"site": "hello-connector", "path": "index.html"}}))
-	if isErr || text != "<h1>hi</h1>" {
-		t.Fatalf("read_site_file: %q", text)
 	}
 
 	conns := a.Do(t, http.MethodGet, "/v1/me/connections", nil, map[string]string{"X-API-Key": ann.Key}).JSON(t)["connections"].([]any)
@@ -220,18 +207,18 @@ func TestConnectorHappyPathPublishesThroughMCP(t *testing.T) {
 }
 
 func TestConnectorAuthorizeRefusals(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ann := a.NewPerson(t, "ann")
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
-	_, challenge := servertest.NewVerifier()
+	clientID := a.RegisterClient(t, TestRedirect)
+	_, challenge := NewVerifier()
 
 	// A redirect URI the client did not register is shown to the person and
 	// never followed: following it would be an open redirect.
-	q := servertest.AuthorizeQuery(clientID, "https://attacker.example/cb", challenge)
+	q := AuthorizeQuery(clientID, "https://attacker.example/cb", challenge)
 	if r := a.Do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil); r.Status != http.StatusBadRequest || r.Header.Get("Location") != "" {
 		t.Fatalf("unregistered redirect: %d %q", r.Status, r.Header.Get("Location"))
 	}
-	q = servertest.AuthorizeQuery("shc_unknown", servertest.TestRedirect, challenge)
+	q = AuthorizeQuery("shc_unknown", TestRedirect, challenge)
 	if r := a.Do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil); r.Status != http.StatusBadRequest || r.Header.Get("Location") != "" {
 		t.Fatalf("unknown client: %d", r.Status)
 	}
@@ -241,7 +228,7 @@ func TestConnectorAuthorizeRefusals(t *testing.T) {
 		"token response":   func(v url.Values) { v.Set("response_type", "token") },
 		"foreign audience": func(v url.Values) { v.Set("resource", "https://other.example/mcp") },
 	} {
-		q := servertest.AuthorizeQuery(clientID, servertest.TestRedirect, challenge)
+		q := AuthorizeQuery(clientID, TestRedirect, challenge)
 		mutate(q)
 		r := a.Do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil)
 		loc, _ := url.Parse(r.Header.Get("Location"))
@@ -250,16 +237,16 @@ func TestConnectorAuthorizeRefusals(t *testing.T) {
 		}
 	}
 
-	q = servertest.AuthorizeQuery(clientID, servertest.TestRedirect, challenge)
+	q = AuthorizeQuery(clientID, TestRedirect, challenge)
 	page := a.Do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil)
 	var data map[string]any
-	_ = json.Unmarshal(servertest.ConnectDataRe.FindSubmatch(page.Body)[1], &data)
+	_ = json.Unmarshal(ConnectDataRe.FindSubmatch(page.Body)[1], &data)
 	decide := func(key, csrf, origin string) int {
 		h := map[string]string{"Content-Type": "application/json", "X-API-Key": key}
 		if origin != "" {
 			h["Origin"] = origin
 		}
-		return a.Do(t, http.MethodPost, "/oauth/authorize/decision", servertest.JSONBody(map[string]string{"query": q.Encode(), "csrf": csrf, "decision": "allow"}), h).Status
+		return a.Do(t, http.MethodPost, "/oauth/authorize/decision", rt.JSONBody(map[string]string{"query": q.Encode(), "csrf": csrf, "decision": "allow"}), h).Status
 	}
 	if s := decide(ann.Key, "1.forged", a.Srv.URL); s != http.StatusForbidden {
 		t.Errorf("forged CSRF token: %d", s)
@@ -285,36 +272,36 @@ func TestConnectorAuthorizeRefusals(t *testing.T) {
 }
 
 func TestConnectorCodeRules(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ann := a.NewPerson(t, "ann")
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
-	redeem := func(code, verifier, redirect string) servertest.Resp {
+	clientID := a.RegisterClient(t, TestRedirect)
+	redeem := func(code, verifier, redirect string) Resp {
 		return a.Form(t, "/oauth/token", url.Values{
 			"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect},
 			"client_id": {clientID}, "code_verifier": {verifier},
 		}, nil)
 	}
 	fresh := func() (string, string) {
-		v, c := servertest.NewVerifier()
-		return v, servertest.CodeFrom(t, a.Consent(t, servertest.AuthorizeQuery(clientID, servertest.TestRedirect, c), ann.Key, "allow"))
+		v, c := NewVerifier()
+		return v, CodeFrom(t, a.Consent(t, AuthorizeQuery(clientID, TestRedirect, c), ann.Key, "allow"))
 	}
-	isInvalidGrant := func(r servertest.Resp) bool {
+	isInvalidGrant := func(r Resp) bool {
 		return r.Status == http.StatusBadRequest && r.JSON(t)["error"] == "invalid_grant"
 	}
 
 	t.Run("wrong verifier, and the code is spent", func(t *testing.T) {
 		v, code := fresh()
-		other, _ := servertest.NewVerifier()
-		if r := redeem(code, other, servertest.TestRedirect); !isInvalidGrant(r) {
+		other, _ := NewVerifier()
+		if r := redeem(code, other, TestRedirect); !isInvalidGrant(r) {
 			t.Fatalf("wrong verifier: %d %s", r.Status, r.Body)
 		}
-		if r := redeem(code, v, servertest.TestRedirect); !isInvalidGrant(r) {
+		if r := redeem(code, v, TestRedirect); !isInvalidGrant(r) {
 			t.Fatalf("code usable after a failed attempt: %d", r.Status)
 		}
 	})
 	t.Run("missing verifier", func(t *testing.T) {
 		_, code := fresh()
-		if r := redeem(code, "", servertest.TestRedirect); !isInvalidGrant(r) {
+		if r := redeem(code, "", TestRedirect); !isInvalidGrant(r) {
 			t.Fatalf("%d", r.Status)
 		}
 	})
@@ -326,22 +313,22 @@ func TestConnectorCodeRules(t *testing.T) {
 	})
 	t.Run("expired", func(t *testing.T) {
 		v, code := fresh()
-		_, _ = a.Database.Exec(`UPDATE oauth_codes SET expires_at = now() - interval '1 second' WHERE code_hash = $1`, accesshttp.HashSecret(code))
-		if r := redeem(code, v, servertest.TestRedirect); !isInvalidGrant(r) {
+		_, _ = a.Database.Exec(`UPDATE oauth_codes SET expires_at = now() - interval '1 second' WHERE code_hash = $1`, accountapp.HashSecret(code))
+		if r := redeem(code, v, TestRedirect); !isInvalidGrant(r) {
 			t.Fatalf("%d", r.Status)
 		}
 	})
 	t.Run("another client", func(t *testing.T) {
 		v, code := fresh()
-		other := a.RegisterClient(t, servertest.TestRedirect)
-		r := a.Form(t, "/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {servertest.TestRedirect}, "client_id": {other}, "code_verifier": {v}}, nil)
+		other := a.RegisterClient(t, TestRedirect)
+		r := a.Form(t, "/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {TestRedirect}, "client_id": {other}, "code_verifier": {v}}, nil)
 		if !isInvalidGrant(r) {
 			t.Fatalf("%d", r.Status)
 		}
 	})
 	t.Run("reuse revokes what the first redemption issued", func(t *testing.T) {
 		v, code := fresh()
-		first := redeem(code, v, servertest.TestRedirect)
+		first := redeem(code, v, TestRedirect)
 		if first.Status != http.StatusOK {
 			t.Fatalf("first: %d %s", first.Status, first.Body)
 		}
@@ -349,7 +336,7 @@ func TestConnectorCodeRules(t *testing.T) {
 		if r := a.Rpc(t, access, "ping", map[string]any{}); r.Status != 200 {
 			t.Fatalf("fresh token: %d", r.Status)
 		}
-		if r := redeem(code, v, servertest.TestRedirect); !isInvalidGrant(r) {
+		if r := redeem(code, v, TestRedirect); !isInvalidGrant(r) {
 			t.Fatalf("reuse: %d", r.Status)
 		}
 		if r := a.Rpc(t, access, "ping", map[string]any{}); r.Status != http.StatusUnauthorized {
@@ -359,11 +346,11 @@ func TestConnectorCodeRules(t *testing.T) {
 }
 
 func TestConnectorRefreshRotationAndReuse(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ann := a.NewPerson(t, "ann")
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
-	tokens := a.Connect(t, ann, clientID, servertest.TestRedirect)
-	refresh := func(rt string) servertest.Resp {
+	clientID := a.RegisterClient(t, TestRedirect)
+	tokens := a.Connect(t, ann, clientID, TestRedirect)
+	refresh := func(rt string) Resp {
 		return a.Form(t, "/oauth/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {rt}, "client_id": {clientID}}, nil)
 	}
 	r1 := refresh(tokens["refresh_token"].(string))
@@ -388,19 +375,19 @@ func TestConnectorRefreshRotationAndReuse(t *testing.T) {
 		t.Fatal("refresh token from the family survived reuse")
 	}
 	// A refresh token presented by another client is refused.
-	t3 := a.Connect(t, ann, clientID, servertest.TestRedirect)
-	other := a.RegisterClient(t, servertest.TestRedirect)
+	t3 := a.Connect(t, ann, clientID, TestRedirect)
+	other := a.RegisterClient(t, TestRedirect)
 	if r := a.Form(t, "/oauth/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {t3["refresh_token"].(string)}, "client_id": {other}}, nil); r.Status != http.StatusBadRequest {
 		t.Fatalf("cross-client refresh: %d", r.Status)
 	}
 }
 
 func TestConnectorRevocation(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ann := a.NewPerson(t, "ann")
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
+	clientID := a.RegisterClient(t, TestRedirect)
 
-	tokens := a.Connect(t, ann, clientID, servertest.TestRedirect)
+	tokens := a.Connect(t, ann, clientID, TestRedirect)
 	access := tokens["access_token"].(string)
 	if r := a.Form(t, "/oauth/revoke", url.Values{"token": {access}, "client_id": {clientID}}, nil); r.Status != 200 {
 		t.Fatalf("revoke: %d", r.Status)
@@ -416,7 +403,7 @@ func TestConnectorRevocation(t *testing.T) {
 		t.Fatal("revoked refresh token accepted")
 	}
 	// Disconnecting from the account.
-	t2 := a.Connect(t, ann, clientID, servertest.TestRedirect)
+	t2 := a.Connect(t, ann, clientID, TestRedirect)
 	if r := a.Do(t, http.MethodDelete, "/v1/me/connections/"+clientID, nil, map[string]string{"X-API-Key": ann.Key}); r.Status != http.StatusNoContent {
 		t.Fatalf("disconnect: %d", r.Status)
 	}
@@ -424,7 +411,7 @@ func TestConnectorRevocation(t *testing.T) {
 		t.Fatal("token survived disconnect")
 	}
 	// Rotating the API key disconnects every app.
-	t3 := a.Connect(t, ann, clientID, servertest.TestRedirect)
+	t3 := a.Connect(t, ann, clientID, TestRedirect)
 	if r := a.Do(t, http.MethodPost, "/v1/me/api-key/rotate", nil, map[string]string{"X-API-Key": ann.Key}); r.Status != 200 {
 		t.Fatalf("rotate: %d", r.Status)
 	}
@@ -433,7 +420,7 @@ func TestConnectorRevocation(t *testing.T) {
 	}
 	// Deleting the person deletes their connections.
 	bob := a.NewPerson(t, "bob")
-	t4 := a.Connect(t, bob, clientID, servertest.TestRedirect)
+	t4 := a.Connect(t, bob, clientID, TestRedirect)
 	_, _ = a.Database.Exec(`DELETE FROM users WHERE username = $1`, bob.Email)
 	if r := a.Rpc(t, t4["access_token"].(string), "ping", map[string]any{}); r.Status != http.StatusUnauthorized {
 		t.Fatal("token survived account deletion")
@@ -441,45 +428,34 @@ func TestConnectorRevocation(t *testing.T) {
 }
 
 func TestConnectorToolsHaveRESTPermissions(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ann, bob := a.NewPerson(t, "ann"), a.NewPerson(t, "bob")
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
-	if r := a.Do(t, http.MethodPost, "/v1/sites/bobs-page/files", servertest.JSONBody(map[string]any{"files": map[string]string{"index.html": "bob"}}),
-		map[string]string{"X-API-Key": bob.Key, "Content-Type": "application/json"}); r.Status != http.StatusCreated {
-		t.Fatalf("bob deploy: %d %s", r.Status, r.Body)
-	}
-	access := a.Connect(t, ann, clientID, servertest.TestRedirect)["access_token"].(string)
+	clientID := a.RegisterClient(t, TestRedirect)
+	a.Deploy(t, bob, "bobs-page")
+	access := a.Connect(t, ann, clientID, TestRedirect)["access_token"].(string)
 	for _, call := range []map[string]any{
-		{"name": "delete_site", "arguments": map[string]any{"site": "bobs-page", "confirm_name": "bobs-page"}},
-		{"name": "update_site", "arguments": map[string]any{"site": "bobs-page", "files": map[string]any{"index.html": "ann was here"}}},
-		{"name": "rollback_site", "arguments": map[string]any{"site": "bobs-page", "version": 1}},
-		{"name": "read_site_file", "arguments": map[string]any{"site": "bobs-page", "path": "index.html", "version": 1}},
-		{"name": "set_visibility", "arguments": map[string]any{"site": "bobs-page", "visibility": "public"}},
+		{"name": "add_site_editor", "arguments": map[string]any{"site": "bobs-page", "person": ann.Handle}},
+		{"name": "set_site_access", "arguments": map[string]any{"site": "bobs-page", "access": "specific"}},
 	} {
-		text, _, isErr := servertest.ToolResultOf(t, a.Rpc(t, access, "tools/call", call))
+		text, _, isErr := ToolResultOf(t, a.Rpc(t, access, "tools/call", call))
 		if !isErr || !(strings.Contains(text, "404") || strings.Contains(text, "no site named")) {
 			t.Errorf("%s on another person's site: %q", call["name"], text)
 		}
 	}
 	var n int
-	_ = a.Database.QueryRow(`SELECT active_version FROM sites WHERE name = 'bobs-page'`).Scan(&n)
-	if n != 1 {
-		t.Fatal("bob's site changed")
+	_ = a.Database.QueryRow(`SELECT count(*) FROM site_editors`).Scan(&n)
+	if n != 0 {
+		t.Fatal("bob's site gained an editor")
 	}
-	// An /mcp token is not a REST credential; a whole-server token is, and it
-	// has exactly the person's key's power.
-	if r := a.Do(t, http.MethodGet, "/v1/sites", nil, map[string]string{"Authorization": "Bearer " + access}); r.Status != http.StatusUnauthorized {
+	// An /mcp token is not a REST credential.
+	if r := a.Do(t, http.MethodGet, "/v1/me", nil, map[string]string{"Authorization": "Bearer " + access}); r.Status != http.StatusUnauthorized {
 		t.Fatalf("/mcp token accepted on /v1: %d", r.Status)
 	}
 }
 
 func TestConnectorConfidentialClientForGPTActions(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	ann, bob := a.NewPerson(t, "ann"), a.NewPerson(t, "bob")
-	if r := a.Do(t, http.MethodPost, "/v1/sites/bobs-other/files", servertest.JSONBody(map[string]any{"files": map[string]string{"index.html": "bob"}}),
-		map[string]string{"X-API-Key": bob.Key, "Content-Type": "application/json"}); r.Status != http.StatusCreated {
-		t.Fatalf("bob deploy: %d", r.Status)
-	}
+	a := NewApp(t)
+	ann := a.NewPerson(t, "ann")
 	redirect := "https://chatgpt.com/aip/g-test/oauth/callback"
 	id, secret, err := accesshttp.CreateOperatorClient(context.Background(), a.Database, "Simple Host GPT", []string{redirect}, false)
 	if err != nil {
@@ -487,32 +463,28 @@ func TestConnectorConfidentialClientForGPTActions(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = accountsrepo.DeleteOAuthClient(context.Background(), a.Database, id) })
 	q := url.Values{"response_type": {"code"}, "client_id": {id}, "redirect_uri": {redirect}, "scope": {"sites"}, "state": {"gpt"}}
-	code := servertest.CodeFrom(t, a.Consent(t, q, ann.Key, "allow"))
+	code := CodeFrom(t, a.Consent(t, q, ann.Key, "allow"))
 	if r := a.Form(t, "/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect}, "client_id": {id}, "client_secret": {"wrong"}}, nil); r.Status != http.StatusUnauthorized {
 		t.Fatalf("wrong secret: %d", r.Status)
 	}
-	code = servertest.CodeFrom(t, a.Consent(t, q, ann.Key, "allow"))
+	code = CodeFrom(t, a.Consent(t, q, ann.Key, "allow"))
 	tok := a.Form(t, "/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect}, "client_id": {id}, "client_secret": {secret}}, nil)
 	if tok.Status != 200 {
 		t.Fatalf("GPT token: %d %s", tok.Status, tok.Body)
 	}
-	access := tok.JSON(t)["access_token"].(string)
-	bearer := map[string]string{"Authorization": "Bearer " + access, "Content-Type": "application/json"}
-	if r := a.Do(t, http.MethodPost, "/v1/sites/gpt-made/files", servertest.JSONBody(map[string]any{"files": map[string]string{"index.html": "gpt"}}), bearer); r.Status != http.StatusCreated {
-		t.Fatalf("deploy with bearer: %d %s", r.Status, r.Body)
-	}
-	if r := a.Do(t, http.MethodDelete, "/v1/sites/bobs-other", nil, bearer); r.Status != http.StatusNotFound {
-		t.Fatalf("bearer deleted another person's site: %d", r.Status)
+	bearer := map[string]string{"Authorization": "Bearer " + tok.JSON(t)["access_token"].(string)}
+	if r := a.Do(t, http.MethodGet, "/v1/me", nil, bearer); r.Status != http.StatusOK || r.JSON(t)["username"] != ann.Email {
+		t.Fatalf("bearer on /v1/me: %d %s", r.Status, r.Body)
 	}
 	// A verifier for a code issued without a challenge is a downgrade attempt.
-	code = servertest.CodeFrom(t, a.Consent(t, q, ann.Key, "allow"))
-	v, _ := servertest.NewVerifier()
+	code = CodeFrom(t, a.Consent(t, q, ann.Key, "allow"))
+	v, _ := NewVerifier()
 	if r := a.Form(t, "/oauth/token", url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect}, "client_id": {id}, "client_secret": {secret}, "code_verifier": {v}}, nil); r.Status != http.StatusBadRequest {
 		t.Fatalf("PKCE downgrade accepted: %d", r.Status)
 	}
 	// A self-registered client can never skip PKCE.
-	pub := a.RegisterClient(t, servertest.TestRedirect)
-	q2 := url.Values{"response_type": {"code"}, "client_id": {pub}, "redirect_uri": {servertest.TestRedirect}, "state": {"s"}}
+	pub := a.RegisterClient(t, TestRedirect)
+	q2 := url.Values{"response_type": {"code"}, "client_id": {pub}, "redirect_uri": {TestRedirect}, "state": {"s"}}
 	if r := a.Do(t, http.MethodGet, "/oauth/authorize?"+q2.Encode(), nil, nil); r.Status != http.StatusFound || !strings.Contains(r.Header.Get("Location"), "error=invalid_request") {
 		t.Fatalf("public client without PKCE: %d %s", r.Status, r.Header.Get("Location"))
 	}
@@ -521,7 +493,7 @@ func TestConnectorConfidentialClientForGPTActions(t *testing.T) {
 // A sign-in link token is redeemable only with the nonce of the browser that
 // asked for it (login-CSRF fix); the typed code needs no nonce.
 func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ann := a.NewPerson(t, "ann")
 	nonce := "the-requesting-browsers-nonce"
 	sum := sha256.Sum256([]byte(nonce))
@@ -533,8 +505,8 @@ func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
 		}
 		return lt
 	}
-	verify := func(body map[string]string) servertest.Resp {
-		return a.Do(t, http.MethodPost, "/v1/auth/verify", servertest.JSONBody(body), map[string]string{"Content-Type": "application/json"})
+	verify := func(body map[string]string) Resp {
+		return a.Do(t, http.MethodPost, "/v1/auth/verify", rt.JSONBody(body), map[string]string{"Content-Type": "application/json"})
 	}
 	bound := issue(sql.NullString{String: hash, Valid: true}, "111111")
 	if r := verify(map[string]string{"token": bound}); r.Status != http.StatusUnauthorized {
@@ -555,7 +527,7 @@ func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
 	if r := verify(map[string]string{"email": ann.Email, "code": "222222"}); r.Status != http.StatusOK {
 		t.Fatalf("typed code refused: %d %s", r.Status, r.Body)
 	}
-	if r := a.Do(t, http.MethodPost, "/v1/auth", servertest.JSONBody(map[string]string{"email": ann.Email, "nonce_hash": "not-a-hash"}), map[string]string{"Content-Type": "application/json"}); r.Status != http.StatusBadRequest {
+	if r := a.Do(t, http.MethodPost, "/v1/auth", rt.JSONBody(map[string]string{"email": ann.Email, "nonce_hash": "not-a-hash"}), map[string]string{"Content-Type": "application/json"}); r.Status != http.StatusBadRequest {
 		t.Fatalf("malformed nonce_hash accepted: %d", r.Status)
 	}
 }
@@ -563,7 +535,7 @@ func TestSignInLinkNeedsTheRequestingBrowsersNonce(t *testing.T) {
 // Account keys are stored only as SHA-256; rotating kills every key the
 // account holds; internal credentials die with their request.
 func TestAPIKeysStoredHashed(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	p := a.NewPerson(t, "hashed")
 	count := func(v string) int {
 		var n int
@@ -621,7 +593,7 @@ func TestAPIKeysStoredHashed(t *testing.T) {
 // The consent page reads the API key from localStorage, so its scripts run
 // only by nonce.
 func TestConsentPageScriptNonce(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	r := a.Do(t, http.MethodGet, "/oauth/authorize", nil, nil)
 	csp := r.Header.Get("Content-Security-Policy")
 	m := regexp.MustCompile(`script-src 'self' 'nonce-([A-Za-z0-9+/=]+)';`).FindStringSubmatch(csp)
@@ -637,7 +609,7 @@ func TestConsentPageScriptNonce(t *testing.T) {
 // An ordinary Host ignores the hackathon consent choice. mode=events does not
 // become an events grant, and the tool list stays the website inventory.
 func TestConnectorHostIgnoresEventManagementMode(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	for _, path := range []string{"/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server"} {
 		scopes, _ := a.Do(t, http.MethodGet, path, nil, nil).JSON(t)["scopes_supported"].([]any)
 		if len(scopes) != 1 || scopes[0] != "sites" {
@@ -645,16 +617,16 @@ func TestConnectorHostIgnoresEventManagementMode(t *testing.T) {
 		}
 	}
 	p := a.NewPerson(t, "host")
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
-	verifier, challenge := servertest.NewVerifier()
-	q := servertest.AuthorizeQuery(clientID, servertest.TestRedirect, challenge)
+	clientID := a.RegisterClient(t, TestRedirect)
+	verifier, challenge := NewVerifier()
+	q := AuthorizeQuery(clientID, TestRedirect, challenge)
 	q.Set("resource", a.Srv.URL+"/mcp")
 	_, csrf := a.ConsentPage(t, q)
 	decided := a.DecideConsent(t, q, csrf, p.Key, map[string]any{"mode": "events", "team_id": "00000000-0000-4000-8000-000000000000"})
 	if decided.Status != http.StatusOK {
 		t.Fatalf("decision: %d %s", decided.Status, decided.Body)
 	}
-	tok := a.ExchangeCode(t, clientID, servertest.TestRedirect, verifier, servertest.CodeFrom(t, decided.JSON(t)["redirect_to"].(string)), a.Srv.URL+"/mcp")
+	tok := a.ExchangeCode(t, clientID, TestRedirect, verifier, CodeFrom(t, decided.JSON(t)["redirect_to"].(string)), a.Srv.URL+"/mcp")
 	if tok["scope"] != "sites" {
 		t.Fatalf("scope: %v", tok["scope"])
 	}
@@ -663,7 +635,7 @@ func TestConnectorHostIgnoresEventManagementMode(t *testing.T) {
 	if !hasTool(names, "create_site") || hasTool(names, "hack_list_events") {
 		t.Fatalf("ordinary tools: %v", names)
 	}
-	if _, _, isErr := servertest.ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}})); isErr {
+	if _, _, isErr := ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}})); isErr {
 		t.Fatal("who_am_i failed on an ordinary connection")
 	}
 }
@@ -671,7 +643,7 @@ func TestConnectorHostIgnoresEventManagementMode(t *testing.T) {
 // Meta Muse cannot register itself, so its Client ID is the URL of a metadata
 // document we host. That client is pre-registered, public and held to PKCE.
 func TestConnectorMuseClient(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	ctx := context.Background()
 	for i := 0; i < 2; i++ { // idempotent, as at every boot
 		if err := a.Conn.EnsureBuiltinClients(ctx); err != nil {
@@ -706,18 +678,18 @@ func TestConnectorMuseClient(t *testing.T) {
 	}
 
 	ann := a.NewPerson(t, "ann")
-	_, challenge := servertest.NewVerifier()
+	_, challenge := NewVerifier()
 	// The whole flow works under the short id too.
 	if tokens := a.Connect(t, ann, accesshttp.MuseShortClientID, accesshttp.MuseRedirectURI); tokens["access_token"] == nil {
 		t.Fatalf("connect with short id: %v", tokens)
 	}
 	// A redirect the document does not list is shown, never followed.
-	q := servertest.AuthorizeQuery(museID, "https://agent.meta.ai/api/hatch/oauth/other", challenge)
+	q := AuthorizeQuery(museID, "https://agent.meta.ai/api/hatch/oauth/other", challenge)
 	if r := a.Do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil); r.Status != http.StatusBadRequest || r.Header.Get("Location") != "" {
 		t.Fatalf("unlisted redirect: %d %q", r.Status, r.Header.Get("Location"))
 	}
 	// PKCE is required.
-	q = servertest.AuthorizeQuery(museID, accesshttp.MuseRedirectURI, challenge)
+	q = AuthorizeQuery(museID, accesshttp.MuseRedirectURI, challenge)
 	q.Del("code_challenge")
 	q.Del("code_challenge_method")
 	r := a.Do(t, http.MethodGet, "/oauth/authorize?"+q.Encode(), nil, nil)
@@ -743,44 +715,5 @@ func TestConnectorMuseClient(t *testing.T) {
 	}
 	if r := a.Rpc(t, rr.JSON(t)["access_token"].(string), "ping", map[string]any{}); r.Status != http.StatusUnauthorized {
 		t.Fatal("token survived disconnect")
-	}
-}
-
-// Someone types their email into Muse's Client ID box: the page says what to
-// paste instead. Other unknown clients keep the generic message.
-func TestConnectorUnknownClientHelp(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	_, challenge := servertest.NewVerifier()
-	page := func(clientID, redirect string) map[string]any {
-		r := a.Do(t, http.MethodGet, "/oauth/authorize?"+servertest.AuthorizeQuery(clientID, redirect, challenge).Encode(), nil, nil)
-		if r.Status != http.StatusBadRequest || r.Header.Get("Location") != "" {
-			t.Fatalf("%s: %d %q", clientID, r.Status, r.Header.Get("Location"))
-		}
-		var data map[string]any
-		_ = json.Unmarshal(servertest.ConnectDataRe.FindSubmatch(r.Body)[1], &data)
-		return data
-	}
-	d := page("someone@example.com", accesshttp.MuseRedirectURI)
-	if d["muse_client_id"] != accesshttp.MuseShortClientID || d["mcp_url"] != a.Srv.URL+"/mcp" || d["muse_typo"] != nil {
-		t.Fatalf("email in Client ID: %v", d)
-	}
-	if d := page("my name", servertest.TestRedirect); d["muse_client_id"] == nil {
-		t.Fatalf("typed text in Client ID: %v", d)
-	}
-	// A phone keyboard appending ".com" to the hosted document's address: the
-	// redirect is still Muse's own, so the page names the cause.
-	if d := page(a.Srv.URL+accesshttp.MuseClientPath+".com", accesshttp.MuseRedirectURI); d["muse_client_id"] != accesshttp.MuseShortClientID || d["muse_typo"] != true {
-		t.Fatalf("mangled document URL: %v", d)
-	}
-	if d := page("Meta-muse ", accesshttp.MuseRedirectURI); d["muse_client_id"] != accesshttp.MuseShortClientID || d["muse_typo"] != true {
-		t.Fatalf("capitalised short id: %v", d)
-	}
-	if d := page("muse", accesshttp.MuseRedirectURI); d["muse_client_id"] != accesshttp.MuseShortClientID || d["muse_typo"] != nil {
-		t.Fatalf("near miss: %v", d)
-	}
-	for _, id := range []string{"shc_expired", "https://other.example/client.json"} {
-		if d := page(id, servertest.TestRedirect); d["muse_client_id"] != nil || !strings.Contains(d["error"].(string), "not known") {
-			t.Fatalf("%s: %v", id, d)
-		}
 	}
 }

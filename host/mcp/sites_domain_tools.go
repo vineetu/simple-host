@@ -85,7 +85,6 @@ func putRecord(out map[string]any, key string, r *dnsRecord) {
 	}
 }
 
-// putText sets out[key] to value, when it is not empty.
 func putText(out map[string]any, key, value string) {
 	if value != "" {
 		out[key] = value

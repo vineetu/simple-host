@@ -12,16 +12,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Organiser assistant v2 (2026-11-09): this event's current settings, as
-// plain lines in the organiser's own words, for the assistant's prompt.
-// Built from an allow-list (never the raw JSON views pushed through the
-// secret-key deny-list, which would drop video_url/code_url and so hide
-// two hand-in fields). Every label below is the UI's label; the
-// TestAssistantSettingsLabelsInHelp test holds each one to a label or an
-// option label in navigation-help.json, so a renamed UI label shows up as
-// a failing test rather than as the assistant using an old name. A read
-// that fails is shown as "unavailable", never as an empty or default
-// value.
+// This event's current settings, as plain lines in the organiser's own words, for the assistant's prompt. Built from an allow-list (never the raw JSON views pushed through the secret-key deny-list, which would drop video_url/code_url and hide two hand-in fields). Every label is the UI's label; TestAssistantSettingsLabelsInHelp holds each to a label in navigation-help.json, so a renamed UI label fails a test instead of the assistant using an old name. A failed read is shown as "unavailable", never as an empty or default value.
 
 // assistantEntryFieldLabels: entry-rule field id -> the row label on
 // Settings > Entries. "description" has no row in today's editor.
@@ -90,8 +81,6 @@ func labelOr(m map[string]string, v string) string {
 	return v
 }
 
-// assistantTime renders a stored time in the event's own time zone, the
-// way the organiser sees it in the app.
 func assistantTime(ev model.Event, t time.Time) string {
 	loc, err := time.LoadLocation(ev.TimeZone)
 	if err != nil || ev.TimeZone == "" {
@@ -120,7 +109,6 @@ func assistantOffsetLabel(m int64) string {
 	return fmt.Sprintf("%d minutes", m)
 }
 
-// settingsText collects the CURRENT SETTINGS lines.
 type settingsText struct {
 	strings.Builder
 	ev model.Event
@@ -132,7 +120,6 @@ func (b *settingsText) line(format string, args ...any) {
 	b.WriteString("\n")
 }
 
-// timeOr is a stored time in the event's zone, or "not set".
 func (b *settingsText) timeOr(t sql.NullTime) string {
 	if !t.Valid {
 		return "not set"
@@ -140,14 +127,11 @@ func (b *settingsText) timeOr(t sql.NullTime) string {
 	return assistantTime(b.ev, t.Time)
 }
 
-// unavailable logs a failed read and says so in the block.
 func (b *settingsText) unavailable(what, label string, err error) {
 	log.Printf("hack: assistant settings %s %s: %v", what, b.ev.Slug, err)
 	b.line("%s: unavailable", label)
 }
 
-// assistantCurrentSettings builds the CURRENT SETTINGS block for one event,
-// in the order of the organiser's Settings sections.
 func (h *assistantHTTP) assistantCurrentSettings(ctx context.Context, ev model.Event) string {
 	b := &settingsText{ev: ev}
 	h.signupSettings(ctx, b)
@@ -158,7 +142,6 @@ func (h *assistantHTTP) assistantCurrentSettings(ctx context.Context, ev model.E
 	return b.String()
 }
 
-// signupSettings is Settings > Sign-up and Teams.
 func (h *assistantHTTP) signupSettings(ctx context.Context, b *settingsText) {
 	ev := b.ev
 	if questions, approval, err := h.members.Registration(ctx, ev.ID); err != nil {
@@ -173,7 +156,6 @@ func (h *assistantHTTP) signupSettings(ctx context.Context, b *settingsText) {
 	b.line("Most people per team: %d", ev.TeamSizeMax)
 }
 
-// entrySettings is Settings > Entries.
 func entrySettings(b *settingsText) {
 	ev := b.ev
 	b.line("Entries close: %s", b.timeOr(ev.SubmissionDeadline))
@@ -200,7 +182,6 @@ func entrySettings(b *settingsText) {
 	b.line("Reminder times: %s before", strings.Join(offs, ", "))
 }
 
-// presetLabel names the event's entry preset, current, older or custom.
 func presetLabel(preset string) string {
 	if l, ok := assistantPresetLabels[preset]; ok {
 		return l
@@ -228,7 +209,6 @@ func entryFieldRows(fields map[string]string) string {
 	return strings.Join(rows, "; ")
 }
 
-// judgingSettings is Settings > Judging and the Judging page.
 func (h *assistantHTTP) judgingSettings(ctx context.Context, b *settingsText) {
 	ev := b.ev
 	b.line("Judging closes: %s", b.timeOr(ev.JudgingEndsAt))
@@ -251,7 +231,6 @@ func (h *assistantHTTP) judgingSettings(ctx context.Context, b *settingsText) {
 	}
 }
 
-// rubricSettings is the rubric and the first tie criterion.
 func (h *assistantHTTP) rubricSettings(ctx context.Context, b *settingsText) {
 	ev := b.ev
 	items, err := h.entries.Rubric(ctx, ev.ID)
@@ -276,7 +255,6 @@ func (h *assistantHTTP) rubricSettings(ctx context.Context, b *settingsText) {
 	b.line("First tie criterion: %s", tie)
 }
 
-// resultSettings is Settings > Results and people's choice.
 func (h *assistantHTTP) resultSettings(ctx context.Context, b *settingsText) {
 	ev := b.ev
 	b.line("Score used for ranking: %s", labelOr(assistantScoreModeLabels, ev.ScoreMode))

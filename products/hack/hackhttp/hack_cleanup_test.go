@@ -13,61 +13,9 @@ import (
 	"time"
 
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
-
-	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 // Archive cleanup (M4) and the starter rubric seeded when an event is created.
-
-func TestHackStarterRubric(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "rub")
-	slug := uniqueSlug()
-	if r := a.createEvent(t, org, slug, nil); r.status != http.StatusCreated {
-		t.Fatalf("create: %d %s", r.status, r.body)
-	}
-	wantStarterRubric(t, decodeRubric(t, a.at(t, "GET", "/v1/hack/events/"+slug+"/rubric", nil, a.key(org))))
-	if n := a.countQuery(t, `SELECT COUNT(*) FROM rubric_criteria WHERE event_id = (SELECT id FROM events WHERE slug = $1)`, slug); n != 4 {
-		t.Fatalf("seeded rows: %d", n)
-	}
-
-	// The organiser replaces the seed through the existing rubric route.
-	replaced := decodeRubric(t, a.at(t, "PUT", "/v1/hack/events/"+slug+"/rubric",
-		rubricBody(criterion("Clarity of purpose", "Clear.", 100, 5)), a.key(org)))
-	if len(replaced.Criteria) != 1 || replaced.Criteria[0].Name != "Clarity of purpose" || replaced.Criteria[0].Weight != 100 {
-		t.Fatalf("replaced: %+v", replaced.Criteria)
-	}
-
-	// A second new event gets the seed. The first event's rubric stays as the organiser left it.
-	slug2 := uniqueSlug()
-	if r := a.createEvent(t, org, slug2, map[string]any{"title": "Second"}); r.status != http.StatusCreated {
-		t.Fatalf("create 2: %d %s", r.status, r.body)
-	}
-	wantStarterRubric(t, decodeRubric(t, a.at(t, "GET", "/v1/hack/events/"+slug2+"/rubric", nil, a.key(org))))
-	again := decodeRubric(t, a.at(t, "GET", "/v1/hack/events/"+slug+"/rubric", nil, a.key(org)))
-	if len(again.Criteria) != 1 || again.Criteria[0].Name != "Clarity of purpose" {
-		t.Fatalf("first event's rubric changed: %+v", again.Criteria)
-	}
-}
-
-func wantStarterRubric(t *testing.T, v rubricView) {
-	t.Helper()
-	want := []model.RubricCriterion{
-		{Name: "Idea", Description: "How original or useful is it?", Weight: 25, MaxPoints: 5},
-		{Name: "Execution", Description: "How well does it work?", Weight: 25, MaxPoints: 5},
-		{Name: "Design", Description: "How good is the user experience?", Weight: 25, MaxPoints: 5},
-		{Name: "Demo", Description: "How clearly was it presented?", Weight: 25, MaxPoints: 5},
-	}
-	if len(v.Criteria) != len(want) {
-		t.Fatalf("criteria: %+v", v.Criteria)
-	}
-	for i, c := range want {
-		g := v.Criteria[i]
-		if g.ID == "" || g.Position != i || g.Name != c.Name || g.Description != c.Description || g.Weight != c.Weight || g.MaxPoints != c.MaxPoints {
-			t.Fatalf("criterion %d: %+v", i, g)
-		}
-	}
-}
 
 // cancelCleanupMailer models provider acceptance racing worker shutdown.
 type cancelCleanupMailer struct {

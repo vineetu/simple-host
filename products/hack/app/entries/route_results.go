@@ -3,7 +3,6 @@ package entries
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,7 +37,6 @@ type ResultRow struct {
 	Raw map[string]any `json:"-"`
 }
 
-// EntryCard is a ranked team's public summary card in a results snapshot.
 type EntryCard struct {
 	Title         string            `json:"title"`
 	Tagline       string            `json:"tagline"`
@@ -74,33 +72,6 @@ func SnapshotRows(results []TeamResult, cards map[string]EntryCard) []ResultRow 
 	return out
 }
 
-// PublishEventResults publishes results, moving Closed or Judging to Results in the same transaction.
-func (s *Service) PublishEventResults(ctx context.Context, eventID, userID string, overrides []RankOverride,
-	moveToResults func(*sql.Tx, model.Event) (model.Event, error),
-	siteURL func(teamID, teamSlug string) (string, error), committed func()) ([]ResultRow, bool, error) {
-	var ev model.Event
-	var rows []ResultRow
-	prepare := func(tx *sql.Tx, locked model.Event) (model.Event, error) {
-		ev = locked
-		move, err := publishMovesStage(locked.Stage)
-		if err != nil || !move {
-			return locked, err
-		}
-		ev, err = moveToResults(tx, locked)
-		return ev, err
-	}
-	snapshot := func(q sqlkit.Querier, results []TeamResult) ([]byte, error) {
-		cards, err := s.entryCards(ctx, q, ev, results, siteURL)
-		if err != nil {
-			return nil, fmt.Errorf("results cards: %w", err)
-		}
-		rows = SnapshotRows(results, cards)
-		return json.Marshal(rows)
-	}
-	full, _, err := s.PublishResults(ctx, eventID, userID, overrides, prepare, snapshot, committed)
-	return rows, full.FullRanking, err
-}
-
 // publishMovesStage reports whether a publish moves the stage to Results, refusing before entries close.
 func publishMovesStage(stage string) (bool, error) {
 	switch stage {
@@ -112,7 +83,6 @@ func publishMovesStage(stage string) (bool, error) {
 	return true, nil
 }
 
-// entryCards builds each ranked team's public summary card; unranked entries get none.
 func (s *Service) entryCards(ctx context.Context, q sqlkit.Querier, ev model.Event, results []TeamResult, siteURL func(teamID, teamSlug string) (string, error)) (map[string]EntryCard, error) {
 	if !slices.ContainsFunc(results, func(r TeamResult) bool { return r.Rank != nil }) {
 		return nil, nil
@@ -148,7 +118,6 @@ func (s *Service) entryCards(ctx context.Context, q sqlkit.Querier, ev model.Eve
 	return out, nil
 }
 
-// entryCard is one entry's summary card.
 func entryCard(e model.EventEntry, track *model.EventTrack, siteURL string, codeOff bool) EntryCard {
 	codeURL := e.CodeURL
 	if codeOff {
@@ -167,8 +136,6 @@ func entryCard(e model.EventEntry, track *model.EventTrack, siteURL string, code
 	}
 }
 
-// linkHost is the host shown next to a link, "" for none or one that does
-// not parse.
 func linkHost(raw string) string {
 	if raw == "" {
 		return ""
@@ -180,15 +147,12 @@ func linkHost(raw string) string {
 	return u.Host
 }
 
-// Published is the event's published results, Published false before the
-// first publish.
 type Published struct {
 	Published, FullRanking bool
 	Rows                   []ResultRow
 	Snapshot               json.RawMessage // the stored rows, untouched
 }
 
-// PublishedResults reads and decodes the published snapshot.
 func (s *Service) PublishedResults(ctx context.Context, eventID string) (Published, error) {
 	res, err := entryrepo.GetEventResults(ctx, s.db, eventID)
 	if err != nil || !res.Published {
@@ -230,7 +194,6 @@ func ShownInWinnersOnly(rank int, trackWinner bool, prizes []string) bool {
 	return rank > 0 && (rank == 1 || trackWinner || OverallPrizeLabel(rank, prizes) != "")
 }
 
-// shownPublicly reports whether a stranger sees this ranked row: all with full ranking, else winners only.
 func (r ResultRow) shownPublicly(fullRanking bool, prizes []string) bool {
 	return r.Rank != nil && (fullRanking || ShownInWinnersOnly(*r.Rank, r.TrackWinner, prizes))
 }
@@ -250,7 +213,6 @@ func PublicResultRows(ev model.Event, pub Published) []ResultRow {
 	return out
 }
 
-// MyResults is a participant team's view of the published results.
 type MyResults struct {
 	Published bool
 	Comments  []string
@@ -300,7 +262,6 @@ func (s *Service) ExportResults(ctx context.Context, ev model.Event) ([]ResultRo
 	return SnapshotRows(results, nil), err
 }
 
-// LiveResults is the current calculation from the stored scores.
 func (s *Service) LiveResults(ctx context.Context, ev model.Event) ([]TeamResult, error) {
 	return s.ComputeResults(ctx, s.db, ev)
 }
@@ -318,8 +279,6 @@ func (s *Service) ExportScores(ctx context.Context, eventID string) ([]model.Raw
 	return rows, err
 }
 
-// nameOrder compares names case-insensitively; names differing only in case
-// sort as equal.
 func nameOrder(a, b string) int {
 	if a == b {
 		return 0

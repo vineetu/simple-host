@@ -2,10 +2,11 @@ package tarball
 
 import "fmt"
 
-// SanitizeFiles validates and normalizes a caller-supplied set of files
-// (relative path -> contents) using the SAME guards as archive extraction, so
-// the JSON deploy path (POST/PUT /v1/sites/{name}/files) inherits every defense
-// with no parallel logic to drift.
+// SanitizeFilesWithLimit validates and normalizes a caller-supplied set of
+// files (relative path -> contents) with the SAME guards as archive
+// extraction, so the JSON deploy path (POST/PUT /v1/sites/{name}/files)
+// inherits every defense with no parallel logic to drift. budget is one
+// account's size limit in bytes, ceiling the instance's MAX_FILES_PER_SITE.
 //
 // Differences from extraction, by design:
 //   - An unsafe path is a HARD error (the caller typed the path explicitly,
@@ -13,15 +14,6 @@ import "fmt"
 //     skipping — surfacing the mistake.
 //   - Secret/credential files (.env, .git/*, id_rsa, …) and junk (.DS_Store,
 //     ._*) are silently dropped, identical to extraction.
-//
-// It enforces the same per-file, total-size, and entry-count caps as extraction.
-func SanitizeFiles(in map[string][]byte) (map[string][]byte, error) {
-	return sanitize(in, current(maxEntriesCeiling), false)
-}
-
-// SanitizeFilesWithLimit is SanitizeFiles under a per-site budget in bytes
-// (one account's size limit) and the instance's own MAX_FILES_PER_SITE
-// ceiling, as ExtractWithLimit is to Extract.
 func SanitizeFilesWithLimit(in map[string][]byte, budget int64, ceiling int) (map[string][]byte, error) {
 	return sanitize(in, capsFor(budget, ceiling), false)
 }

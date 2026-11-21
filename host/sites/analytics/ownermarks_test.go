@@ -48,23 +48,6 @@ func TestViewHitOwnerMark(t *testing.T) {
 	}
 }
 
-// The exported hash helpers are the ingester's own.
-func TestExportedHashMatchesIngester(t *testing.T) {
-	if VisitorSalt("k") != visitorSalt("k") {
-		t.Fatal("VisitorSalt differs from visitorSalt")
-	}
-	if !bytes.Equal(HashIP("t", "203.0.113.9"), hashIP("t", "203.0.113.9")) {
-		t.Fatal("HashIP differs from hashIP")
-	}
-	derived := NewIngester(nil, "", "k", "", "")
-	if NewOwnerMarks(nil, "k", "").salt != derived.salt {
-		t.Fatal("NewOwnerMarks without an explicit salt must derive the ingester's")
-	}
-	if NewOwnerMarks(nil, "k", "x").salt != derived.WithSalt("x").salt {
-		t.Fatal("NewOwnerMarks with an explicit salt must use it")
-	}
-}
-
 // Mark writes one row with the ingester's hash, is throttled in memory for
 // the same (user, address), and never writes loopback. Needs DB_DSN with
 // owner_visitor_marks applied.
@@ -110,8 +93,8 @@ func TestOwnerMarksMark(t *testing.T) {
 		}
 	}
 	row()
-	if n != 1 || !bytes.Equal(hash, HashIP("t", ip)) {
-		t.Fatalf("after Mark: %d rows, hash matches = %v", n, bytes.Equal(hash, HashIP("t", ip)))
+	if n != 1 || !bytes.Equal(hash, hashIP("t", ip)) {
+		t.Fatalf("after Mark: %d rows, hash matches = %v", n, bytes.Equal(hash, hashIP("t", ip)))
 	}
 	first := seen
 

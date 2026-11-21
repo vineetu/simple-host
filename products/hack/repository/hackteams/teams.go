@@ -13,32 +13,26 @@ import (
 	"strings"
 )
 
-// Querier aliases the shared SQL interface.
 type Querier = sqlkit.Querier
 
-// EventTeam aliases the shared model record.
 type EventTeam = model.EventTeam
 
-// EventMember aliases the shared model record.
 type EventMember = model.EventMember
 
-// EventPerson aliases the shared model record.
 type EventPerson = model.EventPerson
 
 // Sentinel errors for hosted events. Handlers map these to the HTTP contract.
 var (
-	ErrHackNameTaken             = errors.New("name taken")
 	ErrHackTeamNotFound          = errors.New("team not found")
 	ErrHackTeamFull              = errors.New("team full")
 	ErrHackAlreadyInTeam         = errors.New("already in team")
 	ErrHackCannotRemoveOrganiser = hackevents.ErrHackCannotRemoveOrganiser
 	ErrHackNotParticipant        = errors.New("not a participant")
 	ErrHackTeamFrozen            = errors.New("team past its deadline")
-	// Teams redesign (zt-hack-teams-redesign.sql).
-	ErrHackTeamLocked    = errors.New("team is locked")
-	ErrHackTeamKept      = errors.New("team can't take new members")
-	ErrHackLastTeamAdmin = errors.New("can't unmake the last admin")
-	ErrHackTeamAdminOnly = errors.New("only a team admin can do that")
+	ErrHackTeamLocked            = errors.New("team is locked")
+	ErrHackTeamKept              = errors.New("team can't take new members")
+	ErrHackLastTeamAdmin         = errors.New("can't unmake the last admin")
+	ErrHackTeamAdminOnly         = errors.New("only a team admin can do that")
 )
 
 const teamColumns = `id, event_id, slug, name, code, created_by, created_at,
@@ -63,7 +57,6 @@ const (
 
 const effectiveDeadlineSQL = hackevents.EffectiveDeadlineSQL
 
-// TeamKeepableSQL is the predicate for deleting an empty team.
 const TeamKeepableSQL = hackevents.TeamKeepableSQL
 
 func queryContext(ctx context.Context, q Querier, query string, args ...any) (*sql.Rows, error) {
@@ -82,7 +75,6 @@ func scanMember(row *sql.Row) (EventMember, error) {
 	return m, err
 }
 
-// isUniqueViolation detects a Postgres unique-constraint violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
@@ -92,7 +84,6 @@ func isUniqueViolation(err error) bool {
 	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
 }
 
-// ListEventTeams is every team of the event, oldest first.
 func ListEventTeams(ctx context.Context, q Querier, eventID string) ([]EventTeam, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT `+teamColumns+`
@@ -130,21 +121,18 @@ func scanTeamRow(rows *sql.Rows) (EventTeam, error) {
 	return t, err
 }
 
-// GetEventTeamByID loads a team by primary key.
 func GetEventTeamByID(ctx context.Context, q Querier, teamID string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
 		SELECT `+teamColumns+`
 		  FROM event_teams WHERE id = $1`, teamID))
 }
 
-// GetEventTeamBySlug loads a team of an event by its slug.
 func GetEventTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
 		SELECT `+teamColumns+`
 		  FROM event_teams WHERE event_id = $1 AND slug = $2`, eventID, slug))
 }
 
-// GetEventTeamByCode loads a team of an event by its (normalised) join code.
 func GetEventTeamByCode(ctx context.Context, q Querier, eventID, code string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
 		SELECT `+teamColumns+`
@@ -158,7 +146,6 @@ func GetEventTeamByCodeOnly(ctx context.Context, q Querier, code string) (EventT
 		  FROM event_teams WHERE code = $1`, code))
 }
 
-// ListTeamPeople is the members of one team as the organiser sees them.
 func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT m.user_id, u.username, COALESCE(u.display_name,''), m.role, m.team_id,
@@ -183,14 +170,12 @@ func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerso
 	return out, rows.Err()
 }
 
-// CountTeamMembers is how many people are on a team.
 func CountTeamMembers(ctx context.Context, q Querier, teamID string) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_members WHERE team_id = $1`, teamID).Scan(&n)
 	return n, err
 }
 
-// TeamSlugExists reports whether the event already has a team with slug.
 func TeamSlugExists(ctx context.Context, q Querier, eventID, slug string) (bool, error) {
 	var taken bool
 	err := q.QueryRowContext(ctx, `
@@ -213,24 +198,20 @@ func DeleteEventTeam(ctx context.Context, q Querier, teamID string) error {
 	return err
 }
 
-// LockMember exposes the team operation for transitional callers.
 func LockMember(ctx context.Context, q Querier, eventID, userID string) (EventMember, error) {
 	return scanMember(q.QueryRowContext(ctx, memberForUpdate, eventID, userID))
 }
 
-// LockTeam exposes the team operation for transitional callers.
 func LockTeam(ctx context.Context, q Querier, teamID string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, teamForUpdate, teamID))
 }
 
-// LockTeamByCode exposes the team operation for transitional callers.
 func LockTeamByCode(ctx context.Context, q Querier, eventID, code string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
 		SELECT `+teamColumns+`
 		  FROM event_teams WHERE event_id = $1 AND code = $2 FOR UPDATE`, eventID, code))
 }
 
-// LockTeamBySlug exposes the team operation for transitional callers.
 func LockTeamBySlug(ctx context.Context, q Querier, eventID, slug string) (EventTeam, error) {
 	return scanTeam(q.QueryRowContext(ctx, `
 		SELECT `+teamColumns+`
@@ -325,7 +306,6 @@ func RotateTeamCodeTx(ctx context.Context, tx *sql.Tx, teamID string) error {
 	return errors.New("could not find a free team code")
 }
 
-// DeleteTeamIfEmpty exposes the team operation for transitional callers.
 func DeleteTeamIfEmpty(ctx context.Context, q Querier, teamID string) error {
 	n, err := CountTeamMembers(ctx, q, teamID)
 	if err != nil {
@@ -419,11 +399,10 @@ func JoinTeamByCode(ctx context.Context, q Querier, eventID, userID, code string
 	if err := SetMemberTeam(ctx, q, eventID, userID, sql.NullString{String: team.ID, Valid: true}); err != nil {
 		return EventTeam{}, err
 	}
-	// Backstop (Grok security review, 2026-11-01): a team with members but
-	// no admin should not normally exist by the time anyone can join it --
-	// every exit path runs ensureTeamAdmin -- but code joining is the one
-	// way IN, so it is the cheapest place to also guarantee the invariant
-	// coming out the other side, a no-op when an admin is already there.
+	// Backstop: a team with members but no admin should not normally exist by the
+	// time anyone can join it (every exit path runs ensureTeamAdmin), but code
+	// joining is the one way in, so it is the cheapest place to also guarantee the
+	// invariant; a no-op when an admin is already there.
 	if err := ensureTeamAdmin(ctx, q, team.ID); err != nil {
 		return EventTeam{}, err
 	}
@@ -558,7 +537,6 @@ func checkRoom(ctx context.Context, q Querier, team EventTeam, sizeMax int) erro
 	return nil
 }
 
-// RemoveParticipantFromTeam takes a participant off a team; they stay in the event.
 func RemoveParticipantFromTeam(ctx context.Context, q Querier, eventID, teamSlug, userID string, ensureTeamAdmin func(context.Context, Querier, string) error) error {
 	m, err := LockMember(ctx, q, eventID, userID)
 	if err != nil {

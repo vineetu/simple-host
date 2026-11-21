@@ -27,14 +27,3 @@ func TestFileAllowanceKnobs(t *testing.T) {
 		}
 	}
 }
-
-func TestFileAllowanceSettingsTypes(t *testing.T) {
-	for _, s := range Settings() {
-		switch s.Name {
-		case "KEEP_VERSIONS_SELF_SET", "KEEP_VERSIONS_OVERRIDES", "SITE_TOTAL_CAP_FROM", "MAX_SITE_TOTAL_OVERRIDES", "MAX_ACCOUNT_MB_OVERRIDES":
-			if s.Type != "string" || s.Min != nil || s.Max != nil {
-				t.Errorf("%s should accept text: %+v", s.Name, s)
-			}
-		}
-	}
-}

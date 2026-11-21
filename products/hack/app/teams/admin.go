@@ -14,13 +14,11 @@ import (
 // errMemberNotFound refuses an organiser write naming someone not on the team.
 func errMemberNotFound() error { return &Error{Code: "member_not_found", Message: "member not found"} }
 
-// teamBySlug reads the event's team a path names; team_not_found when none.
 func teamBySlug(ctx context.Context, q sqlkit.Querier, eventID, rawSlug string) (model.EventTeam, error) {
 	team, err := teamrepo.GetEventTeamBySlug(ctx, q, eventID, normSlug(rawSlug))
 	return team, notFoundAs(err, ErrTeamNotFound)
 }
 
-// OrganiserLock sets a team's lock and returns cleared request counts.
 func (s *Service) OrganiserLock(ctx context.Context, ev model.Event, rawSlug, actor string, locked bool) (int, int, error) {
 	if err := organiserStage(ev.Stage, msgEnded); err != nil {
 		return 0, 0, err
@@ -41,7 +39,6 @@ func (s *Service) OrganiserLock(ctx context.Context, ev model.Event, rawSlug, ac
 	return requests, invites, commit(tx)
 }
 
-// OrganiserAdmin changes a team member's admin flag.
 func (s *Service) OrganiserAdmin(ctx context.Context, ev model.Event, rawSlug, userID string, admin bool) error {
 	if err := organiserStage(ev.Stage, msgEnded); err != nil {
 		return err
@@ -64,7 +61,6 @@ func (s *Service) OrganiserAdmin(ctx context.Context, ev model.Event, rawSlug, u
 	return commit(tx)
 }
 
-// OrganiserLink rotates a team's link.
 func (s *Service) OrganiserLink(ctx context.Context, ev model.Event, rawSlug string) (model.EventTeam, error) {
 	if err := organiserStage(ev.Stage, msgEnded); err != nil {
 		return model.EventTeam{}, err
@@ -81,7 +77,6 @@ func (s *Service) OrganiserLink(ctx context.Context, ev model.Event, rawSlug str
 	return rotateAndRead(ctx, tx, team)
 }
 
-// rotateAndRead gives the team a new code, re-reads it and commits.
 func rotateAndRead(ctx context.Context, tx *sql.Tx, team model.EventTeam) (model.EventTeam, error) {
 	if err := rotateTeamCode(ctx, tx, team.ID); err != nil {
 		return team, internalError(err)
@@ -93,7 +88,6 @@ func rotateAndRead(ctx context.Context, tx *sql.Tx, team model.EventTeam) (model
 	return fresh, commit(tx)
 }
 
-// commit commits tx; a failure is internal.
 func commit(tx *sql.Tx) error {
 	if err := tx.Commit(); err != nil {
 		return internalError(err)
@@ -117,7 +111,6 @@ func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (m
 	return team, nil
 }
 
-// checkFrozen refuses a write to a team past its deadline.
 func checkFrozen(ctx context.Context, tx *sql.Tx, teamID string) error {
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
 	if err != nil {
@@ -183,7 +176,6 @@ func (s *Service) PatchTeam(ctx context.Context, ev model.Event, userID string, 
 	return team, commit(tx)
 }
 
-// patchTeam writes the given name and note.
 func patchTeam(ctx context.Context, tx *sql.Tx, eventID string, team model.EventTeam, name, note *string) error {
 	if name != nil {
 		err := eventrepo.RenameEventTeam(ctx, tx, eventID, team.Slug, *name)
@@ -202,7 +194,6 @@ func patchTeam(ctx context.Context, tx *sql.Tx, eventID string, team model.Event
 	return nil
 }
 
-// ParticipantLock sets the caller's team lock and returns cleared counts.
 func (s *Service) ParticipantLock(ctx context.Context, ev model.Event, userID string, locked bool) (int, int, error) {
 	tx, team, err := s.beginAdminWrite(ctx, ev, userID)
 	if err != nil {
@@ -249,7 +240,6 @@ func (s *Service) ParticipantAdmin(ctx context.Context, ev model.Event, userID, 
 	return commit(tx)
 }
 
-// ParticipantLink rotates the caller's team link.
 func (s *Service) ParticipantLink(ctx context.Context, ev model.Event, userID string) (model.EventTeam, error) {
 	tx, team, err := s.beginAdminWrite(ctx, ev, userID)
 	if err != nil {

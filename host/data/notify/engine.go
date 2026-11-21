@@ -17,7 +17,7 @@ import (
 // delivery workers, the webhook and web-push senders, and the budgets that
 // bound all of them. One per data handler.
 type Engine struct {
-	svc        *Service
+	db         *sql.DB
 	ed         *edition.Edition
 	limits     edition.Limits
 	siteDomain string
@@ -56,7 +56,7 @@ type Engine struct {
 func NewEngine(database *sql.DB, ed *edition.Edition, l edition.Limits, siteDomain string) *Engine {
 	perDay := func(n int) *httpx.RateLimiter { return httpx.NewRateLimiter(float64(n), float64(n)/86400) }
 	e := &Engine{
-		svc: New(database), ed: ed, limits: l, siteDomain: siteDomain,
+		db: database, ed: ed, limits: l, siteDomain: siteDomain,
 		client: client{timeout: l.NotifyTimeout},
 		minute: httpx.NewRateLimiter(float64(l.NotifyPerMinute), float64(l.NotifyPerMinute)/60), day: perDay(l.NotifyPerDay),
 		challenge: httpx.NewRateLimiter(10, 10.0/60), rest: httpx.NewRateLimiter(60, 1),

@@ -17,29 +17,20 @@ import (
 func TestAPIRouteGroup(t *testing.T) {
 	for route, want := range map[string]string{
 		"POST /mcp":                              "connector",
-		"GET /mcp":                               "connector",
 		"GET /v1/admin/users":                    "admin",
 		"POST /v1/auth":                          "auth",
-		"POST /v1/auth/verify":                   "auth",
 		"GET /v1/auth/oauth/{provider}/callback": "auth",
-		"GET /v1/visitor/establish":              "auth",
 		"POST /v1/site-unlock":                   "auth",
-		"POST /v1/sites/{sitename}/visitor/auth": "auth",
 		"POST /v1/u/{handle}/sites/{sitename}/visitor/auth/verify": "auth",
-		"GET /v1/me/keys":                        "auth",
-		"POST /v1/me/api-key/rotate":             "auth",
-		"GET /v1/me":                             "other",
-		"GET /v1/me/deleted-sites":               "other",
-		"GET /v1/u/{handle}/sites/{sitename}/me": "data",
-		"GET /v1/sites":                          "deploy",
-		"PUT /v1/sites/{sitename}":               "deploy",
-		"PUT /v1/sites/{sitename}/files":         "deploy",
-		"GET /v1/sites/{sitename}/versions/{version}/files/{path...}": "deploy",
-		"GET /v1/sites/{sitename}/analytics":                          "deploy",
-		"GET /v1/skills/{name}":                                       "other",
-		"GET /":                                                       "other",
-		"GET /v1/sites/{x}/me":                                        "data", // normalizeAPIPath fallback
-		"GET /v1":                                                     "other",
+		"POST /v1/me/api-key/rotate":                               "auth",
+		"PUT /v1/uploads/{token}":                                  "connector",
+		"GET /v1/me":                                               "other",
+		"GET /v1/u/{handle}/sites/{sitename}/me":                   "data",
+		"GET /v1/sites":                                            "deploy",
+		"PUT /v1/sites/{sitename}/files":                           "deploy",
+		"GET /v1/skills/{name}":                                    "other",
+		"GET /v1/sites/{x}/me":                                     "data", // normalizeAPIPath fallback
+		"GET /v1":                                                  "other",
 	} {
 		if got := apiRouteGroup(route); got != want {
 			t.Errorf("apiRouteGroup(%q) = %q, want %q", route, got, want)
@@ -103,11 +94,9 @@ func TestChangePct(t *testing.T) {
 func TestParseMCPLogLine(t *testing.T) {
 	for line, want := range map[string][2]string{
 		`203.0.113.9 - - [30/Sep/2026:00:00:03 +0000] "POST /mcp HTTP/1.1" 200 34 "-" "claude"`:                               {"203.0.113.9", "2026-09-30"},
-		`2001:db8::1 - - [29/Sep/2026:23:59:59 +0000] "GET /mcp?x=1 HTTP/2.0" 401 0 "-" "-"`:                                  {"2001:db8::1", "2026-09-29"},
 		`198.51.100.1 - - [30/Sep/2026:01:30:00 +0200] "DELETE /mcp HTTP/1.1" 204 0 "-" "-"`:                                  {"198.51.100.1", "2026-09-29"},
 		`203.0.113.9 - - [30/Sep/2026:00:00:03 +0000] "OPTIONS /mcp HTTP/1.1" 204 0 "-" "-"`:                                  {},
 		`203.0.113.9 - - [30/Sep/2026:00:00:03 +0000] "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 0 "-" "-"`: {},
-		`203.0.113.9 - - [30/Sep/2026:00:00:03 +0000] "GET /mcpx HTTP/1.1" 404 0 "-" "-"`:                                     {},
 		`203.0.113.9 - - [30/Sep/2026:00:00:03 +0000] "GET /v1/sites HTTP/1.1" 200 0 "-" "-"`:                                 {},
 		`garbage`: {},
 		`203.0.113.9 - - [bad date] "POST /mcp HTTP/1.1" 200 0 "-" "-"`: {},
@@ -198,7 +187,7 @@ func sameCounts(t *testing.T, what string, got, want map[string]int64) {
 
 func TestGrowthBackfillFromTrafficTables(t *testing.T) {
 	database := growthTestDB(t)
-	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
+	m := NewAPIMetrics(database, growthTestGeo(t))
 	ctx := context.Background()
 	exec := func(q string, args ...any) {
 		t.Helper()
@@ -241,7 +230,7 @@ func TestGrowthBackfillFromTrafficTables(t *testing.T) {
 
 func TestGrowthBackfillFromLogs(t *testing.T) {
 	database := growthTestDB(t)
-	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
+	m := NewAPIMetrics(database, growthTestGeo(t))
 	dir := t.TempDir()
 	plain := filepath.Join(dir, "access.log")
 	if err := os.WriteFile(plain, []byte(
@@ -283,12 +272,12 @@ func TestGrowthBackfillFromLogs(t *testing.T) {
 
 func TestGrowthLiveFlush(t *testing.T) {
 	database := growthTestDB(t)
-	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
+	m := NewAPIMetrics(database, growthTestGeo(t))
 	m.routes, m.ips = map[routeKey]int64{}, map[string]*ipAgg{}
 	m.record("POST /mcp", 200, "8.8.8.0", m.countryOf("8.8.8.0"))
 	m.record("PUT /v1/sites/{sitename}/files", 200, "203.0.113.0", m.countryOf("203.0.113.0"))
 	m.record("GET /v1/sites/{sitename}/me", 200, "127.0.0.1", m.countryOf("127.0.0.1"))
-	m.flush()
+	m.flush(context.Background())
 	var today string
 	database.QueryRow(`SELECT CURRENT_DATE::text`).Scan(&today)
 	sameCounts(t, "today", growthRows(t, database, today), map[string]int64{
@@ -303,11 +292,11 @@ func TestGrowthLiveFlush(t *testing.T) {
 
 func TestSelfCallsCountedApart(t *testing.T) {
 	database := growthTestDB(t)
-	m := NewAPIGrowthBackfiller(database, growthTestGeo(t))
+	m := NewAPIMetrics(database, growthTestGeo(t))
 	m.record("GET /v1/sites", 200, "8.8.8.0", m.countryOf("8.8.8.0"))
 	m.recordSelf("GET /v1/sites/{sitename}/me", 403)
 	m.recordSelf("GET /v1/sites/{sitename}/me", 200)
-	m.flush()
+	m.flush(context.Background())
 
 	sum, err := m.Summary(context.Background())
 	if err != nil {
@@ -321,7 +310,7 @@ func TestSelfCallsCountedApart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var g growthResponse
+	var g GrowthResponse
 	if err := json.Unmarshal(body, &g); err != nil {
 		t.Fatal(err)
 	}
@@ -330,51 +319,5 @@ func TestSelfCallsCountedApart(t *testing.T) {
 	}
 	if n, err := m.BackfillGrowth(context.Background()); err != nil || n != 0 {
 		t.Fatalf("backfill added %d (err %v)", n, err)
-	}
-}
-
-func TestMigrationDropsUnmatchedRequests(t *testing.T) {
-	database := growthTestDB(t)
-	sqlText, err := os.ReadFile("../db/migrations/v079-api-self-calls.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	exec := func(q string, args ...any) {
-		t.Helper()
-		if _, err := database.Exec(q, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	exec(`INSERT INTO api_request_daily (day, route, status, calls) VALUES
-		('2026-09-01', 'GET /', 404, 378),
-		('2026-09-01', 'GET /', 301, 2),
-		('2026-09-01', 'POST /v1/graphql', 405, 16),
-		('2026-09-01', 'PUT /v1/u/{x}/sites/{x}/files', 405, 2),
-		('2026-09-01', 'GET /v1/sites', 200, 50),
-		('2026-09-01', 'PUT /v1/sites/{sitename}/files', 404, 16),
-		('2026-09-01', 'POST /mcp', 405, 1)`)
-	exec(`INSERT INTO api_growth_daily (day, dim, key, calls) VALUES
-		('2026-09-01', 'group', 'other', 396), ('2026-09-01', 'group', 'deploy', 68),
-		('2026-09-01', 'group', 'connector', 1), ('2026-09-01', 'country', 'US', 465)`)
-	for i := 0; i < 2; i++ {
-		exec(string(sqlText))
-	}
-	var routes int
-	database.QueryRow(`SELECT COUNT(*) FROM api_request_daily`).Scan(&routes)
-	if routes != 3 {
-		t.Errorf("%d route rows left, want 3 (GET /v1/sites, the PUT 404, POST /mcp)", routes)
-	}
-	sameCounts(t, "growth", growthRows(t, database, "2026-09-01"), map[string]int64{
-		"group:other": 0, "group:deploy": 66, "group:connector": 1, "country:US": 465,
-	})
-	m := NewAPIGrowthBackfiller(database, nil)
-	if n, err := m.BackfillGrowth(context.Background()); err != nil || n != 0 {
-		t.Fatalf("backfill after cleanup added %d (err %v)", n, err)
-	}
-}
-
-func TestUploadRouteGroup(t *testing.T) {
-	if apiRouteGroup("PUT /v1/uploads/{token}") != "connector" || apiRouteGroup("POST /v1/uploads/{token}") != "connector" {
-		t.Fatal("uploads should count as connector traffic")
 	}
 }

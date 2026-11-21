@@ -12,13 +12,11 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// ScoreInput is a criterion and the submitted points.
 type ScoreInput struct {
 	CriterionID string   `json:"criterion_id"`
 	Points      *float64 `json:"points"`
 }
 
-// JudgeComment validates a comment before the scoring transaction begins.
 func (s *Service) JudgeComment(text string) (string, error) {
 	cleaned, msg := hackentries.JudgeCommentText(text)
 	if msg != "" {
@@ -27,7 +25,6 @@ func (s *Service) JudgeComment(text string) (string, error) {
 	return cleaned, nil
 }
 
-// JudgeScores reads a judge's scores after checking eligibility.
 func (s *Service) JudgeScores(ctx context.Context, eventID, judgeID, teamID string) ([]entryrepo.JudgeScore, string, error) {
 	if _, err := entryrepo.EventTeamInEvent(ctx, s.db, eventID, teamID); err != nil {
 		return nil, "", err
@@ -137,7 +134,6 @@ func parseScores(crit map[string]int, inputs []ScoreInput) ([]entryrepo.JudgeSco
 	return scores, nil
 }
 
-// TeamComments returns the comments for a team's results.
 func (s *Service) TeamComments(ctx context.Context, eventID, teamID string) ([]string, error) {
 	return entryrepo.TeamComments(ctx, s.db, eventID, teamID)
 }

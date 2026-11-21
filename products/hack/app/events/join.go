@@ -9,7 +9,6 @@ import (
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
-// signupValidator checks registration answers against the event's questions.
 type signupValidator = func([]model.SignupQuestion, map[string]string) ([]model.SignupAnswer, error)
 
 var (
@@ -53,7 +52,6 @@ func (s *Service) eventByCode(ctx context.Context, code string, judge bool) (mod
 	return ev, err
 }
 
-// joinRole is the membership role a join creates.
 func joinRole(judge bool) string {
 	if judge {
 		return "judge"
@@ -94,7 +92,6 @@ func (s *Service) rejoin(ctx context.Context, eventID, userID, display string) (
 	return member, nil
 }
 
-// addMember inserts a new membership.
 func (s *Service) addMember(ctx context.Context, eventID, userID, display string, judge bool, input map[string]string, validate signupValidator) (model.EventMember, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -153,7 +150,6 @@ func insertJoin(ctx context.Context, tx *sql.Tx, eventID, userID string, judge b
 	return member, err
 }
 
-// settleJoinRace resolves a failed insert.
 func (s *Service) settleJoinRace(ctx context.Context, eventID, userID, role string, err error) (model.EventMember, error) {
 	if !unique(err) {
 		return model.EventMember{}, err

@@ -10,7 +10,6 @@ import (
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
-// DeleteFormerJudgeScores removes a departed judge's scores under the event and membership locks.
 func (s *Service) DeleteFormerJudgeScores(ctx context.Context, eventID, callerID, userID, slug string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

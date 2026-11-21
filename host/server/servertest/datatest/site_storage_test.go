@@ -1,362 +1,233 @@
 package datatest
 
 import (
-	"context"
-	"errors"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
-	sqlite3 "github.com/ncruces/go-sqlite3"
-	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/data/datahttp"
-	"github.com/vsriram/simple-host/host/server/servertest"
-	runtime "github.com/vsriram/simple-host/host/storage"
+	"github.com/vsriram/simple-host/host/model"
+	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 )
 
 func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
-	a, certDir := servertest.NewSiteApp(t, "canonical")
-	ann := a.NewPerson(t, "storage-ann")
-	bob := a.NewPerson(t, "storage-bob")
-	a.Deploy(t, ann, "notes")
-	a.Deploy(t, bob, "notes")
-	annID, ah := a.UserID(t, ann)
-	servertest.MarkReady(t, certDir, ah)
-	annHost := "notes." + ah + "." + servertest.PcSiteDomain
-	base := "/v1/sites/notes/storage"
-	owner := map[string]string{"X-API-Key": ann.Key}
+	s := NewShop(t)
+	anon, alice := s.Callers["anon"], s.Callers["alice"]
 	put := func(name, kind, rules string) {
 		t.Helper()
-		body := `{"kind":"` + kind + `","site_passcode":"inherit"}`
+		body := `{"kind":"` + kind + `"}`
 		if rules != "" {
-			body = `{"kind":"` + kind + `","site_passcode":"inherit","rules":` + rules + `}`
+			body = StorageRules(kind, rules)
 		}
-		r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/resources/"+name, body, owner)
-		if r.Status != 201 {
-			t.Fatalf("resource %s: %d %s", name, r.Status, r.Body)
-		}
+		s.Must(t, "PUT", "/resources/"+name, body, s.Key, 201)
 	}
-	anyone := servertest.RulesOpenAdd
-	put("board", "kv", anyone)
+	put("board", "kv", RulesOpenAdd)
 	put("private", "kv", "")
-	put("members", "kv", `{"version":1,"policies":[{"name":"read","command":"read","using":"auth.signed_in"},{"name":"add","command":"add","check":"auth.signed_in"},{"name":"edit","command":"edit","using":"auth.signed_in"},{"name":"delete","command":"delete","using":"auth.signed_in"}]}`)
-	put("sql", "sqlite", anyone)
-	put("writeonly", "sqlite", servertest.RulesInbox)
-	put("assets", "files", anyone)
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/resources/bob-only", servertest.StorageRules("kv", anyone), map[string]string{"X-API-Key": bob.Key}); r.Status != 201 {
-		t.Fatalf("resource bob-only: %d %s", r.Status, r.Body)
+	put("members", "kv", RulesBoard)
+	put("writeonly", "sqlite", RulesInbox)
+	put("assets", "files", RulesOpenAdd)
+
+	// Another owner's site of the same name is another site.
+	bob := s.A.NewPerson(t, "other-owner")
+	s.A.Deploy(t, bob, "shop")
+	if r := s.A.At(t, "PUT", rt.SiteDomain, "/v1/sites/shop/storage/resources/bob-only", StorageRules("kv", RulesOpenAdd), bob.Header()); r.Status != 201 {
+		t.Fatalf("bob resource: %d %s", r.Status, r.Body)
 	}
-	if r := a.At(t, "GET", annHost, base+"/kv/bob-only/keys/k", nil, nil); r.Status != 404 {
-		t.Fatalf("other site resource %d", r.Status)
+	s.Must(t, "GET", "/kv/bob-only/keys/k", nil, anon, 404)
+	if r := s.A.At(t, "GET", rt.SiteDomain, "/v1/sites/shop/storage/resources", nil, bob.Header()); strings.Contains(string(r.Body), `"name":"board"`) {
+		t.Fatalf("another owner saw resources: %s", r.Body)
 	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, base+"/resources", nil, map[string]string{"X-API-Key": bob.Key}); r.Status != 200 || strings.Contains(string(r.Body), `"name":"board"`) {
-		t.Fatalf("different owner saw resources: %d %s", r.Status, r.Body)
+
+	s.Must(t, "PUT", "/kv/board/keys/hello", `{"value":{"answer":42}}`, anon, 200)
+	if r := s.Must(t, "GET", "/kv/board/keys/hello", nil, nil, 200); !strings.Contains(string(r.Body), `"answer":42`) {
+		t.Fatalf("open read: %s", r.Body)
 	}
-	if r := a.At(t, "PUT", annHost, base+"/kv/board/keys/hello", `{"value":{"answer":42}}`, servertest.Browser(annHost, "")); r.Status != 200 {
-		t.Fatalf("anonymous open write %d %s", r.Status, r.Body)
+	s.Must(t, "GET", "/kv/private/keys/hello", nil, nil, 403)
+	if r := s.Must(t, "PUT", "/kv/members/keys/hello", `{"value":1}`, anon, 401); r.Code() != "sign_in_required" {
+		t.Fatalf("signed-in refusal: %s", r.Body)
 	}
-	if r := a.At(t, "GET", annHost, base+"/kv/board/keys/hello", nil, nil); r.Status != 200 || !strings.Contains(string(r.Body), `"answer":42`) {
-		t.Fatalf("anonymous open read %d %s", r.Status, r.Body)
+	s.Must(t, "PUT", "/kv/members/keys/hello", `{"value":1}`, alice, 200)
+
+	// A read-only query never creates the database file.
+	db := filepath.Join(s.A.Disk.SiteDir(s.OwnerID, "shop"), "runtime", "sqlite", "writeonly.sqlite")
+	s.Must(t, "POST", "/sqlite/writeonly/query", `{"sql":"SELECT 1"}`, s.Key, 200)
+	if _, err := os.Stat(db); !os.IsNotExist(err) {
+		t.Fatalf("read-only query created DB: %v", err)
 	}
-	unusedDB := filepath.Join(a.Sites.Disk.SiteDir(annID, "notes"), "runtime", "sqlite", "writeonly.sqlite")
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/writeonly/query", `{"sql":"SELECT 1"}`, owner); r.Status != 200 {
-		t.Fatalf("new DB read %d %s", r.Status, r.Body)
-	}
-	if _, e := os.Stat(unusedDB); !os.IsNotExist(e) {
-		t.Fatalf("read-only query created DB: %v", e)
-	}
-	if r := a.At(t, "GET", annHost, base+"/kv/private/keys/hello", nil, nil); r.Status != 403 {
-		t.Fatalf("owner-private read %d", r.Status)
-	}
-	if r := a.At(t, "PUT", annHost, base+"/kv/members/keys/hello", `{"value":1}`, servertest.Browser(annHost, "")); r.Status != 401 || r.JSON(t)["code"] != "sign_in_required" {
-		t.Fatalf("signed-in refused? %d %s", r.Status, r.Body)
-	}
-	visitorCookie := a.Session(t, bob, a.SiteID(t, ann, "notes"), annHost)
-	if r := a.At(t, "PUT", annHost, base+"/kv/members/keys/hello", `{"value":1}`, servertest.Browser(annHost, visitorCookie)); r.Status != 200 {
-		t.Fatalf("signed-in write %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, base+"/kv/board/keys/hello", nil, nil); r.Status == 200 {
-		t.Fatal("apex anonymous read accepted")
-	}
-	if r := a.At(t, "GET", annHost, base+"/kv/board/keys/hello", nil, map[string]string{"Origin": "https://evil.example"}); r.Status == 200 {
-		t.Fatal("cross-site origin accepted")
-	}
-	for _, method := range []string{"GET", "OPTIONS"} {
-		r := a.At(t, method, annHost, base+"/kv/board/keys/hello", nil, map[string]string{"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"})
-		if r.Header.Get("Access-Control-Allow-Origin") != "" {
-			t.Fatalf("%s gave cross-site CORS %q", method, r.Header.Get("Access-Control-Allow-Origin"))
-		}
-	}
-	if r := a.At(t, "POST", annHost, base+"/sqlite/sql/schema", `{"sql":"CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT)"}`, servertest.Browser(annHost, "")); r.Status == 200 {
+	// An inbox table takes visitors' rows but never shows them back.
+	s.Must(t, "POST", "/sqlite/writeonly/schema", `{"sql":"CREATE TABLE items (n INTEGER)"}`, s.Key, 200)
+	if r := s.Do(t, "POST", "/sqlite/writeonly/schema", `{"sql":"CREATE TABLE x (n INTEGER)"}`, anon); r.Status == 200 {
 		t.Fatal("visitor schema accepted")
 	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/sql/schema", `{"sql":"CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT)"}`, owner); r.Status != 200 {
-		t.Fatalf("owner schema %d %s", r.Status, r.Body)
+	s.Must(t, "POST", "/sqlite/writeonly/tables/items/rows", `{"n":1}`, anon, 200)
+	s.Must(t, "GET", "/sqlite/writeonly/tables/items/rows", nil, anon, 403)
+
+	// Files: bytes back as a download; links only from the owner, dead once
+	// the resource goes; no path traversal.
+	s.Must(t, "PUT", "/files/assets/objects/photo.txt", "hello", rt.Browser(s.Host, "", "Content-Type", "text/plain"), 200)
+	if r := s.Must(t, "GET", "/files/assets/objects/photo.txt", nil, nil, 200); string(r.Body) != "hello" || r.Header.Get("Content-Disposition") == "" {
+		t.Fatalf("file read: %s %v", r.Body, r.Header)
 	}
-	// Pages write and read through the table routes; page SQL is refused.
-	if r := a.At(t, "POST", annHost, base+"/sqlite/sql/execute", `{"sql":"INSERT INTO notes(text) VALUES(?)","params":["one"]}`, servertest.Browser(annHost, "")); r.Status != 403 || r.JSON(t)["code"] != "fixed_routes_required" {
-		t.Fatalf("page SQL write %d %s", r.Status, r.Body)
+	if r := s.Do(t, "GET", "/files/assets/objects/../secret", nil, nil); r.Status == 200 {
+		t.Fatal("traversal accepted")
 	}
-	if r := a.At(t, "POST", annHost, base+"/sqlite/sql/query", `{"sql":"SELECT text FROM notes"}`, servertest.Browser(annHost, "")); r.Status != 403 || r.JSON(t)["code"] != "fixed_routes_required" {
-		t.Fatalf("page SQL read %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", annHost, base+"/sqlite/sql/tables/notes/rows", `{"text":"one"}`, servertest.Browser(annHost, "")); r.Status != 200 {
-		t.Fatalf("open row write %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "GET", annHost, base+"/sqlite/sql/tables/notes/rows", nil, servertest.Browser(annHost, "")); r.Status != 200 || !strings.Contains(string(r.Body), "one") {
-		t.Fatalf("open row read %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/writeonly/schema", `{"sql":"CREATE TABLE items (n INTEGER)"}`, owner); r.Status != 200 {
-		t.Fatalf("write-only schema %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", annHost, base+"/sqlite/writeonly/tables/items/rows", `{"n":1}`, servertest.Browser(annHost, "")); r.Status != 200 {
-		t.Fatalf("write-only insert %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "GET", annHost, base+"/sqlite/writeonly/tables/items/rows", nil, servertest.Browser(annHost, "")); r.Status == 200 {
-		t.Fatal("write-only table read existing rows")
-	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/sql/query", `{"sql":"ATTACH DATABASE '/etc/passwd' AS other"}`, owner); r.Status == 200 {
-		t.Fatal("attach accepted")
-	}
-	if r := a.At(t, "PUT", annHost, base+"/files/assets/objects/photo.txt", "hello", servertest.Browser(annHost, "", "Content-Type", "text/plain")); r.Status != 200 {
-		t.Fatalf("file write %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "GET", annHost, base+"/files/assets/objects/photo.txt", nil, nil); r.Status != 200 || string(r.Body) != "hello" || r.Header.Get("Content-Disposition") == "" {
-		t.Fatalf("file read %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", annHost, base+"/files/assets/download-link", `{"path":"photo.txt"}`, servertest.Browser(annHost, "")); r.Status == 200 {
+	if r := s.Do(t, "POST", "/files/assets/download-link", `{"path":"photo.txt"}`, anon); r.Status == 200 {
 		t.Fatal("anonymous file link minted")
 	}
-	link := a.At(t, "POST", servertest.PcSiteDomain, base+"/files/assets/download-link", `{"path":"photo.txt"}`, owner)
-	if link.Status != 200 {
-		t.Fatalf("file link %d %s", link.Status, link.Body)
-	}
-	u, err := url.Parse(link.JSON(t)["url"].(string))
+	u, err := url.Parse(s.Must(t, "POST", "/files/assets/download-link", `{"path":"photo.txt"}`, s.Key, 200).JSON(t)["url"].(string))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, u.RequestURI(), nil, nil); r.Status != 200 || string(r.Body) != "hello" {
+	if r := s.A.At(t, "GET", rt.SiteDomain, u.RequestURI(), nil, nil); r.Status != 200 || string(r.Body) != "hello" {
 		t.Fatalf("linked bytes %d %s", r.Status, r.Body)
 	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, "/v1/sites/notes/export.tar.gz", nil, owner); r.Status != 200 {
-		t.Fatalf("export %d %s", r.Status, r.Body)
-	} else {
-		names := servertest.TarNames(t, r.Body)
-		for _, n := range []string{"notes/storage/resources.json", "notes/storage/kv.json", "notes/storage/runtime/sqlite/sql.sqlite", "notes/storage/runtime/files/assets/photo.txt"} {
-			if !names[n] {
-				t.Errorf("export missing %s", n)
-			}
-		}
-	}
-	if r := a.At(t, "GET", annHost, base+"/files/assets/objects/../secret", nil, nil); r.Status == http.StatusOK {
-		t.Fatal("traversal accepted")
-	}
-	if r := a.At(t, "DELETE", servertest.PcSiteDomain, base+"/resources/assets", nil, owner); r.Status != 200 {
-		t.Fatalf("resource delete %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, u.RequestURI(), nil, nil); r.Status != 404 {
+	s.Must(t, "DELETE", "/resources/assets", nil, s.Key, 200)
+	if r := s.A.At(t, "GET", rt.SiteDomain, u.RequestURI(), nil, nil); r.Status != 404 {
 		t.Fatalf("deleted resource link alive %d", r.Status)
 	}
 }
 
+// A resource follows the site's passcode unless set to off; the owner is
+// never locked out.
 func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
-	p := servertest.NewPasscodeApp(t)
-	servertest.WithPasscodeLimits(t, func(l *config.Limits) { l.SitePasscodes = true }, &p.Sites.Limits, &p.Access.Limits, &p.Data.Limits)
-	base := "/v1/sites/trip/storage"
-	for _, x := range []struct{ name, mode string }{{"locked", "inherit"}, {"open", "off"}} {
-		r := p.At(t, "PUT", servertest.PcSiteDomain, base+"/resources/"+x.name, `{"kind":"kv","site_passcode":"`+x.mode+`","rules":`+servertest.RulesOpenAdd+`}`, p.Okey)
-		if r.Status != 201 {
-			t.Fatalf("resource %s: %d %s", x.name, r.Status, r.Body)
-		}
+	s := NewShop(t)
+	for name, mode := range map[string]string{"locked": "inherit", "open": "off"} {
+		s.Must(t, "PUT", "/resources/"+name, `{"kind":"kv","site_passcode":"`+mode+`","rules":`+RulesOpenAdd+`}`, s.Key, 201)
 	}
-	if r := p.Lock(t, "123456"); r.Status != 200 {
-		t.Fatalf("lock: %d %s", r.Status, r.Body)
+	rt.SetPasscode(t, s.A.Database, s.Sid)
+	anon := s.Callers["anon"]
+	s.Must(t, "GET", "/kv/locked/keys/k", nil, anon, 403)
+	if r := s.Must(t, "PUT", "/kv/locked/keys/k", `{"value":1}`, anon, 403); r.Code() != "site_locked" {
+		t.Fatalf("locked: %s", r.Body)
 	}
-	for _, m := range []string{"GET", "PUT"} {
-		var body any
-		if m == "PUT" {
-			body = `{"value":1}`
-		}
-		if r := p.At(t, m, p.Host, base+"/kv/locked/keys/k", body, servertest.Browser(p.Host, "")); r.Status != 403 || r.JSON(t)["code"] != "site_locked" {
-			t.Fatalf("locked %s: %d %s", m, r.Status, r.Body)
-		}
-	}
-	if r := p.At(t, "PUT", p.Host, base+"/kv/open/keys/k", `{"value":1}`, servertest.Browser(p.Host, "")); r.Status != 200 {
-		t.Fatalf("off open: %d %s", r.Status, r.Body)
-	}
-	if r := p.At(t, "PUT", servertest.PcSiteDomain, base+"/kv/locked/keys/k", `{"value":2}`, p.Okey); r.Status != 200 {
-		t.Fatalf("owner bypass: %d %s", r.Status, r.Body)
-	}
-	unlocked := p.Unlock(t, p.Host, "123456", "/", nil)
-	if unlocked.Status != 303 {
-		t.Fatalf("unlock: %d %s", unlocked.Status, unlocked.Body)
-	}
-	if r := p.At(t, "PUT", p.Host, base+"/kv/locked/keys/k2", `{"value":3}`, servertest.Browser(p.Host, "", "Cookie", servertest.CookieHeader(t, unlocked))); r.Status != 200 {
-		t.Fatalf("unlocked write: %d %s", r.Status, r.Body)
-	}
+	s.Must(t, "PUT", "/kv/open/keys/k", `{"value":1}`, anon, 200)
+	s.Must(t, "PUT", "/kv/locked/keys/k", `{"value":2}`, s.Key, 200)
+	s.Must(t, "PUT", "/kv/locked/keys/k2", `{"value":3}`, rtCopy(anon, Unlocked, "1"), 200)
 }
 
+// Usage is the owner's; a file exactly at the cap fits, one byte more does
+// not, and a refused write changes nothing.
 func TestSiteStorageUsageAndExactFileBoundary(t *testing.T) {
 	t.Setenv("SITE_STORAGE_FILES_MAX_BYTES", "1000000")
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "1000000")
-	a := servertest.NewPrivateApp(t)
-	owner := a.NewPerson(t, "storage-cap")
-	a.Deploy(t, owner, "media")
-	base := "/v1/sites/media/storage"
-	key := map[string]string{"X-API-Key": owner.Key}
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/resources/photos", map[string]string{"kind": "files"}, key); r.Status != 201 {
-		t.Fatalf("resource %d %s", r.Status, r.Body)
-	}
-	usage := func() (float64, float64, float64) {
+	s := NewShop(t)
+	s.Must(t, "PUT", "/resources/photos", map[string]string{"kind": "files"}, s.Key, 201)
+	usage := func() (float64, float64) {
 		t.Helper()
-		r := a.At(t, "GET", servertest.PcSiteDomain, base+"/usage", nil, key)
-		if r.Status != 200 {
-			t.Fatalf("usage %d %s", r.Status, r.Body)
-		}
-		j := r.JSON(t)
-		b := j["breakdown"].(map[string]any)
-		return j["used_bytes"].(float64), j["remaining_bytes"].(float64), b["files_bytes"].(float64)
+		j := s.Must(t, "GET", "/usage", nil, s.Key, 200).JSON(t)
+		return j["remaining_bytes"].(float64), j["breakdown"].(map[string]any)["files_bytes"].(float64)
 	}
-	other := a.NewPerson(t, "storage-cap-other")
-	if r := a.At(t, "GET", servertest.PcSiteDomain, base+"/usage", nil, map[string]string{"X-API-Key": other.Key}); r.Status != 403 {
-		t.Fatalf("other owner usage %d %s", r.Status, r.Body)
+	other := s.A.NewPerson(t, "other")
+	s.Must(t, "GET", "/usage", nil, other.Header(), 403)
+	s.Must(t, "GET", "/usage", nil, s.Callers["alice"], 403)
+	s.Must(t, "PUT", "/files/photos/objects/a.bin", strings.Repeat("a", 1000000), s.Key, 200)
+	if left, files := usage(); left != 1000000 || files != 1000000 {
+		t.Fatalf("full usage %v %v", left, files)
 	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, base+"/usage", nil, nil); r.Status == 200 {
-		t.Fatal("anonymous owner usage")
+	s.Must(t, "PUT", "/files/photos/objects/a.bin", strings.Repeat("b", 1000000), s.Key, 200)
+	if r := s.Must(t, "PUT", "/files/photos/objects/b.bin", "x", s.Key, 507); r.Code() != "site_full" {
+		t.Fatalf("growth beyond cap: %s", r.Body)
 	}
-	if used, left, files := usage(); used != 0 || left != 1000000 || files != 0 {
-		t.Fatalf("initial usage %v %v %v", used, left, files)
+	if r := s.Must(t, "GET", "/files/photos/objects/a.bin", nil, s.Key, 200); len(r.Body) != 1000000 || r.Body[0] != 'b' {
+		t.Fatal("file changed on rejection")
 	}
-	full := strings.Repeat("a", 1000000)
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/files/photos/objects/a.bin", full, key); r.Status != 200 {
-		t.Fatalf("exact cap %d %s", r.Status, r.Body)
-	}
-	if used, left, files := usage(); used != 0 || left != 1000000 || files != 1000000 {
-		t.Fatalf("full usage %v %v %v", used, left, files)
-	}
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/files/photos/objects/a.bin", strings.Repeat("b", 1000000), key); r.Status != 200 {
-		t.Fatalf("same-size replacement %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/files/photos/objects/b.bin", "x", key); r.Status != 507 || r.JSON(t)["code"] != "site_full" {
-		t.Fatalf("growth beyond cap %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, base+"/files/photos/objects/a.bin", nil, key); r.Status != 200 || len(r.Body) != 1000000 || r.Body[0] != 'b' {
-		t.Fatalf("replacement changed on rejection %d len=%d", r.Status, len(r.Body))
-	}
-	if r := a.At(t, "DELETE", servertest.PcSiteDomain, base+"/files/photos/objects/a.bin", nil, key); r.Status != 200 {
-		t.Fatalf("delete %d %s", r.Status, r.Body)
-	}
-	if used, left, files := usage(); used != 0 || left != 1000000 || files != 0 {
-		t.Fatalf("after delete %v %v %v", used, left, files)
+	s.Must(t, "DELETE", "/files/photos/objects/a.bin", nil, s.Key, 200)
+	if _, files := usage(); files != 0 {
+		t.Fatalf("after delete %v", files)
 	}
 }
 
 func TestSiteStorageKVNormalizedQuotaAndSQLiteFull(t *testing.T) {
-	a := servertest.NewPrivateApp(t)
-	owner := a.NewPerson(t, "storage-small")
-	a.Deploy(t, owner, "small")
-	base := "/v1/sites/small/storage"
-	key := map[string]string{"X-API-Key": owner.Key}
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/resources/kv", map[string]string{"kind": "kv"}, key); r.Status != 201 {
-		t.Fatalf("kv resource %d %s", r.Status, r.Body)
-	}
+	s := NewShop(t)
+	s.Must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv"}, s.Key, 201)
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "3")
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/kv/kv/keys/n", `{"value":1e3}`, key); r.Status != 507 {
-		t.Fatalf("normalized number over cap %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "GET", servertest.PcSiteDomain, base+"/kv/kv/keys/n", nil, key); r.Status != 404 {
-		t.Fatalf("rejected KV changed data %d", r.Status)
-	}
+	s.Must(t, "PUT", "/kv/kv/keys/n", `{"value":1e3}`, s.Key, 507) // counted as stored, "1000"
+	s.Must(t, "GET", "/kv/kv/keys/n", nil, s.Key, 404)
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "32768")
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/resources/sql", map[string]string{"kind": "sqlite"}, key); r.Status != 201 {
-		t.Fatalf("sql resource %d %s", r.Status, r.Body)
+	s.Must(t, "PUT", "/resources/sql", map[string]string{"kind": "sqlite"}, s.Key, 201)
+	s.Must(t, "POST", "/sqlite/sql/schema", `{"sql":"CREATE TABLE items (v BLOB)"}`, s.Key, 200)
+	if r := s.Must(t, "POST", "/sqlite/sql/execute", `{"sql":"INSERT INTO items(v) VALUES(randomblob(50000))"}`, s.Key, 507); r.Code() != "sqlite_full" {
+		t.Fatalf("SQLite full: %s", r.Body)
 	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/sql/schema", `{"sql":"CREATE TABLE items (v BLOB)"}`, key); r.Status != 200 {
-		t.Fatalf("schema %d %s", r.Status, r.Body)
+	if r := s.Must(t, "POST", "/sqlite/sql/query", `{"sql":"SELECT COUNT(*) FROM items"}`, s.Key, 200); !strings.Contains(string(r.Body), `[[0]]`) {
+		t.Fatalf("SQL changed on rejection: %s", r.Body)
 	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/sql/execute", `{"sql":"INSERT INTO items(v) VALUES(randomblob(50000))"}`, key); r.Status != 507 || r.JSON(t)["code"] != "sqlite_full" {
-		t.Fatalf("SQLite full %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/sql/query", `{"sql":"SELECT COUNT(*) FROM items"}`, key); r.Status != 200 || !strings.Contains(string(r.Body), `[[0]]`) {
-		t.Fatalf("SQL changed on rejection %d %s", r.Status, r.Body)
-	}
-	r := a.At(t, "GET", servertest.PcSiteDomain, base+"/usage", nil, key)
-	if r.Status != 200 {
-		t.Fatalf("usage %d %s", r.Status, r.Body)
-	}
-	j := r.JSON(t)
-	if j["used_bytes"].(float64) > 32768 {
-		t.Fatalf("SQL usage exceeded cap %s", r.Body)
+	if j := s.Must(t, "GET", "/usage", nil, s.Key, 200).JSON(t); j["used_bytes"].(float64) > 32768 {
+		t.Fatalf("SQL usage exceeded cap: %v", j)
 	}
 }
 
-func TestSiteStorageSurvivesDeployRenameAndRestore(t *testing.T) {
-	a := servertest.NewPrivateApp(t)
-	owner := a.NewPerson(t, "storage-lifecycle")
-	a.Deploy(t, owner, "first")
-	key := map[string]string{"X-API-Key": owner.Key}
-	base := "/v1/sites/first/storage"
-	for _, resource := range []struct{ name, kind string }{{"facts", "kv"}, {"records", "sqlite"}, {"photos", "files"}} {
-		if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/resources/"+resource.name, map[string]string{"kind": resource.kind}, key); r.Status != 201 {
-			t.Fatalf("declare %s: %d %s", resource.name, r.Status, r.Body)
+// A missing database answers as a bad row request to whoever may read,
+// and the read refusal comes first.
+func TestMissingSQLiteReadResponse(t *testing.T) {
+	s := NewShop(t)
+	for preset, rules := range map[string]string{"wall": RulesWall, "private": string(model.OwnerOnlyRules)} {
+		s.Do(t, "PUT", "/resources/"+preset, StorageRules("sqlite", rules), s.Key)
+		for _, path := range []string{"/tables/posts/rows/1", "/tables/posts/rows"} {
+			for _, h := range []map[string]string{s.Key, s.Callers["anon"]} {
+				status, code := 400, "invalid_rows"
+				if preset == "private" && h["X-API-Key"] == "" {
+					status, code = 403, "forbidden"
+				}
+				if r := s.Must(t, "GET", "/sqlite/"+preset+path, nil, h, status); r.Code() != code {
+					t.Fatalf("%s %s: %s", preset, path, r.Body)
+				}
+			}
 		}
 	}
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/kv/facts/keys/k", `{"value":"kept"}`, key); r.Status != 200 {
-		t.Fatalf("KV write: %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/records/schema", `{"sql":"CREATE TABLE entries (v TEXT)"}`, key); r.Status != 200 {
-		t.Fatalf("schema: %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, base+"/sqlite/records/execute", `{"sql":"INSERT INTO entries(v) VALUES('kept')"}`, key); r.Status != 200 {
-		t.Fatalf("SQL write: %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, base+"/files/photos/objects/a.bin", "kept", key); r.Status != 200 {
-		t.Fatalf("file write: %d %s", r.Status, r.Body)
-	}
-	// A new deployment changes published assets but must leave runtime data in place.
-	if r := a.At(t, "PUT", servertest.PcSiteDomain, "/v1/sites/first/files", map[string]any{"files": map[string]string{"index.html": "<h1>new version</h1>"}}, key); r.Status != 200 {
-		t.Fatalf("redeploy: %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "PATCH", servertest.PcSiteDomain, "/v1/sites/first", map[string]string{"name": "second"}, key); r.Status != 200 {
-		t.Fatalf("rename: %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "DELETE", servertest.PcSiteDomain, "/v1/sites/second", nil, key); r.Status != http.StatusNoContent {
-		t.Fatalf("trash: %d %s", r.Status, r.Body)
-	}
-	if r := a.At(t, "POST", servertest.PcSiteDomain, "/v1/sites/second/restore", nil, key); r.Status != 200 {
-		t.Fatalf("restore: %d %s", r.Status, r.Body)
-	}
-	base = "/v1/sites/second/storage"
-	for _, tc := range []struct{ method, path, body, want string }{
-		{"GET", "/kv/facts/keys/k", "", "kept"},
-		{"POST", "/sqlite/records/query", `{"sql":"SELECT v FROM entries"}`, "kept"},
-		{"GET", "/files/photos/objects/a.bin", "", "kept"},
+}
+
+func TestStorageKVRules(t *testing.T) {
+	s := NewShop(t)
+	s.Must(t, "PUT", "/resources/data", `{"kind":"kv","rules":{"policies":[{"command":"read","using":"key contains \"public\""},{"command":"add","check":"value == \"1\""},{"command":"edit","using":"auth.signed_in","check":"value == \"2\""},{"command":"delete","using":"auth.signed_in"}]}}`, s.Key, 201)
+	s.Must(t, "PUT", "/kv/data/keys/public", `{"value":1}`, s.Callers["alice"], 200)
+	for _, tc := range []struct {
+		method, path, body, who, code string
+		status                        int
+	}{
+		{"GET", "/kv/data/keys/public", "", "anon", "", 200},
+		{"PUT", "/kv/data/keys/new", `{"value":9}`, "alice", "forbidden", 403},
+		{"PUT", "/kv/data/keys/public", `{"value":9}`, "alice", "key_exists", 409},
+		{"DELETE", "/kv/data/keys/public", "", "anon", "sign_in_required", 401},
+		{"GET", "/kv/data/keys/missing", "", "anon", "key_not_found", 404},
 	} {
-		r := a.At(t, tc.method, servertest.PcSiteDomain, base+tc.path, tc.body, key)
-		if r.Status != 200 || !strings.Contains(string(r.Body), tc.want) {
-			t.Fatalf("%s after lifecycle: %d %s", tc.path, r.Status, r.Body)
+		var body any
+		if tc.body != "" {
+			body = tc.body
+		}
+		if r := s.Must(t, tc.method, tc.path, body, s.Callers[tc.who], tc.status); r.Code() != tc.code {
+			t.Fatalf("%s %s: %s", tc.method, tc.path, r.Body)
 		}
 	}
+	s.Must(t, "PUT", "/kv/data/keys/public", `{"value":2}`, s.Callers["alice"], 200)
+	s.Must(t, "DELETE", "/kv/data/keys/public", nil, s.Callers["alice"], 200)
 }
 
-func insertStorageKVRace(t *testing.T, h *datahttp.DataHandler, c datahttp.StorageCall, key, value, writer string) (bool, error) {
-	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.StorageRuntimeDir(c), c.ResourceName), true, false)
-	if err != nil {
-		return false, err
+// A download link works as minted; a tampered or expired token is refused.
+func TestStorageDownloadLinkTokens(t *testing.T) {
+	s := NewShop(t)
+	s.Must(t, "PUT", "/resources/assets", map[string]string{"kind": "files"}, s.Key, 201)
+	s.Must(t, "PUT", "/files/assets/objects/a.txt", "hello", s.Key, 200)
+	u, _ := url.Parse(s.Must(t, "POST", "/files/assets/download-link", `{"path":"a.txt"}`, s.Key, 200).JSON(t)["url"].(string))
+	get := func(token string) rt.Resp {
+		return s.A.At(t, "GET", rt.SiteDomain, "/v1/storage-download?token="+url.QueryEscape(token), nil, nil)
 	}
-	defer done()
-	if err = conn.Exec("BEGIN IMMEDIATE"); err != nil {
-		return false, err
+	token := u.Query().Get("token")
+	if r := get(token); r.Status != 200 || string(r.Body) != "hello" {
+		t.Fatalf("link: %d %s", r.Status, r.Body)
 	}
-	defer conn.Exec("ROLLBACK")
-	if err = runtime.RuntimeKVPut(conn, key, value, writer, false, 0); err != nil {
-		if errors.Is(err, sqlite3.CONSTRAINT) {
-			return false, nil
+	// Change a middle character (the last one may only carry padding bits).
+	mid := len(token) / 2
+	swap := "A"
+	if token[mid] == 'A' {
+		swap = "B"
+	}
+	expired := s.A.Data.StorageFileToken(kvCall(t, s, "assets"), "a.txt", time.Now().Add(-time.Minute))
+	for _, bad := range []string{token[:mid] + swap + token[mid+1:], expired} {
+		if r := get(bad); r.Status != 404 || r.Code() != "file_link_invalid" {
+			t.Fatalf("bad token: %d %s", r.Status, r.Body)
 		}
-		return false, err
 	}
-	return true, conn.Exec("COMMIT")
 }

@@ -26,14 +26,10 @@ func hostFamilies(limits Limits) []familyTools {
 // Tools is the callable surface, in the order a first-time agent needs it,
 // stated at the defaults. NewServer registers the same families with the
 // instance's limits, optional tools and wording rewrites.
-func Tools() []Tool { return toolsWithLimits(DefaultLimits()) }
+func Tools() []Tool { return ToolsWithLimits(DefaultLimits()) }
 
-// ToolsWithLimits is Tools stated with l instead of the defaults, for a
-// caller (a test) that wants the full surface's wording at a changed knob
-// without building a whole Server.
-func ToolsWithLimits(l Limits) []Tool { return toolsWithLimits(l) }
-
-func toolsWithLimits(limits Limits) []Tool {
+// ToolsWithLimits is Tools stated with limits instead of the defaults.
+func ToolsWithLimits(limits Limits) []Tool {
 	r := &toolRegistry{}
 	r.addFamilies(editionHost, hostFamilies(limits), nil)
 	return r.declaredTools(editionHost)

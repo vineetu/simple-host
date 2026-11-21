@@ -1,0 +1,56 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "simple-hack",
+  "version": "1.0.0",
+  "description": "Run, join and judge hackathons on simple-hack.app through the Simple Hack connector: create events, form teams, publish team websites, submit and score entries, and publish results.",
+  "author": {
+    "name": "Vineet Sriram",
+    "url": "https://simple-hack.app"
+  },
+  "homepage": "https://simple-hack.app",
+  "repository": "https://github.com/vineetu/simple-host",
+  "license": "MIT",
+  "keywords": [
+    "hackathon",
+    "events",
+    "teams",
+    "judging",
+    "website"
+  ],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/run-hackathon/SKILL.md",
+      "interface": {
+        "displayName": "Simple Hack",
+        "shortDescription": "Run, join and judge hackathons",
+        "longDescription": "Simple Hack runs hackathons on simple-hack.app. The connector acts as the signed-in person, in the role they have in each event: organiser, participant or judge.\n\nOrganisers create a draft event, set sign-up questions, tracks, entry rules and the judging rubric, and move the event through its stages. They post announcements, manage people, teams and judges, and publish results. Join and judge links come back in tool results for the organiser to share.\n\nParticipants join an event with a join code, or apply to one from the public directory. They form or join a team, publish the team's website, fill in and submit the entry, and vote when voting is open.\n\nJudges join with a judge code, read the rubric and their queue, score entries with an optional comment, and declare conflicts.\n\nEach team website has its own address and can save key-value data (KV), SQLite tables and files, with rules for who can read and change them. Teammates can change it until the team's deadline.\n\nSign in with Google or an emailed code. Sign out everywhere on your Simple Hack account page revokes the connection. Simple Hack is open source, made and run by Vineet Sriram.",
+        "developerName": "Vineet Sriram",
+        "category": "Productivity",
+        "capabilities": [
+          "Create and run a hackathon, from a draft to published results",
+          "Set sign-up questions, tracks, entry rules and the judging rubric",
+          "Post announcements, and email participants when you choose to",
+          "Join an event with a code, or apply from the public directory",
+          "Form, join and manage a team",
+          "Publish your team's website, with saved data and access rules",
+          "Fill in and submit your team's entry, and vote",
+          "Score entries against the rubric and declare conflicts",
+          "Export participants, teams, scores and results"
+        ],
+        "websiteURL": "https://simple-hack.app",
+        "supportURL": "https://simple-hack.app/support",
+        "privacyPolicyURL": "https://simple-hack.app/privacy.html",
+        "termsOfServiceURL": "https://simple-hack.app/terms",
+        "defaultPrompt": [
+          "What should I do next for my hackathon?",
+          "Help me set up a one-day hackathon for my school's coding club.",
+          "I'm judging a hackathon. What's in my queue, and how do I score?"
+        ],
+        "brandColor": "#a33f31",
+        "brandColorDark": "#ee8f92",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/logo.png"
+      }
+    }
+  }
+}

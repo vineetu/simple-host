@@ -44,8 +44,7 @@ func (m *APIMetrics) Wrap(next http.Handler) http.Handler {
 		if !isAPIRoute(route) {
 			return // matched no API route: not an API call
 		}
-		raw := httpx.ClientIP(r)
-		m.Observe(route, rec.Status, raw)
+		m.Observe(route, rec.Status, httpx.ClientIP(r))
 	})
 }
 
@@ -79,14 +78,9 @@ func (s *StatusCapture) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
-// Flush forwards to the wrapped writer when it supports it (an SSE/MCP
-// stream under /v1/ or /mcp needs this to actually reach the client as it
-// writes, not only once the handler returns). http.ResponseController
-// already finds this through Unwrap without it, but a direct
-// w.(http.Flusher) assertion -- as a caller might still reasonably write --
-// would otherwise silently see "no, this writer can't flush", since an
-// embedded http.ResponseWriter field never promotes the concrete writer's
-// own Flush method.
+// Flush forwards to the wrapped writer, so an SSE/MCP stream reaches the
+// client as it writes. Unwrap covers http.ResponseController; this covers a
+// direct w.(http.Flusher) assertion, which the embedded field cannot satisfy.
 func (s *StatusCapture) Flush() {
 	if f, ok := s.ResponseWriter.(http.Flusher); ok {
 		f.Flush()

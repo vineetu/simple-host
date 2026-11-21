@@ -6,6 +6,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/webassets"
 )
 
 // CanonicalSiteDomain is the hostname baked into every served text asset: the
@@ -26,12 +28,8 @@ var RewrittenAssets = []string{
 	"install.html",
 	"auth.js",
 	"signin.js",
-	// features.json is a build-time source file, not linked from any page,
-	// but it is reachable by path like everything else under static/ and
-	// it names simple-host.app (and support@simple-host.app) throughout --
-	// Rewritten here the same way the others are, hidden from the raw file
-	// server only on a self-hosted instance (assets.Rewritten()); hosted
-	// keeps serving the exact same bytes it always has.
+	// features.json is linked from no page but reachable by path, and names
+	// simple-host.app throughout.
 	"features.json",
 	"openapi.yaml",
 	"openapi.json",
@@ -91,7 +89,7 @@ func newHostRewriter(siteDomain, contentHost, cnameTarget string) *hostRewriter 
 	)}
 }
 
-// apply rewrites a copy of b. Nil receiver returns b untouched so callers can
+// Apply rewrites a copy of b. Nil receiver returns b untouched so callers can
 // stay branch-free.
 func (h *hostRewriter) Apply(b []byte) []byte {
 	if h == nil {
@@ -116,7 +114,7 @@ func (p *AssetPipeline) ServeRewrittenAsset(name string, rw *hostRewriter, modTi
 		var err error
 		if strings.HasSuffix(name, ".html") {
 			// A page gets the shared chrome first, so the rewrite covers it
-			// too; chromePage has already put this install's limits in.
+			// too; BuildChromePage has already put this install's limits in.
 			body, err = p.BuildChromePage(name, p.ChromeDataFor(r, ""))
 			if err == nil {
 				body = rw.Apply(body)
@@ -135,7 +133,7 @@ func (p *AssetPipeline) ServeRewrittenAsset(name string, rw *hostRewriter, modTi
 			}
 			body, err = p.TextFS().ReadFile("static/" + sourceName)
 			if err == nil && (name == "openapi.yaml" || name == "openapi.json") && !replaced {
-				body, err = publicOpenAPISpec(body, "public-host")
+				body, err = webassets.PublicOpenAPISpec(body, "public-host")
 			}
 			if err == nil && name == "features.json" {
 				body = stripBracketMarkers(body, "self", "hosted")
@@ -192,38 +190,13 @@ func replaceSetupLine(body []byte, prefix, replacement string) []byte {
 	return append(append(append([]byte{}, body[:start]...), []byte(replacement)...), body[start+end:]...)
 }
 
-// stripBracketMarkers removes every [[dropName]]...[[/dropName]] span
-// (markers and content together) and unwraps every
-// [[keepName]]/[[/keepName]] pair (markers removed, content kept): the
-// [[...]]-token analogue of chrome.go's stripMarkedBlocks, for the one
-// asset (features.json) whose markers never become HTML comments.
-func stripBracketMarkers(body []byte, keepName, dropName string) []byte {
-	open, end := []byte("[["+dropName+"]]"), []byte("[[/"+dropName+"]]")
-	for {
-		i := bytes.Index(body, open)
-		if i < 0 {
-			break
-		}
-		j := bytes.Index(body[i:], end)
-		if j < 0 {
-			break
-		}
-		body = append(body[:i:i], body[i+j+len(end):]...)
-	}
-	body = bytes.ReplaceAll(body, []byte("[["+keepName+"]]"), nil)
-	return bytes.ReplaceAll(body, []byte("[[/"+keepName+"]]"), nil)
-}
-
 // InstanceHosts rewrites the canonical hostnames baked into served assets to
 // this instance's own. Nil on simple-host.app, where every substitution is
 // identity.
 //
 // It is a package var, not an AssetPipeline field, because address settings
-// stay instance-wide rather than edition-bound (docs/architecture/target.md
-// §3): every pipeline's rewriting methods and the handlerOnlyFS built from
-// it read the same InstanceHosts. It must be set before the server accepts a
-// request, so SetInstanceHosts is called from main directly after config
-// load rather than as a side effect of registering routes.
+// are instance-wide, not edition-bound. SetInstanceHosts sets it at startup,
+// before the server accepts a request.
 var InstanceHosts *hostRewriter
 
 // SetInstanceHosts configures host rewriting for served assets. Call once, at
@@ -264,18 +237,15 @@ type InstanceFacts struct {
 	// (PERSON_HOSTS and SITE_HOSTS off, as on a small box).
 	SharedOrigin bool
 	// SignInEmail and SignInProviders: how visitors can sign in. SignInEmail
-	// is EMAIL_SIGNIN taken together with whether this install can send
-	// email at all (config.Config.EmailSignInEnabled) — it means "email
-	// code sign-in works", not "this install can send email" (EmailCapable
-	// below is that).
+	// means email-code sign-in works (EMAIL_SIGNIN and a sender), unlike
+	// EmailCapable.
 	SignInEmail     bool
 	SignInProviders []string
 	// OIDCLabel names the company sign-in button (OIDC_LABEL) when "oidc"
 	// is in SignInProviders.
 	OIDCLabel string
-	// EmailCapable: this install can send email at all (RESEND_API_KEY is
-	// set), regardless of EMAIL_SIGNIN. Sign-in codes need it; EMAIL_SIGNIN=off
-	// turns them off on a server that has it.
+	// EmailCapable: this install can send email at all (RESEND_API_KEY),
+	// regardless of EMAIL_SIGNIN.
 	EmailCapable bool
 	// Contact: who to ask for help (auth.SupportContact).
 	Contact string
@@ -285,7 +255,7 @@ type InstanceFacts struct {
 // simple-host.app (SetInstanceNote); "" there.
 var InstanceNote string
 
-// instanceFacts also supplies public authentication documentation.
+// CurrentInstance is the facts SetInstanceNote was given, for the auth docs.
 var CurrentInstance InstanceFacts
 
 // SetInstanceNote writes the THIS SERVER block of llms.txt from f. Call once
@@ -306,22 +276,7 @@ func SetInstanceNote(f InstanceFacts) {
 		b.WriteString("- Addresses: every site is at https://" + f.ContentHost + "/<handle>/<site>/, and every site on this server shares that one browser origin: localStorage, sessionStorage, IndexedDB and cookies are shared with every other site here. Keep nothing private in the browser, and prefix browser storage keys with the site's name. A free <name>." + base + " address works only once the operator has pointed a wildcard DNS record (*." + base + ") at this server.\n")
 		b.WriteString("- Preview links (preview_url, POST .../versions/<n>/preview-link) need a per-site address, which this server does not give sites (409 preview_unavailable): to check a stored version, make it live (PUT .../active-version) and switch back if needed.\n")
 	}
-	var ways []string
-	if f.SignInEmail {
-		ways = append(ways, "an emailed code")
-	}
-	for _, p := range f.SignInProviders {
-		switch name := map[string]string{"google": "Google", "github": "GitHub"}[p]; {
-		case name != "":
-			ways = append(ways, name)
-		case p == "oidc":
-			label := f.OIDCLabel
-			if label == "" {
-				label = "your company account"
-			}
-			ways = append(ways, label)
-		}
-	}
+	ways := signInWays(f.SignInEmail, f, "")
 	if len(ways) == 0 {
 		b.WriteString("- Visitor sign-in: visitors cannot sign in on this server (no email or Google sign-in is set up). Never call SH.requireSignIn() or offer sign-in, and give storage only rules that need no signed-in visitor.")
 	} else {
@@ -342,6 +297,30 @@ func SetInstanceNote(f InstanceFacts) {
 	}
 	b.WriteString("- Help: ask " + contact + "; support@simple-host.app is the hosted service's mailbox, not this server's.\n\n")
 	InstanceNote = b.String()
+}
+
+// signInWays names each way a person can sign in, in the docs' words;
+// oidcSuffix follows the company sign-in label.
+func signInWays(email bool, f InstanceFacts, oidcSuffix string) []string {
+	var ways []string
+	if email {
+		ways = append(ways, "an emailed code")
+	}
+	for _, provider := range f.SignInProviders {
+		switch provider {
+		case "google":
+			ways = append(ways, "Google")
+		case "github":
+			ways = append(ways, "GitHub")
+		case "oidc":
+			label := f.OIDCLabel
+			if label == "" {
+				label = "your company account"
+			}
+			ways = append(ways, label+oidcSuffix)
+		}
+	}
+	return ways
 }
 
 // controlPlaneSkills name the public instance on purpose: they drive endpoints

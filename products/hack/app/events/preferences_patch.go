@@ -17,8 +17,6 @@ type PreferencesPatch struct {
 
 var themes = map[string]bool{"system": true, "light": true, "dark": true}
 
-// PatchPreferences applies the patch to the person's stored preferences and
-// answers the result.
 func (s *Service) PatchPreferences(ctx context.Context, userID string, in PreferencesPatch) (model.HackPreferences, error) {
 	if in.Theme != nil && !themes[*in.Theme] {
 		return model.HackPreferences{}, &Error{Code: "invalid_theme", Message: "theme must be system, light or dark"}
@@ -34,14 +32,12 @@ func (s *Service) PatchPreferences(ctx context.Context, userID string, in Prefer
 	return p, s.SetHackPreferencesLookup(ctx, userID, p)
 }
 
-// setIf stores *v in dst when v is given.
 func setIf[T any](dst *T, v *T) {
 	if v != nil {
 		*dst = *v
 	}
 }
 
-// AnnouncementText checks an announcement's title and body.
 func AnnouncementText(title, body string) (string, string, error) {
 	title, err := lineValue(title, "title", 1, 120)
 	if err != nil {

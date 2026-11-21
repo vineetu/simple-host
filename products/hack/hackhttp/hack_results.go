@@ -38,7 +38,7 @@ func (h *judgingHTTP) publishResults(w http.ResponseWriter, r *http.Request) {
 		overrides[i] = entryapp.RankOverride(ov)
 	}
 	move, committed := h.publishStageMove(r)
-	rows, full, err := h.entries.PublishEventResults(r.Context(), a.event.ID, a.user.ID, overrides, move, h.links.resultSiteURL(r.Context(), a.event), committed)
+	rows, full, err := h.entries.PublishResults(r.Context(), a.event.ID, a.user.ID, overrides, move, h.links.resultSiteURL(r.Context(), a.event), committed)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -114,7 +114,6 @@ func (h *judgingHTTP) patchResults(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"full_ranking": res.FullRanking, "results": json.RawMessage(res.Snapshot)})
 }
 
-// getPublicResults answers the published results to anyone.
 func (h *judgingHTTP) getPublicResults(w http.ResponseWriter, r *http.Request) {
 	ev, err := h.events.EventBySlug(r.Context(), strings.ToLower(strings.TrimSpace(r.PathValue("slug"))))
 	if err == nil {
@@ -142,8 +141,6 @@ func (h *judgingHTTP) getPublicResults(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// viewerOrganises reports whether the signed-in viewer is the platform
-// admin or one of the event's organisers.
 func (h *judgingHTTP) viewerOrganises(r *http.Request, ev model.Event) bool {
 	u := auth.GetUser(r.Context())
 	if u == nil {
@@ -153,8 +150,6 @@ func (h *judgingHTTP) viewerOrganises(r *http.Request, ev model.Event) bool {
 	return u.IsAdmin || (err == nil && m.Role == "organiser")
 }
 
-// writePublicResults answers a stranger's view: {"ranking": ...} with the
-// full ranking on, {"winners": ...} otherwise.
 func (h *judgingHTTP) writePublicResults(w http.ResponseWriter, ctx context.Context, ev model.Event, pub entryapp.Published) {
 	live := h.links.liveResultSites(ctx, h.events, ev)
 	rows := entryapp.PublicResultRows(ev, pub)
@@ -207,8 +202,6 @@ func publicResultJSON(row entryapp.ResultRow, ev model.Event, full bool, live ma
 	return item
 }
 
-// getMyResults answers a participant team's own place, score and judges'
-// comments, and its card when a stranger would see it too.
 func (h *judgingHTTP) getMyResults(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
 	if !ok {
@@ -259,7 +252,6 @@ func (h *judgingHTTP) exportScoresCSV(w http.ResponseWriter, r *http.Request) {
 	writeCSV(w, cells)
 }
 
-// exportResultsCSV writes the results export.
 func (h *judgingHTTP) exportResultsCSV(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "organiser")
 	if !ok {
@@ -284,7 +276,6 @@ func (h *judgingHTTP) exportResultsCSV(w http.ResponseWriter, r *http.Request) {
 	cw.Flush()
 }
 
-// csvAttachment starts a dated CSV download named <event>-<kind>-<date>.csv.
 func csvAttachment(w http.ResponseWriter, eventSlug, kind string) {
 	filename := fmt.Sprintf("%s-%s-%s.csv", eventSlug, kind, time.Now().UTC().Format("2006-01-02"))
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
@@ -292,7 +283,6 @@ func csvAttachment(w http.ResponseWriter, eventSlug, kind string) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// csvPoints is a total to two places, "" when there is none.
 func csvPoints(v *float64) string {
 	if v == nil {
 		return ""
@@ -300,7 +290,6 @@ func csvPoints(v *float64) string {
 	return strconv.FormatFloat(*v, 'f', 2, 64)
 }
 
-// csvPlace is a rank, "" when there is none.
 func csvPlace(v *int) string {
 	if v == nil {
 		return ""
@@ -308,10 +297,7 @@ func csvPlace(v *int) string {
 	return strconv.Itoa(*v)
 }
 
-// liveResultSites maps team id to the public address of every team site that
-// is live right now (the gallery's own query), so the public result routes
-// (/results, /public) drop a card's site link once a site is taken down or
-// goes offline after publish, without a republish -- as the event page does.
+// liveResultSites maps team id to the public address of every team site live right now, so /results and /public drop a card's site link once a site is taken down or goes offline after publish, without a republish.
 func (h *siteLinks) liveResultSites(ctx context.Context, svc *events.Service, ev model.Event) map[string]string {
 	out := map[string]string{}
 	if h.hooks == nil {

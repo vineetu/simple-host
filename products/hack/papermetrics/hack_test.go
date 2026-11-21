@@ -404,55 +404,6 @@ func TestHackRequestContextLifetime(t *testing.T) {
 		t.Fatal("cancellation lost")
 	}
 }
-func BenchmarkHackWrap(b *testing.B)         { benchmarkHack(b, false) }
-func BenchmarkHackWrapParallel(b *testing.B) { benchmarkHack(b, true) }
-func benchmarkHack(b *testing.B, parallel bool) {
-	for _, kind := range []string{"event", "team_site", "team_write"} {
-		b.Run(kind, func(b *testing.B) {
-			c, _ := mockHack(b)
-			h := c.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if kind == "event" {
-					ResolveHackEvent(r.Context(), "event", "judging", "member")
-				} else {
-					ResolveHackSite(r.Context(), "account", "team", "member", kind == "team_write")
-					if kind == "team_write" {
-						HackWriteCommitted(r.Context())
-					}
-					HackDeploy(r.Context())
-				}
-			}))
-			method, url := "GET", "https://simple-hack.app/v1/hack/events/event/people"
-			if kind == "team_site" {
-				url = "https://team.event.simple-hack.app/index.html"
-			}
-			if kind == "team_write" {
-				method, url = "PUT", "https://team.event.simple-hack.app/v1/sites/team/storage/kv/store/keys/count"
-			}
-
-			run := func(n int) {
-				r := httptest.NewRequest(method, url, nil)
-				w := httptest.NewRecorder()
-				for i := 0; i < n; i++ {
-					h.ServeHTTP(w, r)
-				}
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			if parallel {
-				b.RunParallel(func(pb *testing.PB) {
-					r := httptest.NewRequest(method, url, nil)
-					w := httptest.NewRecorder()
-					for pb.Next() {
-						h.ServeHTTP(w, r)
-					}
-				})
-			} else {
-				run(b.N)
-			}
-		})
-	}
-}
-
 func TestHackStableKeysSyntheticAndPhases(t *testing.T) {
 	d := isolatedDB(t)
 	ctx := context.Background()

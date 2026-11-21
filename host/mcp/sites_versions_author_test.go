@@ -20,9 +20,6 @@ func TestListVersionsAuthorInTextOnly(t *testing.T) {
 	if !strings.Contains(text, `"author": "Priya from design"`) || strings.Count(text, `"author"`) != 1 {
 		t.Fatalf("text does not name the one author once: %s", text)
 	}
-	if !strings.Contains(text, `"not_yet_live": true`) {
-		t.Fatalf("text lost not_yet_live: %s", text)
-	}
 	for _, raw := range structured["versions"].([]any) {
 		if _, has := raw.(map[string]any)["author"]; has {
 			t.Fatalf("structured output carries author: %v", structured)

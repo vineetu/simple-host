@@ -1,37 +1,20 @@
-// Package bundlegen builds the judge and organiser MCP Apps' bundled
-// script and stylesheet from the real static/hack web app files, at
-// build time, from products/hack/mcp/apps/entry/{judge,organiser}.js, each a
-// small hand-written entry module that imports the screens it needs and
-// sets window.__HACKJ / window.__HACKO for the hand-written glue
-// (hack-{judge,organiser}-view.js) to drive.
+// Package bundlegen builds the judge and organiser MCP Apps' bundled script and
+// stylesheet from the real static/hack web app files, from the hand-written
+// entry modules apps/entry/{judge,organiser}.js (which set window.__HACKJ /
+// window.__HACKO for the glue in hack-{judge,organiser}-view.js).
 //
-// Bundling itself is github.com/evanw/esbuild (pinned in go.mod; see
-// esbuildVersion below), called through its Go API -- no Node, no
-// floating binary, no network fetch at build or generation time; the
-// module is fetched once into the module cache like any other dependency
-// and the server binary never links it (gentool and the tests here are
-// the only importers; `go list -deps ./cmd/server | grep esbuild` is
-// empty). Earlier revisions of this package hand-rolled a regex "bundler"
-// instead, because a pinned `go run github.com/evanw/esbuild/...` needed
-// to fetch and execute a third-party module, which this box's build
-// sandbox refused at the time (astra-review problem 8; target.md §7).
-// That restriction no longer holds (owner-approved 2026-11-02): this
-// version calls esbuild's own Bundle/parse/link/print pipeline instead of
-// a line-oriented regex pass, so it understands actual JavaScript rather
-// than the fixed, narrow import/export shapes the old transform could.
+// Bundling is github.com/evanw/esbuild (pinned in go.mod, see esbuildVersion)
+// through its Go API: no Node, no floating binary, no network fetch at
+// generation time. The server binary never links it (only gentool and the
+// tests import it).
 //
-// The screens are reused byte-for-byte from disk except for calls to a
-// small platform adapter (products/hack/webassets/static/hack/platform.js on the
-// website side, products/hack/mcp/apps/frame/platform.js on this side) where
-// the real browser environment (a real pathname, a same-origin document,
-// a page the browser can navigate to, a <form> that can submit) does not
-// hold inside an MCP App frame (an isolated, sandboxed iframe with its
-// own, unrelated location, that the host -- not this app -- owns
-// navigation for, and whose sandbox="allow-scripts" has no allow-forms).
-// Those calls are ordinary source in the real screens, not a generation-
-// time patch: both implementations are checked-in files, selected by
-// framePlugin below. nav.js and tour.js are swapped the same way, for
-// in-frame routing and a no-op guided tour.
+// The screens are reused byte-for-byte except for calls to a small platform
+// adapter (static/hack/platform.js on the website side, apps/frame/platform.js
+// here), because a real pathname, same-origin document, navigable page and
+// submittable <form> do not exist inside a sandboxed MCP App iframe (the host
+// owns navigation; sandbox="allow-scripts" has no allow-forms). Both
+// implementations are checked-in files selected by framePlugin; nav.js and
+// tour.js are swapped the same way, for in-frame routing and a no-op tour.
 package bundlegen
 
 import (
@@ -45,23 +28,16 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 )
 
-// esbuildVersion names the pinned release (go.mod) for the generated
-// header comment, kept as a string literal rather than read back out of
-// go.mod so a generation run never needs to parse it.
+// esbuildVersion names the pinned release (go.mod) for the generated header
+// comment; a literal so generation never parses go.mod.
 const esbuildVersion = "esbuild v0.28.2"
 
-// moduleRoot locates this repo's root (the directory holding go.mod).
-// runtime.Caller gives this source file's own path, but a -trimpath build
-// (this repo's default, go env GOFLAGS) rewrites that to the module path,
-// not a filesystem one, so that only works untrimmed. Either way, fall
-// back to walking up from the working directory to the nearest go.mod,
-// which holds regardless of how the binary was built or where
-// `go run`/`go test` was invoked from inside the repo. Used as esbuild's
-// AbsWorkingDir, so every module-wrapper comment esbuild emits in the
-// bundle is a path relative to the repo root (e.g. "internal/handler/
-// static/hack/ui.js"), never an absolute one -- the same bytes from any
-// checkout directory, which is what the freshness tests (TestHackJudge
-// BundleFresh, TestHackOrganiserBundleFresh, products/hack/mcp) depend on.
+// moduleRoot locates the repo root (the directory holding go.mod). runtime.Caller
+// gives this file's path, but a -trimpath build rewrites it to the module path,
+// so fall back to walking up from the working directory. It is esbuild's
+// AbsWorkingDir, so every module-wrapper comment in the bundle is a repo-relative
+// path: the same bytes from any checkout, which the freshness tests
+// (TestHackJudgeBundleFresh, TestHackOrganiserBundleFresh) depend on.
 func moduleRoot() (string, error) {
 	if _, self, _, ok := runtime.Caller(0); ok && filepath.IsAbs(self) {
 		root := filepath.Join(filepath.Dir(self), "..", "..", "..", "..", "..")
@@ -95,10 +71,8 @@ func entryRoot(root string) string {
 	return filepath.Join(root, "products", "hack", "mcp", "apps", "entry")
 }
 
-// checkRoot confirms root actually is this repo (kit.css is the same
-// landmark the old webRoot() checked), so a wrong guess from moduleRoot's
-// getwd fallback fails loudly instead of esbuild reporting a confusing
-// "file not found" deep in a resolve error.
+// checkRoot confirms root is this repo (kit.css is the landmark), so a wrong
+// getwd fallback fails loudly instead of as a confusing esbuild resolve error.
 func checkRoot(root string) error {
 	if _, err := os.Stat(filepath.Join(webRoot(root), "kit.css")); err != nil {
 		return fmt.Errorf("bundlegen: products/hack/webassets/static/hack not found under module root %s", root)
@@ -106,18 +80,11 @@ func checkRoot(root string) error {
 	return nil
 }
 
-// framePlugin resolves the website's nav.js, tour.js and platform.js
-// imports to this frame's own implementations under
-// products/hack/mcp/apps/frame, for exactly one app (judge or organiser) at a
-// time: navFile names that app's own nav.js stand-in (judge-nav.js or
-// organiser-nav.js); tour.js and platform.js are shared by both apps.
-// Matched by the resolved filesystem path, not by the literal import
-// text, so it catches every import of these three files regardless of
-// how many directories separate the importer from internal/handler/
-// static/hack (ui.js's own './nav.js' and a screen's '../nav.js' both
-// land here) -- and, just as importantly, never touches an unrelated
-// file that happens to also be named nav.js, tour.js or platform.js
-// somewhere outside that one directory.
+// framePlugin resolves the website's nav.js, tour.js and platform.js imports to
+// this frame's implementations under apps/frame, for one app at a time: navFile
+// names that app's nav.js stand-in; tour.js and platform.js are shared. It
+// matches by resolved filesystem path, not import text, so every import depth is
+// caught and an unrelated file with the same name elsewhere is never touched.
 func framePlugin(root, navFile string) api.Plugin {
 	web := webRoot(root)
 	frame := frameRoot(root)
@@ -138,24 +105,17 @@ func framePlugin(root, navFile string) api.Plugin {
 					case platformAbs:
 						return api.OnResolveResult{Path: filepath.Join(frame, "platform.js"), Namespace: "file"}, nil
 					}
-					// Not one of the three files this frame answers
-					// differently: fall through to esbuild's own default
-					// resolution (every other import -- _judge-util.js,
-					// _orgA-util.js, schedule.js, the screens themselves).
+					// Any other import falls through to esbuild's default resolution.
 					return api.OnResolveResult{}, nil
 				})
 		},
 	}
 }
 
-// buildBundle runs esbuild once, for one entry file and one frame's nav.js
-// stand-in. Bundle:true + Write:false asks for esbuild's own module
-// resolution, linking and printing with no files written to disk; Format
-// IIFE wraps the whole graph in one `(() => { ... })()` with no module
-// loader at runtime, which is what a classic <script> (no type="module",
-// this frame's CSP allows no external script src at all) needs. No
-// minification and LegalCommentsNone keep the generated file readable and
-// diff-able; neither changes behaviour.
+// buildBundle runs esbuild once for one entry file and one frame's nav.js
+// stand-in. Format IIFE wraps the graph in one `(() => { ... })()`, which a
+// classic <script> needs (the frame's CSP allows no external script src). No
+// minification and LegalCommentsNone keep the output readable and diff-able.
 func buildBundle(root, entry, navFile string) (string, error) {
 	result := api.Build(api.BuildOptions{
 		EntryPoints:   []string{entry},
@@ -178,22 +138,17 @@ func buildBundle(root, entry, navFile string) (string, error) {
 	if len(result.OutputFiles) != 1 {
 		return "", fmt.Errorf("bundlegen: esbuild produced %d output files for %s, want exactly 1", len(result.OutputFiles), entry)
 	}
-	// Keep the generated source labels stable across the asset-only move
-	// and across this package's own move out of products/hack/mcp/apps: the
-	// bundles are served to the views, so their bytes do not change when
-	// only a source directory does.
+	// Keep generated source labels stable: the bundles are served to the views, so
+	// their bytes must not change when only a source directory does.
 	return strings.NewReplacer(
 		"// products/hack/webassets/static/hack/", "// internal/handler/static/hack/",
 		"// products/hack/mcp/apps/", "// internal/mcp/apps/",
 	).Replace(string(result.OutputFiles[0].Contents)), nil
 }
 
-// GenerateJS builds the judge app's single bundled script: ui.js and the
-// four judge screens (public-judge, judge-queue, judge-scoring,
-// judge-rubric), reached from products/hack/mcp/apps/entry/judge.js, which
-// also sets `window.__HACKJ = { ui, screens: { invite, queue, score,
-// rubric } }` for the hand-written glue (hack-judge-view.js) to drive --
-// that assignment is part of the bundled entry file, not added here.
+// GenerateJS builds the judge app's single bundled script: ui.js and the four
+// judge screens (public-judge, judge-queue, judge-scoring, judge-rubric), reached
+// from apps/entry/judge.js, which also sets window.__HACKJ.
 func GenerateJS() (string, error) {
 	root, err := moduleRoot()
 	if err != nil {
@@ -206,11 +161,9 @@ func GenerateJS() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// The judge frame has no real-website fallback (every section it asks
-	// nav.js for is answered in-frame), so unlike the organiser bundle
-	// below it must never carry the organiser frame's __ORIGIN__
-	// placeholder -- readHackApp (products/hack/mcp/hack_apps.go) only
-	// substitutes that token for the organiser screen.
+	// The judge frame has no real-website fallback, so unlike the organiser bundle
+	// it must never carry the __ORIGIN__ placeholder (readHackApp substitutes it
+	// only for the organiser screen).
 	if strings.Contains(body, "__ORIGIN__") {
 		return "", fmt.Errorf("bundlegen: judge bundle unexpectedly carries __ORIGIN__ (that placeholder belongs to the organiser frame only; see frame/organiser-nav.js)")
 	}
@@ -220,14 +173,9 @@ func GenerateJS() (string, error) {
 const generatedHeader = "// GENERATED by internal/mcp/apps/bundlegen (go generate ./internal/mcp/apps/gentool), via " + esbuildVersion + ". Do not edit by hand.\n" +
 	"// Entry: internal/mcp/apps/entry/judge.js, bundling internal/handler/static/hack/{ui.js,screens/_judge-util.js,screens/public-judge.js,screens/judge-queue.js,screens/judge-scoring.js,screens/judge-rubric.js} with internal/mcp/apps/frame/{judge-nav.js,tour.js,platform.js} swapped in for nav.js/tour.js/platform.js.\n"
 
-// GenerateOrganiserJS builds the organiser app's single bundled script:
-// ui.js, schedule.js and the three Phase 2 organiser screens
-// (organiser-overview, organiser-people, organiser-judging), reached from
-// products/hack/mcp/apps/entry/organiser.js, which also sets `window.__HACKO =
-// { ui, screens: { overview, people, judging } }` for the hand-written
-// glue (hack-organiser-view.js) to drive. Teams, entries, results and the
-// event page (and their own _orgB-util.js) are later phases; this bundle
-// only ever builds the three screens above.
+// GenerateOrganiserJS builds the organiser app's single bundled script: ui.js,
+// schedule.js and the three organiser screens (overview, people, judging),
+// reached from apps/entry/organiser.js, which also sets window.__HACKO.
 func GenerateOrganiserJS() (string, error) {
 	root, err := moduleRoot()
 	if err != nil {
@@ -240,14 +188,10 @@ func GenerateOrganiserJS() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// frame/organiser-nav.js carries exactly one __ORIGIN__ placeholder,
-	// substituted by readHackApp (products/hack/mcp/hack_apps.go) at serve time
-	// -- counted, not just checked for presence, so a future edit that
-	// duplicates it (or a screen that coincidentally contains the same
-	// literal text) fails generation loudly instead of leaving an
-	// un-substituted or wrongly-substituted token in a served page (same
-	// reasoning patches.go's import-anchoring used to apply to its own
-	// exact-text replacements, Grok security review, SIM-344).
+	// frame/organiser-nav.js carries exactly one __ORIGIN__ placeholder, substituted
+	// by readHackApp at serve time. Counted, not just checked for presence, so a
+	// duplicate (or a screen containing the same literal) fails generation instead
+	// of leaving a wrongly substituted token in a served page.
 	if n := strings.Count(body, "__ORIGIN__"); n != 1 {
 		return "", fmt.Errorf("bundlegen: organiser bundle carries __ORIGIN__ %d times, want exactly 1 (see frame/organiser-nav.js and hack_apps.go's readHackApp)", n)
 	}
@@ -257,10 +201,9 @@ func GenerateOrganiserJS() (string, error) {
 const organiserGeneratedHeader = "// GENERATED by internal/mcp/apps/bundlegen (go generate ./internal/mcp/apps/gentool), via " + esbuildVersion + ". Do not edit by hand.\n" +
 	"// Entry: internal/mcp/apps/entry/organiser.js, bundling internal/handler/static/hack/{ui.js,schedule.js,screens/_orgA-util.js,screens/organiser-overview.js,screens/organiser-people.js,screens/organiser-judging.js} with internal/mcp/apps/frame/{organiser-nav.js,tour.js,platform.js} swapped in for nav.js/tour.js/platform.js. Carries one __ORIGIN__ placeholder (frame/organiser-nav.js), substituted at serve time.\n"
 
-// GenerateCSS inlines kit.css verbatim except for its one @font-face rule:
-// the hand font is reserved for the shell's own wordmark, which no judge
-// or organiser view renders, and the CSP here allows no remote
-// resourceDomains at all, so the font must never be requested.
+// GenerateCSS inlines kit.css verbatim except its one @font-face rule: the hand
+// font is reserved for the shell's wordmark, and the CSP allows no remote
+// resourceDomains, so the font must never be requested.
 func GenerateCSS() (string, error) {
 	root, err := moduleRoot()
 	if err != nil {

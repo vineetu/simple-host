@@ -63,7 +63,6 @@ func AssistantReserve(ctx context.Context, db *sql.DB, userID string, day, month
 	return tx.Commit()
 }
 
-// AssistantSettle adjusts this month's spend by deltaMicro.
 func AssistantSettle(ctx context.Context, db *sql.DB, month time.Time, deltaMicro int64) error {
 	if deltaMicro == 0 {
 		return nil
@@ -108,7 +107,6 @@ func AssistantRefund(ctx context.Context, db *sql.DB, userID string, day, month 
 	return tx.Commit()
 }
 
-// AssistantUsedToday reads today's question count for userID (0 if no row).
 func AssistantUsedToday(ctx context.Context, q sqlkit.Querier, userID string, day time.Time) (int, error) {
 	var n int
 	err := q.QueryRowContext(ctx, `SELECT questions FROM hack_assistant_usage WHERE user_id = $1 AND day = $2`, userID, day).Scan(&n)
@@ -118,7 +116,6 @@ func AssistantUsedToday(ctx context.Context, q sqlkit.Querier, userID string, da
 	return n, err
 }
 
-// AssistantSpentThisMonth reads this month's instance-wide spend in micro-USD (0 if no row yet).
 func AssistantSpentThisMonth(ctx context.Context, q sqlkit.Querier, month time.Time) (int64, error) {
 	var n int64
 	err := q.QueryRowContext(ctx, `SELECT cost_micro_usd FROM hack_assistant_spend WHERE month = $1`, month).Scan(&n)

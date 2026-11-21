@@ -2,9 +2,8 @@ package hackmcp
 
 import "github.com/vsriram/simple-host/host/mcp"
 
-// Hack's notification tools are the platform's: the person's own
-// subscriptions on a team site or the event website, named by site and owner
-// (the event's name).
+// Notification tools are the platform's: the person's own subscriptions on a
+// team site or the event website, named by site and owner (the event's name).
 func hackNotificationTools() []mcp.Tool {
 	tools := mcp.NotificationTools()
 	for i := range tools {

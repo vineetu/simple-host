@@ -2,15 +2,14 @@ package hackentries
 
 import (
 	"github.com/vsriram/simple-host/products/hack/model"
+	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 	"math"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 )
 
-// DefaultEventRubric is what a brand-new event starts with. createEvent is
-// the only caller: an event that already exists is never given these rows
-// later, and the organiser replaces them with PUT .../rubric.
+// DefaultEventRubric is what a brand-new event starts with; createEvent is the
+// only caller, and the organiser replaces it with PUT .../rubric.
 func DefaultEventRubric() []model.RubricCriterion {
 	return []model.RubricCriterion{
 		{Name: "Idea", Description: "How original or useful is it?", Weight: 25, MaxPoints: 5},
@@ -69,11 +68,11 @@ func rubricName(s string) (string, bool) {
 		return "", false
 	}
 	s = strings.Join(strings.Fields(s), " ")
-	if !hasVisible(s) {
+	if !hackevents.HasVisible(s) {
 		return "", false
 	}
 	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
+	if hackevents.HasBadControls(s) {
 		return "", false
 	}
 	n := utf8.RuneCountInString(s)
@@ -87,7 +86,7 @@ func rubricName(s string) (string, bool) {
 // runes; newlines and tabs stay, other controls do not).
 func rubricDescription(s string) (string, string) {
 	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
+	if hackevents.HasBadControls(s) {
 		return "", "A description contains characters that are not allowed."
 	}
 	if utf8.RuneCountInString(s) > 300 {
@@ -97,14 +96,12 @@ func rubricDescription(s string) (string, string) {
 }
 
 // JudgeCommentText cleans and validates a judge's comment on a team: same
-// control-character rule as a rubric description (a comment can be empty,
-// unlike a description's cousin fields, and also lands in a CSV export, so
-// stripping stray formatting here matters for csvSafe's leading-character
-// check to actually see the real first character rather than whatever an
-// embedded control sequence put there).
+// control-character rule as a rubric description. A comment can be empty and
+// also lands in a CSV export, so stripping stray control sequences matters for
+// csvSafe's leading-character check to see the real first character.
 func JudgeCommentText(s string) (string, string) {
 	s = strings.TrimSpace(strings.ReplaceAll(s, "\r\n", "\n"))
-	if hasBadControls(s) {
+	if hackevents.HasBadControls(s) {
 		return "", "A comment contains characters that are not allowed."
 	}
 	if utf8.RuneCountInString(s) > 1000 {
@@ -122,36 +119,4 @@ func WholeInRange(n *float64, min, max int) (int, bool) {
 		return 0, false
 	}
 	return int(*n), true
-}
-
-func hasBadControls(s string) bool {
-	for _, r := range s {
-		if r == '\n' || r == '\t' {
-			continue
-		}
-		if unicode.IsControl(r) {
-			return true
-		}
-		switch {
-		case r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069, r == 0x200B, r == 0xFEFF:
-			return true
-		}
-	}
-	return false
-}
-
-// hasVisible: s has at least one character that shows (not only spaces,
-// marks or blank-looking letters such as the Hangul filler).
-func hasVisible(s string) bool {
-	for _, r := range s {
-		switch r {
-		case 0x3164, 0x115F, 0x1160, 0xFFA0, 0x2800, 0x180E:
-			continue
-		}
-		if unicode.IsSpace(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Mn, r) {
-			continue
-		}
-		return true
-	}
-	return false
 }

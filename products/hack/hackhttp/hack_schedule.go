@@ -10,19 +10,9 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// A schedule that acts (owner, 2026-11-02). The event's real times -- start
-// and end, the entry deadline (a team's own extension in its own view), the
-// voting window and the moment results were published -- show in the
-// schedule as fixed rows. They are computed from the settings each time, never
-// stored, so a fixed row can never disagree with the setting it comes from.
-// The organiser changes them where they are set (set_in), not in Schedule.
-//
-// A row can also line up with a forward stage move (prompt). When that row's
-// time comes, the organiser's next step says so ("Kickoff is now. Open
-// sign-up?"). It only asks: nothing here ever moves a stage, because a late
-// kickoff must not close entries early.
+// The event's real times (start, end, entry deadline, voting window, results published) show in the schedule as fixed rows. They are computed from the settings each time, never stored, so a row can never disagree with its setting; the organiser changes them where set (set_in), not in Schedule.
+// A row can also line up with a forward stage move (prompt). When its time comes the organiser's next step says so ("Kickoff is now. Open sign-up?"). It only asks: nothing here moves a stage, because a late kickoff must not close entries early.
 
-// hackFixedRow is one derived, read-only schedule row.
 type hackFixedRow struct {
 	Key         string  `json:"key"`
 	Title       string  `json:"title"`
@@ -35,7 +25,6 @@ type hackFixedRow struct {
 	Prompt      string  `json:"prompt,omitempty"`
 }
 
-// hackFixedInputs is what the fixed rows are computed from.
 type hackFixedInputs struct {
 	Event     model.Event
 	Voting    *model.VotingSettings
@@ -53,7 +42,6 @@ func hackEventLoc(ev model.Event) *time.Location {
 	return loc
 }
 
-// hackFixedSchedule builds the fixed rows, sorted by time.
 func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 	ev := in.Event
 	loc := hackEventLoc(ev)
@@ -90,8 +78,7 @@ func hackFixedSchedule(in hackFixedInputs) []hackFixedRow {
 		add(hackFixedRow{Key: "entry_deadline", Title: "Entries due", StartAt: stamp(ev.SubmissionDeadline.Time), SetIn: "entries", Prompt: "closed"})
 	}
 	if ev.JudgingEndsAt.Valid {
-		// 0003-hack-notices-judges-messages.sql: a plain organiser-set time, not
-		// inferred from any schedule row.
+		// judging_end is a plain organiser-set time, not inferred from any schedule row.
 		add(hackFixedRow{Key: "judging_end", Title: "Judging closes", StartAt: stamp(ev.JudgingEndsAt.Time), SetIn: "judging", Prompt: "results"})
 	}
 	if in.Voting != nil && votingStatus(ev, *in.Voting, in.Now) != "disabled" {
@@ -131,16 +118,13 @@ func hackCueTime(t, now time.Time, loc *time.Location) string {
 	return lt.Format("Mon 2 Jan, 3:04 pm")
 }
 
-// hackTimedRow is one schedule row with its times parsed: an organiser's
-// editable item or a fixed row. sortAt is where it sorts in the schedule.
+// hackTimedRow is a schedule row with parsed times; sortAt is where it sorts.
 type hackTimedRow struct {
 	key, title, desc, prompt string
 	start, end, sortAt       time.Time
 	hasEnd, allDay, fixed    bool
 }
 
-// hackTimedRows parses the editable items (dropping any with a bad time)
-// followed by the fixed rows, in that order.
 func hackTimedRows(free []hackScheduleItem, fixed []hackFixedRow, loc *time.Location) []hackTimedRow {
 	var rows []hackTimedRow
 	for _, it := range free {
@@ -206,7 +190,6 @@ func hackDueRow(rows []hackTimedRow, move string, now time.Time) (hackTimedRow, 
 	return best, found
 }
 
-// hackCueText is the cue's sentence: what the row is (or was), then the move.
 func hackCueText(r hackTimedRow, isNow bool, at, label string) string {
 	past, present := r.title+" was at ", r.title+" is now"
 	if p, ok := hackCuePhrases[r.key]; ok {
@@ -247,7 +230,6 @@ func hackScheduleCue(step map[string]any, free []hackScheduleItem, fixed []hackF
 	}
 }
 
-// scheduleCue loads what the organiser's cue needs.
 func (h *views) scheduleCue(ctx context.Context, ev model.Event, step map[string]any) map[string]any {
 	content, err := h.events.EventContent(ctx, ev.ID)
 	if err != nil {

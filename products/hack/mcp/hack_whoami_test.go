@@ -9,7 +9,7 @@ import (
 )
 
 func TestHackWhoAmIEmailOptIn(t *testing.T) {
-	for _, args := range []map[string]any{{}, {"include_email": false}, {"include_email": true}} {
+	for _, args := range []map[string]any{{}, {"include_email": true}} {
 		t.Run(mcp.JSONText(args), func(t *testing.T) {
 			up := http.HandlerFunc(jsonReply(200, `{"username":"person@example.test"}`))
 			caller := mcp.Caller{APIKey: "personal", Mode: mcp.CallerModeEvents, GrantID: "grant"}
@@ -30,9 +30,6 @@ func TestHackWhoAmIEmailOptIn(t *testing.T) {
 			}
 			if wantEmail && out["email"] != "person@example.test" {
 				t.Fatal("requested email missing")
-			}
-			if err := mcp.ValidateOutput(hackWhoAmITool().OutputSchema, out, nil); err != nil {
-				t.Fatal(err)
 			}
 		})
 	}

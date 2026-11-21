@@ -57,9 +57,7 @@ var hackFilmETags = sync.OnceValue(func() map[string]string {
 	return tags
 })
 
-// RegisterHackFilm mounts Hack's film files at the addresses the platform's
-// /film/{file} route answered while they were in its embed: one exact route per
-// file, so the platform's route keeps every other film.
+// RegisterHackFilm mounts Hack's film files with one exact route per file, so the platform's /film/{file} route keeps every other film.
 func RegisterHackFilm(mux *http.ServeMux) {
 	for name, ctype := range hackFilmTypes() {
 		mux.HandleFunc("GET /film/"+name, serveHackFilm(name, ctype))

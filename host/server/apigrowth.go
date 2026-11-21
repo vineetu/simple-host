@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -34,15 +33,9 @@ func runAPIGrowthBackfill(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		fmt.Fprintln(os.Stderr, "DB_DSN is not set")
-		return 2
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "open postgres:", err)
-		return 1
+	database, code := openCommandDB()
+	if database == nil {
+		return code
 	}
 	defer database.Close()
 	geoDir := os.Getenv("GEOIP_DIR")
@@ -61,7 +54,7 @@ func runAPIGrowthBackfill(args []string) int {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	m := operations.NewAPIGrowthBackfiller(database, geo)
+	m := operations.NewAPIMetrics(database, geo)
 	n, err := m.BackfillGrowth(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "backfill from the API traffic tables:", err)

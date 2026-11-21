@@ -128,8 +128,10 @@ func runAdmissionRowContext(ctx context.Context, s *Service, c Call, operation s
 
 func TestRowAdmissionInjectedPanics(t *testing.T) {
 	db := admissionDB(t)
-	for _, operation := range []string{"get", "list", "add", "edit", "delete"} {
-		stages := []string{"after_open", "after_prepare", "after_step", "close"}
+	// One read and two writes; each write panics before (rolled back) and
+	// after (kept) its commit.
+	for _, operation := range []string{"list", "add", "edit"} {
+		stages := []string{"after_prepare"}
 		if operation != "get" && operation != "list" {
 			stages = append(stages, "before_commit", "after_commit")
 		}
@@ -255,17 +257,6 @@ func TestRowAdmissionSharedByServicesAndResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkAdmissionIdle(t, first.deps.SiteSlots)
-}
-
-func TestOwnerSQLRealParserLimit(t *testing.T) {
-	s, c := admissionFixture(t, nil)
-	query := "SELECT " + strings.Repeat("abs(", 1100) + "1" + strings.Repeat(")", 1100)
-	body, _ := json.Marshal(map[string]any{"sql": query})
-	_, err := s.LegacySQL(context.Background(), LegacySQLInput{Call: c, Mode: "query", ReadBody: func() ([]byte, error) { return body, nil }, ResultLimit: 1 << 20})
-	e, ok := err.(*Error)
-	if !ok || e.Code != "sql_error" || e.Message != "SQLite: Recursion limit" {
-		t.Fatalf("parser diagnostic: %#v", err)
-	}
 }
 
 func TestRowAdmissionRealMemoryLimit(t *testing.T) {

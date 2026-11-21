@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
@@ -115,7 +116,7 @@ func (h *AccessHandler) verifyVisitorEmail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if created {
-		recordSignup(r.Context(), h.Database, user.ID, model.Signup{Source: model.SignupVisitor, Method: model.SignupMethodEmail})
+		accounts.RecordSignup(r.Context(), h.Database, user.ID, model.Signup{Source: model.SignupVisitor, Method: model.SignupMethodEmail})
 	}
 	// Only a real suspension answers account_suspended; a failed lookup is ours.
 	start, err := h.StoreAccounts().StartVisitorSession(r.Context(), user.ID, siteID, httpx.HostName(r), h.Limits.VisitorSessionTTL, h.Limits.VisitorSessionIdle)

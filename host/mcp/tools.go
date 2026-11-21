@@ -21,13 +21,8 @@ type Tool struct {
 }
 
 // MarshalJSON repeats the title inside annotations, where some clients and
-// the connector directories read it, and opens OutputSchema's
-// additionalProperties: false to true, recursively (openOutputSchemaForWire,
-// outputs.go), so a client with an older cached copy of a tool's outputSchema
-// never rejects a later, additive field as a failed call (SIM-384). This is
-// the one place every Tool reaches the wire (tools/list and anywhere else
-// that marshals one), so the fix applies everywhere a schema is advertised
-// without touching the authored, closed schemas tests validate against.
+// the connector directories read it, and opens OutputSchema for the wire
+// (openOutputSchemaForWire). Every Tool reaches the wire through here.
 func (t Tool) MarshalJSON() ([]byte, error) {
 	type plain Tool
 	if _, set := t.Annotations["title"]; t.Title != "" && !set {

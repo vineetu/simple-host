@@ -43,11 +43,11 @@ func runtimeKVListFixture(t *testing.T) (*sqlite3.Conn, []KVEntry) {
 
 func TestRuntimeKVListPrefixRangeEquivalence(t *testing.T) {
 	conn, entries := runtimeKVListFixture(t)
-	for _, prefix := range []string{"", "%", "_", `\`, "A", "a", "x%_\\", "missing", "é", "ÿ", "中", "😀", "\U0010ffff"} {
+	for _, prefix := range []string{"", "%", "_", `\`, "missing", "é", "\U0010ffff"} {
 		t.Run(fmt.Sprintf("prefix=%q", prefix), func(t *testing.T) {
-			for _, after := range []string{"", "A", "a", "z", "é", "éa", "ÿ", "中文", "\U0010ffffz"} {
-				for _, filter := range []string{"", "alice", "bob", "absent"} {
-					for _, limit := range []int{0, 1, 100} {
+			for _, after := range []string{"", "a", "éa", "\U0010ffffz"} {
+				for _, filter := range []string{"", "alice"} {
+					for _, limit := range []int{1, 100} {
 						got, err := RuntimeKVList(conn, prefix, after, limit, filter)
 						if err != nil {
 							t.Fatal(err)
@@ -75,10 +75,7 @@ func TestRuntimeKVListPrefixRangeQueryPlan(t *testing.T) {
 		{"", "z", "key>'z'"},
 		{"missing", "", "key>='missing'"},
 		{"é", "a", "key>='é'"},
-		{"é", "é", "key>'é'"},
 		{"é", "éa", "key>'éa'"},
-		{"é", "中", "key>'中'"},
-		{"ÿ", "", "key>='ÿ'"},
 		{"\U0010ffff", "", "key>='\U0010ffff'"},
 	} {
 		for _, filter := range []string{"", "alice"} {

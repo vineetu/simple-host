@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/rules/sites"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// Error is the shared hack workflow refusal.
 type Error = hackmodel.Error
 
 // Refusals shared by every judging setup write.
@@ -22,7 +21,6 @@ var (
 	errSetupLocked  = &Error{Code: "judging_setup_locked", Message: "Judging has started. Move the event back to Entries closed to change this."}
 )
 
-// GenerateAssignments plans and replaces assignments in one transaction.
 func (s *Service) GenerateAssignments(ctx context.Context, eventID string, includeOrganisers *bool, pool map[string]bool, atStageMove bool) ([]hackmodel.JudgeAssignment, []string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -103,7 +101,6 @@ func poolTeams(judges int, teams []hackmodel.NamedTeam, pool map[string]bool) ([
 	return out, nil
 }
 
-// PutManualAssignments replaces the event's manual assignments.
 func (s *Service) PutManualAssignments(ctx context.Context, eventID string, items []hackmodel.JudgeAssignment) ([]hackmodel.JudgeAssignment, error) {
 	tx, ev, err := s.optionsTx(ctx, eventID, true)
 	if err != nil {
@@ -117,7 +114,7 @@ func (s *Service) PutManualAssignments(ctx context.Context, eventID string, item
 	for _, row := range items {
 		key := hackentries.JudgeTeamKey(row.JudgeID, row.TeamID)
 		switch {
-		case !model.ValidUUID(row.JudgeID) || !model.ValidUUID(row.TeamID):
+		case !sites.UUIDShape.MatchString(row.JudgeID) || !sites.UUIDShape.MatchString(row.TeamID):
 			return nil, &Error{Code: "invalid_assignment", Message: "use event judge and team ids"}
 		case seen[key]:
 			return nil, &Error{Code: "duplicate_assignment", Message: "each judge and team pair appears once"}
@@ -145,7 +142,6 @@ func (s *Service) PutManualAssignments(ctx context.Context, eventID string, item
 	return entryrepo.ListEventAssignments(ctx, s.db, ev.ID)
 }
 
-// assignmentInEvent refuses a row whose judge or team is not in the event.
 func assignmentInEvent(ctx context.Context, tx *sql.Tx, eventID string, row hackmodel.JudgeAssignment) error {
 	judge, err := entryrepo.EventJudgeInEvent(ctx, tx, eventID, row.JudgeID)
 	if err != nil {
@@ -161,7 +157,6 @@ func assignmentInEvent(ctx context.Context, tx *sql.Tx, eventID string, row hack
 	return err
 }
 
-// PutTrackPanels replaces the event's track panels.
 func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []entryrepo.TrackPanelMember) ([]entryrepo.TrackPanelMember, error) {
 	tx, ev, err := s.optionsTx(ctx, eventID, true)
 	if err != nil {
@@ -170,7 +165,7 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 	defer tx.Rollback()
 	seen := map[string]bool{}
 	for _, p := range items {
-		if !model.ValidUUID(p.TrackID) || !model.ValidUUID(p.JudgeID) {
+		if !sites.UUIDShape.MatchString(p.TrackID) || !sites.UUIDShape.MatchString(p.JudgeID) {
 			return nil, &Error{Code: "invalid_panel", Message: "use event track and judge ids"}
 		}
 		key := p.TrackID + "\x00" + p.JudgeID

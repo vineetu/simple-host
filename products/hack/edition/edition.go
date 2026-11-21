@@ -5,7 +5,6 @@ import (
 	"github.com/vsriram/simple-host/host/edition"
 )
 
-// Kind identifies the product edition.
 type Kind int
 
 const (
@@ -15,7 +14,6 @@ const (
 	Hack
 )
 
-// String returns the edition name.
 func (k Kind) String() string {
 	if k == Hack {
 		return "hack"
@@ -29,7 +27,6 @@ type IdentityPolicy = edition.IdentityPolicy
 type StoragePolicy = edition.StoragePolicy
 type NotificationPolicy = edition.NotificationPolicy
 
-// ForKind constructs the product's policy tables.
 func ForKind(k Kind) *edition.Edition { return ForKindWithLimits(k, config.DefaultLimits()) }
 func ForKindWithLimits(k Kind, limits config.Limits) *edition.Edition {
 	return edition.FromPolicies(routesFor(k), presentationFor(k), identityFor(k), storageFor(k), notificationsFor(k), limits)
@@ -55,12 +52,10 @@ func identityFor(k Kind) IdentityPolicy {
 func storageFor(k Kind) StoragePolicy {
 	p := StoragePolicy{}
 	if k == Hack {
-		// Sites.
 		p.EventSites = true
 		p.StrictArchives = true
 		p.JudgePreviewFrames = true
 		p.EventVersionRetention = true
-		// Storage.
 		p.CombinedPool = true
 	} else {
 		p.Photos = true

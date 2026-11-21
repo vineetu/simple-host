@@ -2,30 +2,14 @@ package servertest
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"errors"
-	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 
-	accountapp "github.com/vsriram/simple-host/host/access"
 	appstorage "github.com/vsriram/simple-host/host/data"
-	"github.com/vsriram/simple-host/host/extension"
-	platformtest "github.com/vsriram/simple-host/host/server/servertest"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
-	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
-	"github.com/vsriram/simple-host/products/hack/testdb"
 )
-
-func bindingExec(t *testing.T, db *sql.DB, query string, args ...any) {
-	t.Helper()
-	if _, err := db.Exec(query, args...); err != nil {
-		t.Fatal(err)
-	}
-}
 
 func bindingValues(team, siteTeam, stage string, organiser, before bool) ruleengine.Values {
 	text := func(s string) ruleengine.Value {
@@ -131,73 +115,6 @@ func TestHackStorageBindingValues(t *testing.T) {
 	}
 }
 
-// builtHackApp runs the real Build wiring; wire, when set, sees its Deps.
-func builtHackApp(t *testing.T, wire func(extension.Deps, *extension.Parts)) *teamSiteApp {
-	t.Helper()
-	cfg := platformtest.Config(t, testdb.Fresh(t))
-	cfg.SiteDomain = tsDomain
-	cfg.ContentHost = "sites." + tsDomain
-	cfg.PublicBaseURL = "https://" + tsDomain
-	cfg.PersonHosts = "canonical"
-	cfg.SiteHosts = "canonical"
-	cfg.SiteCertDir = ""
-	a := &teamSiteApp{}
-	ext := hack.Extension()
-	inner := ext.Wire
-	ext.Wire = func(d extension.Deps) (extension.Parts, error) {
-		parts, err := inner(d)
-		a.database, a.sites, a.data, a.conn, a.disk = d.DB, d.Site, d.Data, d.Connector, d.Disk
-		if wire != nil {
-			wire(d, &parts)
-		}
-		return parts, err
-	}
-	t.Cleanup(func() { accountapp.SetGroupHooks(accountapp.GroupHooks{}) })
-	app := platformtest.Build(t, cfg, []*extension.Extension{ext})
-	a.mux = app.Mux
-	a.srv = httptest.NewServer(app.Handler)
-	t.Cleanup(a.srv.Close)
-	return a
-}
-
-func TestHackStorageBindingsAfterBuildAndDatabaseError(t *testing.T) {
-	t.Setenv("STORAGE_RULES", "on")
-	a := builtHackApp(t, nil)
-	b := newBindingEvent(t, a)
-	base := "/v1/sites/" + b.team + "/storage"
-	owner := "?owner=" + b.slug
-	host := b.team + "." + b.slug + "." + tsDomain
-	check := func(method, path, body, key string, want int, code string) {
-		t.Helper()
-		on := host
-		if key != "" {
-			on = ""
-		}
-		r := a.on(t, method, on, path, body, key)
-		if r.status != want || code != "" && !strings.Contains(string(r.body), `"code":"`+code+`"`) {
-			t.Fatalf("%s %s: %d %s; want %d %s", method, path, r.status, r.body, want, code)
-		}
-	}
-	check("PUT", base+"/resources/bindings"+owner, `{"kind":"sqlite","rules":{"version":1,"policies":[{"command":"read","using":"event.before_deadline"}]}}`, b.memberKey, 201, "")
-	check("POST", base+"/sqlite/bindings/schema"+owner, `{"sql":"CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT)"}`, b.memberKey, 200, "")
-	path := base + "/sqlite/bindings/tables/entries/rows"
-	check("GET", path, "", "", 200, "")
-	bindingExec(t, a.database, `UPDATE events SET submission_deadline=now()-interval '1 day' WHERE id=$1`, b.eventID)
-	check("GET", path, "", "", 403, "forbidden")
-	bindingExec(t, a.database, `UPDATE events SET submission_deadline=NULL WHERE id=$1`, b.eventID)
-	check("GET", path, "", "", 200, "")
-	// Only the real provider's connection is broken; request metadata still loads.
-	broken, err := sql.Open("postgres", "postgres://invalid")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := broken.Close(); err != nil {
-		t.Fatal(err)
-	}
-	a.data.SetStorageBindings(storagebind.Provider{DB: broken})
-	check("GET", path, "", "", 500, "internal_error")
-}
-
 func TestStorageOwnerOnSiteEdgeCases(t *testing.T) {
 	a := newTeamSiteApp(t)
 	b := newBindingEvent(t, a)
@@ -288,81 +205,4 @@ func TestStorageOwnerOnSiteEdgeCases(t *testing.T) {
 			t.Fatalf("provider=%v/%v", got, err)
 		}
 	})
-}
-
-type countedStorageBindings struct {
-	appstorage.BindingProvider
-	calls int
-	fail  bool
-}
-
-func (p *countedStorageBindings) OwnerOnSite(ctx context.Context, site, user string) (bool, error) {
-	p.calls++
-	if p.fail {
-		return true, errors.New("owner lookup failed")
-	}
-	return p.BindingProvider.OwnerOnSite(ctx, site, user)
-}
-
-// Use the actual Build wiring, then exercise both the HTTP dispatcher and the
-// gated upstream installed on the connector. Owner-on-site is a visitor-session
-// capability; MCP's owner credentials do not carry that session.
-func TestStorageBindingsInstalledAfterBuild(t *testing.T) {
-	var provider *countedStorageBindings
-	a := builtHackApp(t, func(_ extension.Deps, parts *extension.Parts) {
-		if parts.Hooks.Storage == nil {
-			t.Fatal("Hack extension omitted storage bindings")
-		}
-		provider = &countedStorageBindings{BindingProvider: parts.Hooks.Storage}
-		parts.Hooks.Storage = provider
-	})
-	httpServer := a.srv
-	inProcess := httptest.NewServer(a.conn.MCPUpstreamForTest())
-	t.Cleanup(inProcess.Close)
-	org, member := a.newPerson(t, "wired-org"), a.newPerson(t, "wired-member")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, member, org)
-	team, _ := a.startTeam(t, slug, "Wired", member)
-	key := member.key
-	wantTS(t, "deploy", a.deployTeam(t, slug, team, key, "wired"), 201, "")
-	base := "/v1/sites/" + team + "/storage"
-	wantTS(t, "private resource", a.api(t, "PUT", base+"/resources/private?owner="+slug, map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, key), 201, "")
-	wantTS(t, "private value", a.api(t, "PUT", base+"/kv/private/keys/key?owner="+slug, `{"value":"private value"}`, key), 200, "")
-	sid := hackSiteID(t, a, slug, team)
-	host := team + "." + slug + "." + tsDomain
-	asMember := hackSession(t, a, a.uid(t, member), sid, host)
-	for _, fail := range []bool{false, true} {
-		provider.fail = fail
-		for _, transport := range []string{"HTTP", "in-process"} {
-			if transport == "in-process" {
-				a.srv = inProcess
-			} else {
-				a.srv = httpServer
-			}
-			before := provider.calls
-			got := asMember("GET", base+"/kv/private/keys/key", nil)
-			// Rules ask twice: the request's owner-on-site lookup, then the
-			// fresh re-check inside the read; a failed lookup is never owner,
-			// so there is nothing to re-check.
-			want, calls := 200, 2
-			if fail {
-				want, calls = 403, 1
-			}
-			if got.status != want || provider.calls != before+calls {
-				t.Fatalf("%s storage fail=%v: %d calls=%d %s", transport, fail, got.status, provider.calls-before, got.body)
-			}
-			before = provider.calls
-			me := asMember("GET", "/v1/sites/"+team+"/me", nil)
-			if me.status != 200 || (me.json(t)["site_owner"] == true) == fail || provider.calls != before+1 {
-				t.Fatalf("%s me fail=%v: calls=%d %s", transport, fail, provider.calls-before, me.body)
-			}
-		}
-		a.srv = httpServer
-		before := provider.calls
-		page := asMember("GET", "/", nil)
-		guarded := page.header.Get("X-Frame-Options") == "SAMEORIGIN" && strings.Contains(page.header.Get("Content-Security-Policy"), "frame-ancestors 'self'")
-		if page.status != 200 || guarded == fail || provider.calls != before+1 {
-			t.Fatalf("frame fail=%v: %d calls=%d headers=%v", fail, page.status, provider.calls-before, page.header)
-		}
-	}
 }

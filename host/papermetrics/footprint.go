@@ -32,9 +32,9 @@ func weekStart(t time.Time) time.Time {
 	return t.AddDate(0, 0, -wd)
 }
 
-// weeklyFootprint writes one anonymous row per live site for this week,
+// WeeklyFootprint writes one anonymous row per live site for this week,
 // once. The disk walk is the same one the admin page's usage report does.
-func (c *Collector) weeklyFootprint(ctx context.Context, now time.Time) (resultErr error) {
+func (c *Collector) WeeklyFootprint(ctx context.Context, now time.Time) (resultErr error) {
 	defer func() {
 		if resultErr != nil {
 			c.tracker.Fail("weeklyFootprint", resultErr)

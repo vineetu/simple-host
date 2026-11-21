@@ -43,13 +43,12 @@ import (
 // applies to every row and nothing outlives the 30-day IP retention. If the
 // database files are missing, the columns are simply blank.
 type APIMetrics struct {
-	startOnce  sync.Once
-	workerOnce sync.Once
-	runner     *workers.Runner
-	tracker    *workers.Tracker
-	ed         *edition.Edition
-	db         *sql.DB
-	geo        *geoip.DB // nil = no geo at all (blank columns)
+	startOnce sync.Once
+	runner    *workers.Runner
+	tracker   *workers.Tracker
+	ed        *edition.Edition
+	db        *sql.DB
+	geo       *geoip.DB // nil = no geo at all (blank columns)
 
 	// selfIPs are this server's own public addresses (full, not shortened).
 	selfIPs map[string]bool
@@ -79,13 +78,15 @@ type ipAgg struct {
 	lastRoute string
 }
 
+// NewAPIMetrics counts nothing on its own until Start; the one-off growth
+// backfill command uses it without starting the flush loop.
 func NewAPIMetrics(db *sql.DB, geo *geoip.DB, editions ...*edition.Edition) *APIMetrics {
 	var ed *edition.Edition
 	if len(editions) > 0 {
 		ed = editions[0]
 	}
 	t := workers.NewTracker("operations.api_metrics")
-	m := &APIMetrics{runner: workers.NewRunner(t), tracker: t,
+	return &APIMetrics{runner: workers.NewRunner(t), tracker: t,
 		ed:     ed,
 		db:     db,
 		geo:    geo,
@@ -94,7 +95,6 @@ func NewAPIMetrics(db *sql.DB, geo *geoip.DB, editions ...*edition.Edition) *API
 		ips:    make(map[string]*ipAgg),
 		growth: make(map[growthKey]int64),
 	}
-	return m
 }
 
 // SetSelfIPs sets the server's own public addresses for separate accounting.
@@ -143,9 +143,6 @@ func (m *APIMetrics) record(route string, status int, ip, country string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.routes[routeKey{route, status}]++
-	if m.growth == nil {
-		m.growth = make(map[growthKey]int64)
-	}
 	m.growth[growthKey{growthDimGroup, apiRouteGroup(route)}]++
 	m.growth[growthKey{growthDimCountry, country}]++
 	a := m.ips[ip]
@@ -164,44 +161,23 @@ func (m *APIMetrics) record(route string, status int, ip, country string) {
 func (m *APIMetrics) recordSelf(route string, status int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.self == nil {
-		m.self = make(map[routeKey]int64)
-	}
 	m.self[routeKey{route, status}]++
-	if m.growth == nil {
-		m.growth = make(map[growthKey]int64)
-	}
 	m.growth[growthKey{growthDimSource, growthKeySelf}]++
 }
 
-// Growth backfill tools also construct APIMetrics without starting a worker.
-// Initialize their tracker lazily so explicit flushes share the same reporting.
-func (m *APIMetrics) initWorker() {
-	m.workerOnce.Do(func() {
-		if m.tracker == nil {
-			m.tracker = workers.NewTracker("operations.api_metrics")
-		}
-		if m.runner == nil {
-			m.runner = workers.NewRunner(m.tracker)
-		}
-	})
-}
 func (m *APIMetrics) Start(ctx context.Context) {
-	m.startOnce.Do(func() {
-		m.initWorker()
-		m.runner.Go(ctx, m.flushLoop)
-	})
+	m.startOnce.Do(func() { m.runner.Go(ctx, m.flushLoop) })
 }
-func (m *APIMetrics) Stop()                    { m.initWorker(); m.runner.Stop() }
-func (m *APIMetrics) Wait()                    { m.initWorker(); m.runner.Wait() }
-func (m *APIMetrics) Status() []workers.Status { m.initWorker(); return m.runner.Status() }
+func (m *APIMetrics) Stop()                    { m.runner.Stop() }
+func (m *APIMetrics) Wait()                    { m.runner.Wait() }
+func (m *APIMetrics) Status() []workers.Status { return m.runner.Status() }
 
 func (m *APIMetrics) flushLoop(ctx context.Context) {
 	m.tracker.Attempt()
 	// Prune once at startup too: the service can restart more often than every
 	// 6 hours, and a ticker alone would then never fire, keeping shortened IPs
 	// past the 30 days the privacy page promises.
-	m.pruneOldContext(ctx)
+	m.pruneOld(ctx)
 	// Fill the growth counts from the traffic tables (a no-op once done).
 	backfillCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	if n, err := m.BackfillGrowth(backfillCtx); err != nil {
@@ -218,20 +194,18 @@ func (m *APIMetrics) flushLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			m.flushContext(context.Background()) // HTTP is drained; persist the final buffer before Wait returns.
+			m.flush(context.Background()) // HTTP is drained; persist the final buffer before Wait returns.
 			return
 		case <-tick.C:
 			// Finish a bounded buffer write even if Stop cancels the scan context.
-			m.flushContext(context.WithoutCancel(ctx))
+			m.flush(context.WithoutCancel(ctx))
 		case <-prune.C:
-			m.pruneOldContext(ctx)
+			m.pruneOld(ctx)
 		}
 	}
 }
 
-func (m *APIMetrics) flush() { m.flushContext(context.Background()) }
-func (m *APIMetrics) flushContext(ctx context.Context) {
-	m.initWorker()
+func (m *APIMetrics) flush(ctx context.Context) {
 	m.tracker.Attempt()
 	m.flushMu.Lock()
 	defer m.flushMu.Unlock()
@@ -278,9 +252,7 @@ func (m *APIMetrics) flushContext(ctx context.Context) {
 	m.tracker.Progress()
 }
 
-func (m *APIMetrics) pruneOld() { m.pruneOldContext(context.Background()) }
-func (m *APIMetrics) pruneOldContext(ctx context.Context) {
-	m.initWorker()
+func (m *APIMetrics) pruneOld(ctx context.Context) {
 	m.tracker.Attempt()
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -338,11 +310,9 @@ func isPrivateIP(s string) bool {
 // Admin summary endpoint
 // ---------------------------------------------------------------------------
 
-type apiAnalyticsResponse = repo.APIAnalyticsResponse
-
 // Summary folds the buffer into the report, then resolves each caller locally.
-func (m *APIMetrics) Summary(ctx context.Context) (apiAnalyticsResponse, error) {
-	m.flush()
+func (m *APIMetrics) Summary(ctx context.Context) (repo.APIAnalyticsResponse, error) {
+	m.flush(context.Background())
 	out, err := repo.APISummary(ctx, m.db, m.ed.Limits().APIMetricsRetention)
 	if err != nil {
 		return out, err

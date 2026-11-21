@@ -8,10 +8,8 @@ import (
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// RegisterRoutes mounts the site routes. siteOpLimiter and exportLimiter are
-// shared with the account routes (handler.Register); deletePasscode is
-// Access's passcode removal, which the admin's moderation route runs as the
-// site's owner.
+// RegisterRoutes mounts the site routes. The limiters are shared with the account routes; deletePasscode
+// is Access's passcode removal, which the admin's moderation route runs as the site's owner.
 func (h *SiteHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler, siteOpLimiter, exportLimiter *httpx.RateLimiter, deletePasscode http.HandlerFunc) {
 	mux.Handle("POST /v1/sites/{sitename}", authMiddleware(httpx.RateLimitByIP(h.UploadLimiter, h.CreateIdempotency.Wrap(noticeMiddleware(http.HandlerFunc(h.createSite))))))
 	mux.Handle("PUT /v1/sites/{sitename}", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(h.UploadLimiter, http.HandlerFunc(h.updateSite)))))
@@ -33,9 +31,7 @@ func (h *SiteHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware, noticeM
 	// Versions, Make active, Data, domain and Delete on anyone's site, by id,
 	// run as its owner (adminsite.go).
 	h.registerAdminSiteActions(mux, authMiddleware, deletePasscode)
-	// Every site on the instance in one archive (export.go).
 	mux.Handle("GET /v1/admin/export.tar.gz", authMiddleware(http.HandlerFunc(h.exportAll)))
-	// What the disk is actually holding, and how much is left.
 	mux.Handle("GET /v1/admin/usage", authMiddleware(http.HandlerFunc(h.adminUsage)))
 	// Take your work with you. An event box is destroyed when the event ends and
 	// nothing is backed up, so the only honest answer is to make leaving easy.
@@ -51,7 +47,6 @@ func (h *SiteHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware, noticeM
 	// Not in auth/scope.go deployRoutes or editorRoutes on purpose: a
 	// deploy-only key or a site editor cannot remove a version.
 	mux.Handle("DELETE /v1/sites/{sitename}/versions/{version}", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(siteOpLimiter, http.HandlerFunc(h.discardVersion)))))
-	// An hour-long, owner-only preview address for one kept version (preview.go).
 	mux.Handle("POST /v1/sites/{sitename}/versions/{version}/preview-link", authMiddleware(h.CreateIdempotency.Wrap(noticeMiddleware(http.HandlerFunc(h.createPreviewLink)))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteAnalytics))))
 	mux.Handle("GET /v1/sites/{sitename}/analytics/geo", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSiteGeoAnalytics))))
@@ -62,16 +57,12 @@ func (h *SiteHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware, noticeM
 	// actually named "analytics".
 	mux.Handle("GET /v1/analytics/sites", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getAnalyticsSummary))))
 	mux.Handle("PUT /v1/sites/{sitename}/visibility", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setVisibility))))
-	// Idle-site cleanup (idle.go): the Keep flag and the admin dry run.
 	mux.Handle("PUT /v1/sites/{sitename}/keep", noticeMiddleware(authMiddleware(http.HandlerFunc(h.setSiteKeep))))
-	// Deploys kept for this site (0 = the instance's KEEP_VERSIONS); setting
-	// it prunes at once, and every later deploy prunes to it (versions.go).
+	// 0 = the instance's KEEP_VERSIONS; setting it prunes at once (versions.go).
 	mux.Handle("PUT /v1/sites/{sitename}/keep-versions", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(siteOpLimiter, http.HandlerFunc(h.setKeepVersions)))))
 	mux.Handle("GET /v1/admin/idle-sites", authMiddleware(http.HandlerFunc(h.adminIdleSites)))
 
-	// JSON deploy (LLM-friendly): file contents inline, no archive. Same auth +
-	// rate-limit chain as the archive upload; CORS preflight is handled by the
-	// CORS middleware.
+	// JSON deploy: inline file contents, same auth and rate-limit chain as the archive upload.
 	mux.Handle("POST /v1/sites/{sitename}/files", authMiddleware(httpx.RateLimitByIP(h.UploadLimiter, h.CreateIdempotency.Wrap(noticeMiddleware(http.HandlerFunc(h.createSiteFiles))))))
 	mux.Handle("PUT /v1/sites/{sitename}/files", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(h.UploadLimiter, http.HandlerFunc(h.UpdateSiteFiles)))))
 	photos := h.Ed.Storage().Photos
@@ -88,8 +79,6 @@ func (h *SiteHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware, noticeM
 	mux.Handle("POST /v1/sites/{sitename}/domain", authMiddleware(h.CreateIdempotency.Wrap(noticeMiddleware(http.HandlerFunc(h.bindDomain)))))
 	mux.Handle("GET /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getDomain))))
 	mux.Handle("DELETE /v1/sites/{sitename}/domain", noticeMiddleware(authMiddleware(http.HandlerFunc(h.deleteDomain))))
-	// "Check again": re-verify this site's pending domain now instead of
-	// waiting for the next background pass.
 	mux.Handle("POST /v1/sites/{sitename}/domain/check", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(h.DomainCheckLimiter, http.HandlerFunc(h.checkDomainNow)))))
 	tlsAskLimiter := httpx.NewRateLimiterFor(h.Limits.RateTLSAsk.Burst, h.Limits.RateTLSAsk.Every)
 	h.Caches.Rate("http.site.tlsAskLimiter", tlsAskLimiter, 10*time.Minute, 30*time.Minute)
@@ -100,17 +89,12 @@ func (h *SiteHandler) RegisterRoutes(mux *http.ServeMux, authMiddleware, noticeM
 	// Per-user public showcase + branded 404s, reached only via the content-host
 	// nginx block (single-segment /<handle> -> showcase; file misses -> notfound).
 	mux.HandleFunc("GET /internal/showcase/{handle}", h.Showcase)
-	// Old content-host addresses, once nginx hands them over (personhost.go).
 	mux.HandleFunc("GET /internal/site-redirect/{handle}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/site-redirect/{handle}/{sitename}/{rest...}", h.contentHostRedirect)
 	mux.HandleFunc("GET /internal/notfound", h.NotFound)
-	// ... and for a site its owner took offline (offline.go).
-	mux.HandleFunc("GET /internal/offline", h.offlinePageHandler)
-	// ... and for a site with a passcode (passcode.go): the gate, the file,
-	// or the site's own address.
+	mux.HandleFunc("GET /internal/offline", h.ServeOffline) // nginx and Caddy send sites carrying the offline marker here
 	mux.HandleFunc("GET /internal/passcode/{rest...}", h.passcodePageHandler)
-	// Address families (familyapi.go): the API and the lives-elsewhere page.
 	h.registerFamilyRoutes(mux, authMiddleware, noticeMiddleware)
 }
 
@@ -128,7 +112,6 @@ func (h *SiteHandler) registerAdminSiteActions(mux *http.ServeMux, authMiddlewar
 	mux.Handle("DELETE /v1/admin/sites/{id}/versions/{version}", authMiddleware(h.asSiteOwner(h.discardVersion)))
 }
 
-// registerFamilyRoutes adds the family API to the mux.
 func (h *SiteHandler) registerFamilyRoutes(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	checkIP := h.familyCheckLimiter
 	if checkIP == nil {

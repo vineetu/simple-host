@@ -1,10 +1,3 @@
-// Package mcp serves the Model Context Protocol over HTTP so an agent can drive
-// Simple Host with tool calls instead of hand-written REST requests.
-//
-// Every tool is an adapter over the REST handler that already exists: a tool
-// builds a request and serves it into the same mux the public API uses. Nothing
-// here reimplements deploy, rollback, sharing or their guards, so MCP cannot
-// drift from REST, and adding it required no change to the deploy path.
 package mcp
 
 import "encoding/json"

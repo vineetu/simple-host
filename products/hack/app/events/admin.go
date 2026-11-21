@@ -10,12 +10,10 @@ import (
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
-// AdminListEvents lists events for the platform administrator.
 func (s *Service) AdminListEvents(ctx context.Context) ([]model.AdminEvent, error) {
 	return eventrepo.ListAdminEvents(ctx, s.db)
 }
 
-// AdminKeepSites changes the archive retention override.
 func (s *Service) AdminKeepSites(ctx context.Context, id string, keep bool) (model.Event, error) {
 	return eventrepo.SetEventKeepSites(ctx, s.db, id, keep)
 }
@@ -48,7 +46,6 @@ func (s *Service) AdminModerate(ctx context.Context, ev model.Event, reason stri
 	return updated, nil
 }
 
-// AdminDelete deletes an event and its holding account atomically.
 func (s *Service) AdminDelete(ctx context.Context, ev model.Event, removeFiles func(model.Event)) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -65,7 +62,6 @@ func (s *Service) AdminDelete(ctx context.Context, ev model.Event, removeFiles f
 	return nil
 }
 
-// AdminEvent loads the event selected by a platform administrator.
 func (s *Service) AdminEvent(ctx context.Context, slug string) (model.Event, error) {
 	return eventrepo.GetEventBySlug(ctx, s.db, strings.ToLower(strings.TrimSpace(slug)))
 }

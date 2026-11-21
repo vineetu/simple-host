@@ -10,16 +10,11 @@ import (
 
 // LiveProbe reports whether a hostname already serves something.
 //
-// Listing the zone is not enough. These domains carry a wildcard A record, and
-// the web server in front of it routes by name, so a live product can be served
-// at <name>.<domain> with no DNS record of its own. Asking the DNS API would
-// call that name free, and claiming it would create an explicit record that
-// overrides the wildcard and takes a running product off the internet.
-//
-// So ask the internet instead: fetch the candidate and, in the same breath, a
-// name that certainly does not exist. If they answer differently, something is
-// there. Comparing against a control means this needs no knowledge of how the
-// origin is configured, and keeps working when that changes.
+// Listing the zone is not enough: these domains carry a wildcard A record, so a
+// live product can be served at <name>.<domain> with no record of its own, and
+// claiming that name would override the wildcard and take it offline. So fetch
+// the candidate and a name that certainly does not exist; if they answer
+// differently, something is there.
 type LiveProbe struct {
 	HTTP *http.Client
 }
@@ -33,30 +28,19 @@ func NewLiveProbe() *LiveProbe {
 	}}
 }
 
-// InUse fetches https://<name>.<domain>/ and a control hostname on the same
-// domain, then compares what happened.
-//
-// The comparison is against the control, not against a fixed expectation,
-// because what an unused name does varies by domain. On a domain with a
-// wildcard and a web server behind it, an unused name returns a 404. On a bare
-// domain with nothing attached, an unused name fails to connect at all. Both
-// are "nothing is here", and both must let a claim through.
-//
-// So a failed request is a result, not an error: two failures that match mean
-// the domain serves nothing, which is exactly the state a fresh event domain is
-// in. Only a candidate that behaves DIFFERENTLY from the control is in use.
+// InUse compares https://<name>.<domain>/ with a control hostname on the same
+// domain. What an unused name does varies by domain (a 404 behind a wildcard,
+// a failed connection on a bare domain), so a failed request is a result, not
+// an error: only a candidate that behaves differently from its control is in use.
 func (p *LiveProbe) InUse(ctx context.Context, domain, name string) (bool, error) {
 	control, err := randomLabel()
 	if err != nil {
 		return true, err
 	}
 
-	// Each candidate is compared against a control of the SAME SHAPE, because
-	// shape alone changes the answer. A wildcard certificate covers one label,
-	// so on a domain fronted by one, <name>.<domain> answers while
-	// sites.<name>.<domain> cannot connect at all -- whether or not anything is
-	// there. Comparing those two against a single control reports every content
-	// host as taken, which is a bug I shipped and this is the fix.
+	// Each candidate needs a control of the same shape: a wildcard certificate
+	// covers one label, so <name>.<domain> can answer while
+	// sites.<name>.<domain> cannot connect, whether or not anything is there.
 	pairs := []struct{ candidate, control string }{
 		{name + "." + domain, control + "." + domain},
 		{"sites." + name + "." + domain, "sites." + control + "." + domain},
@@ -65,8 +49,6 @@ func (p *LiveProbe) InUse(ctx context.Context, domain, name string) (bool, error
 		controlStatus, controlErr := p.status(ctx, pair.control)
 		status, err := p.status(ctx, pair.candidate)
 		if (err == nil) != (controlErr == nil) {
-			// One answers and its control does not, or the reverse. Something
-			// specific to this name is there.
 			return true, nil
 		}
 		if err == nil && status != controlStatus {

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"maps"
 	"net/http"
 	"path"
 	"sync"
@@ -51,13 +52,7 @@ var EnterpriseFilmTypes = map[string]string{
 // ETag lets a cached copy revalidate cheaply.
 func ServeFilm(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
-	ctype, ok := FilmTypes[name]
-	if !ok {
-		ctype, ok = ArtifactFilmTypes[name]
-	}
-	if !ok {
-		ctype, ok = EnterpriseFilmTypes[name]
-	}
+	ctype, ok := landingFilmTypes()[name]
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -76,7 +71,7 @@ func ServeFilm(w http.ResponseWriter, r *http.Request) {
 
 // filmETags hashes each film file once, on first use.
 var filmETags = sync.OnceValue(func() map[string]string {
-	tags := make(map[string]string, len(FilmTypes)+len(ArtifactFilmTypes)+len(EnterpriseFilmTypes))
+	tags := make(map[string]string, len(landingFilmTypes()))
 	for name := range landingFilmTypes() {
 		b, err := EmbeddedTree.ReadFile(path.Join("static/film", name))
 		if err != nil {
@@ -88,16 +83,10 @@ var filmETags = sync.OnceValue(func() map[string]string {
 	return tags
 })
 
-func landingFilmTypes() map[string]string {
-	types := make(map[string]string, len(FilmTypes)+len(ArtifactFilmTypes)+len(EnterpriseFilmTypes))
-	for name, ctype := range FilmTypes {
-		types[name] = ctype
-	}
-	for name, ctype := range ArtifactFilmTypes {
-		types[name] = ctype
-	}
-	for name, ctype := range EnterpriseFilmTypes {
-		types[name] = ctype
-	}
+// landingFilmTypes is every film's files and their types, in one map.
+var landingFilmTypes = sync.OnceValue(func() map[string]string {
+	types := maps.Clone(FilmTypes)
+	maps.Copy(types, ArtifactFilmTypes)
+	maps.Copy(types, EnterpriseFilmTypes)
 	return types
-}
+})

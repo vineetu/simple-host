@@ -1,18 +1,27 @@
 package mcp
 
+import "context"
+
 // Contribution is everything a product adds to the tool server. The zero value adds nothing.
 type Contribution struct {
 	Families      []FamilyTools
 	Notifications []Tool
 	SiteVariants  map[string]func(Tool, Limits) Tool
-	Instructions  func(mode string) string
-	Rewrite       func(text, apiHost string) string
-	StorageError  func(message string) string
-	Apps          func(AppContext) AppContribution
+	// OwnerArg replaces the owner argument's description on a site connection.
+	OwnerArg     string
+	Instructions func(mode string) string
+	Rewrite      func(text, apiHost string) string
+	StorageError func(message string) string
+	Apps         func(AppContext) AppContribution
 	// MutationNames answers a call to a mutation the product used to offer
 	// under that name and no longer does, by tool name. The call is refused
 	// with the message, which ends in its code in square brackets.
 	MutationNames map[string]RetiredMutation
+	// AnalyticsTags adds the product's own usage-event tags to one finished
+	// call (Simple Hack: the caller's role in the event and its stage). It
+	// runs in the analytics worker, after the reply, with the call's original
+	// arguments; only the tags it returns are sent. Nil adds none.
+	AnalyticsTags func(ctx context.Context, caller Caller, tool string, args map[string]any) map[string]string
 }
 
 // RetiredMutation is the refusal for one retired tool name.

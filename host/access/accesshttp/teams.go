@@ -17,7 +17,7 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-// Teams (owner decisions 2026-11-19): an account that owns sites and that
+// Teams: an account that owns sites and that
 // people join, offered where accounts own their own sites (the Simple Host
 // program; Simple Hack keeps its own teams). A member acts on the team's
 // sites with their own sign-in by naming owner=<team> on the /v1/sites
@@ -110,7 +110,7 @@ func (h *UserHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 // address, not the account: if a person's sign-in email changes, they see
 // those sent to the new address and no longer those sent to the old one.
 func inviteeEmail(ctx context.Context, database *sql.DB, user *model.User) (string, error) {
-	email, err := VisitorEmail(ctx, database, user.ID)
+	email, err := accounts.VisitorEmail(ctx, database, user.ID)
 	if err != nil || !strings.EqualFold(email, user.Username) {
 		return "", err
 	}
@@ -211,7 +211,7 @@ func (h *UserHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
 			writeTeamError(w, err)
 			return
 		}
-		unlock, err := h.siteFiles.lockAccountSites(r.Context(), id)
+		unlock, err := h.siteFiles.sitesSvc().LockAccountSites(r.Context(), id)
 		if err != nil {
 			writeTeamError(w, err)
 			return

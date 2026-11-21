@@ -50,7 +50,6 @@ func deadlineInput(zone string, raw *string) (sql.NullTime, error) {
 	return eventapp.ParseEventTime(*raw, loc, "deadline")
 }
 
-// setDeadline changes the override and queues notices in one transaction.
 func (s *Service) setDeadline(ctx context.Context, eventID string, team hackmodel.EventTeam, t sql.NullTime) (hackmodel.EventTeam, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -82,8 +81,7 @@ func (s *Service) setDeadline(ctx context.Context, eventID string, team hackmode
 		return team, err
 	}
 	if t.Valid {
-		// Section 7, "Unsettle": granting or extending a team's deadline
-		// reopens its draft if the sweep had already settled it incomplete.
+		// Granting or extending a team's deadline reopens its draft if the sweep had already settled it incomplete.
 		if err = entryrepo.UnsettleTeamEntry(ctx, tx, team.ID); err != nil {
 			return team, err
 		}
@@ -183,7 +181,6 @@ func noticeDeadlineChange(ctx context.Context, tx *sql.Tx, eventID string, team 
 	return eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeDeadlineChanged, team.ID, "", "cleared", knew...)
 }
 
-// TeamList contains data shared by event team listings.
 type TeamList struct {
 	States   map[string]hackmodel.TeamWriteState
 	Members  map[string][]hackmodel.EventPerson
@@ -191,7 +188,6 @@ type TeamList struct {
 	Sites    map[string]model.Site
 }
 
-// LoadTeamList reads the batched data for event team listings.
 func (s *Service) LoadTeamList(ctx context.Context, ev hackmodel.Event) (TeamList, error) {
 	tl := TeamList{Sites: map[string]model.Site{}, Versions: map[string]bool{}, Members: map[string][]hackmodel.EventPerson{}}
 	people, err := eventrepo.ListEventPeople(ctx, s.db, ev.ID)
@@ -219,7 +215,6 @@ func (s *Service) LoadTeamList(ctx context.Context, ev hackmodel.Event) (TeamLis
 	return tl, nil
 }
 
-// TeamBySlug reads an event's team.
 func (s *Service) TeamBySlug(ctx context.Context, eventID, slug string) (hackmodel.EventTeam, error) {
 	return hackteams.GetEventTeamBySlug(ctx, s.db, eventID, slug)
 }
@@ -250,22 +245,18 @@ func (s *Service) CallerTeam(ctx context.Context, member hackmodel.EventMember) 
 	return team, notFoundAs(err, noTeam)
 }
 
-// WriteState reads a team's publishing state.
 func (s *Service) WriteState(ctx context.Context, teamID string) (hackmodel.TeamWriteState, error) {
 	return hackteams.TeamWriteStateFor(ctx, s.db, teamID, false)
 }
 
-// Track reads a team's track.
 func (s *Service) Track(ctx context.Context, teamID string) (*hackmodel.EventTrack, error) {
 	return eventrepo.TeamTrack(ctx, s.db, teamID)
 }
 
-// MyTeams reads the caller's publishable teams.
 func (s *Service) MyTeams(ctx context.Context, userID string) ([]hackmodel.MyTeam, error) {
 	return hackteams.ListMyTeams(ctx, s.db, userID)
 }
 
-// PinDue pins teams whose deadline has passed.
 func (s *Service) PinDue(ctx context.Context, eventID string) error {
 	return hackteams.PinDueTeams(ctx, s.db, eventID, liveVersion)
 }
@@ -287,12 +278,10 @@ func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev hackmodel.Event,
 	}
 }
 
-// ActiveSiteVersion reads the active version.
 func (s *Service) ActiveSiteVersion(ctx context.Context, siteID string) (model.Version, error) {
 	return sites.ActiveSiteVersion(ctx, s.db, siteID)
 }
 
-// TeamSiteChanger updates the site's organiser takedown state.
 type TeamSiteChanger interface {
 	SuspendHeldSite(context.Context, sites.HeldSiteSuspension) error
 }
@@ -328,12 +317,10 @@ func siteEverNamed(ctx context.Context, q hackteams.Querier, accountID, name str
 	return sites.SiteEverNamed(ctx, q, accountID, name)
 }
 
-// liveVersion is the platform's live version of an account's site.
 func liveVersion(ctx context.Context, q hackteams.Querier, accountID, name string) (sql.NullInt64, error) {
 	return sites.LiveActiveVersion(ctx, q, accountID, name)
 }
 
-// accountSites is the platform's list of an account's live sites.
 func (s *Service) accountSites(ctx context.Context, accountID string) ([]model.Site, error) {
 	return sites.AccountSites(ctx, s.db, accountID)
 }

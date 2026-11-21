@@ -25,12 +25,11 @@ func (h *HackHandler) syncEventMarkers(ctx context.Context, ev hackmodel.Event) 
 	return true
 }
 
-// removeEventFiles deletes a deleted event's team site files.
-func (h *HackHandler) removeEventFiles(ev hackmodel.Event) {
-	if h.links.hooks == nil {
+func (h *siteLinks) removeEventFiles(ev hackmodel.Event) {
+	if h.hooks == nil {
 		return
 	}
-	if err := h.links.hooks.RemoveAccountFiles(ev.AccountID, ev.Slug); err != nil {
+	if err := h.hooks.RemoveAccountFiles(ev.AccountID, ev.Slug); err != nil {
 		log.Printf("hack: remove files of deleted event %s: %v", ev.Slug, err)
 	}
 }
@@ -70,7 +69,6 @@ func (h *siteLinks) teamSiteURL(eventSlug, teamSlug string) string {
 	return "https://" + appsites.TeamSiteHost(eventSlug, teamSlug, h.siteDomain, false) + "/"
 }
 
-// EventURL is https://<slug>.<siteDomain>/
 func (h *siteLinks) EventURL(slug string) string {
 	return "https://" + slug + "." + h.siteDomain + "/"
 }
@@ -106,10 +104,7 @@ func (h *siteLinks) teamCodeFromInput(s string) string {
 		}
 	}
 	if useLastSegment {
-		// Strip the query/fragment before trimming trailing slashes, not after:
-		// ".../abcd1234/?source=chat" has no trailing slash to trim yet, but removing
-		// "?source=chat" first leaves one behind (".../abcd1234/"), which then makes
-		// the last segment empty unless it is trimmed too (Codex review, 2026-11-01).
+		// Strip the query/fragment first, then trim trailing slashes: removing "?source=chat" from ".../abcd1234/?source=chat" leaves a trailing slash, which would make the last segment empty if not trimmed too.
 		trimmed := s
 		if i := strings.IndexAny(trimmed, "?#"); i >= 0 {
 			trimmed = trimmed[:i]
@@ -124,7 +119,6 @@ func (h *siteLinks) teamCodeFromInput(s string) string {
 	return events.NormalizeCode(s)
 }
 
-// teamLinkHost is the host team links are served from.
 func (h *siteLinks) teamLinkHost() string {
 	if u, err := url.Parse(h.publicBaseURL); err == nil {
 		return u.Host

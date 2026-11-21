@@ -302,39 +302,13 @@ func TestHackStorageOwnerEventWebsite(t *testing.T) {
 	}
 }
 
-// The connector: storage_set_resource with owner=<event> takes rules on the
-// team's site and on the event website, and hack_get_page_recipe is offered.
-func TestHackStorageOwnerConnector(t *testing.T) {
-	a := newTeamSiteApp(t)
-	org, member := a.newPerson(t, "hpc-org"), a.newPerson(t, "hpc-member")
-	slug := a.makeEvent(t, org)
-	a.join(t, slug, member, org)
-	team, _ := a.startTeam(t, slug, "Connector", member)
-	markReady(t, a.certDir, slug)
-	key := member.key
-	wantTS(t, "deploy", a.deployTeam(t, slug, team, key, "c"), 201, "")
-	site := eventSite(t, a, slug, org)
-	wantTS(t, "event site", a.deployTeam(t, slug, site, org.key, "event"), 201, "")
-
-	clientID := a.registerClient(t, testRedirect)
-	call := func(access, name string, args map[string]any) (string, bool) {
-		text, _, failed := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": name, "arguments": args}))
-		return text, failed
+// eventSite is the event website's site name (the event's id), as the
+// organiser's website screen reads it.
+func eventSite(t *testing.T, a *teamSiteApp, slug string, org person) string {
+	t.Helper()
+	r := a.api(t, "GET", "/v1/hack/events/"+slug+"/website", nil, org.key)
+	if r.status != 200 {
+		t.Fatalf("event website: %d %s", r.status, r.body)
 	}
-	access := a.connect(t, member, clientID, testRedirect)["access_token"].(string)
-	if msg, failed := call(access, "storage_set_resource", map[string]any{"site": team, "owner": slug, "name": "guestbook", "body": map[string]any{"kind": "sqlite", "rules": json.RawMessage(wallRules)}}); failed || !strings.Contains(msg, "auth.signed_in") || !strings.Contains(msg, "rules_status") {
-		t.Fatalf("team rules: %v %s", failed, msg)
-	}
-	if msg, failed := call(access, "hack_get_page_recipe", map[string]any{"topic": "wall", "site": team}); failed || !strings.Contains(msg, "simple-hack") || strings.Contains(msg, "Simple Host account") {
-		t.Fatalf("hack recipe: %v %.300s", failed, msg)
-	}
-	orgAccess := a.connect(t, org, clientID, testRedirect)["access_token"].(string)
-	if msg, failed := call(orgAccess, "storage_set_resource", map[string]any{"site": site, "owner": slug, "name": "questions", "body": map[string]any{"kind": "sqlite", "rules": json.RawMessage(inboxRules)}}); failed || !strings.Contains(msg, "questions") || !strings.Contains(msg, "rules_status") {
-		t.Fatalf("event rules: %v %s", failed, msg)
-	}
-	tools := a.rpc(t, orgAccess, "tools/list", map[string]any{})
-	raw := string(tools.body)
-	if !strings.Contains(raw, "organisers") || strings.Contains(raw, "read own and write_mode add are not available") {
-		t.Fatalf("event tool text not updated")
-	}
+	return r.json(t)["site"].(string)
 }

@@ -41,7 +41,7 @@ func runPruneVersions(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	if err = operations.PruneFixedAccounts(context.Background(), database, disk, edition.Default(limits), web.KeepVersions(), *apply, os.Stdout); err != nil {
+	if err = operations.PruneFixedAccounts(context.Background(), database, disk, edition.Default(limits), web.DefaultKeepVersions, *apply, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

@@ -56,9 +56,7 @@ func RegisterHackUI(mux *http.ServeMux, pages hackPages, sitesBase string) {
 	mux.Handle("GET /e/{slug}/judge", hackAppCSP(assets, app, sitesBase))
 }
 
-// hackAppCSP is AdminUICSP for the judge route, whose frame-src also lists the
-// four video players videoEmbed builds URLs for and one wildcard for team sites
-// (build-plan.md section 6).
+// hackAppCSP is AdminUICSP for the judge route, whose frame-src also lists the four video players videoEmbed builds URLs for and one wildcard for team sites.
 func hackAppCSP(assets hackPages, next http.Handler, sitesBase string) http.Handler {
 	src := "'self' blob:"
 	if base := strings.Trim(strings.ToLower(sitesBase), "."); hackFrameBase.MatchString(base) {
@@ -72,9 +70,7 @@ func hackAppCSP(assets hackPages, next http.Handler, sitesBase string) http.Hand
 // (a space, a ';' or a bare TLD) ever reaches the CSP header.
 var hackFrameBase = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
 
-// announcementImages lets the Hack app shell show YouTube thumbnails on
-// announcement cards (SIM-444): img-src gains https://i.ytimg.com and nothing
-// else.
+// announcementImages lets the Hack app shell show YouTube thumbnails on announcement cards: img-src gains https://i.ytimg.com and nothing else.
 func announcementImages(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		csp := w.Header().Get("Content-Security-Policy")

@@ -1,4 +1,3 @@
-// famHackEntries declares entries, judging, voting and results.
 package hackmcp
 
 import (
@@ -98,8 +97,6 @@ func hackCriteria(args map[string]any) ([]any, error) {
 
 var criterionFields = map[string]bool{"id": true, "name": true, "description": true, "weight": true, "max_points": true}
 
-// hackCriterion reads criteria[i]: name, weight and max_points required,
-// id and description sent when given.
 func hackCriterion(i int, item any) (map[string]any, error) {
 	obj, ok := item.(map[string]any)
 	if !ok {
@@ -213,7 +210,7 @@ func hackMemberEntryTools() []mcp.Tool {
 			"updated_at":  mcp.Str("updated_at from the entry you read, or empty for a new entry. A conflict returns the newer entry; ask before retrying."),
 		}), "slug"), []string{"title", "tagline", "description", "video_url", "code_url", "problem", "audience", "tools", "maturity", "track", "updated_at"}, mcp.Writes(true, true, true)),
 		memberTool("hack_submit_entry", "Submit my team's entry", "Move the entry from draft to submitted. Refused with `missing` (422 entry_incomplete, \"Add these first: ...\") when a required field or the show-your-work evidence is missing. Idempotent: submitting an already-submitted entry just keeps it submitted. A complete draft is also auto-submitted on its own at the deadline; an incomplete one stays a draft, is still judged, and is flagged Incomplete -- organisers can exclude it by hand with hack_set_entry_excluded.", http.MethodPost, "/v1/hack/events/{slug}/entry/submit", mcp.Object(withFields(slug, map[string]any{"updated_at": mcp.Str("updated_at from the entry you read, optional. A conflict (a teammate changed it) returns the newer entry; ask before retrying.")}), "slug"), []string{"updated_at"}, mcp.Writes(false, true, false)),
-		memberTool("hack_unsubmit_entry", "Unsubmit my team's entry", "Put a submitted entry back to draft. Works only before the deadline; refused once it has passed. Reversible: call hack_submit_entry again anytime before the deadline.", http.MethodPost, "/v1/hack/events/{slug}/entry/unsubmit", mcp.Object(slug, "slug"), nil, mcp.Writes(false, true, false)),
+		memberTool("hack_unsubmit_entry", "Unsubmit my team's entry", "Put a submitted entry back to draft. Works only before the deadline; refused once it has passed. Reversible: call hack_submit_entry again anytime before the deadline.", http.MethodPost, "/v1/hack/events/{slug}/entry/unsubmit", mcp.Object(slug, "slug"), nil, mcp.Writes(true, true, false)),
 		memberTool("hack_delete_entry_screenshot", "Remove my entry screenshot", "Remove the team's entry screenshot. Confirm first.", http.MethodDelete, "/v1/hack/events/{slug}/entry/screenshot", mcp.Object(slug, "slug"), nil, mcp.Writes(true, true, true)),
 		memberTool("hack_get_voting", "Read voting options", "Read voting status, eligible teams and published vote ranking when available.", http.MethodGet, "/v1/hack/events/{slug}/vote", mcp.Object(slug, "slug"), nil, hackPublicReadOnly()),
 		memberTool("hack_get_my_vote", "Read my vote", "Read this person's current vote.", http.MethodGet, "/v1/hack/events/{slug}/my-vote", mcp.Object(slug, "slug"), nil, mcp.ReadOnly()),
@@ -233,10 +230,8 @@ func hackMemberEntryTools() []mcp.Tool {
 
 func hackOrganiserEntryTools() []mcp.Tool {
 	tools := hackRouteTools(hackOrganiserEntryRoutes())
-	// hack_set_entry_excluded is a one-tool mirror of the website's two REST
-	// actions (POST .../entry/exclude and .../entry/include): the AI apps
-	// take a bool rather than two tool names for one toggle, so it is
-	// hand-written instead of a hackRouteTool entry.
+	// hand-written, not a hackRouteTool entry: the AI apps take a bool rather than
+	// two tool names (the website's POST .../entry/exclude and .../entry/include).
 	tools = append(tools, hackSetEntryExcludedTool())
 	return tools
 }
@@ -247,7 +242,7 @@ func hackOrganiserEntryRoutes() []hackRouteTool {
 		{bodyDescription: "enabled, opens_at, closes_at, eligibility (all_signed_in, event_members or participants).", name: "hack_set_voting_settings", title: "Set voting settings", description: "Replace voting settings in the REST body. Narrowing eligibility removes earlier ineligible votes and returns votes_removed. Check votes_to_remove in hack_get_voting_settings and ask before removing votes; send confirm_vote_removal: true after confirmation or receive 409 vote_removal_confirmation with the count. Opening voting is public; ask first. Organiser only.", method: "PUT", path: "/v1/hack/events/{slug}/voting", body: true, destructive: true, idempotent: true, public: true},
 		{policy: toolPolicy{recordsPins: true}, name: "hack_get_entries", title: "List entries", description: "Read all team entries and pinned website links, plus counts by status (submitted, drafts, not_started, not_submitted, sites_live). Records any due submission deadline pins. Organiser or judge.", method: "GET", path: "/v1/hack/events/{slug}/entries", idempotent: true},
 		{name: "hack_get_entry_rules", title: "Read entry rules", description: "Read which entry fields are required, optional, off or one of (for the show-your-work evidence: video, website, code or screenshot), the active preset (video_or_website, video_website_code, or a legacy build/code/ideas/custom an older event may still carry), which evidence judges see first (judge_first: video or site), the one-sentence rules summary participants see, and whether rules can still change (editable, false from Closed on). Organiser only.", method: "GET", path: "/v1/hack/events/{slug}/entry-rules"},
-		{bodyDescription: "Any subset: preset (video_or_website or video_website_code), fields (map of field name to required/optional/off/one_of -- one_of only on video_url, site, code_url, screenshot), judge_first (video or site), dry_run boolean (true previews impact and the resulting rules, without saving).", name: "hack_set_entry_rules", title: "Set entry rules", description: "Choose a preset -- video_or_website (the default: at least one of a video or a website) or video_website_code (video, website and code link all required) -- and/or set individual fields to required, optional, off, or one_of (video_url, site, code_url and screenshot only; exactly one such field needs to be met). judge_first picks which evidence (video or site) judges see first. Setting a field that differs from the active preset's own table demotes the stored preset to custom. An event already on an older preset (build, code, ideas or custom) keeps it and its saved values until you set one of the two current presets or change a field; preset build, code, ideas or custom is refused (400 invalid_preset) -- it names the two you can choose. dry_run:true returns the impact (how many submitted entries would newly read as missing something, how many drafts would be newly blocked, and which teams) and a preview, without saving anything. Tightening never un-submits an already-submitted entry. Refused once entries have closed (Closed stage onward): rules are fixed so judging sees one definition of complete. On a new event this is also the organiser's first move (next_step.kind entry_rules on hack_get_event): ask which preset before opening sign-up, even if they want the default. Ask before narrowing rules on a live event. Organiser only.", method: "PUT", path: "/v1/hack/events/{slug}/entry-rules", body: true, destructive: true, idempotent: true},
+		{bodyDescription: "Any subset: preset (video_or_website or video_website_code), fields (map of field name to required/optional/off/one_of -- one_of only on video_url, site, code_url, screenshot), judge_first (video or site), dry_run boolean (true previews impact and the resulting rules, without saving).", name: "hack_set_entry_rules", title: "Set entry rules", description: "Choose a preset -- video_or_website (the default: at least one of a video or a website) or video_website_code (video, website and code link all required) -- and/or set individual fields to required, optional, off, or one_of (video_url, site, code_url and screenshot only; exactly one such field needs to be met). judge_first picks which evidence (video or site) judges see first. Setting a field that differs from the active preset's own table demotes the stored preset to custom. dry_run:true returns the impact (how many submitted entries would newly read as missing something, how many drafts would be newly blocked, and which teams) and a preview, without saving anything. Tightening never un-submits an already-submitted entry. Refused once entries have closed (Closed stage onward): rules are fixed so judging sees one definition of complete. On a new event this is also the organiser's first move (next_step.kind entry_rules on hack_get_event): ask which preset before opening sign-up, even if they want the default. Ask before narrowing rules on a live event. Organiser only.", method: "PUT", path: "/v1/hack/events/{slug}/entry-rules", body: true, destructive: true, idempotent: true},
 		{policy: toolPolicy{screenshot: true}, name: "hack_get_team_screenshot", title: "Read team screenshot", description: "Read one team's entry screenshot as base64 image bytes. Organiser or judge.", method: "GET", path: "/v1/hack/events/{slug}/teams/{team}/screenshot", idempotent: true},
 		{name: "hack_get_judging_settings", title: "Read judging settings", description: "Read assignment and scoring settings, organiser_judges (selected organiser user IDs) and the canonical judges list. Organiser only.", method: "GET", path: "/v1/hack/events/{slug}/judging/settings", idempotent: true},
 		{bodyDescription: "Any changed field: assignment_mode, judges_per_team, organiser_judges (array of current organiser user IDs; [] clears; omission preserves), score_mode, tie_criterion_id, public_scores, public_ranks. Legacy include_organisers: true selects all organisers, false clears, omitted preserves; organiser_judges wins.", name: "hack_set_judging_settings", title: "Set judging settings", description: "Change assignment_mode, judges_per_team, organiser_judges, score_mode, tie_criterion_id or public visibility flags. Ask before changing public flags. Organiser only. Mode and judges per team are refused during Judging (judging_setup_locked); move back to Entries closed to change.", method: "PATCH", path: "/v1/hack/events/{slug}/judging/settings", body: true, destructive: true, public: true},
@@ -330,8 +325,6 @@ func memberScreenshotTool(name, method, description string, annotations map[stri
 	return decl{Name: name, Title: description, Description: description, InputSchema: mcp.Object(props, req...), OutputSchema: map[string]any{"type": "object", "additionalProperties": true}, Annotations: annotations, run: run}.tool()
 }
 
-// runMemberScreenshot reads (GET, as base64), sets (PUT, from base64) or
-// removes the team's entry screenshot.
 func runMemberScreenshot(c *mcp.Call, name, method string, args map[string]any) (mcp.Output, error) {
 	slug, err := eventSlug(args)
 	if err != nil {
@@ -396,7 +389,6 @@ func runSetRubric(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	return hackRubricOutput(slug, body)
 }
 
-// hackExportRun downloads one of the event's CSV exports.
 func hackExportRun(kind string) func(*mcp.Call, map[string]any) (mcp.Output, error) {
 	return func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 		tool := "hack_export_" + kind
@@ -412,8 +404,6 @@ func hackExportRun(kind string) func(*mcp.Call, map[string]any) (mcp.Output, err
 	}
 }
 
-// runSetEntryExcluded toggles between the website's two REST actions,
-// .../entry/exclude and .../entry/include.
 func runSetEntryExcluded(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	slug, err := eventSlug(args)
 	if err != nil {

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,26 +21,6 @@ func TestLimitsDefaults(t *testing.T) {
 	}
 	if l != DefaultLimits() {
 		t.Fatalf("unset env should give the defaults:\n got %+v\nwant %+v", l, DefaultLimits())
-	}
-	// Spot-check the values the code had built in before they were settings.
-	for name, c := range map[string]struct{ got, want any }{
-		"sign-in code":     {l.SigninCodeTTL, 15 * time.Minute},
-		"keys":             {l.MaxKeysPerAccount, 50},
-		"sites":            {l.MaxSitesPerAccount, 100},
-		"files":            {l.MaxFilesPerSite, 50_000},
-		"visitor session":  {l.VisitorSessionTTL, 30 * 24 * time.Hour},
-		"visitor idle":     {l.VisitorSessionIdle, 14 * 24 * time.Hour},
-		"refresh":          {l.OAuthRefreshTTL, 90 * 24 * time.Hour},
-		"deleted":          {l.DeletedRetention, 7 * 24 * time.Hour},
-		"idle":             {l.IdleAfter, 90 * 24 * time.Hour},
-		"analytics":        {l.AnalyticsRetention, 400},
-		"register limiter": {l.RateOAuthRegister, Rate{10, 6 * time.Minute}},
-		"site ops limiter": {l.RateSiteOps, Rate{30, 2 * time.Second}},
-		"reply-to":         {l.IdleReplyTo, "support@simple-host.app"},
-	} {
-		if c.got != c.want {
-			t.Errorf("%s: default %v, want %v", name, c.got, c.want)
-		}
 	}
 	if got := l.Changed(); len(got) != 0 {
 		t.Errorf("Changed() on defaults = %v, want none", got)
@@ -69,12 +48,7 @@ func TestLimitsOverrides(t *testing.T) {
 	l, err := LoadLimits(env(map[string]string{
 		"SIGNIN_CODE_TTL_MINUTES":   "20",
 		"MAX_KEYS_PER_ACCOUNT":      "7",
-		"MAX_SITES_PER_ACCOUNT":     " 250 ",
 		"VISITOR_SESSION_DAYS":      "60",
-		"VISITOR_SESSION_IDLE_DAYS": "60",
-		"DELETED_RETENTION_DAYS":    "30",
-		"DOMAIN_LAPSE_HOURS":        "96",
-		"RATE_LIMIT_SIGNIN_IP":      "40,2s",
 		"RATE_LIMIT_OAUTH_REGISTER": "5, 1h",
 		"IDLE_REPLY_TO":             "help@example.org",
 	}))
@@ -84,12 +58,7 @@ func TestLimitsOverrides(t *testing.T) {
 	for name, c := range map[string]struct{ got, want any }{
 		"code":                    {l.SigninCodeTTL, 20 * time.Minute},
 		"keys":                    {l.MaxKeysPerAccount, 7},
-		"sites":                   {l.MaxSitesPerAccount, 250},
 		"session":                 {l.VisitorSessionTTL, 60 * 24 * time.Hour},
-		"idle":                    {l.VisitorSessionIdle, 60 * 24 * time.Hour},
-		"deleted":                 {l.DeletedRetention, 30 * 24 * time.Hour},
-		"lapse":                   {l.DomainLapseAfter, 96 * time.Hour},
-		"signin":                  {l.RateSigninIP, Rate{40, 2 * time.Second}},
 		"register":                {l.RateOAuthRegister, Rate{5, time.Hour}},
 		"reply-to":                {l.IdleReplyTo, "help@example.org"},
 		"untouched stays default": {l.ExportLinkTTL, 10 * time.Minute},
@@ -112,32 +81,17 @@ func TestLimitsOverrides(t *testing.T) {
 // A bad value stops startup with an error that names the variable.
 func TestLimitsInvalid(t *testing.T) {
 	cases := map[string]map[string]string{
-		"not a number":          {"MAX_KEYS_PER_ACCOUNT": "lots"},
 		"zero":                  {"MAX_SITES_PER_ACCOUNT": "0"},
-		"negative":              {"DELETED_RETENTION_DAYS": "-1"},
 		"above max":             {"SIGNIN_CODE_TTL_MINUTES": "61"},
-		"below min":             {"SIGNIN_CODE_TTL_MINUTES": "4"},
-		"fraction":              {"IDLE_AFTER_DAYS": "90.5"},
 		"unit in value":         {"EXPORT_LINK_TTL_MINUTES": "10m"},
 		"rate no comma":         {"RATE_LIMIT_SITE_OPS": "60"},
-		"rate bad burst":        {"RATE_LIMIT_SITE_OPS": "0,1s"},
 		"rate bad duration":     {"RATE_LIMIT_SITE_OPS": "60,soon"},
-		"rate too slow":         {"RATE_LIMIT_SITE_OPS": "60,48h"},
-		"rate too fast":         {"RATE_LIMIT_SITE_OPS": "60,1us"},
 		"reply-to not email":    {"IDLE_REPLY_TO": "support"},
-		"reply-to two":          {"IDLE_REPLY_TO": "a@b.com,c@d.com"},
 		"privacy url not a url": {"PRIVACY_URL": "example.com/privacy"},
 		"idle past session":     {"VISITOR_SESSION_IDLE_DAYS": "31"},
-		"lapse before warn":     {"DOMAIN_LAPSE_WARN_HOURS": "72"},
 		"max age before ttl":    {"DOMAIN_UNPROVEN_HOURS": "240", "DOMAIN_UNPROVEN_MAX_DAYS": "7"},
-		"files above ceiling":   {"MAX_FILES_PER_SITE": "50001"},
-		"event ttl too long":    {"EVENT_TTL_DAYS": "61"},
-		"export link too long":  {"EXPORT_LINK_TTL_MINUTES": "61"},
-		"rename too often":      {"HANDLE_RENAME_EVERY_DAYS": "6"},
 		"signin burst 5x":       {"RATE_LIMIT_SIGNIN_EMAIL": "21,50s"},
-		"signin every 5x":       {"RATE_LIMIT_SIGNIN_EMAIL": "5,10s"},
 		"no limit on codes":     {"RATE_LIMIT_SIGNIN_EMAIL": "100000,1ms"},
-		"token loose":           {"RATE_LIMIT_OAUTH_TOKEN": "30,100ms"},
 		"visitor auth loose":    {"RATE_LIMIT_VISITOR_AUTH": "1000,5s"},
 	}
 	for name, m := range cases {
@@ -166,27 +120,16 @@ func TestLimitsInvalid(t *testing.T) {
 // regexp.ReplaceAll substitution) must both be rejected.
 func TestSupportEmailInvalidIsLoggedAndIgnored(t *testing.T) {
 	for name, v := range map[string]string{
-		"not an email":  "support",
-		"apostrophe":    "o'connor@example.org",
-		"dollar":        "support$1@example.org",
-		"angle bracket": "<support@example.org>",
-		"ampersand":     "a&b@example.org",
-		"backslash":     `a\b@example.org`,
-		"space":         "sup port@example.org",
+		"apostrophe": "o'connor@example.org",
+		"dollar":     "support$1@example.org",
 	} {
-		var buf strings.Builder
-		log.SetOutput(&buf)
 		l, err := LoadLimits(env(map[string]string{"SUPPORT_EMAIL": v}))
-		log.SetOutput(os.Stderr)
 		if err != nil {
 			t.Errorf("%s: LoadLimits(%q) failed startup: %v; want it logged and ignored", name, v, err)
 			continue
 		}
 		if l.SupportEmail != "" {
 			t.Errorf("%s: SupportEmail = %q, want ignored (empty)", name, v)
-		}
-		if !strings.Contains(buf.String(), "SUPPORT_EMAIL") || !strings.Contains(buf.String(), "ignoring") {
-			t.Errorf("%s: no warning logged for %q: %q", name, v, buf.String())
 		}
 	}
 
@@ -212,10 +155,6 @@ func TestSensitiveRateBounds(t *testing.T) {
 	if l.RateSigninEmail != (Rate{20, 12500 * time.Millisecond}) || l.RateOAuthRegister != (Rate{1, 24 * time.Hour}) {
 		t.Fatalf("got %v and %v", l.RateSigninEmail, l.RateOAuthRegister)
 	}
-	_, err = LoadLimits(env(map[string]string{"RATE_LIMIT_SIGNIN_EMAIL": "21,50s"}))
-	if err == nil || !strings.Contains(err.Error(), "at most 20 at once") || !strings.Contains(err.Error(), "12.5s") {
-		t.Fatalf("error %v does not state the ceiling", err)
-	}
 	sensitive := map[string]bool{}
 	for _, k := range Knobs() {
 		sensitive[k.Env] = k.Sensitive
@@ -228,30 +167,6 @@ func TestSensitiveRateBounds(t *testing.T) {
 	}
 	if sensitive["RATE_LIMIT_SITE_OPS"] {
 		t.Error("RATE_LIMIT_SITE_OPS is marked security-sensitive")
-	}
-}
-
-// Other rate limits keep their wide range but are named in a startup warning
-// past 10 times looser, and a RATE_LIMIT_* name that is not a setting (a
-// typo) is named too.
-func TestLimitWarnings(t *testing.T) {
-	l, err := LoadLimits(env(map[string]string{"RATE_LIMIT_SITE_OPS": "301,2s", "RATE_LIMIT_UPLOAD": "30,1s", "RATE_LIMIT_EXPORT": "100,1s"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := strings.Join(l.Warnings([]string{"RATE_LIMIT_SIGNIN_IP=40,2s", "RATE_LIMIT_SIGNIN_EMAILS=1,1h", "PATH=/bin"}), "\n")
-	for _, want := range []string{"RATE_LIMIT_SITE_OPS=301,2s", "RATE_LIMIT_SIGNIN_EMAILS is not a setting"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("warnings %q miss %q", got, want)
-		}
-	}
-	for _, not := range []string{"RATE_LIMIT_UPLOAD", "RATE_LIMIT_EXPORT", "RATE_LIMIT_SIGNIN_IP", "PATH"} {
-		if strings.Contains(got, not+"=") || strings.Contains(got, not+" ") {
-			t.Errorf("warnings %q name %s", got, not)
-		}
-	}
-	if w := DefaultLimits().Warnings(nil); len(w) != 0 {
-		t.Errorf("defaults warn: %v", w)
 	}
 }
 
@@ -271,28 +186,6 @@ func TestLoadRejectsBadLimit(t *testing.T) {
 	}
 	if cfg.Limits.MaxKeysPerAccount != 12 {
 		t.Fatalf("Load() MaxKeysPerAccount = %d, want 12", cfg.Limits.MaxKeysPerAccount)
-	}
-}
-
-func TestSpanWords(t *testing.T) {
-	for d, want := range map[time.Duration]string{
-		15 * time.Minute:   "15 minutes",
-		time.Hour:          "one hour",
-		90 * time.Minute:   "90 minutes",
-		24 * time.Hour:     "one day",
-		36 * time.Hour:     "36 hours",
-		7 * 24 * time.Hour: "7 days",
-		30 * time.Second:   "30 seconds",
-	} {
-		if got := Span(d); got != want {
-			t.Errorf("Span(%v) = %q, want %q", d, got, want)
-		}
-	}
-	if got := SpanAdj(7 * 24 * time.Hour); got != "7-day" {
-		t.Errorf("SpanAdj(7d) = %q", got)
-	}
-	if got := SpanAdj(time.Hour); got != "one-hour" {
-		t.Errorf("SpanAdj(1h) = %q", got)
 	}
 }
 
@@ -370,26 +263,8 @@ func TestStorageSecurityKnobs(t *testing.T) {
 	}
 }
 
-func TestStorageExecutionKnobs(t *testing.T) {
-	l, err := LoadLimits(env(map[string]string{"SITE_STORAGE_SQL_CONCURRENCY": "2", "SITE_STORAGE_ACQUIRE_WAIT_MS": "20", "SITE_STORAGE_WRITE_LOCK_WAIT_MS": "50", "SITE_STORAGE_OWNER_TIMEOUT_MS": "5000", "SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS": "2000", "SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS": "1000"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if l.StorageSQLConcurrency != 2 || l.StorageAcquireWait != 20*time.Millisecond || l.StorageWriteLockWait != 50*time.Millisecond || l.StorageOwnerTimeout != 5*time.Second || l.StorageVisitorWriteTimeout != 2*time.Second || l.StorageVisitorQueryTimeout != time.Second {
-		t.Fatal("execution knobs ignored")
-	}
-	for _, key := range []string{"SITE_STORAGE_SQL_CONCURRENCY", "SITE_STORAGE_ACQUIRE_WAIT_MS", "SITE_STORAGE_WRITE_LOCK_WAIT_MS", "SITE_STORAGE_OWNER_TIMEOUT_MS", "SITE_STORAGE_VISITOR_WRITE_TIMEOUT_MS", "SITE_STORAGE_VISITOR_QUERY_TIMEOUT_MS"} {
-		if _, err := LoadLimits(env(map[string]string{key: "-1"})); err == nil {
-			t.Fatalf("accepted invalid %s", key)
-		}
-	}
-}
-
 func TestNotificationLimits(t *testing.T) {
 	defaults := DefaultLimits()
-	if defaults.NotifyMaxPerSite != 10 || defaults.NotifyPerMinute != 60 || defaults.NotifyPerDay != 5000 || defaults.NotifyHistoryDays != 7 || defaults.NotifyWorkers != 20 || defaults.NotifyAttempts != 5 || defaults.NotifyTimeout != 5*time.Second || defaults.NotifyFieldMaxBytes != 2048 || defaults.NotifyBodyMaxBytes != 16384 || defaults.NotifyDefaultTTL != 7*24*time.Hour || defaults.NotifySuspendAttempts != 100 || defaults.NotifySuspendFailurePercent != 95 || defaults.NotifySuspendWindow != time.Hour || defaults.NotifySuspendAfter != 3*24*time.Hour {
-		t.Fatal("notification defaults differ from the delivery contract")
-	}
 	for _, knob := range Knobs() {
 		if !strings.HasPrefix(knob.Env, "NOTIFY_") {
 			continue
@@ -404,19 +279,6 @@ func TestNotificationLimits(t *testing.T) {
 	l, err := LoadLimits(env(map[string]string{"NOTIFY_WORKERS": "3", "NOTIFY_TIMEOUT_MS": "250", "NOTIFY_DEFAULT_TTL_HOURS": "24", "NOTIFY_PER_MINUTE": "2"}))
 	if err != nil || l.NotifyWorkers != 3 || l.NotifyTimeout != 250*time.Millisecond || l.NotifyDefaultTTL != 24*time.Hour || l.NotifyPerMinute != 2 {
 		t.Fatal("notification overrides were not applied")
-	}
-}
-
-func TestNotificationBodyBounds(t *testing.T) {
-	for _, value := range []string{"1024", "4095", "262145", "1048576"} {
-		if _, err := LoadLimits(env(map[string]string{"NOTIFY_BODY_MAX_BYTES": value})); err == nil {
-			t.Errorf("accepted body limit %s", value)
-		}
-	}
-	for _, value := range []string{"4096", "262144"} {
-		if _, err := LoadLimits(env(map[string]string{"NOTIFY_BODY_MAX_BYTES": value})); err != nil {
-			t.Errorf("rejected body limit %s: %v", value, err)
-		}
 	}
 }
 

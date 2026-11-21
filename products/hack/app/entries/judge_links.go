@@ -8,7 +8,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
-// EntryCounts tallies an entry list by state.
 type EntryCounts map[string]int
 
 // CountEntries tallies teams by entry state (missing entry: not started) and live site.

@@ -16,7 +16,6 @@ func LockContentStage(ctx context.Context, tx *sql.Tx, id string, compact bool) 
 	return stage, err
 }
 
-// ChangeAnnouncement edits or removes one announcement.
 func ChangeAnnouncement(ctx context.Context, tx *sql.Tx, eventID, id, title, body string, remove bool) (sql.Result, error) {
 	if remove {
 		return tx.ExecContext(ctx, `DELETE FROM event_announcements WHERE event_id=$1 AND id=$2`, eventID, id)

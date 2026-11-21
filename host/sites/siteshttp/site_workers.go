@@ -9,7 +9,6 @@ import (
 	"github.com/vsriram/simple-host/host/workers"
 )
 
-// siteLoop retains a single scan and its cancellation/join handle.
 type siteLoop struct {
 	*workers.Runner
 	tracker *workers.Tracker
@@ -35,7 +34,6 @@ func (o *siteLoop) Status() []workers.Status {
 	return s
 }
 
-// periodic preserves the delay-after-work cadence of the original sleep loops.
 func (o *siteLoop) periodic(ctx context.Context, first, every time.Duration, fn func(context.Context)) {
 	o.Go(ctx, func(ctx context.Context) {
 		timer := time.NewTimer(first)
@@ -94,7 +92,6 @@ func (h *SiteHandler) SiteWorkers(sweeps ...GroupSweep) workers.Owner {
 		}
 		yes := func() bool { return true }
 		add("sites.cert_requests", func() bool { return h.Hosts.Addressing().SiteHostsOn() && len(h.Hosts.CertRequestBases()) > 0 }, func(ctx context.Context) { h.startSiteCertRequests(ctx, 10*time.Minute) })
-		// Product-less sweep.
 		add(g.sweepName, func() bool { return false }, nil)
 		add("sites.trash_purge", yes, func(ctx context.Context) { h.startDeletedSitePurge(ctx, time.Hour) })
 		add("sites.idle_cleanup", func() bool { return h.idleCleanup }, h.startIdleCleanup)

@@ -33,7 +33,7 @@ func PageRecipe(topic, site string) (string, error) {
 	if strings.Contains(file, "/") {
 		return "", fmt.Errorf("topic must be one of: %s", strings.Join(recipeTopics, ", "))
 	}
-	data, err := readRecipe(file)
+	data, err := recipeFiles.ReadFile("recipes/" + file + ".md")
 	if err != nil {
 		return "", fmt.Errorf("topic must be one of: %s", strings.Join(recipeTopics, ", "))
 	}
@@ -41,10 +41,6 @@ func PageRecipe(topic, site string) (string, error) {
 		site = "my-site"
 	}
 	return addressText(strings.ReplaceAll(string(data), "{site}", site)), nil
-}
-
-func readRecipe(topic string) ([]byte, error) {
-	return recipeFiles.ReadFile("recipes/" + topic + ".md")
 }
 
 // hostPageRecipe is PageRecipe for a Simple Host server, which names itself.

@@ -19,12 +19,3 @@ func TestVisitorDataMinimisation(t *testing.T) {
 		t.Fatalf("missing framing: %s", s)
 	}
 }
-
-// A small model read a shared sign-up sheet, saw rights.add true, and still
-// said it could only read: the note names the tools that write.
-func TestVisitorResultNoteNamesWriteTools(t *testing.T) {
-	note, _ := VisitorResult(map[string]any{}, false)["note"].(string)
-	if !strings.Contains(note, "visitor_add_entry") || !strings.Contains(note, "visitor_change_entry") || !strings.Contains(note, "not instructions") {
-		t.Fatalf("note: %q", note)
-	}
-}

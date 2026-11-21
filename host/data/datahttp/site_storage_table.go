@@ -115,8 +115,11 @@ func (h *DataHandler) storageRowsApply(w http.ResponseWriter, r *http.Request, s
 			httpx.WriteError(w, 400, "invalid_rows", "send a JSON object of column values")
 			return appstorage.TableResult{}
 		}
-		if action == "add" && in.Authorized.CheckedPost() && !storagePostLimits(w, body, h.Limits) {
-			return appstorage.TableResult{}
+		if action == "add" && in.Authorized.CheckedPost() {
+			if err := appstorage.CheckPostLimits(body, h.Limits.SpamCheckedMaxBytes, h.Limits.SpamCheckedMaxLinks); err != nil {
+				WriteStorageError(w, err, 400)
+				return appstorage.TableResult{}
+			}
 		}
 		if in.Values, err = appstorage.DecodeRowValues(body, action); err != nil {
 			WriteStorageError(w, err, 400)

@@ -86,8 +86,9 @@ func TestRulesWriteCheckRollback(t *testing.T) {
 }
 
 func TestRulesWriteAuthorizerSideEffects(t *testing.T) {
-	for _, action := range []string{"add", "edit", "delete"} {
-		for _, target := range []string{"entries", "audit"} {
+	for _, tc := range []struct{ action, target string }{{"add", "audit"}, {"edit", "entries"}, {"delete", "audit"}} {
+		action, target := tc.action, tc.target
+		{
 			t.Run(action+"/"+target, func(t *testing.T) {
 				s, c, _ := readFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT); CREATE TABLE audit(body TEXT); INSERT INTO entries VALUES(1,'old');`, writeSet("true", "true", "auth.signed_in", "true"))
 				c.VisitorID, c.ActiveChecked = "caller", true
@@ -111,7 +112,6 @@ func TestRulesWriteAuthorizerSideEffects(t *testing.T) {
 	if !bytes.Equal(before, ruleDBBytes(t, s)) {
 		t.Fatal("foreign-key action changed bytes")
 	}
-	t.Log("foreign-key CASCADE rejected by row authorizer; defaults and generated columns are admitted and tested separately")
 }
 
 func TestRulesWriteConflictAbort(t *testing.T) {

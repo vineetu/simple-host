@@ -414,7 +414,7 @@ const deployFormTip = "A form visitors send (contact, quote, booking, sign-up, o
 // deployPhotoTip: Simple Hack has no photos link and swaps in hackPhotoTip.
 const deployPhotoTip = "For the person's own photos, give them create_upload_link's photos_url (it shrinks them); never ask them to resize or attach photos."
 
-const deploySizeTips = "Check who_am_i for account file usage and list_sites for site sizes before deploying. Hosted Simple Host keeps 4 versions; new sites have a 200 MB whole-file allowance and accounts 1 GB (operator exceptions apply). The separate live copy and every kept version count; saved data and storage resources do not. " + deployPhotoTip + " Keep zip files, installers and videos elsewhere and link to them. Remove unused files; ask the person which old sites they no longer need."
+const deploySizeTips = deployPhotoTip + " Link to zip files, installers and videos kept elsewhere."
 
 func createViewersSchema(limits Limits) map[string]any {
 	schema := map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Emails exactly as the person gave them; only with access specific. Added in the same create call."}

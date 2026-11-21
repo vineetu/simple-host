@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 	"log"
 	"os"
 	"time"
 	"unicode/utf8"
+
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	repository "github.com/vsriram/simple-host/host/data/repo"

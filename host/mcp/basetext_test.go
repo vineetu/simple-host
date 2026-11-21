@@ -12,7 +12,7 @@ func TestAddressBase(t *testing.T) {
 	send := func() string {
 		s := NewServer(testConfig(Config{}))
 		b, _ := json.Marshal(s.tools)
-		return string(b) + addressText(Instructions()) + addressText(codeHint("custom_domain_required"))
+		return string(b) + addressText(Instructions()) + addressText(resourceCodeHint("custom_domain_required", ""))
 	}
 	SetAddressBase("simple-host.app", "simple-host.app")
 	today := send()

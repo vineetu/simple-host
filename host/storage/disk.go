@@ -637,36 +637,46 @@ const suspendedMarker = "suspended"
 
 // SetSuspended writes (on) or removes (off) the take-down marker. Idempotent.
 func (d *DiskStorage) SetSuspended(userID, siteName string, on bool) error {
+	return d.setSiteMarker(userID, siteName, suspendedMarker, "taken down by the operator\n", on)
+}
+
+// setSiteMarker writes (on) or removes (off) one marker file next to
+// `current`. It writes only into an existing site folder: a site that was
+// deleted (its folder is in deleted/) or renamed meanwhile must not get a
+// new, empty folder under its old name. A site with no folder serves
+// nothing; its marker is written when the folder comes back (restore, see
+// SetTrashedSuspended).
+func (d *DiskStorage) setSiteMarker(userID, siteName, marker, body string, on bool) error {
 	if !validPathKey(userID) || !validPathKey(siteName) {
 		return fmt.Errorf("invalid site %q/%q", userID, siteName)
 	}
-	p := filepath.Join(d.SiteDir(userID, siteName), suspendedMarker)
+	p := filepath.Join(d.SiteDir(userID, siteName), marker)
 	if !on {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 		return nil
 	}
-	// Only ever into an existing site folder: a site that was deleted (its
-	// folder is in deleted/) or renamed meanwhile must not get a new, empty
-	// folder under its old name. A site with no folder serves nothing; its
-	// marker is written when the folder comes back (restore, see
-	// SetTrashedSuspended).
 	if _, err := os.Stat(d.SiteDir(userID, siteName)); os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
 		return err
 	}
-	return os.WriteFile(p, []byte("taken down by the operator\n"), 0o644)
+	return os.WriteFile(p, []byte(body), 0o644)
+}
+
+// hasSiteMarker reports whether one marker file is present.
+func (d *DiskStorage) hasSiteMarker(userID, siteName, marker string) bool {
+	if !validPathKey(userID) || !validPathKey(siteName) {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), marker))
+	return err == nil
 }
 
 // IsSuspended reports whether the take-down marker is present.
 func (d *DiskStorage) IsSuspended(userID, siteName string) bool {
-	if !validPathKey(userID) || !validPathKey(siteName) {
-		return false
-	}
-	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), suspendedMarker))
-	return err == nil
+	return d.hasSiteMarker(userID, siteName, suspendedMarker)
 }
 
 // offlineMarker is the file that marks a site its owner has taken offline.
@@ -675,34 +685,14 @@ func (d *DiskStorage) IsSuspended(userID, siteName string) bool {
 // checked first and wins.
 const offlineMarker = "offline"
 
-// SetOffline writes (on) or removes (off) the offline marker. Idempotent;
-// like SetSuspended it never creates a missing site folder.
+// SetOffline writes (on) or removes (off) the offline marker. Idempotent.
 func (d *DiskStorage) SetOffline(userID, siteName string, on bool) error {
-	if !validPathKey(userID) || !validPathKey(siteName) {
-		return fmt.Errorf("invalid site %q/%q", userID, siteName)
-	}
-	p := filepath.Join(d.SiteDir(userID, siteName), offlineMarker)
-	if !on {
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-	if _, err := os.Stat(d.SiteDir(userID, siteName)); os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	return os.WriteFile(p, []byte("taken offline by its owner\n"), 0o644)
+	return d.setSiteMarker(userID, siteName, offlineMarker, "taken offline by its owner\n", on)
 }
 
 // IsOffline reports whether the offline marker is present.
 func (d *DiskStorage) IsOffline(userID, siteName string) bool {
-	if !validPathKey(userID) || !validPathKey(siteName) {
-		return false
-	}
-	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), offlineMarker))
-	return err == nil
+	return d.hasSiteMarker(userID, siteName, offlineMarker)
 }
 
 // passcodeMarker is the file that marks a site with a passcode
@@ -724,11 +714,7 @@ func (d *DiskStorage) SetPasscodeMarker(userID, siteName string, on bool) error 
 
 // HasPasscodeMarker reports whether the passcode marker is present.
 func (d *DiskStorage) HasPasscodeMarker(userID, siteName string) bool {
-	if !validPathKey(userID) || !validPathKey(siteName) {
-		return false
-	}
-	_, err := os.Lstat(filepath.Join(d.SiteDir(userID, siteName), passcodeMarker))
-	return err == nil
+	return d.hasSiteMarker(userID, siteName, passcodeMarker)
 }
 
 // removeLegacyUnlistedMarkers runs once when storage opens. Include trash so

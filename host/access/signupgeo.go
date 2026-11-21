@@ -13,9 +13,8 @@ type CountryLookup interface {
 // which turns this off entirely: the zero value never blocks anything.
 //
 // A listed country refuses every sign-in and sign-up attempt from it — a
-// brand-new account and an existing one alike (owner decision 2026-10-01:
-// the data shows no API activity from these countries, so simplicity won
-// over carving out a hypothetical existing account). API-key requests and
+// brand-new account and an existing one alike (no API activity comes from
+// these countries, so simplicity won over carving out an existing account). API-key requests and
 // site viewing are untouched: an existing account's key keeps publishing
 // regardless of where a request comes from, since that is not a sign-in. A
 // country the local geo database (host/geoip) cannot resolve is always

@@ -22,7 +22,7 @@
 // order; `migrate -status` lists them in apply order. Each file runs once, in
 // its own transaction together with the row that records it in
 // schema_migrations, under a Postgres advisory lock so two runs never race.
-// Apply refuses to run a pending numbered file at or below the newest applied one,
+// ApplyConn refuses to run a pending numbered file at or below the newest applied one,
 // even one this build does not embed (two branches took the same slot): renumber it.
 // A file may keep its own BEGIN/COMMIT: the row is written first, so it commits
 // with the file either way.
@@ -40,7 +40,7 @@
 // the new app version starts. A startup data-only sweep seals legacy notification
 // secrets when PASSCODE_ENC_KEY is set, only after the new binary starts.
 // The server migrates schema on start only with MIGRATE_ON_START=true (off by
-// default; Kubernetes, see cmd/server/main.go and docs/kubernetes.md). Hosted
+// default; Kubernetes, see docs/kubernetes.md). Hosted
 // production leaves it off, so SQL applied by hand is never a surprise: there,
 // apply the file by hand and record it with `simple-host migrate -mark <file>`
 // (or run `simple-host migrate`, which is what the idempotency rule above makes safe).
@@ -341,20 +341,10 @@ func WithLock(ctx context.Context, db *sql.DB, fn func(*sql.Conn) error) error {
 	return fn(conn)
 }
 
-// Apply runs every pending file, in order, each once. It returns the names it
-// applied; on failure it stops at the failing file, which is rolled back and
-// left pending, and reports the files applied before it.
-func (s Set) Apply(ctx context.Context, db *sql.DB, logf func(string, ...any)) ([]string, error) {
-	var ran []string
-	err := WithLock(ctx, db, func(conn *sql.Conn) error {
-		var err error
-		ran, err = s.ApplyConn(ctx, conn, logf)
-		return err
-	})
-	return ran, err
-}
-
-// ApplyConn applies migrations on a connection already holding WithLock.
+// ApplyConn runs every pending file, in order, each once, on a connection
+// already holding WithLock. It returns the names it applied; on failure it
+// stops at the failing file, which is rolled back and left pending, and
+// reports the files applied before it.
 func (s Set) ApplyConn(ctx context.Context, conn *sql.Conn, logf func(string, ...any)) ([]string, error) {
 	var ran []string
 	if _, err := conn.ExecContext(ctx, createTable); err != nil {
@@ -421,19 +411,9 @@ func applyOne(ctx context.Context, conn *sql.Conn, name, body string) error {
 	return err
 }
 
-// Mark records a file as applied without running it: for a database where the
-// SQL was applied by hand (hosted production).
-func (s Set) Mark(ctx context.Context, db *sql.DB, name string) (bool, error) {
-	var added bool
-	err := WithLock(ctx, db, func(conn *sql.Conn) error {
-		var err error
-		added, err = s.MarkConn(ctx, conn, name)
-		return err
-	})
-	return added, err
-}
-
-// MarkConn records a migration on a connection already holding WithLock.
+// MarkConn records a file as applied without running it, on a connection
+// already holding WithLock: for a database where the SQL was applied by hand
+// (hosted production).
 func (s Set) MarkConn(ctx context.Context, conn *sql.Conn, name string) (bool, error) {
 	known := false
 	for _, n := range s.Tracked() {
@@ -458,25 +438,14 @@ func (s Set) MarkConn(ctx context.Context, conn *sql.Conn, name string) (bool, e
 	return n == 1, nil
 }
 
-// Init builds an empty database from the platform then product schema in
-// one transaction and reports whether it did. A database that already has the
-// users table is left alone, so running it on every start is safe; it takes
-// the same advisory lock as Apply, so two pods starting at once never both
-// build the schema (the second waits, then sees the table and does nothing).
-// Call Apply afterwards: schema.sql is current, so Apply only records each
-// tracked file as applied.
-func (s Set) Init(ctx context.Context, db *sql.DB, logf func(string, ...any)) (bool, error) {
-	built := false
-	err := WithLock(ctx, db, func(conn *sql.Conn) error {
-		var err error
-		built, err = s.InitConn(ctx, conn, "", logf)
-		return err
-	})
-	return built, err
-}
-
-// InitConn builds the schema and its product record atomically, on a connection
-// already holding WithLock. An empty product is for schema-only test callers.
+// InitConn builds an empty database from the platform then product schema,
+// with its product record, in one transaction on a connection already holding
+// WithLock, and reports whether it did. A database that already has the users
+// table is left alone, so running it on every start is safe; two pods
+// starting at once never both build the schema (the second waits for the
+// lock, then sees the table). Run ApplyConn afterwards: schema.sql is current, so
+// ApplyConn only records each tracked file as applied. An empty product is
+// for schema-only test callers.
 func (s Set) InitConn(ctx context.Context, conn *sql.Conn, product string, logf func(string, ...any)) (bool, error) {
 	var empty bool
 	if err := conn.QueryRowContext(ctx, `SELECT to_regclass('public.users') IS NULL`).Scan(&empty); err != nil {

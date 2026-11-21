@@ -33,10 +33,7 @@ type fakeIdP struct {
 
 func newFakeIdP(t *testing.T) *fakeIdP {
 	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate key: %v", err)
-	}
+	key := testKey(t, 0)
 	idp := &fakeIdP{key: key, kid: "test-kid"}
 	idp.up.Store(true)
 	mux := http.NewServeMux()

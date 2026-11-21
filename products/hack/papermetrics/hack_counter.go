@@ -103,7 +103,6 @@ type hackRequest struct {
 	write, deploy, apiCandidate, apiWrite bool
 }
 
-// ResolveHackEvent uses an already-resolved event.
 func ResolveHackEvent(ctx context.Context, slug, stage, member string, published ...time.Time) {
 	if r, ok := ctx.Value(hackRequestKey{}).(*hackRequest); ok {
 		event := r.event

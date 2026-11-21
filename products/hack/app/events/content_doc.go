@@ -13,7 +13,6 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Sponsor is one sponsor on the event page.
 type Sponsor struct {
 	Name     string `json:"name"`
 	Tier     string `json:"tier"`
@@ -21,13 +20,11 @@ type Sponsor struct {
 	URL      string `json:"url"`
 }
 
-// FAQ is one question and answer on the event page.
 type FAQ struct {
 	Question string `json:"question"`
 	Answer   string `json:"answer"`
 }
 
-// ScheduleItem is one organiser-written schedule row.
 type ScheduleItem struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
@@ -39,7 +36,6 @@ type ScheduleItem struct {
 	Fixed bool `json:"fixed,omitempty"`
 }
 
-// Content is the event page's sponsors, FAQ and schedule.
 type Content struct {
 	Sponsors []Sponsor      `json:"sponsors"`
 	FAQ      []FAQ          `json:"faq"`
@@ -61,7 +57,6 @@ func (s *Service) EventContent(ctx context.Context, eventID string) (Content, er
 	return ReadEventContent(ctx, s.db, eventID)
 }
 
-// ReadEventContent is EventContent through any querier.
 func ReadEventContent(ctx context.Context, q sqlkit.Querier, eventID string) (Content, error) {
 	raw, err := ReadContent(ctx, q, eventID)
 	c := Content{Sponsors: []Sponsor{}, FAQ: []FAQ{}, Schedule: []ScheduleItem{}}
@@ -78,7 +73,6 @@ func ReadEventContent(ctx context.Context, q sqlkit.Querier, eventID string) (Co
 	return c, err
 }
 
-// SaveContent checks an organiser's content document and stores it.
 func (s *Service) SaveContent(ctx context.Context, ev model.Event, c Content) (Content, error) {
 	if ev.Stage == "archived" {
 		return c, &Error{Code: "event_ended", Message: "this event has ended"}

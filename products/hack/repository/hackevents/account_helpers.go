@@ -7,7 +7,6 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// NewUUID asks Postgres for a fresh UUID.
 func NewUUID(ctx context.Context, q sqlkit.Querier) (string, error) {
 	var id string
 	err := q.QueryRowContext(ctx, `SELECT gen_random_uuid()`).Scan(&id)

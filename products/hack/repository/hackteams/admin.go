@@ -9,15 +9,16 @@ import (
 )
 
 // EnsureTeamAdmin promotes the longest-standing member (team_joined_at, then
-// user_id) to admin when the team has members but none of them is an admin
-// -- after a departure, an organiser's move, or a removal. Lock order:
-// every current member of the team (sorted by user_id), then the team row
-// -- the successor isn't known ahead of time, so every member is locked
-// before the UPDATE that follows ever needs one of their rows. Locking the
-// team row first instead (as this used to) can deadlock against that same
-// member's own concurrent departure or admin change, which locks their
-// member row before waiting on the team row (Codex review, 2026-11-01).
-// A team with no members, or already gone, is a no-op.
+// user_id) to admin when the team has members but none is an admin, after a
+// departure, an organiser's move, or a removal. A team with no members, or
+// already gone, is a no-op.
+//
+// Lock order: every current member of the team (sorted by user_id), then the
+// team row. The successor is not known ahead of time, so every member is locked
+// before the UPDATE needs one of their rows. Locking the team row first can
+// deadlock against that member's own concurrent departure or admin change,
+// which locks their member row before waiting on the team row.
+//
 // TODO(4.3): narrow the locking querier to *sql.Tx once the membership callbacks take *sql.Tx.
 func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 	var locked int
@@ -39,11 +40,9 @@ func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 	if hasAdmin {
 		return nil
 	}
-	// NULLS LAST: Postgres sorts NULL first by default, which would hand
-	// admin to a member with no team_joined_at ahead of one with an actual,
-	// earlier tenure (Grok security review, 2026-11-01). Every current
-	// writer sets team_joined_at, but this ordering must not depend on
-	// that staying true.
+	// NULLS LAST: Postgres sorts NULL first, which would hand admin to a member
+	// with no team_joined_at ahead of one with an actual, earlier tenure. Every
+	// writer sets team_joined_at today, but this ordering must not depend on that.
 	var eventID, userID string
 	err := q.QueryRowContext(ctx, `
 		UPDATE event_members SET team_admin = true
@@ -58,24 +57,22 @@ func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 	if err != nil {
 		return err
 	}
-	// The successor hears they now answer the team's requests (2026-11-02).
+	// The successor hears they now answer the team's requests.
 	return hackevents.NotifyUsers(ctx, q, eventID, hackevents.TeamAdminNotice, teamID, "", "", userID)
 }
 
 // SetTeamAdmin makes or removes an admin. The caller has already decided the
-// actor may do this (an existing admin, or the organiser); this enforces the
-// one invariant the write itself owns: unmaking the last admin is refused.
-// userID must already be a member of teamID (sql.ErrNoRows otherwise, so a
-// wrong path parameter reads as not-found rather than confirming membership
-// elsewhere). Lock order: userID's own member row, then the team row --
-// the same order every hack writer uses (member, then team), so this never
-// deadlocks against userID's own concurrent leave/removal, which locks
-// their row first too. A caller naming a second party (the participant
-// route, admin acting on a teammate) must lock both member rows itself,
-// sorted, before calling this (Codex review, 2026-11-01): locking only the
-// actor's row here, then the team row, then this target row, reproduces
-// the same deadlock against the symmetric request with actor and target
-// swapped.
+// actor may do this; this enforces the one invariant the write owns: unmaking
+// the last admin is refused. userID must already be a member of teamID
+// (sql.ErrNoRows otherwise, so a wrong path parameter reads as not-found rather
+// than confirming membership elsewhere).
+//
+// Lock order: userID's own member row, then the team row, the same order every
+// hack writer uses, so this never deadlocks against userID's concurrent
+// leave/removal. A caller naming a second party (admin acting on a teammate)
+// must lock both member rows itself, sorted, before calling: locking only the
+// actor's row here, then the team row, then the target row, deadlocks against
+// the symmetric request with actor and target swapped.
 func SetTeamAdmin(ctx context.Context, q *sql.Tx, eventID, teamID, userID string, admin bool) error {
 	m, err := LockMember(ctx, q, eventID, userID)
 	if err != nil {

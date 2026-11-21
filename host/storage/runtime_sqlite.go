@@ -146,7 +146,7 @@ var ErrWrittenBySchemaLocked = fmt.Errorf("a trigger or view on this table may d
 
 // EnsureWrittenByColumn adds the server-owned written_by TEXT NOT NULL
 // DEFAULT ” column to table, lazily, the first time an owner add names
-// someone with for (SIM-358): unlike visitor_id (ensureOwnTables, run at
+// someone with for: unlike visitor_id (ensureOwnTables, run at
 // rules-save time, on every table the rules track an author on), this
 // runs under the write lock, within the same locked window as the insert
 // it is for, so an existing table works on its very first for use without
@@ -294,7 +294,8 @@ func StorageColumn(stmt *sqlite3.Stmt, i int) any {
 	}
 }
 
-// StorageScalar provides the existing runtime storage helper.
+// StorageScalar reports whether raw is one JSON scalar: null, a string, a
+// boolean or a number.
 func StorageScalar(raw json.RawMessage) bool {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
@@ -458,6 +459,8 @@ func checkReference(conn *sqlite3.Conn, table, rowid string, id int64, key forei
 }
 
 var (
+	// ErrSQLiteBusy indicates that a slot could not be acquired in time.
+	ErrSQLiteBusy    = errors.New("storage is busy")
 	ErrUnknownTable  = errors.New("unknown table")
 	ErrTableInternal = errors.New("table internal error")
 	ErrTableFull     = errors.New("table full")

@@ -7,7 +7,6 @@ import (
 	"github.com/vsriram/simple-host/host/workers"
 )
 
-// LimiterWorkers evicts the hack limiters' idle buckets.
 func (h *HackHandler) LimiterWorkers() workers.Owner {
 	h.limitersOnce.Do(func() {
 		for _, l := range []*httpx.RateLimiter{h.codes.ip, h.codes.user, h.namesUser, h.participation.entryWrites, h.participation.shotWrites, h.participation.applyIP, h.participation.applyUser, h.assistant.writes, h.screenshotsIP} {

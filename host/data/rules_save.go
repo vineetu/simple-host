@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/vsriram/simple-host/host/data/rules"
 	"github.com/vsriram/simple-host/host/model"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
@@ -70,7 +69,7 @@ func decodeRules(raw json.RawMessage, table string, schema ruleengine.BindingSch
 
 // configureRules validates the sent rules and sets them on x; a SQLite
 // resource also has its database's tables prepared for them.
-func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rules.Resource, exists bool, x *rules.Resource) error {
+func (s *Service) configureRules(ctx context.Context, in ResourceInput, old model.Resource, exists bool, x *model.Resource) error {
 	if in.rulesSaveSize() > rulesSaveBytes {
 		return invalidRules("size", "", "rules exceed 256 KiB")
 	}
@@ -90,9 +89,9 @@ func (s *Service) configureRules(ctx context.Context, in ResourceInput, old rule
 		return err
 	}
 	x.Rules = ruleengine.EncodeSet(def)
-	x.Tables = map[string]rules.TableRule{}
+	x.Tables = map[string]model.TableRule{}
 	for table, set := range sets {
-		x.Tables[table] = rules.TableRule{Rules: ruleengine.EncodeSet(set)}
+		x.Tables[table] = model.TableRule{Rules: ruleengine.EncodeSet(set)}
 	}
 	if x.Kind != "sqlite" {
 		return checkPlainRules(x.Kind, def, schema)
@@ -122,7 +121,7 @@ func (in ResourceInput) rulesSaveSize() int {
 
 // decodeTableRules decodes the sent table rules in name order. When none are
 // sent, a resource that already has rules keeps its stored table rules.
-func decodeTableRules(tables *map[string]ResourceTableInput, old rules.Resource, schema ruleengine.BindingSchema) (map[string]ruleengine.PolicySet, error) {
+func decodeTableRules(tables *map[string]ResourceTableInput, old model.Resource, schema ruleengine.BindingSchema) (map[string]ruleengine.PolicySet, error) {
 	sets := map[string]ruleengine.PolicySet{}
 	if tables == nil && old.Rules != nil {
 		for table, q := range old.Tables {
@@ -171,7 +170,7 @@ func checkPlainRules(kind string, def ruleengine.PolicySet, schema ruleengine.Bi
 // preparation mutates the file, prepares the tables, then checks the prepared
 // database still compiles. Rows pages wrote with SQL carry no author, so such
 // a database must be empty before rules name visitor_id.
-func (s *Service) prepareSQLiteRules(ctx context.Context, call Call, x rules.Resource, pagesWroteSQL bool, def ruleengine.PolicySet, sets map[string]ruleengine.PolicySet, schema ruleengine.BindingSchema) error {
+func (s *Service) prepareSQLiteRules(ctx context.Context, call Call, x model.Resource, pagesWroteSQL bool, def ruleengine.PolicySet, sets map[string]ruleengine.PolicySet, schema ruleengine.BindingSchema) error {
 	inspector := *s
 	inspector.deps.SQLitePath = filepath.Join(call.RuntimeDir, "sqlite", x.Name+".sqlite")
 	plans, err := inspector.inspectRulePlans(ctx, call, def, sets, schema, true)
@@ -334,7 +333,7 @@ func checkWorstCase(plan *ruleengine.Plan, table ruleengine.Table) error {
 
 // Retained rules are checked against today's columns without preparing tables or
 // replacing the saved sets. Invalid rules do not prevent a passcode-only save.
-func (s *Service) retainedRulesErrors(ctx context.Context, call Call, x rules.Resource) ([]ruleengine.RuleError, error) {
+func (s *Service) retainedRulesErrors(ctx context.Context, call Call, x model.Resource) ([]ruleengine.RuleError, error) {
 	if errs := s.resourceRulesErrors(x); len(errs) != 0 {
 		return errs, nil
 	}
@@ -362,7 +361,7 @@ func (s *Service) retainedRulesErrors(ctx context.Context, call Call, x rules.Re
 }
 
 // Listings validate binding/syntax only; they never open a site's SQLite file.
-func (s *Service) resourceRulesErrors(x rules.Resource) []ruleengine.RuleError {
+func (s *Service) resourceRulesErrors(x model.Resource) []ruleengine.RuleError {
 	if x.Rules == nil {
 		return nil
 	}

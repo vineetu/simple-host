@@ -101,7 +101,7 @@ func (h *SiteHandler) AddPhotos(w http.ResponseWriter, r *http.Request) {
 		h.writePhotoSaveError(w, r, input, err)
 		return
 	}
-	response := h.siteResponseFromState(user, result.Site, result.ResponseState.(siteResponseState))
+	response := h.siteResponseFromState(result.Site, result.ResponseState.(siteResponseState))
 	results := make([]photoResult, 0, len(uploads))
 	for i, p := range uploads {
 		path := result.PhotoPaths[i]

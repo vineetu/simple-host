@@ -37,7 +37,7 @@ type limitPhrase struct {
 func limitNum(n int) string  { return strconv.Itoa(n) }
 func limitDays(n int) string { return limitCount(n, "day") }
 
-// commas prints 50000 as 50,000.
+// limitCommas prints 50000 as 50,000.
 func limitCommas(n int) string {
 	s := strconv.Itoa(n)
 	for i := len(s) - 3; i > 0; i -= 3 {
@@ -75,8 +75,7 @@ var limitPhrases = []limitPhrase{
 	phrase("bodies over 16 KB", knob("NOTIFY_BODY_MAX_BYTES"), func(l *edition.Limits) string { return "bodies over " + limitCommas(l.NotifyBodyMaxBytes) + " bytes" }),
 	phrase("up to five delivery attempts", knob("NOTIFY_ATTEMPTS"), func(l *edition.Limits) string { return "up to " + limitNum(l.NotifyAttempts) + " delivery attempts" }),
 
-	// SIGNIN_CODE_TTL_MINUTES. The dashboard sign-in card no longer states the
-	// code lifetime up front (2026-10-20); the sentences that still do are below.
+	// SIGNIN_CODE_TTL_MINUTES
 	phrase("expires in 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "expires in " + LimitSpan(l.SigninCodeTTL) }),
 	phrase("(15 minutes,", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "(" + LimitSpan(l.SigninCodeTTL) + "," }),
 	phrase("valid for 15 minutes", knob("SIGNIN_CODE_TTL_MINUTES"), func(l *edition.Limits) string { return "valid for " + LimitSpan(l.SigninCodeTTL) }),
@@ -226,7 +225,7 @@ var limitPhrases = []limitPhrase{
 	phrase("from API calls:</strong> 30 days", knob("API_METRICS_RETENTION_DAYS"), func(l *edition.Limits) string { return "from API calls:</strong> " + limitDays(l.APIMetricsRetention) }),
 }
 
-// MAX_ARCHIVE_MB is read by the handler (sites.Upload), not a edition.Limits
+// MAX_ARCHIVE_MB is read by the handler (sites.Upload), not an edition.Limits
 // knob, so its phrases compare the upload cap in force with the default.
 const defaultArchiveMB = 100
 
@@ -245,9 +244,6 @@ var archivePhrases = []struct {
 	{"A site archive is capped at 100 MB;", func(mb int) string { return "A site archive is capped at " + limitNum(mb) + " MB;" }},
 }
 
-// archiveMBInForce is the upload cap this server enforces, in MB.
-func archiveMBInForce() int { return int(sites.Upload.Body >> 20) }
-
 // limitsRewriter substitutes the configured limits into served text. Nil when
 // every phrase already says what the settings say.
 type limitsRewriter struct{ r *strings.Replacer }
@@ -260,7 +256,7 @@ func newLimitsRewriter(l edition.Limits) *limitsRewriter {
 			pairs = append(pairs, ph.text, now)
 		}
 	}
-	if mb := archiveMBInForce(); mb != defaultArchiveMB {
+	if mb := int(sites.Upload.Body >> 20); mb != defaultArchiveMB {
 		for _, ph := range archivePhrases {
 			pairs = append(pairs, ph.text, ph.say(mb))
 		}
@@ -292,6 +288,7 @@ func limitCount(n int, unit string) string {
 	return strconv.Itoa(n) + " " + unit + "s"
 }
 
+// LimitSpan says a duration in words: "one day", "15 minutes".
 func LimitSpan(d time.Duration) string {
 	n, unit := limitSpanUnit(d)
 	return limitCount(n, unit)

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"unicode"
 
+	repo "github.com/vsriram/simple-host/host/data/repo/notify"
+
 	"github.com/vsriram/simple-host/host/model"
 )
 
@@ -36,7 +38,7 @@ func (e *Engine) pushPayload(ctx context.Context, n model.Notification, d model.
 	if slices.Contains(n.MutedResources, resource) {
 		return pushSkip
 	}
-	rule, err := e.svc.GetPushRule(ctx, n.SiteID, resource)
+	rule, err := repo.GetPushRule(ctx, e.db, n.SiteID, resource)
 	if err != nil {
 		return nil
 	}
@@ -197,8 +199,8 @@ func pushValueLooksSensitive(s string) bool {
 // pushScalarString returns v's displayable text, ok only for a JSON
 // scalar (string, number, bool); an object or array is refused rather
 // than stringified, since a structured value could carry fields the
-// owner never intended to show (SIM-360 privacy guardrail: the push
-// payload never carries more than the one named column's plain value).
+// owner never intended to show. The payload never carries more than the
+// one named column's plain value.
 func pushScalarString(v any) (string, bool) {
 	switch t := v.(type) {
 	case nil:

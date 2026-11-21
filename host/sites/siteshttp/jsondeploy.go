@@ -15,10 +15,8 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 )
 
-// filesRequest is the JSON deploy body: a map of relative path -> file contents.
-// This is the LLM-friendly path — a web LLM can emit one copy-paste request with
-// the file contents inline, no archiving step. For binary assets or large sites,
-// use the archive upload (POST/PUT /v1/sites/{name}).
+// filesRequest is the JSON deploy body (relative path -> contents): one inline request with
+// no archiving step. Binary assets or large sites use the archive upload.
 type filesRequest struct {
 	Access      *string           `json:"access"`
 	Viewers     []string          `json:"viewers"`
@@ -27,10 +25,8 @@ type filesRequest struct {
 	RemoveFiles []string          `json:"remove_files"`
 }
 
-// readJSONFiles decodes a {"files":{path:contents}} body and runs it through the
-// SAME path/secret/size guards as archive extraction (sites.SanitizeFiles +
-// ValidateExtensions). Returns the file map and a content digest for the version
-// row. On any error it has already written the HTTP response.
+// readJSONFiles decodes the body and applies the same path/secret/size guards as archive
+// extraction (sites.SanitizeFiles + ValidateExtensions). On any error the response is already written.
 func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
 	raw, _, limit, override, err := h.DecodeJSONFiles(w, r)
 	if err != nil {
@@ -114,8 +110,7 @@ func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, raw map[string][]by
 	return files, digest, nil
 }
 
-// createSiteFiles is the JSON create path. Mirrors createSite's pre-checks, then
-// shares commitNewSite.
+// createSiteFiles is the JSON create path: createSite's pre-checks, then commitNewSite.
 func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -142,8 +137,7 @@ func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
 	h.commitCreate(w, r, user, siteName, files, digest, false)
 }
 
-// UpdateSiteFiles is the JSON update path. Mirrors updateSite's pre-checks, then
-// shares commitSiteUpdate.
+// UpdateSiteFiles is the JSON update path: updateSite's pre-checks, then commitSiteUpdate.
 func (h *SiteHandler) UpdateSiteFiles(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {

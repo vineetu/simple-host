@@ -3,7 +3,6 @@ package access
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -15,14 +14,8 @@ import (
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
 	rules "github.com/vsriram/simple-host/host/rules/sites"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
-
-// HandleStore is the account/transaction reader used by handle assignment and availability.
-type HandleStore interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
 
 func SanitizeHandleBase(email string) string {
 	local := email
@@ -65,7 +58,7 @@ func SanitizeHandleBase(email string) string {
 	return s
 }
 
-func AssignHandle(ctx context.Context, q HandleStore, userID, email string, randomHandles bool) {
+func AssignHandle(ctx context.Context, q sqlkit.Querier, userID, email string, randomHandles bool) {
 	if randomHandles {
 		// Nobody's handle is an address on the hackathon platform, and an
 		// email-derived one could squat an event's name (hack_mode.go).
@@ -127,7 +120,7 @@ func HandleTakenMessage(handle string) string {
 	return "That address is taken: " + HandleAddress(handle) + " is already in use. Try another."
 }
 
-func JudgeHandle(ctx context.Context, q HandleStore, userID, handle string) (HandleVerdict, error) {
+func JudgeHandle(ctx context.Context, q sqlkit.Querier, userID, handle string) (HandleVerdict, error) {
 	v := HandleVerdict{Address: HandleAddress(handle)}
 	if !rules.VisitorHandle.MatchString(handle) || !rules.HandleIsLabel(handle) {
 		v.Status, v.Code, v.Error = http.StatusBadRequest, "invalid_handle", handleFormatMsg
@@ -148,7 +141,7 @@ func JudgeHandle(ctx context.Context, q HandleStore, userID, handle string) (Han
 	return v, nil
 }
 
-func SuggestHandle(ctx context.Context, q HandleStore, email string) string {
+func SuggestHandle(ctx context.Context, q sqlkit.Querier, email string) string {
 	base := SanitizeHandleBase(email)
 	candidates := []string{base}
 	for n := 2; n <= 20; n++ {

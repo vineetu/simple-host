@@ -8,10 +8,10 @@ type jpegFile struct {
 	frameSeen       bool
 }
 
-// CheckJPEG validates the marker stream through EOI, including entropy byte
+// checkJPEG validates the marker stream through EOI, including entropy byte
 // stuffing and scan boundaries. DecodeConfig then validates the image header.
 // No pixel decode.
-func CheckJPEG(b []byte) error {
+func checkJPEG(b []byte) error {
 	var f jpegFile
 	for off := 2; off < len(b); {
 		marker, next, err := jpegMarkerAt(b, off)

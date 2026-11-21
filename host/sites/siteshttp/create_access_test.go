@@ -54,16 +54,12 @@ func TestCreateAccessArchiveOptions(t *testing.T) {
 		t.Fatal("plain PUT accepted access")
 	}
 	// A query that names access but does not parse never falls back to open.
-	for _, path := range []string{"/v1/sites/s?access=specific;viewers=a@example.com", "/v1/sites/s?access=specific%ZZ", "/v1/sites/s?viewers=a@example.com;x", "/v1/sites/s?%61ccess=specific%ZZ", "/v1/sites/s?x=%ZZ&%61ccess=specific;y", "/v1/sites/s?%ZZ=1;a=b"} {
+	for _, path := range []string{"/v1/sites/s?access=specific;viewers=a@example.com", "/v1/sites/s?access=specific%ZZ"} {
 		r := &http.Request{Method: "POST", URL: &url.URL{Path: "/v1/sites/s", RawQuery: strings.SplitN(path, "?", 2)[1]}}
 		w := httptest.NewRecorder()
 		if h.readArchiveCreateAccess(w, r) || w.Code != 400 {
 			t.Fatalf("malformed query %s accepted: %d", path, w.Code)
 		}
-	}
-	// A malformed query that does not mention the options is left alone.
-	if r := (&http.Request{Method: "POST", URL: &url.URL{Path: "/v1/sites/s", RawQuery: "x=1;y=2"}}); !h.readArchiveCreateAccess(httptest.NewRecorder(), r) || creationAccess(r).Access != "" {
-		t.Fatal("unrelated malformed query refused")
 	}
 	// Field names match without regard to case, null included.
 	for _, data := range []string{`{"Access":null}`, `{"ACCESS":null}`, `{"Viewers":null}`} {

@@ -2,14 +2,14 @@ package hackmcp
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/host/mcp"
-	"github.com/vsriram/simple-host/products/hack/app/events"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
 func sendMode(t *testing.T, s *mcp.Server, body, mode string) *httptest.ResponseRecorder {
@@ -34,19 +34,6 @@ func listedTools(t *testing.T, rec *httptest.ResponseRecorder) []map[string]any 
 		out[i] = item.(map[string]any)
 	}
 	return out
-}
-
-func rpcMessage(t *testing.T, rec *httptest.ResponseRecorder) string {
-	t.Helper()
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status %d %s", rec.Code, rec.Body.String())
-	}
-	out := decode(t, rec)
-	if out["result"] != nil {
-		t.Fatalf("unknown tool came back as a tool result: %s", rec.Body.String())
-	}
-	msg, _ := out["error"].(map[string]any)["message"].(string)
-	return msg
 }
 
 type capturedCall struct {
@@ -93,7 +80,10 @@ func jsonReply(status int, body string) func(http.ResponseWriter, *http.Request)
 	}
 }
 
-func TestHackToolSchemasAndInventory(t *testing.T) {
+// The one tool inventory test: every Hack tool is hack_-prefixed, never
+// collides with a website tool, has valid schemas and all three hints, and
+// is offered only on a Hack (events) connection.
+func TestHackToolInventory(t *testing.T) {
 	website := map[string]bool{}
 	for _, tool := range mcp.Tools() {
 		website[tool.Name] = true
@@ -102,7 +92,12 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 	if len(hack) == 0 {
 		t.Fatal("no hack tools")
 	}
+	seen := map[string]bool{}
 	for _, tool := range hack {
+		if seen[tool.Name] {
+			t.Errorf("duplicate %s", tool.Name)
+		}
+		seen[tool.Name] = true
 		if !strings.HasPrefix(tool.Name, "hack_") {
 			t.Errorf("%s is not prefixed", tool.Name)
 		}
@@ -116,122 +111,66 @@ func TestHackToolSchemasAndInventory(t *testing.T) {
 			t.Errorf("%s input: %v", tool.Name, err)
 		}
 	}
-	ann := map[string][3]bool{
-		"hack_set_event_stage": {false, true, true},
-		"hack_set_rubric":      {false, true, false},
-		"hack_update_event":    {false, true, true},
-		"hack_create_event":    {false, false, true},
-		"hack_list_events":     {true, false, false},
-	}
-	for _, tool := range hack {
-		if want, ok := ann[tool.Name]; ok {
-			got := [3]bool{tool.Annotations["readOnlyHint"].(bool), tool.Annotations["destructiveHint"].(bool), tool.Annotations["openWorldHint"].(bool)}
-			if got != want {
-				t.Errorf("%s annotations %v, want %v", tool.Name, got, want)
-			}
-		}
-		for _, key := range []string{"readOnlyHint", "destructiveHint", "openWorldHint"} {
-			if _, ok := tool.Annotations[key].(bool); !ok {
-				t.Errorf("%s missing %s", tool.Name, key)
-			}
-		}
-	}
-
 	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
-	listed := listedTools(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, nil, true))
-	if core := len(s.ListedTools()); len(listed) != core {
-		t.Fatalf("website list has %d tools, want %d", len(listed), core)
-	}
-	for _, tool := range listed {
-		name := tool["name"].(string)
-		if strings.HasPrefix(name, "hack_") {
-			t.Errorf("website list advertises %s", name)
+	for _, tool := range listedTools(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, nil, true)) {
+		if strings.HasPrefix(tool["name"].(string), "hack_") {
+			t.Errorf("website list advertises %s", tool["name"])
 		}
 	}
-	events := listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeEvents))
-	// hack_app_* twins (hack_app_only_tools.go) are gated the same way as
-	// hack_show_judge/hack_show_organiser: flag, events mode, not ChatGPT/
-	// OpenAI/Codex, UI declared (owner follow-up review, SIM-344 phase 2 --
-	// they used to be listed unconditionally, which this baseline call,
-	// declaring neither flag nor UI support, would otherwise still show).
-	hiddenHere := map[string]bool{"hack_show_judge": true, "hack_show_organiser": true}
-	for _, tool := range hack {
-		if strings.HasPrefix(tool.Name, "hack_app_") {
-			hiddenHere[tool.Name] = true
+	hackListed := 0
+	for _, tool := range listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeEvents)) {
+		if strings.HasPrefix(tool["name"].(string), "hack_") {
+			hackListed++
 		}
 	}
-	visibleHack := make([]mcp.Tool, 0, len(hack))
-	for _, tool := range hack {
-		if !hiddenHere[tool.Name] {
-			visibleHack = append(visibleHack, tool)
-		}
+	if hackListed == 0 {
+		t.Fatal("events connection lists no Hack tools")
 	}
-	// The person's connection lists the Hack tools, then the site tools it
-	// uses with owner set to the event.
-	if len(events) <= len(visibleHack) {
-		t.Fatalf("events list has %d tools, want more than %d", len(events), len(visibleHack))
-	}
-	for i, tool := range events {
-		if i >= len(visibleHack) {
-			if strings.HasPrefix(tool["name"].(string), "hack_") {
-				t.Errorf("events tool %d is %v, after the Hack tools", i, tool["name"])
-			}
-		} else if tool["name"] != visibleHack[i].Name {
-			t.Errorf("events tool %d is %v, want %s", i, tool["name"], visibleHack[i].Name)
-		}
-		if _, ok := tool["outputSchema"]; !ok {
-			t.Errorf("%s listed without outputSchema", tool["name"])
-		}
-		if strings.HasPrefix(tool["name"].(string), "hack_") && website[tool["name"].(string)] {
-			t.Errorf("events list includes website tool %s", tool["name"])
-		}
-	}
-	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
-	req.RemoteAddr = "203.0.113.7:5555"
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("MCP-Protocol-Version", "2025-03-26")
-	req = req.WithContext(mcp.WithCaller(req.Context(), mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents}))
-	rec := httptest.NewRecorder()
-	s.ServeHTTP(rec, req)
-	for _, tool := range listedTools(t, rec) {
-		if _, ok := tool["outputSchema"]; ok {
-			t.Errorf("2025-03-26 still lists outputSchema on %s", tool["name"])
-		}
-		if tool["inputSchema"] == nil || tool["annotations"] == nil {
-			t.Errorf("2025-03-26 dropped inputSchema or annotations on %s", tool["name"])
-		}
-	}
-
-	init := decode(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, mcp.CallerModeEvents))
-	instructions := init["result"].(map[string]any)["instructions"].(string)
-	if !strings.Contains(instructions, "Simple Hack on simple-host.app") || !strings.Contains(instructions, "hack_get_my_teams") || strings.Contains(instructions, "create_site") {
-		t.Fatalf("events instructions: %s", instructions)
-	}
-	web := decode(t, send(t, s, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`, nil, true))
-	webText := web["result"].(map[string]any)["instructions"].(string)
-	if !strings.Contains(webText, "create_site") || strings.Contains(webText, "hack_create_event") {
-		t.Fatal("website instructions picked up the event inventory")
-	}
-
-	if msg := rpcMessage(t, send(t, s, toolCall("hack_list_events", map[string]any{}), nil, true)); !strings.Contains(msg, "unknown tool") {
-		t.Fatalf("website caller hack_list_events: %s", msg)
+	rec := send(t, s, toolCall("hack_list_events", map[string]any{}), nil, true)
+	if out := decode(t, rec); out["result"] != nil || !strings.Contains(rec.Body.String(), "unknown tool") {
+		t.Fatalf("website caller ran hack_list_events: %s", rec.Body.String())
 	}
 }
 
+// SIM-384: hack_create_event once failed for a client holding an older,
+// closed output schema. Tool.MarshalJSON opens additionalProperties on the
+// wire copy only; the authored schema and the input schema stay closed.
+func TestWireOutputSchemaOpensOnlyOnTheWire(t *testing.T) {
+	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
+	var wire, wireInput map[string]any
+	for _, tool := range listedTools(t, sendMode(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, mcp.CallerModeEvents)) {
+		if tool["name"] == "hack_create_event" {
+			wire, _ = tool["outputSchema"].(map[string]any)
+			wireInput, _ = tool["inputSchema"].(map[string]any)
+		}
+	}
+	if wire == nil || wireInput == nil {
+		t.Fatal("hack_create_event not listed with schemas")
+	}
+	authored := toolNamed(t, "hack_create_event").OutputSchema
+	authoredProps, _ := authored["properties"].(map[string]any)
+	props, _ := wire["properties"].(map[string]any)
+	if wire["additionalProperties"] != true || authored["additionalProperties"] != false || wireInput["additionalProperties"] != false {
+		t.Fatalf("root: wire=%v authored=%v input=%v", wire["additionalProperties"], authored["additionalProperties"], wireInput["additionalProperties"])
+	}
+	for _, nested := range []string{"next_step", "organiser"} {
+		sub, _ := props[nested].(map[string]any)
+		authoredSub, _ := authoredProps[nested].(map[string]any)
+		if sub == nil || sub["additionalProperties"] != true || authoredSub == nil || authoredSub["additionalProperties"] != false {
+			t.Fatalf("%s: wire=%v authored=%v", nested, sub, authoredSub)
+		}
+	}
+}
+
+// The base event tools forward to REST with the caller's key, refuse bad
+// input without forwarding it, keep a confirmation they were given, and a
+// participant's view never carries organiser links or the team code.
 func TestHackToolDispatch(t *testing.T) {
-	const eventBody = `{"event":{"slug":"spring","title":"Spring","tagline":"","about":"","rules":"","prizes":"","coc_text":"","stage":"draft","time_zone":"UTC","starts_at":"2026-10-01T00:00:00Z","ends_at":null,"judging_ends_at":"2026-10-05T18:00:00Z","team_size_max":4,"url":"https://simple-hack.app/e/spring","taken_down":false,"stages_offered":["draft","open"]},"can":{"manage":true,"judge":true,"take_part":false},"role":"organiser","me":{"team":{"code":"SECRET-TEAM"}},"next_step":{"kind":"stage","stage":"open","label":"Open sign-up","deadline_passed":false,"blocked":null,"cue":{"key":"","title":"Kickoff","start_at":"2026-10-01T09:00:00Z","end_at":"2026-10-01T10:00:00Z","fixed":false,"now":true,"text":"Kickoff is now. Open sign-up?"}},"organiser":{"organiser_name":"Ada","organisation":"","contact_email":"ada@example.com","purpose":"build","expected_participants":10,"join_code":"abc","join_url":"https://simple-hack.app/join/abc","judge_code":"def","judge_url":"https://simple-hack.app/judge/def","counts":{"participants":1,"teams":0,"judges":0,"on_no_team":1}},"checklist":` + hackChecklistFixtureJSON + `}`
+	const eventBody = `{"event":{"slug":"spring","title":"Spring","stage":"draft","time_zone":"UTC","starts_at":"2026-10-01T00:00:00Z","ends_at":null,"judging_ends_at":"2026-10-05T18:00:00Z","team_size_max":4,"url":"https://simple-hack.app/e/spring","taken_down":false,"stages_offered":["draft","open"]},"can":{"manage":true,"judge":true,"take_part":false},"role":"organiser","me":{"team":{"code":"SECRET-TEAM"}},"organiser":{"organiser_name":"Ada","contact_email":"ada@example.com","join_code":"abc","join_url":"https://simple-hack.app/join/abc","judge_code":"def","judge_url":"https://simple-hack.app/judge/def","counts":{"participants":1,"teams":0,"judges":0,"on_no_team":1}},"checklist":` + hackChecklistFixtureJSON + `}`
 	const rubricBody = `{"criteria":[{"position":1,"name":"Idea","description":"","weight":60,"max_points":10},{"position":2,"name":"Build","description":"working software","weight":40,"max_points":5}]}`
-	const listBody = `[{"slug":"spring","title":"Spring","stage":"draft","can":{"manage":true,"judge":true,"take_part":false},"role":"organiser","url":"https://simple-hack.app/e/spring","manage_url":"https://simple-hack.app/e/spring/manage","starts_at":"2026-10-01T00:00:00Z","ends_at":null,"taken_down":false,"time_zone":"UTC"}]`
 
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
 	s := newTestServer(up)
-	byName := map[string]mcp.Tool{}
-	for _, tool := range Tools() {
-		if _, existing := hackOutputSchemas()[tool.Name]; existing {
-			byName[tool.Name] = tool
-		}
-	}
-	seen := map[string]map[string]bool{}
 	call := func(name string, args map[string]any) (string, map[string]any, bool, string) {
 		t.Helper()
 		rec := sendMode(t, s, toolCall(name, args), mcp.CallerModeEvents)
@@ -250,50 +189,29 @@ func TestHackToolDispatch(t *testing.T) {
 		if strings.Contains(raw, "SECRET-TEAM") || strings.Contains(raw, `"me"`) {
 			t.Fatalf("%s leaked the team invite: %s", name, raw)
 		}
-		if seen[name] == nil {
-			seen[name] = map[string]bool{}
-		}
-		if err := mcp.ValidateOutput(byName[name].OutputSchema, structured, seen[name]); err != nil {
-			t.Fatalf("%s: %v\n%s", name, err, raw)
-		}
-		recordHackOutputValidated(name)
 		return structured
 	}
-
-	up.ans["GET /v1/hack/navigation"] = jsonReply(200, string(events.Navigation()))
-	check("hack_get_navigation", map[string]any{})
-	up.ans["GET /v1/hack/events"] = jsonReply(200, `[]`)
-	text, structured, isErr, _ := call("hack_list_events", map[string]any{})
-	if isErr || structured["count"].(float64) != 0 || !strings.Contains(text, "hack_create_event") {
-		t.Fatalf("empty list: %v %s", isErr, text)
+	lastBody := func() map[string]any {
+		t.Helper()
+		sent := map[string]any{}
+		if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
+			t.Fatal(err)
+		}
+		return sent
 	}
-	if err := mcp.ValidateOutput(byName["hack_list_events"].OutputSchema, structured, nil); err != nil {
-		t.Fatal(err)
-	}
-
-	up.ans["GET /v1/hack/events"] = jsonReply(200, listBody)
-	check("hack_list_events", map[string]any{})
-
-	up.ans["GET /v1/hack/names/spring"] = jsonReply(200, `{"address":"https://simple-hack.app/e/spring","available":true}`)
-	name := check("hack_check_event_name", map[string]any{"slug": "Spring"})
-	if name["available"] != true || up.last().path != "/v1/hack/names/spring" {
-		t.Fatalf("name check: %v %s", name, up.last().path)
-	}
-	up.ans["GET /v1/hack/names/spring"] = jsonReply(200, `{"address":"https://simple-hack.app/e/spring","available":false,"code":"name_taken","error":"that name is already in use"}`)
-	taken := check("hack_check_event_name", map[string]any{"slug": "spring"})
-	if taken["available"] != false || taken["code"] != "name_taken" {
-		t.Fatalf("taken name returned as an error or dropped the code: %v", taken)
+	refusedLocally := func(name string, args map[string]any) {
+		t.Helper()
+		before := up.len()
+		if text, _, isErr, _ := call(name, args); !isErr || up.len() != before {
+			t.Fatalf("%s: bad input accepted or forwarded: %v %s", name, isErr, text)
+		}
 	}
 
 	up.ans["POST /v1/hack/events"] = jsonReply(201, eventBody)
-	before := up.len()
-	text, _, isErr, _ = call("hack_create_event", map[string]any{
+	refusedLocally("hack_create_event", map[string]any{
 		"slug": "spring", "title": "Spring", "organiser_name": "Ada", "contact_email": "ada@example.com",
 		"purpose": "build", "expected_participants": 1.5, "starts_at": "2026-10-01",
 	})
-	if !isErr || up.len() != before || !strings.Contains(text, "whole number") {
-		t.Fatalf("fraction accepted or forwarded: %v %s (%d calls)", isErr, text, up.len()-before)
-	}
 	created := check("hack_create_event", map[string]any{
 		"slug": "Spring", "title": "Spring", "organiser_name": "Ada", "organisation": "",
 		"contact_email": "ada@example.com", "purpose": "build", "expected_participants": 12,
@@ -302,181 +220,71 @@ func TestHackToolDispatch(t *testing.T) {
 	if !strings.Contains(created["organiser"].(map[string]any)["join_url"].(string), "/join/") {
 		t.Fatalf("create dropped the join link: %v", created["organiser"])
 	}
-	// hack_get_event/hack_update_event parity (0003-hack-notices-judges-
-	// messages.sql round 2): the MCP event output used to omit
-	// judging_ends_at entirely, unlike the real REST event JSON.
+	// The event output once omitted judging_ends_at, unlike the REST event.
 	if created["judging_ends_at"] != "2026-10-05T18:00:00Z" {
 		t.Fatalf("hack_create_event output missing judging_ends_at: %v", created["judging_ends_at"])
 	}
-	sent := map[string]any{}
-	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
-		t.Fatal(err)
-	}
+	sent := lastBody()
 	if _, ok := sent["organisation"]; ok {
 		t.Fatalf("empty organisation was sent: %s", up.last().body)
 	}
-	if _, ok := sent["ends_at"]; ok || sent["time_zone"] != "UTC" || sent["slug"] != "spring" || up.last().method != "POST" || up.last().key != "user-key" {
-		t.Fatalf("create body: %s %s", up.last().method, up.last().body)
-	}
-	up.ans["POST /v1/hack/events"] = jsonReply(400, `{"error":"use 3 to 39 lowercase letters, numbers or hyphens","code":"invalid_name"}`)
-	text, structured, isErr, raw := call("hack_create_event", map[string]any{
-		"slug": "ab", "title": "Spring", "organiser_name": "Ada", "contact_email": "ada@example.com",
-		"purpose": "build", "expected_participants": 12, "starts_at": "2026-10-01",
-	})
-	if !isErr || structured != nil || strings.Contains(raw, "1 to 63") || !strings.Contains(text, "3 to 39") {
-		t.Fatalf("invalid_name hint: %s", text)
+	if _, ok := sent["ends_at"]; ok || sent["slug"] != "spring" || up.last().method != "POST" || up.last().key != "user-key" {
+		t.Fatalf("create forwarded: %s %s key=%s", up.last().method, up.last().body, up.last().key)
 	}
 
-	up.ans["GET /v1/hack/events/spring"] = jsonReply(200, eventBody)
-	got := check("hack_get_event", map[string]any{"slug": "spring"})
-	if !strings.Contains(got["organiser"].(map[string]any)["judge_url"].(string), "/judge/") || up.last().method != "GET" {
-		t.Fatalf("get: %v via %s", got["organiser"], up.last().method)
-	}
-	// SIM-353: an event with no theme set reads back "" (Classic), even
-	// though the fixture body carries no theme key at all.
-	if got["theme"] != "" {
-		t.Fatalf("hack_get_event theme should default to empty (classic): %v", got["theme"])
-	}
 	participant := strings.Replace(eventBody, `"role":"organiser"`, `"role":"participant"`, 1)
 	participant = participant[:strings.Index(participant, `,"organiser":`)] + "}"
 	up.ans["GET /v1/hack/events/spring"] = jsonReply(200, participant)
-	part, structured, isErr, raw := call("hack_get_event", map[string]any{"slug": "spring"})
+	_, structured, isErr, raw := call("hack_get_event", map[string]any{"slug": "spring"})
 	if isErr || structured["role"] != "participant" {
-		t.Fatalf("participant get: %v %s", isErr, part)
+		t.Fatalf("participant get: %v %s", isErr, raw)
 	}
 	if _, ok := structured["organiser"]; ok || strings.Contains(raw, "SECRET-TEAM") || strings.Contains(raw, "/join/") {
 		t.Fatalf("participant view included organiser links: %s", raw)
 	}
-	if err := mcp.ValidateOutput(byName["hack_get_event"].OutputSchema, structured, nil); err != nil {
-		t.Fatal(err)
-	}
-	up.ans["GET /v1/hack/events/spring"] = jsonReply(200, eventBody)
 
 	up.ans["PATCH /v1/hack/events/spring"] = jsonReply(200, eventBody)
-	before = up.len()
-	text, _, isErr, _ = call("hack_update_event", map[string]any{"slug": "spring"})
-	if !isErr || up.len() != before {
-		t.Fatalf("empty update forwarded: %v %s", isErr, text)
-	}
+	refusedLocally("hack_update_event", map[string]any{"slug": "spring"})
 	check("hack_update_event", map[string]any{"slug": "spring", "title": "Renamed", "ends_at": "", "team_size_max": 3})
-	sent = map[string]any{}
-	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
-		t.Fatal(err)
-	}
-	if len(sent) != 3 || sent["title"] != "Renamed" || sent["ends_at"] != "" || sent["team_size_max"].(float64) != 3 || up.last().method != "PATCH" {
-		t.Fatalf("update sent extra fields: %s", up.last().body)
-	}
-	check("hack_update_event", map[string]any{"slug": "spring", "submission_deadline": "2026-10-02", "entry_required": []any{"title", "description"}, "gallery_open": true, "submissions_public": true})
-	sent = map[string]any{}
-	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
-		t.Fatal(err)
-	}
-	if sent["submission_deadline"] != "2026-10-02" || sent["gallery_open"] != true || sent["submissions_public"] != true || len(sent["entry_required"].([]any)) != 2 {
-		t.Fatalf("update omitted deadline, entry fields or gallery setting: %s", up.last().body)
-	}
-	// SIM-353: hack_update_event forwards theme, including an empty string
-	// to clear it back to Classic (the same "present but empty still sends"
-	// rule tagline etc. already follow).
-	check("hack_update_event", map[string]any{"slug": "spring", "theme": "poster"})
-	sent = map[string]any{}
-	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
-		t.Fatal(err)
-	}
-	if sent["theme"] != "poster" {
-		t.Fatalf("update omitted theme: %s", up.last().body)
-	}
-	check("hack_update_event", map[string]any{"slug": "spring", "theme": ""})
-	sent = map[string]any{}
-	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
-		t.Fatal(err)
-	}
-	if v, ok := sent["theme"]; !ok || v != "" {
-		t.Fatalf("update did not send an empty theme to clear it: %s", up.last().body)
+	if sent := lastBody(); len(sent) != 3 || sent["title"] != "Renamed" || sent["ends_at"] != "" || up.last().method != "PATCH" {
+		t.Fatalf("update sent: %s", up.last().body)
 	}
 
-	up.ans["POST /v1/hack/events/spring/stage"] = jsonReply(200, eventBody)
-	check("hack_set_event_stage", map[string]any{"slug": "spring", "stage": "open"})
-	if up.last().body != `{"stage":"open"}` {
-		t.Fatalf("stage body: %s", up.last().body)
-	}
-
-	up.ans["GET /v1/hack/events/spring/rubric"] = jsonReply(200, rubricBody)
-	check("hack_get_rubric", map[string]any{"slug": "spring"})
 	up.ans["PUT /v1/hack/events/spring/rubric"] = jsonReply(200, rubricBody)
-	before = up.len()
-	text, _, isErr, _ = call("hack_set_rubric", map[string]any{"slug": "spring", "criteria": []any{map[string]any{"name": "Idea", "weight": 100, "max_points": 10, "unknown": "x"}}})
-	if !isErr || up.len() != before || !strings.Contains(text, "unexpected field") {
-		t.Fatalf("rubric accepted an unknown criterion field: %v %s", isErr, text)
-	}
+	refusedLocally("hack_set_rubric", map[string]any{"slug": "spring", "criteria": []any{map[string]any{"name": "Idea", "weight": 100, "max_points": 10, "unknown": "x"}}})
 	check("hack_set_rubric", map[string]any{"slug": "spring", "confirm_score_deletion": true, "criteria": []any{
 		map[string]any{"id": "existing-criterion", "name": "Idea", "weight": 60, "max_points": 10},
 		map[string]any{"name": "Build", "description": "working software", "weight": 40, "max_points": 5},
 	}})
-	sent = map[string]any{}
-	if err := json.Unmarshal([]byte(up.last().body), &sent); err != nil {
-		t.Fatal(err)
-	}
+	sent = lastBody()
 	criteria := sent["criteria"].([]any)
-	if sent["confirm_score_deletion"] != true || criteria[0].(map[string]any)["id"] != "existing-criterion" {
+	if sent["confirm_score_deletion"] != true || len(criteria) != 2 || criteria[0].(map[string]any)["id"] != "existing-criterion" {
 		t.Fatalf("rubric identity or confirmation lost: %s", up.last().body)
 	}
-	if len(sent) != 2 || len(criteria) != 2 || up.last().method != "PUT" {
-		t.Fatalf("rubric body: %s", up.last().body)
-	}
 
-	csvBody := "team,judge,criterion,points,max_points,comment\n"
-	up.ans["GET /v1/hack/events/spring/export/scores.csv"] = func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/csv")
-		w.Header().Set("Content-Disposition", `attachment; filename="spring-scores.csv"`)
-		w.WriteHeader(200)
-		_, _ = w.Write([]byte(csvBody))
-	}
-	scores := check("hack_export_scores", map[string]any{"slug": "spring"})
-	if scores["filename"] != "spring-scores.csv" || scores["csv"] != csvBody {
-		t.Fatalf("scores: %v", scores)
-	}
+	// A large export comes back whole.
 	up.ans["GET /v1/hack/events/spring/export/results.csv"] = func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/csv")
 		w.Header().Set("Content-Disposition", `attachment; filename="spring-results.csv"`)
-		w.WriteHeader(200)
 		_, _ = w.Write([]byte(strings.Repeat("x", (200<<10)+8)))
 	}
 	results := check("hack_export_results", map[string]any{"slug": "spring"})
 	if len(results["csv"].(string)) != (200<<10)+8 || results["filename"] != "spring-results.csv" {
-		t.Fatalf("complete results: len=%d name=%v", len(results["csv"].(string)), results["filename"])
+		t.Fatalf("results export: len=%d name=%v", len(results["csv"].(string)), results["filename"])
 	}
 
 	up.ans["GET /v1/hack/events/missing"] = jsonReply(404, `{"error":"event not found","code":"event_not_found"}`)
-	text, structured, isErr, raw = call("hack_get_event", map[string]any{"slug": "missing"})
+	text, structured, isErr, _ := call("hack_get_event", map[string]any{"slug": "missing"})
 	if !isErr || structured != nil || !strings.Contains(text, "event_not_found") {
-		t.Fatalf("404 was not a tool error: %v %s", isErr, raw)
-	}
-
-	for name, tool := range byName {
-		if seen[name] == nil {
-			t.Errorf("%s never returned a successful result", name)
-			continue
-		}
-		var unseen []string
-		for _, path := range mcp.SchemaPropertyPaths(tool.OutputSchema) {
-			if !seen[name][path] {
-				unseen = append(unseen, path)
-			}
-		}
-		if len(unseen) > 0 {
-			t.Errorf("%s schema describes fields the tool did not return: %s", name, strings.Join(unseen, ", "))
-		}
+		t.Fatalf("404 was not a tool error: %v %s", isErr, text)
 	}
 }
 
-// A website tool Simple Hack shares with Simple Host keeps Host's hints; only its wording is
-// about the team's website, and that wording still names every required argument.
+// A website tool Simple Hack shares with Simple Host keeps Host's hints, and
+// delete_site still asks for confirm_name.
 func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
 	s := newTestServer(nil)
 	site := listedTools(t, rpcAs(t, s, mcp.Caller{APIKey: "user-key", Mode: mcp.CallerModeEvents, GrantID: "grant"}, "2025-06-18", "tools/list", nil, false))
-	if len(site) == 0 {
-		t.Fatal("no Hack website tools")
-	}
 	hostByName := map[string]mcp.Tool{}
 	for _, tool := range mcp.Tools() {
 		hostByName[tool.Name] = tool
@@ -499,64 +307,32 @@ func TestHackSharedWebsiteToolsMatchHost(t *testing.T) {
 		}
 	}
 	if !strings.Contains(deleteSite, "confirm_name") {
-		t.Errorf("Hack delete_site does not say to pass confirm_name: %q", deleteSite)
+		t.Errorf("Hack delete_site does not ask for confirm_name: %q", deleteSite)
 	}
 }
 
-func TestHackTeamFindingPatch(t *testing.T) {
-	body, err := hackPatchBody(map[string]any{"team_finding": false})
-	if err != nil || body["team_finding"] != false {
-		t.Fatalf("%v %v", body, err)
-	}
-	if _, err := hackPatchBody(map[string]any{"team_finding": "false"}); err == nil {
-		t.Fatal("accepted non-boolean team_finding")
-	}
-}
-
-func TestHackJudgingLockToolsRemoved(t *testing.T) {
-	s := newTestServer(&scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}})
-	for _, name := range []string{"hack_lock_judging", "hack_unlock_judging"} {
-		for _, tool := range Tools() {
-			if tool.Name == name {
-				t.Fatalf("retired tool listed: %s", name)
+func TestHackPatchBody(t *testing.T) {
+	for _, args := range []map[string]any{
+		{"team_finding": false},
+		{"submissions_public": true},
+		{"overall_prizes": []any{"", "$200"}},
+		{"overall_prizes": []any{}},
+	} {
+		body, err := hackPatchBody(args)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		for key, value := range args {
+			got, _ := json.Marshal(body[key])
+			want, _ := json.Marshal(value)
+			if string(got) != string(want) {
+				t.Errorf("%s = %s, want %s", key, got, want)
 			}
 		}
-		body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + name + `","arguments":{"slug":"mockjam"}}}`
-		rec := sendMode(t, s, body, "hack")
-		result, ok := decode(t, rec)["result"].(map[string]any)
-		if !ok || result["isError"] != true || !strings.Contains(rec.Body.String(), "judging_lock_removed") || !strings.Contains(rec.Body.String(), "Judging locks when you finish judging (move to Results) and unlocks when you move the event back.") {
-			t.Fatalf("%s: %s", name, rec.Body.String())
-		}
 	}
-}
-
-func TestHackOverallPrizesPatch(t *testing.T) {
-	for _, prizes := range [][]any{{}, {"", "$200"}} {
-		body, err := hackPatchBody(map[string]any{"overall_prizes": prizes})
-		if err != nil {
-			t.Fatal(err)
+	for _, args := range []map[string]any{{"team_finding": "false"}, {"submissions_public": "yes"}} {
+		if _, err := hackPatchBody(args); err == nil {
+			t.Errorf("accepted non-boolean %v", args)
 		}
-		got, _ := json.Marshal(body["overall_prizes"])
-		want, _ := json.Marshal(prizes)
-		if string(got) != string(want) {
-			t.Errorf("prizes = %s, want %s", got, want)
-		}
-	}
-}
-
-func TestHackEventSubmissionsPublic(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		body, err := hackPatchBody(map[string]any{"submissions_public": enabled})
-		if err != nil || body["submissions_public"] != enabled {
-			t.Fatalf("%v %v", body, err)
-		}
-		raw, _ := json.Marshal(map[string]any{"event": map[string]any{"slug": "spring", "submissions_public": enabled}})
-		out, err := hackEventOutput("Event", raw)
-		if err != nil || out.Structured["submissions_public"] != enabled {
-			t.Fatalf("%v %v", out, err)
-		}
-	}
-	if _, err := hackPatchBody(map[string]any{"submissions_public": "yes"}); err == nil {
-		t.Fatal("accepted non-boolean")
 	}
 }

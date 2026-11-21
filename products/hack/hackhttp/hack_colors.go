@@ -11,7 +11,7 @@ func hackEventColor(slug, choice string) string {
 			return c.Color
 		}
 	}
-	// A stable rolling index; this also retains the old fallback icon's slug sum.
+	// A stable rolling index.
 	index := 0
 	for _, c := range slug {
 		index += int(c)

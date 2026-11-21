@@ -16,7 +16,6 @@ import (
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
-// PutContent stores the content after locking and checking the event.
 func (s *Service) PutContent(ctx context.Context, id string, c model.EventContent) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -36,7 +35,6 @@ func (s *Service) PutContent(ctx context.Context, id string, c model.EventConten
 	return tx.Commit()
 }
 
-// PostAnnouncement publishes an announcement and queues its mail.
 func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, email, pin bool, userID string) (model.EventAnnouncement, int64, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -67,7 +65,6 @@ func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, 
 	return item, queued, copied, nil
 }
 
-// ChangeAnnouncement edits, pins or unpins, or deletes an announcement under the event lock.
 func (s *Service) ChangeAnnouncement(ctx context.Context, eventID, id, title, body string, pinned *bool, remove bool) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -102,17 +99,14 @@ func (s *Service) ChangeAnnouncement(ctx context.Context, eventID, id, title, bo
 	return tx.Commit()
 }
 
-// NoticeSender delivers one notification email.
 type NoticeSender interface {
 	SendNotice(string, string, string) error
 }
 
-// ReadContent reads the stored content document.
 func ReadContent(ctx context.Context, q sqlkit.Querier, id string) (model.EventContent, error) {
 	return hackevents.GetEventContent(ctx, q, id)
 }
 
-// ListAnnouncements reads the event announcements.
 func (s *Service) ListAnnouncements(ctx context.Context, id string) ([]model.EventAnnouncement, error) {
 	items, err := hackevents.ListEventAnnouncements(ctx, s.db, id)
 	for i := range items {
@@ -121,10 +115,8 @@ func (s *Service) ListAnnouncements(ctx context.Context, id string) ([]model.Eve
 	return items, err
 }
 
-// RenderAnnouncement renders announcement text as participants will see it.
 func RenderAnnouncement(body string) string { return rules.AnnouncementHTML(body) }
 
-// QueueReceipt queues the first submitted entry receipt.
 func (s *Service) QueueReceipt(ctx context.Context, ev model.Event, teamID, userID string) {
 	e, err := entryrepo.GetEventEntry(ctx, s.db, teamID)
 	if err != nil || !e.SubmittedAt.Valid {
@@ -135,7 +127,6 @@ func (s *Service) QueueReceipt(ctx context.Context, ev model.Event, teamID, user
 	}
 }
 
-// DeliverContentMail sends due announcements and entry receipts.
 func (s *Service) DeliverContentMail(ctx context.Context, sender NoticeSender, siteDomain, publicBaseURL string) (written int64, resultErr error) {
 	for i := 0; i < 100; i++ {
 		more, n, err := s.deliverContentMailOne(ctx, sender, siteDomain, publicBaseURL)
@@ -226,12 +217,11 @@ func recordContentMail(ctx context.Context, tx *sql.Tx, m hackevents.EventMail, 
 	return nil
 }
 
-// CreateEventAnnouncement creates an announcement in the caller’s transaction.
 func CreateEventAnnouncement(ctx context.Context, q *sql.Tx, eventID, title, body string, email bool, userID string) (model.EventAnnouncement, int64, bool, error) {
 	return hackevents.CreateEventAnnouncement(ctx, q, eventID, title, body, email, userID)
 }
 
-// Legacy senders remain supported; the production sender and worker wrapper implement the context-aware capability.
+// Senders that predate the context-aware capability are still supported; the production sender and worker wrapper implement it.
 func sendMailNotice(ctx context.Context, sender NoticeSender, to, subject, body string) error {
 	if s, ok := sender.(interface {
 		SendNoticeCtx(context.Context, string, string, string) error
@@ -241,7 +231,6 @@ func sendMailNotice(ctx context.Context, sender NoticeSender, to, subject, body 
 	return sender.SendNotice(to, subject, body)
 }
 
-// announcementEmailDocument is the HTML part of an announcement email.
 func announcementEmailDocument(eventTitle, title, body, page string) string {
 	const font = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"
 	esc := html.EscapeString

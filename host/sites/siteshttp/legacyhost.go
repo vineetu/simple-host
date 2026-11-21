@@ -65,7 +65,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			return
 		}
 
-		retired, err := h.siteFacts().GetRetiredName(r.Context(), host)
+		retired, err := h.SitesSvc().GetRetiredName(r.Context(), host)
 		switch {
 		case err == nil:
 			if retired.SiteID != "" {
@@ -90,7 +90,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 
 		// A claimed name whose site is in Recently deleted stays held: it
 		// answers as removed (restore brings it back), never another site.
-		if held, err := h.siteFacts().DomainHeldByDeletedSite(r.Context(), host); err != nil {
+		if held, err := h.SitesSvc().DomainHeldByDeletedSite(r.Context(), host); err != nil {
 			log.Printf("legacy host %s: %v", host, err)
 			h.renderServiceError(w, r)
 			return
@@ -104,7 +104,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 		// A deprecated <name>.<siteDomain>. Resolve the oldest owner's handle (the
 		// account this host historically served) and 301 to the path URL. Unknown
 		// name → send them to the home page rather than a dead end.
-		handle, err := h.siteFacts().GetHandleBySiteName(r.Context(), label)
+		handle, err := h.SitesSvc().GetHandleBySiteName(r.Context(), label)
 		if err != nil || handle == "" {
 			http.Redirect(w, r, "https://"+siteDomain+"/", http.StatusMovedPermanently)
 			return

@@ -7,7 +7,6 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Service owns Hack entry and judging workflows.
 type Service struct {
 	db       *sql.DB
 	siteLive SiteLiveFunc

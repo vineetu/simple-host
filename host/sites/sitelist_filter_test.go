@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/url"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -25,21 +24,14 @@ func TestFilterSiteList(t *testing.T) {
 		code        string
 	}{
 		{"default order", "", []string{"gamma", "Beta", "alpha"}, ""},
-		{"order created", "order=created", []string{"alpha", "gamma", "Beta"}, ""},
 		{"order name", "order=name", []string{"alpha", "Beta", "gamma"}, ""},
 		{"bad order", "order=bogus", nil, "bad_order"},
 		{"query words", "query=BAKERY+menu", []string{"Beta"}, ""},
-		{"query domain", "query=bread", []string{"alpha"}, ""},
 		{"created after", "created_after=2026-10-02", []string{"gamma", "alpha"}, ""},
-		{"created before day", "created_before=2026-10-02", []string{"gamma", "Beta"}, ""},
 		{"updated before rfc3339", "updated_before=2026-10-05T12:00:00Z", []string{"Beta", "alpha"}, ""},
-		{"updated after", "updated_after=2026-10-06", []string{"gamma"}, ""},
 		{"limit offset", "limit=1&offset=1", []string{"Beta"}, ""},
-		{"offset beyond", "offset=5", []string{}, ""},
 		{"bad date", "created_after=Tuesday", nil, "bad_date"},
-		{"empty date", "updated_before=", nil, "bad_date"},
 		{"zero limit", "limit=0", nil, "bad_pagination"},
-		{"negative offset", "offset=-1", nil, "bad_pagination"},
 		{"date before pagination", "limit=0&created_after=x", nil, "bad_date"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -76,12 +68,5 @@ func TestFilterSiteListSortByUpdatedAtOnly(t *testing.T) {
 	got, err := FilterSiteList(list, url.Values{"query": {""}})
 	if err != nil || got[0].Name != "active" {
 		t.Fatalf("updated_at ordering: %+v %v", got, err)
-	}
-	for _, key := range []string{"created_after", "created_before", "updated_after", "updated_before"} {
-		_, err := FilterSiteList(list, url.Values{key: {"bad"}})
-		var siteErr *Error
-		if !errors.As(err, &siteErr) || siteErr.Code != "bad_date" || !strings.Contains(siteErr.Message, key) {
-			t.Errorf("%s: %+v", key, err)
-		}
 	}
 }

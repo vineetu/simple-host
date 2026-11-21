@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/sqlkit"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
 
 	"github.com/lib/pq"
 )
@@ -145,7 +146,7 @@ func checkSave(ctx context.Context, tx *sql.Tx, n model.Notification, old stored
 }
 
 // withDefaultKindRole fills kind and subscriber role for callers that predate
-// them (SIM-360): MCP Events creates mcp-event rows, every other source
+// them: MCP Events creates mcp-event rows, every other source
 // webhook rows, and the subscriber is the owner.
 func withDefaultKindRole(n model.Notification) model.Notification {
 	if n.Kind == "" {
@@ -215,7 +216,7 @@ func upsertNotification(ctx context.Context, tx *sql.Tx, n model.Notification, c
 // reports whether history no longer reaches back to cursor. Replay applies
 // the same actor rule as the live fan-out (fanOutSiteEvent), keyed by n's own
 // kind, role and owner, so reconnecting with an old cursor never delivers an
-// event the subscriber would not have received live (FIX 1, Codex round 2).
+// event the subscriber would not have received live.
 func replayFrom(ctx context.Context, tx *sql.Tx, n model.Notification, cursor int64, historyDays int) (bool, error) {
 	var oldest sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `SELECT min(seq) FROM site_events WHERE site_id=$1 AND created_at>=now()-$2*interval '1 day'`, n.SiteID, historyDays).Scan(&oldest); err != nil {
@@ -401,7 +402,7 @@ func EmitSiteEventOnce(ctx context.Context, database *sql.DB, site, id, name str
 	return emitSiteEvent(ctx, database, site, id, name, "", data, visitor, within, "", "")
 }
 
-// EmitSiteEventFor is EmitSiteEvent with the two facts SIM-360 web-push
+// EmitSiteEventFor is EmitSiteEvent with the two facts web-push
 // fan-out needs, known at emission time regardless of who wrote the row:
 // pushActor is "" when the site owner performed the write, "owner" when it
 // was explicitly the owner acting with no self-notify intent (reserved for
@@ -433,8 +434,8 @@ func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
 		}
 	}
 	// pushActor and pushTarget are stored on the event so a cursor replay
-	// (replayFrom) can apply the same rule as the live fan-out (FIX 1, Codex
-	// round 2). They are columns, never part of the delivered data.
+	// (replayFrom) can apply the same rule as the live fan-out.
+	// They are columns, never part of the delivered data.
 	var seq int64
 	err = tx.QueryRowContext(ctx, `INSERT INTO site_events(site_id,event_id,name,storage,data,push_actor,push_target) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING seq`, site, id, name, storage, data, pushActor, pushTarget).Scan(&seq)
 	if err != nil {
@@ -451,14 +452,14 @@ func emitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storag
 // event (empty storage) reaches every subscription naming it.
 //
 // An owner-authored write (pushActor 'owner') never reaches a webhook or MCP
-// Events subscription: before SIM-360 such a write stored no event at all,
+// Events subscription: before web push such a write stored no event at all,
 // and storing it now for push must not change that. A visitor's own write
 // (empty pushActor, or their id) reaches them as before.
 //
 // A web-push subscription reaches the owner's devices unless the owner made
 // the write, and a visitor's devices only when that visitor owns the row
 // (pushTarget) and did not make this write. The owner branch also excludes
-// pushActor == owner_id (FIX 4): an owner signed in on their own site (D1)
+// pushActor == owner_id: an owner signed in on their own site (D1)
 // writes with their own users.id as the actor, and must not get a push back
 // on the device that made the write.
 func fanOutSiteEvent(ctx context.Context, tx *sql.Tx, seq int64, site, name, storage, pushActor, pushTarget string) error {
@@ -664,20 +665,12 @@ func ListVisitorPushDevices(ctx context.Context, database *sql.DB, site, visitor
 
 // UpsertPushSubscription creates or updates one push device, keyed by
 // (site, subscriber, endpoint, resource) -- not by the client-generated
-// id newID, which is used only when no existing row matches. FIX 8,
-// Codex round 2: the previous flow looked up an existing row, then
-// called the general-purpose SaveNotification with a freshly generated
-// id, as two separate steps outside any shared lock; two concurrent
-// subscribe() calls for the exact same browser subscription and
-// resource could both find nothing and both insert, creating a
-// duplicate (the unique index on this same identity,
-// site_notifications_push_identity, 0008, is only the backstop for that
-// race -- this function's own site-row lock, matching SaveNotification's
-// own serialization, is the primary defense: the second caller's lookup
-// waits for the first's insert to commit, then finds and updates it
-// instead of racing it). created reports whether newID is the row that
-// now exists; max is checked only on that path, matching
-// SaveNotification's own !exists && count>=max rule.
+// id newID, which is used only when no existing row matches. The lookup
+// and insert run under the site-row lock (as SaveNotification does), so two
+// concurrent subscribes for the same browser subscription cannot both
+// insert; the unique index site_notifications_push_identity is only the
+// backstop. created reports whether newID is the row that now exists; max
+// is checked only on that path.
 func UpsertPushSubscription(ctx context.Context, database *sql.DB, n model.Notification, newID string, max int) (id string, created bool, err error) {
 	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
@@ -742,47 +735,13 @@ func DeleteNotificationForOwner(ctx context.Context, q sqlkit.Querier, site, id,
 	return n > 0, err
 }
 
-// DeletePushSubscriptionsForVisitor removes every web-push device a visitor
-// registered on one site: used on sign-out (that one device, from the
-// caller's own id list), named-viewer removal and site-scoped erasure.
-// Account deletion needs no call here: owner_id REFERENCES users(id) ON
-// DELETE CASCADE already removes every row, on every site, for that user.
-func DeletePushSubscriptionsForVisitor(ctx context.Context, q sqlkit.Querier, site, visitorID string) (int64, error) {
-	r, err := q.ExecContext(ctx, `DELETE FROM site_notifications WHERE site_id=$1 AND kind='web-push' AND subscriber_role='visitor' AND owner_id=$2`, site, visitorID)
-	if err != nil {
-		return 0, err
-	}
-	return r.RowsAffected()
-}
-
-// DeletePushSubscriptionsForPerson removes every web-push device a person
-// (owner_id, which is their own users.id whichever role they subscribed
-// under -- the site owner's account id, or a visitor's) registered on one
-// site, regardless of subscriber_role. Used on sign-out: the site's owner
-// signed in on their own site as a visitor (D1) still has "the one Sign
-// out ends push on that device" apply to whichever role their device
-// ended up stored under.
-func DeletePushSubscriptionsForPerson(ctx context.Context, q sqlkit.Querier, site, personID string) (int64, error) {
-	r, err := q.ExecContext(ctx, `DELETE FROM site_notifications WHERE site_id=$1 AND kind='web-push' AND owner_id=$2`, site, personID)
-	if err != nil {
-		return 0, err
-	}
-	return r.RowsAffected()
-}
-
 // DeletePushSubscriptionsForFamily removes every web-push device created
 // by one browser session or (for an SSO-signed-in-everywhere session)
-// its whole family of sibling sessions across every site they span (FIX
-// 10, Codex round 2): scoped by the session's own stamped identity
-// (model.Notification.PushFamily at subscribe time), not by owner_id and
-// one site the way DeletePushSubscriptionsForPerson is. That distinction
-// is exactly what "other browsers' subscriptions survive" needs: two
-// browsers signed in as the same person on the same site, each with
-// their own session and so their own family value, are not the same
-// delete. A row with no family (created before this existed, or by the
-// owner's API key, which is not a browser session at all) is never
-// touched by this -- family=="" never matches family<>” AND family=$1
-// for any real $1, so the caller does not even need to special-case it.
+// its whole family of sibling sessions across every site they span. It is
+// scoped by the session's stamped identity (PushFamily at subscribe time),
+// not by person and site, so another browser signed in as the same person
+// keeps its devices. A row with no family (the owner's API key) is never
+// touched.
 func DeletePushSubscriptionsForFamily(ctx context.Context, q sqlkit.Querier, family string) (int64, error) {
 	if family == "" {
 		return 0, nil
@@ -870,4 +829,11 @@ func SetPushRule(ctx context.Context, q sqlkit.Querier, rule model.PushRule) err
 // subscription on an account's site may still act for it.
 type AccessChecks interface {
 	ActsOnSite(ctx context.Context, q sqlkit.Querier, siteID, person string) (bool, error)
+}
+
+// VerifiedAt is when owner last verified url for an MCP Events subscription.
+func VerifiedAt(ctx context.Context, q sqlkit.Querier, owner, url string) (time.Time, error) {
+	var at time.Time
+	err := q.QueryRowContext(ctx, `SELECT max(verified_at) FROM site_notifications WHERE owner_id=$1 AND url=$2 AND source='mcp'`, owner, url).Scan(&at)
+	return at, err
 }

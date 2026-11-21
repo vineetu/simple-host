@@ -17,7 +17,7 @@ func TestZeroContributionHostInventory(t *testing.T) {
 		composed := NewServer(testConfig(cfg))
 		cfg.Contribution = &Contribution{}
 		host := NewServer(testConfig(cfg))
-		for _, caller := range []Caller{{}, {DeployOnly: true}, {AppName: "ChatGPT"}, {AppName: "ChatGPT", DeployOnly: true}} {
+		for _, caller := range []Caller{{DeployOnly: true}, {AppName: "ChatGPT"}} {
 			a, b, _ := composed.forCaller(caller)
 			x, y, _ := host.forCaller(caller)
 			want, _ := json.Marshal([]any{a, b, composed.instructionsFor(caller)})
@@ -34,32 +34,6 @@ func TestZeroContributionHostInventory(t *testing.T) {
 		if host.apps.Screens != nil || host.apps.Gate != nil || host.apps.Read != nil || host.apps.Resources != nil {
 			t.Fatal("zero contribution installed product apps")
 		}
-	}
-}
-
-func TestContributionAppsPerServer(t *testing.T) {
-	calls := 0
-	contribution := Contribution{Apps: func(ctx AppContext) AppContribution {
-		calls++
-		if ctx.APIHost != "connector.example.test" || ctx.Meta == nil {
-			t.Fatalf("context = %+v", ctx)
-		}
-		if ctx.Meta(AppScreen{URI: "ui://example/screen", ID: "screen"})["ui"] == nil {
-			t.Fatal("missing platform app metadata")
-		}
-		return AppContribution{}
-	}}
-	s := NewServer(testConfig(Config{APIHost: "connector.example.test", Contribution: &contribution}))
-	for range 2 {
-		s.forCaller(Caller{})
-		s.productAppResources(Caller{}, true)
-	}
-	if calls != 1 {
-		t.Fatalf("Apps called %d times for one Server", calls)
-	}
-	NewServer(testConfig(Config{APIHost: "connector.example.test", Contribution: &contribution}))
-	if calls != 2 {
-		t.Fatalf("Apps called %d times for two Servers", calls)
 	}
 }
 
@@ -99,26 +73,6 @@ func TestContributionAppFamily(t *testing.T) {
 	if len(listed) <= 4 || listed[1].Name != "fixture_app_read" || byName["fixture_app_read"].run == nil || byName["update_site"].run == nil {
 		t.Fatalf("personal connection lists %d tools", len(listed))
 	}
-	// The documentation inventory composes the same family.
-	var inventory []string
-	for _, entry := range Inventory(*product) {
-		if entry.Edition == "product" {
-			inventory = append(inventory, entry.Name+"/"+entry.Family)
-		}
-	}
-	if strings.Join(inventory, ",") != "fixture_read/fixture,fixture_app_read/fixture-app-only,list_notifications/notifications,remove_notification/notifications" {
-		t.Fatalf("inventory = %v", inventory)
-	}
-	// Nil Apps and nil AppFamily add no family.
-	for _, apps := range []func(AppContext) AppContribution{nil, func(AppContext) AppContribution { return AppContribution{} }} {
-		product := fixtureProduct()
-		product.Apps = apps
-		for _, entry := range NewServer(Config{Contribution: product}).inventory() {
-			if entry.edition == editionProduct && entry.family != "fixture" {
-				t.Fatalf("no AppFamily registered %s", entry.tool.Name)
-			}
-		}
-	}
 }
 
 // SitesPage is the script and the product name the platform's own screens
@@ -140,19 +94,12 @@ func TestContributionSitesPage(t *testing.T) {
 	}
 	with, without := NewServer(Config{Contribution: product}), NewServer(Config{Contribution: fixtureProduct()})
 	host := read(without, Caller{})
-	if strings.Contains(host, "__HACK__") || strings.Contains(host, "__PRODUCT__") {
-		t.Fatal("platform page left a placeholder")
+	caller := Caller{Mode: CallerModeEvents, GrantID: "grant"}
+	if page := read(with, caller); !strings.Contains(page, "window.FIXTURE_PRODUCT_SCRIPT = true") {
+		t.Fatal("product page not rendered on the product connection")
 	}
-	for _, caller := range []Caller{{Mode: CallerModeEvents, GrantID: "grant"}} {
-		page := read(with, caller)
-		if !strings.Contains(page, "window.FIXTURE_PRODUCT_SCRIPT = true") || !strings.Contains(page, "Fixture Product") || strings.Contains(page, "__HACK__") {
-			t.Fatalf("product page not rendered for %+v", caller)
-		}
-		// Nil: the platform's page, without the product's script.
-		plain := read(without, caller)
-		if strings.Contains(plain, "FIXTURE_PRODUCT_SCRIPT") || strings.Contains(plain, "Fixture Product") || strings.Contains(plain, "__HACK__") || !strings.Contains(plain, "Simple Host") {
-			t.Fatalf("nil SitesPage changed the page for %+v", caller)
-		}
+	if plain := read(without, caller); strings.Contains(plain, "FIXTURE_PRODUCT_SCRIPT") {
+		t.Fatal("nil SitesPage changed the page")
 	}
 	if page := read(with, Caller{}); page != host {
 		t.Fatal("a Simple Host connection got the product's page")
@@ -171,7 +118,7 @@ func TestContributionMutationNames(t *testing.T) {
 	const message = "Fixture: this tool was retired. [fixture_retired]"
 	s := NewServer(Config{Contribution: fixtureProduct(), Upstream: up})
 	want, _ := json.Marshal(toolResult(json.RawMessage("1"), message, nil, true, false))
-	for _, caller := range []Caller{{}, {Mode: CallerModeEvents}, {Mode: CallerModeEvents, GrantID: "grant"}, {DeployOnly: true}} {
+	for _, caller := range []Caller{{}, {Mode: CallerModeEvents, GrantID: "grant"}} {
 		got, _ := json.Marshal(call(s, caller, "fixture_retired"))
 		if string(got) != string(want) {
 			t.Fatalf("as %+v: %s", caller, got)

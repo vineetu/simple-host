@@ -7,12 +7,10 @@ import (
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 
-// Conflicts lists the event's conflicts, optionally restricted to a judge.
 func (s *Service) Conflicts(ctx context.Context, eventID, judgeID string) ([]entryrepo.EventConflict, error) {
 	return entryrepo.ListEventConflicts(ctx, s.db, eventID, judgeID)
 }
 
-// DeclareConflict records a conflict under the event lock.
 func (s *Service) DeclareConflict(ctx context.Context, eventID, judgeID, teamID, declaredBy string) (entryrepo.EventConflict, error) {
 	var empty entryrepo.EventConflict
 	tx, ev, err := s.optionsTx(ctx, eventID, false)
@@ -47,7 +45,6 @@ func (s *Service) DeclareConflict(ctx context.Context, eventID, judgeID, teamID,
 	return saved, nil
 }
 
-// DeleteConflict removes a conflict under the event lock.
 func (s *Service) DeleteConflict(ctx context.Context, eventID, judgeID, teamID string) error {
 	tx, _, err := s.optionsTx(ctx, eventID, false)
 	if err != nil {

@@ -16,7 +16,7 @@ import (
 )
 
 // addWrittenByColumn gives an existing table its written_by column on its
-// first add for someone, in the same locked window as the add (SIM-358).
+// first add for someone, in the same locked window as the add.
 // authorizeTable already refused for on any table whose read rules are not
 // limited to the row's visitor or the owner.
 func addWrittenByColumn(conn *sqlite3.Conn, table string) error {
@@ -152,9 +152,7 @@ func (s *Service) TableAdd(ctx context.Context, in TableInput) (TableResult, err
 		defer func() {
 			if id != 0 {
 				// in.Values was stamped in place (stampInsertValues): its
-				// visitor_id, if any, is the new row's own -- the actor's for a
-				// visitor's own insert, or the named recipient for an owner
-				// insert on their behalf. SIM-360 web-push fan-out keys off it.
+				// visitor_id, if any, is the new row's own.
 				*out = TableResult{Body: map[string]any{"changes": 1, "last_insert_id": id}, Notify: s.rowNotification(t.c, in.Table, "record.added", "", id, in.Values, rowValueVisitorID(in.Values))}
 			}
 		}()
@@ -272,17 +270,14 @@ func (s *Service) addTableRow(conn *sqlite3.Conn, c Call, in TableInput, meta ro
 		// created could still run as a side effect of this very INSERT and
 		// rewrite visitor_id or written_by afterward — runTableWrite
 		// installs no authorizer for c.Owner, so it cannot itself catch
-		// that (review round 2). Re-read the row, inside this same
-		// transaction, before committing; a mismatch rolls the whole add
-		// back rather than ship a row that looks like the visitor's own.
+		// that. Re-read the row, inside this same transaction, before
+		// committing; a mismatch rolls the whole add back rather than ship a
+		// row that looks like the visitor's own.
 		if err = verifyOwnerForRow(conn, in.Table, meta.rowid, id, c.OwnerFor); err != nil {
 			return err
 		}
 	}
-	if err = s.finishTableWrite(conn, c, commit, a); err != nil {
-		return err
-	}
-	return nil
+	return s.finishTableWrite(conn, c, commit, a)
 }
 
 // verifyOwnerForRow confirms an on-behalf-of insert's own values survived
@@ -441,10 +436,9 @@ func (s *Service) changeOneRow(t *tableSession, kind sqlite3.AuthorizerActionCod
 }
 
 // lookupRowVisitorID reads one row's own visitor_id column directly, for an
-// edit or delete of a row that might belong to another visitor (SIM-360 push routing keys off this). Best-effort: any failure (no such column, row
-// already gone) yields "", which only means no push fan-out target was
-// found, never a write failure -- the write itself already committed or is
-// about to, independent of this lookup.
+// edit or delete of a row that might belong to another visitor. Best-effort:
+// any failure yields "", which only means no push target was found, never a
+// write failure.
 func lookupRowVisitorID(conn *sqlite3.Conn, meta rowMetadata, table, rowid string, id int64) string {
 	if _, ok := meta.cols["visitor_id"]; !ok {
 		return ""
@@ -477,31 +471,11 @@ func rowValueVisitorID(values map[string]json.RawMessage) string {
 
 // rowNotification builds the deferred notify callback for one row write.
 // rowVisitorID is the row's own visitor_id (who the data belongs to, not
-// necessarily who wrote it): known for free on insert (rowValueVisitorID of
-// the just-stamped values -- stampInsertValues already sets it to
-// c.OwnerFor for an on-behalf-of add) and looked up by the caller for edit/
-// delete, where it must be read before the write since editing visitor_id
-// is disallowed. ownerWrite (the actor, for self-notify exclusion and push
-// routing) is true for c.Owner (API key/connector) and for c.OwnerFor != ""
-// (an owner-on-behalf-of add, SIM-358, reached either through the owner's
-// own key or through OwnerOnSite): both are the owner's own write, never
-// something to tell the owner's own webhook/MCP-event/push subscriptions
-// about, but (unlike a plain owner write touching nobody) an on-behalf-of
-// add has a real rowVisitorID (the target visitor) and must still reach
-// that visitor's own push devices -- so it is never suppressed outright
-// the way a plain owner write with no associated row is. Plain OwnerOnSite
-// (no OwnerFor) stays an ordinary signed-in write for notification
-// purposes (TestNotifyVisitorRoutes), even though it carries owner rights
-// over the data itself; that is unchanged here. An owner (API key) write
-// touching no visitor's row still notifies nobody via webhook/mcp-event
-// (unchanged); SIM-360 web-push fan-out keys off rowVisitorID (the data's
-// own owner) and ownerWrite (the actor) to route a push to the right
-// devices without this layer knowing push exists. A visitor (or
-// OwnerOnSite) write under a shared (signed_in/anyone) write grant, or
-// D1's own elevated access, that touched someone else's row still
-// notifies the owner's webhook/MCP subscriptions exactly as before; only
-// rowVisitorID (looked up by the caller whenever no per-actor filter was
-// enforced) may name someone other than the actor.
+// necessarily who wrote it). ownerWrite is true for the owner's key and for
+// an owner-on-behalf-of add (OwnerFor): neither notifies the owner's own
+// webhook or MCP-event subscriptions, but an on-behalf-of add has a real
+// rowVisitorID and must still reach that visitor's push devices. Plain
+// OwnerOnSite stays an ordinary signed-in write here.
 func (s *Service) rowNotification(c Call, table, name, change string, id int64, values map[string]json.RawMessage, rowVisitorID string) func() {
 	return func() {
 		if s.deps.Notify == nil {
@@ -509,10 +483,7 @@ func (s *Service) rowNotification(c Call, table, name, change string, id int64, 
 		}
 		ownerWrite := c.Owner || c.OwnerFor != ""
 		if ownerWrite && rowVisitorID == "" {
-			// Owner write unrelated to any visitor's row: nobody to tell,
-			// exactly as before SIM-360. (An on-behalf-of add always has
-			// rowVisitorID == c.OwnerFor by this point, so it never hits
-			// this branch -- see the comment above.)
+			// Owner write unrelated to any visitor's row: nobody to tell.
 			return
 		}
 		data := map[string]any{"table": table, "row_id": id, "owner_write": ownerWrite}

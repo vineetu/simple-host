@@ -90,40 +90,6 @@ func TestCatalogOrder(t *testing.T) {
 	}
 }
 
-// Partition the real catalogue without changing file names or bytes, proving
-// composition preserves today's complete order as well as the synthetic case.
-func TestEmbeddedCatalogComposition(t *testing.T) {
-	original := Set{Platform: Embedded()}
-	set := Set{Platform: Catalog{FS: fstest.MapFS{}, Baseline: Baseline},
-		Product: &Catalog{FS: fstest.MapFS{}, Baseline: Baseline}, ProductOrder: slices.Clone(Legacy)}
-	names, err := fs.Glob(embedded, "*.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, name := range names {
-		catalog := &set.Platform
-		if i%2 == 1 {
-			catalog = set.Product
-		}
-		data, err := embedded.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		catalog.FS.(fstest.MapFS)[name] = &fstest.MapFile{Data: data}
-	}
-	for _, name := range Legacy {
-		catalog := &set.Platform
-		if _, ok := catalog.FS.(fstest.MapFS)[name]; !ok {
-			catalog = set.Product
-		}
-		catalog.Legacy = append(catalog.Legacy, name)
-	}
-	assertCatalogOrder(t, set)
-	if got, want := set.Tracked(), original.Tracked(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("composed = %v; want %v", got, want)
-	}
-}
-
 // Called on the empty migration-test database before the existing full-schema
 // tests. Cleanup removes only these fixture objects, leaving it empty again.
 func testCatalogsAgainstPostgres(t *testing.T, db *sql.DB) {

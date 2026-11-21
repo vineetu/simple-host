@@ -82,7 +82,7 @@ func (i *Ingester) Rebuild(ctx context.Context) error {
 func (i *Ingester) drainLive(ctx context.Context) error {
 	var lastOffset int64 = -1
 	for pass := 1; ; pass++ {
-		if err := i.runOnce(ctx); err != nil {
+		if err := i.RunOnce(ctx); err != nil {
 			return fmt.Errorf("pass %d: %w", pass, err)
 		}
 		offset, _, _, err := i.loadState(ctx)

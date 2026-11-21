@@ -6,13 +6,13 @@ import (
 	"time"
 )
 
-// Idle-site cleanup (owner decision 2026-09-27, simplified 2026-11-19: no emails; handler/idle.go).
+// Idle-site cleanup (no emails; handler/idle.go).
 //
 // A site's last activity is the latest of: when it was created, its newest
 // version, the last hour a real person (analytics class 'person') viewed it,
 // its newest collection entry, the last change to its saved data or settings
 // (sites.updated_at: state writes, restore, offline, visibility), and when its
-// owner last chose "Keep it" or restored it. Since 2026-11-02 the owner's own
+// owner last chose "Keep it" or restored it. The owner's own
 // visits from a marked device are filed as class 'owner' (analytics.go,
 // ClassOwner) and still count as activity here, because a site its owner
 // keeps opening is in use.

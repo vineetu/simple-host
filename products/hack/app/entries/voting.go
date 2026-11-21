@@ -20,7 +20,6 @@ func TeamSiteLive(site *model.Site, st hackmodel.TeamWriteState) bool {
 	return site != nil && site.ActiveVersion > 0 && !site.Suspended() && !st.SiteTakenDown && !st.EventTakenDown
 }
 
-// VotingStatus evaluates the voting window.
 func VotingStatus(ev hackmodel.Event, v repo.VotingSettings, now time.Time) string {
 	if !v.Enabled || !ev.GalleryOpen || ev.Stage == "draft" || ev.TakenDown() || !v.OpensAt.Valid || !v.ClosesAt.Valid {
 		return "disabled"
@@ -37,7 +36,6 @@ func VotingStatus(ev hackmodel.Event, v repo.VotingSettings, now time.Time) stri
 	return "open"
 }
 
-// VoteRemovalConfirmation carries the count requiring confirmation.
 type VoteRemovalConfirmation struct{ Count int64 }
 
 func (e *VoteRemovalConfirmation) Error() string { return "Confirm removal of earlier votes." }
@@ -87,12 +85,10 @@ func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.Voti
 	return ev, v, removed, nil
 }
 
-// SetDirectoryListed changes the event's directory flag.
 func (s *Service) SetDirectoryListed(ctx context.Context, id string, listed bool) error {
 	return repo.SetDirectoryListed(ctx, s.db, id, listed)
 }
 
-// CastVote records a vote under the event lock.
 func (s *Service) CastVote(ctx context.Context, id, account, email, team string) (bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -155,22 +151,18 @@ func voteWindowOpen(v repo.VoteWindow, now time.Time) bool {
 		v.Stage != "draft" && v.Stage != "archived" && !v.TakenDown.Valid
 }
 
-// VotingSettingsValue constructs a configuration from transport inputs.
 func VotingSettingsValue(enabled bool, opens, closes sql.NullTime, eligibility string) repo.VotingSettings {
 	return repo.VotingSettings{Enabled: enabled, OpensAt: opens, ClosesAt: closes, Eligibility: eligibility}
 }
 
-// VotingConfig is the stored voting configuration.
 type VotingConfig = repo.VotingSettings
 
-// VotingSettingsRead contains the configuration and removal counts for an organiser.
 type VotingSettingsRead struct {
 	Settings VotingConfig
 	Status   string
 	Counts   map[string]int64
 }
 
-// ReadVotingSettings composes the organiser's voting settings and counts.
 func (s *Service) ReadVotingSettings(ctx context.Context, ev hackmodel.Event, now func() time.Time) (VotingSettingsRead, error) {
 	var out VotingSettingsRead
 	v, err := repo.GetVotingSettings(ctx, s.db, ev.ID)
@@ -205,7 +197,6 @@ func (s *Service) VotingEvent(ctx context.Context, slug string) (ev hackmodel.Ev
 	return ev, true, nil
 }
 
-// PublicVote is the data shown on the public voting page.
 type PublicVote struct {
 	Event            hackmodel.Event
 	Settings         VotingConfig
@@ -269,7 +260,6 @@ func ValidateVotingEligibility(eligibility string) error {
 	return nil
 }
 
-// ValidateVotingWindow checks the parsed voting window.
 func ValidateVotingWindow(v VotingConfig) error {
 	if v.Enabled && (!v.OpensAt.Valid || !v.ClosesAt.Valid || !v.ClosesAt.Time.After(v.OpensAt.Time)) {
 		return &Error{Code: "invalid_voting_window", Message: "opening and closing times are required, with closing after opening"}
@@ -277,18 +267,14 @@ func ValidateVotingWindow(v VotingConfig) error {
 	return nil
 }
 
-// CanCastVote reports whether the account can use the voting endpoint.
 func CanCastVote(username string) bool { return username != "" }
 
 var votingTeamSlug = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
-// ValidVoteTeam checks the team address supplied on the voting page.
 func ValidVoteTeam(team string) bool { return ValidVotingLabel(team, 30) }
 
-// ValidVotingLabel checks an event or team address label.
 func ValidVotingLabel(label string, max int) bool {
 	return len(label) <= max && votingTeamSlug.MatchString(label)
 }
 
-// CanChangeDirectory reports whether the organiser can change the directory flag.
 func CanChangeDirectory(admin, joined bool) bool { return !admin || joined }

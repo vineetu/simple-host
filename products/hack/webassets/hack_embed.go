@@ -11,7 +11,6 @@ var hackFiles embed.FS
 //go:embed all:hack-toolkit/skills
 var hackSkills embed.FS
 
-// Files is an embedded subtree with file-reading support.
 type Files interface {
 	fs.FS
 	ReadFile(string) ([]byte, error)

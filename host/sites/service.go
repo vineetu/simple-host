@@ -95,7 +95,7 @@ type Deps struct {
 	OwnerMarks              OwnerMarkDeps
 	DomainCerts             DomainCertDeps
 	// DeleteViewerPush deletes a removed named viewer's web-push
-	// subscriptions for one site (SIM-360/FIX 9): set by the handler,
+	// subscriptions for one site: set by the handler,
 	// the only side that can resolve a push device's owner_id back to a
 	// sign-in email the same way visitorEmail does. Optional;
 	// RemoveSiteViewer is a no-op here (and logs nothing) when it is nil.
@@ -103,7 +103,7 @@ type Deps struct {
 }
 
 // createMarkerSettle is how long a private create waits between writing its
-// access marker and making its files live (SIM-448).
+// access marker and making its files live.
 var createMarkerSettle = time.Second
 
 // CreateInput contains the values and non-HTTP dependencies for a locked create.
@@ -171,7 +171,8 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
 		tx.Rollback()
-		return s.resolveCreateConflict(ctx, in, site)
+		msg, held := s.deps.Conflict(ctx, in.User.ID, in.Name)
+		return createConflict(in, site, msg, held)
 	}
 	if err != nil {
 		return CreateResult{Site: site}, err
@@ -316,12 +317,6 @@ func (s *Service) promoteCreated(ctx context.Context, in CreateInput, site model
 	return CreateResult{Site: site, FileBytes: fileBytes, ResponseState: s.deps.ResponseState(site, 0, false, false)}, nil
 }
 
-// resolveCreateConflict checks the deleted-name hold after the transaction rolls back.
-func (s *Service) resolveCreateConflict(ctx context.Context, in CreateInput, site model.Site) (CreateResult, error) {
-	msg, held := s.deps.Conflict(ctx, in.User.ID, in.Name)
-	return createConflict(in, site, msg, held)
-}
-
 // createConflict resolves a duplicate after the create transaction is rolled back.
 func createConflict(in CreateInput, site model.Site, msg string, held bool) (CreateResult, error) {
 	if held {
@@ -377,11 +372,6 @@ func (s *Service) SweepExpiredSites(parents ...context.Context) {
 		ReportWorkerProgress(ctx)
 		log.Printf("expiry sweep: removed preview site %q", site.Name)
 	}
-}
-
-// ListVersions returns a site's retained versions in repository order.
-func (s *Service) ListVersions(ctx context.Context, siteID string) ([]model.Version, error) {
-	return repo.ListVersionsBySite(ctx, s.database, siteID)
 }
 
 // VisibilityInput holds the values for SetVisibility.
@@ -657,7 +647,7 @@ func (s *Service) DiscardVersion(ctx context.Context, in DiscardInput) (model.Si
 	return site, nil
 }
 
-// ActivateVersion updates the transaction and serving files, compensating if commit fails.
+// activateVersion updates the transaction and serving files, compensating if commit fails.
 // The caller holds the site lock and has already authorized the transaction.
 func (s *Service) activateVersion(ctx context.Context, tx *sql.Tx, site model.Site, version int) (int, error) {
 	prev, err := repo.SiteActiveVersion(ctx, tx, site.ID)
@@ -689,37 +679,7 @@ func (s *Service) activateVersion(ctx context.Context, tx *sql.Tx, site model.Si
 	return prev, nil
 }
 
-// CanActivateVersion reports whether a version is eligible for rollback.
-func (s *Service) canActivateVersion(ctx context.Context, siteID string, version int) (bool, error) {
-	versions, err := repo.ListVersionsBySite(ctx, s.database, siteID)
-	if err != nil {
-		return false, err
-	}
-	for _, v := range versions {
-		// A version whose upload never finished is not one to go live.
-		if v.VersionNumber == version && v.Status != "uploading" {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// BeginRollback starts the rollback transaction and locks the site row.
-func (s *Service) beginRollback(ctx context.Context, siteID string) (*sql.Tx, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	if err := repo.LockSiteForUpdate(ctx, tx, siteID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return tx, &Error{Code: "site_not_found", Message: "site not found"}
-		}
-		return tx, err
-	}
-	return tx, nil
-}
-
-// PrepareRollback locks the site and checks the requested version before the transaction.
+// prepareRollback locks the site and checks the requested version before the transaction.
 // The caller must release the returned lock when it is non-nil.
 func (s *Service) prepareRollback(ctx context.Context, userID, name, expectedID string, checkID bool, version int) (model.Site, func(), bool, error) {
 	unlock := s.deps.LockSite(userID, name)
@@ -739,18 +699,36 @@ func (s *Service) prepareRollback(ctx context.Context, userID, name, expectedID 
 	if site.ActiveVersion == version {
 		return site, unlock, true, nil
 	}
-	found, err := s.canActivateVersion(ctx, site.ID, version)
+	versions, err := repo.ListVersionsBySite(ctx, s.database, site.ID)
 	if err != nil {
 		return site, unlock, false, err
 	}
-	if !found {
-		return site, unlock, false, &Error{Code: "version_not_found", Message: "version not found"}
+	for _, v := range versions {
+		// A version whose upload never finished is not one to go live.
+		if v.VersionNumber == version && v.Status != "uploading" {
+			return site, unlock, false, nil
+		}
 	}
-	return site, unlock, false, nil
+	return site, unlock, false, &Error{Code: "version_not_found", Message: "version not found"}
 }
 
-// FinishRollback activates a version and emits the existing deployment notification.
-func (s *Service) finishRollback(ctx context.Context, tx *sql.Tx, site model.Site, version int) (model.Site, error) {
+// rollbackTransaction locks the site row, runs the transaction-time gate and
+// activates the version, announcing the change when it moved.
+func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, version int, user *model.User) (model.Site, error) {
+	tx, err := s.database.BeginTx(ctx, nil)
+	if err != nil {
+		return site, err
+	}
+	defer tx.Rollback()
+	if err := repo.LockSiteForUpdate(ctx, tx, site.ID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return site, &Error{Code: "site_not_found", Message: "site not found"}
+		}
+		return site, err
+	}
+	if err := s.createGate(ctx, tx, user, site.Name); err != nil {
+		return site, err
+	}
 	prev, err := s.activateVersion(ctx, tx, site, version)
 	if err != nil {
 		return site, err
@@ -760,22 +738,6 @@ func (s *Service) finishRollback(ctx context.Context, tx *sql.Tx, site model.Sit
 	}
 	site.ActiveVersion = version
 	return site, nil
-}
-
-// RollbackTransaction runs the transaction-time gate and activates the version.
-// The gate receives the locked transaction and returns an authorization error.
-func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, version int, user *model.User) (model.Site, error) {
-	tx, err := s.beginRollback(ctx, site.ID)
-	if tx != nil {
-		defer tx.Rollback()
-	}
-	if err != nil {
-		return site, err
-	}
-	if err := s.createGate(ctx, tx, user, site.Name); err != nil {
-		return site, err
-	}
-	return s.finishRollback(ctx, tx, site, version)
 }
 
 // UpdateInput contains a deploy's files and request facts.

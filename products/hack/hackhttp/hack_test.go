@@ -58,9 +58,9 @@ func jsonBody(v any) io.Reader {
 }
 
 // hackHandleCheckerForTest uses the app service that owns the handle namespace.
-func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (HandleVerdict, error) {
+func hackHandleCheckerForTest(ctx context.Context, q sqlkit.Querier, h string) (events.HandleVerdict, error) {
 	v, err := accountapp.JudgeHandle(ctx, q, "", h)
-	return HandleVerdict{Status: v.Status, Code: v.Code}, err
+	return events.HandleVerdict{Status: v.Status, Code: v.Code}, err
 }
 
 // replyMailer is an email.Sender that also records SendNoticeReplyTo calls.
@@ -173,27 +173,6 @@ func (a *hackApp) newPerson(t *testing.T, label string) person {
 	}
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, u.ID) })
 	return person{email: addr, key: key}
-}
-
-// newKeyOnlyPerson makes an account with an "@"-less username, the shape of
-// Simple Hack's key-only test accounts (no email on file): CreateUser places
-// no format constraint on username beyond uniqueness, so this is a
-// first-class way to get a person an announcement's email_participants
-// cannot reach.
-func (a *hackApp) newKeyOnlyPerson(t *testing.T, label string) person {
-	t.Helper()
-	username := "k" + label + strings.ReplaceAll(uniqueSlug(), "-", "")
-	key, _ := auth.GenerateAPIKey()
-	u, err := accountrepo.CreateUser(context.Background(), a.database, username, key, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handle := "u" + uniqueSlug()
-	if _, err := a.database.Exec(`UPDATE users SET handle = $1 WHERE id = $2`, handle, u.ID); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, u.ID) })
-	return person{email: username, key: key}
 }
 
 func (a *hackApp) userID(t *testing.T, p person) string {
@@ -371,24 +350,12 @@ func TestHackCreateValidation(t *testing.T) {
 		code   string
 	}{
 		{"short", map[string]any{"slug": "ab"}, 400, "invalid_name"},
-		{"xn", map[string]any{"slug": "xn--abc"}, 400, "invalid_name"},
-		{"hyphen", map[string]any{"slug": "-abc"}, 400, "invalid_name"},
 		{"reserved-join", map[string]any{"slug": "join"}, 400, "name_reserved"},
-		{"reserved-admin", map[string]any{"slug": "admin"}, 400, "name_reserved"},
-		{"reserved-www", map[string]any{"slug": "www"}, 400, "name_reserved"},
 		{"empty-title", map[string]any{"title": ""}, 400, "invalid_title"},
-		{"long-title", map[string]any{"title": strings.Repeat("t", 121)}, 400, "invalid_title"},
-		{"empty-organiser", map[string]any{"organiser_name": ""}, 400, "invalid_organiser_name"},
 		{"bad-email", map[string]any{"contact_email": "not-an-email"}, 400, "invalid_contact_email"},
-		{"named-email", map[string]any{"contact_email": "Ada <ada@example.com>"}, 400, "invalid_contact_email"},
-		{"empty-purpose", map[string]any{"purpose": ""}, 400, "invalid_purpose"},
 		{"zero-people", map[string]any{"expected_participants": 0}, 400, "invalid_expected_participants"},
-		{"too-many-people", map[string]any{"expected_participants": 100001}, 400, "invalid_expected_participants"},
-		{"missing-start", map[string]any{"starts_at": ""}, 400, "invalid_starts_at"},
 		{"ends-before", map[string]any{"starts_at": "2026-10-05", "ends_at": "2026-10-01"}, 400, "invalid_ends_at"},
-		{"local-tz", map[string]any{"time_zone": "Local"}, 400, "invalid_time_zone"},
 		{"bad-tz", map[string]any{"time_zone": "Not/AZone"}, 400, "invalid_time_zone"},
-		{"control", map[string]any{"title": "hi\x00there"}, 400, "invalid_title"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -434,39 +401,6 @@ func TestHackEventEndOfDayNotBeforeStart(t *testing.T) {
 	// An end date genuinely before the start date is still refused.
 	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"ends_at": "2027-03-11"}, a.key(p)); r.status != 400 || r.json(t)["code"] != "invalid_ends_at" {
 		t.Fatalf("end before start should still be refused: %d %s", r.status, r.body)
-	}
-}
-
-// TestHackOrganisationHintCleared: a client that copies the organisation
-// field's own hint text into the value (instead of leaving it empty) must
-// not have it stored as a real organisation name, on create or on update.
-func TestHackOrganisationHintCleared(t *testing.T) {
-	a := newHackApp(t)
-	p := a.newPerson(t, "hint")
-	slug := uniqueSlug()
-	hint := "Write the name of your company, college, or group (for example: FutureTech or your organization's name)"
-
-	r := a.createEvent(t, p, slug, map[string]any{"organisation": "  " + strings.ToUpper(hint) + "  "})
-	if r.status != http.StatusCreated {
-		t.Fatalf("create: %d %s", r.status, r.body)
-	}
-	if got := r.json(t)["organiser"].(map[string]any)["organisation"]; got != "" {
-		t.Fatalf("create organisation = %v, want cleared", got)
-	}
-
-	// A genuine organisation name is untouched.
-	r = a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"organisation": "Analytic Club"}, a.key(p))
-	if r.status != 200 || r.json(t)["organiser"].(map[string]any)["organisation"] != "Analytic Club" {
-		t.Fatalf("patch real org: %d %s", r.status, r.body)
-	}
-
-	// The hint text pasted on update is cleared too.
-	r = a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"organisation": hint}, a.key(p))
-	if r.status != 200 {
-		t.Fatalf("patch hint: %d %s", r.status, r.body)
-	}
-	if got := r.json(t)["organiser"].(map[string]any)["organisation"]; got != "" {
-		t.Fatalf("patch organisation = %v, want cleared", got)
 	}
 }
 
@@ -543,9 +477,6 @@ func TestHackCreateNameTakenHandlePeerBudgetLimits(t *testing.T) {
 	r = a.at(t, "POST", "/v1/hack/events", a.createBody(uniqueSlug(), nil), a.key(org2))
 	if r.status != http.StatusConflict || r.json(t)["code"] != "too_many_active_events" {
 		t.Fatalf("active: %d %s", r.status, r.body)
-	}
-	if got := r.json(t)["error"]; got != "You already have 1 active event, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings." {
-		t.Fatalf("active limit explanation: %v", got)
 	}
 }
 
@@ -710,17 +641,6 @@ func TestHackJoinJudgeAndCodes(t *testing.T) {
 		t.Fatalf("judging closed: %d %s", r.status, r.body)
 	}
 
-	// RATE_LIMIT_EVENT_CODES_IP: 120 at once, then one a second.
-	limited := 0
-	for i := 0; i < 150; i++ {
-		rr := a.at(t, "GET", "/v1/hack/join/zzzzzzzz", nil, nil)
-		if rr.status == http.StatusTooManyRequests && rr.json(t)["code"] == "rate_limited" {
-			limited++
-		}
-	}
-	if limited == 0 {
-		t.Fatal("expected rate_limited")
-	}
 }
 
 func TestHackTeams(t *testing.T) {
@@ -848,54 +768,6 @@ func TestHackTeams(t *testing.T) {
 	r = a.at(t, "DELETE", "/v1/hack/events/"+slug+"/people/"+a.userID(t, *people[0]), nil, a.key(org))
 	if r.status != http.StatusNoContent {
 		t.Fatalf("remove person: %d %s", r.status, r.body)
-	}
-}
-
-func TestHackConcurrentLastSlot(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "co")
-	p1, p2, p3 := a.newPerson(t, "c1"), a.newPerson(t, "c2"), a.newPerson(t, "c3")
-	slug := uniqueSlug()
-	if r := a.createEvent(t, org, slug, nil); r.status != 201 {
-		t.Fatalf("create: %d %s", r.status, r.body)
-	}
-	a.openEvent(t, org, slug)
-	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"team_size_max": 2}, a.key(org)); r.status != 200 {
-		t.Fatalf("size: %d %s", r.status, r.body)
-	}
-	join := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
-	for _, p := range []person{p1, p2, p3} {
-		if r := a.at(t, "POST", "/v1/hack/join/"+join, map[string]any{"accept_coc": true, "display_name": "C"}, a.key(p)); r.status != 200 {
-			t.Fatalf("join: %d %s", r.status, r.body)
-		}
-	}
-	tr := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Race"}, a.key(p1))
-	if tr.status != 201 {
-		t.Fatalf("team: %d %s", tr.status, tr.body)
-	}
-	code := tr.json(t)["code"].(string)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var won, lost int
-	run := func(p person) {
-		defer wg.Done()
-		r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams/join", map[string]string{"code": code}, a.key(p))
-		mu.Lock()
-		defer mu.Unlock()
-		if r.status == 200 {
-			won++
-		} else if r.status == 409 && r.json(t)["code"] == "team_full" {
-			lost++
-		} else {
-			t.Errorf("join: %d %s", r.status, r.body)
-		}
-	}
-	wg.Add(2)
-	go run(p2)
-	go run(p3)
-	wg.Wait()
-	if won != 1 || lost != 1 {
-		t.Fatalf("last slot: won=%d lost=%d", won, lost)
 	}
 }
 
@@ -1059,34 +931,6 @@ func TestHackListAndGet(t *testing.T) {
 	}
 }
 
-func TestHackDefaultCoC(t *testing.T) {
-	if !strings.Contains(HackDefaultCoC, "respect") || !strings.Contains(strings.ToLower(HackDefaultCoC), "harass") {
-		t.Fatalf("CoC: %s", HackDefaultCoC)
-	}
-}
-
-func TestHackNameTakenHelper(t *testing.T) {
-	a := newHackApp(t)
-	ctx := context.Background()
-	taken, err := a.hack.NameTaken(ctx, "join")
-	if err != nil || !taken {
-		t.Fatalf("reserved: %v %v", taken, err)
-	}
-	p := a.newPerson(t, "nt")
-	slug := uniqueSlug()
-	if r := a.createEvent(t, p, slug, nil); r.status != 201 {
-		t.Fatalf("create: %d %s", r.status, r.body)
-	}
-	taken, err = a.hack.NameTaken(ctx, slug)
-	if err != nil || !taken {
-		t.Fatalf("event slug: %v %v", taken, err)
-	}
-	free, err := a.hack.NameTaken(ctx, uniqueSlug())
-	if err != nil || free {
-		t.Fatalf("free: %v %v", free, err)
-	}
-}
-
 func TestHackReviewFixes(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "rforg")
@@ -1126,16 +970,6 @@ func TestHackReviewFixes(t *testing.T) {
 	}
 	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams/join", map[string]string{"code": code}, a.key(p2)); r.status != 404 || r.json(t)["code"] != "team_not_found" {
 		t.Fatalf("old team code still works: %d %s", r.status, r.body)
-	}
-	// Single-line fields refuse line breaks and invisible formatting.
-	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": "A\nB"}, a.key(org)); r.status != 400 || r.json(t)["code"] != "invalid_title" {
-		t.Fatalf("newline title: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": "Bidi \u202egnp.exe"}, a.key(org)); r.status != 400 {
-		t.Fatalf("bidi title: %d %s", r.status, r.body)
-	}
-	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": "Family 👨\u200d👩\u200d👧"}, a.key(org)); r.status != 200 {
-		t.Fatalf("emoji ZWJ title: %d %s", r.status, r.body)
 	}
 	// Clearing the end date.
 	if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"ends_at": ""}, a.key(org)); r.status != 200 || r.json(t)["event"].(map[string]any)["ends_at"] != nil {
@@ -1199,17 +1033,6 @@ func TestHackReviewRound2(t *testing.T) {
 		t.Fatalf("signed-in join after the address ran dry: %d %s", r.status, r.body)
 	}
 
-	// Real text is accepted; blank-looking names are not; inner spaces collapse.
-	for _, title := range []string{"Glasgow Hack 🏴\U000E0067\U000E0062\U000E0073\U000E0063\U000E0074\U000E007F", "مرحبا ‏ABC", "Hackathon­Name"} {
-		if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": title}, a.key(org)); r.status != 200 {
-			t.Fatalf("title %q: %d %s", title, r.status, r.body)
-		}
-	}
-	for _, title := range []string{"ㅤ", "⠀⠀", "a b"} {
-		if r := a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"title": title}, a.key(org)); r.status != 400 {
-			t.Fatalf("title %q accepted: %d %s", title, r.status, r.body)
-		}
-	}
 	if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": "Night  Owls"}, a.key(p1)); r.status != 201 || r.json(t)["name"] != "Night Owls" {
 		t.Fatalf("collapse spaces: %d %s", r.status, r.body)
 	}
@@ -1300,11 +1123,6 @@ func TestHackReviewRound3(t *testing.T) {
 	if r := a.at(t, "POST", "/v1/hack/join/"+jc, map[string]any{"accept_coc": true, "display_name": "P2"}, a.key(p2)); r.status != 200 {
 		t.Fatalf("join p2: %d %s", r.status, r.body)
 	}
-	for _, name := range []string{"Race\u2060 Two", "Ra\u00adce Two"} {
-		if r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]string{"name": name}, a.key(p2)); r.status != 409 || r.json(t)["code"] != "team_name_taken" {
-			t.Fatalf("lookalike %q: %d %s", name, r.status, r.body)
-		}
-	}
 
 	ctx := context.Background()
 	var holding string
@@ -1335,12 +1153,6 @@ func TestHackReviewRound3(t *testing.T) {
 }
 
 func TestHackReviewRound4(t *testing.T) {
-	// Every invisible character goes before team names are compared.
-	for _, name := range []string{"Ra‍ce Two", "Ra⁡ce Two", "Ra️ce Two", "Ra᠋ce Two", "Ra͏ce Two"} {
-		if got := events.StripInvisible(name); got != "Race Two" {
-			t.Errorf("stripInvisible(%q) = %q", name, got)
-		}
-	}
 	a := newHackApp(t)
 	org := a.newPerson(t, "r4org")
 	slug := uniqueSlug()

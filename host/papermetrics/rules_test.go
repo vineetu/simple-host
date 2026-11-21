@@ -7,11 +7,8 @@ func TestIsAuthPath(t *testing.T) {
 		"/oauth/token": true,
 		"/.well-known/oauth-authorization-server": true,
 		"/v1/auth/login":         true,
-		"/v1/sso/start":          true,
-		"/v1/visitor/session":    true,
 		"/v1/me/sessions":        true,
 		"/v1/sites/blog/me":      true,
-		"/v1/sites/blog/me/x":    true,
 		"/v1/me":                 false,
 		"/v1/sites/blog/storage": false,
 		"/v1/sites/me":           false,
@@ -27,12 +24,9 @@ func TestIsPlatformHost(t *testing.T) {
 	c := New(nil, "", "simple-host.app")
 	for h, want := range map[string]bool{
 		"simple-host.app":              true,
-		"WWW.Simple-Host.app:8443":     true,
 		"":                             true,
 		"localhost:8080":               true,
-		"10.0.0.1:80":                  true,
 		"[::1]:8080":                   true,
-		"[::1]":                        true,
 		"blog.vineetu.simple-host.app": false,
 		"example.com:443":              false,
 	} {

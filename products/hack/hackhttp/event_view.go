@@ -28,7 +28,7 @@ func (h *views) eventView(ctx context.Context, ev hackmodel.Event, member hackmo
 	if organiser {
 		participants := h.organiserJSON(ctx, ev, body)
 		step := nextStepJSON(ev, resultState, participants)
-		// cue: a schedule row lining up with this move has come (owner, 2026-11-02).
+		// cue: a schedule row lining up with this move has come.
 		step["cue"] = h.scheduleCue(ctx, ev, step)
 		body["next_step"] = step
 	}
@@ -39,7 +39,6 @@ func (h *views) eventView(ctx context.Context, ev hackmodel.Event, member hackmo
 	return body
 }
 
-// eventJSON is the event block every member reads.
 func (h *views) eventJSON(ctx context.Context, ev hackmodel.Event, results entries.EventResultsRow) map[string]any {
 	tracks, _ := h.events.EventTracks(ctx, ev.ID)
 	out := map[string]any{
@@ -82,16 +81,13 @@ func (h *views) eventJSON(ctx context.Context, ev hackmodel.Event, results entri
 		"judging_lock_reason":  ev.JudgingLockReason,
 		"tracks":               tracks,
 	}
-	// Newest first, for the participant's client-side unread badge on
-	// Announcements (audit 2026-11-02): no read state is kept on the server.
+	// Newest first, for the participant's client-side unread badge on Announcements: no read state is kept on the server.
 	if times, err := h.events.AnnouncementTimes(ctx, ev.ID); err == nil {
 		out["announcement_times"] = times
 	}
 	return out
 }
 
-// organiserJSON adds the organiser block (codes, links and counts) to body
-// and answers the participant count.
 func (h *views) organiserJSON(ctx context.Context, ev hackmodel.Event, body map[string]any) int {
 	participants, teams, _, _ := h.events.CountEventMembersLookup(ctx, ev.ID)
 	judges, _ := h.events.CountEligibleJudgesLookup(ctx, ev.ID)
@@ -125,8 +121,7 @@ func (h *views) organiserJSON(ctx context.Context, ev hackmodel.Event, body map[
 	return participants
 }
 
-// participantJSON adds a participant's approval status to me and, once they
-// have a team, the Home checklist (section 4.3) to body.
+// participantJSON adds a participant's approval status to me and, once they have a team, the Home checklist to body.
 func (h *views) participantJSON(ctx context.Context, ev hackmodel.Event, member hackmodel.EventMember, me, body map[string]any) {
 	if status, err := h.members.MemberApprovalStatusLookup(ctx, ev.ID, member.UserID); err == nil {
 		me["approval_status"] = status
@@ -142,8 +137,6 @@ func (h *views) participantJSON(ctx context.Context, ev hackmodel.Event, member 
 	body["progress"] = progress
 }
 
-// memberProgressJSON is eventView's "progress" for a team's participant:
-// teamProgressJSON with the team and its write state loaded.
 func (h *views) memberProgressJSON(ctx context.Context, ev hackmodel.Event, member hackmodel.EventMember) (map[string]any, error) {
 	team, err := h.teams.TeamByID(ctx, member.TeamID.String)
 	if err != nil {
@@ -156,17 +149,14 @@ func (h *views) memberProgressJSON(ctx context.Context, ev hackmodel.Event, memb
 	return h.teamProgressJSON(ctx, ev, team, member.UserID, st)
 }
 
-// nextStepJSON is the Overview's one forward move: the server computes it so
-// the website and AI apps agree (parity rule 2026-10-27).
+// nextStepJSON is the Overview's one forward move; the server computes it so the website and AI apps agree.
 func nextStepJSON(ev hackmodel.Event, results entries.EventResultsRow, participants int) map[string]any {
 	step := func(stage, label string, deadlinePassed bool, blocked any) map[string]any {
 		return map[string]any{"kind": "stage", "stage": stage, "label": label, "deadline_passed": deadlinePassed, "blocked": blocked}
 	}
 	switch ev.Stage {
 	case "draft":
-		// SIM-382: a new event hasn't had its entry rules chosen yet (it already
-		// carries the default preset's fields, so teams could fill an entry before
-		// this -- EntryRulesChosen only gates this card).
+		// A new event hasn't had its entry rules chosen yet (it already carries the default preset's fields, so teams could fill an entry before this; EntryRulesChosen only gates this card).
 		if !ev.EntryRulesChosen {
 			return map[string]any{"kind": "entry_rules", "stage": "", "label": "Choose what teams hand in", "deadline_passed": false, "blocked": nil}
 		}
@@ -194,8 +184,6 @@ func nextStepJSON(ev hackmodel.Event, results entries.EventResultsRow, participa
 	}
 }
 
-// meView is the member's own block: who they are and, for a participant,
-// their team or the notice that they were removed from one.
 func (h *views) meView(ctx context.Context, ev hackmodel.Event, member hackmodel.EventMember) map[string]any {
 	me := map[string]any{
 		// user_id: the signed-in person's own ID, same value the people list already
@@ -222,8 +210,6 @@ func (h *views) meView(ctx context.Context, ev hackmodel.Event, member hackmodel
 	return me
 }
 
-// myTeamJSON is a participant's own team: its people, link, site, track and
-// deadline, plus the admin's successor and pending requests.
 func (h *views) myTeamJSON(ctx context.Context, ev hackmodel.Event, member hackmodel.EventMember) (map[string]any, error) {
 	team, err := h.teams.TeamByID(ctx, member.TeamID.String)
 	if err != nil {
@@ -303,7 +289,6 @@ func keysInOrder(set map[string]bool) []string {
 	return out
 }
 
-// entryRequiredList is the required fields in canonical order, never nil.
 func entryRequiredList(in []string) []string {
 	set := map[string]bool{}
 	for _, f := range in {

@@ -27,9 +27,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -42,6 +40,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	authrules "github.com/vsriram/simple-host/host/access/rules"
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
@@ -59,14 +59,6 @@ const (
 	oauthCodeTTL         = 60 * time.Second
 	oauthConsentTTL      = 30 * time.Minute
 	oauthMaxRedirectURIs = 10
-
-	// Prefixes make a leaked token recognisable to secret scanners and to a
-	// person reading a log, and let /v1 tell our token from a misplaced key.
-	PrefixAccess  = "shat_"
-	prefixRefresh = "shrt_"
-	prefixCode    = "shac_"
-	prefixClient  = "shc_"
-	PrefixSecret  = "shcs_"
 )
 
 // ConnectorHandler serves the OAuth authorization server and /mcp.
@@ -128,9 +120,7 @@ func (h *ConnectorHandler) pipeline() *web.AssetPipeline {
 // discovery-only tests: the issuer and edition policy, with calls
 // served through mcpServer directly rather than building its own
 // internally, so a test can compare its discovery documents against that
-// exact *mcp.Server instance. Test hook (cleanup 3.2 slice 3): the moved
-// hack_discovery_test.go built this as a bare composite literal
-// (issuer/mcp/hostedEvents are unexported fields) before the move.
+// exact *mcp.Server instance.
 func NewConnectorHandlerForTest(issuer string, mcpServer *mcp.Server, ed *edition.Edition) *ConnectorHandler {
 	return &ConnectorHandler{Issuer: issuer, mcp: mcpServer, ed: ed, hostedEvents: ed.Routes().HostedEvents}
 }
@@ -190,7 +180,8 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 	h.MCPConfig = mcp.Config{
 		Limits:             &mcpSnapshot,
 		AnalyticsProjectID: strings.TrimSpace(os.Getenv("AGENTCAT_PROJECT_ID")),
-		AnalyticsEnv:       analyticsEnv(issuer),
+		AnalyticsEnv:       analyticsEnv(issuer, ed.Presentation().CanonicalBaseURL),
+		AnalyticsProduct:   analyticsProduct(ed.Presentation().ProductName),
 		AnalyticsPepper:    analyticsPepper(adminAPIKey),
 		Upstream:           upstream,
 		APIHost:            apiHost,
@@ -207,8 +198,7 @@ func NewConnectorHandler(database *sql.DB, publicBaseURL, adminAPIKey, siteDomai
 		// deploy route then holds each account to its own.
 		MaxBodyBytes: sites.JSONBodyLimit(sites.LargestSiteLimit(h.Limits)),
 		// host/mcp is a leaf package (check-layering.sh) and may not
-		// import host/papermetrics directly; this is the same hook it
-		// used to call inline from host/mcp/tools.go.
+		// import host/papermetrics directly.
 		MutationResult: func(ctx context.Context, method, path string, status int) {
 			papermetrics.From(ctx).MutationResult(ctx, method, path, status)
 		},
@@ -272,7 +262,7 @@ func (h *ConnectorHandler) SetEventsBackend(b mcp.EventsBackend) {
 	h.mcp = mcp.NewServer(h.MCPConfig)
 }
 
-// StartSweep removes expired codes and tokens, abandoned registrations, and
+// connectorSweepWorker removes expired codes and tokens, abandoned registrations, and
 // API keys that stopped working more than 30 days ago.
 type connectorSweepWorker struct {
 	startOnce sync.Once
@@ -327,9 +317,6 @@ func (w *connectorSweepWorker) Start(ctx context.Context) {
 			}
 		})
 	})
-}
-func (h *ConnectorHandler) StartSweep(every time.Duration) {
-	h.SweepWorker(every).Start(context.Background())
 }
 
 func (h *ConnectorHandler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
@@ -409,24 +396,6 @@ func (h *ConnectorHandler) authorizationServerMetadata(w http.ResponseWriter, r 
 	})
 }
 
-// ---- helpers ------------------------------------------------------------------
-
-func randomToken(prefix string, n int) string {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		panic("connector: no randomness: " + err.Error())
-	}
-	return prefix + base64.RawURLEncoding.EncodeToString(b)
-}
-
-// HashSecret is how every connector secret is stored and looked up. The
-// secrets are 256-bit random values, so a fast hash is the right one: there is
-// nothing to brute-force.
-func HashSecret(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])
-}
-
 func oauthError(w http.ResponseWriter, status int, code, description string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
@@ -471,25 +440,6 @@ func redirectTarget(raw string) string {
 	return u.Scheme + ":"
 }
 
-func validPKCEValue(s string) bool {
-	if len(s) < 43 || len(s) > 128 {
-		return false
-	}
-	for _, c := range s {
-		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-' || c == '.' || c == '_' || c == '~') {
-			return false
-		}
-	}
-	return true
-}
-
-// pkceS256 reports whether verifier matches challenge, in constant time.
-func pkceS256(verifier, challenge string) bool {
-	sum := sha256.Sum256([]byte(verifier))
-	computed := base64.RawURLEncoding.EncodeToString(sum[:])
-	return subtle.ConstantTimeCompare([]byte(computed), []byte(challenge)) == 1
-}
-
 // normalizeResource maps a requested resource to the audience stored on the
 // grant: this server's /mcp, or the server as a whole. Anything else is not a
 // resource this server serves.
@@ -527,7 +477,7 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := model.OAuthClient{
-		ClientID:                randomToken(prefixClient, 16),
+		ClientID:                accounts.RandomToken(accounts.PrefixClient, 16),
 		Name:                    httpx.CleanClientName(req.ClientName),
 		RedirectURIs:            req.RedirectURIs,
 		TokenEndpointAuthMethod: method,
@@ -536,8 +486,8 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 	}
 	var secret string
 	if method != "none" {
-		secret = randomToken(PrefixSecret, 32)
-		client.SecretHash = sql.NullString{String: HashSecret(secret), Valid: true}
+		secret = accounts.RandomToken(accounts.PrefixSecret, 32)
+		client.SecretHash = sql.NullString{String: accounts.HashSecret(secret), Valid: true}
 	}
 	if err := h.accountsSvc().InsertOAuthClient(r.Context(), client); err != nil {
 		log.Printf("connector: register client: %v", err)
@@ -558,7 +508,7 @@ func (h *ConnectorHandler) registeredClient(client model.OAuthClient, secret str
 		"grant_types":                []string{"authorization_code", "refresh_token"},
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": client.TokenEndpointAuthMethod,
-		"scope":                      auth.OAuthScope,
+		"scope":                      authrules.OAuthScope,
 	}
 	if secret != "" {
 		resp["client_secret"] = secret
@@ -581,10 +531,10 @@ func CreateOperatorClient(ctx context.Context, database *sql.DB, name string, re
 	if len(redirectURIs) > oauthMaxRedirectURIs {
 		return "", "", fmt.Errorf("at most %d redirect URIs", oauthMaxRedirectURIs)
 	}
-	secret := randomToken(PrefixSecret, 32)
+	secret := accounts.RandomToken(accounts.PrefixSecret, 32)
 	client := model.OAuthClient{
-		ClientID:                randomToken(prefixClient, 16),
-		SecretHash:              sql.NullString{String: HashSecret(secret), Valid: true},
+		ClientID:                accounts.RandomToken(accounts.PrefixClient, 16),
+		SecretHash:              sql.NullString{String: accounts.HashSecret(secret), Valid: true},
 		Name:                    httpx.CleanClientName(name),
 		RedirectURIs:            append([]string{}, redirectURIs...),
 		TokenEndpointAuthMethod: "client_secret_post",
@@ -662,7 +612,7 @@ func (h *ConnectorHandler) museClientMetadata(w http.ResponseWriter, r *http.Req
 		"grant_types":                []string{"authorization_code", "refresh_token"},
 		"response_types":             []string{"code"},
 		"token_endpoint_auth_method": "none",
-		"scope":                      auth.OAuthScope,
+		"scope":                      authrules.OAuthScope,
 	})
 }
 
@@ -670,7 +620,7 @@ func (h *ConnectorHandler) museClientMetadata(w http.ResponseWriter, r *http.Req
 // recording what a person may have typed into it.
 func clientIDShape(id string) string {
 	switch {
-	case strings.HasPrefix(id, prefixClient):
+	case strings.HasPrefix(id, accounts.PrefixClient):
 		return "expired registration"
 	case strings.Contains(id, "://"):
 		if u, err := url.Parse(id); err == nil {
@@ -759,12 +709,19 @@ func analyticsPepper(adminAPIKey string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// analyticsEnv tags usage events so test instances can be filtered out.
-func analyticsEnv(issuer string) string {
-	if issuer == "https://simple-host.app" {
+// analyticsEnv tags usage events so test instances can be filtered out:
+// "prod" only on the product's own hosted address.
+func analyticsEnv(issuer, canonical string) string {
+	if issuer == "https://simple-host.app" || (canonical != "" && issuer == canonical) {
 		return "prod"
 	}
 	return "dev"
+}
+
+// analyticsProduct tags usage events with the product ("Simple Hack" is
+// "simple-hack"), so two products can share one AgentCat project.
+func analyticsProduct(name string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(name)), " ", "-")
 }
 
 func (h *ConnectorHandler) accountsSvc() *accounts.Service { return accounts.New(h.database) }

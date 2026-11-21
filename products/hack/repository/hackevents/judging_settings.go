@@ -7,8 +7,6 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-// UpdateEventEntryRules writes the organiser's entry rules.
-
 func UpdateEventEntryRules(ctx context.Context, q sqlkit.Querier, eventID, preset string, rulesJSON []byte, judgeFirst string, legacyRequired []string) (Event, error) {
 	if legacyRequired == nil {
 		legacyRequired = []string{}
@@ -18,7 +16,6 @@ func UpdateEventEntryRules(ctx context.Context, q sqlkit.Querier, eventID, prese
 		 WHERE id = $1 RETURNING `+EventColumns, eventID, preset, rulesJSON, judgeFirst, pq.Array(legacyRequired)))
 }
 
-// UpdateJudgingSettings writes the fields that are non-nil and returns the event.
 func UpdateJudgingSettings(ctx context.Context, q sqlkit.Querier, eventID string, mode *string, perTeam *int) (Event, error) {
 	var modeArg, perArg any
 	if mode != nil {
@@ -36,7 +33,6 @@ func UpdateJudgingSettings(ctx context.Context, q sqlkit.Querier, eventID string
 		RETURNING `+EventColumns, eventID, modeArg, perArg))
 }
 
-// SetJudgingLock sets or clears judging_locked_at/judging_lock_reason.
 func SetJudgingLock(ctx context.Context, q sqlkit.Querier, eventID string, locked bool, reason string) (Event, error) {
 	if locked {
 		return ScanEvent(q.QueryRowContext(ctx, `
@@ -55,7 +51,6 @@ func SetJudgingLock(ctx context.Context, q sqlkit.Querier, eventID string, locke
 		RETURNING `+EventColumns, eventID, reason))
 }
 
-// UpdateScoreSettings writes the event's score presentation settings.
 func UpdateScoreSettings(ctx context.Context, q sqlkit.Querier, eventID string, scoreMode any, hasTie bool, tie, publicScores, publicRanks any) error {
 	_, err := q.ExecContext(ctx, `UPDATE events SET score_mode=COALESCE($2::text,score_mode),
 			tie_criterion_id=CASE WHEN $3::boolean THEN NULLIF($4::text,'')::uuid ELSE tie_criterion_id END,
@@ -63,7 +58,6 @@ func UpdateScoreSettings(ctx context.Context, q sqlkit.Querier, eventID string, 
 	return err
 }
 
-// SetOrganiserJudges validates the current membership and persists the selection.
 func SetOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string, ids []string) (bool, error) {
 	var valid bool
 	err := q.QueryRowContext(ctx, `SELECT NOT EXISTS (SELECT 1 FROM unnest($2::uuid[]) id WHERE NOT EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=$1 AND m.user_id=id AND m.role='organiser'))`, eventID, pq.Array(ids)).Scan(&valid)

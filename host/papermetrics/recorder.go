@@ -40,17 +40,14 @@ func From(ctx context.Context) Recorder {
 
 type quietRecorder struct{}
 
-func (quietRecorder) ResolveGroup(ctx context.Context, slug, stage, member string, published ...time.Time) {
-}
-func (quietRecorder) Member(ctx context.Context, member string) {}
-func (quietRecorder) ResolveSite(ctx context.Context, account, site, member string, write bool) {
-}
-func (quietRecorder) WriteCommitted(ctx context.Context)                                  {}
-func (quietRecorder) Deploy(ctx context.Context)                                          {}
-func (quietRecorder) MutationResult(ctx context.Context, method, path string, status int) {}
-
-func (quietRecorder) User(context.Context, *model.User)               {}
-func (quietRecorder) Site(*http.Request, string, string, *model.User) {}
+func (quietRecorder) User(context.Context, *model.User)                                  {}
+func (quietRecorder) Site(*http.Request, string, string, *model.User)                    {}
+func (quietRecorder) ResolveGroup(context.Context, string, string, string, ...time.Time) {}
+func (quietRecorder) Member(context.Context, string)                                     {}
+func (quietRecorder) ResolveSite(context.Context, string, string, string, bool)          {}
+func (quietRecorder) WriteCommitted(context.Context)                                     {}
+func (quietRecorder) Deploy(context.Context)                                             {}
+func (quietRecorder) MutationResult(context.Context, string, string, int)                {}
 
 // RecordSite records the site a request is for, on installs keeping paper
 // metrics.

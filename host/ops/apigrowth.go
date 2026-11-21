@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/vsriram/simple-host/host/ops/repo"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"io"
 	"math"
 	"os"
@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/geoip"
 	"github.com/vsriram/simple-host/host/sites/analytics"
 )
 
@@ -129,9 +127,7 @@ func (m *APIMetrics) countryOf(ip string) string {
 type growthKey struct{ dim, key string }
 
 // flushGrowth writes one flush's growth counters, as one statement.
-func flushGrowth(ctx context.Context, q interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}, day string, g map[growthKey]int64) error {
+func flushGrowth(ctx context.Context, q sqlkit.Querier, day string, g map[growthKey]int64) error {
 	if len(g) == 0 {
 		return nil
 	}
@@ -149,16 +145,6 @@ func flushGrowth(ctx context.Context, q interface {
 // ---------------------------------------------------------------------------
 // Backfill
 // ---------------------------------------------------------------------------
-
-// NewAPIGrowthBackfiller is an APIMetrics for the one-off backfill command:
-// it counts nothing live and starts no flush loop.
-func NewAPIGrowthBackfiller(db *sql.DB, geo *geoip.DB, editions ...*edition.Edition) *APIMetrics {
-	var ed *edition.Edition
-	if len(editions) > 0 {
-		ed = editions[0]
-	}
-	return &APIMetrics{ed: ed, db: db, geo: geo, routes: map[routeKey]int64{}, self: map[routeKey]int64{}, ips: map[string]*ipAgg{}}
-}
 
 // BackfillGrowth fills api_growth_daily from the API traffic tables for every
 // day they still hold (API_METRICS_RETENTION_DAYS): kinds of call from
@@ -409,7 +395,8 @@ type growthCountry struct {
 	Calls int64  `json:"calls"`
 }
 
-type growthResponse struct {
+// GrowthResponse is the operator growth report.
+type GrowthResponse struct {
 	Range         string          `json:"range"`
 	Days          int             `json:"days"`
 	From          string          `json:"from"`
@@ -453,7 +440,7 @@ func (m *APIMetrics) Growth(ctx context.Context, rng string) ([]byte, error) {
 	}
 	m.cacheMu.Unlock()
 
-	m.flush() // fold in the calls of the last few seconds
+	m.flush(context.Background()) // fold in the calls of the last few seconds
 	out, err := m.growthReport(ctx, rng, days)
 	if err != nil {
 		return nil, err
@@ -470,7 +457,7 @@ func (m *APIMetrics) Growth(ctx context.Context, rng string) ([]byte, error) {
 
 // growthReport builds one range's answer. "Today" is the database's CURRENT_DATE,
 // the same clock every counter is written with.
-func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*growthResponse, error) {
+func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*GrowthResponse, error) {
 	today, err := repo.APIToday(ctx, m.db)
 	if err != nil {
 		return nil, err
@@ -480,7 +467,7 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 	for i, d := range win.dates {
 		idx[d] = i
 	}
-	out := &growthResponse{
+	out := &GrowthResponse{
 		Range: rng, Days: days,
 		From: win.dates[0], To: win.dates[len(win.dates)-1],
 		Dates: win.dates, GroupOrder: growthGroups,
@@ -572,6 +559,3 @@ func (m *APIMetrics) growthReport(ctx context.Context, rng string, days int) (*g
 	sort.SliceStable(out.Countries, func(i, j int) bool { return out.Countries[i].Calls > out.Countries[j].Calls })
 	return out, nil
 }
-
-// GrowthResponse is the operator growth report.
-type GrowthResponse = growthResponse

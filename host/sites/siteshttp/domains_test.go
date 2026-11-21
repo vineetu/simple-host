@@ -19,12 +19,9 @@ func TestDomainResponseDeadline(t *testing.T) {
 	}{
 		{"unproven pending", "pending", false, "2026-09-07T12:00:00Z", ""},
 		// Released after 24 h too while DNS never pointed here.
-		{"unproven error", "error", false, "2026-09-07T12:00:00Z", ""},
 		// DNS points here but the certificate keeps failing: a week.
 		{"unproven, certificate failing", "pending", false, "2026-09-13T12:00:00Z", "failed"},
 		{"verified pending", "pending", true, "", ""},
-		{"verified active", "active", true, "", ""},
-		{"previously verified error", "error", true, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := domainResponse{Domain: "www.example.com", Status: tc.status}

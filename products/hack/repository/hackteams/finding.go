@@ -6,7 +6,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Event aliases the shared model record.
 type Event = model.Event
 
 // ErrHackFindingStage indicates that team changes are unavailable at this stage.

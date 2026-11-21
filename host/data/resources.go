@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"os"
 	"regexp"
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/host/data/repo"
-	"github.com/vsriram/simple-host/host/data/rules"
 	"github.com/vsriram/simple-host/host/model"
 	runtime "github.com/vsriram/simple-host/host/storage"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
@@ -17,7 +17,7 @@ import (
 
 // ResourceListing contains a resource and its rule errors.
 type ResourceListing struct {
-	Resource    rules.Resource
+	Resource    model.Resource
 	RulesErrors []ruleengine.RuleError
 }
 
@@ -57,7 +57,7 @@ type ResourceTableInput struct {
 
 // ResourceResult holds the configured resource response.
 type ResourceResult struct {
-	Resource    rules.Resource
+	Resource    model.Resource
 	RulesErrors []ruleengine.RuleError
 	Warnings    []string
 	Created     bool
@@ -110,8 +110,8 @@ var resourceKinds = map[string]bool{"kv": true, "sqlite": true, "files": true}
 
 // resource validates the save's kind, passcode and shape against the stored
 // resource and returns the resource it describes, rules not yet set.
-func (in ResourceInput) resource(old rules.Resource, exists bool) (rules.Resource, error) {
-	x := rules.Resource{Name: in.Name, Kind: in.Kind, SitePasscode: in.SitePasscode}
+func (in ResourceInput) resource(old model.Resource, exists bool) (model.Resource, error) {
+	x := model.Resource{Name: in.Name, Kind: in.Kind, SitePasscode: in.SitePasscode}
 	if x.SitePasscode == "" {
 		x.SitePasscode = "inherit"
 	}
@@ -131,7 +131,7 @@ func (in ResourceInput) resource(old rules.Resource, exists bool) (rules.Resourc
 // applyResourceRules sets x's rules. A save without rules (a site_passcode
 // change) keeps the stored rules and reports their current errors; a new
 // resource without rules is owner only.
-func (s *Service) applyResourceRules(ctx context.Context, in ResourceInput, old rules.Resource, exists bool, x *rules.Resource) ([]ruleengine.RuleError, error) {
+func (s *Service) applyResourceRules(ctx context.Context, in ResourceInput, old model.Resource, exists bool, x *model.Resource) ([]ruleengine.RuleError, error) {
 	if !hasRules(in.Rules) && exists {
 		passcode := x.SitePasscode
 		*x = old
@@ -149,7 +149,7 @@ func (s *Service) applyResourceRules(ctx context.Context, in ResourceInput, old 
 // recorded writers when clearWriters is set. A KV namespace's writers live in
 // its SQLite file, whose clearing commits right before the Postgres commit, so
 // a policy is never saved over writers that were not cleared.
-func (s *Service) storeResource(ctx context.Context, call Call, x rules.Resource, clearWriters bool) error {
+func (s *Service) storeResource(ctx context.Context, call Call, x model.Resource, clearWriters bool) error {
 	if clearWriters && x.Kind == "kv" {
 		return s.clearKVWritersSQLite(ctx, call, x.Name, func(commitFile func() error) error {
 			return s.upsertResource(ctx, call, x, false, commitFile)
@@ -160,7 +160,7 @@ func (s *Service) storeResource(ctx context.Context, call Call, x rules.Resource
 
 // upsertResource writes the resource row and replaces its table rules in one
 // transaction; commitFile, when set, runs right before the commit.
-func (s *Service) upsertResource(ctx context.Context, call Call, x rules.Resource, clearFileWriters bool, commitFile func() error) error {
+func (s *Service) upsertResource(ctx context.Context, call Call, x model.Resource, clearFileWriters bool, commitFile func() error) error {
 	internal := &Error{Code: "internal_error", Message: "internal server error"}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -242,7 +242,7 @@ func (s *Service) DeleteStorageResource(ctx context.Context, call Call) error {
 		return &Error{Code: "internal_error", Message: "internal server error"}
 	}
 	if staged != "" {
-		if err = runtime.RemoveStagedRuntime(staged); err != nil {
+		if err = os.RemoveAll(staged); err != nil {
 			return &Error{Code: "internal_error", Message: "resource removed but staging cleanup failed"}
 		}
 	}

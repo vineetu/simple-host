@@ -2,6 +2,7 @@ package geoip
 
 import (
 	"bytes"
+	"context"
 	"go/build"
 	"log"
 	"os"
@@ -155,7 +156,7 @@ func TestWatchPicksUpNewFile(t *testing.T) {
 	dir := t.TempDir()
 	db := Open(dir)
 	defer db.Close()
-	db.Watch(10 * time.Millisecond)
+	db.WatchWorker(10 * time.Millisecond).Start(context.Background())
 	writeFixtures(t, dir, "Mountain View", "Google LLC")
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {

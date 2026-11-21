@@ -33,7 +33,6 @@ func ListEventsForSiteCleanup(ctx context.Context, q sqlkit.Querier) ([]Event, e
 	return out, rows.Err()
 }
 
-// durationSeconds is a duration as whole seconds, for `n * interval '1 second'`.
 func durationSeconds(d time.Duration) int64 {
 	return int64(d / time.Second)
 }
@@ -72,7 +71,6 @@ func MarkEventSitesRemoved(ctx context.Context, tx *sql.Tx, eventID string, now 
 	return cleanupOneRow(res, err)
 }
 
-// SetEventKeepSites sets whether an archived event's team sites stay up.
 func SetEventKeepSites(ctx context.Context, q sqlkit.Querier, eventID string, keep bool) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `
 		UPDATE events SET keep_sites = $2, updated_at = now()

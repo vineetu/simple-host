@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/vsriram/simple-host/host/testdb"
 )
 
 const netDevFixture = `Inter-|   Receive                                                |  Transmit
@@ -65,39 +66,14 @@ func TestGrowth(t *testing.T) {
 	}
 }
 
-// isolatedDB applies host/db/schema.sql to a throwaway schema. Needs DB_DSN.
+// isolatedDB gives the test its own clone of the platform database.
 func isolatedDB(t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		t.Skip("DB_DSN not set")
-	}
-	admin, err := sql.Open("postgres", dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { admin.Close() })
-	schema := fmt.Sprintf("netusage_test_%d", time.Now().UnixNano())
-	if _, err := admin.Exec(`CREATE SCHEMA ` + schema); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { admin.Exec(`DROP SCHEMA ` + schema + ` CASCADE`) })
-	sep := "?"
-	if strings.Contains(dsn, "?") {
-		sep = "&"
-	}
-	db, err := sql.Open("postgres", dsn+sep+"search_path="+schema)
+	db, err := sql.Open("postgres", testdb.Fresh(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	ddl, err := os.ReadFile("../db/schema.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(string(ddl)); err != nil {
-		t.Fatalf("apply schema: %v", err)
-	}
 	return db
 }
 

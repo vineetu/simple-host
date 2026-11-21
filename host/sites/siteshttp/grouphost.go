@@ -17,7 +17,7 @@ func (h *SiteHandler) groupTexts() web.GroupTexts {
 	if g := h.Hosts.Groups(); g != nil {
 		return g.Texts()
 	}
-	if texts := h.Pipeline().Product.Hooks.GroupTexts; texts != nil {
+	if texts := h.Pages().Product.Hooks.GroupTexts; texts != nil {
 		return texts()
 	}
 	return web.GroupTexts{NotFoundTitle: "Page not found", NotFoundBody: "No page lives at this address."}
@@ -83,7 +83,6 @@ func (h *SiteHandler) GroupAPIAllowed(r *http.Request, owner model.User) bool {
 		strings.HasPrefix(p, "/v1/visitor/oauth/")
 }
 
-// renderGroupNotFound is the platform's 404 on an event or unknown host.
 func (h *SiteHandler) renderGroupNotFound(w http.ResponseWriter, r *http.Request) {
 	texts := h.groupTexts()
 	h.renderNotFoundPage(w, r,

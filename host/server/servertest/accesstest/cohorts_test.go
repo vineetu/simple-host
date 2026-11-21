@@ -11,12 +11,12 @@ import (
 
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	model "github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/server/servertest"
+	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 )
 
 // Same-visit carried labels; a new visit has no remembered attribution.
 func TestArrivalAttribution(t *testing.T) {
-	a := servertest.NewPrivateApp(t)
+	a := NewApp(t)
 	chatgpt := a.RegisterNamedClient(t, "ChatGPT")
 	fresh := "from=vercel-ship&utm_source=poll&referrer=ship.vineetsriram.com"
 	unnamed := "from=hn-launch"
@@ -49,12 +49,6 @@ func TestArrivalAttribution(t *testing.T) {
 		if got.source.String != c.wantSource || got.agent.String != c.wantAgent {
 			t.Errorf("%s: source %q agent %q", c.label, got.source.String, got.agent.String)
 		}
-		// The admin source view still exposes the stored label and named sources.
-		admin := a.At(t, "GET", a.AppHost(), "/v1/admin/users", nil, map[string]string{"X-API-Key": a.Admin})
-		if admin.Status != 200 || !strings.Contains(string(admin.Body), c.wantSource) || !strings.Contains(string(admin.Body), "Artifact Hub") {
-			t.Fatalf("%s admin source view: %d", c.label, admin.Status)
-		}
-
 		var detail []byte
 		if err := a.Database.QueryRow(`SELECT signup_detail FROM users WHERE username = $1`, addr).Scan(&detail); err != nil {
 			t.Fatal(err)
@@ -80,12 +74,11 @@ func TestArrivalAttribution(t *testing.T) {
 // GET /v1/admin/signups and .csv: admin only (404 for anyone else), the
 // group's accounts with what they did after joining, and a funnel.
 func TestAdminSignupsDrillDown(t *testing.T) {
-	a := servertest.NewPersonApp(t, "serve")
+	a := NewApp(t)
 	ctx := context.Background()
 	src := "from:t" + strconv.FormatInt(time.Now().UnixNano()%1e9, 36)
 	active, idle := a.NewPerson(t, "coact"), a.NewPerson(t, "coidle")
-	activeID, _ := a.UserID(t, active)
-	idleID, _ := a.UserID(t, idle)
+	activeID, idleID := active.ID, idle.ID
 	for _, id := range []string{activeID, idleID} {
 		if err := accountsrepo.SetSignup(ctx, a.Database, id, model.Signup{Source: src, Method: "email",
 			Detail: &model.SignupDetail{From: strings.TrimPrefix(src, "from:"), UTMCampaign: "=HYPERLINK(\"x\")", Referrer: "ship.vineetsriram.com", LandedAt: time.Now().Add(-time.Hour)}}); err != nil {
@@ -95,8 +88,7 @@ func TestAdminSignupsDrillDown(t *testing.T) {
 	if _, err := a.Database.Exec(`INSERT INTO sites(user_id,name) VALUES($1,'unpublished')`, idleID); err != nil {
 		t.Fatal(err)
 	}
-	a.Deploy(t, active, "shop")
-	siteID := a.SiteID(t, active, "shop")
+	siteID := a.Deploy(t, active, "shop")
 	client := a.RegisterNamedClient(t, "Claude")
 	if _, err := a.Database.Exec(`INSERT INTO oauth_grants (user_id, client_id, scope, resource) VALUES ($1, $2, 'sites', 'x')`, activeID, client); err != nil {
 		t.Fatal(err)
@@ -107,18 +99,18 @@ func TestAdminSignupsDrillDown(t *testing.T) {
 
 	path := "/v1/admin/signups?group=" + url.QueryEscape(src)
 	for _, p := range []string{path, "/v1/admin/signups.csv?group=" + url.QueryEscape(src)} {
-		if r := a.At(t, "GET", servertest.SignupApex, p, nil, nil); r.Status != 401 {
+		if r := a.At(t, "GET", rt.SiteDomain, p, nil, nil); r.Status != 401 {
 			t.Errorf("%s without a key: %d", p, r.Status)
 		}
-		if r := a.At(t, "GET", servertest.SignupApex, p, nil, map[string]string{"X-API-Key": active.Key}); r.Status != 404 || strings.Contains(string(r.Body), idle.Email) {
+		if r := a.At(t, "GET", rt.SiteDomain, p, nil, map[string]string{"X-API-Key": active.Key}); r.Status != 404 || strings.Contains(string(r.Body), idle.Email) {
 			t.Errorf("%s as a non-admin: %d %s", p, r.Status, r.Body)
 		}
 	}
-	if r := a.At(t, "GET", servertest.SignupApex, "/v1/admin/signups", nil, map[string]string{"X-API-Key": a.Admin}); r.Status != 400 {
+	if r := a.At(t, "GET", rt.SiteDomain, "/v1/admin/signups", nil, map[string]string{"X-API-Key": a.Admin}); r.Status != 400 {
 		t.Errorf("no group: %d", r.Status)
 	}
 
-	r := a.At(t, "GET", servertest.SignupApex, path, nil, map[string]string{"X-API-Key": a.Admin})
+	r := a.At(t, "GET", rt.SiteDomain, path, nil, map[string]string{"X-API-Key": a.Admin})
 	if r.Status != 200 {
 		t.Fatalf("admin: %d %s", r.Status, r.Body)
 	}
@@ -141,20 +133,8 @@ func TestAdminSignupsDrillDown(t *testing.T) {
 		t.Fatalf("detail: %v", d)
 	}
 
-	// The admin users list carries the group and the labels.
-	r = a.At(t, "GET", servertest.SignupApex, "/v1/admin/users", nil, map[string]string{"X-API-Key": a.Admin})
-	var labelled bool
-	for _, g := range r.JSON(t)["signup_groups"].([]any) {
-		if g.(map[string]any)["key"] == src {
-			labelled = true
-		}
-	}
-	if !labelled || !strings.Contains(string(r.Body), `"signup_group":"`+src+`"`) {
-		t.Fatalf("users lack the group: %s", r.Body[:min(len(r.Body), 400)])
-	}
-
 	// CSV: a formula in a link parameter is neutralised like other exports.
-	r = a.At(t, "GET", servertest.SignupApex, "/v1/admin/signups.csv?group="+url.QueryEscape(src), nil, map[string]string{"X-API-Key": a.Admin})
+	r = a.At(t, "GET", rt.SiteDomain, "/v1/admin/signups.csv?group="+url.QueryEscape(src), nil, map[string]string{"X-API-Key": a.Admin})
 	if r.Status != 200 || !strings.HasPrefix(r.Header.Get("Content-Type"), "text/csv") || r.Header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("csv: %d %v", r.Status, r.Header)
 	}

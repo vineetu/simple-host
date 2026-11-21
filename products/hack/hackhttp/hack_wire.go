@@ -85,7 +85,6 @@ func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, 
 	}
 }
 
-// hackEventPageSource is what the public event page is read with.
 type hackEventPageSource struct {
 	database      *sql.DB
 	appURL        string // no trailing slash
@@ -93,7 +92,6 @@ type hackEventPageSource struct {
 	galleryPublic bool
 }
 
-// load reads everything the page shows.
 func (s hackEventPageSource) load(ctx context.Context, ev hackmodel.Event) (hackEventPage, error) {
 	p := hackEventPageBasics(ev, s.appURL)
 	if ev.SubmissionsPublic {
@@ -143,7 +141,6 @@ func (s hackEventPageSource) load(ctx context.Context, ev hackmodel.Event) (hack
 	return p, nil
 }
 
-// hackEventPageBasics is the page's fields that come straight from the event.
 func hackEventPageBasics(ev hackmodel.Event, appURL string) hackEventPage {
 	p := hackEventPage{
 		Slug: ev.Slug, Title: ev.Title, Tagline: ev.Tagline, About: ev.About, Rules: ev.Rules, Prizes: ev.Prizes,
@@ -159,7 +156,6 @@ func hackEventPageBasics(ev hackmodel.Event, appURL string) hackEventPage {
 	return p
 }
 
-// hackSetTime is t's time, or zero when it is not set.
 func hackSetTime(t sql.NullTime) time.Time {
 	if !t.Valid {
 		return time.Time{}
@@ -167,7 +163,6 @@ func hackSetTime(t sql.NullTime) time.Time {
 	return t.Time
 }
 
-// hackTrackViews are the tracks as the page lists them.
 func hackTrackViews(tracks []hackmodel.EventTrack) []hackTrackView {
 	var out []hackTrackView
 	for _, t := range tracks {
@@ -176,7 +171,6 @@ func hackTrackViews(tracks []hackmodel.EventTrack) []hackTrackView {
 	return out
 }
 
-// hackAnnouncementViews are the announcements as the page lists them.
 func hackAnnouncementViews(anns []hackmodel.EventAnnouncement) []hackAnnouncementView {
 	var out []hackAnnouncementView
 	for _, a := range anns {
@@ -253,7 +247,6 @@ func hackResultsFromSnapshot(res entries.EventResultsRow, publicScores, publicRa
 	return v
 }
 
-// hackSnapshotRow is one ranked snapshot row as the public sees it.
 func hackSnapshotRow(row map[string]any, rank int, publicScores, publicRanks bool, prizes []string) hackResultsRow {
 	view := hackResultsRow{Overall: rank == 1, OverallPrize: entries.OverallPrizeLabel(rank, prizes)}
 	view.TeamID, _ = row["team_id"].(string)
@@ -361,13 +354,9 @@ func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHa
 		if !hackGalleryImageType(ctype) || len(data) == 0 {
 			return false
 		}
-		writeHackScreenshot(w, r, data, ctype)
+		writeHackScreenshotPolicy(w, r, data, ctype, false)
 		return true
 	}
-}
-
-func writeHackScreenshot(w http.ResponseWriter, r *http.Request, data []byte, contentType string) {
-	writeHackScreenshotPolicy(w, r, data, contentType, false)
 }
 
 func writeHackScreenshotPolicy(w http.ResponseWriter, r *http.Request, data []byte, contentType string, crossOrigin bool) {

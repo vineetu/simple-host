@@ -1,4 +1,3 @@
-// Shared Simple Hack registration and REST helpers.
 package hackmcp
 
 import (
@@ -10,9 +9,8 @@ import (
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
-// Tools returns every base tool this package declares, hidden ones included,
-// in family order. The app-only screen tools are not among them: they are
-// built per tool server (Contribution.Apps, hack_apps.go).
+// Tools returns every base tool this package declares, hidden ones included, in
+// family order. App-only screen tools are built per tool server (hack_apps.go).
 func Tools() []mcp.Tool {
 	var tools []mcp.Tool
 	for _, family := range Contribution().Families {
@@ -29,8 +27,8 @@ func eventSlug(args map[string]any) (string, error) {
 	return strings.ToLower(slug), nil
 }
 
-// presentString reports whether key was sent. An empty string is kept: an
-// update uses it to clear a field. nil is not a string.
+// presentString reports whether key was sent; an empty string counts (an update
+// uses it to clear a field).
 func presentString(args map[string]any, key string) (string, bool, error) {
 	raw, present := args[key]
 	if !present {
@@ -58,9 +56,6 @@ func hackRestError(tool string, u mcp.UpstreamResult) error {
 	}
 }
 
-// hackDo serves one REST request as the caller and returns the answer's
-// body. body is sent as JSON when it is not nil; a refusal comes back as
-// hackRestError.
 func hackDo(c *mcp.Call, tool, method, path string, body any) ([]byte, error) {
 	var raw []byte
 	if body != nil {
@@ -73,12 +68,10 @@ func hackDo(c *mcp.Call, tool, method, path string, body any) ([]byte, error) {
 	return res.Body(), nil
 }
 
-// eventPath is the REST path of one event, plus suffix ("/stage", ...).
 func eventPath(slug, suffix string) string {
 	return "/v1/hack/events/" + url.PathEscape(slug) + suffix
 }
 
-// withFields is a copy of base with fields added.
 func withFields(base, fields map[string]any) map[string]any {
 	out := make(map[string]any, len(base)+len(fields))
 	for k, v := range base {

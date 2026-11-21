@@ -24,6 +24,7 @@ package oauth
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -93,23 +94,6 @@ type oidcAuthRequest struct {
 	State        string
 	Nonce        string
 	CodeVerifier string
-}
-
-// newOIDCAuthRequest generates a fresh state, nonce and PKCE verifier.
-func newOIDCAuthRequest() (oidcAuthRequest, error) {
-	state, err := newOIDCState()
-	if err != nil {
-		return oidcAuthRequest{}, err
-	}
-	nonce, err := newOIDCNonce()
-	if err != nil {
-		return oidcAuthRequest{}, err
-	}
-	verifier, err := newOIDCCodeVerifier()
-	if err != nil {
-		return oidcAuthRequest{}, err
-	}
-	return oidcAuthRequest{State: state, Nonce: nonce, CodeVerifier: verifier}, nil
 }
 
 // AuthCodeURL builds the authorization request URL. hintDomain, when
@@ -201,39 +185,6 @@ type oidcClaims struct {
 	// for a Workspace account, absent for a consumer account.
 	HostedDomain string
 	Raw          map[string]any
-}
-
-// StringClaim reads an arbitrary top-level claim as a string, for
-// OIDC_USERNAME_CLAIM / OIDC_ADMIN_CLAIM style configuration that names a
-// claim this package has no fixed field for.
-func (c oidcClaims) StringClaim(name string) (string, bool) {
-	v, ok := c.Raw[name]
-	if !ok {
-		return "", false
-	}
-	s, ok := v.(string)
-	return s, ok
-}
-
-// HasClaimValue reports whether the named claim, read as either a single
-// string or a list of strings (the shape a "groups" claim usually takes),
-// contains value. Used for OIDC_ADMIN_CLAIM / OIDC_ADMIN_VALUE.
-func (c oidcClaims) HasClaimValue(name, value string) bool {
-	v, ok := c.Raw[name]
-	if !ok {
-		return false
-	}
-	switch t := v.(type) {
-	case string:
-		return t == value
-	case []any:
-		for _, item := range t {
-			if s, ok := item.(string); ok && s == value {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // VerifyIDToken verifies signature (RS256 via the provider's JWKS), issuer,
@@ -371,4 +322,11 @@ func truncate(s string, n int) string {
 		return s[:n]
 	}
 	return s
+}
+
+// oidcCodeChallengeS256 derives the PKCE code_challenge (S256 method) from a
+// verifier: base64url(sha256(verifier)), no padding.
+func oidcCodeChallengeS256(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }

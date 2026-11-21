@@ -3,6 +3,7 @@ package sites
 import (
 	"context"
 	"database/sql"
+
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 
 	"github.com/vsriram/simple-host/host/model"
@@ -54,11 +55,6 @@ func LiveSiteNames(ctx context.Context, q sqlkit.Querier, accountID string) ([]s
 // site a product still shows after it left the live gallery (final results).
 func ShownSiteNames(ctx context.Context, q sqlkit.Querier, accountID string) ([]string, error) {
 	return repo.LiveSiteNames(ctx, q, accountID, true)
-}
-
-// SiteExists reports whether the account has the site, outside Recently deleted.
-func SiteExists(ctx context.Context, q sqlkit.Querier, accountID, name string) (bool, error) {
-	return repo.SiteExists(ctx, q, accountID, name)
 }
 
 // SiteEverNamed reports whether the account has or had a site of that name.

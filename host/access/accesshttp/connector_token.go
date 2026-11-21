@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	authrules "github.com/vsriram/simple-host/host/access/rules"
+
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
@@ -43,11 +45,11 @@ func (h *ConnectorHandler) authenticateClient(r *http.Request) (model.OAuthClien
 	client, err := h.accountsSvc().GetOAuthClient(r.Context(), formID)
 	if err != nil {
 		// Hash anyway so an unknown client costs what a known one does.
-		_ = HashSecret(formSecret)
+		_ = accounts.HashSecret(formSecret)
 		return model.OAuthClient{}, false, "unknown client"
 	}
 	if client.SecretHash.Valid {
-		if formSecret == "" || subtle.ConstantTimeCompare([]byte(HashSecret(formSecret)), []byte(client.SecretHash.String)) != 1 {
+		if formSecret == "" || subtle.ConstantTimeCompare([]byte(accounts.HashSecret(formSecret)), []byte(client.SecretHash.String)) != 1 {
 			return model.OAuthClient{}, false, "client authentication failed"
 		}
 	}
@@ -75,26 +77,20 @@ func (h *ConnectorHandler) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = h.accountsSvc().TouchOAuthClient(r.Context(), client.ClientID)
-	switch r.PostForm.Get("grant_type") {
+	f := r.PostForm
+	in := accounts.ConnectorTokenInput{Code: f.Get("code"), RedirectURI: f.Get("redirect_uri"), Verifier: f.Get("code_verifier"), Resource: f.Get("resource"), RefreshToken: f.Get("refresh_token"), Scope: f.Get("scope")}
+	switch f.Get("grant_type") {
 	case "authorization_code":
-		h.redeemCode(w, r, client)
+		reply, err := h.connectorSvc().RedeemCode(r.Context(), in, client)
+		h.writeConnectorTokens(w, reply, err)
 	case "refresh_token":
-		h.refresh(w, r, client)
+		reply, err := h.connectorSvc().Refresh(r.Context(), in, client)
+		h.writeConnectorTokens(w, reply, err)
 	case "":
 		oauthError(w, http.StatusBadRequest, "invalid_request", "grant_type is required")
 	default:
 		oauthError(w, http.StatusBadRequest, "unsupported_grant_type", "")
 	}
-}
-
-func (h *ConnectorHandler) redeemCode(w http.ResponseWriter, r *http.Request, client model.OAuthClient) {
-	reply, err := h.connectorSvc().RedeemCode(r.Context(), accounts.ConnectorTokenInput{Code: r.PostForm.Get("code"), RedirectURI: r.PostForm.Get("redirect_uri"), Verifier: r.PostForm.Get("code_verifier"), Resource: r.PostForm.Get("resource"), RefreshToken: r.PostForm.Get("refresh_token"), Scope: r.PostForm.Get("scope")}, client)
-	h.writeConnectorTokens(w, reply, err)
-}
-
-func (h *ConnectorHandler) refresh(w http.ResponseWriter, r *http.Request, client model.OAuthClient) {
-	reply, err := h.connectorSvc().Refresh(r.Context(), accounts.ConnectorTokenInput{Code: r.PostForm.Get("code"), RedirectURI: r.PostForm.Get("redirect_uri"), Verifier: r.PostForm.Get("code_verifier"), Resource: r.PostForm.Get("resource"), RefreshToken: r.PostForm.Get("refresh_token"), Scope: r.PostForm.Get("scope")}, client)
-	h.writeConnectorTokens(w, reply, err)
 }
 
 // revoke is RFC 7009. It answers 200 whether or not the token was known, so it
@@ -116,7 +112,7 @@ func (h *ConnectorHandler) revoke(w http.ResponseWriter, r *http.Request) {
 		oauthError(w, http.StatusBadRequest, "invalid_request", "token is required")
 		return
 	}
-	tokenHash := HashSecret(token)
+	tokenHash := accounts.HashSecret(token)
 	if tok, err := h.accountsSvc().GetOAuthToken(r.Context(), tokenHash); err == nil && tok.ClientID == client.ClientID {
 		if tok.Kind == "refresh" {
 			err = h.accountsSvc().DeleteOAuthGrant(r.Context(), tok.GrantID)
@@ -169,7 +165,7 @@ func (h *ConnectorHandler) BearerAuth(next http.Handler) http.Handler {
 			return
 		}
 		token, ok := bearerToken(r)
-		if !ok || !strings.HasPrefix(token, PrefixAccess) {
+		if !ok || !strings.HasPrefix(token, accounts.PrefixAccess) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -218,11 +214,11 @@ func isConnectorRequest(ctx context.Context) bool {
 
 func (h *ConnectorHandler) MCPUnauthorized(w http.ResponseWriter, presented bool) {
 	code := "sign_in_required"
-	challenge := `Bearer resource_metadata="` + h.Issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + auth.OAuthScope + `"`
+	challenge := `Bearer resource_metadata="` + h.Issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + authrules.OAuthScope + `"`
 	if presented {
 		code = "invalid_token"
 		challenge = `Bearer error="invalid_token", error_description="The access token is invalid, expired or revoked", resource_metadata="` +
-			h.Issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + auth.OAuthScope + `"`
+			h.Issuer + `/.well-known/oauth-protected-resource/mcp", scope="` + authrules.OAuthScope + `"`
 	}
 	w.Header().Set("WWW-Authenticate", challenge)
 	w.Header().Set("Cache-Control", "no-store")

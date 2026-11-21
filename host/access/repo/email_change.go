@@ -8,9 +8,6 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-type EmailChange = model.EmailChange
-type EmailChangeUndo = model.EmailChangeUndo
-
 var ErrUndoAddressTaken = model.ErrUndoAddressTaken
 
 func PutEmailChange(ctx context.Context, q Querier, userID, newEmail, codeHash, oldCodeHash string, expiresAt time.Time) error {
@@ -24,8 +21,8 @@ func PutEmailChange(ctx context.Context, q Querier, userID, newEmail, codeHash, 
 	return err
 }
 
-func GetEmailChangeForUpdate(ctx context.Context, tx *sql.Tx, userID string) (EmailChange, error) {
-	var c EmailChange
+func GetEmailChangeForUpdate(ctx context.Context, tx *sql.Tx, userID string) (model.EmailChange, error) {
+	var c model.EmailChange
 	err := tx.QueryRowContext(ctx, `
 		SELECT new_email, code_hash, COALESCE(old_code_hash, ''), attempts, expires_at FROM email_changes
 		 WHERE user_id = $1 AND expires_at > now()
@@ -59,8 +56,8 @@ func ApplyEmailChange(ctx context.Context, tx *sql.Tx, userID, oldEmail, newEmai
 	return nil
 }
 
-func GetEmailChangeUndo(ctx context.Context, q Querier, tokenHash string) (EmailChangeUndo, error) {
-	var u EmailChangeUndo
+func GetEmailChangeUndo(ctx context.Context, q Querier, tokenHash string) (model.EmailChangeUndo, error) {
+	var u model.EmailChangeUndo
 	err := q.QueryRowContext(ctx, `SELECT user_id::text, old_email, new_email, created_at FROM email_change_undos
 		 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`, tokenHash).Scan(&u.UserID, &u.OldEmail, &u.NewEmail, &u.ChangedAt)
 	return u, err
@@ -72,9 +69,9 @@ func EmailInUseByOther(ctx context.Context, q Querier, userID, address string) (
 	return taken, err
 }
 
-func UndoEmailChangeInTx(ctx context.Context, tx *sql.Tx, tokenHash string) (EmailChangeUndo, error) {
+func UndoEmailChangeInTx(ctx context.Context, tx *sql.Tx, tokenHash string) (model.EmailChangeUndo, error) {
 	var err error
-	var u EmailChangeUndo
+	var u model.EmailChangeUndo
 	err = tx.QueryRowContext(ctx, `SELECT user_id::text, old_email, new_email, created_at FROM email_change_undos
 		 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() FOR UPDATE`, tokenHash).Scan(&u.UserID, &u.OldEmail, &u.NewEmail, &u.ChangedAt)
 	if err != nil {

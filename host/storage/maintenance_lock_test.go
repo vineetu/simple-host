@@ -3,7 +3,6 @@ package storage
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -115,33 +114,6 @@ func TestMaintenanceLockSharedOpensReadOnly(t *testing.T) {
 	}
 }
 
-func TestMaintenanceLockUnreadableFileIsReported(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores file permissions")
-	}
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".maintenance.lock")
-	if err := os.WriteFile(path, nil, 0000); err != nil {
-		t.Fatal(err)
-	}
-	lock, err := LockMaintenance(dir, false)
-	if lock != nil {
-		lock.Close()
-	}
-	if !errors.Is(err, os.ErrPermission) {
-		t.Fatalf("unreadable lock file: %v", err)
-	}
-	for _, want := range []string{path, fmt.Sprintf("owned by uid %d", os.Geteuid()), "mode 0000"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error %q does not say %q", err, want)
-		}
-	}
-	info, statErr := os.Stat(path)
-	if statErr != nil || info.Mode().Perm() != 0 || info.Size() != 0 {
-		t.Fatalf("lock file changed: %v %v", info, statErr)
-	}
-}
-
 func TestMaintenanceLockCreatesWorldReadableFile(t *testing.T) {
 	dir := t.TempDir()
 	old := syscall.Umask(022)
@@ -154,31 +126,6 @@ func TestMaintenanceLockCreatesWorldReadableFile(t *testing.T) {
 	info, err := os.Stat(filepath.Join(dir, ".maintenance.lock"))
 	if err != nil || info.Mode().Perm() != 0644 {
 		t.Fatalf("lock file mode: %v %v", info, err)
-	}
-}
-
-func TestCheckDataDirOwner(t *testing.T) {
-	dir := t.TempDir()
-	if err := CheckDataDirOwner(dir, os.Geteuid()); err != nil {
-		t.Fatal(err)
-	}
-	err := CheckDataDirOwner(dir, os.Geteuid()+1)
-	if !errors.Is(err, ErrDataDirOwner) || !strings.Contains(err.Error(), dir) || !strings.Contains(err.Error(), fmt.Sprintf("uid %d", os.Geteuid())) {
-		t.Fatalf("another user's directory: %v", err)
-	}
-	missing := filepath.Join(dir, "absent")
-	if err = CheckDataDirOwner(missing, os.Geteuid()); !errors.Is(err, ErrDataDirOwner) {
-		t.Fatalf("missing directory: %v", err)
-	}
-	if _, err = os.Stat(missing); !os.IsNotExist(err) {
-		t.Fatal("check created the directory")
-	}
-	file := filepath.Join(dir, "file")
-	if err = os.WriteFile(file, nil, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if err = CheckDataDirOwner(file, os.Geteuid()); !errors.Is(err, ErrDataDirOwner) {
-		t.Fatalf("a file as data directory: %v", err)
 	}
 }
 

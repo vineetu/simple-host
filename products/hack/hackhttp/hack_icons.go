@@ -14,10 +14,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-func (h *publicEventHTTP) hackIconLimit() int64 {
-	return int64(h.limits.HackEventIconMaxBytes)
-}
-
 func (h *siteLinks) iconURL(ev model.Event) string {
 	return h.iconURLSlug(ev.Slug)
 }
@@ -78,7 +74,7 @@ func (h *publicEventHTTP) putEventIcon(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusConflict, "event_closed", "this event has ended")
 		return
 	}
-	max := h.hackIconLimit()
+	max := int64(h.limits.HackEventIconMaxBytes)
 	raw, err := io.ReadAll(io.LimitReader(r.Body, max+1))
 	if err != nil {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_icon", "could not read the image")

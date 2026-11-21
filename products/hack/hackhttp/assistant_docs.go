@@ -5,8 +5,7 @@ import (
 	"strings"
 )
 
-// AssistantDocsTextCapBytes caps the whole DOCS block the SIM-394 organiser
-// assistant's system prompt embeds (api-contract.md: "cap 16 KB total").
+// AssistantDocsTextCapBytes caps the whole DOCS block the organiser assistant's system prompt embeds (16 KB total).
 const AssistantDocsTextCapBytes = 16 * 1024
 
 // AssistantDocPages are the Hack skills the assistant knows about.
@@ -59,9 +58,5 @@ func extractAssistantSkill(raw []byte) (title, body string) {
 			break
 		}
 	}
-	return title, collapseAssistantWhitespace(text)
-}
-
-func collapseAssistantWhitespace(s string) string {
-	return strings.Join(strings.Fields(s), " ")
+	return title, strings.Join(strings.Fields(text), " ")
 }

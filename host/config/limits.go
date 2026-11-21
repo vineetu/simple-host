@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -41,7 +40,7 @@ type Limits struct {
 	NotifyTimeout               time.Duration
 	NotifyDefaultTTL            time.Duration
 	NotifySuspendWindow         time.Duration
-	// SIM-360 web push: per-site and per-person push send limits, on top
+	// Web push: per-site and per-person push send limits, on top
 	// of (never above) the existing NotifyPerMinute/NotifyPerDay site caps
 	// that already cover every kind.
 	NotifyPushPerSitePerDay   int
@@ -558,17 +557,10 @@ var familyLabelShape = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`
 // (chrome.go's rewriteSupportAddress).
 var supportEmailShape = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$`)
 
-// IsSafeContactAddress is supportEmailShape, exported so a caller outside
-// this package (cmd/server/main.go, choosing IDLE_REPLY_TO as the support
-// contact fallback when SUPPORT_EMAIL is unset) can run the same strict
-// check SUPPORT_EMAIL itself gets at config load. IDLE_REPLY_TO's own
-// validator (the IDLE_REPLY_TO knob's set func, above) is deliberately
-// looser -- it only rejects whitespace, angle brackets and commas, not
-// quotes or a backslash -- because it predates this one and existing
-// installs' values must keep working for the idle-cleanup email it was
-// written for. Using it as a page/JSON-LD/mailto contact is a different,
-// stricter use, so that path checks again here rather than loosening (or
-// trusting) IDLE_REPLY_TO's own validation.
+// IsSafeContactAddress runs SUPPORT_EMAIL's strict check on another address
+// (IDLE_REPLY_TO, used as the support contact when SUPPORT_EMAIL is unset).
+// IDLE_REPLY_TO's own check is looser so existing installs' values keep
+// working for the idle-cleanup email; showing it on pages needs this one.
 func IsSafeContactAddress(v string) bool { return supportEmailShape.MatchString(v) }
 
 // Knobs lists operational settings; docs/advanced/ groups their reference by area.
@@ -712,19 +704,13 @@ func Knobs() []Knob {
 			}},
 		// SUPPORT_EMAIL names this install's own contact, shown instead of
 		// ours wherever the pages, emails and error messages say
-		// support@simple-host.app (auth.SupportContact, cmd/server/main.go;
-		// supportText, host/handler/account_data.go). Unset, an install
-		// that is not simple-host.app/simple-hack.app falls back to
-		// IDLE_REPLY_TO when that is also set, else "whoever runs this
-		// server" -- unchanged from before this setting existed.
+		// support@simple-host.app. Unset, an install that is not
+		// simple-host.app/simple-hack.app falls back to IDLE_REPLY_TO when
+		// that is also set, else "whoever runs this server".
 		// Unlike every other knob here, an invalid SUPPORT_EMAIL is logged
-		// and ignored rather than refused at startup (ContainsAny's looser
-		// check -- not this test, that IDLE_REPLY_TO above still uses --
-		// used to let unsafe addresses like o'connor@example.org through to
-		// chrome.go's rewriteSupportAddress, which spliced them straight
-		// into page text and mailto: links): this value reaches live pages,
-		// including inside <script> blocks, so it must never be the thing
-		// that takes a self-hosted install down.
+		// and ignored rather than refused at startup: this value reaches
+		// live pages, including inside <script> blocks, so it must never be
+		// the thing that takes a self-hosted install down.
 		{Env: "SUPPORT_EMAIL", Unit: "email address",
 			Value: func(l *Limits) string { return l.SupportEmail },
 			set: func(l *Limits, v string) error {
@@ -922,10 +908,6 @@ func init() {
 	knobDocs["NOTIFY_PUSH_PER_PERSON_PER_DAY"] = knobDoc{"data", "SIM-360: web-push sends allowed per recipient (owner or one visitor) per day across their own devices.", false, true}
 }
 
-// limitsFromEnv is Load's hook, split out so the test can call LoadLimits with
-// a fake environment instead.
-func limitsFromEnv() (Limits, error) { return LoadLimits(os.Getenv) }
-
 // Count words a number of things the way the product's copy does: "one day",
 // "7 days", "50 keys".
 func Count(n int, unit string) string {
@@ -940,15 +922,6 @@ func Count(n int, unit string) string {
 func Span(d time.Duration) string {
 	n, unit := spanUnit(d)
 	return Count(n, unit)
-}
-
-// SpanAdj is Span as an adjective: "15-minute", "7-day", "one-hour".
-func SpanAdj(d time.Duration) string {
-	n, unit := spanUnit(d)
-	if n == 1 {
-		return "one-" + unit
-	}
-	return strconv.Itoa(n) + "-" + unit
 }
 
 func spanUnit(d time.Duration) (int, string) {

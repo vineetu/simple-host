@@ -7,7 +7,6 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 )
 
-// GroupSweep contributes product work around the platform's marker reconciliation.
 type GroupSweep struct {
 	Name  string
 	Sweep func(context.Context)

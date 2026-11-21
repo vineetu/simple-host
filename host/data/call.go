@@ -1,9 +1,11 @@
 package data
 
-import "context"
-import ruleengine "github.com/vsriram/simple-host/host/storage/rules"
+import (
+	"context"
 
-import "github.com/vsriram/simple-host/host/data/rules"
+	model "github.com/vsriram/simple-host/host/model"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
+)
 
 // Call contains the resolved site, caller and policy facts for a storage operation.
 type Call struct {
@@ -15,7 +17,7 @@ type Call struct {
 	AccountID                               string
 	Owner, OwnerOnSite, VisitorAI           bool
 	VisitorID, LinkScope                    string
-	Resource                                rules.Resource
+	Resource                                model.Resource
 	ActiveChecked                           bool
 	SpamCheck                               string
 	CheckedPost                             bool

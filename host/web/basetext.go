@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"strings"
 	"sync"
-	"time"
 )
 
 const (
@@ -27,12 +26,8 @@ var (
 	// auth.js then treats a one-label host under any of them as a person
 	// host (authJSPatch).
 	authJSBases []string
-	// teamSiteFlatHostsText: this instance's TEAM_SITE_FLAT_HOSTS is on
-	// (set by SiteHandler.SetTeamSiteFlatHosts, hack_sites.go, only when the
-	// edition also runs hosted events). auth.js then decides the flat team
-	// case first, before the person-path heuristic, taking the part of a
-	// flat team-site host's one label before the first "--" as the site
-	// name for every path (authJSOwnHostChainFlat).
+	// teamSiteFlatHostsText: TEAM_SITE_FLAT_HOSTS is on, so auth.js gets
+	// authJSOwnHostChainFlat.
 	teamSiteFlatHostsText bool
 )
 
@@ -89,37 +84,14 @@ const authJSOwnHostChain = `    if (sub === "sites" && m) {
       ownOrigin = !contentHost;
     }`
 
-// authJSOwnHostChainFlat is authJSOwnHostChain for TEAM_SITE_FLAT_HOSTS: the
-// flat team case is decided first, before the person-path heuristic below
-// it, so a sub-path request (e.g. alpha--weekend.<host>/about/) still
-// resolves to the team's own site instead of trying "site is the first path
-// segment". A flat team-site host's one label is <team>--<event>; the site
-// is the part before the first "--", for every path. (A pre-existing event
-// slug that happens to contain "--", impossible for one created after this
-// shipped, still resolves correctly server-side —
-// handler/sitebase.go's exact-handle-match-wins siteHostParts — but this
-// client-side guess has no database to tell the two apart by shape alone.)
-const authJSOwnHostChainFlat = `    if (sub.indexOf("--") !== -1) {
+// authJSOwnHostChainFlat is authJSOwnHostChain for TEAM_SITE_FLAT_HOSTS: a
+// flat team-site host's one label is <team>--<event>, and the site is the part
+// before the first "--" for every path, decided before the person-path
+// heuristic so alpha--weekend.<host>/about/ still finds the team's site.
+var authJSOwnHostChainFlat = `    if (sub.indexOf("--") !== -1) {
       API_BASE = location.origin + "/v1/sites/" + sub.split("--")[0];
       ownOrigin = !contentHost;
-    } else if (sub === "sites" && m) {
-      API_BASE = location.origin + "/v1/u/" + m[1] + "/sites/" + m[2];
-    } else if (oneLabel && seg) {
-      // <handle>.<apex>/<site>/...: a person's own address, where the site is
-      // the first path segment. A <name>.<apex> a site has claimed serves that
-      // site at its root instead. Ask the host once which it is.
-      var bySeg = location.origin + "/v1/sites/" + seg[1];
-      var byLabel = location.origin + "/v1/sites/" + sub;
-      API_BASE = BASE_TOKEN;
-      baseReady = fetch(bySeg + "/me", {credentials: "include", cache: "no-store"}).then(
-        function (r) { return r.ok ? bySeg : byLabel; },
-        function () { return byLabel; });
-    } else {
-      // <site>.<handle>.<apex> (a site's own host) and every other host:
-      // the site is the first label, and /v1/ is same-origin.
-      API_BASE = location.origin + "/v1/sites/" + sub;
-      ownOrigin = !contentHost;
-    }`
+    } else ` + strings.TrimPrefix(authJSOwnHostChain, "    ")
 
 // SetTeamSiteFlatHostsText tells the served auth.js that this instance's
 // team sites are flat (SiteHandler.SetTeamSiteFlatHosts).
@@ -168,10 +140,8 @@ func (p *AssetPipeline) transformStatic(name string, b []byte) []byte {
 	}
 	if isAuthJS(name) {
 		b = bytes.Replace(b, []byte(markerSigninCard), servedSigninJS(), 1)
-		if p != nil && p.Pres.ProductAssets {
-			if p.Product.Rewrite != nil {
-				b = p.Product.Rewrite(name, b)
-			}
+		if p != nil && p.Pres.ProductAssets && p.Product.Rewrite != nil {
+			b = p.Product.Rewrite(name, b)
 		}
 		baseTextMu.RLock()
 		bases := authJSBases
@@ -183,7 +153,6 @@ func (p *AssetPipeline) transformStatic(name string, b []byte) []byte {
 		if flat {
 			b = bytes.Replace(b, []byte(authJSOwnHostChain), []byte(authJSOwnHostChainFlat), 1)
 		}
-		return b
 	}
 	return b
 }
@@ -225,22 +194,13 @@ func baseText(b []byte) []byte {
 	return bytes.ReplaceAll(b, []byte(canonicalBaseDomain), []byte(to))
 }
 
-// baseTextString is baseText for a string.
-func baseTextString(s string) string {
-	to := currentBaseTextTo()
-	if to == "" || !strings.Contains(s, canonicalBaseDomain) {
-		return s
-	}
-	return strings.ReplaceAll(s, canonicalBaseDomain, to)
-}
-
 // baseTextFS serves an embedded tree with baseText applied to every file that
 // mentions the base domain. Directories, and files that do not mention it, are
 // the embedded ones themselves (same FileInfo, same zero ModTime), so the file
 // server's headers are unchanged; a swapped file keeps its FileInfo but for
 // its size.
 //
-// p is the pipeline the tree is served for (AssetPipeline.staticFS): its
+// p is the pipeline the tree is served for (AssetPipeline.TextFS): its
 // presentation picks auth.js's form and its cache holds the swapped files.
 // The package's StaticFiles has none: it is the product-neutral view, read by
 // code that never reads auth.js, and swaps without caching.
@@ -328,5 +288,4 @@ type sizedInfo struct {
 	size int64
 }
 
-func (s sizedInfo) Size() int64        { return s.size }
-func (s sizedInfo) ModTime() time.Time { return s.FileInfo.ModTime() }
+func (s sizedInfo) Size() int64 { return s.size }

@@ -91,3 +91,32 @@ func (m *clientUIMemory) lookup(c Caller, now time.Time) (ui, known bool) {
 	}
 	return e.ui, true
 }
+
+// uiDeclaredForListing reports whether this connection declared MCP Apps UI
+// support, which decides only whether a screen tool is listed. A modern
+// request carries its capabilities on every call; an initialize-era client
+// declares them once, so clientUIMemory is its only record.
+func (s *Server) uiDeclaredForListing(caller Caller, params json.RawMessage, modern bool) bool {
+	if modern {
+		var envelope struct {
+			Meta map[string]json.RawMessage `json:"_meta"`
+		}
+		if json.Unmarshal(params, &envelope) != nil {
+			return false
+		}
+		raw, present := envelope.Meta["io.modelcontextprotocol/clientCapabilities"]
+		if !present {
+			return false
+		}
+		var caps struct {
+			Extensions map[string]json.RawMessage `json:"extensions"`
+		}
+		if json.Unmarshal(raw, &caps) != nil {
+			return false
+		}
+		_, ui := caps.Extensions["io.modelcontextprotocol/ui"]
+		return ui
+	}
+	ui, known := s.clientUI.lookup(caller, time.Now())
+	return known && ui
+}

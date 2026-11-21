@@ -15,9 +15,7 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Guided publishing, for the Website screen's state strip and polling (build
-// plan §4.4, slice 3). GET only: the caller's own team. The member publishes
-// with their own sign-in, naming owner (the event) on the site routes.
+// Guided publishing, for the Website screen's state strip and polling. GET only: the caller's own team. The member publishes with their own sign-in, naming owner (the event) on the site routes.
 
 func (h *participationHTTP) getTeamSiteStatus(w http.ResponseWriter, r *http.Request) {
 	a, ok := loadMember(w, r, h.members, r.PathValue("slug"), false, "participant")
@@ -75,8 +73,7 @@ func (h *participationHTTP) siteStatusJSON(ctx context.Context, ev hackmodel.Eve
 	if site != nil {
 		if v, err := h.teams.ActiveSiteVersion(ctx, site.ID); err == nil {
 			out["published_at"] = rfc3339Time(v.CreatedAt)
-			// published_via: whatever the live deploy's ?author= recorded (SIM-152),
-			// passed through as-is.
+			// published_via: whatever the live deploy's ?author= recorded, passed through as-is.
 			if author := strings.TrimSpace(v.Author); author != "" {
 				out["published_via"] = author
 			}

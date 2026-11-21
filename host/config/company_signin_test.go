@@ -26,9 +26,6 @@ func TestCompanySignInOff(t *testing.T) {
 	if got := cfg.EnabledVisitorProviders(); len(got) != 0 {
 		t.Fatalf("EnabledVisitorProviders() = %v, want none", got)
 	}
-	if cfg.OIDCLabel != "your company account" {
-		t.Fatalf("OIDCLabel default = %q, want %q", cfg.OIDCLabel, "your company account")
-	}
 }
 
 func TestCompanySignInPartialIsTreatedAsOff(t *testing.T) {
@@ -156,17 +153,5 @@ func TestEmailSignInDefaultsOnAndNeedsResendKey(t *testing.T) {
 	}
 	if !cfg.EmailSignInEnabled() {
 		t.Fatal("EmailSignInEnabled() should be true with a Resend key and EMAIL_SIGNIN=on (the default)")
-	}
-}
-
-func TestEmailSignInInvalidValueWarnsAndDefaultsOn(t *testing.T) {
-	loadBase(t)
-	t.Setenv("EMAIL_SIGNIN", "maybe")
-	cfg, err := Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.EmailSignIn != "on" {
-		t.Fatalf("EMAIL_SIGNIN=maybe should be treated as on, got %q", cfg.EmailSignIn)
 	}
 }

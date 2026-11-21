@@ -24,8 +24,6 @@ type JudgingSettingsInput struct {
 // order the settings list them.
 var AssignmentModes = []string{"open", "automatic", "manual", "panel"}
 
-// ChangeJudgingSettings checks the change's shape, then applies it under
-// the event lock.
 func (s *Service) ChangeJudgingSettings(ctx context.Context, eventID string, in JudgingSettingsInput) (model.Event, error) {
 	req := JudgingSettings{OrganiserJudges: in.OrganiserJudges, IncludeOrganisers: in.IncludeOrganisers, Mode: in.Mode,
 		ScoreMode: in.ScoreMode, TieCriterionID: in.TieCriterionID, PublicScores: in.PublicScores, PublicRanks: in.PublicRanks}
@@ -82,7 +80,6 @@ func (s *Service) RecordConflict(ctx context.Context, eventID string, by Conflic
 	return s.DeclareConflict(ctx, eventID, judgeID, teamID, declaredBy)
 }
 
-// RemoveConflict removes a judge's conflict; an organiser may name another judge.
 func (s *Service) RemoveConflict(ctx context.Context, ev model.Event, by ConflictCaller, teamID, requested string) error {
 	if err := JudgingLocked(ev); err != nil {
 		return err

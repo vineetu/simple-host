@@ -26,7 +26,7 @@ func (h *HackHandler) RegisterDemo(mux *http.ServeMux, slug string) {
 	if slug == "" {
 		slug = "demo"
 	}
-	h.demoSlug, h.views.demoSlug = slug, slug
+	h.views.demoSlug = slug
 	lookup := func(w http.ResponseWriter, r *http.Request, page bool) (model.Event, bool) {
 		w.Header().Set("Cache-Control", "no-store")
 		ev, err := h.events.DemoEvent(r.Context(), slug)

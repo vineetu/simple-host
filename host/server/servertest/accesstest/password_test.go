@@ -14,13 +14,13 @@ import (
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/server/servertest"
+	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 )
 
 func TestPasswordAccounts(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	post := func(path string, body map[string]string, key string) servertest.Resp {
-		return a.Do(t, "POST", path, servertest.JSONBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
+	a := NewApp(t)
+	post := func(path string, body map[string]string, key string) Resp {
+		return a.Do(t, "POST", path, rt.JSONBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
 	}
 	name := fmt.Sprintf("password-%d", time.Now().UnixNano())
 	a.Users.SetPasswordSignIn(true, true)
@@ -34,7 +34,7 @@ func TestPasswordAccounts(t *testing.T) {
 	if r := a.Do(t, "GET", "/v1/me", nil, map[string]string{"X-API-Key": key}); r.Status != 200 {
 		t.Fatalf("me: %d %s", r.Status, r.Body)
 	}
-	login := func(password, next string) servertest.Resp {
+	login := func(password, next string) Resp {
 		return post("/v1/auth/password", map[string]string{"login": "  " + strings.ToUpper(name) + " ", "password": password, "new_password": next}, "")
 	}
 	r := login("first password", "")
@@ -59,10 +59,10 @@ func TestPasswordAccounts(t *testing.T) {
 	// A password-issued key completes the unchanged connector consent flow.
 	redirect := "https://client.example/callback"
 	client := a.RegisterClient(t, redirect)
-	_, challenge := servertest.NewVerifier()
-	q := servertest.AuthorizeQuery(client, redirect, challenge)
+	_, challenge := NewVerifier()
+	q := AuthorizeQuery(client, redirect, challenge)
 	q.Set("resource", a.Srv.URL+"/mcp")
-	if code := servertest.CodeFrom(t, a.Consent(t, q, key, "allow")); code == "" {
+	if code := CodeFrom(t, a.Consent(t, q, key, "allow")); code == "" {
 		t.Fatal("no connector code")
 	}
 	// Admin-created credentials require replacement before issuing a key.
@@ -107,9 +107,9 @@ func TestPasswordAccounts(t *testing.T) {
 }
 
 func TestChangeOwnPassword(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	post := func(path string, body map[string]string, key string) servertest.Resp {
-		return a.Do(t, "POST", path, servertest.JSONBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
+	a := NewApp(t)
+	post := func(path string, body map[string]string, key string) Resp {
+		return a.Do(t, "POST", path, rt.JSONBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
 	}
 	name := fmt.Sprintf("change-password-%d", time.Now().UnixNano())
 	a.Users.SetPasswordSignIn(true, true)
@@ -138,8 +138,8 @@ func TestChangeOwnPassword(t *testing.T) {
 	// (BearerAuth) but must never be able to change the password itself.
 	redirect := "https://client.example/callback"
 	client := a.RegisterClient(t, redirect)
-	verifier, challenge := servertest.NewVerifier()
-	code := servertest.CodeFrom(t, a.Consent(t, servertest.AuthorizeQuery(client, redirect, challenge), key, "allow"))
+	verifier, challenge := NewVerifier()
+	code := CodeFrom(t, a.Consent(t, AuthorizeQuery(client, redirect, challenge), key, "allow"))
 	tok := a.Form(t, "/oauth/token", url.Values{
 		"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirect},
 		"client_id": {client}, "code_verifier": {verifier},
@@ -148,7 +148,7 @@ func TestChangeOwnPassword(t *testing.T) {
 		t.Fatalf("token: %d %s", tok.Status, tok.Body)
 	}
 	access := tok.JSON(t)["access_token"].(string)
-	connectorTry := a.Do(t, "POST", "/v1/me/password", servertest.JSONBody(map[string]string{"current_password": "first password", "new_password": "second password"}),
+	connectorTry := a.Do(t, "POST", "/v1/me/password", rt.JSONBody(map[string]string{"current_password": "first password", "new_password": "second password"}),
 		map[string]string{"Content-Type": "application/json", "Authorization": "Bearer " + access})
 	if connectorTry.Status != 403 || connectorTry.JSON(t)["code"] != "connector_not_allowed" {
 		t.Fatalf("connector token changed password: %d %s", connectorTry.Status, connectorTry.Body)
@@ -161,7 +161,7 @@ func TestChangeOwnPassword(t *testing.T) {
 	}
 
 	// The old password no longer signs in; the new one does.
-	loginWith := func(password string) servertest.Resp {
+	loginWith := func(password string) Resp {
 		return post("/v1/auth/password", map[string]string{"login": name, "password": password}, "")
 	}
 	if r := loginWith("first password"); r.Status != 401 {
@@ -181,13 +181,13 @@ func TestChangeOwnPassword(t *testing.T) {
 func TestPasswordAccountsDisabled(t *testing.T) {
 	for _, selfSignup := range []bool{false, true} {
 		t.Run(fmt.Sprintf("password-enabled-%v", selfSignup), func(t *testing.T) {
-			a := servertest.NewConnectorApp(t)
+			a := NewApp(t)
 			path := "/v1/auth/password"
 			if selfSignup {
 				a.Users.SetPasswordSignIn(true, false)
 				path += "/signup"
 			}
-			r := a.Do(t, "POST", path, servertest.JSONBody(map[string]string{"username": "signup-off", "password": "first password"}), map[string]string{"Content-Type": "application/json"})
+			r := a.Do(t, "POST", path, rt.JSONBody(map[string]string{"username": "signup-off", "password": "first password"}), map[string]string{"Content-Type": "application/json"})
 			if r.Status != 404 {
 				t.Fatalf("disabled: %d %s", r.Status, r.Body)
 			}
@@ -196,10 +196,10 @@ func TestPasswordAccountsDisabled(t *testing.T) {
 }
 
 func TestPasswordLoginLimit(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	a.Users.SetPasswordSignIn(true, true)
 	for i := 0; i < 11; i++ {
-		r := a.Do(t, "POST", "/v1/auth/password", servertest.JSONBody(map[string]string{"login": "missing-login", "password": "wrong password"}), map[string]string{"Content-Type": "application/json"})
+		r := a.Do(t, "POST", "/v1/auth/password", rt.JSONBody(map[string]string{"login": "missing-login", "password": "wrong password"}), map[string]string{"Content-Type": "application/json"})
 		if i < 10 {
 			if r.Status != 401 {
 				t.Fatalf("attempt %d: %d %s", i, r.Status, r.Body)
@@ -213,10 +213,10 @@ func TestPasswordLoginLimit(t *testing.T) {
 func TestPasswordIPLimitAcrossUsernames(t *testing.T) {
 	limits := config.DefaultLimits()
 	limits.RateSigninIP = config.Rate{Burst: 3, Every: time.Hour}
-	a := servertest.NewConnectorApp(t, edition.Default(limits))
+	a := NewApp(t, edition.Default(limits))
 	a.Users.SetPasswordSignIn(true, true)
 	for i := 0; i < 4; i++ {
-		r := a.Do(t, "POST", "/v1/auth/password", servertest.JSONBody(map[string]string{"login": fmt.Sprintf("missing-%d", i), "password": "wrong password"}), map[string]string{"Content-Type": "application/json"})
+		r := a.Do(t, "POST", "/v1/auth/password", rt.JSONBody(map[string]string{"login": fmt.Sprintf("missing-%d", i), "password": "wrong password"}), map[string]string{"Content-Type": "application/json"})
 		if i < 3 {
 			if r.Status != 401 {
 				t.Fatalf("attempt %d: %d %s", i, r.Status, r.Body)
@@ -240,9 +240,9 @@ func TestPasswordIPLimitAcrossUsernames(t *testing.T) {
 // account_passwords.login, not a second account. Length and control
 // characters are a sanity limit, not format gating.
 func TestPasswordSelfSignupUsesSyntheticUsername(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	post := func(path string, body map[string]string, key string) servertest.Resp {
-		return a.Do(t, "POST", path, servertest.JSONBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
+	a := NewApp(t)
+	post := func(path string, body map[string]string, key string) Resp {
+		return a.Do(t, "POST", path, rt.JSONBody(body), map[string]string{"Content-Type": "application/json", "X-API-Key": key})
 	}
 	a.Users.SetPasswordSignIn(true, true)
 
@@ -299,117 +299,17 @@ func TestPasswordSelfSignupUsesSyntheticUsername(t *testing.T) {
 	}
 }
 
-// TestResetPasswordResponseShowsRealLogin covers the adversary-review fix
-// (password.go's temporaryPasswordResponse): a self sign-up's users.username
-// is the synthetic "pw-..." value, so admin.html's "Temporary password for
-// <username>" must not show it -- the reset response now carries the
-// account's own login (account_passwords.login) too.
-func TestResetPasswordResponseShowsRealLogin(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	a.Users.SetPasswordSignIn(true, true)
-
-	raw := fmt.Sprintf("  Reset-Me+%d@Example.com  ", time.Now().UnixNano())
-	wantLogin := strings.ToLower(strings.TrimSpace(raw))
-	signup := a.Do(t, "POST", "/v1/auth/password/signup", servertest.JSONBody(map[string]string{"username": raw, "password": "first password"}), map[string]string{"Content-Type": "application/json"})
-	if signup.Status != 200 {
-		t.Fatalf("signup: %d %s", signup.Status, signup.Body)
-	}
-	id := signup.JSON(t)["id"].(string)
-	t.Cleanup(func() { _, _ = a.Database.Exec("DELETE FROM users WHERE id=$1", id) })
-	syntheticUsername, _ := signup.JSON(t)["username"].(string)
-	if syntheticUsername == wantLogin {
-		t.Fatalf("signup did not use a synthetic username")
-	}
-
-	reset := a.Do(t, "POST", "/v1/admin/users/"+id+"/password", servertest.JSONBody(map[string]string{"password": "reset password"}), map[string]string{"Content-Type": "application/json", "X-API-Key": a.Admin})
-	if reset.Status != 200 {
-		t.Fatalf("reset: %d %s", reset.Status, reset.Body)
-	}
-	got := reset.JSON(t)
-	if got["username"] != syntheticUsername {
-		t.Fatalf("reset response username: got %v want %q", got["username"], syntheticUsername)
-	}
-	if got["login"] != wantLogin {
-		t.Fatalf("reset response login: got %v want %q (admin.html would show the synthetic username instead)", got["login"], wantLogin)
-	}
-
-	// An admin-created account (temporary=true, username==login already)
-	// still gets a login field, equal to its username -- no regression.
-	adminRaw := fmt.Sprintf("admin-made-%d", time.Now().UnixNano())
-	created := a.Do(t, "POST", "/v1/admin/password-users", servertest.JSONBody(map[string]string{"username": adminRaw}), map[string]string{"Content-Type": "application/json", "X-API-Key": a.Admin})
-	if created.Status != 200 {
-		t.Fatalf("admin create: %d %s", created.Status, created.Body)
-	}
-	cdata := created.JSON(t)
-	adminID := cdata["id"].(string)
-	t.Cleanup(func() { _, _ = a.Database.Exec("DELETE FROM users WHERE id=$1", adminID) })
-	if cdata["login"] != adminRaw || cdata["username"] != adminRaw {
-		t.Fatalf("admin-created account login/username: got login=%v username=%v want %q", cdata["login"], cdata["username"], adminRaw)
-	}
-}
-
-// TestAdminUsersListLoginFieldGatesResetButton covers SIM-383: admin.html's
-// Users list shows "Reset password" only when passwordEnabled AND the row's
-// own u.login is non-empty, so an account with no password row never offers
-// to reset a password it doesn't have. This pins the GET /v1/admin/users
-// contract that gate depends on: "login" is "" for a passwordless account
-// and the account's own login for a password account.
-func TestAdminUsersListLoginFieldGatesResetButton(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	a.Users.SetPasswordSignIn(true, true)
-
-	noPassword := a.NewPerson(t, "nopw-sim383")
-	noPasswordUser, err := accountsrepo.GetUserByUsername(context.Background(), a.Database, noPassword.Email)
-	if err != nil {
-		t.Fatalf("look up passwordless account: %v", err)
-	}
-	noPasswordID := noPasswordUser.ID
-
-	raw := fmt.Sprintf("  Sim383+%d@Example.com  ", time.Now().UnixNano())
-	wantLogin := strings.ToLower(strings.TrimSpace(raw))
-	signup := a.Do(t, "POST", "/v1/auth/password/signup", servertest.JSONBody(map[string]string{"username": raw, "password": "first password"}), map[string]string{"Content-Type": "application/json"})
-	if signup.Status != 200 {
-		t.Fatalf("signup: %d %s", signup.Status, signup.Body)
-	}
-	pwID := signup.JSON(t)["id"].(string)
-	t.Cleanup(func() { _, _ = a.Database.Exec("DELETE FROM users WHERE id=$1", pwID) })
-
-	list := a.Do(t, "GET", "/v1/admin/users", nil, map[string]string{"X-API-Key": a.Admin})
-	if list.Status != 200 {
-		t.Fatalf("admin users: %d %s", list.Status, list.Body)
-	}
-	var sawNoPassword, sawPassword bool
-	for _, x := range list.JSON(t)["users"].([]any) {
-		u := x.(map[string]any)
-		switch u["id"] {
-		case noPasswordID:
-			sawNoPassword = true
-			if login, _ := u["login"].(string); login != "" {
-				t.Fatalf("passwordless account carries a login (would show Reset password with nothing to reset): %v", u)
-			}
-		case pwID:
-			sawPassword = true
-			if u["login"] != wantLogin {
-				t.Fatalf("password account login: got %v want %q", u["login"], wantLogin)
-			}
-		}
-	}
-	if !sawNoPassword || !sawPassword {
-		t.Fatalf("missing accounts from listing: no-password seen=%v password seen=%v", sawNoPassword, sawPassword)
-	}
-}
-
 // TestAccountExportShowsRealLoginForPasswordAccount covers the
 // adversary-review fix (account_data.go's accountDocuments, the "Download
 // my data" export): a self sign-up's account.json must carry its own login
 // alongside account_name, never just the synthetic "pw-..." value.
 func TestAccountExportShowsRealLoginForPasswordAccount(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	a.Users.SetPasswordSignIn(true, true)
 
 	raw := fmt.Sprintf("  Export-Me+%d@Example.com  ", time.Now().UnixNano())
 	wantLogin := strings.ToLower(strings.TrimSpace(raw))
-	signup := a.Do(t, "POST", "/v1/auth/password/signup", servertest.JSONBody(map[string]string{"username": raw, "password": "first password"}), map[string]string{"Content-Type": "application/json"})
+	signup := a.Do(t, "POST", "/v1/auth/password/signup", rt.JSONBody(map[string]string{"username": raw, "password": "first password"}), map[string]string{"Content-Type": "application/json"})
 	if signup.Status != 200 {
 		t.Fatalf("signup: %d %s", signup.Status, signup.Body)
 	}
@@ -425,9 +325,9 @@ func TestAccountExportShowsRealLoginForPasswordAccount(t *testing.T) {
 	if r.Status != 200 {
 		t.Fatalf("export: %d %s", r.Status, r.Body)
 	}
-	files := servertest.ZipFiles(t, r.Body)
+	files := acctZipFiles(t, r.Body)
 	var account map[string]any
-	if err := json.Unmarshal([]byte(servertest.FileUnder(t, files, "/account.json")), &account); err != nil {
+	if err := json.Unmarshal([]byte(acctFileUnder(t, files, "/account.json")), &account); err != nil {
 		t.Fatal(err)
 	}
 	if account["account_name"] != syntheticUsername {
@@ -449,12 +349,12 @@ func TestAccountExportShowsRealLoginForPasswordAccount(t *testing.T) {
 // touching the password account.
 func TestPasswordSelfSignupNeverHijacksEmailSignIn(t *testing.T) {
 	withEmailSignIn(t, true)
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	a.Users.SetPasswordSignIn(true, true)
 	ctx := context.Background()
 
 	address := fmt.Sprintf("hijack-target-%d@example.com", time.Now().UnixNano())
-	signup := a.Do(t, "POST", "/v1/auth/password/signup", servertest.JSONBody(map[string]string{"username": address, "password": "squatter password"}), map[string]string{"Content-Type": "application/json"})
+	signup := a.Do(t, "POST", "/v1/auth/password/signup", rt.JSONBody(map[string]string{"username": address, "password": "squatter password"}), map[string]string{"Content-Type": "application/json"})
 	if signup.Status != 200 {
 		t.Fatalf("attacker signup: %d %s", signup.Status, signup.Body)
 	}
@@ -487,7 +387,7 @@ func TestPasswordSelfSignupNeverHijacksEmailSignIn(t *testing.T) {
 
 	// The password account itself is untouched: the squatter's original
 	// password still signs in, into its own separate account.
-	signin := a.Do(t, "POST", "/v1/auth/password", servertest.JSONBody(map[string]string{"login": address, "password": "squatter password"}), map[string]string{"Content-Type": "application/json"})
+	signin := a.Do(t, "POST", "/v1/auth/password", rt.JSONBody(map[string]string{"login": address, "password": "squatter password"}), map[string]string{"Content-Type": "application/json"})
 	if signin.Status != 200 || signin.JSON(t)["id"] != pwID {
 		t.Fatalf("password account was affected by the separate email sign-in: %d %s", signin.Status, signin.Body)
 	}
@@ -498,10 +398,10 @@ func TestPasswordSelfSignupNeverHijacksEmailSignIn(t *testing.T) {
 // class, no format gating), but a username carrying a control character is
 // refused regardless of length.
 func TestPasswordUsernameBoundaries(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	a.Users.SetPasswordSignIn(true, true)
-	post := func(username string) servertest.Resp {
-		return a.Do(t, "POST", "/v1/auth/password/signup", servertest.JSONBody(map[string]string{"username": username, "password": "boundary password"}), map[string]string{"Content-Type": "application/json"})
+	post := func(username string) Resp {
+		return a.Do(t, "POST", "/v1/auth/password/signup", rt.JSONBody(map[string]string{"username": username, "password": "boundary password"}), map[string]string{"Content-Type": "application/json"})
 	}
 
 	// 1 rune, from the Unicode Private Use Area so it never collides with
@@ -534,14 +434,14 @@ func TestPasswordUsernameBoundaries(t *testing.T) {
 // The operator's "admin" row is protected even when its is_admin flag is
 // off (accounts.IsOperator): its password cannot be set here. Needs DB_DSN.
 func TestResetPasswordRefusesOperatorRow(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	a.Users.SetPasswordSignIn(true, true)
 	var id string
 	if err := a.Database.QueryRow(`UPDATE users SET is_admin = false WHERE username = 'admin' RETURNING id`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = a.Database.Exec(`UPDATE users SET is_admin = true WHERE id = $1`, id) })
-	r := a.Do(t, "POST", "/v1/admin/users/"+id+"/password", servertest.JSONBody(map[string]string{"password": "reset password"}), map[string]string{"Content-Type": "application/json", "X-API-Key": a.Admin})
+	r := a.Do(t, "POST", "/v1/admin/users/"+id+"/password", rt.JSONBody(map[string]string{"password": "reset password"}), map[string]string{"Content-Type": "application/json", "X-API-Key": a.Admin})
 	if r.Status != 400 {
 		t.Fatalf("operator row password reset: %d %s", r.Status, r.Body)
 	}

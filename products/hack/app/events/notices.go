@@ -22,11 +22,9 @@ type Need struct {
 	Kind, ID, Text, Section string
 	Count                   int
 	At                      time.Time
-	// Team is the team slug when the item opens one team's page.
-	Team string
+	Team                    string
 }
 
-// clip shortens a message to one line of at most n characters for a notice line.
 func clip(s string, n int) string {
 	s = oneLine(s)
 	r := []rune(s)
@@ -53,7 +51,7 @@ func (s *Service) NeedsYou(ctx context.Context, ev model.Event, m model.EventMem
 	return items
 }
 
-// organiserNeeds lists waiting applications and, SIM-443, teams that wrote to the organisers and this organiser has not opened yet.
+// organiserNeeds lists waiting applications and teams that wrote to the organisers and this organiser has not opened yet.
 func (s *Service) organiserNeeds(ctx context.Context, ev model.Event, userID string) []Need {
 	if ev.Stage == "archived" {
 		return nil
@@ -76,7 +74,6 @@ func (s *Service) organiserNeeds(ctx context.Context, ev model.Event, userID str
 	return items
 }
 
-// applicationsText is the to-do line for n waiting applications.
 func applicationsText(n int) string {
 	if n == 1 {
 		return "1 application is waiting for a decision."
@@ -84,7 +81,6 @@ func applicationsText(n int) string {
 	return fmt.Sprintf("%d applications are waiting for a decision.", n)
 }
 
-// judgeNeeds lists a judge's judging news that still holds.
 func (s *Service) judgeNeeds(ctx context.Context, ev model.Event, userID string, judges EntryEvaluator) []Need {
 	news, err := hackevents.ListNews(ctx, s.db, ev.ID, userID)
 	if err != nil || judges == nil {
@@ -99,7 +95,6 @@ func (s *Service) judgeNeeds(ctx context.Context, ev model.Event, userID string,
 	return items
 }
 
-// participantNeeds lists an approved participant's team to-dos while teams form.
 func (s *Service) participantNeeds(ctx context.Context, ev model.Event, userID string) []Need {
 	status, teamID, admin, err := hackevents.NoticeMemberStatus(ctx, s.db, ev.ID, userID)
 	if err != nil || status != "approved" {
@@ -233,7 +228,6 @@ func teamNewsText(eventTitle string, team model.EventTeam, n model.Notice) (stri
 	return "", "", false
 }
 
-// deadlineNewsText describes a team's deadline after an organiser changed its extra time.
 func deadlineNewsText(st model.TeamWriteState, zone string) string {
 	if st.HasOverride && st.Deadline.Valid {
 		return "Your team has until " + hackNoticeTime(st.Deadline.Time, zone) + " to finish its entry."
@@ -275,7 +269,6 @@ func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n mod
 	return line, ok, nil
 }
 
-// judgingOpenLine tells a judge judging opened and what their queue holds: empty, all scored, or count teams still to score.
 func judgingOpenLine(total, count int) string {
 	switch {
 	case total == 0:
@@ -286,7 +279,6 @@ func judgingOpenLine(total, count int) string {
 	return "Judging is open: you have " + teamCount(count) + " to score."
 }
 
-// judgingReminderLine writes a judging reminder for count unscored teams.
 func judgingReminderLine(ev model.Event, detail string, count int, zone string) (string, bool) {
 	if count == 0 || !ev.JudgingEndsAt.Valid || !ev.JudgingEndsAt.Time.After(time.Now()) {
 		return "", false
@@ -298,7 +290,6 @@ func judgingReminderLine(ev model.Event, detail string, count int, zone string) 
 	return "Judging closes " + hackNoticeTime(ev.JudgingEndsAt.Time, zone) + " (" + ReminderIn(time.Until(ev.JudgingEndsAt.Time)) + "). " + have, true
 }
 
-// teamCount is "1 team" or "N teams".
 func teamCount(n int) string {
 	if n == 1 {
 		return "1 team"
@@ -355,7 +346,6 @@ func (s *Service) sendNoticeBatch(ctx context.Context, sender interface {
 	return true, int64(len(stale) + len(valid)), nil
 }
 
-// mailGroup is one event's part of a notice email.
 type mailGroup struct {
 	slug, title string
 	lines       []string
@@ -400,7 +390,6 @@ func markMailSent(ctx context.Context, tx *sql.Tx, valid []string, sendErr error
 	return hackevents.FinishMailNotices(ctx, tx, valid, "sent")
 }
 
-// noticeMailSubject names the one event, or Simple Hack when the mail spans several.
 func noticeMailSubject(groups []*mailGroup, kind string) string {
 	if len(groups) == 1 {
 		return oneLine(groups[0].title) + ": " + noticeSubject(kind)
@@ -408,7 +397,6 @@ func noticeMailSubject(groups []*mailGroup, kind string) string {
 	return "Simple Hack: " + noticeSubject(kind)
 }
 
-// noticeMailBody writes each event's lines (at most 20, then a count) and link, then the footer saying how to turn the mail off.
 func noticeMailBody(groups []*mailGroup, kind, publicBaseURL string) string {
 	var body strings.Builder
 	for i, g := range groups {
@@ -434,7 +422,6 @@ func noticeMailBody(groups []*mailGroup, kind, publicBaseURL string) string {
 	return body.String()
 }
 
-// noticeSubjects is the email subject for each notice kind.
 var noticeSubjects = map[string]string{
 	hackevents.NoticeJoinRequest:        "someone asked to join your team",
 	hackevents.NoticeInvite:             "a team invited you to join",
@@ -453,7 +440,6 @@ var noticeSubjects = map[string]string{
 	hackevents.NoticeTeamInbound:        "a team wrote to the organisers",
 }
 
-// noticeSubject is the subject for kind, with a generic one for unknown kinds.
 func noticeSubject(kind string) string {
 	if subject, ok := noticeSubjects[kind]; ok {
 		return subject
@@ -461,7 +447,6 @@ func noticeSubject(kind string) string {
 	return "something is waiting for you"
 }
 
-// noticeLink opens the screen a notice kind is about.
 func noticeLink(kind, slug, publicBaseURL string) string {
 	base := publicBaseURL + "/e/" + slug
 	switch kind {
@@ -481,14 +466,12 @@ func noticeLink(kind, slug, publicBaseURL string) string {
 	return base + "/team?s=team"
 }
 
-// mailMember is the recipient's membership as a pending notice is re-checked.
 type mailMember struct {
 	role, status, stage string
 	teamID              sql.NullString
 	admin               bool
 }
 
-// receives reports whether n still concerns this member.
 func (m mailMember) receives(n model.MailNotice) bool {
 	onTeam := m.teamID.Valid && m.teamID.String == n.TeamID
 	if hackevents.NoticeTeamScoped(n.Kind) && !onTeam {
@@ -511,7 +494,6 @@ func (m mailMember) receives(n model.MailNotice) bool {
 	return true
 }
 
-// mailLine re-checks one pending notice against the state now and writes its line.
 func (s *Service) mailLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, evaluator EntryEvaluator) (string, bool, error) {
 	var m mailMember
 	var err error
@@ -586,7 +568,7 @@ var hackZoneAbbrFamiliar = map[string]string{
 	"Asia/Kolkata":   "IST", "Asia/Calcutta": "IST",
 }
 
-// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT"), the way tech_notes asks for ("times in WIB").
+// hackZoneAbbr is the short zone name for a moment in time ("WIB", "GMT").
 func hackZoneAbbr(t time.Time, ianaFallback string) string {
 	abbr, offsetSeconds := t.Zone()
 	if abbr != "" && !hackNumericZoneRe.MatchString(abbr) {
@@ -598,7 +580,7 @@ func hackZoneAbbr(t time.Time, ianaFallback string) string {
 	return hackGMTOffsetLabel(offsetSeconds)
 }
 
-// hackGMTOffsetLabel formats a UTC offset in seconds as "GMT", "GMT+9" or "GMT+5:30" -- the same shape ui.zoneAbbr's gmtOffsetLabel builds.
+// hackGMTOffsetLabel formats a UTC offset in seconds as "GMT", "GMT+9" or "GMT+5:30".
 func hackGMTOffsetLabel(offsetSeconds int) string {
 	if offsetSeconds == 0 {
 		return "GMT"
@@ -619,7 +601,6 @@ func hackGMTOffsetLabel(offsetSeconds int) string {
 // NoticeMailTiming gives notices time to be undone and limits repeat mail.
 func NoticeMailTiming() (time.Duration, time.Duration) { return time.Minute, 15 * time.Minute }
 
-// DeliverNoticeMail sends due notice batches.
 func (s *Service) DeliverNoticeMail(ctx context.Context, sender NoticeSender, delay, window time.Duration, publicBaseURL string, evaluator EntryEvaluator) (written int64, resultErr error) {
 	for i := 0; i < 50; i++ {
 		more, n, err := s.sendNoticeBatch(ctx, sender, delay, window, publicBaseURL, evaluator)
@@ -635,7 +616,6 @@ func (s *Service) DeliverNoticeMail(ctx context.Context, sender NoticeSender, de
 	return written, nil
 }
 
-// PruneNotices removes old notices before a mail sweep.
 func (s *Service) PruneNotices(ctx context.Context) (int64, error) {
 	n, err := hackevents.PruneNoticesCount(ctx, s.db)
 	if err != nil {
@@ -644,18 +624,15 @@ func (s *Service) PruneNotices(ctx context.Context) (int64, error) {
 	return n, err
 }
 
-// MarkNewsSeen dismisses a member's news.
 func (s *Service) MarkNewsSeen(ctx context.Context, eventID, userID string, ids []string) (int64, error) {
 	return hackevents.MarkNewsSeen(ctx, s.db, eventID, userID, ids)
 }
 
-// TodoEvent contains a member's pending work for one event.
 type TodoEvent struct {
 	Slug, Title, Role string
 	Items             []Need
 }
 
-// Todos collects pending work and email settings for a user.
 func (s *Service) Todos(ctx context.Context, userID string, judges EntryEvaluator) ([]TodoEvent, bool, bool, error) {
 	events, roles, err := hackevents.ListEventsForUser(ctx, s.db, userID)
 	if err != nil {

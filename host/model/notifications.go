@@ -26,7 +26,7 @@ type Notification struct {
 	PrevSecretUntil *time.Time `json:"prev_secret_until"`
 	AuthHeaderName  string     `json:"auth_header_name"`
 	AuthHeaderValue string     `json:"auth_header_value"`
-	// Kind is "webhook" (default), "mcp-event" or "web-push" (SIM-360).
+	// Kind is "webhook" (default), "mcp-event" or "web-push".
 	// SubscriberRole is "owner" (the site owner's device/endpoint) or
 	// "visitor" (a signed-in visitor's own device; OwnerID is then that
 	// visitor's own users.id, never another person's). PushP256dh/PushAuth
@@ -76,7 +76,7 @@ type NotificationDelivery struct {
 }
 
 // PushRule is the owner's per-site, per-resource (resource "" is the site
-// default) web-push routing and payload control (SIM-360).
+// default) web-push routing and payload control.
 type PushRule struct {
 	SiteID     string `json:"-"`
 	Resource   string `json:"resource"`

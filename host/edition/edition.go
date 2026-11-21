@@ -2,7 +2,11 @@
 // injects it into consumers; dynamic facts such as events and deadlines do not live here.
 package edition
 
-import "github.com/vsriram/simple-host/host/config"
+import (
+	"time"
+
+	"github.com/vsriram/simple-host/host/config"
+)
 
 // Edition holds immutable instance policy.
 type Edition struct {
@@ -28,7 +32,7 @@ func Default(limits config.Limits) *Edition {
 func (e *Edition) Limits() config.Limits { return e.or().limits }
 
 // host answers for a nil Edition (a bare &SiteHandler{} in a test), so it
-// behaves as Simple Host, as the old global's zero value did.
+// behaves as Simple Host.
 var host = Default(config.DefaultLimits())
 
 func (e *Edition) or() *Edition {
@@ -55,3 +59,6 @@ func (e *Edition) Notifications() NotificationPolicy { return e.or().notificatio
 
 // Limits is the operational snapshot supplied to application workflows.
 type Limits = config.Limits
+
+// Span formats an operational duration in the same words as the configured limits.
+func (e *Edition) Span(d time.Duration) string { return config.Span(d) }

@@ -46,7 +46,7 @@ func (h *AccessHandler) RegisterAccountRoutes(mux *http.ServeMux, authMiddleware
 	mux.Handle("POST /v1/admin/users/{id}/enable", authMiddleware(h.setUserSuspension(false)))
 	// Where nginx and Caddy send a request for a site whose folder carries the
 	// take-down marker (suspend.go).
-	mux.HandleFunc("GET /internal/suspended", h.suspendedPage)
+	mux.HandleFunc("GET /internal/suspended", h.ServeTakedown) // nginx and Caddy send a request for a site whose folder carries the marker here
 }
 
 // RegisterGateRoutes mounts the passcode, named-viewer and visitor sign-in

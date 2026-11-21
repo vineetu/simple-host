@@ -6,7 +6,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Dashboard is the organiser's judging progress.
 type Dashboard struct {
 	Coverage SetupCoverage
 	Teams    []DashboardTeam
@@ -16,7 +15,6 @@ type Dashboard struct {
 	Pool Pool
 }
 
-// DashboardTeam is one team that will be judged and how far its judging is.
 type DashboardTeam struct {
 	ID, Name         string
 	Scored, Eligible int
@@ -24,7 +22,6 @@ type DashboardTeam struct {
 	Flagged bool
 }
 
-// DashboardJudge is a current judge's done and assigned team counts.
 type DashboardJudge struct {
 	ID, Name       string
 	Done, Assigned int
@@ -37,7 +34,6 @@ type DashboardFormerJudge struct {
 	Counted, Assigned int
 }
 
-// JudgingDashboard reads judging progress for the teams that will be judged.
 func (s *Service) JudgingDashboard(ctx context.Context, ev model.Event, live func(model.NamedTeam) (bool, error)) (Dashboard, error) {
 	var d Dashboard
 	teams, err := s.TeamsWithMembers(ctx, ev.ID)

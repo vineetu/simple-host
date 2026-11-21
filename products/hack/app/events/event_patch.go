@@ -10,7 +10,6 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 )
 
-// EventPatch is one change to an event.
 type EventPatch struct {
 	AccentColor, Theme, Title, Tagline, About, Rules, Prizes, CocText, TimeZone, StartsAt, EndsAt *string
 	TeamFinding, ApplicationsOpen                                                                 *bool
@@ -29,7 +28,7 @@ var Crayons = []struct{ Name, Color string }{
 	{"orange", "#e9a45f"}, {"yellow", "#f2c94c"}, {"grass", "#86ab74"}, {"blush", "#ee8f92"},
 }
 
-// Themes are the public event page's whole-page styles (SIM-353).
+// Themes are the public event page's whole-page styles.
 var Themes = []string{"poster", "confetti", "boardroom", "garden", "terminal"}
 
 // The event field validators, shared by create and patch.
@@ -63,7 +62,6 @@ func EventExpectedParticipants(n int) error {
 	return nil
 }
 
-// EventTimeZone is the trimmed IANA zone, UTC when empty.
 func EventTimeZone(s string) (string, *time.Location, error) {
 	tz := strings.TrimSpace(s)
 	if tz == "" {
@@ -80,7 +78,6 @@ func EventTimeZone(s string) (string, *time.Location, error) {
 	return tz, loc, nil
 }
 
-// EventEnds refuses an end before the start.
 func EventEnds(starts, ends sql.NullTime, zone string) error {
 	if ends.Valid && starts.Valid && EventOver(ends.Time, zone).Before(starts.Time) {
 		return &Error{Code: "invalid_ends_at", Message: "ends_at must not be before starts_at"}
@@ -219,7 +216,6 @@ func (p EventPatch) apply(ev *model.Event) (deadlineChanged, entryRequiredChange
 	return p.SubmissionDeadline != nil, p.EntryRequired != nil, err
 }
 
-// applyPage writes the public page's look and text fields and the zone.
 func (p EventPatch) applyPage(ev *model.Event) error {
 	return first(
 		set(&ev.AccentColor, p.AccentColor, oneOf(crayonNames(), &Error{Code: "invalid_accent_color", Message: "choose a crayon colour or an empty string for automatic"})),
@@ -252,7 +248,6 @@ func (p EventPatch) reanchorDates(ev *model.Event, old, loc *time.Location) {
 	}
 }
 
-// applyDates writes the start and end in the event's zone and refuses an end before the start.
 func (p EventPatch) applyDates(ev *model.Event, loc *time.Location) error {
 	return first(
 		set(&ev.StartsAt, p.StartsAt, func(s string) (sql.NullTime, error) { return ParseEventTime(s, loc, "starts_at") }),
@@ -261,7 +256,6 @@ func (p EventPatch) applyDates(ev *model.Event, loc *time.Location) error {
 	)
 }
 
-// applySettings writes registration, organiser, submission and judging fields.
 func (p EventPatch) applySettings(ev *model.Event, loc *time.Location) error {
 	return first(
 		set(&ev.TeamFinding, p.TeamFinding, accept[bool]),
@@ -292,7 +286,6 @@ func (p EventPatch) applySettings(ev *model.Event, loc *time.Location) error {
 	)
 }
 
-// clearableTime parses an event time in loc, where "" clears it.
 func clearableTime(loc *time.Location, field string) func(string) (sql.NullTime, error) {
 	return func(s string) (sql.NullTime, error) {
 		if strings.TrimSpace(s) == "" {

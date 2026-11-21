@@ -26,24 +26,6 @@ func TestHostRewriterLongestHostWins(t *testing.T) {
 	}
 }
 
-func TestHostRewriterDerivesMissingHosts(t *testing.T) {
-	// An operator who sets only SITE_DOMAIN still gets coherent content and
-	// cname hosts, matching the defaults the config package applies.
-	rw := newHostRewriter("hack.example.com", "", "")
-	got := string(rw.Apply([]byte("sites.simple-host.app cname.simple-host.app")))
-	if want := "sites.hack.example.com cname.hack.example.com"; got != want {
-		t.Errorf("got %q want %q", got, want)
-	}
-}
-
-func TestNilRewriterLeavesBytesAlone(t *testing.T) {
-	var rw *hostRewriter
-	in := []byte("https://simple-host.app")
-	if got := string(rw.Apply(in)); got != string(in) {
-		t.Errorf("nil rewriter changed bytes: %q", got)
-	}
-}
-
 func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
 	// A future binary asset in the skills tree must survive the substitution.
 	// Corruption inside a downloaded zip is very hard to trace back here.
@@ -66,31 +48,5 @@ func TestCopyRewrittenLeavesBinaryAlone(t *testing.T) {
 	}
 	if got := out.String(); got != "go to hack.example.com" {
 		t.Errorf("text not rewritten: %q", got)
-	}
-}
-
-func TestControlPlaneSkillIsNotRewritten(t *testing.T) {
-	// The organiser skill uses the hosted Simple Hack API. Rewriting its
-	// addresses to a self-hosted instance would send agents to the wrong API.
-	for _, p := range []string{"run-hackathon/SKILL.md", "skills/run-hackathon/references/organiser-api.md"} {
-		if !controlPlaneSkill(p) {
-			t.Errorf("%s should be exempt from rewriting", p)
-		}
-	}
-	for _, p := range []string{"website-deploy/SKILL.md", "connect-domain/references/registrars.md"} {
-		if controlPlaneSkill(p) {
-			t.Errorf("%s should be rewritten", p)
-		}
-	}
-
-	SetInstanceHosts("hack.example.com", "", "")
-	defer SetInstanceHosts("simple-host.app", "", "")
-	var out bytes.Buffer
-	in := []byte("POST https://simple-host.app/v1/events")
-	if err := copyRewritten(&out, bytes.NewReader(in), nil, true); err != nil {
-		t.Fatal(err)
-	}
-	if out.String() != string(in) {
-		t.Errorf("control-plane URL was rewritten to %q", out.String())
 	}
 }

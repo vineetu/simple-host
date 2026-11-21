@@ -70,8 +70,6 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, 200, map[string]any{"site": name})
 }
 
-// homePathExists reports whether the home site has a page at rel, at either
-// spelling of its address.
 func (h *SiteHandler) homePathExists(s model.Site, rel string) bool {
 	root, err := os.OpenRoot(h.Disk.SiteDir(s.UserID, s.Name) + "/current")
 	if err != nil {
@@ -82,7 +80,7 @@ func (h *SiteHandler) homePathExists(s model.Site, rel string) bool {
 }
 
 func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user model.User, base string) bool {
-	s, has, err := h.siteFacts().HomeSite(r.Context(), user.ID)
+	s, has, err := h.SitesSvc().HomeSite(r.Context(), user.ID)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return true
@@ -93,7 +91,7 @@ func (h *SiteHandler) serveHomePage(w http.ResponseWriter, r *http.Request, user
 	w.Header().Set("Cache-Control", "no-store")
 	redirectSibling := func() bool {
 		seg, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
-		if other, err := h.siteFacts().AddressedSite(r.Context(), user.ID, seg); err == nil {
+		if other, err := h.SitesSvc().AddressedSite(r.Context(), user.ID, seg); err == nil {
 			_, escTail, _ := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 			if other.ID == s.ID {
 				target := "/" + strings.TrimLeft(escTail, "/")

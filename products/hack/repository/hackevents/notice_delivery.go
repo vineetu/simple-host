@@ -11,7 +11,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Notices: "notify people when something waits on them" (2026-11-02, audit item 7, host/db/migrations/zw-hack-wait-notices.sql).
+// Notices: notify people when something waits on them.
 const (
 	NoticeJoinRequest        = "join_request"
 	NoticeInvite             = "invite"
@@ -24,11 +24,10 @@ const (
 	TeamAdminNotice          = "team_admin"
 	NoticeTeamLocked         = "team_locked"
 	NoticeTeamRemoved        = "team_removed"
-	// 0003-hack-notices-judges-messages.sql.
-	NoticeJudgingOpen     = "judging_open"
-	NoticeJudgingReminder = "judging_reminder"
-	NoticeTeamMessage     = "team_message"
-	// 0015-hack-team-to-organiser-messages.sql: a team member wrote to the organisers; goes to every organiser of the event.
+	NoticeJudgingOpen        = "judging_open"
+	NoticeJudgingReminder    = "judging_reminder"
+	NoticeTeamMessage        = "team_message"
+	// A team member wrote to the organisers; goes to every organiser of the event.
 	NoticeTeamInbound = "team_inbound"
 )
 
@@ -59,7 +58,6 @@ func NoticeTeamScoped(kind string) bool {
 // emailableSQL is the one rule for who may be emailed, used both when a notice is queued and again at send time.
 const emailableSQL = `(u.username LIKE '%@%' AND NOT u.event_account AND u.suspended_at IS NULL AND COALESCE(p.email_updates, true))`
 
-// NotifyUsers queues one notice of kind for each user.
 func NotifyUsers(ctx context.Context, q sqlkit.Querier, eventID, kind, teamID, refID, detail string, userIDs ...string) error {
 	_, err := NotifyUsersCount(ctx, q, eventID, kind, teamID, refID, detail, userIDs...)
 	return err
@@ -90,7 +88,6 @@ func NotifyUsersCount(ctx context.Context, q sqlkit.Querier, eventID, kind, team
 	return res.RowsAffected()
 }
 
-// NotifyTeamAdmins queues kind for every current admin of the team.
 func NotifyTeamAdmins(ctx context.Context, q sqlkit.Querier, eventID, teamID, kind, refID, detail string) error {
 	ids, err := userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND team_id = $2 AND team_admin`, eventID, teamID)
 	if err != nil {
@@ -104,7 +101,6 @@ func TeamMemberIDs(ctx context.Context, q sqlkit.Querier, eventID, teamID, excep
 	return userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND team_id = $2 AND user_id::text <> $3`, eventID, teamID, except)
 }
 
-// NotifyTeamMembers queues kind for everyone on the team but except.
 func NotifyTeamMembers(ctx context.Context, q sqlkit.Querier, eventID, teamID, kind, detail, except string) error {
 	ids, err := TeamMemberIDs(ctx, q, eventID, teamID, except)
 	if err != nil {
@@ -113,7 +109,6 @@ func NotifyTeamMembers(ctx context.Context, q sqlkit.Querier, eventID, teamID, k
 	return NotifyUsers(ctx, q, eventID, kind, teamID, "", detail, ids...)
 }
 
-// NotifyOrganisers queues kind for every organiser of the event.
 func NotifyOrganisers(ctx context.Context, q sqlkit.Querier, eventID, kind, refID string) error {
 	ids, err := userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND role = 'organiser'`, eventID)
 	if err != nil {
@@ -122,7 +117,6 @@ func NotifyOrganisers(ctx context.Context, q sqlkit.Querier, eventID, kind, refI
 	return NotifyUsers(ctx, q, eventID, kind, "", refID, "", ids...)
 }
 
-// ListJudgeMemberIDs lists the event's current judge members.
 func ListJudgeMemberIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
 	return userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id = $1 AND role = 'judge'`, eventID)
 }
@@ -141,7 +135,6 @@ func NotifyJudgingOpen(ctx context.Context, q sqlkit.Querier, eventID string) er
 	return NotifyUsers(ctx, q, eventID, kind, "", "", "", ids...)
 }
 
-// NoticeIsJudge reports whether the person is currently a judge member of the event.
 func NoticeIsJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (bool, error) {
 	var ok bool
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'judge')`,
@@ -161,7 +154,6 @@ func SupersedeTeamNotices(ctx context.Context, q sqlkit.Querier, teamID, userID 
 	return err
 }
 
-// TeamMembersWhoKnew lists the team's members.
 func TeamMembersWhoKnew(ctx context.Context, q sqlkit.Querier, eventID, teamID, except string, kinds ...string) ([]string, error) {
 	return userIDs(ctx, q, `
 		SELECT m.user_id FROM event_members m
@@ -189,7 +181,6 @@ func userIDs(ctx context.Context, q sqlkit.Querier, query string, args ...any) (
 	return out, rows.Err()
 }
 
-// Notice is one event_notices row, with what a line about it needs.
 type Notice = model.Notice
 
 // ListNews is the person's unseen news lines in one event, newest first.
@@ -230,10 +221,8 @@ func MarkNewsSeen(ctx context.Context, q sqlkit.Querier, eventID, userID string,
 	return res.RowsAffected()
 }
 
-// PendingJoinRequest is one person waiting on a team's admins.
 type PendingJoinRequest = model.PendingJoinRequest
 
-// PendingInvite is one team waiting on an invited person.
 type PendingInvite = model.PendingInvite
 
 // ListPendingJoinRequests lists the requests waiting on the team's admins, oldest first.

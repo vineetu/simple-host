@@ -48,7 +48,6 @@ func cleanAnnouncementURL(raw string) (string, bool) {
 	return escapeURLBytes(u.String()), true
 }
 
-// unsafeURLRune reports control, space and invisible formatting characters.
 func unsafeURLRune(r rune) bool {
 	return unicode.IsControl(r) || unicode.IsSpace(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp)
 }
@@ -63,7 +62,6 @@ func safeHTTPURL(u *url.URL) bool {
 // urlEscapes are the ASCII bytes percent-encoded so an address is safe in HTML.
 const urlEscapes = "\"<>'`\\"
 
-// escapeURLBytes percent-encodes non-ASCII bytes and urlEscapes.
 func escapeURLBytes(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -134,7 +132,6 @@ func wordBefore(before string) bool {
 	return r != utf8.RuneError && (r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r))
 }
 
-// scanLabelledLink reads "[label](address)" at the start of s.
 func scanLabelledLink(s string) (label, addr string, n int, ok bool) {
 	end := strings.IndexByte(s, ']')
 	if end < 2 || end+1 >= len(s) || s[end+1] != '(' {

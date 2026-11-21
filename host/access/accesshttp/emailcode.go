@@ -27,20 +27,9 @@ func writeEmailCodeError(w http.ResponseWriter, status int, body httpx.ErrorResp
 	httpx.WriteJSON(w, status, body)
 }
 
-// issueEmailCode normalizes the address and sends a challenge. The email
-// carries a sign-in link only for a dashboard request that sent a nonce hash
-// (the link then works only in the browser holding that nonce); otherwise it
-// carries the code alone.
-//
-// ip and geoBlock gate every request, new address or existing: when the
-// request's country is on SIGNUP_BLOCKED_COUNTRIES, no code is ever sent and
-// no auth_token row is created — there is no "does this address already have
-// an account" check first (deliberately: that lookup is itself the thing a
-// probe could use to enumerate addresses, and the owner decided a blanket
-// refusal is simpler and sufficient). geoBlock's zero value (the default,
-// feature off) never looks anything up, so this is a no-op for every caller
-// until the knob is set.
-func issueEmailCode(ctx context.Context, database *sql.DB, mailer signInCodeSender, limiter *httpx.RateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock signupGeoBlock, authTTL time.Duration) (string, int, int, httpx.ErrorResponse) {
+// issueEmailCode is accounts.IssueEmailCode with this transport's messages,
+// handle actions and error body.
+func issueEmailCode(ctx context.Context, database *sql.DB, mailer signInCodeSender, limiter *httpx.RateLimiter, address, linkBase string, purpose string, siteID, nonceHash sql.NullString, ip string, geoBlock accounts.SignupGeoBlock, authTTL time.Duration) (string, int, int, httpx.ErrorResponse) {
 	address, expires, status, failure := accounts.New(database).IssueEmailCode(ctx, mailer, limiter.Allow, address, linkBase, purpose, siteID, nonceHash, ip, geoBlock, authTTL, web.EmailSignInEnabled, codeMessages(), codeHandleActions(database))
 	return address, expires, status, codeFailureResponse(failure)
 }
@@ -76,3 +65,9 @@ func nonceMatches(nonce, hash string) bool {
 	sum := sha256.Sum256([]byte(nonce))
 	return subtle.ConstantTimeCompare([]byte(base64.RawURLEncoding.EncodeToString(sum[:])), []byte(hash)) == 1
 }
+
+// signupBlockedCode is the stable error code for a refused sign-in/sign-up.
+const signupBlockedCode = "signup_unavailable_region"
+
+// signupBlockedError is the JSON body for a refused sign-in/sign-up (403).
+var signupBlockedError = httpx.ErrorResponse{Error: web.SignupBlockedMessage, Code: signupBlockedCode}

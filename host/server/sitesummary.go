@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -30,15 +29,9 @@ func runSiteSummaryBackfill(args []string) int {
 		fmt.Fprintln(os.Stderr, "limit must be non-negative")
 		return 2
 	}
-	dsn := os.Getenv("DB_DSN")
-	if dsn == "" {
-		fmt.Fprintln(os.Stderr, "DB_DSN is not set")
-		return 2
-	}
-	database, err := sql.Open("postgres", dsn)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "open postgres:", err)
-		return 1
+	database, code := openCommandDB()
+	if database == nil {
+		return code
 	}
 	defer database.Close()
 	dataDir := os.Getenv("DATA_DIR")

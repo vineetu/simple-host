@@ -7,7 +7,7 @@ import (
 )
 
 type Config struct {
-	// SIM-394 hack organiser assistant (Hack edition only).
+	// Hack organiser assistant (Hack edition only).
 	AssistantBaseURL         string
 	AssistantModel           string
 	AssistantAPIKey          string
@@ -37,7 +37,6 @@ func Load(getenv func(string) string) (Config, []string, error) {
 	return cfg, warnings, nil
 }
 
-// loadAssistant reads the SIM-394 hack organiser assistant settings.
 func loadAssistant(cfg *Config, getenv func(string) string) (warnings []string) {
 	cfg.AssistantBaseURL = strings.TrimSpace(getenv("ASSISTANT_BASE_URL"))
 	cfg.AssistantModel = strings.TrimSpace(getenv("ASSISTANT_MODEL"))
@@ -60,10 +59,9 @@ func loadAssistant(cfg *Config, getenv func(string) string) (warnings []string) 
 			warnings = append(warnings, fmt.Sprintf("warning: invalid ASSISTANT_DAILY_QUESTIONS %q; using the default", v))
 		}
 	}
-	// Strictly > 0, not >= 0: a price of 0 makes every reservation 0 --
-	// with MonthlyBudgetUSD > 0 that is an uncapped assistant, not a
-	// cheap one, since AssistantReserve's "spent + reserveMicro >
-	// budgetMicro" check can then never trip (adversarial review).
+	// Strictly > 0, not >= 0: a price of 0 makes every reservation 0, which with
+	// MonthlyBudgetUSD > 0 is an uncapped assistant, since AssistantReserve's
+	// "spent + reserveMicro > budgetMicro" check could never trip.
 	cfg.AssistantPriceInputPerMTokUSD = 0.5
 	if v := strings.TrimSpace(getenv("ASSISTANT_PRICE_INPUT_PER_MTOK_USD")); v != "" {
 		if n, err := strconv.ParseFloat(v, 64); err == nil && n > 0 {

@@ -12,15 +12,14 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
-// Leave this event (SIM-340).
-
 // LeaveStateChangedMessage is returned when a leave preview is stale.
 const LeaveStateChangedMessage = "something changed since you checked: read the leave preview again"
 
-// LeaveRequest is what the caller sent to POST .../leave, shape-checked.
 type LeaveRequest struct{ Confirm, SuccessorID, Close string }
 
-// LeaveResult is the committed leave, as the route answers it.
+// LeaveResult is the committed leave, as the route answers it. Event is the
+// event after the leave (archived when the leave ended it); the route runs
+// the follow-ups outside the transaction from it, Case and Outcome.
 type LeaveResult struct {
 	Event       model.Event       `json:"-"`
 	Left        bool              `json:"left"`
@@ -30,7 +29,6 @@ type LeaveResult struct {
 	Successor   map[string]string `json:"successor,omitempty"`
 }
 
-// leaveOutcomes names what happened to the event for each close action.
 var leaveOutcomes = map[string]string{"": "kept", "end": "ended", "delete": "deleted"}
 
 // leavePlan is a checked leave: the leaver's role, their case and what the request asked for on top.
@@ -39,8 +37,10 @@ type leavePlan struct {
 	successor              model.OtherOrganiser
 }
 
-// Leave removes the caller's own membership of the event at slug, in the event/member/team lock order every hack writer uses.
-func (s *Service) Leave(ctx context.Context, slug, userID string, req LeaveRequest) (res LeaveResult, err error) {
+// Leave removes the caller's own membership of the event at slug, in the
+// event/member/team lock order every hack writer uses; trash removes team
+// sites when the leave deletes the event.
+func (s *Service) Leave(ctx context.Context, slug, userID string, req LeaveRequest, trash func(context.Context, string, string) error) (res LeaveResult, err error) {
 	if res.Event, err = eventrepo.GetEventBySlug(ctx, s.db, slug); err != nil {
 		return res, err
 	}
@@ -57,13 +57,16 @@ func (s *Service) Leave(ctx context.Context, slug, userID string, req LeaveReque
 	if err != nil {
 		return res, err
 	}
-	if res.TeamDeleted, err = s.executeLeave(ctx, tx, &ev, userID, plan); err != nil {
+	if res.TeamDeleted, err = s.executeLeave(ctx, tx, &ev, userID, plan, trash); err != nil {
 		return res, err
 	}
 	if err := tx.Commit(); err != nil {
 		return res, err
 	}
-	s.afterLeave(ctx, ev, plan)
+	if plan.close == "end" {
+		ev.Stage = "archived"
+	}
+	res.Event = ev
 	res.Left, res.Case, res.Outcome = true, plan.leaveCase, leaveOutcomes[plan.close]
 	if plan.leaveCase == "creator" {
 		res.Successor = map[string]string{"display_name": plan.successor.DisplayName}
@@ -100,7 +103,6 @@ func planLeave(ctx context.Context, tx *sql.Tx, ev model.Event, userID string, r
 	return plan, nil
 }
 
-// leaveCase names the caller's leave case.
 func leaveCase(ev model.Event, member model.EventMember, status, userID string, others []model.OtherOrganiser) string {
 	isCreator := ev.CreatedBy.Valid && ev.CreatedBy.String == userID
 	return hackevents.LeaveCaseFor(member.Role, status, isCreator, len(others))
@@ -138,7 +140,6 @@ func checkLeaveRequest(leaveCase string, req LeaveRequest, others []model.OtherO
 	return model.OtherOrganiser{}, &Error{Code: "invalid_successor", Message: "pick another organiser of this event"}
 }
 
-// checkCanEnd refuses ending an event nobody has joined.
 func checkCanEnd(ctx context.Context, tx *sql.Tx, eventID string) error {
 	participants, _, _, err := eventrepo.CountEventMembers(ctx, tx, eventID)
 	if err == nil && participants == 0 {
@@ -148,7 +149,7 @@ func checkCanEnd(ctx context.Context, tx *sql.Tx, eventID string) error {
 }
 
 // executeLeave does every write of a checked leave and reports whether the leaver's team went with them.
-func (s *Service) executeLeave(ctx context.Context, tx *sql.Tx, ev *model.Event, userID string, plan leavePlan) (bool, error) {
+func (s *Service) executeLeave(ctx context.Context, tx *sql.Tx, ev *model.Event, userID string, plan leavePlan, trash func(context.Context, string, string) error) (bool, error) {
 	if plan.role == "judge" || plan.role == "organiser" {
 		if err := eventrepo.RecordFormerJudge(ctx, tx, ev.ID, userID, plan.role); err != nil {
 			return false, err
@@ -165,14 +166,14 @@ func (s *Service) executeLeave(ctx context.Context, tx *sql.Tx, ev *model.Event,
 		}
 	case plan.close == "delete":
 		// The event-and-account cascade removes this membership and every other.
-		return false, s.deleteEventTx(ctx, tx, *ev)
+		return false, s.events.DeleteEventTx(ctx, tx, *ev, trash)
 	}
 	return leaveMembership(ctx, tx, ev.ID, userID)
 }
 
 // endEventTx archives the event its last organiser is leaving and drops its open invites.
 func (s *Service) endEventTx(ctx context.Context, tx *sql.Tx, ev *model.Event) error {
-	updated, err := s.archiveEventTx(ctx, tx, ev.ID, ev.Stage)
+	updated, err := s.events.ArchiveEventTx(ctx, tx, ev.ID, ev.Stage, s.entries.SettleEventTx)
 	if err != nil {
 		return err
 	}
@@ -183,8 +184,7 @@ func (s *Service) endEventTx(ctx context.Context, tx *sql.Tx, ev *model.Event) e
 
 // leaveMembership deletes the caller's own membership and reports whether their team was deleted with it.
 func leaveMembership(ctx context.Context, tx *sql.Tx, eventID, userID string) (bool, error) {
-	ops := eventrepo.LeaveOperations{LockMember: teamrepo.LockMember, LockTeam: teamrepo.LockTeam, DeleteTeamIfEmpty: teamrepo.DeleteTeamIfEmpty, EnsureTeamAdmin: teamrepo.EnsureTeamAdmin}
-	teamID, err := eventrepo.LeaveMembership(ctx, tx, eventID, userID, true, ops)
+	teamID, err := teamrepo.LeaveMembership(ctx, tx, eventID, userID, true)
 	if err != nil {
 		return false, err
 	}
@@ -194,17 +194,4 @@ func leaveMembership(ctx context.Context, tx *sql.Tx, eventID, userID string) (b
 	var still bool
 	err = eventrepo.TeamExists(ctx, tx, teamID, &still)
 	return err == nil && !still, err
-}
-
-// afterLeave runs the out-of-transaction follow-ups of a committed leave.
-func (s *Service) afterLeave(ctx context.Context, ev model.Event, plan leavePlan) {
-	switch {
-	case plan.close == "end":
-		ev.Stage = "archived"
-		s.afterEnd(ctx, ev)
-	case plan.close == "delete":
-		s.removeEventFiles(ev)
-	case plan.leaveCase == "participant":
-		s.removeOrphanTeamSites(ctx, ev)
-	}
 }

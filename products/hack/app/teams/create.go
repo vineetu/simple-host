@@ -20,10 +20,8 @@ const (
 	codeTries = 8
 )
 
-// errCodesExhausted means every join code tried for one slug collided.
 var errCodesExhausted = errors.New("team join codes exhausted")
 
-// errTeamNameTaken refuses a team name another team in the event has.
 func errTeamNameTaken() error {
 	return &Error{Code: "team_name_taken", Message: "another team already has that name"}
 }

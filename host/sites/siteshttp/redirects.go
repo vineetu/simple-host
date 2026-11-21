@@ -65,21 +65,6 @@ func loadRedirects(root *os.Root, max int) *redirects.Rules {
 	return rules
 }
 
-// rootContentExists: something of the site is already at rel, so a rule
-// that is not forced stands aside (pagepath.Taken).
-func rootContentExists(root *os.Root, rel string) bool {
-	return pagepath.Taken(root, rel)
-}
-
-func (h *SiteHandler) applyRedirect(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) bool {
-	root, err := os.OpenRoot(h.Disk.SiteDir(userID, siteName))
-	if err != nil {
-		return false
-	}
-	defer root.Close()
-	return h.applyRootRedirect(w, r, root, rel, publicPath)
-}
-
 func (h *SiteHandler) applyRootRedirect(w http.ResponseWriter, r *http.Request, siteRoot *os.Root, rel, publicPath string) bool {
 	rules := loadRedirects(siteRoot, h.Limits.RedirectsMaxRules)
 	if rules == nil {
@@ -94,19 +79,17 @@ func (h *SiteHandler) applyRootRedirect(w http.ResponseWriter, r *http.Request, 
 	if root != nil {
 		defer root.Close()
 	}
-	if !m.Force && root != nil && rootContentExists(root, rel) {
+	if !m.Force && root != nil && pagepath.Taken(root, rel) {
 		return false
 	}
-	// The site's public mount on this address ("" at a host root,
-	// /<handle>/<site> on a person path), compared decoded so an equivalent
-	// encoding (/%6Fld for /old) keeps it.
+	// The site's public mount on this address ("" at a host root, /<handle>/<site> on a person path),
+	// compared decoded so an equivalent encoding (/%6Fld for /old) keeps it.
 	prefix := ""
 	if decoded, err := url.PathUnescape(publicPath); err == nil {
 		if p, ok := strings.CutSuffix(strings.TrimRight(decoded, "/"), strings.TrimRight(reqPath, "/")); ok {
 			prefix = (&url.URL{Path: strings.TrimRight(p, "/")}).EscapedPath()
 		}
 	}
-	// Rule responses (redirects and 404/410 pages) are revalidated.
 	revalidate := func() { revalidatePage(w) }
 	location := m.Location(prefix, r.URL.RawQuery)
 	if m.Status == 301 || m.Status == 302 {

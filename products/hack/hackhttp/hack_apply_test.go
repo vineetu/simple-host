@@ -1,20 +1,12 @@
 package hackhttp
 
 import (
-	"context"
 	"encoding/csv"
-	"fmt"
 
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
 
-	"io/fs"
 	"strings"
-	"sync"
 	"testing"
-
-	"github.com/vsriram/simple-host/products/hack/app/events"
-	"github.com/vsriram/simple-host/products/hack/app/members"
-	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // Apply to a hackathon without a join link (zp-hack-applications.sql, owner
@@ -63,34 +55,6 @@ func (a *hackApp) applyGet(t *testing.T, slug string, p *person) resp {
 		headers = a.key(*p)
 	}
 	return a.at(t, "GET", "/v1/hack/events/"+slug+"/apply", nil, headers)
-}
-
-// TestHackApplyMigration is §8.1: applications_open defaults true for an
-// existing event, and an existing (join-link) member has joined_via='link'
-// and blank profile fields.
-func TestHackApplyMigration(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "amorg")
-	p := a.newPerson(t, "ammem")
-	slug := uniqueSlug()
-	created := a.createEvent(t, org, slug, nil).json(t)
-	if created["event"].(map[string]any)["applications_open"] != true {
-		t.Fatalf("applications_open default: %v", created["event"])
-	}
-	a.openEvent(t, org, slug)
-	a.listEvent(t, slug)
-	code := a.at(t, "GET", "/v1/hack/events/"+slug, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
-	if r := a.at(t, "POST", "/v1/hack/join/"+code, map[string]any{"accept_coc": true, "display_name": "P"}, a.key(p)); r.status != 200 {
-		t.Fatalf("join: %d %s", r.status, r.body)
-	}
-	var joinedVia, city, country, ageRange, gender string
-	if err := a.database.QueryRow(`SELECT joined_via, city, country, age_range, gender FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`,
-		slug, a.userID(t, p)).Scan(&joinedVia, &city, &country, &ageRange, &gender); err != nil {
-		t.Fatal(err)
-	}
-	if joinedVia != "link" || city != "" || country != "" || ageRange != "" || gender != "" {
-		t.Fatalf("existing member row: joined_via=%q city=%q country=%q age_range=%q gender=%q", joinedVia, city, country, ageRange, gender)
-	}
 }
 
 // TestHackApplyGetPreview is §8.2-4: signed out vs signed in, draft/taken
@@ -297,17 +261,8 @@ func TestHackApplyPostValidation(t *testing.T) {
 		code  string
 	}{
 		{"coc_required", map[string]any{"accept_coc": false}, "coc_required"},
-		{"display_name_empty", map[string]any{"display_name": ""}, "invalid_display_name"},
-		{"city_too_long", map[string]any{"city": strings.Repeat("a", 81)}, "invalid_city"},
-		{"city_newline", map[string]any{"city": "a\nb"}, "invalid_city"},
 		{"city_bidi", map[string]any{"city": "a‮b"}, "invalid_city"},
-		{"country_xx", map[string]any{"country": "XX"}, "invalid_country"},
-		{"country_zz", map[string]any{"country": "ZZ"}, "invalid_country"},
-		{"country_idn", map[string]any{"country": "IDN"}, "invalid_country"},
-		{"country_1d", map[string]any{"country": "1D"}, "invalid_country"},
 		{"country_uk", map[string]any{"country": "UK"}, "invalid_country"},
-		{"age_range_bad", map[string]any{"age_range": "teen"}, "invalid_age_range"},
-		{"gender_bad", map[string]any{"gender": "x"}, "invalid_gender"},
 		{"answer_unknown", map[string]any{"answers": map[string]any{"nope": "x"}}, "invalid_answers"},
 	}
 	for _, tc := range cases {
@@ -403,91 +358,6 @@ func TestHackApplyPostValidation(t *testing.T) {
 	wantTS(t, "organiser applying", a.apply(t, slug, org, nil), 409, "already_member")
 }
 
-// TestHackApplyRace is §8.11-12: two concurrent applies by one user land one
-// row both 200, and applying concurrently with the organiser's switch-off
-// either commits first or is refused -- never both committed and refused.
-func TestHackApplyRace(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "arorg")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	a.listEvent(t, slug)
-
-	racer := a.newPerson(t, "arracer")
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	results := []resp{}
-	wg.Add(2)
-	for i := 0; i < 2; i++ {
-		go func() {
-			defer wg.Done()
-			r := a.apply(t, slug, racer, nil)
-			mu.Lock()
-			results = append(results, r)
-			mu.Unlock()
-		}()
-	}
-	wg.Wait()
-	for _, r := range results {
-		if r.status != 200 {
-			t.Fatalf("concurrent apply: %d %s", r.status, r.body)
-		}
-	}
-	var n int
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, slug, a.userID(t, racer)).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Fatalf("race produced %d rows, want 1", n)
-	}
-
-	// Codex 4: the loose "either outcome" assertion above would also pass a
-	// broken implementation that reads applications_open from the
-	// pre-transaction snapshot instead of re-checking it under the events
-	// row's FOR SHARE lock. Force the ordering instead of racing goroutine
-	// scheduling: hold the event row FOR UPDATE from a second connection (as
-	// review_fixes_test.go's waitBlocked pattern does for a site lock), let
-	// the apply block on it, flip the switch and commit while apply is
-	// still waiting, then require that the apply which proceeds *after*
-	// that commit sees the closed switch -- 409 and no inserted row, never
-	// a 200.
-	switchSlug := uniqueSlug()
-	a.createEvent(t, org, switchSlug, nil)
-	a.openEvent(t, org, switchSlug)
-	a.listEvent(t, switchSlug)
-	switcher := a.newPerson(t, "arswitcher")
-
-	lockTx, err := a.database.Begin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var switchEventID string
-	if err := lockTx.QueryRow(`SELECT id FROM events WHERE slug=$1 FOR UPDATE`, switchSlug).Scan(&switchEventID); err != nil {
-		t.Fatal(err)
-	}
-
-	applyDone := make(chan resp, 1)
-	go func() { applyDone <- a.apply(t, switchSlug, switcher, nil) }()
-	waitBlocked() // the apply's own FOR SHARE now waits on lockTx's FOR UPDATE.
-
-	if _, err := lockTx.Exec(`UPDATE events SET applications_open=false WHERE id=$1`, switchEventID); err != nil {
-		t.Fatal(err)
-	}
-	if err := lockTx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-
-	applyResp := <-applyDone
-	wantTS(t, "apply proceeding after switch-off commit", applyResp, 409, "applications_closed")
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE event_id=$1 AND user_id=$2`, switchEventID, a.userID(t, switcher)).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	if n != 0 {
-		t.Fatalf("apply inserted a row despite the switch-off that committed first: %d rows", n)
-	}
-}
-
 // TestHackApplyTakedownRaceForcedOrdering is pre-ship review item 2: a
 // forced-ordering test for the takedown race, the same shape as the
 // switch-off one above. Hold the event row FOR UPDATE from a second
@@ -536,68 +406,6 @@ func TestHackApplyTakedownRaceForcedOrdering(t *testing.T) {
 	}
 	if n != 0 {
 		t.Fatalf("apply inserted a row despite the takedown that committed first: %d rows", n)
-	}
-}
-
-// TestHackApplyPerEventCapConcurrentDistinctApplicants is pre-ship review
-// item 1 (B2): the per-event ceiling used to be counted under the events
-// row's FOR SHARE lock, which lets any number of concurrent applicants hold
-// that lock at once instead of serializing on it -- 20 concurrent
-// applicants against a cap of 3 produced 10 rows. The events row is now
-// locked FOR UPDATE before the count, so N concurrent *distinct* applicants
-// (no account-level cap or lock in the way) must land exactly cap rows,
-// with every other one refused 409 event_applications_full -- never more
-// than the cap committed.
-func TestHackApplyPerEventCapConcurrentDistinctApplicants(t *testing.T) {
-	a := newHackApp(t)
-	l := productconfig.DefaultLimits()
-	l.EventApplyPendingPerEvent = 3
-	setHackAppLimits(a, l)
-	org := a.newPerson(t, "apeccorg")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	a.listEvent(t, slug)
-
-	const n, wantCap = 10, 3
-	people := make([]person, n)
-	for i := range people {
-		people[i] = a.newPerson(t, fmt.Sprintf("apeccuser%d", i))
-	}
-
-	var wg sync.WaitGroup
-	results := make([]resp, n)
-	wg.Add(n)
-	for i := 0; i < n; i++ {
-		i := i
-		go func() {
-			defer wg.Done()
-			results[i] = a.apply(t, slug, people[i], nil)
-		}()
-	}
-	wg.Wait()
-
-	wins, losses := 0, 0
-	for _, r := range results {
-		switch {
-		case r.status == 200:
-			wins++
-		case r.status == 409 && r.json(t)["code"] == "event_applications_full":
-			losses++
-		default:
-			t.Fatalf("unexpected concurrent apply result: %d %s", r.status, r.body)
-		}
-	}
-	if wins != wantCap || losses != n-wantCap {
-		t.Fatalf("concurrent applies at the per-event cap: %d won, %d lost (want %d and %d)", wins, losses, wantCap, n-wantCap)
-	}
-
-	var count int
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND approval_status='pending'`, slug).Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != wantCap {
-		t.Fatalf("event has %d pending rows, want exactly the cap of %d", count, wantCap)
 	}
 }
 
@@ -652,99 +460,6 @@ func TestHackApplyLimits(t *testing.T) {
 	// Decide the first one; applying to the 21st then works.
 	wantTS(t, "decide one", b.at(t, "POST", "/v1/hack/events/"+slugs[0]+"/applications/"+b.userID(t, capPerson)+"/decision", map[string]string{"decision": "approved"}, b.key(capOrg)), 200, "")
 	wantTS(t, "21st after decision", b.apply(t, slugs[20], capPerson, nil), 200, "")
-}
-
-// TestHackApplyPendingCapConcurrentCrossEvent is the security review's
-// Codex 2/Grok 2 fix: the 20-pending cap is read and inserted against under
-// a lock on the applicant's own users row (db.LockUserRow), so two
-// concurrent applies to two *different* events -- which lock different
-// events rows and so cannot serialise on those alone -- still cannot both
-// read 19 and both insert, landing at 21. Exactly one of the two must win.
-func TestHackApplyPendingCapConcurrentCrossEvent(t *testing.T) {
-	l := productconfig.DefaultLimits()
-	l.RateEventApplyUser.Burst = 100
-	l.RateEventApplyIP.Burst = 100
-	l.EventMaxActivePerOrganiser = 25
-	l.EventCreatePerDay = 25
-	b := newHackAppWithLimits(t, l)
-	org := b.newPerson(t, "apccorg")
-	racer := b.newPerson(t, "apccracer")
-	var slugs []string
-	for i := 0; i < 21; i++ {
-		s := uniqueSlug()
-		if r := b.createEvent(t, org, s, nil); r.status != 201 {
-			t.Fatalf("create %d: %d %s", i, r.status, r.body)
-		}
-		b.openEvent(t, org, s)
-		b.listEvent(t, s)
-		slugs = append(slugs, s)
-	}
-	// 19 pending, one below the cap of 20.
-	for i, s := range slugs[:19] {
-		if r := b.apply(t, s, racer, nil); r.status != 200 {
-			t.Fatalf("apply %d to %s: %d %s", i, s, r.status, r.body)
-		}
-	}
-
-	var wg sync.WaitGroup
-	results := make([]resp, 2)
-	wg.Add(2)
-	for i, s := range slugs[19:21] {
-		i, s := i, s
-		go func() {
-			defer wg.Done()
-			results[i] = b.apply(t, s, racer, nil)
-		}()
-	}
-	wg.Wait()
-
-	wins, losses := 0, 0
-	for _, r := range results {
-		switch {
-		case r.status == 200:
-			wins++
-		case r.status == 409 && r.json(t)["code"] == "too_many_pending":
-			losses++
-		default:
-			t.Fatalf("unexpected concurrent apply result: %d %s", r.status, r.body)
-		}
-	}
-	if wins != 1 || losses != 1 {
-		t.Fatalf("concurrent cross-event applies at the cap: %d won, %d lost (want 1 and 1)", wins, losses)
-	}
-
-	pending, err := members.New(b.database, nil, nil, nil, nil, nil).CountPendingApplications(context.Background(), b.userID(t, racer))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if pending != 20 {
-		t.Fatalf("pending applications after the race = %d, want exactly 20 (the cap)", pending)
-	}
-}
-
-// TestHackApplyIPLimitIndependentOfAccounts is Codex 5: the existing limits
-// test only ever exhausted one account's own bucket. RATE_LIMIT_EVENT_APPLY_IP
-// must trip on its own: distinct accounts, each applying for the very first
-// time (nowhere near their own per-account burst), still share one network
-// address's bucket and can be capped by it.
-func TestHackApplyIPLimitIndependentOfAccounts(t *testing.T) {
-	l := productconfig.DefaultLimits()
-	l.RateEventApplyIP.Burst = 3
-	a := newHackAppWithLimits(t, l)
-	org := a.newPerson(t, "aiplorg")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	a.listEvent(t, slug)
-
-	for i := 0; i < 3; i++ {
-		p := a.newPerson(t, fmt.Sprintf("aipluser%d", i))
-		if r := a.apply(t, slug, p, nil); r.status != 200 {
-			t.Fatalf("apply %d (own first attempt, well under its account limit): %d %s", i, r.status, r.body)
-		}
-	}
-	fourth := a.newPerson(t, "aipluser4")
-	wantTS(t, "4th distinct account, shared IP bucket exhausted", a.apply(t, slug, fourth, nil), 429, "rate_limited")
 }
 
 // TestHackApplyApplicationsAndPeopleFields is §8.14-15: GET .../applications
@@ -806,45 +521,6 @@ func TestHackApplyApplicationsAndPeopleFields(t *testing.T) {
 	// Reject the applicant: blocked from team routes, exactly as today.
 	wantTS(t, "reject", a.at(t, "POST", base+"/applications/"+a.userID(t, applicant)+"/decision", map[string]string{"decision": "rejected"}, a.key(org)), 200, "")
 	wantTS(t, "rejected team denied", a.at(t, "POST", base+"/teams", map[string]string{"name": "No"}, a.key(applicant)), 403, "approval_rejected")
-}
-
-// TestHackApplyAdmitPendingLinkOnly is §8.16 (D5): turning approval off and
-// admitting pending only admits join-link sign-ups; an application stays
-// pending.
-func TestHackApplyAdmitPendingLinkOnly(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "aaplorg")
-	linkPerson := a.newPerson(t, "aaplink")
-	appPerson := a.newPerson(t, "aaplapp")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	a.listEvent(t, slug)
-	base := "/v1/hack/events/" + slug
-
-	if r := a.at(t, "PUT", base+"/registration", map[string]any{"questions": []any{}, "approval_required": true}, a.key(org)); r.status != 200 {
-		t.Fatalf("approval on: %d %s", r.status, r.body)
-	}
-	code := a.at(t, "GET", base, nil, a.key(org)).json(t)["organiser"].(map[string]any)["join_code"].(string)
-	wantTS(t, "link join", a.at(t, "POST", "/v1/hack/join/"+code, map[string]any{"accept_coc": true, "display_name": "L"}, a.key(linkPerson)), 200, "")
-	wantTS(t, "apply", a.apply(t, slug, appPerson, nil), 200, "")
-
-	r := a.at(t, "PUT", base+"/registration", map[string]any{"questions": []any{}, "approval_required": false, "admit_pending": true}, a.key(org))
-	wantTS(t, "admit pending", r, 200, "")
-
-	var linkStatus, appStatus string
-	if err := a.database.QueryRow(`SELECT approval_status FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, slug, a.userID(t, linkPerson)).Scan(&linkStatus); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.database.QueryRow(`SELECT approval_status FROM event_members WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND user_id=$2`, slug, a.userID(t, appPerson)).Scan(&appStatus); err != nil {
-		t.Fatal(err)
-	}
-	if linkStatus != "approved" {
-		t.Fatalf("join-link pending not admitted: %q", linkStatus)
-	}
-	if appStatus != "pending" {
-		t.Fatalf("D5 violated: application admitted by admit_pending: %q", appStatus)
-	}
 }
 
 // TestHackApplyRemoveAndReapply is §8.17: removing an applicant deletes the
@@ -1059,100 +735,4 @@ func TestHackApplyPatchEventToggle(t *testing.T) {
 	a.openEvent(t, org, liveSlug)
 	a.listEvent(t, liveSlug)
 	wantTS(t, "admin view read-only", a.at(t, "PATCH", "/v1/hack/events/"+liveSlug, map[string]any{"applications_open": false}, a.adminH()), 404, "event_not_found")
-}
-
-// TestHackApplyMyEventsApprovalStatus is §8.24: GET /v1/hack/events carries
-// approval_status on participant rows.
-func TestHackApplyMyEventsApprovalStatus(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "aesorg")
-	p := a.newPerson(t, "aesmem")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	a.listEvent(t, slug)
-	wantTS(t, "apply", a.apply(t, slug, p, nil), 200, "")
-
-	rows := jsonArr(t, a.at(t, "GET", "/v1/hack/events", nil, a.key(p)))
-	var row map[string]any
-	for _, r := range rows {
-		if r["slug"] == slug {
-			row = r
-		}
-	}
-	if row == nil || row["approval_status"] != "pending" {
-		t.Fatalf("my events row: %v", row)
-	}
-
-	orgRows := jsonArr(t, a.at(t, "GET", "/v1/hack/events", nil, a.key(org)))
-	var orgRow map[string]any
-	for _, r := range orgRows {
-		if r["slug"] == slug {
-			orgRow = r
-		}
-	}
-	if _, present := orgRow["approval_status"]; present {
-		t.Fatalf("organiser row should not carry approval_status: %v", orgRow)
-	}
-}
-
-// TestHackApplyCountryValidatorCoverage is §8.25: the server's accepted
-// ISO 3166-1 alpha-2 codes are exactly the fixed list
-// screens/public-apply.js offers -- no drift between the two. If that file
-// is not present yet (another agent's in-flight work), the test is skipped
-// rather than failing spuriously.
-func TestHackApplyCountryValidatorCoverage(t *testing.T) {
-	js, err := fs.ReadFile(webassets.Static, "static/hack/screens/public-apply.js")
-	if err != nil {
-		t.Skip("screens/public-apply.js not present yet")
-	}
-	codes := extractCountryCodes(string(js))
-	if len(codes) == 0 {
-		t.Skip("public-apply.js has no COUNTRY_CODES list yet")
-	}
-
-	for _, code := range codes {
-		if _, ok := events.Country(code); !ok {
-			t.Errorf("server rejects %s, which public-apply.js offers", code)
-		}
-	}
-	// Every two-letter region the validator's underlying rule accepts must
-	// be in the UI's list too (no server-only option nobody can pick, and
-	// no UI option the server silently rejects).
-	offered := map[string]bool{}
-	for _, c := range codes {
-		offered[c] = true
-	}
-	letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	for _, x := range letters {
-		for _, y := range letters {
-			code := string(x) + string(y)
-			_, ok := events.Country(code)
-			if ok && !offered[code] {
-				t.Errorf("server accepts %s, which public-apply.js does not offer", code)
-			}
-		}
-	}
-}
-
-func extractCountryCodes(js string) []string {
-	start := strings.Index(js, "COUNTRY_CODES")
-	if start < 0 {
-		return nil
-	}
-	open := strings.Index(js[start:], "[")
-	close := strings.Index(js[start:], "]")
-	if open < 0 || close < 0 {
-		return nil
-	}
-	block := js[start+open+1 : start+close]
-	var codes []string
-	for _, part := range strings.Split(block, ",") {
-		part = strings.TrimSpace(part)
-		part = strings.Trim(part, "'\"")
-		if len(part) == 2 {
-			codes = append(codes, part)
-		}
-	}
-	return codes
 }

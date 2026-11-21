@@ -17,8 +17,6 @@ import (
 // contains one of these is dropped before the view reaches the prompt.
 var assistantSecretKeyWords = []string{"code", "token", "key", "secret", "password", "email", "link", "url"}
 
-// sanitizeAssistantEventView recursively drops any map key containing a
-// word in assistantSecretKeyWords, plus "admin_view", at any depth.
 func sanitizeAssistantEventView(v any) any {
 	switch t := v.(type) {
 	case map[string]any:
@@ -68,8 +66,6 @@ func (h *assistantHTTP) sanitizedAssistantEventView(ctx context.Context, ev mode
 	return sanitizeAssistantEventViewJSON(view)
 }
 
-// sanitizeAssistantEventViewJSON does the marshal/unmarshal-to-`any`/
-// sanitise/marshal round trip described above.
 func sanitizeAssistantEventViewJSON(v any) (json.RawMessage, error) {
 	raw, err := json.Marshal(v)
 	if err != nil {
@@ -132,8 +128,7 @@ func (h *assistantHTTP) getAssistant(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, body)
 }
 
-// Organiser assistant v2: optional "screen" (navigation screen id) and "tab"
-// say where the organiser is asking from.
+// Optional "screen" (navigation screen id) and "tab" say where the organiser is asking from.
 type assistantRequest struct {
 	Messages []events.ChatMessage `json:"messages"`
 	Screen   string               `json:"screen"`
@@ -154,8 +149,6 @@ func decodeAssistantMessages(w http.ResponseWriter, r *http.Request) (assistantR
 	return req, true
 }
 
-// assistantRefusalStatus maps an *events.AssistantRefusal's Code to the
-// contract's HTTP status for a pre-stream refusal.
 func assistantRefusalStatus(code string) int {
 	switch code {
 	case "daily_limit", "monthly_budget":
@@ -221,7 +214,6 @@ func (h *assistantHTTP) postAssistant(w http.ResponseWriter, r *http.Request) {
 	stream.send(map[string]any{"done": true, "remaining_today": result.RemainingToday})
 }
 
-// sseStream is the assistant's answer as server-sent events.
 type sseStream struct {
 	w http.ResponseWriter
 	// rc, not a w.(http.Flusher) assertion: in production w arrives wrapped
@@ -236,7 +228,6 @@ func newSSEStream(w http.ResponseWriter) *sseStream {
 	return &sseStream{w: w, rc: http.NewResponseController(w)}
 }
 
-// send writes one event, starting the stream first if needed.
 func (s *sseStream) send(v any) {
 	if !s.started {
 		s.w.Header().Set("Content-Type", "text/event-stream")

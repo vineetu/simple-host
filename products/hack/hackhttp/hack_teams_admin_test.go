@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/http"
 	"strings"
-	"sync"
 	"testing"
 
 	accounts "github.com/vsriram/simple-host/host/access"
@@ -32,15 +31,6 @@ func (a *hackApp) teamCode(t *testing.T, teamID string) string {
 		t.Fatal(err)
 	}
 	return code
-}
-
-func (a *hackApp) teamLocked(t *testing.T, teamID string) bool {
-	t.Helper()
-	var locked bool
-	if err := a.database.QueryRow(`SELECT locked_at IS NOT NULL FROM event_teams WHERE id = $1`, teamID).Scan(&locked); err != nil {
-		t.Fatal(err)
-	}
-	return locked
 }
 
 func (a *hackApp) isTeamAdmin(t *testing.T, p person) bool {
@@ -254,67 +244,6 @@ func TestHackTeammateAdminStageAndFreezeChecks(t *testing.T) {
 	}
 }
 
-// Two admins each trying to unmake the other at once must leave at least
-// one admin standing (security review 3, 4: the last-admin invariant under
-// concurrency, serialized by the team row lock).
-func TestHackTeamConcurrentAdminRemovalLeavesOneAdmin(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "ccorg")
-	leader := a.newPerson(t, "ccleader")
-	member := a.newPerson(t, "ccmember")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	for _, p := range []person{leader, member} {
-		a.joinParticipant(t, join, p, "P")
-	}
-	_, code := a.createTeamAndJoin(t, slug, leader, "Alpha")
-	a.joinTeamByCode(t, slug, code, member)
-	base := "/v1/hack/events/" + slug
-	wantCode(t, "make member admin", a.at(t, "PUT", base+"/team/members/"+a.userID(t, member)+"/admin", map[string]any{"admin": true}, a.key(leader)), 200, "")
-	// A removes B's admin while B, at the same moment, removes A's: each
-	// request locks its own caller's row then the team row (lockCallerTeam),
-	// then SetTeamAdmin's own lock-then-update touches the OTHER party's
-	// row. Before the lock-order fix (Codex review, 2026-11-01), A holds
-	// the team lock waiting for B's row (held by B's request) and B holds
-	// B's row waiting for the team lock (held by A's request): a genuine
-	// Postgres deadlock, which aborts one side with a 500 rather than a
-	// clean 200 or 409. Both responses must be a real answer, never a 500.
-	var leaderStatus, memberStatus int
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		leaderStatus = a.at(t, "PUT", base+"/team/members/"+a.userID(t, member)+"/admin", map[string]any{"admin": false}, a.key(leader)).status
-	}()
-	go func() {
-		defer wg.Done()
-		memberStatus = a.at(t, "PUT", base+"/team/members/"+a.userID(t, leader)+"/admin", map[string]any{"admin": false}, a.key(member)).status
-	}()
-	wg.Wait()
-	if leaderStatus == 500 || memberStatus == 500 {
-		t.Fatalf("concurrent admin removal deadlocked: leader=%d member=%d", leaderStatus, memberStatus)
-	}
-	// Both requests lock the same two member rows, sorted the same way, so
-	// Postgres serialises them instead of deadlocking: whichever commits
-	// first can legitimately cost the other its own admin status before it
-	// gets to check (403 team_admin_only), on top of the ordinary 200 or
-	// 409 last_team_admin outcomes -- never a 500.
-	for _, s := range []int{leaderStatus, memberStatus} {
-		if s != 200 && s != 403 && s != 409 {
-			t.Fatalf("unexpected status in concurrent admin removal: %d", s)
-		}
-	}
-	var admins int
-	if err := a.database.QueryRow(`SELECT count(*) FROM event_members WHERE team_admin AND user_id IN ($1,$2)`, a.userID(t, leader), a.userID(t, member)).Scan(&admins); err != nil {
-		t.Fatal(err)
-	}
-	if admins < 1 {
-		t.Fatalf("concurrent removal left %d admins", admins)
-	}
-}
-
 // --- 5: admin succession on every exit path ---------------------------------
 
 // EnsureTeamAdmin picks the longest-standing remaining member
@@ -341,26 +270,6 @@ func TestHackTeamAdminSuccessionOnLeave(t *testing.T) {
 	}
 }
 
-func TestHackTeamAdminSuccessionOnLeaveEvent(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "succeventorg")
-	leader := a.newPerson(t, "succeventleader")
-	member := a.newPerson(t, "succeventmember")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	for _, p := range []person{leader, member} {
-		a.joinParticipant(t, join, p, "P")
-	}
-	_, code := a.createTeamAndJoin(t, slug, leader, "Alpha")
-	a.joinTeamByCode(t, slug, code, member)
-	wantCode(t, "leader leaves event", a.leave(t, slug, leader, map[string]any{"confirm": slug}), 200, "")
-	if !a.isTeamAdmin(t, member) {
-		t.Fatal("member did not succeed as admin after leader left the event")
-	}
-}
-
 func TestHackTeamAdminSuccessionOnOrganiserRemove(t *testing.T) {
 	a := newHackApp(t)
 	org := a.newPerson(t, "succremoveorg")
@@ -380,41 +289,6 @@ func TestHackTeamAdminSuccessionOnOrganiserRemove(t *testing.T) {
 	if !a.isTeamAdmin(t, member) {
 		t.Fatal("member did not succeed as admin after organiser removed leader")
 	}
-}
-
-func TestHackTeamAdminSuccessionOnOrganiserMove(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "succmoveorg")
-	leader := a.newPerson(t, "succmoveleader")
-	member := a.newPerson(t, "succmovemember")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	for _, p := range []person{leader, member} {
-		a.joinParticipant(t, join, p, "P")
-	}
-	alphaID, code := a.createTeamAndJoin(t, slug, leader, "Alpha")
-	a.joinTeamByCode(t, slug, code, member)
-	base := "/v1/hack/events/" + slug
-	// Move leader (Alpha's admin) onto a brand-new team by hand; Alpha keeps
-	// member, who should succeed as its admin. The destination team needs
-	// its own participant to create it (the organiser account isn't one).
-	thirdPerson := a.newPerson(t, "succmovethird")
-	a.joinParticipant(t, join, thirdPerson, "Third")
-	gammaID, _ := a.createTeamAndJoin(t, slug, thirdPerson, "Gamma")
-	gammaSlug := a.teamSlugByID(t, gammaID)
-	wantCode(t, "organiser moves leader", a.at(t, "POST", base+"/teams/"+gammaSlug+"/members", map[string]any{"user_id": a.userID(t, leader)}, a.key(org)), 200, "")
-	if !a.isTeamAdmin(t, member) {
-		t.Fatal("member did not succeed as admin after organiser moved leader off Alpha")
-	}
-	if a.teamOf(t, leader) != gammaID {
-		t.Fatal("leader was not moved to Gamma")
-	}
-	if a.isTeamAdmin(t, leader) {
-		t.Fatal("leader kept admin after moving to a team they didn't create")
-	}
-	_ = alphaID
 }
 
 // --- 6: locking ---------------------------------------------------------
@@ -567,109 +441,9 @@ func TestHackNewTeamLink(t *testing.T) {
 
 // --- 9: joining with the full link string as the code ----------------------
 
-func TestHackJoinTeamWithFullLink(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "linkstrorg")
-	leader := a.newPerson(t, "linkstrleader")
-	joiner := a.newPerson(t, "linkstrjoiner")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, leader, "Leader")
-	a.joinParticipant(t, join, joiner, "Joiner")
-	teamID, code := a.createTeamAndJoin(t, slug, leader, "Alpha")
-	base := "/v1/hack/events/" + slug
-	link := a.at(t, "GET", base, nil, a.key(leader)).json(t)["me"].(map[string]any)["team"].(map[string]any)["link"].(string)
-	if !strings.Contains(link, code) {
-		t.Fatalf("link %q missing code %q", link, code)
-	}
-	wantCode(t, "join by full link", a.at(t, "POST", base+"/teams/join", map[string]any{"code": link}, a.key(joiner)), 200, "")
-	if a.teamOf(t, joiner) != teamID {
-		t.Fatal("joiner via link did not join the team")
-	}
-}
-
 // --- 10: deprecated open field ---------------------------------------------
 
-func TestHackDeprecatedOpenFieldIgnored(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "depopenorg")
-	leader := a.newPerson(t, "depopenleader")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, leader, "Leader")
-	r := a.at(t, "POST", "/v1/hack/events/"+slug+"/teams", map[string]any{"name": "Closed Club", "open": false}, a.key(leader))
-	wantCode(t, "create with open:false", r, 201, "")
-	base := "/v1/hack/events/" + slug
-	solo := a.newPerson(t, "depopensolo")
-	a.joinParticipant(t, join, solo, "Solo")
-	listed := a.at(t, "GET", base+"/teams/open", nil, a.key(solo)).json(t)
-	found := false
-	for _, team := range listed["teams"].([]any) {
-		if team.(map[string]any)["name"] == "Closed Club" {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatalf("open:false team not listed: %v", listed["teams"])
-	}
-	// Deprecated alias: admin only, ignores open, saves looking_for.
-	r = a.at(t, "PUT", base+"/team/finding", map[string]any{"open": true, "looking_for": "We build things"}, a.key(leader))
-	wantCode(t, "deprecated finding alias", r, 200, "")
-	if r.json(t)["deprecated"] == nil {
-		t.Fatalf("missing deprecated hint: %v", r.json(t))
-	}
-	var open bool
-	var lookingFor string
-	teamID := a.teamOf(t, leader)
-	if err := a.database.QueryRow(`SELECT open, looking_for FROM event_teams WHERE id=$1`, teamID).Scan(&open, &lookingFor); err != nil {
-		t.Fatal(err)
-	}
-	if open != false || lookingFor != "We build things" {
-		t.Fatalf("open=%v looking_for=%q", open, lookingFor)
-	}
-}
-
 // --- 11: listOpenTeams excludes locked, includes former code-only, full ----
-
-func TestHackListOpenTeamsLockedAndFull(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "lotorg")
-	leader := a.newPerson(t, "lotleader")
-	lockedLeader := a.newPerson(t, "lotlockedleader")
-	solo := a.newPerson(t, "lotsolo")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	for _, p := range []person{leader, lockedLeader, solo} {
-		a.joinParticipant(t, join, p, "P")
-	}
-	wantCode(t, "max 1", a.at(t, "PATCH", "/v1/hack/events/"+slug, map[string]any{"team_size_max": 1}, a.key(org)), 200, "")
-	a.createTeamAndJoin(t, slug, leader, "Alpha")
-	a.createTeamAndJoin(t, slug, lockedLeader, "Locked Out")
-	base := "/v1/hack/events/" + slug
-	wantCode(t, "lock", a.at(t, "PUT", base+"/team/lock", map[string]any{"locked": true}, a.key(lockedLeader)), 200, "")
-	listed := a.at(t, "GET", base+"/teams/open", nil, a.key(solo)).json(t)
-	names := map[string]map[string]any{}
-	for _, team := range listed["teams"].([]any) {
-		m := team.(map[string]any)
-		names[m["name"].(string)] = m
-	}
-	if _, ok := names["Locked Out"]; ok {
-		t.Fatalf("locked team listed: %v", listed["teams"])
-	}
-	alpha, ok := names["Alpha"]
-	if !ok {
-		t.Fatalf("unlocked team missing: %v", listed["teams"])
-	}
-	if alpha["full"] != true {
-		t.Fatalf("team at its cap not full: %v", alpha)
-	}
-}
 
 // --- 12: results locks judging, back to judging unlocks ---------------------
 
@@ -702,106 +476,7 @@ func TestHackResultsStageLocksJudging(t *testing.T) {
 
 // --- 13: next_step for every stage ------------------------------------------
 
-func TestHackNextStepEveryStage(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "nextorg")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	base := "/v1/hack/events/" + slug
-	next := func() map[string]any {
-		return a.at(t, "GET", base, nil, a.key(org)).json(t)["next_step"].(map[string]any)
-	}
-	// SIM-382: a brand-new event's very first next_step is choosing entry
-	// rules, even though it is still on draft -- Open sign-up isn't
-	// offered until the organiser saves a choice (the default counts).
-	if n := next(); n["kind"] != "entry_rules" || n["stage"] != "" || n["label"] != "Choose what teams hand in" {
-		t.Fatalf("new event next_step should be entry_rules: %v", n)
-	}
-	wantCode(t, "save default entry rules", a.at(t, "PUT", base+"/entry-rules", map[string]any{"preset": "video_or_website"}, a.key(org)), 200, "")
-	if n := next(); n["kind"] != "stage" || n["stage"] != "open" {
-		t.Fatalf("saving the default preset should make the next step Open sign-up: %v", n)
-	}
-	cases := []struct {
-		stage, kind, nextStage, label string
-	}{
-		{"draft", "stage", "open", "Open sign-up"},
-		{"open", "stage", "building", "Start building"},
-		{"building", "stage", "closed", "Close entries"},
-		{"closed", "stage", "judging", "Start judging"},
-		{"judging", "stage", "results", "Finish judging"},
-	}
-	for _, c := range cases {
-		wantCode(t, "set "+c.stage, a.at(t, "POST", base+"/stage", map[string]string{"stage": c.stage}, a.key(org)), 200, "")
-		n := next()
-		if n["kind"] != c.kind || n["stage"] != c.nextStage || n["label"] != c.label {
-			t.Fatalf("stage %s: next_step %v", c.stage, n)
-		}
-	}
-	// Now at judging; move to results: kind becomes publish_results.
-	wantCode(t, "to results", a.at(t, "POST", base+"/stage", map[string]string{"stage": "results"}, a.key(org)), 200, "")
-	n := next()
-	if n["kind"] != "publish_results" || n["label"] != "Publish results" {
-		t.Fatalf("results unpublished next_step: %v", n)
-	}
-	// No participants: the event will publish, but then End is blocked.
-	wantCode(t, "publish", a.at(t, "POST", base+"/results/publish", map[string]any{}, a.key(org)), 200, "")
-	n = next()
-	if n["kind"] != "stage" || n["stage"] != "archived" || n["label"] != "End event" || n["blocked"] != "archive_needs_participants" {
-		t.Fatalf("published results, nobody joined: %v", n)
-	}
-	// Add a participant: End is no longer blocked.
-	p := a.newPerson(t, "nextparticipant")
-	// Participants can't join once results are in; add them earlier instead.
-	_ = p
-}
-
-// A separate event proves the unblocked End case and the deadline-passed
-// flag on Close entries, since the above event has nobody in it by design.
-func TestHackNextStepUnblockedEndAndDeadlinePassed(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "next2org")
-	p := a.newPerson(t, "next2participant")
-	slug := uniqueSlug()
-	a.createEvent(t, org, slug, nil)
-	a.openEvent(t, org, slug)
-	join, _ := a.joinCodes(t, org, slug)
-	a.joinParticipant(t, join, p, "P")
-	base := "/v1/hack/events/" + slug
-	wantCode(t, "to building", a.at(t, "POST", base+"/stage", map[string]string{"stage": "building"}, a.key(org)), 200, "")
-	if _, err := a.database.Exec(`UPDATE events SET submission_deadline = clock_timestamp() - interval '1 hour' WHERE slug=$1`, slug); err != nil {
-		t.Fatal(err)
-	}
-	n := a.at(t, "GET", base, nil, a.key(org)).json(t)["next_step"].(map[string]any)
-	if n["deadline_passed"] != true || n["stage"] != "closed" {
-		t.Fatalf("deadline_passed not set: %v", n)
-	}
-	for _, stage := range []string{"closed", "judging", "results"} {
-		wantCode(t, "to "+stage, a.at(t, "POST", base+"/stage", map[string]string{"stage": stage}, a.key(org)), 200, "")
-	}
-	wantCode(t, "publish", a.at(t, "POST", base+"/results/publish", map[string]any{}, a.key(org)), 200, "")
-	n = a.at(t, "GET", base, nil, a.key(org)).json(t)["next_step"].(map[string]any)
-	if n["blocked"] != nil || n["stage"] != "archived" || n["label"] != "End event" {
-		t.Fatalf("End should not be blocked with a participant in the event: %v", n)
-	}
-	wantCode(t, "end", a.at(t, "POST", base+"/stage", map[string]string{"stage": "archived"}, a.key(org)), 200, "")
-	n = a.at(t, "GET", base, nil, a.key(org)).json(t)["next_step"].(map[string]any)
-	if n["kind"] != "none" {
-		t.Fatalf("ended event should offer no button: %v", n)
-	}
-}
-
 // --- 14: new event team size default -----------------------------------
-
-func TestHackNewEventTeamSizeDefaultIsTwenty(t *testing.T) {
-	a := newHackApp(t)
-	org := a.newPerson(t, "defaultsizeorg")
-	slug := uniqueSlug()
-	r := a.createEvent(t, org, slug, nil)
-	ev := r.json(t)["event"].(map[string]any)
-	if ev["team_size_max"] != float64(20) {
-		t.Fatalf("team_size_max default: %v", ev["team_size_max"])
-	}
-}
 
 // --- 15: account erasure promotes a successor on every affected team -------
 

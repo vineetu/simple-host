@@ -24,7 +24,6 @@ type ApprovalError struct{ Status string }
 
 func (e *ApprovalError) Error() string { return "your application is " + e.Status }
 
-// Code is the wire code for this refusal.
 func (e *ApprovalError) Code() string { return "approval_" + e.Status }
 
 var (

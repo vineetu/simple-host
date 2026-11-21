@@ -99,54 +99,41 @@ func (t VisitorTools) unlock(v *accesshttp.VisitorVisit, args map[string]any) er
 	return t.Access.UnlockVisitorSite(v, args)
 }
 
-// visitorReadArgs are visitor_read_site's own arguments.
-type visitorReadArgs struct {
-	resource, page string
-}
-
-func readVisitorReadArgs(args map[string]any) (visitorReadArgs, error) {
-	resource, err := accesshttp.VisitorString(args, "resource")
-	if err != nil {
-		return visitorReadArgs{}, err
-	}
-	page, err := accesshttp.VisitorString(args, "page")
-	if err != nil {
-		return visitorReadArgs{}, err
-	}
-	if _, err := visitorLimit(args); err != nil {
-		return visitorReadArgs{}, err
-	}
-	return visitorReadArgs{resource: resource, page: page}, nil
-}
-
-// read is visitor_read_site: the page's text, the named resource's entries,
+// Read is visitor_read_site: the page's text, the named resource's entries,
 // and every resource this visitor has rights on (with a first page of what
 // they may read when no resource was named).
 func (t VisitorTools) Read(r *http.Request, siteID, ownerID, siteName string, args map[string]any) (map[string]any, error) {
-	in, err := readVisitorReadArgs(args)
+	resource, err := accesshttp.VisitorString(args, "resource")
 	if err != nil {
 		return nil, err
 	}
+	page, err := accesshttp.VisitorString(args, "page")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := visitorLimit(args); err != nil {
+		return nil, err
+	}
 	out := map[string]any{}
-	if in.page != "" {
-		text, truncated, err := t.Access.VisitorPageText(r, siteID, ownerID, siteName, in.page)
+	if page != "" {
+		text, truncated, err := t.Access.VisitorPageText(r, siteID, ownerID, siteName, page)
 		if err != nil {
 			return nil, err
 		}
 		out["page_text"], out["truncated"] = text, truncated
 	}
-	if in.resource != "" {
+	if resource != "" {
 		data, err := t.resourceRequest(r, args, "read")
 		if err != nil {
 			return nil, err
 		}
 		out["entries"] = data
 	}
-	list, err := t.visibleResources(r, siteID, ownerID, siteName, in.resource)
+	list, err := t.visibleResources(r, siteID, ownerID, siteName, resource)
 	if err != nil {
 		return nil, err
 	}
-	if in.resource == "" {
+	if resource == "" {
 		if err := t.fillFirstPages(r, list, args); err != nil {
 			return nil, err
 		}
@@ -314,10 +301,28 @@ var visitorMethods = map[string]string{"read": "GET", "add": "POST", "edit": "PA
 // resourceRequest replays one visitor action on a resource as the storage
 // route a browser would call, with the visitor's pass.
 func (t VisitorTools) resourceRequest(base *http.Request, args map[string]any, action string) (any, error) {
-	r, kind, err := t.resourceBase(base, args, action)
+	resource, err := accesshttp.VisitorString(args, "resource")
 	if err != nil {
 		return nil, err
 	}
+	kind, err := accesshttp.VisitorString(args, "kind")
+	if err != nil {
+		return nil, err
+	}
+	if !appstorage.ValidResourceName(resource) {
+		return nil, fmt.Errorf("invalid resource name")
+	}
+	r := base.Clone(base.Context())
+	r.SetPathValue("name", resource)
+	r.Header.Set("X-SH-Visitor-Action", action)
+	// Set the path as a normal storage request so per-visitor rate limits and
+	// idempotency classify it correctly; path values are set by this adapter.
+	r.URL.Path = "/v1/sites/" + r.PathValue("sitename") + "/storage/" + kind + "/" + resource
+	q, err := t.pageQuery(base, args, kind, resource)
+	if err != nil {
+		return nil, err
+	}
+	r.URL.RawQuery = q.Encode()
 	method := visitorMethods[action]
 	if method == "" {
 		return nil, fmt.Errorf("action must be edit or delete")
@@ -334,34 +339,6 @@ func (t VisitorTools) resourceRequest(base *http.Request, args map[string]any, a
 	default:
 		return nil, fmt.Errorf("kind must be kv or sqlite")
 	}
-}
-
-// resourceBase is the storage request for the resource the arguments name:
-// its path, the visitor action, and the page (limit, after) asked for.
-func (t VisitorTools) resourceBase(base *http.Request, args map[string]any, action string) (*http.Request, string, error) {
-	r := base.Clone(base.Context())
-	resource, err := accesshttp.VisitorString(args, "resource")
-	if err != nil {
-		return nil, "", err
-	}
-	kind, err := accesshttp.VisitorString(args, "kind")
-	if err != nil {
-		return nil, "", err
-	}
-	if !appstorage.ValidResourceName(resource) {
-		return nil, "", fmt.Errorf("invalid resource name")
-	}
-	r.SetPathValue("name", resource)
-	r.Header.Set("X-SH-Visitor-Action", action)
-	// Set the path as a normal storage request so per-visitor rate limits and
-	// idempotency classify it correctly; path values are set by this adapter.
-	r.URL.Path = "/v1/sites/" + r.PathValue("sitename") + "/storage/" + kind + "/" + resource
-	q, err := t.pageQuery(base, args, kind, resource)
-	if err != nil {
-		return nil, "", err
-	}
-	r.URL.RawQuery = q.Encode()
-	return r, kind, nil
 }
 
 // pageQuery is the limit and, for a later page, the cursor: a KV cursor was

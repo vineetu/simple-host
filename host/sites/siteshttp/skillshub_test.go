@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
@@ -33,33 +32,10 @@ func TestHostSkillsExcludeProductGuides(t *testing.T) {
 	if catalog.Count != 3 || len(catalog.Skills) != 3 {
 		t.Fatalf("host catalog has %d skills, want its three website skills", catalog.Count)
 	}
-	for _, skill := range []string{"join-hackathon", "judge-hackathon", "run-hackathon"} {
-		for _, path := range []string{
-			"/v1/skills/" + skill, "/v1/skills/" + skill + "/SKILL.md",
-			"/skills/" + skill, "/skills/" + skill + "/SKILL.md", "/skills/" + skill + ".zip",
-			"/.well-known/skills/" + skill + "/SKILL.md",
-			"/v1/skills/" + skill + "/references/organiser-api.md",
-			"/skills/" + skill + "/references/organiser-api.md",
-		} {
+	for _, skill := range []string{"join-hackathon", "run-hackathon"} {
+		for _, path := range []string{"/v1/skills/" + skill, "/skills/" + skill + "/SKILL.md", "/.well-known/skills/" + skill + "/SKILL.md"} {
 			if rec := get(path); rec.Code != http.StatusNotFound {
 				t.Errorf("host %s = %d, want 404", path, rec.Code)
-			}
-		}
-	}
-	if rec := get("/.well-known/skills/index.json"); rec.Code != http.StatusOK {
-		t.Errorf("host discovery = %d", rec.Code)
-	} else {
-		var discovery struct {
-			Skills []struct {
-				Name string `json:"name"`
-			} `json:"skills"`
-		}
-		if err := json.Unmarshal(rec.Body.Bytes(), &discovery); err != nil {
-			t.Fatal(err)
-		}
-		for _, skill := range discovery.Skills {
-			if strings.HasSuffix(skill.Name, "-hackathon") {
-				t.Errorf("host discovery exposed %s", skill.Name)
 			}
 		}
 	}

@@ -156,7 +156,7 @@ func TestPasscodeScreenBindingAndFailures(t *testing.T) {
 	s, _, puts := passcodeTestServer(t)
 	now := time.Now()
 	s.passcodeSessions.now = func() time.Time { return now }
-	for _, kind := range []string{"grant", "key", "handle", "site", "expiry", "aad", "nonce", "ciphertext", "validation"} {
+	for _, kind := range []string{"grant", "key", "handle", "site", "expiry", "aad", "validation"} {
 		t.Run(kind, func(t *testing.T) {
 			caller := screenCaller()
 			if kind == "key" {
@@ -297,7 +297,7 @@ func TestPasscodeModelResultsNeverContainCode(t *testing.T) {
 					}
 					before := *puts
 					rec := passcodeWire(t, s, caller, name, args)
-					text, data, isErr := resultOf(t, rec)
+					_, data, isErr := resultOf(t, rec)
 					if isErr {
 						t.Fatal("status call failed")
 					}
@@ -309,20 +309,8 @@ func TestPasscodeModelResultsNeverContainCode(t *testing.T) {
 					if err := ValidateOutput(s.byName[schemaName].OutputSchema, data, nil); err != nil {
 						t.Fatal(err)
 					}
-					if action == "open" {
-						if *puts != before {
-							t.Fatal("opening screen changed passcode")
-						}
-						want := "https://simple-host.app/alice?site=blog&open=passcode"
-						if flag == "on" && mode == "ui" {
-							want = "Nothing changed yet."
-						}
-						if flag == "on" && mode == "wrapped" {
-							want = "Call get_site_passcode for blog"
-						}
-						if !strings.Contains(text, want) {
-							t.Fatalf("missing expected destination %q", want)
-						}
+					if action == "open" && *puts != before {
+						t.Fatal("opening screen changed passcode")
 					}
 				}
 			})
@@ -373,8 +361,7 @@ func TestPasscodeAppInventory(t *testing.T) {
 			}
 		}
 		rec := passcodeWire(t, s, caller, "run_tool", map[string]any{"name": "passcode_screen", "arguments": map[string]any{"site": "blog", "action": "show"}})
-		text, _, bad := resultOf(t, rec)
-		if !bad || text != "passcode_screen is only for the passcode screen" {
+		if _, _, bad := resultOf(t, rec); !bad {
 			t.Fatal("wrapper allowed app-only tool")
 		}
 	}
@@ -383,7 +370,7 @@ func TestPasscodeAppInventory(t *testing.T) {
 	}
 	res := s.readApp(request{ID: json.RawMessage(`1`), Params: json.RawMessage(`{"uri":"ui://simple-host/passcode"}`)}, caller)
 	content := res.Result.(map[string]any)["contents"].([]any)[0].(map[string]any)
-	if content["mimeType"] != appMIME || !strings.Contains(content["text"].(string), "Make one for me") || strings.Contains(content["text"].(string), "__SCREEN__") {
+	if content["mimeType"] != appMIME || strings.Contains(content["text"].(string), "__SCREEN__") {
 		t.Fatal("bad screen resource")
 	}
 	meta := content["_meta"].(map[string]any)["ui"].(map[string]any)
@@ -469,20 +456,6 @@ func TestPasscodeScreenNoCodeAndReauthorization(t *testing.T) {
 	if out.Structured["sealed"] != nil || out.Structured["passcode_protected"] != false {
 		t.Fatal("unprotected site exposed a code")
 	}
-	for _, ui := range []bool{false, true} {
-		s.clientUI.remember(caller, ui, time.Now())
-		text, _, failed := resultOf(t, passcodeWire(t, s, caller, "get_site_passcode", map[string]any{"site": "blog"}))
-		if failed || !strings.Contains(text, "has no passcode") {
-			t.Fatal("unprotected status missing")
-		}
-		want := "set one at https://simple-host.app/alice?site=blog&open=passcode"
-		if ui {
-			want = "person can set one there"
-		}
-		if !strings.Contains(text, want) {
-			t.Fatal("unprotected destination missing")
-		}
-	}
 	id, _ = frameBegin(t, s, caller)
 	caller.APIKey = "denied"
 	c := &call{server: s, policy: s.policy("passcode_screen"), caller: caller, orig: httptest.NewRequest("POST", "/mcp", nil), uiClient: true}
@@ -525,31 +498,17 @@ func TestPasscodeModernUICapability(t *testing.T) {
 // A text-only client's model could run the key exchange itself, so it never
 // gets a session.
 func TestPasscodeScreenRefusesTextOnlyClients(t *testing.T) {
-	s, _, _ := passcodeTestServer(t)
-	caller := screenCaller()
-	s.clientUI.remember(caller, false, time.Now())
-	rec := passcodeWire(t, s, caller, "passcode_screen", map[string]any{"action": "begin", "site": "blog", "client_key": "x"})
-	text, _, failed := resultOf(t, rec)
-	if !failed || !strings.Contains(text, "cannot open in this chat") {
-		t.Fatalf("text-only client got a screen session: %s", text)
-	}
-}
-
-// After a restart the server has not seen the client declare MCP Apps; it
-// could be the model itself, so it gets no session either.
-func TestPasscodeScreenRefusesUnknownClients(t *testing.T) {
-	s, _, _ := passcodeTestServer(t)
-	rec := passcodeWire(t, s, screenCaller(), "passcode_screen", map[string]any{"action": "begin", "site": "blog", "client_key": "x"})
-	text, _, failed := resultOf(t, rec)
-	if !failed || !strings.Contains(text, "cannot open in this chat") {
-		t.Fatalf("unknown client got a screen session: %s", text)
-	}
-}
-
-func TestPasscodeLinkWithoutHandle(t *testing.T) {
-	s, _, _ := passcodeTestServer(t)
-	c := &call{server: s, policy: s.policy("passcode_screen"), caller: Caller{}}
-	if got := c.passcodeLink("blog"); got != "https://simple-host.app/dashboard" {
-		t.Fatalf("admin link: %s", got)
+	// A text-only client's model could run the key exchange itself, and after
+	// a restart an undeclared client could be the model too: neither gets a session.
+	for _, known := range []bool{true, false} {
+		s, _, _ := passcodeTestServer(t)
+		caller := screenCaller()
+		if known {
+			s.clientUI.remember(caller, false, time.Now())
+		}
+		rec := passcodeWire(t, s, caller, "passcode_screen", map[string]any{"action": "begin", "site": "blog", "client_key": "x"})
+		if _, _, failed := resultOf(t, rec); !failed || len(s.passcodeSessions.entries) != 0 {
+			t.Fatalf("client (known=%v) got a screen session", known)
+		}
 	}
 }

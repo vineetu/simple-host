@@ -21,7 +21,7 @@ func analyticsParametersForPolicy(policy toolPolicy, args map[string]any) any {
 		return map[string]any{"arguments": "[removed]"}
 	}
 	return capAnalyticsJSON(sdkSanitizeParameters(map[string]any{
-		"arguments": dropAnalyticsValuesForPolicy(policy, analyticsCopy(args)),
+		"arguments": scrubAnalyticsKeys(dropAnalyticsValuesForPolicy(policy, analyticsCopy(args))),
 	}))
 }
 
@@ -57,7 +57,7 @@ func analyticsResponseForPolicy(policy toolPolicy, value any) any {
 		}
 		text, _ := block["text"].(string)
 		switch {
-		case analyticsSecretText(policy):
+		case policy.analytics.secretText:
 			block["text"] = "[removed: contains a secret]"
 		case analyticsFileResult(policy):
 			// File-read prose includes headers as well as the bytes. The
@@ -77,6 +77,8 @@ func analyticsResponseForPolicy(policy toolPolicy, value any) any {
 				block["text"] = jsonText(sdkSanitizeParameters(dropAnalyticsValuesForPolicy(policy, decoded)))
 			} else if data, ok := analyticsDataURI(text); ok {
 				block["text"] = jsonText(data)
+			} else if policy.analytics.personNames {
+				block["text"] = scrubAnalyticsText(text)
 			}
 		}
 	}
@@ -95,28 +97,22 @@ func analyticsSecretFieldForPolicy(policy toolPolicy, name string) bool {
 		}
 	}
 	switch name {
-	// SIM-360: a web-push device's endpoint and keys are personal data
-	// (push endpoints never reach AgentCat). No current tool result
-	// carries these field names (list_notifications excludes web-push
-	// rows entirely before this point), but the redaction rule belongs
-	// here regardless of whether anything exercises it today.
+	// A web-push device's endpoint and keys are personal data and never
+	// reach AgentCat, even though no tool result carries them today.
 	case "endpoint", "pushendpoint", "pushp256dh", "pushauth", "p256dh":
 		return true
 	case "code", "signincode", "verificationcode", "teamkey", "signingkey", "privatekey", "authheader",
 		"uploadurl", "photosurl", "importurl", "downloadurl", "signedurl", "previewurl", "pinnedurl",
 		"joincode", "judgecode", "joinurl", "judgeurl", "inviteurl",
-		// Teams redesign (2026-10-31): a team's link is a capability like its
-		// code (the join code it embeds), same treatment wherever it appears
-		// -- a rotated link, or the one on a team already read.
+		// A team's link is a capability like the join code it embeds.
 		"link",
-		// for (SIM-358 review round 2, item B): names a visitor by email or
-		// by reference. Dropped unconditionally, not only when it looks like
-		// an email -- a raw visitor_id or even a v_ ref is a stable per-site
-		// identifier, globally correlatable the same way a key or code is.
+		// for names a visitor by email or by reference. Dropped
+		// unconditionally: a raw visitor_id or a v_ ref is a stable
+		// identifier, correlatable the same way a key or code is.
 		"for":
 		return true
-	// Apply to a hackathon (2026-10-31 owner decision 5): AgentCat must not
-	// receive an applicant's city, country, age range or gender.
+	// AgentCat must not receive a hackathon applicant's city, country, age
+	// range or gender.
 	case "city", "country", "agerange", "gender":
 		return true
 	case "key":
@@ -128,8 +124,6 @@ func analyticsSecretFieldForPolicy(policy toolPolicy, name string) bool {
 	}
 	return false
 }
-
-func analyticsSecretText(policy toolPolicy) bool { return policy.analytics.secretText }
 
 func analyticsEmailField(policy toolPolicy, name string) bool {
 	name = analyticsFieldName(name)
@@ -219,8 +213,9 @@ func analyticsFileType(obj map[string]any) string {
 }
 
 // Work on a JSON copy. Tool-specific field names cover binary files, signed
-// links, and visitor identity; ordinary conversation is left to AgentCat's
-// server-side redaction. No content-pattern matching is done here.
+// links, and visitor identity. A product's tools also drop people's details
+// by class of field and run every string through scrubAnalyticsText; other
+// conversation is left to AgentCat's server-side redaction.
 func dropAnalyticsValuesForPolicy(policy toolPolicy, value any) any {
 	return dropAnalyticsValue(policy, value, 0)
 }
@@ -233,6 +228,9 @@ func dropAnalyticsValue(policy toolPolicy, value any, depth int) any {
 	case string:
 		if data, ok := analyticsDataURI(v); ok {
 			return data
+		}
+		if policy.analytics.personNames {
+			return scrubAnalyticsText(v)
 		}
 	case []any:
 		for i := range v {
@@ -289,26 +287,48 @@ func dropAnalyticsField(policy toolPolicy, key string, field any, obj map[string
 	}
 	name := analyticsFieldName(key)
 	switch {
-	// Apply to a hackathon (2026-10-29/31 owner decisions, security review
-	// Grok 6): the four demographic fields are already removed everywhere by
-	// analyticsSecretFieldForPolicy, but free-text answers and the applicant's name
-	// can carry the same information in prose ("I'm 14, a girl, in
-	// Jakarta"). For these two tools only -- the apply call itself and the
-	// organiser's read of the queue -- also drop answers and display_name
-	// from the analytics copy. The tool result the organiser's own model
-	// sees is untouched; this is the telemetry copy only.
+	// Free-text answers and an applicant's name can carry the demographic
+	// fields in prose ("I'm 14, a girl, in Jakarta"), so the hackathon
+	// application tools also drop them from the analytics copy. The tool
+	// result the model sees is untouched.
 	case analyticsSecretFieldForPolicy(policy, key),
 		policy.analytics.applicationAnswers && (name == "answers" || name == "displayname"):
 		return "[removed]"
 	case analyticsEmailField(policy, key):
 		return analyticsVisitorReference(obj)
+	case policy.analytics.personNames && (analyticsPersonName(name, field) || analyticsProductPersonField(key, name, field, obj)):
+		return "[removed]"
 	case name == "edits" && policy.analytics.edits:
 		return analyticsEdits(policy, field, depth)
 	}
 	if file, ok := analyticsFileField(policy, key, name, field, obj); ok {
 		return file
 	}
+	if policy.analytics.personNames {
+		analyticsMarkPeople(name, field)
+	}
 	return dropAnalyticsValue(policy, field, depth)
+}
+
+// analyticsPersonName reports a field that names a person: a member's,
+// judge's or applicant's display name, who last changed or submitted an
+// entry, or a team's list of member names; also a person's raw account ID,
+// which the event's keyed actor hash stands in for. The public
+// organiser_name of an event stays.
+func analyticsPersonName(name string, field any) bool {
+	switch name {
+	case "displayname", "accountname", "judgename", "membername", "updatedby", "submittedby",
+		"userid", "judgeid", "judgeuserid", "successoruserid", "accountid", "memberid", "ownerid", "organiserid":
+		return true
+	case "members":
+		list, ok := field.([]any)
+		if !ok || len(list) == 0 {
+			return false
+		}
+		_, names := list[0].(string)
+		return names
+	}
+	return false
 }
 
 // analyticsFileField replaces a field holding file content by its size and
@@ -460,7 +480,7 @@ func capAnalyticsIntent(text string) string {
 		file := data.(map[string]any)
 		text = fmt.Sprintf("[file: %v bytes, %s]", file["bytes"], file["type"])
 	}
-	text = sdkSanitizeParameters(text).(string)
+	text = scrubAnalyticsText(sdkSanitizeParameters(text).(string))
 	if utf8.RuneCountInString(text) > 2048 {
 		return truncateAnalyticsString(text, 2045)
 	}
@@ -608,6 +628,9 @@ type analyticsPolicy struct {
 	structuredText, emailChanges, emailIdentity, contactEmail bool
 	fileResult, pageText, applicationAnswers, fileArguments   bool
 	edits, fileData, fileContentSize                          bool
+	// personNames drops other people's names (a product's participants,
+	// judges, applicants and teammates) from the copy: product tools only.
+	personNames bool
 }
 
 // AnalyticsCopy is what usage telemetry keeps of one call to the named tool:

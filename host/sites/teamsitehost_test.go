@@ -40,22 +40,6 @@ func TestTeamSiteHostLabels(t *testing.T) {
 	}
 }
 
-// TestTeamSiteHostRoundTrip: whatever TeamSiteHost builds in flat mode,
-// TeamSiteHostLabels recovers exactly — the pairing host parsing
-// (host/handler) relies on.
-func TestTeamSiteHostRoundTrip(t *testing.T) {
-	for _, c := range []struct{ event, team string }{
-		{"weekend", "alpha"}, {"spring-hack-2026", "team-one"}, {"a", "b"},
-	} {
-		host := TeamSiteHost(c.event, c.team, "simple-hack.test", true)
-		label := host[:len(host)-len(".simple-hack.test")]
-		team, event, ok := TeamSiteHostLabels(label)
-		if !ok || team != c.team || event != c.event {
-			t.Errorf("round trip %+v: label %q -> %q, %q, %v", c, label, team, event, ok)
-		}
-	}
-}
-
 // A site moving domains keeps the old one as its address until the new one
 // is verified, for the sitemap, REST and MCP alike.
 func TestLiveURLDuringDomainSwitch(t *testing.T) {

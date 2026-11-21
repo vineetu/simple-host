@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/lib/pq"
 	"strings"
-	"time"
+
+	"github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/host/model"
 	siterules "github.com/vsriram/simple-host/host/rules/sites"
@@ -19,6 +19,12 @@ import (
 // handle (sql.ErrNoRows when none has it). A value no handle could have is
 // sql.ErrNoRows too, without a query.
 func GetAccountByHandle(ctx context.Context, q Querier, handle string) (model.User, error) {
+	return accountByHandle(ctx, q, handle, "")
+}
+
+// accountByHandle loads the users row whose handle is handle; and is SQL
+// appended to the WHERE clause (" AND is_team" for a team only).
+func accountByHandle(ctx context.Context, q Querier, handle, and string) (model.User, error) {
 	var u model.User
 	handle = strings.ToLower(strings.TrimSpace(handle))
 	if !siterules.VisitorHandle.MatchString(handle) {
@@ -26,7 +32,7 @@ func GetAccountByHandle(ctx context.Context, q Querier, handle string) (model.Us
 	}
 	err := q.QueryRowContext(ctx, `
 		SELECT id, username, created_at, handle, display_name, suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
-		FROM users WHERE handle = $1`, handle).Scan(
+		FROM users WHERE handle = $1`+and, handle).Scan(
 		&u.ID, &u.Username, &u.CreatedAt, &u.Handle, &u.DisplayName, &u.Suspended, &u.SuspendedReason)
 	return u, err
 }
@@ -60,28 +66,13 @@ func SetSiteEditor(ctx context.Context, q Querier, accountID, siteName, personID
 
 // ListSiteEditors lists the editors of the account's site siteName, earliest first.
 func ListSiteEditors(ctx context.Context, q Querier, accountID, siteName string) ([]model.TeamMember, error) {
-	rows, err := q.QueryContext(ctx, `
+	return scanTeamMembers(q.QueryContext(ctx, `
 		SELECT u.id, COALESCE(u.handle, ''), COALESCE(u.display_name, ''), COALESCE(a.handle, ''), e.added_at
 		FROM site_editors e
 		JOIN users u ON u.id = e.user_id
 		LEFT JOIN users a ON a.id = e.added_by
 		WHERE e.account_id = $1 AND e.site_name = $2
-		ORDER BY e.added_at, u.handle`, accountID, strings.ToLower(siteName))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []model.TeamMember{}
-	for rows.Next() {
-		var m model.TeamMember
-		var at time.Time
-		if err := rows.Scan(&m.ID, &m.Handle, &m.DisplayName, &m.AddedBy, &at); err != nil {
-			return nil, err
-		}
-		m.AddedAt = &at
-		out = append(out, m)
-	}
-	return out, rows.Err()
+		ORDER BY e.added_at, u.handle`, accountID, strings.ToLower(siteName)))
 }
 
 // ReplaceSiteEditors makes the editors of the account's sites exactly
@@ -108,18 +99,5 @@ func ReplaceSiteEditors(ctx context.Context, q Querier, accountID string, editor
 
 // EditedSites lists the sites of the account that personID edits.
 func EditedSites(ctx context.Context, q Querier, accountID, personID string) ([]string, error) {
-	rows, err := q.QueryContext(ctx, `SELECT site_name FROM site_editors WHERE account_id::text = $1 AND user_id::text = $2 ORDER BY site_name`, accountID, personID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		out = append(out, name)
-	}
-	return out, rows.Err()
+	return scanStrings(ctx, q, `SELECT site_name FROM site_editors WHERE account_id::text = $1 AND user_id::text = $2 ORDER BY site_name`, accountID, personID)
 }

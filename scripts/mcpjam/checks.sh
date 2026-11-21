@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # MCPJam protocol conformance, OAuth conformance, host compatibility and MCP
 # Apps conformance, against the fixture from fixture.sh. Free: no MCPJam
-# account and no eval credits.
+# account and no eval credits. PRODUCT (host or hack) defaults to the one
+# the fixture was started for.
 set -uo pipefail
 FIX=${FIX:-/tmp/mcpjam-fixture}
+PRODUCT=${PRODUCT:-$(cat "$FIX/product" 2>/dev/null || echo host)}
+case "$PRODUCT" in
+  host) fixture_tools=(--fixture-tool who_am_i --fixture-tool list_sites) ;;
+  hack) fixture_tools=(--fixture-tool who_am_i --fixture-tool hack_list_events) ;;
+  *) echo "PRODUCT must be host or hack" >&2; exit 1 ;;
+esac
 CLI=${MCPJAM_CLI:-@mcpjam/cli@6.0.0}
 here=$(cd "$(dirname "$0")" && pwd)
 BASE=${BASE:-https://localhost:${TLS_PORT:-18443}}
@@ -27,7 +34,7 @@ run() {
 protocol() {
   local v=$1 out="$FIX/protocol-$1.json"
   jam --format json protocol conformance --url "$URL" --protocol-version "$v" \
-    --header "X-API-Key: $SH_TEST_KEY" --fixture-tool who_am_i --fixture-tool list_sites >"$out" 2>/dev/null
+    --header "X-API-Key: $SH_TEST_KEY" "${fixture_tools[@]}" >"$out" 2>/dev/null
   python3 - "$out" <<'PY'
 import json, re, sys
 # The CLI's client logs a line or two to stdout ahead of the report.
@@ -67,9 +74,13 @@ run "oauth negative checks" python3 "$here/oauth_consent.py" npx -y "$CLI" --no-
 
 compat() {
   jam --format json compat --offline --url "$URL" --header "X-API-Key: $SH_TEST_KEY" >"$FIX/compat.json" || return 1
-  python3 - "$FIX/compat.json" <<'PY'
+  python3 - "$FIX/compat.json" "$PRODUCT" <<'PY'
 import json, sys
 hosts = json.load(open(sys.argv[1]))["hosts"]
+# Screens that ask for clipboard permission, per product. Hack's organiser
+# view copies join, judge and co-organiser links the same way.
+clipboard = {"host": {"get_site", "get_site_passcode", "set_site_passcode"},
+             "hack": {"hack_show_organiser"}}[sys.argv[2]]
 # Apps are optional: these hosts retain the unchanged tool text.
 # The picker hides itself when the host does not advertise serverTools.
 # Site preview needs nested frames and selects the link text when clipboard
@@ -87,7 +98,7 @@ def known_limit(h):
                                  and set(f["tools"]) == {"get_site"})
                              or (f.get("capability") == "sandboxPermissions"
                                  and bool(f.get("tools"))
-                                 and set(f["tools"]) <= {"get_site", "get_site_passcode", "set_site_passcode"})
+                                 and set(f["tools"]) <= clipboard)
                              or f.get("capability") in ("updateModelContext", "openLinks")))
                     for f in h["findings"]))
 bad = [h["hostId"] + ": " + h["verdict"] for h in hosts
@@ -108,4 +119,4 @@ if [ ${#failed[@]} -gt 0 ]; then
   printf 'failed: %s\n' "${failed[@]}"
   exit 1
 fi
-echo "all MCPJam checks passed"
+echo "all MCPJam checks passed ($PRODUCT)"

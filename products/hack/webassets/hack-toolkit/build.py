@@ -71,7 +71,6 @@ def main():
     archive(f'simple-hack-skills-{version}.zip', skill_files('skills'))
     (OUT / 'logo.png').write_bytes(common[f'{name}/assets/logo.png'])
     (OUT / 'icon.png').write_bytes(common[f'{name}/assets/icon.png'])
-    (OUT / 'SUBMISSION.md').write_bytes((KIT / 'SUBMISSION.md').read_bytes())
 
 
 if __name__ == '__main__':

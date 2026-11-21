@@ -1,6 +1,7 @@
 package hack
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"fmt"
@@ -13,11 +14,11 @@ import (
 	"sync"
 
 	accountapp "github.com/vsriram/simple-host/host/access"
-	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/llm"
+	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
@@ -35,6 +36,7 @@ import (
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
@@ -94,9 +96,9 @@ func Extension() *extension.Extension {
 			hack := hackhttp.NewHackHandler(d.DB, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 			hack.SetProductLimits(productConfig.Limits)
 			hack.ShareAssets(siteHandler.Pages())
-			hack.SetHandleChecker(func(ctx context.Context, q sqlkit.Querier, name string) (hackhttp.HandleVerdict, error) {
-				v, err := accesshttp.JudgeHandle(ctx, q, "", name)
-				return hackhttp.HandleVerdict{Status: v.Status, Code: v.Code}, err
+			hack.SetHandleChecker(func(ctx context.Context, q sqlkit.Querier, name string) (events.HandleVerdict, error) {
+				v, err := accountapp.JudgeHandle(ctx, q, "", name)
+				return events.HandleVerdict{Status: v.Status, Code: v.Code}, err
 			})
 			// sites.Upload.Body already reflects any MAX_ARCHIVE_MB override
 			// (applied from host/sites' init before main runs).
@@ -111,11 +113,11 @@ func Extension() *extension.Extension {
 				log.Printf("hosted events: event names checked with %s", cfg.EventNamePeer)
 			}
 			hack.SetInstanceUsage(siteshttp.DirUsage(cfg.DataDir))
-			// Team sites (M2): the sweep pins teams at their deadline, removes
-			// sites of removed teams and asks for open events' certificates.
+			// Team sites: the sweep pins teams at their deadline, removes sites of removed
+			// teams and asks for open events' certificates.
 			hack.SetSites(siteHandler)
 			d.Connector.SetTeamConnections(true)
-			// SIM-394 organiser assistant: off unless both are set.
+			// Organiser assistant: off unless both are set.
 			if productConfig.AssistantBaseURL != "" && productConfig.AssistantModel != "" {
 				assistantLLM := llm.New(llm.Config{
 					BaseURL:         productConfig.AssistantBaseURL,
@@ -161,7 +163,7 @@ func Extension() *extension.Extension {
 					GroupHosts: groupHosts,
 					GroupGate:  teams.SiteGate{TeamSitesReady: siteHandler.TeamSitesReady, RequestCert: siteHandler.RequestSiteCert, PaperSite: siteHandler.RecordGateSite, PaperState: siteHandler.RecordGateState},
 				},
-				Tools: hackmcp.Contribution(),
+				Tools: hackTools(d.DB),
 				ProductMetrics: func(paper *papermetrics.Collector) {
 					limits := productConfig.Limits
 					limits.Limits = cfg.Limits
@@ -176,11 +178,41 @@ func Extension() *extension.Extension {
 	}
 }
 
-// newAssistantDocsTextFunc returns a events.DocsTextFunc: host/app/hack/events
+// hackTools is Simple Hack's tool contribution, its usage events tagged with
+// the caller's role and the event's stage from the database.
+func hackTools(db *sql.DB) mcp.Contribution {
+	tools := hackmcp.Contribution()
+	tools.AnalyticsTags = hackmcp.AnalyticsTags(func(ctx context.Context, slug, account, user string) hackmcp.EventFact {
+		var ev hackevents.Event
+		var err error
+		held := false
+		switch {
+		case slug != "":
+			ev, err = hackevents.GetEventBySlug(ctx, db, slug)
+		case account != "":
+			ev, held, err = hackteams.HoldingAccountEvent(ctx, db, account)
+			if !held {
+				return hackmcp.EventFact{}
+			}
+		default:
+			return hackmcp.EventFact{}
+		}
+		if err != nil {
+			return hackmcp.EventFact{}
+		}
+		role := "none"
+		if member, err := hackevents.GetEventMember(ctx, db, ev.ID, cmp.Or(user, account)); err == nil {
+			role = member.Role
+		}
+		return hackmcp.EventFact{Found: true, Role: role, Stage: ev.Stage, Listed: ev.DirectoryListed, Held: held}
+	})
+	return tools
+}
+
+// newAssistantDocsTextFunc returns an events.DocsTextFunc: host/app/hack/events
 // may not import host/webassets (scripts/layering/rules.txt), so this wires
-// webassets' embedded Hack skills into hackhttp.AssistantDocsText (the one
-// place the text extraction lives -- SIM-394 L22) and injects the result into
-// the assistant service.
+// webassets' embedded Hack skills into hackhttp.AssistantDocsText (the one place
+// the text extraction lives) and injects the result into the assistant service.
 func newAssistantDocsTextFunc() func() string {
 	var once sync.Once
 	var text string

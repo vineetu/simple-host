@@ -1,6 +1,5 @@
 package model
 
-// RubricCriterion is a judging record.
 type RubricCriterion struct {
 	ID          string
 	Position    int
@@ -10,18 +9,15 @@ type RubricCriterion struct {
 	MaxPoints   int
 }
 
-// NamedTeam is a judging record.
 type NamedTeam struct {
 	ID, Name, Slug string
 }
 
-// NamedJudge is a judging record.
 type NamedJudge struct {
 	ID, Name string
 	Role     string
 }
 
-// JudgeAssignment is a judging record.
 type JudgeAssignment struct {
 	JudgeID   string `json:"judge_id"`
 	JudgeName string `json:"judge_name"`

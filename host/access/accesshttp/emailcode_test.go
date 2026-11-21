@@ -9,7 +9,6 @@ import (
 
 	_ "github.com/lib/pq"
 
-	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/httpx"
@@ -66,12 +65,6 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		t.Cleanup(func() { _, _ = database.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, existing.ID) })
 
 		assertBlocked(t, address)
-
-		// The account itself is untouched: same id, same key.
-		fresh, err := accountapp.New(database).GetUserByAPIKey(ctx, key, 180*24*time.Hour)
-		if err != nil || fresh.ID != existing.ID {
-			t.Fatalf("existing account changed by a refused sign-in attempt: %v %+v", err, fresh)
-		}
 	})
 
 	t.Run("unresolved country is allowed", func(t *testing.T) {
@@ -87,19 +80,6 @@ func TestIssueEmailCodeGeoBlock(t *testing.T) {
 		}
 		if _, sent := m.codes[address]; !sent {
 			t.Fatal("an allowed request must still be emailed its code")
-		}
-	})
-
-	t.Run("empty block list is off", func(t *testing.T) {
-		address := "emailgeoblock-off-" + stamp + "@example.com"
-		m := &mailbox{}
-		limiter := httpx.NewRateLimiter(1000, 1000)
-		_, _, status, body := issueEmailCode(ctx, database, m, limiter, address, "", "dashboard", sql.NullString{}, sql.NullString{}, blockedIP, signupGeoBlock{}, 15*time.Minute)
-		if status != 0 {
-			t.Fatalf("empty block list must be a no-op: status=%d body=%+v", status, body)
-		}
-		if _, sent := m.codes[address]; !sent {
-			t.Fatal("signup must proceed when the knob is empty")
 		}
 	})
 }

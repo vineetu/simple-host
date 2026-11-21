@@ -15,7 +15,7 @@ func TestInternalVisitorPassLifecycleAndNoOwner(t *testing.T) {
 	if got, ok := LookupInternalVisitorKey(key); !ok || got != pass {
 		t.Fatalf("lookup: %+v %v", got, ok)
 	}
-	if _, ok := LookupInternalKey(key); ok {
+	if c, ok := LookupInternalCred(key); !ok || c.Visitor == nil {
 		t.Fatal("visitor pass resolved as owner key")
 	}
 

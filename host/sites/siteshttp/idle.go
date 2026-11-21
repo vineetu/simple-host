@@ -16,7 +16,7 @@ import (
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Idle-site cleanup (owner decision 2026-09-27; no emails since 2026-11-19).
+// Idle-site cleanup (no emails are sent).
 //
 // A site with no visits by people, no new version and no saved-data or list
 // write for idleAfter + idleGrace (90 + 30 days by default) moves to Recently
@@ -37,7 +37,6 @@ import (
 
 const idleRunEvery = 6 * time.Hour
 
-// SetIdleCleanup turns the cleanup on (IDLE_CLEANUP=on).
 func (h *SiteHandler) SetIdleCleanup(on bool) { h.idleCleanup = on }
 
 // SetIdleExempt sets the accounts the cleanup never touches besides the
@@ -53,20 +52,6 @@ func (h *SiteHandler) SetIdleExempt(handles []string, reviewerEmail string) {
 	h.IdleExempt = ex
 }
 
-func (h *SiteHandler) idleEvidenceOK(ctx context.Context, now time.Time) (bool, string, time.Time, time.Time, error) {
-	return h.Reporting.IdleEvidenceStatus(ctx, now, h.Ed)
-}
-
-// StartIdleCleanup runs the cleanup shortly after boot and then every
-// idleRunEvery, while IDLE_CLEANUP is on.
-func (h *SiteHandler) StartIdleCleanup(ctx context.Context) {
-	o := h.siteLoop("sites.idle_cleanup")
-	o.once.Do(func() {
-		if o.enabled() {
-			h.startIdleCleanup(ctx)
-		}
-	})
-}
 func (h *SiteHandler) startIdleCleanup(ctx context.Context) {
 	o := h.siteLoop("sites.idle_cleanup")
 	o.periodicTicker(ctx, 10*time.Minute, idleRunEvery, func(ctx context.Context) { h.RunIdleCleanup(ctx, time.Now()) })
@@ -76,7 +61,6 @@ func (h *SiteHandler) RunIdleCleanup(ctx context.Context, now time.Time) {
 	h.Reporting.RunIdleCleanup(ctx, now, h.Ed, h.idleCleanup, h.IdleExempt, h.idleArchiveSvc())
 }
 
-// setSiteKeep PUT /v1/sites/{sitename}/keep {"keep": bool} — the Keep flag.
 func (h *SiteHandler) setSiteKeep(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -116,14 +100,13 @@ type idleSiteRow struct {
 	LastActivity time.Time `json:"last_activity"`
 }
 
-// adminIdleSites GET /v1/admin/idle-sites — the dry run: which sites a run
-// would move to Recently deleted, now, whether or not the cleanup is on.
+// adminIdleSites is the dry run: what a run would move to Recently deleted, whether or not cleanup is on.
 func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
 	now := time.Now()
-	trusted, why, since, last, err := h.idleEvidenceOK(r.Context(), now)
+	trusted, why, since, last, err := h.Reporting.IdleEvidenceStatus(r.Context(), now, h.Ed)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return

@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// "Your own address is on its way" (completeness plan, 2026-09-27).
+// "Your own address is on its way".
 //
 // Until a person's *.<handle>.<SITE_DOMAIN> certificate is ready, their sites
 // are handed out at <handle>.<SITE_DOMAIN>/<site>/ (sitehost.go). This reads

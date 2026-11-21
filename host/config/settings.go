@@ -376,7 +376,7 @@ func otherSettings() []Setting {
 			Description: "The sender of every email, on a domain verified with Resend."},
 
 		{Name: "AGENTCAT_PROJECT_ID", Group: "observability", Type: "string", Security: false,
-			Description: "AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending."},
+			Description: "AgentCat project for MCP tool-call events (arguments, results, stated intent, and product, role and stage tags, with secrets, file contents and people's details left out); empty disables sending."},
 		{Name: "PAPER_METRICS", Group: "observability", Type: "bool", Default: "on", Allowed: []string{"on", "off"},
 			Description: "Collects local paper metrics; off, false or 0 disables collection."},
 		{Name: "ANALYTICS_LOG", Group: "observability", Type: "string",

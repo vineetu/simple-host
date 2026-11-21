@@ -7,7 +7,6 @@ import (
 	"fmt"
 	rules "github.com/vsriram/simple-host/host/rules/sites"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/vsriram/simple-host/host/sites/eventdns"
@@ -281,11 +280,6 @@ func NormalizeEventName(name string) (string, error) {
 	return n, err
 }
 
-// ValidatePublicIP validates a claim/setup input before DNS work.
-var ValidatePublicIP = eventdns.ValidatePublicIP
-
 func (s *Service) SetEventNamePeer(fn func(context.Context, string, string) (bool, error)) {
 	s.deps.EventNamePeer = fn
 }
-
-func NewEventProbe(client *http.Client) *eventdns.LiveProbe { return &eventdns.LiveProbe{HTTP: client} }

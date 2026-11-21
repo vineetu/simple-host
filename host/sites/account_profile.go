@@ -84,8 +84,8 @@ func (s *Service) changeHandleTx(ctx context.Context, tx *sql.Tx, in ProfileInpu
 	// folder must never follow a stranger who claims it. Only a handle
 	// that never published anything is freed.
 	if oldHandle != "" && (hasSites || s.disk.HasHandleLink(oldHandle)) {
-		// Owner decision 2026-09-27: the handle can change after
-		// publishing; old links redirect through the alias. Once per
+		// The handle can change after publishing; old links redirect
+		// through the alias. Once per
 		// handleRenameEvery, so an address cannot be churned.
 		limited, last, err := repo.HandleRenamedSince(ctx, tx, in.UserID, time.Now().Add(-in.RenameEvery))
 		if err != nil {

@@ -83,7 +83,7 @@ func eventPayloadSchema(name string, product ...bool) map[string]any {
 	return outObject(props, required...)
 }
 
-// Site events (SIM-356) are about the site itself rather than a visitor's
+// Site events are about the site itself rather than a visitor's
 // write: they take the site argument only (no storage filter) and carry no
 // storage, kind or untrusted fields. Simple Host only; Simple Hack
 // keeps the three record events.

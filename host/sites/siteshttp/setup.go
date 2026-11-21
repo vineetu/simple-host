@@ -20,10 +20,10 @@ import (
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/eventdns"
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// SetupHandler serves first-boot setup. Register it on the setup-mode mux only.
 type SetupHandler struct {
 	db                         *sql.DB
 	publicAPI, password, token string
@@ -32,22 +32,16 @@ type SetupHandler struct {
 	client                     *http.Client
 	ipMu                       sync.Mutex
 	ip                         string
-	// assets is the asset/chrome pipeline for the configured edition and
-	// instance address, same as the routes registered once setup finishes.
-	assets *web.AssetPipeline
+	assets                     *web.AssetPipeline
 
-	// done is closed once setup succeeds, so the process can leave setup mode.
-	// Settings chosen here are read at startup — the hostnames, and the
-	// per-site cap — and nothing in a running setup-mode process re-reads them,
-	// because the serving routes were never registered on this mux.
+	// done is closed once setup succeeds. Hostnames and the per-site cap chosen here are read at startup;
+	// nothing in a setup-mode process re-reads them.
 	done     chan struct{}
 	doneOnce sync.Once
 }
 
-// Done is closed once setup has been completed successfully. The caller stops
-// the setup server and exits, and the supervisor starts the process again —
-// this time reading the answers out of the database. Without it an organiser
-// sees "Done", reloads, and gets the setup page back.
+// Done is closed once setup succeeds. The caller stops the setup server and exits, and the supervisor
+// restarts the process reading the answers from the database; otherwise reloading shows the setup page again.
 func (h *SetupHandler) Done() <-chan struct{} { return h.done }
 
 // ed and instanceURL match what the routes registered once setup finishes
@@ -353,7 +347,7 @@ func (h *SetupHandler) publicIPv4(ctx context.Context) (string, error) {
 		if ip == nil || ip.To4() == nil {
 			continue
 		}
-		if canonical, err := sites.ValidatePublicIP(raw); err == nil {
+		if canonical, err := eventdns.ValidatePublicIP(raw); err == nil {
 			h.ip = canonical
 			return h.ip, nil
 		}

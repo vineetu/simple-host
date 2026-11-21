@@ -10,18 +10,12 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
-// QueueRow holds the values needed to render one judge queue entry.
 type QueueRow struct {
 	Team        model.NamedTeam
 	Entry       model.EventEntry
 	Done        bool
 	ScoresCount int
 	Conflicted  bool
-}
-
-// JudgeQueue gathers and orders the entries visible to a judge.
-func (s *Service) JudgeQueue(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error) ([]QueueRow, error) {
-	return s.judgeQueue(ctx, ev, judgeID, loadTeams, false)
 }
 
 // JudgeCandidates includes mode-eligible, judgeable teams before own conflicts are subtracted.
@@ -120,7 +114,6 @@ func (s *Service) queueTeams(ctx context.Context, ev model.Event, judgeID string
 	return out, nil
 }
 
-// UnscoredTeams is how many of the judge's queue rows are not yet Done.
 func (s *Service) UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error) {
 	_, unscored, err := s.QueueCounts(ctx, ev, judgeID)
 	return unscored, err
@@ -128,7 +121,7 @@ func (s *Service) UnscoredTeams(ctx context.Context, ev model.Event, judgeID str
 
 // QueueCounts is the judge's queue size and how many rows are not yet Done.
 func (s *Service) QueueCounts(ctx context.Context, ev model.Event, judgeID string) (total, unscored int, err error) {
-	rows, err := s.JudgeQueue(ctx, ev, judgeID, func() error { return nil })
+	rows, err := s.judgeQueue(ctx, ev, judgeID, func() error { return nil }, false)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -140,7 +133,6 @@ func (s *Service) QueueCounts(ctx context.Context, ev model.Event, judgeID strin
 	return len(rows), unscored, nil
 }
 
-// Pool is the prospective judging pool used before entries settle.
 type Pool struct {
 	In                        map[string]bool
 	Judged, NoEntry, Excluded int
@@ -196,7 +188,6 @@ func (s *Service) EligibilityCounts(ctx context.Context, eventID string, judges 
 	return assigned, byTeam, nil
 }
 
-// entriesByTeam indexes entries by their team id.
 func entriesByTeam(entries []model.EventEntry) map[string]model.EventEntry {
 	out := make(map[string]model.EventEntry, len(entries))
 	for _, e := range entries {

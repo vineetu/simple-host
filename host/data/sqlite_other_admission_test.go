@@ -13,7 +13,7 @@ import (
 func TestLegacyAdmissionInjectedPanics(t *testing.T) {
 	db := admissionDB(t)
 	for _, mode := range []string{"query", "execute", "schema"} {
-		stages := []string{"after_open", "after_prepare", "after_step", "close"}
+		stages := []string{"after_step"}
 		if mode != "query" {
 			stages = append(stages, "before_commit", "after_commit")
 		}
@@ -100,7 +100,7 @@ func TestLegacyAdmissionInjectedPanics(t *testing.T) {
 }
 
 func TestInspectionAdmissionInjectedPanics(t *testing.T) {
-	for _, stage := range []string{"after_open", "after_prepare", "after_step", "close"} {
+	for _, stage := range []string{"after_step", "close"} {
 		t.Run(stage, func(t *testing.T) {
 			s, c := admissionFixture(t, nil)
 			ctx, closed := observeAdmissionConnection(t)

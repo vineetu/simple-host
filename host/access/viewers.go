@@ -36,7 +36,7 @@ func ViewerAllowed(ctx context.Context, db *sql.DB, row model.SitePasscodeRow, u
 }
 
 // VisitorStillWelcome is the push-delivery-time recheck for a visitor's push
-// device (SIM-360): the decision the named-viewers rule would make for an
+// device: the decision the named-viewers rule would make for an
 // ordinary read on the site right now, without the request an async
 // delivery never has. A site with no passcode row, or not in named-viewers
 // mode, is welcome.

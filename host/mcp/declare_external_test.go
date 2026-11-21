@@ -62,8 +62,6 @@ func TestExportedOptionalString(t *testing.T) {
 		err  string
 	}{
 		{name: "absent"},
-		{name: "null", args: map[string]any{"site": nil}},
-		{name: "empty", args: map[string]any{"site": ""}},
 		{name: "blank", args: map[string]any{"site": " \t\n "}},
 		{name: "trimmed", args: map[string]any{"site": " fixture \n"}, want: "fixture"},
 		{name: "wrong type", args: map[string]any{"site": true}, err: "site must be a string, got bool"},

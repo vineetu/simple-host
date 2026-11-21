@@ -1,8 +1,7 @@
-// Command gentool regenerates the judge MCP App's bundled script and
-// stylesheet from products/hack/webassets/static/hack. Run it with
-// `go generate ./products/hack/mcp/...` (see the go:generate directive in
-// products/hack/mcp/hack_apps.go) after editing any of the judge screens or
-// kit.css; TestHackJudgeBundleFresh fails the build if someone forgets.
+// Command gentool regenerates the judge and organiser MCP Apps' bundled scripts
+// and stylesheets from products/hack/webassets/static/hack. Run it with
+// `go generate ./products/hack/mcp/...` after editing a screen or kit.css; the
+// TestHack*BundleFresh tests fail if someone forgets.
 package main
 
 import (
@@ -13,10 +12,9 @@ import (
 	"github.com/vsriram/simple-host/products/hack/mcp/apps/bundlegen"
 )
 
-// moduleRoot walks up from the working directory to the nearest go.mod.
-// A -trimpath build (this repo's default) makes runtime.Caller's path the
-// module path, not a filesystem one, so this command is meant to be run
-// with `go run` from inside the repo rather than as a built binary.
+// moduleRoot walks up from the working directory to the nearest go.mod. A
+// -trimpath build makes runtime.Caller's path a module path, so run this with
+// `go run` from inside the repo, not as a built binary.
 func moduleRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -71,10 +69,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gentool:", err)
 		os.Exit(1)
 	}
-	// Same kit.css as the judge bundle (GenerateCSS strips the one
-	// @font-face rule regardless of which app is asking); written to its
-	// own file since each screen's asset names are derived from its own
-	// screen.ID (hack_apps.go's readHackApp).
+	// Same kit.css as the judge bundle, written to its own file because each
+	// screen's asset names derive from its screen.ID.
 	if err := os.WriteFile(filepath.Join(appsDir, "hack-organiser-kit.css"), []byte(css), 0644); err != nil {
 		fmt.Fprintln(os.Stderr, "gentool:", err)
 		os.Exit(1)

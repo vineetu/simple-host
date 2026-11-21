@@ -96,51 +96,40 @@ const (
 	peopleSQL1 = `SELECT looking_for FROM event_teams WHERE id = $1`
 )
 
-// teamDeadlinePassedSQL reads whether the effective deadline passed.
 const teamDeadlinePassedSQL = `
 		SELECT COALESCE(` + hackevents.EffectiveDeadlineSQL + ` <= clock_timestamp(), false)
 		  FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`
 
-// savepointSQL starts a retryable operation.
 const savepointSQL = "SAVEPOINT hack_try"
 
-// rollbackSavepointSQL rolls back a failed attempt.
 const rollbackSavepointSQL = "ROLLBACK TO SAVEPOINT hack_try"
 
-// releaseSavepointSQL finishes a successful attempt.
 const releaseSavepointSQL = "RELEASE SAVEPOINT hack_try"
 
-// LockFindingMembership locks an approved membership and reads its team and admin state.
 func LockFindingMembership(ctx context.Context, q *sql.Tx, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, findingSQL1, eventID, userID)
 }
 
-// LockFindingTeam locks the team before editing its finding note.
 func LockFindingTeam(ctx context.Context, q *sql.Tx, teamID string) (sql.Result, error) {
 	return q.ExecContext(ctx, findingSQL2, teamID)
 }
 
-// SetFindingNote updates the team’s finding note.
 func SetFindingNote(ctx context.Context, q sqlkit.Querier, teamID, note string) (sql.Result, error) {
 	return q.ExecContext(ctx, findingSQL3, teamID, note)
 }
 
-// SetMemberLooking updates an approved solo participant’s finding preferences.
 func SetMemberLooking(ctx context.Context, q sqlkit.Querier, eventID, userID string, looking bool, intro string) (sql.Result, error) {
 	return q.ExecContext(ctx, findingSQL4, eventID, userID, looking, intro)
 }
 
-// ReadTeamRequest reads the team, user and kind of a request.
 func ReadTeamRequest(ctx context.Context, q sqlkit.Querier, eventID, requestID string) *sql.Row {
 	return q.QueryRowContext(ctx, findingSQL5, eventID, requestID)
 }
 
-// TeamIDBySlug reads a team ID by event and slug.
 func TeamIDBySlug(ctx context.Context, q sqlkit.Querier, eventID, slug string) *sql.Row {
 	return q.QueryRowContext(ctx, findingSQL6, eventID, slug)
 }
 
-// TeamRequestID reads the request ID for a team and user.
 func TeamRequestID(ctx context.Context, q sqlkit.Querier, teamID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, findingSQL7, teamID, userID)
 }
@@ -155,42 +144,34 @@ func LockEventTeamsForFill(ctx context.Context, q *sql.Tx, eventID string) (sql.
 	return q.ExecContext(ctx, findingSQL9, eventID)
 }
 
-// SetTeamLookingFor updates what a team is looking for.
 func SetTeamLookingFor(ctx context.Context, q sqlkit.Querier, teamID, note string) (sql.Result, error) {
 	return q.ExecContext(ctx, adminSQL1, teamID, note)
 }
 
-// ListFindingTeams lists unlocked teams eligible for the finding directory.
 func ListFindingTeams(ctx context.Context, q *sql.DB, eventID string) (*sql.Rows, error) {
 	return q.QueryContext(ctx, openSQL1, eventID)
 }
 
-// ListFindingTeamMembers lists approved members of unlocked teams.
 func ListFindingTeamMembers(ctx context.Context, q *sql.DB, eventID string) (*sql.Rows, error) {
 	return q.QueryContext(ctx, openSQL2, eventID)
 }
 
-// ListLookingParticipants lists approved solo participants seeking a team.
 func ListLookingParticipants(ctx context.Context, q *sql.DB, eventID string) (*sql.Rows, error) {
 	return q.QueryContext(ctx, openSQL3, eventID)
 }
 
-// ListVisibleTeamRequests lists requests visible to the member or organiser.
 func ListVisibleTeamRequests(ctx context.Context, q *sql.DB, eventID, userID string, teamID sql.NullString, organiser bool) (*sql.Rows, error) {
 	return q.QueryContext(ctx, openSQL4, eventID, userID, teamID, organiser)
 }
 
-// ReadMemberLooking reads a member’s finding preferences.
 func ReadMemberLooking(ctx context.Context, q sqlkit.Querier, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, openSQL5, eventID, userID)
 }
 
-// ReadFindingTeamState reads the team’s lock and finding state and the member’s admin state.
 func ReadFindingTeamState(ctx context.Context, q sqlkit.Querier, teamID sql.NullString, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, openSQL6, teamID, eventID, userID)
 }
 
-// SetTeamRemovalNotices sets the removal notice for team members.
 func SetTeamRemovalNotices(ctx context.Context, q sqlkit.Querier, teamID, notice string) (sql.Result, error) {
 	return q.ExecContext(ctx, membershipSQL2, teamID, notice)
 }
@@ -220,7 +201,6 @@ func LockTwoMemberRows(ctx context.Context, q *sql.Tx, eventID, firstUserID, sec
 	return q.ExecContext(ctx, locksSQL5, eventID, firstUserID, secondUserID)
 }
 
-// ReadApprovedMemberTeam reads an approved member’s team and admin state.
 func ReadApprovedMemberTeam(ctx context.Context, q sqlkit.Querier, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, locksSQL6, eventID, userID)
 }
@@ -230,12 +210,10 @@ func LockTargetTeamRow(ctx context.Context, q *sql.Tx, teamID string) (sql.Resul
 	return q.ExecContext(ctx, locksSQL7, teamID)
 }
 
-// SetTeamCode updates a team’s join code.
 func SetTeamCode(ctx context.Context, q sqlkit.Querier, teamID, code string) (sql.Result, error) {
 	return q.ExecContext(ctx, organiserSQL2, teamID, code)
 }
 
-// TeamRowExists checks whether a team still exists.
 func TeamRowExists(ctx context.Context, q sqlkit.Querier, teamID string) *sql.Row {
 	return q.QueryRowContext(ctx, organiserSQL3, teamID)
 }
@@ -245,7 +223,6 @@ func LockRemovalMembers(ctx context.Context, q *sql.Tx, eventID, actorID, userID
 	return q.ExecContext(ctx, organiserSQL4, eventID, actorID, userID)
 }
 
-// ReadRemovalActor reads the approved actor’s team and admin state.
 func ReadRemovalActor(ctx context.Context, q sqlkit.Querier, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, organiserSQL5, eventID, userID)
 }
@@ -255,47 +232,38 @@ func LockTeamSlug(ctx context.Context, q *sql.Tx, teamID string) *sql.Row {
 	return q.QueryRowContext(ctx, organiserSQL6, teamID)
 }
 
-// SetMemberRemovalNotice sets a member’s removal notice.
 func SetMemberRemovalNotice(ctx context.Context, q sqlkit.Querier, eventID, userID, notice string) (sql.Result, error) {
 	return q.ExecContext(ctx, organiserSQL7, eventID, userID, notice)
 }
 
-// ReadMemberRemovalNotice reads a member’s removal notice.
 func ReadMemberRemovalNotice(ctx context.Context, q sqlkit.Querier, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, organiserSQL8, eventID, userID)
 }
 
-// TeamDeadlinePassed reads whether the team’s effective deadline has passed.
 func TeamDeadlinePassed(ctx context.Context, q sqlkit.Querier, teamID string) *sql.Row {
 	return q.QueryRowContext(ctx, teamDeadlinePassedSQL, teamID)
 }
 
-// TeamNameExists checks for a case-insensitive team name match.
 func TeamNameExists(ctx context.Context, q sqlkit.Querier, eventID, name string) *sql.Row {
 	return q.QueryRowContext(ctx, createSQL1, eventID, name)
 }
 
-// StartWorkflowSavepoint starts the workflow retry savepoint.
 func StartWorkflowSavepoint(ctx context.Context, q sqlkit.Querier) (sql.Result, error) {
 	return q.ExecContext(ctx, savepointSQL)
 }
 
-// RollbackWorkflowSavepoint rolls back the workflow retry savepoint.
 func RollbackWorkflowSavepoint(ctx context.Context, q sqlkit.Querier) (sql.Result, error) {
 	return q.ExecContext(ctx, rollbackSavepointSQL)
 }
 
-// ReleaseWorkflowSavepoint releases the workflow retry savepoint.
 func ReleaseWorkflowSavepoint(ctx context.Context, q sqlkit.Querier) (sql.Result, error) {
 	return q.ExecContext(ctx, releaseSavepointSQL)
 }
 
-// LockMemberTeamID locks a membership and reads its team ID.
 func LockMemberTeamID(ctx context.Context, q *sql.Tx, eventID, userID string) *sql.Row {
 	return q.QueryRowContext(ctx, organiserSQL1, eventID, userID)
 }
 
-// ReadTeamLookingFor reads what a team is looking for.
 func ReadTeamLookingFor(ctx context.Context, q sqlkit.Querier, teamID string) *sql.Row {
 	return q.QueryRowContext(ctx, peopleSQL1, teamID)
 }
@@ -305,7 +273,6 @@ func LockEventDeadlinePassed(ctx context.Context, q *sql.Tx, eventID string) *sq
 	return q.QueryRowContext(ctx, createSQL2, eventID)
 }
 
-// SetCreatedTeamLookingFor sets the finding note on a newly created team.
 func SetCreatedTeamLookingFor(ctx context.Context, q sqlkit.Querier, teamID, note string) (sql.Result, error) {
 	return q.ExecContext(ctx, createSQL3, teamID, note)
 }

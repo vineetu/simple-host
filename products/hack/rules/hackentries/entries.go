@@ -8,9 +8,8 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// RuleFields are every field the rules engine understands, in canonical
-// order. missing ids, the CSV "missing" cell and the organiser's rule rows
-// all follow this order.
+// RuleFields are every field the rules engine understands, in canonical order;
+// missing ids, the CSV "missing" cell and the organiser's rule rows follow it.
 var RuleFields = []string{
 	"title", "problem", "tagline", "audience", "track", "tools", "maturity",
 	"description", "video_url", "site", "code_url", "screenshot",
@@ -19,36 +18,30 @@ var RuleFields = []string{
 // OneOfFields are the only fields a rules JSON may mark "one_of".
 var OneOfFields = map[string]bool{"video_url": true, "site": true, "code_url": true, "screenshot": true}
 
-// RuleModeOK lists the supported field modes.
 var RuleModeOK = map[string]bool{"required": true, "optional": true, "off": true, "one_of": true}
 
-// EntryRules is events.entry_rules, version 1.
 type EntryRules struct {
 	V      int               `json:"v"`
 	Fields map[string]string `json:"fields"`
 }
 
-// Presets is the Go table PUT .../entry-rules {preset} expands, and what a
-// newly created event starts on ("video_or_website"). SIM-382 (owner,
-// 2026-11-05/06) narrowed the organiser's choice to exactly two presets,
-// both naming what teams hand in:
-//   - Video or website (the default): everything on the card Required
-//     except Who it's for, Video and Website One of, Code Off, Screenshot
-//     Optional, video first.
-//   - Video, website and code link: everything on the card Required
-//     except Who it's for, Video, Website and Code link all Required (not
-//     One of), Screenshot Optional, website first.
+// Presets is the Go table PUT .../entry-rules {preset} expands, and what a newly
+// created event starts on ("video_or_website"). An organiser can pick exactly
+// two presets, both naming what teams hand in:
+//   - Video or website (the default): everything on the card Required except
+//     Who it's for, Video and Website One of, Code Off, Screenshot Optional,
+//     video first.
+//   - Video, website and code link: everything on the card Required except
+//     Who it's for, Video, Website and Code link all Required (not One of),
+//     Screenshot Optional, website first.
 //
-// Description and Who it's for (audience) are Optional in every preset
-// (SIM-395, owner 2026-11-06; migration 0010 moved preset-backed events). Title is always Required, and Track is
-// ignored when the event has no tracks.
+// Description and Who it's for (audience) are Optional in every preset. Title
+// is always Required, and Track is ignored when the event has no tracks.
 //
-// "build", "code" and "ideas" (AI build, Coding, Ideas and design) stay
-// here, unreachable from PresetSettable: an event already on one of them
-// (or on "custom") keeps working exactly as before -- LoadRules/ExpandPreset
-// still expand it -- but PutRules refuses to set any of the four again
-// (section below), so the website and the connector only ever offer the
-// two current presets.
+// "build", "code" and "ideas" stay here, unreachable from PresetSettable: an
+// event already on one of them (or on "custom") keeps working, since
+// LoadRules/ExpandPreset still expand it, but PutRules refuses to set any of
+// the four again.
 var Presets = map[string]map[string]string{
 	"video_or_website": {
 		"title": "required", "problem": "required", "tagline": "required",
@@ -78,8 +71,8 @@ var Presets = map[string]map[string]string{
 	},
 }
 
-// PresetJudgeFirst is which evidence judges see first for each preset,
-// applied when an organiser picks the preset without naming judge_first.
+// PresetJudgeFirst is which evidence judges see first for each preset, applied
+// when an organiser picks the preset without naming judge_first.
 var PresetJudgeFirst = map[string]string{
 	"video_or_website": "video", "video_website_code": "site",
 	"build": "video", "code": "site", "ideas": "video",
@@ -88,37 +81,34 @@ var PresetJudgeFirst = map[string]string{
 // PresetOrder is the presets an organiser can pick, in display order.
 var PresetOrder = []string{"video_or_website", "video_website_code"}
 
-// PresetKnown reports whether a preset name is a supported stored value:
-// the two current presets, a legacy one an older event may still carry, or
-// "custom". Use this for reading/evaluating a stored event; use
-// PresetSettable to decide whether a PUT may set it.
+// PresetKnown reports whether a preset name is a supported stored value: the
+// two current presets, a legacy one an older event may carry, or "custom". Use
+// it to read a stored event; use PresetSettable to decide whether a PUT may set it.
 func PresetKnown(preset string) bool {
 	_, ok := Presets[preset]
 	return ok || preset == "custom"
 }
 
-// PresetSettable reports whether an organiser (or the connector) may set
-// this preset going forward: only the two current ones. "build", "code",
-// "ideas" and "custom" are refused by PutRules with a message naming the
-// two (SIM-382) -- an event already on one of them keeps it until the
-// organiser switches to a current preset or edits a field, which demotes
-// it to "custom" as before.
+// PresetSettable reports whether an organiser (or the connector) may set this
+// preset: only the two current ones. "build", "code", "ideas" and "custom" are
+// refused by PutRules with a message naming the two. An event already on one of
+// them keeps it until the organiser switches to a current preset or edits a
+// field, which demotes it to "custom".
 func PresetSettable(preset string) bool {
 	return preset == "video_or_website" || preset == "video_website_code"
 }
 
-// ExpandPreset is Presets[preset] normalised to every field, title
-// forced required. An unknown preset (including "custom") is every field
-// optional, title required -- the caller then applies its own fields on top.
+// ExpandPreset is Presets[preset] normalised to every field, title forced
+// required. An unknown preset (including "custom") is every field optional,
+// title required; the caller then applies its own fields on top.
 func ExpandPreset(preset string) map[string]string {
 	return NormaliseRules(Presets[preset])
 }
 
-// NormaliseRules fills every field (a missing key means "optional"),
-// drops an unknown field or an unknown mode, drops "one_of" on a field that
-// may not carry it, and forces title to "required". entry_rules JSON is
-// validated server-side and never stored as the client sent it (section
-// 9.6): this is the one function that enforces that.
+// NormaliseRules fills every field (a missing key means "optional"), drops an
+// unknown field or mode, drops "one_of" on a field that may not carry it, and
+// forces title to "required". entry_rules JSON is validated server-side and
+// never stored as the client sent it: this is the one function that enforces that.
 func NormaliseRules(fields map[string]string) map[string]string {
 	out := make(map[string]string, len(RuleFields))
 	for _, f := range RuleFields {
@@ -134,7 +124,6 @@ func NormaliseRules(fields map[string]string) map[string]string {
 	return out
 }
 
-// MarshalRules is the normalised fields as entry_rules JSON (version 1).
 func MarshalRules(fields map[string]string) []byte {
 	raw, err := json.Marshal(EntryRules{V: 1, Fields: NormaliseRules(fields)})
 	if err != nil {
@@ -144,9 +133,8 @@ func MarshalRules(fields map[string]string) []byte {
 	return raw
 }
 
-// LoadRules parses an event's stored entry_rules, defaulting to every
-// field optional (title required) on a blank value -- a fresh row before a
-// migration backfill runs, or on an instance that predates this release.
+// LoadRules parses an event's stored entry_rules, defaulting to every field
+// optional (title required) on a blank value.
 func LoadRules(raw []byte) map[string]string {
 	var r EntryRules
 	if len(raw) > 0 {
@@ -155,9 +143,8 @@ func LoadRules(raw []byte) map[string]string {
 	return NormaliseRules(r.Fields)
 }
 
-// OneOfGroup is the fields marked "one_of", in canonical order. Exactly
-// one such group can exist (every field in OneOfFields marked one_of
-// together makes the group); this just reads it back.
+// OneOfGroup is the fields marked "one_of", in canonical order. At most one such
+// group exists (every OneOfFields field marked one_of together makes it).
 func OneOfGroup(fields map[string]string) []string {
 	var out []string
 	for _, f := range RuleFields {
@@ -168,18 +155,14 @@ func OneOfGroup(fields map[string]string) []string {
 	return out
 }
 
-// Check is whether an entry is complete, and canonically-ordered reasons
-// why not: field ids, plus "one_of" for an unmet one-of group, at the end.
 type Check struct {
 	Complete bool
 	Missing  []string
 }
 
-// FieldPresent is whether one field of the entry/team counts as filled,
-// for completeness. site comes from siteLive (the team's actual site state),
-// never from the entry row (section 4.1: "the website evidence comes from
-// sites, never from the entry row"). track comes from teamTrack, the team's
-// chosen track, not anything stored on the entry.
+// FieldPresent is whether one field of the entry/team counts as filled. site
+// comes from siteLive (the team's actual site state), never the entry row;
+// track comes from teamTrack, the team's chosen track.
 func FieldPresent(field string, e model.EventEntry, siteLive bool, teamTrack *model.EventTrack) bool {
 	switch field {
 	case "title":
@@ -211,11 +194,10 @@ func FieldPresent(field string, e model.EventEntry, siteLive bool, teamTrack *mo
 	}
 }
 
-// Evaluate is the only place that answers "is this entry complete"
-// (section 3): entryCompleteness, queueReceipt, the CSV, listEntries, the
-// judge queue, the Home progress and the settle sweep all go through this.
-// hasTracks false ignores the "track" field even when the rules ask for it
-// ("with no tracks in the event, track is ignored").
+// Evaluate is the only place that answers "is this entry complete":
+// entryCompleteness, queueReceipt, the CSV, listEntries, the judge queue, the
+// Home progress and the settle sweep all go through it. hasTracks false ignores
+// the "track" field even when the rules ask for it.
 func Evaluate(fields map[string]string, e model.EventEntry, siteLive, hasTracks bool, teamTrack *model.EventTrack) Check {
 	missing := []string{} // never null in JSON
 	for _, f := range RuleFields {
@@ -241,9 +223,9 @@ func Evaluate(fields map[string]string, e model.EventEntry, siteLive, hasTracks 
 	return Check{Complete: len(missing) == 0, Missing: missing}
 }
 
-// OneOfWord is how a one-of field reads in the rules sentence.
-// codeNamed is true once code_url is already named as required, which reads
-// "your website" there instead of "a published website" alone.
+// OneOfWord is how a one-of field reads in the rules sentence. codeNamed is true
+// once code_url is already named as required, which reads "your website" there
+// instead of "a published website" alone.
 func OneOfWord(field string, codeNamed bool) string {
 	switch field {
 	case "video_url":
@@ -262,26 +244,19 @@ func OneOfWord(field string, codeNamed bool) string {
 	}
 }
 
-// RulesSummary is the one sentence naming what "show your work" needs
-// ("a video or a published website", "your code link, and a video or your
-// website", or, for SIM-382's video_website_code preset where video_url
-// and site are each required outright rather than one_of, "a video, your
-// website, and your code link"), built server-side so the website and the
-// AI apps word it identically (section 3). It only describes the
-// show-your-work fields (video_url, site, code_url, screenshot -- every
-// one that is required or one_of); the summary-card fields (problem,
-// audience, track, tools, maturity) are not part of it.
+// RulesSummary is the one sentence naming what "show your work" needs ("a video
+// or a published website", "your code link, and a video or your website", "a
+// video, your website, and your code link"), built server-side so the website
+// and the AI apps word it identically. It only describes the show-your-work
+// fields (video_url, site, code_url, screenshot); the summary-card fields are
+// not part of it.
 func RulesSummary(fields map[string]string) string {
 	var parts []string
 	codeNamed := fields["code_url"] == "required"
-	// Individually required fields, in the same order the UI lists them
-	// (video, website, code, screenshot): named on their own, not folded
-	// into the one_of clause below, since each is independently mandatory.
-	// code_url keeps its longer "your code link" phrasing here (OneOfWord's
-	// shorter "your code" is for when it's one of several options, not a
-	// flat requirement); site reads "your website" once code is already
-	// named, same as inside a one_of group, instead of the more impersonal
-	// "a published website".
+	// Individually required fields, in the UI's order (video, website, code,
+	// screenshot), are named on their own, not folded into the one_of clause. code_url
+	// keeps "your code link" (OneOfWord's shorter "your code" is for when it is one
+	// of several options); site reads "your website" once code is already named.
 	for _, f := range []string{"video_url", "site", "code_url", "screenshot"} {
 		if fields[f] != "required" {
 			continue
@@ -309,15 +284,13 @@ func RulesSummary(fields map[string]string) string {
 	}
 }
 
-// SummaryFields are the summary-card lines progress.steps["summary"]
-// counts: problem, tagline, audience, track, tools, maturity, plus title
-// when it is empty (section 4.3).
+// SummaryFields are the summary-card lines progress.steps["summary"] counts:
+// problem, tagline, audience, track, tools, maturity, plus title when empty.
 var SummaryFields = []string{"title", "problem", "tagline", "audience", "track", "tools", "maturity"}
 
-// FieldWords names a field in plain words, for the "missing" list a
-// client renders and for progress.steps["summary"].missing. one_of itself
-// is reworded per-event by MissingMessage (the actual group members),
-// this is only the generic fallback.
+// FieldWords names a field in plain words, for the "missing" list a client
+// renders and for progress.steps["summary"].missing. one_of is reworded
+// per-event by MissingMessage; this is only the generic fallback.
 var FieldWords = map[string]string{
 	"title": "a title", "problem": "the problem it solves", "tagline": "the one-line solution",
 	"audience": "who it's for", "track": "a track", "tools": "the tools used",
@@ -380,7 +353,6 @@ func RulesEditable(stage string) bool {
 	return stage == "draft" || stage == "open" || stage == "building"
 }
 
-// ModeSuffix describes the additional mode allowed for a field.
 func ModeSuffix(field string) string {
 	if OneOfFields[field] {
 		return " or one_of"
@@ -388,7 +360,6 @@ func ModeSuffix(field string) string {
 	return ""
 }
 
-// FieldsEqual reports whether two field maps have the same entries.
 func FieldsEqual(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
@@ -401,7 +372,6 @@ func FieldsEqual(a, b map[string]string) bool {
 	return true
 }
 
-// JoinNames joins names for display.
 func JoinNames(names []string) string {
 	switch len(names) {
 	case 0:

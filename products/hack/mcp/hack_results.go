@@ -6,14 +6,12 @@ import (
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
-func hackPublicReadOnly() map[string]any {
-	annotations := mcp.ReadOnly()
-	annotations["openWorldHint"] = true
-	return annotations
-}
+// hackPublicReadOnly reads public event data. It stays inside the service,
+// so it is a plain read (see annotations_test.go for the rule).
+func hackPublicReadOnly() map[string]any { return mcp.ReadOnly() }
 
-// Filter before serializing either representation. REST responses remain intact
-// for browser pages, and these optional fields need no output schema changes.
+// Filter before serializing either representation; REST responses stay intact
+// for browser pages.
 func minimiseHackMemberResult(c *mcp.Call, out map[string]any) {
 	userID := accountUserID(c.Caller())
 	switch c.MemberResult() {
@@ -36,13 +34,12 @@ func minimiseHackMemberResult(c *mcp.Call, out map[string]any) {
 			clear(out)
 		}
 	case "successors":
-		// successors (creator case) keeps display_name and user_id; email
-		// stays out of model context unless asked (2026-10-28 rule).
+		// Keeps display_name and user_id; email stays out of model context unless asked.
 		hackOmitRowField(out["successors"], "email")
 	}
 }
 
-// OAuth callers carry UserID; personal API-key callers carry Owner.
+// accountUserID: OAuth callers carry UserID; personal API-key callers carry Owner.
 func accountUserID(c mcp.Caller) string {
 	if c.UserID != "" {
 		return c.UserID

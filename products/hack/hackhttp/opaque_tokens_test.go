@@ -11,6 +11,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/config"
 	httpx "github.com/vsriram/simple-host/host/httpx"
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 )
 
 const opaqueOwner = "1b4e28ba-2fa1-11d2-883f-0016d3cca427"
@@ -43,7 +44,9 @@ func TestOpaqueLinkPayloadsAndAuthentication(t *testing.T) {
 		}
 		return b
 	}()
-	hack := NewHackHandlerForTest(key, config.DefaultLimits())
+	lim := productconfig.DefaultLimits()
+	lim.Limits = config.DefaultLimits()
+	hack := &HackHandler{archiveLinkKey: key, limits: &lim}
 	now := time.Now().Truncate(time.Second)
 	expiry := now.Add(time.Minute)
 	claim := HackArchiveClaim{UserID: opaqueOwner, EventID: opaqueSite, TeamID: opaqueTeam, Slug: "event", Kind: "own-team", Expiry: expiry.Unix()}

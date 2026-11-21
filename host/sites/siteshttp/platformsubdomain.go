@@ -15,36 +15,15 @@ import (
 	"github.com/vsriram/simple-host/host/sites/pagepath"
 )
 
-// A free <name>.<SITE_DOMAIN> address (owner decision 2026-09-24).
-//
-// A site can claim one single-label name under the platform domain, e.g.
-// clayandkiln.simple-host.app, through the ordinary custom-domain binding (the
-// same sites.custom_domain column, the same POST /v1/sites/{site}/domain and
-// connect_domain tool). Because the platform owns the zone, the wildcard
-// certificate and the wildcard DNS record, there is nothing for the person to
-// prove: the binding is verified the moment it is made, and it is first come,
-// first served. Once bound, the host behaves exactly like a custom domain — the
-// site is served at its root, /v1 is same-origin, visitors sign in there with a
-// host-only __Host- cookie — and so it counts as the site's own domain for
-// private collections. Names nobody has claimed keep the legacy 301 to the path
-// URL (LegacyHostRedirect).
+// A site may claim a free <name>.<SITE_DOMAIN> address through the ordinary custom-domain binding.
+// The platform owns the zone and wildcard cert, so there is nothing to prove: the binding is verified at
+// once, first come first served. Once bound the host behaves like a custom domain (site at its root,
+// same-origin /v1, host-only __Host- cookie), so it counts as the site's own domain for private
+// collections. Unclaimed names keep the legacy 301 (LegacyHostRedirect).
 
-// platformSubdomainLabel reports whether host is exactly one DNS label under
-// siteDomain (e.g. "clay" for clay.simple-host.app) and returns that label.
-// Multi-label hosts (x.lab.simple-host.app), the apex and non-platform hosts
-// return ok=false.
-func platformSubdomainLabel(host, siteDomain string) (string, bool) {
-	return appsites.SubdomainLabel(host, siteDomain)
-}
-
-var errSubdomainReserved = appsites.ErrSubdomainReserved
-
-// claimableSubdomain validates a requested <label>.<siteDomain>: one DNS label,
-// letters/digits/hyphens, no leading or trailing hyphen, not reserved, and not
-// one of the platform's own hosts (content host, CNAME target). While the
-// base moves (sitebase.go) a name under either domain is accepted — older
-// skills write the old one — and the name is always kept under the base
-// handed out.
+// claimableSubdomain validates a requested <label>.<siteDomain>: one DNS label, letters/digits/hyphens,
+// no edge hyphen, not reserved, not a platform host. While the base moves (sitebase.go) a name under
+// either domain is accepted, and it is always kept under the base handed out.
 func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
 	label, _, ok := h.Hosts.UserHostLabel(host)
 	base := h.Hosts.Addressing().HandoutBase()
@@ -60,7 +39,7 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 	host, err := h.claimableSubdomain(requested)
 	if err != nil {
 		code := "invalid_name"
-		if errors.Is(err, errSubdomainReserved) {
+		if errors.Is(err, appsites.ErrSubdomainReserved) {
 			code = "name_reserved"
 		}
 		httpx.WriteError(w, http.StatusBadRequest, code, err.Error())
@@ -79,8 +58,7 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 		httpx.WriteInternal(w)
 		return
 	}
-	// A site has one address of its own; the ones it replaces stop serving it
-	// (a replaced claimed name redirects here: it was kept as a retired name).
+	// A site has one address of its own; a replaced one stops serving (a claimed name redirects as a retired name).
 	for _, d := range released {
 		if err := h.Disk.UnbindDomain(d); err != nil {
 			log.Printf("domain: unbind previous %s for %s: %v", d, site.Name, err)
@@ -99,11 +77,8 @@ func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// BoundSubdomains serves claimed <name>.<siteDomain> hosts the way nginx serves
-// a custom domain: /v1/ goes to the API (same-origin state, collections and
-// visitor sign-in), everything else is the site's files from its live version.
-// Every other request — unclaimed names included, which keep their legacy 301 —
-// goes to fallback.
+// BoundSubdomains serves claimed <name>.<siteDomain> hosts like a custom domain: /v1/ goes to the API,
+// everything else is the site's live files. Any other request (unclaimed names keep their legacy 301) goes to fallback.
 func (h *SiteHandler) BoundSubdomains(api, fallback http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := httpx.HostName(r)
@@ -125,28 +100,19 @@ func (h *SiteHandler) BoundSubdomains(api, fallback http.Handler) http.Handler {
 	})
 }
 
-// ServeSiteFileRel serves one page of a site's live version: no directory
-// listings, nothing outside the site's current directory (os.Root refuses
-// escapes, symlinks included), GET and HEAD only.
-//
-// rel is the path inside the site ("/" is its root). A redirect to a page's
-// other spelling is built from the request's own path, so it works for a
-// site served at a host's root and for one served under /<site>/.
+// ServeSiteFileRel serves one page of a site's live version: no directory listings, nothing outside the
+// site's current directory (os.Root refuses escapes, symlinks included), GET and HEAD only. rel is the
+// path inside the site; redirects are built from the request's own path so they work at a host root and under /<site>/.
 func (h *SiteHandler) ServeSiteFileRel(w http.ResponseWriter, r *http.Request, userID, siteName, rel string) {
 	h.serveSiteFile(w, r, userID, siteName, rel, r.URL.EscapedPath())
 }
 
-// serveSiteFile is ServeSiteFileRel with the (escaped, server-built) public
-// path a page redirect adds its "/" to or removes it from.
 func (h *SiteHandler) serveSiteFile(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string) {
 	h.serveSiteFileWithProbe(w, r, userID, siteName, rel, publicPath, nil)
 }
 
-// serveSiteFileWithProbe opens the site's folder and passes the request
-// through the visitor gate (h.gate) before anything about the site's files
-// is answered: probe (a site-host legacy redirect or a selected-home
-// collision, which could reveal whether a file exists) runs only once the
-// gate lets the request in.
+// serveSiteFileWithProbe passes the request through the visitor gate (h.gate) before anything about the
+// site's files is answered: probe (which could reveal whether a file exists) runs only once the gate lets it in.
 func (h *SiteHandler) serveSiteFileWithProbe(w http.ResponseWriter, r *http.Request, userID, siteName, rel, publicPath string, probe func() bool) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")
@@ -178,8 +144,6 @@ func (h *SiteHandler) serveSiteFileWithProbe(w http.ResponseWriter, r *http.Requ
 	h.Gate.ServeHTTP(w, appsites.WithServing(r, appsites.Serving{UserID: userID, Name: siteName, Rel: rel, Root: siteRoot, Then: then}))
 }
 
-// serveDirFile serves rel from dir the way serveSiteFile does (dir is a
-// version tree: the live `current`, or a kept version for a preview).
 func (h *SiteHandler) serveDirFile(w http.ResponseWriter, r *http.Request, dir, rel, publicPath string) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -199,10 +163,8 @@ func revalidatePage(w http.ResponseWriter) {
 	}
 }
 
-// ServeRootFile answers rel inside one version tree as pagepath.Resolve
-// decides: the page's file, the redirect to its other spelling, or the
-// site's 404. publicPath is the escaped address being asked for; a redirect
-// only adds or removes its trailing slash, so it lands on the page itself.
+// ServeRootFile answers rel inside one version tree as pagepath.Resolve decides: the file, the redirect
+// to its other spelling (only the trailing slash differs), or the site's 404.
 func (h *SiteHandler) ServeRootFile(w http.ResponseWriter, r *http.Request, root *os.Root, rel, publicPath string) {
 	page := pagepath.Resolve(root, rel)
 	switch page.Kind {
@@ -244,7 +206,6 @@ func (h *SiteHandler) ServeRootFile(w http.ResponseWriter, r *http.Request, root
 	http.ServeContent(w, r, st.Name(), st.ModTime(), f)
 }
 
-// siteNotFound answers 404 with the site's own 404.html when it has one.
 func (h *SiteHandler) siteNotFound(w http.ResponseWriter, r *http.Request, root *os.Root) {
 	if f, err := root.Open("404.html"); err == nil {
 		defer f.Close()

@@ -10,8 +10,7 @@
 //
 // Authentication is not this package's job. The caller of ServeHTTP has
 // already proved who the request is for (an OAuth access token, or an API key)
-// and attached a Caller to the request context with WithCaller. This package
-// is a leaf: it imports nothing else from the module.
+// and attached a Caller to the request context with WithCaller.
 package mcp
 
 import (
@@ -128,8 +127,15 @@ type Config struct {
 	Version    string
 	// AnalyticsProjectID enables optional AgentCat tool usage events when non-empty.
 	AnalyticsProjectID string
-	// AnalyticsEnv tags those events: "prod" on simple-host.app, "dev" elsewhere.
+	// AnalyticsEnv tags those events: "prod" on the product's hosted
+	// address, "dev" elsewhere.
 	AnalyticsEnv string
+	// AnalyticsProduct tags those events with the product ("simple-host",
+	// "simple-hack"), so products sharing one AgentCat project stay apart.
+	AnalyticsProduct string
+	// AnalyticsEndpoint replaces AgentCat's public events address; tests
+	// point it at a local server. It is not an operator setting.
+	AnalyticsEndpoint string
 	// AnalyticsPepper is a server secret mixed into the account hash, so
 	// knowing an account ID is not enough to recompute it.
 	AnalyticsPepper string
@@ -294,7 +300,7 @@ func (s *Server) forCaller(caller Caller) (full, bare []Tool, byName map[string]
 	if s.passcodeScreenEnabled(caller) {
 		l = s.withPasscodeScreen(l, caller)
 	}
-	if s.offersAnalyticsContext(caller) {
+	if s.analytics != nil {
 		l.full, l.bare = analyticsContextTools(l.full), analyticsContextTools(l.bare)
 	}
 	for _, screens := range [][]appScreen{s.enabledScreens(caller), s.productScreens(caller)} {
@@ -365,13 +371,9 @@ func (s *Server) instructionsFor(caller Caller) string {
 	return instanceText(s.hostInstructions(text))
 }
 
-// hostInstructions fits the Simple Host instructions to this server: no
-// comments recipe without the spam check, and custom connector steps off
-// simple-host.app.
+// hostInstructions fits the Simple Host instructions to this server: custom
+// connector steps off simple-host.app.
 func (s *Server) hostInstructions(text string) string {
-	if s.cfg.NoSpamCheck {
-		text = withoutCommentsInstructions(text)
-	}
 	if s.cfg.SelfHosted {
 		text = strings.Replace(text, claudeReconnectHosted, claudeReconnectSelf, 1)
 	}

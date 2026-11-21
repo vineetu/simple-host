@@ -12,7 +12,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
-// Alias (cleanup 4.1): defined in host/model.
 type EventEntry = model.EventEntry
 
 // entryTextColumns are the plain-text fields of an entry, in the order a
@@ -61,7 +60,6 @@ func GetEventEntryForUpdate(ctx context.Context, q *sql.Tx, teamID string) (Even
 	return scanEventEntry(q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1 FOR UPDATE OF e`, teamID))
 }
 
-// ListEventEntries loads every entry written for the event.
 func ListEventEntries(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventEntry, error) {
 	rows, err := queryContext(ctx, q, entrySelect+` WHERE e.event_id = $1`, eventID)
 	if err != nil {
@@ -133,7 +131,6 @@ func UpsertEventEntryScreenshot(ctx context.Context, q sqlkit.Querier, eventID, 
 	return err
 }
 
-// GetEventScreenshot reads the team's stored image.
 func GetEventScreenshot(ctx context.Context, q sqlkit.Querier, teamID string) ([]byte, string, error) {
 	var data []byte
 	var mime string
@@ -150,7 +147,6 @@ const EntryJudgeableSQL = `EXISTS (
 	  AND (en.submitted_at IS NOT NULL OR en.submit_settled_at IS NOT NULL)
 	  AND en.excluded_at IS NULL)`
 
-// SubmitEventEntry marks the team's entry submitted.
 func SubmitEventEntry(ctx context.Context, q sqlkit.Querier, teamID, userID string) (EventEntry, error) {
 	if _, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET
@@ -165,9 +161,8 @@ func SubmitEventEntry(ctx context.Context, q sqlkit.Querier, teamID, userID stri
 }
 
 // UnsubmitEventEntry puts the entry back to draft: submitted_at, submitted_by,
-// submit_auto and submit_settled_at all clear, so the sweep reconsiders it if
-// the deadline has in fact passed (it is only reachable before the deadline;
-// entryWrite's WriteRefusal already guards that).
+// submit_auto and submit_settled_at clear, so the sweep reconsiders it. Only
+// reachable before the deadline (entryWrite's WriteRefusal guards that).
 func UnsubmitEventEntry(ctx context.Context, q sqlkit.Querier, teamID string) (EventEntry, error) {
 	if _, err := q.ExecContext(ctx, `
 		UPDATE event_entries SET submitted_at = NULL, submitted_by = NULL, submit_auto = false, submit_settled_at = NULL
@@ -291,7 +286,7 @@ func UnsettleEventDrafts(ctx context.Context, q sqlkit.Querier, eventID string) 
 }
 
 // SetEntryExcluded is the organiser's hand exclude/include of a flagged entry
-// from judging (coordinator decision 2026-11-02, INTENT.md).
+// from judging.
 func SetEntryExcluded(ctx context.Context, q sqlkit.Querier, teamID, userID string, excluded bool) (EventEntry, error) {
 	var err error
 	if excluded {

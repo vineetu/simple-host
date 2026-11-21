@@ -21,6 +21,7 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/host/web"
 	"github.com/vsriram/simple-host/host/workers"
 )
@@ -81,7 +82,7 @@ type OAuthHandler struct {
 	// geoBlock gates new-account creation (a first OAuth sign-in, owner or
 	// visitor) by the request's country (SIGNUP_BLOCKED_COUNTRIES). Zero
 	// value: off. See signupgeo.go.
-	geoBlock signupGeoBlock
+	geoBlock accounts.SignupGeoBlock
 
 	// assets is the asset/chrome pipeline for ed and cfg.PublicBaseURL
 	// (sso.go's status and sign-in pages); read it through pipeline().
@@ -101,11 +102,7 @@ func (h *OAuthHandler) pipeline() *web.AssetPipeline {
 	return h.assets
 }
 
-// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES and the local geo database
-// (host/geoip, GEOIP_DIR) so every OAuth sign-in attempt from a blocked
-// country is refused — new account or existing, since OAuth has no separate
-// "does this identity already have an account" check worth making before
-// refusing. geo may be nil; countries may be empty — either turns this off.
+// SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES for OAuth sign-ins.
 func (h *OAuthHandler) SetSignupGeoBlock(guard accounts.SignupGeoBlock) {
 	h.geoBlock = guard
 }
@@ -129,7 +126,7 @@ func NewOAuthHandler(database *sql.DB, service *accounts.Service, cfg OAuthSetti
 		IPLimiter:     ipLimiter,
 		SSOKeyLimiter: ssoKeyLimiter,
 		LookupIP:      defaultLookupIP,
-		LookupCNAME:   defaultLookupCNAME,
+		LookupCNAME:   net.DefaultResolver.LookupCNAME,
 	}
 	h.httpCaches.Rate("http.oauth.ipLimiter", ipLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.Rate("http.oauth.ssoKeyLimiter", ssoKeyLimiter, 10*time.Minute, 30*time.Minute)
@@ -366,10 +363,10 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 
 	out, failure := h.SignIn.Callback(r.Context(), accounts.ProviderCallbackInput{
 		Name: name, State: state, Code: q.Get("code"), ProviderError: q.Get("error"), RandomHandles: h.ed.Identity().RandomHandles, AuthTTL: h.Limits.SigninCodeTTL, NonceHash: returnToNonceHash,
-		Attribution: func(ctx context.Context, q accounts.AttributionStore, returnTo, provider string) model.Signup {
+		Attribution: func(ctx context.Context, q sqlkit.Querier, returnTo, provider string) model.Signup {
 			return SignupForOwnerReturnTo(ctx, q, r, returnTo, provider)
 		},
-		Assign: func(ctx context.Context, q accounts.AttributionStore, id, email string, random bool) {
+		Assign: func(ctx context.Context, q sqlkit.Querier, id, email string, random bool) {
 			accounts.AssignHandle(ctx, q, id, email, random)
 		},
 	})
@@ -692,10 +689,6 @@ func isRejectedPlatformHost(host, siteDomain, contentHost, publicBaseHostName st
 	return false
 }
 
-func splitContentHostPath(p string) (handle, sitename string, ok bool) {
-	return appsites.SplitContentHostPath(p)
-}
-
 func (h *OAuthHandler) proveCustomDomainControl(ctx context.Context, host string) error {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	target := strings.ToLower(strings.TrimSuffix(h.Cfg.CNAMETarget, "."))
@@ -755,10 +748,6 @@ func ipsContainIPv4(ips []net.IP, want string) bool {
 
 func defaultLookupIP(ctx context.Context, host string) ([]net.IP, error) {
 	return net.DefaultResolver.LookupIP(ctx, "ip", host)
-}
-
-func defaultLookupCNAME(ctx context.Context, host string) (string, error) {
-	return net.DefaultResolver.LookupCNAME(ctx, host)
 }
 
 func randomRaw(n int) ([]byte, error) {

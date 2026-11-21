@@ -8,10 +8,8 @@ import (
 	"time"
 )
 
-// EventStorageUsage aliases the shared model record.
 type EventStorageUsage = model.EventStorageUsage
 
-// SetOrganiserInvite creates or replaces an organiser invitation.
 func SetOrganiserInvite(ctx context.Context, q sqlkit.Querier, eventID, actor, hash string) (time.Time, error) {
 	var expires time.Time
 	err := q.QueryRowContext(ctx, `INSERT INTO event_organiser_invites (event_id,token_hash,created_by,expires_at)
@@ -21,7 +19,6 @@ func SetOrganiserInvite(ctx context.Context, q sqlkit.Querier, eventID, actor, h
 	return expires, err
 }
 
-// DeleteOrganiserInvite deletes an organiser invitation.
 func DeleteOrganiserInvite(ctx context.Context, q sqlkit.Querier, eventID string) error {
 	_, err := q.ExecContext(ctx, `DELETE FROM event_organiser_invites WHERE event_id=$1`, eventID)
 	return err
@@ -42,7 +39,6 @@ func OrganiserInviteEvent(ctx context.Context, q sqlkit.Querier, hash string, lo
 	return GetEventBySlug(ctx, q, slug)
 }
 
-// RenameEventTeam updates a team’s name.
 func RenameEventTeam(ctx context.Context, q sqlkit.Querier, eventID, slug, name string) error {
 	result, err := q.ExecContext(ctx, `UPDATE event_teams SET name=$3 WHERE event_id=$1 AND slug=$2`, eventID, slug, name)
 	if err != nil {
@@ -55,7 +51,6 @@ func RenameEventTeam(ctx context.Context, q sqlkit.Querier, eventID, slug, name 
 	return err
 }
 
-// EventScreenshotBytes is the size of the event's entry screenshots.
 func EventScreenshotBytes(ctx context.Context, q sqlkit.Querier, eventID string) (int64, error) {
 	var n int64
 	err := q.QueryRowContext(ctx, `SELECT COALESCE(sum(octet_length(screenshot)),0) FROM event_entries WHERE event_id=$1`, eventID).Scan(&n)

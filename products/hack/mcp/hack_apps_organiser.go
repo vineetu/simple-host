@@ -1,4 +1,3 @@
-// famHackAppOnly registers the organiser screen alongside its app resources.
 package hackmcp
 
 import (
@@ -10,35 +9,23 @@ import (
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
-// Phase 2 (organiser core, SIM-344): one resource, ui://simple-hack/
-// organiser, and one show tool, hack_show_organiser, covering three
-// views -- overview (next step, snapshot, stage), people (applications
-// and member list) and judging (rubric/assignment setup, progress,
-// coverage and former judges). Teams, entries, results and the event page
-// are later phases (plan section 4's Organiser row covers all of them;
-// this file only ever opens the three above).
-//
-// Follows hack_apps.go's judge pattern exactly: the same screen shape
-// (registered in hackAppScreens), the same per-connection flag format, the
-// same gating machinery (hackAppsGate, now shared rather than
-// judge-specific -- see that file's comment), and the same show-tool
-// design (a tool that exists only to open a view; every organiser action
-// it fronts -- hack_get_people, hack_decide_application, hack_set_event_stage,
-// ... -- keeps its own full-text result for a host or model with no UI).
-//
-// apps/hack-organiser-bundle.js and apps/hack-organiser-kit.css are
-// generated from products/hack/webassets/static/hack by products/hack/mcp/apps/
-// bundlegen; after changing organiser-overview.js, organiser-people.js,
-// organiser-judging.js, _orgA-util.js or kit.css, regenerate with:
+// Organiser screen: one resource, ui://simple-hack/organiser, and one show tool,
+// hack_show_organiser, covering three views: overview (next step, snapshot,
+// stage), people (applications and member list) and judging (rubric/assignment
+// setup, progress, coverage and former judges). It follows hack_apps.go's judge
+// pattern: same screen shape, flag format, gating (hackAppsGate) and a show tool
+// that exists only to open a view; every organiser action it fronts keeps its
+// own full-text result for a host or model with no UI.
+// apps/hack-organiser-bundle.js and apps/hack-organiser-kit.css are generated
+// from products/hack/webassets/static/hack by apps/bundlegen; after changing
+// organiser-overview.js, organiser-people.js, organiser-judging.js,
+// _orgA-util.js or kit.css, regenerate with:
 //
 //go:generate go run ./apps/gentool
 //
-// TestHackOrganiserBundleFresh rebuilds them in the test binary and fails
-// if the checked-in copies have drifted.
+// TestHackOrganiserBundleFresh fails if the checked-in copies drift.
 
-// hackShowOrganiserAppAllowed is hackAppsGate plus the organiser screen's
-// own flag (2026-10-31 owner decision, same three-part shape as judge's:
-// flag, events mode, not ChatGPT/OpenAI/Codex, UI declared).
+// hackShowOrganiserAppAllowed is hackAppsGate plus the organiser screen's flag.
 func (s *hackScreens) hackShowOrganiserAppAllowed(c mcp.Caller, uiCapable bool) bool {
 	return s.hackAppsGate(c, uiCapable) && mcp.AppFlag(os.Getenv("MCP_APP_HACK_ORGANISER"), c.Handle)
 }
@@ -67,11 +54,10 @@ func (s *hackScreens) hackShowOrganiserTool() mcp.Tool {
 
 var organiserViewNames = map[string]string{"overview": "the organiser overview", "people": "the applications and people list", "judging": "the judging dashboard"}
 
-// runHackShowOrganiser opens an organiser view, and refuses anyone who is
-// not an organiser of the event (a platform admin inspecting counts as one:
-// loadMember gives it that role). A refusal carries no event data. The
-// join/judge links and the organiser's own display_name ride in _meta,
-// read only by the view (hack-organiser-view.js refreshEvent), never in a
+// runHackShowOrganiser opens an organiser view and refuses anyone who is not an
+// organiser of the event (a platform admin inspecting counts: loadMember gives
+// it that role). A refusal carries no event data. The join/judge links and the
+// organiser's display_name ride in _meta, read only by the view, never in a
 // model-visible field.
 func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	if !s.hackShowOrganiserAppAllowed(c.Caller(), c.UICapable()) {
@@ -122,28 +108,17 @@ func (s *hackScreens) runHackShowOrganiser(c *mcp.Call, args map[string]any) (mc
 }
 
 // hackShowOrganiserEventFields mirrors hackShowJudgeEventFields: the fixed,
-// non-prose event fields every one of the three views needs to decide what
-// to show (stage, deadlines, lock/publish state), never the full raw REST
-// body, which can carry an organiser's join_code/judge_code (Grok security
-// review pattern, SIM-344). title is kept (organiser-overview.js shows it
-// nowhere, but it is harmless, fixed per-event metadata like a judge's
-// event title) -- never interpolated into this tool's own out.Text, same
-// rule as the judge app.
+// non-prose event fields every view needs (stage, deadlines, lock/publish
+// state), never the full REST body, which can carry join_code/judge_code. title
+// is harmless fixed metadata but is never interpolated into this tool's out.Text.
 func hackShowOrganiserEventFields(event map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, key := range []string{
-		// url is the event's own public page address, computed from its
-		// slug (h.EventURL) -- organiser-overview.js's header link needs
-		// it. A fixed, server-computed address, not organiser-written
-		// prose, so it stays with the rest of this fixed whitelist rather
-		// than riding in _meta.
-		//
-		// taken_down: organiser-judging.js's ui.writeLockReason(ev, admin_
-		// view) reads ev.taken_down to show the takedown explanation and
-		// disable every write; without it in this whitelist a taken-down
-		// event's rubric/assignment/judging controls render as editable
-		// although the REST layer refuses every one of their actions
-		// (Codex review finding 5, SIM-344).
+		// url is the event's public page address, computed from its slug (h.EventURL):
+		// fixed and server-computed, not organiser prose. taken_down is needed by
+		// organiser-judging.js's ui.writeLockReason to show the takedown explanation
+		// and disable writes; without it a taken-down event's controls render editable
+		// although the REST layer refuses their actions.
 		"slug", "title", "stage", "scoring_open", "judging_locked_at",
 		"results_published", "submission_deadline", "time_zone", "url", "taken_down",
 	} {
@@ -154,13 +129,11 @@ func hackShowOrganiserEventFields(event map[string]any) map[string]any {
 	return out
 }
 
-// hackShowOrganiserCounts is the one piece of the REST response's
-// organiser-only sub-object that is safe for the model: aggregate counts
-// (participants, teams, judges, on_no_team), every one a fixed integer,
-// never organiser-written text. Everything else in that sub-object
-// (join_url, judge_url, organiser_name, organisation, purpose, ...) either
-// carries a secret code or is free text, so it stays out of
-// structuredContent entirely -- see hackShowOrganiserViewOnly.
+// hackShowOrganiserCounts is the part of the REST response's organiser-only
+// sub-object that is safe for the model: aggregate integer counts
+// (participants, teams, judges, on_no_team). The rest (join_url, judge_url,
+// organiser_name, organisation, purpose, ...) carries a secret or free text and
+// stays out of structuredContent; see hackShowOrganiserViewOnly.
 func hackShowOrganiserCounts(organiser map[string]any) map[string]any {
 	if organiser == nil {
 		return nil
@@ -172,20 +145,13 @@ func hackShowOrganiserCounts(organiser map[string]any) map[string]any {
 	return map[string]any{"counts": counts}
 }
 
-// hackShowOrganiserViewOnly is organiser-overview.js's join/judge link
-// cards and nothing else -- view-only, carried in the tool result's _meta
-// rather than content or structuredContent, which a model sees exactly as
-// the view does (same channel hack_show_judge uses for about/rules/
-// prizes). display_name is the signed-in organiser's own chosen name:
-// organiser-written text by the same rule as a team name or an applicant's
-// answer, so it travels the same way ctx.me.display_name needs it for
-// organiser-people.js's "(you)" labels. me_id is that same person's own
-// user_id (hack.go's meView, Codex review finding 6, SIM-344): not a
-// secret -- the people list this view already fetches names every other
-// member's user_id -- but still routed through this view-only channel
-// rather than the show tool's fixed fields, since an account ID is
-// identifying data about a specific person, the same category as a
-// display name, not a fixed/computed value like a slug or URL.
+// hackShowOrganiserViewOnly is the join/judge link cards and nothing else:
+// view-only, carried in _meta rather than content or structuredContent (the
+// channel hack_show_judge also uses for about/rules/prizes). display_name is the
+// organiser's own chosen text, needed for organiser-people.js's "(you)" labels.
+// me_id is that person's user_id (hack.go's meView): not secret, but an account
+// ID is identifying data like a display name, so it takes this channel rather
+// than the fixed fields.
 func hackShowOrganiserViewOnly(organiser, me map[string]any) map[string]any {
 	out := map[string]any{}
 	if organiser != nil {

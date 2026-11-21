@@ -23,7 +23,7 @@ const notTakenDown = `suspended_at IS NULL
 // will be removed for good. sql.ErrNoRows when there is no live site with
 // that id.
 //
-// SIM-360: web-push subscriptions (owner and visitor devices) are deleted
+// Web-push subscriptions (owner and visitor devices) are deleted
 // in this same statement's transaction, not left for the eventual physical
 // delete's cascading FK. A site in Recently deleted serves nothing and
 // should not keep pushing to anyone; its restore path (RestoreDeletedSite)

@@ -58,22 +58,10 @@ func (p *AssetPipeline) ShowcasePage(d ChromeData, data ShowcaseData) ([]byte, e
 	return []byte(page), nil
 }
 
-// Emailed one-time links carry their token after "#" (#t=...), so it never
-// reaches a server or proxy log: a browser does not send the fragment. The
-// link's GET finds no token and answers with fragmentTokenPage, whose script
-// reads it and POSTs it back with peek=1; the handler then shows its usual
-// confirmation page (peek never acts). Links sent before this change carry
-// ?t= and keep working on GET until they expire.
-
 // WriteMessagePage writes the one-message page. A non-empty form (from
 // ConfirmForm) takes the place of the way-back link: emailed links open such
 // a page on GET and act only when the person presses its button, so a mail
 // scanner that follows every link changes nothing.
-//
-// Exported (cleanup 3.2): a method, not a free function taking *AssetPipeline,
-// so it can sit in the hackPages interface moving Hack code (hack_watch.go)
-// reaches the pipeline through, since AssetPipeline itself stays unexported
-// and in this package. See hack.go's hackPages doc.
 func (p *AssetPipeline) WriteMessagePage(w http.ResponseWriter, r *http.Request, base string, status int, message, subtext, backURL, backLabel, form string) {
 	tmpl, err := p.BuildChromePage("notfound.html", p.ChromeDataFor(r, base))
 	if err != nil {

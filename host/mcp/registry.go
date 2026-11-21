@@ -21,13 +21,8 @@ type familyTools struct {
 	Tools  []Tool
 }
 
-// A basic build and the jobs people ask for most (SIM-187). 2026-10-27
-// (SIM-226): AgentCat showed storage_list_resources, site_analytics and
-// list_versions reached through run_tool more often than storage_get_kv,
-// storage_put_file and storage_visitor_emails were called at all, so they
-// swapped places. 2026-10-30 (SIM-190): a Haiku-only eval never found
-// visitor_read_site through find_tools (it never called a tool at all in
-// 3 of 5 runs), so it joins the core too.
+// The core list: a basic build and the jobs people ask for most, chosen from
+// usage analytics. Every other tool is reached through find_tools.
 var coreToolNames = []string{
 	"who_am_i", "list_sites", "get_site", "read_site_file", "create_site", "update_site",
 	"get_page_recipe", "create_upload_link", "visitor_read_site", "storage_set_resource",
@@ -53,6 +48,9 @@ type toolPolicy struct {
 	flatList                                             func(Tool) Tool
 	analytics                                            analyticsPolicy
 	noSpamCheck                                          func(Tool) Tool
+	// unlistedArgs are accepted although the schema no longer lists them,
+	// for apps that keep an older tool list.
+	unlistedArgs []string
 }
 
 type toolEdition uint8
@@ -75,6 +73,7 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 		if edition == editionProduct {
 			tool.policy.analytics.emailIdentity = true
 			tool.policy.analytics.contactEmail = true
+			tool.policy.analytics.personNames = true
 		}
 		for _, entry := range r.entries {
 			if entry.edition == edition && entry.tool.Name == tool.Name {
@@ -164,7 +163,14 @@ func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, dep
 		if site && cfg.Contribution != nil && cfg.Contribution.SiteVariants[tool.Name] != nil {
 			variant := cfg.Contribution.SiteVariants[tool.Name]
 			tool = variant(tool, *cfg.Limits)
+			// A variant changes the schema, not the policy; only the
+			// arguments it still accepts unlisted carry over.
+			unlisted := tool.policy.unlistedArgs
 			tool.policy = p
+			tool.policy.unlistedArgs = unlisted
+		}
+		if site && cfg.Contribution != nil && cfg.Contribution.OwnerArg != "" {
+			tool = withOwnerArg(tool, cfg.Contribution.OwnerArg)
 		}
 		v.byName[tool.Name] = tool
 		if p.unlisted {
@@ -229,6 +235,7 @@ type InventoryTool struct {
 	Listed, Hidden        bool
 	Title, Description    string
 	InputSchema           map[string]any
+	Annotations           map[string]any
 }
 
 // Inventory returns every registered tool with Events enabled. Listed describes
@@ -249,6 +256,7 @@ func inventoryTools(cfg Config, appFamily func(base []Tool) FamilyTools) []Inven
 			Listed: !entry.tool.policy.unlisted && !entry.tool.policy.connectorHidden,
 			Hidden: entry.tool.policy.connectorHidden,
 			Title:  entry.tool.Title, Description: entry.tool.Description, InputSchema: entry.tool.InputSchema,
+			Annotations: entry.tool.Annotations,
 		})
 	}
 	return out

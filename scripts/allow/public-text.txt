@@ -11,7 +11,7 @@ host/webassets/static/enterprise.html | 3 | hosted cross-reference to the sister
 host/webassets/static/host-ink.css | 1 | hosted cross-reference to the sister product
 host/webassets/static/install.html | 1 | hosted cross-reference to the sister product
 host/webassets/static/partials/footer.html | 2 | hosted cross-reference to the sister product
-host/webassets/static/privacy.html | 14 | support and legal copy naming both services
+host/webassets/static/privacy.html | 16 | support and legal copy naming both services
 host/webassets/static/showcase.html | 1 | hosted cross-reference to the sister product
 host/webassets/static/site.css | 1 | hosted cross-reference to the sister product
 host/webassets/static/support.html | 9 | support and legal copy naming both services

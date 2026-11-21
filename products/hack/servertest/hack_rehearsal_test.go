@@ -2,11 +2,12 @@ package servertest
 
 import (
 	"context"
-	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	productconfig "github.com/vsriram/simple-host/products/hack/config"
 
 	siterepo "github.com/vsriram/simple-host/host/sites/repo"
 )

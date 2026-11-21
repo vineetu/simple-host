@@ -1,10 +1,11 @@
 name: mcpjam
 
-# MCPJam checks of the MCP server against a throwaway local instance: protocol
-# and OAuth conformance, host compatibility and MCP Apps conformance on
-# every push and pull request (free), and the eval suite weekly or by hand on
-# two Claude models with our own Anthropic key (a full run is more than the
-# MCPJam free plan's 200 daily credits). See scripts/mcpjam/.
+# The connector check of both programs' MCP servers (Simple Host and Simple
+# Hack, one job each) against a throwaway local instance, on every push and
+# pull request and weekly: MCPJam protocol, OAuth, host compatibility and MCP
+# Apps conformance, the tool annotation tests, the kit's tool list and package,
+# and the tool listing's size against scripts/mcpeval/baseline-*.json. The
+# model evals need the claude CLI and run locally (plugins/ROUTINE.md).
 
 on:
   push:
@@ -20,50 +21,18 @@ permissions:
 env:
   MCPJAM_CLI: '@mcpjam/cli@6.0.0'
   DB_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
-  BIN: /tmp/simple-host
   FIX: /tmp/mcpjam-fixture
 
 jobs:
   checks:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/simple-host
-      - run: bash scripts/mcpjam/fixture.sh
-      - run: bash scripts/check-release.sh --mcpjam
-      - if: failure()
-        run: tail -50 "$FIX/server.log"
-
-  evals:
-    # Only main's copy of this file may reach the key.
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        model: [anthropic/claude-haiku-4.5, anthropic/claude-sonnet-5]
+        product: [host, hack]
+    env:
+      PRODUCT: ${{ matrix.product }}
     services:
       postgres:
         image: postgres:16
@@ -85,27 +54,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: CGO_ENABLED=0 go build -o "$BIN" ./cmd/simple-host
-      - run: bash scripts/mcpjam/fixture.sh
-      - run: python3 scripts/mcpjam/seed.py "$FIX/user.key"
-      - name: eval suite on ${{ matrix.model }}
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          MCPJAM_API_KEY: ${{ secrets.MCPJAM_API_KEY }}
-          MCPJAM_PROJECT: v974pamkqdpwc0bsn151fhz8vx8gs35r
-        run: |
-          status=0
-          for suite in core-jobs advanced-jobs photo-jobs; do
-            sed "s#^  model: .*#  model: ${{ matrix.model }}#" "scripts/mcpjam/evals/$suite.yaml" > "$FIX/$suite.yaml"
-            npx -y "$MCPJAM_CLI" --no-telemetry --format human test "$FIX/$suite.yaml" --inference byok \
-              --url http://127.0.0.1:18190/mcp --header "X-API-Key: $(cat "$FIX/user.key")" --out "$FIX/eval-report-$suite.json" || status=1
-          done
-          exit $status
-      # The report carries each case's transcript (the CLI redacts credentials).
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: eval-report-${{ strategy.job-index }}
-          path: ${{ env.FIX }}/eval-report-*.json
-          if-no-files-found: ignore
-          retention-days: 14
+      - run: make connector-check NO_EVALS=1
+      - if: failure()
+        run: tail -n 40 "$FIX"/step-*.log "$FIX/server.log"

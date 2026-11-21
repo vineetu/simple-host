@@ -15,15 +15,9 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 )
 
-// exportSite streams one site as a .tar.gz: its files and its saved data.
-//
-// This exists because an event box is destroyed when the event ends, and
-// everything on it goes with it. Nothing is backed up anywhere, so the honest
-// answer is to make it trivial for the person who made something to take it
-// with them.
-//
-// Streamed rather than assembled in memory: a site can hold a hundred megabytes
-// of files, and an event box has a gigabyte of RAM.
+// exportSite streams one site (files and saved data) as a .tar.gz. An event box is destroyed
+// when the event ends with nothing backed up, so taking the site away must be trivial.
+// Streamed, not assembled: a site can hold 100 MB and an event box has 1 GB of RAM.
 func (h *SiteHandler) exportSite(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -97,7 +91,6 @@ func finishSiteTar(tw *tar.Writer, gz *gzip.Writer) {
 	}
 }
 
-// writeSiteTar writes one live site into tw under prefix (writeSiteArchive).
 func (h *SiteHandler) writeSiteTar(ctx context.Context, tw *tar.Writer, prefix string, site model.Site) error {
 	return h.LifecycleSvc().WriteArchive(ctx, sites.TarPut(tw), prefix, site.ID, sites.FileVersion{UserID: site.UserID, SiteName: site.Name})
 }

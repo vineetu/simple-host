@@ -42,7 +42,6 @@ func (h *participationHTTP) setMyTeamLock(w http.ResponseWriter, r *http.Request
 	writeLockAnswer(w, req.Locked, requests, invites, err)
 }
 
-// writeLockAnswer answers a lock change with the counts it cleared.
 func writeLockAnswer(w http.ResponseWriter, locked bool, requests, invites int, err error) {
 	if err != nil {
 		writeHackError(w, err)
@@ -68,7 +67,6 @@ func (h *participationHTTP) setMyTeammateAdmin(w http.ResponseWriter, r *http.Re
 	writeAdminAnswer(w, userID, req.Admin, err)
 }
 
-// writeAdminAnswer answers an admin-flag change.
 func writeAdminAnswer(w http.ResponseWriter, userID string, admin bool, err error) {
 	if err != nil {
 		writeHackError(w, err)
@@ -88,7 +86,6 @@ func (h *participationHTTP) newMyTeamLink(w http.ResponseWriter, r *http.Request
 	h.writeLinkAnswer(w, fresh, err)
 }
 
-// writeLinkAnswer answers a link rotation with the new code and link.
 func (h *participationHTTP) writeLinkAnswer(w http.ResponseWriter, fresh model.EventTeam, err error) {
 	if err != nil {
 		writeHackError(w, err)

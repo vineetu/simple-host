@@ -13,17 +13,11 @@ import (
 	"github.com/vsriram/simple-host/host/workers"
 )
 
-// SetWorkerStatus connects the composition root's background status snapshot.
 func (h *SiteHandler) SetWorkerStatus(status func() []workers.Status) { h.workerStatus = status }
 
-// adminUsage reports what this instance is using and what it has left.
-//
-// There is deliberately no projection of how many people or sites will fit. The
-// sites on the instance this was built for have a median size of 25 KB against a
-// 100 MB cap, so any figure derived from the cap is wrong by three orders of
-// magnitude. What is true is what is on the disk right now.
-//
-// GET /v1/admin/usage
+// adminUsage (GET /v1/admin/usage) reports what this instance is using and what it has left. There is
+// deliberately no projection of how many people or sites will fit: sites here have a median size of 25 KB
+// against a 100 MB cap, so any figure derived from the cap is wrong by orders of magnitude.
 func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
@@ -49,7 +43,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		"site_limit_overrides": h.Limits.ArchiveOverrides(),
 		// Settings and build in force, so "which Release is this box on" and
 		// "how many deploys does it keep" are answered without a shell.
-		"keep_versions": web.KeepVersions(),
+		"keep_versions": web.DefaultKeepVersions,
 		"version":       buildinfo.Version,
 		"commit":        buildinfo.Commit,
 		"status":        usage.Status,
@@ -57,16 +51,13 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		// When the walk behind these figures ran. A served-stale reading is
 		// better than a page that hangs, but only if the page can say so.
 		"measured_at": measuredAt.UTC().Format(time.RFC3339),
-		// Bytes served for sites and the box's own transfer this month.
-		"network": h.networkUsage(r.Context(), time.Now()),
+		"network":     h.Network.Report(r.Context(), time.Now()),
 	}
 	statuses := []workers.Status{}
 	if h.workerStatus != nil {
 		statuses = h.workerStatus()
 	}
 	out["workers"] = statuses
-	// ?sizes=1 adds every site's footprint (the admin page's Sites table),
-	// from the same cached walk.
 	if r.URL.Query().Get("sizes") == "1" {
 		sizes := usage.All
 		if sizes == nil {
@@ -76,3 +67,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, 200, out)
 }
+
+func (h *SiteHandler) SetNetworkUsage(iface string)      { h.Network.SetNetworkUsage(iface) }
+func (h *SiteHandler) SetTrafficLog(on bool)             { h.trafficOn = on; h.Network.SetTrafficLog(on) }
+func (h *SiteHandler) NetworkUsageWorker() workers.Owner { return h.Network.NetworkUsageWorker() }

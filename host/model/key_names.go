@@ -15,9 +15,3 @@ const (
 	KeyScopeFull   = "full"
 	KeyScopeDeploy = "deploy"
 )
-
-// Why a stored key no longer works (APIKey.Expired).
-const (
-	KeyExpiredFixed = "expired" // past the expiry chosen when it was minted
-	KeyExpiredIdle  = "idle"    // unused for KEY_IDLE_EXPIRY_DAYS
-)

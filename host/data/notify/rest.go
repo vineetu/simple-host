@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	accounts "github.com/vsriram/simple-host/host/access/repo"
+	repo "github.com/vsriram/simple-host/host/data/repo/notify"
+
 	"github.com/vsriram/simple-host/host/access"
 	datarepo "github.com/vsriram/simple-host/host/data/repo"
 	"github.com/vsriram/simple-host/host/model"
@@ -61,10 +64,10 @@ func (e *Engine) refuse(ctx context.Context, person string, deployOnly bool) err
 	if person == "" || deployOnly {
 		return refusal("forbidden")
 	}
-	if user, err := access.New(e.svc.database).GetUserByID(ctx, person); err != nil || user.Suspended {
+	if user, err := access.New(e.db).GetUserByID(ctx, person); err != nil || user.Suspended {
 		return refusal("forbidden")
 	}
-	event, err := e.svc.EventAccountFlag(ctx, person)
+	event, err := accounts.EventAccountFlag(ctx, e.db, person)
 	if err != nil {
 		return err
 	}
@@ -83,7 +86,7 @@ func (e *Engine) Resolve(ctx context.Context, who Requester, siteName, id string
 		return s, err
 	}
 	if siteName != "" {
-		site, err := sitesrepo.GetSiteByUser(ctx, e.svc.database, who.Account, siteName)
+		site, err := sitesrepo.GetSiteByUser(ctx, e.db, who.Account, siteName)
 		if err != nil {
 			return s, refusal("not_found")
 		}
@@ -92,7 +95,7 @@ func (e *Engine) Resolve(ctx context.Context, who Requester, siteName, id string
 	if id == "" {
 		return s, nil
 	}
-	n, err := e.svc.GetNotification(ctx, id)
+	n, err := repo.GetNotification(ctx, e.db, id)
 	if err != nil || n.OwnerID != who.Person || n.SiteID != s.Site.ID {
 		return s, refusal("not_found")
 	}
@@ -137,7 +140,7 @@ func (e *Engine) List(ctx context.Context, who Requester, siteName string) ([]ma
 	var site model.Site
 	if siteName != "" {
 		var err error
-		site, err = sitesrepo.GetSiteByUser(ctx, e.svc.database, who.Account, siteName)
+		site, err = sitesrepo.GetSiteByUser(ctx, e.db, who.Account, siteName)
 		if errors.Is(err, sql.ErrNoRows) && who.Member {
 			return out, nil
 		}
@@ -145,7 +148,7 @@ func (e *Engine) List(ctx context.Context, who Requester, siteName string) ([]ma
 			return out, refusal("not_found")
 		}
 	}
-	ns, err := e.svc.ListNotifications(ctx, who.Person, site.ID)
+	ns, err := repo.ListNotifications(ctx, e.db, who.Person, site.ID)
 	for _, n := range ns {
 		out = append(out, View(n))
 	}
@@ -206,7 +209,7 @@ func (e *Engine) resourceExists(ctx context.Context, siteID, name string) bool {
 	if name == "" {
 		return true
 	}
-	_, err := datarepo.LoadResource(ctx, e.svc.database, siteID, name)
+	_, err := datarepo.LoadResource(ctx, e.db, siteID, name)
 	return err == nil
 }
 
@@ -241,7 +244,7 @@ func (e *Engine) Create(ctx context.Context, env Env, s Subject, in CreateInput)
 	}
 	now := time.Now()
 	n := model.Notification{ID: RandomID("sub_", 12), SiteID: s.Site.ID, OwnerID: s.Person, Product: s.Member, Source: "owner", URL: in.URL, Events: in.Events, Storage: in.Storage, Secret: in.Secret, Label: in.Label, AuthHeaderName: in.HeaderName, AuthHeaderValue: in.HeaderValue, VerifiedAt: &now}
-	_, _, err := e.svc.SaveNotification(ctx, n, e.limits.NotifyMaxPerSite, nil, e.limits.NotifyHistoryDays, env.Secrets())
+	_, _, err := repo.SaveNotification(ctx, e.db, n, e.limits.NotifyMaxPerSite, nil, e.limits.NotifyHistoryDays, env.Secrets(), notificationAccess{})
 	switch {
 	case errors.Is(err, model.ErrNotificationAccess):
 		return n, "", refusal("notification_access_ended")
@@ -250,7 +253,7 @@ func (e *Engine) Create(ctx context.Context, env Env, s Subject, in CreateInput)
 	case err != nil:
 		return n, "", err
 	}
-	n, err = e.svc.GetNotification(ctx, n.ID)
+	n, err = repo.GetNotification(ctx, e.db, n.ID)
 	return n, in.Secret, err
 }
 
@@ -281,10 +284,10 @@ func (e *Engine) checkCreate(ctx context.Context, s Subject, in *CreateInput) er
 
 // Pause pauses or resumes the subject's subscription and returns it.
 func (e *Engine) Pause(ctx context.Context, s Subject, paused bool) (model.Notification, error) {
-	if err := e.svc.PauseNotification(ctx, s.Notification.ID, paused); err != nil {
+	if err := repo.PauseNotification(ctx, e.db, s.Notification.ID, paused); err != nil {
 		return model.Notification{}, err
 	}
-	n, err := e.svc.GetNotification(ctx, s.Notification.ID)
+	n, err := repo.GetNotification(ctx, e.db, s.Notification.ID)
 	if err == nil {
 		e.signal()
 	}
@@ -293,7 +296,7 @@ func (e *Engine) Pause(ctx context.Context, s Subject, paused bool) (model.Notif
 
 // Delete removes the subject's subscription.
 func (e *Engine) Delete(ctx context.Context, s Subject) error {
-	_, err := e.svc.DeleteNotification(ctx, s.Notification.ID)
+	_, err := repo.DeleteNotification(ctx, e.db, s.Notification.ID)
 	return err
 }
 
@@ -311,13 +314,13 @@ func (e *Engine) Rotate(ctx context.Context, env Env, s Subject) (string, *time.
 	if err != nil {
 		return "", nil, err
 	}
-	until, err := e.svc.RotateNotification(ctx, s.Notification.ID, secret, env.Secrets())
+	until, err := repo.RotateNotification(ctx, e.db, s.Notification.ID, secret, env.Secrets())
 	return secret, until, err
 }
 
 // Deliveries is the subject's subscription's recent delivery history.
 func (e *Engine) Deliveries(ctx context.Context, s Subject) ([]json.RawMessage, error) {
-	return e.svc.NotificationHistory(ctx, s.Notification.ID, e.limits.NotifyHistoryDays)
+	return repo.NotificationHistory(ctx, e.db, s.Notification.ID, e.limits.NotifyHistoryDays)
 }
 
 // RequireReady refuses while new notifications are unavailable.

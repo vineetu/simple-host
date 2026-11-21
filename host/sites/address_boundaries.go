@@ -3,7 +3,6 @@ package sites
 import (
 	"errors"
 	accounts "github.com/vsriram/simple-host/host/access"
-	"path"
 	"regexp"
 	"strings"
 
@@ -12,7 +11,6 @@ import (
 	rules "github.com/vsriram/simple-host/host/rules/sites"
 )
 
-var visitorSitenameRe = regexp.MustCompile(`^[a-z0-9-]{1,63}$`)
 var familyLabelRE = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func HandleSeed(user *model.User, siteDomain string) string {
@@ -38,23 +36,6 @@ func ShowcaseHandle(handle string) bool {
 
 func HandleAddressable(handle string) bool {
 	return rules.VisitorHandle.MatchString(handle) && rules.HandleIsLabel(handle) && !rules.LabelReserved(handle)
-}
-
-func SplitContentHostPath(p string) (handle, sitename string, ok bool) {
-	cleaned := path.Clean("/" + p)
-	parts := strings.Split(strings.Trim(cleaned, "/"), "/")
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return "", "", false
-	}
-	handle, sitename = parts[0], parts[1]
-	if !rules.VisitorHandle.MatchString(handle) || !visitorSitenameRe.MatchString(sitename) {
-		return "", "", false
-	}
-	prefix := "/" + handle + "/" + sitename
-	if cleaned != prefix && !strings.HasPrefix(cleaned, prefix+"/") {
-		return "", "", false
-	}
-	return handle, sitename, true
 }
 
 func FamilyLabelOK(f model.AddressFamily, label string, l edition.Limits) bool {

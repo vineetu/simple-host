@@ -111,7 +111,7 @@ func (h *publicEventHTTP) postAnnouncement(w http.ResponseWriter, r *http.Reques
 		writeHackError(w, err)
 		return
 	}
-	if _, ok := noticeSender(h.mailer); req.EmailParticipants && !ok {
+	if req.EmailParticipants && !h.canEmail {
 		httpx.WriteError(w, http.StatusServiceUnavailable, "email_unavailable", "participant email is unavailable")
 		return
 	}
@@ -215,7 +215,6 @@ func (o *contentDeliveryOwner) record(op string, n int64, err error) {
 	}
 }
 
-// deliverContentMail sends due announcement mail through mailer.
 func (h *HackHandler) deliverContentMail(ctx context.Context, mailer events.Mailer) (int64, error) {
 	sender, ok := mailer.(interface {
 		SendNotice(string, string, string) error

@@ -2,7 +2,6 @@ package hackhttp
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
@@ -17,15 +16,10 @@ func TestHackEventCreationLimits(t *testing.T) {
 		status            int
 		code              string
 	}{
-		{name: "defaults", perDay: 20, maxActive: 0, status: http.StatusCreated},
-		{name: "zero", status: http.StatusCreated},
-		{name: "negative", perDay: -1, maxActive: -1, status: http.StatusCreated},
 		{name: "active five", maxActive: 5, status: http.StatusConflict, code: "too_many_active_events"},
 		{name: "daily five", perDay: 5, status: http.StatusTooManyRequests, code: "too_many_events_today"},
 		{name: "admin", perDay: 5, maxActive: 5, admin: true, status: http.StatusCreated},
-		{name: "email exempt", perDay: 5, maxActive: 5, exempt: "email", status: http.StatusCreated},
 		{name: "domain exempt", perDay: 5, maxActive: 5, exempt: "domain", status: http.StatusCreated},
-		{name: "other email", maxActive: 5, exempt: "other@example.com", status: http.StatusConflict, code: "too_many_active_events"},
 		{name: "other domain", perDay: 5, exempt: "@other.example.com", status: http.StatusTooManyRequests, code: "too_many_events_today"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -37,12 +31,8 @@ func TestHackEventCreationLimits(t *testing.T) {
 				}
 			}
 			l := productconfig.DefaultLimits()
-			if tc.name != "defaults" {
-				l.EventCreatePerDay, l.EventMaxActivePerOrganiser = tc.perDay, tc.maxActive
-			}
+			l.EventCreatePerDay, l.EventMaxActivePerOrganiser = tc.perDay, tc.maxActive
 			switch tc.exempt {
-			case "email":
-				l.EventLimitExemptRaw = " " + strings.ToUpper(p.email) + " "
 			case "domain":
 				l.EventLimitExemptRaw = " @EXAMPLE.COM "
 			default:

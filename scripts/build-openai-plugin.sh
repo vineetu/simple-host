@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Build the OpenAI plugin package (ChatGPT + Codex directory, "With MCP").
+# Build the OpenAI plugin package (ChatGPT + Codex directory, "With MCP") for
+# one product: host (Simple Host, the default; kit plugins/openai) or hack
+# (Simple Hack; kit plugins/openai-hack).
 #
-#   bash scripts/build-openai-plugin.sh            # the two zips below
-#   FALLBACK=1 bash scripts/build-openai-plugin.sh # also the skills-only fallback
+#   bash scripts/build-openai-plugin.sh [host|hack]  # the two zips below
+#   FALLBACK=1 bash scripts/build-openai-plugin.sh   # host only: also the skills-only fallback
 #
 # Outputs, all with the plugin files at the ZIP ROOT (the portal accepts the
 # plugin root "at the archive root or in one top-level directory"; root is the
-# unambiguous one):
+# unambiguous one). <product> is simple-host or simple-hack:
 #
-#   dist/simple-host-openai-plugin.zip   plugin.json, mcp.json, skills/, assets/
+#   dist/<product>-openai-plugin.zip   plugin.json, mcp.json, skills/, assets/
 #       The whole portable package: the reference artifact, and what a local
 #       marketplace install or any upload that takes a full package uses.
-#   dist/simple-host-openai-skills.zip   skills/<name>/SKILL.md only (the portal Skills tab upload)
+#   dist/<product>-openai-skills.zip   skills/<name>/SKILL.md only (the portal Skills tab upload)
 #       The skill bundle for the With MCP draft's Skills tab. The MCP server
 #       itself is entered in the portal's MCP tab by URL, never uploaded, and a
 #       skills upload must not carry MCP configuration
@@ -24,16 +26,51 @@
 #       not promise a connector.
 #
 # The skills come from the one source the server also serves
-# (host/webassets/simple-host-website/skills, or $SKILLS); plugins/openai holds
-# only the manifest, MCP entry and icons.
+# (host/webassets/simple-host-website/skills for host,
+# products/hack/webassets/hack-toolkit/skills for hack, or $SKILLS); the kit
+# holds only the manifest, MCP entry, icons and the submission kit.
 #
 # Every check the portal documents for the package is run here first, so a
-# failure shows up on this box rather than as a portal error code.
+# failure shows up on this box rather than as a portal error code. The kit's
+# test cases must also read the same in SUBMISSION.md and its json files.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-SKILLS=$(cd "${SKILLS:-host/webassets/simple-host-website/skills}" && pwd)
+PRODUCT=${1:-host}
+case "$PRODUCT" in
+  host) KIT=plugins/openai DEFAULT_SKILLS=host/webassets/simple-host-website/skills ;;
+  hack) KIT=plugins/openai-hack DEFAULT_SKILLS=products/hack/webassets/hack-toolkit/skills ;;
+  *) echo "usage: $0 [host|hack]" >&2; exit 1 ;;
+esac
+NAME=simple-$PRODUCT
+SKILLS=$(cd "${SKILLS:-$DEFAULT_SKILLS}" && pwd)
 OUT=dist
 mkdir -p "$OUT"
+
+# The kit is the source of truth: the cases in SUBMISSION.md, the review
+# cases in plugin.json (when present) and chatgpt-app-submission.json agree.
+python3 - "$KIT" <<'PY'
+import json, os, sys
+kit = sys.argv[1]
+man = json.load(open(os.path.join(kit, "plugin.json")))
+sub = json.load(open(os.path.join(kit, "chatgpt-app-submission.json")))
+md = open(os.path.join(kit, "SUBMISSION.md"), encoding="utf-8").read()
+problems = []
+i = man["extensions"]["com.openai"]["interface"]
+if sub["app_info"]["description"] != i["longDescription"]: problems.append("app_info.description differs from longDescription")
+if sub["app_info"]["subtitle"] != i["shortDescription"]: problems.append("app_info.subtitle differs from shortDescription")
+cases = [(c["user_prompt"], c["expected_output"]) for c in sub["test_cases"] + sub["negative_test_cases"]]
+if len(sub["test_cases"]) != 5 or len(sub["negative_test_cases"]) != 3: problems.append("need 5 positive and 3 negative cases")
+review = man["extensions"]["com.openai"].get("review", {}).get("test_cases")
+if review is not None and [(c["prompt"], c["expected_behavior"]) for c in review["positive"] + review["negative"]] != cases:
+    problems.append("plugin.json review cases differ from chatgpt-app-submission.json")
+for prompt, expected in cases:
+    if prompt not in md or expected not in md: problems.append(f"SUBMISSION.md lacks the case: {prompt[:60]}")
+for text in [i["longDescription"]] + i.get("capabilities", []) + i.get("defaultPrompt", []):
+    if text not in md: problems.append(f"SUBMISSION.md lacks listing text: {text[:60]}")
+if problems:
+    print(f"{kit}: kit is out of step:"); [print("  -", p) for p in problems]; sys.exit(1)
+print(f"{kit}: SUBMISSION.md and its json files agree")
+PY
 
 validate() { # validate <plugin dir> <mcp|skills-only>
   python3 - "$1" "$2" <<'PY'
@@ -147,17 +184,17 @@ trap 'rm -rf "$STAGE"' EXIT
 # The plugin package is assembled first, then checked as it will ship.
 SRC="$STAGE/full"
 mkdir -p "$SRC" "$STAGE/skills"
-cp plugins/openai/plugin.json plugins/openai/mcp.json "$SRC/"
-cp -R plugins/openai/assets "$SRC/"
+cp "$KIT/plugin.json" "$KIT/mcp.json" "$SRC/"
+cp -R "$KIT/assets" "$SRC/"
 cp -R "$SKILLS" "$SRC/skills"
 validate "$SRC" mcp
 # The portal's Skills tab takes only skill folders: "one skill root or one
 # directory of skill roots". No plugin.json or assets alongside them.
 cp -R "$SKILLS" "$STAGE/skills/skills"
-build_zip "$OUT/simple-host-openai-plugin.zip" "$STAGE/full"
-build_zip "$OUT/simple-host-openai-skills.zip" "$STAGE/skills"
+build_zip "$OUT/$NAME-openai-plugin.zip" "$STAGE/full"
+build_zip "$OUT/$NAME-openai-skills.zip" "$STAGE/skills"
 
-if [ "${FALLBACK:-}" = 1 ]; then
+if [ "${FALLBACK:-}" = 1 ] && [ "$PRODUCT" = host ]; then
   mkdir -p "$STAGE/fallback/skills"
   python3 - "$SRC/plugin.json" "$STAGE/fallback/plugin.json" <<'PY'
 import json, sys
@@ -179,7 +216,7 @@ PY
   build_zip "$OUT/website-deploy-toolkit-$TOOLKIT_VERSION.zip" "$STAGE/fallback"
 fi
 
-for z in "$OUT"/simple-host-openai-plugin.zip "$OUT"/simple-host-openai-skills.zip ${TOOLKIT_VERSION:+"$OUT/website-deploy-toolkit-$TOOLKIT_VERSION.zip"}; do
+for z in "$OUT/$NAME-openai-plugin.zip" "$OUT/$NAME-openai-skills.zip" ${TOOLKIT_VERSION:+"$OUT/website-deploy-toolkit-$TOOLKIT_VERSION.zip"}; do
   python3 - "$z" <<'PY'
 import re, sys, zipfile
 z = zipfile.ZipFile(sys.argv[1])
@@ -200,4 +237,4 @@ assert len(names) <= 5000 and sum(i.file_size for i in z.infolist()) < 512 << 20
 print(f"{sys.argv[1]}: {len(names)} files, {sum(i.compress_size for i in z.infolist())} bytes compressed")
 PY
 done
-ls -l "$OUT"/*.zip
+ls -l "$OUT/$NAME"-openai-*.zip ${TOOLKIT_VERSION:+"$OUT/website-deploy-toolkit-$TOOLKIT_VERSION.zip"}

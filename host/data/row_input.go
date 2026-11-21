@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"strconv"
+
+	"github.com/vsriram/simple-host/host/storage"
 )
 
 // The row routes' input rules. Visitors send an action and values, never
@@ -43,7 +45,7 @@ func DecodeRowValues(body []byte, action string) (map[string]json.RawMessage, er
 		return nil, invalidRows("send a JSON object of column values")
 	}
 	for _, raw := range values {
-		if !scalarValue(raw) {
+		if !storage.StorageScalar(raw) {
 			return nil, invalidRows("values are strings, numbers, true, false, or null")
 		}
 	}
@@ -51,17 +53,3 @@ func DecodeRowValues(body []byte, action string) (map[string]json.RawMessage, er
 }
 
 func invalidRows(message string) error { return &Error{Code: "invalid_rows", Message: message} }
-
-func scalarValue(raw json.RawMessage) bool {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var value any
-	if dec.Decode(&value) != nil {
-		return false
-	}
-	switch value.(type) {
-	case nil, string, bool, json.Number:
-		return true
-	}
-	return false
-}

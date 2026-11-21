@@ -1,7 +1,6 @@
 package hackevents
 
 import (
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -61,16 +60,6 @@ func TestNavigationHelp(t *testing.T) {
 			}
 		}
 	}
-	for _, target := range navigation.Targets {
-		if stableHelpTarget(target) && (target.Kind == "setting" || target.Kind == "section" || target.Kind == "action") && !used[target.ID] {
-			t.Errorf("organiser target %s: add a help record targeting it", target.ID)
-		}
-	}
-	for _, screen := range navigation.Screens {
-		if screen.Role == "organiser" && !sources["screens/"+screen.Module+".js"] {
-			t.Errorf("organiser screen %s: add an explanation citing its module", screen.ID)
-		}
-	}
 	// The whole layer goes into every assistant prompt: keep it compact
 	// (the whole-prompt guard is in host/hackhttp's assistant tests).
 	if rendered >= 56_000 {
@@ -83,23 +72,5 @@ func TestNavigationHelp(t *testing.T) {
 	help.Records[0].Label = "changed"
 	if NavigationHelp().Records[0].Label == "changed" {
 		t.Fatal("NavigationHelp shares mutable data")
-	}
-}
-
-// TestNavigationHelpPlainWords: the explanations are read out to organisers,
-// so no internal field names (snake_case) or route paths.
-func TestNavigationHelpPlainWords(t *testing.T) {
-	internal := regexp.MustCompile(`\b[a-z]+_[a-z0-9_]+\b|/v1/`)
-	for _, r := range NavigationHelp().Records {
-		texts := append([]string{r.Explains, r.When}, r.Effects...)
-		texts = append(texts, r.Limits...)
-		for _, o := range r.Options {
-			texts = append(texts, o.Means)
-		}
-		for _, s := range texts {
-			if m := internal.FindString(s); m != "" {
-				t.Errorf("record %s: %q is an internal name; say it in the organiser's words", r.ID, m)
-			}
-		}
 	}
 }

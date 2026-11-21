@@ -14,11 +14,11 @@ import (
 	rules "github.com/vsriram/simple-host/host/rules/sites"
 )
 
-// Teams (owner decisions 2026-11-19): a team is an account that owns sites
+// Teams: a team is an account that owns sites
 // and that people join. There is one role: any member may do everything to
 // the team's sites (with their own sign-in and owner=<team>), invite people
 // and remove members, and delete the team once it owns no live sites. Nobody
-// joins without accepting an invitation (owner decision A, 2026-11-19). A
+// joins without accepting an invitation. A
 // team always keeps at least one member. Who may act for a team is decided
 // by ActsAsOwner alone.
 

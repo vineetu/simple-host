@@ -12,7 +12,7 @@ func hackChecklistTools() []mcp.Tool {
 	slug := map[string]any{"slug": mcp.Str("Event slug.")}
 	tools := []mcp.Tool{
 		{Name: "hack_get_checklist", Title: "Read event checklist", Description: "Read the membership role's checklist and next action. Organisers may also request judge. Records due entry deadline pins.", InputSchema: mcp.Object(withFields(slug, map[string]any{"role": map[string]any{"type": "string", "enum": []string{"organiser", "judge", "participant"}}}), "slug"), Annotations: mcp.Writes(false, true, false)},
-		{Name: "hack_set_checklist_not_needed", Title: "Mark an optional item not needed", Description: "Set or restore a shared optional organiser checklist item. Ask first. Ended events refuse changes.", InputSchema: mcp.Object(withFields(slug, map[string]any{"item_id": mcp.Str("Optional organiser item ID."), "not_needed": map[string]any{"type": "boolean"}}), "slug", "item_id", "not_needed"), Annotations: mcp.Writes(false, true, false)},
+		{Name: "hack_set_checklist_not_needed", Title: "Mark an optional item not needed", Description: "Set or restore a shared optional organiser checklist item. Ask first. Ended events refuse changes.", InputSchema: mcp.Object(withFields(slug, map[string]any{"item_id": mcp.Str("Optional organiser item ID."), "not_needed": map[string]any{"type": "boolean"}}), "slug", "item_id", "not_needed"), Annotations: mcp.Writes(true, true, false)},
 		{Name: "hack_acknowledge_checklist_item", Title: "Acknowledge a checklist item", Description: "Explicitly confirm your j.rubric or j.conflicts review. Ask first. Rubric items need the current checklist version; conflicts are unversioned.", InputSchema: mcp.Object(withFields(slug, map[string]any{"item_id": map[string]any{"type": "string", "enum": []string{"j.rubric", "j.conflicts"}, "description": "j.rubric or j.conflicts."}, "version": mcp.Str("Current rubric item's version; omit for conflicts.")}), "slug", "item_id"), Annotations: mcp.Writes(false, true, false)},
 	}
 	runs := map[string]func(*mcp.Call, map[string]any) (mcp.Output, error){
@@ -42,8 +42,6 @@ func runGetChecklist(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	return checklistCall(c, "hack_get_checklist", http.MethodGet, path, nil)
 }
 
-// runSetChecklistNotNeeded marks the item not needed (POST) or restores it
-// (DELETE).
 func runSetChecklistNotNeeded(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	slug, item, err := checklistItem(args)
 	if err != nil {

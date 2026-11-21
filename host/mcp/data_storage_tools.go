@@ -30,7 +30,7 @@ func storageRoutes() []storageRoute {
 		{name: "storage_delete_resource", title: "Delete storage resource", description: "Remove a resource and everything saved in it, for good. Ask the person to confirm this exact resource first.", method: "DELETE", suffix: "/resources/{name}", args: []string{"name"}, annotation: writes(true, true, true)},
 		{policy: toolPolicy{pagedStorage: true, visitorResult: "items"}, name: "storage_list_kv_keys", title: "List KV keys", description: "List the keys in a KV resource, optionally only those starting with a prefix.", method: "GET", suffix: "/kv/{name}/keys", args: []string{"name"}, annotation: readOnly()},
 		{policy: toolPolicy{visitorResult: "item"}, name: "storage_get_kv", title: "Read KV value", description: "Read one key's JSON value from a KV resource. The answer is {key, value}.", method: "GET", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, annotation: readOnly()},
-		{name: "storage_put_kv", title: "Set KV value", description: "Set one key in a KV resource to a JSON value, replacing what was there. It changes a page only when the page's code already reads that key (SH.storage.kv(name).get(key)); text written in the page itself is changed with update_site (edits), so read the page first. This is how the owner changes page info a page reads live (a menu, prices, opening hours, settings) without republishing the site. Ask before overwriting a value visitors wrote.", method: "PUT", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "value", annotation: writes(true, true, true)},
+		{name: "storage_put_kv", title: "Set KV value", description: "Set one key in a KV resource to a JSON value, replacing what was there; storage_list_kv_keys shows the keys and values. A page shows it only when its code reads that key (SH.storage.kv(name).get(key)); text in the page itself changes with update_site. Use it for page info a page reads live (menu, prices, hours) without republishing. Ask before overwriting a value visitors wrote.", method: "PUT", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, body: "value", annotation: writes(true, true, true)},
 		{name: "storage_delete_kv", title: "Delete KV value", description: "Delete one key and its value from a KV resource. Ask first.", method: "DELETE", suffix: "/kv/{name}/keys/{key}", args: []string{"name", "key"}, annotation: writes(true, true, true)},
 		{policy: toolPolicy{visitorParams: true, visitorResult: "rows"}, name: "storage_sql_query", title: "Query SQLite resource", description: storageRulesQueryDescription, method: "POST", suffix: "/sqlite/{name}/query", args: []string{"name"}, body: "sql", annotation: readOnly()},
 		{policy: toolPolicy{visitorParams: true}, name: "storage_sql_execute", title: "Execute SQLite statement", description: "Change rows in a SQLite resource as the owner: INSERT, UPDATE, or DELETE with ? placeholders, for example setting an order's status; on Simple Host, visitor_id values from results can be passed back as parameters. Ask before changing or deleting what visitors sent. Repeating a successful statement can add duplicate rows or apply a change again, so query the affected records before retrying after an uncertain result. " + sqlNoPragmaHint, method: "POST", suffix: "/sqlite/{name}/execute", args: []string{"name"}, body: "sql", annotation: writes(true, false, true)},
@@ -284,25 +284,13 @@ func storageAnswer(c *call, toolName, site string, res upstreamResult) (output, 
 	return output{Text: jsonText(structured), Structured: structured}, nil
 }
 
-// withOwnerFor adds storage_sql_execute's dual mode (SIM-358, 2026-11-06):
-// an optional for, naming a signed-in visitor (a visitor reference, from
-// storage_visitor_emails or a row's visitor_id, or the email they signed in
-// with) this one row is added for, instead of as the owner's own raw SQL.
-// for replaces sql and params with table and values (the row's column
-// values, the same shape POST .../tables/{t}/rows takes); it is refused
-// (visitor_unknown) if the person has never signed in on this site, and the
-// row is stamped written by the owner, never looking like the visitor's own.
-//
-// This reuses storage_sql_execute's existing tool rather than adding a new
-// one (an input property is a smaller tool-list change than a new tool, and
-// the output shape — {response, status} — does not change either way) and
-// still goes through the one REST row-add path (POST .../tables/{t}/rows)
-// that auth.js's table().add(values, {for}) and the owner's API key use, so
-// every path shares the same app-service authorization (ResolveOwnerFor,
-// TableAdd). An alternative considered and rejected: parsing for out of an
-// ordinary INSERT statement's SQL text, so for could stay inside sql/params
-// unchanged; table+values avoids that parsing risk entirely, at the cost of
-// this one tool accepting two mutually exclusive input shapes.
+// withOwnerFor adds storage_sql_execute's second mode: an optional for,
+// naming a signed-in visitor (a visitor reference or the email they signed
+// in with) this one row is added for, instead of the owner's own raw SQL.
+// for replaces sql and params with table and values, the shape
+// POST .../tables/{t}/rows takes, so it shares that route's authorization;
+// it is refused (visitor_unknown) if the person never signed in on this
+// site, and the row is stamped written by the owner, never as the visitor's.
 func withOwnerFor(tool Tool) Tool {
 	props := map[string]any{}
 	for k, v := range tool.InputSchema["properties"].(map[string]any) {

@@ -1,5 +1,5 @@
 // Package papermetrics keeps the long-running, aggregate-only numbers the
-// research papers on this deployment need ("The Thin Server", SIM-335):
+// research papers on this deployment need ("The Thin Server"):
 // server-side latency per route class, process and box resource samples, a
 // daily snapshot of counts, and a weekly footprint row per site with no
 // identifier at all. Methodology: docs/paper-metrics.md.
@@ -81,14 +81,6 @@ func (c *Collector) InitializeRun(ctx context.Context) {
 	} else if newRun {
 		c.tracker.Progress()
 	}
-}
-func (c *Collector) Flush(ctx context.Context)      { c.flush(ctx) }
-func (c *Collector) TakeSample(ctx context.Context) { c.takeSample(ctx) }
-func (c *Collector) DailySnapshot(ctx context.Context, now time.Time) error {
-	return c.dailySnapshot(ctx, now)
-}
-func (c *Collector) WeeklyFootprint(ctx context.Context, now time.Time) error {
-	return c.weeklyFootprint(ctx, now)
 }
 
 // Wrap times every request through h into its class's histogram.

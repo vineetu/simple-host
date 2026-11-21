@@ -14,7 +14,6 @@ import (
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/workers"
 )
@@ -54,7 +53,7 @@ func (h *DataHandler) SealNotificationSecrets(ctx context.Context, database *sql
 	if !env.Ready() {
 		return 0, nil
 	}
-	return notifications.New(database).SealNotificationSecrets(ctx, env.SealSecret)
+	return notifications.SealNotificationSecrets(ctx, database, env.SealSecret)
 }
 
 // notifyStatus is the HTTP status of each notification refusal code.
@@ -85,9 +84,6 @@ func notifyError(w http.ResponseWriter, status int, code string) {
 	httpx.WriteError(w, status, code, strings.ReplaceAll(code, "_", " "))
 }
 
-// notifyCut shortens s to at most max bytes on a UTF-8 boundary.
-func notifyCut(s string, max int) string { return notifications.Cut(s, max) }
-
 // EmitNotification queues a committed storage write's event. Called only
 // after the write commits: notification trouble never changes the answer.
 // An owner write stays silent unless it is to a visitor's row (so that
@@ -99,6 +95,7 @@ func (h *DataHandler) EmitNotification(c StorageCall, name string, data map[stri
 	h.Notifier().Emit(func(ctx context.Context) { h.storeNotificationContext(ctx, c, name, data) })
 }
 
+// StoreNotification stores a record event synchronously.
 func (h *DataHandler) StoreNotification(c StorageCall, name string, data map[string]any) {
 	h.storeNotificationContext(context.Background(), c, name, data)
 }
@@ -118,21 +115,17 @@ func (h *DataHandler) storeNotificationContext(parent context.Context, c Storage
 	e.StoreRecordEvent(ctx, notifications.RecordEvent{SiteID: c.SiteID, Name: name, SiteName: siteName, SiteURL: siteURL, Resource: c.ResourceName, Kind: c.Resource.Kind, Writer: appstorage.StampID(c.Owner, c.VisitorID), Data: data})
 }
 
-// EmitSiteNotification queues a site event (SIM-356): a new version live,
-// a custom domain's status, a refused named-viewers sign-in, a first
-// visitor sign-in, after the caller has answered. data["visitor"], when
-// set, is who it is about; dedupe > 0 drops a repeat for them within that
-// window. Simple Host only: Simple Hack follows later (INTENT 2026-11-02).
+// EmitSiteNotification queues a site event: a new version live, a custom
+// domain's status, a refused named-viewers sign-in, a first visitor sign-in,
+// after the caller has answered. data["visitor"], when set, is who it is
+// about; dedupe > 0 drops a repeat for them within that window.
 func (h *DataHandler) EmitSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
 	h.Notifier().EmitSiteEvent(h.Hosts, sites.SiteEvent{SiteID: siteID, Name: name, Data: data, Dedupe: dedupe})
 }
 
+// StoreSiteNotification stores a site event synchronously.
 func (h *DataHandler) StoreSiteNotification(siteID, name string, data map[string]any, dedupe time.Duration) {
-	h.storeSiteNotificationContext(context.Background(), siteID, name, data, dedupe)
-}
-
-func (h *DataHandler) storeSiteNotificationContext(parent context.Context, siteID, name string, data map[string]any, dedupe time.Duration) {
-	h.Notifier().StoreSiteEventNow(parent, h.Hosts, sites.SiteEvent{SiteID: siteID, Name: name, Data: data, Dedupe: dedupe})
+	h.Notifier().StoreSiteEventNow(context.Background(), h.Hosts, sites.SiteEvent{SiteID: siteID, Name: name, Data: data, Dedupe: dedupe})
 }
 
 // notificationOwner runs the engine's workers with the handler's current
@@ -176,12 +169,6 @@ func (h *DataHandler) PendingNotificationsForTest() int { return h.Notifier().Pe
 // DeliverNotificationForTest drains one delivery. Test hook.
 func (h *DataHandler) DeliverNotificationForTest(ctx context.Context) bool {
 	return h.DeliverNotification(ctx)
-}
-
-// NotificationSecretsForTest seals and opens subscription secrets with the
-// install's key. Test hook.
-func (h *DataHandler) NotificationSecretsForTest() model.NotificationSecrets {
-	return h.NotifyEnv().Secrets()
 }
 
 // notificationBackend is MCP Events' backend: the engine with the

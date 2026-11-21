@@ -62,7 +62,7 @@ func (c *Collector) Export(who Who) http.Handler {
 }
 
 func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
-	c.flush(r.Context()) // fold in the last minute
+	c.Flush(r.Context()) // fold in the last minute
 	q := r.URL.Query()
 	to := q.Get("to")
 	if to == "" {
@@ -135,27 +135,7 @@ func (c *Collector) export(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(t)
 }
 
-func sortedSets() []string {
-	names := make([]string, 0, len(exportSets))
-	for k := range exportSets {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	return names
-}
-
-func setList() string {
-	s := ""
-	for i, n := range sortedSets() {
-		if i > 0 {
-			s += ", "
-		}
-		s += n
-	}
-	return s
-}
-
-// query runs a SELECT and returns every row as plain values.
+// Query runs a SELECT and returns every row as plain values.
 func (c *Collector) Query(ctx context.Context, set, from, to string, cols []string, q string, args ...any) (Table, error) {
 	rows, err := c.db.QueryContext(ctx, q, args...)
 	if err != nil {

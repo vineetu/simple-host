@@ -2,6 +2,7 @@ package data
 
 import (
 	"errors"
+
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )

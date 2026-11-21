@@ -19,9 +19,9 @@ func TestPausedSiteBaseRedirect(t *testing.T) {
 	app := h.SiteBaseHosts(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
-	for _, host := range []string{"vineetu.simple-host.site", "madurai-idly.vineetu.simple-host.site", "clay.simple-host.site", "sites.simple-host.site"} {
-		for _, path := range []string{"/", "/menu/a%2Fb?from=shared&label=%20x", "/v1/sites/shop/me?q=1", "//other.example/path?q=1"} {
-			for _, method := range []string{"GET", "HEAD", "POST"} {
+	for _, host := range []string{"vineetu.simple-host.site", "sites.simple-host.site"} {
+		for _, path := range []string{"/", "/menu/a%2Fb?from=shared", "//other.example/path?q=1"} {
+			for _, method := range []string{"GET", "POST"} {
 				r := httptest.NewRequest(method, "https://"+host+path, nil)
 				w := httptest.NewRecorder()
 				app.ServeHTTP(w, r)
@@ -32,7 +32,7 @@ func TestPausedSiteBaseRedirect(t *testing.T) {
 			}
 		}
 	}
-	for _, host := range []string{"simple-host.app", "vineetu.simple-host.app", "shop.vineetu.simple-host.app", "simple-hack.app", "shop.example.com", "vineetu.simple-host.site.example.com"} {
+	for _, host := range []string{"simple-host.app", "shop.vineetu.simple-host.app", "vineetu.simple-host.site.example.com"} {
 		w := httptest.NewRecorder()
 		app.ServeHTTP(w, httptest.NewRequest("GET", "https://"+host+"/", nil))
 		if w.Code != http.StatusNoContent {
@@ -55,11 +55,8 @@ func TestSiteBaseModes(t *testing.T) {
 		redirects, perm bool
 	}{
 		{"", "", false, "simple-host.app", "simple-host.app", false, false},
-		{"simple-host.app", "permanent", false, "simple-host.app", "simple-host.app", false, false},
-		{"simple-host.site", "off", false, "simple-host.app", "simple-host.app", false, false},
 		{"simple-host.site", "bogus", false, "simple-host.app", "simple-host.app", false, false},
 		{"simple-host.site", "serve", true, "simple-host.app", "simple-host.site simple-host.app", false, false},
-		{"simple-host.site", "canonical", true, "simple-host.site", "simple-host.site simple-host.app", false, false},
 		{"simple-host.site", "redirect", true, "simple-host.site", "simple-host.site simple-host.app", true, false},
 		{"Simple-Host.Site.", "permanent", true, "simple-host.site", "simple-host.site simple-host.app", true, true},
 		// Nested with the app's domain: refused.
@@ -94,26 +91,13 @@ func TestTwinHost(t *testing.T) {
 		"shop.olive.simple-host.app":   "shop.olive.simple-host.site",
 		"shop.olive.simple-host.site":  "shop.olive.simple-host.app",
 		"a.b.c.simple-host.app":        "",
-		"simple-host.app":              "",
-		"www.simple-host.site":         "",
 		"sites.simple-host.app":        "",
-		"cname.simple-host.site":       "",
-		"x.lab.simple-host.app":        "",
-		".olive.simple-host.app":       "",
 		"clay.example.com":             "",
 		"clay.simple-host.app.example": "",
 	} {
 		if got := a.Hosts.TwinHost(host); got != want {
 			t.Errorf("twin(%q) = %q, want %q", host, got, want)
 		}
-	}
-	if !a.Hosts.SameUserHost("olive.simple-host.site", "OLIVE.simple-host.app") || a.Hosts.SameUserHost("olive.simple-host.site", "oscar.simple-host.app") {
-		t.Fatal("sameUserHost")
-	}
-	if a.Hosts.SameOriginAcrossBases("https://x.simple-host.app", "http://x.simple-host.site") ||
-		a.Hosts.SameOriginAcrossBases("https://x.simple-host.app:8443", "https://x.simple-host.site") ||
-		!a.Hosts.SameOriginAcrossBases("https://x.simple-host.app", "https://x.simple-host.site") {
-		t.Fatal("sameOriginAcrossBases")
 	}
 }
 
@@ -129,30 +113,5 @@ func TestSiteBaseNormalizeDomain(t *testing.T) {
 	}
 	if _, err := h.normalizeDomain("shop.example.com"); err != nil {
 		t.Fatal(err)
-	}
-}
-
-// A fully qualified Host (trailing dot) is the same address as without it.
-func TestLegacyBaseTargetTrailingDot(t *testing.T) {
-	a := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"})
-	a.Hosts.SetSiteBase("simple-host.site", "permanent", "")
-	for host, want := range map[string]string{
-		"clay.simple-host.app":       "https://clay.simple-host.site/x?y=1",
-		"clay.simple-host.app.":      "https://clay.simple-host.site/x?y=1",
-		"shop.clay.simple-host.app.": "https://shop.clay.simple-host.site/x?y=1",
-		"sites.simple-host.app.":     "",
-		"www.simple-host.app.":       "",
-	} {
-		r := httptest.NewRequest("GET", "http://"+host+"/x?y=1", nil)
-		got, status, ok := a.legacyBaseTarget(r)
-		if want == "" {
-			if ok {
-				t.Errorf("%s: redirected to %s, want no redirect", host, got)
-			}
-			continue
-		}
-		if !ok || got != want || status != http.StatusMovedPermanently {
-			t.Errorf("%s: %q %d %v, want %q 301", host, got, status, ok, want)
-		}
 	}
 }

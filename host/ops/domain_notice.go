@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// emailDomainFailing tells the owner their domain has stopped working and
+// NotifyDomainFailing tells the owner their domain has stopped working and
 // what happens next. Marked as sent only when it was.
 func (h *Reporting) NotifyDomainFailing(ctx context.Context, d model.BoundDomain, siteName, reason string, mailer email.NoticeSender, ed *edition.Edition) {
 	to, err := repo.GetSiteOwnerEmail(ctx, h.database, d.SiteID)

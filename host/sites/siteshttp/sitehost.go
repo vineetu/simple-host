@@ -16,46 +16,26 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/pagepath"
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Per-site addresses (owner decision 2026-09-26).
+// Per-site addresses. Every site lives at its own origin, <site>.<handle>.<SITE_DOMAIN>: files at the host
+// root, /v1/ answering for that one site, and visitor sign-in, sessions and private collections bound to the
+// host, so a person's sites are kept apart by the browser, not only by the server.
 //
-// Every site lives at its own origin, <site>.<handle>.<SITE_DOMAIN>: the
-// site's files at the host root, /v1/ answering for that one site only, and
-// visitor sign-in, sessions and private collections bound to that host. A
-// person's sites are therefore kept apart from each other by the browser, not
-// only by the server. The person host (<handle>.<SITE_DOMAIN>) stays the
-// person's page.
+// A two-label name needs a certificate of its own (the platform wildcard covers one label). A root-owned
+// issuer outside this process makes them (deploy/site-certs/): this service drops a request file per handle
+// in SITE_CERT_DIR/requests/ and the issuer writes SITE_CERT_DIR/ready/<handle> once it is served. Until then
+// sites keep their person-path address and nothing hands out, or redirects to, a site host whose certificate
+// is not ready: a TLS name mismatch cannot be fixed after the handshake.
 //
-// A two-label name needs a certificate of its own (*.<handle>.<SITE_DOMAIN>;
-// the platform wildcard covers one label only). A root-owned issuer outside
-// this process makes them (deploy/site-certs/): this service drops a request
-// file per handle in SITE_CERT_DIR/requests/ and the issuer writes
-// SITE_CERT_DIR/ready/<handle> once the certificate is served. Until then a
-// person's sites keep their person-path address (<handle>.<SITE_DOMAIN>/<site>/)
-// and nothing here ever hands out, or redirects to, a site host whose
-// certificate is not ready — a TLS name mismatch cannot be fixed after the
-// handshake.
-//
-// SITE_HOSTS: off (no site hosts; event and self-hosted instances), serve
-// (site hosts answer; addresses handed out stay the person-path form) or
-// canonical (site hosts are the address handed out, and person-path and
-// legacy content-host URLs redirect there). Needs PERSON_HOSTS on.
+// SITE_HOSTS: off (no site hosts), serve (site hosts answer; handed-out addresses stay person-path) or
+// canonical (site hosts are handed out; person-path and legacy content-host URLs redirect there). Needs PERSON_HOSTS on.
 
-type siteHostMode = sites.HostMode
-
-const (
-	siteHostsOff       = sites.HostsOff
-	siteHostsServe     = sites.HostsServe
-	siteHostsCanonical = sites.HostsCanonical
-)
-
-// SiteHosts serves <site>.<handle>.<SITE_DOMAIN>: /v1/ goes to the API (which
-// binds every lookup to this one site), everything else is the site's files
-// at the root. A site with its own domain redirects there; an old handle kept
-// as an alias redirects to the current address. Hosts of any other shape go
-// to next.
+// SiteHosts serves <site>.<handle>.<SITE_DOMAIN>: /v1/ goes to the API (bound to this one site), the rest is
+// the site's files. A site with its own domain redirects there; an old handle kept as an alias redirects to
+// the current address. Other host shapes go to next.
 func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !h.Hosts.Addressing().SiteHostsOn() {
@@ -68,12 +48,12 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, err := h.siteFacts().HostOwner(r.Context(), handle, label)
+		user, err := h.SitesSvc().HostOwner(r.Context(), handle, label)
 		if err != nil {
 			h.siteHostNoOwner(w, r, err, handle, label, base)
 			return
 		}
-		site, err := h.siteFacts().GetSiteByUser(r.Context(), user.ID, label)
+		site, err := h.SitesSvc().GetSiteByUser(r.Context(), user.ID, label)
 		if err != nil {
 			h.siteHostNoSite(w, r, err, user, label)
 			return
@@ -82,9 +62,8 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 	})
 }
 
-// siteHostNoOwner answers a site host whose handle is no current account: an
-// old handle kept as an alias redirects to the site's current address (or a
-// renamed site's), anything else is the platform's 404.
+// siteHostNoOwner answers a site host whose handle is no current account: an alias redirects to the current
+// address (or a renamed site's), anything else is the platform's 404.
 func (h *SiteHandler) siteHostNoOwner(w http.ResponseWriter, r *http.Request, err error, handle, label, base string) {
 	if !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, sites.ErrInvalidHost) {
 		log.Printf("site host %s: %v", httpx.HostName(r), err)
@@ -101,18 +80,16 @@ func (h *SiteHandler) siteHostNoOwner(w http.ResponseWriter, r *http.Request, er
 	h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.SiteDomain)
 }
 
-// aliasSiteTarget is where a site host under an old handle kept as an alias
-// now lives: the same site under the current handle, or a renamed one.
 func (h *SiteHandler) aliasSiteTarget(r *http.Request, handle, label, base string) (string, bool) {
-	current, err := h.siteFacts().ResolveHandleAlias(r.Context(), handle)
+	current, err := h.storeAccounts().ResolveHandleAlias(r.Context(), handle)
 	if err != nil || !sites.HandleAddressable(current) {
 		return "", false
 	}
-	cu, err := h.siteFacts().GetUserByHandle(r.Context(), current)
+	cu, err := h.storeAccounts().GetUserByHandle(r.Context(), current)
 	if err != nil {
 		return "", false
 	}
-	site, err := h.siteFacts().GetSiteByUser(r.Context(), cu.ID, label)
+	site, err := h.SitesSvc().GetSiteByUser(r.Context(), cu.ID, label)
 	if err == nil {
 		return h.Hosts.Addressing().SiteAddressWithPathOn(current, site.Name, r.URL.EscapedPath(), base), true
 	}
@@ -122,8 +99,6 @@ func (h *SiteHandler) aliasSiteTarget(r *http.Request, handle, label, base strin
 	return "", false
 }
 
-// siteHostNoSite answers a site host naming no site of its account: an old
-// name of a renamed site redirects to its current address.
 func (h *SiteHandler) siteHostNoSite(w http.ResponseWriter, r *http.Request, err error, user model.User, label string) {
 	if !errors.Is(err, sql.ErrNoRows) {
 		log.Printf("site host %s: %v", httpx.HostName(r), err)
@@ -205,7 +180,6 @@ func (h *SiteHandler) serveSiteHostSite(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-// queryOf is "?" and the request's raw query, or "".
 func queryOf(r *http.Request) string {
 	if r.URL.RawQuery == "" {
 		return ""
@@ -228,22 +202,20 @@ func (h *SiteHandler) oldAddressPrefix(handle string, site model.Site, p, escape
 	return "", false
 }
 
-// siteHasPath reports whether the site's live version has something at rel
-// (os.Root refuses escapes).
 func (h *SiteHandler) siteHasPath(site model.Site, rel string) bool {
 	root, err := os.OpenRoot(h.Disk.SiteDir(site.UserID, site.Name) + "/current")
 	if err != nil {
 		return false
 	}
 	defer root.Close()
-	return rootContentExists(root, rel)
+	return pagepath.Taken(root, rel)
 }
 
 // renamedSiteAddress: name is an old name of a renamed site of this account
 // (and no site has it now; callers look the site up first). Returns that
 // site's current address with escapedPath (starting with "/") appended.
 func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, escapedPath string) (string, bool) {
-	siteID, _, err := h.siteFacts().AddressedOldSite(ctx, userID, name)
+	siteID, _, err := h.SitesSvc().AddressedOldSite(ctx, userID, name)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			log.Printf("old site name %s/%s: %v", userID, name, err)
@@ -253,8 +225,6 @@ func (h *SiteHandler) renamedSiteAddress(ctx context.Context, userID, name, esca
 	return h.Hosts.SiteAddressFor(ctx, siteID, escapedPath)
 }
 
-// renderSiteHostNotFound is the branded 404 for a site host naming no site
-// of that person, with the way back to their page.
 func (h *SiteHandler) renderSiteHostNotFound(w http.ResponseWriter, r *http.Request, handle string) {
 	h.renderNotFoundPage(w, r,
 		"That site isn’t here",
@@ -263,7 +233,6 @@ func (h *SiteHandler) renderSiteHostNotFound(w http.ResponseWriter, r *http.Requ
 		"Back to @"+handle+"’s sites")
 }
 
-// RequestSiteCert is hosts.RequestSiteCert for the product hooks.
 func (h *SiteHandler) RequestSiteCert(handle string) {
 	h.Hosts.RequestSiteCert(context.Background(), handle)
 }
@@ -314,16 +283,6 @@ func (h *SiteHandler) updateSiteCertPending(ctx context.Context) {
 	h.siteLoop("sites.cert_requests").tracker.SetPending(pending)
 }
 
-// StartSiteCertRequests runs RequestSiteCertsForAll now and then every
-// interval until ctx ends.
-func (h *SiteHandler) StartSiteCertRequests(ctx context.Context, every time.Duration) {
-	o := h.siteLoop("sites.cert_requests")
-	o.once.Do(func() {
-		if o.enabled() {
-			h.startSiteCertRequests(ctx, every)
-		}
-	})
-}
 func (h *SiteHandler) startSiteCertRequests(ctx context.Context, every time.Duration) {
 	o := h.siteLoop("sites.cert_requests")
 	o.periodicTicker(ctx, 0, every, func(ctx context.Context) { h.RequestSiteCertsForAll(ctx); h.updateSiteCertPending(ctx) })

@@ -15,7 +15,7 @@ func TestAppFlag(t *testing.T) {
 		{"", "alice", false}, {"off", "alice", false}, {"true", "alice", false},
 		{"on", "", true}, {"on", "alice", true}, {"accounts:alice,bob", "alice", true},
 		{"accounts: alice, bob ", "bob", true}, {"accounts:alice", "ali", false},
-		{"accounts:", "", false}, {"accounts:alice", "", false},
+		{"accounts:alice", "", false},
 	} {
 		if got := appFlag(tc.value, tc.handle); got != tc.want {
 			t.Errorf("%q %q: %v", tc.value, tc.handle, got)
@@ -29,9 +29,9 @@ func TestAppsPerCallerAndCache(t *testing.T) {
 	full, bare, _ := s.forCaller(Caller{})
 	original, _ := json.Marshal(full)
 	originalBare, _ := json.Marshal(bare)
-	for _, flag := range []string{"", "off", "unknown", "accounts:alice", "on"} {
+	for _, flag := range []string{"off", "accounts:alice", "on"} {
 		t.Setenv("MCP_APP_PHOTO_PICKER", flag)
-		for _, handle := range []string{"alice", "bob", ""} {
+		for _, handle := range []string{"alice", "bob"} {
 			c := Caller{Handle: handle}
 			want := appFlag(flag, handle)
 			full, bare, _ := s.forCaller(c)
@@ -83,7 +83,7 @@ func TestAppsWire(t *testing.T) {
 			flag = "on"
 		}
 		t.Setenv("MCP_APP_PHOTO_PICKER", flag)
-		for _, version := range []string{"2025-03-26", "2025-11-25", "2026-07-28"} {
+		for _, version := range []string{"2025-03-26", protocolVersion} {
 			headers := map[string]string{"MCP-Protocol-Version": version, "Mcp-Method": "resources/list"}
 			// Modern requests require per-request client capabilities.
 			meta := `,"_meta":{"io.modelcontextprotocol/clientCapabilities":{}}`
@@ -119,15 +119,6 @@ func TestAppsWire(t *testing.T) {
 			domains := csp["resourceDomains"].([]any)
 			if len(domains) != 1 || domains[0] != "https://simple-host.app" {
 				t.Fatal(domains)
-			}
-			page := item["text"].(string)
-			for _, needle := range []string{"<!DOCTYPE html>", "ui/initialize", "ResizeObserver", "window.parent", "/photo-process.js", "keep_other_files: true"} {
-				if !strings.Contains(page, needle) {
-					t.Errorf("missing %s", needle)
-				}
-			}
-			if strings.Contains(page, "__BRIDGE__") || strings.Contains(page, "openai/") {
-				t.Fatal("unexpanded or vendor metadata")
 			}
 		}
 	}

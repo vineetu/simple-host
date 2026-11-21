@@ -19,7 +19,6 @@ type CodeInvite struct {
 	ApprovalRequired bool
 }
 
-// InviteByCode resolves a join code (judge false) or a judge code.
 func (s *Service) InviteByCode(ctx context.Context, raw string, judge bool) (CodeInvite, error) {
 	code := NormalizeCode(raw)
 	if code == "" {

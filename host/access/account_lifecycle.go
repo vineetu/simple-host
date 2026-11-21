@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/host/access/repo"
-	"github.com/vsriram/simple-host/host/model"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/access/repo"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 func (s *Service) ListAccountAddresses(ctx context.Context, userID string) ([]model.AccountAddress, error) {
@@ -187,7 +189,7 @@ func issuedAPIKey() (string, error) {
 	}
 	return "shk_" + key, nil
 }
-func (s *Service) CreateAccounts(ctx context.Context, names []string, randomHandles bool, assign func(context.Context, AttributionStore, string, string, bool)) (map[string]any, error) {
+func (s *Service) CreateAccounts(ctx context.Context, names []string, randomHandles bool, assign func(context.Context, sqlkit.Querier, string, string, bool)) (map[string]any, error) {
 	created := make([]map[string]string, 0, len(names))
 	skipped := make([]map[string]string, 0)
 	tx, err := s.database.BeginTx(ctx, nil)

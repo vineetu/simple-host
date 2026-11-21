@@ -1,7 +1,6 @@
 package httpx
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"net"
@@ -21,9 +20,7 @@ import (
 type RateLimiter struct {
 	mu      sync.Mutex
 	buckets map[string]*tokenBucket
-	// Rate, Capacity and Now are exported so a test (even through host/
-	// handler's transitional *rateLimiter wrapper, which embeds this type)
-	// can read or override them directly, as the pre-move tests did.
+	// Rate, Capacity and Now are exported so tests can read or override them.
 	Rate     float64 // tokens refilled per second
 	Capacity float64 // max burst
 	Now      func() time.Time
@@ -35,9 +32,8 @@ type tokenBucket struct {
 }
 
 // NewRateLimiter builds a limiter that allows bursts up to capacity and refills
-// at perSecond tokens/sec. It does NOT start the cleanup goroutine — callers
-// invoke StartCleanup once they're wired into a long-lived server (keeps tests
-// goroutine-free).
+// at perSecond tokens/sec. Idle buckets are evicted only once a Caches
+// registers it (Caches.Rate).
 func NewRateLimiter(capacity, perSecond float64) *RateLimiter {
 	return &RateLimiter{
 		buckets:  make(map[string]*tokenBucket),
@@ -106,23 +102,9 @@ func (rl *RateLimiter) AllowHTTP(w http.ResponseWriter, key string) bool {
 	return allowed
 }
 
-// StartCleanup periodically evicts idle, fully-refilled buckets so the map
-// can't grow without bound under a churn of distinct keys.
-func (rl *RateLimiter) StartCleanup(ctx context.Context, every, idle time.Duration) {
-	ticker := time.NewTicker(every)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			rl.EvictIdle(idle)
-		}
-	}
-}
-
 // EvictIdle drops buckets unused for idle that have refilled: a new bucket
-// starts full, so forgetting them changes nothing.
+// starts full, so forgetting them changes nothing. Caches.Rate runs it, so the
+// map cannot grow without bound under a churn of distinct keys.
 func (rl *RateLimiter) EvictIdle(idle time.Duration) int {
 	removed := 0
 	rl.mu.Lock()

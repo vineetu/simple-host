@@ -124,39 +124,6 @@ func (h *LogHistogram) Snapshot() Histogram {
 	return s
 }
 
-// MergeHistograms sums counts and exact moments; no percentile is ever merged.
-func MergeHistograms(histograms ...Histogram) Histogram {
-	result := Histogram{Offset: -1, Counts: []int64{}}
-	first, last := int16(504), int16(-2)
-	for _, h := range histograms {
-		result.N += h.N
-		result.SumUS += h.SumUS
-		if h.MaxUS > result.MaxUS {
-			result.MaxUS = h.MaxUS
-		}
-		if len(h.Counts) > 0 {
-			if h.Offset < first {
-				first = h.Offset
-			}
-			end := h.Offset + int16(len(h.Counts)) - 1
-			if end > last {
-				last = end
-			}
-		}
-	}
-	if last < first {
-		return result
-	}
-	result.Offset = first
-	result.Counts = make([]int64, int(last-first)+1)
-	for _, h := range histograms {
-		for i, n := range h.Counts {
-			result.Counts[int(h.Offset-first)+i] += n
-		}
-	}
-	return result
-}
-
 // Quantile estimates a nearest-rank quantile using the bucket's harmonic
 // midpoint, with <=4.33% relative error for values >1µs. The zero bucket has
 // <=1µs absolute error. Callers must report n and max and require n>=1000 for

@@ -114,7 +114,7 @@ func (s *Service) PutFile(ctx context.Context, in FilePutInput) (FilePutResult, 
 		return FilePutResult{}, nil, err
 	}
 	call.Context = ctx
-	// rowVisitorID is this write's SIM-360 push-fan-out target: the stored
+	// rowVisitorID is this write's push-fan-out target: the stored
 	// file's uploader on an overwrite, or the new file's own uploader.
 	rowVisitorID, refusal, err := s.authorizeFilePut(&call, in.Path, existed)
 	if refusal != nil || err != nil {

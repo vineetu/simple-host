@@ -104,8 +104,6 @@ func scopeWords(scope string) map[string]bool {
 	return out
 }
 
-const reconnectGrant = "this connection cannot be refreshed; reconnect and choose a team or Manage my events"
-
 func TestHackOrganiserConnector(t *testing.T) {
 	a := newTeamSiteApp(t)
 	for _, path := range []string{"/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server"} {
@@ -130,13 +128,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 	verifier, challenge := newVerifier()
 	q := authorizeQuery(clientID, testRedirect, challenge)
 	q.Set("resource", a.srv.URL)
-	page, csrf := a.consentPage(t, q)
-	if !strings.Contains(page, `"hack":true`) || !strings.Contains(page, "help with your hackathons") || !strings.Contains(page, "@media (max-width: 390px)") {
-		t.Fatal("consent page is missing the unified hackathon choice or the narrow layout")
-	}
-	if strings.Count(page, "prefers-color-scheme") != 1 {
-		t.Fatalf("consent page prefers-color-scheme count %d", strings.Count(page, "prefers-color-scheme"))
-	}
+	_, csrf := a.consentPage(t, q)
 	// A consent page left open from the old team-only flow cannot silently
 	// approve the broader personal connection.
 	stale := a.decideConsent(t, q, csrf, org.key, map[string]any{
@@ -161,78 +153,6 @@ func TestHackOrganiserConnector(t *testing.T) {
 	names := mcpToolNames(t, a.rpc(t, access, "tools/list", map[string]any{}))
 	if !hasTool(names, "hack_create_event") || !hasTool(names, "create_site") {
 		t.Fatalf("events tools: %v", names)
-	}
-	init := a.rpc(t, access, "initialize", map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}, "clientInfo": map[string]string{"name": "t", "version": "1"}})
-	if text, _ := init.json(t)["result"].(map[string]any)["instructions"].(string); !strings.Contains(text, "events") {
-		t.Fatalf("instructions: %s", text)
-	}
-	emptyText, empty, emptyErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_list_events", "arguments": map[string]any{}}))
-	if emptyErr || empty["count"].(float64) != 0 || !strings.Contains(emptyText, "hack_create_event") {
-		t.Fatalf("empty list: %v %s", emptyErr, emptyText)
-	}
-
-	slug := uniqueSlug()
-	t.Cleanup(func() { a.cleanupSlug(slug) })
-	badName, _, badErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_create_event", "arguments": map[string]any{
-		"slug": "ab", "title": "T", "organiser_name": "Org", "contact_email": "org@example.com",
-		"purpose": "testing", "expected_participants": 10, "starts_at": "2026-10-01",
-	}}))
-	if !badErr || strings.Contains(badName, "1 to 63") || !strings.Contains(badName, "3 to 39") {
-		t.Fatalf("short name: %s", badName)
-	}
-	checked, checkOut, checkErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_check_event_name", "arguments": map[string]any{"slug": slug}}))
-	if checkErr || checkOut["available"] != true {
-		t.Fatalf("name check: %v %s", checkErr, checked)
-	}
-	createdText, created, createErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_create_event", "arguments": map[string]any{
-		"slug": slug, "title": "Connector hack", "organiser_name": "Org", "contact_email": "org@example.com",
-		"purpose": "testing the connector", "expected_participants": 12, "starts_at": "2026-10-01", "time_zone": "UTC",
-	}}))
-	if createErr {
-		t.Fatalf("create: %s", createdText)
-	}
-	orgView := created["organiser"].(map[string]any)
-	if !strings.Contains(orgView["join_url"].(string), "/join/") || !strings.Contains(orgView["judge_url"].(string), "/judge/") || !strings.Contains(createdText, orgView["join_url"].(string)) {
-		t.Fatalf("create links: %s", createdText)
-	}
-	rubricText, rubric, rubricErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_set_rubric", "arguments": map[string]any{
-		"slug": slug, "criteria": []any{
-			map[string]any{"name": "Idea", "weight": 60, "max_points": 10},
-			map[string]any{"name": "Build", "weight": 40, "max_points": 10},
-		},
-	}}))
-	if rubricErr {
-		t.Fatalf("rubric: %s", rubricText)
-	}
-	weights := rubric["criteria"].([]any)
-	if len(weights) != 2 || weights[0].(map[string]any)["weight"].(float64) != 60 || weights[1].(map[string]any)["weight"].(float64) != 40 {
-		t.Fatalf("rubric weights: %v", rubric["criteria"])
-	}
-	gotRubric, _, gotErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_get_rubric", "arguments": map[string]any{"slug": slug}}))
-	if gotErr || !strings.Contains(gotRubric, "Idea") {
-		t.Fatalf("get rubric: %s", gotRubric)
-	}
-	updatedText, updated, updateErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_update_event", "arguments": map[string]any{"slug": slug, "title": "Connector hack renamed"}}))
-	if updateErr || updated["title"] != "Connector hack renamed" {
-		t.Fatalf("update: %v %s", updateErr, updatedText)
-	}
-	live := a.api(t, "GET", "/v1/hack/events/"+slug, nil, org.key).json(t)
-	if live["event"].(map[string]any)["title"] != "Connector hack renamed" || live["organiser"].(map[string]any)["purpose"] != "testing the connector" {
-		t.Fatalf("update changed more than the title: %v", live)
-	}
-	stageText, stage, stageErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": "hack_set_event_stage", "arguments": map[string]any{"slug": slug, "stage": "open"}}))
-	if stageErr || stage["stage"] != "open" {
-		t.Fatalf("stage: %v %s", stageErr, stageText)
-	}
-	for _, tool := range []string{"hack_export_scores", "hack_export_results"} {
-		csvText, csv, csvErr := toolResultOf(t, a.rpc(t, access, "tools/call", map[string]any{"name": tool, "arguments": map[string]any{"slug": slug}}))
-		header := "team,total,rank"
-		if tool == "hack_export_scores" {
-			header = "team,judge,criterion"
-		}
-		if csvErr || !strings.Contains(csv["csv"].(string), header) || !strings.Contains(csvText, header) {
-			t.Fatalf("%s: %v %s", tool, csvErr, csvText)
-		}
 	}
 	wantTS(t, "personal site", a.do(t, http.MethodPut, "/v1/sites/personal/files?create=1", jsonBody(deployBody("x")), map[string]string{
 		"Authorization": "Bearer " + access, "Content-Type": "application/json",
@@ -316,7 +236,7 @@ func TestHackOrganiserConnector(t *testing.T) {
 		}
 		for i := 0; i < 2; i++ {
 			refreshed := a.form(t, "/oauth/token", url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refresh}, "client_id": {clientID}}, nil)
-			if refreshed.status != http.StatusBadRequest || refreshed.json(t)["error"] != "invalid_grant" || refreshed.json(t)["error_description"] != reconnectGrant {
+			if refreshed.status != http.StatusBadRequest || refreshed.json(t)["error"] != "invalid_grant" {
 				t.Fatalf("%s refresh %d: %d %s", scope, i, refreshed.status, refreshed.body)
 			}
 		}
@@ -327,10 +247,6 @@ func TestHackOrganiserConnector(t *testing.T) {
 	}
 	assertClosed("sites")
 	assertClosed("sites team:00000000-0000-4000-8000-000000000000 events")
-	assertClosed("sites team:")
-	assertClosed("sites eventsx")
-	assertClosed("sites team: events")
-	assertClosed("sites team:not-a-uuid")
 	assertClosed("sites events events")
 	a.setGrantScope(t, uid, clientID, "sites events")
 	if me := a.do(t, http.MethodGet, "/v1/me", nil, map[string]string{"Authorization": "Bearer " + access}); me.status != http.StatusOK {

@@ -19,9 +19,6 @@ import (
 // sign out (revoke the key the request came with). Rotate (user.go) stays the
 // "revoke everything" lever.
 
-// normalizeKeyName trims a typed key name; "" means "use the default".
-func normalizeKeyName(name string) (string, error) { return accounts.NormalizeKeyName(name) }
-
 type keyView struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name,omitempty"`

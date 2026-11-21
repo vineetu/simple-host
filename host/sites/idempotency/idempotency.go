@@ -41,8 +41,8 @@ type response struct {
 	body    []byte
 }
 
-// Only response bytes and request hashes are retained. Like the rate limiter,
-// this store is local to the single server process and is lost on restart.
+// Store keeps response bytes and request hashes in memory, local to this
+// process and lost on restart.
 type Store struct {
 	limits        edition.Limits
 	mu            sync.Mutex
@@ -60,7 +60,7 @@ func New(l edition.Limits) *Store {
 	}
 }
 
-// deleteLocked removes k and keeps accountCounts consistent. Callers hold s.mu.
+// deleteLocked removes k and keeps accountCounts consistent; callers hold s.mu.
 func (s *Store) deleteLocked(k entryKey) {
 	if _, ok := s.entries[k]; !ok {
 		return

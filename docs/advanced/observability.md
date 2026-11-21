@@ -19,7 +19,7 @@
 | `NETWORK_ALERT_PCT` | `75` | 1–100 percent | The share of NETWORK_MONTHLY_ALLOWANCE_GB at which the admin page's network bar turns amber, and the box's daily watch script sends its one alert of the month. |
 | `NETWORK_SAMPLE_MINUTES` | `60` | 1–1440 minutes | How often the box's network counters are added to the month's totals. The admin page adds the growth since the last sample itself, so this only bounds what a reboot can lose. |
 | `API_METRICS_FLUSH_SECONDS` | `20` | 5–3600 seconds | How often counted API calls are written to the database for the admin page's API traffic and growth. Calls counted since the last write are lost if the server stops abruptly. |
-| `AGENTCAT_PROJECT_ID` | none | text | AgentCat project for MCP tool-call events (arguments, results, and stated intent, with secrets and file contents left out); empty disables sending. |
+| `AGENTCAT_PROJECT_ID` | none | text | AgentCat project for MCP tool-call events (arguments, results, stated intent, and product, role and stage tags, with secrets, file contents and people's details left out); empty disables sending. |
 | `PAPER_METRICS` | `on` | `on` / `off` | Collects local paper metrics; off, false or 0 disables collection. |
 | `ANALYTICS_LOG` | none | text | The web server's access log that visit analytics are read from. Empty: no analytics. |
 | `ANALYTICS_SALT` | none | secret | Salt for the hashed visitor addresses in analytics. Empty: derived from ADMIN_API_KEY. **Security-sensitive.** |
@@ -29,8 +29,9 @@
 
 ## AgentCat tool-call context
 
-Hosted Simple Host sends the existing usage fields plus arguments and results (8 KB of JSON
-for each) and stated intent (2,048 characters). Other installations are not enrolled. The
+Any install with `AGENTCAT_PROJECT_ID` set sends the existing usage fields plus arguments and
+results (8 KB of JSON for each) and stated intent (2,048 characters). Hosted Simple Host and
+hosted Simple Hack use the same AgentCat project and are told apart by tags. The
 optional `context` input appears whenever analytics is enabled, for every caller including
 ChatGPT, OpenAI, and Codex connections (owner, 2026-10-29). It is removed before validation
 unless the tool defines its own context. Wrapped calls use the
@@ -68,7 +69,7 @@ the connector schemas and outputs on 2026-10-29, is:
   `;base64,` replace whole string values in arguments and structured/JSON results, including
   sponsor `logo_data`, and whole non-JSON text blocks. They are not searched for inside
   ordinary prose. Intent uses the same data-URI check (`[file: N bytes, <type>]`) and SDK
-  large-base64 check before its length cap, with no other processing. Photo upload bytes travel over
+  large-base64 check, then the pattern scrubber below, before its length cap. Photo upload bytes travel over
   the upload HTTP route. The tool returns the link. Unlabelled base64 strings at least
   10 KB long use the SDK's binary-data placeholder instead.
 - Emails: `email` and `emails` in account, named-viewer, storage, and Hack tools;
@@ -90,14 +91,66 @@ The SDK's image, audio, binary-resource, unknown-content, and large-base64 place
 run after these removals. The structural walk stops at 32 levels with `[Object]` before
 further descent. Depth 10, breadth 100, and string truncation with `...` run next,
 with progressively smaller limits until each JSON field fits in 8,192 bytes. The event's
-`error` remains the short server code; the response includes the tool's error result.
-Request headers are not captured. AgentCat never receives the IP address a person connects from.
+`error` remains the short server code. A failed or refused call's `response` is only
+`Refused: <code>.` (the same code), never the tool's error text, which can echo what the
+caller sent. Request headers are not captured. AgentCat never receives the IP address a
+person connects from.
 
-The SDKs have no built-in personal-data scrubber. AgentCat's project redaction removes
-personal identifiers before storage. No local email, URL, credential-content, or other
-personal-data pattern matching is used. Arbitrary prose, SQL aliases, and user-defined
+The SDKs have no built-in personal-data scrubber, so the server pattern-matches free text
+(`scrubAnalyticsText` in `host/mcp/analytics_scrub.go`) on both products: the stated intent,
+every argument name, and on Simple Hack every string of the arguments and result. It replaces
+email addresses; links whose path holds `/join/`, `/judge/`, `/team/`, `/organiser/`,
+`/invite`, an upload, download, preview or OAuth path, a token-like segment, a query or a
+fragment; UUIDs; key-like strings (`shk_`, `shint_` and similar prefixes, or 32 or more
+letters and digits); and code-shaped words (8 or more characters of the join-code alphabet
+with a digit and a letter). AgentCat's project redaction removes further personal
+identifiers before storage. Arbitrary prose on Simple Host, SQL aliases, and user-defined
 fields outside this inventory rely on that server-side redaction. The local tests verify
 what is posted, not AgentCat's storage or project configuration.
+
+### Tags
+
+Every event carries `tags`, which AgentCat indexes for filtering:
+
+- `env`: `prod` on the product's hosted address (simple-host.app, simple-hack.app), `dev`
+  elsewhere.
+- `product`: `simple-host` or `simple-hack`, from the edition's product name.
+- `protocol`: the MCP revision the request declared, when it declared one.
+- Simple Hack only, read by the analytics worker after the reply so the call never waits:
+  `role` is the caller's role in the event the call names (`organiser`, `participant`,
+  `judge`, or `none` when not a member) and `stage` is that event's stage. A call names its
+  event by `slug`, else by the `owner` a website call names (the event); a team-website
+  connection uses the event that holds the team's site. Both tags are sent only when the
+  caller is a member, is that team site's connection, or the event is listed publicly (Find
+  a hackathon); otherwise, as for a call about no event or an unknown event name, neither is
+  sent, so a refused call never reveals an unlisted event's stage.
+
+Tag keys and values follow AgentCat's limits (32-character keys, 200-character one-line
+values); anything else is dropped. A refusal's `error.message` is its code whenever the code
+came from this server or its REST API (lowercase letters, digits and underscores), including
+Simple Hack's own codes; anything else is `tool_error`.
+
+On product (Simple Hack) tools the copy also removes, by class of field rather than by a
+list of today's names (`analyticsProductPersonField` in `host/mcp/analytics_scrub.go`):
+
+- people's names: `display_name`, `username`, and every `*_name` except team, track, event,
+  file, site and similar non-person names (so `sender_name`, `judge_name`, `account_name`,
+  `organiser_name` go), and `name` or `id` in a person's object (one with `user_id`,
+  `email`, `display_name` and the like, or inside `members`, `judges`, `people`,
+  `successors` and the other people lists);
+- account IDs: any `*_id`/`*_ids` naming a user, account, judge, member, owner, organiser,
+  sender, creator, successor or applicant, every `*_by`, `me_id`, and lists of names or IDs
+  under a people key (`organiser_judges`, `organisers_staying`, `members`, `others`);
+- contact: any string under a key containing `email` or `phone`;
+- codes: any string under a key ending in `code` (join, judge, team, invite);
+- applicants' free text: `answers`, `city`, `country`, `age_range`, `gender`, on every Hack
+  tool (including `hack_join_event`).
+
+Team and event names are sent. Every string then goes through the pattern scrubber above,
+which also removes raw account UUIDs wherever they appear. The event's keyed actor hash
+replaces the caller's ID. `products/hack/mcp/hack_analytics_privacy_test.go` fills every
+Hack tool's input and output schema, recorded REST result shapes, and every JSON key the
+Hack REST layer writes with a planted value and fails if one of these classes survives.
 
 ## Network and page counts
 

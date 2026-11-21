@@ -1,4 +1,3 @@
-// famHackAppOnly declares app-only twins and judge/organiser screen tools.
 package hackmcp
 
 import (
@@ -10,66 +9,32 @@ import (
 	"github.com/vsriram/simple-host/host/mcp"
 )
 
-// App-only twins (Grok security review, SIM-344 phase 2). SEP-1865 defines
-// `content` as text a host may put in front of the model and
-// `structuredContent`/`_meta` as fields a host is told not to; it does not
-// require a host to honour that for a `tools/call` the APP made on its
-// own. The judge and organiser views open a screen and immediately call
-// several read tools themselves -- hack_get_applications, hack_get_
-// judging_dashboard, hack_get_judge_queue, and the rest -- with nobody in
-// chat having asked for that data. A host that reuses its normal
-// model-tool-call pipeline for an app-initiated call would put every
-// applicant's email, city, age range and free-text answer, or a judge's
-// queue of team names and entries, in front of the model with no question
-// asked (finding 1). Three organiser writes have the same shape in
-// reverse: hack_set_event_stage, hack_regenerate_code and hack_create_
-// organiser_invite put the join/judge/co-organiser secret URLs the show
-// tool deliberately withholds back into `content` the moment the
-// organiser actually uses them (finding 2).
+// App-only twins: each wraps a base tool's run() with the same REST route and
+// auth but a model-safe result shape. A screen calls several read tools itself
+// on open, with nobody in chat having asked for that data, and a host may route
+// that call through its model-tool pipeline. So `content` and
+// `structuredContent` (visible to the model) carry only a fixed sentence plus
+// small non-identifying counts, and the real body travels in the result's
+// `_meta` under "simple-hack/app-only", read back only by
+// `window.SHApp.callToolResult`. The three organiser writes (hack_set_event_stage,
+// hack_regenerate_code, hack_create_organiser_invite) work the same way so
+// join/judge/co-organiser secret URLs never reach `content`.
 //
-// The fix is not a new permission or a new REST call -- every twin here
-// calls the exact same tool, over the exact same REST route, with the
-// exact same auth, as the original it wraps. The only thing that changes
-// is the SHAPE of the result: `content` and `structuredContent` (the two
-// fields a model-facing pipeline can see) become a fixed, generic
-// sentence plus small, non-identifying counts (or, for the three writes,
-// nothing identifying at all), and the real REST body -- the only copy of
-// it -- moves into the result's own `_meta`, under "simple-hack/app-only".
-// That is the same channel hack_show_judge/hack_show_organiser already
-// use for join/judge codes and organiser prose: written by the server
-// alongside (never inside) `content`/`structuredContent`
-// (server.go's withMeta-style attachment), and read back only by
-// `window.SHApp.callToolResult` -- the bridge entry point the model-facing
-// `callTool` path never uses, since `callTool` only ever returns
-// `structuredContent` and silently discards `_meta`.
+// `_meta.ui.visibility: ["app"]` asks a host to hide the twin from the model,
+// but that is advisory: the content shape is the real control, and run() also
+// refuses a connection that has not declared MCP Apps UI support.
 //
-// Each twin also carries `_meta.ui.visibility: ["app"]`, the same key
-// `passcode_screen` already carries (passcode_screen.go): a host that
-// honours it leaves the twin off the tool list it offers the model
-// entirely, so the model never calls it by name in the first place. That
-// is advisory, not the real control -- the server cannot tell a frame's
-// own `tools/call` from one the model made on the same connection, so a
-// host that does not honour `visibility` could still let a model call a
-// twin directly. The content shape above is what holds regardless; the
-// twin's own run() also refuses outright for a connection that has not
-// declared MCP Apps UI support (the same gate hack_show_judge/hack_show_
-// organiser use), narrowing that further.
-//
-// Twins are built once, at startup, by wrapping an already-registered
-// base tool's run() -- see hackAppOnlyTools below, called through
-// AppContribution.AppFamily after every other hack tool is assembled. hack_get_rubric's twin is
-// shared: both the judge and organiser route tables call the same
-// hack_app_get_rubric.
+// Twins are built once at startup by hackAppOnlyTools, after every other hack
+// tool is assembled. hack_app_get_rubric is shared by the judge and organiser
+// route tables.
 
-// hackAppOnlyVisibility is the _meta every twin carries, asking a
-// compliant host to never offer it to the model.
+// hackAppOnlyVisibility asks a compliant host never to offer the twin to the model.
 func hackAppOnlyVisibility() map[string]any {
 	return map[string]any{"ui": map[string]any{"visibility": []string{"app"}}}
 }
 
-// hackAppOnlyMeta wraps real, the original tool's own output, as the
-// view-only payload: the one and only copy of whatever personal data,
-// secret URL or free text the wrapped tool's REST route returned.
+// hackAppOnlyMeta wraps the original tool's output as the view-only payload:
+// the one copy of any personal data, secret URL or free text it returned.
 func hackAppOnlyMeta(real map[string]any) map[string]any {
 	if real == nil {
 		return nil
@@ -77,16 +42,10 @@ func hackAppOnlyMeta(real map[string]any) map[string]any {
 	return map[string]any{"simple-hack/app-only": real}
 }
 
-// hackAppOnlyAllowed is one twin's own call-time (and, via the tool
-// server's listing filter, listing-time) gate: the exact same three-part
-// check as the matching show tool (hackAppsGate -- events mode, never
-// ChatGPT/OpenAI/Codex, UI declared -- plus that app's own flag). Fixed
-// after an owner follow-up review found every twin was being listed to
-// every events connection regardless of flag, app name or UI support --
-// `_meta.ui.visibility` only helps a host that honours it, so the server
-// has to withhold the tool itself from anyone a show tool would also be
-// withheld from, the same way the listing filter already does for
-// hack_show_judge/hack_show_organiser.
+// hackAppOnlyAllowed gates one twin at call time and at listing time: the same
+// three-part check as the matching show tool (hackAppsGate) plus that app's own
+// flag. `_meta.ui.visibility` only helps a host that honours it, so the server
+// withholds the tool from anyone a show tool would be withheld from.
 type hackAppOnlyAllowed func(c mcp.Caller, uiCapable bool) bool
 
 func (s *hackScreens) hackAppOnlyJudgeAllowed(c mcp.Caller, uiCapable bool) bool {
@@ -96,21 +55,17 @@ func (s *hackScreens) hackAppOnlyOrganiserAllowed(c mcp.Caller, uiCapable bool) 
 	return s.hackShowOrganiserAppAllowed(c, uiCapable)
 }
 
-// hackAppOnlySharedAllowed is hack_app_get_rubric's own gate: it is called
-// by both the judge and organiser route tables, so it is available
-// whenever EITHER app's own gate passes -- never both at once, and never
-// neither.
+// hackAppOnlySharedAllowed gates hack_app_get_rubric: available when either the
+// judge or the organiser app's gate passes.
 func (s *hackScreens) hackAppOnlySharedAllowed(c mcp.Caller, uiCapable bool) bool {
 	return s.hackAppOnlyJudgeAllowed(c, uiCapable) || s.hackAppOnlyOrganiserAllowed(c, uiCapable)
 }
 
-// hackAppOnlyTwin builds an app-only companion of base: same name's REST
-// call, same auth, same InputSchema (the view sends it identical
-// arguments), but a model-safe content shape. summarize turns the
-// original (already fully authorized, already minimised-for-the-model-in
-// -the-old-sense) output into the fixed text and small counts this twin's
-// own content/structuredContent carries; the original's full
-// structuredContent always still travels in _meta, untouched.
+// hackAppOnlyTwin builds an app-only companion of base: same REST call, auth
+// and InputSchema, but a model-safe content shape. summarize turns the
+// authorized output into the fixed text and counts this twin's
+// content/structuredContent carries; the full structuredContent still travels
+// in _meta.
 func hackAppOnlyTwin(base mcp.Tool, name, title string, outSchema map[string]any, allowed hackAppOnlyAllowed, summarize func(mcp.Output) (string, map[string]any)) mcp.Tool {
 	twin := base
 	twin.Name = name
@@ -118,15 +73,11 @@ func hackAppOnlyTwin(base mcp.Tool, name, title string, outSchema map[string]any
 	twin.Description = "App-only companion of " + base.Name + " (SIM-344): the view calls this on its own, every time a screen opens, with nobody having asked for this data in chat. Returns a fixed summary and small counts; the real data goes to the view only, never to the model. Use " + base.Name + " instead for an explicit chat request."
 	twin.Meta = hackAppOnlyVisibility()
 	twin.OutputSchema = outSchema
-	// The twin's own options replace the base tool's; the base runs under
-	// its own (mcp.CallTool).
+	// The twin's own options replace the base tool's; the base runs under its own.
 	twin = mcp.WithPolicy(twin, mcp.ShowAllowed(allowed))
 	return mcp.WithRun(twin, func(c *mcp.Call, args map[string]any) (mcp.Output, error) {
-		// The same three-part gate the matching show tool uses (flag,
-		// events mode, not ChatGPT/OpenAI/Codex, UI declared) -- not just
-		// c.UICapable(), which alone would still let a flagged-off or
-		// excluded-app-name connection reach this tool merely by having
-		// declared UI support generically (owner follow-up review).
+		// Same gate as the matching show tool: c.UICapable() alone would let a
+		// flagged-off or excluded-app connection through.
 		if !allowed(c.Caller(), c.UICapable()) {
 			return mcp.Output{}, errors.New(name + " is not available for this connection; use " + base.Name + " instead")
 		}
@@ -141,10 +92,9 @@ func hackAppOnlyTwin(base mcp.Tool, name, title string, outSchema map[string]any
 	})
 }
 
-// --- shape helpers: every hackRouteTool-backed base wraps its REST body
-// as {"response": <body>, "status": N} (hack_organiser_tools.go's
-// runHackRoute); a hand-written tool (hack_get_rubric, hack_set_event_
-// stage) returns the shape directly. These read whichever applies.
+// Shape helpers: a hackRouteTool-backed base wraps its REST body as
+// {"response": <body>, "status": N} (runHackRoute); a hand-written tool
+// returns the shape directly. These read whichever applies.
 
 func hackAppOnlyRouteBody(out mcp.Output) map[string]any {
 	body, _ := out.Structured["response"].(map[string]any)
@@ -169,9 +119,8 @@ func countSchema(fields ...string) map[string]any {
 	return mcp.OutObject(props)
 }
 
-// twinSpec is one app-only twin: the base tool it wraps, its name, title
-// and output schema, which screen may call it, and how the base output is
-// summarized for the model.
+// twinSpec is one app-only twin: base tool, name, title, output schema, which
+// screen may call it, and how the base output is summarized for the model.
 type twinSpec struct {
 	base, name, title string
 	gate              twinGate
@@ -199,16 +148,12 @@ func (s *hackScreens) twinAllowed(gate twinGate) hackAppOnlyAllowed {
 }
 
 // hackAppOnlyTools builds every app-only twin, in listing order, from the
-// already-assembled base registry (base must already contain every tool
-// named below -- the tool server calls this after all base families are
-// assembled).
+// assembled base registry (which must already contain every tool named below).
 //
-// hack_get_judging_dashboard is NOT a generic twin: its base tool already
-// has judge_id stripped from every judges[] row by
-// minimiseHackOrganiserResult, a MODEL-facing protection (Grok security
-// review, SIM-344 phase 1). The VIEW is fully authorized to see judge_id
-// and organiser-judging.js's isCountedJudge() needs it (Codex review
-// finding 1, SIM-344 phase 2), so that twin reads the REST route itself,
+// hack_get_judging_dashboard is not a generic twin: its base tool strips
+// judge_id from every judges[] row (minimiseHackOrganiserResult) to protect the
+// model, but the view is authorized to see it and organiser-judging.js's
+// isCountedJudge() needs it, so that twin reads the REST route itself,
 // unminimised, straight into _meta.
 func (s *hackScreens) hackAppOnlyTools(base []mcp.Tool) []mcp.Tool {
 	byName := make(map[string]mcp.Tool, len(base))
@@ -235,7 +180,7 @@ func (s *hackScreens) hackAppOnlyTools(base []mcp.Tool) []mcp.Tool {
 	return append(twins, build(append(organiserWriteTwins(), judgeTwins()...))...)
 }
 
-// --- summaries -------------------------------------------------------------
+// --- summaries ---
 
 // loaded counts the rows read reports: "Loaded 3 teams.", {"count": 3}.
 func loaded(read func(mcp.Output) int, singular, plural string) func(mcp.Output) (string, map[string]any) {
@@ -288,9 +233,8 @@ func registrationSummary(out mcp.Output) (string, map[string]any) {
 	}
 }
 
-// judgingSettingsSummary passes the settings through as-is: every field is
-// a fixed configuration enum, number or boolean -- never a name, a
-// free-text field or a secret.
+// judgingSettingsSummary passes the settings through as-is: every field is a
+// fixed enum, number or boolean, never free text or a secret.
 func judgingSettingsSummary(out mcp.Output) (string, map[string]any) {
 	body := hackAppOnlyRouteBody(out)
 	counts := map[string]any{}
@@ -330,10 +274,10 @@ func rubricSummary(out mcp.Output) (string, map[string]any) {
 	return "Loaded the rubric.", map[string]any{"criteria": len(criteria)}
 }
 
-// --- the twins ---------------------------------------------------------------
+// --- the twins ---
 
-// organiserReadTwins: Home's publish dialog reads standings and publishes
-// through the first three; the rest load the organiser's screens.
+// organiserReadTwins: the first three serve Home's publish dialog; the rest
+// load the organiser's screens.
 func organiserReadTwins() []twinSpec {
 	return []twinSpec{
 		{base: "hack_preview_judging_assignments", name: "hack_app_preview_results", title: "App: preview results", out: countSchema("count"), summarize: resultsSummary("App: preview results")},
@@ -358,10 +302,8 @@ func organiserReadTwins() []twinSpec {
 }
 
 // organiserWriteTwins are the writes whose body carries a secret. The
-// judging_ends_at twin (0003-hack-notices-judges-messages.sql round 2,
-// Codex review) wraps hack_update_event, whose output carries the
-// organiser's join/judge codes, for the "Judging closes" card; its input
-// is narrower than hack_update_event's so it cannot patch page text.
+// judging_ends_at twin wraps hack_update_event, whose output carries the
+// join/judge codes; its input is narrower so it cannot patch page text.
 func organiserWriteTwins() []twinSpec {
 	return []twinSpec{
 		{base: "hack_set_event_stage", name: "hack_app_set_event_stage", title: "App: change event stage",
@@ -400,10 +342,8 @@ func pluralSentence(verb string, n int, singular, plural string) string {
 	return verb + " " + strconv.Itoa(n) + " " + noun + "."
 }
 
-// hackAppOnlyJudgingDashboardTool is hack_app_get_judging_dashboard: see
-// the doc comment on its registration above for why this reads the REST
-// route directly instead of reusing hack_get_judging_dashboard's own
-// (model-minimised) run().
+// hackAppOnlyJudgingDashboardTool is hack_app_get_judging_dashboard; it reads
+// the REST route directly instead of the model-minimised base run().
 func (s *hackScreens) hackAppOnlyJudgingDashboardTool() mcp.Tool {
 	return mcp.WithRun(mcp.WithPolicy(mcp.Tool{
 		Name:  "hack_app_get_judging_dashboard",
@@ -438,27 +378,18 @@ func (s *hackScreens) runAppJudgingDashboard(c *mcp.Call, args map[string]any) (
 		counts[key] = hackAppOnlyArrayField(body, key)
 	}
 	out := mcp.Output{Text: "Loaded judging progress.", Structured: counts}
-	// The glue's api() unwrap step expects runHackRoute's {"response",
-	// "status"} shape; this read bypasses runHackRoute.
+	// The glue's api() unwrap expects runHackRoute's {"response","status"} shape.
 	out.Meta = hackAppOnlyMeta(map[string]any{"response": body, "status": res.Status()})
 	return out, nil
 }
 
-// hackAppFamilyTools registers famHackAppOnly after all base tools exist.
 func (s *hackScreens) hackAppFamilyTools(base []mcp.Tool) []mcp.Tool {
-	// App-only twins (hack_app_get_applications and the rest, Grok
-	// security review, SIM-344 phase 2): built last, from every tool
-	// above, since each twin wraps an already-registered base tool by
-	// name. Not additionally gated at tools/list the way hack_show_judge/
-	// hack_show_organiser are -- their own content is minimal and safe by
-	// design (fixed sentence, small counts, real data only in _meta), so
-	// over-listing one costs little, where the show tools' whole reason
-	// for conditional listing is that an unflagged or non-UI connection
-	// has no frame to open at all.
+	// App-only twins are built last, since each wraps an already-registered base
+	// tool by name. They are not gated again at tools/list: their content is
+	// minimal by design, so over-listing costs little.
 	tools := s.hackAppOnlyTools(base)
-	// Always present, like passcode_screen in the Simple Host inventory:
-	// gated at tools/list (the tool server's listing filter) and at call time
-	// (hackShowJudgeAppAllowed, hackShowOrganiserAppAllowed), never by
-	// being absent from hackByName.
+	// Always present; gated at tools/list and at call time
+	// (hackShowJudgeAppAllowed, hackShowOrganiserAppAllowed), never by absence
+	// from hackByName.
 	return append(tools, s.hackShowJudgeTool(), s.hackShowOrganiserTool())
 }

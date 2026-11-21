@@ -11,9 +11,7 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 )
 
-// getSiteAnalytics serves GET /v1/sites/{sitename}/analytics?days=30[&owner=<handle>]
-// Owner-scoped: resolves the site via the caller's user_id (not global name).
-// `owner` lets the platform admin read another account's site (see analyticsSite).
+// getSiteAnalytics is owner-scoped; `owner` lets the platform admin read another account's site (see analyticsSite).
 func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -41,10 +39,7 @@ func (h *SiteHandler) getSiteAnalytics(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, stats)
 }
 
-// getSiteGeoAnalytics serves GET /v1/sites/{sitename}/analytics/geo?days=30
-// Owner-scoped like getSiteAnalytics. Countries come back ordered by real
-// people descending; "XX" is traffic whose address the local IP-to-country
-// table could not place, kept in the list so the numbers still add up.
+// "XX" is traffic the local IP-to-country table could not place, kept so the numbers add up.
 func (h *SiteHandler) getSiteGeoAnalytics(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -77,10 +72,7 @@ func (h *SiteHandler) getSiteGeoAnalytics(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// getSiteTopAnalytics serves GET /v1/sites/{sitename}/analytics/top?days=30:
-// the site's most viewed pages and top referring domains for the range,
-// people only. Owner-scoped like getSiteAnalytics. A referrer is only ever a
-// domain: the log keeps nothing more of it.
+// A referrer is only ever a domain: the log keeps nothing more of it.
 func (h *SiteHandler) getSiteTopAnalytics(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -127,8 +119,6 @@ func (h *SiteHandler) analyticsSite(w http.ResponseWriter, r *http.Request, user
 	return site, true
 }
 
-// analyticsDays reads ?days=: default 30, clamped to 365, anything that is not
-// a positive integer is a 400 (already written when ok is false).
 func analyticsDays(w http.ResponseWriter, r *http.Request) (int, bool) {
 	v := r.URL.Query().Get("days")
 	if v == "" {
@@ -142,11 +132,8 @@ func analyticsDays(w http.ResponseWriter, r *http.Request) (int, bool) {
 	return min(n, 365), true
 }
 
-// getAnalyticsSummary serves GET /v1/analytics/sites?days=30[&all=1]
-// Per-site totals for every site the caller owns, ordered by real people
-// descending. The dashboard needs all sites' numbers before it can render them
-// in traffic order, which one-request-per-site cannot provide.
-// `all=1` widens the scope to every site on the instance, admins only.
+// getAnalyticsSummary returns per-site totals in traffic order, which one request per site
+// cannot give the dashboard. `all=1` widens it to every site on the instance, admins only.
 func (h *SiteHandler) getAnalyticsSummary(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {

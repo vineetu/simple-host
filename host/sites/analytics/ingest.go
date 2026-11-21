@@ -35,8 +35,6 @@ const (
 	maxLinesPerRun = 200_000
 	// visitorInsertChunk is the max multi-row VALUES size for site_visitor_hourly.
 	visitorInsertChunk = 1000
-	// runTimeout is the overall timeout for one runOnce (DB + file I/O).
-	runTimeout = 60 * time.Second
 )
 
 // asset extensions whose last path segment disqualifies a URI as a "document".
@@ -142,9 +140,6 @@ func (i *Ingester) WithSalt(salt string) *Ingester {
 	return i
 }
 
-// RunOnce ingests the next bounded log chunk.
-func (i *Ingester) RunOnce(ctx context.Context) error { return i.runOnce(ctx) }
-
 // ProgressTracker is shared with the owning operations loop.
 func (i *Ingester) ProgressTracker() *workers.Tracker { return i.tracker }
 
@@ -199,9 +194,9 @@ type familyAttr struct {
 	userID, prefix string
 }
 
-// runOnce performs one ingest pass: read new log lines, attribute, aggregate,
-// and commit view/visitor upserts + offset advance in a single transaction.
-func (i *Ingester) runOnce(ctx context.Context) error {
+// RunOnce performs one bounded ingest pass: read new log lines, attribute,
+// aggregate, and commit view/visitor upserts + offset advance in a single transaction.
+func (i *Ingester) RunOnce(ctx context.Context) error {
 	if i.logPath == "" {
 		return nil
 	}
@@ -248,7 +243,7 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 				if remaining <= 0 {
 					// Capped mid-rotated file: persist progress into it so the
 					// next run continues (inode still != active → drain again).
-					return i.processAndCommit(ctx, allLines, rotInode, newOff)
+					return i.commitLines(ctx, allLines, true, rotInode, newOff)
 				}
 			}
 		}
@@ -275,7 +270,7 @@ func (i *Ingester) runOnce(ctx context.Context) error {
 		return nil
 	}
 
-	return i.processAndCommit(ctx, allLines, finalInode, finalOff)
+	return i.commitLines(ctx, allLines, true, finalInode, finalOff)
 }
 
 // previousLog finds the file the ingester was reading before the active log
@@ -332,10 +327,6 @@ func (i *Ingester) previousLog(storedInode, storedOffset int64, storedAt time.Ti
 		}
 	}
 	return candidate, inode, from, true
-}
-
-func (i *Ingester) processAndCommit(ctx context.Context, lines []string, inode, offset int64) error {
-	return i.commitLines(ctx, lines, true, inode, offset)
 }
 
 // commitLines aggregates lines and upserts them in one transaction. With
@@ -645,66 +636,29 @@ func viewsByClass(views map[bucketKey]int64) (people, bots, infra, owner int64) 
 
 func (i *Ingester) pruneOld(ctx context.Context) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -i.retentionDays).Format(time.RFC3339)
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_view_hourly WHERE hour < $1::timestamptz`, cutoff); err != nil {
-		i.tracker.Fail("prune views", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
+	cutoffDay := cutoff[:len("2006-01-02")]
+	prunes := []struct {
+		what, query string
+		arg         any
+	}{
+		{"prune views", `DELETE FROM site_view_hourly WHERE hour < $1::timestamptz`, cutoff},
+		{"prune visitors", `DELETE FROM site_visitor_hourly WHERE hour < $1::timestamptz`, cutoff},
+		{"prune owner marks", `DELETE FROM owner_visitor_marks WHERE last_seen < now() - ($1 * interval '1 day')`, OwnerMarkDays},
+		{"prune geo", `DELETE FROM site_geo_daily WHERE day < $1::date`, cutoffDay},
+		{"prune pages", `DELETE FROM site_page_daily WHERE day < $1::date`, cutoffDay},
+		{"prune referrers", `DELETE FROM site_referrer_daily WHERE day < $1::date`, cutoffDay},
+		{"prune site traffic", `DELETE FROM site_traffic_daily WHERE day < $1::date`, cutoffDay},
+		{"prune traffic", `DELETE FROM traffic_daily WHERE day < $1::date`, cutoffDay},
+		// Legacy pre-split daily tables: no longer written, same retention.
+		{"prune daily views", `DELETE FROM site_view_daily WHERE day < $1::date`, cutoffDay},
+		{"prune daily visitors", `DELETE FROM site_visitor_daily WHERE day < $1::date`, cutoffDay},
 	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_visitor_hourly WHERE hour < $1::timestamptz`, cutoff); err != nil {
-		i.tracker.Fail("prune visitors", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM owner_visitor_marks WHERE last_seen < now() - ($1 * interval '1 day')`, OwnerMarkDays); err != nil {
-		i.tracker.Fail("prune owner marks", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_geo_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		i.tracker.Fail("prune geo", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_page_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		i.tracker.Fail("prune pages", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_referrer_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		i.tracker.Fail("prune referrers", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_traffic_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		i.tracker.Fail("prune site traffic", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM traffic_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		i.tracker.Fail("prune traffic", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	// Legacy pre-split daily tables: no longer written, same retention.
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_view_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		i.tracker.Fail("prune daily views", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
-	}
-	if result, err := i.db.ExecContext(ctx,
-		`DELETE FROM site_visitor_daily WHERE day < $1::date`, cutoff[:len("2006-01-02")]); err != nil {
-		i.tracker.Fail("prune daily visitors", err)
-	} else if n, _ := result.RowsAffected(); n > 0 {
-		i.tracker.Progress()
+	for _, p := range prunes {
+		if result, err := i.db.ExecContext(ctx, p.query, p.arg); err != nil {
+			i.tracker.Fail(p.what, err)
+		} else if n, _ := result.RowsAffected(); n > 0 {
+			i.tracker.Progress()
+		}
 	}
 }
 
@@ -862,9 +816,9 @@ type logLine struct {
 //
 //	ts \t host \t status \t method \t request_uri \t remote_addr \t user_agent [\t referrer_host [\t bytes_sent]]
 //
-// The eighth field (the referring host, nothing else of the referrer) was
-// added 2026-09-27; the ninth (bytes sent, for the admin page's traffic
-// figures) 2026-09-30. Lines written before either still parse.
+// The eighth field (the referring host, nothing else of the referrer) and the
+// ninth (bytes sent, for the admin page's traffic figures) are optional: older
+// lines without them still parse.
 //
 // This is what simple-host.app itself writes, and an analytics rebuild replays
 // every retained archive of it (about 30 days, see
@@ -1178,16 +1132,6 @@ func (i *Ingester) trafficOf(l logLine, maps *attrMaps) (trafficKey, string, boo
 	return trafficKey{day: ts.Format("2006-01-02"), kind: kind}, siteID, true
 }
 
-// parseAndAttribute fails soft: unparseable line, bad ts, non-document, or
-// unresolved host all return ok=false (line skipped).
-func (i *Ingester) parseAndAttribute(line string, maps *attrMaps) (hit, bool) {
-	l, ok := parseLine(line)
-	if !ok {
-		return hit{}, false
-	}
-	return i.viewHit(l, maps)
-}
-
 // viewHit is the page view a parsed line counts as, if any.
 func (i *Ingester) viewHit(l logLine, maps *attrMaps) (hit, bool) {
 
@@ -1318,8 +1262,7 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) (string, string) 
 			}
 			return maps.nameToOldest[label], path
 		}
-		// <site>.<handle>.<siteDomain>: a site's own host (owner decision
-		// 2026-09-26). The whole host names the site; the path does not.
+		// <site>.<handle>.<siteDomain>: a site's own host. The whole host names the site; the path does not.
 		if site, handle, ok := strings.Cut(label, "."); ok && site != "" && !strings.Contains(handle, ".") {
 			if userID, ok := maps.handleToUser[handle]; ok {
 				return maps.userNameToID[userID+"/"+site], path

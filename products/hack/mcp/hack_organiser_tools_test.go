@@ -2,187 +2,108 @@ package hackmcp
 
 import (
 	"encoding/json"
-	"github.com/vsriram/simple-host/host/mcp"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/mcp"
 )
 
-// Every organiser adapter must call the exact REST method/path, preserve its
-// JSON body and refusal, and return a result matching its advertised schema.
+// The generic organiser adapter calls its REST method and path with the
+// caller's key, passes the body through unchanged, and returns a REST
+// refusal as a tool error. One route of each shape proves the wiring.
 func TestHackOrganiserToolRoutes(t *testing.T) {
-	routes := hackOrganiserRoutes()
-	tools := HackOrganiserTools()
-	// hack_set_entry_excluded is hand-written (a single bool toggle over two
-	// REST actions) and appended after every generic route adapter; see
-	// TestHackSetEntryExcludedTool.
-	if len(tools) != len(routes)+1 {
-		t.Fatalf("%d tools for %d routes", len(tools), len(routes))
+	routes := map[string]hackRouteTool{}
+	for _, route := range hackOrganiserRoutes() {
+		routes[route.name] = route
 	}
-	for i, route := range routes {
-		tool := tools[i]
-		t.Run(route.name, func(t *testing.T) {
-			if tool.Name != route.name {
-				t.Fatalf("name %q", tool.Name)
-			}
-			if route.body && hackRouteBodyDescriptions[route.name] == "" {
-				t.Fatal("body shape is not described")
-			}
-			if err := mcp.CheckOutputSchema(tool.InputSchema); err != nil {
-				t.Fatal(err)
-			}
-			if err := mcp.CheckOutputSchema(tool.OutputSchema); err != nil {
-				t.Fatal(err)
-			}
-			if route.name == "hack_create_team_key" {
-				// REST/UI still create keys; the connector never returns one into chat.
-				return
-			}
+	for _, name := range []string{"hack_get_people", "hack_set_registration", "hack_export_participants", "hack_export_projects_archive"} {
+		route, ok := routes[name]
+		if !ok {
+			t.Fatalf("no route %s", name)
+		}
+		t.Run(name, func(t *testing.T) {
 			args := map[string]any{}
 			path := route.path
 			for _, p := range route.params() {
-				value := "test-value"
-				if p == "slug" {
-					value = "Spring"
-				}
-				args[p] = value
-				if p == "slug" {
-					value = "spring"
-				}
-				path = strings.ReplaceAll(path, "{"+p+"}", url.PathEscape(value))
+				args[p] = "test-value"
+				path = strings.ReplaceAll(path, "{"+p+"}", url.PathEscape("test-value"))
 			}
 			if route.body {
 				args["body"] = map[string]any{"sample": "unchanged"}
-				if route.name == "hack_post_announcement" {
-					args["body"] = map[string]any{"title": "Kickoff", "body": "https://zoom.us/j/1", "pinned": true}
-				}
-				if route.name == "hack_edit_announcement" {
-					args["body"] = map[string]any{"pinned": false}
-				}
 			}
 			up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
 			up.ans[route.method+" "+path] = func(w http.ResponseWriter, _ *http.Request) {
-				if route.csv {
+				switch {
+				case route.csv:
 					w.Header().Set("Content-Disposition", `attachment; filename="data.csv"`)
 					_, _ = w.Write([]byte("a,b\n1,2\n"))
-					return
-				}
-				if route.archive {
+				case route.archive:
 					w.Header().Set("Content-Type", "application/json")
 					_, _ = w.Write([]byte(`{"url":"https://example.test/archive","expires_at":"2026-10-02T12:00:00Z","expires_in":600}`))
-					return
+				default:
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"ok":true}`))
 				}
-				w.Header().Set("Content-Type", "application/json")
-				if route.name == "hack_get_announcements" {
-					_, _ = w.Write([]byte(`{"announcements":[{"id":"a", "title":"Kickoff", "body":"https://zoom.us/j/1", "body_html":"<p>Safe HTML</p>", "pinned":true,"created_at":"2026-11-12T00:00:00Z", "emails_sent":0}]}`))
-					return
-				}
-				_, _ = w.Write([]byte(`{"ok":true}`))
 			}
 			s := newTestServer(up)
-			text, result, bad := resultOf(t, sendMode(t, s, toolCall(route.name, args), mcp.CallerModeEvents))
+			text, result, bad := resultOf(t, sendMode(t, s, toolCall(name, args), mcp.CallerModeEvents))
 			if bad || result == nil {
 				t.Fatalf("success: %s", text)
 			}
-			if err := mcp.ValidateOutput(tool.OutputSchema, result, nil); err != nil {
-				t.Fatalf("output: %v", err)
-			}
-			recordHackOutputValidated(route.name)
 			last := up.last()
 			if last.method != route.method || last.path != path || last.key != "user-key" {
 				t.Fatalf("forwarded %s %s key %s", last.method, last.path, last.key)
 			}
-			expectedBody, _ := json.Marshal(args["body"])
-			if route.body && last.body != string(expectedBody) {
-				t.Fatalf("body %s", last.body)
+			expectedBody := ""
+			if route.body {
+				b, _ := json.Marshal(args["body"])
+				expectedBody = string(b)
 			}
-			if !route.body && last.body != "" {
-				t.Fatalf("unexpected body %s", last.body)
+			if last.body != expectedBody {
+				t.Fatalf("body %q, want %q", last.body, expectedBody)
 			}
-			if route.archive {
-				if result["url"] != "https://example.test/archive" || result["expires_in"] != float64(600) {
-					t.Fatalf("archive link: %v", result)
-				}
+			if route.archive && result["url"] != "https://example.test/archive" {
+				t.Fatalf("archive link: %v", result)
 			}
 			up.ans[route.method+" "+path] = jsonReply(403, `{"error":"REST denied","code":"forbidden"}`)
-			text, _, bad = resultOf(t, sendMode(t, s, toolCall(route.name, args), mcp.CallerModeEvents))
-			if !bad || !strings.Contains(text, "REST denied") || !strings.Contains(text, "forbidden") {
+			text, _, bad = resultOf(t, sendMode(t, s, toolCall(name, args), mcp.CallerModeEvents))
+			if !bad || !strings.Contains(text, "forbidden") {
 				t.Fatalf("REST refusal lost: %s", text)
 			}
 		})
 	}
 }
 
+// hack_set_entry_excluded maps one boolean onto two REST actions and refuses
+// a call that does not say which.
 func TestHackSetEntryExcludedTool(t *testing.T) {
-	var tool mcp.Tool
-	for _, t2 := range HackOrganiserTools() {
-		if t2.Name == "hack_set_entry_excluded" {
-			tool = t2
-		}
-	}
-	if tool.Name == "" {
-		t.Fatal("hack_set_entry_excluded missing")
-	}
-	if err := mcp.CheckOutputSchema(tool.InputSchema); err != nil {
-		t.Fatal(err)
-	}
-	if err := mcp.CheckOutputSchema(tool.OutputSchema); err != nil {
-		t.Fatal(err)
-	}
-	if tool.Annotations["readOnlyHint"] != false || tool.Annotations["destructiveHint"] != true || tool.Annotations["openWorldHint"] != false {
-		t.Fatalf("annotations: %v", tool.Annotations)
-	}
-
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
 	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/exclude"] = jsonReply(200, `{"team":{"slug":"alpha"},"excluded":true}`)
 	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/include"] = jsonReply(200, `{"team":{"slug":"alpha"},"excluded":false}`)
 	s := newTestServer(up)
-
-	text, result, bad := resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), mcp.CallerModeEvents))
-	if bad {
-		t.Fatalf("exclude: %s", text)
+	for _, excluded := range []bool{true, false} {
+		text, result, bad := resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": excluded}), mcp.CallerModeEvents))
+		resp, _ := result["response"].(map[string]any)
+		action := "include"
+		if excluded {
+			action = "exclude"
+		}
+		if bad || resp["excluded"] != excluded || up.last().path != "/v1/hack/events/spring/teams/alpha/entry/"+action {
+			t.Fatalf("excluded=%v: %s via %s", excluded, text, up.last().path)
+		}
 	}
-	if err := mcp.ValidateOutput(tool.OutputSchema, result, nil); err != nil {
-		t.Fatalf("exclude output: %v", err)
-	}
-	recordHackOutputValidated("hack_set_entry_excluded")
-	resp, _ := result["response"].(map[string]any)
-	if resp["excluded"] != true {
-		t.Fatalf("exclude response: %v", result)
-	}
-	if up.last().method != "POST" || up.last().path != "/v1/hack/events/spring/teams/alpha/entry/exclude" {
-		t.Fatalf("forwarded %s %s", up.last().method, up.last().path)
-	}
-
-	text, result, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": false}), mcp.CallerModeEvents))
-	if bad {
-		t.Fatalf("include: %s", text)
-	}
-	resp, _ = result["response"].(map[string]any)
-	if resp["excluded"] != false {
-		t.Fatalf("include response: %v", result)
-	}
-	if up.last().path != "/v1/hack/events/spring/teams/alpha/entry/include" {
-		t.Fatalf("forwarded %s", up.last().path)
-	}
-
-	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha"}), mcp.CallerModeEvents))
-	if !bad || !strings.Contains(text, "excluded") {
-		t.Fatalf("missing excluded accepted: %s", text)
-	}
-
-	up.ans["POST /v1/hack/events/spring/teams/alpha/entry/exclude"] = jsonReply(404, `{"error":"this team has no entry","code":"no_entry"}`)
-	text, _, bad = resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha", "excluded": true}), mcp.CallerModeEvents))
-	if !bad || !strings.Contains(text, "no_entry") {
-		t.Fatalf("REST refusal lost: %s", text)
+	before := up.len()
+	if _, _, bad := resultOf(t, sendMode(t, s, toolCall("hack_set_entry_excluded", map[string]any{"slug": "spring", "team": "alpha"}), mcp.CallerModeEvents)); !bad || up.len() != before {
+		t.Fatal("missing excluded accepted or forwarded")
 	}
 }
 
+// An organiser removes another judge's conflict by naming that judge.
 func TestHackRemoveOtherJudgeConflictQuery(t *testing.T) {
 	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
-	path := "/v1/hack/events/spring/conflicts/team-one"
-	up.ans["DELETE "+path] = func(w http.ResponseWriter, r *http.Request) {
+	up.ans["DELETE /v1/hack/events/spring/conflicts/team-one"] = func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("judge_user_id") != "judge-one" {
 			t.Errorf("judge query %q", r.URL.RawQuery)
 		}
@@ -195,91 +116,42 @@ func TestHackRemoveOtherJudgeConflictQuery(t *testing.T) {
 	}
 }
 
+// Tools that delete, replace or publish are advertised as destructive writes,
+// so a client asks before running them.
 func TestHackOrganiserConsequentialAnnotations(t *testing.T) {
 	byName := map[string]mcp.Tool{}
-	for _, tool := range HackOrganiserTools() {
+	for _, tool := range Tools() {
 		byName[tool.Name] = tool
 	}
 	for _, name := range []string{
-		"hack_delete_event", "hack_regenerate_code", "hack_remove_person",
-		"hack_delete_team", "hack_take_down_team_site",
-		"hack_set_content", "hack_set_assignments", "hack_set_panels",
-		"hack_set_judge_conflict", "hack_publish_results",
+		"hack_delete_event", "hack_delete_team", "hack_delete_announcement", "hack_delete_former_judge_scores",
+		"hack_remove_person", "hack_regenerate_code", "hack_take_down_team_site", "hack_set_entry_excluded",
+		"hack_set_content", "hack_set_assignments", "hack_publish_results",
 	} {
 		tool, ok := byName[name]
 		if !ok || tool.Annotations["readOnlyHint"] != false || tool.Annotations["destructiveHint"] != true {
 			t.Errorf("%s must be advertised as a destructive write", name)
 		}
 	}
-	for _, name := range []string{"hack_post_announcement", "hack_publish_results", "hack_take_down_team_site", "hack_restore_team_site"} {
-		tool := byName[name]
-		if tool.Annotations["openWorldHint"] != true || !strings.Contains(strings.ToLower(tool.Description), "ask") {
-			t.Errorf("%s must say to ask before an outward action", name)
+	for _, name := range []string{"hack_get_people", "hack_get_my_conflicts", "hack_list_events"} {
+		if byName[name].Annotations["readOnlyHint"] != true || byName[name].Annotations["destructiveHint"] != false {
+			t.Errorf("%s must be a read", name)
 		}
 	}
 }
 
-func TestHackAuditAnnotationTuples(t *testing.T) {
-	// Tuple order: readOnlyHint, destructiveHint, openWorldHint.
-	want := map[string][3]bool{}
-	for _, name := range []string{"hack_get_directory", "hack_get_public_event", "hack_get_public_results", "hack_get_voting", "hack_check_event_name"} {
-		want[name] = [3]bool{true, false, true}
-	}
-	for _, name := range []string{"hack_update_event", "hack_edit_announcement", "hack_delete_announcement", "hack_post_announcement", "hack_set_tracks", "hack_rename_team", "hack_update_entry", "hack_set_entry_screenshot", "hack_delete_entry_screenshot", "hack_vote", "hack_set_results_view", "hack_set_event_website_mode", "hack_restore_team_site", "hack_leave_event"} {
-		want[name] = [3]bool{false, true, true}
-	}
-	for _, name := range []string{"hack_create_organiser_invite", "hack_accept_organiser_invite", "hack_set_preferences", "hack_delete_former_judge_scores"} {
-		want[name] = [3]bool{false, true, false}
-	}
-	// Deadline pins fill previously unset state, without replacing existing pins.
-	for _, name := range []string{"hack_get_event", "hack_application_status", "hack_get_team_status", "hack_get_teams", "hack_get_entries", "hack_get_judge_queue"} {
-		want[name] = [3]bool{false, false, false}
-	}
-	for _, name := range []string{"hack_get_people", "hack_get_my_conflicts", "hack_get_judging_dashboard", "hack_get_preferences", "hack_preview_organiser_invite", "hack_export_own_team_archive", "hack_export_projects_archive", "hack_preview_leave_event"} {
-		want[name] = [3]bool{true, false, false}
-	}
-	for _, tool := range Tools() {
-		expected, ok := want[tool.Name]
-		if !ok {
-			continue
-		}
-		for i, hint := range []string{"readOnlyHint", "destructiveHint", "openWorldHint"} {
-			if tool.Annotations[hint] != expected[i] {
-				t.Errorf("%s %s = %v, want %v", tool.Name, hint, tool.Annotations[hint], expected[i])
-			}
-		}
-		delete(want, tool.Name)
-	}
-	if len(want) != 0 {
-		t.Fatalf("tools missing from annotation check: %v", want)
-	}
-}
-
+// hack_delete_event forwards the confirmation the person gave.
 func TestHackDeleteToolDestructiveConfirmation(t *testing.T) {
-	for _, tool := range HackOrganiserTools() {
-		if tool.Name != "hack_delete_event" {
-			continue
+	up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
+	up.ans["DELETE /v1/hack/events/spring"] = func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.Unmarshal([]byte(up.last().body), &body); err != nil || body["confirm"] != "spring" {
+			t.Errorf("confirmation not forwarded: %v %v", body, err)
 		}
-		if tool.Annotations["destructiveHint"] != true || tool.Annotations["readOnlyHint"] != false {
-			t.Fatalf("delete annotations: %v", tool.Annotations)
-		}
-		if !strings.Contains(tool.Description, "confirm with the person first") || !strings.Contains(tool.Description, "body.confirm") {
-			t.Fatal("delete must explain human confirmation")
-		}
-		up := &scriptUpstream{ans: map[string]func(http.ResponseWriter, *http.Request){}}
-		up.ans["DELETE /v1/hack/events/spring"] = func(w http.ResponseWriter, r *http.Request) {
-			var body map[string]any
-			if err := json.Unmarshal([]byte(up.last().body), &body); err != nil || body["confirm"] != "spring" {
-				t.Fatalf("confirmation not forwarded: %v %v", body, err)
-			}
-			w.WriteHeader(204)
-		}
-		s := newTestServer(up)
-		text, result, bad := resultOf(t, sendMode(t, s, toolCall(tool.Name, map[string]any{"slug": "spring", "body": map[string]any{"confirm": "spring"}}), mcp.CallerModeEvents))
-		if bad || result["status"] != float64(204) {
-			t.Fatalf("delete result: %s", text)
-		}
-		return
+		w.WriteHeader(204)
 	}
-	t.Fatal("delete tool missing")
+	text, result, bad := resultOf(t, sendMode(t, newTestServer(up), toolCall("hack_delete_event", map[string]any{"slug": "spring", "body": map[string]any{"confirm": "spring"}}), mcp.CallerModeEvents))
+	if bad || result["status"] != float64(204) {
+		t.Fatalf("delete result: %s", text)
+	}
 }

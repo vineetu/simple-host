@@ -138,14 +138,6 @@ const (
 	MaxPathLen = 1024
 )
 
-// Extract unpacks an archive under the instance's caps, at the built-in
-// entry-count ceiling (maxEntriesCeiling). Every production caller goes
-// through ExtractWithLimit instead, which takes the instance's own
-// MAX_FILES_PER_SITE; this form is for tests only.
-func Extract(r io.Reader, filename string) (map[string][]byte, error) {
-	return extract(r, filename, current(maxEntriesCeiling))
-}
-
 // ExtractWithLimit unpacks an archive under a per-site budget in bytes (one
 // account's size limit) instead of the instance's, and ceiling (the
 // instance's MAX_FILES_PER_SITE): the total, any one file and the file count
@@ -376,13 +368,6 @@ func normalizePath(name string) string {
 func shouldSkip(name string) bool {
 	base := filepath.Base(name)
 	return base == ".DS_Store" || strings.HasPrefix(base, "._")
-}
-
-// SiteLimitIs reports whether both extraction caps sit at bytes. Exported for
-// the handler's test: the wiring between the upload cap and the extractor cap
-// is the part that is easy to half-do and impossible to see from outside.
-func SiteLimitIs(bytes int64) bool {
-	return maxTotalUncompressedSize == bytes && maxFileSize == bytes
 }
 
 // SnapshotLimits captures the current caps and returns a function that puts

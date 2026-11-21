@@ -37,7 +37,7 @@ func TestKVFileMetrics(t *testing.T) {
 		return 2, 17, nil
 	}
 	now := time.Now().UTC()
-	if err := c.dailySnapshot(ctx, now); err != nil {
+	if err := c.DailySnapshot(ctx, now); err != nil {
 		t.Fatal(err)
 	}
 	for name, want := range map[string]int64{"kv_rows": 2, "kv_value_text_bytes": 17, "kv_file_sites_skipped": 1} {
@@ -49,7 +49,7 @@ func TestKVFileMetrics(t *testing.T) {
 	if calls[site] != 1 || calls[busy] != 1 {
 		t.Fatalf("callback counts: %v", calls)
 	}
-	if err := c.weeklyFootprint(ctx, now); err != nil {
+	if err := c.WeeklyFootprint(ctx, now); err != nil {
 		t.Fatal(err)
 	}
 	var n, rows, bytes int64

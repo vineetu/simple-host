@@ -2,11 +2,10 @@ package hackmcp
 
 import "github.com/vsriram/simple-host/host/mcp"
 
-// Contribution is everything Simple Hack adds to the tool server: its four
-// base tool families in listing order, the notification tools, the variants
-// of the platform's website tools on a team-site connection, the
-// instructions, the product's wording, its screens-in-chat with their
-// app-only family (hack_apps.go) and the answer for its retired tool names.
+// Contribution is everything Simple Hack adds to the tool server: base tool
+// families, notification tools, website-tool variants for a team-site
+// connection, instructions, wording, screens with their app-only family, and
+// the answer for retired tool names.
 func Contribution() mcp.Contribution {
 	return mcp.Contribution{
 		Families: []mcp.FamilyTools{
@@ -24,6 +23,7 @@ func Contribution() mcp.Contribution {
 			"get_page_recipe":     hackSiteGetPageRecipe,
 			"storage_sql_execute": hackSiteStorageSqlExecute, "storage_get_usage": hackSiteStorageGetUsage, "who_am_i": hackSiteWhoAmI,
 		},
+		OwnerArg: "The event's name: every team and event site belongs to its event.",
 		Instructions: func(mode string) string {
 			if mode == mcp.CallerModeEvents {
 				return HackInstructions()
@@ -39,8 +39,8 @@ func Contribution() mcp.Contribution {
 	}
 }
 
-// judgingLockRemoved answers the two judging-lock tools, which left when
-// locking became part of moving the event to Results.
+// judgingLockRemoved answers the two judging-lock tools, removed when locking
+// became part of moving the event to Results.
 var judgingLockRemoved = mcp.RetiredMutation{
 	Message: "Judging locks when you finish judging (move to Results) and unlocks when you move the event back. [judging_lock_removed]",
 	Code:    "judging_lock_removed",

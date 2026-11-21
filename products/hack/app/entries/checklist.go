@@ -38,7 +38,6 @@ func (s *Service) ChecklistJudging(ctx context.Context, ev model.Event, actorID 
 	return s.ChecklistOrganiserJudging(ctx, s.db, ev, rubric)
 }
 
-// checklistJudgingStages are the stages with organiser judging guidance.
 var checklistJudgingStages = map[string]bool{"closed": true, "judging": true, "results": true, "archived": true}
 
 // ChecklistOrganiserJudging shares the rubric already loaded by the checklist.
@@ -68,7 +67,6 @@ func (s *Service) ChecklistOrganiserJudging(ctx context.Context, q sqlkit.Querie
 	return f, nil
 }
 
-// checklistJudging is what organiser judging guidance is computed from.
 type checklistJudging struct {
 	judges      []model.NamedJudge
 	teams       []model.NamedTeam
@@ -106,7 +104,6 @@ func loadChecklistJudging(ctx context.Context, q sqlkit.Querier, eventID string,
 	return in, err
 }
 
-// judgeableTeams returns the IDs of listed teams whose entry can be judged.
 func judgeableTeams(teams []model.NamedTeam, entries []model.EventEntry) map[string]bool {
 	judgeable := map[string]bool{}
 	for _, e := range entries {
@@ -162,7 +159,6 @@ func (in checklistJudging) facts(ev model.Event, criteria int, setup SetupCovera
 // assignedJudgingModes are the modes where judges see only assigned teams.
 var assignedJudgingModes = map[string]bool{"automatic": true, "manual": true, "panel": true}
 
-// withoutTrack counts judgeable teams that have no track.
 func (in checklistJudging) withoutTrack() int {
 	n := 0
 	for id := range in.judgeable {
@@ -173,7 +169,6 @@ func (in checklistJudging) withoutTrack() int {
 	return n
 }
 
-// scoredCriteria counts scored criteria per judge and team.
 func scoredCriteria(raw []model.RawScoreRow) map[string]map[string]int {
 	out := map[string]map[string]int{}
 	for _, row := range raw {
@@ -231,7 +226,6 @@ func checklistSnapshotMatches(current []TeamResult, snapshot []byte) bool {
 	return true
 }
 
-// snapshotRowMatches compares one published row's ranking inputs with r.
 func snapshotRowMatches(old map[string]json.RawMessage, r TeamResult) bool {
 	// "organiser" is publication order from ApplyRankOverrides, not a ranking input.
 	decider := r.TieDecider
@@ -285,7 +279,6 @@ func ChecklistRubricValid(criteria []model.RubricCriterion) bool {
 	return msg == ""
 }
 
-// ChecklistParticipant obtains the existing progress without changing its contract.
 func (s *Service) ChecklistParticipant(ctx context.Context, ev model.Event, member model.EventMember) (Progress, model.TeamWriteState, error) {
 	team, err := teamrepo.GetEventTeamByID(ctx, s.db, member.TeamID.String)
 	if err != nil {
@@ -299,7 +292,6 @@ func (s *Service) ChecklistParticipant(ctx context.Context, ev model.Event, memb
 	return p, st, err
 }
 
-// Keep membership approval in the existing repository's vocabulary.
 func (s *Service) ChecklistParticipantApproved(ctx context.Context, ev model.Event, userID string) (bool, error) {
 	m, err := eventrepo.MemberApprovalStatus(ctx, s.db, ev.ID, userID)
 	return m == "approved", err

@@ -136,7 +136,7 @@ func (h *HackHandler) adminDelete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.events.AdminDelete(r.Context(), ev, h.removeEventFiles); err != nil {
+	if err := h.events.AdminDelete(r.Context(), ev, h.links.removeEventFiles); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}

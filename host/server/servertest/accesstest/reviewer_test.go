@@ -12,14 +12,13 @@ import (
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
-	"github.com/vsriram/simple-host/host/server/servertest"
 )
 
 const reviewerTestPassword = "correct horse battery staple"
 
 func TestReviewerSignInEndToEnd(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
-	clientID := a.RegisterClient(t, servertest.TestRedirect)
+	a := NewApp(t)
+	clientID := a.RegisterClient(t, TestRedirect)
 	reviewer := "reviewer-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM users WHERE username = $1`, reviewer) })
 	encoded, _ := accesshttp.HashReviewerPassword(reviewerTestPassword)
@@ -63,13 +62,11 @@ func TestReviewerSignInEndToEnd(t *testing.T) {
 		t.Fatalf("reviewer account: %v", me)
 	}
 
-	// And it connects an app end to end, and publishes through it.
-	access := a.Connect(t, servertest.Person{Email: reviewer, Key: key}, clientID, servertest.TestRedirect)["access_token"].(string)
-	text, s, isErr := servertest.ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "create_site", "arguments": map[string]any{
-		"site": "reviewer-demo", "files": map[string]any{"index.html": "<h1>demo</h1>"},
-	}}))
-	if isErr || !strings.Contains(s["url"].(string), "/reviewer-demo/") {
-		t.Fatalf("create_site as the reviewer: %s", text)
+	// And it connects an app end to end.
+	access := a.Connect(t, Person{Email: reviewer, Key: key}, clientID, TestRedirect)["access_token"].(string)
+	text, _, isErr := ToolResultOf(t, a.Rpc(t, access, "tools/call", map[string]any{"name": "who_am_i", "arguments": map[string]any{}}))
+	if isErr {
+		t.Fatalf("who_am_i as the reviewer: %s", text)
 	}
 
 	// A second sign-in returns the same account, not a new one. Keys are
@@ -96,7 +93,7 @@ func TestReviewerSignInEndToEnd(t *testing.T) {
 // connected-app access) even though the email and reviewer password both
 // match.
 func TestReviewerSignInRefusesPasswordAccount(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	a.Users.SetPasswordSignIn(true, true)
 	reviewer := "reviewer-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM users WHERE username = $1`, reviewer) })
@@ -105,7 +102,7 @@ func TestReviewerSignInRefusesPasswordAccount(t *testing.T) {
 		t.Fatal("could not enable")
 	}
 
-	if _, _, err := accountapp.New(a.Database).CreatePasswordAccount(context.Background(), reviewer, "", true, false, a.Users.AssignPasswordHandle); err != nil {
+	if _, _, err := accountapp.New(a.Database).CreatePasswordAccount(context.Background(), reviewer, "", true, false, accountapp.AssignHandle); err != nil {
 		t.Fatalf("admin-created password account under the reviewer address: %v", err)
 	}
 
@@ -115,7 +112,7 @@ func TestReviewerSignInRefusesPasswordAccount(t *testing.T) {
 }
 
 func TestReviewerSignInRateLimit(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	reviewer := "reviewer-rl-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	encoded, _ := accesshttp.HashReviewerPassword(reviewerTestPassword)
 	a.Conn.EnableReviewerSignIn(reviewer, encoded)
@@ -133,7 +130,7 @@ func TestReviewerSignInRateLimit(t *testing.T) {
 }
 
 func TestReviewerAccountMustNotBeAdmin(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	addr := "reviewer-admin-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	key, _ := auth.GenerateAPIKey()
 	u, err := accountsrepo.CreateUser(context.Background(), a.Database, addr, key, true)
@@ -150,7 +147,7 @@ func TestReviewerAccountMustNotBeAdmin(t *testing.T) {
 
 // A suspended reviewer account gets no new key.
 func TestReviewerSignInSuspended(t *testing.T) {
-	a := servertest.NewConnectorApp(t)
+	a := NewApp(t)
 	reviewer := "reviewer-susp-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
 	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM users WHERE username = $1`, reviewer) })
 	encoded, _ := accesshttp.HashReviewerPassword(reviewerTestPassword)

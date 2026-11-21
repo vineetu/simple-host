@@ -10,9 +10,6 @@ import (
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
 
-// Judging-close reminders (0003-hack-notices-judges-messages.sql).
-
-// QueueJudgeReminders claims each due.
 func (s *Service) QueueJudgeReminders(ctx context.Context, judges EntryEvaluator) (written int64, firstErr error) {
 	due, err := eventrepo.DueJudgeReminders(ctx, s.db)
 	if err != nil {

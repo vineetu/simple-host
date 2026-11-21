@@ -8,16 +8,18 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"github.com/vsriram/simple-host/host/access/oauth"
-	"github.com/vsriram/simple-host/host/access/repo"
-	authrules "github.com/vsriram/simple-host/host/access/rules"
-	"github.com/vsriram/simple-host/host/model"
-	"golang.org/x/oauth2"
 	"log"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/access/oauth"
+	"github.com/vsriram/simple-host/host/access/repo"
+	authrules "github.com/vsriram/simple-host/host/access/rules"
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sqlkit"
+	"golang.org/x/oauth2"
 )
 
 const providerStateTTL = 10 * time.Minute
@@ -70,8 +72,8 @@ type ProviderCallbackInput struct {
 	Name, State, Code, ProviderError string
 	RandomHandles                    bool
 	AuthTTL                          time.Duration
-	Attribution                      func(context.Context, AttributionStore, string, string) model.Signup
-	Assign                           func(context.Context, AttributionStore, string, string, bool)
+	Attribution                      func(context.Context, sqlkit.Querier, string, string) model.Signup
+	Assign                           func(context.Context, sqlkit.Querier, string, string, bool)
 	NonceHash                        func(string) sql.NullString
 }
 
@@ -95,13 +97,26 @@ func (flow *ProviderSignIn) Callback(ctx context.Context, in ProviderCallbackInp
 		return ProviderResult{}, providerGatewayFailure("begin", err)
 	}
 	defer tx.Rollback()
-	user, created, fail := callbackUser(ctx, tx, ident)
-	if fail != nil {
-		return ProviderResult{}, fail
+	user, created, err := resolveUser(ctx, tx, ident)
+	switch {
+	case errors.Is(err, errOAuthEmailRefused) || errors.Is(err, errOAuthAdminRefused):
+		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
+	case errors.Is(err, errOAuthPasswordRefused):
+		return ProviderResult{}, &ProviderFailure{Status: http.StatusConflict, Refusal: "This email already has a password account on this install. Sign in with the password instead."}
+	case err != nil:
+		return ProviderResult{}, providerGatewayFailure("resolve user", err)
 	}
-	// Where a new account came from, recorded after the commit so a failure
-	// to record it can never abort the sign-in.
-	signup := callbackSignup(ctx, tx, in, st, ident, created)
+	// Where a new account came from (a visitor sign-in, or the owner sign-in's
+	// own attribution), recorded after the commit so a failure to record it
+	// can never abort the sign-in.
+	var signup *model.Signup
+	if created {
+		sig := model.Signup{Source: model.SignupVisitor, Method: ident.Provider}
+		if st.Purpose == "owner" {
+			sig = in.Attribution(ctx, tx, st.ReturnTo, ident.Provider)
+		}
+		signup = &sig
+	}
 	// A suspended account signs in on no site. (A dashboard sign-in is
 	// refused, with the reason, when its token is redeemed at /v1/auth/verify.)
 	if susp, serr := repo.UserSuspended(ctx, tx, user.ID); st.Purpose != "owner" && (serr != nil || susp) {
@@ -148,33 +163,6 @@ func (flow *ProviderSignIn) callbackIdentity(ctx context.Context, in ProviderCal
 		return st, ident, &ProviderFailure{Status: http.StatusBadGateway}
 	}
 	return st, ident, nil
-}
-
-// callbackUser is resolveUser with its refusals as failures.
-func callbackUser(ctx context.Context, tx *sql.Tx, ident ProviderIdentity) (model.User, bool, *ProviderFailure) {
-	user, created, err := resolveUser(ctx, tx, ident)
-	switch {
-	case errors.Is(err, errOAuthEmailRefused) || errors.Is(err, errOAuthAdminRefused):
-		return user, created, &ProviderFailure{Status: http.StatusBadRequest}
-	case errors.Is(err, errOAuthPasswordRefused):
-		return user, created, &ProviderFailure{Status: http.StatusConflict, Refusal: "This email already has a password account on this install. Sign in with the password instead."}
-	case err != nil:
-		return user, created, providerGatewayFailure("resolve user", err)
-	}
-	return user, created, nil
-}
-
-// callbackSignup is where a new account came from: a visitor sign-in, or
-// the owner sign-in's own attribution.
-func callbackSignup(ctx context.Context, tx *sql.Tx, in ProviderCallbackInput, st model.OAuthState, ident ProviderIdentity, created bool) *model.Signup {
-	if !created {
-		return nil
-	}
-	sig := model.Signup{Source: model.SignupVisitor, Method: ident.Provider}
-	if st.Purpose == "owner" {
-		sig = in.Attribution(ctx, tx, st.ReturnTo, ident.Provider)
-	}
-	return &sig
 }
 
 // ownerSignInLink issues the dashboard's one-time sign-in token, bound to

@@ -22,23 +22,13 @@ import (
 )
 
 const (
-	// DomainActiveAge is how long an "active" verdict stands before it must be
-	// proved again.
-	DomainActiveAge = time.Hour
-	// domainPassTimeout bounds one whole pass over the due domains.
+	DomainActiveAge   = time.Hour
 	domainPassTimeout = 2 * time.Minute
 )
 
-// lookupTXT and lookupHost read DNS (variables so tests can stand in).
 // DomainProbeTimeout bounds one HTTPS probe (a variable so tests can shorten it).
 var DomainProbeTimeout = 10 * time.Second
 
-var (
-	lookupTXT  = net.DefaultResolver.LookupTXT
-	lookupHost = net.DefaultResolver.LookupHost
-)
-
-// domainProofHost is where a custom domain's ownership record lives.
 func domainProofHost(domain string) string { return "_simple-host." + domain }
 
 // domainProof reports whether the DNS TXT record _simple-host.<domain> holds
@@ -84,10 +74,6 @@ func domainProbeVia(ip string) *http.Client {
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
-
-// isPublicIP: a globally routable unicast address (not loopback, private,
-// link-local, carrier-grade NAT, unspecified or multicast).
-func isPublicIP(s string) bool { return notify.PublicIP(s) }
 
 func (h *SiteHandler) startDomainChecksContext(ctx context.Context, every time.Duration) {
 	h.siteLoop("sites.domain_checks").periodic(ctx, 30*time.Second, every, h.checkBoundDomainsContext)
@@ -215,7 +201,6 @@ func (h *SiteHandler) CheckPreviousDomain(ctx context.Context, d model.BoundDoma
 	log.Printf("domain %s: earlier address of %s failing since %s; let go", d.PreviousDomain, info.Name, since.Time.UTC().Format(time.RFC3339))
 }
 
-// ApplyDomainCheck records one check's verdict and acts on it.
 func (h *SiteHandler) ApplyDomainCheck(ctx context.Context, d model.BoundDomain, status, reason, cert string) {
 	check, err := h.opsSitesSvc().SetDomainStatus(ctx, d.SiteID, d.Domain, status, reason, cert)
 	if err != nil {
@@ -306,7 +291,7 @@ func (h *SiteHandler) verifyDomain(ctx context.Context, domain string, ours map[
 	}
 	here := ""
 	for _, ip := range ips {
-		if ours[ip] && isPublicIP(ip) {
+		if ours[ip] && notify.PublicIP(ip) {
 			here = ip
 			break
 		}
@@ -332,9 +317,7 @@ func (h *SiteHandler) verifyDomain(ctx context.Context, domain string, ours map[
 	return "error", fmt.Sprintf("HTTPS returned %d", resp.StatusCode), true
 }
 
-// checkDomainNow is POST /v1/sites/{sitename}/domain/check: the owner's
-// "Check again". It proves this one site's domain now, the same way the
-// background pass does, and answers like GET /domain.
+// checkDomainNow is the owner's "Check again": the background pass for this one site, answered like GET /domain.
 func (h *SiteHandler) checkDomainNow(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
