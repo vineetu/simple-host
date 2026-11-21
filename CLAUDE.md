@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+Read `PRINCIPLES.md` first: the owner's design rules and the tie-breaks between them. If a change conflicts with one, say which and ask.
+
 ## How to change this code
 
 Follow these steps literally. Every path below exists.
