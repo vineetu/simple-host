@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/host/sites"
 	"regexp"
 	"time"
+
+	"github.com/vsriram/simple-host/host/sites"
 
 	model "github.com/vsriram/simple-host/host/model"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
@@ -20,7 +21,7 @@ func TeamSiteLive(site *model.Site, st hackmodel.TeamWriteState) bool {
 	return site != nil && site.ActiveVersion > 0 && !site.Suspended() && !st.SiteTakenDown && !st.EventTakenDown
 }
 
-func VotingStatus(ev hackmodel.Event, v repo.VotingSettings, now time.Time) string {
+func VotingStatus(ev hackmodel.Event, v eventrepo.VotingSettings, now time.Time) string {
 	if !v.Enabled || !ev.GalleryOpen || ev.Stage == "draft" || ev.TakenDown() || !v.OpensAt.Valid || !v.ClosesAt.Valid {
 		return "disabled"
 	}
@@ -41,7 +42,7 @@ type VoteRemovalConfirmation struct{ Count int64 }
 func (e *VoteRemovalConfirmation) Error() string { return "Confirm removal of earlier votes." }
 
 // SaveVotingSettings updates voting and removes ineligible votes under the event lock.
-func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.VotingSettings, confirm bool) (hackmodel.Event, repo.VotingSettings, int64, error) {
+func (s *Service) SaveVotingSettings(ctx context.Context, id string, v eventrepo.VotingSettings, confirm bool) (hackmodel.Event, eventrepo.VotingSettings, int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return hackmodel.Event{}, v, 0, err
@@ -54,7 +55,7 @@ func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.Voti
 	if ev.Stage == "archived" {
 		return ev, v, 0, errEventClosed
 	}
-	old, err := repo.GetVotingSettings(ctx, tx, id)
+	old, err := eventrepo.GetVotingSettings(ctx, tx, id)
 	if err != nil {
 		return ev, v, 0, err
 	}
@@ -76,7 +77,7 @@ func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.Voti
 		}
 	}
 	v.DirectoryListed = old.DirectoryListed
-	if err = repo.SaveVotingSettings(ctx, tx, id, v); err != nil {
+	if err = eventrepo.SaveVotingSettings(ctx, tx, id, v); err != nil {
 		return ev, v, 0, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -86,16 +87,16 @@ func (s *Service) SaveVotingSettings(ctx context.Context, id string, v repo.Voti
 }
 
 func (s *Service) SetDirectoryListed(ctx context.Context, id string, listed bool) error {
-	return repo.SetDirectoryListed(ctx, s.db, id, listed)
+	return eventrepo.SetDirectoryListed(ctx, s.db, id, listed)
 }
 
-func (s *Service) CastVote(ctx context.Context, id, account, email, team string) (bool, error) {
+func (s *Service) CastVote(ctx context.Context, id, account, voterID, team string) (bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
 	}
 	defer tx.Rollback()
-	v, err := repo.LockVoteWindow(ctx, tx, id)
+	v, err := eventrepo.LockVoteWindow(ctx, tx, id)
 	if err != nil {
 		return false, err
 	}
@@ -106,7 +107,7 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 	if !voteWindowOpen(v, now) {
 		return false, &Error{Code: "voting_closed", Message: "voting is not open"}
 	}
-	allowed, err := repo.VoterEligible(ctx, tx, id, v.Eligibility, email)
+	allowed, err := repo.VoterEligible(ctx, tx, id, v.Eligibility, voterID)
 	if err != nil {
 		return false, err
 	}
@@ -124,14 +125,14 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 	if err != nil {
 		return false, err
 	}
-	own, err := repo.VoteOwnTeam(ctx, tx, id, teamID, email)
+	own, err := repo.VoteOwnTeam(ctx, tx, id, teamID, voterID)
 	if err != nil {
 		return false, err
 	}
 	if own {
 		return false, &Error{Code: "own_team_vote", Message: "you cannot vote for your own team"}
 	}
-	created, err := repo.SaveVote(ctx, tx, id, email, teamID)
+	created, err := repo.SaveVote(ctx, tx, id, voterID, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, &Error{Code: "duplicate_vote", Message: "you already voted for this team; choose another to change your vote"}
 	}
@@ -145,17 +146,17 @@ func (s *Service) CastVote(ctx context.Context, id, account, email, team string)
 }
 
 // voteWindowOpen reports whether a vote cast at now falls in an open window of a live event.
-func voteWindowOpen(v repo.VoteWindow, now time.Time) bool {
+func voteWindowOpen(v eventrepo.VoteWindow, now time.Time) bool {
 	return v.Enabled && v.GalleryOpen && v.Opens.Valid && v.Closes.Valid &&
 		!now.Before(v.Opens.Time) && now.Before(v.Closes.Time) &&
 		v.Stage != "draft" && v.Stage != "archived" && !v.TakenDown.Valid
 }
 
-func VotingSettingsValue(enabled bool, opens, closes sql.NullTime, eligibility string) repo.VotingSettings {
-	return repo.VotingSettings{Enabled: enabled, OpensAt: opens, ClosesAt: closes, Eligibility: eligibility}
+func VotingSettingsValue(enabled bool, opens, closes sql.NullTime, eligibility string) eventrepo.VotingSettings {
+	return eventrepo.VotingSettings{Enabled: enabled, OpensAt: opens, ClosesAt: closes, Eligibility: eligibility}
 }
 
-type VotingConfig = repo.VotingSettings
+type VotingConfig = eventrepo.VotingSettings
 
 type VotingSettingsRead struct {
 	Settings VotingConfig
@@ -165,7 +166,7 @@ type VotingSettingsRead struct {
 
 func (s *Service) ReadVotingSettings(ctx context.Context, ev hackmodel.Event, now func() time.Time) (VotingSettingsRead, error) {
 	var out VotingSettingsRead
-	v, err := repo.GetVotingSettings(ctx, s.db, ev.ID)
+	v, err := eventrepo.GetVotingSettings(ctx, s.db, ev.ID)
 	if err != nil {
 		return out, err
 	}
@@ -208,7 +209,7 @@ type PublicVote struct {
 func (s *Service) ReadPublicVote(ctx context.Context, ev hackmodel.Event, now func() time.Time) (PublicVote, error) {
 	out := PublicVote{Event: ev}
 	var err error
-	out.Settings, err = repo.GetVotingSettings(ctx, s.db, out.Event.ID)
+	out.Settings, err = eventrepo.GetVotingSettings(ctx, s.db, out.Event.ID)
 	if err != nil {
 		return out, err
 	}
@@ -232,19 +233,18 @@ func (s *Service) ReadPublicVote(ctx context.Context, ev hackmodel.Event, now fu
 }
 
 // ReadMyVote returns the selection and eligibility for a signed-in visitor.
-func (s *Service) ReadMyVote(ctx context.Context, ev hackmodel.Event, username string) (hackmodel.Event, string, bool, error) {
-	email := model.BaseEmail(username)
-	selected, err := repo.OwnVote(ctx, s.db, ev.ID, email)
+func (s *Service) ReadMyVote(ctx context.Context, ev hackmodel.Event, voterID, username string) (hackmodel.Event, string, bool, error) {
+	selected, err := repo.OwnVote(ctx, s.db, ev.ID, voterID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return ev, "", false, err
 	}
 	eligible := username != ""
 	if eligible {
-		v, err := repo.GetVotingSettings(ctx, s.db, ev.ID)
+		v, err := eventrepo.GetVotingSettings(ctx, s.db, ev.ID)
 		if err != nil {
 			return ev, "", false, err
 		}
-		eligible, err = repo.VoterEligible(ctx, s.db, ev.ID, v.Eligibility, email)
+		eligible, err = repo.VoterEligible(ctx, s.db, ev.ID, v.Eligibility, voterID)
 		if err != nil {
 			return ev, "", false, err
 		}

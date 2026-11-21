@@ -14,6 +14,7 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -56,10 +57,11 @@ func (s *Service) setDeadline(ctx context.Context, eventID string, team hackmode
 		return team, err
 	}
 	defer tx.Rollback()
-	eventDeadline, err := hackteams.LockEventDeadline(ctx, tx, eventID)
+	ev, err := eventrepo.GetEventForUpdate(ctx, tx, eventID)
 	if err != nil {
 		return team, err
 	}
+	eventDeadline := ev.SubmissionDeadline
 	if t.Valid && !eventDeadline.Valid {
 		return team, &Error{Code: "no_event_deadline", Message: "set the event's submission deadline first; a team's own deadline extends it"}
 	}
@@ -114,18 +116,11 @@ func (s *Service) RequestEventCert(ev hackmodel.Event, request func(string)) {
 
 // OpenEventSlugs reads event slugs eligible for certificate requests.
 func (s *Service) OpenEventSlugs(ctx context.Context, request func(string)) error {
-	rows, err := hackteams.OpenEventSlugs(ctx, s.db)
-	if err != nil {
-		return err
+	slugs, err := eventrepo.OpenEventSlugs(ctx, s.db)
+	for _, slug := range slugs {
+		request(slug)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var slug string
-		if rows.Scan(&slug) == nil {
-			request(slug)
-		}
-	}
-	return nil
+	return err
 }
 
 // NoticeSiteChange tells the team their site went down or came back; it runs after the site's commit, so failures are only logged.
@@ -136,16 +131,16 @@ func (s *Service) NoticeSiteChange(ctx context.Context, eventID, teamID string, 
 		return
 	}
 	defer tx.Rollback()
-	family := []string{eventrepo.NoticeSiteTakenDown, eventrepo.NoticeSiteRestored}
+	family := []string{hackmembers.NoticeSiteTakenDown, hackmembers.NoticeSiteRestored}
 	if down {
-		if err = eventrepo.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
-			err = eventrepo.NotifyTeamMembers(ctx, tx, eventID, teamID, eventrepo.NoticeSiteTakenDown, reason, "")
+		if err = hackmembers.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
+			err = hackmembers.NotifyTeamMembers(ctx, tx, eventID, teamID, hackmembers.NoticeSiteTakenDown, reason, "")
 		}
 	} else {
 		var knew []string
-		if knew, err = eventrepo.TeamMembersWhoKnew(ctx, tx, eventID, teamID, "", eventrepo.NoticeSiteTakenDown); err == nil {
-			if err = eventrepo.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
-				err = eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeSiteRestored, teamID, "", "", knew...)
+		if knew, err = hackmembers.TeamMembersWhoKnew(ctx, tx, eventID, teamID, "", hackmembers.NoticeSiteTakenDown); err == nil {
+			if err = hackmembers.SupersedeTeamNotices(ctx, tx, teamID, "", family...); err == nil {
+				err = hackmembers.NotifyUsers(ctx, tx, eventID, hackmembers.NoticeSiteRestored, teamID, "", "", knew...)
 			}
 		}
 	}
@@ -166,19 +161,19 @@ func noticeDeadlineChange(ctx context.Context, tx *sql.Tx, eventID string, team 
 		return nil
 	}
 	if t.Valid {
-		if err := eventrepo.SupersedeTeamNotices(ctx, tx, team.ID, "", eventrepo.NoticeDeadlineChanged); err != nil {
+		if err := hackmembers.SupersedeTeamNotices(ctx, tx, team.ID, "", hackmembers.NoticeDeadlineChanged); err != nil {
 			return err
 		}
-		return eventrepo.NotifyTeamMembers(ctx, tx, eventID, team.ID, eventrepo.NoticeDeadlineChanged, "extended", "")
+		return hackmembers.NotifyTeamMembers(ctx, tx, eventID, team.ID, hackmembers.NoticeDeadlineChanged, "extended", "")
 	}
-	knew, err := eventrepo.TeamMembersWhoKnew(ctx, tx, eventID, team.ID, "", eventrepo.NoticeDeadlineChanged)
+	knew, err := hackmembers.TeamMembersWhoKnew(ctx, tx, eventID, team.ID, "", hackmembers.NoticeDeadlineChanged)
 	if err != nil {
 		return err
 	}
-	if err := eventrepo.SupersedeTeamNotices(ctx, tx, team.ID, "", eventrepo.NoticeDeadlineChanged); err != nil {
+	if err := hackmembers.SupersedeTeamNotices(ctx, tx, team.ID, "", hackmembers.NoticeDeadlineChanged); err != nil {
 		return err
 	}
-	return eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeDeadlineChanged, team.ID, "", "cleared", knew...)
+	return hackmembers.NotifyUsers(ctx, tx, eventID, hackmembers.NoticeDeadlineChanged, team.ID, "", "cleared", knew...)
 }
 
 type TeamList struct {
@@ -190,7 +185,7 @@ type TeamList struct {
 
 func (s *Service) LoadTeamList(ctx context.Context, ev hackmodel.Event) (TeamList, error) {
 	tl := TeamList{Sites: map[string]model.Site{}, Versions: map[string]bool{}, Members: map[string][]hackmodel.EventPerson{}}
-	people, err := eventrepo.ListEventPeople(ctx, s.db, ev.ID)
+	people, err := hackteams.ListEventPeople(ctx, s.db, ev.ID)
 	if err != nil {
 		return tl, err
 	}
@@ -245,12 +240,12 @@ func (s *Service) CallerTeam(ctx context.Context, member hackmodel.EventMember) 
 	return team, notFoundAs(err, noTeam)
 }
 
-func (s *Service) WriteState(ctx context.Context, teamID string) (hackmodel.TeamWriteState, error) {
-	return hackteams.TeamWriteStateFor(ctx, s.db, teamID, false)
+func (s *Service) WriteState(ctx context.Context, eventID, teamID string) (hackmodel.TeamWriteState, error) {
+	return hackteams.TeamWriteStateFor(ctx, s.db, eventID, teamID, false)
 }
 
 func (s *Service) Track(ctx context.Context, teamID string) (*hackmodel.EventTrack, error) {
-	return eventrepo.TeamTrack(ctx, s.db, teamID)
+	return hackteams.TeamTrack(ctx, s.db, teamID)
 }
 
 func (s *Service) MyTeams(ctx context.Context, userID string) ([]hackmodel.MyTeam, error) {
@@ -258,7 +253,7 @@ func (s *Service) MyTeams(ctx context.Context, userID string) ([]hackmodel.MyTea
 }
 
 func (s *Service) PinDue(ctx context.Context, eventID string) error {
-	return hackteams.PinDueTeams(ctx, s.db, eventID, liveVersion)
+	return hackteams.PinDueTeams(ctx, s.db, eventID)
 }
 
 // RemoveOrphanTeamSites moves sites whose teams have gone to Recently deleted.
@@ -266,7 +261,7 @@ func (s *Service) RemoveOrphanTeamSites(ctx context.Context, ev hackmodel.Event,
 	if trash == nil {
 		return
 	}
-	orphans, err := hackteams.OrphanTeamSites(ctx, s.db, ev.AccountID, s.accountSites)
+	orphans, err := hackteams.OrphanTeamSites(ctx, s.db, ev.AccountID)
 	if err != nil {
 		log.Printf("hack: orphan sites: %v", err)
 		return
@@ -309,18 +304,4 @@ func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger,
 		s.NoticeSiteChange(ctx, event.ID, team.ID, down, reason)
 	}
 	return nil
-}
-
-// siteEverNamed is the platform's answer to "has the event's account ever
-// had a site of this name".
-func siteEverNamed(ctx context.Context, q hackteams.Querier, accountID, name string) (bool, error) {
-	return sites.SiteEverNamed(ctx, q, accountID, name)
-}
-
-func liveVersion(ctx context.Context, q hackteams.Querier, accountID, name string) (sql.NullInt64, error) {
-	return sites.LiveActiveVersion(ctx, q, accountID, name)
-}
-
-func (s *Service) accountSites(ctx context.Context, accountID string) ([]model.Site, error) {
-	return sites.AccountSites(ctx, s.db, accountID)
 }

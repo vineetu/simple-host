@@ -9,6 +9,7 @@ import (
 
 	"github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 // Reminder offset settings (0003-hack-notices-judges-messages.sql).
@@ -75,7 +76,8 @@ func (s *Service) SetReminderOffsets(ctx context.Context, eventID, actorID strin
 	if ev.TakenDown() {
 		return model.Event{}, &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
-	actor, err := eventrepo.GetEventMember(ctx, tx, eventID, actorID)
+	actor, err := hackmembers.Member(ctx, tx, eventID, actorID, hackmembers.NoLock)
+	actor, err = hackmembers.WithDisplayName(ctx, tx, actor, err)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && actor.Role != "organiser") {
 		return model.Event{}, &Error{Code: "event_not_found", Message: "event not found"}
 	}

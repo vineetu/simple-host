@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"strings"
 
 	"github.com/vsriram/simple-host/host/rules/sites"
@@ -27,7 +28,7 @@ func errTeamNameTaken() error {
 }
 
 // CreateTeam creates a team and joins its creator atomically; flatHosts caps the slug for <team>--<event> hosts.
-func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, rawName, rawNote string, flatHosts bool, reserved func(string) bool) (model.EventTeam, error) {
+func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, rawName, rawNote string, flatHosts bool) (model.EventTeam, error) {
 	if err := participantStage(event.Stage); err != nil {
 		return model.EventTeam{}, err
 	}
@@ -47,7 +48,7 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, raw
 	if err := checkNewTeam(ctx, tx, event.ID, name); err != nil {
 		return model.EventTeam{}, err
 	}
-	team, err := insertTeam(ctx, tx, event, userID, name, hackteams.MaxTeamSlugLen(event.Slug, flatHosts), reserved)
+	team, err := insertTeam(ctx, tx, event, userID, name, hackteams.MaxTeamSlugLen(event.Slug, flatHosts))
 	if err != nil {
 		return model.EventTeam{}, err
 	}
@@ -60,8 +61,8 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, raw
 // checkNewTeam refuses a team after the event deadline (it would be frozen
 // from birth) or under a name already taken.
 func checkNewTeam(ctx context.Context, tx *sql.Tx, eventID, name string) error {
-	var closed bool
-	if err := teamrepo.LockEventDeadlinePassed(ctx, tx, eventID).Scan(&closed); err != nil {
+	closed, err := eventrepo.DeadlinePassed(ctx, tx, eventID, true)
+	if err != nil {
 		return internalError(err)
 	}
 	if closed {
@@ -79,11 +80,11 @@ func checkNewTeam(ctx context.Context, tx *sql.Tx, eventID, name string) error {
 
 // insertTeam creates the team under the first free slug derived from its
 // name, joining the creator to it.
-func insertTeam(ctx context.Context, tx *sql.Tx, event model.Event, userID, name string, maxLen int, reserved func(string) bool) (model.EventTeam, error) {
+func insertTeam(ctx context.Context, tx *sql.Tx, event model.Event, userID, name string, maxLen int) (model.EventTeam, error) {
 	base := hackteams.DeriveTeamSlug(name, maxLen)
 	for n := 0; n < slugTries; n++ {
 		slug := hackteams.TeamSlugCandidate(base, n, maxLen)
-		free, err := teamSlugFree(ctx, tx, event, slug, reserved)
+		free, err := teamSlugFree(ctx, tx, event, slug)
 		if err != nil {
 			return model.EventTeam{}, internalError(err)
 		}
@@ -101,15 +102,15 @@ func insertTeam(ctx context.Context, tx *sql.Tx, event model.Event, userID, name
 // teamSlugFree reports whether slug is a valid site name no team or site in
 // the event has ever used: a new team must not inherit earlier work, data
 // or visitors.
-func teamSlugFree(ctx context.Context, tx *sql.Tx, event model.Event, slug string, reserved func(string) bool) (bool, error) {
-	if reserved(slug) || sites.ValidateShape(slug) != nil || sites.ValidateReserved(slug) != nil {
+func teamSlugFree(ctx context.Context, tx *sql.Tx, event model.Event, slug string) (bool, error) {
+	if eventapp.NameReserved(slug) || sites.ValidateShape(slug) != nil || sites.ValidateReserved(slug) != nil {
 		return false, nil
 	}
 	taken, err := teamrepo.TeamSlugExists(ctx, tx, event.ID, slug)
 	if err != nil || taken {
 		return false, err
 	}
-	used, err := teamrepo.TeamNameEverUsed(ctx, tx, event.Slug, event.AccountID, slug, siteEverNamed)
+	used, err := teamrepo.TeamNameEverUsed(ctx, tx, event.Slug, event.AccountID, slug)
 	return err == nil && !used, err
 }
 
@@ -143,10 +144,10 @@ func createWithCode(ctx context.Context, tx *sql.Tx, eventID, userID, slug, name
 // finishNewTeam records the new team's note and site name, syncs access
 // and commits. The deprecated open flag is no longer written.
 func finishNewTeam(ctx context.Context, tx *sql.Tx, event model.Event, team model.EventTeam, note string) error {
-	if _, err := teamrepo.SetCreatedTeamLookingFor(ctx, tx, team.ID, note); err != nil {
+	if _, err := teamrepo.SetTeamLookingFor(ctx, tx, team.ID, note); err != nil {
 		return err
 	}
-	if err := teamrepo.RecordUsedTeamName(ctx, tx, event.Slug, team.Slug); err != nil {
+	if err := eventrepo.RecordUsedNames(ctx, tx, event.Slug, team.Slug); err != nil {
 		return err
 	}
 	if err := eventapp.SyncAccess(ctx, tx, event.ID); err != nil {

@@ -5,8 +5,11 @@ import (
 	"sort"
 	"strings"
 
+	hostmodel "github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
+	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
@@ -19,12 +22,12 @@ type QueueRow struct {
 }
 
 // JudgeCandidates includes mode-eligible, judgeable teams before own conflicts are subtracted.
-func (s *Service) JudgeCandidates(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error) ([]QueueRow, error) {
-	return s.judgeQueue(ctx, ev, judgeID, loadTeams, true)
+func (s *Service) JudgeCandidates(ctx context.Context, ev model.Event, judgeID string) ([]QueueRow, error) {
+	return s.judgeQueue(ctx, ev, judgeID, true)
 }
 
 // judgeQueue lists the judge's judgeable teams; candidates keeps their own conflicts.
-func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string, loadTeams func() error, candidates bool) ([]QueueRow, error) {
+func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string, candidates bool) ([]QueueRow, error) {
 	judge, err := entryrepo.EventJudgeInEvent(ctx, s.db, ev.ID, judgeID)
 	if err != nil {
 		return nil, err
@@ -46,9 +49,6 @@ func (s *Service) judgeQueue(ctx context.Context, ev model.Event, judgeID string
 	}
 	rubric, err := entryrepo.ListRubric(ctx, s.db, ev.ID)
 	if err != nil {
-		return nil, err
-	}
-	if err := loadTeams(); err != nil {
 		return nil, err
 	}
 	stored, err := entryrepo.ListEventEntries(ctx, s.db, ev.ID)
@@ -101,7 +101,7 @@ func (s *Service) queueTeams(ctx context.Context, ev model.Event, judgeID string
 	if err != nil || ev.JudgeAssignmentMode == "open" {
 		return teams, err
 	}
-	assigned, err := entryrepo.EligibleJudgeTeamsIgnoringConflicts(ctx, s.db, ev.ID, judgeID)
+	assigned, err := entryrepo.EligibleJudgeTeamsIgnoringConflicts(ctx, s.db, ev, judgeID)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (s *Service) UnscoredTeams(ctx context.Context, ev model.Event, judgeID str
 
 // QueueCounts is the judge's queue size and how many rows are not yet Done.
 func (s *Service) QueueCounts(ctx context.Context, ev model.Event, judgeID string) (total, unscored int, err error) {
-	rows, err := s.judgeQueue(ctx, ev, judgeID, func() error { return nil }, false)
+	rows, err := s.judgeQueue(ctx, ev, judgeID, false)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -138,8 +138,38 @@ type Pool struct {
 	Judged, NoEntry, Excluded int
 }
 
-// JudgingPool gathers the prospective pool, consulting site state only when needed.
-func (s *Service) JudgingPool(ctx context.Context, ev model.Event, teams []model.NamedTeam, live func(model.NamedTeam) (bool, error)) (Pool, error) {
+// JudgingPool gathers the prospective pool: teams with an entry not
+// excluded, and teams without one whose site is live (TeamSiteLive).
+func (s *Service) JudgingPool(ctx context.Context, ev model.Event, teams []model.NamedTeam) (Pool, error) {
+	return s.judgingPool(ctx, ev, teams, s.poolSiteLive(ctx, ev))
+}
+
+// poolSiteLive reports whether a team's site is live, loading the event
+// account's sites and the teams' states once, on first use.
+func (s *Service) poolSiteLive(ctx context.Context, ev model.Event) func(model.NamedTeam) (bool, error) {
+	var sitesByName map[string]hostmodel.Site
+	var states map[string]model.TeamWriteState
+	return func(t model.NamedTeam) (bool, error) {
+		if sitesByName == nil {
+			list, err := sites.AccountSites(ctx, s.db, ev.AccountID)
+			if err != nil {
+				return false, err
+			}
+			if states, err = teamrepo.TeamWriteStatesForEvent(ctx, s.db, ev.ID); err != nil {
+				return false, err
+			}
+			sitesByName = make(map[string]hostmodel.Site, len(list))
+			for _, site := range list {
+				sitesByName[site.Name] = site
+			}
+		}
+		site, ok := sitesByName[t.Slug]
+		return ok && TeamSiteLive(&site, states[t.ID]), nil
+	}
+}
+
+// judgingPool is JudgingPool with the site check given.
+func (s *Service) judgingPool(ctx context.Context, ev model.Event, teams []model.NamedTeam, live func(model.NamedTeam) (bool, error)) (Pool, error) {
 	pool := Pool{In: map[string]bool{}}
 	entries, err := entryrepo.ListEventEntries(ctx, s.db, ev.ID)
 	if err != nil {
@@ -172,11 +202,11 @@ func (s *Service) JudgingPool(ctx context.Context, ev model.Event, teams []model
 }
 
 // EligibilityCounts returns eligible team counts per judge and judge counts per team.
-func (s *Service) EligibilityCounts(ctx context.Context, eventID string, judges []model.NamedJudge) (map[string]int, map[string]int, error) {
+func (s *Service) EligibilityCounts(ctx context.Context, ev model.Event, judges []model.NamedJudge) (map[string]int, map[string]int, error) {
 	assigned := map[string]int{}
 	byTeam := map[string]int{}
 	for _, judge := range judges {
-		eligible, err := entryrepo.EligibleJudgeTeams(ctx, s.db, eventID, judge.ID)
+		eligible, err := entryrepo.EligibleJudgeTeams(ctx, s.db, ev, judge.ID)
 		if err != nil {
 			return nil, nil, err
 		}

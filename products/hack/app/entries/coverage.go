@@ -101,7 +101,7 @@ func (s *Service) loadCoverage(ctx context.Context, ev model.Event) (coverageInp
 	for _, p := range panels {
 		in.panels[hackentries.JudgeTeamKey(p.JudgeID, p.TrackID)] = true
 	}
-	if in.tracks, err = entryrepo.EventTeamTracks(ctx, s.db, ev.ID); err != nil {
+	if in.tracks, err = teamrepo.EventTeamTracks(ctx, s.db, ev.ID); err != nil {
 		return in, err
 	}
 	if in.mode == "automatic" {
@@ -121,11 +121,12 @@ func (s *Service) loadCoverage(ctx context.Context, ev model.Event) (coverageInp
 // poolTeams keeps the teams in the judging pool, counting a team without an
 // entry when its site is live.
 func (s *Service) poolTeams(ctx context.Context, ev model.Event, teams []model.NamedTeam) ([]model.NamedTeam, error) {
-	pool, err := s.JudgingPool(ctx, ev, teams, func(t model.NamedTeam) (bool, error) {
-		st, err := teamrepo.TeamWriteStateFor(ctx, s.db, t.ID, false)
-		if err != nil {
-			return false, err
-		}
+	states, err := teamrepo.TeamWriteStatesForEvent(ctx, s.db, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := s.judgingPool(ctx, ev, teams, func(t model.NamedTeam) (bool, error) {
+		st := states[t.ID]
 		return s.siteLive != nil && s.siteLive(ctx, ev, t.Slug, st.SiteTakenDown), nil
 	})
 	candidates := []model.NamedTeam{}

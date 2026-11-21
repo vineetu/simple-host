@@ -5,11 +5,14 @@ import (
 	"database/sql"
 	"errors"
 
+	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
+
 	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 
 	"github.com/vsriram/simple-host/host/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
@@ -58,11 +61,23 @@ func (s *Service) RemovePerson(ctx context.Context, ev model.Event, userID strin
 		return internalError(err)
 	}
 	oldTeam := memberTeamID(ctx, tx, ev.ID, userID)
-	err = teamrepo.RemovePersonFromEvent(ctx, tx, ev.ID, userID)
-	if errors.Is(err, ErrCannotRemoveOrganiser) {
+	m, err := hackmembers.Member(ctx, tx, ev.ID, userID, hackmembers.ForUpdate)
+	if err != nil {
+		return err
+	}
+	if m.Organiser() {
 		return &Error{Code: "cannot_remove_organiser", Message: "an organiser cannot be removed from the event"}
 	}
-	if err != nil {
+	// A removed judge's scores keep counting toward the teams they were judging.
+	if m.Judge(ev.OrganiserJudges) {
+		if err := entryrepo.RecordFormerJudge(ctx, tx, ev.ID, userID, m.Role); err != nil {
+			return err
+		}
+	}
+	if _, err = teamrepo.LeaveMembership(ctx, tx, ev.ID, userID, false); err != nil {
+		return err
+	}
+	if err = entryrepo.DropLeaver(ctx, tx, ev.ID, userID, false); err != nil {
 		return err
 	}
 	if err = rotateIfKept(ctx, tx, oldTeam); err != nil {
@@ -77,8 +92,7 @@ func rotateIfKept(ctx context.Context, tx *sql.Tx, teamID string) error {
 	if teamID == "" {
 		return nil
 	}
-	var still bool
-	if err := teamrepo.TeamRowExists(ctx, tx, teamID).Scan(&still); err != nil || !still {
+	if still, err := teamrepo.TeamExists(ctx, tx, teamID); err != nil || !still {
 		return err
 	}
 	return rotateTeamCode(ctx, tx, teamID)
@@ -107,7 +121,7 @@ func (s *Service) MoveMember(ctx context.Context, ev model.Event, userID, rawSlu
 	}
 	defer tx.Rollback()
 	oldTeam := memberTeamID(ctx, tx, ev.ID, userID)
-	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, userID, normSlug(rawSlug), ev.TeamSizeMax, teamrepo.EnsureTeamAdmin)
+	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, userID, normSlug(rawSlug), ev.TeamSizeMax)
 	if errors.Is(err, ErrNotParticipant) {
 		return team, errEventNotFound()
 	}
@@ -175,21 +189,21 @@ func (s *Service) removalTeam(ctx context.Context, ev model.Event, caller model.
 
 // checkRemover rechecks a participant remover's authority under locks: both member rows sorted by user id, then the team row.
 func checkRemover(ctx context.Context, tx *sql.Tx, eventID, actorID, userID, slug string) error {
-	if _, err := teamrepo.LockRemovalMembers(ctx, tx, eventID, actorID, userID); err != nil {
+	if err := hackmembers.LockMembers(ctx, tx, eventID, actorID, userID); err != nil {
 		return internalError(err)
 	}
-	var teamID, gotSlug string
-	var admin bool
-	if err := teamrepo.ReadRemovalActor(ctx, tx, eventID, actorID).Scan(&teamID, &admin); err != nil {
+	actor, err := approvedMember(ctx, tx, eventID, actorID, hackmembers.NoLock)
+	if err != nil || !actor.TeamID.Valid {
 		return sql.ErrNoRows
 	}
-	if !admin {
+	teamID := actor.TeamID.String
+	if !actor.TeamAdmin {
 		return teamrepo.ErrHackTeamAdminOnly
 	}
-	if err := teamrepo.LockTeamSlug(ctx, tx, teamID).Scan(&gotSlug); err != nil || gotSlug != slug {
+	if locked, err := teamrepo.LockTeam(ctx, tx, teamID); err != nil || locked.Slug != slug {
 		return sql.ErrNoRows
 	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, teamID, true)
 	if err != nil {
 		return internalError(err)
 	}
@@ -203,21 +217,22 @@ func checkRemover(ctx context.Context, tx *sql.Tx, eventID, actorID, userID, slu
 // its email, and rotates the team's code.
 func takeOffTeam(ctx context.Context, tx *sql.Tx, eventID, userID, slug, teamName string, participant bool) error {
 	oldTeam := memberTeamID(ctx, tx, eventID, userID)
-	if err := teamrepo.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID, teamrepo.EnsureTeamAdmin); err != nil {
+	if err := teamrepo.RemoveParticipantFromTeam(ctx, tx, eventID, slug, userID); err != nil {
 		return err
 	}
 	if participant {
-		if _, err := teamrepo.SetMemberRemovalNotice(ctx, tx, eventID, userID, "A teammate took you off "+teamName+"."); err != nil {
+		if err := hackmembers.SetRemovalNotice(ctx, tx, eventID, userID, "A teammate took you off "+teamName+"."); err != nil {
 			return internalError(err)
 		}
 	}
 	// Email uses the same words as the removal notice.
-	var notice string
-	if err := teamrepo.ReadMemberRemovalNotice(ctx, tx, eventID, userID).Scan(&notice); err != nil {
+	m, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.NoLock)
+	if err != nil {
 		return internalError(err)
 	}
+	notice := m.TeamRemovalNotice
 	if notice != "" {
-		if err := eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeTeamRemoved, oldTeam, "", notice, userID); err != nil {
+		if err := hackmembers.NotifyUsers(ctx, tx, eventID, hackmembers.NoticeTeamRemoved, oldTeam, "", notice, userID); err != nil {
 			return internalError(err)
 		}
 	}
@@ -228,12 +243,6 @@ func takeOffTeam(ctx context.Context, tx *sql.Tx, eventID, userID, slug, teamNam
 		return internalError(err)
 	}
 	return nil
-}
-
-func (s *Service) teamDeadlinePassed(ctx context.Context, teamID string) (bool, error) {
-	var passed bool
-	err := teamrepo.TeamDeadlinePassed(ctx, s.db, teamID).Scan(&passed)
-	return passed, err
 }
 
 func teamNameTaken(ctx context.Context, q sqlkit.Querier, eventID, name string) (bool, error) {
@@ -261,9 +270,9 @@ func trySavepoint(ctx context.Context, q sqlkit.Querier, fn func() error) error 
 // memberTeamID locks the old membership so a concurrent move waits and the
 // team actually left is the one read.
 func memberTeamID(ctx context.Context, q *sql.Tx, eventID, userID string) string {
-	var team sql.NullString
-	if err := teamrepo.LockMemberTeamID(ctx, q, eventID, userID).Scan(&team); err != nil || !team.Valid {
+	m, err := hackmembers.Member(ctx, q, eventID, userID, hackmembers.ForUpdate)
+	if err != nil || !m.TeamID.Valid {
 		return ""
 	}
-	return team.String
+	return m.TeamID.String
 }

@@ -7,11 +7,24 @@ import (
 	"log"
 
 	"github.com/vsriram/simple-host/products/hack/model"
+	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 func (s *Service) QueueJudgeReminders(ctx context.Context, judges EntryEvaluator) (written int64, firstErr error) {
-	due, err := eventrepo.DueJudgeReminders(ctx, s.db)
+	eventIDs, err := eventrepo.JudgeReminderEvents(ctx, s.db)
+	var judgesDue []model.EventMember
+	if err == nil && len(eventIDs) > 0 {
+		judgesDue, err = hackmembers.Members(ctx, s.db, hackmembers.Filter{EventIDs: eventIDs, Role: "judge"})
+	}
+	var due []model.JudgeReminderDue
+	if err == nil {
+		due, err = eventrepo.DueJudgeReminders(ctx, s.db, judgesDue)
+	}
+	if err == nil {
+		due, err = entryrepo.UnsentJudgeReminders(ctx, s.db, due)
+	}
 	if err != nil {
 		log.Printf("hack: judge reminders: %v", err)
 		return 0, err
@@ -67,13 +80,13 @@ func (s *Service) queueOneJudgeReminder(ctx context.Context, d model.JudgeRemind
 	if !ev.JudgingEndsAt.Valid || !ev.JudgingEndsAt.Time.Equal(d.Deadline) {
 		return 0, nil
 	}
-	claimed, err := eventrepo.ClaimJudgeReminder(ctx, tx, d.EventID, d.UserID, d.Kind, d.Deadline)
+	claimed, err := entryrepo.ClaimJudgeReminder(ctx, tx, d.EventID, d.UserID, d.Kind, d.Deadline)
 	if err != nil || !claimed {
 		return 0, err
 	}
 	var n int64
 	if notify {
-		n, err = eventrepo.NotifyUsersCount(ctx, tx, d.EventID, eventrepo.NoticeJudgingReminder, "", "", reminderDetail(d.Kind, d.Deadline), d.UserID)
+		n, err = hackmembers.NotifyUsersCount(ctx, tx, d.EventID, hackmembers.NoticeJudgingReminder, "", "", reminderDetail(d.Kind, d.Deadline), d.UserID)
 		if err != nil {
 			return 0, err
 		}

@@ -2,12 +2,14 @@ package hackentries
 
 import (
 	"context"
-	"database/sql"
 	"sort"
 
+	"github.com/lib/pq"
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
+	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 type TrackPanelMember struct {
@@ -45,10 +47,18 @@ func ReplaceTrackPanels(ctx context.Context, q sqlkit.Querier, eventID string, p
 }
 
 func ListEventAssignments(ctx context.Context, q sqlkit.Querier, eventID string) ([]JudgeAssignment, error) {
+	judges, err := judgeIDs(ctx, q, eventID)
+	if err != nil {
+		return nil, err
+	}
+	teams, err := hackteams.ListEventTeams(ctx, q, eventID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := queryContext(ctx, q, `SELECT a.judge_id,a.team_id,t.name
-		FROM event_assignments a JOIN events e ON e.id=a.event_id JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND `+judgeMemberSQL("j", "e")+`
-		JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
-		WHERE a.event_id=$1 ORDER BY t.name`, eventID)
+		FROM event_assignments a
+		JOIN `+teamRows(3)+` ON t.event_id=a.event_id AND t.id=a.team_id
+		WHERE a.event_id=$1 AND a.judge_id = ANY($2::uuid[]) ORDER BY t.name`, append([]any{eventID, pq.Array(judges)}, teamArgs(teams)...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,21 +109,22 @@ func ListEventAssignments(ctx context.Context, q sqlkit.Querier, eventID string)
 
 // EligibleJudgeTeams uses current event mode, event-scoped membership and
 // conflict rows.
-func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (map[string]bool, error) {
+func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, ev model.Event, judgeID string) (map[string]bool, error) {
+	eventID := ev.ID
 	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
 	if err != nil {
 		return nil, err
 	}
 	out := map[string]bool{}
 	if isMember {
-		rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-			JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND `+judgeMemberSQL("m", "e")+`
-			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=$2 AND c.team_id=t.id)
+		teams, err := hackteams.JudgedTeams(ctx, q, eventID)
+		if err != nil {
+			return nil, err
+		}
+		rows, err := queryContext(ctx, q, `SELECT t.id FROM `+teamRows(4)+`
+			WHERE t.event_id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=t.event_id AND c.judge_id=$2 AND c.team_id=t.id)
 			AND `+EntryJudgeableSQL+`
-			AND (EXISTS (SELECT 1 FROM event_members tm WHERE tm.team_id=t.id) OR t.kept_after_leave)
-			AND (e.judge_assignment_mode='open'
-			OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
-			OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=$2)))`, eventID, judgeID)
+			AND `+judgeModeSQL("$3::text", "$2"), append([]any{eventID, judgeID, ev.JudgeAssignmentMode}, teamArgs(teams)...)...)
 		if err != nil {
 			return nil, err
 		}
@@ -127,8 +138,9 @@ func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 		}
 		return out, rows.Err()
 	}
+	// A counted team with a judgeable entry still exists: entries go with their team.
 	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_former_judges f
-		JOIN event_teams t ON t.event_id = f.event_id AND t.id = ANY(f.counted_team_ids)
+		CROSS JOIN unnest(f.counted_team_ids) AS t(id)
 		WHERE f.event_id = $1 AND f.user_id = $2
 		AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id = f.event_id AND c.judge_id = f.user_id AND c.team_id = t.id)
 		AND `+EntryJudgeableSQL, eventID, judgeID)
@@ -149,8 +161,8 @@ func EligibleJudgeTeams(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 // EligibleJudgeTeamsIgnoringConflicts is EligibleJudgeTeams for a current judge
 // or judging organiser (mode, assignments and panels), without the live
 // event_conflicts exclusion.
-func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (map[string]bool, error) {
-	isMember, err := EventJudgeInEvent(ctx, q, eventID, judgeID)
+func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q sqlkit.Querier, ev model.Event, judgeID string) (map[string]bool, error) {
+	isMember, err := EventJudgeInEvent(ctx, q, ev.ID, judgeID)
 	if err != nil {
 		return nil, err
 	}
@@ -158,12 +170,13 @@ func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q sqlkit.Querier, 
 	if !isMember {
 		return out, nil
 	}
-	rows, err := queryContext(ctx, q, `SELECT t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-		JOIN event_members m ON m.event_id=e.id AND m.user_id=$2 AND `+judgeMemberSQL("m", "e")+`
-		WHERE e.id=$1
-		AND (e.judge_assignment_mode='open'
-		OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=$2 AND a.team_id=t.id))
-		OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=$2)))`, eventID, judgeID)
+	teams, err := hackteams.ListEventTeams(ctx, q, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := queryContext(ctx, q, `SELECT t.id FROM `+teamRows(4)+`
+		WHERE t.event_id=$1
+		AND `+judgeModeSQL("$3::text", "$2"), append([]any{ev.ID, judgeID, ev.JudgeAssignmentMode}, teamArgs(teams)...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -178,21 +191,14 @@ func EligibleJudgeTeamsIgnoringConflicts(ctx context.Context, q sqlkit.Querier, 
 	return out, rows.Err()
 }
 
-func JudgeTeamEligible(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) (bool, error) {
-	eligible, err := EligibleJudgeTeams(ctx, q, eventID, judgeID)
+func JudgeTeamEligible(ctx context.Context, q sqlkit.Querier, ev model.Event, judgeID, teamID string) (bool, error) {
+	eligible, err := EligibleJudgeTeams(ctx, q, ev, judgeID)
 	return eligible[teamID], err
 }
 
-func EventTrackInEvent(ctx context.Context, q sqlkit.Querier, eventID, trackID string) (bool, error) {
-	var ok bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_tracks WHERE event_id=$1 AND id=$2)`, eventID, trackID).Scan(&ok)
-	return ok, err
-}
-
+// EventJudgeInEvent is whether judgeID currently judges the event.
 func EventJudgeInEvent(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (bool, error) {
-	var ok bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id=$1 AND m.user_id=$2 AND `+judgeMemberSQL("m", "e")+`)`, eventID, judgeID).Scan(&ok)
-	return ok, err
+	return isJudge(ctx, q, eventID, judgeID)
 }
 
 func EventCriterionInEvent(ctx context.Context, q sqlkit.Querier, eventID, criterionID string) (bool, error) {
@@ -203,33 +209,30 @@ func EventCriterionInEvent(ctx context.Context, q sqlkit.Querier, eventID, crite
 
 type EventTrack = model.EventTrack
 
-func TrackForTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID string) (*EventTrack, error) {
-	var t EventTrack
-	err := q.QueryRowContext(ctx, `SELECT x.id,x.slug,x.name,x.challenge,x.prize FROM event_teams m JOIN event_tracks x ON x.id=m.track_id AND x.event_id=m.event_id WHERE m.event_id=$1 AND m.id=$2`, eventID, teamID).Scan(&t.ID, &t.Slug, &t.Name, &t.Challenge, &t.Prize)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+// EventJudgeEligibility loads current and former judging eligibility in one query.
+func EventJudgeEligibility(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]map[string]bool, error) {
+	judges, err := judgeIDs(ctx, q, eventID)
 	if err != nil {
 		return nil, err
 	}
-	return &t, nil
-}
-
-// EventJudgeEligibility loads current and former judging eligibility in one query.
-func EventJudgeEligibility(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]map[string]bool, error) {
-	rows, err := queryContext(ctx, q, `SELECT m.user_id,t.id FROM event_teams t JOIN events e ON e.id=t.event_id
-			JOIN event_members m ON m.event_id=e.id AND `+judgeMemberSQL("m", "e")+`
-			WHERE e.id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=e.id AND c.judge_id=m.user_id AND c.team_id=t.id)
+	teams, err := hackteams.JudgedTeams(ctx, q, eventID)
+	if err != nil {
+		return nil, err
+	}
+	ev, err := hackevents.GetEventByID(ctx, q, eventID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := queryContext(ctx, q, `SELECT m.user_id,t.id FROM `+teamRows(4)+`
+			JOIN unnest($2::uuid[]) AS m(user_id) ON true
+			WHERE t.event_id=$1 AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=t.event_id AND c.judge_id=m.user_id AND c.team_id=t.id)
 			AND `+EntryJudgeableSQL+`
-			AND (EXISTS (SELECT 1 FROM event_members tm WHERE tm.team_id=t.id) OR t.kept_after_leave)
-			AND (e.judge_assignment_mode='open'
-			OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=e.id AND a.judge_id=m.user_id AND a.team_id=t.id))
-			OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id=e.id AND p.track_id=t.track_id AND p.judge_id=m.user_id))) UNION SELECT f.user_id,t.id FROM event_former_judges f
- JOIN event_teams t ON t.event_id=f.event_id AND t.id=ANY(f.counted_team_ids)
+			AND `+judgeModeSQL("$3::text", "m.user_id")+` UNION SELECT f.user_id,t.id FROM event_former_judges f
+ CROSS JOIN unnest(f.counted_team_ids) AS t(id)
  WHERE f.event_id=$1
- AND NOT EXISTS (SELECT 1 FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id=f.event_id AND m.user_id=f.user_id AND `+judgeMemberSQL("m", "e")+`)
+ AND NOT (f.user_id = ANY($2::uuid[]))
  AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=f.event_id AND c.judge_id=f.user_id AND c.team_id=t.id)
- AND `+EntryJudgeableSQL+``, eventID)
+ AND `+EntryJudgeableSQL+``, append([]any{eventID, pq.Array(judges), ev.JudgeAssignmentMode}, teamArgs(teams)...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -244,25 +247,6 @@ func EventJudgeEligibility(ctx context.Context, q sqlkit.Querier, eventID string
 			out[judge] = map[string]bool{}
 		}
 		out[judge][team] = true
-	}
-	return out, rows.Err()
-}
-
-// EventTeamTracks loads all team tracks without per-team queries.
-func EventTeamTracks(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]*model.EventTrack, error) {
-	rows, err := queryContext(ctx, q, `SELECT m.id,x.id,x.slug,x.name,x.challenge,x.prize FROM event_teams m JOIN event_tracks x ON x.id=m.track_id AND x.event_id=m.event_id WHERE m.event_id=$1`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]*model.EventTrack{}
-	for rows.Next() {
-		var id string
-		var t model.EventTrack
-		if err := rows.Scan(&id, &t.ID, &t.Slug, &t.Name, &t.Challenge, &t.Prize); err != nil {
-			return nil, err
-		}
-		out[id] = &t
 	}
 	return out, rows.Err()
 }

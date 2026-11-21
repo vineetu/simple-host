@@ -2,24 +2,49 @@ package hackevents
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"time"
 
+	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 type JudgeReminderDue = model.JudgeReminderDue
 
-// DueJudgeReminders lists (event, judge) pairs due a judging-close reminder now, from judging_ends_at and the event's own reminder_offsets.
-func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDue, error) {
-	rows, err := queryContext(ctx, q, `
+// judgeReminderEventsSQL is the events whose judges may be due a
+// judging-close reminder.
+const judgeReminderEventsSQL = `e.stage = 'judging' AND e.judging_locked_at IS NULL AND e.taken_down_at IS NULL
+		     AND e.judging_ends_at IS NOT NULL AND cardinality(e.reminder_offsets) > 0`
+
+// JudgeReminderEvents is the ids of the events whose judges may be due a
+// judging-close reminder (DueJudgeReminders takes those judges).
+func JudgeReminderEvents(ctx context.Context, q sqlkit.Querier) ([]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT e.id FROM events e WHERE `+judgeReminderEventsSQL+` ORDER BY e.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// DueJudgeReminders lists (event, judge) pairs due a judging-close reminder now, from judging_ends_at and the event's own reminder_offsets; judges are the joined judges of JudgeReminderEvents; hackentries.UnsentJudgeReminders drops those already sent.
+func DueJudgeReminders(ctx context.Context, q sqlkit.Querier, judges []model.EventMember) ([]JudgeReminderDue, error) {
+	eventIDs, userIDs := make([]string, len(judges)), make([]string, len(judges))
+	for i, j := range judges {
+		eventIDs[i], userIDs[i] = j.EventID, j.UserID
+	}
+	rows, err := q.QueryContext(ctx, `
 		WITH c AS (
 		  SELECT e.id AS event_id, e.reminder_offsets AS offsets, e.judging_ends_at AS deadline
 		    FROM events e
-		   WHERE e.stage = 'judging' AND e.judging_locked_at IS NULL AND e.taken_down_at IS NULL
-		     AND e.judging_ends_at IS NOT NULL AND cardinality(e.reminder_offsets) > 0
+		   WHERE `+judgeReminderEventsSQL+`
 		), off AS (
 		  SELECT c.event_id, c.deadline, MIN(o) AS offset_min
 		    FROM c, unnest(c.offsets) AS o
@@ -29,10 +54,8 @@ func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDu
 		  SELECT event_id, deadline, `+reminderOffsetKindSQL+` AS kind FROM off
 		)
 		SELECT k.event_id, m.user_id, k.kind, k.deadline
-		  FROM k JOIN event_members m ON m.event_id = k.event_id AND m.role = 'judge'
-		 WHERE NOT EXISTS (SELECT 1 FROM event_judge_reminders r
-		        WHERE r.event_id = k.event_id AND r.user_id = m.user_id AND r.kind = k.kind AND r.deadline = k.deadline)
-		 ORDER BY k.deadline, k.event_id, m.user_id LIMIT 500`)
+		  FROM k JOIN unnest($1::uuid[], $2::uuid[]) AS m(event_id, user_id) ON m.event_id = k.event_id
+		 ORDER BY k.deadline, k.event_id, m.user_id`, pq.Array(eventIDs), pq.Array(userIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -46,18 +69,4 @@ func DueJudgeReminders(ctx context.Context, q sqlkit.Querier) ([]JudgeReminderDu
 		out = append(out, d)
 	}
 	return out, rows.Err()
-}
-
-// ClaimJudgeReminder records that this judge's reminder of this kind goes out for this deadline.
-func ClaimJudgeReminder(ctx context.Context, q sqlkit.Querier, eventID, userID, kind string, deadline time.Time) (bool, error) {
-	var one int
-	err := q.QueryRowContext(ctx, `
-		INSERT INTO event_judge_reminders (event_id, user_id, kind, deadline) VALUES ($1, $2, $3, $4)
-		ON CONFLICT (event_id, user_id, kind) DO UPDATE SET deadline = EXCLUDED.deadline, sent_at = now()
-		 WHERE event_judge_reminders.deadline <> EXCLUDED.deadline
-		RETURNING 1`, eventID, userID, kind, deadline).Scan(&one)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	return err == nil, err
 }

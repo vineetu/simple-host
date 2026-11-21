@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
@@ -182,7 +181,7 @@ func (h *judgingHTTP) getMyVote(w http.ResponseWriter, r *http.Request) {
 		writeHackError(w, err)
 		return
 	}
-	_, selected, eligible, err := h.entries.ReadMyVote(r.Context(), ev, user.Username)
+	_, selected, eligible, err := h.entries.ReadMyVote(r.Context(), ev, user.ID, user.Username)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -217,7 +216,7 @@ func (h *judgingHTTP) putVote(w http.ResponseWriter, r *http.Request) {
 		writeHackError(w, err)
 		return
 	}
-	created, err := h.entries.CastVote(r.Context(), ev.ID, ev.AccountID, model.BaseEmail(user.Username), req.Team)
+	created, err := h.entries.CastVote(r.Context(), ev.ID, ev.AccountID, user.ID, req.Team)
 	if err != nil {
 		writeHackError(w, err)
 		return

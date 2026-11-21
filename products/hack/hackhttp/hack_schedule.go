@@ -253,7 +253,7 @@ func (h *publicEventHTTP) fixedScheduleFor(ctx context.Context, ev model.Event, 
 		return nil, err
 	}
 	if member != nil && member.Role == "participant" && member.TeamID.Valid {
-		if st, err := h.teams.TeamWriteStateForLookup(ctx, member.TeamID.String, false); err == nil {
+		if st, err := h.teams.TeamWriteStateForLookup(ctx, member.EventID, member.TeamID.String, false); err == nil {
 			in.Team = &st
 		}
 	}

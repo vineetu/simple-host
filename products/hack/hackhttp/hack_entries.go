@@ -251,7 +251,7 @@ func (h *participationHTTP) getTeamScreenshot(w http.ResponseWriter, r *http.Req
 	}
 	// A judge sees screenshots only for teams in their queue (assignment mode, conflicts, entry judgeability).
 	if a.member.Role == "judge" {
-		eligible, err := h.entries.JudgeTeamEligible(r.Context(), a.event.ID, a.user.ID, team.ID)
+		eligible, err := h.entries.JudgeTeamEligible(r.Context(), a.event, a.user.ID, team.ID)
 		if err != nil {
 			log.Printf("hack: team screenshot %s: %v", a.event.Slug, err)
 			httpx.WriteInternal(w)
@@ -314,10 +314,12 @@ func (h *participationHTTP) entryList(ctx context.Context, a hackAccess) ([]map[
 		}
 		out = append(out, item)
 	}
-	counts := entries.CountEntries(teams, byTeam, func(t model.EventTeam) bool {
+	live := map[string]bool{}
+	for _, t := range teams {
 		site := tl.site(t.Slug)
-		return site != nil && site.ActiveVersion > 0
-	})
+		live[t.ID] = site != nil && site.ActiveVersion > 0
+	}
+	counts := entries.CountEntries(teams, byTeam, live)
 	return out, counts, nil
 }
 
@@ -396,7 +398,7 @@ func (h *participationHTTP) ownEntryJSON(ctx context.Context, ev model.Event, te
 	if err != nil {
 		return nil, err
 	}
-	st, err := h.teams.TeamWriteStateForLookup(ctx, teamID, false)
+	st, err := h.teams.TeamWriteStateForLookup(ctx, ev.ID, teamID, false)
 	if err != nil {
 		return nil, err
 	}

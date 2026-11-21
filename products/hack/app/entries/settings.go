@@ -8,6 +8,7 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 type JudgingSettings struct {
@@ -112,7 +113,7 @@ func updateOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string
 		ids = *selection
 	} else if *alias {
 		var err error
-		ids, err = eventrepo.OrganiserIDs(ctx, q, eventID)
+		ids, err = hackmembers.OrganiserIDs(ctx, q, eventID)
 		if err != nil {
 			return err
 		}
@@ -122,12 +123,14 @@ func updateOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string
 			return &Error{Code: "invalid_organiser_judges", Message: "Choose current organisers of this event."}
 		}
 	}
-	valid, err := eventrepo.SetOrganiserJudges(ctx, q, eventID, ids)
+	members, err := hackmembers.MembersByIDs(ctx, q, eventID, ids)
 	if err != nil {
 		return err
 	}
-	if !valid {
-		return &Error{Code: "invalid_organiser_judges", Message: "Choose current organisers of this event."}
+	for _, id := range ids {
+		if !members[id].Organiser() {
+			return &Error{Code: "invalid_organiser_judges", Message: "Choose current organisers of this event."}
+		}
 	}
-	return nil
+	return eventrepo.SetOrganiserJudges(ctx, q, eventID, ids)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
@@ -16,9 +17,4 @@ func queryContext(ctx context.Context, q sqlkit.Querier, query string, args ...a
 	default:
 		return nil, fmt.Errorf("db: querier does not support QueryContext")
 	}
-}
-func scanMember(row *sql.Row) (EventMember, error) {
-	var m EventMember
-	err := row.Scan(&m.EventID, &m.UserID, &m.Role, &m.DisplayName, &m.TeamID, &m.CocAcceptedAt, &m.JoinedAt)
-	return m, err
 }

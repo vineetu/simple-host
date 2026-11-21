@@ -6,8 +6,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/vsriram/simple-host/host/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
+	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
@@ -18,8 +21,34 @@ func (s *Service) CreateOrganiserInvite(ctx context.Context, eventID, userID str
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	expiry, err := eventrepo.SetOrganiserInvite(ctx, s.db, eventID, userID, hackevents.HashCode(code))
+	var expiry time.Time
+	err = s.asOrganiser(ctx, eventID, userID, func(tx *sql.Tx) error {
+		expiry, err = eventrepo.SetOrganiserInvite(ctx, tx, eventID, userID, hackevents.HashCode(code))
+		return err
+	})
 	return code, expiry, err
+}
+
+// asOrganiser runs write in one transaction holding userID's organiser
+// membership FOR SHARE, so a removal cannot land between the check and the
+// write; sql.ErrNoRows when they do not organise the event.
+func (s *Service) asOrganiser(ctx context.Context, eventID, userID string, write func(*sql.Tx) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	m, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.ForShare)
+	if err == nil && !m.Organiser() {
+		err = sql.ErrNoRows
+	}
+	if err == nil {
+		err = write(tx)
+	}
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Service) RevokeOrganiserInvite(ctx context.Context, eventID string) error {
@@ -27,14 +56,36 @@ func (s *Service) RevokeOrganiserInvite(ctx context.Context, eventID string) err
 }
 
 func (s *Service) OrganiserInvite(ctx context.Context, code string) (model.Event, error) {
-	return eventrepo.OrganiserInviteEvent(ctx, s.db, hackevents.HashCode(hackevents.NormalizeCode(code)), false)
+	return organiserInviteEvent(ctx, s.db, hackevents.HashCode(hackevents.NormalizeCode(code)), false)
+}
+
+// organiserInviteEvent is the event of an unexpired invitation whose issuer
+// still organises it (sql.ErrNoRows otherwise); lock locks the invitation,
+// then the issuer's member row.
+func organiserInviteEvent(ctx context.Context, q sqlkit.Querier, hash string, lock bool) (model.Event, error) {
+	ev, issuer, err := eventrepo.OrganiserInviteEvent(ctx, q, hash, lock)
+	if err != nil {
+		return model.Event{}, err
+	}
+	l := hackmembers.NoLock
+	if lock {
+		l = hackmembers.ForUpdate
+	}
+	m, err := hackmembers.Member(ctx, q, ev.ID, issuer, l)
+	if err == nil && !m.Organiser() {
+		err = sql.ErrNoRows
+	}
+	if err != nil {
+		return model.Event{}, err
+	}
+	return ev, nil
 }
 
 // AcceptOrganiserInvite joins through a reusable invitation, locking the event before the invite and member.
 func (s *Service) AcceptOrganiserInvite(ctx context.Context, code, userID, name string) (model.Event, model.EventMember, error) {
 	hash := hackevents.HashCode(hackevents.NormalizeCode(code))
 	// Find the event before locking, then lock the event before the invite and inviter's member row, matching leave's lock order.
-	unlocked, err := eventrepo.OrganiserInviteEvent(ctx, s.db, hash, false)
+	unlocked, err := organiserInviteEvent(ctx, s.db, hash, false)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, inviteRefusal(err)
 	}
@@ -67,7 +118,7 @@ func lockInvitedEvent(ctx context.Context, tx *sql.Tx, eventID, hash string) (mo
 	if err != nil {
 		return ev, inviteRefusal(err)
 	}
-	if _, err := eventrepo.OrganiserInviteEvent(ctx, tx, hash, true); err != nil {
+	if _, err := organiserInviteEvent(ctx, tx, hash, true); err != nil {
 		return ev, inviteRefusal(err)
 	}
 	if ev.TakenDown() {
@@ -81,7 +132,7 @@ func lockInvitedEvent(ctx context.Context, tx *sql.Tx, eventID, hash string) (mo
 
 // joinAsOrganiser adds a user who is not yet in the event as an organiser and refreshes the event's access.
 func joinAsOrganiser(ctx context.Context, tx *sql.Tx, eventID, userID, name string) (model.EventMember, error) {
-	if _, err := eventrepo.GetEventMember(ctx, tx, eventID, userID); err == nil {
+	if _, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.NoLock); err == nil {
 		return model.EventMember{}, &Error{Code: "already_member", Message: "you already belong to this event; roles cannot be changed through an invitation"}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return model.EventMember{}, err
@@ -89,7 +140,7 @@ func joinAsOrganiser(ctx context.Context, tx *sql.Tx, eventID, userID, name stri
 	if err := EnsureAccountName(ctx, tx, userID, name); err != nil {
 		return model.EventMember{}, err
 	}
-	member, err := eventrepo.InsertEventMember(ctx, tx, eventID, userID, "organiser")
+	member, err := hackmembers.Join(ctx, tx, eventID, userID, "organiser")
 	if unique(err) {
 		return member, &Error{Code: "already_member", Message: "you already belong to this event"}
 	}
@@ -112,6 +163,9 @@ func (s *Service) RemoveOrganiser(ctx context.Context, event model.Event, actorI
 	if err = teamrepo.RemoveCoOrganiser(ctx, tx, event.ID, actorID, userID); errors.Is(err, sql.ErrNoRows) {
 		return &Error{Code: "event_not_found", Message: "event not found"}
 	} else if err != nil {
+		return err
+	}
+	if err = entryrepo.DropLeaver(ctx, tx, event.ID, userID, true); err != nil {
 		return err
 	}
 	if err = eventrepo.DeleteOrganiserInvite(ctx, tx, event.ID); err != nil {

@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/sites"
-	"github.com/vsriram/simple-host/host/sqlkit"
-	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
-	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"log"
 	"sort"
+
+	"github.com/vsriram/simple-host/host/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 type AccountErasure struct{}
@@ -32,8 +32,8 @@ func (AccountErasure) After(ctx context.Context, tx *sql.Tx, adminTeamIDs []stri
 		if err := hackteams.DeleteTeamIfEmpty(ctx, tx, teamID); err != nil {
 			return affected, err
 		}
-		var stillExists bool
-		if err := hackteams.ErasureTeamExists(ctx, tx, teamID, &stillExists); err != nil {
+		stillExists, err := hackteams.TeamExists(ctx, tx, teamID)
+		if err != nil {
 			return affected, err
 		}
 		if !stillExists {
@@ -46,7 +46,7 @@ func (AccountErasure) After(ctx context.Context, tx *sql.Tx, adminTeamIDs []stri
 		}
 		if members == 0 {
 			// Not keepable (frozen or pinned).
-			if err := hackevents.MarkTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
+			if err := hackteams.MarkTeamKeptAfterLeave(ctx, tx, teamID); err != nil {
 				return affected, err
 			}
 			if err := hackteams.RotateTeamCodeTx(ctx, tx, teamID); err != nil {
@@ -64,9 +64,7 @@ func (AccountErasure) After(ctx context.Context, tx *sql.Tx, adminTeamIDs []stri
 
 func (AccountErasure) Sweep(ctx context.Context, database *sql.DB, eventAccountIDs []string, trash func(context.Context, string, string) error) {
 	for _, accountID := range eventAccountIDs {
-		orphans, err := hackteams.OrphanTeamSites(ctx, database, accountID, func(ctx context.Context, id string) ([]model.Site, error) {
-			return sites.AccountSites(ctx, database, id)
-		})
+		orphans, err := hackteams.OrphanTeamSites(ctx, database, accountID)
 		if err != nil {
 			log.Printf("hack: orphan sites after account erasure: %v", err)
 			continue
@@ -85,7 +83,15 @@ func (AccountErasure) Holds(ctx context.Context, q sqlkit.Querier, id string) (b
 }
 
 func (AccountErasure) Block(ctx context.Context, tx *sql.Tx, id string, operator bool) (string, string, error) {
-	running, err := hackevents.AccountHasRunningEvents(ctx, tx, id)
+	organised, err := hackmembers.Members(ctx, tx, hackmembers.Filter{UserID: id, Role: "organiser"})
+	if err != nil {
+		return "", "", err
+	}
+	eventIDs := []string{}
+	for _, m := range organised {
+		eventIDs = append(eventIDs, m.EventID)
+	}
+	running, err := hackevents.AnyRunning(ctx, tx, eventIDs)
 	if err != nil {
 		return "", "", err
 	}
@@ -96,7 +102,14 @@ func (AccountErasure) Block(ctx context.Context, tx *sql.Tx, id string, operator
 		}
 		return "organises_events", msg, nil
 	}
-	return "", "", hackevents.CleanupDeletedAccountEvents(ctx, tx, id)
+	sole, err := hackmembers.SoleMemberTeams(ctx, tx, id)
+	if err != nil {
+		return "", "", err
+	}
+	if err := hackevents.CleanupDeletedAccountEvents(ctx, tx, eventIDs); err != nil {
+		return "", "", err
+	}
+	return "", "", hackteams.DeleteSoleTeams(ctx, tx, id, sole)
 }
 
 func (AccountErasure) Rows(ctx context.Context, tx *sql.Tx, id string) error {

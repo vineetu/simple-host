@@ -7,6 +7,7 @@ import (
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 type signupValidator = func([]model.SignupQuestion, map[string]string) ([]model.SignupAnswer, error)
@@ -25,7 +26,8 @@ func (s *Service) JoinByCode(ctx context.Context, code, userID, display string, 
 	if err != nil {
 		return ev, model.EventMember{}, false, err
 	}
-	existing, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
+	existing, err := hackmembers.Member(ctx, s.db, ev.ID, userID, hackmembers.NoLock)
+	existing, err = hackmembers.WithDisplayName(ctx, s.db, existing, err)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		member, err := s.addMember(ctx, ev.ID, userID, display, judge, input, validate)
@@ -82,7 +84,8 @@ func (s *Service) rejoin(ctx context.Context, eventID, userID, display string) (
 	if err := EnsureAccountName(ctx, tx, userID, display); err != nil {
 		return model.EventMember{}, err
 	}
-	member, err := eventrepo.GetEventMember(ctx, tx, eventID, userID)
+	member, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.NoLock)
+	member, err = hackmembers.WithDisplayName(ctx, tx, member, err)
 	if err == nil {
 		err = tx.Commit()
 	}
@@ -141,11 +144,11 @@ func registrationAnswers(ctx context.Context, tx *sql.Tx, eventID string, input 
 // insertJoin writes the membership row; a sign-up that waits for approval also notifies the organisers.
 func insertJoin(ctx context.Context, tx *sql.Tx, eventID, userID string, judge bool, answers []model.SignupAnswer, required bool) (model.EventMember, error) {
 	if judge {
-		return eventrepo.InsertEventMember(ctx, tx, eventID, userID, "judge")
+		return hackmembers.Join(ctx, tx, eventID, userID, "judge")
 	}
-	member, err := eventrepo.JoinParticipantRegistration(ctx, tx, eventID, userID, answers, required)
+	member, err := hackmembers.JoinParticipant(ctx, tx, eventID, userID, answers, required)
 	if err == nil && required {
-		err = eventrepo.NotifyOrganisers(ctx, tx, eventID, eventrepo.NoticeApplicationNew, userID)
+		err = hackmembers.NotifyOrganisers(ctx, tx, eventID, hackmembers.NoticeApplicationNew, userID)
 	}
 	return member, err
 }
@@ -154,7 +157,8 @@ func (s *Service) settleJoinRace(ctx context.Context, eventID, userID, role stri
 	if !unique(err) {
 		return model.EventMember{}, err
 	}
-	existing, err := eventrepo.GetEventMember(ctx, s.db, eventID, userID)
+	existing, err := hackmembers.Member(ctx, s.db, eventID, userID, hackmembers.NoLock)
+	existing, err = hackmembers.WithDisplayName(ctx, s.db, existing, err)
 	if err == nil && existing.Role == role {
 		return existing, nil
 	}

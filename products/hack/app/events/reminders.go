@@ -13,13 +13,33 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
 // QueueEntryReminders claims each due team once per reminder per deadline, then queues its members in the same transaction.
 func (s *Service) QueueEntryReminders(ctx context.Context) (written int64, firstErr error) {
-	due, err := eventrepo.DueEntryReminders(ctx, s.db)
+	withMembers, err := hackmembers.TeamIDsWithMembers(ctx, s.db, "")
+	if err != nil {
+		log.Printf("hack: entry reminders: %v", err)
+		return 0, err
+	}
+	teams, err := teamrepo.TeamsByIDs(ctx, s.db, withMembers)
+	if err != nil {
+		log.Printf("hack: entry reminders: %v", err)
+		return 0, err
+	}
+	candidates := make([]model.EventTeam, 0, len(teams))
+	for _, t := range teams {
+		if !t.SiteTakenDownAt.Valid {
+			candidates = append(candidates, t)
+		}
+	}
+	due, err := eventrepo.DueEntryReminders(ctx, s.db, candidates)
+	if err == nil {
+		due, err = entryrepo.UnsentEntryReminders(ctx, s.db, due)
+	}
 	if err != nil {
 		log.Printf("hack: entry reminders: %v", err)
 		return 0, err
@@ -49,7 +69,7 @@ func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder)
 	} else if err != nil {
 		return 0, err
 	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, r.TeamID, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, r.EventID, r.TeamID, true)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil
 	}
@@ -59,15 +79,15 @@ func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder)
 	if !st.Deadline.Valid || !st.Deadline.Time.Equal(r.Deadline) {
 		return 0, nil
 	}
-	claimed, err := eventrepo.ClaimEntryReminder(ctx, tx, r)
+	claimed, err := entryrepo.ClaimEntryReminder(ctx, tx, r)
 	if err != nil || !claimed {
 		return 0, err
 	}
-	ids, err := eventrepo.TeamMemberIDs(ctx, tx, r.EventID, r.TeamID, "")
+	ids, err := hackmembers.IDs(ctx, tx, hackmembers.Filter{EventID: r.EventID, TeamID: r.TeamID})
 	if err != nil {
 		return 0, err
 	}
-	n, err := eventrepo.NotifyUsersCount(ctx, tx, r.EventID, eventrepo.NoticeEntryReminder, r.TeamID, "", reminderDetail(r.Kind, r.Deadline), ids...)
+	n, err := hackmembers.NotifyUsersCount(ctx, tx, r.EventID, hackmembers.NoticeEntryReminder, r.TeamID, "", reminderDetail(r.Kind, r.Deadline), ids...)
 	if err != nil {
 		return 0, err
 	}
@@ -110,7 +130,7 @@ func reminderOffsetStale(offsets []int64, detail string, currentDeadline time.Ti
 
 // entryReminderLine re-reads the team and its entry and writes the reminder's line.
 func (s *Service) entryReminderLine(ctx context.Context, tx *sql.Tx, n model.MailNotice, evaluator EntryEvaluator) (string, bool, error) {
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, n.TeamID, false)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, n.EventID, n.TeamID, false)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}

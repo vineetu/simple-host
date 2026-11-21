@@ -6,7 +6,6 @@ import (
 
 	"github.com/vsriram/simple-host/host/sqlkit"
 	model "github.com/vsriram/simple-host/products/hack/model"
-	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
@@ -111,8 +110,8 @@ func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (m
 	return team, nil
 }
 
-func checkFrozen(ctx context.Context, tx *sql.Tx, teamID string) error {
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
+func checkFrozen(ctx context.Context, tx *sql.Tx, eventID, teamID string) error {
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, teamID, false)
 	if err != nil {
 		return internalError(err)
 	}
@@ -134,7 +133,7 @@ func (s *Service) beginAdminWrite(ctx context.Context, ev model.Event, userID st
 	}
 	team, err := participantTeam(ctx, tx, ev.ID, userID)
 	if err == nil {
-		err = checkFrozen(ctx, tx, team.ID)
+		err = checkFrozen(ctx, tx, ev.ID, team.ID)
 	}
 	if err != nil {
 		tx.Rollback()
@@ -166,7 +165,7 @@ func (s *Service) PatchTeam(ctx context.Context, ev model.Event, userID string, 
 		return team, err
 	}
 	if name != nil || note != nil {
-		if err = checkFrozen(ctx, tx, team.ID); err != nil {
+		if err = checkFrozen(ctx, tx, ev.ID, team.ID); err != nil {
 			return team, err
 		}
 	}
@@ -178,7 +177,7 @@ func (s *Service) PatchTeam(ctx context.Context, ev model.Event, userID string, 
 
 func patchTeam(ctx context.Context, tx *sql.Tx, eventID string, team model.EventTeam, name, note *string) error {
 	if name != nil {
-		err := eventrepo.RenameEventTeam(ctx, tx, eventID, team.Slug, *name)
+		err := teamrepo.RenameEventTeam(ctx, tx, eventID, team.Slug, *name)
 		if isUnique(err) {
 			return errTeamNameTaken()
 		}
@@ -231,7 +230,7 @@ func (s *Service) ParticipantAdmin(ctx context.Context, ev model.Event, userID, 
 	case !callerAdmin:
 		return teamrepo.ErrHackTeamAdminOnly
 	}
-	if err = checkFrozen(ctx, tx, teamID); err != nil {
+	if err = checkFrozen(ctx, tx, ev.ID, teamID); err != nil {
 		return err
 	}
 	if err = teamrepo.SetTeamAdmin(ctx, tx, ev.ID, teamID, target, admin); err != nil {

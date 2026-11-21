@@ -2,12 +2,10 @@ package hackevents
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"time"
 
 	"github.com/lib/pq"
-	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
@@ -17,12 +15,6 @@ type SignupQuestion = model.SignupQuestion
 type SignupAnswer = model.SignupAnswer
 
 type EventTrack = model.EventTrack
-
-type EventMember = model.EventMember
-
-type RegistrationApplication = model.RegistrationApplication
-
-type ApplicantProfile = model.ApplicantProfile
 
 // RegistrationSettings loads the registration questions and approval setting.
 func RegistrationSettings(ctx context.Context, q sqlkit.Querier, eventID string) ([]SignupQuestion, bool, error) {
@@ -49,127 +41,6 @@ func SetRegistrationSettings(ctx context.Context, q sqlkit.Querier, eventID stri
 	}
 	_, err = q.ExecContext(ctx, `UPDATE events SET signup_questions=$2,approval_required=$3,updated_at=now() WHERE id=$1`, eventID, raw, approval)
 	return err
-}
-
-func MemberApprovalStatus(ctx context.Context, q sqlkit.Querier, eventID, userID string) (string, error) {
-	var status string
-	err := q.QueryRowContext(ctx, `SELECT approval_status FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, userID).Scan(&status)
-	return status, err
-}
-
-func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID, userID string, answers []SignupAnswer, pending bool) (EventMember, error) {
-	raw, err := json.Marshal(answers)
-	if err != nil {
-		return EventMember{}, err
-	}
-	status := "approved"
-	if pending {
-		status = "pending"
-	}
-	m, err := scanMember(q.QueryRowContext(ctx, `WITH joined AS (
-		INSERT INTO event_members (event_id,user_id,role,coc_accepted_at,signup_answers,approval_status)
-		VALUES ($1,$2,'participant',now(),$3,$4)
-		RETURNING event_id,user_id,role,team_id,coc_accepted_at,joined_at
-		), reserved AS (
-		INSERT INTO event_used_names (event_slug, team_slug)
-		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
-		ON CONFLICT DO NOTHING
-		) SELECT j.event_id,j.user_id,j.role,'',j.team_id,j.coc_accepted_at,j.joined_at FROM joined j`, eventID, userID, raw, status))
-	return WithDisplayName(ctx, q, m, err)
-}
-
-func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID string) ([]RegistrationApplication, error) {
-	rows, err := queryContext(ctx, q, `SELECT m.user_id,m.approval_status,m.signup_answers,m.joined_at,
-		m.joined_via,m.city,m.country,m.age_range,m.gender
-		FROM event_members m WHERE m.event_id=$1 AND m.role='participant' ORDER BY m.joined_at`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []RegistrationApplication{}
-	for rows.Next() {
-		var a RegistrationApplication
-		var raw []byte
-		if err := rows.Scan(&a.UserID, &a.Status, &raw, &a.JoinedAt,
-			&a.JoinedVia, &a.City, &a.Country, &a.AgeRange, &a.Gender); err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(raw, &a.Answers); err != nil {
-			return nil, err
-		}
-		out = append(out, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	ids := make([]string, len(out))
-	for i, a := range out {
-		ids[i] = a.UserID
-	}
-	users, err := accounts.UsersByIDs(ctx, q, ids)
-	if err != nil {
-		return nil, err
-	}
-	kept := []RegistrationApplication{}
-	for _, a := range out {
-		if u, ok := users[a.UserID]; ok {
-			a.Email, a.DisplayName = u.Username, u.DisplayName.String
-			kept = append(kept, a)
-		}
-	}
-	return kept, nil
-}
-
-// ApplyParticipant is JoinParticipantRegistration for someone applying to an event without a join link.
-func ApplyParticipant(ctx context.Context, q sqlkit.Querier, eventID, userID string, answers []SignupAnswer, p ApplicantProfile) (EventMember, error) {
-	raw, err := json.Marshal(answers)
-	if err != nil {
-		return EventMember{}, err
-	}
-	m, err := scanMember(q.QueryRowContext(ctx, `WITH joined AS (
-		INSERT INTO event_members (event_id,user_id,role,coc_accepted_at,signup_answers,approval_status,joined_via,city,country,age_range,gender)
-		VALUES ($1,$2,'participant',now(),$3,'pending','application',$4,$5,$6,$7)
-		RETURNING event_id,user_id,role,team_id,coc_accepted_at,joined_at
-		), reserved AS (
-		INSERT INTO event_used_names (event_slug, team_slug)
-		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
-		ON CONFLICT DO NOTHING
-		) SELECT j.event_id,j.user_id,j.role,'',j.team_id,j.coc_accepted_at,j.joined_at FROM joined j`, eventID, userID, raw, p.City, p.Country, p.AgeRange, p.Gender))
-	return WithDisplayName(ctx, q, m, err)
-}
-
-// CountPendingApplications is how many applications (joined_via='application'), across every event, this person has waiting for a decision.
-func CountPendingApplications(ctx context.Context, q sqlkit.Querier, userID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `SELECT count(*) FROM event_members WHERE user_id=$1 AND joined_via='application' AND approval_status='pending'`, userID).Scan(&n)
-	return n, err
-}
-
-// CountPendingApplicationsForEvent is how many applications this one event has waiting for a decision, for the per-event ceiling.
-func CountPendingApplicationsForEvent(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `SELECT count(*) FROM event_members WHERE event_id=$1 AND joined_via='application' AND approval_status='pending'`, eventID).Scan(&n)
-	return n, err
-}
-
-// MemberStatus is the small summary GET .../apply's "me" needs for a caller who is already a member: their role, approval status and how they joined.
-type MemberStatus = model.MemberStatus
-
-// GetMemberStatus loads MemberStatus. sql.ErrNoRows if the caller is not a member.
-func GetMemberStatus(ctx context.Context, q sqlkit.Querier, eventID, userID string) (MemberStatus, error) {
-	var m MemberStatus
-	err := q.QueryRowContext(ctx, `SELECT role, approval_status, joined_via FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, userID).Scan(&m.Role, &m.ApprovalStatus, &m.JoinedVia)
-	return m, err
-}
-
-// DecideRegistration approves or rejects one pending participant.
-func DecideRegistration(ctx context.Context, q sqlkit.Querier, eventID, userID, actor, status string) (bool, error) {
-	result, err := q.ExecContext(ctx, `UPDATE event_members SET approval_status=$4,approval_decided_at=now(),approval_decided_by=$3,city=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE city END,country=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE country END,age_range=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE age_range END,gender=CASE WHEN $4='rejected' AND joined_via='application' THEN '' ELSE gender END WHERE event_id=$1 AND user_id=$2 AND role='participant' AND approval_status='pending'`, eventID, userID, actor, status)
-	if err != nil {
-		return false, err
-	}
-	n, err := result.RowsAffected()
-	return n == 1, err
 }
 
 func ListEventTracks(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventTrack, error) {
@@ -207,35 +78,30 @@ func ReplaceEventTracks(ctx context.Context, q sqlkit.Querier, eventID string, t
 	return err
 }
 
-func SetTeamTrack(ctx context.Context, q sqlkit.Querier, eventID, teamID, slug string) (string, error) {
-	var id sql.NullString
-	if slug != "" {
-		if err := q.QueryRowContext(ctx, `SELECT id FROM event_tracks WHERE event_id=$1 AND slug=$2`, eventID, slug).Scan(&id); err != nil {
-			return "", err
-		}
-	}
-	result, err := q.ExecContext(ctx, `UPDATE event_teams SET track_id=$3 WHERE event_id=$1 AND id=$2`, eventID, teamID, id)
-	if err != nil {
-		return "", err
-	}
-	n, err := result.RowsAffected()
-	if err != nil {
-		return "", err
-	}
-	if n == 0 {
-		return "", sql.ErrNoRows
-	}
-	return id.String, nil
+// TrackIDBySlug is the id of the event's track named slug.
+func TrackIDBySlug(ctx context.Context, q sqlkit.Querier, eventID, slug string) (string, error) {
+	var id string
+	err := q.QueryRowContext(ctx, `SELECT id FROM event_tracks WHERE event_id=$1 AND slug=$2`, eventID, slug).Scan(&id)
+	return id, err
 }
 
-func TeamTrack(ctx context.Context, q sqlkit.Querier, teamID string) (*EventTrack, error) {
-	var t EventTrack
-	err := q.QueryRowContext(ctx, `SELECT x.id,x.slug,x.name,x.challenge,x.prize FROM event_teams t JOIN event_tracks x ON x.id=t.track_id WHERE t.id=$1`, teamID).Scan(&t.ID, &t.Slug, &t.Name, &t.Challenge, &t.Prize)
-	if err == sql.ErrNoRows {
-		return nil, nil
+// TracksByIDs loads these tracks by id; an id with no track is absent.
+func TracksByIDs(ctx context.Context, q sqlkit.Querier, ids []string) (map[string]EventTrack, error) {
+	out := map[string]EventTrack{}
+	if len(ids) == 0 {
+		return out, nil
 	}
+	rows, err := queryContext(ctx, q, `SELECT id,slug,name,challenge,prize FROM event_tracks WHERE id = ANY($1::uuid[])`, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
-	return &t, nil
+	defer rows.Close()
+	for rows.Next() {
+		var t EventTrack
+		if err := rows.Scan(&t.ID, &t.Slug, &t.Name, &t.Challenge, &t.Prize); err != nil {
+			return nil, err
+		}
+		out[t.ID] = t
+	}
+	return out, rows.Err()
 }

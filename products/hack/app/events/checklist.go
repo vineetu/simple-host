@@ -15,6 +15,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
@@ -86,7 +87,8 @@ func (s *ChecklistService) Read(ctx context.Context, eventID, actorID, role stri
 
 // checklistMember loads the reader's membership; an admin inspecting an event they are not in reads it as a read-only organiser.
 func (s *ChecklistService) checklistMember(ctx context.Context, eventID, actorID string, adminView bool) (model.EventMember, bool, error) {
-	member, err := eventrepo.GetEventMember(ctx, s.db, eventID, actorID)
+	member, err := hackmembers.Member(ctx, s.db, eventID, actorID, hackmembers.NoLock)
+	member, err = hackmembers.WithDisplayName(ctx, s.db, member, err)
 	if errors.Is(err, sql.ErrNoRows) && adminView {
 		return model.EventMember{Role: "organiser"}, true, nil
 	}
@@ -257,7 +259,7 @@ func (s *ChecklistService) organiserFacts(ctx context.Context, ev model.Event, r
 	if err != nil {
 		return err
 	}
-	participants, _, _, err := eventrepo.CountEventMembers(ctx, s.db, ev.ID)
+	participants, err := hackmembers.Count(ctx, s.db, hackmembers.Filter{EventID: ev.ID, Role: "participant", Status: "approved"})
 	if err != nil {
 		return err
 	}
@@ -488,7 +490,8 @@ func (s *ChecklistService) Write(ctx context.Context, eventID, actorID, itemID, 
 	if err != nil {
 		return err
 	}
-	m, err := eventrepo.GetEventMember(ctx, tx, eventID, actorID)
+	m, err := hackmembers.Member(ctx, tx, eventID, actorID, hackmembers.NoLock)
+	m, err = hackmembers.WithDisplayName(ctx, tx, m, err)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &Error{Code: "event_not_found", Message: "event not found"}
 	}

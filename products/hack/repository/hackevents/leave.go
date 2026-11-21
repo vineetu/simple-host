@@ -2,103 +2,37 @@ package hackevents
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
-	"github.com/lib/pq"
-	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
-	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 
 type OtherOrganiser = model.OtherOrganiser
 
 type FormerJudge = model.FormerJudge
 
-// EffectiveDeadlineSQL is the team deadline over events e and event_teams t.
-const EffectiveDeadlineSQL = `CASE WHEN e.submission_deadline IS NULL THEN NULL ELSE GREATEST(e.submission_deadline, t.deadline_override) END`
-
-// TeamKeepableSQL is the predicate for deleting an empty team.
-const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + EffectiveDeadlineSQL + ` IS NULL OR ` + EffectiveDeadlineSQL + ` > clock_timestamp())`
-
-// LeaveSelf loads one membership row plus its approval status, for GET/POST .../leave.
-func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lock bool) (EventMember, string, error) {
-	query := `SELECT m.event_id, m.user_id, m.role, m.team_id, m.coc_accepted_at, m.joined_at, approval_status
-	            FROM event_members m WHERE m.event_id = $1 AND m.user_id = $2`
-	if lock {
-		query += ` FOR UPDATE OF m`
-	}
-	var m EventMember
-	var status string
-	err := q.QueryRowContext(ctx, query, eventID, userID).Scan(
-		&m.EventID, &m.UserID, &m.Role, &m.TeamID, &m.CocAcceptedAt, &m.JoinedAt, &status)
-	if m, err = WithDisplayName(ctx, q, m, err); err != nil {
-		return EventMember{}, "", err
-	}
-	return m, status, nil
-}
-
-func OtherEventOrganisers(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]OtherOrganiser, error) {
-	ids, err := userIDs(ctx, q, `SELECT user_id FROM event_members
-		WHERE event_id = $1 AND role = 'organiser' AND user_id <> $2`, eventID, userID)
-	if err != nil {
-		return nil, err
-	}
-	users, err := accounts.UsersByIDs(ctx, q, ids)
-	if err != nil {
-		return nil, err
-	}
-	sorted, err := accounts.SortByDisplayName(ctx, q, ids)
-	if err != nil {
-		return nil, err
-	}
-	out := []OtherOrganiser{}
-	for _, id := range sorted {
-		if u, ok := users[id]; ok {
-			out = append(out, OtherOrganiser{UserID: id, DisplayName: u.DisplayName.String, Email: u.Username})
-		}
-	}
-	return out, nil
-}
-
-// TeamKeptIfEmptied reports whether, if leaving emptied this team right now, it would be kept rather than deleted.
-func TeamKeptIfEmptied(ctx context.Context, q sqlkit.Querier, teamID string) (bool, error) {
-	var kept bool
-	err := q.QueryRowContext(ctx, `
-		SELECT NOT (`+TeamKeepableSQL+`)
-		  FROM event_teams t JOIN events e ON e.id = t.event_id WHERE t.id = $1`, teamID).Scan(&kept)
-	return kept, err
-}
-
-// leaveQueuedSQL drops what was waiting on the leaver, each taking.
+// leaveQueuedSQL drops what was waiting on the leaver here, each taking
+// (event id, user id).
 var leaveQueuedSQL = []string{
-	`DELETE FROM event_team_requests WHERE event_id=$1 AND user_id=$2`,
 	`DELETE FROM event_announcement_deliveries d USING event_announcements a
 		WHERE d.announcement_id = a.id AND a.event_id = $1 AND d.user_id = $2 AND d.sent_at IS NULL`,
-	`DELETE FROM event_entry_receipts WHERE event_id=$1 AND user_id=$2 AND sent_at IS NULL`,
-	`DELETE FROM event_notices WHERE event_id=$1 AND user_id=$2`,
 }
 
-// leaveMemberSQL removes the leaver as an organiser judge and as a member.
-var leaveMemberSQL = []string{
-	`UPDATE events SET organiser_judges=array_remove(organiser_judges,$2::uuid) WHERE id=$1`,
-	`DELETE FROM event_members WHERE event_id = $1 AND user_id = $2`,
+// DropQueuedForLeaver reserves the event's name and drops the announcement
+// emails still waiting on someone leaving (hackentries.DropLeaver drops their
+// entry receipts).
+func DropQueuedForLeaver(ctx context.Context, q sqlkit.Querier, eventID, userID string) error {
+	if err := ReserveEventName(ctx, q, eventID); err != nil {
+		return err
+	}
+	return execForMember(ctx, q, leaveQueuedSQL, eventID, userID)
 }
 
-// DropMembership reserves the event's name, drops everything queued for the leaver and their checklist acknowledgements, then the membership itself.
-func DropMembership(ctx context.Context, q sqlkit.Querier, eventID, userID string) error {
-	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
-		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID); err != nil {
-		return err
-	}
-	if err := execForMember(ctx, q, leaveQueuedSQL, eventID, userID); err != nil {
-		return err
-	}
-	if err := DeletePersonalChecklistAcknowledgements(ctx, q, eventID, userID); err != nil {
-		return err
-	}
-	return execForMember(ctx, q, leaveMemberSQL, eventID, userID)
+// RemoveOrganiserJudge takes the person out of the event's organiser_judges.
+func RemoveOrganiserJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) error {
+	_, err := q.ExecContext(ctx, `UPDATE events SET organiser_judges=array_remove(organiser_judges,$2::uuid) WHERE id=$1`, eventID, userID)
+	return err
 }
 
 func execForMember(ctx context.Context, q sqlkit.Querier, stmts []string, eventID, userID string) error {
@@ -108,119 +42,6 @@ func execForMember(ctx context.Context, q sqlkit.Querier, stmts []string, eventI
 		}
 	}
 	return nil
-}
-
-// markTeamKeptAfterLeave sets kept_after_leave on a team LeaveMembership's own deleteTeamIfEmpty call just kept instead of deleting.
-func MarkTeamKeptAfterLeave(ctx context.Context, q sqlkit.Querier, teamID string) error {
-	_, err := q.ExecContext(ctx, `
-		UPDATE event_teams SET kept_after_leave = true, locked_at = COALESCE(locked_at, clock_timestamp())
-		 WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM event_members WHERE team_id = $1)`, teamID)
-	return err
-}
-
-// RecordFormerJudge freezes the teams a leaving judge scored and was eligible for, so leaving does not change what their scores count toward.
-func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, role string) error {
-	eligible, err := hackentries.EligibleJudgeTeamsIgnoringConflicts(ctx, q, eventID, userID)
-	if err != nil {
-		return err
-	}
-	rows, err := queryContext(ctx, q, `SELECT DISTINCT team_id FROM event_scores WHERE event_id=$1 AND judge_id=$2`, eventID, userID)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	counted := []string{}
-	for rows.Next() {
-		var teamID string
-		if err := rows.Scan(&teamID); err != nil {
-			return err
-		}
-		if eligible[teamID] {
-			counted = append(counted, teamID)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	if len(counted) == 0 {
-		return nil
-	}
-	_, err = q.ExecContext(ctx, `
-		INSERT INTO event_former_judges (event_id, user_id, role, counted_team_ids, left_at)
-		VALUES ($1, $2, $3, $4, now())
-		ON CONFLICT (event_id, user_id) DO UPDATE SET
-			role = EXCLUDED.role,
-			counted_team_ids = EXCLUDED.counted_team_ids, left_at = EXCLUDED.left_at`,
-		eventID, userID, role, pq.Array(counted))
-	return err
-}
-
-func ListFormerJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]FormerJudge, error) {
-	rows, err := queryContext(ctx, q, `
-		SELECT f.user_id, f.role, f.left_at FROM event_former_judges f
-		 WHERE event_id = $1 ORDER BY left_at ASC`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var found []FormerJudge
-	var ids []string
-	for rows.Next() {
-		var f FormerJudge
-		if err := rows.Scan(&f.UserID, &f.Role, &f.LeftAt); err != nil {
-			return nil, err
-		}
-		found, ids = append(found, f), append(ids, f.UserID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	users, err := accounts.UsersByIDs(ctx, q, ids)
-	if err != nil {
-		return nil, err
-	}
-	out := []FormerJudge{}
-	for _, f := range found {
-		if u, ok := users[f.UserID]; ok {
-			f.DisplayName = u.DisplayName.String
-			out = append(out, f)
-		}
-	}
-	return out, nil
-}
-
-// FormerJudgeAssignedCount is how many of today's judge-eligible teams this former judge would be assigned under the event's current mode, ignoring that their role is gone.
-func FormerJudgeAssignedCount(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM event_teams t JOIN events e ON e.id = t.event_id
-		 WHERE e.id = $1 AND (EXISTS (SELECT 1 FROM event_members em WHERE em.team_id = t.id) OR t.kept_after_leave)
-		   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id = e.id AND c.judge_id = $2 AND c.team_id = t.id)
-		   AND (e.judge_assignment_mode = 'open'
-		    OR (e.judge_assignment_mode IN ('automatic', 'manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id = e.id AND a.judge_id = $2 AND a.team_id = t.id))
-		    OR (e.judge_assignment_mode = 'panel' AND EXISTS (SELECT 1 FROM event_track_panels p WHERE p.event_id = e.id AND p.track_id = t.track_id AND p.judge_id = $2)))`,
-		eventID, judgeID).Scan(&n)
-	return n, err
-}
-
-// DeleteFormerJudgeScores removes a departed judge's score rows and their former-judge record.
-func DeleteFormerJudgeScores(ctx context.Context, q *sql.Tx, eventID, userID string) (bool, error) {
-	var id string
-	err := q.QueryRowContext(ctx, `
-		SELECT user_id FROM event_former_judges WHERE event_id = $1 AND user_id = $2 FOR UPDATE`, eventID, userID).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_scores WHERE event_id = $1 AND judge_id = $2`, eventID, userID); err != nil {
-		return false, err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_former_judges WHERE event_id = $1 AND user_id = $2`, eventID, userID); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 var ErrHackCannotRemoveOrganiser = errors.New("cannot remove organiser")

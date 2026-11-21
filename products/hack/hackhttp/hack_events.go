@@ -13,10 +13,6 @@ import (
 	hackmodel "github.com/vsriram/simple-host/products/hack/model"
 )
 
-func eventNameReserved(name string) bool {
-	return extraEventReserved[name] || sites.LabelReservedForNew(name)
-}
-
 func (h *HackHandler) checkName(w http.ResponseWriter, r *http.Request) {
 	user := hackNeedUser(w, r)
 	if user == nil {
@@ -54,7 +50,7 @@ func (h *HackHandler) slugVerdict(ctx context.Context, slug string) (code, errMs
 	if !sites.EventNameShape(slug) {
 		return "invalid_name", "use 3 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen, and never two hyphens in a row", nil
 	}
-	if eventNameReserved(slug) {
+	if events.NameReserved(slug) {
 		return "name_reserved", "that name is reserved", nil
 	}
 	v, err := h.events.JudgeHandle(ctx, slug)
@@ -174,7 +170,7 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	eventList, roles, err := h.events.EventsForUser(r.Context(), user.ID)
+	eventList, members, err := h.events.EventsForUser(r.Context(), user.ID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
@@ -185,8 +181,8 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"slug":         ev.Slug,
 			"title":        ev.Title,
 			"stage":        ev.Stage,
-			"role":         roles[i],
-			"can":          h.events.MemberAbilities(r.Context(), ev.ID, hackmodel.EventMember{UserID: user.ID, Role: roles[i], JoinedAt: ev.CreatedAt}),
+			"role":         members[i].Role,
+			"can":          h.events.MemberAbilities(r.Context(), ev.ID, hackmodel.EventMember{UserID: user.ID, Role: members[i].Role, JoinedAt: ev.CreatedAt}),
 			"ended_at":     rfc3339UTC(ev.ClosedAt),
 			"url":          h.links.EventURL(ev.Slug),
 			"icon_url":     h.links.iconURL(ev),
@@ -197,10 +193,8 @@ func (h *HackHandler) listEvents(w http.ResponseWriter, r *http.Request) {
 			"taken_down": ev.TakenDown(),
 			"time_zone":  ev.TimeZone,
 		}
-		if roles[i] == "participant" {
-			if status, err := h.members.MemberApprovalStatusLookup(r.Context(), ev.ID, user.ID); err == nil {
-				item["approval_status"] = status
-			}
+		if members[i].Participant() {
+			item["approval_status"] = members[i].ApprovalStatus
 		}
 		out = append(out, item)
 	}
@@ -238,12 +232,12 @@ func (h *HackHandler) setStage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid_stage", "stage is not a known event stage")
 		return
 	}
-	updated, current, err := h.events.SetStage(r.Context(), a.event, stage, h.entries.SettleEventTx)
+	updated, current, err := h.events.SetStage(r.Context(), a.event, stage)
 	if err != nil {
 		writeHackError(w, err)
 		return
 	}
-	if err := h.entries.AssignOnStartJudging(r.Context(), updated, current, h.links.poolSiteLive(r.Context(), updated)); err != nil {
+	if err := h.entries.AssignOnStartJudging(r.Context(), updated, current); err != nil {
 		log.Printf("hack: stage assignments %s: %v", updated.Slug, err)
 	}
 	if current != updated.Stage {

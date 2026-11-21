@@ -7,6 +7,7 @@ import (
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -57,10 +58,10 @@ func (s *Service) linkTeam(ctx context.Context, code string) (LinkPreview, error
 	if out.MemberCount, err = teamrepo.CountTeamMembers(ctx, s.db, team.ID); err != nil {
 		return LinkPreview{}, err
 	}
-	if out.DeadlinePassed, err = s.teamDeadlinePassed(ctx, team.ID); err != nil {
+	if out.DeadlinePassed, err = teamrepo.TeamDeadlinePassed(ctx, s.db, team.EventID, team.ID); err != nil {
 		return LinkPreview{}, err
 	}
-	if track, err := eventrepo.TeamTrack(ctx, s.db, team.ID); err == nil {
+	if track, err := teamrepo.TeamTrack(ctx, s.db, team.ID); err == nil {
 		out.Track = track
 	}
 	return out, nil
@@ -71,7 +72,7 @@ func (s *Service) linkTeam(ctx context.Context, code string) (LinkPreview, error
 // team's name). A lookup failure never becomes not_in_event: only a
 // missing row proves it.
 func (s *Service) linkStatus(ctx context.Context, out *LinkPreview, userID string) error {
-	member, err := eventrepo.GetEventMember(ctx, s.db, out.Event.ID, userID)
+	member, err := hackmembers.Member(ctx, s.db, out.Event.ID, userID, hackmembers.NoLock)
 	if errors.Is(err, sql.ErrNoRows) {
 		out.YouStatus = "not_in_event"
 		return nil
@@ -79,14 +80,11 @@ func (s *Service) linkStatus(ctx context.Context, out *LinkPreview, userID strin
 	if err != nil {
 		return err
 	}
-	if member.Role == "organiser" || member.Role == "judge" {
+	if !member.Participant() {
 		out.YouStatus = member.Role
 		return nil
 	}
-	status, err := eventrepo.MemberApprovalStatus(ctx, s.db, out.Event.ID, userID)
-	switch {
-	case err != nil:
-		return err
+	switch status := member.ApprovalStatus; {
 	case status == "pending" || status == "rejected":
 		out.YouStatus = status
 	case !member.TeamID.Valid:

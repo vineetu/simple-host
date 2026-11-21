@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
+
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
-	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
-	"reflect"
 )
 
 // ChecklistJudgingFacts shares batched eligibility, scores and standings for checklist guidance.
@@ -100,7 +101,7 @@ func loadChecklistJudging(ctx context.Context, q sqlkit.Querier, eventID string,
 	if in.eligibility, err = entryrepo.EventJudgeEligibility(ctx, q, eventID); err != nil {
 		return in, err
 	}
-	in.tracks, err = entryrepo.EventTeamTracks(ctx, q, eventID)
+	in.tracks, err = teamrepo.EventTeamTracks(ctx, q, eventID)
 	return in, err
 }
 
@@ -284,7 +285,7 @@ func (s *Service) ChecklistParticipant(ctx context.Context, ev model.Event, memb
 	if err != nil {
 		return Progress{}, model.TeamWriteState{}, err
 	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, s.db, team.ID, false)
+	st, err := teamrepo.TeamWriteStateFor(ctx, s.db, ev.ID, team.ID, false)
 	if err != nil {
 		return Progress{}, st, err
 	}
@@ -293,13 +294,13 @@ func (s *Service) ChecklistParticipant(ctx context.Context, ev model.Event, memb
 }
 
 func (s *Service) ChecklistParticipantApproved(ctx context.Context, ev model.Event, userID string) (bool, error) {
-	m, err := eventrepo.MemberApprovalStatus(ctx, s.db, ev.ID, userID)
-	return m == "approved", err
+	m, err := hackmembers.Member(ctx, s.db, ev.ID, userID, hackmembers.NoLock)
+	return err == nil && m.Approved(), err
 }
 
 func (s *Service) checklistOwnJudging(ctx context.Context, ev model.Event, actorID string) (ChecklistJudgingFacts, error) {
 	var f ChecklistJudgingFacts
-	queue, err := s.JudgeCandidates(ctx, ev, actorID, func() error { return nil })
+	queue, err := s.JudgeCandidates(ctx, ev, actorID)
 	if err != nil {
 		return f, err
 	}

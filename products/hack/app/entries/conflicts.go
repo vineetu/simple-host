@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 

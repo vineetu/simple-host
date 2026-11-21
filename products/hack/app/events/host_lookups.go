@@ -7,7 +7,9 @@ import (
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 func (s *Service) UserByID(ctx context.Context, id string) (model.User, error) {
@@ -23,7 +25,16 @@ func (s *Service) SitePasscode(ctx context.Context, siteID string) (model.SitePa
 	return sites.SitePasscode(ctx, s.db, siteID)
 }
 func (s *Service) PendingContentMail(ctx context.Context) (int64, error) {
-	return hackevents.PendingContentMail(ctx, s.db)
+	content, err := hackevents.PendingContentMail(ctx, s.db)
+	if err != nil {
+		return 0, err
+	}
+	receipts, err := hackentries.PendingReceipts(ctx, s.db)
+	if err != nil {
+		return 0, err
+	}
+	notices, err := hackmembers.PendingMail(ctx, s.db)
+	return content + receipts + notices, err
 }
 
 // HandleVerdict describes the shared handle namespace check for an event name.

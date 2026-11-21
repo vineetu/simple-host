@@ -50,7 +50,7 @@ func TestHackDeleteBusyEvent(t *testing.T) {
 	}
 	for _, statement := range []string{
 		`INSERT INTO event_scores(event_id,judge_id,team_id,criterion_id,points) SELECT $1,$2,$3,id,4 FROM rubric_criteria WHERE event_id=$1`,
-		`INSERT INTO event_votes(event_id,voter_email,team_id) SELECT $1,'delete-voter@example.com',$3 WHERE $2::uuid IS NOT NULL`,
+		`INSERT INTO event_votes(event_id,voter_id,team_id) SELECT $1,$2,$3`,
 		`INSERT INTO event_results(event_id,published_by,snapshot) SELECT $1,$2,'[]'::jsonb WHERE $3::uuid IS NOT NULL`,
 	} {
 		if _, err := a.database.Exec(statement, ev.ID, a.uid(t, judge), teamID); err != nil {

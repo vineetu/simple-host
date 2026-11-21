@@ -8,6 +8,7 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -79,11 +80,13 @@ func (s *Service) PreviewLeave(ctx context.Context, slug, userID string) (p Leav
 		return p, err
 	}
 	ev := p.Event
-	member, status, err := eventrepo.LeaveSelf(ctx, s.db, ev.ID, userID, false)
+	member, err := hackmembers.Member(ctx, s.db, ev.ID, userID, hackmembers.NoLock)
+	member, err = hackmembers.WithDisplayName(ctx, s.db, member, err)
+	status := member.ApprovalStatus
 	if err != nil {
 		return p, err
 	}
-	others, err := eventrepo.OtherEventOrganisers(ctx, s.db, ev.ID, userID)
+	others, err := hackmembers.OtherEventOrganisers(ctx, s.db, ev.ID, userID)
 	if err != nil {
 		return p, err
 	}
@@ -103,7 +106,7 @@ func (s *Service) previewCase(ctx context.Context, p *LeavePreview, member model
 	switch p.Case {
 	case "participant":
 		if member.TeamID.Valid {
-			p.Team, err = previewTeam(ctx, s.db, member.TeamID.String, userID)
+			p.Team, err = previewTeam(ctx, s.db, p.Event, member.TeamID.String, userID)
 		}
 		return err
 	case "applicant", "":
@@ -126,7 +129,7 @@ func (s *Service) previewCase(ctx context.Context, p *LeavePreview, member model
 }
 
 // previewTeam describes what leaving does to the caller's team.
-func previewTeam(ctx context.Context, db sqlkit.Querier, teamID, userID string) (*LeaveTeam, error) {
+func previewTeam(ctx context.Context, db sqlkit.Querier, ev model.Event, teamID, userID string) (*LeaveTeam, error) {
 	team, err := teamrepo.GetEventTeamByID(ctx, db, teamID)
 	if err != nil {
 		return nil, err
@@ -135,7 +138,7 @@ func previewTeam(ctx context.Context, db sqlkit.Querier, teamID, userID string) 
 	if err != nil {
 		return nil, err
 	}
-	kept, err := eventrepo.TeamKeptIfEmptied(ctx, db, team.ID)
+	kept, err := teamrepo.TeamKeptIfEmptied(ctx, db, ev, team.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +160,7 @@ func scoredTeams(ctx context.Context, db sqlkit.Querier, eventID, userID string)
 
 // closeOptions says which ways the last organiser may close the event: it can only be ended once somebody has joined.
 func closeOptions(ctx context.Context, db sqlkit.Querier, eventID string) (map[string]any, error) {
-	participants, _, _, err := eventrepo.CountEventMembers(ctx, db, eventID)
+	participants, err := hackmembers.Count(ctx, db, hackmembers.Filter{EventID: eventID, Role: "participant", Status: "approved"})
 	end := map[string]any{"allowed": true, "blocked": nil}
 	if participants == 0 {
 		end = map[string]any{"allowed": false, "blocked": "archive_needs_participants"}

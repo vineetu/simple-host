@@ -75,7 +75,7 @@ func (h *views) teamDeadlineJSON(ctx context.Context, team hackmodel.EventTeam, 
 	obj["frozen"] = false
 	obj["extended"] = false
 	obj["pinned_version"] = nil
-	st, err := h.teams.WriteState(ctx, team.ID)
+	st, err := h.teams.WriteState(ctx, team.EventID, team.ID)
 	if err != nil {
 		return
 	}

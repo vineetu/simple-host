@@ -4,12 +4,12 @@ import (
 	"context"
 
 	model "github.com/vsriram/simple-host/products/hack/model"
-	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 func (s *Service) ListPeople(ctx context.Context, eventID string) ([]model.EventPerson, error) {
-	return eventrepo.ListEventPeople(ctx, s.db, eventID)
+	return teamrepo.ListEventPeople(ctx, s.db, eventID)
 }
 
 func (s *Service) ListTeams(ctx context.Context, eventID string) ([]model.EventTeam, error) {
@@ -17,7 +17,7 @@ func (s *Service) ListTeams(ctx context.Context, eventID string) ([]model.EventT
 }
 
 func (s *Service) ListParticipantsOnNoTeam(ctx context.Context, eventID string) ([]model.EventPerson, error) {
-	return eventrepo.ListParticipantsOnNoTeam(ctx, s.db, eventID)
+	return hackmembers.People(ctx, s.db, hackmembers.Filter{EventID: eventID, Role: "participant", Status: "approved", NoTeam: true})
 }
 
 func (s *Service) GetTeam(ctx context.Context, teamID string) (model.EventTeam, error) {

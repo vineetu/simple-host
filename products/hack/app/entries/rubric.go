@@ -5,11 +5,12 @@ import (
 
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
-	"strings"
 )
 
 func (s *Service) Rubric(ctx context.Context, eventID string) ([]model.RubricCriterion, error) {

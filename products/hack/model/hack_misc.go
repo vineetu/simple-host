@@ -76,7 +76,8 @@ type MailBatch struct {
 
 type MailNotice struct {
 	Notice
-	EventSlug, EventTitle, EventTimeZone string
+	EventSlug, EventTitle, EventTimeZone, EventStage string
+	EventTakenDown                                   bool
 }
 
 type HackPreferences struct {
@@ -116,3 +117,11 @@ type VoteOption struct {
 type Error struct{ Code, Message string }
 
 func (e *Error) Error() string { return e.Message }
+
+// InboundGroup is one team's unread messages to one organiser: how many, the
+// newest message's id and when it came.
+type InboundGroup struct {
+	TeamID, LatestRef string
+	Count             int
+	LatestAt          time.Time
+}

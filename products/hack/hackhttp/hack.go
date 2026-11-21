@@ -25,22 +25,6 @@ import (
 // not written their own. Plain text; never turned into HTML.
 const HackDefaultCoC = "This event is a respectful, harassment-free space. Treat everyone with care, whatever their background or experience.\n\nDo not post hateful, sexual or abusive content. Do not copy or interfere with another team's work.\n\nIf something is wrong, tell the organiser. Organisers may remove anyone who breaks this code."
 
-// extraEventReserved is the extra names refused for an event slug, on top of labelReservedForNew / judgeHandle.
-var extraEventReserved = map[string]bool{
-	"www": true, "api": true, "admin": true, "app": true,
-	"judge": true, "judges": true, "vote": true, "results": true,
-	"e": true, "events": true, "event": true, "join": true,
-	"signin": true, "sign-in": true, "sites": true, "site": true,
-	"team": true, "teams": true, "manage": true, "new": true,
-	"help": true, "docs": true, "status": true, "mail": true,
-	"blog": true, "support": true, "report": true, "static": true,
-	"cdn": true, "mcp": true, "auth": true,
-	"mta-sts": true, "autoconfig": true, "autodiscover": true, "webmail": true,
-	// Names the certificate issuer never issues for (deploy/site-certs/
-	// issue.sh RESERVED): an event under one could never have team sites.
-	"lab": true, "cname": true, "test": true, "dev": true, "localhost": true,
-}
-
 const (
 	hackJoinCodeLen  = 8
 	hackJudgeCodeLen = 12
@@ -204,7 +188,6 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 	lim.Limits = ed.Limits()
 	codes := newCodeLimiter(lim)
 	h := &HackHandler{
-		events:         events.New(database),
 		teams:          teams.New(database),
 		limits:         &lim,
 		website:        &websiteLimits{database: database, limits: &lim, archiveDefault: defaultSiteArchiveSize},
@@ -215,6 +198,7 @@ func NewHackHandler(database *sql.DB, publicBaseURL, siteDomain string, editions
 	}
 	h.links = &siteLinks{teams: h.teams, publicBaseURL: strings.TrimRight(publicBaseURL, "/"), siteDomain: strings.Trim(strings.ToLower(siteDomain), ".")}
 	h.entries = entries.New(database, h.links.entrySiteLive)
+	h.events = events.New(database, h.entries)
 	h.members = members.New(database, h.events, h.entries)
 	h.views = &views{database: database, events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links}
 	h.judging = &judgingHTTP{events: h.events, entries: h.entries, teams: h.teams, members: h.members, links: h.links, views: h.views}
@@ -267,7 +251,7 @@ func (h *HackHandler) NameTaken(ctx context.Context, name string) (bool, error) 
 	if name == "" {
 		return false, nil
 	}
-	if eventNameReserved(name) {
+	if events.NameReserved(name) {
 		return true, nil
 	}
 	v, err := h.events.JudgeHandle(ctx, name)

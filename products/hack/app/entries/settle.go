@@ -27,8 +27,9 @@ func (s *Service) SettleEvent(ctx context.Context, eventID string, reports ...Sw
 		}
 		return
 	}
-	for _, teamID := range ids {
-		if err := s.SettleTeam(ctx, teamID, func() {
+	for _, u := range ids {
+		teamID := u.TeamID
+		if err := s.SettleTeam(ctx, u.EventID, teamID, func() {
 			for _, r := range reports {
 				r.Progress()
 			}
@@ -51,8 +52,8 @@ func (s *Service) SettleEventTx(ctx context.Context, tx *sql.Tx, eventID string)
 	if err != nil {
 		return err
 	}
-	for _, teamID := range ids {
-		if err := s.SettleTeamTx(ctx, tx, teamID); err != nil {
+	for _, u := range ids {
+		if err := s.SettleTeamTx(ctx, tx, eventID, u.TeamID); err != nil {
 			return err
 		}
 	}
@@ -81,17 +82,17 @@ func (s *Service) startSiteOnlyEntries(ctx context.Context, tx *sql.Tx, eventID 
 	return nil
 }
 
-func (s *Service) SettleTeam(ctx context.Context, teamID string, progress ...func()) error {
+func (s *Service) SettleTeam(ctx context.Context, eventID, teamID string, progress ...func()) error {
 	changed := false
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id = $1 FOR UPDATE`, teamID); err != nil {
+	if err := teamrepo.LockTeamRow(ctx, tx, teamID); err != nil {
 		return err
 	}
-	if err := s.SettleTeamTx(ctx, tx, teamID, func() { changed = true }); err != nil {
+	if err := s.SettleTeamTx(ctx, tx, eventID, teamID, func() { changed = true }); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -106,8 +107,8 @@ func (s *Service) SettleTeam(ctx context.Context, teamID string, progress ...fun
 }
 
 // SettleTeamTx settles one entry in a tx that already holds the team row FOR UPDATE.
-func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, teamID string, progress ...func()) error {
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, false)
+func (s *Service) SettleTeamTx(ctx context.Context, tx *sql.Tx, eventID, teamID string, progress ...func()) error {
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, teamID, false)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

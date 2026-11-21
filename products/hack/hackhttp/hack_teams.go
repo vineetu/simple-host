@@ -141,7 +141,7 @@ func (h *participationHTTP) createTeam(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, hackMaxBody, &req) {
 		return
 	}
-	team, err := h.teams.CreateTeam(r.Context(), a.event, a.user.ID, req.Name, req.LookingFor, h.links.teamSiteFlatHostsOn(), eventNameReserved)
+	team, err := h.teams.CreateTeam(r.Context(), a.event, a.user.ID, req.Name, req.LookingFor, h.links.teamSiteFlatHostsOn())
 	h.writeParticipantTeam(w, r, http.StatusCreated, a.user.ID, team, err)
 }
 

@@ -2,16 +2,38 @@ package events
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/host/sites"
 	"strings"
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
+	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
+// AdminListEvents is every event with organiser details, head counts and creator email.
 func (s *Service) AdminListEvents(ctx context.Context) ([]model.AdminEvent, error) {
-	return eventrepo.ListAdminEvents(ctx, s.db)
+	events, err := eventrepo.ListAdminEvents(ctx, s.db)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(events))
+	for i, a := range events {
+		ids[i] = a.ID
+	}
+	counts, err := hackmembers.CountRoles(ctx, s.db, ids)
+	if err != nil {
+		return nil, err
+	}
+	teams, err := teamrepo.CountTeamsByEvent(ctx, s.db, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i, a := range events {
+		c := counts[a.ID]
+		events[i].Participants, events[i].Judges, events[i].Teams = c.Participants, c.JudgeCount(a.OrganiserJudges), teams[a.ID]
+	}
+	return events, nil
 }
 
 func (s *Service) AdminKeepSites(ctx context.Context, id string, keep bool) (model.Event, error) {
@@ -52,7 +74,7 @@ func (s *Service) AdminDelete(ctx context.Context, ev model.Event, removeFiles f
 		return err
 	}
 	defer tx.Rollback()
-	if err = eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, accounts.DeleteAccountRow); err != nil {
+	if err = deleteEventAndAccount(ctx, tx, ev); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {

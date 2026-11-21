@@ -7,7 +7,9 @@ import (
 
 	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
+	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
@@ -76,7 +78,9 @@ func (s *Service) Leave(ctx context.Context, slug, userID string, req LeaveReque
 
 // planLeave locks the caller's membership and checks the request against the leave case the server finds now.
 func planLeave(ctx context.Context, tx *sql.Tx, ev model.Event, userID string, req LeaveRequest) (leavePlan, error) {
-	member, status, err := eventrepo.LeaveSelf(ctx, tx, ev.ID, userID, true)
+	member, err := hackmembers.Member(ctx, tx, ev.ID, userID, hackmembers.ForUpdate)
+	member, err = hackmembers.WithDisplayName(ctx, tx, member, err)
+	status := member.ApprovalStatus
 	if errors.Is(err, sql.ErrNoRows) {
 		return leavePlan{}, errEventNotFound
 	}
@@ -89,7 +93,7 @@ func planLeave(ctx context.Context, tx *sql.Tx, ev model.Event, userID string, r
 	if req.Confirm != ev.Slug {
 		return leavePlan{}, &Error{Code: "leave_needs_confirm", Message: `to leave, send {"confirm":"<slug>"} with this event's address name`}
 	}
-	others, err := eventrepo.OtherEventOrganisers(ctx, tx, ev.ID, userID)
+	others, err := hackmembers.OtherEventOrganisers(ctx, tx, ev.ID, userID)
 	if err != nil {
 		return leavePlan{}, err
 	}
@@ -141,7 +145,7 @@ func checkLeaveRequest(leaveCase string, req LeaveRequest, others []model.OtherO
 }
 
 func checkCanEnd(ctx context.Context, tx *sql.Tx, eventID string) error {
-	participants, _, _, err := eventrepo.CountEventMembers(ctx, tx, eventID)
+	participants, err := hackmembers.Count(ctx, tx, hackmembers.Filter{EventID: eventID, Role: "participant", Status: "approved"})
 	if err == nil && participants == 0 {
 		return &Error{Code: "archive_needs_participants", Message: "nobody has joined, so delete the event instead"}
 	}
@@ -151,7 +155,7 @@ func checkCanEnd(ctx context.Context, tx *sql.Tx, eventID string) error {
 // executeLeave does every write of a checked leave and reports whether the leaver's team went with them.
 func (s *Service) executeLeave(ctx context.Context, tx *sql.Tx, ev *model.Event, userID string, plan leavePlan, trash func(context.Context, string, string) error) (bool, error) {
 	if plan.role == "judge" || plan.role == "organiser" {
-		if err := eventrepo.RecordFormerJudge(ctx, tx, ev.ID, userID, plan.role); err != nil {
+		if err := entryrepo.RecordFormerJudge(ctx, tx, ev.ID, userID, plan.role); err != nil {
 			return false, err
 		}
 	}
@@ -173,7 +177,7 @@ func (s *Service) executeLeave(ctx context.Context, tx *sql.Tx, ev *model.Event,
 
 // endEventTx archives the event its last organiser is leaving and drops its open invites.
 func (s *Service) endEventTx(ctx context.Context, tx *sql.Tx, ev *model.Event) error {
-	updated, err := s.events.ArchiveEventTx(ctx, tx, ev.ID, ev.Stage, s.entries.SettleEventTx)
+	updated, err := s.events.ArchiveEventTx(ctx, tx, ev.ID, ev.Stage)
 	if err != nil {
 		return err
 	}
@@ -185,13 +189,15 @@ func (s *Service) endEventTx(ctx context.Context, tx *sql.Tx, ev *model.Event) e
 // leaveMembership deletes the caller's own membership and reports whether their team was deleted with it.
 func leaveMembership(ctx context.Context, tx *sql.Tx, eventID, userID string) (bool, error) {
 	teamID, err := teamrepo.LeaveMembership(ctx, tx, eventID, userID, true)
+	if err == nil {
+		err = entryrepo.DropLeaver(ctx, tx, eventID, userID, false)
+	}
 	if err != nil {
 		return false, err
 	}
 	if err := eventapp.SyncAccess(ctx, tx, eventID); err != nil || teamID == "" {
 		return false, err
 	}
-	var still bool
-	err = eventrepo.TeamExists(ctx, tx, teamID, &still)
+	still, err := teamrepo.TeamExists(ctx, tx, teamID)
 	return err == nil && !still, err
 }

@@ -44,7 +44,7 @@ func submissionCards(ctx context.Context, db *sql.DB, ev model.Event, siteURL fu
 	}
 	live := map[string]string{}
 	if siteURL != nil {
-		cards, err := events.New(db).GalleryCards(ctx, ev.ID, ev.AccountID)
+		cards, err := events.New(db, nil).GalleryCards(ctx, ev.ID, ev.AccountID)
 		if err != nil {
 			return nil, err
 		}

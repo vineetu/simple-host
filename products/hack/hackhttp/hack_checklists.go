@@ -23,7 +23,7 @@ func (h *views) readChecklist(ctx context.Context, ev model.Event, m model.Event
 		if err != nil {
 			return events.Checklist{}, err
 		}
-		participants, _, _, err := h.events.CountEventMembersLookup(ctx, ev.ID)
+		participants, _, _, err := h.events.CountEventMembersLookup(ctx, ev)
 		if err != nil {
 			return events.Checklist{}, err
 		}

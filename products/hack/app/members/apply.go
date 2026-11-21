@@ -10,6 +10,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
@@ -72,7 +73,7 @@ func (s *Service) ApplyPage(ctx context.Context, slug, caller string) (p ApplyPa
 			return p, err
 		}
 	}
-	status, err := eventrepo.GetMemberStatus(ctx, s.db, ev.ID, caller)
+	status, err := hackmembers.Member(ctx, s.db, ev.ID, caller, hackmembers.NoLock)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, nil
 	}
@@ -94,7 +95,8 @@ func (s *Service) Apply(ctx context.Context, slug, userID string, accept *bool, 
 	res.Member, err = s.applyTx(ctx, res.Event.ID, userID, in, capN)
 	if hackevents.UniqueError(err) {
 		// A concurrent apply by the same caller won the insert.
-		res.Member, err = eventrepo.GetEventMember(ctx, s.db, res.Event.ID, userID)
+		res.Member, err = hackmembers.Member(ctx, s.db, res.Event.ID, userID, hackmembers.NoLock)
+		res.Member, err = hackmembers.WithDisplayName(ctx, s.db, res.Member, err)
 		if err != nil || res.Member.Role != "participant" {
 			err = errAlreadyMember()
 		}
@@ -117,7 +119,8 @@ func (s *Service) applyTx(ctx context.Context, eventID, userID string, in Applic
 	if applyHidden(stage, takenDown) {
 		return model.EventMember{}, errEventNotFound
 	}
-	member, err := eventrepo.GetEventMember(ctx, tx, eventID, userID)
+	member, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.NoLock)
+	member, err = hackmembers.WithDisplayName(ctx, tx, member, err)
 	switch {
 	case err == nil:
 		member, err = reapply(ctx, tx, member, in.Display)
@@ -138,7 +141,8 @@ func reapply(ctx context.Context, tx *sql.Tx, existing model.EventMember, displa
 	if err := events.EnsureAccountName(ctx, tx, existing.UserID, display); err != nil {
 		return model.EventMember{}, err
 	}
-	return eventrepo.GetEventMember(ctx, tx, existing.EventID, existing.UserID)
+	m, err := hackmembers.Member(ctx, tx, existing.EventID, existing.UserID, hackmembers.NoLock)
+	return hackmembers.WithDisplayName(ctx, tx, m, err)
 }
 
 // fileApplication inserts a new pending application once the event takes applications, the answers are valid and neither pending cap is reached, and tells the organisers.
@@ -164,11 +168,11 @@ func fileApplication(ctx context.Context, tx *sql.Tx, eventID, userID, stage str
 		return model.EventMember{}, err
 	}
 	profile := model.ApplicantProfile{City: in.City, Country: in.Country, AgeRange: in.AgeRange, Gender: in.Gender}
-	member, err := eventrepo.ApplyParticipant(ctx, tx, eventID, userID, answers, profile)
+	member, err := hackmembers.Apply(ctx, tx, eventID, userID, answers, profile)
 	if err != nil {
 		return model.EventMember{}, err
 	}
-	return member, eventrepo.NotifyOrganisers(ctx, tx, eventID, eventrepo.NoticeApplicationNew, userID)
+	return member, hackmembers.NotifyOrganisers(ctx, tx, eventID, hackmembers.NoticeApplicationNew, userID)
 }
 
 // checkPendingCaps refuses an application past the account-wide or the per-event pending cap.
@@ -176,14 +180,14 @@ func checkPendingCaps(ctx context.Context, tx *sql.Tx, eventID, userID string, c
 	if err := accounts.LockAccount(ctx, tx, userID); err != nil {
 		return err
 	}
-	pending, err := eventrepo.CountPendingApplications(ctx, tx, userID)
+	pending, err := hackmembers.Count(ctx, tx, hackmembers.Filter{UserID: userID, Via: "application", Status: "pending"})
 	if err != nil {
 		return err
 	}
 	if pending >= pendingPerAccount {
 		return &Error{Code: "too_many_pending", Message: fmt.Sprintf("You have %d applications waiting. Wait for answers before applying to more.", pendingPerAccount)}
 	}
-	eventPending, err := eventrepo.CountPendingApplicationsForEvent(ctx, tx, eventID)
+	eventPending, err := hackmembers.Count(ctx, tx, hackmembers.Filter{EventID: eventID, Via: "application", Status: "pending"})
 	if err != nil {
 		return err
 	}

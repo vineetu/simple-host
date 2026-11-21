@@ -275,7 +275,7 @@ func (m *replyMailer) messages() []string {
 
 func runComposedCleanup(a *teamSiteApp, mail *replyMailer, now time.Time) {
 	l := productconfig.DefaultLimits()
-	events.New(a.database).RunEventCleanup(context.Background(), now, l.EventSitesKeep, l.EventRemovalWarn, a.sites.TrashTeamSite, events.ArchiveWarningSender(mail), l.IdleReplyTo)
+	events.New(a.database, nil).RunEventCleanup(context.Background(), now, l.EventSitesKeep, l.EventRemovalWarn, a.sites.TrashTeamSite, events.ArchiveWarningSender(mail), l.IdleReplyTo)
 }
 
 type rubricCriterion struct {

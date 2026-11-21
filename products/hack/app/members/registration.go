@@ -8,6 +8,7 @@ import (
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
@@ -18,7 +19,7 @@ func (s *Service) Registration(ctx context.Context, eventID string) ([]model.Sig
 }
 
 func (s *Service) Applications(ctx context.Context, eventID string) ([]model.RegistrationApplication, error) {
-	return eventrepo.ListRegistrationApplications(ctx, s.db, eventID)
+	return hackmembers.RegistrationApplications(ctx, s.db, eventID)
 }
 
 func (s *Service) Tracks(ctx context.Context, eventID string) ([]model.EventTrack, error) {
@@ -43,7 +44,7 @@ func (s *Service) SetRegistration(ctx context.Context, eventID, userID string, q
 	}
 	if !approval && admit {
 		// Approval settings govern link sign-ups, not applications.
-		if _, err = eventrepo.AdmitPending(ctx, tx, eventID, userID); err != nil {
+		if _, err = hackmembers.AdmitPending(ctx, tx, eventID, userID); err != nil {
 			return err
 		}
 	}
@@ -63,7 +64,7 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 	if stage == "archived" {
 		return &Error{Code: "event_closed", Message: "an ended event cannot be changed"}
 	}
-	updated, err := eventrepo.DecideRegistration(ctx, tx, eventID, userID, actorID, decision)
+	updated, err := hackmembers.Decide(ctx, tx, eventID, userID, actorID, decision)
 	if err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func (s *Service) DecideApplication(ctx context.Context, eventID, userID, actorI
 		return &Error{Code: "application_not_pending", Message: "only pending applications can be decided"}
 	}
 	// Decision notices reach the app and email.
-	if err = eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeApplicationDecided, "", "", decision, userID); err != nil {
+	if err = hackmembers.NotifyUsers(ctx, tx, eventID, hackmembers.NoticeApplicationDecided, "", "", decision, userID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -108,12 +109,22 @@ func (s *Service) ChooseTrack(ctx context.Context, eventID, teamID, slug string,
 	if err := lockTrackChoice(ctx, tx, eventID, teamID, len(organiser) > 0 && organiser[0]); err != nil {
 		return nil, err
 	}
-	if _, err = eventrepo.SetTeamTrack(ctx, tx, eventID, teamID, slug); errors.Is(err, sql.ErrNoRows) {
+	var trackID sql.NullString
+	if slug != "" {
+		id, err := eventrepo.TrackIDBySlug(ctx, tx, eventID, slug)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &Error{Code: "track_not_found", Message: "track not found"}
+		} else if err != nil {
+			return nil, err
+		}
+		trackID = sql.NullString{String: id, Valid: true}
+	}
+	if err = teamrepo.SetTeamTrack(ctx, tx, eventID, teamID, trackID); errors.Is(err, sql.ErrNoRows) {
 		return nil, &Error{Code: "track_not_found", Message: "track not found"}
 	} else if err != nil {
 		return nil, err
 	}
-	track, err := eventrepo.TeamTrack(ctx, tx, teamID)
+	track, err := teamrepo.TeamTrack(ctx, tx, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -131,10 +142,10 @@ func lockTrackChoice(ctx context.Context, tx *sql.Tx, eventID, teamID string, ma
 	if managing && (ev.JudgingLockedAt.Valid || ev.Stage == "judging" || ev.Stage == "results" || ev.Stage == "archived") {
 		return &Error{Code: "judging_setup_locked", Message: "Move back to Entries closed to change this."}
 	}
-	if _, err = eventrepo.LockTeam(ctx, tx, teamID); err != nil {
+	if err = teamrepo.LockTeamRow(ctx, tx, teamID); err != nil {
 		return err
 	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, teamID, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, teamID, true)
 	if err != nil {
 		return err
 	}

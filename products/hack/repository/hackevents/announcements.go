@@ -74,8 +74,10 @@ func ListAnnouncementTimes(ctx context.Context, q sqlkit.Querier, eventID string
 	return out, rows.Err()
 }
 
-// CreateEventAnnouncement queues one delivery row per approved participant with an email-shaped username, plus one more for organiserUserID.
-func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, body string, emailParticipants bool, organiserUserID string) (EventAnnouncement, int64, bool, error) {
+// CreateEventAnnouncement queues one delivery row per participant (the
+// event's approved participants, from the caller) with an email-shaped
+// username, plus one more for organiserUserID.
+func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, body string, emailParticipants bool, organiserUserID string, participants []string) (EventAnnouncement, int64, bool, error) {
 	var a EventAnnouncement
 	err := tx.QueryRowContext(ctx, `INSERT INTO event_announcements (event_id, title, body)
 		VALUES ($1, $2, $3) RETURNING id, title, body, created_at`, eventID, title, body).
@@ -83,18 +85,13 @@ func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, bo
 	if err != nil || !emailParticipants {
 		return a, 0, false, err
 	}
-	ids, err := userIDs(ctx, tx, `SELECT user_id FROM event_members
-		WHERE event_id = $1 AND role = 'participant' AND approval_status = 'approved'`, eventID)
-	if err != nil {
-		return a, 0, false, err
-	}
-	users, err := accounts.UsersByIDs(ctx, tx, append(ids, organiserUserID))
+	users, err := accounts.UsersByIDs(ctx, tx, append(participants, organiserUserID))
 	if err != nil {
 		return a, 0, false, err
 	}
 	var to, recipients []string
 	for id, u := range users {
-		if hasAddress(u) {
+		if HasAddress(u) {
 			to, recipients = append(to, id), append(recipients, u.Username)
 		}
 	}
@@ -131,65 +128,31 @@ func SetAnnouncementPin(ctx context.Context, tx *sql.Tx, eventID, id string, pin
 	return res.RowsAffected()
 }
 
-func QueueEntryReceipt(ctx context.Context, q sqlkit.Querier, eventID, teamID, userID string) error {
-	u, err := accounts.UserByID(ctx, q, userID)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && !hasAddress(u) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	_, err = q.ExecContext(ctx, `INSERT INTO event_entry_receipts (event_id, team_id, user_id, recipient)
-		VALUES ($1, $2, $3, $4) ON CONFLICT (event_id, team_id) DO NOTHING`, eventID, teamID, userID, u.Username)
-	return err
-}
-
 type EventMail = model.EventMail
 
-// NextEventMail holds one eligible row until the caller commits after sending.
-func NextEventMail(ctx context.Context, tx *sql.Tx) (EventMail, error) {
+// NextAnnouncementMail holds one due announcement email until the caller
+// commits after sending.
+func NextAnnouncementMail(ctx context.Context, tx *sql.Tx) (EventMail, error) {
 	var m EventMail
-	err := tx.QueryRowContext(ctx, `SELECT 'announcement', d.announcement_id, '', a.event_id,
-		d.recipient, e.title, e.slug, '', a.title, a.body
+	err := tx.QueryRowContext(ctx, `SELECT 'announcement', d.announcement_id, a.event_id,
+		d.recipient, e.title, e.slug, a.title, a.body
 		FROM event_announcement_deliveries d JOIN event_announcements a ON a.id = d.announcement_id
 		JOIN events e ON e.id = a.event_id
 		WHERE d.sent_at IS NULL AND (d.attempted_at IS NULL OR d.attempted_at <= now() - interval '1 minute')
 		ORDER BY d.attempted_at NULLS FIRST, a.created_at, d.user_id LIMIT 1 FOR UPDATE OF d SKIP LOCKED`).
-		Scan(&m.Kind, &m.AnnouncementID, &m.TeamID, &m.EventID, &m.Recipient, &m.EventTitle, &m.EventSlug, &m.TeamName, &m.Title, &m.Body)
-	if err == nil || !errors.Is(err, sql.ErrNoRows) {
-		return m, err
-	}
-	err = tx.QueryRowContext(ctx, `SELECT 'receipt', '', r.team_id, r.event_id,
-		r.recipient, e.title, e.slug, t.name, '', ''
-		FROM event_entry_receipts r JOIN events e ON e.id = r.event_id
-		JOIN event_teams t ON t.id = r.team_id
-		WHERE r.sent_at IS NULL AND (r.attempted_at IS NULL OR r.attempted_at <= now() - interval '1 minute')
-		ORDER BY r.attempted_at NULLS FIRST, t.created_at, r.team_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED`).
-		Scan(&m.Kind, &m.AnnouncementID, &m.TeamID, &m.EventID, &m.Recipient, &m.EventTitle, &m.EventSlug, &m.TeamName, &m.Title, &m.Body)
+		Scan(&m.Kind, &m.AnnouncementID, &m.EventID, &m.Recipient, &m.EventTitle, &m.EventSlug, &m.Title, &m.Body)
 	return m, err
 }
 
-// DeferEventMail leaves a failed delivery pending but makes later rows eligible before this one is retried on a future sweep.
-func DeferEventMail(ctx context.Context, tx *sql.Tx, m EventMail) error {
-	var err error
-	if m.Kind == "announcement" {
-		_, err = tx.ExecContext(ctx, `UPDATE event_announcement_deliveries SET attempted_at = now()
-			WHERE announcement_id = $1 AND recipient = $2`, m.AnnouncementID, m.Recipient)
-	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE event_entry_receipts SET attempted_at = now()
-			WHERE event_id = $1 AND team_id = $2`, m.EventID, m.TeamID)
-	}
+// DeferAnnouncementMail leaves a failed delivery pending but makes later rows eligible before this one is retried on a future sweep.
+func DeferAnnouncementMail(ctx context.Context, tx *sql.Tx, m EventMail) error {
+	_, err := tx.ExecContext(ctx, `UPDATE event_announcement_deliveries SET attempted_at = now()
+		WHERE announcement_id = $1 AND recipient = $2`, m.AnnouncementID, m.Recipient)
 	return err
 }
 
-func MarkEventMailSent(ctx context.Context, tx *sql.Tx, m EventMail) error {
-	var err error
-	if m.Kind == "announcement" {
-		_, err = tx.ExecContext(ctx, `UPDATE event_announcement_deliveries SET sent_at = now()
-			WHERE announcement_id = $1 AND recipient = $2`, m.AnnouncementID, m.Recipient)
-	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE event_entry_receipts SET sent_at = now()
-			WHERE event_id = $1 AND team_id = $2`, m.EventID, m.TeamID)
-	}
+func MarkAnnouncementMailSent(ctx context.Context, tx *sql.Tx, m EventMail) error {
+	_, err := tx.ExecContext(ctx, `UPDATE event_announcement_deliveries SET sent_at = now()
+		WHERE announcement_id = $1 AND recipient = $2`, m.AnnouncementID, m.Recipient)
 	return err
 }

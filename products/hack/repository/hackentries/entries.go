@@ -3,6 +3,7 @@ package hackentries
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/products/hack/model"
+	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 type EventEntry = model.EventEntry
@@ -232,19 +235,83 @@ func SettleEntryIncomplete(ctx context.Context, q sqlkit.Querier, teamID string)
 	return err
 }
 
+// UnsettledTeam is one team of an event whose entry waits to be settled.
+type UnsettledTeam struct{ EventID, TeamID string }
+
 // UnsettledFrozenTeamIDs lists teams (of eventID, or every event when "") whose
 // entry is written, not yet settled one way or the other, and now frozen: the
 // team's effective deadline has passed, or the event stage is judging, results
-// or archived.
-func UnsettledFrozenTeamIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
+// or archived. Four statements per sweep, none per team.
+
+func UnsettledFrozenTeamIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]UnsettledTeam, error) {
+	var events []model.Event
+	if eventID == "" {
+		all, err := hackevents.AllEvents(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		events = all
+	} else {
+		ev, err := hackevents.GetEventByID(ctx, q, eventID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		events = []model.Event{ev}
+	}
+	var ids, deadlines []string
+	var frozen []bool
+	for _, e := range events {
+		ids, frozen = append(ids, e.ID), append(frozen, hackevents.FrozenStage(e.Stage))
+		d := ""
+		if e.SubmissionDeadline.Valid {
+			d = e.SubmissionDeadline.Time.UTC().Format(time.RFC3339Nano)
+		}
+		deadlines = append(deadlines, d)
+	}
+	open, err := unsettledEntryTeams(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID, err := hackteams.TeamsByIDs(ctx, q, open)
+	if err != nil {
+		return nil, err
+	}
+	teams := make([]model.EventTeam, 0, len(byID))
+	for _, t := range byID {
+		teams = append(teams, t)
+	}
+	deadline := hackevents.EffectiveDeadline(`NULLIF(d.deadline, '')::timestamptz`)
 	rows, err := queryContext(ctx, q, `
-		SELECT en.team_id FROM event_entries en
-		  JOIN event_teams t ON t.id = en.team_id
-		  JOIN events e ON e.id = t.event_id
+		SELECT t.event_id, en.team_id FROM event_entries en
+		  JOIN `+teamRows(4)+` ON t.id = en.team_id
+		  JOIN unnest($1::uuid[], $2::text[], $3::bool[]) AS d(event_id, deadline, frozen) ON d.event_id = t.event_id
 		 WHERE en.submitted_at IS NULL AND en.submit_settled_at IS NULL
-		   AND (e.stage IN ('judging', 'results', 'archived')
-		        OR (`+effectiveDeadlineSQL+` IS NOT NULL AND `+effectiveDeadlineSQL+` <= clock_timestamp()))
-		   AND ($1 = '' OR e.id::text = $1)`, eventID)
+		   AND (d.frozen OR (`+deadline+` IS NOT NULL AND `+deadline+` <= clock_timestamp()))`,
+		append([]any{pq.Array(ids), pq.Array(deadlines), pq.Array(frozen)}, teamArgs(teams)...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []UnsettledTeam
+	for rows.Next() {
+		var u UnsettledTeam
+		if err := rows.Scan(&u.EventID, &u.TeamID); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// unsettledEntryTeams is the teams of these events whose entry is neither
+// submitted nor settled.
+func unsettledEntryTeams(ctx context.Context, q sqlkit.Querier, eventIDs []string) ([]string, error) {
+	rows, err := queryContext(ctx, q, `
+		SELECT team_id FROM event_entries
+		 WHERE event_id = ANY($1::uuid[]) AND submitted_at IS NULL AND submit_settled_at IS NULL`, pq.Array(eventIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -272,15 +339,24 @@ type FrozenTeamWithoutEntry struct {
 // FrozenTeamsWithoutEntry lists the event's frozen teams that have no entry
 // row.
 func FrozenTeamsWithoutEntry(ctx context.Context, q sqlkit.Querier, eventID string) ([]FrozenTeamWithoutEntry, error) {
+	teams, err := hackteams.JudgedTeams(ctx, q, eventID)
+	if err != nil {
+		return nil, err
+	}
+	ev, err := hackevents.GetEventByID(ctx, q, eventID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	deadline := hackevents.EffectiveDeadline("$3::timestamptz")
 	rows, err := queryContext(ctx, q, `
-		SELECT t.id, t.slug, t.site_taken_down_at IS NOT NULL FROM event_teams t
-		  JOIN events e ON e.id = t.event_id
-		 WHERE e.id = $1
+		SELECT t.id, t.slug, t.site_taken_down FROM `+teamRows(4)+`
+		 WHERE t.event_id = $1
 		   AND NOT EXISTS (SELECT 1 FROM event_entries en WHERE en.team_id = t.id)
-		   AND (EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id) OR t.kept_after_leave)
-		   AND (e.stage IN ('judging', 'results', 'archived')
-		        OR (`+effectiveDeadlineSQL+` IS NOT NULL AND `+effectiveDeadlineSQL+` <= clock_timestamp()))
-		 ORDER BY t.id`, eventID)
+		   AND ($2 OR (`+deadline+` IS NOT NULL AND `+deadline+` <= clock_timestamp()))
+		 ORDER BY t.id`, append([]any{eventID, hackevents.FrozenStage(ev.Stage), ev.SubmissionDeadline}, teamArgs(teams)...)...)
 	if err != nil {
 		return nil, err
 	}

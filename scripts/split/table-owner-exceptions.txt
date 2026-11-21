@@ -21,3 +21,8 @@ cmd/ip-country-load/ | * | operator command that bulk-loads the country table (T
 host/access/repo/handle_check.go | * | one address namespace: a new handle may not be a claimed site address, retired name or another account's bare site name; checked inside sign-up and rename, which Access runs before any site exists
 host/access/repo/accounts.go | * | HandleNameTaken: the same namespace check under the namespace lock when a handle is claimed
 host/sites/repo/with_owner.go | * | sites read with their owner: a site with its owner's handle and suspension (and the most-served and shared-with-me lists) in one statement, so a hold is never read in two steps; the one place Sites names users columns
+host/server/product.go | events | the composition root checks whether this install already holds Simple Hack events before it adopts the product
+products/hack/repository/hackteams/event_site.go | events | ReadSiteBindings and OwnerOnSite run on every storage request of an event's site: one statement each reads the event row (stage, deadline, take-down) beside the team rows
+products/hack/repository/hackteams/event_site.go | event_members | the same per-request statements read the caller's role, approval and team
+products/hack/repository/hackentries/receipts.go | events | NextReceiptMail claims one entry receipt per sent email: one statement reads the event's title and slug beside it
+products/hack/repository/hackentries/receipts.go | event_teams | NextReceiptMail claims one entry receipt per sent email: the same statement reads the team's name

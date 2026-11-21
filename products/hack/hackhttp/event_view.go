@@ -89,8 +89,8 @@ func (h *views) eventJSON(ctx context.Context, ev hackmodel.Event, results entri
 }
 
 func (h *views) organiserJSON(ctx context.Context, ev hackmodel.Event, body map[string]any) int {
-	participants, teams, _, _ := h.events.CountEventMembersLookup(ctx, ev.ID)
-	judges, _ := h.events.CountEligibleJudgesLookup(ctx, ev.ID)
+	participants, teams, _, _ := h.events.CountEventMembersLookup(ctx, ev)
+	judges, _ := h.events.CountEligibleJudgesLookup(ctx, ev)
 	onNone, _ := h.events.CountOnNoTeamLookup(ctx, ev.ID)
 	emailable, _ := h.events.CountEmailableParticipantsLookup(ctx, ev.ID)
 	exp := any(nil)
@@ -123,8 +123,8 @@ func (h *views) organiserJSON(ctx context.Context, ev hackmodel.Event, body map[
 
 // participantJSON adds a participant's approval status to me and, once they have a team, the Home checklist to body.
 func (h *views) participantJSON(ctx context.Context, ev hackmodel.Event, member hackmodel.EventMember, me, body map[string]any) {
-	if status, err := h.members.MemberApprovalStatusLookup(ctx, ev.ID, member.UserID); err == nil {
-		me["approval_status"] = status
+	if member.ApprovalStatus != "" {
+		me["approval_status"] = member.ApprovalStatus
 	}
 	if !member.TeamID.Valid {
 		return
@@ -142,7 +142,7 @@ func (h *views) memberProgressJSON(ctx context.Context, ev hackmodel.Event, memb
 	if err != nil {
 		return nil, err
 	}
-	st, err := h.teams.TeamWriteStateForLookup(ctx, team.ID, false)
+	st, err := h.teams.TeamWriteStateForLookup(ctx, team.EventID, team.ID, false)
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,8 @@ import (
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	model "github.com/vsriram/simple-host/products/hack/model"
+	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -46,30 +48,30 @@ func (s *Service) ListOpenTeams(ctx context.Context, ev model.Event, userID stri
 		}
 	}
 	if member.TeamID.Valid || organiser {
-		rows, err := teamrepo.ListLookingParticipants(ctx, s.db, eventID)
-		solo, err := collect(rows, err, func(r *sql.Rows, p *SoloPerson) error {
-			return r.Scan(&p.UserID, &p.Intro)
-		})
+		looking, err := hackmembers.Members(ctx, s.db, hackmembers.Filter{EventID: eventID, Role: "participant", Status: "approved", NoTeam: true, Looking: true})
 		if err != nil {
 			return out, err
+		}
+		solo := []SoloPerson{}
+		for _, m := range looking {
+			solo = append(solo, SoloPerson{UserID: m.UserID, Intro: m.LookingIntro})
 		}
 		if out.Solo, err = named(ctx, s, solo, func(p *SoloPerson) (string, *string) { return p.UserID, &p.DisplayName }); err != nil {
 			return out, err
 		}
 	}
-	rows, err := teamrepo.ListVisibleTeamRequests(ctx, s.db, eventID, userID, member.TeamID, organiser)
-	pending, err := collect(rows, err, func(r *sql.Rows, p *model.TeamRequest) error {
-		return r.Scan(&p.ID, &p.TeamID, &p.Team, &p.TeamName, &p.UserID, &p.Kind, &p.CreatedAt)
-	})
+	pending, err := teamrepo.VisibleTeamRequests(ctx, s.db, eventID, userID, member.TeamID, organiser)
 	if err != nil {
 		return out, err
 	}
 	if out.Pending, err = named(ctx, s, pending, func(p *model.TeamRequest) (string, *string) { return p.UserID, &p.DisplayName }); err != nil {
 		return out, err
 	}
-	if err = teamrepo.ReadMemberLooking(ctx, s.db, eventID, userID).Scan(&out.Looking, &out.Intro); err != nil {
+	me, err := hackmembers.Member(ctx, s.db, eventID, userID, hackmembers.NoLock)
+	if err != nil {
 		return out, err
 	}
+	out.Looking, out.Intro = me.Looking, me.LookingIntro
 	if member.TeamID.Valid {
 		out.Team, err = s.findingTeamState(ctx, eventID, userID, member.TeamID)
 	}
@@ -77,12 +79,18 @@ func (s *Service) ListOpenTeams(ctx context.Context, ev model.Event, userID stri
 }
 
 func (s *Service) openTeams(ctx context.Context, eventID string) ([]OpenTeam, error) {
+	tracks, err := eventrepo.ListEventTracks(ctx, s.db, eventID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := teamrepo.ListFindingTeams(ctx, s.db, eventID)
 	teams, err := collect(rows, err, func(r *sql.Rows, t *OpenTeam) error {
-		var track model.EventTrack
-		err := r.Scan(&t.id, &t.Slug, &t.Name, &t.LookingFor, &track.ID, &track.Slug, &track.Name, &track.Challenge, &track.Prize)
-		if track.ID != "" {
-			t.Track = &track
+		var trackID string
+		err := r.Scan(&t.id, &t.Slug, &t.Name, &t.LookingFor, &trackID)
+		for i := range tracks {
+			if tracks[i].ID == trackID {
+				t.Track = &tracks[i]
+			}
 		}
 		t.Members = []string{}
 		return err
@@ -95,12 +103,13 @@ func (s *Service) openTeams(ctx context.Context, eventID string) ([]OpenTeam, er
 		byID[teams[i].id] = &teams[i]
 	}
 	type teamMember struct{ teamID, userID, name string }
-	rows, err = teamrepo.ListFindingTeamMembers(ctx, s.db, eventID)
-	members, err := collect(rows, err, func(r *sql.Rows, m *teamMember) error {
-		return r.Scan(&m.teamID, &m.userID)
-	})
+	onTeams, err := teamrepo.FindingTeamMembers(ctx, s.db, eventID)
 	if err != nil {
 		return teams, err
+	}
+	members := make([]teamMember, len(onTeams))
+	for i, m := range onTeams {
+		members[i] = teamMember{teamID: m.TeamID, userID: m.UserID}
 	}
 	if members, err = named(ctx, s, members, func(m *teamMember) (string, *string) { return m.userID, &m.name }); err != nil {
 		return teams, err
@@ -140,7 +149,8 @@ func named[T any](ctx context.Context, s *Service, rows []T, field func(*T) (str
 // gone since the membership was read shows as the zero state.
 func (s *Service) findingTeamState(ctx context.Context, eventID, userID string, teamID sql.NullString) (*FindingTeamState, error) {
 	var t FindingTeamState
-	err := teamrepo.ReadFindingTeamState(ctx, s.db, teamID, eventID, userID).Scan(&t.Locked, &t.LookingFor, &t.Admin)
+	var err error
+	t.Locked, t.LookingFor, t.Admin, err = teamrepo.FindingTeamState(ctx, s.db, teamID.String, eventID, userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}

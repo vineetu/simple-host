@@ -10,6 +10,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
@@ -32,7 +33,7 @@ func (s *Service) ComputeResults(ctx context.Context, q sqlkit.Querier, ev model
 	if err != nil {
 		return nil, err
 	}
-	tracks, err := entryrepo.EventTeamTracks(ctx, q, ev.ID)
+	tracks, err := teamrepo.EventTeamTracks(ctx, q, ev.ID)
 	if err != nil {
 		return nil, err
 	}

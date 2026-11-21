@@ -7,6 +7,7 @@ import (
 	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
@@ -23,7 +24,7 @@ func (s *Service) FillTeams(ctx context.Context, eventID, userID string, request
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	plan, skipped, err := teamrepo.PlanFillTeams(ctx, tx, ev, size, siteEverNamed)
+	plan, skipped, err := teamrepo.PlanFillTeams(ctx, tx, ev, size)
 	if err != nil {
 		return nil, nil, 0, internalError(err)
 	}
@@ -50,10 +51,10 @@ func lockForFill(ctx context.Context, tx *sql.Tx, eventID string, requestedSize 
 	if err != nil {
 		return ev, 0, err
 	}
-	if _, err = teamrepo.LockEventMembersForFill(ctx, tx, ev.ID); err != nil {
+	if err = hackmembers.LockEventMembers(ctx, tx, ev.ID); err != nil {
 		return ev, 0, internalError(err)
 	}
-	if _, err = teamrepo.LockEventTeamsForFill(ctx, tx, ev.ID); err != nil {
+	if err = teamrepo.LockEventTeams(ctx, tx, ev.ID); err != nil {
 		return ev, 0, internalError(err)
 	}
 	return ev, size, nil
@@ -83,7 +84,7 @@ func applyFill(ctx context.Context, tx *sql.Tx, ev model.Event, userID string, p
 		}
 		for _, m := range p.Members {
 			// MoveParticipantToTeam ensures the first person placed is an admin.
-			if _, err := teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, m.UserID, p.Team, ev.TeamSizeMax, teamrepo.EnsureTeamAdmin); err != nil {
+			if _, err := teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, m.UserID, p.Team, ev.TeamSizeMax); err != nil {
 				return err
 			}
 		}
@@ -103,5 +104,5 @@ func insertFillTeam(ctx context.Context, tx *sql.Tx, ev model.Event, userID stri
 	if _, err = teamrepo.InsertEventTeam(ctx, tx, ev.ID, p.Team, p.Name, code, userID); err != nil {
 		return err
 	}
-	return teamrepo.RecordUsedTeamName(ctx, tx, ev.Slug, p.Team)
+	return eventrepo.RecordUsedNames(ctx, tx, ev.Slug, p.Team)
 }

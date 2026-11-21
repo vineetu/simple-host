@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/vsriram/simple-host/products/hack/app/entries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
@@ -13,11 +14,15 @@ import (
 type Service struct {
 	db          *sql.DB
 	checkHandle HandleChecker
+	// entries settles the due entries when a stage move freezes them.
+	entries *entries.Service
 }
 
-// New builds a Service over database.
-func New(database *sql.DB) *Service {
-	return &Service{db: database}
+// New builds a Service over database. entryService settles entries when a
+// stage move freezes them; it may be nil for a Service that never moves a
+// stage.
+func New(database *sql.DB, entryService *entries.Service) *Service {
+	return &Service{db: database, entries: entryService}
 }
 
 // Row is one event as the directory shows it: the raw fields hackhttp needs to build its JSON row.

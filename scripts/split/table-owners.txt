@@ -1,20 +1,15 @@
 # Which package alone reads and writes each table (sqlcheck -owners).
 # table | owner package | what others call instead
-# Owners follow the ownership review (refactor-board STATE/VERDICT.md D1). Simple Hack
-# tables shared between Hack's own repository packages are not listed yet.
+# Owners follow the ownership review (refactor-board STATE/VERDICT.md D1).
 
 users | host/access/repo | host/access/repo/people.go (UsersByIDs, GetUserByID, ...); products: host/access/product.go
 sites | host/sites/repo | host/sites/repo/door.go (SitesByIDs, GetSiteByID, ...) or door_access.go; products: host/sites/product.go
-event_notices | products/hack/repository/hackevents | its functions
 site_view_hourly | host/sites/analytics | its functions
 api_request_daily | host/ops/repo | its functions
 instance_config | host/ops/repo | its functions
 site_storage_resources | host/data/repo | its functions
-event_team_messages | products/hack/repository/hackevents | its functions
 collection_items | host/data/repo | its functions
-event_entry_receipts | products/hack/repository/hackevents | its functions
 paper_run | host/papermetrics | its functions
-hack_account_preferences | products/hack/repository/hackevents | its functions
 legacy_hostnames | host/sites/repo | its functions
 site_visitor_hourly | host/sites/analytics | its functions
 install_product | host/db/migrations | its functions
@@ -25,8 +20,6 @@ ip_country_ranges | host/sites/analytics | its functions
 site_storage_tables | host/data/repo | its functions
 site_viewers | host/access/repo | its functions
 versions | host/sites/repo | its functions
-event_entry_reminders | products/hack/repository/hackevents | its functions
-event_judge_reminders | products/hack/repository/hackevents | its functions
 handle_aliases | host/access/repo | its functions
 install_identity | host/db/migrations | its functions
 net_usage_daily | host/netusage | its functions
@@ -59,14 +52,6 @@ auth_tokens | host/access/repo | its functions
 data_watch | host/data/repo | its functions
 email_change_undos | host/access/repo | its functions
 email_changes | host/access/repo | its functions
-event_announcement_deliveries | products/hack/repository/hackevents | its functions
-event_checklist_acknowledgements | products/hack/repository/hackevents | its functions
-event_checklist_dismissals | products/hack/repository/hackevents | its functions
-event_content | products/hack/repository/hackevents | its functions
-event_create_log | products/hack/repository/hackevents | its functions
-event_organiser_invites | products/hack/repository/hackevents | its functions
-hack_assistant_spend | products/hack/repository/hackevents | its functions
-hack_assistant_usage | products/hack/repository/hackevents | its functions
 idempotency_keys | host/data/repo | its functions
 image_scan_hashes | host/ops/repo | its functions
 image_scan_matches | host/ops/repo | its functions
@@ -101,3 +86,34 @@ team_audit | host/access/repo | its functions
 team_invitations | host/access/repo | its functions
 visitor_ai_daily | host/data/repo | its functions
 visitor_establish_tokens | host/access/repo | its functions
+# Simple Hack: import order hackevents <- hackmembers <- hackteams <- hackentries.
+events | products/hack/repository/hackevents | events.go, deadline.go, voting.go
+event_tracks | products/hack/repository/hackevents | registration.go (ListEventTracks, TracksByIDs, TrackIDBySlug)
+event_used_names | products/hack/repository/hackevents | events.go (NameEverUsed, RecordUsedNames, ReserveEventName)
+event_announcements | products/hack/repository/hackevents | its functions
+event_announcement_deliveries | products/hack/repository/hackevents | its functions
+event_checklist_acknowledgements | products/hack/repository/hackevents | its functions
+event_checklist_dismissals | products/hack/repository/hackevents | its functions
+event_content | products/hack/repository/hackevents | its functions
+event_create_log | products/hack/repository/hackevents | its functions
+event_organiser_invites | products/hack/repository/hackevents | its functions
+hack_assistant_spend | products/hack/repository/hackevents | its functions
+hack_assistant_usage | products/hack/repository/hackevents | its functions
+event_members | products/hack/repository/hackmembers | its functions
+event_notices | products/hack/repository/hackmembers | its functions
+hack_account_preferences | products/hack/repository/hackmembers | its functions
+event_teams | products/hack/repository/hackteams | its functions (teams.go, locks.go, entries_door.go)
+event_team_requests | products/hack/repository/hackteams | fill.go, requests.go
+event_team_messages | products/hack/repository/hackteams | messages.go (InsertTeamMessage, ListTeamMessages, ListInboundTeams)
+event_entries | products/hack/repository/hackentries | its functions
+event_entry_receipts | products/hack/repository/hackentries | its functions
+event_entry_reminders | products/hack/repository/hackentries | its functions
+event_judge_reminders | products/hack/repository/hackentries | its functions
+event_scores | products/hack/repository/hackentries | its functions
+event_results | products/hack/repository/hackentries | its functions
+event_former_judges | products/hack/repository/hackentries | its functions
+event_assignments | products/hack/repository/hackentries | its functions
+event_conflicts | products/hack/repository/hackentries | its functions
+event_votes | products/hack/repository/hackentries | its functions
+event_track_panels | products/hack/repository/hackentries | its functions
+rubric_criteria | products/hack/repository/hackentries | its functions

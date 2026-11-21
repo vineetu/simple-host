@@ -3,8 +3,9 @@ package hackevents
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/sqlkit"
 	"time"
+
+	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 // ListEventsForSiteCleanup is every archived event whose team sites are still due to be warned or removed.

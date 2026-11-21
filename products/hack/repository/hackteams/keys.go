@@ -3,14 +3,10 @@ package hackteams
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/sqlkit"
-)
 
-func LockEventDeadline(ctx context.Context, q *sql.Tx, eventID string) (sql.NullTime, error) {
-	var t sql.NullTime
-	err := q.QueryRowContext(ctx, `SELECT submission_deadline FROM events WHERE id = $1 FOR UPDATE`, eventID).Scan(&t)
-	return t, err
-}
+	"github.com/vsriram/simple-host/host/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
+)
 
 func LockTeamDeadline(ctx context.Context, q *sql.Tx, teamID string) (sql.NullTime, error) {
 	var t sql.NullTime
@@ -28,16 +24,13 @@ func SetTeamDeadline(ctx context.Context, q sqlkit.Querier, teamID string, t sql
 }
 
 func ParticipantTeamCount(ctx context.Context, q sqlkit.Querier, userID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `
-		SELECT count(*) FROM event_members m JOIN events e ON e.id = m.event_id
-		 WHERE m.user_id = $1 AND m.role = 'participant' AND m.team_id IS NOT NULL`, userID).Scan(&n)
-	return n, err
+	return hackmembers.Count(ctx, q, hackmembers.Filter{UserID: userID, Role: "participant", OnTeam: true})
 }
 
-// OpenEventSlugs reads events needing certificate requests.
-func OpenEventSlugs(ctx context.Context, q interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}) (*sql.Rows, error) {
-	return q.QueryContext(ctx, `SELECT slug FROM events WHERE stage IN ('open','building','closed') AND taken_down_at IS NULL`)
+// ClearPassedTeamDeadlines drops the event's team deadlines that have passed
+// (reopening an event gives its teams the event's new deadline).
+func ClearPassedTeamDeadlines(ctx context.Context, q sqlkit.Querier, eventID string) error {
+	_, err := q.ExecContext(ctx, `UPDATE event_teams SET deadline_override = NULL
+		 WHERE event_id = $1 AND deadline_override <= clock_timestamp()`, eventID)
+	return err
 }

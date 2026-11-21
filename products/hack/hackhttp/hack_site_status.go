@@ -62,7 +62,7 @@ func (h *participationHTTP) siteStatusJSON(ctx context.Context, ev hackmodel.Eve
 	out["published_via"] = nil
 	out["pinned_version"] = nil
 	out["pinned_at"] = nil
-	if st, err := h.teams.WriteState(ctx, team.ID); err == nil {
+	if st, err := h.teams.WriteState(ctx, team.EventID, team.ID); err == nil {
 		if st.PinnedVersion.Valid {
 			out["pinned_version"] = st.PinnedVersion.Int64
 		}

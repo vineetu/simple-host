@@ -9,6 +9,7 @@ import (
 
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 // Caller is who a signed-in account is in one event and what it may do there.
@@ -39,7 +40,8 @@ func (s *Service) Caller(ctx context.Context, slug, userID string, isAdmin, writ
 		return c, notFound(err)
 	}
 	c.Event = ev
-	m, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
+	m, err := hackmembers.Member(ctx, s.db, ev.ID, userID, hackmembers.NoLock)
+	m, err = hackmembers.WithDisplayName(ctx, s.db, m, err)
 	if errors.Is(err, sql.ErrNoRows) && isAdmin && !write {
 		c.Member = model.EventMember{EventID: ev.ID, UserID: userID, Role: "organiser"}
 		c.Admin = true
@@ -57,14 +59,8 @@ func (s *Service) Caller(ctx context.Context, slug, userID string, isAdmin, writ
 
 // memberMay checks an existing member against approval, role and take-down.
 func (s *Service) memberMay(ctx context.Context, ev model.Event, m model.EventMember, write bool, roles []string) error {
-	if m.Role == "participant" && (write || len(roles) > 0) {
-		status, err := eventrepo.MemberApprovalStatus(ctx, s.db, ev.ID, m.UserID)
-		if err != nil {
-			return err
-		}
-		if status != "approved" {
-			return &ApprovalError{Status: status}
-		}
+	if (write || len(roles) > 0) && !m.Approved() {
+		return &ApprovalError{Status: m.ApprovalStatus}
 	}
 	if len(roles) > 0 && !slices.Contains(roles, m.Role) {
 		return errEventNotFound

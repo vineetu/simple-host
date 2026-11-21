@@ -2,6 +2,7 @@ package entries
 
 import (
 	"context"
+	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 
 	"github.com/vsriram/simple-host/products/hack/model"
 )
@@ -34,13 +35,13 @@ type DashboardFormerJudge struct {
 	Counted, Assigned int
 }
 
-func (s *Service) JudgingDashboard(ctx context.Context, ev model.Event, live func(model.NamedTeam) (bool, error)) (Dashboard, error) {
+func (s *Service) JudgingDashboard(ctx context.Context, ev model.Event) (Dashboard, error) {
 	var d Dashboard
 	teams, err := s.TeamsWithMembers(ctx, ev.ID)
 	if err != nil {
 		return d, err
 	}
-	if d.Pool, err = s.JudgingPool(ctx, ev, teams, live); err != nil {
+	if d.Pool, err = s.JudgingPool(ctx, ev, teams); err != nil {
 		return d, err
 	}
 	judges, err := s.EventJudges(ctx, ev.ID)
@@ -51,7 +52,7 @@ func (s *Service) JudgingDashboard(ctx context.Context, ev model.Event, live fun
 	if err != nil {
 		return d, err
 	}
-	assigned, eligible, err := s.EligibilityCounts(ctx, ev.ID, judges)
+	assigned, eligible, err := s.EligibilityCounts(ctx, ev, judges)
 	if err != nil {
 		return d, err
 	}
@@ -66,7 +67,7 @@ func (s *Service) JudgingDashboard(ctx context.Context, ev model.Event, live fun
 	for _, j := range judges {
 		d.Judges = append(d.Judges, DashboardJudge{ID: j.ID, Name: j.Name, Done: scoredJudges[j.ID], Assigned: assigned[j.ID]})
 	}
-	if d.Former, err = s.formerJudgeProgress(ctx, ev.ID, scoredJudges); err != nil {
+	if d.Former, err = s.formerJudgeProgress(ctx, ev, scoredJudges); err != nil {
 		return d, err
 	}
 	d.Coverage, err = s.JudgingSetupCoverage(ctx, ev)
@@ -88,14 +89,14 @@ func judgeTarget(ev model.Event, eligible int) int {
 
 // formerJudgeProgress lists the judges who left with their counted and
 // assigned teams.
-func (s *Service) formerJudgeProgress(ctx context.Context, eventID string, scoredJudges map[string]int) ([]DashboardFormerJudge, error) {
-	former, err := s.FormerJudges(ctx, eventID)
+func (s *Service) formerJudgeProgress(ctx context.Context, ev model.Event, scoredJudges map[string]int) ([]DashboardFormerJudge, error) {
+	former, err := s.FormerJudges(ctx, ev.ID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]DashboardFormerJudge, 0, len(former))
 	for _, f := range former {
-		n, err := s.FormerJudgeAssignedCountLookup(ctx, eventID, f.UserID)
+		n, err := entryrepo.FormerJudgeAssignedCount(ctx, s.db, ev, f.UserID)
 		if err != nil {
 			return nil, err
 		}

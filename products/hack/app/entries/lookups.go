@@ -2,25 +2,23 @@ package entries
 
 import (
 	"context"
+
 	"github.com/vsriram/simple-host/host/sites"
 
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
-
-func (s *Service) FormerJudgeAssignedCountLookup(ctx context.Context, eventID string, judgeID string) (int, error) {
-	return eventrepo.FormerJudgeAssignedCount(ctx, s.db, eventID, judgeID)
-}
 
 func (s *Service) EventResults(ctx context.Context, eventID string) (entryrepo.EventResultsRow, error) {
 	return entryrepo.GetEventResults(ctx, s.db, eventID)
 }
 
 func (s *Service) VotingSettings(ctx context.Context, eventID string) (model.VotingSettings, error) {
-	return entryrepo.GetVotingSettings(ctx, s.db, eventID)
+	return eventrepo.GetVotingSettings(ctx, s.db, eventID)
 }
 
 func (s *Service) EventAssignments(ctx context.Context, eventID string) ([]model.JudgeAssignment, error) {
@@ -36,7 +34,7 @@ func (s *Service) EventJudges(ctx context.Context, eventID string) ([]model.Name
 }
 
 func (s *Service) FormerJudges(ctx context.Context, eventID string) ([]model.FormerJudge, error) {
-	return eventrepo.ListFormerJudges(ctx, s.db, eventID)
+	return entryrepo.ListFormerJudges(ctx, s.db, eventID)
 }
 
 func (s *Service) RawScores(ctx context.Context, eventID string) ([]model.RawScoreRow, error) {
@@ -98,5 +96,5 @@ func (s *Service) EventEntriesInTx(ctx context.Context, q sqlkit.Querier, eventI
 
 // TeamTracks maps team ID to the team's chosen track.
 func (s *Service) TeamTracks(ctx context.Context, eventID string) (map[string]*model.EventTrack, error) {
-	return entryrepo.EventTeamTracks(ctx, s.db, eventID)
+	return teamrepo.EventTeamTracks(ctx, s.db, eventID)
 }

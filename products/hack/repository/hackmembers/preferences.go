@@ -1,4 +1,4 @@
-package hackevents
+package hackmembers
 
 import (
 	"context"

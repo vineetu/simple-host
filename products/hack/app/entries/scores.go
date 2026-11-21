@@ -9,6 +9,7 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 )
 
@@ -29,7 +30,11 @@ func (s *Service) JudgeScores(ctx context.Context, eventID, judgeID, teamID stri
 	if _, err := entryrepo.EventTeamInEvent(ctx, s.db, eventID, teamID); err != nil {
 		return nil, "", err
 	}
-	ok, err := entryrepo.JudgeTeamEligible(ctx, s.db, eventID, judgeID, teamID)
+	ev, err := eventrepo.GetEventByID(ctx, s.db, eventID)
+	if err != nil {
+		return nil, "", err
+	}
+	ok, err := entryrepo.JudgeTeamEligible(ctx, s.db, ev, judgeID, teamID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -91,7 +96,11 @@ func saveJudgeScores(ctx context.Context, tx *sql.Tx, eventID, judgeID, teamID s
 			return nil, "", &Error{Code: "invalid_request", Message: "Score at least one criterion before adding a comment."}
 		}
 	}
-	eligible, err := entryrepo.JudgeTeamEligible(ctx, tx, eventID, judgeID, teamID)
+	ev, err = eventrepo.GetEventByID(ctx, tx, eventID)
+	if err != nil {
+		return nil, "", err
+	}
+	eligible, err := entryrepo.JudgeTeamEligible(ctx, tx, ev, judgeID, teamID)
 	if err != nil {
 		return nil, "", err
 	}
@@ -107,7 +116,7 @@ func checkScoringJudge(ctx context.Context, tx *sql.Tx, eventID, judgeID string)
 	if err != nil || member {
 		return err
 	}
-	ids, err := eventrepo.OrganiserIDs(ctx, tx, eventID)
+	ids, err := hackmembers.OrganiserIDs(ctx, tx, eventID)
 	if err != nil {
 		return err
 	}

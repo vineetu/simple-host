@@ -164,6 +164,14 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 	}
 	defer tx.Rollback()
 	seen := map[string]bool{}
+	tracks, err := eventrepo.ListEventTracks(ctx, tx, ev.ID)
+	if err != nil {
+		return nil, err
+	}
+	inEvent := map[string]bool{}
+	for _, t := range tracks {
+		inEvent[t.ID] = true
+	}
 	for _, p := range items {
 		if !sites.UUIDShape.MatchString(p.TrackID) || !sites.UUIDShape.MatchString(p.JudgeID) {
 			return nil, &Error{Code: "invalid_panel", Message: "use event track and judge ids"}
@@ -173,11 +181,7 @@ func (s *Service) PutTrackPanels(ctx context.Context, eventID string, items []en
 			return nil, &Error{Code: "duplicate_panel_member", Message: "each judge appears once per track"}
 		}
 		seen[key] = true
-		track, err := entryrepo.EventTrackInEvent(ctx, tx, ev.ID, p.TrackID)
-		if err != nil {
-			return nil, err
-		}
-		if !track {
+		if !inEvent[p.TrackID] {
 			return nil, &Error{Code: "track_not_found", Message: "track not found in this event"}
 		}
 		judge, err := entryrepo.EventJudgeInEvent(ctx, tx, ev.ID, p.JudgeID)

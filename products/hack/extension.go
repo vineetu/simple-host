@@ -36,6 +36,7 @@ import (
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
@@ -159,7 +160,7 @@ func Extension() *extension.Extension {
 				SiteSweep: NewSiteSweep(d.DB, siteHandler, siteSweep),
 				Hooks: extension.Hooks{
 					Storage:    storagebind.Provider{DB: d.DB},
-					Sitemap:    hackevents.FilterSitemapSites,
+					Sitemap:    hackteams.FilterSitemapSites,
 					GroupHosts: groupHosts,
 					GroupGate:  teams.SiteGate{TeamSitesReady: siteHandler.TeamSitesReady, RequestCert: siteHandler.RequestSiteCert, PaperSite: siteHandler.RecordGateSite, PaperState: siteHandler.RecordGateState},
 				},
@@ -201,7 +202,7 @@ func hackTools(db *sql.DB) mcp.Contribution {
 			return hackmcp.EventFact{}
 		}
 		role := "none"
-		if member, err := hackevents.GetEventMember(ctx, db, ev.ID, cmp.Or(user, account)); err == nil {
+		if member, err := hackmembers.Member(ctx, db, ev.ID, cmp.Or(user, account), hackmembers.NoLock); err == nil {
 			role = member.Role
 		}
 		return hackmcp.EventFact{Found: true, Role: role, Stage: ev.Stage, Listed: ev.DirectoryListed, Held: held}

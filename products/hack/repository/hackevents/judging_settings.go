@@ -58,30 +58,8 @@ func UpdateScoreSettings(ctx context.Context, q sqlkit.Querier, eventID string, 
 	return err
 }
 
-func SetOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string, ids []string) (bool, error) {
-	var valid bool
-	err := q.QueryRowContext(ctx, `SELECT NOT EXISTS (SELECT 1 FROM unnest($2::uuid[]) id WHERE NOT EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=$1 AND m.user_id=id AND m.role='organiser'))`, eventID, pq.Array(ids)).Scan(&valid)
-	if err != nil || !valid {
-		return valid, err
-	}
-	_, err = q.ExecContext(ctx, `UPDATE events SET organiser_judges=$2::uuid[], updated_at=now() WHERE id=$1`, eventID, pq.Array(ids))
-	return true, err
-}
-
-// OrganiserIDs is the legacy include_organisers=true selection.
-func OrganiserIDs(ctx context.Context, q sqlkit.Querier, eventID string) ([]string, error) {
-	rows, err := queryContext(ctx, q, `SELECT user_id FROM event_members WHERE event_id=$1 AND role='organiser' ORDER BY user_id`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	ids := []string{}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
+// SetOrganiserJudges stores which organisers judge (the caller checked each is one).
+func SetOrganiserJudges(ctx context.Context, q sqlkit.Querier, eventID string, ids []string) error {
+	_, err := q.ExecContext(ctx, `UPDATE events SET organiser_judges=$2::uuid[], updated_at=now() WHERE id=$1`, eventID, pq.Array(ids))
+	return err
 }

@@ -8,6 +8,7 @@ import (
 
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 func (s *Service) DeleteFormerJudgeScores(ctx context.Context, eventID, callerID, userID, slug string) error {
@@ -31,14 +32,14 @@ func (s *Service) DeleteFormerJudgeScores(ctx context.Context, eventID, callerID
 	}
 	// Re-check membership under the event lock: a concurrent organiser removal
 	// may have committed while this request waited for that lock.
-	role, err := entryrepo.OrganiserRoleForShare(ctx, tx, eventID, callerID)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && role != "organiser" {
+	caller, err := hackmembers.Member(ctx, tx, eventID, callerID, hackmembers.ForShare)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !caller.Organiser() {
 		return &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return err
 	}
-	found, err := eventrepo.DeleteFormerJudgeScores(ctx, tx, eventID, userID)
+	found, err := entryrepo.DeleteFormerJudgeScores(ctx, tx, eventID, userID)
 	if err != nil {
 		log.Printf("hack: delete former judge scores %s: %v", slug, err)
 		return err

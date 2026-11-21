@@ -133,11 +133,6 @@ func (h *judgingHTTP) patchJudgingSettings(w http.ResponseWriter, r *http.Reques
 	h.writeJudgingSettings(w, r, ev)
 }
 
-func (h *siteLinks) poolSiteLive(ctx context.Context, ev model.Event) func(model.NamedTeam) (bool, error) {
-	live := h.siteLiveCheck(ctx, ev)
-	return func(t model.NamedTeam) (bool, error) { return live(t.ID, t.Slug) }
-}
-
 // siteLiveCheck reports whether a team's site is live right now, loading
 // the event's team list once, on first use.
 func (h *siteLinks) siteLiveCheck(ctx context.Context, ev model.Event) func(teamID, teamSlug string) (bool, error) {
@@ -175,7 +170,7 @@ func (h *judgingHTTP) generateAssignments(w http.ResponseWriter, r *http.Request
 		httpx.WriteInternal(w)
 		return
 	}
-	pool, err := h.entries.JudgingPool(r.Context(), a.event, allTeams, h.links.poolSiteLive(r.Context(), a.event))
+	pool, err := h.entries.JudgingPool(r.Context(), a.event, allTeams)
 	if err != nil {
 		log.Printf("hack: assignments %s: %v", a.event.Slug, err)
 		httpx.WriteInternal(w)
@@ -286,7 +281,7 @@ func (h *judgingHTTP) judgingDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// TODO: this prospective pool includes unsettled entries and live sites; the queue requires judgeable entries.
-	d, err := h.entries.JudgingDashboard(r.Context(), a.event, h.links.poolSiteLive(r.Context(), a.event))
+	d, err := h.entries.JudgingDashboard(r.Context(), a.event)
 	if err != nil {
 		writeHackError(w, err)
 		return
@@ -361,12 +356,12 @@ func (h *judgingHTTP) judgeQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	var tl teamList
-	queue, err := h.entries.JudgeCandidates(ctx, a.event, a.user.ID, func() error {
-		var err error
-		tl, err = h.links.loadTeamList(ctx, a.event)
-		return err
-	})
+	queue, err := h.entries.JudgeCandidates(ctx, a.event, a.user.ID)
+	if err != nil {
+		writeHackError(w, err)
+		return
+	}
+	tl, err := h.links.loadTeamList(ctx, a.event)
 	if err != nil {
 		writeHackError(w, err)
 		return

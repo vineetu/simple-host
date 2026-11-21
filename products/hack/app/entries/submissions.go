@@ -41,7 +41,7 @@ func (s *Service) Submissions(ctx context.Context, ev model.Event, onlyTeam stri
 	}
 	tracks := map[string]*model.EventTrack{}
 	if onlyTeam == "" {
-		if tracks, err = entryrepo.EventTeamTracks(ctx, s.db, ev.ID); err != nil {
+		if tracks, err = teamrepo.EventTeamTracks(ctx, s.db, ev.ID); err != nil {
 			return nil, err
 		}
 	}

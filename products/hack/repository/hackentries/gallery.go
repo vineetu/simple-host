@@ -1,4 +1,4 @@
-package hackevents
+package hackentries
 
 import (
 	"context"
@@ -7,22 +7,40 @@ import (
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
-	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 type GalleryCard = model.GalleryCard
 
-const galleryLiveFrom = hackentries.GalleryLiveFrom
+// liveFrom selects the live projects shared by the gallery and voting: the
+// teams hackteams.LiveTeams gives (as teamRows from $2) with their entries.
+var liveFrom = `
+  FROM ` + teamRows(2) + `
+  LEFT JOIN event_entries e ON e.team_id = t.id
+ WHERE t.event_id = $1`
+
+// liveArgs is eventID and the event's live teams, the parameters liveFrom reads.
+func liveArgs(ctx context.Context, q sqlkit.Querier, eventID string, live []string) ([]any, error) {
+	teams, err := hackteams.LiveTeams(ctx, q, eventID, live)
+	if err != nil {
+		return nil, err
+	}
+	return append([]any{eventID}, teamArgs(teams)...), nil
+}
 
 // galleryHasShot is an entry screenshot the gallery can show: bytes of one of the three types an entry stores.
 const galleryHasShot = `COALESCE(e.screenshot_type, '') IN ('image/png', 'image/jpeg', 'image/webp') AND COALESCE(octet_length(e.screenshot), 0) > 0`
 
 func ListGalleryCards(ctx context.Context, q sqlkit.Querier, eventID string, live []string) ([]GalleryCard, error) {
+	args, err := liveArgs(ctx, q, eventID, live)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := queryContext(ctx, q, `
 		SELECT t.id, t.slug, t.name, COALESCE(e.title, ''), COALESCE(e.tagline, ''), COALESCE(e.tools, '{}'),
 		       (`+galleryHasShot+`)
-		`+galleryLiveFrom+`
-		 ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, eventID, pq.Array(live))
+		`+liveFrom+`
+		 ORDER BY lower(COALESCE(NULLIF(e.title, ''), t.name)), t.slug`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -39,10 +57,14 @@ func ListGalleryCards(ctx context.Context, q sqlkit.Querier, eventID string, liv
 }
 
 func GalleryScreenshot(ctx context.Context, q sqlkit.Querier, eventID string, live []string, teamSlug string) (data []byte, contentType string, err error) {
+	args, err := liveArgs(ctx, q, eventID, live)
+	if err != nil {
+		return nil, "", err
+	}
 	err = q.QueryRowContext(ctx, `
 		SELECT e.screenshot, e.screenshot_type
-		`+galleryLiveFrom+`
-		   AND t.slug = $3 AND `+galleryHasShot, eventID, pq.Array(live), teamSlug).Scan(&data, &contentType)
+		`+liveFrom+`
+		   AND t.slug = $9 AND `+galleryHasShot, append(args, teamSlug)...).Scan(&data, &contentType)
 	if err != nil {
 		return nil, "", err
 	}

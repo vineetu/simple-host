@@ -7,8 +7,10 @@ import (
 	"fmt"
 
 	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 type FillPlacement = model.FillPlacement
@@ -35,11 +37,11 @@ func NewTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, teamSlug, u
 	if answer, err := requestDecision(facts, actor, userID, kind); answer != "" || err != nil {
 		return answer, err
 	}
-	if err := checkTeamHasRoom(ctx, q, t.ID, ev.TeamSizeMax); err != nil {
+	if err := checkTeamHasRoom(ctx, q, ev.ID, t.ID, ev.TeamSizeMax); err != nil {
 		return "", err
 	}
 	if facts.existingID != "" {
-		if _, err := JoinTeamByCode(ctx, q, ev.ID, userID, t.Code, ev.TeamSizeMax, EnsureTeamAdmin); err != nil {
+		if _, err := JoinTeamByCode(ctx, q, ev.ID, userID, t.Code, ev.TeamSizeMax); err != nil {
 			return "", err
 		}
 		return "joined", nil
@@ -53,15 +55,11 @@ func NewTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, teamSlug, u
 // for, and a locked team takes nobody by request or invite;
 // every unlocked team is askable.
 func lockRequestTeam(ctx context.Context, q *sql.Tx, eventID, teamSlug, userID string) (EventTeam, error) {
-	m, err := LockMember(ctx, q, eventID, userID)
+	m, err := lockMember(ctx, q, eventID, userID)
 	if err != nil {
 		return EventTeam{}, err
 	}
-	status, err := hackevents.MemberApprovalStatus(ctx, q, eventID, userID)
-	if err != nil {
-		return EventTeam{}, err
-	}
-	if m.Role != "participant" || status != "approved" || m.TeamID.Valid {
+	if !m.Participant() || !m.Approved() || m.TeamID.Valid {
 		return EventTeam{}, ErrHackFindingForbidden
 	}
 	t, err := LockTeamBySlug(ctx, q, eventID, teamSlug)
@@ -79,10 +77,24 @@ type requestFacts struct {
 	existingID, existingKind string
 }
 
+// onTeam is whether userID is an approved member of teamID.
+func onTeam(ctx context.Context, q sqlkit.Querier, eventID, userID, teamID string) (bool, error) {
+	m, err := hackmembers.Member(ctx, q, eventID, userID, hackmembers.NoLock)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil && m.TeamID.String == teamID && m.Approved(), err
+}
+
 func readRequestFacts(ctx context.Context, q *sql.Tx, eventID, teamID, actor, userID string) (f requestFacts, err error) {
-	if err = q.QueryRowContext(ctx, `SELECT m.looking, EXISTS(SELECT 1 FROM event_members a WHERE a.event_id=$1 AND a.user_id=$3 AND a.team_id=$2 AND a.approval_status='approved') FROM event_members m WHERE m.event_id=$1 AND m.user_id=$4`, eventID, teamID, actor, userID).Scan(&f.looking, &f.teammate); err != nil {
+	m, err := hackmembers.Member(ctx, q, eventID, userID, hackmembers.NoLock)
+	if err != nil {
 		return f, err
 	}
+	if f.teammate, err = onTeam(ctx, q, eventID, actor, teamID); err != nil {
+		return f, err
+	}
+	f.looking = m.Looking
 	err = q.QueryRowContext(ctx, "SELECT id,kind FROM event_team_requests WHERE team_id=$1 AND user_id=$2", teamID, userID).Scan(&f.existingID, &f.existingKind)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -107,7 +119,7 @@ func requestDecision(f requestFacts, actor, userID, kind string) (string, error)
 }
 
 // checkTeamHasRoom refuses a full team or one frozen past its deadline.
-func checkTeamHasRoom(ctx context.Context, q *sql.Tx, teamID string, sizeMax int) error {
+func checkTeamHasRoom(ctx context.Context, q *sql.Tx, eventID, teamID string, sizeMax int) error {
 	n, err := CountTeamMembers(ctx, q, teamID)
 	if err != nil {
 		return err
@@ -115,7 +127,7 @@ func checkTeamHasRoom(ctx context.Context, q *sql.Tx, teamID string, sizeMax int
 	if n >= sizeMax {
 		return ErrHackTeamFull
 	}
-	state, err := TeamWriteStateFor(ctx, q, teamID, true)
+	state, err := TeamWriteStateFor(ctx, q, eventID, teamID, true)
 	if err == nil && state.Frozen() {
 		return ErrHackTeamFrozen
 	}
@@ -134,7 +146,7 @@ func ResolveTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, id, act
 		return err
 	}
 	// Keep the join lock order: prospective member, then team.
-	if _, err = LockMember(ctx, q, ev.ID, userID); err != nil {
+	if _, err = lockMember(ctx, q, ev.ID, userID); err != nil {
 		return err
 	}
 	t, err := LockTeam(ctx, q, teamID)
@@ -143,12 +155,15 @@ func ResolveTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, id, act
 	}
 	code = t.Code
 	var exists, teammate, actorAdmin bool
-	err = q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_team_requests WHERE id=$1),
-		EXISTS(SELECT 1 FROM event_members WHERE event_id=$2 AND user_id=$3 AND team_id=$4 AND approval_status='approved'),
-		EXISTS(SELECT 1 FROM event_members WHERE event_id=$2 AND user_id=$3 AND team_id=$4 AND team_admin)`,
-		id, ev.ID, actor, teamID).Scan(&exists, &teammate, &actorAdmin)
-	if err != nil {
+	if err = q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_team_requests WHERE id=$1)`, id).Scan(&exists); err != nil {
 		return err
+	}
+	a, err := hackmembers.Member(ctx, q, ev.ID, actor, hackmembers.NoLock)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil && a.TeamID.String == teamID {
+		teammate, actorAdmin = a.Approved(), a.TeamAdmin
 	}
 	if !exists {
 		return sql.ErrNoRows
@@ -157,10 +172,10 @@ func ResolveTeamRequest(ctx context.Context, q *sql.Tx, ev Event, actor, id, act
 		return err
 	}
 	if action == "accept" {
-		if _, err = JoinTeamByCode(ctx, q, ev.ID, userID, code, ev.TeamSizeMax, EnsureTeamAdmin); err != nil {
+		if _, err = JoinTeamByCode(ctx, q, ev.ID, userID, code, ev.TeamSizeMax); err != nil {
 			return err
 		}
-		st, err := TeamWriteStateFor(ctx, q, teamID, true)
+		st, err := TeamWriteStateFor(ctx, q, ev.ID, teamID, true)
 		if err != nil {
 			return err
 		}
@@ -196,7 +211,7 @@ func mayResolve(action, kind, actor, userID string, teammate, actorAdmin bool) e
 // before the submission deadline new teams get size. The caller validates
 // 1 <= size <= team_size_max and locks the event and membership rows before
 // preview or apply.
-func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int, siteEverNamed func(context.Context, Querier, string, string) (bool, error)) ([]FillPlacement, []FillSkippedTeam, error) {
+func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int) ([]FillPlacement, []FillSkippedTeam, error) {
 	people, err := soloParticipants(ctx, q, ev.ID)
 	if err != nil {
 		return nil, nil, err
@@ -205,15 +220,15 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int, siteEverN
 	if err != nil {
 		return nil, nil, err
 	}
-	plan, skipped, people, err := topUpTeams(ctx, q, teams, size, people)
+	plan, skipped, people, err := topUpTeams(ctx, q, ev.ID, teams, size, people)
 	if err != nil {
 		return nil, nil, err
 	}
-	var past bool
-	if err = q.QueryRowContext(ctx, "SELECT COALESCE(submission_deadline<=clock_timestamp(),false) FROM events WHERE id=$1", ev.ID).Scan(&past); err != nil || past {
+	past, err := hackevents.DeadlinePassed(ctx, q, ev.ID, false)
+	if err != nil || past {
 		return plan, skipped, err
 	}
-	fresh, err := newFillTeams(ctx, q, ev, teams, size, people, siteEverNamed)
+	fresh, err := newFillTeams(ctx, q, ev, teams, size, people)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -222,7 +237,7 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int, siteEverN
 
 // soloParticipants lists approved participants without a team, oldest first.
 func soloParticipants(ctx context.Context, q Querier, eventID string) ([]FillPerson, error) {
-	ids, err := userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL ORDER BY joined_at,user_id`, eventID)
+	ids, err := hackmembers.IDs(ctx, q, hackmembers.Filter{EventID: eventID, Role: "participant", Status: "approved", NoTeam: true})
 	if err != nil {
 		return nil, err
 	}
@@ -242,8 +257,12 @@ func soloParticipants(ctx context.Context, q Querier, eventID string) ([]FillPer
 // topUpTeams fills each open, unfrozen team with room up to size and
 // returns the people left over. A locked team with room is reported as
 // skipped while anyone is left to place.
-func topUpTeams(ctx context.Context, q Querier, teams []EventTeam, size int, people []FillPerson) (plan []FillPlacement, skipped []FillSkippedTeam, rest []FillPerson, err error) {
+func topUpTeams(ctx context.Context, q Querier, eventID string, teams []EventTeam, size int, people []FillPerson) (plan []FillPlacement, skipped []FillSkippedTeam, rest []FillPerson, err error) {
 	plan, skipped = []FillPlacement{}, []FillSkippedTeam{}
+	states, err := TeamWriteStatesForEvent(ctx, q, eventID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	for _, t := range teams {
 		n, err := CountTeamMembers(ctx, q, t.ID)
 		if err != nil {
@@ -255,11 +274,7 @@ func topUpTeams(ctx context.Context, q Querier, teams []EventTeam, size int, peo
 			}
 			continue
 		}
-		st, err := TeamWriteStateFor(ctx, q, t.ID, false)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if st.Frozen() || n >= size || len(people) == 0 {
+		if states[t.ID].Frozen() || n >= size || len(people) == 0 {
 			continue
 		}
 		var members []FillPerson
@@ -271,7 +286,7 @@ func topUpTeams(ctx context.Context, q Querier, teams []EventTeam, size int, peo
 
 // newFillTeams places everyone left into new "Team N" teams of size, skipping
 // any name or site name an existing or earlier team has used.
-func newFillTeams(ctx context.Context, q Querier, ev Event, teams []EventTeam, size int, people []FillPerson, siteEverNamed func(context.Context, Querier, string, string) (bool, error)) ([]FillPlacement, error) {
+func newFillTeams(ctx context.Context, q Querier, ev Event, teams []EventTeam, size int, people []FillPerson) ([]FillPlacement, error) {
 	names, slugs := map[string]bool{}, map[string]bool{}
 	for _, t := range teams {
 		names[t.Name], slugs[t.Slug] = true, true
@@ -282,7 +297,7 @@ func newFillTeams(ctx context.Context, q Querier, ev Event, teams []EventTeam, s
 		if names[name] || slugs[slug] {
 			continue
 		}
-		free, err := fillNameFree(ctx, q, ev, name, slug, siteEverNamed)
+		free, err := fillNameFree(ctx, q, ev, name, slug)
 		if err != nil {
 			return nil, err
 		}
@@ -298,12 +313,12 @@ func newFillTeams(ctx context.Context, q Querier, ev Event, teams []EventTeam, s
 
 // fillNameFree reports whether no team has name (in any case) and no site
 // was ever named slug in the event.
-func fillNameFree(ctx context.Context, q Querier, ev Event, name, slug string, siteEverNamed func(context.Context, Querier, string, string) (bool, error)) (bool, error) {
+func fillNameFree(ctx context.Context, q Querier, ev Event, name, slug string) (bool, error) {
 	var taken bool
 	if err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM event_teams WHERE event_id=$1 AND lower(name)=lower($2))`, ev.ID, name).Scan(&taken); err != nil || taken {
 		return false, err
 	}
-	used, err := TeamNameEverUsed(ctx, q, ev.Slug, ev.AccountID, slug, siteEverNamed)
+	used, err := TeamNameEverUsed(ctx, q, ev.Slug, ev.AccountID, slug)
 	return err == nil && !used, err
 }
 

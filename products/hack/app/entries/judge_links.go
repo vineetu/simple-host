@@ -11,11 +11,11 @@ import (
 type EntryCounts map[string]int
 
 // CountEntries tallies teams by entry state (missing entry: not started) and live site.
-func CountEntries(teams []model.EventTeam, entries map[string]model.EventEntry, live func(model.EventTeam) bool) EntryCounts {
+func CountEntries(teams []model.EventTeam, entries map[string]model.EventEntry, live map[string]bool) EntryCounts {
 	counts := EntryCounts{"submitted": 0, "drafts": 0, "not_started": 0, "not_submitted": 0, "sites_live": 0}
 	for _, team := range teams {
 		counts[entryState(entries, team.ID)]++
-		if live(team) {
+		if live[team.ID] {
 			counts["sites_live"]++
 		}
 	}
@@ -41,7 +41,7 @@ func (s *Service) JudgeSiteLinks(ctx context.Context, ev model.Event, userID str
 	if organiser {
 		return func(string) bool { return true }, nil
 	}
-	eligible, err := s.EligibleJudgeTeams(ctx, ev.ID, userID)
+	eligible, err := s.EligibleJudgeTeams(ctx, ev, userID)
 	if err != nil {
 		return nil, err
 	}

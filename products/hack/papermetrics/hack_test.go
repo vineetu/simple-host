@@ -50,7 +50,7 @@ func TestHackSnapshotAndExport(t *testing.T) {
 	exec(`INSERT INTO event_scores (event_id,team_id,judge_id,criterion_id,points,comment) VALUES ($1,$2,$3,$4,4,'secret-comment')`, event, team, judge, criterion)
 	exec(`INSERT INTO event_assignments (event_id,team_id,judge_id) VALUES ($1,$2,$3)`, event, team, judge)
 	exec(`INSERT INTO event_conflicts (event_id,team_id,judge_id) VALUES ($1,$2,$3)`, event, team, judge)
-	exec(`INSERT INTO event_votes (event_id,team_id,voter_email) VALUES ($1,$2,'secret-voter@example.com')`, event, team)
+	exec(`INSERT INTO event_votes (event_id,team_id,voter_id) VALUES ($1,$2,$3)`, event, team, p1)
 	exec(`INSERT INTO event_announcements (event_id,title,body) VALUES ($1,'secret-announcement','secret-body')`, event)
 	site := id(`INSERT INTO sites (user_id,name,site_url,active_version) VALUES ($1,'secret-team','',2) RETURNING id`, account)
 	exec(`INSERT INTO sites (user_id,name,site_url,active_version) VALUES ($1,$2,'',1),($1,'deleted','',1)`, account, event)

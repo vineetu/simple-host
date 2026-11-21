@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/products/hack/app/entries"
 )
 
@@ -105,17 +104,17 @@ func TestHackLeaveNeverTouchesVotes(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE events SET voting_eligibility='participants' WHERE slug=$1`, slug); err != nil {
 		t.Fatal(err)
 	}
-	p1Email := model.BaseEmail(a.emailOf(t, p1))
-	p3Email := model.BaseEmail(a.emailOf(t, p3))
-	for _, email := range []string{p1Email, p3Email} {
-		if _, err := a.database.Exec(`INSERT INTO event_votes (event_id, voter_email, team_id) VALUES ((SELECT id FROM events WHERE slug=$1), $2, $3)`,
-			slug, email, teamID); err != nil {
+	p1ID := a.userID(t, p1)
+	p3ID := a.userID(t, p3)
+	for _, voter := range []string{p1ID, p3ID} {
+		if _, err := a.database.Exec(`INSERT INTO event_votes (event_id, voter_id, team_id) VALUES ((SELECT id FROM events WHERE slug=$1), $2, $3)`,
+			slug, voter, teamID); err != nil {
 			t.Fatal(err)
 		}
 	}
 	count := func(email string) int {
 		var n int
-		if err := a.database.QueryRow(`SELECT count(*) FROM event_votes WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND voter_email=$2`, slug, email).Scan(&n); err != nil {
+		if err := a.database.QueryRow(`SELECT count(*) FROM event_votes WHERE event_id=(SELECT id FROM events WHERE slug=$1) AND voter_id=$2`, slug, email).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		return n
@@ -124,12 +123,12 @@ func TestHackLeaveNeverTouchesVotes(t *testing.T) {
 	// p1 leaves: their own vote, cast while eligible, stands -- leaving
 	// never touches votes, regardless of eligibility.
 	wantTS(t, "p1 leaves", a.leave(t, slug, p1, map[string]any{"confirm": slug}), 200, "")
-	if count(p1Email) != 1 {
+	if count(p1ID) != 1 {
 		t.Fatal("a leaver's own vote must stand -- leaving never touches votes")
 	}
 	// p3 never joined a team and never leaves; p1's departure must not have
 	// swept p3's vote either (the whole-event sweep ship-blocker B1).
-	if count(p3Email) != 1 {
+	if count(p3ID) != 1 {
 		t.Fatal("BUG: an unrelated person's leave deleted someone else's vote")
 	}
 }

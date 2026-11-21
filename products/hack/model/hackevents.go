@@ -2,6 +2,7 @@ package model
 
 import (
 	"database/sql"
+	"slices"
 	"time"
 )
 
@@ -77,15 +78,43 @@ type Event struct {
 	JudgingEndsAt sql.NullTime
 }
 
-// EventMember is one row of event_members.
+// EventMember is one row of event_members: who a person is in one event.
+// DisplayName comes from their account, and only where a reader asked for it.
 type EventMember struct {
-	EventID       string
-	UserID        string
-	Role          string
-	DisplayName   string
-	TeamID        sql.NullString
-	CocAcceptedAt sql.NullTime
-	JoinedAt      time.Time
+	EventID        string
+	UserID         string
+	Role           string
+	DisplayName    string
+	TeamID         sql.NullString
+	CocAcceptedAt  sql.NullTime
+	JoinedAt       time.Time
+	ApprovalStatus string
+	JoinedVia      string
+	TeamAdmin      bool
+	Looking        bool
+	LookingIntro   string
+	// What the person is told after being taken off a team.
+	TeamRemovalNotice string
+}
+
+// Organiser is whether the person runs the event.
+func (m EventMember) Organiser() bool { return m.Role == "organiser" }
+
+// Participant is whether the person takes part (approved or not).
+func (m EventMember) Participant() bool { return m.Role == "participant" }
+
+// Approved is whether the person is in good standing: a participant once an
+// organiser approved them (or no approval was needed); organisers and judges
+// always.
+func (m EventMember) Approved() bool { return !m.Participant() || m.ApprovalStatus == "approved" }
+
+// Judge is whether the person judges: a joined judge, or an organiser the
+// event lists in organiser_judges.
+func (m EventMember) Judge(organiserJudges []string) bool {
+	if m.Role == "judge" {
+		return true
+	}
+	return m.Organiser() && slices.Contains(organiserJudges, m.UserID)
 }
 
 // EventTeam is one row of event_teams.
@@ -107,6 +136,8 @@ type EventTeam struct {
 	// zt-hack-teams-redesign.sql: who locked the team, and when.
 	LockedAt sql.NullTime
 	LockedBy sql.NullString
+	// The event track the team chose (event_tracks), if any.
+	TrackID sql.NullString
 }
 
 type AdminEvent struct {
@@ -171,10 +202,6 @@ type RegistrationApplication struct {
 
 type ApplicantProfile struct {
 	City, Country, AgeRange, Gender string
-}
-
-type MemberStatus struct {
-	Role, ApprovalStatus, JoinedVia string
 }
 
 type EventStorageUsage struct {

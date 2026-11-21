@@ -22,11 +22,11 @@ func (s *Service) EventTeams(ctx context.Context, eventID string) ([]model.Event
 }
 
 func (s *Service) RenameEventTeamLookup(ctx context.Context, eventID string, slug string, name string) error {
-	return eventrepo.RenameEventTeam(ctx, s.db, eventID, slug, name)
+	return teamrepo.RenameEventTeam(ctx, s.db, eventID, slug, name)
 }
 
-func (s *Service) TeamWriteStateForLookup(ctx context.Context, teamID string, share bool) (model.TeamWriteState, error) {
-	return teamrepo.TeamWriteStateFor(ctx, s.db, teamID, share)
+func (s *Service) TeamWriteStateForLookup(ctx context.Context, eventID, teamID string, share bool) (model.TeamWriteState, error) {
+	return teamrepo.TeamWriteStateFor(ctx, s.db, eventID, teamID, share)
 }
 
 // ParticipantTeamStages reports whether participants can change teams.

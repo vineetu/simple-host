@@ -3,13 +3,17 @@ package hackteams
 import (
 	"context"
 	"database/sql"
+	"slices"
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 func TeamRemovalNotice(ctx context.Context, q sqlkit.Querier, eventID, userID string, out *string) error {
-	return q.QueryRowContext(ctx, `SELECT team_removal_notice FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, userID).Scan(out)
+	m, err := hackmembers.Member(ctx, q, eventID, userID, hackmembers.NoLock)
+	*out = m.TeamRemovalNotice
+	return err
 }
 
 func LookingFor(ctx context.Context, q sqlkit.Querier, teamID string, out *string) error {
@@ -17,12 +21,11 @@ func LookingFor(ctx context.Context, q sqlkit.Querier, teamID string, out *strin
 }
 
 func AdminSuccessor(ctx context.Context, q sqlkit.Querier, teamID, userID string, out *string) error {
-	ids, err := userIDs(ctx, q, `
-			SELECT user_id FROM event_members WHERE team_id = $1 AND user_id <> $2
-			 ORDER BY team_joined_at NULLS LAST, user_id`, teamID, userID)
+	tenure, err := hackmembers.TeamByTenure(ctx, q, teamID)
 	if err != nil {
 		return err
 	}
+	ids := slices.DeleteFunc(tenure, func(id string) bool { return id == userID })
 	users, err := accounts.UsersByIDs(ctx, q, ids)
 	if err != nil {
 		return err

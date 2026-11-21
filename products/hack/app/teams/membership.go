@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	model "github.com/vsriram/simple-host/products/hack/model"
-	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackteams"
 )
@@ -21,7 +21,7 @@ func (s *Service) LeaveTeam(ctx context.Context, ev model.Event, userID string) 
 		return err
 	}
 	defer tx.Rollback()
-	err = teamrepo.LeaveTeam(ctx, tx, ev.ID, userID, teamrepo.EnsureTeamAdmin)
+	err = teamrepo.LeaveTeam(ctx, tx, ev.ID, userID)
 	if errors.Is(err, ErrTeamFrozen) {
 		return &Error{Code: "submissions_closed", Message: "your team's deadline has passed, so the team can't change; ask the organiser"}
 	}
@@ -48,10 +48,10 @@ func (s *Service) DeleteTeam(ctx context.Context, ev model.Event, rawSlug string
 	}
 	defer tx.Rollback()
 	notice := team.Name + " was removed by the organiser."
-	if _, err = teamrepo.SetTeamRemovalNotices(ctx, tx, team.ID, notice); err != nil {
+	if err = hackmembers.SetTeamRemovalNotices(ctx, tx, team.ID, notice); err != nil {
 		return internalError(err)
 	}
-	if err = eventrepo.NotifyTeamMembers(ctx, tx, ev.ID, team.ID, eventrepo.NoticeTeamRemoved, notice, ""); err != nil {
+	if err = hackmembers.NotifyTeamMembers(ctx, tx, ev.ID, team.ID, hackmembers.NoticeTeamRemoved, notice, ""); err != nil {
 		return internalError(err)
 	}
 	if err = teamrepo.DeleteEventTeam(ctx, tx, team.ID); err != nil {
@@ -83,12 +83,12 @@ func (s *Service) JoinTeam(ctx context.Context, ev model.Event, userID, code str
 	if !hackteams.ParticipantTeamStages(stage) {
 		return model.EventTeam{}, errTeamsLocked()
 	}
-	team, err := teamrepo.JoinTeamByCode(ctx, tx, ev.ID, userID, code, ev.TeamSizeMax, teamrepo.EnsureTeamAdmin)
+	team, err := teamrepo.JoinTeamByCode(ctx, tx, ev.ID, userID, code, ev.TeamSizeMax)
 	if err != nil {
 		return team, err
 	}
 	// A team past its deadline takes nobody new: they could never publish or leave.
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, team.ID, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, ev.ID, team.ID, true)
 	if err != nil {
 		return team, internalError(err)
 	}

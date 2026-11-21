@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 // Co-organiser invitations are stored hashed, expire, lose authority on
@@ -60,7 +61,7 @@ func TestRhpCoOrganiserInvites(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, p := range []person{co, other} {
-		if m, err := hackevents.GetEventMember(context.Background(), a.database, ev.ID, rhpUserID(t, a, p)); err != nil || m.Role != "organiser" {
+		if m, err := hackmembers.Member(context.Background(), a.database, ev.ID, rhpUserID(t, a, p), hackmembers.NoLock); err != nil || m.Role != "organiser" {
 			t.Fatalf("accepted member: %v %v", m, err)
 		}
 	}

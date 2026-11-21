@@ -14,6 +14,7 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 	"github.com/vsriram/simple-host/products/hack/rules/hackentries"
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
@@ -58,7 +59,8 @@ func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organise
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
-	member, err := eventrepo.GetEventMember(ctx, s.db, ev.ID, userID)
+	member, err := hackmembers.Member(ctx, s.db, ev.ID, userID, hackmembers.NoLock)
+	member, err = hackmembers.WithDisplayName(ctx, s.db, member, err)
 	if err != nil {
 		return model.Event{}, model.EventMember{}, err
 	}
@@ -122,19 +124,19 @@ func seedEvent(ctx context.Context, tx *sql.Tx, eventID, userID, organiserName s
 			return err
 		}
 	}
-	if _, err := eventrepo.InsertEventMember(ctx, tx, eventID, userID, "organiser"); err != nil {
+	if _, err := hackmembers.Join(ctx, tx, eventID, userID, "organiser"); err != nil {
 		return err
 	}
 	return SyncAccess(ctx, tx, eventID)
 }
 
-func (s *Service) SetStage(ctx context.Context, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
+func (s *Service) SetStage(ctx context.Context, event model.Event, stage string) (model.Event, string, error) {
 	if event.Stage == "archived" && stage != "archived" {
 		return model.Event{}, "", &Error{Code: "event_closed", Message: "an ended event cannot be reopened"}
 	}
 	if stage == "archived" && event.Stage != "archived" {
 		// An event nobody joined is deleted, not ended: ending one would keep its name and page for good without it ever running.
-		participants, _, _, err := eventrepo.CountEventMembers(ctx, s.db, event.ID)
+		participants, err := hackmembers.Count(ctx, s.db, hackmembers.Filter{EventID: event.ID, Role: "participant", Status: "approved"})
 		if err != nil {
 			return model.Event{}, "", err
 		}
@@ -147,7 +149,7 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 		return model.Event{}, "", err
 	}
 	defer tx.Rollback()
-	updated, current, err := s.SetStageTx(ctx, tx, event, stage, settle)
+	updated, current, err := s.SetStageTx(ctx, tx, event, stage)
 	if err != nil {
 		return model.Event{}, "", err
 	}
@@ -157,7 +159,7 @@ func (s *Service) SetStage(ctx context.Context, event model.Event, stage string,
 	return updated, current, nil
 }
 
-func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, string, error) {
+func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event, stage string) (model.Event, string, error) {
 	var current string
 	if err := eventrepo.LockWorkflowStage(ctx, tx, event.ID).Scan(&current); err != nil {
 		return model.Event{}, "", err
@@ -166,19 +168,19 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 		return model.Event{}, "", &Error{Code: "event_closed", Message: "an ended event cannot be reopened"}
 	}
 	// Every team row too: a deploy let in holds its team FOR SHARE and finishes before the deadline moves.
-	if _, err := eventrepo.LockEventTeams(ctx, tx, event.ID); err != nil {
+	if err := teamrepo.LockEventTeams(ctx, tx, event.ID); err != nil {
 		return model.Event{}, "", err
 	}
 	if stage == "archived" {
-		updated, err := s.ArchiveEventTx(ctx, tx, event.ID, current, settle)
+		updated, err := s.ArchiveEventTx(ctx, tx, event.ID, current)
 		if err != nil {
 			return model.Event{}, "", err
 		}
 		return updated, current, nil
 	}
-	updated, err := moveStage(ctx, tx, event.ID, current, stage, settle)
+	updated, err := s.moveStage(ctx, tx, event.ID, current, stage)
 	if err == nil && current != stage {
-		err = eventrepo.DismissTeamMessages(ctx, tx, event.ID)
+		err = hackmembers.DismissTeamMessages(ctx, tx, event.ID)
 	}
 	if err != nil {
 		return model.Event{}, "", err
@@ -186,7 +188,7 @@ func (s *Service) SetStageTx(ctx context.Context, tx *sql.Tx, event model.Event,
 	return updated, current, nil
 }
 
-func moveStage(ctx context.Context, tx *sql.Tx, eventID, current, stage string, settle func(context.Context, *sql.Tx, string) error) (model.Event, error) {
+func (s *Service) moveStage(ctx context.Context, tx *sql.Tx, eventID, current, stage string) (model.Event, error) {
 	if err := moveSubmissionDeadline(ctx, tx, eventID, current, stage); err != nil {
 		return model.Event{}, err
 	}
@@ -199,13 +201,13 @@ func moveStage(ctx context.Context, tx *sql.Tx, eventID, current, stage string, 
 	}
 	// Settle every due entry in the same transaction as a move that freezes submissions, so judging never waits for the sweep.
 	if hackevents.SubmissionsClosedStage(stage) {
-		if err := settle(ctx, tx, eventID); err != nil {
+		if err := s.entries.SettleEventTx(ctx, tx, eventID); err != nil {
 			return model.Event{}, err
 		}
 	}
 	// Judging opens now, from anything but results -- after settle, so a judge's first reminder/queue read already sees the settled entries.
 	if stage == "judging" && current != "judging" && current != "results" {
-		if err := eventrepo.NotifyJudgingOpen(ctx, tx, eventID); err != nil {
+		if err := hackmembers.NotifyJudgingOpen(ctx, tx, eventID); err != nil {
 			return model.Event{}, err
 		}
 	}
@@ -223,7 +225,7 @@ func moveSubmissionDeadline(ctx context.Context, tx *sql.Tx, eventID, current, s
 		if _, err := eventrepo.ClearPassedSubmissionDeadline(ctx, tx, eventID); err != nil {
 			return err
 		}
-		if _, err := eventrepo.ClearPassedTeamDeadlines(ctx, tx, eventID); err != nil {
+		if err := teamrepo.ClearPassedTeamDeadlines(ctx, tx, eventID); err != nil {
 			return err
 		}
 		return entryrepo.UnsettleEventDrafts(ctx, tx, eventID)
@@ -249,19 +251,27 @@ func (s *Service) DeleteEvent(ctx context.Context, event model.Event, userID str
 	}
 	defer tx.Rollback()
 	// Hold the event against joins and recheck current organiser membership.
-	var stage, role string
+	var stage string
 	var takenDown bool
-	err = eventrepo.LockStageAndMemberRole(ctx, tx, event.ID, userID).Scan(&stage, &role, &takenDown)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && role != "organiser") {
+	err = eventrepo.LockStageTakenDown(ctx, tx, event.ID).Scan(&stage, &takenDown)
+	var m model.EventMember
+	if err == nil {
+		m, err = hackmembers.Member(ctx, tx, event.ID, userID, hackmembers.ForShare)
+	}
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !m.Organiser()) {
 		return &Error{Code: "event_not_found", Message: "event not found"}
 	}
+	if err != nil {
+		return err
+	}
+	current, err := eventrepo.GetEventByID(ctx, tx, event.ID)
 	if err != nil {
 		return err
 	}
 	if takenDown {
 		return &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 	}
-	participants, _, judges, err := eventrepo.CountEventMembers(ctx, tx, event.ID)
+	participants, _, judges, err := countPeople(ctx, tx, current)
 	if err != nil {
 		return err
 	}
@@ -278,8 +288,8 @@ func (s *Service) DeleteEvent(ctx context.Context, event model.Event, userID str
 }
 
 // ArchiveEventTx locks teams and closes the deadline unless it already passed or submissions were closed, then archives, unpins and settles entries.
-func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string, settle func(context.Context, *sql.Tx, string) error) (model.Event, error) {
-	if _, err := eventrepo.LockEventTeams(ctx, tx, eventID); err != nil {
+func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, current string) (model.Event, error) {
+	if err := teamrepo.LockEventTeams(ctx, tx, eventID); err != nil {
 		return model.Event{}, err
 	}
 	if !hackevents.SubmissionsClosedStage(current) {
@@ -295,11 +305,11 @@ func (s *Service) ArchiveEventTx(ctx context.Context, tx *sql.Tx, eventID, curre
 		return model.Event{}, err
 	}
 	// An event ending always freezes every remaining draft.
-	if err := settle(ctx, tx, eventID); err != nil {
+	if err := s.entries.SettleEventTx(ctx, tx, eventID); err != nil {
 		return model.Event{}, err
 	}
 	if current != "archived" {
-		if err := eventrepo.DismissTeamMessages(ctx, tx, eventID); err != nil {
+		if err := hackmembers.DismissTeamMessages(ctx, tx, eventID); err != nil {
 			return model.Event{}, err
 		}
 	}
@@ -325,7 +335,7 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event,
 			}
 		}
 	}
-	return eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, accounts.DeleteAccountRow)
+	return deleteEventAndAccount(ctx, tx, ev)
 }
 
 func (s *Service) PatchEvent(ctx context.Context, eventID string, p EventPatch) (updated model.Event, deadlineChanged bool, err error) {
@@ -392,7 +402,7 @@ func applyEntryRequiredAlias(ctx context.Context, tx *sql.Tx, ev, updated model.
 
 // reopenForDeadline lets a moved deadline take effect.
 func reopenForDeadline(ctx context.Context, tx *sql.Tx, eventID string) error {
-	if _, err := eventrepo.LockEventTeams(ctx, tx, eventID); err != nil {
+	if err := teamrepo.LockEventTeams(ctx, tx, eventID); err != nil {
 		return err
 	}
 	if err := teamrepo.UnpinReopened(ctx, tx, eventID); err != nil {

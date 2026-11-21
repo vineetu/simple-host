@@ -109,7 +109,7 @@ func (h *publicEventHTTP) feedSubmissions(ctx context.Context, ev hackmodel.Even
 }
 
 func (h *publicEventHTTP) feedCounts(ctx context.Context, ev hackmodel.Event, out map[string]any) error {
-	n, t, _, err := h.events.CountEventMembersLookup(ctx, ev.ID)
+	n, t, _, err := h.events.CountEventMembersLookup(ctx, ev)
 	out["participants"], out["teams"] = n, t
 	return err
 }

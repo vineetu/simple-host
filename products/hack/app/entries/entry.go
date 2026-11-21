@@ -11,6 +11,7 @@ import (
 	"github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -74,22 +75,22 @@ func (s *Service) Write(ctx context.Context, req WriteRequest) (string, []string
 // lockWritableTeam share-locks the participant's membership, locks their team
 // and refuses when the team may not change its entry now.
 func lockWritableTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (string, model.TeamWriteState, error) {
-	var teamID sql.NullString
-	err := tx.QueryRowContext(ctx, `SELECT team_id FROM event_members WHERE event_id = $1 AND user_id = $2 AND role = 'participant' FOR SHARE`, eventID, userID).Scan(&teamID)
-	if errors.Is(err, sql.ErrNoRows) {
+	m, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.ForShare)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !m.Participant() {
 		return "", model.TeamWriteState{}, &Error{Code: "event_not_found", Message: "event not found"}
 	}
 	if err != nil {
 		return "", model.TeamWriteState{}, err
 	}
+	teamID := m.TeamID
 	if teamID.String == "" {
 		return "", model.TeamWriteState{}, &Error{Code: "no_team", Message: "join or start a team first"}
 	}
 	id := teamID.String
-	if _, err = tx.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE id=$1 FOR UPDATE`, id); err != nil {
+	if err = teamrepo.LockTeamRow(ctx, tx, id); err != nil {
 		return id, model.TeamWriteState{}, err
 	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, id, true)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, id, true)
 	if errors.Is(err, sql.ErrNoRows) {
 		return id, st, &Error{Code: "no_team", Message: "join or start a team first"}
 	}
@@ -129,7 +130,18 @@ func setEntryTrack(ctx context.Context, tx *sql.Tx, req WriteRequest, st model.T
 	if st.Stage != "open" && st.Stage != "building" {
 		return &Error{Code: "team_choice_closed", Message: "team choices are closed"}
 	}
-	_, err := eventrepo.SetTeamTrack(ctx, tx, req.Event.ID, id, *req.Track)
+	var track sql.NullString
+	if *req.Track != "" {
+		trackID, err := eventrepo.TrackIDBySlug(ctx, tx, req.Event.ID, *req.Track)
+		if errors.Is(err, sql.ErrNoRows) {
+			return &Error{Code: "track_not_found", Message: "track not found"}
+		}
+		if err != nil {
+			return err
+		}
+		track = sql.NullString{String: trackID, Valid: true}
+	}
+	err := teamrepo.SetTeamTrack(ctx, tx, req.Event.ID, id, track)
 	if errors.Is(err, sql.ErrNoRows) {
 		return &Error{Code: "track_not_found", Message: "track not found"}
 	}
@@ -226,10 +238,10 @@ func (s *Service) Entry(ctx context.Context, teamID string) (model.EventEntry, e
 	return entryrepo.GetEventEntry(ctx, s.db, teamID)
 }
 
-func (s *Service) JudgeTeamEligible(ctx context.Context, eventID, userID, teamID string) (bool, error) {
-	return entryrepo.JudgeTeamEligible(ctx, s.db, eventID, userID, teamID)
+func (s *Service) JudgeTeamEligible(ctx context.Context, ev model.Event, userID, teamID string) (bool, error) {
+	return entryrepo.JudgeTeamEligible(ctx, s.db, ev, userID, teamID)
 }
 
-func (s *Service) EligibleJudgeTeams(ctx context.Context, eventID, userID string) (map[string]bool, error) {
-	return entryrepo.EligibleJudgeTeams(ctx, s.db, eventID, userID)
+func (s *Service) EligibleJudgeTeams(ctx context.Context, ev model.Event, userID string) (map[string]bool, error) {
+	return entryrepo.EligibleJudgeTeams(ctx, s.db, ev, userID)
 }

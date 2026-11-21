@@ -161,7 +161,8 @@ func TestRhpVotingEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = a.database.Exec(`DELETE FROM users WHERE id = $1`, alias.ID) })
-	wantTS(t, "mailbox alias duplicate", vote(aliasKey, alpha), 409, "duplicate_vote")
+	// Votes are per account (0029): a second account on the same mailbox votes too.
+	wantTS(t, "mailbox alias votes", vote(aliasKey, alpha), 200, "")
 
 	// Narrowing to members removes earlier votes and then admits members only.
 	wantTS(t, "confirmation required", a.api(t, "PUT", base+"/voting", map[string]any{

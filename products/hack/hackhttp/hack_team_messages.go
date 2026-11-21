@@ -48,7 +48,7 @@ func (h *participationHTTP) postTeamMessages(w http.ResponseWriter, r *http.Requ
 		writeHackError(w, err)
 		return
 	}
-	sent, err := h.events.SendTeamMessage(r.Context(), a.event, req.TeamIDs, text, a.user.ID, a.member.DisplayName)
+	sent, err := h.events.SendTeamMessage(r.Context(), a.event, req.TeamIDs, text, a.user.ID)
 	if err != nil {
 		writeMessageRefusal(w, err, "too many team messages for this event; try again later")
 		return
@@ -116,7 +116,7 @@ func (h *participationHTTP) postMyTeamMessage(w http.ResponseWriter, r *http.Req
 		writeHackError(w, err)
 		return
 	}
-	sent, err := h.events.SendToOrganisers(r.Context(), a.event, a.user.ID, a.member.DisplayName, text)
+	sent, err := h.events.SendToOrganisers(r.Context(), a.event, a.user.ID, text)
 	if err != nil {
 		writeMessageRefusal(w, err, "your team sent too many messages to the organisers; try again later")
 		return

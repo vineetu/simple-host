@@ -65,7 +65,7 @@ func hackGalleryPublic(ev hackmodel.Event, ready func(string) bool) bool {
 // (hack_mode.go): user is the host's account; false when it holds no event.
 func HackEventPage(database *sql.DB, appURL string, teamSiteURL func(eventSlug, teamSlug string) string, ready func(eventSlug string) bool, pages *HackEventPages) func(w http.ResponseWriter, r *http.Request, user model.User) bool {
 	return func(w http.ResponseWriter, r *http.Request, user model.User) bool {
-		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)
+		ev, err := events.New(database, nil).EventByAccount(r.Context(), user.ID)
 		if errors.Is(err, sql.ErrNoRows) {
 			return false
 		}
@@ -100,14 +100,14 @@ func (s hackEventPageSource) load(ctx context.Context, ev hackmodel.Event) (hack
 			return p, err
 		}
 	}
-	evs, ent := events.New(s.database), entries.New(s.database, nil)
+	evs, ent := events.New(s.database, nil), entries.New(s.database, nil)
 	logErr := func(part string, err error) bool {
 		if err != nil {
 			log.Printf("event page %s: %s: %v", ev.Slug, part, err)
 		}
 		return err == nil
 	}
-	participants, teams, _, err := evs.CountEventMembersLookup(ctx, ev.ID)
+	participants, teams, _, err := evs.CountEventMembersLookup(ctx, ev)
 	logErr("counts", err)
 	p.Participants, p.Teams = participants, teams
 	if tracks, err := evs.EventTracks(ctx, ev.ID); logErr("tracks", err) {
@@ -334,7 +334,7 @@ func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHa
 			httpx.TooManyRequests(w)
 			return true
 		}
-		ev, err := events.New(database).EventByAccount(r.Context(), user.ID)
+		ev, err := events.New(database, nil).EventByAccount(r.Context(), user.ID)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("event screenshot %s: %v", user.ID, err)
@@ -344,7 +344,7 @@ func HackScreenshot(database *sql.DB, ready func(string) bool, owners ...*HackHa
 		if !hackGalleryPublic(ev, ready) {
 			return false
 		}
-		data, ctype, err := events.New(database).GalleryScreenshotLookup(r.Context(), ev.ID, ev.AccountID, team)
+		data, ctype, err := events.New(database, nil).GalleryScreenshotLookup(r.Context(), ev.ID, ev.AccountID, team)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("event screenshot %s/%s: %v", ev.Slug, team, err)

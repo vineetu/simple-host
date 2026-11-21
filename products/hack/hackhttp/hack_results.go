@@ -54,7 +54,7 @@ func (h *judgingHTTP) publishStageMove(r *http.Request) (func(*sql.Tx, model.Eve
 	var ev model.Event
 	var previous string
 	move := func(tx *sql.Tx, locked model.Event) (model.Event, error) {
-		updated, cur, err := h.events.SetStageTx(r.Context(), tx, locked, "results", h.entries.SettleEventTx)
+		updated, cur, err := h.events.SetStageTx(r.Context(), tx, locked, "results")
 		if err != nil {
 			return locked, err
 		}

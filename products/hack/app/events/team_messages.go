@@ -8,6 +8,7 @@ import (
 
 	"github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -27,7 +28,7 @@ type TeamMessageSent struct {
 }
 
 // SendTeamMessage sends one message to each of teamIDs' current members, in one transaction.
-func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs []string, text, senderID, senderName string) ([]TeamMessageSent, error) {
+func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs []string, text, senderID string) ([]TeamMessageSent, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -39,14 +40,15 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 	if err := lockOpenEvent(ctx, tx, ev.ID); err != nil {
 		return nil, err
 	}
-	sender, err := eventrepo.GetEventMember(ctx, tx, ev.ID, senderID)
+	sender, err := hackmembers.Member(ctx, tx, ev.ID, senderID, hackmembers.NoLock)
+	sender, err = hackmembers.WithDisplayName(ctx, tx, sender, err)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && sender.Role != "organiser") {
 		return nil, errEventNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	count, oldest, err := eventrepo.CountRecentTeamMessages(ctx, tx, ev.ID, time.Now().Add(-teamMessageRateWindow))
+	count, oldest, err := teamrepo.CountRecentTeamMessages(ctx, tx, ev.ID, time.Now().Add(-teamMessageRateWindow))
 	if err == nil {
 		err = rateLimit(count+len(teamIDs), teamMessageRateMax, oldest, teamMessageRateWindow)
 	}
@@ -55,7 +57,7 @@ func (s *Service) SendTeamMessage(ctx context.Context, ev model.Event, teamIDs [
 	}
 	out := make([]TeamMessageSent, 0, len(teamIDs))
 	for _, teamID := range teamIDs {
-		sent, err := messageTeam(ctx, tx, ev.ID, teamID, senderID, senderName, text)
+		sent, err := messageTeam(ctx, tx, ev.ID, teamID, senderID, sender.DisplayName, text)
 		if err != nil {
 			return nil, err
 		}
@@ -107,15 +109,16 @@ func messageTeam(ctx context.Context, tx *sql.Tx, eventID, teamID, senderID, sen
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
-	msg, err := eventrepo.InsertTeamMessage(ctx, tx, eventID, teamID, senderID, senderName, text, false)
+	msg, err := teamrepo.InsertTeamMessage(ctx, tx, eventID, teamID, senderID, text, false)
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
-	ids, err := eventrepo.TeamMemberIDs(ctx, tx, eventID, teamID, "")
+	msg.SenderName = senderName
+	ids, err := hackmembers.IDs(ctx, tx, hackmembers.Filter{EventID: eventID, TeamID: teamID})
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
-	n, err := eventrepo.NotifyUsersCount(ctx, tx, eventID, eventrepo.NoticeTeamMessage, teamID, msg.ID, "", ids...)
+	n, err := hackmembers.NotifyUsersCount(ctx, tx, eventID, hackmembers.NoticeTeamMessage, teamID, msg.ID, "", ids...)
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
@@ -123,11 +126,11 @@ func messageTeam(ctx context.Context, tx *sql.Tx, eventID, teamID, senderID, sen
 }
 
 func (s *Service) ListTeamMessages(ctx context.Context, teamID string) ([]model.TeamMessage, error) {
-	return eventrepo.ListTeamMessages(ctx, s.db, teamID, 100)
+	return teamrepo.ListTeamMessages(ctx, s.db, teamID, 100)
 }
 
 // SendToOrganisers is a team member's message to the event's organisers.
-func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID, senderName, text string) (TeamMessageSent, error) {
+func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID, text string) (TeamMessageSent, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return TeamMessageSent{}, err
@@ -136,11 +139,11 @@ func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID
 	if err := lockOpenEvent(ctx, tx, ev.ID); err != nil {
 		return TeamMessageSent{}, err
 	}
-	teamID, err := senderTeam(ctx, tx, ev.ID, senderID)
+	teamID, senderName, err := senderTeam(ctx, tx, ev.ID, senderID)
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
-	count, oldest, err := eventrepo.CountRecentTeamInbound(ctx, tx, teamID, time.Now().Add(-teamInboundRateWindow))
+	count, oldest, err := teamrepo.CountRecentTeamInbound(ctx, tx, teamID, time.Now().Add(-teamInboundRateWindow))
 	if err == nil {
 		err = rateLimit(count+1, teamInboundRateMax, oldest, teamInboundRateWindow)
 	}
@@ -157,35 +160,38 @@ func (s *Service) SendToOrganisers(ctx context.Context, ev model.Event, senderID
 	return sent, nil
 }
 
-// senderTeam returns the team of an approved participant and takes the team's inbound lock.
-func senderTeam(ctx context.Context, tx *sql.Tx, eventID, senderID string) (string, error) {
-	status, teamID, _, err := eventrepo.NoticeMemberStatus(ctx, tx, eventID, senderID)
+// senderTeam returns the team and display name of an approved participant and takes the team's inbound lock.
+func senderTeam(ctx context.Context, tx *sql.Tx, eventID, senderID string) (string, string, error) {
+	m, err := hackmembers.Member(ctx, tx, eventID, senderID, hackmembers.NoLock)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", errEventNotFound
+		return "", "", errEventNotFound
 	}
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	role, _, _, _, _, err := eventrepo.MailMember(ctx, tx, eventID, senderID)
+	ev, err := eventrepo.GetEventByID(ctx, tx, eventID)
+	teamID, status := m.TeamID, m.ApprovalStatus
 	switch {
-	case err != nil || role != "participant":
-		return "", errEventNotFound
-	case status != "approved":
-		return "", &Error{Code: "approval_" + status, Message: "your application is " + status}
+	case err != nil || ev.TakenDown() || !m.Participant():
+		return "", "", errEventNotFound
+	case !m.Approved():
+		return "", "", &Error{Code: "approval_" + status, Message: "your application is " + status}
 	case !teamID.Valid:
-		return "", errNoTeam
+		return "", "", errNoTeam
 	}
 	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('hack-team-inbound:' || $1, 0))`, teamID.String); err != nil {
-		return "", err
+		return "", "", err
 	}
-	_, now, _, err := eventrepo.NoticeMemberStatus(ctx, tx, eventID, senderID)
+	// Still on that team now that the lock is held.
+	now, err := hackmembers.Member(ctx, tx, eventID, senderID, hackmembers.NoLock)
+	now, err = hackmembers.WithDisplayName(ctx, tx, now, err)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", err
+		return "", "", err
 	}
-	if err != nil || now != teamID {
-		return "", errNoTeam
+	if err != nil || now.TeamID != teamID {
+		return "", "", errNoTeam
 	}
-	return teamID.String, nil
+	return teamID.String, now.DisplayName, nil
 }
 
 var errNoTeam = &Error{Code: "no_team", Message: "join or start a team first"}
@@ -196,15 +202,16 @@ func messageOrganisers(ctx context.Context, tx *sql.Tx, eventID, teamID, senderI
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
-	msg, err := eventrepo.InsertTeamMessage(ctx, tx, eventID, teamID, senderID, senderName, text, true)
+	msg, err := teamrepo.InsertTeamMessage(ctx, tx, eventID, teamID, senderID, text, true)
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
-	ids, err := eventrepo.OrganiserIDs(ctx, tx, eventID)
+	msg.SenderName = senderName
+	ids, err := hackmembers.OrganiserIDs(ctx, tx, eventID)
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
-	n, err := eventrepo.NotifyUsersCount(ctx, tx, eventID, eventrepo.NoticeTeamInbound, teamID, msg.ID, "", ids...)
+	n, err := hackmembers.NotifyUsersCount(ctx, tx, eventID, hackmembers.NoticeTeamInbound, teamID, msg.ID, "", ids...)
 	if err != nil {
 		return TeamMessageSent{}, err
 	}
@@ -217,5 +224,9 @@ func (s *Service) OrganiserOpenedThread(ctx context.Context, eventID, userID, te
 		return nil
 	}
 	// read is newest first: everything up to its newest row was shown.
-	return eventrepo.MarkTeamInboundSeen(ctx, s.db, eventID, userID, teamID, read[0].CreatedAt)
+	ids, err := teamrepo.TeamMessagesUpTo(ctx, s.db, teamID, read[0].CreatedAt)
+	if err != nil {
+		return err
+	}
+	return hackmembers.MarkInboundSeen(ctx, s.db, eventID, userID, teamID, ids)
 }

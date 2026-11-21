@@ -25,13 +25,13 @@ func (s *Service) SiteTeams(ctx context.Context, eventID string) ([]hackmodel.Ev
 // SweepSites pins overdue teams before removing empty teams and orphan sites.
 // Progress callbacks retain the background owner's existing accounting.
 func (s *Service) SweepSites(ctx context.Context, trash func(context.Context, string, string) error, progress func(), failure func(string, error)) {
-	if err := repo.PinDueTeams(ctx, s.db, "", liveVersion, progress); err != nil {
+	if err := repo.PinDueTeams(ctx, s.db, "", progress); err != nil {
 		failure("pin due teams", err)
 	}
 	if err := repo.DeleteEmptyOpenTeams(ctx, s.db, progress); err != nil {
 		failure("delete empty open teams", err)
 	}
-	orphans, err := repo.OrphanTeamSites(ctx, s.db, "", s.accountSites)
+	orphans, err := repo.OrphanTeamSites(ctx, s.db, "")
 	if err != nil {
 		failure("list orphan team sites", err)
 		return

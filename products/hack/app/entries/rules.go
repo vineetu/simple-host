@@ -56,10 +56,7 @@ func (s *Service) EntryRulesImpact(ctx context.Context, tx *sql.Tx, ev model.Eve
 		if !ok {
 			continue
 		}
-		track, err := eventrepo.TeamTrack(ctx, tx, team.ID)
-		if err != nil {
-			return RulesImpact{}, err
-		}
+		track := chosenTrack(tracks, team.TrackID)
 		siteLive := s.siteLive(ctx, ev, team.Slug, team.SiteTakenDownAt.Valid)
 		after := hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track)
 		before := hackentries.Evaluate(current, e, siteLive, len(tracks) > 0, track)
@@ -163,10 +160,11 @@ func (s *Service) EvaluateEntryTx(ctx context.Context, tx *sql.Tx, ev model.Even
 	if err != nil {
 		return hackentries.Check{}, err
 	}
-	track, err := eventrepo.TeamTrack(ctx, tx, teamID)
-	if err != nil {
+	team, err := teamrepo.GetEventTeamByID(ctx, tx, teamID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return hackentries.Check{}, err
 	}
+	track := chosenTrack(tracks, team.TrackID)
 	siteLive := s.siteLive(ctx, ev, st.TeamSlug, st.SiteTakenDown)
 	return hackentries.Evaluate(fields, e, siteLive, len(tracks) > 0, track), nil
 }
@@ -192,10 +190,7 @@ func (s *Service) EntryProgress(ctx context.Context, ev model.Event, team model.
 	if err != nil {
 		return Progress{}, err
 	}
-	track, err := eventrepo.TeamTrack(ctx, s.db, team.ID)
-	if err != nil {
-		return Progress{}, err
-	}
+	track := chosenTrack(tracks, team.TrackID)
 	siteLive := s.siteLive(ctx, ev, team.Slug, st.SiteTakenDown)
 	p := progressSteps(hackentries.LoadRules(ev.EntryRules), e, siteLive, len(tracks) > 0, track)
 	p.TeamLine = "On " + team.Name
@@ -235,4 +230,14 @@ func progressSteps(fields map[string]string, e model.EventEntry, siteLive, hasTr
 		p.Next = "submit"
 	}
 	return p
+}
+
+// chosenTrack is the event track trackID names, nil for none.
+func chosenTrack(tracks []model.EventTrack, trackID sql.NullString) *model.EventTrack {
+	for i := range tracks {
+		if trackID.Valid && tracks[i].ID == trackID.String {
+			return &tracks[i]
+		}
+	}
+	return nil
 }

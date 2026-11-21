@@ -8,7 +8,7 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 	siterepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
-	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 func TestRestoreTrashedTeamKeepsTakedown(t *testing.T) {
@@ -25,7 +25,7 @@ func TestRestoreTrashedTeamKeepsTakedown(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT account_id FROM events WHERE slug=$1`, slug).Scan(&accountID); err != nil {
 		t.Fatal(err)
 	}
-	svc := sites.New(a.database, a.disk, nil, 0, sites.Deps{GroupGate: teams.SiteGate{}, Sitemap: hackevents.FilterSitemapSites})
+	svc := sites.New(a.database, a.disk, nil, 0, sites.Deps{GroupGate: teams.SiteGate{}, Sitemap: hackteams.FilterSitemapSites})
 	checkSitemap := func(want bool) {
 		t.Helper()
 		list, err := svc.ListSitemapSites(ctx)

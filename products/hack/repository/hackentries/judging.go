@@ -4,10 +4,14 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/lib/pq"
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 
 	"github.com/vsriram/simple-host/products/hack/model"
+	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 type RubricCriterion = model.RubricCriterion
@@ -80,25 +84,18 @@ func ReplaceRubric(ctx context.Context, q sqlkit.Querier, eventID string, items 
 }
 
 func ListEventJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]NamedJudge, error) {
-	rows, err := queryContext(ctx, q, `
-		SELECT user_id, role FROM event_members m JOIN events e ON e.id=m.event_id
-		 WHERE m.event_id = $1 AND `+judgeMemberSQL("m", "e")+`
-		 ORDER BY user_id`, eventID)
+	oj, err := organiserJudges(ctx, q, eventID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	judges, err := hackmembers.Judges(ctx, q, eventID, oj)
+	if err != nil {
+		return nil, err
+	}
 	var found []NamedJudge
 	var ids []string
-	for rows.Next() {
-		var j NamedJudge
-		if err := rows.Scan(&j.ID, &j.Role); err != nil {
-			return nil, err
-		}
-		found, ids = append(found, j), append(ids, j.ID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	for _, m := range judges {
+		found, ids = append(found, NamedJudge{ID: m.UserID, Role: m.Role}), append(ids, m.UserID)
 	}
 	users, err := accounts.UsersByIDs(ctx, q, ids)
 	if err != nil {
@@ -120,41 +117,38 @@ func ListEventJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]N
 // it empties, so its entry keeps being judged and ranked as if the leaver had
 // not left.
 func ListTeamsWithMembers(ctx context.Context, q sqlkit.Querier, eventID string) ([]NamedTeam, error) {
-	rows, err := queryContext(ctx, q, `
-		SELECT t.id, t.name, t.slug FROM event_teams t
-		 WHERE t.event_id = $1
-		   AND (EXISTS (SELECT 1 FROM event_members m WHERE m.team_id = t.id) OR t.kept_after_leave)
-		 ORDER BY t.id`, eventID)
+	teams, err := hackteams.JudgedTeams(ctx, q, eventID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := []NamedTeam{}
-	for rows.Next() {
-		var t NamedTeam
-		if err := rows.Scan(&t.ID, &t.Name, &t.Slug); err != nil {
-			return nil, err
-		}
-		out = append(out, t)
+	out := make([]NamedTeam, 0, len(teams))
+	for _, t := range teams {
+		out = append(out, NamedTeam{ID: t.ID, Name: t.Name, Slug: t.Slug})
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func EventTeamInEvent(ctx context.Context, q sqlkit.Querier, eventID, teamID string) (NamedTeam, error) {
-	var t NamedTeam
-	err := q.QueryRowContext(ctx, `
-		SELECT id, name FROM event_teams WHERE event_id = $1 AND id = $2`, eventID, teamID).Scan(&t.ID, &t.Name)
-	return t, err
+	t, err := hackteams.GetEventTeamByID(ctx, q, teamID)
+	if err == nil && t.EventID != eventID {
+		err = sql.ErrNoRows
+	}
+	if err != nil {
+		return NamedTeam{}, err
+	}
+	return NamedTeam{ID: t.ID, Name: t.Name}, nil
 }
 
+// EventJudge is userID as a current judge of the event; sql.ErrNoRows otherwise.
 func EventJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (NamedJudge, error) {
-	var j NamedJudge
-	err := q.QueryRowContext(ctx, `
-		SELECT user_id FROM event_members m JOIN events e ON e.id=m.event_id
-		 WHERE m.event_id = $1 AND m.user_id = $2 AND `+judgeMemberSQL("m", "e")+``, eventID, userID).Scan(&j.ID)
+	judge, err := isJudge(ctx, q, eventID, userID)
 	if err != nil {
 		return NamedJudge{}, err
 	}
+	if !judge {
+		return NamedJudge{}, sql.ErrNoRows
+	}
+	j := NamedJudge{ID: userID}
 	u, err := accounts.UserByID(ctx, q, j.ID)
 	if err != nil {
 		return NamedJudge{}, err
@@ -166,11 +160,10 @@ func EventJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (
 // ListEventConflicts returns conflicts for the event. judgeID empty means all of them.
 func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) ([]EventConflict, error) {
 	query := `
-		SELECT c.judge_id, c.team_id, t.name, c.declared_by,
+		SELECT c.judge_id, c.team_id, c.declared_by,
 		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
 		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
-		  JOIN event_teams t ON t.id = c.team_id
 		 WHERE c.event_id = $1`
 	args := []any{eventID}
 	if judgeID != "" {
@@ -183,24 +176,41 @@ func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 		return nil, err
 	}
 	defer rows.Close()
-	out := []EventConflict{}
-	var ids []string
+	var found []EventConflict
 	for rows.Next() {
 		var c EventConflict
-		if err := rows.Scan(&c.JudgeID, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore); err != nil {
+		if err := rows.Scan(&c.JudgeID, &c.TeamID, &c.DeclaredBy, &c.HadScore); err != nil {
 			return nil, err
 		}
-		out, ids = append(out, c), append(ids, c.JudgeID)
+		found = append(found, c)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	users, err := accounts.UsersByIDs(ctx, q, ids)
+	return nameConflicts(ctx, q, found)
+}
+
+// nameConflicts fills each conflict's judge and team names, leaving out a
+// conflict whose team is gone.
+func nameConflicts(ctx context.Context, q sqlkit.Querier, found []EventConflict) ([]EventConflict, error) {
+	judges, teams := make([]string, len(found)), make([]string, len(found))
+	for i, c := range found {
+		judges[i], teams[i] = c.JudgeID, c.TeamID
+	}
+	users, err := accounts.UsersByIDs(ctx, q, judges)
 	if err != nil {
 		return nil, err
 	}
-	for i := range out {
-		out[i].JudgeName = users[out[i].JudgeID].DisplayName.String
+	byID, err := hackteams.TeamsByIDs(ctx, q, teams)
+	if err != nil {
+		return nil, err
+	}
+	out := []EventConflict{}
+	for _, c := range found {
+		if t, ok := byID[c.TeamID]; ok {
+			c.TeamName, c.JudgeName = t.Name, users[c.JudgeID].DisplayName.String
+			out = append(out, c)
+		}
 	}
 	return out, nil
 }
@@ -208,22 +218,23 @@ func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 func GetEventConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) (EventConflict, error) {
 	var c EventConflict
 	err := q.QueryRowContext(ctx, `
-		SELECT c.judge_id, c.team_id, t.name, c.declared_by,
+		SELECT c.judge_id, c.team_id, c.declared_by,
 		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
 		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
-		  JOIN event_teams t ON t.id = c.team_id
 		 WHERE c.event_id = $1 AND c.judge_id = $2 AND c.team_id = $3`,
-		eventID, judgeID, teamID).Scan(&c.JudgeID, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore)
+		eventID, judgeID, teamID).Scan(&c.JudgeID, &c.TeamID, &c.DeclaredBy, &c.HadScore)
 	if err != nil {
 		return c, err
 	}
-	users, err := accounts.UsersByIDs(ctx, q, []string{c.JudgeID})
+	named, err := nameConflicts(ctx, q, []EventConflict{c})
 	if err != nil {
 		return EventConflict{}, err
 	}
-	c.JudgeName = users[c.JudgeID].DisplayName.String
-	return c, nil
+	if len(named) == 0 {
+		return EventConflict{}, sql.ErrNoRows
+	}
+	return named[0], nil
 }
 
 func DeclareConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID, declaredBy string) error {
@@ -281,33 +292,58 @@ func ReplaceAssignments(ctx context.Context, q sqlkit.Querier, eventID string, r
 // ScoreCoverage counts distinct judges per team and distinct teams per judge
 // from event_scores. A team or judge with no rows is absent from the map.
 func ScoreCoverage(ctx context.Context, q sqlkit.Querier, eventID string) (byTeam, byJudge map[string]int, err error) {
+	judges, members, err := scoreJudges(ctx, q, eventID)
+	if err != nil {
+		return nil, nil, err
+	}
+	ev, err := hackevents.GetEventByID(ctx, q, eventID)
+	if err != nil {
+		return nil, nil, err
+	}
+	teams, tracks, err := panelTracks(ctx, q, ev)
+	if err != nil {
+		return nil, nil, err
+	}
 	byTeam, err = countGroups(ctx, q, `
-		SELECT s.team_id, COUNT(DISTINCT s.judge_id) FROM event_scores s JOIN events e ON e.id=s.event_id
-		 WHERE s.event_id = $1 AND `+scoreEligiblePredicate+` GROUP BY s.team_id`, eventID)
+		SELECT s.team_id, COUNT(DISTINCT s.judge_id) FROM event_scores s
+		 WHERE s.event_id = $1 AND `+scoreEligible("$2", "$3", "$4::text", "$5", "$6")+` GROUP BY s.team_id`, eventID, pq.Array(judges), pq.Array(members), ev.JudgeAssignmentMode, teams, tracks)
 	if err != nil {
 		return nil, nil, err
 	}
 	byJudge, err = countGroups(ctx, q, `
-		SELECT s.judge_id, COUNT(DISTINCT s.team_id) FROM event_scores s JOIN events e ON e.id=s.event_id
-		 WHERE s.event_id = $1 AND `+scoreEligiblePredicate+` GROUP BY s.judge_id`, eventID)
+		SELECT s.judge_id, COUNT(DISTINCT s.team_id) FROM event_scores s
+		 WHERE s.event_id = $1 AND `+scoreEligible("$2", "$3", "$4::text", "$5", "$6")+` GROUP BY s.judge_id`, eventID, pq.Array(judges), pq.Array(members), ev.JudgeAssignmentMode, teams, tracks)
 	if err != nil {
 		return nil, nil, err
 	}
 	return byTeam, byJudge, nil
 }
 
-// scoreEligiblePredicate counts a score either the ordinary way (the judge is
-// still a member, in good standing with today's mode, conflicts and
+// scoreJudges is the event's current judges and all its members, the two
+// lists scoreEligible takes.
+func scoreJudges(ctx context.Context, q sqlkit.Querier, eventID string) (judges, members []string, err error) {
+	if judges, err = judgeIDs(ctx, q, eventID); err != nil {
+		return nil, nil, err
+	}
+	members, err = memberIDs(ctx, q, eventID)
+	return judges, members, err
+}
+
+// scoreEligible counts a score either the ordinary way (the judge is
+// still a judge, in good standing with today's mode, conflicts and
 // assignments) or, for someone who left, when a former-judge record froze this
-// exact team as one that counted when they left.
-var scoreEligiblePredicate = `(((
-  EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id AND ` + judgeMemberSQL("m", "e") + `)
+// exact team as one that counted when they left. judges and members name the
+// parameters holding scoreJudges' lists; tracks names the two parameters
+// (team ids, track ids) panelTracks gives.
+func scoreEligible(judges, members, mode, teams, tracks string) string {
+	return `(((
+  s.judge_id = ANY(` + judges + `::uuid[])
   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
-  AND (e.judge_assignment_mode='open'
-  OR (e.judge_assignment_mode IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=s.event_id AND a.judge_id=s.judge_id AND a.team_id=s.team_id))
-  OR (e.judge_assignment_mode='panel' AND EXISTS (SELECT 1 FROM event_teams t JOIN event_track_panels p ON p.event_id=t.event_id AND p.track_id=t.track_id AND p.judge_id=s.judge_id WHERE t.event_id=s.event_id AND t.id=s.team_id)))
+  AND (` + mode + `='open'
+  OR (` + mode + ` IN ('automatic','manual') AND EXISTS (SELECT 1 FROM event_assignments a WHERE a.event_id=s.event_id AND a.judge_id=s.judge_id AND a.team_id=s.team_id))
+  OR (` + mode + `='panel' AND EXISTS (SELECT 1 FROM unnest(` + teams + `::uuid[], ` + tracks + `::text[]) AS t(id, track) JOIN event_track_panels p ON p.event_id=s.event_id AND p.track_id=NULLIF(t.track, '')::uuid AND p.judge_id=s.judge_id WHERE t.id=s.team_id)))
 ) OR (
-  NOT EXISTS (SELECT 1 FROM event_members m WHERE m.event_id=s.event_id AND m.user_id=s.judge_id)
+  NOT (s.judge_id = ANY(` + members + `::uuid[]))
   AND EXISTS (SELECT 1 FROM event_former_judges f WHERE f.event_id=s.event_id AND f.user_id=s.judge_id AND s.team_id = ANY(f.counted_team_ids))
   AND NOT EXISTS (SELECT 1 FROM event_conflicts c WHERE c.event_id=s.event_id AND c.judge_id=s.judge_id AND c.team_id=s.team_id)
 )) AND EXISTS (
@@ -315,6 +351,24 @@ var scoreEligiblePredicate = `(((
     AND (en.submitted_at IS NOT NULL OR en.submit_settled_at IS NOT NULL)
     AND en.excluded_at IS NULL
 ))`
+}
+
+// panelTracks is the event's team ids and their track ids ("" for none), the
+// two parameters scoreEligible's panel mode reads; empty unless the event
+// judges by panel, so other modes read no teams.
+func panelTracks(ctx context.Context, q sqlkit.Querier, ev model.Event) (any, any, error) {
+	ids, tracks := []string{}, []string{}
+	if ev.JudgeAssignmentMode == "panel" {
+		teams, err := hackteams.ListEventTeams(ctx, q, ev.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, t := range teams {
+			ids, tracks = append(ids, t.ID), append(tracks, t.TrackID.String)
+		}
+	}
+	return pq.Array(ids), pq.Array(tracks), nil
+}
 
 // AssignmentCounts is how many teams each judge is assigned, in automatic mode.
 func AssignmentCounts(ctx context.Context, q sqlkit.Querier, eventID string) (map[string]int, error) {
@@ -323,8 +377,8 @@ func AssignmentCounts(ctx context.Context, q sqlkit.Querier, eventID string) (ma
 		 WHERE event_id = $1 GROUP BY judge_id`, eventID)
 }
 
-func countGroups(ctx context.Context, q sqlkit.Querier, query, eventID string) (map[string]int, error) {
-	rows, err := queryContext(ctx, q, query, eventID)
+func countGroups(ctx context.Context, q sqlkit.Querier, query string, args ...any) (map[string]int, error) {
+	rows, err := queryContext(ctx, q, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -431,27 +485,26 @@ func ListRawScores(ctx context.Context, q sqlkit.Querier, eventID string) ([]Raw
 // never blanks it.
 func scoreRows(ctx context.Context, q sqlkit.Querier, where string, args ...any) ([]RawScoreRow, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT s.judge_id, s.team_id, t.name,
+		SELECT s.judge_id, s.team_id,
 		       s.criterion_id, r.name, r.position, s.points, r.max_points,
 		       FIRST_VALUE(s.comment) OVER (PARTITION BY s.judge_id, s.team_id
 		                                    ORDER BY s.comment <> '' DESC, s.updated_at DESC)
 		  FROM event_scores s
-		  JOIN event_teams t ON t.id = s.team_id
 		  JOIN rubric_criteria r ON r.id = s.criterion_id
 		 WHERE `+where, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []RawScoreRow{}
-	var ids []string
+	var found []RawScoreRow
+	var ids, teams []string
 	for rows.Next() {
 		var row RawScoreRow
-		if err := rows.Scan(&row.JudgeID, &row.TeamID, &row.TeamName,
+		if err := rows.Scan(&row.JudgeID, &row.TeamID,
 			&row.CriterionID, &row.CriterionName, &row.CriterionPosition, &row.Points, &row.MaxPoints, &row.Comment); err != nil {
 			return nil, err
 		}
-		out, ids = append(out, row), append(ids, row.JudgeID)
+		found, ids, teams = append(found, row), append(ids, row.JudgeID), append(teams, row.TeamID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -460,8 +513,16 @@ func scoreRows(ctx context.Context, q sqlkit.Querier, where string, args ...any)
 	if err != nil {
 		return nil, err
 	}
-	for i := range out {
-		out[i].JudgeName = users[out[i].JudgeID].DisplayName.String
+	byID, err := hackteams.TeamsByIDs(ctx, q, teams)
+	if err != nil {
+		return nil, err
+	}
+	out := []RawScoreRow{}
+	for _, row := range found {
+		if t, ok := byID[row.TeamID]; ok {
+			row.TeamName, row.JudgeName = t.Name, users[row.JudgeID].DisplayName.String
+			out = append(out, row)
+		}
 	}
 	return out, nil
 }
@@ -517,10 +578,22 @@ func TeamComments(ctx context.Context, q sqlkit.Querier, eventID, teamID string)
 	// A conflicted judge's score is excluded from the team's total (see
 	// computeResults); their comment is excluded too, since the team should not see
 	// feedback from someone who declared a conflict with it.
+	judges, members, err := scoreJudges(ctx, q, eventID)
+	if err != nil {
+		return nil, err
+	}
+	ev, err := hackevents.GetEventByID(ctx, q, eventID)
+	if err != nil {
+		return nil, err
+	}
+	teams, tracks, err := panelTracks(ctx, q, ev)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := queryContext(ctx, q, `
-		SELECT DISTINCT ON (s.judge_id) s.comment FROM event_scores s JOIN events e ON e.id=s.event_id
-		 WHERE s.event_id = $1 AND s.team_id = $2 AND s.comment <> '' AND `+scoreEligiblePredicate+`
-		 ORDER BY s.judge_id, s.updated_at DESC`, eventID, teamID)
+		SELECT DISTINCT ON (s.judge_id) s.comment FROM event_scores s
+		 WHERE s.event_id = $1 AND s.team_id = $2 AND s.comment <> '' AND `+scoreEligible("$3", "$4", "$5::text", "$6", "$7")+`
+		 ORDER BY s.judge_id, s.updated_at DESC`, eventID, teamID, pq.Array(judges), pq.Array(members), ev.JudgeAssignmentMode, teams, tracks)
 	if err != nil {
 		return nil, err
 	}

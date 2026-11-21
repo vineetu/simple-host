@@ -13,6 +13,7 @@ import (
 	model "github.com/vsriram/simple-host/products/hack/model"
 	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	rules "github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
@@ -48,7 +49,7 @@ func (s *Service) PostAnnouncement(ctx context.Context, id, title, body string, 
 	if stage == "archived" {
 		return model.EventAnnouncement{}, 0, false, &Error{Code: "event_ended", Message: "this event has ended"}
 	}
-	item, queued, copied, err := hackevents.CreateEventAnnouncement(ctx, tx, id, title, body, email, userID)
+	item, queued, copied, err := CreateEventAnnouncement(ctx, tx, id, title, body, email, userID)
 	if err != nil {
 		return item, queued, copied, err
 	}
@@ -122,7 +123,7 @@ func (s *Service) QueueReceipt(ctx context.Context, ev model.Event, teamID, user
 	if err != nil || !e.SubmittedAt.Valid {
 		return
 	}
-	if err := hackevents.QueueEntryReceipt(ctx, s.db, ev.ID, teamID, userID); err != nil {
+	if err := entryrepo.QueueEntryReceipt(ctx, s.db, ev.ID, teamID, userID); err != nil {
 		log.Printf("hack: queue entry receipt %s: %v", ev.Slug, err)
 	}
 }
@@ -153,7 +154,10 @@ func (s *Service) deliverContentMailOne(ctx context.Context, sender NoticeSender
 		return false, 0, err
 	}
 	defer tx.Rollback()
-	m, err := hackevents.NextEventMail(ctx, tx)
+	m, err := hackevents.NextAnnouncementMail(ctx, tx)
+	if errors.Is(err, sql.ErrNoRows) {
+		m, err = entryrepo.NextReceiptMail(ctx, tx)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, 0, nil
 	}
@@ -201,10 +205,16 @@ func sendContentMail(ctx context.Context, sender NoticeSender, to, subject, body
 
 // recordContentMail marks the mail sent, or defers it for a retry when sending failed, and commits.
 func recordContentMail(ctx context.Context, tx *sql.Tx, m hackevents.EventMail, sendErr error) error {
-	record, step, commit := hackevents.MarkEventMailSent, "mark", "commit"
+	record, step, commit := hackevents.MarkAnnouncementMailSent, "mark", "commit"
 	if sendErr != nil {
 		log.Printf("hack: content mail delivery failed: %v", sendErr)
-		record, step, commit = hackevents.DeferEventMail, "defer", "defer commit"
+		record, step, commit = hackevents.DeferAnnouncementMail, "defer", "defer commit"
+	}
+	if m.Kind == "receipt" {
+		record = entryrepo.MarkReceiptMailSent
+		if sendErr != nil {
+			record = entryrepo.DeferReceiptMail
+		}
 	}
 	if err := record(ctx, tx, m); err != nil {
 		log.Printf("hack: content mail %s: %v", step, err)
@@ -217,8 +227,16 @@ func recordContentMail(ctx context.Context, tx *sql.Tx, m hackevents.EventMail, 
 	return nil
 }
 
+// CreateEventAnnouncement posts an announcement and, when email is set, queues it to every approved participant and the organiser.
 func CreateEventAnnouncement(ctx context.Context, q *sql.Tx, eventID, title, body string, email bool, userID string) (model.EventAnnouncement, int64, bool, error) {
-	return hackevents.CreateEventAnnouncement(ctx, q, eventID, title, body, email, userID)
+	var participants []string
+	if email {
+		var err error
+		if participants, err = hackmembers.IDs(ctx, q, hackmembers.Filter{EventID: eventID, Role: "participant", Status: "approved"}); err != nil {
+			return model.EventAnnouncement{}, 0, false, err
+		}
+	}
+	return hackevents.CreateEventAnnouncement(ctx, q, eventID, title, body, email, userID, participants)
 }
 
 // Senders that predate the context-aware capability are still supported; the production sender and worker wrapper implement it.

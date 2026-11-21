@@ -3,10 +3,11 @@ package teams
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	eventapp "github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
-	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
@@ -53,25 +54,31 @@ func setFindingNote(ctx context.Context, tx *sql.Tx, eventID, userID, note strin
 	if err := teamrepo.LockFindingEvent(ctx, tx, eventID); err != nil {
 		return err
 	}
-	var team string
-	var admin bool
-	if err := teamrepo.LockFindingMembership(ctx, tx, eventID, userID).Scan(&team, &admin); err != nil {
+	m, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.ForUpdate)
+	if err == nil && !m.Approved() {
+		err = sql.ErrNoRows
+	}
+	if err != nil {
 		return err
 	}
+	if !m.TeamID.Valid {
+		return errors.New("team finding note: caller is on no team")
+	}
+	team, admin := m.TeamID.String, m.TeamAdmin
 	if !admin {
 		return teamrepo.ErrHackTeamAdminOnly
 	}
-	if _, err := teamrepo.LockFindingTeam(ctx, tx, team); err != nil {
+	if err := teamrepo.LockTeamRow(ctx, tx, team); err != nil {
 		return err
 	}
-	st, err := teamrepo.TeamWriteStateFor(ctx, tx, team, false)
+	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, team, false)
 	if err != nil {
 		return err
 	}
 	if st.Frozen() {
 		return teamrepo.ErrHackTeamFrozen
 	}
-	_, err = teamrepo.SetFindingNote(ctx, tx, team, note)
+	_, err = teamrepo.SetTeamLookingFor(ctx, tx, team, note)
 	return err
 }
 
@@ -94,11 +101,11 @@ func (s *Service) SetLooking(ctx context.Context, ev model.Event, caller model.E
 	if err = teamrepo.LockFindingEvent(ctx, tx, ev.ID); err != nil {
 		return err
 	}
-	res, err := teamrepo.SetMemberLooking(ctx, tx, ev.ID, userID, looking, intro)
+	set, err := hackmembers.SetLooking(ctx, tx, ev.ID, userID, looking, intro)
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if !set {
 		return teamrepo.ErrHackFindingForbidden
 	}
 	return commit(tx)
@@ -199,7 +206,7 @@ func resolveRequest(ctx context.Context, tx *sql.Tx, ev model.Event, actorID, id
 	if action == "accept" {
 		detail = "accepted"
 	}
-	return eventrepo.NotifyUsers(ctx, tx, ev.ID, eventrepo.NoticeRequestAnswered, teamID, "", detail, userID)
+	return hackmembers.NotifyUsers(ctx, tx, ev.ID, hackmembers.NoticeRequestAnswered, teamID, "", detail, userID)
 }
 
 // noticeTeamRequest queues the notice for a new request (to admins), invite (to the invitee) or completed invite (accepted).
@@ -212,13 +219,13 @@ func noticeTeamRequest(ctx context.Context, tx *sql.Tx, eventID, teamSlug, userI
 		return err
 	}
 	if state == "joined" {
-		return eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeRequestAnswered, teamID, "", "accepted", userID)
+		return hackmembers.NotifyUsers(ctx, tx, eventID, hackmembers.NoticeRequestAnswered, teamID, "", "accepted", userID)
 	}
 	if err := teamrepo.TeamRequestID(ctx, tx, teamID, userID).Scan(&requestID); err != nil {
 		return err
 	}
 	if kind == "request" {
-		return eventrepo.NotifyTeamAdmins(ctx, tx, eventID, teamID, eventrepo.NoticeJoinRequest, requestID, "")
+		return hackmembers.NotifyTeamAdmins(ctx, tx, eventID, teamID, hackmembers.NoticeJoinRequest, requestID, "")
 	}
-	return eventrepo.NotifyUsers(ctx, tx, eventID, eventrepo.NoticeInvite, teamID, requestID, "", userID)
+	return hackmembers.NotifyUsers(ctx, tx, eventID, hackmembers.NoticeInvite, teamID, requestID, "", userID)
 }

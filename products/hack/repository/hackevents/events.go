@@ -10,7 +10,6 @@ import (
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
-	entryrepo "github.com/vsriram/simple-host/products/hack/repository/hackentries"
 )
 
 type Event = model.Event
@@ -80,14 +79,6 @@ func prefixedEventColumns(alias string) string {
 	return strings.Join(out, ", ")
 }
 
-func scanEventRole(rows *sql.Rows) (Event, string, error) {
-	var e Event
-	var role string
-	dest := append(ScanEventFields(&e), &role)
-	err := rows.Scan(dest...)
-	return e, role, err
-}
-
 func GetEventBySlug(ctx context.Context, q sqlkit.Querier, slug string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE slug = $1`, slug))
 }
@@ -97,55 +88,38 @@ func GetEventByID(ctx context.Context, q sqlkit.Querier, eventID string) (Event,
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1`, eventID))
 }
 
-// GetDemoEvent finds the standing demo: the newest open event of that name
-// an operator organises.
-func GetDemoEvent(ctx context.Context, q sqlkit.Querier, slug string) (Event, error) {
-	rows, err := queryContext(ctx, q, `SELECT `+EventColumns+`,
-		ARRAY(SELECT m.user_id::text FROM event_members m WHERE m.event_id = events.id AND m.role = 'organiser')
+// DemoEventCandidates is the open events of the standing demo's name, newest
+// first; the demo is the first an operator organises.
+func DemoEventCandidates(ctx context.Context, q sqlkit.Querier, slug string) ([]Event, error) {
+	rows, err := q.QueryContext(ctx, `SELECT `+EventColumns+`
 		FROM events
 		WHERE (slug = $1 OR slug LIKE $1 || '-%') AND taken_down_at IS NULL AND stage IN ('open', 'building')
 		ORDER BY created_at DESC`, slug)
 	if err != nil {
-		return Event{}, err
+		return nil, err
 	}
 	defer rows.Close()
 	var events []Event
-	var organisers [][]string
-	var ids []string
 	for rows.Next() {
 		var e Event
-		var orgs []string
-		if err := rows.Scan(append(ScanEventFields(&e), pq.Array(&orgs))...); err != nil {
-			return Event{}, err
+		if err := rows.Scan(ScanEventFields(&e)...); err != nil {
+			return nil, err
 		}
-		events, organisers, ids = append(events, e), append(organisers, orgs), append(ids, orgs...)
+		events = append(events, e)
 	}
-	if err := rows.Err(); err != nil {
-		return Event{}, err
-	}
-	users, err := accounts.UsersByIDs(ctx, q, ids)
-	if err != nil {
-		return Event{}, err
-	}
-	for i, e := range events {
-		for _, id := range organisers[i] {
-			if users[id].IsAdmin {
-				return e, nil
-			}
-		}
-	}
-	return Event{}, sql.ErrNoRows
+	return events, rows.Err()
 }
 
 func GetEventByAccount(ctx context.Context, q sqlkit.Querier, accountID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE account_id = $1`, accountID))
 }
 
-func SetEventWebsiteMode(ctx context.Context, q sqlkit.Querier, eventID, organiserID, mode string) (Event, error) {
+// SetEventWebsiteMode switches a running event's website (the caller checked
+// the organiser); sql.ErrNoRows when it has ended or is taken down.
+func SetEventWebsiteMode(ctx context.Context, q sqlkit.Querier, eventID, mode string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `UPDATE events SET website_mode = $2, updated_at = now()
 		WHERE id = $1 AND stage <> 'archived' AND taken_down_at IS NULL
-		AND EXISTS (SELECT 1 FROM event_members m WHERE m.event_id = events.id AND m.user_id = $3 AND m.role = 'organiser')
-		RETURNING `+EventColumns, eventID, mode, organiserID))
+		RETURNING `+EventColumns, eventID, mode))
 }
 
 func GetEventByJoinCode(ctx context.Context, q sqlkit.Querier, code string) (Event, error) {
@@ -154,51 +128,6 @@ func GetEventByJoinCode(ctx context.Context, q sqlkit.Querier, code string) (Eve
 
 func GetEventByJudgeCode(ctx context.Context, q sqlkit.Querier, code string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE judge_code = $1`, code))
-}
-
-func CountEventMembers(ctx context.Context, q sqlkit.Querier, eventID string) (participants, teams, judges int, err error) {
-	err = q.QueryRowContext(ctx, `
-		SELECT
-			(SELECT COUNT(*) FROM event_members WHERE event_id = $1 AND role = 'participant' AND approval_status = 'approved'),
-			(SELECT COUNT(*) FROM event_teams WHERE event_id = $1),
-			(SELECT COUNT(*) FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id = $1 AND `+entryrepo.JudgeMemberSQL("m", "e")+`)`,
-		eventID).Scan(&participants, &teams, &judges)
-	return
-}
-
-// CountEligibleJudges counts joined judges and selected organiser judges.
-func CountEligibleJudges(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM event_members m JOIN events e ON e.id=m.event_id WHERE m.event_id = $1 AND `+entryrepo.JudgeMemberSQL("m", "e")+``, eventID).Scan(&n)
-	return n, err
-}
-
-func CountOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM event_members
-		 WHERE event_id = $1 AND role = 'participant' AND approval_status='approved' AND team_id IS NULL`, eventID).Scan(&n)
-	return n, err
-}
-
-// CountEmailableParticipants is approved participants with an email-shaped username -- the only ones an announcement's email_participants can reach.
-func CountEmailableParticipants(ctx context.Context, q sqlkit.Querier, eventID string) (int, error) {
-	ids, err := userIDs(ctx, q, `SELECT user_id FROM event_members
-		WHERE event_id = $1 AND role = 'participant' AND approval_status = 'approved'`, eventID)
-	if err != nil {
-		return 0, err
-	}
-	users, err := accounts.UsersByIDs(ctx, q, ids)
-	if err != nil {
-		return 0, err
-	}
-	n := 0
-	for _, u := range users {
-		if hasAddress(u) {
-			n++
-		}
-	}
-	return n, nil
 }
 
 func EventSlugTaken(ctx context.Context, q sqlkit.Querier, slug string) (bool, error) {
@@ -289,7 +218,7 @@ func GetEventForUpdate(ctx context.Context, q *sql.Tx, eventID string) (Event, e
 }
 
 // GetEventForShare reads the event under FOR SHARE, the lock join and apply take before inserting a member row.
-func GetEventForShare(ctx context.Context, q *sql.Tx, eventID string) (Event, error) {
+func GetEventForShare(ctx context.Context, q sqlkit.Querier, eventID string) (Event, error) {
 	return ScanEvent(q.QueryRowContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = $1 FOR SHARE`, eventID))
 }
 
@@ -342,67 +271,17 @@ func RestoreEvent(ctx context.Context, q sqlkit.Querier, eventID string) (Event,
 		WHERE id = $1 RETURNING `+EventColumns, eventID))
 }
 
-// DeleteEventAndAccount deletes the event (cascading members and teams) then the holding account, which frees the handle/slug.
-func DeleteEventAndAccount(ctx context.Context, q *sql.Tx, ev Event, lockSites, deleteAccount func(context.Context, *sql.Tx, string) error) error {
-	// Lock order: the event row (as PATCH, stage and extension changes take it), the holding account's sites, then the team rows.
-	if _, err := q.ExecContext(ctx, `SELECT 1 FROM events WHERE id = $1 FOR UPDATE`, ev.ID); err != nil {
-		return err
-	}
-	// The holding account's site rows before the team rows: an update deploy holds its site row, then its team row.
-	if err := lockSites(ctx, q, ev.AccountID); err != nil {
-		return err
-	}
-	if _, err := q.ExecContext(ctx, `SELECT 1 FROM event_teams WHERE event_id = $1 FOR UPDATE`, ev.ID); err != nil {
-		return err
-	}
-	// Preserve names of legacy events with people but no team, too.
-	if _, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
-		SELECT $2, '' WHERE EXISTS (SELECT 1 FROM event_members WHERE event_id=$1 AND role <> 'organiser')
-		ON CONFLICT DO NOTHING`, ev.ID, ev.Slug); err != nil {
-		return err
-	}
-	// event_notices has no foreign key to events.
-	if _, err := q.ExecContext(ctx, `DELETE FROM event_notices WHERE event_id = $1`, ev.ID); err != nil {
-		return err
-	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM events WHERE id = $1`, ev.ID); err != nil {
-		return err
-	}
-	return deleteAccount(ctx, q, ev.AccountID)
+// DeleteEvent deletes the event row; members, teams and the rest cascade.
+func DeleteEvent(ctx context.Context, tx *sql.Tx, eventID string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM events WHERE id = $1`, eventID)
+	return err
 }
 
-// ListEventsForUser is GET /v1/hack/events: every event the person is in.
-func ListEventsForUser(ctx context.Context, q sqlkit.Querier, userID string) ([]Event, []string, error) {
-	rows, err := queryContext(ctx, q, `
-		SELECT `+prefixedEventColumns("e")+`, m.role
-		  FROM event_members m
-		  JOIN events e ON e.id = m.event_id
-		 WHERE m.user_id = $1
-		 ORDER BY e.created_at DESC`, userID)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-	var events []Event
-	var roles []string
-	for rows.Next() {
-		e, role, err := scanEventRole(rows)
-		if err != nil {
-			return nil, nil, err
-		}
-		events = append(events, e)
-		roles = append(roles, role)
-	}
-	return events, roles, rows.Err()
-}
-
-// ListAdminEvents is every event with organiser details, counts and creator email.
+// ListAdminEvents is every event with its creator email (the caller adds the
+// head and team counts).
 func ListAdminEvents(ctx context.Context, q sqlkit.Querier) ([]AdminEvent, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT `+prefixedEventColumns("e")+`,
-		       (SELECT COUNT(*) FROM event_members m WHERE m.event_id = e.id AND m.role = 'participant'),
-		       (SELECT COUNT(*) FROM event_teams t WHERE t.event_id = e.id),
-		       (SELECT COUNT(*) FROM event_members m WHERE m.event_id = e.id AND `+entryrepo.JudgeMemberSQL("m", "e")+`)
+		SELECT `+prefixedEventColumns("e")+`
 		  FROM events e
 		 ORDER BY e.created_at DESC`)
 	if err != nil {
@@ -413,8 +292,7 @@ func ListAdminEvents(ctx context.Context, q sqlkit.Querier) ([]AdminEvent, error
 	var creators []string
 	for rows.Next() {
 		var a AdminEvent
-		dest := append(ScanEventFields(&a.Event), &a.Participants, &a.Teams, &a.Judges)
-		err := rows.Scan(dest...)
+		err := rows.Scan(ScanEventFields(&a.Event)...)
 		if err != nil {
 			return nil, err
 		}
@@ -436,89 +314,6 @@ func ListAdminEvents(ctx context.Context, q sqlkit.Querier) ([]AdminEvent, error
 	return out, nil
 }
 
-func GetEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID string) (EventMember, error) {
-	m, err := scanMember(q.QueryRowContext(ctx, `
-		SELECT m.event_id, m.user_id, m.role, '', m.team_id, m.coc_accepted_at, m.joined_at
-		  FROM event_members m WHERE m.event_id = $1 AND m.user_id = $2`, eventID, userID))
-	return WithDisplayName(ctx, q, m, err)
-}
-
-// InsertEventMember adds a person to an event. Unique (event, user) is already_member.
-func InsertEventMember(ctx context.Context, q sqlkit.Querier, eventID, userID, role string) (EventMember, error) {
-	row := q.QueryRowContext(ctx, `
-		WITH joined AS (
-		INSERT INTO event_members (event_id, user_id, role, coc_accepted_at)
-		VALUES ($1, $2, $3, now())
-		RETURNING event_id, user_id, role, team_id, coc_accepted_at, joined_at
-		), reserved AS (
-		INSERT INTO event_used_names (event_slug, team_slug)
-		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id WHERE j.role <> 'organiser'
-		ON CONFLICT DO NOTHING
-		) SELECT j.event_id,j.user_id,j.role,'',j.team_id,j.coc_accepted_at,j.joined_at FROM joined j`,
-		eventID, userID, role)
-	m, err := scanMember(row)
-	if err != nil && isUniqueViolation(err) {
-		return EventMember{}, err
-	}
-	return WithDisplayName(ctx, q, m, err)
-}
-
-// ListEventPeople is GET /v1/hack/events/{slug}/people and the participants CSV.
-func ListEventPeople(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventPerson, error) {
-	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, m.role, m.team_id,
-		       t.slug, t.name, m.joined_at, m.coc_accepted_at, m.approval_status,
-		       m.joined_via, m.city, m.country, m.age_range, m.gender, m.team_admin
-		  FROM event_members m
-		  LEFT JOIN event_teams t ON t.id = m.team_id
-		 WHERE m.event_id = $1
-		 ORDER BY m.joined_at ASC`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []EventPerson
-	for rows.Next() {
-		var p EventPerson
-		if err := rows.Scan(&p.UserID, &p.Role, &p.TeamID,
-			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus,
-			&p.JoinedVia, &p.City, &p.Country, &p.AgeRange, &p.Gender, &p.Admin); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return WithAccounts(ctx, q, out)
-}
-
-func ListParticipantsOnNoTeam(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventPerson, error) {
-	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, m.role, m.team_id,
-		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status
-		  FROM event_members m
-		 WHERE m.event_id = $1 AND m.role = 'participant' AND m.approval_status='approved' AND m.team_id IS NULL
-		 ORDER BY m.joined_at ASC`, eventID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []EventPerson
-	for rows.Next() {
-		var p EventPerson
-		if err := rows.Scan(&p.UserID, &p.Role, &p.TeamID,
-			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return WithAccounts(ctx, q, out)
-}
-
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
@@ -526,4 +321,118 @@ func isUniqueViolation(err error) bool {
 	// lib/pq and pgx both surface the SQLSTATE in the error text as "23505".
 	msg := err.Error()
 	return strings.Contains(msg, "23505") || strings.Contains(strings.ToLower(msg), "unique")
+}
+
+// EventsByIDs loads these events by id; an id with no event is absent.
+func EventsByIDs(ctx context.Context, q sqlkit.Querier, ids []string) (map[string]Event, error) {
+	out := map[string]Event{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := q.QueryContext(ctx, `SELECT `+EventColumns+` FROM events WHERE id = ANY($1::uuid[])`, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(ScanEventFields(&e)...); err != nil {
+			return nil, err
+		}
+		out[e.ID] = e
+	}
+	return out, rows.Err()
+}
+
+// ReserveEventName keeps the event's name taken after the event is gone
+// (someone besides its organisers was in it).
+func ReserveEventName(ctx context.Context, q sqlkit.Querier, eventID string) error {
+	_, err := q.ExecContext(ctx, `INSERT INTO event_used_names (event_slug, team_slug)
+		SELECT slug, '' FROM events WHERE id=$1 ON CONFLICT DO NOTHING`, eventID)
+	return err
+}
+
+// AllEvents lists every event, for the sweeps that filter teams or sites
+// across events (one query; the callers filter with the values).
+func AllEvents(ctx context.Context, q sqlkit.Querier) ([]Event, error) {
+	rows, err := queryContext(ctx, q, `SELECT `+EventColumns+` FROM events ORDER BY created_at DESC, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Event
+	for rows.Next() {
+		var e Event
+		if err := rows.Scan(ScanEventFields(&e)...); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// DeadlinePassed reports whether the event's submission deadline has passed
+// by the database clock; share holds the event row FOR SHARE.
+func DeadlinePassed(ctx context.Context, q sqlkit.Querier, eventID string, share bool) (bool, error) {
+	lock := ""
+	if share {
+		lock = " FOR SHARE"
+	}
+	var passed bool
+	err := q.QueryRowContext(ctx, `SELECT COALESCE(submission_deadline <= clock_timestamp(), false) FROM events WHERE id = $1`+lock, eventID).Scan(&passed)
+	return passed, err
+}
+
+// OpenEventSlugs lists the events still taking work (open, building or
+// closed, not taken down), whose addresses need certificates.
+func OpenEventSlugs(ctx context.Context, q sqlkit.Querier) ([]string, error) {
+	rows, err := queryContext(ctx, q, `SELECT slug FROM events WHERE stage IN ('open','building','closed') AND taken_down_at IS NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, err
+		}
+		out = append(out, slug)
+	}
+	return out, rows.Err()
+}
+
+// NameEverUsed reports whether teamSlug was ever a team of the event named
+// eventSlug ("" for the event's own name).
+func NameEverUsed(ctx context.Context, q sqlkit.Querier, eventSlug, teamSlug string) (bool, error) {
+	var used bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_used_names WHERE event_slug = $1 AND team_slug = $2)`, eventSlug, teamSlug).Scan(&used)
+	return used, err
+}
+
+// RecordUsedNames keeps the event's name and a new team's name for good.
+func RecordUsedNames(ctx context.Context, q sqlkit.Querier, eventSlug, teamSlug string) error {
+	_, err := q.ExecContext(ctx, `
+		INSERT INTO event_used_names (event_slug, team_slug) VALUES ($1, ''), ($1, $2)
+		ON CONFLICT DO NOTHING`, eventSlug, teamSlug)
+	return err
+}
+
+// EventIDsByAccounts maps each holding account id among accountIDs to its
+// event's id; an account holding no event is absent.
+func EventIDsByAccounts(ctx context.Context, q sqlkit.Querier, accountIDs []string) (map[string]string, error) {
+	rows, err := q.QueryContext(ctx, `SELECT account_id::text, id FROM events WHERE account_id::text = ANY($1::text[])`, pq.Array(accountIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var account, id string
+		if err := rows.Scan(&account, &id); err != nil {
+			return nil, err
+		}
+		out[account] = id
+	}
+	return out, rows.Err()
 }

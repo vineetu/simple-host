@@ -1,9 +1,10 @@
 package events
 
 import (
-	"github.com/vsriram/simple-host/products/hack/model"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/products/hack/model"
 )
 
 func TestMembershipAbilities(t *testing.T) {

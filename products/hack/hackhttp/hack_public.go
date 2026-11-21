@@ -39,7 +39,7 @@ func RegisterHackPublic(mux *http.ServeMux, database *sql.DB, appURL string,
 // loadPublicEventOwner is the account holding the event at /e/{slug}; it
 // writes the event page's own not-found (or a 500) and returns false otherwise.
 func loadPublicEventOwner(w http.ResponseWriter, r *http.Request, database *sql.DB, appURL string, pages *HackEventPages) (model.User, bool) {
-	ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
+	ev, err := events.New(database, nil).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 	if errors.Is(err, sql.ErrNoRows) {
 		writeHackEventNotFound(w, r, appURL, pages)
 		return model.User{}, false
@@ -49,7 +49,7 @@ func loadPublicEventOwner(w http.ResponseWriter, r *http.Request, database *sql.
 		return model.User{}, false
 	}
 	paperHackEvent(r, ev)
-	user, err := events.New(database).UserByID(r.Context(), ev.AccountID)
+	user, err := events.New(database, nil).UserByID(r.Context(), ev.AccountID)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return model.User{}, false
@@ -66,7 +66,7 @@ func submissionScreenshotHandler(database *sql.DB, appURL string, pages *HackEve
 			httpx.TooManyRequests(w)
 			return
 		}
-		ev, err := events.New(database).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
+		ev, err := events.New(database, nil).EventBySlug(r.Context(), strings.ToLower(r.PathValue("slug")))
 		if err != nil || !ev.SubmissionsPublic || !entries.SubmissionsOpen(ev) {
 			writeHackEventNotFound(w, r, appURL, pages)
 			return

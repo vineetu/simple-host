@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackmembers"
 )
 
 // EnsureTeamAdmin promotes the longest-standing member (team_joined_at, then
@@ -21,10 +21,7 @@ import (
 //
 // TODO(4.3): narrow the locking querier to *sql.Tx once the membership callbacks take *sql.Tx.
 func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
-	var locked int
-	if err := q.QueryRowContext(ctx, `
-		SELECT count(*) FROM (SELECT 1 FROM event_members WHERE team_id = $1 ORDER BY user_id FOR UPDATE) x`,
-		teamID).Scan(&locked); err != nil {
+	if _, err := hackmembers.LockTeamMembers(ctx, q, teamID); err != nil {
 		return err
 	}
 	if _, err := LockTeam(ctx, q, teamID); err != nil {
@@ -33,24 +30,10 @@ func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 		}
 		return err
 	}
-	var hasAdmin bool
-	if err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members WHERE team_id = $1 AND team_admin)`, teamID).Scan(&hasAdmin); err != nil {
+	if admins, err := hackmembers.Count(ctx, q, hackmembers.Filter{TeamID: teamID, TeamAdmin: true}); err != nil || admins > 0 {
 		return err
 	}
-	if hasAdmin {
-		return nil
-	}
-	// NULLS LAST: Postgres sorts NULL first, which would hand admin to a member
-	// with no team_joined_at ahead of one with an actual, earlier tenure. Every
-	// writer sets team_joined_at today, but this ordering must not depend on that.
-	var eventID, userID string
-	err := q.QueryRowContext(ctx, `
-		UPDATE event_members SET team_admin = true
-		 WHERE team_id = $1 AND user_id = (
-		   SELECT user_id FROM event_members WHERE team_id = $1
-		    ORDER BY team_joined_at NULLS LAST, user_id LIMIT 1)
-		RETURNING event_id, user_id`,
-		teamID).Scan(&eventID, &userID)
+	eventID, userID, err := hackmembers.PromoteSuccessor(ctx, q, teamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
@@ -58,7 +41,7 @@ func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 		return err
 	}
 	// The successor hears they now answer the team's requests.
-	return hackevents.NotifyUsers(ctx, q, eventID, hackevents.TeamAdminNotice, teamID, "", "", userID)
+	return hackmembers.NotifyUsers(ctx, q, eventID, hackmembers.TeamAdminNotice, teamID, "", "", userID)
 }
 
 // SetTeamAdmin makes or removes an admin. The caller has already decided the
@@ -74,7 +57,7 @@ func EnsureTeamAdmin(ctx context.Context, q Querier, teamID string) error {
 // actor's row here, then the team row, then the target row, deadlocks against
 // the symmetric request with actor and target swapped.
 func SetTeamAdmin(ctx context.Context, q *sql.Tx, eventID, teamID, userID string, admin bool) error {
-	m, err := LockMember(ctx, q, eventID, userID)
+	m, err := lockMember(ctx, q, eventID, userID)
 	if err != nil {
 		return err
 	}
@@ -85,33 +68,28 @@ func SetTeamAdmin(ctx context.Context, q *sql.Tx, eventID, teamID, userID string
 		return err
 	}
 	if !admin {
-		var targetIsAdmin bool
-		var admins int
-		if err := q.QueryRowContext(ctx, `
-			SELECT COALESCE(bool_or(user_id = $2 AND team_admin), false), COUNT(*) FILTER (WHERE team_admin)
-			  FROM event_members WHERE team_id = $1`, teamID, userID).Scan(&targetIsAdmin, &admins); err != nil {
+		targetIsAdmin, admins, err := hackmembers.TeamAdmins(ctx, q, teamID, userID)
+		if err != nil {
 			return err
 		}
 		if targetIsAdmin && admins <= 1 {
 			return ErrHackLastTeamAdmin
 		}
 	}
-	var was bool
-	if err := q.QueryRowContext(ctx, `SELECT team_admin FROM event_members WHERE event_id = $1 AND user_id = $2`, eventID, userID).Scan(&was); err != nil {
-		return err
-	}
-	if _, err = q.ExecContext(ctx, `UPDATE event_members SET team_admin = $3 WHERE event_id = $1 AND user_id = $2`, eventID, userID, admin); err != nil {
+	// m was read under its lock, so team_admin is unchanged since.
+	was := m.TeamAdmin
+	if err = hackmembers.SetTeamAdmin(ctx, q, eventID, userID, admin); err != nil {
 		return err
 	}
 	switch {
 	case admin && !was:
-		if err := hackevents.SupersedeTeamNotices(ctx, q, teamID, userID, hackevents.TeamAdminNotice); err != nil {
+		if err := hackmembers.SupersedeTeamNotices(ctx, q, teamID, userID, hackmembers.TeamAdminNotice); err != nil {
 			return err
 		}
-		return hackevents.NotifyUsers(ctx, q, eventID, hackevents.TeamAdminNotice, teamID, "", "", userID)
+		return hackmembers.NotifyUsers(ctx, q, eventID, hackmembers.TeamAdminNotice, teamID, "", "", userID)
 	case !admin && was:
 		// No longer true: drop the line and any email not yet sent.
-		return hackevents.SupersedeTeamNotices(ctx, q, teamID, userID, hackevents.TeamAdminNotice)
+		return hackmembers.SupersedeTeamNotices(ctx, q, teamID, userID, hackmembers.TeamAdminNotice)
 	}
 	return nil
 }
@@ -132,7 +110,7 @@ func SetTeamLock(ctx context.Context, q *sql.Tx, teamID, actor string, locked bo
 		if _, err = q.ExecContext(ctx, `UPDATE event_teams SET locked_at = NULL, locked_by = NULL WHERE id = $1`, teamID); err != nil {
 			return 0, 0, err
 		}
-		return 0, 0, hackevents.SupersedeTeamNotices(ctx, q, teamID, "", hackevents.NoticeTeamLocked)
+		return 0, 0, hackmembers.SupersedeTeamNotices(ctx, q, teamID, "", hackmembers.NoticeTeamLocked)
 	}
 	if err = q.QueryRowContext(ctx, `
 		SELECT COUNT(*) FILTER (WHERE kind = 'request'), COUNT(*) FILTER (WHERE kind = 'invite')
@@ -149,7 +127,7 @@ func SetTeamLock(ctx context.Context, q *sql.Tx, teamID, actor string, locked bo
 	}
 	if !team.Locked() {
 		// In the app only: a lock has nothing for the team to act on.
-		if err = hackevents.NotifyTeamMembers(ctx, q, team.EventID, teamID, hackevents.NoticeTeamLocked, "", actor); err != nil {
+		if err = hackmembers.NotifyTeamMembers(ctx, q, team.EventID, teamID, hackmembers.NoticeTeamLocked, "", actor); err != nil {
 			return 0, 0, err
 		}
 	}
