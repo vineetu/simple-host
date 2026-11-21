@@ -7,19 +7,18 @@ import (
 )
 
 // What account erasure does to what a person saved as a signed-in visitor on
-// OTHER people's sites. This pins the behaviour as it is today, not as the
-// deletion notice might be read:
+// OTHER people's sites. The person's name, email and handle live only in
+// the account row; everything else refers to them by account id. Erasure
+// deletes the row, so:
 //
 //   - KV entries, SQLite rows and files the visitor wrote stay in the site
-//     owner's storage, still carrying the visitor's id (kv/sqlite visitor_id,
-//     files writer_id). They are not deleted and not rewritten.
-//   - Only entries in Access-managed lists (collection_items.submitted_by)
-//     are deleted; data_history.actor_id is set null by the account row's
-//     delete and actor_email cleared (the HTTP storage routes write neither).
+//     owner's storage with the old id (kv/sqlite visitor_id, files
+//     writer_id), which no longer leads to anyone;
+//   - the owner's who-wrote-this lookups answer with no name or email.
 //
 // The notice (host/access/accesshttp/account_data.go emailAccountDeleted)
-// says: "Changes you made to other people's page data stay with their
-// sites, with your address taken off them."
+// says: "What you saved on other people's sites stays there, no longer
+// linked to your name or email."
 func TestRDErasureKeepsVisitorsStorageOnOtherSites(t *testing.T) {
 	a, cert := NewSiteApp(t, "canonical")
 	owner, vic := a.NewPerson(t, "rd-owner"), a.NewPerson(t, "rd-vic")
@@ -66,7 +65,7 @@ func TestRDErasureKeepsVisitorsStorageOnOtherSites(t *testing.T) {
 		t.Errorf("kv entry after erasure: %s", r.Body)
 	}
 	if got := ReadStorageKVAuthor(t, a.Data, sid, "notes", "mine"); got != vid {
-		t.Errorf("kv entry's author after erasure: %q, want unchanged %q (not anonymised)", got, vid)
+		t.Errorf("kv entry's author after erasure: %q, want the old id %q", got, vid)
 	}
 	// SQLite: the row is kept, still under the visitor's id.
 	r := must("GET", "/sqlite/wall/tables/entries/rows", nil, okey, http.StatusOK)
@@ -74,7 +73,7 @@ func TestRDErasureKeepsVisitorsStorageOnOtherSites(t *testing.T) {
 		t.Errorf("sqlite row after erasure: %s", r.Body)
 	}
 	if !strings.Contains(string(r.Body), vid) {
-		t.Errorf("sqlite row no longer carries the visitor's id %s (anonymised?): %s", vid, r.Body)
+		t.Errorf("sqlite row no longer carries the old id %s: %s", vid, r.Body)
 	}
 	// Files: the file is kept.
 	if r := must("GET", "/files/assets/objects/mine.txt", nil, okey, http.StatusOK); string(r.Body) != "file-from-the-visitor" {
@@ -83,5 +82,16 @@ func TestRDErasureKeepsVisitorsStorageOnOtherSites(t *testing.T) {
 	var writer string
 	if err := a.Database.QueryRow(`SELECT writer_id FROM site_storage_files WHERE site_id = $1 AND path = 'mine.txt'`, sid).Scan(&writer); err != nil || writer != vid {
 		t.Errorf("file writer after erasure: %q (%v), want unchanged %q", writer, err, vid)
+	}
+	// The account row is gone, and the owner's lookups name nobody.
+	var rows int
+	if err := a.Database.QueryRow(`SELECT count(*) FROM users WHERE id = $1`, vid).Scan(&rows); err != nil || rows != 0 {
+		t.Errorf("account row after erasure: %d (%v)", rows, err)
+	}
+	for _, path := range []string{"/visitors?id=" + vid, "/people"} {
+		r := must("GET", path, nil, okey, http.StatusOK)
+		if strings.Contains(string(r.Body), vic.Email) || strings.Contains(string(r.Body), vhandle) || strings.Contains(string(r.Body), `"found":true`) {
+			t.Errorf("%s names the erased visitor: %s", path, r.Body)
+		}
 	}
 }

@@ -292,9 +292,6 @@ func erasureSteps(a model.AccountForDelete) []erasureStep {
 		// GDPR erasure: what this person submitted to anyone's list goes.
 		// (Their own sites' items go with the sites.)
 		erasureStep{`DELETE FROM collection_items WHERE submitted_by = $1`, []any{a.ID}},
-		// Their address leaves the history of other people's saved data
-		// (the rows stay: they hold the site owner's earlier data).
-		erasureStep{`UPDATE data_history SET actor_email = NULL WHERE actor_id = $1`, []any{a.ID}},
 		// Old handles and retired names stay held, by nobody.
 		erasureStep{`UPDATE handle_aliases SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
 		erasureStep{`UPDATE legacy_hostnames SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
