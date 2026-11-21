@@ -9,9 +9,9 @@ func visitorTools() []Tool {
 		read, add bool
 		policy    toolPolicy
 	}{
-		{"visitor_read_site", true, false, toolPolicy{groupSiteExcluded: true, preserveNumbers: true, analytics: analyticsPolicy{pageText: true}}},
-		{"visitor_add_entry", false, true, toolPolicy{groupSiteExcluded: true, preserveNumbers: true}},
-		{"visitor_change_entry", false, false, toolPolicy{groupSiteExcluded: true, preserveNumbers: true}},
+		{"visitor_read_site", true, false, toolPolicy{preserveNumbers: true, analytics: analyticsPolicy{pageText: true}}},
+		{"visitor_add_entry", false, true, toolPolicy{preserveNumbers: true}},
+		{"visitor_change_entry", false, false, toolPolicy{preserveNumbers: true}},
 	} {
 		name := declaration.name
 		props := map[string]any{

@@ -13,7 +13,7 @@
 # (`make check FULL=1`, what installs and CI run) runs every package.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./host/server/servertest/datatest RUN='^TestNotify' COUNT=5
-.PHONY: check check-release connector-check inventory test test-rules test-integration test-db boundary-report check-boundaries browser
+.PHONY: ready check check-release connector-check inventory test test-rules test-integration test-db boundary-report check-boundaries browser
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -52,6 +52,7 @@ check:
 	bash scripts/check-binary.sh
 	go run ./scripts/split/sqlcheck -tests -report -
 	go run ./scripts/split/sqlcheck -migrations
+	go run ./scripts/inventory check
 	bash scripts/check-docs-sync.sh
 	bash deploy/cert-issuers/runtime_test.sh
 	python3 deploy/cert-issuers/requeue_test.py
@@ -72,6 +73,23 @@ check:
 	bash deploy/digitalocean/droplet/test/pins_test.sh
 	bash scripts/check-fresh-install.sh
 	@bash scripts/check-prices-age.sh || echo "WARNING: the cost calculator's prices need their monthly check (not a failure)"
+
+# `ready` is what to run before every commit. It formats the Go code,
+# regenerates the generated files (make inventory) and runs the checks a
+# code change can break, with the cached DB-backed test run. `check` (CI)
+# runs everything.
+ready:
+	gofmt -w host/ cmd/ products/ scripts/
+	go build ./...
+	go vet ./...
+	$(MAKE) test-rules
+	$(MAKE) inventory
+	go run ./scripts/inventory check
+	go run ./scripts/split/sqlcheck -migrations
+	bash scripts/check-docs-sync.sh
+	bash scripts/check-layering.sh
+	bash scripts/test-integration.sh
+	@echo "ready: commit the changes, generated files included (git status)"
 
 # The MCP connector check of one product (plugins/ROUTINE.md):
 #   make connector-check PRODUCT=host|hack [NO_EVALS=1]

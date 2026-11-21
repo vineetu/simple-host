@@ -80,7 +80,7 @@ func teamCall(c *call, tool, method, path string, body any) (map[string]any, err
 }
 
 func teamTools() []Tool {
-	policy := toolPolicy{groupSiteExcluded: true, notDeployOnly: true}
+	policy := toolPolicy{notDeployOnly: true}
 	return []Tool{
 		{
 			policy:       policy,

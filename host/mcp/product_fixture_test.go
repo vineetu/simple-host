@@ -14,6 +14,7 @@ func fixtureProduct() *Contribution {
 	}
 	return &Contribution{
 		Families:      []FamilyTools{{Family: "fixture", Tools: []Tool{read}}},
+		HostTools:     []string{"update_site", "storage_sql_schema"},
 		Notifications: notificationTools(),
 		Instructions: func(mode string) string {
 			switch mode {

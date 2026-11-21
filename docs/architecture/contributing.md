@@ -41,8 +41,8 @@ For a new route or tool, include these documentation changes:
    changes. New public feature sections/bold leads also need a
    `static/features.json` row and regenerated `features.html`.
 
-Enforcement is specific: `scripts/check-features.sh` runs inventory checking
-and OpenAPI coverage. `scripts/inventory/main.go:run` rejects stale generated
+Enforcement is specific: `make ready` regenerates and runs the inventory
+check and OpenAPI coverage. `scripts/inventory/main.go:run` rejects stale generated
 files, unplaced routes/tools and invalid feature-ID registries.
 `check-docs-sync.sh` checks registered `/v1` paths against OpenAPI, parsed
 YAML/JSON equality, feature-page coverage, settings/profile docs and atlas consistency. Its llms/skill capability checks are warnings.

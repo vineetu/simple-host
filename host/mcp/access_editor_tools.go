@@ -10,7 +10,7 @@ import (
 // (owner=<team>), manages them. Registered with the team tools.
 
 func editorTools() []Tool {
-	policy := toolPolicy{groupSiteExcluded: true, notDeployOnly: true}
+	policy := toolPolicy{notDeployOnly: true}
 	editors := outObject(map[string]any{
 		"editors": outArray("The site's editors, earliest first. Emails are never shown.", memberSchema()),
 	}, "editors")

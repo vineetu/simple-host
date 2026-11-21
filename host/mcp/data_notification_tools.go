@@ -41,7 +41,7 @@ func notificationLimitsSchema() map[string]any {
 func notificationTools() []Tool {
 	return []Tool{
 		{
-			policy: toolPolicy{groupSiteExcluded: true,
+			policy: toolPolicy{
 				notDeployOnly: true},
 			Name: "list_notifications", Title: "List notifications",
 			Description: "List webhook subscriptions and their delivery status for one site, or every site on the account. Includes subscriptions created by connected apps.",
@@ -54,7 +54,7 @@ func notificationTools() []Tool {
 			run:         listNotifications,
 		},
 		{
-			policy: toolPolicy{notificationID: true, groupSiteExcluded: true,
+			policy: toolPolicy{notificationID: true,
 				notDeployOnly: true},
 			Name: "remove_notification", Title: "Remove notification",
 			Description:  "Remove a webhook subscription from a site and stop its deliveries. Use the ID from list_notifications.",

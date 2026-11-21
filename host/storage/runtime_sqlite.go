@@ -539,6 +539,14 @@ func openSQLite(ctx context.Context, uri string, size, maxMemory int64) (context
 	return ctx, conn, cache, nil
 }
 
+// SQLStatementLimit is the most bytes one SQL statement may have: SQLite's
+// limit on every owner-data connection, the SQL routes' own check and its
+// message. SQLValueLimit is the most bytes one value may have.
+const (
+	SQLStatementLimit = 32768
+	SQLValueLimit     = 1 << 20
+)
+
 // restrictSQLite applies the settings of every owner-data connection:
 // memory, foreign keys, defensive mode and size limits, and WAL for writes.
 func restrictSQLite(conn *sqlite3.Conn, cache int64, write bool) error {
@@ -551,8 +559,8 @@ func restrictSQLite(conn *sqlite3.Conn, cache int64, write bool) error {
 	if _, err := conn.Config(sqlite3.DBCONFIG_DEFENSIVE, true); err != nil {
 		return err
 	}
-	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, 32768)
-	_ = conn.Limit(sqlite3.LIMIT_LENGTH, 1<<20)
+	_ = conn.Limit(sqlite3.LIMIT_SQL_LENGTH, SQLStatementLimit)
+	_ = conn.Limit(sqlite3.LIMIT_LENGTH, SQLValueLimit)
 	if write {
 		return conn.Exec("PRAGMA journal_mode=WAL")
 	}

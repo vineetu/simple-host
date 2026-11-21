@@ -1,5 +1,3 @@
-// Package hackmcp declares Simple Hack's AI tools and instructions. The tool
-// server (host/mcp) receives them as one Contribution.
 package hackmcp
 
 import "github.com/vsriram/simple-host/host/mcp"

@@ -259,7 +259,8 @@ bash scripts/check-profiles.sh || fail=1
 
 echo
 if [ "$fail" -ne 0 ]; then
-  echo "DRIFT DETECTED — update openapi.yaml (source of truth) to match the routes."
+  echo "DRIFT DETECTED. A FAIL about a route: document it in host/webassets/static/openapi.yaml"
+  echo "(or products/hack/webassets/openapi.part.yaml for Simple Hack). Then, for any FAIL, run: make inventory"
   exit 1
 fi
 echo "docs in sync ✓"

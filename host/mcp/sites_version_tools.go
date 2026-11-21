@@ -15,7 +15,7 @@ import (
 func siteVersionTools(limits Limits) []Tool {
 	return []Tool{
 		{
-			policy:       toolPolicy{groupSiteExcluded: true},
+			policy:       toolPolicy{},
 			OutputSchema: outObject(map[string]any{"name": outString("Site name."), "keep_versions": outInteger("Stored setting."), "effective_keep_versions": outInteger("Applied count."), "active_version": outInteger("Live version."), "removed_versions": outArray("Removed versions.", outInteger("Version number."))}, "name", "keep_versions", "effective_keep_versions", "active_version", "removed_versions"),
 			Name:         "set_keep_versions", Title: "Set versions kept",
 			Description: "Set a site's version count; older versions are removed for good. Only accounts enabled by the operator may change it. Other accounts get: Simple Host keeps your 4 latest versions. 0 uses the account default. The live version always stays.",
@@ -79,7 +79,7 @@ func siteVersionTools(limits Limits) []Tool {
 			run:         runPreviewVersion,
 		},
 		{
-			policy: toolPolicy{groupSiteExcluded: true},
+			policy: toolPolicy{},
 			OutputSchema: outObject(map[string]any{
 				"site":              outString(outSiteName),
 				"discarded_version": outInteger("The never-live version that was removed for good."),

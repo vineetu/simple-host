@@ -210,11 +210,13 @@ For each tool call it receives the tool's name, the arguments and result, the re
 gives for the call when it gives one, the app's name, how long the call took, a scrambled
 account reference, and tags for the product (`simple-hack`) and, for an event the person is
 part of or one listed publicly, their role in it (organiser, participant, judge or none) and its
-stage. A failed call sends only its short error code, not the error message. Event and team
-names are sent. We leave out join, judge, team and co-organiser codes and links, passcodes,
-keys, file contents, email addresses, other people's names and account IDs, and applicants'
-sign-up answers, city, country, age range and gender, and remove email addresses, private
-links, codes and keys from the stated reason (`host/mcp/analytics_scrub.go`,
+stage. A failed call sends only its short error code, not the error message. Names of events,
+teams and tracks, stages, roles and settings are sent. Anything we have not listed as safe is
+left out (`host/mcp/analytics_allow.go`), including what people type (sign-up answers,
+messages, entries, judges' comments), join, judge, team and co-organiser codes and links,
+passcodes, keys, file contents, email addresses, other people's names and account IDs, and
+applicants' city, country, age range and gender. Email addresses, private links, codes and
+keys are removed from the stated reason (`host/mcp/analytics_scrub.go`,
 `host/mcp/analytics_sanitize.go`). AgentCat's redaction removes further identifiers.
 It never receives the IP address a person connects from. The privacy page,
 https://simple-hack.app/privacy.html, says this under "Who we share it with".

@@ -304,47 +304,35 @@ type JudgeScore struct {
 	Points      int
 }
 
-// GetJudgeTeamScores returns a judge's current scores for a team and the comment
-// stored on those rows (empty if none exist yet).
+// GetJudgeTeamScores returns a judge's current scores for a team and the
+// comment on them (empty if none exist yet), read through scoreRows like
+// every other reader of per-judge scores.
 func GetJudgeTeamScores(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) ([]JudgeScore, string, error) {
-	// All rows for a (judge, team) pair hold the same comment; ORDER BY updated_at
-	// DESC is a defensive tie-break, not a requirement.
-	rows, err := queryContext(ctx, q, `
-		SELECT criterion_id, points, comment FROM event_scores
-		 WHERE event_id = $1 AND judge_id = $2 AND team_id = $3
-		 ORDER BY updated_at DESC`, eventID, judgeID, teamID)
+	rows, err := scoreRows(ctx, q, "s.event_id = $1 AND s.judge_id = $2 AND s.team_id = $3 ORDER BY s.updated_at DESC, r.position", eventID, judgeID, teamID)
 	if err != nil {
 		return nil, "", err
 	}
-	defer rows.Close()
-	out := []JudgeScore{}
+	out := make([]JudgeScore, 0, len(rows))
 	comment := ""
-	haveComment := false
-	for rows.Next() {
-		var s JudgeScore
-		var c string
-		if err := rows.Scan(&s.CriterionID, &s.Points, &c); err != nil {
-			return nil, "", err
-		}
-		out = append(out, s)
-		if !haveComment {
-			comment = c
-			haveComment = true
-		}
+	for _, row := range rows {
+		out = append(out, JudgeScore{CriterionID: row.CriterionID, Points: row.Points})
+		comment = row.Comment
 	}
-	return out, comment, rows.Err()
+	return out, comment, nil
 }
 
 // UpsertJudgeScores writes each given score (ON CONFLICT DO UPDATE, so a retried
 // write never double-counts) and, when comment is non-nil, sets it on every row
-// for this (judge, team) pair so every row agrees on the one comment.
+// for this (judge, team) pair. There is one comment per judge and team, stored
+// on each of its criterion rows: a new criterion row copies it.
 func UpsertJudgeScores(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string, scores []JudgeScore, comment *string) ([]JudgeScore, string, error) {
-	// The comment is stored once per criterion row (no separate table), so every
-	// row for a (judge, team) pair must hold the same value.
 	for _, s := range scores {
 		if _, err := q.ExecContext(ctx, `
 			INSERT INTO event_scores (event_id, judge_id, team_id, criterion_id, points, comment)
-			VALUES ($1, $2, $3, $4, $5, '')
+			VALUES ($1, $2, $3, $4, $5, COALESCE((
+				SELECT c.comment FROM event_scores c
+				 WHERE c.event_id = $1 AND c.judge_id = $2 AND c.team_id = $3
+				 ORDER BY c.comment <> '' DESC, c.updated_at DESC LIMIT 1), ''))
 			ON CONFLICT (judge_id, team_id, criterion_id) DO UPDATE
 			   SET points = EXCLUDED.points,
 			       updated_at = now()`,
@@ -391,14 +379,25 @@ type RawScoreRow = model.RawScoreRow
 // ListRawScores is every score row of the event with names resolved, for the
 // scores CSV and for computing results in Go.
 func ListRawScores(ctx context.Context, q sqlkit.Querier, eventID string) ([]RawScoreRow, error) {
+	return scoreRows(ctx, q, "s.event_id = $1", eventID)
+}
+
+// scoreRows is the one read of per-judge scores: a judge's own view and the
+// organiser's scores export both come through it, so a field added to
+// RawScoreRow here reaches both. Each row carries its (judge, team) pair's
+// one comment: the newest non-empty one, so a row saved without a comment
+// never blanks it.
+func scoreRows(ctx context.Context, q sqlkit.Querier, where string, args ...any) ([]RawScoreRow, error) {
 	rows, err := queryContext(ctx, q, `
 		SELECT s.judge_id, COALESCE(u.display_name, ''), s.team_id, t.name,
-		       s.criterion_id, r.name, r.position, s.points, r.max_points, s.comment
+		       s.criterion_id, r.name, r.position, s.points, r.max_points,
+		       FIRST_VALUE(s.comment) OVER (PARTITION BY s.judge_id, s.team_id
+		                                    ORDER BY s.comment <> '' DESC, s.updated_at DESC)
 		  FROM event_scores s
 		  JOIN event_teams t ON t.id = s.team_id
 		  JOIN rubric_criteria r ON r.id = s.criterion_id
 		  LEFT JOIN users u ON u.id = s.judge_id
-		 WHERE s.event_id = $1`, eventID)
+		 WHERE `+where, args...)
 	if err != nil {
 		return nil, err
 	}

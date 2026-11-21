@@ -1,5 +1,64 @@
 # CLAUDE.md
 
+## How to change this code
+
+Follow these steps literally. Every path below exists.
+
+### Where things live
+
+- `host/access` (accounts, keys, sign-in, passcodes, viewers, editors, teams), routes in `host/access/accesshttp/routes.go`.
+- `host/sites` (deploys, versions, domains, analytics), routes in `host/sites/siteshttp/routes.go`.
+- `host/data` (saved data: KV, SQLite, files, notifications), routes in `host/data/datahttp/routes.go`.
+- Imports: access <- sites <- data (each imports only those to its left). A routes package imports any module, never another routes package.
+- `host/mcp`: the AI tools. Each tool calls a REST route in process; it never reimplements one.
+- `products/hack`: Simple Hack. `rules/` (pure rules) -> `repository/` (SQL) -> `app/` (workflows) -> `hackhttp/` (routes, `routes.go`) and `mcp/` (tools).
+- `products/hack` may import `host`; `host` never imports `products`. `scripts/check-layering.sh` enforces all of this.
+- Each of these packages has a `doc.go` saying the same in a few lines.
+
+### Recipe: add a REST route
+
+1. Put the rule or workflow in the module, beside the closest neighbour (e.g. `ListKV` in `host/data/kv.go`). Hack: `products/hack/app/<area>/`.
+2. Add one `mux.Handle` line in the module's `routes.go` (copy a neighbour) and a thin handler beside its siblings.
+3. If a site editor or a deploy-only key may call it, add the pattern to `editorRoutes` or `deployRoutes` in `host/access/auth/scope.go`. Otherwise they are refused.
+4. Document it in `host/webassets/static/openapi.yaml` (Hack: `products/hack/webassets/openapi.part.yaml`).
+5. Name the path in backticks under its feature in `docs/FEATURES.md`.
+6. Test it through the real server: `host/server/servertest/{accesstest,sitestest,datatest}`, Hack `products/hack/hackhttp` or `products/hack/servertest`.
+7. Add a CHANGELOG line (see below). Run `make ready`.
+
+### Recipe: add an MCP tool
+
+1. Declare it beside its neighbours: Host in `host/mcp/<family>_tools.go` (e.g. `sites_read_tools.go`), Hack in `products/hack/mcp/hack_*_tools.go`. It calls the REST route.
+2. Add its row ("read", "write" or "destructive") to `hostAnnotationTable` in `host/mcp/annotations_test.go` (Hack: `hackAnnotationTable` in `products/hack/mcp/annotations_test.go`).
+3. Add it to the kit: `plugins/openai/chatgpt-app-submission.json` (Hack: `plugins/openai-hack/chatgpt-app-submission.json`), same three hints.
+4. A Host tool with no `site` argument that should take `owner` (a team) must be named in `ownerTools` in `host/mcp/access_team_tools.go`.
+5. Simple Hack gets a Host tool only if you add its name to `hostTools` in `products/hack/mcp/contribution.go` (then also to the Hack kit).
+6. Name the tool in backticks under its feature in `docs/FEATURES.md`.
+7. Add a CHANGELOG line. Run `make ready`.
+
+### Recipe: add a field or a column
+
+1. Host: edit `host/db/schema.sql`, add `host/db/migrations/NNNN-what.sql`, and list the columns the code reads in `requiredColumns` (`host/ops/repo/schemacheck.go`).
+2. Hack: edit `products/hack/db/schema.sql`, add `products/hack/db/migrations/NNNN-hack-what.sql`, and list them in `hackColumns` (`products/hack/db/schemacheck.go`).
+3. NNNN is the next free number across both migration folders. The file is plain SQL, idempotent (`ADD COLUMN IF NOT EXISTS`) and safe on a live database (additive, with a default). Full rule: `host/db/migrations/migrations.go`.
+4. Add a line for the file to `scripts/split/migration-owners.txt` (`file | platform or hack | what it changes`).
+5. A field that holds something a person typed is private by default. Say who may read it in the "Who sees" list of the owning package's `doc.go` (e.g. `products/hack/app/entries/doc.go`) and add it to each output listed there that should show it.
+6. Simple Hack analytics drops it unless its key is allowed in `host/mcp/analytics_allow.go`. Allow only keys whose values come from a fixed set or name a thing, never a person's words.
+7. Add a CHANGELOG line. Run `make ready`.
+
+### Before you commit: `make ready`
+
+It runs gofmt (rewrites files), build, vet, the rules module, `make inventory` (regenerates
+`docs/generated/` and Hack's `openapi.json`), the inventory check, `sqlcheck -migrations`,
+`scripts/check-docs-sync.sh`, `scripts/check-layering.sh` and the DB-backed tests
+(`scripts/test-integration.sh`, cached). When it passes, commit everything it changed,
+generated files included. Each failure message says what to do. CI runs `make check FULL=1`.
+
+### Commits and the CHANGELOG
+
+- A new CHANGELOG line goes directly under the `# Changelog` heading, newest first:
+  `YYYY-MM-DD: what changed, in plain words.`
+- Commit messages are plain sentences saying what changed. Never skip hooks (`--no-verify`).
+
 ## Several Claude sessions share this repo (read first)
 
 More than one Claude session builds and deploys this repo at the same time (Simple Host work and Simple Hack work). Before any build or deploy, read `/home/ubuntu/workspace/SIMPLE-HOST-COORDINATION.md`, add a row with the files you are touching and your deploy time, and keep it updated until you are done. Hold `flock /tmp/simple-host-deploy.lock` for the whole deploy, rebase onto the latest origin/main right before pushing, and never revert another session's commits.
@@ -20,9 +79,9 @@ https://simple-host.app and runs in production for real users.
 
 ## In the same commit as a feature change
 
-- Route and MCP tool indexes are generated: run `make inventory`. Reference features by their
-  stable FEATURES.md anchor ID (`docs/feature-ids.txt`). `make check-release` holds network,
-  publication and cross-repo checks; offline checks stay in `make check`.
+- Route and MCP tool indexes are generated (`make ready` runs `make inventory`). Reference
+  features by their stable FEATURES.md anchor ID (`docs/feature-ids.txt`). `make check-release`
+  holds network, publication and cross-repo checks; offline checks stay in `make check`.
 
 - Update `docs/FEATURES.md` and add a line to `CHANGELOG.md` (newest first, plain language). A new
   section or bold-lead feature in `FEATURES.md` also gets an entry in
@@ -40,13 +99,10 @@ https://simple-host.app and runs in production for real users.
 - The plugin repos github.com/vineetu/simple-host-plugin and simple-hack-plugin are published
   from origin/main by the hourly `sh-plugin-repo-sync.timer` (it runs both `scripts/publish-*claude-plugin-repo.sh`);
   by hand: `sudo systemctl start sh-plugin-repo-sync`, or `DRY_RUN=1 bash scripts/publish-claude-plugin-repo.sh` to preview.
-- Schema changed: edit `host/db/schema.sql` AND add a file under `host/db/migrations/` (named `NNNN-what.sql` with the
-  next free number; never rename an existing file). The file must be plain SQL, idempotent
-  (`ADD COLUMN IF NOT EXISTS`, `CREATE ... IF NOT EXISTS`) and safe on a live database
-  (additive, defaults, no long locks, no `CONCURRENTLY`): `simple-host migrate` runs every file
-  not yet recorded in `schema_migrations`, including on databases built from `schema.sql` that
-  already have its effect. Full rule: `host/db/migrations/migrations.go`. The historical files listed
-  there as baseline are never run. Small boxes migrate from `install.sh` on every run; the
+- Schema changed: follow "add a field or a column" above; never rename an existing migration
+  file. `simple-host migrate` runs every file not yet recorded in `schema_migrations`, including
+  on databases built from `schema.sql` that already have its effect. The historical files listed
+  as baseline in `host/db/migrations/migrations.go` are never run. Small boxes migrate from `install.sh` on every run; the
   server migrates on start only with `MIGRATE_ON_START=true` (Kubernetes; off in hosted
   production). Production: apply the file by hand before deploying (the
   binary refuses to start if a column it reads is missing), then
@@ -67,9 +123,10 @@ A release bumps the version in the pinned files (`deploy/hack/standalone/{compos
 The box is aarch64 with little RAM, so builds run under a memory cap.
 
 ```
-make check
+make ready    # before every commit
+make check    # everything, as CI runs it
 ```
-(gofmt, build, vet, `scripts/test-integration.sh` and the `scripts/check-*.sh` checks;
+(`make check`: gofmt, build, vet, `scripts/test-integration.sh`, the inventory check and the `scripts/check-*.sh` checks;
 `check-fresh-install.sh` needs a local postgres superuser.) `scripts/test-integration.sh` gives
 the DB-backed test fixtures (connector, hack, analytics, netusage, papermetrics -- anything
 gated on `DB_DSN`) a disposable Postgres and fails if any of them skip instead of running;

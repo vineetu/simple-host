@@ -8,7 +8,7 @@ import (
 
 // Telemetry drops other people's names (a product's participants, judges,
 // applicants, teammates, and the raw account ids behind them) only for
-// product tools (analyticsPolicy.personNames, set when a product tool is
+// product tools (analyticsPolicy.product, set when a product tool is
 // registered); an event's public organiser_name and ordinary values stay.
 // Platform tools carry no participant names, so their policy leaves them.
 func TestRDAnalyticsPersonNamesPolicy(t *testing.T) {
@@ -28,7 +28,7 @@ func TestRDAnalyticsPersonNamesPolicy(t *testing.T) {
 		out, _ := json.Marshal(analyticsResponseForPolicy(policy, reply.Result))
 		return string(out)
 	}
-	product := copyOf(toolPolicy{analytics: analyticsPolicy{personNames: true}})
+	product := copyOf(toolPolicy{analytics: analyticsPolicy{product: true}})
 	if strings.Contains(product, person) {
 		t.Errorf("a product tool's telemetry kept a person's name: %s", product)
 	}

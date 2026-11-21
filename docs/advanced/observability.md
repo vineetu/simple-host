@@ -98,14 +98,19 @@ person connects from.
 
 The SDKs have no built-in personal-data scrubber, so the server pattern-matches free text
 (`scrubAnalyticsText` in `host/mcp/analytics_scrub.go`) on both products: the stated intent,
-every argument name, and on Simple Hack every string of the arguments and result. It replaces
+every argument name, and on Simple Hack every string kept in the arguments and result. A Simple
+Hack tool's copy keeps a string only under a key allowed in `host/mcp/analytics_allow.go`
+(slugs, stages, roles, statuses and other fixed-set values, names and titles of events, teams,
+tracks and sites, IDs and times); every other string, and any text block that is not JSON
+(replaced by the structured result), becomes `[removed]`, so a new free-text field is left
+out until its key is allowed. Numbers and booleans are kept. The scrubber replaces
 email addresses; links whose path holds `/join/`, `/judge/`, `/team/`, `/organiser/`,
 `/invite`, an upload, download, preview or OAuth path, a token-like segment, a query or a
 fragment; UUIDs; key-like strings (`shk_`, `shint_` and similar prefixes, or 32 or more
 letters and digits); and code-shaped words (8 or more characters of the join-code alphabet
 with a digit and a letter). AgentCat's project redaction removes further personal
 identifiers before storage. Arbitrary prose on Simple Host, SQL aliases, and user-defined
-fields outside this inventory rely on that server-side redaction. The local tests verify
+fields outside this inventory on Simple Host rely on that server-side redaction. The local tests verify
 what is posted, not AgentCat's storage or project configuration.
 
 ### Tags

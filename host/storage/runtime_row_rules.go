@@ -16,7 +16,7 @@ var ErrStatementTooLarge = errors.New("rules statement exceeds SQLite limits")
 
 // These match OpenTableConn's SQL limit and SQLite's default variable limit.
 // Tests lower them to exercise refusals without exceeding the engine's bounds.
-var ruleStatementBytes = 32768
+var ruleStatementBytes = SQLStatementLimit
 var ruleStatementArgs = 32766
 
 // RuleFilter is one already validated where.<column> equality filter.

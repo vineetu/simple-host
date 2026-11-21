@@ -77,8 +77,13 @@ func analyticsResponseForPolicy(policy toolPolicy, value any) any {
 				block["text"] = jsonText(sdkSanitizeParameters(dropAnalyticsValuesForPolicy(policy, decoded)))
 			} else if data, ok := analyticsDataURI(text); ok {
 				block["text"] = jsonText(data)
-			} else if policy.analytics.personNames {
-				block["text"] = scrubAnalyticsText(text)
+			} else if policy.analytics.product {
+				// Prose can repeat anything a person typed: a product
+				// tool's copy keeps its structured result instead.
+				block["text"] = "[removed]"
+				if structured := response["structuredContent"]; structured != nil {
+					block["text"] = jsonText(structured)
+				}
 			}
 		}
 	}
@@ -214,8 +219,9 @@ func analyticsFileType(obj map[string]any) string {
 
 // Work on a JSON copy. Tool-specific field names cover binary files, signed
 // links, and visitor identity. A product's tools also drop people's details
-// by class of field and run every string through scrubAnalyticsText; other
-// conversation is left to AgentCat's server-side redaction.
+// by class of field and keep a string only under an allowed key
+// (analytics_allow.go), scrubbed by scrubAnalyticsText; other conversation
+// is left to AgentCat's server-side redaction.
 func dropAnalyticsValuesForPolicy(policy toolPolicy, value any) any {
 	return dropAnalyticsValue(policy, value, 0)
 }
@@ -229,8 +235,10 @@ func dropAnalyticsValue(policy toolPolicy, value any, depth int) any {
 		if data, ok := analyticsDataURI(v); ok {
 			return data
 		}
-		if policy.analytics.personNames {
-			return scrubAnalyticsText(v)
+		if policy.analytics.product {
+			// A string reached without a key (a bare JSON text, a row
+			// that is not a list) has no key to allow it.
+			return "[removed]"
 		}
 	case []any:
 		for i := range v {
@@ -296,7 +304,7 @@ func dropAnalyticsField(policy toolPolicy, key string, field any, obj map[string
 		return "[removed]"
 	case analyticsEmailField(policy, key):
 		return analyticsVisitorReference(obj)
-	case policy.analytics.personNames && (analyticsPersonName(name, field) || analyticsProductPersonField(key, name, field, obj)):
+	case policy.analytics.product && (analyticsPersonName(name, field) || analyticsProductPersonField(key, name, field, obj)):
 		return "[removed]"
 	case name == "edits" && policy.analytics.edits:
 		return analyticsEdits(policy, field, depth)
@@ -304,8 +312,9 @@ func dropAnalyticsField(policy toolPolicy, key string, field any, obj map[string
 	if file, ok := analyticsFileField(policy, key, name, field, obj); ok {
 		return file
 	}
-	if policy.analytics.personNames {
+	if policy.analytics.product {
 		analyticsMarkPeople(name, field)
+		return analyticsAllowed(policy, key, field, depth)
 	}
 	return dropAnalyticsValue(policy, field, depth)
 }
@@ -628,9 +637,10 @@ type analyticsPolicy struct {
 	structuredText, emailChanges, emailIdentity, contactEmail bool
 	fileResult, pageText, applicationAnswers, fileArguments   bool
 	edits, fileData, fileContentSize                          bool
-	// personNames drops other people's names (a product's participants,
-	// judges, applicants and teammates) from the copy: product tools only.
-	personNames bool
+	// product is set for a product's tools: other people's names (its
+	// participants, judges, applicants and teammates) are dropped, and every
+	// string under a key not in analytics_allow.go becomes "[removed]".
+	product bool
 }
 
 // AnalyticsCopy is what usage telemetry keeps of one call to the named tool:

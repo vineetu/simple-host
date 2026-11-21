@@ -54,7 +54,7 @@ func hostPageRecipe(topic, site string) (string, error) {
 
 func pageRecipeTool() Tool {
 	return Tool{
-		policy: toolPolicy{flatList: flatRecipeTool, personalExcluded: true,
+		policy: toolPolicy{flatList: flatRecipeTool,
 			noSpamCheck: noSpamCheckRecipeTool,
 		},
 		Name:  "get_page_recipe",

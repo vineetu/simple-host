@@ -1,16 +1,3 @@
-// Package mcp serves the Model Context Protocol over Streamable HTTP, so a chat
-// app (ChatGPT, Claude, Grok) can publish and manage Simple Host sites through
-// tool calls.
-//
-// Every tool is an adapter over the REST handler that already exists: a tool
-// builds one or more /v1 requests and serves them, in process, into the same
-// router the public API uses, carrying the caller's own credential. Nothing
-// here reimplements deploy, rollback or state, so an MCP call meets exactly the
-// limits, validation and permissions of the equivalent REST call.
-//
-// Authentication is not this package's job. The caller of ServeHTTP has
-// already proved who the request is for (an OAuth access token, or an API key)
-// and attached a Caller to the request context with WithCaller.
 package mcp
 
 import (
@@ -222,9 +209,9 @@ func newServer(cfg Config) *Server {
 		s.apps = factory(AppContext{APIHost: cfg.APIHost, Meta: s.appMeta})
 	}
 	r := buildRegistry(cfg, s.apps.AppFamily)
-	host := r.view(cfg, editionHost, false, false, false)
-	deploy := r.view(cfg, editionHost, false, false, true)
-	product := r.view(cfg, editionProduct, false, false, false)
+	host := r.view(cfg, editionHost, false, false)
+	deploy := r.view(cfg, editionHost, false, true)
+	product := r.view(cfg, editionProduct, false, false)
 	core, coreBare := make([]Tool, 0, len(coreToolNames)), make([]Tool, 0, len(coreToolNames))
 	for _, name := range coreToolNames {
 		tool := host.byName[name]
@@ -270,7 +257,7 @@ func (s *Server) productPersonalInventory() ([]Tool, []Tool, map[string]Tool) {
 	for name, tool := range s.productByName {
 		byName[name] = tool
 	}
-	site := s.registry.view(s.cfg, editionHost, true, true, false)
+	site := s.registry.view(s.cfg, editionHost, true, false)
 	all = append(all, site.tools...)
 	withoutSchemas = append(withoutSchemas, site.bare...)
 	for name, tool := range site.byName {
@@ -352,7 +339,7 @@ func (s *Server) withPasscodeScreen(l toolListing, caller Caller) toolListing {
 			}
 		}
 	}
-	tool := s.registry.view(s.cfg, editionScreen, false, false, false).tools[0]
+	tool := s.registry.view(s.cfg, editionScreen, false, false).tools[0]
 	out.byName[tool.Name] = tool
 	out.add(tool)
 	return out

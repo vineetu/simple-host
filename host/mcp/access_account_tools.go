@@ -44,7 +44,7 @@ func accountTools() []Tool {
 			run:         runWhoAmI,
 		},
 		{
-			policy:       toolPolicy{groupSiteExcluded: true},
+			policy:       toolPolicy{},
 			OutputSchema: outObject(map[string]any{"bio": outString("Public plain-text bio."), "max_length": outInteger("Configured maximum characters.")}, "bio", "max_length"),
 			Name:         "set_bio", Title: "Set my showcase bio",
 			Description: "Set the short plain-text bio shown on the person's public page (https://<handle>.simple-host.app/, the showcase of their sites). An empty string clears it; the limit is about 280 characters. " +
@@ -55,7 +55,7 @@ func accountTools() []Tool {
 			run:         runSetBio,
 		},
 		{
-			policy:       toolPolicy{groupSiteExcluded: true},
+			policy:       toolPolicy{},
 			OutputSchema: outObject(map[string]any{"site": outString("Owned site."), "pinned": outBool("Pinned to the first group."), "order": outInteger("Smaller numbers come first.")}, "site", "pinned", "order"),
 			Name:         "set_showcase_site", Title: "Pin or order a showcase site",
 			Description: "Pin a site to the top of the person's public page (the showcase of their sites), or set its position. Pinned sites come first, then smaller order numbers. Sites with List on my profile off, offline sites, and passcode-protected sites never appear there, pinned or not. Supply pinned, order, or both.",

@@ -55,11 +55,16 @@ func TestStorageToolsForwardRESTAndKeepBinaryOutOfResults(t *testing.T) {
 	}
 }
 
+// A product connection serves exactly the Host tools its contribution
+// names in HostTools; a Host connection keeps them all.
 func TestStorageToolsOnProductConnection(t *testing.T) {
-	s := newTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) }))
+	s := NewServer(testConfig(Config{Contribution: fixtureProduct(), Upstream: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(404) })}))
 	full, _, byName := s.forCaller(Caller{APIKey: "person", Mode: CallerModeEvents, GrantID: "grant"})
 	if len(full) == 0 || byName["storage_sql_schema"].Name == "" {
 		t.Fatal("product connection lost storage tools")
+	}
+	if _, ok := byName["storage_sql_query"]; ok {
+		t.Fatal("product connection serves a Host tool its HostTools does not name")
 	}
 	if _, ok := s.byName["storage_sql_schema"]; !ok {
 		t.Fatal("Host connection lost storage schema tool")

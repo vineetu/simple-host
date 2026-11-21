@@ -285,7 +285,7 @@ func checkMigrations(path string, all []migration, baseline map[string]bool, fix
 		present[m.Name] = true
 		c, ok := confirmed[m.Name]
 		if !ok {
-			messages = append(messages, "missing file: "+m.Name)
+			messages = append(messages, "missing file: "+m.Name+"; add a line to scripts/split/migration-owners.txt: "+m.Name+" | platform or hack | what it changes")
 			code = 1
 			continue
 		}

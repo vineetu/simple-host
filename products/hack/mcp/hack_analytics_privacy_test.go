@@ -308,3 +308,38 @@ func TestHackSiteSQLExecuteAcceptsFormerArguments(t *testing.T) {
 		t.Fatalf("refused before dispatch: %s", text)
 	}
 }
+
+// A field nobody has classified, such as a judge's private note, never
+// reaches AgentCat: a Simple Hack copy keeps a string only under a key
+// allowed in host/mcp/analytics_allow.go. If this fails for a field you
+// added, do not allow its key unless its values come from a fixed set or
+// name a thing, never what a person typed.
+func TestAnalyticsHackUnknownTextNeverLeaves(t *testing.T) {
+	const typed = "TYPED_BY_A_PERSON"
+	s := newTestServer(nil)
+	unknown := func() map[string]any {
+		return map[string]any{"note": typed, "anything_new": typed, "list_of_new": []any{typed},
+			"body": map[string]any{"anything_new": typed}, "items": []any{map[string]any{"note": typed}}}
+	}
+	for _, tool := range Tools() {
+		args, _ := sampleFromSchema(tool.InputSchema, 0).(map[string]any)
+		if args == nil {
+			args = map[string]any{}
+		}
+		for key, value := range unknown() {
+			args[key] = value
+		}
+		structured := unknown()
+		for _, text := range []string{mustJSON(structured), "Saved. Note: " + typed} {
+			parameters, response := s.AnalyticsCopy(tool.Name, args, text, structured)
+			if copied := mustJSON([]any{parameters, response}); strings.Contains(copied, typed) {
+				t.Errorf("%s sends an unclassified field: %s", tool.Name, copied)
+			}
+		}
+	}
+	// Allowed keys still go: the copy stays useful.
+	parameters, _ := s.AnalyticsCopy("hack_score_team", map[string]any{"slug": "spring", "team": "blue-fox", "note": typed}, "", nil)
+	if copied := mustJSON(parameters); !strings.Contains(copied, "spring") || !strings.Contains(copied, "blue-fox") {
+		t.Errorf("allowed keys removed: %s", copied)
+	}
+}

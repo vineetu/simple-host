@@ -1,5 +1,7 @@
 package mcp
 
+import "slices"
+
 // toolFamily names one capability family of MCP tools (docs/architecture/
 // target.md §6). Every registered tool belongs to exactly one family. A
 // product names its own families in its contribution.
@@ -38,16 +40,15 @@ type toolPolicy struct {
 	visitorParams, pagedStorage                                                bool
 	judgeParameter, includeEmails, recordsPins, screenshot, optionalBody       bool
 
-	groupSiteExcluded, personalExcluded, connectorHidden bool
-	notDeployOnly, unlisted, notSearchable               bool
-	listWithPasscode                                     bool
-	preserveNumbers                                      bool
-	screenOnly, unwrap, discovery, notificationID        bool
-	screen                                               string
-	showAllowed                                          func(Caller, bool) bool
-	flatList                                             func(Tool) Tool
-	analytics                                            analyticsPolicy
-	noSpamCheck                                          func(Tool) Tool
+	connectorHidden, notDeployOnly, unlisted, notSearchable bool
+	listWithPasscode                                        bool
+	preserveNumbers                                         bool
+	screenOnly, unwrap, discovery, notificationID           bool
+	screen                                                  string
+	showAllowed                                             func(Caller, bool) bool
+	flatList                                                func(Tool) Tool
+	analytics                                               analyticsPolicy
+	noSpamCheck                                             func(Tool) Tool
 	// unlistedArgs are accepted although the schema no longer lists them,
 	// for apps that keep an older tool list.
 	unlistedArgs []string
@@ -73,7 +74,7 @@ func (r *toolRegistry) add(edition toolEdition, family toolFamily, tools []Tool)
 		if edition == editionProduct {
 			tool.policy.analytics.emailIdentity = true
 			tool.policy.analytics.contactEmail = true
-			tool.policy.analytics.personNames = true
+			tool.policy.analytics.product = true
 		}
 		for _, entry := range r.entries {
 			if entry.edition == edition && entry.tool.Name == tool.Name {
@@ -122,6 +123,11 @@ func buildRegistry(cfg Config, appFamily func(base []Tool) FamilyTools) *toolReg
 			entry.tool.policy = policy
 		}
 	}
+	for _, name := range cfg.Contribution.HostTools {
+		if !slices.ContainsFunc(r.entries, func(e toolEntry) bool { return e.edition == editionHost && e.tool.Name == name }) {
+			panic("mcp: Contribution.HostTools names " + name + ", which is not a Host tool")
+		}
+	}
 	for _, name := range coreToolNames {
 		found := false
 		for _, entry := range r.entries {
@@ -150,14 +156,16 @@ type registryView struct {
 	byName      map[string]Tool
 }
 
-func (r *toolRegistry) view(cfg Config, edition toolEdition, site, personal, deploy bool) registryView {
+// view is one edition's tools. site is a product connection's view of the
+// Host tools: only those the product names in Contribution.HostTools.
+func (r *toolRegistry) view(cfg Config, edition toolEdition, site, deploy bool) registryView {
 	v := registryView{byName: map[string]Tool{}}
 	for _, entry := range r.entries {
 		tool, p := entry.tool, entry.tool.policy
 		if entry.edition != edition || p.connectorHidden || (deploy && p.notDeployOnly) {
 			continue
 		}
-		if site && (p.groupSiteExcluded || p.unlisted || (personal && p.personalExcluded)) {
+		if site && (p.unlisted || !slices.Contains(cfg.Contribution.HostTools, tool.Name)) {
 			continue
 		}
 		if site && cfg.Contribution != nil && cfg.Contribution.SiteVariants[tool.Name] != nil {

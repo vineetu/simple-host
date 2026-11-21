@@ -14,6 +14,7 @@ func Contribution() mcp.Contribution {
 			{Family: "storage", Tools: hackStorageTools()},
 			{Family: "sites", Tools: hackWebTools()},
 		},
+		HostTools:     hostTools,
 		Notifications: hackNotificationTools(),
 		SiteVariants: map[string]func(mcp.Tool, mcp.Limits) mcp.Tool{
 			"create_site": hackSiteCreateSite, "update_site": hackSiteUpdateSite,
@@ -44,4 +45,20 @@ func Contribution() mcp.Contribution {
 var judgingLockRemoved = mcp.RetiredMutation{
 	Message: "Judging locks when you finish judging (move to Results) and unlocks when you move the event back. [judging_lock_removed]",
 	Code:    "judging_lock_removed",
+}
+
+// hostTools are the Simple Host tools a Simple Hack connection also serves,
+// acting on a team's or event's site. A new Host tool is not served here
+// until it is added to this list. When you add one, also add it to
+// plugins/openai-hack/chatgpt-app-submission.json.
+var hostTools = []string{
+	"who_am_i", "list_sites", "get_site", "read_site_file", "create_site", "update_site",
+	"create_upload_link", "list_versions", "preview_version", "rollback_site",
+	"rename_site", "delete_site", "restore_site", "list_deleted_sites", "keep_site",
+	"export_site", "set_site_offline", "set_visibility", "site_analytics",
+	"connect_domain", "domain_status", "remove_domain",
+	"storage_list_resources", "storage_set_resource", "storage_delete_resource", "storage_get_usage",
+	"storage_get_kv", "storage_put_kv", "storage_delete_kv", "storage_list_kv_keys",
+	"storage_sql_query", "storage_sql_execute", "storage_sql_schema",
+	"storage_put_file", "storage_delete_file", "storage_list_file_objects", "storage_file_download_link",
 }

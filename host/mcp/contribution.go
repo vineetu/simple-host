@@ -4,7 +4,11 @@ import "context"
 
 // Contribution is everything a product adds to the tool server. The zero value adds nothing.
 type Contribution struct {
-	Families      []FamilyTools
+	Families []FamilyTools
+	// HostTools names the Host tools the product's connection also serves.
+	// A Host tool not named here is not served there: a new Host tool
+	// reaches the product only when someone adds it to this list.
+	HostTools     []string
 	Notifications []Tool
 	SiteVariants  map[string]func(Tool, Limits) Tool
 	// OwnerArg replaces the owner argument's description on a site connection.

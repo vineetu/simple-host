@@ -834,6 +834,35 @@ func TestHackJudgingScoresUpsertAndRetrySafety(t *testing.T) {
 	wantTS(t, "score while locked", r, http.StatusConflict, "scores_locked")
 }
 
+// There is one comment per judge and team. Scoring a criterion for the first
+// time without a comment keeps the comment already given, in the judge's own
+// view and in the organiser's scores export alike.
+func TestHackJudgingPointsOnlySaveKeepsTheComment(t *testing.T) {
+	w := newJudgingWorld(t, 1, 1)
+	rv := decodeRubric(t, w.call(t, "PUT", "/rubric", rubricBody(criterion("Impact", "", 60, 5), criterion("Craft", "", 40, 5)), w.org))
+	c1, c2 := rv.Criteria[0].ID, rv.Criteria[1].ID
+	team, judge := w.teams[0].id, w.judges[0]
+	w.setStage(t, "judging")
+	comment := "Lovely demo"
+	if r := w.scoreTeam(t, judge, team, map[string]int{c1: 4}, &comment); r.status != http.StatusOK {
+		t.Fatalf("score with comment: %d %s", r.status, r.body)
+	}
+	// A new row for c2, saved later and with no comment.
+	if r := w.scoreTeam(t, judge, team, map[string]int{c2: 3}, nil); r.status != http.StatusOK || r.json(t)["comment"] != comment {
+		t.Fatalf("points-only save on a new criterion blanked the comment: %s", r.body)
+	}
+	if r := w.call(t, "GET", "/judge/scores/"+team, nil, judge.person); r.json(t)["comment"] != comment {
+		t.Fatalf("judge reads a blank comment: %s", r.body)
+	}
+	if n := w.countRows(t, `SELECT COUNT(*) FROM event_scores WHERE judge_id=$1 AND team_id=$2 AND comment=$3`, judge.id, team, comment); n != 2 {
+		t.Fatalf("%d of 2 rows hold the comment", n)
+	}
+	csv := string(w.call(t, "GET", "/export/scores.csv", nil, w.org).body)
+	if strings.Count(csv, comment) != 2 {
+		t.Fatalf("scores export does not show the comment on both rows: %s", csv)
+	}
+}
+
 func TestHackJudgingConflictExcludesFromQueueAndScoring(t *testing.T) {
 	w := newJudgingWorld(t, 2, 1)
 	judge := w.judges[0]

@@ -18,7 +18,7 @@ func passcodeTools() []Tool {
 	site := map[string]any{"site": str(siteDesc)}
 	return []Tool{
 		{
-			policy:       toolPolicy{passcodeResult: "get", screen: "passcode", analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true, listWithPasscode: true},
+			policy:       toolPolicy{passcodeResult: "get", screen: "passcode", analytics: analyticsPolicy{secretText: true}, listWithPasscode: true},
 			OutputSchema: passcodeSchema(true),
 			Name:         "get_site_passcode",
 			Title:        "Check a site's passcode",
@@ -29,7 +29,7 @@ func passcodeTools() []Tool {
 			run:         runGetSitePasscode,
 		},
 		{
-			policy:       toolPolicy{passcodeResult: "set", screen: "passcode", analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
+			policy:       toolPolicy{passcodeResult: "set", screen: "passcode", analytics: analyticsPolicy{secretText: true}},
 			OutputSchema: passcodeSchema(true),
 			Name:         "set_site_passcode",
 			Title:        "Set or change a site's passcode",
@@ -50,7 +50,7 @@ func passcodeTools() []Tool {
 			run:         runSetSitePasscode,
 		},
 		{
-			policy:       toolPolicy{passcodeResult: "remove", analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
+			policy:       toolPolicy{passcodeResult: "remove", analytics: analyticsPolicy{secretText: true}},
 			OutputSchema: passcodeSchema(false),
 			Name:         "remove_site_passcode",
 			Title:        "Take the passcode off a site",
@@ -64,7 +64,7 @@ func passcodeTools() []Tool {
 			run:         runRemoveSitePasscode,
 		},
 		{
-			policy:       toolPolicy{passcodeResult: "signout", analytics: analyticsPolicy{secretText: true}, groupSiteExcluded: true},
+			policy:       toolPolicy{passcodeResult: "signout", analytics: analyticsPolicy{secretText: true}},
 			OutputSchema: passcodeSchema(false),
 			Name:         "sign_out_site_visitors",
 			Title:        "Make every visitor enter the passcode again",

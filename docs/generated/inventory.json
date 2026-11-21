@@ -4,7 +4,7 @@
       "method": "ANY",
       "path": "/",
       "feature_id": "redirects-and-plain-addresses",
-      "source": "host/sites/siteshttp/setup.go:62",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -12,7 +12,7 @@
       "method": "DELETE",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/access/accesshttp/connector.go:358",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": true
     },
@@ -20,7 +20,7 @@
       "method": "DELETE",
       "path": "/v1/admin/address-families/{id}",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:148",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -28,7 +28,7 @@
       "method": "DELETE",
       "path": "/v1/admin/hack/events/{slug}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:79",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -36,7 +36,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:122",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -44,7 +44,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/domain",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:121",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -52,7 +52,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/lock",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:126",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -60,7 +60,7 @@
       "method": "DELETE",
       "path": "/v1/admin/sites/{id}/versions/{version}",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:128",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -68,7 +68,7 @@
       "method": "DELETE",
       "path": "/v1/admin/users/{id}",
       "feature_id": "account-data",
-      "source": "host/access/accesshttp/routes.go:29",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -76,7 +76,7 @@
       "method": "DELETE",
       "path": "/v1/events/{name}",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/eventdomain.go:55",
+      "source": "host/sites/siteshttp/eventdomain.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -84,7 +84,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/routes.go:43",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -92,7 +92,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/announcements/{announcement}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/routes.go:142",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -100,7 +100,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/checklist/not-needed/{item}",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:19",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -108,7 +108,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/conflicts/{team_id}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:107",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -116,7 +116,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:93",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -124,7 +124,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/icon",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:28",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -132,7 +132,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/judging/former-judges/{user_id}",
       "feature_id": "leave-this-event",
-      "source": "products/hack/hackhttp/routes.go:109",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -140,7 +140,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/organiser-invite",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/routes.go:127",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -148,7 +148,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/organisers/{user_id}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:128",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -156,7 +156,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/people/{user_id}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:45",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -164,7 +164,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/requests/{id}",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:53",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -172,7 +172,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:54",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -180,7 +180,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:61",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -188,7 +188,7 @@
       "method": "DELETE",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:60",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -196,7 +196,7 @@
       "method": "DELETE",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "host/access/accesshttp/routes.go:37",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -204,7 +204,7 @@
       "method": "DELETE",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:141",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -212,7 +212,7 @@
       "method": "DELETE",
       "path": "/v1/me/connections/{client_id}",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:368",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -220,7 +220,7 @@
       "method": "DELETE",
       "path": "/v1/me/identities/{id}",
       "feature_id": "signin-email-change",
-      "source": "host/access/accesshttp/user.go:180",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -228,7 +228,7 @@
       "method": "DELETE",
       "path": "/v1/me/keys/{id}",
       "feature_id": "signin-alerts",
-      "source": "host/access/accesshttp/user.go:174",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -236,7 +236,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:18",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -244,7 +244,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:90",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -252,7 +252,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/editors/{person}",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/routes.go:21",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -260,7 +260,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "host/access/accesshttp/routes.go:58",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -268,7 +268,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/notifications/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:47",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -276,7 +276,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/push/devices",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:78",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -284,7 +284,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/push/devices/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:85",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -292,7 +292,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:35",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -300,7 +300,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:23",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -308,7 +308,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:19",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -316,7 +316,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "host/data/datahttp/routes.go:29",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -324,7 +324,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/versions/{version}",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:53",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -332,7 +332,7 @@
       "method": "DELETE",
       "path": "/v1/sites/{sitename}/viewers/{email}",
       "feature_id": "access-named-viewers",
-      "source": "host/access/accesshttp/routes.go:69",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -340,7 +340,7 @@
       "method": "DELETE",
       "path": "/v1/sso/consents/{site}",
       "feature_id": "access-one-signin",
-      "source": "host/access/accesshttp/user.go:171",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -348,7 +348,7 @@
       "method": "DELETE",
       "path": "/v1/teams/{team}",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:37",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -356,7 +356,7 @@
       "method": "DELETE",
       "path": "/v1/teams/{team}/invitations/{invitation}",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:34",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -364,7 +364,7 @@
       "method": "DELETE",
       "path": "/v1/teams/{team}/members/{member}",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:36",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -372,7 +372,7 @@
       "method": "GET",
       "path": "/",
       "feature_id": "redirects-and-plain-addresses",
-      "source": "host/sites/siteshttp/ui.go:161",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -380,7 +380,7 @@
       "method": "GET",
       "path": "/.well-known/agent-card.json",
       "feature_id": "agents-data-minimisation",
-      "source": "host/web/agentcard.go:39",
+      "source": "host/web/agentcard.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -388,7 +388,7 @@
       "method": "GET",
       "path": "/.well-known/ai-catalog.json",
       "feature_id": "agents-data-minimisation",
-      "source": "host/web/mcpservercard.go:68",
+      "source": "host/web/mcpservercard.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -396,7 +396,7 @@
       "method": "GET",
       "path": "/.well-known/api-catalog",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:89",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -404,7 +404,7 @@
       "method": "GET",
       "path": "/.well-known/ard.json",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:88",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -412,7 +412,7 @@
       "method": "GET",
       "path": "/.well-known/mcp/server-card.json",
       "feature_id": "agents-data-minimisation",
-      "source": "host/web/mcpservercard.go:66",
+      "source": "host/web/mcpservercard.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -420,7 +420,7 @@
       "method": "GET",
       "path": "/.well-known/muse-client.json",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:343",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": true
     },
@@ -428,7 +428,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:340",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -436,7 +436,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-authorization-server/mcp",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:342",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -444,7 +444,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:338",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -452,7 +452,7 @@
       "method": "GET",
       "path": "/.well-known/oauth-protected-resource/mcp",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:339",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -460,7 +460,7 @@
       "method": "GET",
       "path": "/.well-known/openai-apps-challenge",
       "feature_id": "dashboard-icon",
-      "source": "host/web/openaichallenge.go:15",
+      "source": "host/web/openaichallenge.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -468,7 +468,7 @@
       "method": "GET",
       "path": "/.well-known/skills/index.json",
       "feature_id": "dashboard-icon",
-      "source": "host/web/skillshub.go:302",
+      "source": "host/web/skillshub.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -476,7 +476,7 @@
       "method": "GET",
       "path": "/.well-known/skills/{name}/SKILL.md",
       "feature_id": "dashboard-icon",
-      "source": "host/web/skillshub.go:303",
+      "source": "host/web/skillshub.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -484,7 +484,7 @@
       "method": "GET",
       "path": "/.well-known/skills/{name}/references/{file}",
       "feature_id": "dashboard-icon",
-      "source": "host/web/skillshub.go:304",
+      "source": "host/web/skillshub.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -492,7 +492,7 @@
       "method": "GET",
       "path": "/account",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -500,7 +500,7 @@
       "method": "GET",
       "path": "/admin",
       "feature_id": "admin",
-      "source": "host/sites/siteshttp/ui.go:120",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -508,7 +508,7 @@
       "method": "GET",
       "path": "/analytics/{sitename}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "host/sites/siteshttp/ui.go:154",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -516,7 +516,7 @@
       "method": "GET",
       "path": "/apple-touch-icon-hack.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -524,7 +524,7 @@
       "method": "GET",
       "path": "/apple-touch-icon.png",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:79",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -532,7 +532,7 @@
       "method": "GET",
       "path": "/auth.js",
       "feature_id": "access-signin-card",
-      "source": "host/sites/siteshttp/ui.go:65",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -540,7 +540,7 @@
       "method": "GET",
       "path": "/auth.md",
       "feature_id": "access-email-signin-off",
-      "source": "host/sites/siteshttp/ui.go:19",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -548,7 +548,7 @@
       "method": "GET",
       "path": "/companies",
       "feature_id": "hack-company-pitch",
-      "source": "products/hack/hackhttp/hack_companies.go:9",
+      "source": "products/hack/hackhttp/hack_companies.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -556,7 +556,7 @@
       "method": "GET",
       "path": "/costs",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:140",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -564,7 +564,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/ui.go:207",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -572,7 +572,7 @@
       "method": "GET",
       "path": "/dashboard",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/ui.go:212",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -580,7 +580,7 @@
       "method": "GET",
       "path": "/demo/join",
       "feature_id": "hack-films",
-      "source": "products/hack/hackhttp/hack_watch.go:57",
+      "source": "products/hack/hackhttp/hack_watch.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -588,7 +588,7 @@
       "method": "GET",
       "path": "/demo/judge",
       "feature_id": "hack-films",
-      "source": "products/hack/hackhttp/hack_watch.go:62",
+      "source": "products/hack/hackhttp/hack_watch.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -596,7 +596,7 @@
       "method": "GET",
       "path": "/directory",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_home.go:50",
+      "source": "products/hack/hackhttp/hack_home.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -604,7 +604,7 @@
       "method": "GET",
       "path": "/docs",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:43",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -612,7 +612,7 @@
       "method": "GET",
       "path": "/docs.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:41",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -620,7 +620,7 @@
       "method": "GET",
       "path": "/docs/",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:44",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -628,7 +628,7 @@
       "method": "GET",
       "path": "/docs/api/",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:42",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -636,7 +636,7 @@
       "method": "GET",
       "path": "/e/{slug}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_public.go:22",
+      "source": "products/hack/hackhttp/hack_public.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -644,7 +644,7 @@
       "method": "GET",
       "path": "/e/{slug}/apply",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -652,7 +652,7 @@
       "method": "GET",
       "path": "/e/{slug}/judge",
       "feature_id": "the-judges-one-screen",
-      "source": "products/hack/hackhttp/hack_ui.go:56",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -660,7 +660,7 @@
       "method": "GET",
       "path": "/e/{slug}/manage",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -668,7 +668,7 @@
       "method": "GET",
       "path": "/e/{slug}/screenshots/{team}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_public.go:31",
+      "source": "products/hack/hackhttp/hack_public.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -676,7 +676,7 @@
       "method": "GET",
       "path": "/e/{slug}/submissions/{team}/screenshot",
       "feature_id": "results-show-what-each-team-built",
-      "source": "products/hack/hackhttp/hack_public.go:19",
+      "source": "products/hack/hackhttp/hack_public.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -684,7 +684,7 @@
       "method": "GET",
       "path": "/e/{slug}/team",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -692,7 +692,7 @@
       "method": "GET",
       "path": "/e/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_ui.go:36",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -700,7 +700,7 @@
       "method": "GET",
       "path": "/e/{slug}/voting-settings",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_ui.go:37",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -708,7 +708,7 @@
       "method": "GET",
       "path": "/enterprise",
       "feature_id": "hack-voting",
-      "source": "host/sites/siteshttp/ui.go:130",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -716,7 +716,7 @@
       "method": "GET",
       "path": "/enterprise/architecture",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "host/sites/siteshttp/ui.go:132",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -724,7 +724,7 @@
       "method": "GET",
       "path": "/enterprise/brief",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:131",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -732,7 +732,7 @@
       "method": "GET",
       "path": "/events",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -740,7 +740,7 @@
       "method": "GET",
       "path": "/events/new",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -748,7 +748,7 @@
       "method": "GET",
       "path": "/favicon-32-hack.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -756,7 +756,7 @@
       "method": "GET",
       "path": "/favicon-32.png",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:79",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -764,7 +764,7 @@
       "method": "GET",
       "path": "/favicon-hack.ico",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -772,7 +772,7 @@
       "method": "GET",
       "path": "/favicon-hack.svg",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -780,7 +780,7 @@
       "method": "GET",
       "path": "/favicon.ico",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:79",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -788,7 +788,7 @@
       "method": "GET",
       "path": "/favicon.svg",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:79",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -796,7 +796,7 @@
       "method": "GET",
       "path": "/features",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:124",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -804,7 +804,7 @@
       "method": "GET",
       "path": "/features.json",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:65",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -812,7 +812,7 @@
       "method": "GET",
       "path": "/film/hack-companies-film-1280-poster.jpg",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:68",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -820,7 +820,7 @@
       "method": "GET",
       "path": "/film/hack-companies-film-1280.mp4",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:68",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -828,7 +828,7 @@
       "method": "GET",
       "path": "/film/hack-companies-film-1280.webm",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:68",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -836,7 +836,7 @@
       "method": "GET",
       "path": "/film/hack-companies-film-390-poster.jpg",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:68",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -844,7 +844,7 @@
       "method": "GET",
       "path": "/film/hack-companies-film-390.mp4",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:68",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -852,7 +852,7 @@
       "method": "GET",
       "path": "/film/hack-companies-film-390.webm",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:68",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -860,7 +860,7 @@
       "method": "GET",
       "path": "/film/hack-film-1280-poster.jpg",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:65",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -868,7 +868,7 @@
       "method": "GET",
       "path": "/film/hack-film-1280.mp4",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:65",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -876,7 +876,7 @@
       "method": "GET",
       "path": "/film/hack-film-1280.webm",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:65",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -884,7 +884,7 @@
       "method": "GET",
       "path": "/film/hack-film-390-poster.jpg",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:65",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -892,7 +892,7 @@
       "method": "GET",
       "path": "/film/hack-film-390.mp4",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:65",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -900,7 +900,7 @@
       "method": "GET",
       "path": "/film/hack-film-390.webm",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_film.go:65",
+      "source": "products/hack/hackhttp/hack_film.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -908,7 +908,7 @@
       "method": "GET",
       "path": "/film/{file}",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:95",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -916,7 +916,7 @@
       "method": "GET",
       "path": "/fonts/{file...}",
       "feature_id": "hack-voting",
-      "source": "host/sites/siteshttp/setup.go:67",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -924,7 +924,7 @@
       "method": "GET",
       "path": "/get-started",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:16",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -932,7 +932,7 @@
       "method": "GET",
       "path": "/hack",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -940,7 +940,7 @@
       "method": "GET",
       "path": "/hack-connect-steps.json",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -948,7 +948,7 @@
       "method": "GET",
       "path": "/hack-film-narration.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -956,7 +956,7 @@
       "method": "GET",
       "path": "/hack-get-started-preview.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -964,7 +964,7 @@
       "method": "GET",
       "path": "/hack-ink.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -972,7 +972,7 @@
       "method": "GET",
       "path": "/hack-skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:15",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -980,7 +980,7 @@
       "method": "GET",
       "path": "/hack-watch-judge.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -988,7 +988,7 @@
       "method": "GET",
       "path": "/hack-watch-organizer.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -996,7 +996,7 @@
       "method": "GET",
       "path": "/hack-watch-participant.mp3",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1004,7 +1004,7 @@
       "method": "GET",
       "path": "/hack/api.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1012,7 +1012,7 @@
       "method": "GET",
       "path": "/hack/app.html",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1020,7 +1020,7 @@
       "method": "GET",
       "path": "/hack/app.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1028,7 +1028,7 @@
       "method": "GET",
       "path": "/hack/assistant.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1036,7 +1036,7 @@
       "method": "GET",
       "path": "/hack/checklist.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1044,7 +1044,7 @@
       "method": "GET",
       "path": "/hack/connect-steps.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1052,7 +1052,7 @@
       "method": "GET",
       "path": "/hack/event-list.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1060,7 +1060,7 @@
       "method": "GET",
       "path": "/hack/kit.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1068,7 +1068,7 @@
       "method": "GET",
       "path": "/hack/leave.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1076,7 +1076,7 @@
       "method": "GET",
       "path": "/hack/nav.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1084,7 +1084,7 @@
       "method": "GET",
       "path": "/hack/navigation-data.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1092,7 +1092,7 @@
       "method": "GET",
       "path": "/hack/navigation.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1100,7 +1100,7 @@
       "method": "GET",
       "path": "/hack/needs.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1108,7 +1108,7 @@
       "method": "GET",
       "path": "/hack/platform.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1116,7 +1116,7 @@
       "method": "GET",
       "path": "/hack/public.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1124,7 +1124,7 @@
       "method": "GET",
       "path": "/hack/schedule.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1132,7 +1132,7 @@
       "method": "GET",
       "path": "/hack/screens",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1140,7 +1140,7 @@
       "method": "GET",
       "path": "/hack/screens/_event-tracks.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1148,7 +1148,7 @@
       "method": "GET",
       "path": "/hack/screens/_judge-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1156,7 +1156,7 @@
       "method": "GET",
       "path": "/hack/screens/_orgA-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1164,7 +1164,7 @@
       "method": "GET",
       "path": "/hack/screens/_orgB-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1172,7 +1172,7 @@
       "method": "GET",
       "path": "/hack/screens/_partB-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1180,7 +1180,7 @@
       "method": "GET",
       "path": "/hack/screens/_publish-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1188,7 +1188,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-admin.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1196,7 +1196,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-entries.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1204,7 +1204,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-judging.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1212,7 +1212,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-links.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1220,7 +1220,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-people.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1228,7 +1228,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1236,7 +1236,7 @@
       "method": "GET",
       "path": "/hack/screens/_settings-teams.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1244,7 +1244,7 @@
       "method": "GET",
       "path": "/hack/screens/_stage-announce-dialog.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1252,7 +1252,7 @@
       "method": "GET",
       "path": "/hack/screens/_team-message-dialog.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1260,7 +1260,7 @@
       "method": "GET",
       "path": "/hack/screens/_team-util.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1268,7 +1268,7 @@
       "method": "GET",
       "path": "/hack/screens/_thread-with-organisers.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1276,7 +1276,7 @@
       "method": "GET",
       "path": "/hack/screens/account.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1284,7 +1284,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-home.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1292,7 +1292,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-queue.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1300,7 +1300,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-rubric.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1308,7 +1308,7 @@
       "method": "GET",
       "path": "/hack/screens/judge-scoring.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1316,7 +1316,7 @@
       "method": "GET",
       "path": "/hack/screens/landing-your-events.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1324,7 +1324,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-announcements.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1332,7 +1332,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-create-event.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1340,7 +1340,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-entries.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1348,7 +1348,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-entry-detail.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1356,7 +1356,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-event-page.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1364,7 +1364,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-judging-assignments.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1372,7 +1372,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-judging.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1380,7 +1380,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-overview.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1388,7 +1388,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-people.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1396,7 +1396,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1404,7 +1404,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-settings.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1412,7 +1412,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-team-detail.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1420,7 +1420,7 @@
       "method": "GET",
       "path": "/hack/screens/organiser-teams.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1428,7 +1428,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-announcements.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1436,7 +1436,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-entry.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1444,7 +1444,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-home.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1452,7 +1452,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-results.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1460,7 +1460,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-schedule.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1468,7 +1468,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-submissions.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1476,7 +1476,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-team.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1484,7 +1484,7 @@
       "method": "GET",
       "path": "/hack/screens/participant-website.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1492,7 +1492,7 @@
       "method": "GET",
       "path": "/hack/screens/public-apply.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1500,7 +1500,7 @@
       "method": "GET",
       "path": "/hack/screens/public-join.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1508,7 +1508,7 @@
       "method": "GET",
       "path": "/hack/screens/public-judge.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1516,7 +1516,7 @@
       "method": "GET",
       "path": "/hack/screens/public-organiser-invite.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1524,7 +1524,7 @@
       "method": "GET",
       "path": "/hack/screens/public-team-link.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1532,7 +1532,7 @@
       "method": "GET",
       "path": "/hack/screens/{$}",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:163",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1540,7 +1540,7 @@
       "method": "GET",
       "path": "/hack/shell.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1548,7 +1548,7 @@
       "method": "GET",
       "path": "/hack/stage-announce.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1556,7 +1556,7 @@
       "method": "GET",
       "path": "/hack/themes.css",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1564,7 +1564,7 @@
       "method": "GET",
       "path": "/hack/tour.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1572,7 +1572,7 @@
       "method": "GET",
       "path": "/hack/tours.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1580,7 +1580,7 @@
       "method": "GET",
       "path": "/hack/ui.js",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1588,7 +1588,7 @@
       "method": "GET",
       "path": "/hack/{$}",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:163",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1596,7 +1596,7 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/server/build.go:215",
+      "source": "host/server/build.go",
       "package": "host/server",
       "dynamic": true
     },
@@ -1604,7 +1604,7 @@
       "method": "GET",
       "path": "/hackathons",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/hack_home.go:75",
+      "source": "products/hack/hackhttp/hack_home.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1612,7 +1612,7 @@
       "method": "GET",
       "path": "/hackathons.html",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/server/build.go:215",
+      "source": "host/server/build.go",
       "package": "host/server",
       "dynamic": true
     },
@@ -1620,7 +1620,7 @@
       "method": "GET",
       "path": "/hackathons.html",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/hack_home.go:76",
+      "source": "products/hack/hackhttp/hack_home.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1628,7 +1628,7 @@
       "method": "GET",
       "path": "/healthz",
       "feature_id": "kubernetes",
-      "source": "host/web/health.go:17",
+      "source": "host/web/health.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -1636,7 +1636,7 @@
       "method": "GET",
       "path": "/host-ink.css",
       "feature_id": "hack-voting",
-      "source": "host/sites/siteshttp/setup.go:66",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1644,7 +1644,7 @@
       "method": "GET",
       "path": "/index.md",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:210",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1652,7 +1652,7 @@
       "method": "GET",
       "path": "/index.md",
       "feature_id": "agents-discovery",
-      "source": "products/hack/hackhttp/hack_home.go:28",
+      "source": "products/hack/hackhttp/hack_home.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1660,7 +1660,7 @@
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:65",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -1668,7 +1668,7 @@
       "method": "GET",
       "path": "/install.html",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:72",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1676,7 +1676,7 @@
       "method": "GET",
       "path": "/install.ps1",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:114",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1684,7 +1684,7 @@
       "method": "GET",
       "path": "/install.ps1",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:26",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1692,7 +1692,7 @@
       "method": "GET",
       "path": "/install.sh",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:113",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1700,7 +1700,7 @@
       "method": "GET",
       "path": "/install.sh",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:25",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1708,7 +1708,7 @@
       "method": "GET",
       "path": "/internal/domain-redirect/{handle}/{sitename}",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:97",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1716,7 +1716,7 @@
       "method": "GET",
       "path": "/internal/domain-redirect/{handle}/{sitename}/{rest...}",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:98",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1724,7 +1724,7 @@
       "method": "GET",
       "path": "/internal/family/{rest...}",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:149",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1732,7 +1732,7 @@
       "method": "GET",
       "path": "/internal/names/taken",
       "feature_id": "hack-voting",
-      "source": "host/sites/siteshttp/namepeer.go:36",
+      "source": "host/sites/siteshttp/namepeer.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1740,7 +1740,7 @@
       "method": "GET",
       "path": "/internal/notfound",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:107",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1748,7 +1748,7 @@
       "method": "GET",
       "path": "/internal/offline",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:109",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1756,7 +1756,7 @@
       "method": "GET",
       "path": "/internal/passcode/{rest...}",
       "feature_id": "access-passcode",
-      "source": "host/sites/siteshttp/routes.go:112",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1764,7 +1764,7 @@
       "method": "GET",
       "path": "/internal/showcase/{handle}",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "host/sites/siteshttp/routes.go:102",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1772,7 +1772,7 @@
       "method": "GET",
       "path": "/internal/site-redirect/{handle}",
       "feature_id": "site-url",
-      "source": "host/sites/siteshttp/routes.go:104",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1780,7 +1780,7 @@
       "method": "GET",
       "path": "/internal/site-redirect/{handle}/{sitename}",
       "feature_id": "site-url",
-      "source": "host/sites/siteshttp/routes.go:105",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1788,7 +1788,7 @@
       "method": "GET",
       "path": "/internal/site-redirect/{handle}/{sitename}/{rest...}",
       "feature_id": "site-url",
-      "source": "host/sites/siteshttp/routes.go:106",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1796,7 +1796,7 @@
       "method": "GET",
       "path": "/internal/suspended",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/access/accesshttp/routes.go:49",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -1804,7 +1804,7 @@
       "method": "GET",
       "path": "/internal/tls-ask",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:96",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1812,7 +1812,7 @@
       "method": "GET",
       "path": "/join/{code}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -1820,7 +1820,7 @@
       "method": "GET",
       "path": "/judge/{code}",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -1828,7 +1828,7 @@
       "method": "GET",
       "path": "/llms.md",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:211",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1836,7 +1836,7 @@
       "method": "GET",
       "path": "/llms.md",
       "feature_id": "agents-discovery",
-      "source": "products/hack/hackhttp/hack_home.go:29",
+      "source": "products/hack/hackhttp/hack_home.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1844,7 +1844,7 @@
       "method": "GET",
       "path": "/llms.txt",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:65",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -1852,7 +1852,7 @@
       "method": "GET",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/access/accesshttp/connector.go:358",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": true
     },
@@ -1860,7 +1860,7 @@
       "method": "GET",
       "path": "/mcp/server-card",
       "feature_id": "agents-data-minimisation",
-      "source": "host/web/mcpservercard.go:67",
+      "source": "host/web/mcpservercard.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -1868,7 +1868,7 @@
       "method": "GET",
       "path": "/oauth/authorize",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:346",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -1876,7 +1876,7 @@
       "method": "GET",
       "path": "/og-hack.png",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -1884,7 +1884,7 @@
       "method": "GET",
       "path": "/openapi.json",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:69",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -1892,7 +1892,7 @@
       "method": "GET",
       "path": "/openapi.yaml",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:69",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -1900,7 +1900,7 @@
       "method": "GET",
       "path": "/organiser/{code}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -1908,7 +1908,7 @@
       "method": "GET",
       "path": "/photo-codecs/v3/{file}",
       "feature_id": "dashboard-add-photos",
-      "source": "host/sites/siteshttp/photos_ui.go:36",
+      "source": "host/sites/siteshttp/photos_ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1916,7 +1916,7 @@
       "method": "GET",
       "path": "/photos",
       "feature_id": "agents-data-minimisation",
-      "source": "host/sites/siteshttp/photos_ui.go:18",
+      "source": "host/sites/siteshttp/photos_ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1924,7 +1924,7 @@
       "method": "GET",
       "path": "/plugin.zip",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:112",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1932,7 +1932,7 @@
       "method": "GET",
       "path": "/plugin.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:19",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -1940,7 +1940,7 @@
       "method": "GET",
       "path": "/pricing",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:128",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1948,7 +1948,7 @@
       "method": "GET",
       "path": "/readyz",
       "feature_id": "kubernetes",
-      "source": "host/web/health.go:18",
+      "source": "host/web/health.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -1956,7 +1956,7 @@
       "method": "GET",
       "path": "/recipes/{topic}",
       "feature_id": "storage-recipes",
-      "source": "host/sites/siteshttp/ui.go:22",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1964,7 +1964,7 @@
       "method": "GET",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "host/sites/siteshttp/ui.go:146",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1972,7 +1972,7 @@
       "method": "GET",
       "path": "/robots.txt",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:82",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1980,7 +1980,7 @@
       "method": "GET",
       "path": "/setup",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "host/sites/siteshttp/ui.go:136",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -1988,7 +1988,7 @@
       "method": "GET",
       "path": "/setup/setup.js",
       "feature_id": "setup-helper",
-      "source": "products/hack/extension.go:74",
+      "source": "products/hack/extension.go",
       "package": "products/hack",
       "dynamic": false
     },
@@ -1996,7 +1996,7 @@
       "method": "GET",
       "path": "/setup/simple-hack.json",
       "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go:160",
+      "source": "products/hack/asset_files.go",
       "package": "products/hack",
       "dynamic": true
     },
@@ -2004,7 +2004,7 @@
       "method": "GET",
       "path": "/setup/{$}",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:137",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2012,7 +2012,7 @@
       "method": "GET",
       "path": "/signin",
       "feature_id": "access-signin-card",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2020,7 +2020,7 @@
       "method": "GET",
       "path": "/signin.js",
       "feature_id": "access-signin-card",
-      "source": "host/sites/siteshttp/ui.go:65",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2028,7 +2028,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.0.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:28",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2036,7 +2036,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.1.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:28",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2044,7 +2044,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.10.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2052,7 +2052,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.11.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2060,7 +2060,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.12.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2068,7 +2068,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.13.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2076,7 +2076,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.2.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:28",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2084,7 +2084,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.3.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:28",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2092,7 +2092,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.4.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:28",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2100,7 +2100,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.5.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:28",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2108,7 +2108,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.6.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2116,7 +2116,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.7.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2124,7 +2124,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.8.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2132,7 +2132,7 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.9.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "products/hack/hackhttp/hack_get_started.go:33",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2140,7 +2140,7 @@
       "method": "GET",
       "path": "/sitemap-pages.xml",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:86",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2148,7 +2148,7 @@
       "method": "GET",
       "path": "/sitemap.xml",
       "feature_id": "agents-discovery",
-      "source": "host/sites/siteshttp/ui.go:85",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2156,7 +2156,7 @@
       "method": "GET",
       "path": "/skills",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/hackhttp/hack_get_started.go:17",
+      "source": "products/hack/hackhttp/hack_get_started.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2164,7 +2164,7 @@
       "method": "GET",
       "path": "/skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:91",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2172,7 +2172,7 @@
       "method": "GET",
       "path": "/skills.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/extension.go:69",
+      "source": "products/hack/extension.go",
       "package": "products/hack",
       "dynamic": false
     },
@@ -2180,7 +2180,7 @@
       "method": "GET",
       "path": "/skills/connect-domain",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:103",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2188,7 +2188,7 @@
       "method": "GET",
       "path": "/skills/connect-domain.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:100",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2196,7 +2196,7 @@
       "method": "GET",
       "path": "/skills/connect-domain/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:101",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2204,7 +2204,7 @@
       "method": "GET",
       "path": "/skills/connect-domain/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:104",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2212,7 +2212,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:103",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2220,7 +2220,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:100",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2228,7 +2228,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:101",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2236,7 +2236,7 @@
       "method": "GET",
       "path": "/skills/join-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:104",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2244,7 +2244,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:103",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2252,7 +2252,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:100",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2260,7 +2260,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:101",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2268,7 +2268,7 @@
       "method": "GET",
       "path": "/skills/judge-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:104",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2276,7 +2276,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:103",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2284,7 +2284,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon.zip",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:100",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2292,7 +2292,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon/SKILL.md",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:101",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2300,7 +2300,7 @@
       "method": "GET",
       "path": "/skills/run-hackathon/references/{file}",
       "feature_id": "hackathon-event-instances",
-      "source": "host/sites/siteshttp/ui.go:104",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2308,7 +2308,7 @@
       "method": "GET",
       "path": "/skills/version",
       "feature_id": "dashboard-icon",
-      "source": "host/sites/siteshttp/ui.go:92",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2316,7 +2316,7 @@
       "method": "GET",
       "path": "/skills/version",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/extension.go:70",
+      "source": "products/hack/extension.go",
       "package": "products/hack",
       "dynamic": false
     },
@@ -2324,7 +2324,7 @@
       "method": "GET",
       "path": "/skills/website-deploy",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:103",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2332,7 +2332,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:103",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2340,7 +2340,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:100",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2348,7 +2348,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:101",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2356,7 +2356,7 @@
       "method": "GET",
       "path": "/skills/website-deploy-builder/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:104",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2364,7 +2364,7 @@
       "method": "GET",
       "path": "/skills/website-deploy.zip",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:100",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2372,7 +2372,7 @@
       "method": "GET",
       "path": "/skills/website-deploy/SKILL.md",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:101",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2380,7 +2380,7 @@
       "method": "GET",
       "path": "/skills/website-deploy/references/{file}",
       "feature_id": "skills-and-plugin-distribution",
-      "source": "host/sites/siteshttp/ui.go:104",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": true
     },
@@ -2388,7 +2388,7 @@
       "method": "GET",
       "path": "/support",
       "feature_id": "legal-and-support-pages",
-      "source": "host/sites/siteshttp/ui.go:144",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2396,7 +2396,7 @@
       "method": "GET",
       "path": "/team/{code}",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/hack_ui.go:51",
+      "source": "products/hack/hackhttp/hack_ui.go",
       "package": "products/hack/hackhttp",
       "dynamic": true
     },
@@ -2404,7 +2404,7 @@
       "method": "GET",
       "path": "/teams",
       "feature_id": "teams",
-      "source": "host/sites/siteshttp/ui.go:214",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2412,7 +2412,7 @@
       "method": "GET",
       "path": "/terms",
       "feature_id": "legal-and-support-pages",
-      "source": "host/sites/siteshttp/ui.go:143",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2420,7 +2420,7 @@
       "method": "GET",
       "path": "/v1/admin/address-families",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:143",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2428,7 +2428,7 @@
       "method": "GET",
       "path": "/v1/admin/api-analytics",
       "feature_id": "moderation",
-      "source": "host/server/build.go:255",
+      "source": "host/server/build.go",
       "package": "host/server",
       "dynamic": false
     },
@@ -2436,7 +2436,7 @@
       "method": "GET",
       "path": "/v1/admin/export.tar.gz",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:37",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2444,7 +2444,7 @@
       "method": "GET",
       "path": "/v1/admin/growth",
       "feature_id": "moderation",
-      "source": "host/server/build.go:256",
+      "source": "host/server/build.go",
       "package": "host/server",
       "dynamic": false
     },
@@ -2452,7 +2452,7 @@
       "method": "GET",
       "path": "/v1/admin/hack/events",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:75",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2460,7 +2460,7 @@
       "method": "GET",
       "path": "/v1/admin/idle-sites",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:70",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2468,7 +2468,7 @@
       "method": "GET",
       "path": "/v1/admin/paper-metrics",
       "feature_id": "analytics-and-geo",
-      "source": "host/server/build.go:541",
+      "source": "host/server/build.go",
       "package": "host/server",
       "dynamic": false
     },
@@ -2476,7 +2476,7 @@
       "method": "GET",
       "path": "/v1/admin/signups",
       "feature_id": "admin-signup-source",
-      "source": "host/access/accesshttp/routes.go:39",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -2484,7 +2484,7 @@
       "method": "GET",
       "path": "/v1/admin/signups.csv",
       "feature_id": "admin-signup-source",
-      "source": "host/access/accesshttp/routes.go:40",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -2492,7 +2492,7 @@
       "method": "GET",
       "path": "/v1/admin/sites",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:30",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2500,7 +2500,7 @@
       "method": "GET",
       "path": "/v1/admin/sites/{id}/versions",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:118",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2508,7 +2508,7 @@
       "method": "GET",
       "path": "/v1/admin/usage",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:39",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2516,7 +2516,7 @@
       "method": "GET",
       "path": "/v1/admin/users",
       "feature_id": "admin-signup-source",
-      "source": "host/sites/siteshttp/routes.go:32",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2524,7 +2524,7 @@
       "method": "GET",
       "path": "/v1/analytics/sites",
       "feature_id": "webmcp-on-the-owner-app",
-      "source": "host/sites/siteshttp/routes.go:63",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2532,7 +2532,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/providers",
       "feature_id": "access-company-signin",
-      "source": "host/access/accesshttp/oauth.go:176",
+      "source": "host/access/accesshttp/oauth.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -2540,7 +2540,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "host/access/accesshttp/oauth.go:182",
+      "source": "host/access/accesshttp/oauth.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -2548,7 +2548,7 @@
       "method": "GET",
       "path": "/v1/auth/oauth/{provider}/callback",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/oauth.go:181",
+      "source": "host/access/accesshttp/oauth.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -2556,7 +2556,7 @@
       "method": "GET",
       "path": "/v1/events",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/eventdomain.go:53",
+      "source": "host/sites/siteshttp/eventdomain.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2564,7 +2564,7 @@
       "method": "GET",
       "path": "/v1/export",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:46",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -2572,7 +2572,7 @@
       "method": "GET",
       "path": "/v1/hack/archive",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:139",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2580,7 +2580,7 @@
       "method": "GET",
       "path": "/v1/hack/demo",
       "feature_id": "hack-films",
-      "source": "products/hack/hackhttp/hack_watch.go:48",
+      "source": "products/hack/hackhttp/hack_watch.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2588,7 +2588,7 @@
       "method": "GET",
       "path": "/v1/hack/directory",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:23",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2596,7 +2596,7 @@
       "method": "GET",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/routes.go:36",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2604,7 +2604,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/routes.go:39",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2612,7 +2612,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/announcements",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/routes.go:145",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2620,7 +2620,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/applications",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:150",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2628,7 +2628,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/apply",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/routes.go:155",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2636,7 +2636,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/assignments",
       "feature_id": "judging-choices",
-      "source": "products/hack/hackhttp/routes.go:121",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2644,7 +2644,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/assistant",
       "feature_id": "organiser-assistant",
-      "source": "products/hack/hackhttp/routes.go:21",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2652,7 +2652,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/checklist",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:17",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2660,7 +2660,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/conflicts",
       "feature_id": "judging",
-      "source": "products/hack/hackhttp/routes.go:105",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2668,7 +2668,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/content",
       "feature_id": "a-schedule-that-acts",
-      "source": "products/hack/hackhttp/routes.go:143",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2676,7 +2676,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entries",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:97",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2684,7 +2684,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:87",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2692,7 +2692,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry-rules",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:94",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2700,7 +2700,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:91",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2708,7 +2708,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/entries.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:134",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2716,7 +2716,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/participants.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:132",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2724,7 +2724,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/projects.tar.gz",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:135",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2732,7 +2732,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/results.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:120",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2740,7 +2740,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/scores.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:119",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2748,7 +2748,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/export/teams.csv",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:133",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2756,7 +2756,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/icon",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:26",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2764,7 +2764,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judge/queue",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:112",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2772,7 +2772,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judge/scores/{team}",
       "feature_id": "the-judges-one-screen",
-      "source": "products/hack/hackhttp/routes.go:113",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2780,7 +2780,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/dashboard",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:108",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2788,7 +2788,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/panels",
       "feature_id": "judging-choices",
-      "source": "products/hack/hackhttp/routes.go:123",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2796,7 +2796,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/preview",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:125",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2804,7 +2804,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/judging/settings",
       "feature_id": "judging-choices",
-      "source": "products/hack/hackhttp/routes.go:102",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2812,7 +2812,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/leave",
       "feature_id": "leave-this-event",
-      "source": "products/hack/hackhttp/routes.go:161",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2820,7 +2820,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/my-results",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:118",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2828,7 +2828,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/my-vote",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:33",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2836,7 +2836,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/people",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:44",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2844,7 +2844,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:24",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2852,7 +2852,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/registration",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/routes.go:148",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2860,7 +2860,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/reminders",
       "feature_id": "reminder-times",
-      "source": "products/hack/hackhttp/routes.go:169",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2868,7 +2868,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/results",
       "feature_id": "results-show-what-each-team-built",
-      "source": "products/hack/hackhttp/routes.go:117",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2876,7 +2876,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/rubric",
       "feature_id": "teams-can-see-the-rubric",
-      "source": "products/hack/hackhttp/routes.go:100",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2884,7 +2884,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/site",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/routes.go:80",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2892,7 +2892,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/submissions",
       "feature_id": "results-show-what-each-team-built",
-      "source": "products/hack/hackhttp/routes.go:85",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2900,7 +2900,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/submissions/{team}/screenshot",
       "feature_id": "results-show-what-each-team-built",
-      "source": "products/hack/hackhttp/routes.go:86",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2908,7 +2908,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/team/export.tar.gz",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:136",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2916,7 +2916,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/team/messages",
       "feature_id": "team-writes-organisers",
-      "source": "products/hack/hackhttp/routes.go:167",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2924,7 +2924,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:46",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2932,7 +2932,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/open",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:47",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2940,7 +2940,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/{team}/messages",
       "feature_id": "team-writes-organisers",
-      "source": "products/hack/hackhttp/routes.go:166",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2948,7 +2948,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/teams/{team}/screenshot",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:96",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2956,7 +2956,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/tracks",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/routes.go:152",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2964,7 +2964,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/usage",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:140",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2972,7 +2972,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:32",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2980,7 +2980,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:29",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2988,7 +2988,7 @@
       "method": "GET",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:157",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -2996,7 +2996,7 @@
       "method": "GET",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/routes.go:71",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3004,7 +3004,7 @@
       "method": "GET",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "products/hack/hackhttp/routes.go:73",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3012,7 +3012,7 @@
       "method": "GET",
       "path": "/v1/hack/my-teams",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:84",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3020,7 +3020,7 @@
       "method": "GET",
       "path": "/v1/hack/names/{slug}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:38",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3028,7 +3028,7 @@
       "method": "GET",
       "path": "/v1/hack/navigation",
       "feature_id": "hackathon-event-instances",
-      "source": "products/hack/hackhttp/routes.go:35",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3036,7 +3036,7 @@
       "method": "GET",
       "path": "/v1/hack/organiser/{code}",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/routes.go:129",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3044,7 +3044,7 @@
       "method": "GET",
       "path": "/v1/hack/preferences",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/routes.go:159",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3052,7 +3052,7 @@
       "method": "GET",
       "path": "/v1/hack/team-links/{code}",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:70",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3060,7 +3060,7 @@
       "method": "GET",
       "path": "/v1/hack/todos",
       "feature_id": "hack-notices",
-      "source": "products/hack/hackhttp/routes.go:163",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3068,7 +3068,7 @@
       "method": "GET",
       "path": "/v1/handles/check",
       "feature_id": "access-choose-address",
-      "source": "host/access/accesshttp/user.go:167",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3076,7 +3076,7 @@
       "method": "GET",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "host/access/accesshttp/user.go:168",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3084,7 +3084,7 @@
       "method": "GET",
       "path": "/v1/me/address-families",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:138",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3092,7 +3092,7 @@
       "method": "GET",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:139",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3100,7 +3100,7 @@
       "method": "GET",
       "path": "/v1/me/bio",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/sites/siteshttp/routes.go:22",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3108,7 +3108,7 @@
       "method": "GET",
       "path": "/v1/me/connections",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:367",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3116,7 +3116,7 @@
       "method": "GET",
       "path": "/v1/me/deleted-sites",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:28",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3124,7 +3124,7 @@
       "method": "GET",
       "path": "/v1/me/email/undo",
       "feature_id": "signin-email-change",
-      "source": "host/access/accesshttp/user.go:177",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3132,7 +3132,7 @@
       "method": "GET",
       "path": "/v1/me/export.tar.gz",
       "feature_id": "account-data",
-      "source": "host/access/accesshttp/routes.go:36",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3140,7 +3140,7 @@
       "method": "GET",
       "path": "/v1/me/export.zip",
       "feature_id": "account-data",
-      "source": "host/access/accesshttp/routes.go:34",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3148,7 +3148,7 @@
       "method": "GET",
       "path": "/v1/me/home",
       "feature_id": "your-home-page",
-      "source": "host/sites/siteshttp/routes.go:26",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3156,7 +3156,7 @@
       "method": "GET",
       "path": "/v1/me/identities",
       "feature_id": "signin-email-change",
-      "source": "host/access/accesshttp/user.go:179",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3164,7 +3164,7 @@
       "method": "GET",
       "path": "/v1/me/keys",
       "feature_id": "access-deploy-key",
-      "source": "host/access/accesshttp/user.go:172",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3172,7 +3172,7 @@
       "method": "GET",
       "path": "/v1/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:43",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3180,7 +3180,7 @@
       "method": "GET",
       "path": "/v1/photo-links",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:362",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3188,7 +3188,7 @@
       "method": "GET",
       "path": "/v1/push/sw.js",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:63",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3196,7 +3196,7 @@
       "method": "GET",
       "path": "/v1/setup/dns-check",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/setup.go:71",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3204,7 +3204,7 @@
       "method": "GET",
       "path": "/v1/setup/state",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/setup.go:68",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3212,7 +3212,7 @@
       "method": "GET",
       "path": "/v1/sites",
       "feature_id": "publish-file-limits",
-      "source": "host/sites/siteshttp/routes.go:29",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3220,7 +3220,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/access",
       "feature_id": "access-named-viewers",
-      "source": "host/access/accesshttp/routes.go:66",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3228,7 +3228,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:56",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3236,7 +3236,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics/geo",
       "feature_id": "analytics-own-visits",
-      "source": "host/sites/siteshttp/routes.go:57",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3244,7 +3244,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/analytics/top",
       "feature_id": "analytics-and-geo",
-      "source": "host/sites/siteshttp/routes.go:60",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3252,7 +3252,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:89",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3260,7 +3260,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/editors",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/routes.go:19",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3268,7 +3268,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/export.tar.gz",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:42",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3276,7 +3276,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "host/access/accesshttp/routes.go:56",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3284,7 +3284,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/me",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:79",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3292,7 +3292,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:44",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3300,7 +3300,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/notifications/{id}/deliveries",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:50",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3308,7 +3308,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/devices",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:77",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3316,7 +3316,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/rules",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:86",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3324,7 +3324,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/push/vapid-key",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:72",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3332,7 +3332,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/showcase",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/sites/siteshttp/routes.go:24",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3340,7 +3340,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:32",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3348,7 +3348,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:33",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3356,7 +3356,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:20",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3364,7 +3364,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:21",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3372,7 +3372,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/people",
       "feature_id": "storage-owner-for-visitor",
-      "source": "host/data/datahttp/routes.go:17",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3380,7 +3380,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/resources",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:14",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3388,7 +3388,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
       "feature_id": "storage-owner-for-visitor",
-      "source": "host/data/datahttp/routes.go:26",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3396,7 +3396,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "host/data/datahttp/routes.go:27",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3404,7 +3404,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/usage",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:15",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3412,7 +3412,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/storage/visitors",
       "feature_id": "storage-visitor-emails",
-      "source": "host/data/datahttp/routes.go:16",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3420,7 +3420,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:47",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3428,7 +3428,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions/{version}/files",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:48",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3436,7 +3436,7 @@
       "method": "GET",
       "path": "/v1/sites/{sitename}/versions/{version}/files/{path...}",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:49",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3444,7 +3444,7 @@
       "method": "GET",
       "path": "/v1/skills",
       "feature_id": "dashboard-icon",
-      "source": "host/web/skillshub.go:295",
+      "source": "host/web/skillshub.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -3452,7 +3452,7 @@
       "method": "GET",
       "path": "/v1/skills/{name}",
       "feature_id": "dashboard-icon",
-      "source": "host/web/skillshub.go:296",
+      "source": "host/web/skillshub.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -3460,7 +3460,7 @@
       "method": "GET",
       "path": "/v1/skills/{name}/SKILL.md",
       "feature_id": "dashboard-icon",
-      "source": "host/web/skillshub.go:299",
+      "source": "host/web/skillshub.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -3468,7 +3468,7 @@
       "method": "GET",
       "path": "/v1/skills/{name}/references/{file}",
       "feature_id": "dashboard-icon",
-      "source": "host/web/skillshub.go:300",
+      "source": "host/web/skillshub.go",
       "package": "host/web",
       "dynamic": false
     },
@@ -3476,7 +3476,7 @@
       "method": "GET",
       "path": "/v1/sso/hop",
       "feature_id": "access-one-signin",
-      "source": "host/access/accesshttp/sso.go:79",
+      "source": "host/access/accesshttp/sso.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3484,7 +3484,7 @@
       "method": "GET",
       "path": "/v1/sso/signed-out",
       "feature_id": "access-one-signin",
-      "source": "host/access/accesshttp/sso.go:82",
+      "source": "host/access/accesshttp/sso.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3492,7 +3492,7 @@
       "method": "GET",
       "path": "/v1/sso/start",
       "feature_id": "access-one-signin",
-      "source": "host/access/accesshttp/sso.go:78",
+      "source": "host/access/accesshttp/sso.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3500,7 +3500,7 @@
       "method": "GET",
       "path": "/v1/storage-download",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:37",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3508,7 +3508,7 @@
       "method": "GET",
       "path": "/v1/teams",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:31",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3516,7 +3516,7 @@
       "method": "GET",
       "path": "/v1/teams/{team}/members",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:32",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3524,7 +3524,7 @@
       "method": "GET",
       "path": "/v1/turnstile/frame",
       "feature_id": "storage-comments",
-      "source": "host/data/datahttp/routes.go:38",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3532,7 +3532,7 @@
       "method": "GET",
       "path": "/v1/u/{handle}/showcase.json",
       "feature_id": "showcase-feed",
-      "source": "host/sites/siteshttp/routes.go:21",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3540,7 +3540,7 @@
       "method": "GET",
       "path": "/v1/u/{handle}/sites/{sitename}/me",
       "feature_id": "visitor-sign-in",
-      "source": "host/access/accesshttp/routes.go:84",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3548,7 +3548,7 @@
       "method": "GET",
       "path": "/v1/visitor/establish",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:92",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3556,7 +3556,7 @@
       "method": "GET",
       "path": "/v1/visitor/oauth/{provider}",
       "feature_id": "visitor-signin",
-      "source": "host/access/accesshttp/oauth.go:185",
+      "source": "host/access/accesshttp/oauth.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3564,7 +3564,7 @@
       "method": "GET",
       "path": "/watch",
       "feature_id": "hack-films",
-      "source": "products/hack/hackhttp/hack_watch.go:17",
+      "source": "products/hack/hackhttp/hack_watch.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3572,7 +3572,7 @@
       "method": "GET",
       "path": "/{$}",
       "feature_id": "owner-dashboard-and-owner-app",
-      "source": "host/sites/siteshttp/ui.go:215",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3580,7 +3580,7 @@
       "method": "GET",
       "path": "/{$}",
       "feature_id": "owner-dashboard-and-owner-app",
-      "source": "products/hack/hackhttp/hack_home.go:30",
+      "source": "products/hack/hackhttp/hack_home.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3588,7 +3588,7 @@
       "method": "HEAD",
       "path": "/v1/push/sw.js",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:64",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3596,7 +3596,7 @@
       "method": "OPTIONS",
       "path": "/v1/hack/events/{slug}/public",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:25",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3604,7 +3604,7 @@
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/me",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:73",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3612,7 +3612,7 @@
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/visitor/auth",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:74",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3620,7 +3620,7 @@
       "method": "OPTIONS",
       "path": "/v1/sites/{sitename}/visitor/auth/verify",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:75",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3628,7 +3628,7 @@
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/me",
       "feature_id": "visitor-sign-in",
-      "source": "host/access/accesshttp/routes.go:76",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3636,7 +3636,7 @@
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
       "feature_id": "visitor-sign-in",
-      "source": "host/access/accesshttp/routes.go:77",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3644,7 +3644,7 @@
       "method": "OPTIONS",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
       "feature_id": "visitor-sign-in",
-      "source": "host/access/accesshttp/routes.go:78",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3652,7 +3652,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/routes.go:40",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3660,7 +3660,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/directory",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:31",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3668,7 +3668,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/judging/settings",
       "feature_id": "judging-choices",
-      "source": "products/hack/hackhttp/routes.go:103",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3676,7 +3676,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/results",
       "feature_id": "results-show-what-each-team-built",
-      "source": "products/hack/hackhttp/routes.go:116",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3684,7 +3684,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/team",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:63",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3692,7 +3692,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/teams/{team}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:131",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3700,7 +3700,7 @@
       "method": "PATCH",
       "path": "/v1/hack/events/{slug}/website",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:158",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3708,7 +3708,7 @@
       "method": "PATCH",
       "path": "/v1/hack/preferences",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/routes.go:160",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3716,7 +3716,7 @@
       "method": "PATCH",
       "path": "/v1/me",
       "feature_id": "publish-file-limits",
-      "source": "host/access/accesshttp/routes.go:31",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3724,7 +3724,7 @@
       "method": "PATCH",
       "path": "/v1/me/address-families/{suffix}",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:140",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3732,7 +3732,7 @@
       "method": "PATCH",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:19",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3740,7 +3740,7 @@
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/notifications/{id}",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:46",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3748,7 +3748,7 @@
       "method": "PATCH",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows/{id}",
       "feature_id": "site-storage-primitives",
-      "source": "host/data/datahttp/routes.go:28",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -3756,7 +3756,7 @@
       "method": "POST",
       "path": "/",
       "feature_id": "redirects-and-plain-addresses",
-      "source": "host/sites/siteshttp/ui.go:159",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3764,7 +3764,7 @@
       "method": "POST",
       "path": "/mcp",
       "feature_id": "access-deploy-key",
-      "source": "host/access/accesshttp/connector.go:358",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": true
     },
@@ -3772,7 +3772,7 @@
       "method": "POST",
       "path": "/oauth/authorize/decision",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:347",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3780,7 +3780,7 @@
       "method": "POST",
       "path": "/oauth/register",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:345",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3788,7 +3788,7 @@
       "method": "POST",
       "path": "/oauth/reviewer-signin",
       "feature_id": "visitor-signin",
-      "source": "host/access/accesshttp/connector.go:350",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3796,7 +3796,7 @@
       "method": "POST",
       "path": "/oauth/revoke",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:352",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3804,7 +3804,7 @@
       "method": "POST",
       "path": "/oauth/token",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:351",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3812,7 +3812,7 @@
       "method": "POST",
       "path": "/report",
       "feature_id": "admin-report-page",
-      "source": "host/sites/siteshttp/ui.go:147",
+      "source": "host/sites/siteshttp/ui.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3820,7 +3820,7 @@
       "method": "POST",
       "path": "/v1/admin/address-families/{id}/check",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:147",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3828,7 +3828,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/keep-sites",
       "feature_id": "archive-cleanup",
-      "source": "products/hack/hackhttp/routes.go:77",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3836,7 +3836,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/restore",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:78",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3844,7 +3844,7 @@
       "method": "POST",
       "path": "/v1/admin/hack/events/{slug}/takedown",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:76",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3852,7 +3852,7 @@
       "method": "POST",
       "path": "/v1/admin/password-users",
       "feature_id": "password-accounts",
-      "source": "host/access/accesshttp/password.go:27",
+      "source": "host/access/accesshttp/password.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3860,7 +3860,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/domain",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:120",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3868,7 +3868,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/restore",
       "feature_id": "moderation",
-      "source": "host/access/accesshttp/routes.go:44",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3876,7 +3876,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/suspend",
       "feature_id": "moderation",
-      "source": "host/access/accesshttp/routes.go:43",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3884,7 +3884,7 @@
       "method": "POST",
       "path": "/v1/admin/sites/{id}/versions/{version}/preview-link",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:127",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3892,7 +3892,7 @@
       "method": "POST",
       "path": "/v1/admin/users",
       "feature_id": "admin-signup-source",
-      "source": "host/access/accesshttp/routes.go:28",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3900,7 +3900,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/address-families",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:144",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3908,7 +3908,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/enable",
       "feature_id": "moderation",
-      "source": "host/access/accesshttp/routes.go:46",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3916,7 +3916,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/key",
       "feature_id": "moderation",
-      "source": "host/access/accesshttp/routes.go:30",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3924,7 +3924,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/password",
       "feature_id": "password-accounts",
-      "source": "host/access/accesshttp/password.go:28",
+      "source": "host/access/accesshttp/password.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3932,7 +3932,7 @@
       "method": "POST",
       "path": "/v1/admin/users/{id}/suspend",
       "feature_id": "moderation",
-      "source": "host/access/accesshttp/routes.go:45",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3940,7 +3940,7 @@
       "method": "POST",
       "path": "/v1/auth",
       "feature_id": "access-email-signin-off",
-      "source": "host/access/accesshttp/user.go:165",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3948,7 +3948,7 @@
       "method": "POST",
       "path": "/v1/auth/password",
       "feature_id": "password-accounts",
-      "source": "host/access/accesshttp/password.go:25",
+      "source": "host/access/accesshttp/password.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3956,7 +3956,7 @@
       "method": "POST",
       "path": "/v1/auth/password/signup",
       "feature_id": "password-accounts",
-      "source": "host/access/accesshttp/password.go:26",
+      "source": "host/access/accesshttp/password.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3964,7 +3964,7 @@
       "method": "POST",
       "path": "/v1/auth/verify",
       "feature_id": "access-email-signin-off",
-      "source": "host/access/accesshttp/user.go:166",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -3972,7 +3972,7 @@
       "method": "POST",
       "path": "/v1/events",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/eventdomain.go:54",
+      "source": "host/sites/siteshttp/eventdomain.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -3980,7 +3980,7 @@
       "method": "POST",
       "path": "/v1/hack/events",
       "feature_id": "hosted-events-simple-hack-app",
-      "source": "products/hack/hackhttp/routes.go:37",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3988,7 +3988,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/announcements",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/routes.go:146",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -3996,7 +3996,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/announcements/preview",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/routes.go:147",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4004,7 +4004,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/applications/{user_id}/decision",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:151",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4012,7 +4012,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/apply",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/routes.go:156",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4020,7 +4020,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/assignments/generate",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:104",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4028,7 +4028,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/assistant",
       "feature_id": "organiser-assistant",
-      "source": "products/hack/hackhttp/routes.go:22",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4036,7 +4036,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/checklist/acknowledgements/{item}",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:20",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4044,7 +4044,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/checklist/not-needed/{item}",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:18",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4052,7 +4052,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/codes/{kind}",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:42",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4060,7 +4060,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/conflicts",
       "feature_id": "judging",
-      "source": "products/hack/hackhttp/routes.go:106",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4068,7 +4068,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/entry/submit",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:89",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4076,7 +4076,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/entry/unsubmit",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:90",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4084,7 +4084,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/export/own-team-link",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:138",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4092,7 +4092,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/export/projects-link",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:137",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4100,7 +4100,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/judging/lock",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:110",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4108,7 +4108,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/judging/unlock",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:111",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4116,7 +4116,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/leave",
       "feature_id": "leave-this-event",
-      "source": "products/hack/hackhttp/routes.go:162",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4124,7 +4124,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/notices/seen",
       "feature_id": "hack-notices",
-      "source": "products/hack/hackhttp/routes.go:164",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4132,7 +4132,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/organiser-invite",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/routes.go:126",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4140,7 +4140,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/requests/{id}/{action}",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:52",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4148,7 +4148,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/results/publish",
       "feature_id": "hack-publish-finishes-judging",
-      "source": "products/hack/hackhttp/routes.go:115",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4156,7 +4156,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/stage",
       "feature_id": "hack-next-step",
-      "source": "products/hack/hackhttp/routes.go:41",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4164,7 +4164,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team-messages",
       "feature_id": "team-messages",
-      "source": "products/hack/hackhttp/routes.go:165",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4172,7 +4172,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/invites",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:51",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4180,7 +4180,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:66",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4188,7 +4188,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/team/messages",
       "feature_id": "team-writes-organisers",
-      "source": "products/hack/hackhttp/routes.go:168",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4196,7 +4196,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:56",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4204,7 +4204,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/fill",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:55",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4212,7 +4212,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/join",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:57",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4220,7 +4220,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/leave",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:58",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4228,7 +4228,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/entry/exclude",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:98",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4236,7 +4236,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/entry/include",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:99",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4244,7 +4244,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/link",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:69",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4252,7 +4252,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/members",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:59",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4260,7 +4260,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/requests",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:50",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4268,7 +4268,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/restore",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:83",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4276,7 +4276,7 @@
       "method": "POST",
       "path": "/v1/hack/events/{slug}/teams/{team}/takedown",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:82",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4284,7 +4284,7 @@
       "method": "POST",
       "path": "/v1/hack/join/{code}",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/routes.go:72",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4292,7 +4292,7 @@
       "method": "POST",
       "path": "/v1/hack/judge/{code}",
       "feature_id": "judging",
-      "source": "products/hack/hackhttp/routes.go:74",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4300,7 +4300,7 @@
       "method": "POST",
       "path": "/v1/hack/organiser/{code}",
       "feature_id": "event-administration",
-      "source": "products/hack/hackhttp/routes.go:130",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4308,7 +4308,7 @@
       "method": "POST",
       "path": "/v1/me/address-families",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:137",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4316,7 +4316,7 @@
       "method": "POST",
       "path": "/v1/me/address-families/{suffix}/check",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:142",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4324,7 +4324,7 @@
       "method": "POST",
       "path": "/v1/me/api-key/rotate",
       "feature_id": "signin-alerts",
-      "source": "host/access/accesshttp/user.go:169",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4332,7 +4332,7 @@
       "method": "POST",
       "path": "/v1/me/email",
       "feature_id": "signin-email-change",
-      "source": "host/access/accesshttp/user.go:175",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4340,7 +4340,7 @@
       "method": "POST",
       "path": "/v1/me/email/undo",
       "feature_id": "signin-email-change",
-      "source": "host/access/accesshttp/user.go:178",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4348,7 +4348,7 @@
       "method": "POST",
       "path": "/v1/me/email/verify",
       "feature_id": "signin-email-change",
-      "source": "host/access/accesshttp/user.go:176",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4356,7 +4356,7 @@
       "method": "POST",
       "path": "/v1/me/keys",
       "feature_id": "access-deploy-key",
-      "source": "host/access/accesshttp/user.go:173",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4364,7 +4364,7 @@
       "method": "POST",
       "path": "/v1/me/password",
       "feature_id": "password-accounts",
-      "source": "host/access/accesshttp/password.go:29",
+      "source": "host/access/accesshttp/password.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4372,7 +4372,7 @@
       "method": "POST",
       "path": "/v1/me/sign-out",
       "feature_id": "admin-signup-source",
-      "source": "host/access/accesshttp/user.go:170",
+      "source": "host/access/accesshttp/user.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4380,7 +4380,7 @@
       "method": "POST",
       "path": "/v1/me/team-invitations/{invitation}",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:35",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4388,7 +4388,7 @@
       "method": "POST",
       "path": "/v1/photo-links",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:363",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4396,7 +4396,7 @@
       "method": "POST",
       "path": "/v1/setup/finish",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/setup.go:73",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4404,7 +4404,7 @@
       "method": "POST",
       "path": "/v1/setup/free-name",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/setup.go:72",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4412,7 +4412,7 @@
       "method": "POST",
       "path": "/v1/setup/own-domain",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/setup.go:70",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4420,7 +4420,7 @@
       "method": "POST",
       "path": "/v1/setup/verify",
       "feature_id": "applications-without-a-join-link",
-      "source": "host/sites/siteshttp/setup.go:69",
+      "source": "host/sites/siteshttp/setup.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4428,7 +4428,7 @@
       "method": "POST",
       "path": "/v1/site-signin",
       "feature_id": "access-named-viewers",
-      "source": "host/access/accesshttp/routes.go:70",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4436,7 +4436,7 @@
       "method": "POST",
       "path": "/v1/site-signout",
       "feature_id": "access-named-viewers",
-      "source": "host/access/accesshttp/routes.go:71",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4444,7 +4444,7 @@
       "method": "POST",
       "path": "/v1/site-unlock",
       "feature_id": "access-passcode",
-      "source": "host/access/accesshttp/routes.go:63",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4452,7 +4452,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:16",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4460,7 +4460,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/domain",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:88",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4468,7 +4468,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/domain/check",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:93",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4476,7 +4476,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/editors",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/routes.go:20",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4484,7 +4484,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/export-link",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:45",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4492,7 +4492,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/files",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:75",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4500,7 +4500,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/lock/sign-out-everyone",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/access/accesshttp/routes.go:59",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4508,7 +4508,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/notifications",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:45",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4516,7 +4516,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/notifications/{id}/rotate-secret",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:49",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4524,7 +4524,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/notifications/{id}/test",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:48",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4532,7 +4532,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/photos",
       "feature_id": "dashboard-add-photos",
-      "source": "host/sites/siteshttp/routes.go:78",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4540,7 +4540,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/mute",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:75",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4548,7 +4548,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/subscribe",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:73",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4556,7 +4556,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/push/unsubscribe",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:74",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4564,7 +4564,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/restore",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:20",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4572,7 +4572,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/files/{name}/download-link",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:36",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4580,7 +4580,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/execute",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:30",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4588,7 +4588,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/query",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:24",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4596,7 +4596,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/schema",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:31",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4604,7 +4604,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/storage/sqlite/{name}/tables/{table}/rows",
       "feature_id": "storage-owner-for-visitor",
-      "source": "host/data/datahttp/routes.go:25",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -4612,7 +4612,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/versions/{version}/preview-link",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:55",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4620,7 +4620,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/viewers",
       "feature_id": "access-named-viewers",
-      "source": "host/access/accesshttp/routes.go:68",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4628,7 +4628,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/visitor/auth",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:80",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4636,7 +4636,7 @@
       "method": "POST",
       "path": "/v1/sites/{sitename}/visitor/auth/verify",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:81",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4644,7 +4644,7 @@
       "method": "POST",
       "path": "/v1/sso/consent",
       "feature_id": "access-one-signin",
-      "source": "host/access/accesshttp/sso.go:80",
+      "source": "host/access/accesshttp/sso.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4652,7 +4652,7 @@
       "method": "POST",
       "path": "/v1/sso/session",
       "feature_id": "access-one-signin",
-      "source": "host/access/accesshttp/sso.go:81",
+      "source": "host/access/accesshttp/sso.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4660,7 +4660,7 @@
       "method": "POST",
       "path": "/v1/sso/signed-out",
       "feature_id": "access-one-signin",
-      "source": "host/access/accesshttp/sso.go:83",
+      "source": "host/access/accesshttp/sso.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4668,7 +4668,7 @@
       "method": "POST",
       "path": "/v1/teams",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:30",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4676,7 +4676,7 @@
       "method": "POST",
       "path": "/v1/teams/{team}/members",
       "feature_id": "teams",
-      "source": "host/access/accesshttp/teams.go:33",
+      "source": "host/access/accesshttp/teams.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4684,7 +4684,7 @@
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth",
       "feature_id": "visitor-sign-in",
-      "source": "host/access/accesshttp/routes.go:85",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4692,7 +4692,7 @@
       "method": "POST",
       "path": "/v1/u/{handle}/sites/{sitename}/visitor/auth/verify",
       "feature_id": "visitor-sign-in",
-      "source": "host/access/accesshttp/routes.go:86",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4700,7 +4700,7 @@
       "method": "POST",
       "path": "/v1/uploads/{token}",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:365",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4708,7 +4708,7 @@
       "method": "POST",
       "path": "/v1/visitor/logout",
       "feature_id": "access-signin-card",
-      "source": "host/access/accesshttp/routes.go:93",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4716,7 +4716,7 @@
       "method": "PUT",
       "path": "/v1/admin/address-families/{id}/cert-mode",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:145",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4724,7 +4724,7 @@
       "method": "PUT",
       "path": "/v1/admin/address-families/{id}/proof-exempt",
       "feature_id": "address-families",
-      "source": "host/sites/siteshttp/routes.go:146",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4732,7 +4732,7 @@
       "method": "PUT",
       "path": "/v1/admin/sites/{id}/active-version",
       "feature_id": "moderation",
-      "source": "host/sites/siteshttp/routes.go:119",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4740,7 +4740,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/announcements/{announcement}",
       "feature_id": "applications-without-a-join-link",
-      "source": "products/hack/hackhttp/routes.go:141",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4748,7 +4748,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/assignments",
       "feature_id": "judging-choices",
-      "source": "products/hack/hackhttp/routes.go:122",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4756,7 +4756,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/content",
       "feature_id": "a-schedule-that-acts",
-      "source": "products/hack/hackhttp/routes.go:144",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4764,7 +4764,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:88",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4772,7 +4772,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry-rules",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:95",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4780,7 +4780,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/entry/screenshot",
       "feature_id": "entry-summary-card-rules-and-submit",
-      "source": "products/hack/hackhttp/routes.go:92",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4788,7 +4788,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/icon",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:27",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4796,7 +4796,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/judge/scores/{team}",
       "feature_id": "the-judges-one-screen",
-      "source": "products/hack/hackhttp/routes.go:114",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4804,7 +4804,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/judging/panels",
       "feature_id": "judging-choices",
-      "source": "products/hack/hackhttp/routes.go:124",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4812,7 +4812,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/me/looking",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:49",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4820,7 +4820,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/registration",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/routes.go:149",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4828,7 +4828,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/reminders",
       "feature_id": "reminder-times",
-      "source": "products/hack/hackhttp/routes.go:170",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4836,7 +4836,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/rubric",
       "feature_id": "teams-can-see-the-rubric",
-      "source": "products/hack/hackhttp/routes.go:101",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4844,7 +4844,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/finding",
       "feature_id": "team-finding",
-      "source": "products/hack/hackhttp/routes.go:48",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4852,7 +4852,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:64",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4860,7 +4860,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:65",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4868,7 +4868,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/team/track",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:154",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4876,7 +4876,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/deadline",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:81",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4884,7 +4884,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/lock",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:67",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4892,7 +4892,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/teams/{team}/members/{user_id}/admin",
       "feature_id": "hack-team-admins-lock-links",
-      "source": "products/hack/hackhttp/routes.go:68",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4900,7 +4900,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/tracks",
       "feature_id": "registration-tracks-and-challenges",
-      "source": "products/hack/hackhttp/routes.go:153",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4908,7 +4908,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/vote",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:34",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4916,7 +4916,7 @@
       "method": "PUT",
       "path": "/v1/hack/events/{slug}/voting",
       "feature_id": "hack-voting",
-      "source": "products/hack/hackhttp/routes.go:30",
+      "source": "products/hack/hackhttp/routes.go",
       "package": "products/hack/hackhttp",
       "dynamic": false
     },
@@ -4924,7 +4924,7 @@
       "method": "PUT",
       "path": "/v1/me/bio",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/sites/siteshttp/routes.go:23",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4932,7 +4932,7 @@
       "method": "PUT",
       "path": "/v1/me/home",
       "feature_id": "your-home-page",
-      "source": "host/sites/siteshttp/routes.go:27",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4940,7 +4940,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:17",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4948,7 +4948,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/access",
       "feature_id": "access-named-viewers",
-      "source": "host/access/accesshttp/routes.go:67",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -4956,7 +4956,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/active-version",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:50",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4964,7 +4964,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/allowed-origins",
       "feature_id": "abuse-limits-and-hardening",
-      "source": "host/sites/siteshttp/routes.go:83",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4972,7 +4972,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/files",
       "feature_id": "site-drafts",
-      "source": "host/sites/siteshttp/routes.go:76",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4980,7 +4980,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/keep",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:66",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4988,7 +4988,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/keep-versions",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:69",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -4996,7 +4996,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/lock",
       "feature_id": "access-passcode",
-      "source": "host/access/accesshttp/routes.go:57",
+      "source": "host/access/accesshttp/routes.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     },
@@ -5004,7 +5004,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/push/rules",
       "feature_id": "signals-and-notifications",
-      "source": "host/data/datahttp/routes.go:87",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -5012,7 +5012,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/showcase",
       "feature_id": "showcase-pins-and-bio",
-      "source": "host/sites/siteshttp/routes.go:25",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -5020,7 +5020,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:34",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -5028,7 +5028,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/kv/{name}/keys/{key}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:22",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -5036,7 +5036,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/storage/resources/{name}",
       "feature_id": "storage-sql-errors",
-      "source": "host/data/datahttp/routes.go:18",
+      "source": "host/data/datahttp/routes.go",
       "package": "host/data/datahttp",
       "dynamic": false
     },
@@ -5044,7 +5044,7 @@
       "method": "PUT",
       "path": "/v1/sites/{sitename}/visibility",
       "feature_id": "publish-idle-cleanup",
-      "source": "host/sites/siteshttp/routes.go:64",
+      "source": "host/sites/siteshttp/routes.go",
       "package": "host/sites/siteshttp",
       "dynamic": false
     },
@@ -5052,7 +5052,7 @@
       "method": "PUT",
       "path": "/v1/uploads/{token}",
       "feature_id": "agents-data-minimisation",
-      "source": "host/access/accesshttp/connector.go:364",
+      "source": "host/access/accesshttp/connector.go",
       "package": "host/access/accesshttp",
       "dynamic": false
     }

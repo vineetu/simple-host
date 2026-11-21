@@ -69,7 +69,7 @@ func siteLifecycleTools(limits Limits) []Tool {
 			run:         runRenameSite,
 		},
 		{
-			policy:       toolPolicy{groupSiteExcluded: true},
+			policy:       toolPolicy{},
 			OutputSchema: outObject(map[string]any{"site": map[string]any{"type": []string{"string", "null"}}}, "site"),
 			Name:         "set_home_page",
 			Title:        "Choose my home page",

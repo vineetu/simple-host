@@ -116,7 +116,7 @@ func sqlFailure(ctx context.Context, conn *sqlite3.Conn, err error, owner bool, 
 	case errors.Is(err, sqlite3.BUSY) || errors.Is(err, sqlite3.LOCKED):
 		return sqlRefuse("storage_busy", "the database is busy with another change; call once more in a second")
 	case errors.Is(err, sqlite3.TOOBIG):
-		return sqlRefuse("sql_value_too_large", "a value or the statement is too large: each value may be at most 1,048,576 bytes and a statement 32,768 characters")
+		return sqlRefuse("sql_value_too_large", "a value or the statement is too large: each value may be at most "+commas(runtime.SQLValueLimit)+" bytes and a statement "+commas(runtime.SQLStatementLimit)+" characters")
 	}
 	msg := sqliteText(err)
 	if conn != nil {
