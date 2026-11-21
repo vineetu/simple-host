@@ -3,21 +3,15 @@ package repo
 import (
 	"context"
 	"database/sql"
-	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"time"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
 )
 
 // purgeDue is true for a deleted row whose promised date has passed; $1 is
 // DeletedSiteRetention in seconds, for rows deleted before purge_at existed.
 const purgeDue = `COALESCE(purge_at, deleted_at + ($1 * interval '1 second')) < now()`
-
-// notTakenDown keeps a site the operator took down (or whose owner's account
-// is suspended) out of the purge: its files are the evidence the take-down
-// rests on, and they stay until the operator lifts it or removes the account.
-const notTakenDown = `suspended_at IS NULL
-	AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = sites.user_id AND u.suspended_at IS NOT NULL)`
 
 // MarkSiteDeleted moves a live site to Recently deleted, recording when it
 // will be removed for good. sql.ErrNoRows when there is no live site with
@@ -30,7 +24,10 @@ const notTakenDown = `suspended_at IS NULL
 // does not restore them, the same as it never resurrects any other write
 // that happened after deletion.
 func MarkSiteDeleted(ctx context.Context, q Querier, siteID string, retention time.Duration) error {
-	res, err := q.ExecContext(ctx, `WITH cleared AS (UPDATE users SET home_site_id = NULL WHERE home_site_id = $1) UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second')
+	if err := accountsrepo.ClearHomeSite(ctx, q, siteID); err != nil {
+		return err
+	}
+	res, err := q.ExecContext(ctx, `UPDATE sites SET deleted_at = now(), purge_at = now() + ($2 * interval '1 second')
 		 WHERE id = $1 AND deleted_at IS NULL`, siteID, int64(retention.Seconds()))
 	if err := oneRow(res, err); err != nil {
 		return err
@@ -63,11 +60,63 @@ func oneRow(res sql.Result, err error) error {
 	return nil
 }
 
-// LockPurgeableSite locks a deleted site only when its retention window has elapsed.
+// LockPurgeableSite locks a deleted site only when its retention window has
+// elapsed and nothing holds it: the owner's account row is locked first
+// (a suspension waits for this transaction, or this one sees it), then the
+// site row with its own take-down in the same statement. sql.ErrNoRows when
+// it may not be purged.
 func LockPurgeableSite(ctx context.Context, tx *sql.Tx, siteID string, retention time.Duration) error {
+	if err := lockOwnerNotSuspended(ctx, tx, siteID); err != nil {
+		return err
+	}
 	var id string
 	return tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id = $2 AND deleted_at IS NOT NULL
-		AND `+purgeDue+` AND `+notTakenDown+` FOR UPDATE`, int64(retention.Seconds()), siteID).Scan(&id)
+		AND `+purgeDue+` AND suspended_at IS NULL FOR UPDATE`, int64(retention.Seconds()), siteID).Scan(&id)
+}
+
+// lockOwnerNotSuspended locks the site owner's account row inside tx and is
+// sql.ErrNoRows when the site has no owner or the owner is suspended (the
+// operator's hold covers every site of theirs).
+func lockOwnerNotSuspended(ctx context.Context, tx *sql.Tx, siteID string) error {
+	var owner sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT user_id FROM sites WHERE id = $1`, siteID).Scan(&owner); err != nil {
+		return err
+	}
+	if !owner.Valid {
+		return sql.ErrNoRows
+	}
+	u, err := accountsrepo.LockUser(ctx, tx, owner.String)
+	if err != nil {
+		return err
+	}
+	if u.Suspended {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// DeleteExpiredSite removes an expired preview's row for good, in one
+// transaction that locks its owner's account and then deletes the site only
+// while it is still expired, live and not taken down. sql.ErrNoRows when it
+// may not be removed (the expiry sweep then keeps its files).
+func DeleteExpiredSite(ctx context.Context, database *sql.DB, siteID string) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := lockOwnerNotSuspended(ctx, tx, siteID); err != nil {
+		return err
+	}
+	var id string
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id = $1 AND expires_at IS NOT NULL AND expires_at < now()
+		AND deleted_at IS NULL AND suspended_at IS NULL FOR UPDATE`, siteID).Scan(&id); err != nil {
+		return err
+	}
+	if err := DeleteSite(ctx, tx, siteID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // DeletedSite is one site in an account's Recently deleted list.
@@ -98,14 +147,6 @@ func GetDeletedSiteByUser(ctx context.Context, q Querier, userID, name string) (
 func ListDeletedSitesByUser(ctx context.Context, database *sql.DB, userID string) ([]DeletedSite, error) {
 	return queryDeletedSites(ctx, database,
 		`SELECT `+deletedSiteCols+` FROM sites WHERE user_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, name`, userID)
-}
-
-// ListPurgeableSites returns deleted sites whose restore date has passed,
-// except taken-down ones.
-func ListPurgeableSites(ctx context.Context, database *sql.DB, retention time.Duration) ([]DeletedSite, error) {
-	return queryDeletedSites(ctx, database,
-		`SELECT `+deletedSiteCols+` FROM sites WHERE deleted_at IS NOT NULL AND `+purgeDue+` AND `+notTakenDown+` ORDER BY deleted_at LIMIT 500`,
-		int64(retention.Seconds()))
 }
 
 func queryDeletedSites(ctx context.Context, database *sql.DB, query string, args ...any) ([]DeletedSite, error) {
@@ -141,7 +182,7 @@ func PurgeDeletedSite(ctx context.Context, database *sql.DB, siteID string, rete
 	}
 	// A claimed <name>.<SITE_DOMAIN> outlives the site as a retired name
 	// ("this site was removed"), so it never passes to a stranger's site.
-	domains, err := accountsrepo.RetireSiteNames(ctx, tx, siteID, platformDomains...)
+	domains, err := RetireSiteNames(ctx, tx, siteID, platformDomains...)
 	if err != nil {
 		return nil, err
 	}

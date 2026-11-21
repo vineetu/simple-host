@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
@@ -769,7 +771,7 @@ func RandomHex(n int) (string, error) {
 // Shared by the legacy provider start and the SSO start on the site host.
 func (h *OAuthHandler) siteSignInAllowed(w http.ResponseWriter, r *http.Request, siteID string) bool {
 	// An offline site signs nobody in (offline.go).
-	if off, err := h.Accounts.SiteOffline(r.Context(), siteID); err != nil {
+	if off, err := sitesrepo.SiteOffline(r.Context(), h.Database, siteID); err != nil {
 		httpx.WriteInternal(w)
 		return false
 	} else if off {
@@ -777,7 +779,7 @@ func (h *OAuthHandler) siteSignInAllowed(w http.ResponseWriter, r *http.Request,
 		return false
 	}
 	// Nor does a taken-down one (suspend.go).
-	if susp, reason, err := h.Accounts.SiteSuspension(r.Context(), siteID); err != nil {
+	if susp, reason, err := sitesrepo.SiteSuspension(r.Context(), h.Database, siteID); err != nil {
 		httpx.WriteInternal(w)
 		return false
 	} else if susp {
@@ -786,7 +788,7 @@ func (h *OAuthHandler) siteSignInAllowed(w http.ResponseWriter, r *http.Request,
 	}
 	// Nor does one behind a passcode, until this browser has entered it
 	// (passcode.go).
-	if row, err := h.Accounts.GetSitePasscode(r.Context(), siteID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if row, err := sitesrepo.GetSitePasscode(r.Context(), h.Database, siteID); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpx.WriteInternal(w)
 		return false
 	} else if err == nil && row.Enc != nil && (h.passcodeOK == nil || !h.passcodeOK(r, siteID)) {

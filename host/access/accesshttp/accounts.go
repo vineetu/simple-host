@@ -10,11 +10,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/vsriram/simple-host/host/ops"
+
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	authrules "github.com/vsriram/simple-host/host/access/rules"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
 )
 
@@ -100,28 +101,16 @@ func (h *AccessHandler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Account ids are lowercase uuids (users.id::text); the site locks are
-	// keyed by that exact string, so take them before the row, as DELETE /v1/me does.
+	// keyed by that exact string.
 	id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
-	unlock, err := h.sitesSvc().LockAccountSites(r.Context(), id)
-	if err != nil {
-		httpx.WriteInternal(w)
+	_, err := h.cutoff().ErasePerson(r.Context(), accounts.DeleteAccountInput{ID: id, Operator: true})
+	if errors.Is(err, ops.ErrFilesLeft) {
+		httpx.WriteJSON(w, 500, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
-	defer unlock()
-	deleted, err := h.StoreAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: id, Operator: true})
 	if writeLifecycleFailure(w, err) {
 		return
 	}
-	erased := deleted.Erased
-
-	for _, e := range append([]model.ErasedAccount{erased}, deleted.Teams...) {
-		if err = h.eraseAccountFiles(r.Context(), e); err != nil {
-			log.Printf("admin delete account %s: files of %s: %v", id, e.UserID, err)
-			httpx.WriteJSON(w, 500, httpx.ErrorResponse{Error: "account removed but its files could not be deleted"})
-			return
-		}
-	}
-	h.sweepOrphanTeamSites(r.Context(), erased.AffectedEventAccounts)
 	w.WriteHeader(http.StatusNoContent)
 }
 

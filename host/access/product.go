@@ -17,8 +17,7 @@ import (
 // sign-in address that can never receive mail; handle becomes its address.
 // claimed is false when the handle is taken.
 func CreateProductTeam(ctx context.Context, tx *sql.Tx, username, handle string) (id string, claimed bool, err error) {
-	if err = tx.QueryRowContext(ctx, `
-		INSERT INTO users (username, is_team, event_account) VALUES ($1, TRUE, TRUE) RETURNING id`, username).Scan(&id); err != nil {
+	if id, err = repo.InsertEventTeamAccount(ctx, tx, username); err != nil {
 		return "", false, err
 	}
 	claimed, err = repo.ClaimHandle(ctx, tx, id, handle)
@@ -56,4 +55,27 @@ func SuspendAccount(ctx context.Context, q sqlkit.Querier, id, reason string) er
 // ConnectedApps lists the apps a person has connected.
 func ConnectedApps(ctx context.Context, db *sql.DB, userID string) ([]model.OAuthConnection, error) {
 	return repo.ListOAuthConnections(ctx, db, userID)
+}
+
+// UsersByIDs loads these accounts in one query, keyed by id (display names,
+// sign-in addresses, suspension for a list of people).
+func UsersByIDs(ctx context.Context, q sqlkit.Querier, ids []string) (map[string]model.User, error) {
+	return repo.UsersByIDs(ctx, q, ids)
+}
+
+// SortByDisplayName orders account ids by display name, then id.
+func SortByDisplayName(ctx context.Context, q sqlkit.Querier, ids []string) ([]string, error) {
+	return repo.SortByDisplayName(ctx, q, ids)
+}
+
+// LockAccount locks the account row inside tx, so the product's per-account
+// limits serialise.
+func LockAccount(ctx context.Context, tx *sql.Tx, id string) error {
+	_, err := repo.LockProfile(ctx, tx, id)
+	return err
+}
+
+// DeleteAccountRow deletes an account whose deletion the product decided.
+func DeleteAccountRow(ctx context.Context, tx *sql.Tx, id string) error {
+	return repo.DeleteAccountRow(ctx, tx, id)
 }

@@ -6,15 +6,20 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/lib/pq"
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
 )
 
 func BackfillPreviewExpiry(ctx context.Context, db *sql.DB, username string, ttlHours int) (int64, error) {
+	accountIDs, err := accountsrepo.AccountIDsByEmail(ctx, db, username)
+	if err != nil || len(accountIDs) == 0 {
+		return 0, err
+	}
 	res, err := db.ExecContext(ctx,
 		`UPDATE sites SET expires_at = created_at + make_interval(hours => $1)
-		 WHERE expires_at IS NULL
-		   AND user_id IN (SELECT id FROM users WHERE lower(username) = lower($2))`,
-		ttlHours, username)
+		 WHERE expires_at IS NULL AND user_id = ANY($2::uuid[])`,
+		ttlHours, pq.Array(accountIDs))
 	if err != nil {
 		return 0, err
 	}
@@ -40,17 +45,6 @@ func GetAllowedOriginsByID(ctx context.Context, db *sql.DB, siteID string) ([]st
 		}
 	}
 	return out, nil
-}
-
-func SetHomeSite(ctx context.Context, q Querier, userID string, name *string) error {
-	var res sql.Result
-	var err error
-	if name == nil {
-		res, err = q.ExecContext(ctx, `UPDATE users SET home_site_id = NULL WHERE id = $1`, userID)
-	} else {
-		res, err = q.ExecContext(ctx, `UPDATE users SET home_site_id = s.id FROM sites s WHERE users.id = $1 AND s.user_id = users.id AND s.name = $2 AND s.deleted_at IS NULL`, userID, *name)
-	}
-	return oneRow(res, err)
 }
 
 func ShowcasePreferences(ctx context.Context, q *sql.DB, userID string) (map[string]model.ShowcasePreference, error) {
@@ -83,25 +77,8 @@ func SetShowcasePreference(ctx context.Context, q Querier, userID, name string, 
 	return p, err
 }
 
-func ListHandlesWithSites(ctx context.Context, q *sql.DB) ([]string, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT DISTINCT u.handle FROM users u JOIN sites s ON s.user_id = u.id AND s.deleted_at IS NULL
-		WHERE u.handle IS NOT NULL AND u.handle <> ''
-		ORDER BY u.handle`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var h string
-		if err := rows.Scan(&h); err != nil {
-			return nil, err
-		}
-		out = append(out, h)
-	}
-	return out, rows.Err()
-}
+// ListHandlesWithSites is the handles of the accounts with a live site, in
+// order.
 
 func SetAllowedOrigins(ctx context.Context, db *sql.DB, siteID, origins string) error {
 	_, err := db.ExecContext(ctx, `UPDATE sites SET allowed_origins = $1 WHERE id = $2`, origins, siteID)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	eventrepo "github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -172,7 +173,7 @@ func fileApplication(ctx context.Context, tx *sql.Tx, eventID, userID, stage str
 
 // checkPendingCaps refuses an application past the account-wide or the per-event pending cap.
 func checkPendingCaps(ctx context.Context, tx *sql.Tx, eventID, userID string, capN int) error {
-	if err := eventrepo.LockUserRow(ctx, tx, userID); err != nil {
+	if err := accounts.LockAccount(ctx, tx, userID); err != nil {
 		return err
 	}
 	pending, err := eventrepo.CountPendingApplications(ctx, tx, userID)

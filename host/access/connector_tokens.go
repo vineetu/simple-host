@@ -9,12 +9,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"github.com/vsriram/simple-host/host/access/repo"
-	authrules "github.com/vsriram/simple-host/host/access/rules"
-	"github.com/vsriram/simple-host/host/model"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/access/repo"
+	authrules "github.com/vsriram/simple-host/host/access/rules"
+	"github.com/vsriram/simple-host/host/model"
 )
 
 type Connector struct {

@@ -9,6 +9,10 @@ import (
 	"net/http"
 	"strings"
 
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
+	"github.com/vsriram/simple-host/host/ops"
+
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
 
@@ -90,6 +94,9 @@ func (h *UserHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 func (h *UserHandler) listTeams(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	teams, err := accounts.ListTeams(r.Context(), h.database, user.ID)
+	if err == nil {
+		err = withSiteCounts(r.Context(), h.database, teams)
+	}
 	if err != nil {
 		writeTeamError(w, err)
 		return
@@ -204,29 +211,13 @@ func (h *UserHandler) removeTeamMember(w http.ResponseWriter, r *http.Request) {
 // deleteTeam takes the team's site locks first, as an account deletion does,
 // since its sites in Recently deleted go for good with it.
 func (h *UserHandler) deleteTeam(w http.ResponseWriter, r *http.Request) {
-	personID := auth.GetUser(r.Context()).ID
+	c := ops.Cutoff{DB: h.database}
 	if h.siteFiles != nil {
-		id, err := accounts.TeamID(r.Context(), h.database, personID, r.PathValue("team"))
-		if err != nil {
-			writeTeamError(w, err)
-			return
-		}
-		unlock, err := h.siteFiles.sitesSvc().LockAccountSites(r.Context(), id)
-		if err != nil {
-			writeTeamError(w, err)
-			return
-		}
-		defer unlock()
+		c = h.siteFiles.cutoff()
 	}
-	erased, err := accounts.DeleteTeam(r.Context(), h.database, personID, r.PathValue("team"))
-	if err != nil {
+	if err := c.DeleteTeam(r.Context(), auth.GetUser(r.Context()).ID, r.PathValue("team")); err != nil {
 		writeTeamError(w, err)
 		return
-	}
-	if h.siteFiles != nil {
-		if err := h.siteFiles.eraseAccountFiles(r.Context(), erased); err != nil {
-			log.Printf("delete team %s: files: %v", erased.UserID, err)
-		}
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"deleted": r.PathValue("team")})
 }
@@ -249,4 +240,17 @@ func teamsForMe(teams []model.Team) []map[string]string {
 		out = append(out, map[string]string{"id": t.ID, "handle": t.Handle})
 	}
 	return out
+}
+
+// withSiteCounts fills each team's live-site count (Sites owns them).
+func withSiteCounts(ctx context.Context, db *sql.DB, teams []model.Team) error {
+	ids := make([]string, len(teams))
+	for i, t := range teams {
+		ids[i] = t.ID
+	}
+	counts, err := sitesrepo.LiveSiteCounts(ctx, db, ids)
+	for i := range teams {
+		teams[i].Sites = counts[teams[i].ID]
+	}
+	return err
 }

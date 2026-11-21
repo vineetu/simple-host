@@ -6,11 +6,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
+
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
-	"sort"
-	"strings"
 )
 
 type Querier = sqlkit.Querier
@@ -40,8 +41,8 @@ const teamColumns = `id, event_id, slug, name, code, created_by, created_at,
 	kept_after_leave, locked_at, locked_by`
 
 const memberForUpdate = `
-	SELECT m.event_id, m.user_id, m.role, COALESCE(u.display_name,''), m.team_id, m.coc_accepted_at, m.joined_at
-	  FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id = $1 AND m.user_id = $2 FOR UPDATE OF m`
+	SELECT m.event_id, m.user_id, m.role, '', m.team_id, m.coc_accepted_at, m.joined_at
+	  FROM event_members m WHERE m.event_id = $1 AND m.user_id = $2 FOR UPDATE OF m`
 
 var teamForUpdate = `
 	SELECT ` + teamColumns + `
@@ -148,10 +149,9 @@ func GetEventTeamByCodeOnly(ctx context.Context, q Querier, code string) (EventT
 
 func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerson, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, u.username, COALESCE(u.display_name,''), m.role, m.team_id,
+		SELECT m.user_id, m.role, m.team_id,
 		       NULL, NULL, m.joined_at, m.coc_accepted_at, m.approval_status, m.team_admin
 		  FROM event_members m
-		  JOIN users u ON u.id = m.user_id
 		 WHERE m.team_id = $1
 		 ORDER BY m.joined_at ASC`, teamID)
 	if err != nil {
@@ -161,13 +161,16 @@ func ListTeamPeople(ctx context.Context, q Querier, teamID string) ([]EventPerso
 	var out []EventPerson
 	for rows.Next() {
 		var p EventPerson
-		if err := rows.Scan(&p.UserID, &p.Email, &p.DisplayName, &p.Role, &p.TeamID,
+		if err := rows.Scan(&p.UserID, &p.Role, &p.TeamID,
 			&p.TeamSlug, &p.TeamName, &p.JoinedAt, &p.CocAcceptedAt, &p.ApprovalStatus, &p.Admin); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return hackevents.WithAccounts(ctx, q, out)
 }
 
 func CountTeamMembers(ctx context.Context, q Querier, teamID string) (int, error) {
@@ -199,7 +202,8 @@ func DeleteEventTeam(ctx context.Context, q Querier, teamID string) error {
 }
 
 func LockMember(ctx context.Context, q Querier, eventID, userID string) (EventMember, error) {
-	return scanMember(q.QueryRowContext(ctx, memberForUpdate, eventID, userID))
+	m, err := scanMember(q.QueryRowContext(ctx, memberForUpdate, eventID, userID))
+	return hackevents.WithDisplayName(ctx, q, m, err)
 }
 
 func LockTeam(ctx context.Context, q Querier, teamID string) (EventTeam, error) {
@@ -245,7 +249,12 @@ func SetMemberTeam(ctx context.Context, q Querier, eventID, userID string, teamI
 
 // AdminTeamIDs is every team userID admins, read before account erasure cascades their memberships away.
 func AdminTeamIDs(ctx context.Context, q Querier, userID string) ([]string, error) {
-	rows, err := queryContext(ctx, q, `SELECT team_id FROM event_members WHERE user_id = $1 AND team_admin AND team_id IS NOT NULL`, userID)
+	return userIDs(ctx, q, `SELECT team_id FROM event_members WHERE user_id = $1 AND team_admin AND team_id IS NOT NULL`, userID)
+}
+
+// userIDs runs a query of one id column and returns the ids in order.
+func userIDs(ctx context.Context, q Querier, query string, args ...any) ([]string, error) {
+	rows, err := queryContext(ctx, q, query, args...)
 	if err != nil {
 		return nil, err
 	}

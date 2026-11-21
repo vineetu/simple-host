@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/host/ops"
+
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/products/hack/app/members"
 )
@@ -503,7 +505,7 @@ func TestHackAccountErasurePromotesNewAdmin(t *testing.T) {
 	leaderID := a.userID(t, leader)
 
 	accounts.SetGroupHooks(accounts.GroupHooks{Erasure: afterCascadeErasure{}})
-	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: leaderID, Operator: true})
+	_, err := ops.Cutoff{DB: a.database}.ErasePerson(context.Background(), accounts.DeleteAccountInput{ID: leaderID, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +548,7 @@ func TestHackAccountErasureSoleMemberBeforeDeadlineDeletesTeam(t *testing.T) {
 	}
 
 	accounts.SetGroupHooks(accounts.GroupHooks{Erasure: afterCascadeErasure{}})
-	out, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true})
+	out, err := ops.Cutoff{DB: a.database}.ErasePerson(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -595,7 +597,7 @@ func TestHackAccountErasureSoleMemberAfterDeadlineKeepsAndLocksTeam(t *testing.T
 	wantTS(t, "close", a.at(t, "POST", base+"/stage", map[string]string{"stage": "closed"}, a.key(org)), 200, "")
 
 	accounts.SetGroupHooks(accounts.GroupHooks{Erasure: afterCascadeErasure{}})
-	_, err := accounts.New(a.database).DeleteAccount(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true})
+	_, err := ops.Cutoff{DB: a.database}.ErasePerson(context.Background(), accounts.DeleteAccountInput{ID: soloID, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}

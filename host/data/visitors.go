@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	repository "github.com/vsriram/simple-host/host/data/repo"
 )
 
@@ -33,7 +34,7 @@ func (s *Service) Visitors(ctx context.Context, in VisitorsInput) ([]Visitor, er
 	if !in.Call.Owner && !in.Call.OwnerOnSite {
 		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
 	}
-	wrote, err := repository.SignedInAmong(ctx, s.db, in.Call.SiteID, in.IDs)
+	wrote, err := accountsrepo.SignedInAmong(ctx, s.db, in.Call.SiteID, in.IDs)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ var errAmbiguousVisitorEmail = errors.New("ambiguous visitor email")
 // signed-in candidate's canonical email matches (never guesses between
 // them).
 func (s *Service) resolveSignedInVisitorByEmail(ctx context.Context, siteID, email string) (string, bool, error) {
-	candidates, err := repository.CandidateVisitorIDsForEmail(ctx, s.db, siteID, email)
+	candidates, err := accountsrepo.CandidateVisitorIDsForEmail(ctx, s.db, siteID, email)
 	if err != nil {
 		return "", false, err
 	}
@@ -132,7 +133,7 @@ func (s *Service) ResolveOwnerFor(ctx context.Context, c Call, ref string) (stri
 		}
 		return id, nil
 	}
-	wrote, err := repository.SignedInAmong(ctx, s.db, c.SiteID, []string{ref})
+	wrote, err := accountsrepo.SignedInAmong(ctx, s.db, c.SiteID, []string{ref})
 	if err != nil {
 		return "", &Error{Code: "internal_error", Message: "internal server error"}
 	}

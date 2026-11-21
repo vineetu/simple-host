@@ -104,14 +104,26 @@ func (h *Hosts) SiteOwnAddress(ctx context.Context, siteID string) (model.SiteDo
 // SiteAddressFor is a site's current address with an escaped path appended:
 // its proven own address, else the address every tool hands out for it.
 func (h *Hosts) SiteAddressFor(ctx context.Context, siteID, escapedPath string) (string, bool) {
-	rest := strings.TrimLeft(escapedPath, "/")
-	handle, _, name, err := repo.GetSiteOwner(ctx, h.db, siteID)
+	handle, userID, name, err := repo.GetSiteOwner(ctx, h.db, siteID)
 	if err != nil {
 		return "", false // gone, or in Recently deleted
 	}
-	if info, has, err := h.SiteOwnAddress(ctx, siteID); err == nil && has {
+	return h.SiteAddressOf(ctx, model.Site{ID: siteID, UserID: userID, Name: name, OwnerHandle: handle}, escapedPath)
+}
+
+// SiteAddressOf is SiteAddressFor for a site row the caller already read:
+// every name in it comes from that row.
+func (h *Hosts) SiteAddressOf(ctx context.Context, site model.Site, escapedPath string) (string, bool) {
+	rest := strings.TrimLeft(escapedPath, "/")
+	if info, has, err := h.SiteOwnDomain(ctx, site.ID); err == nil && has {
 		return "https://" + strings.ToLower(info.Domain) + "/" + rest, true
 	}
+	if h.HasLiveFamilies() {
+		if host, ok := h.SiteFamilyAddress(site.UserID, site.Name); ok {
+			return "https://" + strings.ToLower(host) + "/" + rest, true
+		}
+	}
+	handle, name := site.OwnerHandle, site.Name
 	if handle == "" {
 		return "", false
 	}
@@ -379,7 +391,7 @@ func (h *Hosts) BareSite(ctx context.Context, name string, writer *model.User) (
 	if h.eventSites {
 		return h.WriterSite(ctx, name, writer)
 	}
-	id, err := accounts.GetSiteIDByName(ctx, h.db, name)
+	id, err := repo.GetSiteIDByName(ctx, h.db, name)
 	return model.Site{ID: id}, err
 }
 

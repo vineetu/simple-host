@@ -8,13 +8,15 @@ import (
 	"strings"
 	"time"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sqlkit"
 
 	"github.com/lib/pq"
 )
 
-const notificationColumns = `n.id,n.site_id,n.owner_id,s.name,n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,'',n.kind,n.subscriber_role,n.push_p256dh,n.push_auth,n.device_label,n.muted_resources`
+const notificationColumns = `n.id,n.site_id,n.owner_id,'',n.source,n.grant_id,n.app_name,n.label,n.url,n.events,n.storage,n.args_canonical,n.secret,n.prev_secret,n.prev_secret_until,n.auth_header_name,n.auth_header_value,n.state,n.verified_at,n.expires_at,n.failing_since,n.last_attempt_at,n.last_success_at,n.last_result,n.created_at,'',n.kind,n.subscriber_role,n.push_p256dh,n.push_auth,n.device_label,n.muted_resources`
 
 func scanNotification(row interface{ Scan(...any) error }) (model.Notification, error) {
 	var n model.Notification
@@ -22,12 +24,26 @@ func scanNotification(row interface{ Scan(...any) error }) (model.Notification, 
 	return n, err
 }
 func GetNotification(ctx context.Context, q sqlkit.Querier, id string) (model.Notification, error) {
-	return scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.id=$1`, id))
+	n, err := scanNotification(q.QueryRowContext(ctx, `SELECT `+notificationColumns+` FROM site_notifications n WHERE n.id=$1`, id))
+	if err != nil {
+		return n, err
+	}
+	out, err := withSiteNames(ctx, q, []model.Notification{n}, false)
+	if err != nil {
+		return n, err
+	}
+	if len(out) == 0 {
+		return model.Notification{}, sql.ErrNoRows
+	}
+	return out[0], nil
 }
 func ListNotifications(ctx context.Context, database *sql.DB, owner, site string) ([]model.Notification, error) {
-	return queryNotifications(ctx, database, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.owner_id=$1 AND s.deleted_at IS NULL AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
+	return queryNotifications(ctx, database, true, `SELECT `+notificationColumns+` FROM site_notifications n WHERE n.owner_id=$1 AND ($2='' OR n.site_id::text=$2) ORDER BY n.created_at DESC`, owner, site)
 }
-func queryNotifications(ctx context.Context, database *sql.DB, query string, args ...any) ([]model.Notification, error) {
+
+// queryNotifications scans the rows and fills each one's site name, dropping
+// rows whose site is gone (and, with liveOnly, in Recently deleted).
+func queryNotifications(ctx context.Context, database *sql.DB, liveOnly bool, query string, args ...any) ([]model.Notification, error) {
 	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -41,14 +57,41 @@ func queryNotifications(ctx context.Context, database *sql.DB, query string, arg
 		}
 		out = append(out, n)
 	}
-	return out, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return withSiteNames(ctx, database, out, liveOnly)
+}
+
+// withSiteNames sets each notification's Site from one SitesByIDs call.
+func withSiteNames(ctx context.Context, q sqlkit.Querier, list []model.Notification, liveOnly bool) ([]model.Notification, error) {
+	if len(list) == 0 {
+		return list, nil
+	}
+	ids := make([]string, 0, len(list))
+	for _, n := range list {
+		ids = append(ids, n.SiteID)
+	}
+	sites, err := sitesrepo.SitesByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := list[:0]
+	for _, n := range list {
+		s, ok := sites[n.SiteID]
+		if !ok || (liveOnly && s.Deleted) {
+			continue
+		}
+		n.Site = s.Name
+		out = append(out, n)
+	}
+	return out, nil
 }
 
 // lockSite serializes subscription creation, event sequencing and replay on
 // one site.
 func lockSite(ctx context.Context, tx *sql.Tx, site string) error {
-	var locked string
-	return tx.QueryRowContext(ctx, `SELECT id FROM sites WHERE id=$1 FOR UPDATE`, site).Scan(&locked)
+	return sitesrepo.LockSite(ctx, tx, site)
 }
 
 // wakeDeliveries makes a resumed subscription's waiting deliveries due now.
@@ -377,17 +420,44 @@ func sealLegacyRow(ctx context.Context, database *sql.DB, id string, seal func(s
 }
 
 func HasNotifications(ctx context.Context, q sqlkit.Querier, site string) (bool, error) {
-	var yes bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications n JOIN users u ON u.id=n.owner_id WHERE n.site_id=$1 AND n.state IN ('active','suspended') AND NOT u.event_account AND (n.expires_at IS NULL OR n.expires_at>now()))`, site).Scan(&yes)
-	return yes, err
+	return anyRealOwner(ctx, q, `SELECT DISTINCT owner_id::text FROM site_notifications n WHERE n.site_id=$1 AND n.state IN ('active','suspended') AND (n.expires_at IS NULL OR n.expires_at>now())`, site)
 }
 
 // HasNotificationsFor is HasNotifications narrowed to subscriptions naming
 // name, so a site event nobody asked for spends no budget and stores nothing.
 func HasNotificationsFor(ctx context.Context, q sqlkit.Querier, site, name string) (bool, error) {
-	var yes bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM site_notifications n JOIN users u ON u.id=n.owner_id WHERE n.site_id=$1 AND $2=ANY(n.events) AND n.state IN ('active','suspended') AND NOT u.event_account AND (n.expires_at IS NULL OR n.expires_at>now()))`, site, name).Scan(&yes)
-	return yes, err
+	return anyRealOwner(ctx, q, `SELECT DISTINCT owner_id::text FROM site_notifications n WHERE n.site_id=$1 AND $2=ANY(n.events) AND n.state IN ('active','suspended') AND (n.expires_at IS NULL OR n.expires_at>now())`, site, name)
+}
+
+// anyRealOwner reports whether the query's subscription owners include an
+// account that is not an event account. No subscription costs one query.
+func anyRealOwner(ctx context.Context, q sqlkit.Querier, query string, args ...any) (bool, error) {
+	rows, err := q.QueryContext(ctx, query, args...)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	var owners []string
+	for rows.Next() {
+		var id string
+		if err = rows.Scan(&id); err != nil {
+			return false, err
+		}
+		owners = append(owners, id)
+	}
+	if err = rows.Err(); err != nil || len(owners) == 0 {
+		return false, err
+	}
+	users, err := accountsrepo.UsersByIDs(ctx, q, owners)
+	if err != nil {
+		return false, err
+	}
+	for _, u := range users {
+		if !u.EventAccount {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 func EmitSiteEvent(ctx context.Context, database *sql.DB, site, id, name, storage string, data []byte) error {
 	_, err := emitSiteEvent(ctx, database, site, id, name, storage, data, "", 0, "", "")
@@ -655,12 +725,12 @@ func RecentlyVerifiedNotification(ctx context.Context, q sqlkit.Querier, owner, 
 // ListPushDevices lists every web-push subscription on a site (both the
 // owner's and visitors' own devices), for the owner's device-management view.
 func ListPushDevices(ctx context.Context, database *sql.DB, site string) ([]model.Notification, error) {
-	return queryNotifications(ctx, database, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' ORDER BY n.created_at DESC`, site)
+	return queryNotifications(ctx, database, false, `SELECT `+notificationColumns+` FROM site_notifications n WHERE n.site_id=$1 AND n.kind='web-push' ORDER BY n.created_at DESC`, site)
 }
 
 // ListVisitorPushDevices lists one visitor's own web-push devices on one site.
 func ListVisitorPushDevices(ctx context.Context, database *sql.DB, site, visitorID string) ([]model.Notification, error) {
-	return queryNotifications(ctx, database, `SELECT `+notificationColumns+` FROM site_notifications n JOIN sites s ON s.id=n.site_id WHERE n.site_id=$1 AND n.kind='web-push' AND n.subscriber_role='visitor' AND n.owner_id=$2 ORDER BY n.created_at DESC`, site, visitorID)
+	return queryNotifications(ctx, database, false, `SELECT `+notificationColumns+` FROM site_notifications n WHERE n.site_id=$1 AND n.kind='web-push' AND n.subscriber_role='visitor' AND n.owner_id=$2 ORDER BY n.created_at DESC`, site, visitorID)
 }
 
 // UpsertPushSubscription creates or updates one push device, keyed by

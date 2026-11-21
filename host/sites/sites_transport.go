@@ -2,7 +2,6 @@ package sites
 
 import (
 	"context"
-	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 
 	rules "github.com/vsriram/simple-host/host/rules/sites"
 
@@ -23,7 +22,7 @@ func (s *Service) ListVersionsBySite(ctx context.Context, siteID string) ([]mode
 }
 
 func (s *Service) GetSiteIDByName(ctx context.Context, name string) (string, error) {
-	return accountsrepo.GetSiteIDByName(ctx, s.database, name)
+	return repo.GetSiteIDByName(ctx, s.database, name)
 }
 
 func (s *Service) BackfillPreviewExpiry(ctx context.Context, username string, ttlHours int) (int64, error) {
@@ -62,7 +61,7 @@ func (s *Service) SetAllowedOrigins(ctx context.Context, siteID, origins string)
 }
 
 func (s *Service) SiteOffline(ctx context.Context, siteID string) (bool, error) {
-	return accountsrepo.SiteOffline(ctx, s.database, siteID)
+	return repo.SiteOffline(ctx, s.database, siteID)
 }
 
 func (s *Service) SetSiteOffline(ctx context.Context, siteID string, on bool) error {

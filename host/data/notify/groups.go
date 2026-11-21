@@ -4,6 +4,7 @@ import (
 	"context"
 
 	accounts "github.com/vsriram/simple-host/host/access"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
@@ -11,11 +12,11 @@ import (
 // site: they own it, or may act as its owner (accounts.ActsAsOwner: a member
 // of the team that holds it, or an editor of the site).
 func MayActOnSite(ctx context.Context, q sqlkit.Querier, siteID, person string) (bool, error) {
-	var accountID, name string
-	if err := q.QueryRowContext(ctx, `SELECT user_id, name FROM sites WHERE id = $1`, siteID).Scan(&accountID, &name); err != nil {
+	site, err := sitesrepo.GetSiteByID(ctx, q, siteID)
+	if err != nil {
 		return false, err
 	}
-	return accounts.ActsAsOwner(ctx, q, person, accountID, name)
+	return accounts.ActsAsOwner(ctx, q, person, site.UserID, site.Name)
 }
 
 type notificationAccess struct{}

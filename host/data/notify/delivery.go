@@ -169,12 +169,12 @@ func (e *Engine) siteWelcomes(ctx context.Context, n model.Notification) (open, 
 // subscription while they may act for the site), or for subscriber_role
 // "visitor" a signed-in visitor's own users.id, which never equals
 // the site owner. The event fan-out proved the visitor subscription may
-// exist; access.VisitorStillWelcome rechecks whatever has changed since.
+// exist; visitorStillWelcome rechecks whatever has changed since.
 func (e *Engine) subscriberAllowed(ctx context.Context, n model.Notification, siteOwner string) (allowed, ok bool) {
 	var err error
 	switch {
 	case n.SubscriberRole == "visitor":
-		allowed, err = access.VisitorStillWelcome(ctx, e.db, n.SiteID, n.OwnerID)
+		allowed, err = visitorStillWelcome(ctx, e.db, n.SiteID, n.OwnerID)
 		if err != nil {
 			e.delivery.Fail("check visitor access", err)
 		}
@@ -243,4 +243,21 @@ func (e *Engine) pending(ctx context.Context) {
 		return
 	}
 	e.delivery.SetPending(n)
+}
+
+// visitorStillWelcome is the push-delivery-time recheck for a visitor's push
+// device: the decision the named-viewers rule would make for an
+// ordinary read on the site right now, without the request an async
+// delivery never has. A site with no passcode row, or not in named-viewers
+// mode, is welcome.
+func visitorStillWelcome(ctx context.Context, db *sql.DB, siteID, userID string) (bool, error) {
+	row, err := sitesrepo.GetSitePasscode(ctx, db, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil || !row.NamedViewers {
+		return err == nil, err
+	}
+	allowed, _, err := access.ViewerAllowed(ctx, db, row, userID)
+	return allowed, err
 }

@@ -71,11 +71,9 @@ func CreateTeam(ctx context.Context, db *sql.DB, personID, name string) (model.T
 	} else if n >= MaxTeamsPerPerson {
 		return model.Team{}, teamFail(http.StatusConflict, "team_limit", fmt.Sprintf("you belong to %d teams, the most one person may; leave one first", MaxTeamsPerPerson))
 	}
-	var inUse bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE handle = $1) OR EXISTS (SELECT 1 FROM handle_aliases WHERE handle = $1)`, name).Scan(&inUse); err != nil {
+	if inUse, err := repo.HandleTaken(ctx, tx, name, true); err != nil {
 		return model.Team{}, err
-	}
-	if inUse {
+	} else if inUse {
 		return model.Team{}, teamFail(http.StatusConflict, "name_taken", "that name is already in use by a person or a team; pick another")
 	}
 	id, err := repo.InsertTeamAccount(ctx, tx)
@@ -95,11 +93,11 @@ func CreateTeam(ctx context.Context, db *sql.DB, personID, name string) (model.T
 	if err := repo.InsertTeamAudit(ctx, tx, id, name, personID, "create", personID, ""); err != nil {
 		return model.Team{}, err
 	}
-	var team model.Team
-	if err := tx.QueryRowContext(ctx, `SELECT id, handle, created_at FROM users WHERE id = $1`, id).Scan(&team.ID, &team.Handle, &team.CreatedAt); err != nil {
+	u, err := repo.GetUserByID(ctx, tx, id)
+	if err != nil {
 		return model.Team{}, err
 	}
-	team.Members = 1
+	team := model.Team{ID: u.ID, Handle: u.Handle.String, CreatedAt: u.CreatedAt, Members: 1}
 	return team, tx.Commit()
 }
 
@@ -245,10 +243,11 @@ func AnswerInvitation(ctx context.Context, db *sql.DB, personID, verifiedEmail, 
 	} else if err != nil {
 		return "", err
 	}
-	var teamHandle string
-	if err := tx.QueryRowContext(ctx, `SELECT handle FROM users WHERE id = $1`, teamID).Scan(&teamHandle); err != nil {
+	team, err := repo.GetUserByID(ctx, tx, teamID)
+	if err != nil {
 		return "", err
 	}
+	teamHandle := team.Handle.String
 	state, action := "declined", "decline"
 	if accept {
 		state, action = "accepted", "accept"
@@ -287,10 +286,7 @@ func RemoveTeamMember(ctx context.Context, db *sql.DB, personID, handle, who str
 		return err
 	}
 	who = strings.ToLower(strings.TrimSpace(who))
-	var memberID string
-	err = tx.QueryRowContext(ctx, `
-		SELECT u.id FROM team_members m JOIN users u ON u.id = m.user_id
-		WHERE m.team_id = $1 AND (u.handle = $2 OR u.id::text = $2)`, team.ID, who).Scan(&memberID)
+	memberID, err := repo.TeamMemberID(ctx, tx, team.ID, who)
 	if errors.Is(err, sql.ErrNoRows) {
 		return teamFail(http.StatusNotFound, "member_not_found", "nobody of that address or id is a member of this team")
 	}
@@ -319,36 +315,25 @@ func TeamID(ctx context.Context, db *sql.DB, personID, handle string) (string, e
 	return team.ID, err
 }
 
-// DeleteTeam deletes a team that owns no live sites, for a member, unless
-// the operator suspended it or a site is taken down (EraseTeam).
-// Its sites in Recently deleted go for good with it; the caller removes the
-// returned account's files after the commit.
-func DeleteTeam(ctx context.Context, db *sql.DB, personID, handle string) (model.ErasedAccount, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return model.ErasedAccount{}, err
-	}
-	defer tx.Rollback()
+// LockTeamToDelete is the team handle names, for a member, row-locked
+// inside tx (host/ops DeleteTeam).
+func LockTeamToDelete(ctx context.Context, tx *sql.Tx, personID, handle string) (model.User, error) {
 	team, err := memberTeam(ctx, tx, personID, handle)
 	if err != nil {
-		return model.ErasedAccount{}, err
+		return model.User{}, err
 	}
-	if err := repo.LockTeam(ctx, tx, team.ID); err != nil {
-		return model.ErasedAccount{}, err
+	return team, repo.LockTeam(ctx, tx, team.ID)
+}
+
+// TeamDeletionRefusal is why a member may not delete the team: it still
+// owns live sites, or (hold, from TeamErasureRefusal) it is held.
+func TeamDeletionRefusal(liveSites int, hold error) error {
+	if liveSites > 0 {
+		return teamFail(http.StatusConflict, "team_has_sites", fmt.Sprintf("the team still owns %d site(s); delete them first (sites in Recently deleted go with the team)", liveSites))
 	}
-	n, err := repo.CountLiveSites(ctx, tx, team.ID)
-	if err != nil {
-		return model.ErasedAccount{}, err
+	var h *LifecycleError
+	if errors.As(hold, &h) {
+		return teamFail(h.Status, h.Code, h.Message)
 	}
-	if n > 0 {
-		return model.ErasedAccount{}, teamFail(http.StatusConflict, "team_has_sites", fmt.Sprintf("the team still owns %d site(s); delete them first (sites in Recently deleted go with the team)", n))
-	}
-	var hold *LifecycleError
-	erased, err := EraseTeam(ctx, tx, team.ID, personID, false)
-	if errors.As(err, &hold) {
-		return model.ErasedAccount{}, teamFail(hold.Status, hold.Code, hold.Message)
-	} else if err != nil {
-		return model.ErasedAccount{}, err
-	}
-	return erased, tx.Commit()
+	return hold
 }

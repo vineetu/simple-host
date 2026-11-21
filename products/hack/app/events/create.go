@@ -69,7 +69,7 @@ var errNameTaken = &Error{Code: "name_taken", Message: "that name is already in 
 
 // checkCreateLimits locks the user's row, then refuses a creator over the per-day or active-event limits (0 means no limit).
 func checkCreateLimits(ctx context.Context, tx *sql.Tx, userID string, perDay, maxActive int) error {
-	if err := eventrepo.LockUserRow(ctx, tx, userID); err != nil {
+	if err := accounts.LockAccount(ctx, tx, userID); err != nil {
 		return err
 	}
 	n, err := eventrepo.CountEventCreatesSince(ctx, tx, userID, time.Now().Add(-24*time.Hour))
@@ -325,7 +325,7 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event,
 			}
 		}
 	}
-	return eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, sites.DeleteProductAccount)
+	return eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, accounts.DeleteAccountRow)
 }
 
 func (s *Service) PatchEvent(ctx context.Context, eventID string, p EventPatch) (updated model.Event, deadlineChanged bool, err error) {

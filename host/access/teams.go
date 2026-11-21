@@ -177,23 +177,21 @@ func (s *Service) TeamsOf(ctx context.Context, personID string) ([]model.Team, e
 	return repo.ListTeamsOf(ctx, s.database, personID)
 }
 
-// eraseSoleMemberTeams deletes, inside an account deletion's tx, every team
-// personID is the only member of, with all its sites, so nobody is trapped in
-// a team and no team is left without a member. Each team's row is locked
-// before its members are counted, so a person joining (accept locks the team
-// row too) or a site being made for it either finishes first and is seen,
-// or waits and then finds the team gone. The caller removes the returned
-// accounts' files after the commit, as for the person's own. Unless the
-// operator deletes, a team that is suspended or has a taken-down site blocks
-// it, as the person's own account would (EraseTeam).
-func eraseSoleMemberTeams(ctx context.Context, tx *sql.Tx, personID string, operator bool) ([]model.ErasedAccount, error) {
+// SoleMemberTeams locks and lists, inside an erasure's tx, every team
+// personID is the only member of: they go with the person, sites and all
+// (host/ops ErasePerson), so nobody is trapped in a team and no team is left
+// without a member. Each team's row is locked before its members are
+// counted, so a person joining (accept locks the team row too) or a site
+// being made for it either finishes first and is seen, or waits and then
+// finds the team gone. A product's team (a Simple Hack event) is the
+// product's to end.
+func SoleMemberTeams(ctx context.Context, tx *sql.Tx, personID string) ([]string, error) {
 	ids, err := repo.TeamIDsOf(ctx, tx, personID)
 	if err != nil {
 		return nil, err
 	}
-	var out []model.ErasedAccount
+	var out []string
 	for _, id := range ids {
-		// A product's team (a Simple Hack event) is the product's to end.
 		if held, err := HoldingAccount(ctx, tx, id); err != nil {
 			return nil, err
 		} else if held {
@@ -208,41 +206,19 @@ func eraseSoleMemberTeams(ctx context.Context, tx *sql.Tx, personID string, oper
 		if err != nil {
 			return nil, err
 		}
-		if n != 1 {
-			continue
+		if n == 1 {
+			out = append(out, id)
 		}
-		erased, err := EraseTeam(ctx, tx, id, personID, operator)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, erased)
 	}
 	return out, nil
 }
 
-// EraseTeam deletes a team inside tx, the way any account is deleted: its
-// sites (Recently deleted included) go with it and their names and the
-// team's handle are retired, never given out again; its memberships and
-// invitations go too, and the deletion is recorded. The caller holds the
-// team's row lock and has decided under it that the team may go. Unless
-// operator, a suspended team or one with a taken-down site is refused with
-// the codes a person's own deletion meets (deletionHold).
-func EraseTeam(ctx context.Context, tx *sql.Tx, teamID, actorID string, operator bool) (model.ErasedAccount, error) {
-	acct, err := repo.LockAccountForDelete(ctx, tx, teamID)
-	if err != nil {
-		return model.ErasedAccount{}, err
+// TeamErasureRefusal: unless the operator erases, a suspended team or one
+// with a taken-down site is refused with the codes a person's own deletion
+// meets.
+func TeamErasureRefusal(acct model.AccountForDelete, operator bool) error {
+	if operator {
+		return nil
 	}
-	if !operator {
-		if err := deletionHold(acct, "the team "+acct.Handle); err != nil {
-			return model.ErasedAccount{}, err
-		}
-	}
-	ops := repo.ErasureOperations{RetireSiteNames: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
-		return repo.RetireSiteNames(ctx, tx, id, repo.PlatformDomains()...)
-	}}
-	erased, err := repo.EraseAccount(ctx, tx, acct, ops)
-	if err != nil {
-		return model.ErasedAccount{}, err
-	}
-	return erased, repo.InsertTeamAudit(ctx, tx, teamID, acct.Handle, actorID, "delete", "", "")
+	return deletionHold(acct, "the team "+acct.Handle)
 }

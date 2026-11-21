@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/vsriram/simple-host/host/ops"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 )
 
@@ -176,7 +178,7 @@ func TestChecklistAccountDeletionClearsTextSubjects(t *testing.T) {
 	w := newJudgingWorld(t, 0, 1)
 	j := w.judges[0]
 	checklistItems(t, w.call(t, "POST", "/checklist/acknowledgements/j.conflicts", map[string]any{}, j.person))
-	_, err := accountapp.New(w.a.database).DeleteAccount(context.Background(), accountapp.DeleteAccountInput{ID: j.id, Operator: true})
+	_, err := ops.Cutoff{DB: w.a.database}.ErasePerson(context.Background(), accountapp.DeleteAccountInput{ID: j.id, Operator: true})
 	if err != nil {
 		t.Fatal(err)
 	}

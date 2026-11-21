@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
 	"github.com/lib/pq"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackentries"
@@ -22,37 +24,42 @@ const TeamKeepableSQL = `t.pinned_at IS NULL AND (` + EffectiveDeadlineSQL + ` I
 
 // LeaveSelf loads one membership row plus its approval status, for GET/POST .../leave.
 func LeaveSelf(ctx context.Context, q sqlkit.Querier, eventID, userID string, lock bool) (EventMember, string, error) {
-	query := `SELECT m.event_id, m.user_id, m.role, COALESCE(u.display_name,''), m.team_id, m.coc_accepted_at, m.joined_at, approval_status
-	            FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id = $1 AND m.user_id = $2`
+	query := `SELECT m.event_id, m.user_id, m.role, m.team_id, m.coc_accepted_at, m.joined_at, approval_status
+	            FROM event_members m WHERE m.event_id = $1 AND m.user_id = $2`
 	if lock {
 		query += ` FOR UPDATE OF m`
 	}
 	var m EventMember
 	var status string
 	err := q.QueryRowContext(ctx, query, eventID, userID).Scan(
-		&m.EventID, &m.UserID, &m.Role, &m.DisplayName, &m.TeamID, &m.CocAcceptedAt, &m.JoinedAt, &status)
-	return m, status, err
+		&m.EventID, &m.UserID, &m.Role, &m.TeamID, &m.CocAcceptedAt, &m.JoinedAt, &status)
+	if m, err = WithDisplayName(ctx, q, m, err); err != nil {
+		return EventMember{}, "", err
+	}
+	return m, status, nil
 }
 
 func OtherEventOrganisers(ctx context.Context, q sqlkit.Querier, eventID, userID string) ([]OtherOrganiser, error) {
-	rows, err := queryContext(ctx, q, `
-		SELECT m.user_id, COALESCE(u.display_name,''), u.username FROM event_members m
-		  JOIN users u ON u.id = m.user_id
-		 WHERE m.event_id = $1 AND m.role = 'organiser' AND m.user_id <> $2
-		 ORDER BY COALESCE(u.display_name,''), m.user_id`, eventID, userID)
+	ids, err := userIDs(ctx, q, `SELECT user_id FROM event_members
+		WHERE event_id = $1 AND role = 'organiser' AND user_id <> $2`, eventID, userID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	out := []OtherOrganiser{}
-	for rows.Next() {
-		var o OtherOrganiser
-		if err := rows.Scan(&o.UserID, &o.DisplayName, &o.Email); err != nil {
-			return nil, err
-		}
-		out = append(out, o)
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
 	}
-	return out, rows.Err()
+	sorted, err := accounts.SortByDisplayName(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := []OtherOrganiser{}
+	for _, id := range sorted {
+		if u, ok := users[id]; ok {
+			out = append(out, OtherOrganiser{UserID: id, DisplayName: u.DisplayName.String, Email: u.Username})
+		}
+	}
+	return out, nil
 }
 
 // TeamKeptIfEmptied reports whether, if leaving emptied this team right now, it would be kept rather than deleted.
@@ -150,21 +157,36 @@ func RecordFormerJudge(ctx context.Context, q sqlkit.Querier, eventID, userID, r
 
 func ListFormerJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]FormerJudge, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT f.user_id, COALESCE(u.display_name,''), f.role, f.left_at FROM event_former_judges f JOIN users u ON u.id=f.user_id
+		SELECT f.user_id, f.role, f.left_at FROM event_former_judges f
 		 WHERE event_id = $1 ORDER BY left_at ASC`, eventID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []FormerJudge{}
+	var found []FormerJudge
+	var ids []string
 	for rows.Next() {
 		var f FormerJudge
-		if err := rows.Scan(&f.UserID, &f.DisplayName, &f.Role, &f.LeftAt); err != nil {
+		if err := rows.Scan(&f.UserID, &f.Role, &f.LeftAt); err != nil {
 			return nil, err
 		}
-		out = append(out, f)
+		found, ids = append(found, f), append(ids, f.UserID)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := []FormerJudge{}
+	for _, f := range found {
+		if u, ok := users[f.UserID]; ok {
+			f.DisplayName = u.DisplayName.String
+			out = append(out, f)
+		}
+	}
+	return out, nil
 }
 
 // FormerJudgeAssignedCount is how many of today's judge-eligible teams this former judge would be assigned under the event's current mode, ignoring that their role is gone.
@@ -202,9 +224,3 @@ func DeleteFormerJudgeScores(ctx context.Context, q *sql.Tx, eventID, userID str
 }
 
 var ErrHackCannotRemoveOrganiser = errors.New("cannot remove organiser")
-
-func UserEmail(ctx context.Context, q sqlkit.Querier, userID string) (string, error) {
-	var email string
-	err := q.QueryRowContext(ctx, `SELECT username FROM users WHERE id = $1`, userID).Scan(&email)
-	return email, err
-}

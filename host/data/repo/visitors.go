@@ -3,45 +3,10 @@ package repo
 import (
 	"context"
 	"database/sql"
-)
 
-// CandidateVisitorIDsForEmail returns the distinct visitor ids, among
-// people recorded by the server as having signed in on this exact site,
-// whose username or any OAuth identity email case-insensitively matches
-// email (the same users/oauth_identities join ListSiteViewers uses, the
-// other direction). This is a candidate list, not a resolved identity: a
-// username or an OAuth identity's own email is not necessarily the one
-// address a visitor currently signs in with (see
-// host/handler/privatecollections.go:visitorEmail, the canonical,
-// forward resolver — self-signup password accounts and more than one OAuth
-// identity both make username/oauth_identities an imprecise index). The
-// caller must re-resolve each candidate's current, canonical email the
-// same way and only trust an exact, unambiguous match. The caller
-// lower-cases email first.
-func CandidateVisitorIDsForEmail(ctx context.Context, db *sql.DB, siteID, email string) ([]string, error) {
-	if email == "" {
-		return nil, nil
-	}
-	rows, err := db.QueryContext(ctx, `
-		SELECT DISTINCT s.user_id::text FROM site_visitor_signins s
-		WHERE s.site_id = $1 AND (
-			EXISTS (SELECT 1 FROM users u WHERE u.id = s.user_id AND lower(u.username) = $2)
-			OR EXISTS (SELECT 1 FROM oauth_identities oi WHERE oi.user_id = s.user_id AND lower(oi.email) = $2)
-		)`, siteID, email)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
-}
+	"github.com/vsriram/simple-host/host/model"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+)
 
 // DistinctFileWriters returns the visitor_id values with at least one
 // stored file in this site's files storage (every resource), excluding the
@@ -94,4 +59,47 @@ func PruneVisitorAIWrites(ctx context.Context, db *sql.DB) (int64, error) {
 			return total, nil
 		}
 	}
+}
+
+// ListChangesElsewhere returns the changes this person made, signed in, to
+// saved data on sites that are not theirs, oldest first.
+func ListChangesElsewhere(ctx context.Context, database *sql.DB, userID string) ([]model.ChangeElsewhere, error) {
+	rows, err := database.QueryContext(ctx, `
+		SELECT h.site_id::text, h.kind, h.name, h.item_id, h.op, h.created_at
+		  FROM data_history h
+		 WHERE h.actor_id = $1
+		 ORDER BY h.created_at, h.id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var all []model.ChangeElsewhere
+	var siteIDs []string
+	for rows.Next() {
+		var c model.ChangeElsewhere
+		var item sql.NullInt64
+		if err := rows.Scan(&c.SiteID, &c.Kind, &c.Name, &item, &c.Op, &c.At); err != nil {
+			return nil, err
+		}
+		if item.Valid {
+			v := item.Int64
+			c.ItemID = &v
+		}
+		all = append(all, c)
+		siteIDs = append(siteIDs, c.SiteID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sites, err := sitesrepo.SitesByIDs(ctx, database, siteIDs)
+	if err != nil {
+		return nil, err
+	}
+	var out []model.ChangeElsewhere
+	for _, c := range all {
+		if s, ok := sites[c.SiteID]; ok && s.UserID != userID {
+			out = append(out, c)
+		}
+	}
+	return out, nil
 }

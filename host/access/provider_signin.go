@@ -380,14 +380,3 @@ func (flow *ProviderSignIn) Begin(ctx context.Context, name, sanitized, host str
 
 	return authURL, nil
 }
-func (s *Service) SiteOffline(ctx context.Context, id string) (bool, error) {
-	return repo.SiteOffline(ctx, s.database, id)
-}
-
-func (s *Service) SiteSuspension(ctx context.Context, id string) (bool, string, error) {
-	return repo.SiteSuspension(ctx, s.database, id)
-}
-
-func (s *Service) GetSitePasscode(ctx context.Context, id string) (model.SitePasscodeRow, error) {
-	return repo.GetSitePasscode(ctx, s.database, id)
-}

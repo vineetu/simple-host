@@ -10,6 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/host/ops"
+
+	datarepo "github.com/vsriram/simple-host/host/data/repo"
+
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/email"
 	"github.com/vsriram/simple-host/host/httpx"
@@ -69,53 +75,19 @@ func (h *AccessHandler) deleteMe(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: `send {"confirm": "<your handle>"} (your email if the account has no handle)`, Code: "confirm_required"})
 		return
 	}
-	// Every site's lock first, then the account row: a deploy, rollback,
-	// rename or take-down in flight finishes before the erasure, and one that
-	// was waiting finds the site gone.
-	unlock, err := h.sitesSvc().LockAccountSites(r.Context(), user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	defer unlock()
-	deleted, err := h.StoreAccounts().DeleteAccount(r.Context(), accounts.DeleteAccountInput{ID: user.ID, Confirm: req.Confirm})
+	deleted, err := h.cutoff().ErasePerson(r.Context(), accounts.DeleteAccountInput{ID: user.ID, Confirm: req.Confirm})
 	if writeLifecycleFailure(w, err) {
 		return
 	}
-	erased := deleted.Erased
-
-	for _, e := range append([]model.ErasedAccount{erased}, deleted.Teams...) {
-		if err := h.eraseAccountFiles(r.Context(), e); err != nil {
-			log.Printf("delete account %s: files of %s: %v", user.ID, e.UserID, err)
-		}
-	}
-	h.sweepOrphanTeamSites(r.Context(), erased.AffectedEventAccounts)
 	if strings.Contains(deleted.Username, "@") {
 		go h.emailAccountDeleted(deleted.Username)
 	}
-	log.Printf("account %s deleted by its owner", user.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// eraseAccountFiles removes on disk what the account service removed from the
-// database. It runs after the commit, never before: the other order means a
-// commit failure leaves a live account whose content is gone. A failure here
-// strands files an operator can delete. The caller holds the sites' locks.
-//
-// A domain link goes only while it still points at this account's site, and
-// its certificate request is withdrawn only then and while no other site has
-// taken the domain up since the commit. The take-down markers live in the
-// site folders and go with them.
-func (h *AccessHandler) eraseAccountFiles(ctx context.Context, e model.ErasedAccount) error {
-	return h.sitesSvc().EraseAccountFiles(ctx, e, h.Hosts)
-}
-
-// sweepOrphanTeamSites removes (to Recently deleted) any team site left
-// behind when the erase deleted a team whose only member was this account:
-// the site lives on the event's holding account, so the erase never touched
-// it. Logs and continues on error.
-func (h *AccessHandler) sweepOrphanTeamSites(ctx context.Context, ids []string) {
-	h.StoreAccounts().SweepErasedGroups(ctx, ids, h.SiteFiles.TrashTeamSite)
+// cutoff is the one workflow that erases, deletes a team or suspends.
+func (h *AccessHandler) cutoff() ops.Cutoff {
+	return ops.Cutoff{DB: h.Database, Sites: h.sitesSvc(), Hosts: h.Hosts, Files: h.SiteFiles}
 }
 
 func (h *AccessHandler) emailAccountDeleted(to string) {
@@ -317,11 +289,11 @@ func (h *AccessHandler) accountExport(ctx context.Context, me model.User) (map[s
 	if err != nil {
 		return nil, err
 	}
-	addrs, err := h.StoreAccounts().ListAccountAddresses(ctx, me.ID)
+	addrs, err := sitesrepo.ListAccountAddresses(ctx, h.Database, me.ID)
 	if err != nil {
 		return nil, err
 	}
-	retired, err := h.StoreAccounts().ListRetiredNames(ctx, me.ID)
+	retired, err := sitesrepo.ListRetiredNames(ctx, h.Database, me.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -451,7 +423,7 @@ func (h *AccessHandler) visitorExport(ctx context.Context, userID string) (map[s
 	if err != nil {
 		return nil, err
 	}
-	changes, err := h.StoreAccounts().ListChangesElsewhere(ctx, userID)
+	changes, err := datarepo.ListChangesElsewhere(ctx, h.Database, userID)
 	if err != nil {
 		return nil, err
 	}

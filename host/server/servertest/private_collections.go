@@ -148,20 +148,17 @@ func (a *PrivateApp) Deploy(t *testing.T, p Person, site string) {
 
 func (a *PrivateApp) UserID(t *testing.T, p Person) (id, handle string) {
 	t.Helper()
-	if err := a.Database.QueryRow(`SELECT id, handle FROM users WHERE username = $1`, p.Email).Scan(&id, &handle); err != nil {
+	u, err := accountsrepo.GetUserByUsername(context.Background(), a.Database, p.Email)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return
+	return u.ID, u.Handle.String
 }
 
 func (a *PrivateApp) SiteID(t *testing.T, p Person, site string) string {
 	t.Helper()
 	uid, _ := a.UserID(t, p)
-	var id string
-	if err := a.Database.QueryRow(`SELECT id FROM sites WHERE user_id = $1 AND name = $2`, uid, site).Scan(&id); err != nil {
-		t.Fatal(err)
-	}
-	return id
+	return a.SiteIDAny(t, uid, site)
 }
 
 // session signs p in as a visitor of site on host, returning the cookie value.

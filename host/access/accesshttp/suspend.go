@@ -13,7 +13,6 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
-	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -136,35 +135,33 @@ func (h *AccessHandler) setUserSuspension(on bool) http.HandlerFunc {
 			}
 		}
 		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
-		if err := h.sitesSvc().SuspensionGate(r.Context(), id); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "not found"})
-			} else if e, ok := err.(*appsites.Error); ok && e.Code == "event_account" {
-				httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: e.Error(), Code: e.Code})
-			} else {
-				httpx.WriteInternal(w)
-			}
+		target, siteCount, err := h.cutoff().SuspendPerson(r.Context(), id, auth.GetUser(r.Context()).ID, reason, on)
+		var failure *accounts.LifecycleError
+		switch {
+		case err == nil:
+		case errors.Is(err, sql.ErrNoRows):
+			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "not found"})
 			return
-		}
-
-		out, err := h.sitesSvc().SuspendAccount(r.Context(), appsites.SuspensionInput{ID: id, ActorID: auth.GetUser(r.Context()).ID, Reason: reason, On: on, Marker: h.sitesSvc().SyncSiteSuspensionMarker})
-		if err != nil {
-			var failure *accounts.LifecycleError
-			if errors.As(err, &failure) && failure.Code == "admin_account" {
-				httpx.WriteError(w, 400, failure.Code, failure.Message)
-				return
-			}
+		case errors.As(err, &failure) && failure.Code == "event_account":
+			httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: failure.Message, Code: failure.Code})
+			return
+		case errors.As(err, &failure) && failure.Code == "admin_account":
+			httpx.WriteError(w, 400, failure.Code, failure.Message)
+			return
+		case failure == nil:
+			httpx.WriteInternal(w)
+			return
+		default:
 			writeLifecycleFailure(w, err)
 			return
 		}
-		target := out.User
 
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{
 			"id":               target.ID,
 			"username":         target.Username,
 			"suspended":        on,
 			"suspended_reason": reason,
-			"site_count":       out.SiteCount,
+			"site_count":       siteCount,
 		})
 	}
 }

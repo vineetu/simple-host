@@ -26,6 +26,8 @@ import (
 	"syscall"
 	"time"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
@@ -676,9 +678,7 @@ func (i *Ingester) loadState(ctx context.Context) (offset, inode int64, savedAt 
 
 func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 	m := &attrMaps{
-		handleToUser: map[string]string{},
 		userNameToID: map[string]string{},
-		nameToOldest: map[string]string{},
 		domainToID:   map[string]string{},
 		families:     map[string]familyAttr{},
 		siteOwner:    map[string]string{},
@@ -686,67 +686,34 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 	}
 
 	// handle -> user_id
-	hrows, err := i.db.QueryContext(ctx, `
-		SELECT id, handle FROM users WHERE handle IS NOT NULL AND handle <> ''
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer hrows.Close()
-	for hrows.Next() {
-		var id, handle string
-		if err := hrows.Scan(&id, &handle); err != nil {
-			return nil, err
-		}
-		m.handleToUser[handle] = id
-	}
-	if err := hrows.Err(); err != nil {
+	var err error
+	if m.handleToUser, err = accountsrepo.HandleOwners(ctx, i.db); err != nil {
 		return nil, err
 	}
 
 	// (user_id, name) -> site_id and custom_domain -> site_id
-	srows, err := i.db.QueryContext(ctx, `
-		SELECT id, user_id, name, custom_domain FROM sites
-	`)
+	all, err := sitesrepo.AllSiteAddresses(ctx, i.db)
 	if err != nil {
 		return nil, err
 	}
-	defer srows.Close()
-	for srows.Next() {
-		var id, userID, name string
-		var custom sql.NullString
-		if err := srows.Scan(&id, &userID, &name, &custom); err != nil {
-			return nil, err
+	for _, s := range all {
+		m.userNameToID[s.UserID+"/"+s.Name] = s.ID
+		m.siteOwner[s.ID] = s.UserID
+		if s.CustomDomain.Valid && s.CustomDomain.String != "" {
+			m.domainToID[strings.ToLower(s.CustomDomain.String)] = s.ID
 		}
-		m.userNameToID[userID+"/"+name] = id
-		m.siteOwner[id] = userID
-		if custom.Valid && custom.String != "" {
-			m.domainToID[strings.ToLower(custom.String)] = id
-		}
-	}
-	if err := srows.Err(); err != nil {
-		return nil, err
 	}
 
 	// Address families: <label>.<suffix> is the family owner's site
 	// <prefix><label> (verified families only; handler/familyhost.go).
-	frows, err := i.db.QueryContext(ctx, `
-		SELECT suffix, user_id, site_prefix FROM address_families WHERE verified_at IS NOT NULL
-	`)
+	families, err := sitesrepo.ListAllFamilies(ctx, i.db)
 	if err != nil {
 		return nil, err
 	}
-	defer frows.Close()
-	for frows.Next() {
-		var fa familyAttr
-		var suffix string
-		if err := frows.Scan(&suffix, &fa.userID, &fa.prefix); err != nil {
-			return nil, err
+	for _, f := range families {
+		if f.VerifiedAt.Valid {
+			m.families[strings.ToLower(f.Suffix)] = familyAttr{userID: f.UserID, prefix: f.SitePrefix}
 		}
-		m.families[strings.ToLower(suffix)] = fa
-	}
-	if err := frows.Err(); err != nil {
-		return nil, err
 	}
 
 	// Owner marks still in their window: the owner's own hits on their sites
@@ -771,24 +738,7 @@ func (i *Ingester) buildAttrMaps(ctx context.Context) (*attrMaps, error) {
 	}
 
 	// name -> oldest site_id (legacy label.siteDomain)
-	nrows, err := i.db.QueryContext(ctx, `
-		SELECT DISTINCT ON (name) id, name
-		FROM sites
-		WHERE deleted_at IS NULL
-		ORDER BY name, created_at ASC, id ASC
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer nrows.Close()
-	for nrows.Next() {
-		var id, name string
-		if err := nrows.Scan(&id, &name); err != nil {
-			return nil, err
-		}
-		m.nameToOldest[name] = id
-	}
-	if err := nrows.Err(); err != nil {
+	if m.nameToOldest, err = sitesrepo.OldestLiveSiteByName(ctx, i.db); err != nil {
 		return nil, err
 	}
 

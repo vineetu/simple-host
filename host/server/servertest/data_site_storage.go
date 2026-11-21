@@ -7,6 +7,7 @@ import (
 	"github.com/vsriram/simple-host/host/data/datahttp"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
@@ -72,10 +73,11 @@ func (s StorageTestSite) Must(t *testing.T, method, path string, body any, heade
 func StorageKVFixtureCall(t *testing.T, h *datahttp.DataHandler, siteID, resource string) datahttp.StorageCall {
 	t.Helper()
 	c := datahttp.StorageCall{SiteID: siteID, ResourceName: resource}
-	if err := h.Database.QueryRow(`SELECT user_id,name FROM sites WHERE id=$1`, siteID).Scan(&c.OwnerID, &c.SiteName); err != nil {
+	site, err := sitesrepo.GetSiteByID(context.Background(), h.Database, siteID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	var err error
+	c.OwnerID, c.SiteName = site.UserID, site.Name
 	c.Resource, err = h.LoadStorageResource(context.Background(), siteID, resource)
 	if err != nil {
 		t.Fatal(err)

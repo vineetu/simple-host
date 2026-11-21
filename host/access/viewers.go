@@ -35,23 +35,6 @@ func ViewerAllowed(ctx context.Context, db *sql.DB, row model.SitePasscodeRow, u
 	return listed, email, err
 }
 
-// VisitorStillWelcome is the push-delivery-time recheck for a visitor's push
-// device: the decision the named-viewers rule would make for an
-// ordinary read on the site right now, without the request an async
-// delivery never has. A site with no passcode row, or not in named-viewers
-// mode, is welcome.
-func VisitorStillWelcome(ctx context.Context, db *sql.DB, siteID, userID string) (bool, error) {
-	row, err := repo.GetSitePasscode(ctx, db, siteID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return true, nil
-	}
-	if err != nil || !row.NamedViewers {
-		return err == nil, err
-	}
-	allowed, _, err := ViewerAllowed(ctx, db, row, userID)
-	return allowed, err
-}
-
 // VisitorEmail is the address an account presents to other people's sites
 // (who may save, blocks, one per person, the _submitted_by stamp, GET /me):
 // its current sign-in email, which it proved by code when it signed up or

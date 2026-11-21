@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"strings"
 	"time"
+
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 
 	"github.com/vsriram/simple-host/host/model"
 	rules "github.com/vsriram/simple-host/host/rules/sites"
@@ -85,46 +86,10 @@ func dropCustomDomain(ctx context.Context, tx *sql.Tx, siteID, expected string, 
 	if err != nil {
 		return "", "", err
 	}
-	if err := accountsrepo.RetirePlatformName(ctx, tx, dropped, siteID, userID, platformDomains...); err != nil {
+	if err := RetirePlatformName(ctx, tx, dropped, siteID, userID, platformDomains...); err != nil {
 		return "", "", err
 	}
 	return dropped, restored, nil
-}
-
-// ListDomainsToCheck returns bound domains due for verification: every binding
-// that is not "active" on every pass, plus active ones whose last proof is older
-// than activeAge — an active domain that stops serving has to be able to fall
-// back to error/pending, so "active" is a claim with an expiry, not a latch.
-func ListDomainsToCheck(ctx context.Context, database *sql.DB, activeAge time.Duration) ([]model.BoundDomain, error) {
-	const query = `
-		SELECT s.id, s.custom_domain, COALESCE(s.domain_status, ''), s.domain_verified_at IS NOT NULL, COALESCE(s.previous_domain, ''),
-		       s.user_id, s.name, COALESCE(s.domain_token, ''), COALESCE(s.custom_domain = ANY(s.domain_proof_exempt), false),
-		       s.suspended_at IS NOT NULL OR u.suspended_at IS NOT NULL
-		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.custom_domain IS NOT NULL
-		  AND s.custom_domain <> ''
-		  AND s.deleted_at IS NULL
-		  AND (s.domain_status IS DISTINCT FROM 'active'
-		       OR s.domain_verified_at IS NULL
-		       OR s.domain_verified_at < now() - ($1 * interval '1 second'))
-		ORDER BY s.custom_domain
-	`
-	rows, err := database.QueryContext(ctx, query, int64(activeAge.Seconds()))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []model.BoundDomain
-	for rows.Next() {
-		var d model.BoundDomain
-		if err := rows.Scan(&d.SiteID, &d.Domain, &d.Status, &d.Verified, &d.PreviousDomain,
-			&d.UserID, &d.Name, &d.Token, &d.ProofExempt, &d.Suspended); err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
 }
 
 // SetDomainStatus records one check of siteID's bound domain: status
@@ -188,7 +153,7 @@ func LapseDomain(ctx context.Context, database *sql.DB, siteID, domain string, p
 	if err != nil {
 		return false, err
 	}
-	if err := accountsrepo.RetirePlatformName(ctx, tx, domain, siteID, userID, platformDomains...); err != nil {
+	if err := RetirePlatformName(ctx, tx, domain, siteID, userID, platformDomains...); err != nil {
 		return false, err
 	}
 	return true, tx.Commit()
@@ -231,7 +196,7 @@ func LapsePreviousDomain(ctx context.Context, database *sql.DB, siteID, prev str
 	if err != nil {
 		return false, err
 	}
-	if err := accountsrepo.RetirePlatformName(ctx, tx, prev, siteID, userID, platformDomains...); err != nil {
+	if err := RetirePlatformName(ctx, tx, prev, siteID, userID, platformDomains...); err != nil {
 		return false, err
 	}
 	return true, tx.Commit()
@@ -258,7 +223,7 @@ func PromoteDomain(ctx context.Context, database *sql.DB, siteID string, platfor
 	if err != nil {
 		return "", err
 	}
-	if err := accountsrepo.RetirePlatformName(ctx, tx, prev, siteID, userID, platformDomains...); err != nil {
+	if err := RetirePlatformName(ctx, tx, prev, siteID, userID, platformDomains...); err != nil {
 		return "", err
 	}
 	return prev, tx.Commit()
@@ -310,10 +275,16 @@ func BindCustomDomain(ctx context.Context, database *sql.DB, siteID, domain stri
 	}
 	var holder SiteDomainInfo
 	err = tx.QueryRowContext(ctx, `
-		SELECT s.id, s.user_id, s.name, s.custom_domain, s.domain_verified_at, COALESCE(u.handle, ''), COALESCE(s.domain_cert_status, '')
-		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.custom_domain = $1 FOR UPDATE OF s`, domain).Scan(
-		&holder.SiteID, &holder.UserID, &holder.Name, &holder.Domain, &holder.VerifiedAt, &holder.Handle, &holder.CertStatus)
+		SELECT s.id, s.user_id, s.name, s.custom_domain, s.domain_verified_at, COALESCE(s.domain_cert_status, '')
+		FROM sites s
+		WHERE s.custom_domain = $1 AND s.user_id IS NOT NULL FOR UPDATE OF s`, domain).Scan(
+		&holder.SiteID, &holder.UserID, &holder.Name, &holder.Domain, &holder.VerifiedAt, &holder.CertStatus)
+	if err == nil {
+		var u accountsrepo.User
+		if u, err = accountsrepo.GetUserByID(ctx, tx, holder.UserID); err == nil {
+			holder.Handle = u.Handle.String
+		}
+	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, "", err
 	}
@@ -449,7 +420,7 @@ func ClaimPlatformSubdomain(ctx context.Context, database *sql.DB, siteID, host 
 			continue
 		}
 		released = append(released, d)
-		if err := accountsrepo.RetirePlatformName(ctx, tx, d, siteID, userID, platformDomains...); err != nil {
+		if err := RetirePlatformName(ctx, tx, d, siteID, userID, platformDomains...); err != nil {
 			return nil, err
 		}
 	}
@@ -476,11 +447,7 @@ func DomainBoundToOtherSite(ctx context.Context, q Querier, domain, siteID strin
 // platformNameIsHandle reports whether label is an account's handle or an
 // old handle kept as an alias. Callers hold the namespace lock.
 func platformNameIsHandle(ctx context.Context, tx *sql.Tx, label string) (bool, error) {
-	var taken bool
-	err := tx.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM users WHERE handle = $1)
-		    OR EXISTS (SELECT 1 FROM handle_aliases WHERE handle = $1)`, strings.ToLower(label)).Scan(&taken)
-	return taken, err
+	return accountsrepo.HandleTaken(ctx, tx, strings.ToLower(label), true)
 }
 func hostForms(host string, domains []string) [2]string {
 	host = strings.ToLower(strings.TrimSpace(host))

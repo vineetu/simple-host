@@ -3,8 +3,9 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/model"
 	"time"
+
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // GetSSOPass loads a pass, live only while its parent key is (keyIdle,

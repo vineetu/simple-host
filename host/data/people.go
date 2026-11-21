@@ -99,7 +99,7 @@ func (s *Service) siteDataWriters(ctx context.Context, c Call) ([]string, error)
 		hasData[id] = true
 	}
 	candidates := slices.Collect(maps.Keys(hasData))
-	signedIn, err := repository.SignedInAmong(ctx, s.db, c.SiteID, candidates)
+	signedIn, err := accountsrepo.SignedInAmong(ctx, s.db, c.SiteID, candidates)
 	if err != nil {
 		return nil, &Error{Code: "internal_error", Message: "internal server error"}
 	}

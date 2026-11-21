@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
 )
@@ -221,20 +222,21 @@ func PlanFillTeams(ctx context.Context, q Querier, ev Event, size int, siteEverN
 
 // soloParticipants lists approved participants without a team, oldest first.
 func soloParticipants(ctx context.Context, q Querier, eventID string) ([]FillPerson, error) {
-	rows, err := queryContext(ctx, q, `SELECT m.user_id,COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL ORDER BY joined_at,user_id`, eventID)
+	ids, err := userIDs(ctx, q, `SELECT user_id FROM event_members WHERE event_id=$1 AND role='participant' AND approval_status='approved' AND team_id IS NULL ORDER BY joined_at,user_id`, eventID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	people := []FillPerson{}
-	for rows.Next() {
-		var p FillPerson
-		if err := rows.Scan(&p.UserID, &p.DisplayName); err != nil {
-			return nil, err
-		}
-		people = append(people, p)
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
 	}
-	return people, rows.Err()
+	people := []FillPerson{}
+	for _, id := range ids {
+		if u, ok := users[id]; ok {
+			people = append(people, FillPerson{UserID: id, DisplayName: u.DisplayName.String})
+		}
+	}
+	return people, nil
 }
 
 // topUpTeams fills each open, unfrozen team with room up to size and

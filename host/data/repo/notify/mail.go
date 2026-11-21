@@ -3,13 +3,14 @@ package notify
 import (
 	"context"
 	"database/sql"
+
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 func SiteOwnerEmail(ctx context.Context, q sqlkit.Querier, id string) (string, error) {
-	var email string
-	err := q.QueryRowContext(ctx, `SELECT u.username FROM sites s JOIN users u ON u.id=s.user_id WHERE s.id=$1`, id).Scan(&email)
-	return email, err
+	site, err := sitesrepo.GetSiteByID(ctx, q, id)
+	return site.OwnerUsername, err
 }
 func ResetSuspensionEmail(ctx context.Context, q sqlkit.Querier, id string) error {
 	_, err := q.ExecContext(ctx, `UPDATE site_notifications SET suspend_emailed_at=NULL WHERE id=$1`, id)

@@ -1,15 +1,17 @@
-package repo
+package analytics
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	_ "github.com/lib/pq"
-	"github.com/vsriram/simple-host/host/testdb"
 	"os"
 	"strconv"
 	"testing"
 	"time"
+
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
+	_ "github.com/lib/pq"
 )
 
 // The traffic figures: today, 7 and 30 days, the calendar month with its
@@ -71,14 +73,14 @@ func TestServedTraffic(t *testing.T) {
 	raw, _ := json.Marshal(got)
 	var out struct {
 		Served struct {
-			Today      trafficFigure `json:"today"`
-			Last7      trafficFigure `json:"last_7_days"`
-			Last30     trafficFigure `json:"last_30_days"`
-			Month      trafficFigure `json:"month"`
-			MonthPages trafficFigure `json:"month_pages"`
-			MonthAPI   trafficFigure `json:"month_api"`
-			BytesSince string        `json:"bytes_since"`
-			Top        []trafficSite `json:"top_sites"`
+			Today      trafficFigure          `json:"today"`
+			Last7      trafficFigure          `json:"last_7_days"`
+			Last30     trafficFigure          `json:"last_30_days"`
+			Month      trafficFigure          `json:"month"`
+			MonthPages trafficFigure          `json:"month_pages"`
+			MonthAPI   trafficFigure          `json:"month_api"`
+			BytesSince string                 `json:"bytes_since"`
+			Top        []sitesrepo.ServedSite `json:"top_sites"`
 		} `json:"served"`
 		Box         any `json:"box"`
 		AllowanceGB int `json:"allowance_gb"`
@@ -116,5 +118,3 @@ func TestServedTraffic(t *testing.T) {
 		t.Errorf("allowance = %d, want the default 10240", out.AllowanceGB)
 	}
 }
-
-func TestMain(m *testing.M) { testdb.Main(m) }

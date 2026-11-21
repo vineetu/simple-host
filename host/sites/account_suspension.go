@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
-	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites/repo"
-	"log"
 )
 
 func suspendedMarker(s *Service, site model.Site) error {
@@ -135,44 +135,22 @@ func (s *Service) SuspendSite(ctx context.Context, id, reason, adminID string, o
 	return site, nil
 }
 
-type SuspensionInput struct {
-	ID, ActorID, Reason string
-	On                  bool
-	Marker              func(model.Site) error
-}
-type SuspendedAccount struct {
-	User      model.User
-	SiteCount int
-}
-
-func (s *Service) SuspendAccount(ctx context.Context, in SuspensionInput) (SuspendedAccount, error) {
-	target, err := accountsrepo.GetUserByID(ctx, s.database, in.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return SuspendedAccount{}, &accountapp.LifecycleError{Status: 404, Message: "not found"}
-	}
+// MarkAccountSites re-marks every site of the account after its suspension
+// changed (access.SuspendPerson) and returns how many there are.
+func (s *Service) MarkAccountSites(ctx context.Context, accountID string) (int, error) {
+	list, err := repo.ListSitesByUser(ctx, s.database, accountID)
 	if err != nil {
-		return SuspendedAccount{}, err
-	}
-	if in.On && accountapp.IsOperator(target.IsAdmin, target.Username) {
-		return SuspendedAccount{}, &accountapp.LifecycleError{Status: 400, Message: "cannot suspend an admin account", Code: "admin_account"}
-	}
-	if err := accountsrepo.SetUserSuspended(ctx, s.database, target.ID, in.Reason); err != nil {
-		return SuspendedAccount{}, err
-	}
-	list, err := repo.ListSitesByUser(ctx, s.database, target.ID)
-	if err != nil {
-		return SuspendedAccount{}, &accountapp.LifecycleError{Status: 500, Message: "saved, but the account's sites could not be listed; retry"}
+		return 0, &accountapp.LifecycleError{Status: 500, Message: "saved, but the account's sites could not be listed; retry"}
 	}
 	failed := 0
 	for _, site := range list {
-		if err := in.Marker(site); err != nil {
+		if err := s.SyncSiteSuspensionMarker(site); err != nil {
 			log.Printf("suspend: marker for %s/%s: %v", site.UserID, site.Name, err)
 			failed++
 		}
 	}
 	if failed > 0 {
-		return SuspendedAccount{}, &accountapp.LifecycleError{Status: 500, Message: "saved, but some of the account's sites could not be marked; retry"}
+		return 0, &accountapp.LifecycleError{Status: 500, Message: "saved, but some of the account's sites could not be marked; retry"}
 	}
-	log.Printf("admin_user_suspend on=%t user_id=%s sites=%d by=%s reason=%q", in.On, target.ID, len(list), in.ActorID, in.Reason)
-	return SuspendedAccount{User: target, SiteCount: len(list)}, nil
+	return len(list), nil
 }

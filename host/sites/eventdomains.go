@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	rules "github.com/vsriram/simple-host/host/rules/sites"
 	"log"
 	"time"
+
+	rules "github.com/vsriram/simple-host/host/rules/sites"
 
 	"github.com/vsriram/simple-host/host/sites/eventdns"
 	reposite "github.com/vsriram/simple-host/host/sites/repo"

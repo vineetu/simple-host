@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
+
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
+
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sqlkit"
-	"time"
 )
 
 type Querier = sqlkit.Querier
@@ -45,31 +48,9 @@ func CreateSite(ctx context.Context, q Querier, userID, name, siteURL string, ex
 	return site, nil
 }
 
-// ListExpiredSites returns sites whose expires_at has passed. Sites with a NULL
-// expires_at (the default) are permanent and never returned, and a taken-down
-// site is kept like the purge keeps it (notTakenDown).
-func ListExpiredSites(ctx context.Context, db *sql.DB) ([]ExpiredSite, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT id, user_id, name FROM sites WHERE expires_at IS NOT NULL AND expires_at < now() AND deleted_at IS NULL AND `+notTakenDown+` ORDER BY expires_at LIMIT 500`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []ExpiredSite
-	for rows.Next() {
-		var e ExpiredSite
-		if err := rows.Scan(&e.ID, &e.UserID, &e.Name); err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, rows.Err()
-}
-
 // RenameSite renames a site; its editors (site_editors) move with it.
 func RenameSite(ctx context.Context, q Querier, siteID, name, siteURL string) error {
-	if _, err := q.ExecContext(ctx, `UPDATE site_editors e SET site_name = $2 FROM sites s WHERE s.id = $1 AND e.account_id = s.user_id AND e.site_name = s.name`, siteID, name); err != nil {
+	if err := moveEditors(ctx, q, siteID, name); err != nil {
 		return err
 	}
 	res, err := q.ExecContext(ctx, `UPDATE sites SET name = $2, site_url = $3, updated_at = now() WHERE id = $1`, siteID, name, siteURL)
@@ -88,7 +69,7 @@ func RenameSite(ctx context.Context, q Querier, siteID, name, siteURL string) er
 
 // DeleteSite removes a site for good, with its versions and its editors.
 func DeleteSite(ctx context.Context, db Querier, siteID string) error {
-	if _, err := db.ExecContext(ctx, `DELETE FROM site_editors e USING sites s WHERE s.id = $1 AND e.account_id = s.user_id AND e.site_name = s.name`, siteID); err != nil {
+	if err := moveEditors(ctx, db, siteID, ""); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, `DELETE FROM versions WHERE site_id = $1`, siteID); err != nil {
@@ -367,13 +348,15 @@ func DropOldSiteName(ctx context.Context, q Querier, userID, name string) error 
 	return err
 }
 
-// LockUserHandle locks the owner row and reads its handle.
-func LockUserHandle(ctx context.Context, tx *sql.Tx, userID string, handle *sql.NullString) error {
-	return tx.QueryRowContext(ctx, "SELECT handle FROM users WHERE id = $1 FOR UPDATE", userID).Scan(handle)
-}
-
-// LockUserForFileCaps serializes account-wide file quota checks.
-func LockUserForFileCaps(ctx context.Context, tx *sql.Tx, userID string) error {
-	_, err := tx.ExecContext(ctx, "SELECT id FROM users WHERE id = $1 FOR UPDATE", userID)
-	return err
+// moveEditors moves the site's editors to its new name ("" drops them).
+func moveEditors(ctx context.Context, q Querier, siteID, to string) error {
+	var accountID, name string
+	err := q.QueryRowContext(ctx, `SELECT user_id::text, name FROM sites WHERE id = $1`, siteID).Scan(&accountID, &name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return accountsrepo.MoveSiteEditors(ctx, q, accountID, name, to)
 }

@@ -157,9 +157,11 @@ func (s *Service) createLocked(ctx context.Context, in CreateInput) (CreateResul
 	if err := s.createGate(ctx, tx, in.User, in.Name); err != nil {
 		return CreateResult{}, err
 	}
-	if err := repo.LockUserHandle(ctx, tx, in.User.ID, &in.User.Handle); err != nil {
+	handle, err := accounts.LockProfile(ctx, tx, in.User.ID)
+	if err != nil {
 		return CreateResult{}, err
 	}
+	in.User.Handle = handle
 	if err := s.checkNamedViewers(in); err != nil {
 		return CreateResult{}, err
 	}
@@ -203,7 +205,7 @@ func (s *Service) checkNamedViewers(in CreateInput) error {
 // returned site is the one to report, also on error.
 func (s *Service) commitFirstVersion(ctx context.Context, tx *sql.Tx, in CreateInput, site model.Site) (model.Site, error) {
 	if in.Access == "specific" {
-		if err := accounts.SetSiteAccess(ctx, tx, site.ID, "specific"); err != nil {
+		if err := repo.SetSiteAccess(ctx, tx, site.ID, "specific"); err != nil {
 			return site, err
 		}
 		for _, email := range in.Viewers {
@@ -358,7 +360,10 @@ func (s *Service) SweepExpiredSites(parents ...context.Context) {
 	}
 	for _, site := range expired {
 		unlock := s.deps.LockSite(site.UserID, site.Name)
-		if err := repo.DeleteSite(ctx, s.database, site.ID); err != nil {
+		if err := repo.DeleteExpiredSite(ctx, s.database, site.ID); errors.Is(err, sql.ErrNoRows) {
+			unlock()
+			continue
+		} else if err != nil {
 			ReportWorkerFailure(ctx, "delete expired preview row", err)
 			log.Printf("expiry sweep: delete row %s (%s): %v", site.Name, site.ID, err)
 			unlock()
@@ -909,7 +914,7 @@ func (s *Service) updateExisting(ctx context.Context, in UpdateInput, paths []st
 // and the site row lock inside tx.
 func (s *Service) lockForUpdate(ctx context.Context, tx *sql.Tx, userID, siteID string) error {
 	if s.deps.FileCaps {
-		if err := repo.LockUserForFileCaps(ctx, tx, userID); err != nil {
+		if _, err := accounts.LockProfile(ctx, tx, userID); err != nil {
 			return err
 		}
 	}

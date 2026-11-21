@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
 	"golang.org/x/net/publicsuffix"
 )
@@ -27,10 +28,9 @@ type AddressFamily = model.AddressFamily
 
 const familyColumns = `f.id, f.user_id, f.suffix, f.site_prefix, f.rank, f.canonical, f.token, f.status,
 	COALESCE(f.last_error, ''), f.bound_at, f.verified_at, f.checked_at, f.failing_since, f.lapse_notified_at,
-	f.release_at, f.cert_mode, COALESCE(f.cert_name, ''), f.proof_exempt, f.created_at,
-	COALESCE(u.handle, ''), u.username`
+	f.release_at, f.cert_mode, COALESCE(f.cert_name, ''), f.proof_exempt, f.created_at`
 
-const familyFrom = ` FROM address_families f JOIN users u ON u.id = f.user_id `
+const familyFrom = ` FROM address_families f `
 
 // familyQuerier is a Querier that can also list rows (*sql.DB and *sql.Tx).
 type familyQuerier interface {
@@ -42,9 +42,48 @@ func scanFamily(row interface{ Scan(...any) error }) (AddressFamily, error) {
 	var f AddressFamily
 	err := row.Scan(&f.ID, &f.UserID, &f.Suffix, &f.SitePrefix, &f.Rank, &f.Canonical, &f.Token, &f.Status,
 		&f.LastError, &f.BoundAt, &f.VerifiedAt, &f.CheckedAt, &f.FailingSince, &f.LapseNotifiedAt,
-		&f.ReleaseAt, &f.CertMode, &f.CertName, &f.ProofExempt, &f.CreatedAt,
-		&f.Handle, &f.Email)
+		&f.ReleaseAt, &f.CertMode, &f.CertName, &f.ProofExempt, &f.CreatedAt)
 	return f, err
+}
+
+// withFamilyOwners fills each family's owner handle and email from one
+// UsersByIDs call; a family whose account is missing is dropped.
+func withFamilyOwners(ctx context.Context, q Querier, fs []AddressFamily) ([]AddressFamily, error) {
+	if len(fs) == 0 {
+		return fs, nil
+	}
+	ids := make([]string, len(fs))
+	for i, f := range fs {
+		ids[i] = f.UserID
+	}
+	owners, err := accountsrepo.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := fs[:0]
+	for _, f := range fs {
+		if u, ok := owners[f.UserID]; ok {
+			f.Handle, f.Email = u.Handle.String, u.Username
+			out = append(out, f)
+		}
+	}
+	return out, nil
+}
+
+// getFamily is the one family the query finds, with its owner. sql.ErrNoRows if none.
+func getFamily(ctx context.Context, q Querier, where string, args ...any) (AddressFamily, error) {
+	f, err := scanFamily(q.QueryRowContext(ctx, `SELECT `+familyColumns+familyFrom+where, args...))
+	if err != nil {
+		return AddressFamily{}, err
+	}
+	fs, err := withFamilyOwners(ctx, q, []AddressFamily{f})
+	if err != nil {
+		return AddressFamily{}, err
+	}
+	if len(fs) == 0 {
+		return AddressFamily{}, sql.ErrNoRows
+	}
+	return fs[0], nil
 }
 
 func queryFamilies(ctx context.Context, q familyQuerier, where string, args ...any) ([]AddressFamily, error) {
@@ -61,7 +100,10 @@ func queryFamilies(ctx context.Context, q familyQuerier, where string, args ...a
 		}
 		out = append(out, f)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return withFamilyOwners(ctx, q, out)
 }
 
 // ListFamiliesByUser is the account's families, most specific first.
@@ -76,12 +118,12 @@ func ListAllFamilies(ctx context.Context, q familyQuerier) ([]AddressFamily, err
 
 // GetFamilyByUserSuffix is one account's family. sql.ErrNoRows if none.
 func GetFamilyByUserSuffix(ctx context.Context, q Querier, userID, suffix string) (AddressFamily, error) {
-	return scanFamily(q.QueryRowContext(ctx, `SELECT `+familyColumns+familyFrom+`WHERE f.user_id = $1 AND f.suffix = $2`, userID, suffix))
+	return getFamily(ctx, q, `WHERE f.user_id = $1 AND f.suffix = $2`, userID, suffix)
 }
 
 // GetFamilyByID is one family by id. sql.ErrNoRows if none.
 func GetFamilyByID(ctx context.Context, q Querier, id string) (AddressFamily, error) {
-	return scanFamily(q.QueryRowContext(ctx, `SELECT `+familyColumns+familyFrom+`WHERE f.id::text = $1`, id))
+	return getFamily(ctx, q, `WHERE f.id::text = $1`, id)
 }
 
 // ListFamiliesToCheck is every pending family, plus verified ones whose last

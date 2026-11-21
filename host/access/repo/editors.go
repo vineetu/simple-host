@@ -101,3 +101,14 @@ func ReplaceSiteEditors(ctx context.Context, q Querier, accountID string, editor
 func EditedSites(ctx context.Context, q Querier, accountID, personID string) ([]string, error) {
 	return scanStrings(ctx, q, `SELECT site_name FROM site_editors WHERE account_id::text = $1 AND user_id::text = $2 ORDER BY site_name`, accountID, personID)
 }
+
+// MoveSiteEditors keeps a site's editors when it is renamed (to "" drops
+// them: the site is deleted for good).
+func MoveSiteEditors(ctx context.Context, q Querier, accountID, from, to string) error {
+	if to == "" {
+		_, err := q.ExecContext(ctx, `DELETE FROM site_editors WHERE account_id = $1 AND site_name = $2`, accountID, from)
+		return err
+	}
+	_, err := q.ExecContext(ctx, `UPDATE site_editors SET site_name = $3 WHERE account_id = $1 AND site_name = $2`, accountID, from, to)
+	return err
+}

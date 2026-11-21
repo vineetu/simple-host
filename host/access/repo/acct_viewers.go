@@ -3,21 +3,9 @@ package repo
 import (
 	"context"
 	"database/sql"
+
 	"github.com/vsriram/simple-host/host/model"
 )
-
-// SetSiteAccess sets sites.access ('anyone' or 'specific') of a live site.
-// sql.ErrNoRows for an unknown or deleted site.
-func SetSiteAccess(ctx context.Context, q Querier, siteID, access string) error {
-	res, err := q.ExecContext(ctx, `UPDATE sites SET access = $2 WHERE id = $1 AND deleted_at IS NULL`, siteID, access)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
 
 // ListSiteViewers returns a site's named viewers, oldest first, each with
 // when they first signed in to this site (nil if never).

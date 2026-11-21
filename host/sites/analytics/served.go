@@ -1,9 +1,11 @@
-package repo
+package analytics
 
 import (
 	"context"
 	"database/sql"
 	"time"
+
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
 const trafficTopSites = 10
@@ -11,17 +13,6 @@ const trafficTopSites = 10
 type trafficFigure struct {
 	Bytes    int64 `json:"bytes"`
 	Requests int64 `json:"requests"`
-}
-
-type trafficSite struct {
-	SiteID     string `json:"site_id"`
-	UserID     string `json:"user_id"`
-	Name       string `json:"name"`
-	Owner      string `json:"owner"`
-	Bytes      int64  `json:"bytes"`
-	PagesBytes int64  `json:"pages_bytes"`
-	APIBytes   int64  `json:"api_bytes"`
-	Requests   int64  `json:"requests"`
 }
 
 // servedTraffic sums traffic_daily over today, the last 7 and 30 days (today
@@ -56,33 +47,8 @@ func ServedTraffic(ctx context.Context, database *sql.DB, now time.Time) (map[st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := database.QueryContext(ctx, `
-		SELECT st.site_id, s.user_id, s.name, COALESCE(NULLIF(u.handle, ''), u.username),
-		       SUM(st.bytes),
-		       COALESCE(SUM(st.bytes) FILTER (WHERE st.kind = 'pages'), 0),
-		       COALESCE(SUM(st.bytes) FILTER (WHERE st.kind = 'api'), 0),
-		       SUM(st.requests)
-		FROM site_traffic_daily st
-		JOIN sites s ON s.id = st.site_id
-		JOIN users u ON u.id = s.user_id
-		WHERE st.day >= $1::date
-		GROUP BY st.site_id, s.user_id, s.name, u.handle, u.username
-		ORDER BY SUM(st.bytes) DESC, SUM(st.requests) DESC, s.name
-		LIMIT $2
-	`, day(month), trafficTopSites)
+	top, err := sitesrepo.TopServedSites(ctx, database, day(month), trafficTopSites)
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	top := []trafficSite{}
-	for rows.Next() {
-		var s trafficSite
-		if err := rows.Scan(&s.SiteID, &s.UserID, &s.Name, &s.Owner, &s.Bytes, &s.PagesBytes, &s.APIBytes, &s.Requests); err != nil {
-			return nil, err
-		}
-		top = append(top, s)
-	}
-	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	out := map[string]any{

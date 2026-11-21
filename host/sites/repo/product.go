@@ -7,29 +7,6 @@ import (
 
 // What a product reads of an account's sites (app/sites/product.go).
 
-// LiveSiteNames is the account's sites that visitors can see: not deleted,
-// not taken down, and the account itself not suspended.
-// withDeleted counts sites in Recently deleted too.
-func LiveSiteNames(ctx context.Context, q Querier, accountID string, withDeleted bool) ([]string, error) {
-	rows, err := q.QueryContext(ctx, `
-		SELECT s.name FROM sites s JOIN users u ON u.id = s.user_id
-		 WHERE s.user_id = $1 AND ($2 OR s.deleted_at IS NULL) AND s.suspended_at IS NULL AND u.suspended_at IS NULL
-		 ORDER BY s.name`, accountID, withDeleted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []string{}
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		out = append(out, name)
-	}
-	return out, rows.Err()
-}
-
 // SiteEverNamed reports whether the account has or had a site of that name,
 // Recently deleted included.
 func SiteEverNamed(ctx context.Context, q Querier, accountID, name string) (bool, error) {
@@ -83,20 +60,5 @@ func AccountSiteCounts(ctx context.Context, q Querier, accountID string) (sites,
 // its own: an account about to be deleted with its sites.
 func LockAccountSites(ctx context.Context, tx *sql.Tx, accountID string) error {
 	_, err := tx.ExecContext(ctx, `SELECT 1 FROM sites WHERE user_id = $1 FOR UPDATE`, accountID)
-	return err
-}
-
-// AccountSiteTakenDown: some site of the account is taken down (by itself or
-// through the account), so the purge keeps it (notTakenDown).
-func AccountSiteTakenDown(ctx context.Context, q Querier, accountID string) (bool, error) {
-	var down bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE user_id = $1 AND NOT (`+notTakenDown+`))`, accountID).Scan(&down)
-	return down, err
-}
-
-// DeleteAccountRow deletes an account whose deletion its product decided
-// (a Simple Hack event's account): its sites and memberships go with it.
-func DeleteAccountRow(ctx context.Context, tx *sql.Tx, accountID string) error {
-	_, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, accountID)
 	return err
 }

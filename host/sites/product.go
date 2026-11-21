@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 
-	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
-
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sqlkit"
@@ -31,7 +29,7 @@ func ActiveSiteVersion(ctx context.Context, db *sql.DB, siteID string) (model.Ve
 
 // SitePasscode reads a site's passcode settings.
 func SitePasscode(ctx context.Context, q sqlkit.Querier, siteID string) (model.SitePasscodeRow, error) {
-	return accountsrepo.GetSitePasscode(ctx, q, siteID)
+	return repo.GetSitePasscode(ctx, q, siteID)
 }
 
 // AccountSites lists the account's live sites.
@@ -83,12 +81,6 @@ func LockAccountSites(ctx context.Context, tx *sql.Tx, accountID string) error {
 	return repo.LockAccountSites(ctx, tx, accountID)
 }
 
-// DeleteProductAccount deletes, inside the product's transaction, an account
-// the product holds; its sites and memberships go with it.
-func DeleteProductAccount(ctx context.Context, tx *sql.Tx, accountID string) error {
-	return repo.DeleteAccountRow(ctx, tx, accountID)
-}
-
 // AccountSiteTakenDown reports whether any site of the account is taken
 // down: a product must not erase it (an operator hold always wins).
 func AccountSiteTakenDown(ctx context.Context, q sqlkit.Querier, accountID string) (bool, error) {
@@ -98,6 +90,6 @@ func AccountSiteTakenDown(ctx context.Context, q sqlkit.Querier, accountID strin
 // SiteTakenDown reports whether a site is taken down, by its own flag or
 // through its account's.
 func SiteTakenDown(ctx context.Context, q sqlkit.Querier, siteID string) (bool, error) {
-	down, _, err := accountsrepo.SiteSuspension(ctx, q, siteID)
+	down, _, err := repo.SiteSuspension(ctx, q, siteID)
 	return down, err
 }

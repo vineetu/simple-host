@@ -2,9 +2,10 @@ package sites
 
 import (
 	"errors"
-	accounts "github.com/vsriram/simple-host/host/access"
 	"regexp"
 	"strings"
+
+	accounts "github.com/vsriram/simple-host/host/access"
 
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"

@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/vsriram/simple-host/host/edition"
-	"github.com/vsriram/simple-host/host/ops/repo"
 	"log"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/sites/analytics"
 
 	"github.com/vsriram/simple-host/host/netusage"
 	"github.com/vsriram/simple-host/host/workers"
@@ -112,7 +113,7 @@ func (h *NetworkUsage) Report(ctx context.Context, now time.Time) map[string]any
 		}
 	}
 	if h.trafficOn {
-		if s, err := repo.ServedTraffic(ctx, h.database, now); err != nil {
+		if s, err := analytics.ServedTraffic(ctx, h.database, now); err != nil {
 			log.Printf("admin usage: traffic: %v", err)
 		} else {
 			out["served"] = s

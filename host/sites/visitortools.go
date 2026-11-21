@@ -4,6 +4,7 @@ import (
 	"context"
 
 	accounts "github.com/vsriram/simple-host/host/access/repo"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites/repo"
 )
 
@@ -20,10 +21,7 @@ func (s *Service) VisitorAccountExists(ctx context.Context, id string) (bool, er
 	return accounts.VisitorAccountExists(ctx, s.database, id)
 }
 
-// VisitorSharedSite identifies a site shared with a signed-in email.
-type VisitorSharedSite = repo.VisitorSharedSite
-
 // VisitorSharedSites lists shared sites in name order.
-func (s *Service) VisitorSharedSites(ctx context.Context, email string) ([]VisitorSharedSite, error) {
+func (s *Service) VisitorSharedSites(ctx context.Context, email string) ([]model.Site, error) {
 	return repo.VisitorSharedSites(ctx, s.database, email)
 }

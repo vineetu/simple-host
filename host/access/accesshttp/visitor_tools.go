@@ -260,16 +260,12 @@ func (h *AccessHandler) visitorSharedSites(ctx context.Context, userID string) (
 		return nil, err
 	}
 	out := []map[string]any{}
-	for _, x := range list {
-		site, err := h.sitesSvc().GetSiteByUser(ctx, x.Owner, x.Name)
-		if err != nil {
-			return nil, err
+	for _, site := range list {
+		address, ok := h.Hosts.SiteAddressOf(ctx, site, "")
+		if !ok {
+			address = h.Hosts.Addressing().SiteURLFor(site)
 		}
-		address := h.Hosts.Addressing().SiteURLFor(site)
-		if canonical, ok := h.Hosts.SiteAddressFor(ctx, x.ID, ""); ok {
-			address = canonical
-		}
-		out = append(out, map[string]any{"name": x.Name, "address": address})
+		out = append(out, map[string]any{"name": site.Name, "address": address})
 	}
 	return out, nil
 }

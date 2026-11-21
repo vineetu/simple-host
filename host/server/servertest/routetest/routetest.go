@@ -162,10 +162,15 @@ func NewPerson(t *testing.T, database *sql.DB, label string) Person {
 		t.Fatal(err)
 	}
 	handle := strings.ReplaceAll(strings.Split(addr, "@")[0], ".", "-")
-	if _, err := database.Exec(`UPDATE users SET handle = $1 WHERE id = $2`, handle, u.ID); err != nil {
-		t.Fatal(err)
+	if ok, err := accountsrepo.ClaimHandle(context.Background(), database, u.ID, handle); err != nil || !ok {
+		t.Fatalf("claim handle %s: %v", handle, err)
 	}
-	t.Cleanup(func() { _, _ = database.Exec(`DELETE FROM users WHERE id = $1`, u.ID) })
+	t.Cleanup(func() {
+		if tx, err := database.Begin(); err == nil {
+			_ = accountsrepo.DeleteAccountRow(context.Background(), tx, u.ID)
+			_ = tx.Commit()
+		}
+	})
 	return Person{Email: addr, Key: key, ID: u.ID, Handle: handle}
 }
 
@@ -249,7 +254,7 @@ func Browser(host, cookie string, extra ...string) map[string]string {
 // (an encrypted value is enough: these suites never unlock it).
 func SetPasscode(t *testing.T, database *sql.DB, siteID string) {
 	t.Helper()
-	if _, err := accountsrepo.SetSitePasscode(context.Background(), database, siteID, []byte("locked"), time.Now()); err != nil {
+	if _, err := sitesrepo.SetSitePasscode(context.Background(), database, siteID, []byte("locked"), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 }

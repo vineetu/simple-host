@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
@@ -134,7 +136,7 @@ func (a *App) passcodeGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodOptions && r.Header.Get("X-API-Key") == "" && r.Header.Get(Unlocked) == "" {
 			if s, _, err := a.Hosts.ResolveSite(r.Context(), httpx.HostName(r), "", r.PathValue("sitename")); err == nil {
-				if row, err := accountsrepo.GetSitePasscode(r.Context(), a.Database, s.ID); err == nil && row.Enc != nil {
+				if row, err := sitesrepo.GetSitePasscode(r.Context(), a.Database, s.ID); err == nil && row.Enc != nil {
 					httpx.WriteError(w, http.StatusForbidden, "site_locked", "site locked")
 					return
 				}
@@ -186,7 +188,7 @@ func (a *App) caller(next http.Handler) http.Handler {
 				}
 			}
 			c.PasscodeOK, c.ViewersOK = true, true
-			row, err := accountsrepo.GetSitePasscode(ctx, a.Database, site.ID)
+			row, err := sitesrepo.GetSitePasscode(ctx, a.Database, site.ID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				httpx.WriteInternal(w)
 				return

@@ -44,38 +44,27 @@ func runSiteSummaryBackfill(args []string) int {
 		return 1
 	}
 	ctx := context.Background()
-	rows, err := database.QueryContext(ctx, `SELECT id, user_id, name, active_version FROM sites WHERE deleted_at IS NULL AND summary_title IS NULL ORDER BY created_at, id LIMIT NULLIF($1, 0)`, *limit)
+	list, err := siterepo.SitesWithoutSummary(ctx, database, *limit)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "list sites:", err)
 		return 1
 	}
-	defer rows.Close()
 	n := 0
-	for rows.Next() {
-		var id, userID, name string
-		var version int
-		if err := rows.Scan(&id, &userID, &name, &version); err != nil {
-			fmt.Fprintln(os.Stderr, "read site:", err)
-			return 1
-		}
+	for _, site := range list {
 		// A read failure here (permissions, a missing version directory) must
 		// not wedge every later site behind this one forever: treat it as "no
 		// index.html found" and move on, same as a genuinely missing file.
-		data, err := disk.ReadFile(ctx, storage.FileVersion{UserID: userID, SiteName: name, Version: version}, "index.html")
+		data, err := disk.ReadFile(ctx, storage.FileVersion{UserID: site.UserID, SiteName: site.Name, Version: site.ActiveVersion}, "index.html")
 		if err != nil && !os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "read index.html for %s: %v (treating as empty)\n", name, err)
+			fmt.Fprintf(os.Stderr, "read index.html for %s: %v (treating as empty)\n", site.Name, err)
 		}
 		summary := siteshttp.ExtractSiteSummary(map[string][]byte{"index.html": data})
-		if err := siterepo.UpdateSiteSummaryIfUnset(ctx, database, id, summary); err != nil {
+		if err := siterepo.UpdateSiteSummaryIfUnset(ctx, database, site.ID, summary); err != nil {
 			fmt.Fprintln(os.Stderr, "store summary:", err)
 			return 1
 		}
 		n++
 		fmt.Printf("site-summary-backfill: summarised %d sites\n", n)
-	}
-	if err := rows.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "list sites:", err)
-		return 1
 	}
 	fmt.Printf("site-summary-backfill: total %d sites\n", n)
 	return 0

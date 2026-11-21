@@ -3,9 +3,10 @@ package access
 import (
 	"context"
 	"errors"
+	"time"
+
 	authrules "github.com/vsriram/simple-host/host/access/rules"
 	"github.com/vsriram/simple-host/host/model"
-	"time"
 )
 
 // ConnectorAccess resolves an access token to its person, the connection's

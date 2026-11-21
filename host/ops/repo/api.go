@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"github.com/lib/pq"
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"log"
 	"time"
@@ -234,10 +236,38 @@ func GrowthSelf(ctx context.Context, db *sql.DB, from, to string) (int64, error)
 	err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(calls),0) FROM api_growth_daily WHERE dim=$1 AND key=$2 AND day BETWEEN $3::date AND $4::date`, "source", "self", from, to).Scan(&n)
 	return n, err
 }
+
+// GrowthCreated counts new sites, or new accounts holding a site, per day
+// in [from, to]; table is "users" or "sites".
 func GrowthCreated(ctx context.Context, db *sql.DB, table, from, to string) ([]APICount, error) {
-	filter := ""
-	if table == "users" {
-		filter = " AND EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
+	perDay := map[string]int64{}
+	if table == "sites" {
+		var err error
+		if perDay, err = sitesrepo.SitesCreatedPerDay(ctx, db, from, to); err != nil {
+			return nil, err
+		}
+	} else {
+		created, err := accountsrepo.AccountsCreatedBetween(ctx, db, from, to)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]string, 0, len(created))
+		for id := range created {
+			ids = append(ids, id)
+		}
+		holders, err := sitesrepo.AccountsWithSites(ctx, db, ids)
+		if err != nil {
+			return nil, err
+		}
+		for id, day := range created {
+			if holders[id] {
+				perDay[day]++
+			}
+		}
 	}
-	return apiCounts(db.QueryContext(ctx, `SELECT created_at::date::text,'',COUNT(*) FROM `+table+` WHERE created_at >= $1::date AND created_at < $2::date + 1`+filter+` GROUP BY 1`, from, to))
+	out := make([]APICount, 0, len(perDay))
+	for day, n := range perDay {
+		out = append(out, APICount{Day: day, Calls: n})
+	}
+	return out, nil
 }

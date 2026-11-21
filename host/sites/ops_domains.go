@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/sites/repo"
 	"net"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites/repo"
 )
 
 func (s *Service) BindCustomDomain(ctx context.Context, siteID string, domain string) (*model.SiteDomainInfo, string, error) {

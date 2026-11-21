@@ -12,8 +12,9 @@ type ConnectedApp = model.ConnectedApp
 
 type Activation = model.Activation
 
-// ActivationFor loads Activation for each of userIDs, in four grouped
-// queries (activationQueries). An account with nothing to show has a zero
+// ActivationFor loads the account side of Activation for each of userIDs,
+// in two grouped queries (activationQueries); sites/repo SiteActivationFor
+// adds the sites side. An account with nothing to show has a zero
 // Activation.
 func ActivationFor(ctx context.Context, q *sql.DB, userIDs []string) (map[string]*Activation, error) {
 	out := make(map[string]*Activation, len(userIDs))
@@ -50,37 +51,13 @@ var activationQueries = []activationQuery{
 		err := rows.Scan(&id, &app.Name, &app.First)
 		return id, func(a *Activation) { a.Apps = append(a.Apps, app) }, err
 	}},
-	{`
-		SELECT s.user_id, COUNT(*), MIN(s.created_at)
-		  FROM sites s
-		 WHERE s.user_id = ANY($1::uuid[])
-		   AND EXISTS (SELECT 1 FROM versions v WHERE v.site_id = s.id AND v.status IN ('active', 'ready'))
-		 GROUP BY s.user_id`, func(rows *sql.Rows) (string, func(*Activation), error) {
-		var id string
-		var n int
-		var first sql.NullTime
-		err := rows.Scan(&id, &n, &first)
-		return id, func(a *Activation) { a.SitesPublished, a.FirstPublish = n, first }, err
-	}},
-	{`
-		SELECT s.user_id, COALESCE(SUM(h.views), 0)
-		  FROM site_view_hourly h JOIN sites s ON s.id = h.site_id
-		 WHERE s.user_id = ANY($1::uuid[]) AND h.class = 'person'
-		 GROUP BY s.user_id`, func(rows *sql.Rows) (string, func(*Activation), error) {
-		var id string
-		var n int64
-		err := rows.Scan(&id, &n)
-		return id, func(a *Activation) { a.Visits = n }, err
-	}},
 	// Last active: the latest use of any key (the dashboard signs in with
-	// one), of any connected app, or of a deploy.
+	// one) or of any connected app; SiteActivationFor adds deploys.
 	{`
 		SELECT user_id, MAX(at) FROM (
 		  SELECT user_id, last_used_at AS at FROM api_keys WHERE user_id = ANY($1::uuid[])
 		  UNION ALL
 		  SELECT user_id, last_used_at FROM oauth_grants WHERE user_id = ANY($1::uuid[])
-		  UNION ALL
-		  SELECT s.user_id, v.created_at FROM versions v JOIN sites s ON s.id = v.site_id WHERE s.user_id = ANY($1::uuid[])
 		) x WHERE at IS NOT NULL GROUP BY user_id`, func(rows *sql.Rows) (string, func(*Activation), error) {
 		var id string
 		var at sql.NullTime

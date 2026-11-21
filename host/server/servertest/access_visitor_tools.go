@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/config"
@@ -68,7 +70,7 @@ func (f visitorFixture) Named(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.A.Database.Exec(`UPDATE sites SET access='specific' WHERE id=$1`, f.Sid); err != nil {
+	if err = sitesrepo.SetSiteAccess(context.Background(), f.A.Database, f.Sid, "specific"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.A.Database.Exec(`INSERT INTO site_viewers(site_id,email) VALUES($1,$2)`, f.Sid, u.Username); err != nil {

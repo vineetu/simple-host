@@ -3,12 +3,13 @@ package ops
 import (
 	"context"
 	"database/sql"
+	"strings"
+	"time"
+
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/ops/repo"
 	"github.com/vsriram/simple-host/host/sites/analytics"
 	sites "github.com/vsriram/simple-host/host/sites/repo"
-	"strings"
-	"time"
 )
 
 // Reporting reads operator and owner traffic reports from the same aggregates.
@@ -19,9 +20,9 @@ func NewReporting(database *sql.DB) *Reporting { return &Reporting{database: dat
 type CountryStat struct {
 	Country     string `json:"country"`
 	CountryName string `json:"country_name"`
-	repo.Split
+	analytics.Split
 }
-type SiteViews = repo.SiteViews
+type SiteViews = analytics.SiteViews
 
 func (s *Reporting) AnalyticsSite(ctx context.Context, user *model.User, owner, name string) (model.Site, error) {
 	ownerID := user.ID
@@ -37,11 +38,11 @@ func (s *Reporting) AnalyticsSite(ctx context.Context, user *model.User, owner, 
 	}
 	return sites.GetSiteByUser(ctx, s.database, ownerID, name)
 }
-func (s *Reporting) SiteAnalytics(ctx context.Context, id string, days int) (*repo.SiteAnalytics, error) {
-	return repo.GetSiteAnalytics(ctx, s.database, id, days)
+func (s *Reporting) SiteAnalytics(ctx context.Context, id string, days int) (*analytics.SiteAnalytics, error) {
+	return analytics.GetSiteAnalytics(ctx, s.database, id, days)
 }
 func (s *Reporting) SiteGeo(ctx context.Context, id string, days int) ([]CountryStat, error) {
-	rows, err := repo.GetSiteGeo(ctx, s.database, id, days)
+	rows, err := analytics.GetSiteGeo(ctx, s.database, id, days)
 	if err != nil {
 		return nil, err
 	}
@@ -51,17 +52,17 @@ func (s *Reporting) SiteGeo(ctx context.Context, id string, days int) ([]Country
 	}
 	return out, nil
 }
-func (s *Reporting) SiteTop(ctx context.Context, id string, days int) ([]repo.PageStat, []repo.ReferrerStat, error) {
-	return repo.GetSiteTop(ctx, s.database, id, days)
+func (s *Reporting) SiteTop(ctx context.Context, id string, days int) ([]analytics.PageStat, []analytics.ReferrerStat, error) {
+	return analytics.GetSiteTop(ctx, s.database, id, days)
 }
-func (s *Reporting) AnalyticsSummary(ctx context.Context, id string, days int, all bool) ([]repo.SiteAnalyticsSummary, error) {
-	return repo.GetAnalyticsSummary(ctx, s.database, id, days, all)
+func (s *Reporting) AnalyticsSummary(ctx context.Context, id string, days int, all bool) ([]analytics.SiteAnalyticsSummary, error) {
+	return analytics.GetAnalyticsSummary(ctx, s.database, id, days, all)
 }
 func (s *Reporting) AdminSiteViews(ctx context.Context, since time.Time) (map[string]int64, error) {
-	return repo.AdminSiteViews(ctx, s.database, since)
+	return analytics.AdminSiteViews(ctx, s.database, since)
 }
 func (s *Reporting) PersonViewsBySite(ctx context.Context, id string, all bool) (map[string]SiteViews, error) {
-	return repo.PersonViewsBySite(ctx, s.database, id, all)
+	return analytics.PersonViewsBySite(ctx, s.database, id, all)
 }
 
 // OwnerMarks records signed-in owner addresses for traffic classification.

@@ -10,7 +10,6 @@ import (
 	accounts "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/ops/repo"
 	appsites "github.com/vsriram/simple-host/host/sites"
 	db "github.com/vsriram/simple-host/host/sites/repo"
 )
@@ -88,7 +87,7 @@ func PruneFixedAccounts(ctx context.Context, database *sql.DB, disk appsites.Dis
 			}
 		}
 		if apply {
-			if _, err = repo.ResetFixedRetention(ctx, tx, site.ID); err != nil {
+			if _, err = db.ClearKeepVersions(ctx, tx, site.ID); err != nil {
 				tx.Rollback()
 				return err
 			}

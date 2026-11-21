@@ -1,4 +1,4 @@
-package access
+package ops
 
 import (
 	"context"
@@ -7,6 +7,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/sites"
 
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/host/testdb"
@@ -65,21 +68,18 @@ func TestErasureNilAndErrors(t *testing.T) {
 			}
 			want := errors.New("injected erasure error")
 			h := &erasureStub{fail: stage, err: want}
-			hooks := GroupHooks{}
+			hooks := access.GroupHooks{}
 			if stage != "nil" {
 				hooks.Erasure = h
 			}
-			SetGroupHooks(hooks)
-			t.Cleanup(func() { SetGroupHooks(GroupHooks{}) })
+			access.SetGroupHooks(hooks)
+			t.Cleanup(func() { access.SetGroupHooks(access.GroupHooks{}) })
 			rec.Reset()
-			out, err := New(db).DeleteAccount(context.Background(), DeleteAccountInput{ID: id, Confirm: handle})
+			_, err := Cutoff{DB: db, Files: sites.New(db, nil, nil, 0, sites.Deps{})}.ErasePerson(context.Background(), access.DeleteAccountInput{ID: id, Confirm: handle})
 			statements := rec.Statements()
 			if stage == "nil" || stage == "success" {
 				if err != nil {
 					t.Fatal(err)
-				}
-				if h.swept {
-					t.Fatal("sweep ran inside deletion service")
 				}
 				if stage == "success" {
 					if !strings.HasSuffix(strings.Join(statements, "\n"), "COMMIT") {
@@ -88,9 +88,8 @@ func TestErasureNilAndErrors(t *testing.T) {
 					if strings.Join(h.calls, ",") != "holds,block,before,rows,after" {
 						t.Fatal(h.calls)
 					}
-					New(db).SweepErasedGroups(context.Background(), out.Erased.AffectedEventAccounts, nil)
 					if !h.swept {
-						t.Fatal("sweep hook was not called")
+						t.Fatal("sweep hook was not called after the commit")
 					}
 				} else {
 					// Scan the complete authoritative product object list, not just events.

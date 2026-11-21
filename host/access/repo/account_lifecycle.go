@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/host/model"
@@ -21,82 +20,7 @@ func LockAccountForDelete(ctx context.Context, tx *sql.Tx, id string) (model.Acc
 		return a, err
 	}
 	a.Handle = handle.String
-	// event_domains cascades on user_id, so deleting the row would take the
-	// claim with it and strand live DNS records under our domain that nothing
-	// could then find or remove. The operator releases them first.
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM event_domains WHERE user_id = $1`, a.ID).Scan(&a.EventClaims)
-	if err != nil {
-		return a, err
-	}
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE user_id = $1 AND suspended_at IS NOT NULL`, a.ID).Scan(&a.TakenDown)
-	return a, err
-}
-
-// AccountSiteKeys lists the account id and name of every site of the
-// account and of the teams it belongs to, live and Recently deleted, so the
-// caller can take each site's lock before erasing (a team the account alone
-// belongs to goes with it).
-func AccountSiteKeys(ctx context.Context, database *sql.DB, userID string) ([][2]string, error) {
-	rows, err := database.QueryContext(ctx, `SELECT user_id::text, name FROM sites
-		WHERE user_id::text = $1 OR user_id IN (SELECT team_id FROM team_members WHERE user_id::text = $1)`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out [][2]string
-	for rows.Next() {
-		var k [2]string
-		if err := rows.Scan(&k[0], &k[1]); err != nil {
-			return nil, err
-		}
-		out = append(out, k)
-	}
-	return out, rows.Err()
-}
-
-// ListAccountAddresses returns every live site's own address (claimed name
-// or custom domain), and the earlier one it still serves at while a new one
-// is pending.
-func ListAccountAddresses(ctx context.Context, database *sql.DB, userID string) ([]model.AccountAddress, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT name, lower(COALESCE(custom_domain, '')), COALESCE(domain_status, ''), lower(COALESCE(previous_domain, ''))
-		  FROM sites WHERE user_id = $1 AND deleted_at IS NULL
-		   AND (custom_domain IS NOT NULL OR previous_domain IS NOT NULL)
-		 ORDER BY name`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []model.AccountAddress
-	for rows.Next() {
-		var a model.AccountAddress
-		if err := rows.Scan(&a.Site, &a.Domain, &a.Status, &a.Previous); err != nil {
-			return nil, err
-		}
-		out = append(out, a)
-	}
-	return out, rows.Err()
-}
-
-// ListRetiredNames returns the account's retired <name>.<SITE_DOMAIN> names.
-func ListRetiredNames(ctx context.Context, database *sql.DB, userID string) ([]model.RetiredAccountName, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT l.hostname, COALESCE(s.name, '')
-		  FROM legacy_hostnames l LEFT JOIN sites s ON s.id = l.site_id AND s.deleted_at IS NULL
-		 WHERE l.user_id = $1 ORDER BY l.hostname`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []model.RetiredAccountName
-	for rows.Next() {
-		var r model.RetiredAccountName
-		if err := rows.Scan(&r.Name, &r.Site); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rows.Err()
+	return a, nil
 }
 
 // ListVisitorSignIns returns the sites this person holds visitor sessions on.
@@ -120,205 +44,27 @@ func ListVisitorSignIns(ctx context.Context, database *sql.DB, userID string) ([
 	return out, rows.Err()
 }
 
-// ListChangesElsewhere returns the changes this person made, signed in, to
-// saved data on sites that are not theirs, oldest first.
-func ListChangesElsewhere(ctx context.Context, database *sql.DB, userID string) ([]model.ChangeElsewhere, error) {
-	rows, err := database.QueryContext(ctx, `
-		SELECT h.site_id::text, h.kind, h.name, h.item_id, h.op, h.created_at
-		  FROM data_history h JOIN sites s ON s.id = h.site_id
-		 WHERE h.actor_id = $1 AND s.user_id IS DISTINCT FROM $1
-		 ORDER BY h.created_at, h.id`, userID)
+// ReleaseAccountNames is Access's part of an erase, before the account row
+// goes: it returns the account's old handles, and keeps them and its handle
+// held by nobody (the row's cascade would free them), and drops the sign-in
+// codes sent to its email (keyed by email, not by account).
+func ReleaseAccountNames(ctx context.Context, tx *sql.Tx, a model.AccountForDelete) ([]string, error) {
+	aliases, err := scanStrings(ctx, tx, `SELECT handle FROM handle_aliases WHERE user_id = $1 ORDER BY handle`, a.ID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []model.ChangeElsewhere
-	for rows.Next() {
-		var c model.ChangeElsewhere
-		var item sql.NullInt64
-		if err := rows.Scan(&c.SiteID, &c.Kind, &c.Name, &item, &c.Op, &c.At); err != nil {
+	if a.Handle != "" {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO handle_aliases (handle, user_id) VALUES ($1, NULL)
+			ON CONFLICT (handle) DO UPDATE SET user_id = NULL
+			WHERE handle_aliases.user_id IS NULL OR handle_aliases.user_id = $2`, a.Handle, a.ID); err != nil {
 			return nil, err
 		}
-		if item.Valid {
-			v := item.Int64
-			c.ItemID = &v
-		}
-		out = append(out, c)
 	}
-	return out, rows.Err()
-}
-
-type ErasureOperations struct {
-	Rows            func(context.Context, *sql.Tx, string) error
-	RetireSiteNames func(context.Context, *sql.Tx, string) ([]string, error)
-	Before          func(context.Context, *sql.Tx, string) ([]string, error)
-	After           func(context.Context, *sql.Tx, []string) ([]string, error)
-}
-
-// EraseAccount deletes the account locked by LockAccountForDelete and
-// everything tied to it, inside tx: every site (Recently deleted ones too)
-// with its versions, saved data, lists and analytics; keys, connected apps,
-// sign-in identities and visitor sessions; the items this person submitted
-// to other people's lists; pending sign-in codes sent to its email. The
-// handle, old handles and claimed names are retired, not freed.
-func EraseAccount(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops ErasureOperations) (model.ErasedAccount, error) {
-	out := model.ErasedAccount{UserID: a.ID, Handle: a.Handle}
-	if err := lockErasedSites(ctx, tx, a.ID); err != nil {
-		return out, err
+	if _, err := tx.ExecContext(ctx, `UPDATE handle_aliases SET user_id = NULL WHERE user_id = $1`, a.ID); err != nil {
+		return nil, err
 	}
-	if err := collectErasedNames(ctx, tx, a.ID, ops, &out); err != nil {
-		return out, err
-	}
-	// Capture product identifiers before the account cascade removes them.
-	var ids []string
-	if ops.Before != nil {
-		var err error
-		if ids, err = ops.Before(ctx, tx, a.ID); err != nil {
-			return out, err
-		}
-	}
-	if err := deleteErasedRows(ctx, tx, a, ops); err != nil {
-		return out, err
-	}
-	// Product cleanup follows the account cascade, in the same transaction.
-	if ops.After != nil {
-		var err error
-		if out.AffectedEventAccounts, err = ops.After(ctx, tx, ids); err != nil {
-			return out, err
-		}
-	}
-	return out, nil
-}
-
-// lockErasedSites takes what a save on the account's sites takes, in the
-// order a save takes it: the names' declaration rows, then their items, then
-// the site rows (the size triggers update those). A save already under way
-// finishes first; one that starts later waits for the erase. Taken in
-// another order, the erase and a visitor's save could each hold what the
-// other needs (a deadlock that aborts the erase).
-func lockErasedSites(ctx context.Context, tx *sql.Tx, userID string) error {
-	for _, q := range []string{
-		`SELECT count(*) FROM (SELECT 1 FROM collection_settings WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY site_id, collection FOR UPDATE) x`,
-		`SELECT count(*) FROM (SELECT 1 FROM collection_items WHERE site_id IN (SELECT id FROM sites WHERE user_id = $1) ORDER BY id FOR UPDATE) x`,
-		`SELECT count(*) FROM (SELECT 1 FROM sites WHERE user_id = $1 ORDER BY id FOR UPDATE) x`,
-	} {
-		var n int64
-		if err := tx.QueryRowContext(ctx, q, userID).Scan(&n); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// collectErasedNames records what the erase leaves for the caller to clean
-// up after the commit: the sites with their claimed addresses (which become
-// retired names), the old handles and the address families.
-func collectErasedNames(ctx context.Context, tx *sql.Tx, userID string, ops ErasureOperations, out *model.ErasedAccount) error {
-	err := scanEach(ctx, tx, `SELECT id, name FROM sites WHERE user_id = $1 ORDER BY name`, func(rows *sql.Rows) error {
-		var s model.ErasedSite
-		if err := rows.Scan(&s.ID, &s.Name); err != nil {
-			return err
-		}
-		out.Sites = append(out.Sites, s)
-		return nil
-	}, userID)
-	if err != nil {
-		return err
-	}
-	for i := range out.Sites {
-		// Claimed <name>.<SITE_DOMAIN> addresses (current and earlier)
-		// become retired names.
-		domains, err := ops.RetireSiteNames(ctx, tx, out.Sites[i].ID)
-		if err != nil {
-			return err
-		}
-		for _, d := range domains {
-			out.Sites[i].Domains = append(out.Sites[i].Domains, strings.ToLower(d))
-		}
-	}
-	if out.Aliases, err = scanStrings(ctx, tx, `SELECT handle FROM handle_aliases WHERE user_id = $1 ORDER BY handle`, userID); err != nil {
-		return err
-	}
-	out.Families, err = scanStrings(ctx, tx, `SELECT suffix FROM address_families WHERE user_id = $1 ORDER BY suffix`, userID)
-	return err
-}
-
-// scanEach runs query and calls scan for each row.
-func scanEach(ctx context.Context, q Querier, query string, scan func(*sql.Rows) error, args ...any) error {
-	rows, err := q.QueryContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		if err := scan(rows); err != nil {
-			return err
-		}
-	}
-	return rows.Err()
-}
-
-// scanStrings is the single text column query returns, nil when there are no rows.
-func scanStrings(ctx context.Context, q Querier, query string, args ...any) ([]string, error) {
-	var out []string
-	err := scanEach(ctx, q, query, func(rows *sql.Rows) error {
-		var v string
-		if err := rows.Scan(&v); err != nil {
-			return err
-		}
-		out = append(out, v)
-		return nil
-	}, args...)
-	return out, err
-}
-
-// erasureStep is one statement of the erase.
-type erasureStep struct {
-	q    string
-	args []any
-}
-
-// erasureSteps are the account's rows the erase removes or lets go of, in
-// order, before the account row itself.
-func erasureSteps(a model.AccountForDelete) []erasureStep {
-	var steps []erasureStep
-	if a.Handle != "" {
-		// The handle itself joins the retired names.
-		steps = append(steps, erasureStep{`INSERT INTO handle_aliases (handle, user_id) VALUES ($1, NULL)
-			ON CONFLICT (handle) DO UPDATE SET user_id = NULL
-			WHERE handle_aliases.user_id IS NULL OR handle_aliases.user_id = $2`, []any{a.Handle, a.ID}})
-	}
-	return append(steps,
-		// GDPR erasure: what this person submitted to anyone's list goes.
-		// (Their own sites' items go with the sites.)
-		erasureStep{`DELETE FROM collection_items WHERE submitted_by = $1`, []any{a.ID}},
-		// Old handles and retired names stay held, by nobody.
-		erasureStep{`UPDATE handle_aliases SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
-		erasureStep{`UPDATE legacy_hostnames SET user_id = NULL WHERE user_id = $1`, []any{a.ID}},
-		// Sign-in codes are keyed by email, not by account.
-		erasureStep{`DELETE FROM auth_tokens WHERE lower(email) = lower($1)`, []any{a.Username}},
-		// Sites go first so nothing depends on the row's cascade order; the
-		// row's own cascade takes keys, connected apps (grants, tokens,
-		// codes), sign-in identities and visitor sessions.
-		erasureStep{`DELETE FROM sites WHERE user_id = $1`, []any{a.ID}},
-	)
-}
-
-// deleteErasedRows runs the erase's statements, the product's own rows, then
-// deletes the account row.
-func deleteErasedRows(ctx context.Context, tx *sql.Tx, a model.AccountForDelete, ops ErasureOperations) error {
-	for _, s := range erasureSteps(a) {
-		if _, err := tx.ExecContext(ctx, s.q, s.args...); err != nil {
-			return err
-		}
-	}
-	if ops.Rows != nil {
-		if err := ops.Rows(ctx, tx, a.ID); err != nil {
-			return err
-		}
-	}
-	_, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, a.ID)
-	return err
+	_, err = tx.ExecContext(ctx, `DELETE FROM auth_tokens WHERE lower(email) = lower($1)`, a.Username)
+	return aliases, err
 }
 
 func InsertIssuedAccount(ctx context.Context, tx *sql.Tx, name string) (string, error) {
@@ -339,11 +85,6 @@ func LockProfile(ctx context.Context, tx *sql.Tx, id string) (sql.NullString, er
 	var h sql.NullString
 	err := tx.QueryRowContext(ctx, "SELECT handle FROM users WHERE id=$1 FOR UPDATE", id).Scan(&h)
 	return h, err
-}
-func AccountHasSites(ctx context.Context, tx *sql.Tx, id string) (bool, error) {
-	var has bool
-	err := tx.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM sites WHERE user_id=$1)", id).Scan(&has)
-	return has, err
 }
 func SetUnpublishedHandle(ctx context.Context, tx *sql.Tx, id, handle string) error {
 	_, err := tx.ExecContext(ctx, "UPDATE users SET handle=$2, handle_changed_at=now() WHERE id=$1", id, handle)

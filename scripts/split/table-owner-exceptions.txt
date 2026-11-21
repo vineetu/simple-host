@@ -1,0 +1,23 @@
+# Queries of another package's table that stay where they are, with why.
+# path (file, or folder ending in /) | table, or * for every table | reason
+# sqlcheck -owners skips them; keep this list short and every reason true.
+host/papermetrics/ | * | nightly read-only operator measurement: one count per metric over a dozen tables; a kernel package, so it may not import the modules
+products/hack/papermetrics/ | * | Simple Hack's nightly read-only measurement, the product's copy of host/papermetrics
+host/server/servertest/ | * | test fixtures (built only by tests) set up rows no door writes
+host/sites/analytics/report.go | sites | GetAnalyticsSummary unique visitors: one COUNT(DISTINCT) per site name across same-named sites, which needs the join to stay exact
+host/sites/repo/door_access.go | site_view_hourly | SiteActivationFor's person-visit count per account joins the views to the account's sites; the analytics package imports sites/repo, so it cannot be called back
+host/sites/repo/idlearchive.go | * | the idle cleanup's last-activity expression reads the latest version, saved entry and view of each site in the one UPDATE that re-checks it
+host/sites/repo/ops_idle.go | * | the idle cleanup's dry run reads the same last-activity expression and whether the analytics ingest is current
+host/sites/repo/deleted.go | site_notifications | moving a site to Recently deleted drops its web-push subscriptions in the same transaction; data sits above sites
+host/sites/repo/export.go | * | a site's export lists its saved files and KV names in the export's lock; data sits above sites
+host/data/notify/push.go | instance_config | the instance's web-push key pair; ops sits above data
+host/sites/siteshttp/setup.go | instance_config | first-run setup stores the instance's settings before ops exists
+host/server/migrate.go | * | migrate records the installed product and settings before any module runs
+host/server/product.go | install_product | the composition root reads which product this install runs
+host/db/migrations/migrations.go | instance_config | a migration helper seeds the setting
+host/data/repo/install_id.go | install_identity | the install's anonymous id, read once at start
+cmd/analytics-rebuild/ | * | operator command that rebuilds the analytics rollups from raw logs
+cmd/ip-country-load/ | * | operator command that bulk-loads the country table (TRUNCATE, COPY)
+host/access/repo/handle_check.go | * | one address namespace: a new handle may not be a claimed site address, retired name or another account's bare site name; checked inside sign-up and rename, which Access runs before any site exists
+host/access/repo/accounts.go | * | HandleNameTaken: the same namespace check under the namespace lock when a handle is claimed
+host/sites/repo/with_owner.go | * | sites read with their owner: a site with its owner's handle and suspension (and the most-served and shared-with-me lists) in one statement, so a hold is never read in two steps; the one place Sites names users columns

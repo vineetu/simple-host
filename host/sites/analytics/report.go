@@ -1,32 +1,23 @@
-package repo
+package analytics
 
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/model"
 	"log"
 	"sort"
 	"time"
+
+	"github.com/lib/pq"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
-// Traffic classes as stored in site_view_hourly.class / site_visitor_hourly.class.
-const (
-	ClassPerson = "person"
-	ClassBot    = "bot"
-	ClassInfra  = "infra"
-	// ClassOwner is the site owner's own visits: a person's hit from an
-	// address the owner was seen signed in from in the last 30 days
-	// (owner_visitor_marks; host/analytics/ownermarks.go). Not people.
-	ClassOwner = "owner"
-
-	// ClassUnknown is never written by the ingester. It carries the pre-v2
-	// aggregates in site_view_daily, which were recorded before traffic was
-	// classified and cannot be re-derived: the raw log they came from has
-	// scrolled away. Those days are real traffic and belong on the chart, but
-	// splitting them into person/bot/infra now would be invention, so they are
-	// reported as their own series instead.
-	ClassUnknown = "unknown"
-)
+// ClassUnknown is never written by the ingester. It carries the pre-v2
+// aggregates in site_view_daily, which were recorded before traffic was
+// classified and cannot be re-derived: the raw log they came from has
+// scrolled away. Those days are real traffic and belong on the chart, but
+// splitting them into person/bot/infra now would be invention, so they are
+// reported as their own series instead.
+const ClassUnknown = "unknown"
 
 // Counts is one class's traffic in one bucket.
 type Counts struct {
@@ -39,7 +30,7 @@ type Split struct {
 	Person Counts `json:"person"`
 	Bot    Counts `json:"bot"`
 	Infra  Counts `json:"infra"`
-	// Owner is the owner's own visits (ClassOwner); not people.
+	// Owner is the owner's own visits (string(ClassOwner)); not people.
 	Owner Counts `json:"owner"`
 	// Unknown is non-zero only for days predating the classifier.
 	Unknown Counts `json:"unknown"`
@@ -53,16 +44,16 @@ type Split struct {
 // zeros, and just as invisible.
 func (s *Split) add(class string, views, visitors int64) {
 	switch class {
-	case ClassPerson:
+	case string(ClassPerson):
 		s.Person.Views += views
 		s.Person.Visitors += visitors
-	case ClassBot:
+	case string(ClassBot):
 		s.Bot.Views += views
 		s.Bot.Visitors += visitors
-	case ClassInfra:
+	case string(ClassInfra):
 		s.Infra.Views += views
 		s.Infra.Visitors += visitors
-	case ClassOwner:
+	case string(ClassOwner):
 		s.Owner.Views += views
 		s.Owner.Visitors += visitors
 	case ClassUnknown:
@@ -387,30 +378,43 @@ func GetAnalyticsSummary(ctx context.Context, database *sql.DB, userID string, d
 	start := today.AddDate(0, 0, -(days - 1))
 	end := today.AddDate(0, 0, 1)
 
-	// Owner scoping is in SQL, not a filter applied afterwards. allSites is a
-	// bind parameter so there is one query and one argument list.
-	args := []any{userID, start.Format(time.RFC3339), end.Format(time.RFC3339), allSites}
-	const scope = `($4 OR s.user_id = $1)`
+	// Owner scoping is in SQL, not a filter applied afterwards: the account's
+	// site ids are a bind parameter, so each read is one query.
+	owned, err := accountSiteIDs(ctx, database, userID, allSites)
+	if err != nil {
+		return nil, err
+	}
+	args := []any{pq.Array(owned), start.Format(time.RFC3339), end.Format(time.RFC3339), allSites}
+	const scope = `($4 OR v.site_id = ANY($1::uuid[]))`
 
-	byName := buckets{}
+	// Rows are read per site id, then folded by the site's name.
+	type siteRow struct {
+		id, class       string
+		views, visitors int64
+	}
+	var got []siteRow
 
 	if err := eachSplitRow(ctx, database, `
-		SELECT s.name, v.class, SUM(v.views)
-		FROM site_view_hourly v JOIN sites s ON s.id = v.site_id
+		SELECT v.site_id::text, v.class, SUM(v.views)
+		FROM site_view_hourly v
 		WHERE `+scope+` AND v.hour >= $2::timestamptz AND v.hour < $3::timestamptz
-		GROUP BY s.name, v.class
-	`, args, func(name, class string, n int64) {
-		byName.get(name).add(class, n, 0)
+		GROUP BY v.site_id, v.class
+	`, args, func(id, class string, n int64) {
+		got = append(got, siteRow{id, class, n, 0})
 	}); err != nil {
 		return nil, err
 	}
 
+	// Unique visitors are counted once per site name across same-named sites
+	// (a deleted twin, or other accounts in the operator's view), so this one
+	// count keeps its join (named exception, table-owner-exceptions.txt).
+	byName := buckets{}
 	if err := eachSplitRow(ctx, database, `
 		SELECT s.name, v.class, COUNT(DISTINCT v.ip_hash)
 		FROM site_visitor_hourly v JOIN sites s ON s.id = v.site_id
-		WHERE `+scope+` AND v.hour >= $2::timestamptz AND v.hour < $3::timestamptz
+		WHERE ($4 OR s.user_id = $1) AND v.hour >= $2::timestamptz AND v.hour < $3::timestamptz
 		GROUP BY s.name, v.class
-	`, args, func(name, class string, n int64) {
+	`, []any{userID, start.Format(time.RFC3339), end.Format(time.RFC3339), allSites}, func(name, class string, n int64) {
 		byName.get(name).add(class, 0, n)
 	}); err != nil {
 		return nil, err
@@ -422,15 +426,29 @@ func GetAnalyticsSummary(ctx context.Context, database *sql.DB, userID string, d
 	}
 	if cutover != "" && cutover > startStr(start) {
 		if err := eachSplitRow(ctx, database, `
-			SELECT s.name, '`+ClassUnknown+`', SUM(d.views)
-			FROM site_view_daily d JOIN sites s ON s.id = d.site_id
-			WHERE `+scope+` AND d.day >= $2::date AND d.day < $3::date
-			GROUP BY s.name
-		`, []any{userID, startStr(start), cutover, allSites},
-			func(name, class string, n int64) {
-				byName.get(name).add(class, n, 0)
+			SELECT v.site_id::text, '`+ClassUnknown+`', SUM(v.views)
+			FROM site_view_daily v
+			WHERE `+scope+` AND v.day >= $2::date AND v.day < $3::date
+			GROUP BY v.site_id
+		`, []any{pq.Array(owned), startStr(start), cutover, allSites},
+			func(id, class string, n int64) {
+				got = append(got, siteRow{id, class, n, 0})
 			}); err != nil {
 			return nil, err
+		}
+	}
+
+	ids := make([]string, 0, len(got))
+	for _, r := range got {
+		ids = append(ids, r.id)
+	}
+	sites, err := sitesrepo.SitesByIDs(ctx, database, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range got {
+		if site, ok := sites[r.id]; ok {
+			byName.get(site.Name).add(r.class, r.views, r.visitors)
 		}
 	}
 
@@ -619,7 +637,7 @@ func AdminSiteViews(ctx context.Context, database *sql.DB, since time.Time) (map
 
 // SiteViews is the light per-site count the site list carries: views by
 // people (class 'person') only, over the last 7 x 24 and 30 x 24 hours. The
-// owner's own visits (ClassOwner), bots and infrastructure are excluded.
+// owner's own visits (string(ClassOwner)), bots and infrastructure are excluded.
 // Buckets are hourly, so each window starts at the top of its oldest hour.
 type SiteViews struct {
 	People7Days  int64 `json:"people_7_days"`
@@ -632,15 +650,19 @@ type SiteViews struct {
 // 'owner' is excluded. Sites with no people views in the last 30 days have
 // no entry.
 func PersonViewsBySite(ctx context.Context, database *sql.DB, userID string, allSites bool) (map[string]SiteViews, error) {
+	owned, err := accountSiteIDs(ctx, database, userID, allSites)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now().UTC()
 	rows, err := database.QueryContext(ctx, `
 		SELECT v.site_id,
 		       COALESCE(SUM(v.views) FILTER (WHERE v.hour >= $2), 0),
 		       SUM(v.views)
-		FROM site_view_hourly v JOIN sites s ON s.id = v.site_id
-		WHERE ($4 OR s.user_id = NULLIF($1, '')::uuid) AND v.class = 'person' AND v.hour >= $3
+		FROM site_view_hourly v
+		WHERE ($4 OR v.site_id = ANY($1::uuid[])) AND v.class = 'person' AND v.hour >= $3
 		GROUP BY v.site_id
-	`, userID, now.AddDate(0, 0, -7).Truncate(time.Hour), now.AddDate(0, 0, -30).Truncate(time.Hour), allSites)
+	`, pq.Array(owned), now.AddDate(0, 0, -7).Truncate(time.Hour), now.AddDate(0, 0, -30).Truncate(time.Hour), allSites)
 	if err != nil {
 		return nil, err
 	}
@@ -657,15 +679,11 @@ func PersonViewsBySite(ctx context.Context, database *sql.DB, userID string, all
 	return out, rows.Err()
 }
 
-// GetAnalyticsOwner resolves the current account handle for an admin report.
-func GetAnalyticsOwner(ctx context.Context, database *sql.DB, handle string) (model.User, error) {
-	var u model.User
-	err := database.QueryRowContext(ctx, `SELECT id,username,is_admin,created_at,handle,display_name FROM users WHERE handle=$1`, handle).Scan(&u.ID, &u.Username, &u.IsAdmin, &u.CreatedAt, &u.Handle, &u.DisplayName)
-	return u, err
-}
-
-func AccountCount(ctx context.Context, db *sql.DB) (int, error) {
-	var n int
-	err := db.QueryRowContext(ctx, `SELECT count(*) FROM users u WHERE NOT is_admin AND EXISTS (SELECT 1 FROM sites s WHERE s.user_id=u.id)`).Scan(&n)
-	return n, err
+// accountSiteIDs is the account's sites (live and deleted) for scoping a
+// report; nil when the report covers every site or names no account.
+func accountSiteIDs(ctx context.Context, database *sql.DB, userID string, allSites bool) ([]string, error) {
+	if allSites || userID == "" {
+		return nil, nil
+	}
+	return sitesrepo.AccountSiteIDs(ctx, database, userID)
 }

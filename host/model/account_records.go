@@ -26,6 +26,9 @@ type User struct {
 	// deleting anything. Loaded by GetUserByAPIKey, GetUserByID and ListAllUsers.
 	Suspended       bool
 	SuspendedReason string
+	// EventAccount is a Simple Hack event's account (users.event_account).
+	// Loaded by GetUserByID and UsersByIDs.
+	EventAccount bool
 	// Signup is where the account came from (see SetSignup). Loaded only by
 	// ListAllUsers, for the admin page.
 	Signup Signup

@@ -37,6 +37,25 @@ func LockPerson(ctx context.Context, tx *sql.Tx, userID string) error {
 // InsertTeamAccount creates the account row of a new team: no key, no
 // sign-in email (an address that can never receive mail), event_account set
 // so it gets no mail, sign-in alerts or idle cleanup.
+// TeamMemberID is the member of the team whose handle or id is who;
+// sql.ErrNoRows when nobody is.
+func TeamMemberID(ctx context.Context, q Querier, teamID, who string) (string, error) {
+	var id string
+	err := q.QueryRowContext(ctx, `
+		SELECT u.id FROM team_members m JOIN users u ON u.id = m.user_id
+		WHERE m.team_id = $1 AND (u.handle = $2 OR u.id::text = $2)`, teamID, who).Scan(&id)
+	return id, err
+}
+
+// InsertEventTeamAccount makes a team account whose members a product keeps,
+// with username as its sign-in address.
+func InsertEventTeamAccount(ctx context.Context, tx *sql.Tx, username string) (string, error) {
+	var id string
+	err := tx.QueryRowContext(ctx, `
+		INSERT INTO users (username, is_team, event_account) VALUES ($1, TRUE, TRUE) RETURNING id`, username).Scan(&id)
+	return id, err
+}
+
 func InsertTeamAccount(ctx context.Context, tx *sql.Tx) (string, error) {
 	var id string
 	err := tx.QueryRowContext(ctx, `
@@ -84,20 +103,12 @@ func CountTeamsOf(ctx context.Context, q Querier, userID string) (int, error) {
 	return n, err
 }
 
-// CountLiveSites counts the account's sites that are not in Recently
-// deleted.
-func CountLiveSites(ctx context.Context, q Querier, accountID string) (int, error) {
-	var n int
-	err := q.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE user_id = $1 AND deleted_at IS NULL`, accountID).Scan(&n)
-	return n, err
-}
-
-// ListTeamsOf lists the teams userID belongs to, by handle.
+// ListTeamsOf lists the teams userID belongs to, by handle (Sites is
+// left for the caller: sites.CountLiveSites).
 func ListTeamsOf(ctx context.Context, q Querier, userID string) ([]model.Team, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT u.id, COALESCE(u.handle, ''), u.created_at,
-		       (SELECT count(*) FROM team_members x WHERE x.team_id = u.id),
-		       (SELECT count(*) FROM sites s WHERE s.user_id = u.id AND s.deleted_at IS NULL)
+		       (SELECT count(*) FROM team_members x WHERE x.team_id = u.id)
 		FROM team_members m JOIN users u ON u.id = m.team_id
 		WHERE m.user_id = $1
 		ORDER BY u.handle`, userID)
@@ -108,7 +119,7 @@ func ListTeamsOf(ctx context.Context, q Querier, userID string) ([]model.Team, e
 	out := []model.Team{}
 	for rows.Next() {
 		var t model.Team
-		if err := rows.Scan(&t.ID, &t.Handle, &t.CreatedAt, &t.Members, &t.Sites); err != nil {
+		if err := rows.Scan(&t.ID, &t.Handle, &t.CreatedAt, &t.Members); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

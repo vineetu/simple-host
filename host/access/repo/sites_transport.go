@@ -50,17 +50,13 @@ func oneRow(res sql.Result, err error) error {
 	return nil
 }
 
-func ListUsers(ctx context.Context, db *sql.DB, withSites bool) ([]model.User, error) {
-	filter := ""
-	if withSites {
-		filter = " WHERE EXISTS (SELECT 1 FROM sites s WHERE s.user_id=users.id)"
-	}
+func ListUsers(ctx context.Context, db *sql.DB) ([]model.User, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, username, is_admin, created_at, COALESCE(handle, ''), display_name,
 		       suspended_at IS NOT NULL, COALESCE(suspended_reason, ''),
 		       COALESCE(signup_source, ''), COALESCE(signup_agent, ''), COALESCE(signup_method, ''), signup_inferred,
 		       signup_detail
-		FROM users`+filter+`
+		FROM users
 		ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err

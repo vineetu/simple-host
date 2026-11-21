@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/vsriram/simple-host/host/sqlkit"
 	"strings"
 	"time"
+
+	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/sqlkit"
 
 	"github.com/lib/pq"
 	"github.com/vsriram/simple-host/products/hack/model"
@@ -22,18 +24,17 @@ const entrySelect = `
 	SELECT e.team_id, e.event_id, e.title, e.tagline, e.description, e.video_url, e.code_url,
 	       e.problem, e.audience, e.tools, e.maturity,
 	       (e.screenshot IS NOT NULL AND octet_length(e.screenshot) > 0),
-	       e.screenshot_type, e.updated_at, COALESCE(u.display_name, ''),
-	       e.submitted_at, COALESCE(su.display_name, ''), e.submit_auto, e.submit_settled_at,
-	       e.excluded_at, COALESCE(xu.display_name, '')
-	  FROM event_entries e
-	  LEFT JOIN users u ON u.id = e.updated_by
-	  LEFT JOIN users su ON su.id = e.submitted_by
-	  LEFT JOIN users xu ON xu.id = e.excluded_by`
+	       e.screenshot_type, e.updated_at, COALESCE(e.updated_by::text, ''),
+	       e.submitted_at, COALESCE(e.submitted_by::text, ''), e.submit_auto, e.submit_settled_at,
+	       e.excluded_at, COALESCE(e.excluded_by::text, '')
+	  FROM event_entries e`
 
 type entryScanner interface {
 	Scan(dest ...any) error
 }
 
+// scanEventEntry reads an entrySelect row; the three ...ByName fields hold
+// account ids until nameEntries turns them into display names.
 func scanEventEntry(row entryScanner) (EventEntry, error) {
 	var e EventEntry
 	err := row.Scan(&e.TeamID, &e.EventID, &e.Title, &e.Tagline, &e.Description, &e.VideoURL, &e.CodeURL,
@@ -48,16 +49,53 @@ func scanEventEntry(row entryScanner) (EventEntry, error) {
 	return e, nil
 }
 
+// nameEntries replaces the ids scanEventEntry left in the ...ByName fields
+// with display names ("" when there is no such account), in one query.
+func nameEntries(ctx context.Context, q sqlkit.Querier, entries []EventEntry) error {
+	var ids []string
+	for _, e := range entries {
+		for _, id := range []string{e.UpdatedByName, e.SubmittedByName, e.ExcludedByName} {
+			if id != "" {
+				ids = append(ids, id)
+			}
+		}
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return err
+	}
+	for i := range entries {
+		e := &entries[i]
+		e.UpdatedByName = users[e.UpdatedByName].DisplayName.String
+		e.SubmittedByName = users[e.SubmittedByName].DisplayName.String
+		e.ExcludedByName = users[e.ExcludedByName].DisplayName.String
+	}
+	return nil
+}
+
+// getEventEntry is one entrySelect row with its names filled in.
+func getEventEntry(ctx context.Context, q sqlkit.Querier, row *sql.Row) (EventEntry, error) {
+	e, err := scanEventEntry(row)
+	if err != nil {
+		return EventEntry{}, err
+	}
+	one := []EventEntry{e}
+	if err := nameEntries(ctx, q, one); err != nil {
+		return EventEntry{}, err
+	}
+	return one[0], nil
+}
+
 // GetEventEntry loads the team's entry. sql.ErrNoRows when it has none.
 func GetEventEntry(ctx context.Context, q sqlkit.Querier, teamID string) (EventEntry, error) {
-	return scanEventEntry(q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1`, teamID))
+	return getEventEntry(ctx, q, q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1`, teamID))
 }
 
 // GetEventEntryForUpdate is GetEventEntry with the row locked FOR UPDATE
 // (the sweep and submit/unsubmit take it after the team row, per the lock
 // order: event, member, team, entry).
 func GetEventEntryForUpdate(ctx context.Context, q *sql.Tx, teamID string) (EventEntry, error) {
-	return scanEventEntry(q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1 FOR UPDATE OF e`, teamID))
+	return getEventEntry(ctx, q, q.QueryRowContext(ctx, entrySelect+` WHERE e.team_id = $1 FOR UPDATE OF e`, teamID))
 }
 
 func ListEventEntries(ctx context.Context, q sqlkit.Querier, eventID string) ([]EventEntry, error) {
@@ -74,7 +112,10 @@ func ListEventEntries(ctx context.Context, q sqlkit.Querier, eventID string) ([]
 		}
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nameEntries(ctx, q, out)
 }
 
 // UpsertEventEntryText inserts the team's entry or updates the text fields

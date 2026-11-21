@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
 )
 
@@ -15,18 +16,6 @@ func DomainHeldByDeletedSite(ctx context.Context, q Querier, host string, f [2]s
 	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE deleted_at IS NOT NULL
 		AND (custom_domain IN (lower($1), lower($2)) OR previous_domain IN (lower($1), lower($2))))`, f[0], f[1]).Scan(&held)
 	return held, err
-}
-func GetHandleBySiteName(ctx context.Context, db *sql.DB, name string) (string, error) {
-	const query = `
-		SELECT COALESCE(u.handle, '')
-		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.name = $1 AND s.deleted_at IS NULL
-		ORDER BY s.created_at ASC
-		LIMIT 1
-	`
-	var handle string
-	err := db.QueryRowContext(ctx, query, name).Scan(&handle)
-	return handle, err
 }
 func GetRetiredName(ctx context.Context, database *sql.DB, host string, f [2]string) (model.RetiredName, error) {
 	var r model.RetiredName
@@ -48,21 +37,9 @@ func GetSiteByCustomDomain(ctx context.Context, database *sql.DB, domain string,
 	}
 	return info.PreviousDomainView(time.Now()), nil
 }
-func GetSiteOwner(ctx context.Context, q Querier, siteID string) (handle, userID, name string, err error) {
-	err = q.QueryRowContext(ctx, `
-		SELECT COALESCE(u.handle, ''), u.id::text, s.name
-		FROM sites s JOIN users u ON u.id = s.user_id
-		WHERE s.id::text = $1 AND s.deleted_at IS NULL`, siteID).Scan(&handle, &userID, &name)
-	return
-}
-func GetSiteOwnerEmail(ctx context.Context, database *sql.DB, siteID string) (string, error) {
-	var email string
-	err := database.QueryRowContext(ctx, `SELECT u.username FROM sites s JOIN users u ON u.id = s.user_id WHERE s.id = $1`, siteID).Scan(&email)
-	return email, err
-}
 func HomeSite(ctx context.Context, q Querier, userID string) (model.Site, bool, error) {
-	var id sql.NullString
-	if err := q.QueryRowContext(ctx, `SELECT home_site_id FROM users WHERE id = $1`, userID).Scan(&id); err != nil {
+	id, err := accountsrepo.HomeSiteID(ctx, q, userID)
+	if err != nil {
 		return model.Site{}, false, err
 	}
 	if !id.Valid {
@@ -70,8 +47,7 @@ func HomeSite(ctx context.Context, q Querier, userID string) (model.Site, bool, 
 	}
 	s, err := GetSiteByID(ctx, q, id.String)
 	if err == sql.ErrNoRows || (err == nil && s.Deleted) {
-		_, err = q.ExecContext(ctx, `UPDATE users SET home_site_id = NULL WHERE id = $1 AND home_site_id = $2`, userID, id.String)
-		return model.Site{}, false, err
+		return model.Site{}, false, accountsrepo.ClearHomeSite(ctx, q, id.String)
 	}
 	return s, err == nil, err
 }

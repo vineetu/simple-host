@@ -13,7 +13,6 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/extension"
 	platformtest "github.com/vsriram/simple-host/host/server/servertest"
-	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack"
 	"github.com/vsriram/simple-host/products/hack/app/members"
@@ -137,7 +136,7 @@ func TestRhhErasureHookFailsClosedAndIssuedAccounts(t *testing.T) {
 	if !hook.swept {
 		t.Fatal("successful erasure did not sweep after commit")
 	}
-	if err := appsites.New(a.database, nil, nil, 0, appsites.Deps{}).SuspensionGate(context.Background(), holder); err == nil {
+	if _, err := accountapp.SetSuspension(context.Background(), a.database, holder, "x", true); err == nil {
 		t.Fatal("address gate allowed holder")
 	}
 }

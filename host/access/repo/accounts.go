@@ -76,14 +76,23 @@ func GetUserByID(ctx context.Context, q Querier, id string) (User, error) {
 
 // getUser loads the users row whose column (id or username) is value.
 func getUser(ctx context.Context, q Querier, column, value string) (User, error) {
-	var user User
-	err := q.QueryRowContext(ctx, `
-		SELECT id, username, is_admin, created_at, handle, display_name,
-		       suspended_at IS NOT NULL, COALESCE(suspended_reason, '')
+	return scanUser(q.QueryRowContext(ctx, `
+		SELECT `+userColumns+`
 		FROM users
-		WHERE `+column+` = $1`, value).Scan(
-		&user.ID, &user.Username, &user.IsAdmin, &user.CreatedAt, &user.Handle,
-		&user.DisplayName, &user.Suspended, &user.SuspendedReason)
+		WHERE `+column+` = $1`, value))
+}
+
+// userColumns are the account fields getUser and UsersByIDs load, in
+// scanUser's order.
+const userColumns = `id, username, COALESCE(is_admin, false), created_at, handle, display_name,
+		       suspended_at IS NOT NULL, COALESCE(suspended_reason, ''), event_account`
+
+func scanUser(row interface{ Scan(...any) error }) (User, error) {
+	var user User
+	var created sql.NullTime
+	err := row.Scan(&user.ID, &user.Username, &user.IsAdmin, &created, &user.Handle,
+		&user.DisplayName, &user.Suspended, &user.SuspendedReason, &user.EventAccount)
+	user.CreatedAt = created.Time
 	return user, err
 }
 

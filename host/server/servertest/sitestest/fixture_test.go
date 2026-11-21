@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
@@ -122,7 +124,7 @@ func (a *App) gate() http.Handler {
 			v := accountapp.Visit{Suspended: present("suspended"), Offline: present("offline"), Protected: present("passcode"), Bound: true,
 				SharedHost: a.Hosts.IsSharedHost(httpx.HostName(r))}
 			if v.Protected && !v.Suspended && !v.Offline {
-				v.Row, v.RowErr = accountsrepo.GetSitePasscodeByName(r.Context(), a.Database, s.UserID, s.Name)
+				v.Row, v.RowErr = sitesrepo.GetSitePasscodeByName(r.Context(), a.Database, s.UserID, s.Name)
 			}
 			switch accountapp.DecideVisit(v) {
 			case accountapp.VisitServe:

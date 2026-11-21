@@ -3,9 +3,10 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/model"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // GetOAuthIdentity looks up a linked provider account.

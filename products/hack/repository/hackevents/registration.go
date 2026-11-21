@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"time"
+
 	"github.com/lib/pq"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
-	"time"
 )
 
 type SignupQuestion = model.SignupQuestion
@@ -64,7 +66,7 @@ func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID,
 	if pending {
 		status = "pending"
 	}
-	return scanMember(q.QueryRowContext(ctx, `WITH joined AS (
+	m, err := scanMember(q.QueryRowContext(ctx, `WITH joined AS (
 		INSERT INTO event_members (event_id,user_id,role,coc_accepted_at,signup_answers,approval_status)
 		VALUES ($1,$2,'participant',now(),$3,$4)
 		RETURNING event_id,user_id,role,team_id,coc_accepted_at,joined_at
@@ -72,13 +74,14 @@ func JoinParticipantRegistration(ctx context.Context, q sqlkit.Querier, eventID,
 		INSERT INTO event_used_names (event_slug, team_slug)
 		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
 		ON CONFLICT DO NOTHING
-		) SELECT j.event_id,j.user_id,j.role,COALESCE(u.display_name,''),j.team_id,j.coc_accepted_at,j.joined_at FROM joined j JOIN users u ON u.id=j.user_id`, eventID, userID, raw, status))
+		) SELECT j.event_id,j.user_id,j.role,'',j.team_id,j.coc_accepted_at,j.joined_at FROM joined j`, eventID, userID, raw, status))
+	return WithDisplayName(ctx, q, m, err)
 }
 
 func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID string) ([]RegistrationApplication, error) {
-	rows, err := queryContext(ctx, q, `SELECT m.user_id,u.username,COALESCE(u.display_name,''),m.approval_status,m.signup_answers,m.joined_at,
+	rows, err := queryContext(ctx, q, `SELECT m.user_id,m.approval_status,m.signup_answers,m.joined_at,
 		m.joined_via,m.city,m.country,m.age_range,m.gender
-		FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id=$1 AND m.role='participant' ORDER BY m.joined_at`, eventID)
+		FROM event_members m WHERE m.event_id=$1 AND m.role='participant' ORDER BY m.joined_at`, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +90,7 @@ func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID
 	for rows.Next() {
 		var a RegistrationApplication
 		var raw []byte
-		if err := rows.Scan(&a.UserID, &a.Email, &a.DisplayName, &a.Status, &raw, &a.JoinedAt,
+		if err := rows.Scan(&a.UserID, &a.Status, &raw, &a.JoinedAt,
 			&a.JoinedVia, &a.City, &a.Country, &a.AgeRange, &a.Gender); err != nil {
 			return nil, err
 		}
@@ -96,7 +99,25 @@ func ListRegistrationApplications(ctx context.Context, q sqlkit.Querier, eventID
 		}
 		out = append(out, a)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(out))
+	for i, a := range out {
+		ids[i] = a.UserID
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	kept := []RegistrationApplication{}
+	for _, a := range out {
+		if u, ok := users[a.UserID]; ok {
+			a.Email, a.DisplayName = u.Username, u.DisplayName.String
+			kept = append(kept, a)
+		}
+	}
+	return kept, nil
 }
 
 // ApplyParticipant is JoinParticipantRegistration for someone applying to an event without a join link.
@@ -105,7 +126,7 @@ func ApplyParticipant(ctx context.Context, q sqlkit.Querier, eventID, userID str
 	if err != nil {
 		return EventMember{}, err
 	}
-	return scanMember(q.QueryRowContext(ctx, `WITH joined AS (
+	m, err := scanMember(q.QueryRowContext(ctx, `WITH joined AS (
 		INSERT INTO event_members (event_id,user_id,role,coc_accepted_at,signup_answers,approval_status,joined_via,city,country,age_range,gender)
 		VALUES ($1,$2,'participant',now(),$3,'pending','application',$4,$5,$6,$7)
 		RETURNING event_id,user_id,role,team_id,coc_accepted_at,joined_at
@@ -113,7 +134,8 @@ func ApplyParticipant(ctx context.Context, q sqlkit.Querier, eventID, userID str
 		INSERT INTO event_used_names (event_slug, team_slug)
 		SELECT e.slug, '' FROM events e JOIN joined j ON j.event_id=e.id
 		ON CONFLICT DO NOTHING
-		) SELECT j.event_id,j.user_id,j.role,COALESCE(u.display_name,''),j.team_id,j.coc_accepted_at,j.joined_at FROM joined j JOIN users u ON u.id=j.user_id`, eventID, userID, raw, p.City, p.Country, p.AgeRange, p.Gender))
+		) SELECT j.event_id,j.user_id,j.role,'',j.team_id,j.coc_accepted_at,j.joined_at FROM joined j`, eventID, userID, raw, p.City, p.Country, p.AgeRange, p.Gender))
+	return WithDisplayName(ctx, q, m, err)
 }
 
 // CountPendingApplications is how many applications (joined_via='application'), across every event, this person has waiting for a decision.

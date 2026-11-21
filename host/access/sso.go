@@ -5,9 +5,10 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"errors"
+	"time"
+
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
-	"time"
 )
 
 func (s *Service) GetSSOPass(ctx context.Context, hash string, keyIdle time.Duration) (model.SSOPass, error) {

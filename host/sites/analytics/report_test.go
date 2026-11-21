@@ -1,4 +1,4 @@
-package repo
+package analytics
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 // An owner row lands in Split.Owner, not in People.
 func TestSplitAddOwner(t *testing.T) {
 	var s Split
-	s.add(ClassOwner, 4, 2)
-	s.add(ClassPerson, 1, 1)
+	s.add(string(ClassOwner), 4, 2)
+	s.add(string(ClassPerson), 1, 1)
 	if s.Owner != (Counts{Views: 4, Visitors: 2}) || s.Person != (Counts{Views: 1, Visitors: 1}) {
 		t.Fatalf("Split after owner+person: %+v", s)
 	}
@@ -69,13 +69,13 @@ func TestPersonViewsBySite(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	add(site.ID, ClassPerson, 2, 5)        // inside 7 days
-	add(site.ID, ClassPerson, 10*24, 7)    // between 7 and 30 days
-	add(site.ID, ClassPerson, 40*24, 100)  // older than 30 days
-	add(site.ID, ClassOwner, 3, 50)        // the owner's own, inside 7 days
-	add(site.ID, ClassBot, 4, 60)          // a bot, inside 7 days
-	add(theirs.ID, ClassPerson, 5, 9)      // another account's site
-	add(theirs.ID, ClassPerson, 20*24, 11) // another account's site, 7-30 days
+	add(site.ID, string(ClassPerson), 2, 5)        // inside 7 days
+	add(site.ID, string(ClassPerson), 10*24, 7)    // between 7 and 30 days
+	add(site.ID, string(ClassPerson), 40*24, 100)  // older than 30 days
+	add(site.ID, string(ClassOwner), 3, 50)        // the owner's own, inside 7 days
+	add(site.ID, string(ClassBot), 4, 60)          // a bot, inside 7 days
+	add(theirs.ID, string(ClassPerson), 5, 9)      // another account's site
+	add(theirs.ID, string(ClassPerson), 20*24, 11) // another account's site, 7-30 days
 
 	got, err := PersonViewsBySite(ctx, database, u.ID, false)
 	if err != nil {

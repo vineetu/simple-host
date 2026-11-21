@@ -4,11 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
+	"time"
+
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
-	"log"
-	"time"
 )
 
 type ProfileInput struct {
@@ -74,7 +77,7 @@ func (s *Service) UpdateProfile(ctx context.Context, in ProfileInput) (model.Use
 func (s *Service) changeHandleTx(ctx context.Context, tx *sql.Tx, in ProfileInput, oldHandle string) (renamed bool, err error) {
 	// Sites in Recently deleted count: they come back at this account's
 	// address, so their old links need the alias too.
-	hasSites, err := repo.AccountHasSites(ctx, tx, in.UserID)
+	hasSites, err := sitesrepo.AccountHasSites(ctx, tx, in.UserID)
 	if err != nil {
 		return false, profileInternalError()
 	}

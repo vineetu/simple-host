@@ -49,6 +49,8 @@ func run(root string, args []string, out, errs io.Writer) int {
 	mig := fs.Bool("migrations", false, "check migration ownership")
 	pm := fs.Bool("propose-migrations", false, "propose migration ownership")
 	fix := fs.Bool("fix", false, "rewrite mixed migration comments")
+	owners := fs.Bool("owners", false, "check that each table is queried only by its owner package")
+	proposeOwners := fs.Bool("propose-owners", false, "list the tables only one package queries")
 	if e := fs.Parse(args); e != nil {
 		return 2
 	}
@@ -75,6 +77,13 @@ func run(root string, args []string, out, errs io.Writer) int {
 		b = append(append(b, '\n'), product...)
 	}
 	z := parseSchema(string(b))
+	if *owners || *proposeOwners {
+		code, e := checkOwners(root, z, *proposeOwners, out)
+		if e != nil {
+			return fail(e)
+		}
+		return code
+	}
 	objects, e := readObjects(path(o.Objects))
 	if e != nil && !(*prop && os.IsNotExist(e)) {
 		return fail(e)

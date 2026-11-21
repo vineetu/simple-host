@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
@@ -55,9 +56,6 @@ func NoticeTeamScoped(kind string) bool {
 	return false
 }
 
-// emailableSQL is the one rule for who may be emailed, used both when a notice is queued and again at send time.
-const emailableSQL = `(u.username LIKE '%@%' AND NOT u.event_account AND u.suspended_at IS NULL AND COALESCE(p.email_updates, true))`
-
 func NotifyUsers(ctx context.Context, q sqlkit.Querier, eventID, kind, teamID, refID, detail string, userIDs ...string) error {
 	_, err := NotifyUsersCount(ctx, q, eventID, kind, teamID, refID, detail, userIDs...)
 	return err
@@ -68,20 +66,32 @@ func NotifyUsersCount(ctx context.Context, q sqlkit.Querier, eventID, kind, team
 		return 0, nil
 	}
 	news, mail := noticeIsNews(kind), noticeEmails(kind)
+	users, err := accounts.UsersByIDs(ctx, q, userIDs)
+	if err != nil {
+		return 0, err
+	}
+	ids, mailable := make([]string, 0, len(users)), []string{}
+	for id := range users {
+		ids = append(ids, id)
+	}
+	if mail {
+		if mailable, err = emailableIDs(ctx, q, users); err != nil {
+			return 0, err
+		}
+	}
 	res, err := q.ExecContext(ctx, `
 		INSERT INTO event_notices (event_id, user_id, kind, team_id, ref_id, detail, seen_at, email_state)
 		SELECT $1, u.id, $3, NULLIF($4,'')::uuid, NULLIF($5,'')::uuid, $6,
 		       CASE WHEN $7 THEN NULL ELSE now() END,
-		       CASE WHEN $8 AND `+emailableSQL+` THEN 'pending' ELSE 'none' END
-		  FROM users u LEFT JOIN hack_account_preferences p ON p.user_id = u.id
-		 WHERE u.id = ANY($2::uuid[])
-		   AND ($7 OR ($8 AND `+emailableSQL+`))
+		       CASE WHEN u.id = ANY($8::uuid[]) THEN 'pending' ELSE 'none' END
+		  FROM unnest($2::uuid[]) AS u(id)
+		 WHERE ($7 OR u.id = ANY($8::uuid[]))
 		   AND NOT EXISTS (SELECT 1 FROM event_notices x
 		         WHERE x.user_id = u.id AND x.event_id = $1 AND x.kind = $3
 		           AND x.team_id IS NOT DISTINCT FROM NULLIF($4,'')::uuid
 		           AND x.ref_id IS NOT DISTINCT FROM NULLIF($5,'')::uuid
 		           AND x.detail = $6 AND x.email_state = 'pending')`,
-		eventID, pq.Array(userIDs), kind, teamID, refID, detail, news, mail)
+		eventID, pq.Array(ids), kind, teamID, refID, detail, news, pq.Array(mailable))
 	if err != nil {
 		return 0, err
 	}
@@ -228,22 +238,38 @@ type PendingInvite = model.PendingInvite
 // ListPendingJoinRequests lists the requests waiting on the team's admins, oldest first.
 func ListPendingJoinRequests(ctx context.Context, q sqlkit.Querier, teamID string) ([]PendingJoinRequest, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT r.id, COALESCE(u.display_name,'') FROM event_team_requests r
-		  JOIN event_members m ON m.event_id = r.event_id AND m.user_id = r.user_id JOIN users u ON u.id=m.user_id
+		SELECT r.id, r.user_id FROM event_team_requests r
+		  JOIN event_members m ON m.event_id = r.event_id AND m.user_id = r.user_id
 		 WHERE r.team_id = $1 AND r.kind = 'request' ORDER BY r.created_at, r.id`, teamID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []PendingJoinRequest{}
+	var found []PendingJoinRequest
+	var ids []string
 	for rows.Next() {
 		var p PendingJoinRequest
-		if err := rows.Scan(&p.ID, &p.DisplayName); err != nil {
+		var id string
+		if err := rows.Scan(&p.ID, &id); err != nil {
 			return nil, err
 		}
-		out = append(out, p)
+		found, ids = append(found, p), append(ids, id)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := []PendingJoinRequest{}
+	for i, p := range found {
+		if u, ok := users[ids[i]]; ok {
+			p.DisplayName = u.DisplayName.String
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // ListPendingInvites lists the invites waiting on this person, oldest first.
@@ -275,10 +301,16 @@ func CountWaitingApplications(ctx context.Context, q sqlkit.Querier, eventID str
 
 // EmailUpdates reads the person's "Email me when something waits on me" setting (on by default) and whether their account has an address at all.
 func EmailUpdates(ctx context.Context, q sqlkit.Querier, userID string) (on, possible bool, err error) {
-	err = q.QueryRowContext(ctx, `
-		SELECT COALESCE(p.email_updates, true), u.username LIKE '%@%' AND NOT u.event_account
-		  FROM users u LEFT JOIN hack_account_preferences p ON p.user_id = u.id WHERE u.id = $1`, userID).Scan(&on, &possible)
-	return on, possible, err
+	u, err := accounts.UserByID(ctx, q, userID)
+	if err != nil {
+		return false, false, err
+	}
+	prefs, err := emailUpdatesByID(ctx, q, []string{u.ID})
+	if err != nil {
+		return false, false, err
+	}
+	set, ok := prefs[u.ID]
+	return !ok || set, hasAddress(u) && !u.EventAccount, nil
 }
 
 // MailBatch is one person's pending notices of one kind, locked until the caller commits.
@@ -313,15 +345,16 @@ func NextMailBatch(ctx context.Context, tx *sql.Tx, delay, window time.Duration)
 		// Another sweeper sent this kind while we waited for the lock.
 		return b, errMailBatchRaced
 	}
-	var recipient string
-	var ok bool
-	err = tx.QueryRowContext(ctx, `SELECT u.username, `+emailableSQL+` FROM users u
-		LEFT JOIN hack_account_preferences p ON p.user_id = u.id WHERE u.id = $1`, b.UserID).Scan(&recipient, &ok)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	users, err := accounts.UsersByIDs(ctx, tx, []string{b.UserID})
+	if err != nil {
 		return b, err
 	}
-	if ok {
-		b.Recipient = recipient
+	mailable, err := emailableIDs(ctx, tx, users)
+	if err != nil {
+		return b, err
+	}
+	if len(mailable) == 1 {
+		b.Recipient = users[mailable[0]].Username
 	}
 	rows, err := tx.QueryContext(ctx, `
 		SELECT n.id, n.event_id, n.user_id, n.kind, COALESCE(n.team_id::text,''), COALESCE(n.ref_id::text,''), n.detail, n.created_at,

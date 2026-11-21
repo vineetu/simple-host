@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/lib/pq"
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
@@ -81,12 +83,24 @@ func CreateEventAnnouncement(ctx context.Context, tx *sql.Tx, eventID, title, bo
 	if err != nil || !emailParticipants {
 		return a, 0, false, err
 	}
+	ids, err := userIDs(ctx, tx, `SELECT user_id FROM event_members
+		WHERE event_id = $1 AND role = 'participant' AND approval_status = 'approved'`, eventID)
+	if err != nil {
+		return a, 0, false, err
+	}
+	users, err := accounts.UsersByIDs(ctx, tx, append(ids, organiserUserID))
+	if err != nil {
+		return a, 0, false, err
+	}
+	var to, recipients []string
+	for id, u := range users {
+		if hasAddress(u) {
+			to, recipients = append(to, id), append(recipients, u.Username)
+		}
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO event_announcement_deliveries (announcement_id, user_id, recipient)
-		SELECT $1::uuid, m.user_id, u.username FROM event_members m JOIN users u ON u.id = m.user_id
-		WHERE m.event_id = $2 AND m.role = 'participant' AND m.approval_status = 'approved' AND u.username LIKE '%@%'
-		UNION
-		SELECT $1::uuid, u.id, u.username FROM users u WHERE u.id = $3 AND u.username LIKE '%@%'
-		ON CONFLICT (announcement_id, user_id) DO NOTHING`, a.ID, eventID, organiserUserID); err != nil {
+		SELECT $1::uuid, x.user_id, x.recipient FROM unnest($2::uuid[], $3::text[]) AS x(user_id, recipient)
+		ON CONFLICT (announcement_id, user_id) DO NOTHING`, a.ID, pq.Array(to), pq.Array(recipients)); err != nil {
 		return a, 0, false, err
 	}
 	var queued int64
@@ -118,9 +132,15 @@ func SetAnnouncementPin(ctx context.Context, tx *sql.Tx, eventID, id string, pin
 }
 
 func QueueEntryReceipt(ctx context.Context, q sqlkit.Querier, eventID, teamID, userID string) error {
-	_, err := q.ExecContext(ctx, `INSERT INTO event_entry_receipts (event_id, team_id, user_id, recipient)
-		SELECT $1, $2, $3, username FROM users WHERE id = $3 AND username LIKE '%@%'
-		ON CONFLICT (event_id, team_id) DO NOTHING`, eventID, teamID, userID)
+	u, err := accounts.UserByID(ctx, q, userID)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && !hasAddress(u) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = q.ExecContext(ctx, `INSERT INTO event_entry_receipts (event_id, team_id, user_id, recipient)
+		VALUES ($1, $2, $3, $4) ON CONFLICT (event_id, team_id) DO NOTHING`, eventID, teamID, userID, u.Username)
 	return err
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	accounts "github.com/vsriram/simple-host/host/access"
 	model "github.com/vsriram/simple-host/products/hack/model"
 	teamrepo "github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
@@ -46,16 +47,24 @@ func (s *Service) ListOpenTeams(ctx context.Context, ev model.Event, userID stri
 	}
 	if member.TeamID.Valid || organiser {
 		rows, err := teamrepo.ListLookingParticipants(ctx, s.db, eventID)
-		if out.Solo, err = collect(rows, err, func(r *sql.Rows, p *SoloPerson) error {
-			return r.Scan(&p.UserID, &p.DisplayName, &p.Intro)
-		}); err != nil {
+		solo, err := collect(rows, err, func(r *sql.Rows, p *SoloPerson) error {
+			return r.Scan(&p.UserID, &p.Intro)
+		})
+		if err != nil {
+			return out, err
+		}
+		if out.Solo, err = named(ctx, s, solo, func(p *SoloPerson) (string, *string) { return p.UserID, &p.DisplayName }); err != nil {
 			return out, err
 		}
 	}
 	rows, err := teamrepo.ListVisibleTeamRequests(ctx, s.db, eventID, userID, member.TeamID, organiser)
-	if out.Pending, err = collect(rows, err, func(r *sql.Rows, p *model.TeamRequest) error {
-		return r.Scan(&p.ID, &p.TeamID, &p.Team, &p.TeamName, &p.UserID, &p.DisplayName, &p.Kind, &p.CreatedAt)
-	}); err != nil {
+	pending, err := collect(rows, err, func(r *sql.Rows, p *model.TeamRequest) error {
+		return r.Scan(&p.ID, &p.TeamID, &p.Team, &p.TeamName, &p.UserID, &p.Kind, &p.CreatedAt)
+	})
+	if err != nil {
+		return out, err
+	}
+	if out.Pending, err = named(ctx, s, pending, func(p *model.TeamRequest) (string, *string) { return p.UserID, &p.DisplayName }); err != nil {
 		return out, err
 	}
 	if err = teamrepo.ReadMemberLooking(ctx, s.db, eventID, userID).Scan(&out.Looking, &out.Intro); err != nil {
@@ -85,16 +94,46 @@ func (s *Service) openTeams(ctx context.Context, eventID string) ([]OpenTeam, er
 	for i := range teams {
 		byID[teams[i].id] = &teams[i]
 	}
+	type teamMember struct{ teamID, userID, name string }
 	rows, err = teamrepo.ListFindingTeamMembers(ctx, s.db, eventID)
-	_, err = collect(rows, err, func(r *sql.Rows, _ *struct{}) error {
-		var id, name string
-		err := r.Scan(&id, &name)
-		if t := byID[id]; t != nil && err == nil {
-			t.Members = append(t.Members, name)
-		}
-		return err
+	members, err := collect(rows, err, func(r *sql.Rows, m *teamMember) error {
+		return r.Scan(&m.teamID, &m.userID)
 	})
-	return teams, err
+	if err != nil {
+		return teams, err
+	}
+	if members, err = named(ctx, s, members, func(m *teamMember) (string, *string) { return m.userID, &m.name }); err != nil {
+		return teams, err
+	}
+	for _, m := range members {
+		if t := byID[m.teamID]; t != nil {
+			t.Members = append(t.Members, m.name)
+		}
+	}
+	return teams, nil
+}
+
+// named fills each row's display name from its account (field gives the
+// row's account id and where its name goes), in one query, leaving out rows
+// whose account is gone.
+func named[T any](ctx context.Context, s *Service, rows []T, field func(*T) (string, *string)) ([]T, error) {
+	ids := make([]string, len(rows))
+	for i := range rows {
+		ids[i], _ = field(&rows[i])
+	}
+	users, err := accounts.UsersByIDs(ctx, s.db, ids)
+	if err != nil {
+		return rows, err
+	}
+	out := rows[:0]
+	for i := range rows {
+		id, name := field(&rows[i])
+		if u, ok := users[id]; ok {
+			*name = u.DisplayName.String
+			out = append(out, rows[i])
+		}
+	}
+	return out, nil
 }
 
 // findingTeamState reads the caller's own team for the finding page; a team

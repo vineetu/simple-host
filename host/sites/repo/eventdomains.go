@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
@@ -37,10 +38,11 @@ func EventNameClaimed(ctx context.Context, q sqlkit.Querier, name, zone string) 
 
 // EventNameLocal preserves the event-domain lookup.
 func EventNameLocal(ctx context.Context, q sqlkit.Querier, name string) (bool, error) {
+	if taken, err := accountsrepo.HandleTaken(ctx, q, name, false); err != nil || taken {
+		return taken, err
+	}
 	var value bool
-	err := q.QueryRowContext(ctx, `
-		SELECT EXISTS (SELECT 1 FROM users WHERE handle = $1)
-		    OR EXISTS (SELECT 1 FROM sites WHERE name = $1)`, name).Scan(&value)
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE name = $1)`, name).Scan(&value)
 	return value, err
 }
 

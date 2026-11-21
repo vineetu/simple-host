@@ -52,6 +52,7 @@ check:
 	bash scripts/check-binary.sh
 	go run ./scripts/split/sqlcheck -tests -report -
 	go run ./scripts/split/sqlcheck -migrations
+	go run ./scripts/split/sqlcheck -owners
 	go run ./scripts/inventory check
 	bash scripts/check-docs-sync.sh
 	bash deploy/cert-issuers/runtime_test.sh
@@ -86,6 +87,7 @@ ready:
 	$(MAKE) inventory
 	go run ./scripts/inventory check
 	go run ./scripts/split/sqlcheck -migrations
+	go run ./scripts/split/sqlcheck -owners
 	bash scripts/check-docs-sync.sh
 	bash scripts/check-layering.sh
 	bash scripts/test-integration.sh
@@ -118,6 +120,7 @@ check-boundaries:
 	bash scripts/check-layering.sh
 	bash scripts/split/namescan.sh
 	go run ./scripts/split/sqlcheck -tests -report -
+	go run ./scripts/split/sqlcheck -owners
 	go test ./host/webassets -run '^TestPlatformEmbeddedText$$' -count=1
 	bash scripts/check-public-text.sh
 	bash scripts/check-binary.sh

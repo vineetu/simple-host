@@ -3,6 +3,8 @@ package hackentries
 import (
 	"context"
 	"database/sql"
+
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 
 	"github.com/vsriram/simple-host/products/hack/model"
@@ -79,22 +81,37 @@ func ReplaceRubric(ctx context.Context, q sqlkit.Querier, eventID string, items 
 
 func ListEventJudges(ctx context.Context, q sqlkit.Querier, eventID string) ([]NamedJudge, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT user_id, COALESCE(u.display_name,''), role FROM event_members m JOIN users u ON u.id=m.user_id JOIN events e ON e.id=m.event_id
+		SELECT user_id, role FROM event_members m JOIN events e ON e.id=m.event_id
 		 WHERE m.event_id = $1 AND `+judgeMemberSQL("m", "e")+`
 		 ORDER BY user_id`, eventID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []NamedJudge{}
+	var found []NamedJudge
+	var ids []string
 	for rows.Next() {
 		var j NamedJudge
-		if err := rows.Scan(&j.ID, &j.Name, &j.Role); err != nil {
+		if err := rows.Scan(&j.ID, &j.Role); err != nil {
 			return nil, err
 		}
-		out = append(out, j)
+		found, ids = append(found, j), append(ids, j.ID)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := []NamedJudge{}
+	for _, j := range found {
+		if u, ok := users[j.ID]; ok {
+			j.Name = u.DisplayName.String
+			out = append(out, j)
+		}
+	}
+	return out, nil
 }
 
 // ListTeamsWithMembers is every team that still needs judging, by team id: one
@@ -133,20 +150,27 @@ func EventTeamInEvent(ctx context.Context, q sqlkit.Querier, eventID, teamID str
 func EventJudge(ctx context.Context, q sqlkit.Querier, eventID, userID string) (NamedJudge, error) {
 	var j NamedJudge
 	err := q.QueryRowContext(ctx, `
-		SELECT user_id, COALESCE(u.display_name,'') FROM event_members m JOIN users u ON u.id=m.user_id JOIN events e ON e.id=m.event_id
-		 WHERE m.event_id = $1 AND m.user_id = $2 AND `+judgeMemberSQL("m", "e")+``, eventID, userID).Scan(&j.ID, &j.Name)
-	return j, err
+		SELECT user_id FROM event_members m JOIN events e ON e.id=m.event_id
+		 WHERE m.event_id = $1 AND m.user_id = $2 AND `+judgeMemberSQL("m", "e")+``, eventID, userID).Scan(&j.ID)
+	if err != nil {
+		return NamedJudge{}, err
+	}
+	u, err := accounts.UserByID(ctx, q, j.ID)
+	if err != nil {
+		return NamedJudge{}, err
+	}
+	j.Name = u.DisplayName.String
+	return j, nil
 }
 
 // ListEventConflicts returns conflicts for the event. judgeID empty means all of them.
 func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID string) ([]EventConflict, error) {
 	query := `
-		SELECT c.judge_id, COALESCE(u.display_name, ''), c.team_id, t.name, c.declared_by,
+		SELECT c.judge_id, c.team_id, t.name, c.declared_by,
 		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
 		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
 		  JOIN event_teams t ON t.id = c.team_id
-		  LEFT JOIN users u ON u.id = c.judge_id
 		 WHERE c.event_id = $1`
 	args := []any{eventID}
 	if judgeID != "" {
@@ -160,28 +184,46 @@ func ListEventConflicts(ctx context.Context, q sqlkit.Querier, eventID, judgeID 
 	}
 	defer rows.Close()
 	out := []EventConflict{}
+	var ids []string
 	for rows.Next() {
 		var c EventConflict
-		if err := rows.Scan(&c.JudgeID, &c.JudgeName, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore); err != nil {
+		if err := rows.Scan(&c.JudgeID, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore); err != nil {
 			return nil, err
 		}
-		out = append(out, c)
+		out, ids = append(out, c), append(ids, c.JudgeID)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].JudgeName = users[out[i].JudgeID].DisplayName.String
+	}
+	return out, nil
 }
 
 func GetEventConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID string) (EventConflict, error) {
 	var c EventConflict
 	err := q.QueryRowContext(ctx, `
-		SELECT c.judge_id, COALESCE(u.display_name, ''), c.team_id, t.name, c.declared_by,
+		SELECT c.judge_id, c.team_id, t.name, c.declared_by,
 		       EXISTS(SELECT 1 FROM event_scores es WHERE es.event_id = c.event_id
 		                AND es.judge_id = c.judge_id AND es.team_id = c.team_id)
 		  FROM event_conflicts c
 		  JOIN event_teams t ON t.id = c.team_id
-		  LEFT JOIN users u ON u.id = c.judge_id
 		 WHERE c.event_id = $1 AND c.judge_id = $2 AND c.team_id = $3`,
-		eventID, judgeID, teamID).Scan(&c.JudgeID, &c.JudgeName, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore)
-	return c, err
+		eventID, judgeID, teamID).Scan(&c.JudgeID, &c.TeamID, &c.TeamName, &c.DeclaredBy, &c.HadScore)
+	if err != nil {
+		return c, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, []string{c.JudgeID})
+	if err != nil {
+		return EventConflict{}, err
+	}
+	c.JudgeName = users[c.JudgeID].DisplayName.String
+	return c, nil
 }
 
 func DeclareConflict(ctx context.Context, q sqlkit.Querier, eventID, judgeID, teamID, declaredBy string) error {
@@ -389,29 +431,39 @@ func ListRawScores(ctx context.Context, q sqlkit.Querier, eventID string) ([]Raw
 // never blanks it.
 func scoreRows(ctx context.Context, q sqlkit.Querier, where string, args ...any) ([]RawScoreRow, error) {
 	rows, err := queryContext(ctx, q, `
-		SELECT s.judge_id, COALESCE(u.display_name, ''), s.team_id, t.name,
+		SELECT s.judge_id, s.team_id, t.name,
 		       s.criterion_id, r.name, r.position, s.points, r.max_points,
 		       FIRST_VALUE(s.comment) OVER (PARTITION BY s.judge_id, s.team_id
 		                                    ORDER BY s.comment <> '' DESC, s.updated_at DESC)
 		  FROM event_scores s
 		  JOIN event_teams t ON t.id = s.team_id
 		  JOIN rubric_criteria r ON r.id = s.criterion_id
-		  LEFT JOIN users u ON u.id = s.judge_id
 		 WHERE `+where, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []RawScoreRow{}
+	var ids []string
 	for rows.Next() {
 		var row RawScoreRow
-		if err := rows.Scan(&row.JudgeID, &row.JudgeName, &row.TeamID, &row.TeamName,
+		if err := rows.Scan(&row.JudgeID, &row.TeamID, &row.TeamName,
 			&row.CriterionID, &row.CriterionName, &row.CriterionPosition, &row.Points, &row.MaxPoints, &row.Comment); err != nil {
 			return nil, err
 		}
-		out = append(out, row)
+		out, ids = append(out, row), append(ids, row.JudgeID)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].JudgeName = users[out[i].JudgeID].DisplayName.String
+	}
+	return out, nil
 }
 
 type EventResultsRow struct {

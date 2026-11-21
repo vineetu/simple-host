@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	accounts "github.com/vsriram/simple-host/host/access/repo"
-	"github.com/vsriram/simple-host/host/model"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/vsriram/simple-host/host/sites/repo"
+
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // LockAccountSites takes the lock of every site of the account and of the
@@ -27,14 +29,14 @@ func (s *Service) LockAccountSites(ctx context.Context, userID string) (func(), 
 		}
 		return strings.Compare(a[1], b[1])
 	}
-	names, err := accounts.AccountSiteKeys(ctx, s.database, userID)
+	names, err := repo.AccountSiteKeys(ctx, s.database, userID)
 	for try := 0; err == nil; try++ {
 		slices.SortFunc(names, byKey)
 		for _, n := range names {
 			unlocks = append(unlocks, s.deps.LockSite(n[0], n[1]))
 		}
 		var again [][2]string
-		again, err = accounts.AccountSiteKeys(ctx, s.database, userID)
+		again, err = repo.AccountSiteKeys(ctx, s.database, userID)
 		if err != nil {
 			break
 		}

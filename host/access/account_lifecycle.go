@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"strings"
 	"time"
 
@@ -13,17 +12,8 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
-func (s *Service) ListAccountAddresses(ctx context.Context, userID string) ([]model.AccountAddress, error) {
-	return repo.ListAccountAddresses(ctx, s.database, userID)
-}
-func (s *Service) ListRetiredNames(ctx context.Context, userID string) ([]model.RetiredAccountName, error) {
-	return repo.ListRetiredNames(ctx, s.database, userID)
-}
 func (s *Service) ListVisitorSignIns(ctx context.Context, userID string) ([]model.VisitorSignIn, error) {
 	return repo.ListVisitorSignIns(ctx, s.database, userID)
-}
-func (s *Service) ListChangesElsewhere(ctx context.Context, userID string) ([]model.ChangeElsewhere, error) {
-	return repo.ListChangesElsewhere(ctx, s.database, userID)
 }
 
 type LifecycleError struct {
@@ -54,49 +44,11 @@ type DeletedAccount struct {
 	Username string
 }
 
-// DeleteAccount erases an account and everything tied to it, in one
-// transaction, once every rule that holds it back is checked: the person's
-// own request (Operator false) must also confirm it by name.
-func (s *Service) DeleteAccount(ctx context.Context, in DeleteAccountInput) (DeletedAccount, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return DeletedAccount{}, err
-	}
-	defer tx.Rollback()
-	acct, err := repo.LockAccountForDelete(ctx, tx, in.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return DeletedAccount{}, lifecycleFail(404, "not found", "")
-	}
-	if err != nil {
-		return DeletedAccount{}, err
-	}
-	if err := deletionRefusal(ctx, tx, acct, in); err != nil {
-		return DeletedAccount{}, err
-	}
-	// Teams this person alone belongs to go with the account, sites and all.
-	teams, err := eraseSoleMemberTeams(ctx, tx, acct.ID, in.Operator)
-	if err != nil {
-		return DeletedAccount{}, err
-	}
-	erased, err := repo.EraseAccount(ctx, tx, acct, erasureOperations())
-	if err == nil {
-		err = tx.Commit()
-	}
-	if err != nil {
-		if in.Operator {
-			log.Printf("admin delete account %s: %v", acct.ID, err)
-		} else {
-			log.Printf("delete account %s: %v", acct.ID, err)
-		}
-		return DeletedAccount{}, err
-	}
-	return DeletedAccount{Erased: erased, Teams: teams, Username: acct.Username}, nil
-}
-
-// deletionRefusal is why the account cannot be deleted now, nil when it
-// can: never an admin account, never while it holds what must be released
-// first, and only as confirmed.
-func deletionRefusal(ctx context.Context, tx *sql.Tx, acct model.AccountForDelete, in DeleteAccountInput) error {
+// ErasureRefusal is why the account (locked by repo.LockAccountForDelete,
+// its EventClaims and TakenDown counted by Sites) cannot be erased now, nil
+// when it can: never an admin account, never while it holds what must be
+// released first, and only as confirmed. host/ops ErasePerson asks it.
+func ErasureRefusal(ctx context.Context, tx *sql.Tx, acct model.AccountForDelete, in DeleteAccountInput) error {
 	if IsOperator(acct.IsAdmin, acct.Username) {
 		if in.Operator {
 			return lifecycleFail(400, "cannot delete an admin account", "")
@@ -156,17 +108,6 @@ func confirmRefusal(acct model.AccountForDelete, confirm string) error {
 		return lifecycleFail(400, "type "+what+" ("+want+") as confirm to delete the account", "confirm_mismatch")
 	}
 	return nil
-}
-
-// erasureOperations are the platform's and the product's parts of an erase.
-func erasureOperations() repo.ErasureOperations {
-	ops := repo.ErasureOperations{RetireSiteNames: func(ctx context.Context, tx *sql.Tx, id string) ([]string, error) {
-		return repo.RetireSiteNames(ctx, tx, id, repo.PlatformDomains()...)
-	}}
-	if h := groupHooks.Erasure; h != nil {
-		ops.Before, ops.Rows, ops.After = h.Before, h.Rows, h.After
-	}
-	return ops
 }
 
 // deletionHold is why an account (a person's own, or a team they alone

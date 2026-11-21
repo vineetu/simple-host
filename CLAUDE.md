@@ -14,6 +14,7 @@ Follow these steps literally. Every path below exists.
 - `products/hack`: Simple Hack. `rules/` (pure rules) -> `repository/` (SQL) -> `app/` (workflows) -> `hackhttp/` (routes, `routes.go`) and `mcp/` (tools).
 - `products/hack` may import `host`; `host` never imports `products`. `scripts/check-layering.sh` enforces all of this.
 - Each of these packages has a `doc.go` saying the same in a few lines.
+- A table is read and written only by its owner package (`scripts/split/table-owners.txt`, e.g. `users` by `host/access/repo`, `sites` by `host/sites/repo`); other packages call its functions. `sqlcheck -owners` (in `make ready`) enforces it.
 
 ### Recipe: add a REST route
 

@@ -1,7 +1,6 @@
 package servertest
 
 import (
-	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
@@ -11,18 +10,16 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	_ "github.com/lib/pq"
 
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
-	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/data/datahttp"
 	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/server/servertest/routetest"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
 )
 
@@ -50,18 +47,8 @@ type Person struct{ Email, Key string }
 
 func (a *ConnectorApp) NewPerson(t *testing.T, label string) Person {
 	t.Helper()
-	addr := label + "-" + strconv.FormatInt(time.Now().UnixNano(), 36) + "@example.com"
-	key, _ := auth.GenerateAPIKey()
-	u, err := accountsrepo.CreateUser(context.Background(), a.Database, addr, key, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handle := strings.ReplaceAll(strings.Split(addr, "@")[0], ".", "-")
-	if _, err := a.Database.Exec(`UPDATE users SET handle = $1 WHERE id = $2`, handle, u.ID); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM users WHERE id = $1`, u.ID) })
-	return Person{Email: addr, Key: key}
+	p := routetest.NewPerson(t, a.Database, label)
+	return Person{Email: p.Email, Key: p.Key}
 }
 
 type Resp struct {

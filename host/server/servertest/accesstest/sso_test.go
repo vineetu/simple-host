@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
@@ -353,14 +355,12 @@ func TestSSOProviderAndEmailSignup(t *testing.T) {
 	if sites != 0 {
 		t.Fatal("visitor got sites")
 	}
-	owners, err := accountsrepo.ListSiteOwners(context.Background(), a.Database)
+	owners, err := sitesrepo.AccountsWithSites(context.Background(), a.Database, []string{p.UserID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, owner := range owners {
-		if owner.ID == p.UserID {
-			t.Fatal("visitor counted as signup with a site")
-		}
+	if owners[p.UserID] {
+		t.Fatal("visitor counted as signup with a site")
 	}
 }
 func TestSSOReplacementRetiresBrowserFamily(t *testing.T) {

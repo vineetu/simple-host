@@ -2,8 +2,9 @@ package sites
 
 import (
 	"context"
-	"github.com/vsriram/simple-host/host/sites/repo"
 	"log"
+
+	"github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // OwnerMarkDeps supplies best-effort visit classification.

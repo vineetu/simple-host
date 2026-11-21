@@ -3,9 +3,12 @@ package hackentries
 import (
 	"context"
 	"database/sql"
-	"github.com/lib/pq"
 	"time"
 
+	"github.com/lib/pq"
+
+	accounts "github.com/vsriram/simple-host/host/access"
+	hostmodel "github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
@@ -98,12 +101,9 @@ func VoterEligible(ctx context.Context, q sqlkit.Querier, eventID, eligibility, 
 	if eligibility == "participants" {
 		roleClause = " AND m.role = 'participant'"
 	}
-	var allowed bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members m
-		JOIN users u ON u.id = m.user_id WHERE m.event_id = $1
-		AND `+baseEmailSQL("u.username")+` = $2
-		AND m.approval_status = 'approved'`+roleClause+`)`, eventID, canonicalEmail).Scan(&allowed)
-	return allowed, err
+	emails, err := memberEmails(ctx, q, `SELECT m.user_id FROM event_members m WHERE m.event_id = $1
+		AND m.approval_status = 'approved'`+roleClause, eventID)
+	return emails[canonicalEmail], err
 }
 
 type VoteWindow struct {
@@ -135,11 +135,9 @@ func VoteTeamID(ctx context.Context, q sqlkit.Querier, eventID string, live []st
 }
 
 func VoteOwnTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID, canonicalEmail string) (bool, error) {
-	var own bool
-	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM event_members m JOIN users u ON u.id = m.user_id
-		WHERE m.event_id = $1 AND m.team_id = $2 AND m.role = 'participant'
-		AND `+baseEmailSQL("u.username")+` = $3)`, eventID, teamID, canonicalEmail).Scan(&own)
-	return own, err
+	emails, err := memberEmails(ctx, q, `SELECT m.user_id FROM event_members m
+		WHERE m.event_id = $1 AND m.team_id = $2 AND m.role = 'participant'`, eventID, teamID)
+	return emails[canonicalEmail], err
 }
 
 func SaveVote(ctx context.Context, q sqlkit.Querier, eventID, canonicalEmail, teamID string) (bool, error) {
@@ -162,20 +160,56 @@ func IneligibleVotes(ctx context.Context, q sqlkit.Querier, eventID, eligibility
 	if eligibility == "participants" {
 		role = " AND m.role = 'participant'"
 	}
-	where := ` FROM event_votes v WHERE v.event_id = $1 AND NOT EXISTS (
-		SELECT 1 FROM event_members m JOIN users u ON u.id = m.user_id
-		WHERE m.event_id = v.event_id AND m.approval_status = 'approved'
-		AND ` + baseEmailSQL("u.username") + ` = v.voter_email` + role + `)`
+	emails, err := memberEmails(ctx, q, `SELECT m.user_id FROM event_members m
+		WHERE m.event_id = $1 AND m.approval_status = 'approved'`+role, eventID)
+	if err != nil {
+		return 0, err
+	}
+	eligible := []string{}
+	for e := range emails {
+		eligible = append(eligible, e)
+	}
+	where := ` FROM event_votes v WHERE v.event_id = $1 AND NOT v.voter_email = ANY($2::text[])`
 	if remove {
-		result, err := q.ExecContext(ctx, `DELETE`+where, eventID)
+		result, err := q.ExecContext(ctx, `DELETE`+where, eventID, pq.Array(eligible))
 		if err != nil {
 			return 0, err
 		}
 		return result.RowsAffected()
 	}
 	var count int64
-	err := q.QueryRowContext(ctx, `SELECT COUNT(*)`+where, eventID).Scan(&count)
+	err = q.QueryRowContext(ctx, `SELECT COUNT(*)`+where, eventID, pq.Array(eligible)).Scan(&count)
 	return count, err
+}
+
+// memberEmails is the base sign-in address (model.BaseEmail, what a vote is
+// cast under) of each member query selects by user_id.
+func memberEmails(ctx context.Context, q sqlkit.Querier, query string, args ...any) (map[string]bool, error) {
+	rows, err := queryContext(ctx, q, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(users))
+	for _, u := range users {
+		out[hostmodel.BaseEmail(u.Username)] = true
+	}
+	return out, nil
 }
 
 // GalleryLiveFrom selects the live projects shared by the gallery and voting:
@@ -186,9 +220,6 @@ const GalleryLiveFrom = `
   LEFT JOIN event_entries e ON e.team_id = t.id
  WHERE t.event_id = $1 AND t.site_taken_down_at IS NULL AND t.slug = ANY($2::text[])`
 
-func baseEmailSQL(col string) string {
-	return `regexp_replace(lower(` + col + `), '^([^+@]+)\+[^@]*@', '\1@')`
-}
 func nullTime(t sql.NullTime) any {
 	if !t.Valid {
 		return nil

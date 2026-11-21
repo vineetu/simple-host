@@ -3,12 +3,14 @@ package ops
 import (
 	"context"
 	"database/sql"
-	accounts "github.com/vsriram/simple-host/host/access/repo"
-	"github.com/vsriram/simple-host/host/model"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	accounts "github.com/vsriram/simple-host/host/access/repo"
+	"github.com/vsriram/simple-host/host/model"
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // SignupGroup is one row of the admin page's "Sign-ups by source". Where, when
@@ -113,14 +115,22 @@ type CohortFunnel struct {
 
 // cohort loads the accounts in one group, newest first, with the funnel.
 func (h *Reporting) Cohort(ctx context.Context, group string, arrivalSources map[string]SignupGroup) ([]CohortAccount, CohortFunnel, []SignupGroup, error) {
-	users, err := accounts.ListSiteOwners(ctx, h.database)
+	users, err := accounts.ListAllUsers(ctx, h.database)
+	if err != nil {
+		return nil, CohortFunnel{}, nil, err
+	}
+	all := make([]string, len(users))
+	for i, u := range users {
+		all[i] = u.ID
+	}
+	owners, err := sitesrepo.AccountsWithSites(ctx, h.database, all)
 	if err != nil {
 		return nil, CohortFunnel{}, nil, err
 	}
 	present := map[string]bool{}
 	var in []model.User
 	for _, u := range users {
-		if u.IsAdmin {
+		if u.IsAdmin || !owners[u.ID] {
 			continue
 		}
 		g := SignupGroupOf(u.Signup.Source, arrivalSources)
@@ -134,6 +144,9 @@ func (h *Reporting) Cohort(ctx context.Context, group string, arrivalSources map
 		ids[i] = u.ID
 	}
 	acts, err := accounts.ActivationFor(ctx, h.database, ids)
+	if err == nil {
+		err = sitesrepo.SiteActivationFor(ctx, h.database, ids, acts)
+	}
 	if err != nil {
 		return nil, CohortFunnel{}, nil, err
 	}

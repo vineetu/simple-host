@@ -41,8 +41,6 @@ func HoldingText(action string) string {
 	return groupHooks.Erasure.HoldingText(action)
 }
 
-func (s *Service) SweepErasedGroups(ctx context.Context, ids []string, trash func(context.Context, string, string) error) {
-	if groupHooks.Erasure != nil {
-		groupHooks.Erasure.Sweep(ctx, s.database, ids, trash)
-	}
-}
+// ProductErasure is the product's part of an erase (host/ops ErasePerson
+// runs it), nil when no product is installed.
+func ProductErasure() Erasure { return groupHooks.Erasure }

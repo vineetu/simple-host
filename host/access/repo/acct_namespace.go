@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/host/model"
 	"strings"
 	"time"
+
+	"github.com/vsriram/simple-host/host/model"
 )
 
 // RenameHandleTx is RenameHandle inside the caller's transaction (PATCH

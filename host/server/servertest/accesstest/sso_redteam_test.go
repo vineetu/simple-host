@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/config"
@@ -157,7 +159,7 @@ func TestSSORedteamPasscodeIsolation(t *testing.T) {
 	if r := a.At(t, "PUT", rt.SiteDomain, "/v1/sites/shop/lock", map[string]any{"passcode": "123456"}, owner.Header()); r.Status != 200 {
 		t.Fatal(r.Status)
 	}
-	row, err := accountsrepo.GetSitePasscode(context.Background(), a.Database, sid)
+	row, err := sitesrepo.GetSitePasscode(context.Background(), a.Database, sid)
 	if err != nil {
 		t.Fatal(err)
 	}

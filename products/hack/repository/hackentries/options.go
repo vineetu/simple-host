@@ -3,6 +3,9 @@ package hackentries
 import (
 	"context"
 	"database/sql"
+	"sort"
+
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 )
@@ -42,23 +45,56 @@ func ReplaceTrackPanels(ctx context.Context, q sqlkit.Querier, eventID string, p
 }
 
 func ListEventAssignments(ctx context.Context, q sqlkit.Querier, eventID string) ([]JudgeAssignment, error) {
-	rows, err := queryContext(ctx, q, `SELECT a.judge_id,COALESCE(u.display_name,''),a.team_id,t.name
+	rows, err := queryContext(ctx, q, `SELECT a.judge_id,a.team_id,t.name
 		FROM event_assignments a JOIN events e ON e.id=a.event_id JOIN event_members j ON j.event_id=a.event_id AND j.user_id=a.judge_id AND `+judgeMemberSQL("j", "e")+`
-		JOIN users u ON u.id=j.user_id JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
-		WHERE a.event_id=$1 ORDER BY t.name,COALESCE(u.display_name,'')`, eventID)
+		JOIN event_teams t ON t.event_id=a.event_id AND t.id=a.team_id
+		WHERE a.event_id=$1 ORDER BY t.name`, eventID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []JudgeAssignment{}
+	var found []JudgeAssignment
+	var ids []string
 	for rows.Next() {
 		var a JudgeAssignment
-		if err := rows.Scan(&a.JudgeID, &a.JudgeName, &a.TeamID, &a.TeamName); err != nil {
+		if err := rows.Scan(&a.JudgeID, &a.TeamID, &a.TeamName); err != nil {
 			return nil, err
 		}
-		out = append(out, a)
+		found, ids = append(found, a), append(ids, a.JudgeID)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	users, err := accounts.UsersByIDs(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	byName, err := accounts.SortByDisplayName(ctx, q, ids)
+	if err != nil {
+		return nil, err
+	}
+	rank := make(map[string]int, len(byName))
+	for i, id := range byName {
+		rank[id] = i
+	}
+	out := []JudgeAssignment{}
+	for _, a := range found {
+		if u, ok := users[a.JudgeID]; ok {
+			a.JudgeName = u.DisplayName.String
+			out = append(out, a)
+		}
+	}
+	// Team name order comes from the query; within one name, display name order.
+	for start := 0; start < len(out); {
+		end := start + 1
+		for end < len(out) && out[end].TeamName == out[start].TeamName {
+			end++
+		}
+		run := out[start:end]
+		sort.SliceStable(run, func(i, j int) bool { return rank[run[i].JudgeID] < rank[run[j].JudgeID] })
+		start = end
+	}
+	return out, nil
 }
 
 // EligibleJudgeTeams uses current event mode, event-scoped membership and

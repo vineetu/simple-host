@@ -52,7 +52,7 @@ func (s *Service) AdminDelete(ctx context.Context, ev model.Event, removeFiles f
 		return err
 	}
 	defer tx.Rollback()
-	if err = eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, sites.DeleteProductAccount); err != nil {
+	if err = eventrepo.DeleteEventAndAccount(ctx, tx, ev, sites.LockAccountSites, accounts.DeleteAccountRow); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {

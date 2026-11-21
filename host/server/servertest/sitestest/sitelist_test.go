@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/host/sites/analytics"
+
 	model "github.com/vsriram/simple-host/host/model"
 	operations "github.com/vsriram/simple-host/host/ops"
-	"github.com/vsriram/simple-host/host/ops/repo"
 	"github.com/vsriram/simple-host/host/sites"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
@@ -191,7 +192,7 @@ func TestListSitesViews(t *testing.T) {
 		class string
 		ago   int
 		n     int64
-	}{{repo.ClassPerson, 1, 3}, {repo.ClassPerson, 12 * 24, 4}, {repo.ClassPerson, 45 * 24, 500}, {repo.ClassOwner, 2, 40}, {repo.ClassBot, 2, 60}} {
+	}{{string(analytics.ClassPerson), 1, 3}, {string(analytics.ClassPerson), 12 * 24, 4}, {string(analytics.ClassPerson), 45 * 24, 500}, {string(analytics.ClassOwner), 2, 40}, {string(analytics.ClassBot), 2, 60}} {
 		if _, err := a.Database.Exec(`INSERT INTO site_view_hourly (site_id, hour, class, views)
 			VALUES ($1, date_trunc('hour', now()) - make_interval(hours => $2), $3, $4)
 			ON CONFLICT (site_id, hour, class) DO UPDATE SET views = site_view_hourly.views + EXCLUDED.views`, shop, v.ago, v.class, v.n); err != nil {
