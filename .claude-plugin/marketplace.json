@@ -12,7 +12,7 @@
       "name": "simple-host",
       "displayName": "Simple Host",
       "source": "./plugins/simple-host",
-      "version": "0.27.118",
+      "version": "0.27.119",
       "homepage": "https://simple-host.app",
       "description": "Describe a website and it goes online at its own address. Claude builds the site and publishes it to simple-host.app through the Simple Host connector: pages, a small per-site backend (KV, SQLite and files) with visitor sign-in for saves and sign-ups, visitor analytics, and your own domain when you want one. Choose a personal home and curate the showcase with bio, pins and order."
     }

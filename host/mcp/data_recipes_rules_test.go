@@ -52,6 +52,9 @@ func TestRulesRecipeExamples(t *testing.T) {
 				schemas = recipeCalls(t, records, "storage_sql_schema")
 			}
 			setups := recipeCalls(t, text, "storage_set_resource")
+			if topic == "chatbot" {
+				return // saves no data: its setup is request_secret
+			}
 			if len(setups) == 0 {
 				t.Fatal("recipe has no worked setup example")
 			}

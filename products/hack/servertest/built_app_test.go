@@ -135,6 +135,28 @@ func TestBuiltHackAppWiring(t *testing.T) {
 		t.Fatalf("hack_get_my_teams: %s", text)
 	}
 
+	// Secrets: the write-only page is on Simple Hack's own apex, and the
+	// connector's link points there for the team's site.
+	if r := a.on(t, "GET", tsDomain, "/secrets?site="+team+"&owner="+slug, nil, ""); r.status != 200 || !strings.Contains(string(r.body), "Who may make your site use this key") || strings.Contains(string(r.body), "simple-host.app") {
+		t.Fatalf("secrets page on the Hack apex: %d", r.status)
+	}
+	if text, out, failed := mcp(member.key, "request_secret", map[string]any{"site": team, "owner": slug, "name": "resend", "destination": "api.resend.com", "attach": "header", "attach_name": "Authorization", "attach_prefix": "Bearer "}); failed || !strings.HasPrefix(out["url"].(string), "https://"+tsDomain+"/secrets?") {
+		t.Fatalf("request_secret: %s", text)
+	}
+	if text, _, failed := mcp(outsider.key, "list_secrets", map[string]any{"site": team, "owner": slug}); !failed {
+		t.Fatalf("outsider list_secrets: %s", text)
+	}
+	// A team site's page uses an owner-only key with the platform's rule: a
+	// member signed in on the team site is its owner, an outsider is not. The
+	// destination does not resolve, so a call let through ends at dns_error.
+	wantTS(t, "team key", a.api(t, "PUT", "/v1/sites/"+team+"/secrets/ai?owner="+slug, map[string]string{"value": "AIza-team-key-0123456789", "destination": "api.sec1-test-nowhere", "who": "owner", "attach": "header", "attach_name": "x-goog-api-key"}, member.key), 200, "")
+	call := "/v1/sites/" + team + "/secrets/ai/call/v1beta/models"
+	if r := hackSession(t, a, a.uid(t, member), sid, host)("POST", call, "{}"); r.status != http.StatusBadGateway || !strings.Contains(string(r.body), "dns_error") || strings.Contains(string(r.body), "team-key") {
+		t.Fatalf("member's call: %d %s", r.status, r.body)
+	}
+	wantTS(t, "outsider's call", hackSession(t, a, a.uid(t, outsider), sid, host)("POST", call, "{}"), 403, "forbidden")
+	wantTS(t, "anonymous call", hackSession(t, a, "", sid, host)("POST", call, "{}"), 401, "sign_in_required")
+
 	// Account erasure: the event's holding account and an organiser of a
 	// running event are refused; a participant's own erasure goes ahead.
 	var holder string

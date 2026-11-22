@@ -3,9 +3,22 @@ package access
 import (
 	"database/sql"
 	"errors"
+	"net/http"
+	"regexp"
 
 	"github.com/vsriram/simple-host/host/model"
 )
+
+// keyCall is a call through a site's saved key (host/secrets/call).
+var keyCall = regexp.MustCompile(`^/v1/(u/[^/]+/)?sites/[^/]+/secrets/[^/]+/call(/|$)`)
+
+// ReadRequest reports whether r only reads, which some rules let through
+// more widely (a preview page, a shared host's direct read, a write check):
+// GET or HEAD, except a call through a site's saved key, which spends the
+// key whatever its method.
+func ReadRequest(r *http.Request) bool {
+	return (r.Method == http.MethodGet || r.Method == http.MethodHead) && !keyCall.MatchString(r.URL.Path)
+}
 
 // VisitKind is what a request wants from a site the visitor gate guards. The
 // kinds differ only in who is eligible, never in the order of the rules.

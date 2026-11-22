@@ -2,9 +2,9 @@ package domains
 
 import (
 	"context"
+	"github.com/vsriram/simple-host/host/outbound"
 	"time"
 
-	"github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 )
@@ -36,7 +36,7 @@ func (h Handler) wantPartnerCert(ctx context.Context, d model.BoundDomain, ours 
 		return false
 	}
 	for _, ip := range ips {
-		if ours[ip] && notify.PublicIP(ip) {
+		if ours[ip] && outbound.PublicIP(ip) {
 			return true
 		}
 	}

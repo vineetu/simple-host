@@ -138,3 +138,4 @@ zz-sim-200-image-scan.sql | platform | creates image_scan_hashes; creates image_
 0027-site-editors.sql | platform | creates site_editors
 0028-hack-team-keys-removed.sql | hack | drops event_team_keys and hack_grant_teams; drops oauth_grants.selected_team_id; deletes team-scope api_keys
 0029-hack-votes-by-account.sql | hack | event_votes keyed by voter_id; backfills from the account's base email
+0030-site-secrets.sql | platform | creates site_secrets

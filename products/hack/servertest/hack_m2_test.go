@@ -72,6 +72,13 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 		t.Fatalf("declare kind: %d %s", r.status, r.body)
 	}
 
+	// A member saves a key for their team's site (the same gate as its saved data).
+	secret := map[string]string{"value": "rk_team_key_0123456789", "destination": "api.resend.com", "who": "anyone", "attach": "header", "attach_name": "Authorization", "attach_prefix": "Bearer "}
+	if r := a.api(t, "PUT", "/v1/sites/"+alpha+"/secrets/resend?owner="+slug, secret, k1); r.status != 200 || strings.Contains(string(r.body), secret["value"]) {
+		t.Fatalf("team secret: %d %s", r.status, r.body)
+	}
+	wantTS(t, "alpha member on beta's keys", a.api(t, "GET", "/v1/sites/"+beta+"/secrets?owner="+slug, nil, k1), 404, "owner_not_found")
+
 	// ---- deadline freeze ---------------------------------------------------
 	ev := a.api(t, "PATCH", "/v1/hack/events/"+slug, map[string]string{"submission_deadline": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)}, org.key)
 	if ev.status != 200 {
@@ -80,6 +87,12 @@ func TestHackM2TeamSitesEndToEnd(t *testing.T) {
 	wantTS(t, "deploy after deadline", a.deployTeam(t, slug, alpha, k1, "late"), 409, "submissions_closed")
 	wantTS(t, "rollback after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/active-version?owner="+slug, map[string]int{"version_number": 1}, k1), 409, "submissions_closed")
 	wantTS(t, "data write after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/storage/resources/signups?owner="+slug, map[string]any{"kind": "kv", "rules": json.RawMessage(privateRules)}, k1), 409, "submissions_closed")
+	wantTS(t, "secret after deadline", a.api(t, "PUT", "/v1/sites/"+alpha+"/secrets/resend?owner="+slug, secret, k1), 409, "submissions_closed")
+	// A call spends the key whatever its method: a GET is a change too.
+	wantTS(t, "key call after deadline", a.api(t, "GET", "/v1/sites/"+alpha+"/secrets/resend/call/v1/models?owner="+slug, nil, k1), 409, "submissions_closed")
+	if r := a.api(t, "GET", "/v1/sites/"+alpha+"/secrets?owner="+slug, nil, k2); r.status != 200 || !strings.Contains(string(r.body), `"name":"resend"`) {
+		t.Fatalf("list after deadline: %d %s", r.status, r.body)
+	}
 	// Preview links still work (read-only).
 	if r := a.api(t, "POST", "/v1/sites/"+alpha+"/versions/2/preview-link?owner="+slug, nil, k1); r.status != 200 {
 		t.Fatalf("preview after deadline: %d %s", r.status, r.body)

@@ -253,8 +253,12 @@ services:
       # or "all"/"*" for every account. Empty (the default) means web push
       # is off for every site on this install.
       WEB_PUSH_ACCOUNTS: ${WEB_PUSH_ACCOUNTS:-}
+      SECRETS_KEY_FILE: /data/secrets/secrets.key
     volumes:
       - sites:/data/sites
+      # Site secrets' master key: its own volume, never served, outside the
+      # database. Back it up separately; lose it and saved keys are lost.
+      - secrets:/data/secrets
       # Read-only: the ingester only ever reads the access log Caddy writes.
       - caddy_logs:/var/log/caddy:ro
 
@@ -281,5 +285,6 @@ volumes:
   db:
   caddy_logs:
   sites:
+  secrets:
   caddy_data:
   caddy_config:

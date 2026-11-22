@@ -1,6 +1,9 @@
 package access
 
 import (
+	"net/http"
+	"net/http/httptest"
+
 	"database/sql"
 	"errors"
 	"testing"
@@ -49,6 +52,24 @@ func TestDecideVisit(t *testing.T) {
 	} {
 		if got := DecideVisit(tc.v); got != tc.want {
 			t.Errorf("%s: got %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+// A call through a site's saved key spends the key whatever its method, so
+// it is never a read: no preview, shared-host or write-check exemption.
+func TestKeyCallIsNeverARead(t *testing.T) {
+	for path, read := range map[string]bool{
+		"/v1/sites/shop/storage/kv/notes/keys":        true,
+		"/v1/sites/shop/secrets":                      true,
+		"/v1/sites/shop/secrets/ai/call/v1/models":    false,
+		"/v1/sites/shop/secrets/ai/call/":             false,
+		"/v1/u/olive/sites/shop/secrets/ai/call/v1/x": false,
+	} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			if got := ReadRequest(httptest.NewRequest(method, path, nil)); got != read {
+				t.Errorf("%s %s: read = %v", method, path, got)
+			}
 		}
 	}
 }

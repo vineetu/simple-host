@@ -282,6 +282,9 @@ into a new claim, set `persistence.existingClaim`, scale back up.
 A copy of the Secret belongs with the backups: `PASSCODE_ENC_KEY` seals every
 site passcode and notification secret, and the data is unreadable without it.
 
+The site secrets' master key, `/data/secrets.key` on the data volume (`SECRETS_KEY_FILE`), is not in the database.
+Back this file up separately from the database; lose it and saved keys cannot be recovered.
+
 ## What doesn't work without what
 
 | Without | What happens |

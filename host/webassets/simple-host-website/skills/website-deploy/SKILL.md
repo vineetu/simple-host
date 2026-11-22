@@ -38,6 +38,7 @@ rules, sign-in only where the row says, and a line telling the owner how they se
 | the owner's own notes or log on the site | `private` | only the owner, signed in on the site |
 | a shop with a cart and orders | `records` | each customer sees their own orders; the owner sees all |
 | an owner working with many signed-in people (a coach and clients, a tutor and students) | `people` | the owner adds rows for one person; each person sees only their own |
+| a chatbot, or any page that calls an AI or other outside service with the owner's API key | `chatbot` | the owner types the key on the link `request_secret` gives (never in chat or page files); the page uses it through `SH.secret(name).fetch`, for the owner, signed-in visitors or anyone, as the owner chose |
 
 ## 2. Do the job
 

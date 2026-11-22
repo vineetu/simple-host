@@ -82,6 +82,7 @@ passcode, never both. `SITE_VIEWERS_MAX` caps the list per site.
 | `MAX_ARCHIVE_MB` | `100` | at least 1 MB | Largest upload, and the size one site may have. |
 | `KEEP_VERSIONS` | `0` | at least 0 versions | Deploys kept per site; 0 keeps all. install.sh sets 1, which means no rollback. |
 | `PASSCODE_ENC_KEY` | none | secret | Seals site passcodes, notification signing secrets and custom header tokens with AES-256-GCM (32 random bytes, base64: openssl rand -base64 32); without it new passcodes and notifications are refused, and changing it makes stored passcodes and notification secrets unreadable and signs every visitor out. **Security-sensitive.** |
+| `SECRETS_KEY_FILE` | `<DATA_DIR>/../secrets.key` | text | The master key file that seals site secrets (keys an owner saves for an outside service). Made with 32 random bytes and mode 0600 on the first save when absent. Back it up with the database: without it saved secrets cannot be read. **Security-sensitive.** |
 | `PREVIEW_ACCOUNTS` | none | text | Accounts (comma-separated) whose sites expire on their own. |
 | `WEB_PUSH_ACCOUNTS` | none | text | SIM-360: accounts (comma-separated handles) allowed to use Web Push as a notification channel; push routes 404 for everyone else. "all" or "*" enables it for every account. Empty: off. |
 | `PREVIEW_TTL_HOURS` | `48` | at least 1 hours | How long those accounts' sites last. |

@@ -290,6 +290,22 @@
     },
     {
       "method": "DELETE",
+      "path": "/v1/sites/{sitename}/secrets/{name}",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/manage/routes.go",
+      "package": "host/secrets/manage",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/sites/{sitename}/secrets/{name}/call/{path...}",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/call/routes.go",
+      "package": "host/secrets/call",
+      "dynamic": false
+    },
+    {
+      "method": "DELETE",
       "path": "/v1/sites/{sitename}/storage/files/{name}/objects/{path...}",
       "feature_id": "storage-sql-errors",
       "source": "host/data/files/routes.go",
@@ -1978,6 +1994,14 @@
     },
     {
       "method": "GET",
+      "path": "/secrets",
+      "feature_id": "site-secrets",
+      "source": "host/sites/siteshttp/ui.go",
+      "package": "host/sites/siteshttp",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
       "path": "/setup",
       "feature_id": "webmcp-on-the-owner-app",
       "source": "host/sites/siteshttp/ui.go",
@@ -3330,6 +3354,22 @@
     },
     {
       "method": "GET",
+      "path": "/v1/sites/{sitename}/secrets",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/manage/routes.go",
+      "package": "host/secrets/manage",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sites/{sitename}/secrets/{name}/call/{path...}",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/call/routes.go",
+      "package": "host/secrets/call",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
       "path": "/v1/sites/{sitename}/showcase",
       "feature_id": "showcase-pins-and-bio",
       "source": "host/sites/showcase/routes.go",
@@ -3742,6 +3782,14 @@
       "feature_id": "signals-and-notifications",
       "source": "host/data/notifications/routes.go",
       "package": "host/data/notifications",
+      "dynamic": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/sites/{sitename}/secrets/{name}/call/{path...}",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/call/routes.go",
+      "package": "host/secrets/call",
       "dynamic": false
     },
     {
@@ -4570,6 +4618,14 @@
     },
     {
       "method": "POST",
+      "path": "/v1/sites/{sitename}/secrets/{name}/call/{path...}",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/call/routes.go",
+      "package": "host/secrets/call",
+      "dynamic": false
+    },
+    {
+      "method": "POST",
       "path": "/v1/sites/{sitename}/storage/files/{name}/download-link",
       "feature_id": "storage-sql-errors",
       "source": "host/data/files/routes.go",
@@ -5006,6 +5062,22 @@
       "feature_id": "signals-and-notifications",
       "source": "host/data/push/routes.go",
       "package": "host/data/push",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/secrets/{name}",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/manage/routes.go",
+      "package": "host/secrets/manage",
+      "dynamic": false
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/sites/{sitename}/secrets/{name}/call/{path...}",
+      "feature_id": "site-secrets",
+      "source": "host/secrets/call/routes.go",
+      "package": "host/secrets/call",
       "dynamic": false
     },
     {
@@ -6085,6 +6157,12 @@
       "feature_id": "publish-idle-cleanup"
     },
     {
+      "name": "delete_secret",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "site-secrets"
+    },
+    {
       "name": "delete_site",
       "family": "sites",
       "edition": "host",
@@ -6161,6 +6239,12 @@
       "family": "notifications",
       "edition": "host",
       "feature_id": "agents-data-minimisation"
+    },
+    {
+      "name": "list_secrets",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "site-secrets"
     },
     {
       "name": "list_site_editors",
@@ -6245,6 +6329,12 @@
       "family": "sites",
       "edition": "host",
       "feature_id": "publish-idle-cleanup"
+    },
+    {
+      "name": "request_secret",
+      "family": "access",
+      "edition": "host",
+      "feature_id": "site-secrets"
     },
     {
       "name": "restore_site",

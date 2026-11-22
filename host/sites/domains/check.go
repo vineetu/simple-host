@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/host/outbound"
 	"log"
 	"net/http"
 	"strings"
@@ -233,7 +234,7 @@ func (h Handler) verifyDomain(ctx context.Context, domain string, ours map[strin
 	}
 	here := ""
 	for _, ip := range ips {
-		if ours[ip] && notify.PublicIP(ip) {
+		if ours[ip] && outbound.PublicIP(ip) {
 			here = ip
 			break
 		}

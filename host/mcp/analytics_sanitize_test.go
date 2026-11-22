@@ -190,3 +190,14 @@ func TestPasscodeScreenAnalyticsDispatch(t *testing.T) {
 		}
 	}
 }
+
+// A key typed into a secret tool by mistake (a value argument, which every
+// secret tool refuses) never reaches analytics.
+func TestSecretToolsDropValue(t *testing.T) {
+	for _, name := range []string{"request_secret", "list_secrets", "delete_secret"} {
+		got := jsonText(analyticsParameters(name, map[string]any{"site": "shop", "name": "ai", "value": "sk-typed-by-mistake-0123"}))
+		if strings.Contains(got, "sk-typed") || !strings.Contains(got, "shop") {
+			t.Errorf("%s: %s", name, got)
+		}
+	}
+}

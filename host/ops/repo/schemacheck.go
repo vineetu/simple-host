@@ -43,7 +43,9 @@ var requiredColumns = map[string][]string{
 	"team_audit":       {"id", "team_id", "team_handle", "actor_id", "action", "subject_id", "invitation_id", "at"},
 	"team_invitations": {"id", "team_id", "invited_by", "addressed_to", "created_at", "expires_at", "state"},
 	// 0027-site-editors.sql.
-	"site_editors":       {"account_id", "site_name", "user_id", "added_by", "added_at"},
+	"site_editors": {"account_id", "site_name", "user_id", "added_by", "added_at"},
+	// 0030-site-secrets.sql creates site_secrets.
+	"site_secrets":       {"id", "site_id", "name", "ciphertext", "nonce", "key_version", "destination", "who", "attach", "attach_name", "attach_prefix", "created_at", "updated_at", "last_used_at", "use_count"},
 	"site_storage_files": {"site_id", "resource_name", "path", "writer_id", "created_at"},
 	// cp-ops-suspend.sql adds the suspended_* columns.
 	// w2-account-signin-email.sql adds signin_alerts and the two tables below.

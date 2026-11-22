@@ -177,7 +177,7 @@ func (h *Handler) storageSameSiteRequest(r *http.Request, siteID string) bool {
 	if r.Header.Get("Origin") != "" || r.Header.Get("Referer") != "" {
 		return httpx.SameOrigin(r)
 	}
-	return r.Method == http.MethodGet || r.Method == http.MethodHead
+	return accounts.ReadRequest(r)
 }
 
 // StorageOwnAddress is the address half of D1's owner-on-site rule: the

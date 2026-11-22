@@ -37,7 +37,7 @@ func (s *Service) RuleRights(ctx context.Context, c Call, table string) (map[str
 		{"edit_own", ruleengine.OpEdit}, {"delete_own", ruleengine.OpDelete},
 	} {
 		if c.VisitorID != "" && c.RulePlan.NeedsIdentity(action.op) {
-			if err := s.visitorActive(&c); err != nil {
+			if err := s.VisitorActive(&c); err != nil {
 				return nil, err
 			}
 		}

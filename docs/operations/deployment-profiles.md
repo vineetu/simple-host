@@ -58,6 +58,9 @@ The shared migration rules below apply.
 
 ### Upgrade steps and rollback
 
+Site secrets' master key file (`SECRETS_KEY_FILE`; systemd units: `/var/lib/<program>/secrets.key`, Compose: the `secrets` volume, Kubernetes and the standalone image: `/data/secrets.key`) is not in the database or the served sites.
+Back this file up separately from the database; lose it and saved keys cannot be recovered.
+
 Before changing either instance, take paired database and site-directory backups
 and retain its settings/sealing keys. Build both programs from one commit under
 the memory cap and migrate each target database with its matching candidate.

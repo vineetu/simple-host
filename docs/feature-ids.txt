@@ -93,6 +93,7 @@ simple-hack-my-sites-and-dashboard
 simple-hack-organiser-app
 site-drafts
 site-person-addresses
+site-secrets
 site-storage-primitives
 site-url
 sites-and-deploy

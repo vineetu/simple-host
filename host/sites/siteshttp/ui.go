@@ -130,6 +130,16 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	// name is a path segment the page reads back off location.pathname, so no
 	// server-side templating is involved.
 	mux.Handle("GET /analytics/{sitename}", assets.AdminUICSP(assets.ServeStaticPage("analytics.html")))
+	// The write-only page for a site's keys (host/secrets): the owner types a
+	// key there, never in a chat. Same key-in-localStorage shell as /teams, on
+	// this program's own apex; the value goes out once on the PUT and is never
+	// answered back, so nothing here is cached or sent on as a referrer.
+	mux.Handle("GET /secrets", assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("X-Robots-Tag", "noindex")
+		assets.ServeStaticPage("secrets.html").ServeHTTP(w, r)
+	})))
 	registerDashboard(mux, assets, sh.Ed, publicBaseURL)
 	// On the base origin, a bare /<handle> that resolves to a real user renders
 	// that user's owner app; everything else is the landing page / static files.
@@ -235,6 +245,7 @@ func serveIcon(fsys fs.FS, file string) http.Handler {
 // unparseable script — until a handler substitutes them.
 var handlerOnlyPages = map[string]bool{
 	"photos.html":       true,
+	"secrets.html":      true,
 	"admin.html":        true,
 	"connect.html":      true,
 	"analytics.html":    true,

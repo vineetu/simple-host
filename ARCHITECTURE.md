@@ -52,7 +52,7 @@ file emission call sites (`host/data`) carry the row's own `visitor_id` and whet
 the actor was the owner, so the fan-out (`host/data/repo/notify.EmitSiteEventFor`) can route a
 push to the right devices without that layer knowing push exists; the actual RFC 8291/8292
 encryption and send (`host/data/push/routes.go`, `github.com/SherClockHolmes/webpush-go`)
-reuses the webhook delivery client's SSRF-guarded dial.
+reuses the one outbound guard (`host/outbound`) the webhook delivery client uses.
 Visitor writes emit in both editions, excluding owner writes (an owner write with no associated
 visitor row/key still emits nothing; one that touches a visitor's row -- D1's owner edit, or
 SIM-358's owner-on-behalf-of add -- emits so that visitor's own push devices, never the owner's
@@ -163,6 +163,7 @@ repositories/disk mechanics. Routes and tools hold no SQL and import no reposito
 | `sites/{deploy,versions,lifecycle,domains,families,sitelist,sitemap,export,showcase,admin,idle,siteanalytics,setup,events}` | One package per Sites feature: its logic, routes and route tests; `sites/sitesroute` is the route state they share, `sites/sitesroute/fixture` their test fixture |
 | `data`, `data/repo`, `data/notify` | Data core: caller facts, the gate, resource resolution and rules decision, SQLite admission, quotas and the route core; their SQL; the notification engine |
 | `data/{kv,rows,sqlconsole,files,resources,usage,visitors,notifications,push}` | One package per Data feature (KV, table rows, the SQL console, files, resource rules, usage, visitor records, notification and web-push settings): its logic, routes and tests; `data/storetest` is their shared fixture |
+| `secrets`, `secrets/{manage,call}` | Site secrets, above the modules: the core owns `site_secrets` and the sealing; manage saves, lists and deletes keys for the owner; call sends a site page's request to a key's one destination with the key added |
 | `ops`, `ops/repo` | Workflows over more than one module (cutting a person off, named viewers with their devices, site export with saved data, setup) and the operator's reports; their SQL |
 | `access/<feature>`, `sites/<feature>`, `data/<feature>` (`routes.go`, or Access's `Register`) | Each feature's HTTP routes, beside its logic: read the request, call the module once, write the answer. `access/accesshttp` and `sites/siteshttp` compose and mount their module's features; `handler` mounts Data's |
 | `handler` | Builds the three route handlers with what they share and mounts them; the connector's visitor tools |
@@ -174,6 +175,7 @@ repositories/disk mechanics. Routes and tools hold no SQL and import no reposito
 | `webassets`, `web` | Platform pages, docs, skills and downloads; the page pipeline and shared HTTP refusals |
 | `server`, `extension` | Program composition, CLI and lifecycle; the product description and its contributions |
 | `workers` | Background job lifecycle, cancellation and status |
+| `outbound` | The one guard for connections to addresses someone else chose (webhooks, web push, a secret's destination): public addresses only, checked again at connect time |
 | `httpx` | Shared HTTP responses, the one refusal-code status table (`RefusalStatus`), limits and signed links |
 | `model` | Shared records without SQL or transport |
 | `storage` | Deployment trees, markers, runtime files and per-site SQLite mechanics |

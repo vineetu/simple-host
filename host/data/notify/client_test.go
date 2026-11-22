@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/vsriram/simple-host/host/outbound"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -49,7 +50,7 @@ func newReceiver(t *testing.T) *receiver {
 func trusting(srv *httptest.Server) client {
 	roots := x509.NewCertPool()
 	roots.AddCert(srv.Certificate())
-	return client{allowLoopback: true, roots: roots}
+	return client{Dialer: outbound.Dialer{AllowLoopback: true}, roots: roots}
 }
 
 func TestClientRefusesAddresses(t *testing.T) {
@@ -64,14 +65,14 @@ func TestClientRefusesAddresses(t *testing.T) {
 			t.Errorf("invalid URL accepted: %s", raw)
 		}
 	}
-	c.resolver = func(context.Context, string) ([]net.IPAddr, error) {
+	c.Resolver = func(context.Context, string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP("8.8.8.8")}, {IP: net.ParseIP("10.0.0.1")}}, nil
 	}
 	if _, err := c.validate(context.Background(), "https://mixed.example/"); !errors.Is(err, Failure("refused_address")) {
 		t.Fatal("mixed answer accepted")
 	}
 	calls := 0
-	c.resolver = func(context.Context, string) ([]net.IPAddr, error) {
+	c.Resolver = func(context.Context, string) ([]net.IPAddr, error) {
 		calls++
 		ip := "8.8.8.8"
 		if calls > 1 {
@@ -83,7 +84,7 @@ func TestClientRefusesAddresses(t *testing.T) {
 	if result.Result != "refused_address" || calls != 2 {
 		t.Fatalf("rebinding: %s, lookups %d", result.Result, calls)
 	}
-	c.resolver = func(context.Context, string) ([]net.IPAddr, error) { return nil, errors.New("lookup failed") }
+	c.Resolver = func(context.Context, string) ([]net.IPAddr, error) { return nil, errors.New("lookup failed") }
 	if _, err := c.validate(context.Background(), "https://dns.example/"); !errors.Is(err, Failure("dns_error")) {
 		t.Fatal(err)
 	}
@@ -214,7 +215,7 @@ func TestHeaderAndSecretRules(t *testing.T) {
 
 func TestSpecialAddressesAndExactPayloads(t *testing.T) {
 	for _, ip := range []string{"64:ff9b:1::a00:1", "2001::1", "2001:1ff::1", "2002:a00:1::1", "100::1", "2001:db8::1", "fec0::1", "::7f00:1", "::a9fe:a9fe", "::8.8.8.8"} {
-		if PublicIP(ip) {
+		if outbound.PublicIP(ip) {
 			t.Errorf("accepted non-public address %s", ip)
 		}
 	}
@@ -257,7 +258,7 @@ func TestTruncateListsCutPaths(t *testing.T) {
 func TestChallengeBudgets(t *testing.T) {
 	ctx := context.Background()
 	e := NewEngine(nil, nil, config.DefaultLimits(), "")
-	e.client.resolver = func(context.Context, string) ([]net.IPAddr, error) {
+	e.client.Resolver = func(context.Context, string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP("8.8.8.8")}, {IP: net.ParseIP("8.8.4.4")}}, nil
 	}
 	for i := 0; i < 10; i++ {
@@ -269,7 +270,7 @@ func TestChallengeBudgets(t *testing.T) {
 		t.Fatal("aliases bypassed IP budget")
 	}
 	e = NewEngine(nil, nil, config.DefaultLimits(), "")
-	e.client.resolver = func(_ context.Context, host string) ([]net.IPAddr, error) {
+	e.client.Resolver = func(_ context.Context, host string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP(host)}}, nil
 	}
 	for i := 1; i <= 10; i++ {

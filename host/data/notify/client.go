@@ -13,21 +13,18 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/outbound"
 )
 
 // Failure is a delivery or validation outcome category ("invalid_url",
 // "refused_address", "timeout", ...), stored as a delivery's result.
-type Failure string
-
-func (e Failure) Error() string { return string(e) }
+type Failure = outbound.Failure
 
 // Result is one send's outcome, also the JSON a test send answers with.
 type Result struct {
@@ -37,16 +34,12 @@ type Result struct {
 	body      []byte
 }
 
-// client sends webhooks to public HTTPS addresses only: every name is
-// resolved here and each dialled address is checked again, so a second DNS
-// answer cannot redirect a send inside the network.
+// client sends webhooks to public HTTPS addresses only, through the one
+// outbound guard (host/outbound).
 type client struct {
-	// resolver replaces DNS: a challenge dials exactly the addresses whose
-	// budgets it charged, and tests answer for names they make up.
-	resolver      func(context.Context, string) ([]net.IPAddr, error)
-	timeout       time.Duration
-	allowLoopback bool
-	roots         *x509.CertPool
+	outbound.Dialer
+	timeout time.Duration
+	roots   *x509.CertPool
 }
 
 // defaultTimeout is config.DefaultLimits().NotifyTimeout, for a client
@@ -91,86 +84,6 @@ func Signature(secret, id, ts string, body []byte) (string, error) {
 	return "v1," + base64.StdEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 
-// PublicIP: a globally routable unicast address (not loopback, private,
-// link-local, carrier-grade NAT, unspecified or multicast).
-func PublicIP(s string) bool {
-	ip, err := netip.ParseAddr(s)
-	if err != nil {
-		return false
-	}
-	ip = ip.Unmap()
-	if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-		return false
-	}
-	for _, p := range nonPublicPrefixes {
-		if p.Contains(ip) {
-			return false
-		}
-	}
-	return true
-}
-
-var nonPublicPrefixes = []netip.Prefix{
-	netip.MustParsePrefix("::/96"),
-	netip.MustParsePrefix("0.0.0.0/8"),
-	netip.MustParsePrefix("100.64.0.0/10"),
-	netip.MustParsePrefix("192.0.0.0/24"),
-	netip.MustParsePrefix("198.18.0.0/15"),
-	netip.MustParsePrefix("240.0.0.0/4"),
-	netip.MustParsePrefix("64:ff9b::/96"),
-	netip.MustParsePrefix("64:ff9b:1::/48"),
-	netip.MustParsePrefix("2001::/23"),
-	netip.MustParsePrefix("2002::/16"),
-	netip.MustParsePrefix("100::/64"),
-	netip.MustParsePrefix("2001:db8::/32"),
-	netip.MustParsePrefix("fec0::/10"),
-}
-
-func (c *client) public(ip string) bool {
-	if PublicIP(ip) {
-		return true
-	}
-	parsed := net.ParseIP(ip)
-	return c.allowLoopback && parsed != nil && parsed.IsLoopback()
-}
-
-// lookup resolves host (a literal address resolves to itself).
-func (c *client) lookup(ctx context.Context, host string) ([]net.IPAddr, error) {
-	if ip := net.ParseIP(host); ip != nil {
-		return []net.IPAddr{{IP: ip}}, nil
-	}
-	resolve := c.resolver
-	if resolve == nil {
-		resolve = net.DefaultResolver.LookupIPAddr
-	}
-	addrs, err := resolve(ctx, host)
-	var ne net.Error
-	switch {
-	case errors.As(err, &ne) && ne.Timeout():
-		return nil, Failure("timeout")
-	case err != nil:
-		return nil, Failure("dns_error")
-	}
-	return addrs, nil
-}
-
-// addresses are host's addresses when every one of them is public.
-func (c *client) addresses(ctx context.Context, host string) ([]net.IPAddr, error) {
-	addrs, err := c.lookup(ctx, host)
-	if err != nil {
-		return nil, err
-	}
-	if len(addrs) == 0 {
-		return nil, Failure("dns_error")
-	}
-	for _, a := range addrs {
-		if a.Zone != "" || !c.public(a.IP.String()) {
-			return nil, Failure("refused_address")
-		}
-	}
-	return addrs, nil
-}
-
 // validate accepts an https URL without credentials or fragment whose host
 // resolves to public addresses only.
 func (c *client) validate(ctx context.Context, raw string) (*url.URL, error) {
@@ -183,50 +96,16 @@ func (c *client) validate(ctx context.Context, raw string) (*url.URL, error) {
 			return nil, Failure("invalid_url")
 		}
 	}
-	if _, err = c.addresses(ctx, u.Hostname()); err != nil {
+	if _, err = c.Addresses(ctx, u.Hostname()); err != nil {
 		return nil, err
 	}
 	return u, nil
 }
 
-// dial connects to the first reachable public address of address's host,
-// refusing any connection whose remote end is not public.
-func (c *client) dial(ctx context.Context, network, address string) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(address)
-	if err != nil {
-		return nil, Failure("refused_address")
-	}
-	addrs, err := c.addresses(ctx, host)
-	if err != nil {
-		return nil, err
-	}
-	d := net.Dialer{Timeout: 2 * time.Second, Control: func(_, address string, _ syscall.RawConn) error {
-		ip, _, err := net.SplitHostPort(address)
-		if err != nil || !c.public(ip) {
-			return Failure("refused_address")
-		}
-		return nil
-	}}
-	for _, a := range addrs {
-		conn, e := d.DialContext(ctx, network, net.JoinHostPort(a.IP.String(), port))
-		if e != nil {
-			err = e
-			continue
-		}
-		remote, _, e := net.SplitHostPort(conn.RemoteAddr().String())
-		if e != nil || !c.public(remote) {
-			conn.Close()
-			return nil, Failure("refused_address")
-		}
-		return conn, nil
-	}
-	return nil, err
-}
-
-// httpClient fetches through dial, over TLS 1.2+, and never follows a
+// httpClient fetches through the guard's Dial, over TLS 1.2+, and never follows a
 // redirect: a public destination must not send the request elsewhere.
 func (c *client) httpClient() (*http.Client, func()) {
-	transport := &http.Transport{Proxy: nil, DialContext: c.dial, TLSClientConfig: &tls.Config{RootCAs: c.roots, MinVersion: tls.VersionTLS12}, DisableKeepAlives: true}
+	transport := &http.Transport{Proxy: nil, DialContext: c.Dial, TLSClientConfig: &tls.Config{RootCAs: c.roots, MinVersion: tls.VersionTLS12}, DisableKeepAlives: true}
 	return &http.Client{Transport: transport, Timeout: c.deadline(), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, transport.CloseIdleConnections
 }
 

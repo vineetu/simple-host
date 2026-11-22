@@ -26,6 +26,7 @@ net_usage_daily | host/netusage | its functions
 oauth_grants | host/access/repo | its functions
 paper_daily | host/papermetrics | its functions
 site_editors | host/access/repo | its functions
+site_secrets | host/secrets | its functions (Save, List, Delete, Open)
 site_geo_daily | host/sites/analytics | its functions
 site_notifications | host/data/repo/notify | its functions
 site_view_daily | host/sites/analytics | its functions

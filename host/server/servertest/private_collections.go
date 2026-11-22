@@ -3,10 +3,12 @@ package servertest
 import (
 	"context"
 	"encoding/hex"
+	"github.com/vsriram/simple-host/host/secrets"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -82,7 +84,7 @@ func NewPrivateAppMailerBase(t *testing.T, mailer email.Sender, base string, eds
 	users.Register(mux, authMW, web.NoticeMiddleware("1.0.0"))
 	a.Users = users
 	a.Sites, a.Access, a.Data = handler.NewSiteHandlers(ed, "", database, disk, nil, PcSiteDomain, PcContentHost, "cname."+PcSiteDomain, "", "", adminKey, nil, 0, adminID, mailer, users.EmailLimiter)
-	handler.Register(mux, a.Sites, a.Access, a.Data, authMW, web.NoticeMiddleware("1.0.0"))
+	handler.Register(mux, a.Sites, a.Access, a.Data, secrets.New(database, filepath.Join(t.TempDir(), "secrets.key")), authMW, web.NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.Data.WaitNotifications)
 	users.SetSites(a.Access)
 	gated := auth.ScopeGate(accountapp.New(database), mux, ed.Limits().KeyIdleExpiry, nil)
