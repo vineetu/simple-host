@@ -4,7 +4,9 @@ These are the owner's rules for how this code is built. They come first: when a 
 review finding or an instruction conflicts with one of them, say which principle and stop
 to ask. `INTENT.md` says what the product is for; this file says how the code must be shaped.
 
-Each principle has: the rule, what it forbids, how it is checked, and when the owner said it.
+Each principle has: the rule, what it forbids, how it is checked, and where it came from.
+"Owner" lines are his words. "Proposed by Claude" marks a rule the owner did not state
+himself; it stands only while he accepts it.
 The last section lists the places where two principles pull against each other and which one
 wins, so the same argument is not had twice.
 
@@ -59,6 +61,8 @@ package never imports another routes package.
 
 - Forbids: circular imports; hooks installed at start-up so a lower module can call a higher one.
 - Checked by: `scripts/check-layering.sh`.
+- Proposed by Claude (the module order); the owner approved the module split on 2026-11-19
+  and asked for "separation of concerns as modules inside one program".
 
 ### 6. No machinery
 
@@ -77,7 +81,8 @@ is usually to change it there, and the problem disappears. A plan with more than
 for a simple point is a sign of over-complication.
 
 - Forbids: answering a simple design point with an audit, a proof, or a new subsystem.
-- Owner, 2026-11-21: "What is there to prove in that? Isn't that simple?"
+- Worded by Claude from the owner's correction, 2026-11-21: "What is there to prove in that?
+  Isn't that simple? ... there should be one place for accounts, not a hundred."
 
 ### 8. Rare things may fail
 
@@ -88,15 +93,24 @@ could be bypassed, or an everyday action would break.
 - Forbids: caps, guards, retries and lock choreography for things that almost never happen.
 - Owner, 2026-11-19: "If it fails, it fails. Retry is always fine."
 
-### 9. Simple beats short
+### 9. Simple and short
 
-Short functions with one job, readable top to bottom. A simpler shape that is a little longer
-is better than a clever short one. Do not cut one operation into many tiny pieces that only
-make sense together.
+Both, always. Short functions with one job, readable top to bottom, and as little code as
+does the job. Clever is welcome when it makes the code smaller and what it does is still
+plain on the page: one table for twenty branches, one general function for five special
+ones. The clever to avoid is the hidden kind, where the code only works because of something
+a reader cannot see from where they stand. Only when simple and short truly conflict does
+simple win, and then the test is which version is easier to verify.
 
-- Forbids: functions over complexity 25; carrier structs that only pass state between fragments.
-- Checked by: `gocyclo -over 25`.
-- Owner, 2026-11-20: "Simpler but longer is better."
+- Forbids: functions over complexity 25; cutting one operation into many tiny pieces that
+  only make sense together; carrier structs that only pass state between fragments; code
+  made longer in the name of clarity.
+- Checked by: `gocyclo -over 25`; line counts reported before and after a change.
+- Owner, 2026-11-20 and 2026-11-22: "I want it to be simple and short. I never want it to be
+  long." When one has to give: "simpler but longer is better." Clever is good.
+- Why it matters for AI readers (Claude's note): what a model can hold in view is the scarce
+  resource, so short helps more than it does for people, and a surprise is what makes a small
+  model wrong.
 
 ### 10. A change retests only its own part
 
@@ -127,13 +141,17 @@ Something new is private until someone says otherwise. A new text field stays ou
 analytics until it is listed as safe, a platform tool stays out of Simple Hack until it is
 added there, and saved data is owner-only until rules open it.
 
+- Proposed by Claude after a small-model trial leaked a new private field to analytics.
+  Accepted by the owner, 2026-11-22: "fine if that's the right way to go."
+
 ### 14. A refactor is judged by numbers
 
 Before a clean-up, name the numbers that must move: outside reads per table, tangled
 functions, retest time, handlers reaching into each other. Report them before and after.
 If they did not move, say "nothing real changed". Moving files is not refactoring.
 
-- Owner, 2026-11-20: "You just broke down the files, keeping the core as is."
+- Worded by Claude from the owner's complaint, 2026-11-20: "You just broke down the files,
+  keeping the core as is."
 
 ### 15. Delete what is not needed
 
@@ -154,7 +172,7 @@ These are decided. Do not reopen them without the owner.
 | One-way structure (5) against a job that needs several modules | The job moves up to `host/ops`, in place of a hook or a reversed import. |
 | No machinery (6) against a real plug-in point | Simple Hack's extension points stay: schema, assets, edition, storage provider, group hosts and gate, the erasure guard. Nothing else. |
 | Thin edges (4) against not changing what users see | A route keeps a check at the edge when moving it would change which error a person gets first. Web work (cookies, redirects, page choice) is not business logic. |
-| Simple beats short (9) against delete what is not needed (15) | Remove dead and duplicate code always. Never trade readability for fewer lines. |
+| Simple against short (both in 9) | Want both. Remove dead and duplicate code always. When one must give, keep the version that is easier to verify. |
 | Fewer tests (12) against safety | Every rule about access, data and operator holds keeps one test of the refusal and one of the allowed case. Everything else may go. |
 | Rare things may fail (8) against operator holds and privacy | A race that could serve a held site or show private data is fixed. A race that only fails cleanly is left. |
 | Operator reports against one owner per table (1) | Reports and metrics may read across tables. Each is a named exception. They never write. |
