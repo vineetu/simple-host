@@ -15,12 +15,12 @@ wildcard certificate per person, which a small box does not have, so both are `o
 sites live at `sites.<domain>/<handle>/<site>/`. `serve` answers on the new addresses without
 handing them out; `canonical` hands them out and redirects the old ones.
 
-**Hosted address decision (2026-10-09).** simple-host.app is the only address.
-The alternate site base is paused; `SITE_BASE_MOVE=off` and a retained distinct
-`SITE_BASE_DOMAIN` 301 old person/site/free-name links to matching app hosts with
-path and query kept. The base certificate directory is unset and the .site issuer
-stays disabled. See [the operations runbook](../operations/site-base-paused.md).
-Revisit about 2026-11-09.
+**Hosted address decision (2026-11-22).** New accounts get one-level addresses:
+`SITE_BASE_MOVE=flat` with `SITE_BASE_DOMAIN=simple-host.site` hands a person
+without a certificate of their own `<site>--<handle>.simple-host.site` and
+`<handle>.simple-host.site`, on one wildcard certificate; everyone with one keeps
+`<site>.<handle>.simple-host.app`. With `off` (the default) a distinct base only
+301s back to `SITE_DOMAIN`. See [the operations runbook](../operations/site-base-flat.md).
 
 **Address families.** An account can also connect `*.<its domain>` so every one of its sites
 answers at `<site>.<its domain>` (see [Domains and certificates](domains-and-certificates.md)).
@@ -43,8 +43,8 @@ address of a site keeps working. `ADDRESS_FAMILIES` turns the feature off; it al
 | `DEPLOY_SCRIPT` | none | text | A script run after each site goes live. Empty runs nothing. |
 | `PERSON_HOSTS` | `off` | `off` / `serve` / `canonical` | Each account at its own address, <handle>.<SITE_DOMAIN>. canonical makes it the address handed out. |
 | `SITE_HOSTS` | `off` | `off` / `serve` / `canonical` | Each site at its own address, <site>.<handle>.<SITE_DOMAIN>. Needs PERSON_HOSTS. |
-| `SITE_BASE_DOMAIN` | `<SITE_DOMAIN>` | text | Optional alternate base for person/site/free-name addresses. The app stays on SITE_DOMAIN. With SITE_BASE_MOVE=off, retain this only to redirect old base links back to SITE_DOMAIN. |
-| `SITE_BASE_MOVE` | `off` | `off` / `serve` / `canonical` / `redirect` / `permanent` | off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301). |
+| `SITE_BASE_DOMAIN` | `<SITE_DOMAIN>` | text | Optional second domain for people's addresses. The app, free names and the content host stay on SITE_DOMAIN. With SITE_BASE_MOVE=off it only redirects old links back to SITE_DOMAIN. |
+| `SITE_BASE_MOVE` | `off` | `off` / `flat` | off: only SITE_DOMAIN serves; a distinct SITE_BASE_DOMAIN 301s back with path and query kept. flat: a person with no certificate of their own (SITE_CERT_DIR ready/) gets one-label addresses under SITE_BASE_DOMAIN, <handle>.<base> and <site>--<handle>.<base>, on one wildcard certificate; everyone else keeps <site>.<handle>.<SITE_DOMAIN>. |
 | `SETUP_PASSWORD` | none | secret | The password a box in setup mode asks for. install.sh generates it. **Security-sensitive.** |
 | `SETUP_PUBLIC_API` | `https://simple-host.app` | text | Where a box in setup mode claims a free hostname from. |
 | `MCP_APP_PASSCODE` | `off` | text | Passcode screen in compatible MCP Apps clients. off, on, or accounts:alice,bob. Personal Simple Host callers only. |

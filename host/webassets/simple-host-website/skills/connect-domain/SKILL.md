@@ -5,7 +5,8 @@ description: Give a Simple Host site a shorter or custom address, either a short
 
 # Connect a custom domain
 
-A Simple Host site is already live at its own address, `https://<site>.<handle>.simple-host.app/`,
+A Simple Host site is already live at its own address, `https://<site>.<handle>.simple-host.app/`
+(newer accounts: `https://<site>--<handle>.simple-host.site/`),
 where visitor sign-in already works. This is optional and gives it a
 nicer or shorter address, served over HTTPS: a short `<name>.simple-host.app`, or the person's
 own domain. You do the Simple Host side with the

@@ -43,6 +43,9 @@ func (s Service) Restore(ctx context.Context, in RestoreInput) (RestoreResult, e
 		}
 		return RestoreResult{}, err
 	}
+	if err := s.Deps.Hosts.NameFits(in.Name, in.Handle); err != nil {
+		return RestoreResult{}, err
+	}
 	// A site in Recently deleted already counts toward its quota.
 	site, err := s.RestoreTrashed(ctx, sites.RestoreTrashedInput{Site: d, Handle: in.Handle})
 	if err != nil {

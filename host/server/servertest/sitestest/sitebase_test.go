@@ -16,30 +16,24 @@ import (
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
-// The split-domain move (docs/history/site-base-domain-move.md): the app on
-// rt.SiteDomain, people's addresses moving to sbBase.
+// A second base for people's addresses (sitebase.go): the app on
+// rt.SiteDomain, new accounts' flat addresses under sbBase.
 const sbBase = "sh-site.test"
 
-// newBaseApp is NewApp with the base moving to sbBase in move, and a second
-// certificate hand-off for it (returned).
-func newBaseApp(t *testing.T, move string) (*App, string) {
+// newBaseApp is NewApp with SITE_BASE_DOMAIN sbBase in move.
+func newBaseApp(t *testing.T, move string) *App {
 	t.Helper()
 	a := NewApp(t)
-	baseDir := t.TempDir()
-	for _, d := range []string{"requests", "ready"} {
-		if err := os.MkdirAll(filepath.Join(baseDir, d), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	a.Hosts.SetSiteBase(sbBase, move, baseDir)
+	a.Hosts.SetSiteBase(sbBase, move)
+	a.Sites.SetTeamSiteFlatHosts(false)
 	accountsrepo.SetPlatformDomains(a.Sites.HandoutBase(), a.Sites.ServedBases()...)
-	return a, baseDir
+	return a
 }
 
 // Paused (off): the base only redirects to the old addresses, nothing hands
 // it out and no certificate is asked for under it.
 func TestPausedSiteBaseDeployment(t *testing.T) {
-	a, baseDir := newBaseApp(t, "off")
+	a := newBaseApp(t, "off")
 	owner := a.NewPerson(t, "paused")
 	a.Deploy(t, owner, "shop")
 	if r := a.api(t, owner, "GET", "/v1/sites", nil); !strings.Contains(string(r.Body), "https://"+owner.SiteHost("shop")+"/") || strings.Contains(string(r.Body), sbBase) {
@@ -51,174 +45,105 @@ func TestPausedSiteBaseDeployment(t *testing.T) {
 			t.Fatalf("paused host: %d %q, want 301 %q", r.Status, location(r), want)
 		}
 	}
-	a.Sites.RequestSiteCertsForAll(context.Background())
-	if requests, err := os.ReadDir(filepath.Join(baseDir, "requests")); err != nil || len(requests) != 0 {
-		t.Fatalf("paused base requested certificates: %v %v", requests, err)
-	}
 }
 
-// Each mode over the host kinds: what answers, what redirects where (status,
-// path, query and escapes kept), what is handed out, the claimed-name
-// namespace, and where certificates are asked for.
-func TestSiteBaseMatrix(t *testing.T) {
-	for _, move := range []string{"off", "serve", "permanent"} {
-		t.Run(move, func(t *testing.T) {
-			a, baseDir := newBaseApp(t, move)
-			olive, oscar := a.NewPerson(t, "olive"), a.NewPerson(t, "oscar")
-			a.Deploy(t, olive, "shop")
-			a.Deploy(t, oscar, "shop")
-			oh, sh := olive.Handle, oscar.Handle
-			if err := os.WriteFile(filepath.Join(baseDir, "ready", oh), nil, 0o644); err != nil { // oscar has none under the base
-				t.Fatal(err)
-			}
-			split, redirect := move != "off", move == "permanent"
-			handout := rt.SiteDomain
-			if redirect {
-				handout = sbBase
-			}
-			if r := a.api(t, olive, "GET", "/v1/sites", nil); !strings.Contains(string(r.Body), `"https://shop.`+oh+`.`+handout+`/"`) {
-				t.Fatalf("site_url: %s", r.Body)
-			}
-
-			// The old base.
-			p := "/a%2Fb/c?x=1&y=%20z"
-			oldSite := "shop." + oh + "." + rt.SiteDomain
-			r := a.At(t, "GET", oldSite, p, nil, nil)
-			if redirect && (r.Status != http.StatusMovedPermanently || location(r) != "https://shop."+oh+"."+sbBase+p) {
-				t.Fatalf("old site host: %d %q", r.Status, location(r))
-			}
-			if r := a.At(t, "GET", oldSite, "/", nil, nil); !redirect && (r.Status != 200 || string(r.Body) != "<h1>shop</h1>") {
-				t.Fatalf("old site host root: %d", r.Status)
-			}
-			if r := a.At(t, "GET", oldSite, "//evil.example/x", nil, nil); redirect && !strings.HasPrefix(location(r), "https://shop."+oh+"."+sbBase+"/") {
-				t.Fatalf("double slash: %q", location(r))
-			}
-			if r := a.At(t, "GET", "shop."+sh+"."+rt.SiteDomain, "/x?y=1", nil, nil); redirect && (r.Status != http.StatusFound || location(r) != "https://"+sh+"."+sbBase+"/shop/x?y=1") {
-				t.Fatalf("not-ready old site host: %d %q", r.Status, location(r))
-			}
-			for _, h := range []string{rt.ContentHost, rt.SiteDomain, "cname." + rt.SiteDomain, "www." + rt.SiteDomain} {
-				if loc := location(a.At(t, "GET", h, "/", nil, nil)); strings.Contains(loc, sbBase) {
-					t.Fatalf("%s moved: %q", h, loc)
-				}
-			}
-			wantStatus := http.StatusFound
-			if redirect {
-				wantStatus = http.StatusMovedPermanently
-			}
-			if r := a.At(t, "GET", rt.ContentHost, "/internal/site-redirect/"+oh+"/shop/sub/?q=1", nil, nil); r.Status != wantStatus || location(r) != "https://shop."+oh+"."+handout+"/sub/?q=1" {
-				t.Fatalf("content-host redirect: %d %q", r.Status, location(r))
-			}
-
-			// The new base.
-			newSite, newPerson := "shop."+oh+"."+sbBase, oh+"."+sbBase
-			if r := a.At(t, "GET", newSite, "/", nil, nil); split != (r.Status == 200 && string(r.Body) == "<h1>shop</h1>") {
-				t.Fatalf("new site host: %d %s", r.Status, r.Body)
-			}
-			if split {
-				if r := a.At(t, "GET", newPerson, "/shop/x?y=1", nil, nil); r.Status != http.StatusFound || location(r) != "https://"+newSite+"/x?y=1" {
-					t.Fatalf("new person path: %d %q", r.Status, location(r))
-				}
-				if r := a.At(t, "GET", sh+"."+sbBase, "/shop/", nil, nil); r.Status != 200 || string(r.Body) != "<h1>shop</h1>" {
-					t.Fatalf("not-ready new person path: %d %q", r.Status, location(r))
-				}
-				for _, h := range []string{sbBase, "www." + sbBase, "sites." + sbBase} {
-					if r := a.At(t, "GET", h, "/x", nil, nil); r.Status != http.StatusMovedPermanently || location(r) != "https://"+rt.SiteDomain+"/" {
-						t.Fatalf("%s: %d %q", h, r.Status, location(r))
-					}
-				}
-			}
-			if a.Hosts.IsApexHost(sbBase) != split {
-				t.Fatalf("base apex is the app's: %v, split %v", a.Hosts.IsApexHost(sbBase), split)
-			}
-
-			// A claimed free name: stored as the handed-out form, one namespace.
-			free := "clay" + fmt.Sprint(time.Now().UnixNano()%1e9)
-			asked := free + "." + rt.SiteDomain
-			if split {
-				asked = free + "." + sbBase
-			}
-			if r := a.bind(t, olive, "shop", asked); r.Status != 200 || r.JSON(t)["domain"] != free+"."+handout {
-				t.Fatalf("claim: %d %s", r.Status, r.Body)
-			}
-			for _, b := range []string{rt.SiteDomain, sbBase} {
-				r := a.At(t, "GET", free+"."+b, "/?k=v", nil, nil)
-				switch {
-				case b == rt.SiteDomain && redirect:
-					if r.Status != http.StatusMovedPermanently || location(r) != "https://"+free+"."+sbBase+"/?k=v" {
-						t.Fatalf("old claimed name: %d %q", r.Status, location(r))
-					}
-				case b == sbBase && !split:
-					if r.Status == 200 && string(r.Body) == "<h1>shop</h1>" {
-						t.Fatalf("claimed name under the base while off")
-					}
-				default:
-					if r.Status != 200 || string(r.Body) != "<h1>shop</h1>" {
-						t.Fatalf("claimed name on %s: %d", b, r.Status)
-					}
-				}
-			}
-			if taken, err := accountsrepo.HandleInUse(context.Background(), a.Database, "", free); err != nil || !taken {
-				t.Fatalf("claimed name free as a handle: %v %v", taken, err)
-			}
-			for _, b := range []string{rt.SiteDomain, sbBase} {
-				if r := a.bind(t, oscar, "shop", free+"."+b); split || b == rt.SiteDomain {
-					if r.Status != http.StatusConflict {
-						t.Fatalf("second claim of the same name (%s): %d %s", b, r.Status, r.Body)
-					}
-				}
-			}
-
-			// Certificates: once handed out, new people get them under the base only.
-			newbie := a.NewPerson(t, "newbie")
-			a.files(t, newbie, "POST", "shop", map[string]string{"index.html": "x"})
-			a.Sites.RequestSiteCertsForAll(context.Background())
-			_, eOld := os.Stat(filepath.Join(a.CertDir, "requests", newbie.Handle))
-			_, eBase := os.Stat(filepath.Join(baseDir, "requests", newbie.Handle))
-			if (eOld == nil) != !redirect || (eBase == nil) != split {
-				t.Fatalf("certificate requests: old %v base %v", eOld, eBase)
-			}
-		})
-	}
-}
-
-// A page on either base passes as the site's own host (the person host only
-// for a home site), and an allow-listed origin counts for its twin while the
-// move is on.
-func TestSiteBaseOrigins(t *testing.T) {
-	a, baseDir := newBaseApp(t, "serve")
-	olive := a.NewPerson(t, "olive")
-	id := a.Deploy(t, olive, "shop")
-	oh := olive.Handle
-	if err := os.WriteFile(filepath.Join(baseDir, "ready", oh), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
+// Flat base: a host resolves to exactly one site or person. The split is at
+// the first "--", hosts under the wrong base go to the right one (pages
+// only: the API there is a 404), free names stay on SITE_DOMAIN, and the
+// base's apex is the app's.
+func TestFlatSiteBaseHosts(t *testing.T) {
+	a := newBaseApp(t, "flat")
 	ctx := context.Background()
-	for _, host := range []string{"shop." + oh + "." + rt.SiteDomain, "shop." + oh + "." + sbBase} {
-		if !a.Hosts.OriginIsSiteHost(ctx, id, host) {
-			t.Errorf("site host %s refused", host)
+	nina := a.NewPerson(t, "nina") // new: no certificate of her own
+	a.files(t, nina, "POST", "shop", map[string]string{"index.html": "<h1>nina shop</h1>"})
+	olive := a.NewPerson(t, "olive") // existing: has one
+	a.Deploy(t, olive, "shop")
+	flat := "shop--" + nina.Handle + "." + sbBase
+
+	if r := a.api(t, nina, "GET", "/v1/sites", nil); !strings.Contains(string(r.Body), `"https://`+flat+`/"`) {
+		t.Fatalf("new account's address: %s", r.Body)
+	}
+	if r := a.api(t, olive, "GET", "/v1/sites", nil); !strings.Contains(string(r.Body), `"https://`+olive.SiteHost("shop")+`/"`) || strings.Contains(string(r.Body), sbBase) {
+		t.Fatalf("existing account's address: %s", r.Body)
+	}
+	if site, handle, _, ok := a.Hosts.SiteHostParts(ctx, "x--"+nina.Handle+"--y."+sbBase); !ok || site != "x" || handle != nina.Handle+"--y" {
+		t.Fatalf("split at the first --: %q %q", site, handle)
+	}
+	if _, _, _, ok := a.Hosts.SiteHostParts(ctx, "shop--"+nina.Handle+"."+rt.SiteDomain); ok {
+		t.Fatal("flat label parsed under SITE_DOMAIN")
+	}
+	for host, want := range map[string][2]string{
+		flat:                                  {"200", "<h1>nina shop</h1>"},
+		nina.Handle + "." + sbBase + "/shop/": {"302", "https://" + flat + "/"},
+		nina.Handle + "." + rt.SiteDomain + "/shop/?q=1":   {"302", "https://" + nina.Handle + "." + sbBase + "/shop/?q=1"},
+		"shop." + nina.Handle + "." + rt.SiteDomain + "/a": {"302", "https://" + flat + "/a"},
+		olive.SiteHost("shop"):                             {"200", "<h1>shop</h1>"},
+		"shop--" + olive.Handle + "." + sbBase + "/a?b=1":  {"302", "https://" + olive.SiteHost("shop") + "/a?b=1"},
+		olive.Handle + "." + sbBase + "/x":                 {"302", "https://" + olive.Handle + "." + rt.SiteDomain + "/x"},
+		"shop." + olive.Handle + "." + sbBase + "/x":       {"302", "https://shop." + olive.Handle + "." + rt.SiteDomain + "/x"},
+		sbBase + "/x":          {"301", "https://" + rt.SiteDomain + "/"},
+		"www." + sbBase + "/x": {"301", "https://" + rt.SiteDomain + "/"},
+	} {
+		h, p, _ := strings.Cut(host, "/")
+		r := a.At(t, "GET", h, "/"+p, nil, nil)
+		if fmt.Sprint(r.Status) != want[0] || (r.Status == 200 && string(r.Body) != want[1]) || (r.Status != 200 && location(r) != want[1]) {
+			t.Errorf("%s: %d %q %s, want %s %s", host, r.Status, location(r), r.Body, want[0], want[1])
 		}
 	}
-	if a.Hosts.OriginIsPersonHost(ctx, id, oh+"."+sbBase) {
-		t.Error("showcase origin accepted for site")
-	}
-	a.setHome(t, olive, "shop")
-	if !a.Hosts.OriginIsPersonHost(ctx, id, oh+"."+sbBase) {
-		t.Error("home's person host refused")
-	}
-	for _, host := range []string{"blog." + oh + "." + sbBase, "shop.someone-else." + sbBase, "shop." + oh + ".evil.test"} {
-		if a.Hosts.OriginIsSiteHost(ctx, id, host) || a.Hosts.OriginIsPersonHost(ctx, id, host) {
-			t.Errorf("%s accepted", host)
+	// The wrong shape: the API, a preflight and a POST get a plain 404, and
+	// a page redirect drops sign-in values.
+	for _, host := range []string{"shop--" + olive.Handle + "." + sbBase, olive.Handle + "." + sbBase, "shop." + nina.Handle + "." + sbBase, nina.Handle + "." + rt.SiteDomain, "shop." + nina.Handle + "." + rt.SiteDomain} {
+		for _, m := range []string{"GET", "OPTIONS", "POST"} {
+			if r := a.At(t, m, host, "/v1/sites/shop/me", nil, nil); r.Status != http.StatusNotFound {
+				t.Errorf("%s %s /v1/: %d %q", m, host, r.Status, location(r))
+			}
+		}
+		if r := a.At(t, "POST", host, "/form", nil, nil); r.Status != http.StatusNotFound {
+			t.Errorf("POST %s page: %d", host, r.Status)
 		}
 	}
-	if _, err := a.Database.Exec(`UPDATE sites SET allowed_origins = 'https://pinned.`+rt.SiteDomain+`' WHERE id = $1`, id); err != nil {
+	if r := a.At(t, "GET", "shop--"+olive.Handle+"."+sbBase, "/p?once=abc&cn=def&k=v", nil, nil); r.Status != http.StatusFound || location(r) != "https://"+olive.SiteHost("shop")+"/p?k=v" {
+		t.Errorf("sign-in values carried: %d %q", r.Status, location(r))
+	}
+	// Sign-in returns only to the owner's own shape.
+	if _, ok := a.Hosts.ReturnSite(ctx, "shop."+nina.Handle+"."+sbBase, "/"); ok {
+		t.Error("sign-in return to a two-label host under the base for a flat person")
+	}
+	if _, ok := a.Hosts.ReturnSite(ctx, "shop--"+olive.Handle+"."+sbBase, "/"); ok {
+		t.Error("sign-in return to the flat shape of a two-label person")
+	}
+	if id, ok := a.Hosts.ReturnSite(ctx, flat, "/"); !ok || id != a.SiteID(t, nina, "shop") {
+		t.Error("sign-in return to a flat person's own host")
+	}
+	// Origins: the flat host is the new account's site's own; nothing else is.
+	ninaShop := a.SiteID(t, nina, "shop")
+	if !a.Hosts.OriginIsSiteHost(ctx, ninaShop, flat) || a.Hosts.OriginIsSiteHost(ctx, ninaShop, "shop."+nina.Handle+"."+rt.SiteDomain) {
+		t.Fatal("new account's origin")
+	}
+	oliveShop := a.SiteID(t, olive, "shop")
+	if !a.Hosts.OriginIsSiteHost(ctx, oliveShop, olive.SiteHost("shop")) || a.Hosts.OriginIsSiteHost(ctx, oliveShop, "shop--"+olive.Handle+"."+sbBase) {
+		t.Fatal("existing account's origin")
+	}
+	// A free name is claimed under SITE_DOMAIN, never with "--".
+	free := "clay" + fmt.Sprint(time.Now().UnixNano()%1e9)
+	if r := a.bind(t, nina, "shop", free+"."+sbBase); r.Status != 200 || r.JSON(t)["domain"] != free+"."+rt.SiteDomain {
+		t.Fatalf("claim: %d %s", r.Status, r.Body)
+	}
+	if r := a.bind(t, olive, "shop", "a--"+free+"."+rt.SiteDomain); r.Status != http.StatusBadRequest {
+		t.Fatalf("claim with --: %d %s", r.Status, r.Body)
+	}
+	// Certificates: none for the new account, a stale request withdrawn.
+	if err := os.WriteFile(filepath.Join(a.CertDir, "requests", nina.Handle), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if !a.Hosts.OriginListed(ctx, id, "https://pinned."+sbBase) || a.Hosts.OriginListed(ctx, id, "http://pinned."+sbBase) || a.Hosts.OriginListed(ctx, id, "https://other."+sbBase) {
-		t.Fatal("allow-list twin")
+	a.Sites.RequestSiteCertsForAll(ctx)
+	if _, err := os.Stat(filepath.Join(a.CertDir, "requests", nina.Handle)); !os.IsNotExist(err) {
+		t.Fatalf("certificate request for a flat account: %v", err)
 	}
-	a.Hosts.SetSiteBase(sbBase, "off", baseDir)
-	if a.Hosts.OriginListed(ctx, id, "https://pinned."+sbBase) || a.Hosts.OriginIsPersonHost(ctx, id, oh+"."+sbBase) {
-		t.Fatal("twin accepted while off")
+	// In flat mode nothing ever writes a request: everyone is either ready or flat.
+	a.Hosts.RequestSiteCert(ctx, a.NewPerson(t, "fresh").Handle)
+	if left, err := os.ReadDir(filepath.Join(a.CertDir, "requests")); err != nil || len(left) != 0 {
+		t.Fatalf("certificate requests written in flat mode: %v %v", left, err)
 	}
 }
 
@@ -226,7 +151,7 @@ func TestSiteBaseOrigins(t *testing.T) {
 // touches custom domains, reserved names or multi-label names, and lookups
 // find a name in either form before and after.
 func TestMoveSiteBase(t *testing.T) {
-	a, _ := newBaseApp(t, "serve")
+	a := newBaseApp(t, "flat")
 	ctx := context.Background()
 	n := fmt.Sprint(time.Now().UnixNano() % 1e9)
 	from, to := "from"+n+".test", "to"+n+".test"

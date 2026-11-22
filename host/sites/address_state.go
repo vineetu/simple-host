@@ -16,7 +16,8 @@ import (
 // "Your own address is on its way".
 //
 // Until a person's *.<handle>.<SITE_DOMAIN> certificate is ready, their sites
-// are handed out at <handle>.<SITE_DOMAIN>/<site>/ (sitehost.go). This reads
+// are handed out at <handle>.<SITE_DOMAIN>/<site>/ (sitehost.go). Under a
+// split base nobody waits: a person without one is flat (FlatFor). This reads
 // the site-certs issuer's hand-off directory (deploy/site-certs/) to say where
 // that certificate is: ready, waiting in the queue (with a rough time from the
 // issuer's weekly and daily caps and what it has issued lately), or failing
@@ -70,17 +71,19 @@ const addressCacheTTL = 30 * time.Second
 
 // AddressState is the own-address state for an account, or nil when it
 // does not apply: site hosts are not the canonical address, there is no
-// hand-off directory, or the handle cannot be a host.
+// hand-off directory, or the handle cannot be a host. A flat person
+// (FlatFor) is always ready.
 func (h *Hosts) AddressState(handle string) *AddressState {
 	handle = strings.ToLower(strings.TrimSpace(handle))
-	certDir := h.Addressing().CertDirFor(h.Addressing().HandoutBase()) // the queue of the base handed out
-	if handle == "" || !h.Addressing().SiteHostsCanonical() || certDir == "" || !HandleAddressable(handle) {
+	a := h.Addressing()
+	if handle == "" || !a.SiteHostsCanonical() || a.SiteCertDir == "" || !HandleAddressable(handle) {
 		return nil
 	}
 	// Ready is a single file check and never cached: the address handed out
 	// (siteHostLive) reads the same file.
-	if h.Addressing().SiteCertReadyOn(handle, h.Addressing().HandoutBase()) {
-		return &AddressState{State: "ready", Address: "https://<site>." + h.Addressing().PersonHostOn(handle, h.Addressing().HandoutBase()) + "/"}
+	base := a.BaseFor(handle)
+	if a.SiteCertReadyOn(handle, base) {
+		return &AddressState{State: "ready", Address: "https://" + a.SiteHostOn(handle, "<site>", base) + "/"}
 	}
 	if e, ok := addressCache.Load(handle); ok {
 		if ent := e.(addressCacheEntry); time.Since(ent.at) < addressCacheTTL {
@@ -92,17 +95,21 @@ func (h *Hosts) AddressState(handle string) *AddressState {
 	return st
 }
 
+// computeAddressState is the state of a two-label person whose certificate
+// is not ready yet (never a flat one).
 func (h *Hosts) computeAddressState(handle string, now time.Time) *AddressState {
+	a := h.Addressing()
+	person := a.PersonHostOn(handle, a.SiteDomain)
 	st := &AddressState{
 		State:          "ready",
-		Address:        "https://<site>." + h.Addressing().PersonHostOn(handle, h.Addressing().HandoutBase()) + "/",
-		InterimAddress: "https://" + h.Addressing().PersonHostOn(handle, h.Addressing().HandoutBase()) + "/<site>/",
+		Address:        "https://<site>." + person + "/",
+		InterimAddress: "https://" + person + "/<site>/",
 	}
-	if h.Addressing().SiteCertReadyOn(handle, h.Addressing().HandoutBase()) {
+	if a.SiteCertReadyOn(handle, a.SiteDomain) {
 		st.InterimAddress = ""
 		return st
 	}
-	certDir := h.Addressing().CertDirFor(h.Addressing().HandoutBase())
+	certDir := a.SiteCertDir
 	limits := readSiteCertLimits(certDir)
 	var eta time.Time
 	failedAt, failed := fileModTime(filepath.Join(certDir, "failed", handle))
@@ -127,9 +134,9 @@ func (h *Hosts) computeAddressState(handle string, now time.Time) *AddressState 
 	if hours <= 1 {
 		about = "within the hour"
 	}
-	lead := "Your sites are at " + h.Addressing().PersonHostOn(handle, h.Addressing().HandoutBase()) + "/<site>/ until your own address (<site>." + h.Addressing().PersonHostOn(handle, h.Addressing().HandoutBase()) + ") is ready — " + about
+	lead := "Your sites are at " + person + "/<site>/ until your own address (<site>." + person + ") is ready — " + about
 	if st.State == "failing" {
-		lead = "Your sites are at " + h.Addressing().PersonHostOn(handle, h.Addressing().HandoutBase()) + "/<site>/ for now: the certificate for your own address (<site>." + h.Addressing().PersonHostOn(handle, h.Addressing().HandoutBase()) + ") could not be issued yet and is retried automatically — " + about
+		lead = "Your sites are at " + person + "/<site>/ for now: the certificate for your own address (<site>." + person + ") could not be issued yet and is retried automatically — " + about
 	}
 	st.Note = lead + ". When it switches, links to the old address keep working (they redirect), but visitors' sign-ins and anything their browser kept for the site start fresh."
 	return st
@@ -138,7 +145,7 @@ func (h *Hosts) computeAddressState(handle string, now time.Time) *AddressState 
 // SiteAddressStateFor is the state to show on one site: only while that site
 // is still handed out at its interim address.
 func (h *Hosts) SiteAddressStateFor(handle, name string) *AddressState {
-	if handle == "" || SiteHostAddress(handle, name, h.Addressing().HandoutBase(), true, h.Addressing().PersonAddressFor(handle, name), true) == "" {
+	if handle == "" || SiteHostAddress(handle, name, h.Addressing().SiteDomain, true, h.Addressing().PersonAddressFor(handle, name), true) == "" {
 		return nil
 	}
 	st := h.AddressState(handle)
@@ -146,8 +153,8 @@ func (h *Hosts) SiteAddressStateFor(handle, name string) *AddressState {
 		return nil
 	}
 	out := *st
-	out.Address = "https://" + h.Addressing().SiteHostOn(handle, name, h.Addressing().HandoutBase()) + "/"
-	out.InterimAddress = h.Addressing().PersonPathAddressOn(handle, name, h.Addressing().HandoutBase())
+	out.Address = "https://" + h.Addressing().SiteHostOn(handle, name, h.Addressing().SiteDomain) + "/"
+	out.InterimAddress = h.Addressing().PersonPathAddressOn(handle, name, h.Addressing().SiteDomain)
 	return &out
 }
 

@@ -914,7 +914,7 @@ paths:
                   username: {type: string}
                   handle:
                     type: string
-                    description: 'The <handle> in your addresses: sites at https://<site>.<handle>.simple-host.app/, your page at https://<handle>.simple-host.app/'
+                    description: 'The <handle> in your addresses: sites at https://<site>.<handle>.simple-host.app/ (newer accounts https://<site>--<handle>.simple-host.site/), your page at https://<handle>.simple-host.app/ (or .site)'
                   home_site: {type: string, nullable: true, description: Chosen home site name; null means showcase.}
                   public_page:
                     type: string
@@ -7254,7 +7254,7 @@ components:
         site_url:
           type: string
           nullable: true
-          description: 'The link to share: https://<site>.<handle>.simple-host.app/.'
+          description: 'The link to share: https://<site>.<handle>.simple-host.app/ or, for newer accounts, https://<site>--<handle>.simple-host.site/.'
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
         visibility:
@@ -7471,7 +7471,7 @@ components:
         note: {type: string, description: 'What happened, in plain words, to relay to the person'}
     AddressState:
       type: object
-      description: The account's own site address (https://<site>.<handle>.simple-host.app/) and its certificate.
+      description: The account's own site address (https://<site>.<handle>.simple-host.app/, or https://<site>--<handle>.simple-host.site/ for newer accounts, always ready) and its certificate.
       properties:
         state:
           type: string
@@ -7479,7 +7479,7 @@ components:
           description: ready; waiting (the certificate is queued behind the weekly and daily limits).
         address:
           type: string
-          description: 'The own address: on /v1/me the pattern https://<site>.<handle>.simple-host.app/, on a site that site''s address'
+          description: 'The own address: on /v1/me the pattern (https://<site>.<handle>.simple-host.app/ or https://<site>--<handle>.simple-host.site/), on a site that site''s address'
         interim_address: {type: string, description: Where sites are until then (waiting or failing)}
         ready_by: {type: string, format: date-time, description: Rough estimate (waiting or failing)}
         ready_in_hours: {type: integer, description: 'The same, in whole hours, at least 1'}

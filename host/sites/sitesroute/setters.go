@@ -55,8 +55,9 @@ func (h *Handler) SetAddressFamilies(certDir string) {
 
 // SetTeamSiteFlatHosts sets TEAM_SITE_FLAT_HOSTS, including the served
 // auth.js patch (basetext.go) that teaches it to take the part of a flat
-// team-site host's one label before "--" as the site name.
+// site host's one label before "--" as the site name, under every base
+// with flat hosts (a split base too, set before this).
 func (h *Handler) SetTeamSiteFlatHosts(on bool) {
 	h.Hosts.SetTeamSiteFlatHosts(on)
-	web.SetTeamSiteFlatHostsText(on && h.Ed.Routes().HostedEvents)
+	web.SetFlatHostsText(h.Hosts.FlatBases())
 }

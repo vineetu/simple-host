@@ -177,13 +177,15 @@ func siteArg(args map[string]any) (string, error) {
 }
 
 // siteNameFromAddress guesses the site name in an address such as
-// https://birthday-rsvp.ann.simple-host.app/ (its first label).
+// https://birthday-rsvp.ann.simple-host.app/ (its first label) or
+// https://birthday-rsvp--ann.simple-host.site/ (that label before "--").
 func siteNameFromAddress(s string) string {
 	if i := strings.Index(s, "://"); i >= 0 {
 		s = s[i+3:]
 	}
 	host, _, _ := strings.Cut(s, "/")
 	label, _, dotted := strings.Cut(host, ".")
+	label, _, _ = strings.Cut(label, "--")
 	if !dotted || label == "" || label == "www" {
 		return ""
 	}

@@ -121,7 +121,7 @@ func HandleTakenMessage(handle string) string {
 
 func JudgeHandle(ctx context.Context, q sqlkit.Querier, userID, handle string) (HandleVerdict, error) {
 	v := HandleVerdict{Address: HandleAddress(handle)}
-	if !rules.VisitorHandle.MatchString(handle) || !rules.HandleIsLabel(handle) {
+	if !rules.NewHandleShape(handle) {
 		v.Status, v.Code, v.Error = http.StatusBadRequest, "invalid_handle", handleFormatMsg
 		return v, nil
 	}
@@ -159,7 +159,7 @@ func SuggestHandle(ctx context.Context, q sqlkit.Querier, email string) string {
 
 type HandleVerdict = model.HandleVerdict
 
-const handleFormatMsg = "Use 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen."
+const handleFormatMsg = "Use 1 to 39 lowercase letters, numbers or single hyphens, not starting or ending with a hyphen."
 
 func randomAccountHandle() string {
 	var b [5]byte
@@ -172,8 +172,8 @@ var ErrReservedHandle = errors.New("this name is reserved; pick another")
 
 // CheckNewHandle applies both address shape and new-claim reservation policy.
 func CheckNewHandle(handle string) error {
-	if !rules.VisitorHandle.MatchString(handle) || !rules.HandleIsLabel(handle) {
-		return errors.New("handle must contain 1 to 39 lowercase letters, digits or hyphens (not at the start or end) and must not be reserved")
+	if !rules.NewHandleShape(handle) {
+		return errors.New("handle must contain 1 to 39 lowercase letters, digits or single hyphens (not at the start or end) and must not be reserved")
 	}
 	if rules.LabelReservedForNew(handle) {
 		return ErrReservedHandle

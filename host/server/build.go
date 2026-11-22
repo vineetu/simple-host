@@ -160,7 +160,7 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	}
 	handler.Register(mux, siteHandler, accessHandler, dataHandler, authMW, noticeMW)
 	web.SetInstanceNote(web.InstanceFacts{
-		SiteDomain: cfg.SiteDomain, BaseDomain: siteHandler.HandoutBase(), ContentHost: cfg.ContentHost,
+		SiteDomain: cfg.SiteDomain, ContentHost: cfg.ContentHost,
 		SharedOrigin: siteHandler.SharedOrigin(),
 		SignInEmail:  cfg.EmailSignInEnabled(), SignInProviders: cfg.EnabledVisitorProviders(), OIDCLabel: cfg.OIDCLabel,
 		EmailCapable: cfg.ResendAPIKey != "",
@@ -450,7 +450,8 @@ func newHosts(cfg config.Config, db *sql.DB, disk sites.Disk, ed *edition.Editio
 	hosts.SetPersonHosts(cfg.PersonHosts)
 	hosts.SetCustomDomainIPAlso(cfg.CustomDomainIPAlso)
 	hosts.SetSiteHosts(cfg.SiteHosts, cfg.SiteCertDir)
-	hosts.SetSiteBase(cfg.SiteBaseDomain, cfg.SiteBaseMove, cfg.SiteBaseCertDir)
+	hosts.SetSiteBase(cfg.SiteBaseDomain, cfg.SiteBaseMove)
+	hosts.RequireFlatClean(context.Background(), cfg.TeamSiteFlatHosts)
 	hosts.SetDomainCertDir(cfg.DomainCertDir)
 	// The platform's other zones are never an owner's domain or family.
 	if u, err := url.Parse(cfg.PublicBaseURL); err == nil && u.Hostname() != "" {
@@ -506,7 +507,7 @@ func configureSites(cfg config.Config, db *sql.DB, site *siteshttp.SiteHandler, 
 	accountrepo.SetPlatformDomains(site.HandoutBase(), site.ServedBases()...)
 	log.Printf("person hosts: %s; site hosts: %s", cfg.PersonHosts, cfg.SiteHosts)
 	if bases := site.ServedBases(); len(bases) > 1 {
-		log.Printf("site base move: %s; addresses under %s (handed out: %s)", cfg.SiteBaseMove, strings.Join(bases, " and "), site.HandoutBase())
+		log.Printf("site base: %s; addresses under %s (new accounts: %s)", cfg.SiteBaseMove, strings.Join(bases, " and "), site.HandoutBase())
 	}
 	return nil
 }

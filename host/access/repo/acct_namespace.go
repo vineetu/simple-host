@@ -75,3 +75,11 @@ func HandleRenamedSince(ctx context.Context, q Querier, userID string, t time.Ti
 	}
 	return true, last.Time, nil
 }
+
+// CountDoubleHyphenHandles counts handles holding "--": current, kept as an
+// alias, or retired on erasure (an alias row with no account).
+func CountDoubleHyphenHandles(ctx context.Context, db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM users WHERE handle LIKE '%--%') + (SELECT count(*) FROM handle_aliases WHERE handle LIKE '%--%')`).Scan(&n)
+	return n, err
+}

@@ -45,7 +45,7 @@ func (h *Hosts) SiteHostSite(ctx context.Context, host string) (model.Site, mode
 	if err != nil {
 		return model.Site{}, model.User{}, false, err
 	}
-	if !h.addr.SiteHostLiveOn(user.Handle.String, site.Name, base) {
+	if !h.addr.SiteHostLiveOn(user.Handle.String, site.Name, base) || !h.addr.SiteHostIs(host, user.Handle.String, site.Name, base) {
 		return model.Site{}, model.User{}, false, nil
 	}
 	return site, user, true, nil
@@ -431,32 +431,11 @@ func (h *Hosts) OriginListed(ctx context.Context, siteID, origin string) bool {
 	o := strings.ToLower(strings.TrimRight(origin, "/"))
 	for _, a := range origins {
 		a = strings.ToLower(strings.TrimRight(a, "/"))
-		if a == o || h.SameOriginAcrossBases(a, o) {
+		if a == o {
 			return true
 		}
 	}
 	return false
-}
-
-// SameOriginAcrossBases: two origins that differ only in the base domain of
-// a person, site or claimed-name host, same scheme and port.
-func (h *Hosts) SameOriginAcrossBases(a, b string) bool {
-	if !h.addr.BaseSplit() {
-		return false
-	}
-	ua, err := url.Parse(a)
-	if err != nil || ua.Host == "" {
-		return false
-	}
-	ub, err := url.Parse(b)
-	if err != nil || ub.Host == "" {
-		return false
-	}
-	if ua.Scheme != ub.Scheme || ua.Port() != ub.Port() {
-		return false
-	}
-	t := h.TwinHost(ua.Hostname())
-	return t != "" && strings.EqualFold(t, ub.Hostname())
 }
 
 // originIsBoundDomain is keyed by site id so a domain bound to one
@@ -467,7 +446,7 @@ func (h *Hosts) originIsBoundDomain(ctx context.Context, siteID, host string) bo
 	if err != nil || !ok {
 		return false
 	}
-	return h.SameUserHost(info.Domain, host) || (info.PreviousDomain != "" && h.SameUserHost(info.PreviousDomain, host))
+	return strings.EqualFold(info.Domain, host) || (info.PreviousDomain != "" && strings.EqualFold(info.PreviousDomain, host))
 }
 
 // OriginIsPersonHost: host is the person address of the site's owner.
@@ -491,7 +470,7 @@ func (h *Hosts) OriginIsPersonHost(ctx context.Context, siteID, host string) boo
 	if !h.eventSites && h.addr.SiteHostCanonicalOn(handle, name, h.HostBase(ctx, host)) {
 		return false
 	}
-	return h.SameUserHost(h.addr.PersonHostOn(handle, h.addr.HandoutBase()), host)
+	return strings.EqualFold(h.addr.PersonHostOn(handle, h.addr.BaseFor(handle)), host)
 }
 
 // OriginIsSiteHost: host is the site's own site host while it serves it.
@@ -503,7 +482,7 @@ func (h *Hosts) OriginIsSiteHost(ctx context.Context, siteID, host string) bool 
 	if err != nil || !h.addr.SiteHostLiveOn(handle, name, h.HostBase(ctx, host)) {
 		return false
 	}
-	return h.SameUserHost(h.addr.SiteHostOn(handle, name, h.addr.HandoutBase()), host)
+	return strings.EqualFold(h.addr.SiteHostOn(handle, name, h.addr.BaseFor(handle)), host)
 }
 
 // originIsFamilyHost: the origin is one of the site's family addresses

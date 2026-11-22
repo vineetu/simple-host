@@ -52,7 +52,7 @@ func (h *Patch) patchMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := validateProfile(&req); err != nil {
+	if err := validateProfile(&req, user.Handle.String); err != nil {
 		httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -89,7 +89,9 @@ type profileRequest struct {
 	SignInAlerts *bool   `json:"signin_alerts"`
 }
 
-func validateProfile(req *profileRequest) error {
+// validateProfile checks the fields sent; a handle only when it changes
+// (a client may echo the current one, which may predate today's rules).
+func validateProfile(req *profileRequest, current string) error {
 	if req.DisplayName == nil && req.Handle == nil && req.SignInAlerts == nil {
 		return errors.New("provide display_name, handle and/or signin_alerts")
 	}
@@ -100,7 +102,7 @@ func validateProfile(req *profileRequest) error {
 		}
 		*req.DisplayName = name
 	}
-	if req.Handle != nil {
+	if req.Handle != nil && *req.Handle != current {
 		return accounts.CheckNewHandle(*req.Handle)
 	}
 	return nil

@@ -92,7 +92,7 @@ func (h *SiteHandler) SiteWorkers(sweeps ...GroupSweep) workers.Owner {
 			g.loops[name] = newSiteLoop(name, enabled, run)
 		}
 		yes := func() bool { return true }
-		add("sites.cert_requests", func() bool { return h.Hosts.Addressing().SiteHostsOn() && len(h.Hosts.CertRequestBases()) > 0 }, func(ctx context.Context) { h.startSiteCertRequests(ctx, 10*time.Minute) })
+		add("sites.cert_requests", func() bool { return h.Hosts.Addressing().SiteHostsOn() && h.Hosts.Addressing().SiteCertDir != "" }, func(ctx context.Context) { h.startSiteCertRequests(ctx, 10*time.Minute) })
 		add(g.sweepName, func() bool { return false }, nil)
 		add("sites.trash_purge", yes, func(ctx context.Context) { h.startDeletedSitePurge(ctx, time.Hour) })
 		add("sites.idle_cleanup", func() bool { return h.IdleCleanup }, h.startIdleCleanup)

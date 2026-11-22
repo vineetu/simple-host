@@ -26,26 +26,26 @@ func TestBaseTextCanonical(t *testing.T) {
 	}
 }
 
-// TestAuthJSTeamSiteFlatHosts (issue 4): served auth.js decides the flat
-// team case first, before the person-path heuristic, taking the part of a
-// flat team-site host's one label before the first "--" as the site name
-// for every path — only when TEAM_SITE_FLAT_HOSTS is on; off, it is byte
-// for byte unpatched.
-func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
+// TestAuthJSFlatHosts: served auth.js decides the flat case first, before
+// the person-path heuristic, taking the part of a flat site host's one
+// label before the first "--" as the site name for every path, only on a
+// base with flat hosts; with none it is byte for byte unpatched.
+func TestAuthJSFlatHosts(t *testing.T) {
 	raw, _ := EmbeddedTree.ReadFile("static/auth.js")
 	if bytes.Count(raw, []byte(authJSOwnHostChain)) != 1 {
 		t.Fatal("auth.js no longer has the API-base chain the flat-hosts patch targets (basetext.go)")
 	}
-	SetTeamSiteFlatHostsText(false)
+	SetFlatHostsText(nil)
 	off, _ := StaticFiles.ReadFile("static/auth.js")
 	if bytes.Contains(off, []byte(`sub.split("--")[0]`)) {
 		t.Fatal("off: auth.js carries the flat-hosts patch")
 	}
 
-	SetTeamSiteFlatHostsText(true)
-	t.Cleanup(func() { SetTeamSiteFlatHostsText(false) })
+	bases := []string{"simple-host.app", "simple-host.site"}
+	SetFlatHostsText(bases)
+	t.Cleanup(func() { SetFlatHostsText(nil) })
 	patched, _ := StaticFiles.ReadFile("static/auth.js")
-	if !bytes.Contains(patched, []byte(authJSOwnHostChainFlat)) || bytes.Contains(patched, []byte(authJSOwnHostChain)) {
+	if !bytes.Contains(patched, []byte(authJSOwnHostChainFlat(bases))) || bytes.Contains(patched, []byte(authJSOwnHostChain)) {
 		t.Fatal("flat: auth.js not patched (or the unpatched chain is still present)")
 	}
 
@@ -68,6 +68,12 @@ func TestAuthJSTeamSiteFlatHosts(t *testing.T) {
 		{"https://alpha--weekend.simple-host.app/about/", "https://alpha--weekend.simple-host.app/v1/sites/alpha/me"},
 		// A two-level host (no "--") is unaffected.
 		{"https://alpha.weekend.simple-host.app/", "https://alpha.weekend.simple-host.app/v1/sites/alpha/me"},
+		// A new account's site under the split base.
+		{"https://shop--ann.simple-host.site/menu/", "https://shop--ann.simple-host.site/v1/sites/shop/me"},
+		// A trailing dot is the same host.
+		{"https://shop--ann.simple-host.site./", "https://shop--ann.simple-host.site./v1/sites/shop/me"},
+		// A custom domain whose first label has "--" is not a flat host.
+		{"https://my--shop.example.com/", "https://my--shop.example.com/v1/sites/my--shop/me"},
 	})
 	out, err := exec.Command("node", filepath.Join("..", "webassets", "auth-base.test.js"), p, string(cases)).CombinedOutput()
 	if err != nil {

@@ -265,25 +265,32 @@ renamed site's old name keeps redirecting on all three forms until the name is r
 (`PERSON_HOSTS=canonical`, `SITE_HOSTS=canonical`, 2026-09-26; design:
 `docs/designs/per-site-subdomains.md`).
 
-**Site base move paused (2026-10-09).** simple-host.app is the only address served <a id="site-url"></a>
-and handed out by the hosted service. `SITE_BASE_MOVE=off` with a distinct
-`SITE_BASE_DOMAIN` makes requests on that base 301 to the same hostname labels
-under `SITE_DOMAIN`, keeping escaped path and query (including `/v1/`). The base
-is retained only for old links and zone classification; it is not a served base
-and requests no certificates. `SITE_BASE_CERT_DIR` is unset. Existing `.site`
-certificates remain on disk; its issuer path/timer stay disabled. Pages, API
-examples, connector text and skills use `.app`. The generated nginx block uses
-`HTTP_MODE=app` to send HTTP straight to the matching .app host; HTTPS proxies
-to the app redirect. Revisit about 2026-11-09.
-
-The optional split-base machinery remains for other installations: `serve` answers
-both bases while handing out `SITE_DOMAIN`; `canonical` hands out the configured
-base; `redirect` / `permanent` sends old addresses there (302 / 301, with `/v1/`
-excluded). Each serving base has its own certificate hand-off. The name namespace
-is shared while serving both; `simple-host move-site-base --from <old> --to <new>
-[--apply]` rewrites stored free and retired names. Historical plan:
-`docs/history/site-base-domain-move.md`; current runbook:
-`docs/operations/site-base-paused.md`.
+**One-level addresses for new accounts (2026-11-22).** With `SITE_BASE_MOVE=flat` and a <a id="site-url"></a>
+distinct `SITE_BASE_DOMAIN` (hosted: `simple-host.site`), a person who has no certificate of
+their own (no `SITE_CERT_DIR/ready/<handle>`) gets one-level addresses on the base's one
+wildcard certificate: each site at `https://<site>--<handle>.simple-host.site/` and the person
+page at `https://<handle>.simple-host.site/`. A new site works at once: no certificate is
+requested and there is no waiting state (`address` on `GET /v1/me` is `ready` with the
+`<site>--<handle>` pattern). Everyone with a certificate keeps `<site>.<handle>.simple-host.app`
+for every site, old and new: no second address, no redirects, no sign-outs. The flat shape of a
+two-label person's site, their person host and any two-label host under the base 302 to their
+own address; a flat person's old `<handle>.simple-host.app` page 302s to the base (`/v1/` is
+never redirected). A host resolves to one site or person: the split is at the first `--`. On a host of the wrong shape for its owner only a page GET redirects (and drops
+sign-in values such as `once` and `cn`); the API, preflights and other methods get a plain 404,
+and sign-in returns only to the owner's own address. `flat` runs only where no existing handle
+(current, alias or retired), site name, or free name holds `--`, no site is named `xn`, no free
+name is stored under the base and every `<site>--<handle>` fits 63 characters; otherwise it logs
+why and runs as `off` (Simple Hack: only with `TEAM_SITE_FLAT_HOSTS`). A stale certificate
+request for a flat person is withdrawn, and none is ever written in flat mode. Free names stay under
+`simple-host.app`. Name rules for everyone: no `--` in a new handle, team name, site name or free
+name, no site named `xn`, and site name + 2 + handle at most 63 characters (on create, rename,
+restore and handle change, and again under the account lock on create and rename;
+`invalid_name` / `invalid_handle`). A handle change gives a new handle with no certificate, so
+it moves the account to the flat shape. Simple Hack team sites are unchanged
+(`TEAM_SITE_FLAT_HOSTS`). `SITE_BASE_MOVE=off` (the default) keeps one domain; a distinct
+`SITE_BASE_DOMAIN` then only 301s back to `SITE_DOMAIN`. Rollout:
+`docs/operations/site-base-flat.md`; the earlier two-label move is in
+`docs/history/site-base-domain-move.md`.
 
 | Surface | Details |
 |---|---|
@@ -293,7 +300,7 @@ is shared while serving both; `simple-host move-site-base --from <old> --to <new
 | Pages | `st/showcase.html` (person index / public view) |
 | Go | `h/sitehost.go` (`SITE_HOSTS` off/serve/canonical, site-host routing, certificate requests and readiness), `h/siteaddress.go` (own-address state: ready / waiting with an estimate / failing), `h/personhost.go` (`PERSON_HOSTS` off/serve/canonical, `PersonPageURL`, `PersonReturnSite`, `contentHostRedirect`), `h/legacyhost.go`, `h/handles.go` (reserved handles, `assignHandle`; `handleSeed`: the instance admin row's first handle is the domain's first label, or `organiser` when that is reserved, instead of `admin-2`), `host/db/namespace.go` (one namespace for handles, claimed names, reserved and retired names; `RenameHandle`/`RenameHandleTx`, aliases, `HandleRenamedSince`), `h/instancehost.go` |
 | DB | `users.handle`, `handle_aliases` (e.g. `admin` → `simple-host-team`), `legacy_hostnames` |
-| Env | `SITE_BASE_DOMAIN`, `SITE_BASE_MOVE`, `SITE_BASE_CERT_DIR` (`h/sitebase.go`; served text `h/basetext.go`; `host/db/sitebasemove.go` and `cmd/server/movesitebase.go`), `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
+| Env | `SITE_BASE_DOMAIN`, `SITE_BASE_MOVE` (`off`/`flat`; `host/sites/addressing.go:FlatFor`, `host/sites/siteshttp/sitebase.go`; served text `host/web/basetext.go`; `host/sites/repo/sitebasemove.go` and `host/server/movesitebase.go`), `PERSON_HOSTS`, `SITE_HOSTS` (needs `PERSON_HOSTS` on), `SITE_CERT_DIR` (e.g. `/var/lib/simple-host-site-certs`: `requests/<handle>` written by the app, `ready/<handle>`, `failed/<handle>`, `issued.log` and `limits` by the issuer and read by the app for the address state), `SITE_DOMAIN`, `CONTENT_HOST` |
 | External | live nginx `/etc/nginx/sites-enabled/sites-content-host` (rewrites to `/internal/site-redirect/*`) and `simple-host` (wildcard `*.simple-host.app` → app; a server for `<site>.<person>.simple-host.app` loads the per-person cert by variable); wildcard cert; per-person certs from the root-owned issuer in `deploy/site-certs/` (path unit on each request plus a two-minute timer; queue bounds of 10000/week, 1000/day and 30/run; certbot DNS-01 via the Vercel hooks in `/usr/local/lib/certbot-vercel/`); Public Suffix List entry is **planned** |
 
 Hosted certificate issuers enter an ordered Google Trust Services → ZeroSSL

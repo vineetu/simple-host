@@ -109,7 +109,7 @@ func siteSummaryProperties() map[string]any {
 		}),
 		"file_bytes":     outInteger("Website files including current and kept versions."),
 		"name":           outString(outSiteName),
-		"url":            outString("The site's live public address: its connected domain once that is active, else its address under the account's address family (e.g. https://<site>.trips.example.com/) when one serves it, otherwise https://<site>.<handle>.simple-host.app/ (or, briefly for a new account, https://<handle>.simple-host.app/<site>/). Give the person this exact value."),
+		"url":            outString("The site's live public address: its connected domain once that is active, else its address under the account's address family (e.g. https://<site>.trips.example.com/) when one serves it, otherwise https://<site>.<handle>.simple-host.app/ or, for newer accounts, https://<site>--<handle>.simple-host.site/ (or, briefly for a new account, https://<handle>.simple-host.app/<site>/). Give the person this exact value."),
 		"active_version": outInteger("The version number visitors see now (0 if nothing is published yet)."),
 		"listed":         outBool("List on my profile: whether the site shows on the owner's profile page. Every open site can be found by search engines."),
 		"custom_domain":  outString("The site's own domain, present only when one is connected."),

@@ -76,6 +76,9 @@ func (s Service) createLocked(ctx context.Context, in CreateInput) (CreateResult
 		return CreateResult{}, err
 	}
 	in.User.Handle = handle
+	if err := s.Deps.Hosts.NameFits(in.Name, handle.String); err != nil { // again under the account lock
+		return CreateResult{}, err
+	}
 	if err := s.checkNamedViewers(in); err != nil {
 		return CreateResult{}, err
 	}

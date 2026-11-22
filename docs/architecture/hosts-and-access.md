@@ -88,14 +88,19 @@ is own domain, most-specific canonical family, then site host (`handler/familyho
 Rollback restores the old vhost and reloads before withdrawing managed files/readiness and waiting
 for the API to report not live. See also [address-family design](../designs/address-families.md).
 
-### Paused base and legacy content host
+### Flat base and legacy content host
 
-Hosted `SITE_BASE_MOVE=off` retains the alternate `SITE_BASE_DOMAIN` only to recognize old links.
-`handler/sitebase.go:SiteBaseHosts` returns **301** to matching `SITE_DOMAIN` labels, escaped path
-and query, including `/v1/`. Keep old TLS proxy blocks, DNS and certificates so shared HTTPS links
-reach the redirect; alternate-base issuer units remain disabled. The generated proxy's
-`HTTP_MODE=app` sends HTTP directly to matching .app hosts. The [paused-base runbook](../operations/site-base-paused.md)
-owns renewal exclusions, backup locations, verification and resume procedures.
+`SITE_BASE_MOVE=flat` splits people's addresses across two domains, one decision per person
+(`sites/addressing.go:FlatFor`): without a `SITE_CERT_DIR/ready/<handle>` marker a person's page
+is `<handle>.<base>` and each site `<site>--<handle>.<base>` (parsed by `Hosts.SiteHostParts`,
+built by `TeamSiteHost`, the same functions Hack's flat team sites use). `BaseFor(handle)` is
+the base every address of that person is handed out, served and origin-checked under;
+`SiteCertReadyOn` is false for a person's hosts under the other base, so `SiteHosts` 302s them
+to the address handed out, and `PersonHostOwner` does not resolve them. `siteshttp/sitebase.go:SiteBaseHosts`
+302s the rest (`Hosts.BaseTarget`): two-label and unknown hosts under the base to the same
+labels under `SITE_DOMAIN`, a flat person's `SITE_DOMAIN` page to the base; only page GETs are
+redirected (the API there is a 404). With `off` a distinct base 301s everything back to `SITE_DOMAIN`. The
+[runbook](../operations/site-base-flat.md) owns the wildcard, nginx and rollout.
 
 On legacy `sites.simple-host.app`, nginx uses `/internal/domain-redirect` for own-domain markers
 and `/internal/site-redirect` otherwise. Current canonical mode uses 302 with no-store to the live

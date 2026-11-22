@@ -1210,6 +1210,12 @@ func (i *Ingester) attribute(host, uri string, maps *attrMaps) (string, string) 
 				}
 				return maps.userNameToID[userID+"/"+seg], trimPathPrefix(path, 1)
 			}
+			// <site>--<handle>: a flat site host (an exact handle won above).
+			if site, handle, ok := strings.Cut(label, "--"); ok {
+				if userID, ok := maps.handleToUser[handle]; ok {
+					return maps.userNameToID[userID+"/"+site], path
+				}
+			}
 			return maps.nameToOldest[label], path
 		}
 		// <site>.<handle>.<siteDomain>: a site's own host. The whole host names the site; the path does not.

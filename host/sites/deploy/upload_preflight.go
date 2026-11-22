@@ -81,6 +81,9 @@ func (s Service) CreatePreflight(ctx context.Context, in PreflightInput) error {
 		if err := rules.ValidateReserved(in.Name); err != nil {
 			return &sites.Error{Code: "name_reserved", Message: err.Error()}
 		}
+		if err := s.Deps.Hosts.NameFits(in.Name, user.Handle.String); err != nil {
+			return err
+		}
 	}
 	switch strings.ToLower(strings.TrimSpace(in.Publish)) {
 	case "", "true", "1", "yes":

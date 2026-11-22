@@ -5,6 +5,7 @@ import (
 
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/lib/pq"
@@ -338,4 +339,46 @@ func SetHomeSite(ctx context.Context, q Querier, userID string, name *string) er
 func ListHandlesWithSites(ctx context.Context, q *sql.DB) ([]string, error) {
 	return scanNames(q.QueryContext(ctx, `SELECT DISTINCT o.handle`+ownerFrom+`
 		WHERE s.deleted_at IS NULL AND o.handle IS NOT NULL AND o.handle <> '' ORDER BY o.handle`))
+}
+
+// FlatBlockers counts what an install must not hold before one-level
+// addresses are turned on (Hosts.RequireFlatClean, at startup): site names,
+// live or in Recently deleted, holding "--" or named "xn"; sites whose
+// <site>--<owner handle> is over 63 characters; free names holding "--"; and
+// free names stored under base.
+type FlatBlockers struct{ SiteNames, TooLong, FreeNames, OnBase int }
+
+func GetFlatBlockers(ctx context.Context, db *sql.DB, siteDomain, base string) (FlatBlockers, error) {
+	var b FlatBlockers
+	err := db.QueryRowContext(ctx, `SELECT
+		count(*) FILTER (WHERE s.name LIKE '%--%' OR s.name = 'xn'),
+		count(*) FILTER (WHERE length(s.name) + 2 + length(COALESCE(o.handle, '')) > 63)`+ownerFrom).Scan(&b.SiteNames, &b.TooLong)
+	if err != nil {
+		return b, err
+	}
+	rows, err := db.QueryContext(ctx, `SELECT lower(d) FROM (SELECT custom_domain AS d FROM sites UNION ALL SELECT previous_domain FROM sites) x
+		WHERE d IS NOT NULL AND (lower(d) LIKE '%.' || $1 OR lower(d) LIKE '%.' || $2)`, siteDomain, base)
+	if err != nil {
+		return b, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return b, err
+		}
+		for _, z := range []string{siteDomain, base} {
+			label, ok := strings.CutSuffix(d, "."+z)
+			if !ok || label == "" || strings.Contains(label, ".") {
+				continue
+			}
+			if strings.Contains(label, "--") {
+				b.FreeNames++
+			}
+			if z == base {
+				b.OnBase++
+			}
+		}
+	}
+	return b, rows.Err()
 }

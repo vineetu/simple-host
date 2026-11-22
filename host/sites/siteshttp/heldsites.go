@@ -33,7 +33,7 @@ import (
 // TEAM_SITE_FLAT_HOSTS it never waits on a per-event marker, since team
 // sites live under the instance's own *.<base> wildcard instead.
 func (h *SiteHandler) TeamSitesReady(eventSlug string) bool {
-	return eventSlug != "" && h.Hosts.Addressing().SiteHostsOn() && h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().HandoutBase())
+	return eventSlug != "" && h.Hosts.Addressing().SiteHostsOn() && h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().BaseFor(eventSlug))
 }
 
 func (h *SiteHandler) TeamSiteFlatHostsOn() bool { return h.Hosts.Addressing().TeamSiteFlatHostsOn() }
@@ -61,7 +61,7 @@ func (h *SiteHandler) TeamSiteInfo(ctx context.Context, accountID, teamSlug stri
 // TeamPreviewLink mints a preview address for version n of the team's site
 // (the deadline version for judges). ok=false when there is none.
 func (h *SiteHandler) TeamPreviewLink(ctx context.Context, accountID, eventSlug, teamSlug string, n int) (string, time.Time, bool) {
-	if n < 1 || !h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().HandoutBase()) {
+	if n < 1 || !h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().BaseFor(eventSlug)) {
 		return "", time.Time{}, false
 	}
 	site, exists, err := h.exports().PreviewSite(ctx, export.PreviewSiteInput{AccountID: accountID, Name: teamSlug, Version: n})
@@ -75,7 +75,7 @@ func (h *SiteHandler) TeamPreviewLink(ctx context.Context, accountID, eventSlug,
 
 // TeamPreviewLinkFor is TeamPreviewLink for a site already read; the caller checked the version exists.
 func (h *SiteHandler) TeamPreviewLinkFor(site model.Site, eventSlug string, n int) (string, bool) {
-	if n < 1 || !h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().HandoutBase()) {
+	if n < 1 || !h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().BaseFor(eventSlug)) {
 		return "", false
 	}
 	site.OwnerHandle = eventSlug

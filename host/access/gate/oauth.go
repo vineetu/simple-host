@@ -135,9 +135,8 @@ func (h *OAuthHandler) hosts() *appsites.Hosts {
 	return h.Access.Hosts
 }
 
-// bases are the domains people's addresses live under (SITE_DOMAIN, plus
-// SITE_BASE_DOMAIN while it moves; sitebase.go), or SITE_DOMAIN alone without
-// access.
+// bases are the domains people's addresses live under (SITE_DOMAIN, plus a
+// split SITE_BASE_DOMAIN; sitebase.go), or SITE_DOMAIN alone without access.
 func (h *OAuthHandler) bases() []string {
 	if hosts := h.hosts(); hosts != nil {
 		if b := hosts.ServedBases(); len(b) > 0 {
@@ -145,15 +144,6 @@ func (h *OAuthHandler) bases() []string {
 		}
 	}
 	return []string{h.Cfg.SiteDomain}
-}
-
-// sameAddress: a and b are one address across the served bases, or an exact
-// match without access.
-func (h *OAuthHandler) sameAddress(a, b string) bool {
-	if hosts := h.hosts(); hosts != nil {
-		return hosts.SameUserHost(a, b)
-	}
-	return strings.EqualFold(a, b)
 }
 
 func (h *OAuthHandler) Register(mux *http.ServeMux) {
@@ -429,7 +419,7 @@ func (h *OAuthHandler) SanitizeReturnTo(ctx context.Context, raw string) (string
 	// the binding itself is the proof (no DNS lookup).
 	if h.isClaimedPlatformSubdomain(host) {
 		info, err := appsites.GetSiteByCustomDomain(ctx, h.Database, host)
-		if err != nil || !info.VerifiedAt.Valid || !h.sameAddress(info.Domain, host) {
+		if err != nil || !info.VerifiedAt.Valid || !strings.EqualFold(info.Domain, host) {
 			return "", sql.NullString{}, "", "", errInvalidReturnTo
 		}
 		return parsed.String(), sql.NullString{String: info.SiteID, Valid: true}, host, "site", nil

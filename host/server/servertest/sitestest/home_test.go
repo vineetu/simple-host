@@ -145,23 +145,24 @@ func TestHomeFallbacks(t *testing.T) {
 	}
 }
 
-// A protected home is gated on the person host of every site base.
+// A protected home is gated on its person host, and under a flat base the
+// person host of the other base only redirects there.
 func TestHomeBaseAndPasscode(t *testing.T) {
 	a := NewApp(t)
 	owner := a.NewPerson(t, "lockedhome")
 	a.Deploy(t, owner, "home")
 	a.setHome(t, owner, "home")
-	a.Hosts.SetSiteBase("simple-host.alt", "serve", "")
-	for _, base := range []string{rt.SiteDomain, "simple-host.alt"} {
-		if r := a.At(t, "GET", owner.Handle+"."+base, "/", nil, nil); r.Status != 200 {
-			t.Fatalf("open home on %s: %d", base, r.Status)
-		}
+	a.Hosts.SetSiteBase("simple-host.alt", "flat")
+	person := owner.Handle + "." + rt.SiteDomain
+	if r := a.At(t, "GET", person, "/", nil, nil); r.Status != 200 {
+		t.Fatalf("open home: %d", r.Status)
+	}
+	if r := a.At(t, "GET", owner.Handle+".simple-host.alt", "/", nil, nil); r.Status != http.StatusFound || r.Header.Get("Location") != "https://"+person+"/" {
+		t.Fatalf("other base: %d %q", r.Status, r.Header.Get("Location"))
 	}
 	a.protect(t, owner, "home")
-	for _, base := range []string{rt.SiteDomain, "simple-host.alt"} {
-		if r := a.At(t, "GET", owner.Handle+"."+base, "/", nil, nil); r.Status != 403 || strings.Contains(string(r.Body), "<h1>home</h1>") {
-			t.Fatalf("gate on %s: %d", base, r.Status)
-		}
+	if r := a.At(t, "GET", person, "/", nil, nil); r.Status != 403 || strings.Contains(string(r.Body), "<h1>home</h1>") {
+		t.Fatalf("gate: %d", r.Status)
 	}
 }
 

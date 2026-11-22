@@ -62,6 +62,9 @@ func ClaimPlatformAddress(label, base, siteDomain, contentHost, cnameTarget stri
 	if strings.HasPrefix(label, "xn--") {
 		return "", errors.New("internationalised names are not supported")
 	}
+	if strings.Contains(label, "--") {
+		return "", errors.New(`the name can't have two hyphens in a row ("--"); use one`)
+	}
 	full := label + "." + base
 	if rules.LabelReservedForNew(label) {
 		return "", ErrSubdomainReserved
@@ -72,25 +75,6 @@ func ClaimPlatformAddress(label, base, siteDomain, contentHost, cnameTarget stri
 		}
 	}
 	return full, nil
-}
-
-// TwinHost maps a user address between platform bases, excluding platform hosts.
-func TwinHost(host, from, to string) string {
-	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
-	if !strings.HasSuffix(host, "."+from) {
-		return ""
-	}
-	labels := strings.TrimSuffix(host, "."+from)
-	parts := strings.Split(labels, ".")
-	switch {
-	case labels == "" || len(parts) > 2:
-		return ""
-	case len(parts) == 1 && (parts[0] == "www" || rules.LabelReserved(parts[0])):
-		return ""
-	case len(parts) == 2 && (parts[0] == "" || rules.LabelReserved(parts[1])):
-		return ""
-	}
-	return labels + "." + to
 }
 
 // PlatformHostTarget selects the app host for an apex or reserved platform host.
@@ -120,25 +104,6 @@ func LegacyHostLabel(host, base string) (string, bool) {
 		return "", false
 	}
 	return label, true
-}
-
-// LegacyBaseLabels selects a user's one- or two-label address for a base move.
-func LegacyBaseLabels(host, base string) ([]string, bool) {
-	labels := strings.TrimSuffix(host, "."+base)
-	parts := strings.Split(labels, ".")
-	switch len(parts) {
-	case 1:
-		if parts[0] == "" || parts[0] == "www" || rules.LabelReserved(parts[0]) {
-			return nil, false
-		}
-	case 2:
-		if parts[0] == "" || !HandleAddressable(parts[1]) {
-			return nil, false
-		}
-	default:
-		return nil, false
-	}
-	return parts, true
 }
 
 // ClaimedReturnHost excludes platform infrastructure before OAuth's binding lookup.

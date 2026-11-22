@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -51,7 +52,7 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 		}
 		user, err := h.SitesSvc().HostOwner(r.Context(), handle, label)
 		if err != nil {
-			h.siteHostNoOwner(w, r, err, handle, label, base)
+			h.siteHostNoOwner(w, r, err, handle, label)
 			return
 		}
 		site, err := h.SitesSvc().GetSiteByUser(r.Context(), user.ID, label)
@@ -65,23 +66,22 @@ func (h *SiteHandler) SiteHosts(api, next http.Handler) http.Handler {
 
 // siteHostNoOwner answers a site host whose handle is no current account: an alias redirects to the current
 // address (or a renamed site's), anything else is the platform's 404.
-func (h *SiteHandler) siteHostNoOwner(w http.ResponseWriter, r *http.Request, err error, handle, label, base string) {
+func (h *SiteHandler) siteHostNoOwner(w http.ResponseWriter, r *http.Request, err error, handle, label string) {
 	if !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, sites.ErrInvalidHost) {
 		log.Printf("site host %s: %v", httpx.HostName(r), err)
 		h.renderServiceError(w, r)
 		return
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		if target, ok := h.aliasSiteTarget(r, handle, label, base); ok {
-			w.Header().Set("Cache-Control", "no-store")
-			http.Redirect(w, r, target+queryOf(r), http.StatusFound)
+		if target, ok := h.aliasSiteTarget(r, handle, label); ok {
+			h.redirectPage(w, r, target)
 			return
 		}
 	}
 	h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.MainSiteURL(), "Go to "+h.SiteDomain)
 }
 
-func (h *SiteHandler) aliasSiteTarget(r *http.Request, handle, label, base string) (string, bool) {
+func (h *SiteHandler) aliasSiteTarget(r *http.Request, handle, label string) (string, bool) {
 	current, err := h.StoreAccounts().ResolveHandleAlias(r.Context(), handle)
 	if err != nil || !sites.HandleAddressable(current) {
 		return "", false
@@ -92,7 +92,7 @@ func (h *SiteHandler) aliasSiteTarget(r *http.Request, handle, label, base strin
 	}
 	site, err := h.SitesSvc().GetSiteByUser(r.Context(), cu.ID, label)
 	if err == nil {
-		return h.Hosts.Addressing().SiteAddressWithPathOn(current, site.Name, r.URL.EscapedPath(), base), true
+		return h.Hosts.Addressing().SiteAddressWithPath(current, site.Name, r.URL.EscapedPath()), true
 	}
 	if errors.Is(err, sql.ErrNoRows) && !strings.HasPrefix(r.URL.Path, "/v1/") {
 		return h.renamedSiteAddress(r.Context(), cu.ID, label, r.URL.EscapedPath())
@@ -127,7 +127,7 @@ func (h *SiteHandler) serveSiteHostSite(w http.ResponseWriter, r *http.Request, 
 	if escaped == "" {
 		escaped = "/"
 	}
-	live := h.Hosts.Addressing().SiteHostLiveOn(handle, site.Name, base)
+	live := h.Hosts.Addressing().SiteHostLiveOn(handle, site.Name, base) && h.Hosts.Addressing().SiteHostIs(httpx.HostName(r), handle, site.Name, base)
 	if sites.ContentHostOnly(handle, site.Name) {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, h.ContentBaseURL()+"/"+handle+"/"+site.Name+escaped+query, http.StatusFound)
@@ -154,10 +154,10 @@ func (h *SiteHandler) serveSiteHostSite(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	if !live {
-		// TLS was served for a person whose marker is missing (e.g. cleared
-		// by hand): the working address.
-		w.Header().Set("Cache-Control", "no-store")
-		http.Redirect(w, r, h.Hosts.Addressing().PersonPathAddressOn(handle, site.Name, base)+strings.TrimPrefix(escaped, "/")+query, http.StatusFound)
+		// Not this site's address: the other shape for its owner, or TLS
+		// served for a person whose marker is missing (e.g. cleared by
+		// hand). A page goes to the address it has.
+		h.redirectPage(w, r, h.Hosts.Addressing().SiteAddressWithPath(handle, site.Name, escaped))
 		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/v1/") {
@@ -179,6 +179,32 @@ func (h *SiteHandler) serveSiteHostSite(w http.ResponseWriter, r *http.Request, 
 		}
 		return ok
 	})
+}
+
+// signInParams are query values a sign-in link carries for the host it was
+// made for; a redirect to another host drops them.
+var signInParams = []string{"once", "cn", "token", "state", "code"}
+
+// redirectPage answers a request on a host that is not the address of the
+// site or person it names: a page GET or HEAD 302s to target (an absolute
+// address with its escaped path) with the query, less sign-in values; the
+// API, preflights and every other method get a plain 404, never a redirect.
+func (h *SiteHandler) redirectPage(w http.ResponseWriter, r *http.Request, target string) {
+	if strings.HasPrefix(r.URL.Path, "/v1/") || (r.Method != http.MethodGet && r.Method != http.MethodHead) {
+		http.NotFound(w, r)
+		return
+	}
+	query := queryOf(r)
+	if q := r.URL.Query(); slices.ContainsFunc(signInParams, q.Has) {
+		for _, k := range signInParams {
+			q.Del(k)
+		}
+		if query = ""; len(q) > 0 {
+			query = "?" + q.Encode()
+		}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, target+query, http.StatusFound)
 }
 
 func queryOf(r *http.Request) string {
@@ -242,7 +268,7 @@ func (h *SiteHandler) RequestSiteCert(handle string) {
 // least one site that has none yet (the back-fill, and a safety net for a
 // request that was missed).
 func (h *SiteHandler) RequestSiteCertsForAll(ctx context.Context) {
-	if !h.Hosts.Addressing().SiteHostsOn() || len(h.Hosts.CertRequestBases()) == 0 {
+	if !h.Hosts.Addressing().SiteHostsOn() || h.Hosts.Addressing().SiteCertDir == "" {
 		return
 	}
 	handles, err := h.SitesSvc().ListHandlesWithSites(ctx)
@@ -260,25 +286,14 @@ func (h *SiteHandler) RequestSiteCertsForAll(ctx context.Context) {
 
 func (h *SiteHandler) updateSiteCertPending(ctx context.Context) {
 	var pending int64
-	seen := map[string]bool{}
-	for _, base := range h.Hosts.CertRequestBases() {
-		if ctx.Err() != nil {
-			return
-		}
-		dir := filepath.Join(h.Hosts.Addressing().CertDirFor(base), "requests")
-		if seen[dir] {
-			continue
-		}
-		seen[dir] = true
-		files, err := os.ReadDir(dir)
-		if err != nil {
-			sites.ReportWorkerFailure(ctx, "count certificate requests", err)
-			return
-		}
-		for _, f := range files {
-			if f.Type().IsRegular() {
-				pending++
-			}
+	files, err := os.ReadDir(filepath.Join(h.Hosts.Addressing().SiteCertDir, "requests"))
+	if err != nil {
+		sites.ReportWorkerFailure(ctx, "count certificate requests", err)
+		return
+	}
+	for _, f := range files {
+		if f.Type().IsRegular() {
+			pending++
 		}
 	}
 	h.siteLoop("sites.cert_requests").tracker.SetPending(pending)

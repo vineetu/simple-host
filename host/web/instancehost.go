@@ -229,10 +229,8 @@ var instanceIsCanonical = true
 // InstanceFacts is what this install's llms.txt says about itself, above the
 // text every install shares (which describes simple-host.app).
 type InstanceFacts struct {
+	// SiteDomain is also where free names are (never SITE_BASE_DOMAIN).
 	SiteDomain, ContentHost string
-	// BaseDomain is the domain people's addresses are handed out under
-	// (sitebase.go); "" means SiteDomain.
-	BaseDomain string
 	// SharedOrigin: every site is served on the content host's one origin
 	// (PERSON_HOSTS and SITE_HOSTS off, as on a small box).
 	SharedOrigin bool
@@ -266,10 +264,7 @@ func SetInstanceNote(f InstanceFacts) {
 		InstanceNote = ""
 		return
 	}
-	base := f.BaseDomain
-	if base == "" {
-		base = f.SiteDomain
-	}
+	base := f.SiteDomain
 	var b strings.Builder
 	b.WriteString("THIS SERVER (" + f.SiteDomain + ") — read this first: the text after it describes the hosted service at simple-host.app, and where it differs, what is written here is what holds on this server.\n")
 	if f.SharedOrigin {

@@ -19,15 +19,14 @@ const (
 	HostsCanonical
 )
 
-// BaseMove is SITE_BASE_MOVE, the move of every address to SITE_BASE_DOMAIN.
+// BaseMove is SITE_BASE_MOVE: off (only SITE_DOMAIN serves) or flat (people
+// without a certificate of their own get one-label addresses under
+// SITE_BASE_DOMAIN).
 type BaseMove int
 
 const (
 	BaseMoveOff BaseMove = iota
-	BaseMoveServe
-	BaseMoveCanonical
-	BaseMoveRedirect
-	BaseMovePermanent
+	BaseMoveFlat
 )
 
 // contentHostOnlySites keep their path URL as their address, because the page
@@ -39,15 +38,15 @@ var contentHostOnlySites = map[string]bool{
 }
 
 // Addressing is the instance's address configuration (SITE_DOMAIN, the
-// shared content host, PERSON_HOSTS, SITE_HOSTS, SITE_BASE_DOMAIN and its
-// move, the certificate hand-off directories, TEAM_SITE_FLAT_HOSTS) and the
-// one owner of the addresses handed out for sites.
+// shared content host, PERSON_HOSTS, SITE_HOSTS, SITE_BASE_DOMAIN and
+// SITE_BASE_MOVE, the certificate hand-off directory, TEAM_SITE_FLAT_HOSTS)
+// and the one owner of the addresses handed out for sites.
 type Addressing struct {
-	SiteDomain, ContentHost  string
-	PersonHosts, SiteHosts   HostMode
-	SiteBase                 string
-	BaseMove                 BaseMove
-	SiteCertDir, BaseCertDir string
+	SiteDomain, ContentHost string
+	PersonHosts, SiteHosts  HostMode
+	SiteBase                string
+	BaseMove                BaseMove
+	SiteCertDir             string
 	// TeamSiteFlatHosts: team sites live at <team>--<event>.<base>; only
 	// on the hosted-events edition (HostedEvents).
 	TeamSiteFlatHosts, HostedEvents bool
@@ -63,17 +62,53 @@ func (a Addressing) SiteHostsCanonical() bool {
 }
 func (a Addressing) TeamSiteFlatHostsOn() bool { return a.TeamSiteFlatHosts && a.HostedEvents }
 
-// BaseSplit: addresses are moving to a second base domain.
+// BaseSplit: SITE_BASE_MOVE=flat with a base of its own, so people's
+// addresses live under one of two domains (FlatFor says which).
 func (a Addressing) BaseSplit() bool {
-	return a.BaseMove != BaseMoveOff && a.SiteBase != "" && a.SiteDomain != "" && !strings.EqualFold(a.SiteBase, a.SiteDomain)
+	return a.BaseMove == BaseMoveFlat && a.SiteBase != "" && a.SiteDomain != "" && !strings.EqualFold(a.SiteBase, a.SiteDomain)
 }
 
-// HandoutBase is the domain every address handed out is under.
+// HandoutBase is the domain a new account's addresses are under: the base
+// when split, else SITE_DOMAIN. For one person's addresses use BaseFor.
 func (a Addressing) HandoutBase() string {
-	if a.BaseSplit() && a.BaseMove >= BaseMoveCanonical {
+	if a.BaseSplit() {
 		return a.SiteBase
 	}
 	return strings.ToLower(a.SiteDomain)
+}
+
+// FlatFor is the one decision of which style a person's addresses have.
+// With the base split, a person without a certificate of their own
+// (*.<handle>.<SITE_DOMAIN>, its issuer's ready marker) is flat: their page
+// is <handle>.<base> and each site <site>--<handle>.<base>, all on the
+// base's one wildcard certificate. Everyone with that certificate keeps
+// <site>.<handle>.<SITE_DOMAIN>. The issuer writes the marker once and
+// never removes it (renewals leave it alone), and nothing is requested for
+// a flat person, so a person's style does not change on its own.
+func (a Addressing) FlatFor(handle string) bool {
+	return a.BaseSplit() && HandleAddressable(handle) && !a.ownCert(handle)
+}
+
+// BaseFor is the domain handle's addresses are handed out under.
+func (a Addressing) BaseFor(handle string) string {
+	if a.FlatFor(handle) {
+		return a.SiteBase
+	}
+	return strings.ToLower(a.SiteDomain)
+}
+
+// ownCert: the issuer serves *.<handle>.<SITE_DOMAIN> (its ready marker
+// exists). Without a hand-off directory every person counts, unless the
+// base is split: then nobody has one.
+func (a Addressing) ownCert(handle string) bool {
+	if a.SiteCertDir == "" {
+		return !a.BaseSplit()
+	}
+	if !HandleAddressable(handle) {
+		return false
+	}
+	st, err := os.Stat(filepath.Join(a.SiteCertDir, "ready", strings.ToLower(handle)))
+	return err == nil && st.Mode().IsRegular()
 }
 
 // PersonHostOn is a person's own host under base: <handle>.<base>.
@@ -89,36 +124,36 @@ func (a Addressing) PersonAddressFor(handle, name string) bool {
 }
 
 // SiteHostOn is the site host of a site under base: <name>.<handle>.<base>,
-// or the flat <name>--<handle>.<base> label under TEAM_SITE_FLAT_HOSTS.
+// or the flat <name>--<handle>.<base> label under TEAM_SITE_FLAT_HOSTS and
+// under a split base.
 func (a Addressing) SiteHostOn(handle, name, base string) string {
-	return TeamSiteHost(handle, name, base, a.TeamSiteFlatHostsOn())
+	flat := a.TeamSiteFlatHostsOn() || (a.BaseSplit() && strings.EqualFold(base, a.SiteBase))
+	return TeamSiteHost(handle, name, base, flat)
 }
 
-// CertDirFor is the certificate hand-off directory for base.
-func (a Addressing) CertDirFor(base string) string {
-	if a.BaseSplit() && strings.EqualFold(base, a.SiteBase) {
-		return a.BaseCertDir
-	}
-	return a.SiteCertDir
-}
-
-// SiteCertReadyOn reports whether *.<handle>.<base> is served with a valid
-// certificate: the issuer's ready marker exists. Without a hand-off directory
-// every person counts as ready, and so does every event under
-// TEAM_SITE_FLAT_HOSTS (team sites live under the instance's own wildcard).
+// SiteCertReadyOn reports whether handle's site hosts under base are served
+// with a valid certificate. Flat hosts (TEAM_SITE_FLAT_HOSTS, a flat person
+// under the split base) are on the base's wildcard. A person is served under
+// one base only: a split base is never ready for a person who is not flat,
+// and SITE_DOMAIN never for one who is.
 func (a Addressing) SiteCertReadyOn(handle, base string) bool {
-	if a.TeamSiteFlatHostsOn() {
+	switch {
+	case a.TeamSiteFlatHostsOn():
 		return true
-	}
-	dir := a.CertDirFor(base)
-	if dir == "" {
-		return true
-	}
-	if !HandleAddressable(handle) {
+	case a.FlatFor(handle):
+		return strings.EqualFold(base, a.SiteBase)
+	case a.BaseSplit() && strings.EqualFold(base, a.SiteBase):
 		return false
 	}
-	st, err := os.Stat(filepath.Join(dir, "ready", strings.ToLower(handle)))
-	return err == nil && st.Mode().IsRegular()
+	return a.ownCert(handle)
+}
+
+// SiteHostIs: host is the site's own host shape under base. Under a split
+// base only the exact address counts (no two-label host under the base, no
+// flat one under SITE_DOMAIN); otherwise any parsed shape does (Simple
+// Hack's two-level team hosts keep serving beside the flat ones).
+func (a Addressing) SiteHostIs(host, handle, name, base string) bool {
+	return !a.BaseSplit() || strings.EqualFold(strings.TrimSuffix(host, "."), a.SiteHostOn(handle, name, base))
 }
 
 // SiteHostLiveOn: the site is served at its site host under base.
@@ -138,7 +173,7 @@ func (a Addressing) SiteURL(handle, name string) string {
 	if handle == "" {
 		return ""
 	}
-	base := a.HandoutBase()
+	base := a.BaseFor(handle)
 	if a.SiteHostCanonicalOn(handle, name, base) {
 		return "https://" + a.SiteHostOn(handle, name, base) + "/"
 	}
@@ -209,7 +244,7 @@ func (a Addressing) PersonPageURL(handle string) string {
 		return ""
 	}
 	if a.PersonHostsCanonical() && HandleAddressable(handle) {
-		return "https://" + a.PersonHostOn(handle, a.HandoutBase()) + "/"
+		return "https://" + a.PersonHostOn(handle, a.BaseFor(handle)) + "/"
 	}
 	return a.ContentBaseURL() + "/" + handle
 }
@@ -218,7 +253,7 @@ func (a Addressing) PersonPageURL(handle string) string {
 // (starting with "/") appended: its site host when that is canonical, else
 // its person-path address.
 func (a Addressing) SiteAddressWithPath(handle, name, escapedPath string) string {
-	return a.SiteAddressWithPathOn(handle, name, escapedPath, a.HandoutBase())
+	return a.SiteAddressWithPathOn(handle, name, escapedPath, a.BaseFor(handle))
 }
 
 // SiteAddressWithPathOn is SiteAddressWithPath under base.
@@ -240,7 +275,7 @@ func (a Addressing) SiteURLFor(site model.Site) string {
 
 // TeamSiteURL is a team site's address under its event.
 func (a Addressing) TeamSiteURL(eventSlug, teamSlug string) string {
-	return "https://" + a.SiteHostOn(eventSlug, teamSlug, a.HandoutBase()) + "/"
+	return "https://" + a.SiteHostOn(eventSlug, teamSlug, a.BaseFor(eventSlug)) + "/"
 }
 
 // ContentHostOnly: the site keeps its path URL on the content host.

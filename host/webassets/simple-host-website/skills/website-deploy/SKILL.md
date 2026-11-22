@@ -5,7 +5,8 @@ description: Publish or update a site and its saved data on Simple Host (simple-
 
 # Publish and update a website on Simple Host
 
-Simple Host publishes static websites at `https://<site>.<handle>.simple-host.app/`, and each
+Simple Host publishes static websites at `https://<site>.<handle>.simple-host.app/` (newer
+accounts: `https://<site>--<handle>.simple-host.site/`; the address is the url a tool returns), and each
 site can save what visitors send (KV, SQLite and files), with visitor sign-in by emailed code or
 Google. Use the signed-in Simple Host connector tools; if they are missing or signed out, ask the
 person to connect Simple Host (https://simple-host.app/install.html). Never ask for, read or pass

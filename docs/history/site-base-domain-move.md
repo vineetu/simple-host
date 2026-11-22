@@ -1,4 +1,4 @@
-> **Status: Paused 2026-10-09; historical plan.** simple-host.app is the only address; .site hosts redirect back. Revisit about 2026-11-09. Current runbook: `docs/operations/site-base-paused.md`.
+> **Status: Superseded 2026-11-22; historical plan.** The two-label move was replaced by one-level addresses for new accounts (`SITE_BASE_MOVE=flat`); its serve/canonical/redirect/permanent positions and `SITE_BASE_CERT_DIR` were removed. Current runbook: `docs/operations/site-base-flat.md`.
 
 
 # Migration plan: user sites move from simple-host.app to simple-host.site

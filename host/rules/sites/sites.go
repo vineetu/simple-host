@@ -5,6 +5,7 @@ package sites
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -44,11 +45,27 @@ func ValidateShape(name string) error {
 	return nil
 }
 
-// ValidateReserved rejects names reserved for platform infrastructure.
-// Call on CREATE only.
+// ValidateReserved rejects names a NEW site may not take: reserved for
+// platform infrastructure, or holding "--" (a one-label address
+// <site>--<handle> splits at its first "--"). Call on CREATE and rename only.
 func ValidateReserved(name string) error {
 	if _, reserved := reservedSiteNames[name]; reserved || reservedNewSiteNameSet[name] {
 		return errors.New("this name is reserved; pick another")
+	}
+	if strings.Contains(name, "--") {
+		return errors.New(`a new site name can't have two hyphens in a row ("--"); use one`)
+	}
+	if name == "xn" {
+		return errors.New(`"xn" can't be a site name: its one-level address would start with "xn--", which browsers read as an internationalised name`)
+	}
+	return nil
+}
+
+// FlatLabelFits refuses a site name and handle that would not fit one DNS
+// label as <site>--<handle> (63 characters).
+func FlatLabelFits(site, handle string) error {
+	if len(site)+2+len(handle) > 63 {
+		return fmt.Errorf("the site name and the account address together can be at most 61 characters (the address <site>--<handle> is one 63-character name); %q and %q are %d", site, handle, len(site)+len(handle))
 	}
 	return nil
 }
@@ -183,6 +200,13 @@ var (
 func LabelReservedForNew(label string) bool {
 	l := strings.ToLower(label)
 	return ReservedSubdomainSet[l] || reservedNewNameSet[l]
+}
+
+// NewHandleShape: a NEW handle or team name is 1 to 39 lowercase letters,
+// digits or single hyphens, not at either end (never "--": a one-label
+// address <site>--<handle> splits at its first "--").
+func NewHandleShape(handle string) bool {
+	return VisitorHandle.MatchString(handle) && HandleIsLabel(handle) && !strings.Contains(handle, "--")
 }
 
 // HandleIsLabel reports whether handle is usable as a DNS label, since it is

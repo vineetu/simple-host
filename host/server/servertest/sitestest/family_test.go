@@ -363,26 +363,6 @@ func TestFamilyReportHosted(t *testing.T) {
 	}
 }
 
-// While the base moves, an old site host whose site lives at a family
-// address goes there in one hop; one without moves to the new base.
-func TestFamilyBaseMoveOneHop(t *testing.T) {
-	a, baseDir := newBaseApp(t, "redirect")
-	f := families(t, a)
-	olive := f.NewPerson(t, "olive")
-	f.Deploy(t, olive, "meera")
-	f.Deploy(t, olive, "plain")
-	if err := os.WriteFile(filepath.Join(baseDir, "ready", olive.Handle), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	f.liveFamily(t, olive, "quotes.fam.test", "m", true, 0)
-	if r := f.At(t, "GET", olive.SiteHost("meera"), "/p?q=1", nil, nil); r.Status != http.StatusFound || location(r) != "https://eera.quotes.fam.test/p?q=1" {
-		t.Fatalf("family site: %d %q", r.Status, location(r))
-	}
-	if r := f.At(t, "GET", olive.SiteHost("plain"), "/", nil, nil); r.Status != http.StatusFound || location(r) != "https://plain."+olive.Handle+"."+sbBase+"/" {
-		t.Fatalf("plain site: %d %q", r.Status, location(r))
-	}
-}
-
 // Idle cleanup keeps a site whose main address is a verified family of its
 // account (IDLE_EXEMPT_FAMILY_SITES), and not one outside the family.
 func TestFamilyIdleExempt(t *testing.T) {

@@ -163,6 +163,14 @@ func AccountHasSites(ctx context.Context, tx *sql.Tx, id string) (bool, error) {
 	return has, err
 }
 
+// LongestSiteName is the account's longest site name, live or Recently
+// deleted ("" with none).
+func LongestSiteName(ctx context.Context, tx *sql.Tx, id string) (string, error) {
+	var name string
+	err := tx.QueryRowContext(ctx, "SELECT COALESCE((SELECT name FROM sites WHERE user_id=$1 ORDER BY length(name) DESC LIMIT 1), '')", id).Scan(&name)
+	return name, err
+}
+
 // AccountSiteKeys lists the account id and name of every site of the
 // account and of the teams it belongs to, live and Recently deleted, so the
 // caller can take each site's lock before erasing (a team the account alone

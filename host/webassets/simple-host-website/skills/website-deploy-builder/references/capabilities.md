@@ -7,7 +7,8 @@ if the idea is clear, go straight to building.
 ## What a Simple Host site can be
 
 - **Static files**: HTML, CSS, JS, images, fonts, served at the site's own address
-  `https://<site>.<handle>.simple-host.app/`, or optionally at a short `<name>.simple-host.app`
+  `https://<site>.<handle>.simple-host.app/` (newer accounts: `https://<site>--<handle>.simple-host.site/`),
+  or optionally at a short `<name>.simple-host.app`
   or the person's own domain. Any number of pages.
 - **Pretty URLs for plain HTML** use `about.html` for `/about` or `about/index.html` for `/about/`.
 - **New storage resources**: owner-configured KV entries, a small SQLite database or raw files.

@@ -134,6 +134,9 @@ func (h routes) restoreSite(w http.ResponseWriter, r *http.Request) {
 			case "restore_files":
 				httpx.WriteJSON(w, http.StatusInternalServerError, httpx.ErrorResponse{Error: "could not restore the site's files"})
 				return
+			case "invalid_name":
+				httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: e.Message, Code: e.Code})
+				return
 			}
 		}
 		httpx.WriteInternal(w)

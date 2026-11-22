@@ -125,18 +125,34 @@ host/TLS hand-offs, identity, view locks, legacy access and request accounting a
 | Host | Routing, identity and code |
 |---|---|
 | Apex `simple-host.app` / `simple-hack.app` | Pages, `/v1/`, OAuth, `/mcp`, skill downloads and probes. Protected account routes require `X-API-Key` or a connector bearer token, with route-specific permissions. `sites/siteshttp/ui.go`, `access/connector/connector.go`, `access/auth/middleware.go`; Hack registration in `products/hack/compose_routes.go`. |
-| `<site>.<handle>.simple-host.app` | Files at `/`, API bound to that site, visitor cookies on that origin. Own-address redirects and rename/handle aliases are resolved before files; `sites/siteshttp/sitehost.go:SiteHosts`. |
+| `<site>.<handle>.simple-host.app`, or `<site>--<handle>.simple-host.site` for a person without a certificate of their own | Files at `/`, API bound to that site, visitor cookies on that origin. Own-address redirects and rename/handle aliases are resolved before files; `sites/siteshttp/sitehost.go:SiteHosts`. |
 | Custom domain | nginx serves files and proxies API/gates; visitor identity stays on that site's origin. Verification/issuer lifecycle: `sites/siteshttp/domains.go`, `domaincheck.go`, `domaincert.go`; `deploy/domain-certs/`. |
 | Claimed `<name>.simple-host.app` | Immediately verified through the domain API; `sites/siteshttp/platformsubdomain.go:BoundSubdomains` serves files and same-origin API. Retired names redirect to their current site with 302; older unbound per-name hosts keep the legacy 301 path redirect (`legacyhost.go:LegacyHostRedirect`). |
 | `<label>.<suffix>` address family | Host resolves one account and its prefixed site. nginx serves files; `sites/siteshttp/familyhost.go:FamilyHosts` handles API, misses, aliases and own-domain redirects. Visitor auth is site-bound. |
-| `<handle>.simple-host.app` | Public site listing/home page and legacy `/<site>/` fallback; `/v1/` binds to that person's sites. Own addresses get 302 redirects; site-host redirects also require canonical mode and readiness. `sites/siteshttp/personhost.go:PersonHosts`. |
+| `<handle>.simple-host.app` (or `.site`, the same person's base) | Public site listing/home page and legacy `/<site>/` fallback; `/v1/` binds to that person's sites. Own addresses get 302 redirects; site-host redirects also require canonical mode and readiness. `sites/siteshttp/personhost.go:PersonHosts`. |
 | Legacy `sites.simple-host.app/<handle>/<site>/` | nginx redirects through `/internal/domain-redirect` or `/internal/site-redirect`; same path/query, 302 with no-store. `/v1/` remains; canonical person-host mode requires keys for shared-host writes, without visitor sign-in. `personhost.go:contentHostRedirect`, `domains.go`. |
 | Hack `<event>.simple-hack.app` | `PersonHosts` selects `sites/siteshttp/grouphost.go:ServeGroupHost`: event page/gallery screenshot, or custom event website. Only a custom website's own storage/visitor API allowlist is served here; event management stays apex-only. |
 | Hack `<team>.<event>.simple-hack.app` | Site-host dispatch with the event holding account and team site. Scoped credentials authorize website management; visitor sessions cover that website. `sites/siteshttp/sitehost.go`, `heldsites.go`, `access/auth/scope.go`. |
 
 Host modes retain the path model when off; canonical site URLs wait for certificate readiness
 when a hand-off directory is configured. Without that directory the app treats certificates as
-ready (`sites/addressing.go:SiteCertReadyOn`). Custom domains and families have separate verification
+ready (`sites/addressing.go:SiteCertReadyOn`).
+
+Addressing has one owner, `host/sites/addressing.go:Addressing`: every address handed out,
+served or origin-checked is built there. Which shape a person has is one decision,
+`FlatFor(handle)`: with `SITE_BASE_MOVE=flat` and a distinct `SITE_BASE_DOMAIN`, a person
+without a `SITE_CERT_DIR/ready/<handle>` marker is flat (`<handle>.<base>`,
+`<site>--<handle>.<base>`, on the base's wildcard; nothing is requested); everyone else keeps
+`<site>.<handle>.<SITE_DOMAIN>`. `BaseFor(handle)` is that person's base; a person is served under
+it only (`SiteCertReadyOn`, `Hosts.PersonHostOwner`), and `siteshttp/sitebase.go:SiteBaseHosts`
+302s the other base's hosts there (`Hosts.BaseTarget`). The flat label is built by
+`TeamSiteHost` and parsed by `Hosts.SiteHostParts` (split at the first `--`), the same functions
+Simple Hack's flat team sites use. `flat` starts only on an install with no existing name that
+could make a label ambiguous (`Hosts.RequireFlatClean`), and no new name holds `--` or is `xn`
+(`rules/sites.NewHandleShape`, `ValidateReserved`, `ClaimPlatformAddress`); `<site>--<handle>`
+must fit 63 characters (`Hosts.NameFits`). Under a split base a site host is live only in its
+owner's exact shape (`Addressing.SiteHostIs`); any other shape gets a page redirect or a 404
+(`siteshttp/sitehost.go:redirectPage`). Custom domains and families have separate verification
 and readiness contracts. Owner keys, connector credentials and site-scoped visitor sessions serve
 different routes; the [access guide](docs/architecture/hosts-and-access.md) specifies each boundary.
 

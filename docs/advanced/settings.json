@@ -182,7 +182,7 @@
     {
       "name": "SITE_BASE_DOMAIN",
       "group": "server",
-      "description": "Optional alternate base for person/site/free-name addresses. The app stays on SITE_DOMAIN. With SITE_BASE_MOVE=off, retain this only to redirect old base links back to SITE_DOMAIN.",
+      "description": "Optional second domain for people's addresses. The app, free names and the content host stay on SITE_DOMAIN. With SITE_BASE_MOVE=off it only redirects old links back to SITE_DOMAIN.",
       "type": "string",
       "default": "<SITE_DOMAIN>",
       "security_sensitive": false,
@@ -193,15 +193,12 @@
     {
       "name": "SITE_BASE_MOVE",
       "group": "server",
-      "description": "off: only SITE_DOMAIN serves; a distinct configured base 301s back with path/query kept. serve: both answer; canonical: base addresses handed out; redirect/permanent: old SITE_DOMAIN addresses redirect to the base (302/301).",
+      "description": "off: only SITE_DOMAIN serves; a distinct SITE_BASE_DOMAIN 301s back with path and query kept. flat: a person with no certificate of their own (SITE_CERT_DIR ready/) gets one-label addresses under SITE_BASE_DOMAIN, <handle>.<base> and <site>--<handle>.<base>, on one wildcard certificate; everyone else keeps <site>.<handle>.<SITE_DOMAIN>.",
       "type": "enum",
       "default": "off",
       "allowed": [
         "off",
-        "serve",
-        "canonical",
-        "redirect",
-        "permanent"
+        "flat"
       ],
       "security_sensitive": false,
       "required": false,
@@ -1905,17 +1902,6 @@
       "name": "SITE_CERT_DIR",
       "group": "domains",
       "description": "Where per-person certificates are requested from, and found ready from, the certificate issuer.",
-      "type": "string",
-      "default": "",
-      "security_sensitive": false,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
-      "name": "SITE_BASE_CERT_DIR",
-      "group": "domains",
-      "description": "Like SITE_CERT_DIR for the alternate base. Required with ready/ and requests/ while the split base move is on. Unset when the move is off; no certificates are requested for the paused base.",
       "type": "string",
       "default": "",
       "security_sensitive": false,

@@ -1,5 +1,6 @@
 # Changelog
 
+2026-11-22: New accounts can get one-level addresses: with `SITE_BASE_MOVE=flat`, a person without a certificate of their own has each site at `<site>--<handle>.<SITE_BASE_DOMAIN>` and their page at `<handle>.<SITE_BASE_DOMAIN>`, on one wildcard certificate and ready at once. Accounts with a certificate keep `<site>.<handle>.<SITE_DOMAIN>` for every site. New handles, team names, site names and free names may no longer contain `--`, and a site name plus its handle must fit `<site>--<handle>` in 63 characters. The earlier two-label move positions (`serve`, `canonical`, `redirect`, `permanent`) and `SITE_BASE_CERT_DIR` are removed; `off` is unchanged.
 2026-11-21: get_site, read_site_file, update_site edits, delete_site and remove_domain each make one API request. The API gains optional parameters for them: `GET /v1/sites?files=<site>` lists that site's live files, `GET /v1/sites/{site}/versions/live/files?read=<path>` reads files' text (also by version number), `DELETE /v1/sites/{site}?confirm_name=` deletes only when the name matches, and `DELETE /v1/sites/{site}/domain?return=site` answers with the site. Requests without them behave as before.
 2026-11-21: One visitor gate decides pages, saved-data routes, sign-in routes and visitor tools; who gets in is unchanged. A connector site name must also follow the site name rule (no leading or trailing hyphen, at most 63 characters), as the API already required.
 2026-11-21: Simple Hack votes are kept per account instead of per email address; team messages show the sender's current name.
@@ -845,7 +846,7 @@ deploy and publishing the template. No migrations.
 
 ## 2026-10-11: No certificate alerts for the paused simple-host.site
 
-- The missing-certificate watch skips an issuer whose `.path` and `.timer` units are both disabled or masked, so the paused simple-host.site issuer no longer sends Signal alerts. Re-enabling its units when the base resumes brings the alerts back. The test covers both. The app has written no .site requests since the 2026-10-09 pause; the one stale request from before it was moved to a dated backup. Existing .site DNS records stay so shared links still reach the redirect ([paused site base](docs/operations/site-base-paused.md)).
+- The missing-certificate watch skips an issuer whose `.path` and `.timer` units are both disabled or masked, so the paused simple-host.site issuer no longer sends Signal alerts. Re-enabling its units when the base resumes brings the alerts back. The test covers both. The app has written no .site requests since the 2026-10-09 pause; the one stale request from before it was moved to a dated backup. Existing .site DNS records stay so shared links still reach the redirect ([paused site base](docs/operations/site-base-flat.md)).
 
 ## 2026-10-10 — Simple Hack standalone v0.8.8
 

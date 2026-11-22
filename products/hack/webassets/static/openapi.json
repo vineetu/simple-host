@@ -322,10 +322,10 @@
         "type": "object"
       },
       "AddressState": {
-        "description": "The account's own site address (https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/) and its certificate.",
+        "description": "The account's own site address (https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/, or https://\u003csite\u003e--\u003chandle\u003e.simple-host.site/ for newer accounts, always ready) and its certificate.",
         "properties": {
           "address": {
-            "description": "The own address: on /v1/me the pattern https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/, on a site that site's address",
+            "description": "The own address: on /v1/me the pattern (https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/ or https://\u003csite\u003e--\u003chandle\u003e.simple-host.site/), on a site that site's address",
             "type": "string"
           },
           "interim_address": {
@@ -3105,7 +3105,7 @@
             "type": "string"
           },
           "site_url": {
-            "description": "The link to share: https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/.",
+            "description": "The link to share: https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/ or, for newer accounts, https://\u003csite\u003e--\u003chandle\u003e.simple-host.site/.",
             "nullable": true,
             "type": "string"
           },
@@ -16563,7 +16563,7 @@
                       "type": "object"
                     },
                     "handle": {
-                      "description": "The \u003chandle\u003e in your addresses: sites at https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/, your page at https://\u003chandle\u003e.simple-host.app/",
+                      "description": "The \u003chandle\u003e in your addresses: sites at https://\u003csite\u003e.\u003chandle\u003e.simple-host.app/ (newer accounts https://\u003csite\u003e--\u003chandle\u003e.simple-host.site/), your page at https://\u003chandle\u003e.simple-host.app/ (or .site)",
                       "type": "string"
                     },
                     "has_password": {

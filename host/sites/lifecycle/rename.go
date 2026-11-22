@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	rules "github.com/vsriram/simple-host/host/rules/sites"
 
 	"github.com/vsriram/simple-host/host/model"
@@ -33,6 +34,9 @@ func (s Service) Rename(ctx context.Context, in RenameInput) (RenameResult, erro
 	}
 	if err := rules.ValidateReserved(newName); err != nil {
 		return result, &sites.Error{Code: "name_reserved", Message: err.Error()}
+	}
+	if err := s.Deps.Hosts.NameFits(newName, handle); err != nil {
+		return result, err
 	}
 	if oldName == newName {
 		return result, &sites.Error{Code: "unchanged_name", Message: "new site name must be different"}
@@ -89,6 +93,14 @@ func (s Service) Rename(ctx context.Context, in RenameInput) (RenameResult, erro
 			return err
 		}
 		defer tx.Rollback()
+		// Again under the account lock: the handle may have changed since.
+		current, err := accountsrepo.LockProfile(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		if err := s.Deps.Hosts.NameFits(newName, current.String); err != nil {
+			return err
+		}
 		if err := repo.RenameSite(ctx, tx, site.ID, newName, result.NewURL); err != nil {
 			return err
 		}

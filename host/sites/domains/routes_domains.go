@@ -353,11 +353,11 @@ func (h Handler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 }
 
 // claimableSubdomain validates a requested <label>.<siteDomain>: one DNS label, letters/digits/hyphens,
-// no edge hyphen, not reserved, not a platform host. While the base moves (sitebase.go) a name under
-// either domain is accepted, and it is always kept under the base handed out.
+// no edge hyphen, not reserved, not a platform host. Under a split base (sitebase.go) a name under
+// either domain is accepted, and free names are always kept under SITE_DOMAIN.
 func (h Handler) claimableSubdomain(host string) (string, error) {
 	label, _, ok := h.Hosts.UserHostLabel(host)
-	base := h.Hosts.Addressing().HandoutBase()
+	base := strings.ToLower(h.SiteDomain)
 	if !ok {
 		return "", errors.New("a free address is one name under " + base + ", e.g. my-shop." + base)
 	}

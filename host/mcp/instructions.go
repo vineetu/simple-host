@@ -19,7 +19,7 @@ BUILD
 - "My site": list_sites, get_site, read_site_file for changed files; update_site with keep_other_files: true. Create only when asked or none fits.
 - Forms (never mailto:): get_page_recipe first for pages that save entries, sign visitors in or take uploads.
 - Explain access and owner entry retrieval, and offer to tell them when entries arrive.
-- https://<site>.<handle>.simple-host.app/. Give the person each url exactly as returned.
+- https://<site>.<handle>.simple-host.app/ (newer accounts: <site>--<handle>). Give the person each url exactly as returned.
 
 ASK FIRST
 - Before create_site: name/address; anyone with the link, or only you and named people? Await yes.

@@ -33,8 +33,8 @@ func CreateTeam(ctx context.Context, db *sql.DB, personID, name string) (model.T
 	if strings.Contains(name, ".") {
 		return model.Team{}, access.TeamFail(http.StatusBadRequest, "invalid_name", "a team name cannot contain dots: use lowercase letters, numbers and hyphens")
 	}
-	if !rules.VisitorHandle.MatchString(name) || !rules.HandleIsLabel(name) {
-		return model.Team{}, access.TeamFail(http.StatusBadRequest, "invalid_name", "a team name is 1 to 39 lowercase letters, numbers or hyphens, not starting or ending with a hyphen")
+	if !rules.NewHandleShape(name) {
+		return model.Team{}, access.TeamFail(http.StatusBadRequest, "invalid_name", "a team name is 1 to 39 lowercase letters, numbers or single hyphens, not starting or ending with a hyphen")
 	}
 	if rules.LabelReservedForNew(name) {
 		return model.Team{}, access.TeamFail(http.StatusConflict, "name_conflict", "that name is reserved for an address of this service; pick another")

@@ -144,7 +144,7 @@ Storage files persist across publish and rollback and are not versioned website 
 
 ## ADDRESSES
 
-Every site lives at its own address, https://<site>.<handle>.simple-host.app/ (its own browser origin); https://<handle>.simple-host.app/ lists the person's public sites. For a brand-new account a site may briefly live at https://<handle>.simple-host.app/<site>/ until its certificate is issued (usually ~10 minutes): always give the person the site_url or url the API or tool returned, never compose one.
+Every site lives at its own address, https://<site>.<handle>.simple-host.app/ (its own browser origin); https://<handle>.simple-host.app/ lists the person's public sites. Newer accounts have one-level addresses instead, https://<site>--<handle>.simple-host.site/ and https://<handle>.simple-host.site/ (GET /v1/me "address" shows which). For a brand-new account a site may briefly live at https://<handle>.simple-host.app/<site>/ until its certificate is issued (usually ~10 minutes): always give the person the site_url or url the API or tool returned, never compose one.
 
 While a site is at that fallback, its response carries address_state (GET /v1/me: address; connector: address_note / who_am_i address) with state waiting or failing, a rough ready_in_hours and a note to pass on: visitors' sign-ins and browser-kept data start fresh when the address switches. Old <handle>.simple-host.app/<site>/ and sites.simple-host.app/<handle>/<site>/ links redirect to the site's address.
 

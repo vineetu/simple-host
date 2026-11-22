@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-// Connector descriptions, schemas and instructions all use simple-host.app.
+// Connector descriptions, schemas and instructions use simple-host.app, and
+// name simple-host.site only on the hosted service with the flat base on.
 func TestAddressBase(t *testing.T) {
 	defer SetAddressBase("", "")
 	send := func() string {
@@ -24,7 +25,7 @@ func TestAddressBase(t *testing.T) {
 		t.Fatal("another install's text changed")
 	}
 	SetAddressBase("simple-host.app", "simple-host.site")
-	if send() != today {
-		t.Fatal("the paused move advertised another base")
+	if flat := send(); !strings.Contains(flat, "simple-host.site") || strings.Replace(flat, "simple-host.site", "simple-host.app", -1) != today {
+		t.Fatal("the flat base: text names only the base, and only in place of simple-host.app")
 	}
 }

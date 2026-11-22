@@ -21,11 +21,11 @@ func accountTools() []Tool {
 				"file_usage":            outObject(map[string]any{"used_bytes": outInteger("Live files and all kept versions, including Recently deleted; backend resources excluded."), "limit_mb": outInteger("0 is unlimited."), "message": outString("Plain account usage."), "tips": outString("Ways to reduce files.")}, "used_bytes", "limit_mb", "message", "tips"),
 				"home_site":             map[string]any{"type": []string{"string", "null"}, "description": "Selected home site; null means showcase."},
 				"email":                 outString("Empty unless include_email is true, when it is the email address the account signs in with."),
-				"handle":                outString("The account's handle: the <handle> in its page https://<handle>.simple-host.app/ and in every site address https://<site>.<handle>.simple-host.app/. Absent until the account publishes its first site."),
+				"handle":                outString("The account's handle: the <handle> in its page https://<handle>.simple-host.app/ and in every site address https://<site>.<handle>.simple-host.app/ (newer accounts https://<site>--<handle>.simple-host.site/). Absent until the account publishes its first site."),
 				"public_page":           outString("Address of the account's public page listing its sites. Present with handle."),
 				"display_name":          outString("Omitted from connector results."),
 				"address": withDescription(outObject(map[string]any{
-					"state":          outEnum("ready (sites are at https://<site>.<handle>.simple-host.app/), waiting (its certificate is queued) or failing (retried automatically).", "ready", "waiting", "failing"),
+					"state":          outEnum("ready (sites are at address: https://<site>.<handle>.simple-host.app/ or, for newer accounts, https://<site>--<handle>.simple-host.site/), waiting (its certificate is queued) or failing (retried automatically).", "ready", "waiting", "failing"),
 					"address":        outString("The pattern of the account's own site addresses."),
 					"ready_in_hours": outInteger("Rough hours until the own address is ready. Present while waiting or failing."),
 					"note":           outString("Tell the person this while waiting or failing: where their sites are until then, and that visitors' sign-ins and browser-kept data start fresh when the address switches."),

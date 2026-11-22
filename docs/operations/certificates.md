@@ -14,10 +14,10 @@ eligible www/bare partner. No nginx configuration changes are needed.
 Address families still use operator-provided certificates and do not issue
 via ACME.
 
-The simple-host.site move is paused from 2026-10-09 (revisit about 2026-11-09).
-Its issuer path and timer remain stopped and disabled. Existing certificates stay
-on disk without revocation; the old TLS hosts only redirect to matching .app
-addresses. See [Paused site base](site-base-paused.md).
+No per-person certificate is issued under simple-host.site: new accounts' one-level
+addresses there use the `*.simple-host.site` wildcard (2026-11-22). Its per-person
+issuer path and timer remain stopped and disabled; existing per-person .site
+certificates stay on disk without revocation. See [One-level addresses](site-base-flat.md).
 
 ## Configuration and credentials
 

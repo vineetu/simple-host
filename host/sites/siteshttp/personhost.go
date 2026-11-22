@@ -54,10 +54,14 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 				return
 			}
 			if current, aerr := h.StoreAccounts().ResolveHandleAlias(r.Context(), label); aerr == nil && sites.HandleAddressable(current) {
-				http.Redirect(w, r, "https://"+h.Hosts.Addressing().PersonHostOn(current, base)+r.URL.RequestURI(), http.StatusMovedPermanently)
+				http.Redirect(w, r, "https://"+h.Hosts.Addressing().PersonHostOn(current, h.Hosts.Addressing().BaseFor(current))+r.URL.RequestURI(), http.StatusMovedPermanently)
 				return
 			}
 			next.ServeHTTP(w, r)
+			return
+		}
+		if a := h.Hosts.Addressing(); a.BaseSplit() && !strings.EqualFold(base, a.BaseFor(user.Handle.String)) {
+			next.ServeHTTP(w, r) // not this person's base (SiteBaseHosts redirected the pages)
 			return
 		}
 		if h.Ed.Routes().HostedEvents {
@@ -205,11 +209,8 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	current := user.Handle.String
 	if name == "" {
 		if h.Hosts.Addressing().PersonHostsCanonical() && sites.HandleAddressable(current) {
-			status := h.moveStatus()
-			if status == http.StatusFound {
-				w.Header().Set("Cache-Control", "no-store")
-			}
-			http.Redirect(w, r, h.PersonPageURL(current), status)
+			w.Header().Set("Cache-Control", "no-store")
+			http.Redirect(w, r, h.PersonPageURL(current), http.StatusFound)
 			return
 		}
 		h.renderShowcase(w, r, current)
@@ -237,11 +238,8 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if h.Hosts.Addressing().PersonHostsCanonical() && h.Hosts.Addressing().PersonAddressFor(current, site.Name) {
-		status := h.moveStatus()
-		if status == http.StatusFound {
-			w.Header().Set("Cache-Control", "no-store")
-		}
-		http.Redirect(w, r, strings.TrimSuffix(h.SiteURL(current, site.Name), "/")+rest+query, status)
+		w.Header().Set("Cache-Control", "no-store")
+		http.Redirect(w, r, strings.TrimSuffix(h.SiteURL(current, site.Name), "/")+rest+query, http.StatusFound)
 		return
 	}
 	if r.PathValue("rest") == "" && !strings.HasSuffix(r.URL.Path, "/") {

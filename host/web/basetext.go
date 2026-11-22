@@ -13,8 +13,10 @@ const (
 	markerSigninCard     = "  /*sh:signin-card*/"
 )
 
-// Public copy uses simple-host.app. The old base-domain text rewriter stays
-// available for compatibility; no public copy advertises the paused base.
+// Public copy names simple-host.site only for new accounts' one-level
+// addresses (<site>--<handle>.simple-host.site). It is served as written on
+// the hosted service with SITE_BASE_MOVE=flat, and as simple-host.app
+// everywhere else.
 
 const canonicalBaseDomain = "simple-host.site"
 
@@ -22,24 +24,25 @@ var (
 	baseTextMu sync.RWMutex
 	// baseTextTo is what canonicalBaseDomain is served as ("" = as written).
 	baseTextTo = CanonicalSiteDomain
-	// authJSBases are the served bases while the base moves (nil otherwise):
+	// authJSBases are the served bases under a split base (nil otherwise):
 	// auth.js then treats a one-label host under any of them as a person
 	// host (authJSPatch).
 	authJSBases []string
-	// teamSiteFlatHostsText: TEAM_SITE_FLAT_HOSTS is on, so auth.js gets
-	// authJSOwnHostChainFlat.
-	teamSiteFlatHostsText bool
+	// flatHostBases are the bases with one-label <site>--<handle> site
+	// hosts (TEAM_SITE_FLAT_HOSTS, a split base), nil for none: auth.js
+	// then gets authJSOwnHostChainFlat.
+	flatHostBases []string
 )
 
 // authJSOneLabel is auth.js's person-host test: one label under the auth
-// apex. Under a moving base a person host is one label under either base, and
+// apex. Under a split base a person host is one label under either base, and
 // auth.js is one file served from the app to pages on both, so the served
 // copy names both (a test fails if this line changes in auth.js). Unpatched,
 // auth.js is byte for byte what it was before the move existed.
 const authJSOneLabel = `    var oneLabel = host.slice(-(apexHost.length + 1)) === "." + apexHost &&
       host.split(".").length === apexHost.split(".").length + 1 && sub !== "www";`
 
-// authJSPatched is authJSOneLabel for a moving base.
+// authJSPatched is authJSOneLabel for a split base.
 func authJSPatched(bases []string) string {
 	j, _ := json.Marshal(bases)
 	return `    var oneLabel = [apexHost].concat(` + string(j) + `).some(function (b) {
@@ -47,7 +50,7 @@ func authJSPatched(bases []string) string {
     }) && sub !== "www";`
 }
 
-// SetSiteBaseText tells the served auth.js about a moving base: bases are
+// SetSiteBaseText tells the served auth.js about a split base: bases are
 // the domains people's addresses answer under (SiteHandler.ServedBases).
 // Fewer than two means none and leaves auth.js as written.
 func SetSiteBaseText(bases []string) {
@@ -84,20 +87,33 @@ const authJSOwnHostChain = `    if (sub === "sites" && m) {
       ownOrigin = !contentHost;
     }`
 
-// authJSOwnHostChainFlat is authJSOwnHostChain for TEAM_SITE_FLAT_HOSTS: a
-// flat team-site host's one label is <team>--<event>, and the site is the part
-// before the first "--" for every path, decided before the person-path
-// heuristic so alpha--weekend.<host>/about/ still finds the team's site.
-var authJSOwnHostChainFlat = `    if (sub.indexOf("--") !== -1) {
+// authJSOwnHostChainFlat is authJSOwnHostChain for flat site hosts: on a
+// host one label under one of bases, a label with "--" is <site>--<handle>
+// and the site is the part before the first "--" (no site name holds one),
+// for every path, decided before the person-path heuristic so
+// alpha--weekend.<base>/about/ still finds the site (a trailing dot on the
+// host counts as none, as on the server). Any other host (a
+// custom domain whose first label has "--") is unchanged. The server binds
+// every call to the host's own site whatever the name says.
+func authJSOwnHostChainFlat(bases []string) string {
+	j, _ := json.Marshal(bases)
+	return `    if (sub.indexOf("--") !== -1 && ` + string(j) + `.some(function (b) {
+      var h = host.replace(/\.$/, "");
+      return h.slice(-(b.length + 1)) === "." + b && h.split(".").length === b.split(".").length + 1;
+    })) {
       API_BASE = location.origin + "/v1/sites/" + sub.split("--")[0];
       ownOrigin = !contentHost;
     } else ` + strings.TrimPrefix(authJSOwnHostChain, "    ")
+}
 
-// SetTeamSiteFlatHostsText tells the served auth.js that this instance's
-// team sites are flat (SiteHandler.SetTeamSiteFlatHosts).
-func SetTeamSiteFlatHostsText(on bool) {
+// SetFlatHostsText tells the served auth.js which bases have flat site
+// hosts (Hosts.FlatBases); none leaves auth.js as written.
+func SetFlatHostsText(bases []string) {
 	baseTextMu.Lock()
-	teamSiteFlatHostsText = on
+	flatHostBases = append([]string(nil), bases...)
+	if len(bases) == 0 {
+		flatHostBases = nil
+	}
 	baseTextMu.Unlock()
 	clearAssetText()
 }
@@ -145,13 +161,13 @@ func (p *AssetPipeline) transformStatic(name string, b []byte) []byte {
 		}
 		baseTextMu.RLock()
 		bases := authJSBases
-		flat := teamSiteFlatHostsText
+		flat := flatHostBases
 		baseTextMu.RUnlock()
 		if bases != nil {
 			b = bytes.Replace(b, []byte(authJSOneLabel), []byte(authJSPatched(bases)), 1)
 		}
-		if flat {
-			b = bytes.Replace(b, []byte(authJSOwnHostChain), []byte(authJSOwnHostChainFlat), 1)
+		if flat != nil {
+			b = bytes.Replace(b, []byte(authJSOwnHostChain), []byte(authJSOwnHostChainFlat(flat)), 1)
 		}
 	}
 	return b
@@ -165,8 +181,8 @@ func (p *AssetPipeline) staticUnchanged() bool {
 }
 
 // setBaseText picks what the embedded text says for people's addresses:
-// simple-host.site as written only on the hosted service once it hands those
-// addresses out, simple-host.app everywhere else.
+// simple-host.site as written only on the hosted service with the flat base
+// (config.HandoutBase), simple-host.app everywhere else.
 func setBaseText(siteDomain, handoutBase string) {
 	to := CanonicalSiteDomain
 	if strings.EqualFold(siteDomain, CanonicalSiteDomain) && strings.EqualFold(handoutBase, canonicalBaseDomain) {

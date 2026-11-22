@@ -12,6 +12,7 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
+	rules "github.com/vsriram/simple-host/host/rules/sites"
 )
 
 type ProfileInput struct {
@@ -64,6 +65,7 @@ func (s *Service) UpdateProfile(ctx context.Context, in ProfileInput) (model.Use
 		// link stays so old content-host paths keep resolving. The new
 		// handle needs its own *.<handle> certificate: until it is ready,
 		// every address handed out is the person-path one (siteHostLive).
+		// Under a split base it has none, so it is flat at once (FlatFor).
 		if err := s.Disk.EnsureHandleLink(updated.Handle.String, updated.ID); err != nil {
 			log.Printf("handle rename: ensure handle link %s: %v", updated.Handle.String, err)
 		}
@@ -75,6 +77,13 @@ func (s *Service) UpdateProfile(ctx context.Context, in ProfileInput) (model.Use
 // changeHandleTx moves the account to in.Handle. It reports renamed when the
 // old handle is kept as an alias, and false when the old handle was freed.
 func (s *Service) changeHandleTx(ctx context.Context, tx *sql.Tx, in ProfileInput, oldHandle string) (renamed bool, err error) {
+	longest, err := sitesrepo.LongestSiteName(ctx, tx, in.UserID)
+	if err != nil {
+		return false, profileInternalError()
+	}
+	if err := rules.FlatLabelFits(longest, *in.Handle); longest != "" && err != nil {
+		return false, &accountapp.LifecycleError{Status: 400, Code: "invalid_handle", Message: err.Error()}
+	}
 	// Sites in Recently deleted count: they come back at this account's
 	// address, so their old links need the alias too.
 	hasSites, err := sitesrepo.AccountHasSites(ctx, tx, in.UserID)

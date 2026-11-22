@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/url"
@@ -13,6 +14,8 @@ import (
 	accounts "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/model"
+	rules "github.com/vsriram/simple-host/host/rules/sites"
+	"github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // LookupHost and LookupTXT read DNS (variables so tests can stand in).
@@ -88,22 +91,20 @@ func (h *Hosts) SetTeamSiteFlatHosts(on bool) {
 	h.addr.HostedEvents = on && h.hosted
 }
 
-// SetSiteBase sets SITE_BASE_DOMAIN, SITE_BASE_MOVE and SITE_BASE_CERT_DIR.
-// A base nested in SITE_DOMAIN (or the reverse) is ignored.
-func (h *Hosts) SetSiteBase(base, mode, certDir string) {
+// SetSiteBase sets SITE_BASE_DOMAIN and SITE_BASE_MOVE. A base nested in
+// SITE_DOMAIN (or the reverse) is ignored.
+func (h *Hosts) SetSiteBase(base, mode string) {
 	base = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(base), "."))
-	moves := map[string]BaseMove{"serve": BaseMoveServe, "canonical": BaseMoveCanonical, "redirect": BaseMoveRedirect, "permanent": BaseMovePermanent}
-	h.addr.BaseMove = moves[strings.ToLower(strings.TrimSpace(mode))]
-	h.addr.BaseCertDir = strings.TrimSpace(certDir)
+	h.addr.BaseMove = BaseMoveOff
+	if strings.EqualFold(strings.TrimSpace(mode), "flat") {
+		h.addr.BaseMove = BaseMoveFlat
+	}
 	d := strings.ToLower(strings.TrimSpace(h.addr.SiteDomain))
 	if base != "" && d != "" && base != d && (strings.HasSuffix(base, "."+d) || strings.HasSuffix(d, "."+base)) {
 		log.Printf("warning: SITE_BASE_DOMAIN %s and SITE_DOMAIN %s are nested; ignoring SITE_BASE_DOMAIN", base, d)
 		base = ""
 	}
 	h.addr.SiteBase = base
-	if h.addr.BaseSplit() && h.addr.BaseCertDir == "" && h.addr.SiteCertDir != "" {
-		log.Printf("warning: SITE_BASE_CERT_DIR is empty while SITE_CERT_DIR is set: every person counts as having a certificate under %s", base)
-	}
 }
 
 // SetCustomDomainIPAlso sets the earlier public IPv4s still accepted as
@@ -168,7 +169,7 @@ func (h *Hosts) IsPlatformSubdomain(host string) bool {
 }
 
 // FlatLabelNotAHandle reports whether label, a single label under a served
-// base with flat hosts on, may be read as a flat <team>--<event> label. It
+// base with flat hosts on, may be read as a flat <site>--<handle> label. It
 // fails closed: true only when no account has that handle (an exact handle
 // always wins, and a lookup error must never serve one account's page as
 // another's).
@@ -186,20 +187,86 @@ func (h *Hosts) FlatLabelNotAHandle(ctx context.Context, label string) bool {
 	return errors.Is(err, sql.ErrNoRows)
 }
 
-// SiteHostParts splits <site>.<handle>.<base> (or, with flat hosts on, the
-// single label <team>--<event>.<base>) under any served base.
+// flatBase: one-label site hosts <site>--<handle> live under base
+// (TEAM_SITE_FLAT_HOSTS under every served base, or the split base).
+func (h *Hosts) flatBase(base string) bool {
+	return h.addr.TeamSiteFlatHostsOn() || (h.addr.BaseSplit() && strings.EqualFold(base, h.addr.SiteBase))
+}
+
+// NameFits checks a person's site name and handle (create, rename,
+// restore and handle change) against the one-label address <site>--<handle>:
+// it must fit one DNS label whatever style the person has now, since a new
+// handle makes anyone flat. Simple Hack's team sites keep their own limit
+// (hackteams.MaxTeamSlugLen).
+func (h *Hosts) NameFits(site, handle string) error {
+	if h == nil || h.eventSites || handle == "" || site == "" {
+		return nil
+	}
+	if err := rules.FlatLabelFits(site, handle); err != nil {
+		return &Error{Code: "invalid_name", Message: err.Error()}
+	}
+	return nil
+}
+
+// RequireFlatClean turns SITE_BASE_MOVE=flat into off, with one log line,
+// unless the install can hold one-level names. Simple Hack runs it only with
+// TEAM_SITE_FLAT_HOSTS. Elsewhere no existing handle (current, alias or
+// retired), site name (live or in Recently deleted) or free name may hold
+// "--", no site may be named "xn", no free name may be stored under the
+// base, and every <site>--<handle> must fit 63 characters. New names keep
+// all of that true (rules/sites), so a one-level label always splits into
+// the one site it was built from. Run once at startup.
+func (h *Hosts) RequireFlatClean(ctx context.Context, teamFlat bool) {
+	if !h.addr.BaseSplit() {
+		return
+	}
+	reason := ""
+	switch {
+	case h.hosted && !teamFlat:
+		reason = "Simple Hack runs it only with TEAM_SITE_FLAT_HOSTS=true"
+	case h.db != nil:
+		handles, err := accounts.CountDoubleHyphenHandles(ctx, h.db)
+		var b repo.FlatBlockers
+		if err == nil {
+			b, err = repo.GetFlatBlockers(ctx, h.db, strings.ToLower(h.addr.SiteDomain), h.addr.SiteBase)
+		}
+		switch {
+		case err != nil:
+			reason = "could not check the existing names: " + err.Error()
+		case handles+b.SiteNames+b.TooLong+b.FreeNames+b.OnBase > 0:
+			reason = fmt.Sprintf(`%d handles (current, alias or retired) holding "--", %d site names holding "--" or named "xn", %d sites whose <site>--<handle> is over 63 characters, %d free names holding "--", %d free names stored under %s; rename or move them, then restart`,
+				handles, b.SiteNames, b.TooLong, b.FreeNames, b.OnBase, h.addr.SiteBase)
+		}
+	}
+	if reason != "" {
+		log.Printf("SITE_BASE_MOVE=flat refused, running as off: %s", reason)
+		h.addr.BaseMove = BaseMoveOff
+	}
+}
+
+// FlatBases are the served bases with flat site hosts.
+func (h *Hosts) FlatBases() []string {
+	var out []string
+	for _, b := range h.ServedBases() {
+		if h.flatBase(b) {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// SiteHostParts splits <site>.<handle>.<base>, or the single label
+// <site>--<handle>.<base> under a flat base, under any served base. The
+// split is at the first "--": no new site name holds one.
 func (h *Hosts) SiteHostParts(ctx context.Context, host string) (site, handle, base string, ok bool) {
 	for _, b := range h.ServedBases() {
 		if s, hd, ok := SiteHostLabels(host, b); ok {
 			return s, hd, b, true
 		}
 	}
-	if !h.addr.TeamSiteFlatHostsOn() {
-		return "", "", "", false
-	}
 	for _, b := range h.ServedBases() {
 		label, ok := SubdomainLabel(host, b)
-		if !ok || !h.FlatLabelNotAHandle(ctx, label) {
+		if !ok || !h.flatBase(b) || !h.FlatLabelNotAHandle(ctx, label) {
 			continue
 		}
 		if s, hd, ok := TeamSiteHostLabels(label); ok {
@@ -241,29 +308,33 @@ func (h *Hosts) HostBase(ctx context.Context, host string) string {
 	return ""
 }
 
-// TwinHost is a person, site or claimed-name host under one base written
-// under the other; "" when not split or for any other host.
-func (h *Hosts) TwinHost(host string) string {
+// BaseTarget is where a request on host goes when host is not served
+// under its base (BaseSplit only; ok=false: serve it here). A flat
+// person's page under SITE_DOMAIN goes to <handle>.<base>; under the base,
+// anything that is not a flat person's page or a flat site host (links
+// from the paused 2026-09-28 move, free names, a two-label person's page)
+// goes to the same labels under SITE_DOMAIN. A flat site host of a
+// two-label person is the site host's own redirect (SiteHostLiveOn).
+func (h *Hosts) BaseTarget(ctx context.Context, host string) (string, bool) {
 	if !h.addr.BaseSplit() {
-		return ""
+		return "", false
 	}
 	host = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
-	d := strings.ToLower(h.addr.SiteDomain)
-	for _, p := range [][2]string{{h.addr.SiteBase, d}, {d, h.addr.SiteBase}} {
-		if strings.HasSuffix(host, "."+p[0]) {
-			return TwinHost(host, p[0], p[1])
+	d, base := strings.ToLower(h.addr.SiteDomain), h.addr.SiteBase
+	u, _, person := h.personHostUser(ctx, host)
+	if label, ok := SubdomainLabel(host, d); ok {
+		if person && h.addr.FlatFor(u.Handle.String) {
+			return h.addr.PersonHostOn(label, base), true
 		}
+		return "", false
 	}
-	return ""
-}
-
-// SameUserHost: a and b are the same address, allowing for the base swap.
-func (h *Hosts) SameUserHost(a, b string) bool {
-	if strings.EqualFold(a, b) {
-		return true
+	if !strings.HasSuffix(host, "."+base) || (person && h.addr.FlatFor(u.Handle.String)) {
+		return "", false
 	}
-	t := h.TwinHost(a)
-	return t != "" && strings.EqualFold(t, b)
+	if _, _, b, ok := h.SiteHostParts(ctx, host); ok && b == base && !strings.Contains(strings.TrimSuffix(host, "."+base), ".") {
+		return "", false
+	}
+	return strings.TrimSuffix(host, base) + d, true
 }
 
 // IsApexHost: host is the platform's own apex (SITE_DOMAIN, the base, their
@@ -296,20 +367,31 @@ func (h *Hosts) IsSharedHost(host string) bool {
 }
 
 // PersonHostOwner is the account whose own address host is, when person
-// hosts are on.
+// hosts are on. Under a split base a person's host is theirs only under
+// their own base (BaseFor).
 func (h *Hosts) PersonHostOwner(ctx context.Context, host string) (model.User, bool) {
-	if !h.addr.PersonHostsOn() {
-		return model.User{}, false
-	}
-	label, _, ok := h.UserHostLabel(host)
-	if !ok || !h.IsPlatformSubdomain(host) || !HandleAddressable(label) {
-		return model.User{}, false
-	}
-	u, err := accounts.GetUserByHandle(ctx, h.db, label)
-	if err != nil {
+	u, base, ok := h.personHostUser(ctx, host)
+	if !ok || (h.addr.BaseSplit() && !strings.EqualFold(base, h.addr.BaseFor(u.Handle.String))) {
 		return model.User{}, false
 	}
 	return u, true
+}
+
+// personHostUser is the account whose handle is host's one label under a
+// served base, whichever base that is.
+func (h *Hosts) personHostUser(ctx context.Context, host string) (model.User, string, bool) {
+	if !h.addr.PersonHostsOn() {
+		return model.User{}, "", false
+	}
+	label, base, ok := h.UserHostLabel(host)
+	if !ok || !h.IsPlatformSubdomain(host) || !HandleAddressable(label) {
+		return model.User{}, "", false
+	}
+	u, err := accounts.GetUserByHandle(ctx, h.db, label)
+	if err != nil {
+		return model.User{}, "", false
+	}
+	return u, base, true
 }
 
 func (h *Hosts) IsPersonHost(ctx context.Context, host string) bool {

@@ -27,17 +27,18 @@ func (h *Handler) CheckPreviewToken(token string, now time.Time) (siteID string,
 // site pinned to the content host).
 func (h *Handler) previewBase(site model.Site) (string, bool) {
 	handle := site.OwnerHandle
+	base := h.Hosts.Addressing().BaseFor(handle)
 	switch {
 	case handle == "":
 		return "", false
-	case h.Hosts.Addressing().SiteHostLiveOn(handle, site.Name, h.Hosts.Addressing().HandoutBase()):
-		return "https://" + h.Hosts.Addressing().SiteHostOn(handle, site.Name, h.Hosts.Addressing().HandoutBase()) + "/" + web.PreviewPathSegment + "/", true
+	case h.Hosts.Addressing().SiteHostLiveOn(handle, site.Name, base):
+		return "https://" + h.Hosts.Addressing().SiteHostOn(handle, site.Name, base) + "/" + web.PreviewPathSegment + "/", true
 	case h.Ed.Storage().EventSites:
 		// Person-path addresses are never served on the hackathon platform:
 		// a team's work lives on its own origin only.
 		return "", false
 	case h.Hosts.Addressing().PersonAddressFor(handle, site.Name):
-		return "https://" + h.Hosts.Addressing().PersonHostOn(handle, h.Hosts.Addressing().HandoutBase()) + "/" + site.Name + "/" + web.PreviewPathSegment + "/", true
+		return "https://" + h.Hosts.Addressing().PersonHostOn(handle, base) + "/" + site.Name + "/" + web.PreviewPathSegment + "/", true
 	}
 	return "", false
 }

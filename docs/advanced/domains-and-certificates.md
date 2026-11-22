@@ -64,7 +64,6 @@ the public instance only.
 | `CUSTOM_DOMAIN_IP` | none | text | This server's public IPv4, given as the A record for a bare domain (brand.com). |
 | `CUSTOM_DOMAIN_IP_ALSO` | none | text | Earlier public IPv4s of this server, comma-separated. Domains still pointed at one keep working; only CUSTOM_DOMAIN_IP is handed out. |
 | `SITE_CERT_DIR` | none | text | Where per-person certificates are requested from, and found ready from, the certificate issuer. |
-| `SITE_BASE_CERT_DIR` | none | text | Like SITE_CERT_DIR for the alternate base. Required with ready/ and requests/ while the split base move is on. Unset when the move is off; no certificates are requested for the paused base. |
 | `DOMAIN_CERT_DIR` | none | text | Where custom-domain certificates are requested from the certificate issuer. Empty: issued by hand. |
 | `ADDRESS_FAMILY_CERT_DIR` | none | text | Where address-family requests go to the family issuer, and where it says a family is served (ready/). Empty: no address family is ever served. |
 | `EVENT_DNS_TOKEN` | none | secret | The DNS token that hands out event hostnames. The public instance only. **Security-sensitive.** |
@@ -140,9 +139,7 @@ families need none.
 
 `SITE_CERT_DIR`, `DOMAIN_CERT_DIR` and `ADDRESS_FAMILY_CERT_DIR` hand off to
 `deploy/site-certs/`, `deploy/domain-certs/` and `deploy/family-certs/` respectively.
-The alternate-base issuer uses `deploy/site-certs/simple-host-site-certs-site.*`.
-When the move is on and `SITE_BASE_DOMAIN` differs from `SITE_DOMAIN`, startup
-fails without `SITE_BASE_CERT_DIR` or its `ready/` and `requests/` directories;
-the app never creates those directories. The hosted move was paused on
-2026-10-09, to revisit about 2026-11-09; see the
-[historical plan](../history/site-base-domain-move.md).
+Under `SITE_BASE_MOVE=flat` nothing is requested for the base: a person without a
+`SITE_CERT_DIR` certificate has one-level addresses on the base's wildcard, and any
+request left for them is withdrawn. The per-person `simple-host-site-certs-site.*`
+issuer stays disabled; see [one-level addresses](../operations/site-base-flat.md).
