@@ -10,12 +10,6 @@ Group=simplehost
 # Secrets live in /etc/simple-host.env (chmod 640 root:simplehost), NOT inline here.
 EnvironmentFile=/etc/simple-host.env
 # Apply by hand: sudo install -m 644 deploy/prod/simple-host.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart simple-host
-# Site secrets' master key (SECRETS_KEY_FILE): in the unit's own state
-# directory, writable here, never served and outside the database. Back it
-# up separately from the database; lose it and saved keys cannot be recovered.
-StateDirectory=simple-host
-StateDirectoryMode=0700
-Environment=SECRETS_KEY_FILE=/var/lib/simple-host/secrets.key
 ExecStart=/usr/local/bin/simple-host
 Restart=on-failure
 RestartSec=2

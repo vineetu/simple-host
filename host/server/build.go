@@ -33,7 +33,6 @@ import (
 	operations "github.com/vsriram/simple-host/host/ops"
 	operationrepo "github.com/vsriram/simple-host/host/ops/repo"
 	"github.com/vsriram/simple-host/host/papermetrics"
-	"github.com/vsriram/simple-host/host/secrets"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/analytics"
 	"github.com/vsriram/simple-host/host/sites/eventdns"
@@ -159,13 +158,7 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	if err := configureSites(cfg, db, siteHandler, accessHandler, dataHandler, userHandler); err != nil {
 		return nil, err
 	}
-	keys := secrets.New(db, cfg.SecretsKeyFile)
-	if path, present := keys.KeyFile(); present {
-		log.Printf("secrets key file: %s (present)", path)
-	} else {
-		log.Printf("secrets key file: %s (absent)", path)
-	}
-	handler.Register(mux, siteHandler, accessHandler, dataHandler, keys, authMW, noticeMW)
+	handler.Register(mux, siteHandler, accessHandler, dataHandler, authMW, noticeMW)
 	web.SetInstanceNote(web.InstanceFacts{
 		SiteDomain: cfg.SiteDomain, BaseDomain: siteHandler.HandoutBase(), ContentHost: cfg.ContentHost,
 		SharedOrigin: siteHandler.SharedOrigin(),

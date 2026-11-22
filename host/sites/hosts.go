@@ -374,25 +374,3 @@ func (h *Hosts) groupHasSite(ctx context.Context, id, name string) (bool, error)
 	}
 	return h.groups.HasSite(ctx, id, name)
 }
-
-// OwnHost: host names this install itself: its apex, content host or CNAME
-// target, anything under a served base or a platform zone, an address
-// family's host, or a custom domain bound to one of its sites. A site's
-// secret is never sent to one of these.
-func (h *Hosts) OwnHost(ctx context.Context, host string) bool {
-	host = normalHost(host)
-	if h.IsApexHost(host) || h.IsBoundDomain(ctx, host) || h.KnownFamilyHost("x."+host) {
-		return true
-	}
-	for _, zone := range append([]string{h.addr.ContentHost, h.cnameTarget}, append(h.ServedBases(), h.platformZones...)...) {
-		if zone = normalHost(zone); zone != "" && (host == zone || strings.HasSuffix(host, "."+zone)) {
-			return true
-		}
-	}
-	for d := host; strings.Contains(d, "."); _, d, _ = strings.Cut(d, ".") {
-		if h.KnownFamilyHost(d) {
-			return true
-		}
-	}
-	return false
-}

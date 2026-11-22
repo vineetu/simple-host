@@ -351,8 +351,6 @@ func otherSettings() []Setting {
 			Description: "Deploys kept per site; 0 keeps all. install.sh sets 1, which means no rollback."},
 		{Name: "PASSCODE_ENC_KEY", Group: "sites", Type: "secret", Security: true,
 			Description: "Seals site passcodes, notification signing secrets and custom header tokens with AES-256-GCM (32 random bytes, base64: openssl rand -base64 32); without it new passcodes and notifications are refused, and changing it makes stored passcodes and notification secrets unreadable and signs every visitor out."},
-		{Name: "SECRETS_KEY_FILE", Group: "sites", Type: "string", Default: "<DATA_DIR>/../secrets.key", Security: true,
-			Description: "The master key file that seals site secrets (keys an owner saves for an outside service). Made with 32 random bytes and mode 0600 on the first save when absent. Back it up with the database: without it saved secrets cannot be read."},
 		{Name: "PREVIEW_ACCOUNTS", Group: "sites", Type: "string",
 			Description: "Accounts (comma-separated) whose sites expire on their own."},
 		{Name: "WEB_PUSH_ACCOUNTS", Group: "sites", Type: "string",

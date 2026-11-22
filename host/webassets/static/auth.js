@@ -727,38 +727,6 @@
         });
       }
     },
-    // A key the owner saved for this site (request_secret): fetch(path, init)
-    // asks Simple Host to send the request to the key's one destination with
-    // the key added, and resolves to that service's own Response (a stream
-    // for server-sent events). The key never reaches this page.
-    secret: function (name) {
-      var seg = storageSegment(name, "key name");
-      return {
-        fetch: function (path, init) {
-          if (noBackend) return unavailable();
-          if (API_BASE.indexOf("/v1/u/") >= 0) {
-            var e = new Error("site keys work only on the site's own address (<site>.<handle>.<domain>), not on this shared address; open the site there");
-            e.code = "secret_not_here";
-            return Promise.reject(e);
-          }
-          var url = API_BASE + "/secrets/" + seg + "/call/" + String(path || "").replace(/^\/+/, "");
-          if (baseReady && url.indexOf(BASE_TOKEN) === 0) {
-            return baseReady.then(function (base) { return send(base + url.slice(BASE_TOKEN.length)); });
-          }
-          return send(url);
-          function send(target) {
-            var options = {};
-            for (var k in init || {}) options[k] = init[k];
-            var headers = new Headers(options.headers || {});
-            headers.set("X-SH-CSRF", "1");
-            if (framedElsewhere) headers.set("X-SH-Framed", "1");
-            options.headers = headers;
-            options.credentials = "include";
-            return fetch(target, options);
-          }
-        }
-      };
-    },
     storage: {
       kv: function (name) {
         var base = storageURL("kv/" + storageSegment(name, "resource name"));

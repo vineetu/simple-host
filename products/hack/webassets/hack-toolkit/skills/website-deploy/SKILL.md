@@ -22,7 +22,7 @@ Read the current site and version before replacing files. Both use `create_site`
 
 ## Saved data
 
-Sites store data only in KV, SQLite and file resources, each with row rules. Both use the `storage_*` tools with `site` and `owner`. Call `hack_get_page_recipe` by job (for example `records`, `inbox`, `public`, `gallery`, or `event` for the event website) for setup and page code. Rules, limits and tools are in the [storage reference](references/storage.md). A page that needs an API key (an AI chat or another outside service): `request_secret` gives the person a link to type the key, and recipe `chatbot` has the page; never put a key in page files or chat.
+Sites store data only in KV, SQLite and file resources, each with row rules. Both use the `storage_*` tools with `site` and `owner`. Call `hack_get_page_recipe` by job (for example `records`, `inbox`, `public`, `gallery`, or `event` for the event website) for setup and page code. Rules, limits and tools are in the [storage reference](references/storage.md).
 
 Pages call their own origin through the hosted `auth.js` helper (`SH.storage`, and `SH.mount` for visitor sign-in). Pages never send SQL; they use table routes (`table(t).list/get/add/edit/delete`). Never embed an owner or team credential in page code. Write visitors' text with `textContent`, never `innerHTML`. Resize phone photos in the browser before uploading.
 

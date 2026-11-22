@@ -61,5 +61,4 @@ var hostTools = []string{
 	"storage_get_kv", "storage_put_kv", "storage_delete_kv", "storage_list_kv_keys",
 	"storage_sql_query", "storage_sql_execute", "storage_sql_schema",
 	"storage_put_file", "storage_delete_file", "storage_list_file_objects", "storage_file_download_link",
-	"list_secrets", "request_secret", "delete_secret",
 }

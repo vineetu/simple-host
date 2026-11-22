@@ -3,7 +3,7 @@
 # A !pattern excludes destinations from that row; other matching rows still apply.
 [final]
 # Kernel: every host package outside the three modules, ops and the layers above them. It imports no module.
-/** -> /** !access/** !sites/** !data/** !ops/** !secrets/** !web !handler !mcp !server/** !extension !testdb !geoip/geoiptest
+/** -> /** !access/** !sites/** !data/** !ops/** !web !handler !mcp !server/** !extension !testdb !geoip/geoiptest
 # Modules: access <- sites <- data; ops reports over all three. Another module
 # sees Access's core only (the package, auth, oauth, repo, rules), never a feature.
 access/** -> access access/{auth,oauth,repo,rules}
@@ -16,11 +16,6 @@ data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} -> a
 # The features' shared test fixture declares resources through the real rules.
 data/storetest -> access access/{auth,oauth,repo,rules} sites/** data data/resources !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
 ops/** -> access access/{auth,oauth,repo,rules} sites/** data/** ops/** !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
-# Secrets sits above the modules: a small core (secrets, the table and the sealing) and one leaf
-# per feature (manage, call). They use the cores of Access, Sites and Data; nothing below imports them.
-secrets -> -
-secrets/manage -> access access/{auth,oauth,repo,rules} httpx model sites secrets web
-secrets/call -> data httpx outbound secrets
 # Access's features (one package each, its routes beside its logic) import the
 # modules, web and the kernel like a routes package, never a sibling feature,
 # another module's feature, a routes package or the composition.
@@ -74,9 +69,6 @@ server/servertest -> testdb geoip/geoiptest
 [test]
 # A Sites feature's route tests run on the fixture and may set rows up through the repos.
 sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} -> sites/sitesroute/fixture server/servertest/routetest {access,sites,data}/repo/**
-# A secrets feature's tests run on the route-test helpers and set sites up through the deploy helper.
-secrets/manage -> server/servertest/routetest secrets web
-secrets/call -> server/servertest/datatest server/servertest/routetest data/storetest secrets web access/repo
 # A feature's tests mount only that feature, on the shared fixture.
 access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} -> access/featuretest server/servertest/routetest
 /** -> testdb geoip/geoiptest

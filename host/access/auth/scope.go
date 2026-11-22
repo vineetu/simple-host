@@ -57,7 +57,7 @@ const DeployOnlyMessage = "this is a deploy-only key: it can create, update, rol
 // editorRoutes is everything an editor of one site of an account (not a
 // member of it) may call with owner=<account>, and only on that site: every
 // {sitename} route here must name it. Deploys, versions, rollback and preview
-// links; the site's storage and secrets as its owner; its visit counts; and their own
+// links; the site's storage as its owner; its visit counts; and their own
 // subscriptions to the site. Never
 // deleting or renaming the site, its editors, domains, passcodes, version
 // retention, visibility or anything of the account.
@@ -86,15 +86,6 @@ var editorRoutes = map[string]bool{
 	"PUT /v1/sites/{sitename}/storage/files/{name}/objects/{path...}":            true,
 	"DELETE /v1/sites/{sitename}/storage/files/{name}/objects/{path...}":         true,
 	"POST /v1/sites/{sitename}/storage/files/{name}/download-link":               true,
-	// The site's secrets as its owner: names and settings, never a value.
-	"GET /v1/sites/{sitename}/secrets":                          true,
-	"PUT /v1/sites/{sitename}/secrets/{name}":                   true,
-	"DELETE /v1/sites/{sitename}/secrets/{name}":                true,
-	"GET /v1/sites/{sitename}/secrets/{name}/call/{path...}":    true,
-	"POST /v1/sites/{sitename}/secrets/{name}/call/{path...}":   true,
-	"PUT /v1/sites/{sitename}/secrets/{name}/call/{path...}":    true,
-	"PATCH /v1/sites/{sitename}/secrets/{name}/call/{path...}":  true,
-	"DELETE /v1/sites/{sitename}/secrets/{name}/call/{path...}": true,
 	// The editor's own subscriptions to the site's saves.
 	"GET /v1/sites/{sitename}/notifications":                     true,
 	"POST /v1/sites/{sitename}/notifications":                    true,
@@ -230,11 +221,11 @@ func ownerRoutes(pattern string) bool {
 		pattern == "GET /v1/me/deleted-sites" || pattern == "GET /v1/analytics/sites"
 }
 
-// changes reports whether a request changes something (a call through a
-// site's saved key always does, accounts.ReadRequest). A preview link, a
+// changes reports whether a request changes something. A preview link, a
 // read-only SQL query or a stored-file link only opens existing data.
 func changes(r *http.Request, pattern string) bool {
-	if accounts.ReadRequest(r) || r.Method == http.MethodOptions {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
 		return false
 	}
 	return pattern != "POST /v1/sites/{sitename}/versions/{version}/preview-link" &&

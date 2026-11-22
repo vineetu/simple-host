@@ -23,19 +23,14 @@ import (
 	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
-	"github.com/vsriram/simple-host/host/secrets"
-	secretscall "github.com/vsriram/simple-host/host/secrets/call"
-	secretsmanage "github.com/vsriram/simple-host/host/secrets/manage"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/web"
 )
 
-// Register mounts the site, access, data and secrets routes on mux. The rate
+// Register mounts the site, access and data routes on mux. The rate
 // limiters for site operations and exports are shared between the site
 // routes and the account routes.
-func Register(mux *http.ServeMux, h *siteshttp.SiteHandler, a *accesshttp.AccessHandler, d *appstorage.Handler, keys *secrets.Store, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	secretsmanage.Register(mux, h.Database, h.Hosts, keys, authMiddleware, noticeMiddleware)
-	secretscall.Register(mux, d, a.StorageCaller, keys)
+func Register(mux *http.ServeMux, h *siteshttp.SiteHandler, a *accesshttp.AccessHandler, d *appstorage.Handler, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
 	notifications.Register(mux, d, authMiddleware, noticeMiddleware)
 	accesshttp.RegisterEditors(mux, a, authMiddleware, noticeMiddleware)
 	push.Register(mux, d, a.PasscodeGate, a.StorageCaller, authMiddleware, noticeMiddleware)

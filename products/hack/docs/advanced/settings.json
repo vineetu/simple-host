@@ -1213,17 +1213,6 @@
       "small_box": false
     },
     {
-      "name": "SECRETS_KEY_FILE",
-      "group": "sites",
-      "description": "The master key file that seals site secrets (keys an owner saves for an outside service). Made with 32 random bytes and mode 0600 on the first save when absent. Back it up with the database: without it saved secrets cannot be read.",
-      "type": "string",
-      "default": "<DATA_DIR>/../secrets.key",
-      "security_sensitive": true,
-      "required": false,
-      "basic": false,
-      "small_box": false
-    },
-    {
       "name": "PREVIEW_ACCOUNTS",
       "group": "sites",
       "description": "Accounts (comma-separated) whose sites expire on their own.",

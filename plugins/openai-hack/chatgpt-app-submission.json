@@ -1163,27 +1163,6 @@
         "destructiveHint": false
       }
     },
-    "list_secrets": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      }
-    },
-    "request_secret": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      }
-    },
-    "delete_secret": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
-      }
-    },
     "storage_get_usage": {
       "annotations": {
         "readOnlyHint": true,

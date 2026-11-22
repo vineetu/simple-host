@@ -89,7 +89,7 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 
 ## Skills
 
-Three skills from `host/webassets/simple-host-website/skills` (skills version 0.27.119, from
+Three skills from `host/webassets/simple-host-website/skills` (skills version 0.27.118, from
 `host/webassets/simple-host-website/.claude-plugin/plugin.json`): `website-deploy` (the
 onboarding skill), `website-deploy-builder` and `connect-domain`. The build packages them as
 they are in that folder; there is no separate OpenAI copy.

@@ -6,7 +6,6 @@ import "slices"
 func hostFamilies(limits Limits) []familyTools {
 	access := domainTools(limits)
 	access = append(access, passcodeTools()...)
-	access = append(access, secretTools()...)
 	access = append(access, accessTools()...)
 	storage := storageTools()
 	storage = append(storage, visitorTools()...)

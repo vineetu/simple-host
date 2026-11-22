@@ -131,7 +131,7 @@ func (h *Handler) servePageRefusal(w http.ResponseWriter, r *http.Request, s app
 func (h *Handler) visitorFacts(r *http.Request, row model.SitePasscodeRow, kind accounts.VisitKind, keys bool) (who accounts.Visitor, sess model.VisitorSession, email string) {
 	pass := r.Header.Get(VisitorPassHeader) != ""
 	who = accounts.Visitor{
-		Read:       accounts.ReadRequest(r),
+		Read:       r.Method == http.MethodGet || r.Method == http.MethodHead,
 		CrossSite:  crossSiteSubresource(r),
 		Framed:     framedElsewhere(r),
 		SameOrigin: pass || httpx.SameOrigin(r),

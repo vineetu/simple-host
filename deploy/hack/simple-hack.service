@@ -7,12 +7,6 @@ Type=simple
 User=simplehack
 Group=simplehack
 EnvironmentFile=/etc/simple-hack.env
-# Site secrets' master key (SECRETS_KEY_FILE): in the unit's own state
-# directory, writable here, never served and outside the database. Back it
-# up separately from the database; lose it and saved keys cannot be recovered.
-StateDirectory=simple-hack
-StateDirectoryMode=0700
-Environment=SECRETS_KEY_FILE=/var/lib/simple-hack/secrets.key
 ExecStart=/usr/local/bin/simple-hack
 Restart=on-failure
 RestartSec=2

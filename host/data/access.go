@@ -19,10 +19,7 @@ func (s *Service) Gate(call Call, write bool) error {
 	return nil
 }
 
-// VisitorActive refuses a signed-in visitor whose account is suspended and
-// keeps their session alive: the identity half of every rule that names who
-// the visitor is.
-func (s *Service) VisitorActive(call *Call) *Error {
+func (s *Service) visitorActive(call *Call) *Error {
 	if call.ActiveChecked {
 		return nil
 	}

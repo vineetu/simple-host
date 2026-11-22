@@ -1767,36 +1767,6 @@
      ],
      "covers": [],
      "evidence": "FEATURES.md \u00a723 allowance paragraph (SITE_STORAGE_MAX_BYTES, SITE_STORAGE_FILES_MAX_BYTES, SITE_STORAGE_FILE_MAX_BYTES, Hack pool), rate-limit and lock-wait paragraphs; PARITY row 'Site storage primitives' (Enterprise env settings with hosted's values)."
-    },
-    {
-     "id": "site-secrets",
-     "name": "Site keys",
-     "line": "Keep an API key for your site, such as for an AI service, and let its pages use it without ever holding it.",
-     "who": "Anyone whose page calls an outside service: an AI chat box, an email or maps service.",
-     "how": "Your AI app gives you a link; you type the key there once, say the one address it may go to and who may use it (only you, people signed in on your site, or anyone). Your page asks Simple Host to make the request, and Simple Host adds the key on the way out and streams the answer back.",
-     "example": "A cafe's site has a chat box that answers questions with the owner's Gemini key; visitors sign in with an emailed code before chatting.",
-     "where": "The key page your AI app links to, and Keys in your site's menu.",
-     "limits": "20 keys per site. Each key goes to one address only, over HTTPS. A request is at most 1 MB, an answer 10 MB, 120 seconds. Simple Host sets no spending cap: set one at the service.",
-     "editions": {
-      "host": "yes",
-      "enterprise": "no",
-      "smallbox": "yes"
-     },
-     "editions_note": "",
-     "status": "live",
-     "status_note": "",
-     "docs": [
-      {
-       "label": "Deploy skill",
-       "href": "/skills/website-deploy/SKILL.md"
-      },
-      {
-       "label": "Chatbot recipe",
-       "href": "/recipes/chatbot"
-      }
-     ],
-     "covers": [],
-     "evidence": "FEATURES.md \u00a725 Site secrets; host/secrets; host/mcp/access_secret_tools.go; st/secrets.html."
     }
    ]
   },

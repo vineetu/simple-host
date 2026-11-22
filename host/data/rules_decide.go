@@ -111,7 +111,7 @@ func (s *Service) RuleValues(ctx context.Context, c *Call, op ruleengine.Op, ref
 
 func (s *Service) RuleDecision(c *Call, op ruleengine.Op) *Error {
 	if c.VisitorID != "" && c.RulePlan.NeedsIdentity(op) {
-		if err := s.VisitorActive(c); err != nil {
+		if err := s.visitorActive(c); err != nil {
 			return err
 		}
 	}
@@ -156,7 +156,7 @@ func (s *Service) authorizeRuleOperation(ctx context.Context, c *Call, table str
 		return err.(*Error)
 	}
 	if c.VisitorID != "" && c.RulePlan.NeedsIdentity(op) {
-		if err := s.VisitorActive(c); err != nil {
+		if err := s.visitorActive(c); err != nil {
 			return err
 		}
 	}

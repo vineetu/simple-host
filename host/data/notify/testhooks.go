@@ -3,7 +3,6 @@ package notify
 import (
 	"context"
 	"crypto/x509"
-	"github.com/vsriram/simple-host/host/outbound"
 	"time"
 
 	"github.com/vsriram/simple-host/host/httpx"
@@ -17,7 +16,7 @@ import (
 // with loopback, loopback receivers, and lifts the per-URL budget so a
 // test's burst of deliveries never throttles.
 func (e *Engine) UseTestClient(roots *x509.CertPool, loopback bool) {
-	e.client = client{Dialer: outbound.Dialer{AllowLoopback: loopback}, roots: roots}
+	e.client = client{allowLoopback: loopback, roots: roots}
 	e.perURL = httpx.NewRateLimiter(100000, 0)
 }
 

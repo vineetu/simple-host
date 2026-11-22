@@ -29,7 +29,6 @@ RUN mkdir -p /data-empty && ln -s simple-hack /out/simple-host-alias
 # The alias keeps the existing chart/Compose commands working for this release.
 FROM gcr.io/distroless/static-debian12:nonroot AS hack
 COPY --from=build --chown=nonroot:nonroot /data-empty /data/sites
-COPY --from=build --chown=nonroot:nonroot /data-empty /data/secrets
 COPY --from=build /out/simple-hack /usr/local/bin/simple-hack
 COPY --from=build /out/simple-host-alias /usr/local/bin/simple-host
 USER nonroot
@@ -40,7 +39,6 @@ ENTRYPOINT ["/usr/local/bin/simple-hack"]
 # Keep Host last: an unqualified build is the platform alone.
 FROM gcr.io/distroless/static-debian12:nonroot AS host
 COPY --from=build --chown=nonroot:nonroot /data-empty /data/sites
-COPY --from=build --chown=nonroot:nonroot /data-empty /data/secrets
 COPY --from=build /out/simple-host /usr/local/bin/simple-host
 USER nonroot
 ENV DATA_DIR=/data/sites PORT=8090

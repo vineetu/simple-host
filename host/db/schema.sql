@@ -1460,24 +1460,3 @@ CREATE TABLE IF NOT EXISTS install_product (
     release text NOT NULL DEFAULT '',
     release_at timestamptz
 );
-
--- host/db/migrations/0030-site-secrets.sql (SEC-1): a site's write-only keys,
--- sealed under the master key file; host/secrets owns the table.
-CREATE TABLE IF NOT EXISTS site_secrets (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  site_id     UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-  name        TEXT NOT NULL,
-  ciphertext  BYTEA NOT NULL,
-  nonce       BYTEA NOT NULL,
-  key_version INTEGER NOT NULL DEFAULT 1,
-  destination TEXT NOT NULL,
-  who         TEXT NOT NULL CHECK (who IN ('owner', 'signed-in', 'anyone')),
-  attach        TEXT NOT NULL CHECK (attach IN ('header', 'query')),
-  attach_name   TEXT NOT NULL,
-  attach_prefix TEXT NOT NULL DEFAULT '',
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_used_at TIMESTAMPTZ,
-  use_count   BIGINT NOT NULL DEFAULT 0,
-  UNIQUE (site_id, name)
-);

@@ -3533,7 +3533,6 @@ function parseAnalyticsSummary(data) {
       items.push(miItem('Rename', ' data-act="openRename"' + n));
       items.push(miItem(s.custom_domain ? 'Domain' : 'Connect domain', ' data-act="openDomain"' + n));
       items.push('<a class="mi" role="menuitem" href="/photos?site=' + encodeURIComponent(s.name) + '">Add photos</a>');
-      items.push('<a class="mi" role="menuitem" href="/secrets?site=' + encodeURIComponent(s.name) + '">Keys</a>');
       items.push(miItem('Download', ' data-act="downloadSite"' + n));
       if (!s.custom_domain) {
         items.push(miItem('Keep for good', ' data-act="toggleKeep"' + n + ' data-keep="' + (s.keep ? '1' : '') + '"', s.keep ? 'on' : ''));

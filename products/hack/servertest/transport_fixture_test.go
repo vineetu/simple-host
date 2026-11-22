@@ -11,7 +11,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/vsriram/simple-host/host/secrets"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -386,7 +385,7 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	gate := teams.SiteGate{TeamSitesReady: a.sites.TeamSitesReady, RequestCert: a.sites.RequestSiteCert, PaperSite: a.sites.RecordGateSite, PaperState: a.sites.RecordGateState}
 	a.sites.SetGroupGate(gate)
 	handler.SetStorageBindings(a.access, a.data, storagebind.Provider{DB: database})
-	handler.Register(mux, a.sites, a.access, a.data, secrets.New(database, filepath.Join(t.TempDir(), "secrets.key")), authMW, web.NoticeMiddleware("1.0.0"))
+	handler.Register(mux, a.sites, a.access, a.data, authMW, web.NoticeMiddleware("1.0.0"))
 	t.Cleanup(a.data.WaitNotifications)
 	a.sites.Hosts.SetPersonHosts("canonical")
 	a.sites.Hosts.SetSiteHosts("canonical", certDir)

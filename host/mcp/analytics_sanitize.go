@@ -122,8 +122,6 @@ func analyticsSecretFieldForPolicy(policy toolPolicy, name string) bool {
 		return true
 	case "key":
 		return policy.analytics.secretKey
-	case "value":
-		return policy.analytics.secretValue
 	case "how":
 		return policy.analytics.secretHow // embeds the signed URL in a curl command
 	case "url":
@@ -635,9 +633,7 @@ func redactAnalyticsSecrets(value any, secrets []string) any {
 // analyticsPolicy describes how this declaration's telemetry copy is shaped.
 // Argument-name redaction remains common to every tool.
 type analyticsPolicy struct {
-	redactAll, secretText, secretKey, secretHow, secretURL bool
-	// secretValue: a value argument is a key someone typed in the wrong place.
-	secretValue                                               bool
+	redactAll, secretText, secretKey, secretHow, secretURL    bool
 	structuredText, emailChanges, emailIdentity, contactEmail bool
 	fileResult, pageText, applicationAnswers, fileArguments   bool
 	edits, fileData, fileContentSize                          bool

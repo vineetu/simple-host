@@ -3,13 +3,13 @@ package domains
 import (
 	"context"
 	"errors"
-	"github.com/vsriram/simple-host/host/outbound"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/sitesroute"
 )
@@ -32,8 +32,8 @@ func TestDomainProbePinnedNoRedirect(t *testing.T) {
 	}
 	for ip, want := range map[string]bool{"203.0.113.7": true, "147.224.49.228": true, "127.0.0.1": false, "10.0.0.1": false, "169.254.169.254": false,
 		"100.64.1.1": false, "::1": false, "fd00::1": false, "0.0.0.0": false, "2606:4700::1111": true, "::ffff:10.0.0.1": false, "bogus": false} {
-		if got := outbound.PublicIP(ip); got != want {
-			t.Errorf("outbound.PublicIP(%s) = %v", ip, got)
+		if got := notify.PublicIP(ip); got != want {
+			t.Errorf("notify.PublicIP(%s) = %v", ip, got)
 		}
 	}
 	// A domain resolving only to a private address is not "here".

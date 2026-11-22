@@ -53,19 +53,6 @@ async function check(href, want) {
     ['https://sites.simple-host.app/olive/shop/', 'https://sites.simple-host.app/v1/u/olive/sites/shop/me'],
   ];
   for (const [href, want] of all) await check(href, want);
-  if (!cases.length) {
-    // SH.secret calls the key route on a site's own address, and refuses on
-    // the shared-host layout, where the route is not served.
-    n++;
-    const own = load('https://shop.olive.simple-host.app/');
-    await own.SH.secret('ai').fetch('/v1/models', { method: 'POST' });
-    if (own.calls[own.calls.length - 1] !== 'https://shop.olive.simple-host.app/v1/sites/shop/secrets/ai/call/v1/models') { failed++; console.log('not ok ' + n + ' - SH.secret on the own address: ' + own.calls.join(', ')); } else console.log('ok ' + n + ' - SH.secret on the own address');
-    n++;
-    const shared = load('https://sites.simple-host.app/olive/shop/');
-    const before = shared.calls.length;
-    const err = await shared.SH.secret('ai').fetch('v1/models').then(function () { return null; }, function (e) { return e; });
-    if (!err || err.code !== 'secret_not_here' || shared.calls.length !== before) { failed++; console.log('not ok ' + n + ' - SH.secret on the shared host'); } else console.log('ok ' + n + ' - SH.secret refuses on the shared host');
-  }
   console.log('# ' + n + ' tests, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })();

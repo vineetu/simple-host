@@ -32,7 +32,7 @@ func (e *Engine) challengeClient(ctx context.Context, owner, raw string) (client
 	if !e.challenge.Allow("owner:"+owner) || !e.challenge.Allow("host:"+host) {
 		return c, Failure("rate_limited")
 	}
-	addrs, err := c.Addresses(ctx, host)
+	addrs, err := c.addresses(ctx, host)
 	if err != nil {
 		return c, err
 	}
@@ -41,7 +41,7 @@ func (e *Engine) challengeClient(ctx context.Context, owner, raw string) (client
 			return c, Failure("rate_limited")
 		}
 	}
-	c.Resolver = func(context.Context, string) ([]net.IPAddr, error) { return addrs, nil }
+	c.resolver = func(context.Context, string) ([]net.IPAddr, error) { return addrs, nil }
 	return c, nil
 }
 

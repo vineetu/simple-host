@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/host/outbound"
 	"log"
 	"net/http"
 	"net/url"
@@ -545,7 +544,7 @@ func (h Handler) verifyFamilyDNS(ctx context.Context, f model.AddressFamily, our
 		if !ours[ip] {
 			return false, "*." + f.Suffix + " resolves to " + ip + ", which is not this server (remove any other A or AAAA record for *." + f.Suffix + ")"
 		}
-		if outbound.PublicIP(ip) {
+		if notifications.PublicIP(ip) {
 			here = true
 		}
 	}
@@ -582,7 +581,7 @@ func (h Handler) probeFamily(ctx context.Context, f model.AddressFamily, ours ma
 		}
 		ip := ""
 		for _, a := range ips {
-			if ours[a] && outbound.PublicIP(a) {
+			if ours[a] && notifications.PublicIP(a) {
 				ip = a
 				break
 			}

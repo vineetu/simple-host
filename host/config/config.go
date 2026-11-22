@@ -68,12 +68,6 @@ type Config struct {
 	// base64. Empty: no site can get a passcode (handler/passcode.go).
 	PasscodeEncKey string
 
-	// SecretsKeyFile (SECRETS_KEY_FILE) is the master key file that seals
-	// site secrets (host/secrets): 32 random bytes, made with mode 0600 on the
-	// first save when absent. The default is "secrets.key" beside DATA_DIR,
-	// outside the served sites and outside the database.
-	SecretsKeyFile string
-
 	// Ephemeral "preview" sites. Sites created by an account in PreviewAccounts
 	// get an expires_at = now + PreviewTTL, and a background sweep deletes them
 	// once expired. Everyone else's sites are permanent (expires_at NULL).
@@ -346,7 +340,6 @@ func loadPlain(cfg *Config) {
 	cfg.NetworkInterface = strings.TrimSpace(os.Getenv("NETWORK_INTERFACE"))
 	cfg.AnalyticsSalt = strings.TrimSpace(os.Getenv("ANALYTICS_SALT"))
 	cfg.GeoIPDir = getEnvOrDefault("GEOIP_DIR", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "geoip"))
-	cfg.SecretsKeyFile = getEnvOrDefault("SECRETS_KEY_FILE", filepath.Join(filepath.Dir(filepath.Clean(cfg.DataDir)), "secrets.key"))
 
 	cfg.AdminAPIKey = os.Getenv("ADMIN_API_KEY")
 	cfg.ReviewAccountEmail = os.Getenv("REVIEW_ACCOUNT_EMAIL")

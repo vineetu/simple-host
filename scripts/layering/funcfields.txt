@@ -16,6 +16,7 @@ host/access/featuretest Base.Bearer  # test fixture: the connector's BearerAuth,
 host/data Service.SQLiteHook  # tests only: observes SQLite stages
 host/data Service.Notified  # tests only: observes the events Service.Emit sends, as SQLiteHook observes SQLite stages
 host/data SiteSlots.AdmitHook  # tests only: asserts admission is never nested on a goroutine
+host/data/notify client.resolver  # external provider mechanics: DNS lookup for the SSRF check (tests set it)
 host/sites Deps.Sitemap  # product extension point: the product filters its own sites out of the sitemap
 host/sites HeldSiteSuspension.Also  # product extension point: the product writes its own held-site rows in the same transaction (Hack TeamSiteChanger)
 host/sites/sitesroute Handler.WorkerStatus  # the server's worker status read, set once at start-up (host/server/workers.go) and shown by GET /v1/admin/usage; it was a routes-package field before the routes moved

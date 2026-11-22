@@ -296,42 +296,6 @@
         "destructive_justification": "Can withdraw the live site and visitor access, even though the site can be brought online again."
       }
     },
-    "list_secrets": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Lists the names and settings of the site's saved keys; never a value.",
-        "open_world_justification": "Reads within the connected account only.",
-        "destructive_justification": "Changes nothing."
-      }
-    },
-    "request_secret": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Saves nothing: returns a link to the page where the person types the key.",
-        "open_world_justification": "Reads within the connected account only; contacts no outside party.",
-        "destructive_justification": "Changes nothing."
-      }
-    },
-    "delete_secret": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Deletes one saved key of the site.",
-        "open_world_justification": "Affects only the connected account's site; contacts no outside party.",
-        "destructive_justification": "The key is gone for good and must be typed again to be used."
-      }
-    },
     "get_site_passcode": {
       "annotations": {
         "readOnlyHint": true,
