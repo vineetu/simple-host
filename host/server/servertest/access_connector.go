@@ -17,7 +17,8 @@ import (
 
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/server/servertest/routetest"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
@@ -32,7 +33,7 @@ type ConnectorApp struct {
 	Conn     *accesshttp.ConnectorHandler
 	Sites    *siteshttp.SiteHandler
 	Access   *accesshttp.AccessHandler
-	Data     *datahttp.DataHandler
+	Data     *appstorage.Handler
 	Users    *accesshttp.UserHandler
 	Mux      *http.ServeMux
 }

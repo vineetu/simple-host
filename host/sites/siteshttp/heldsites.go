@@ -8,7 +8,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
-	"github.com/vsriram/simple-host/host/web"
+	"github.com/vsriram/simple-host/host/sites/export"
 )
 
 // Team sites on the hackathon platform (EVENTS=hosted; docs/designs/simple-hack-platform.md).
@@ -34,14 +34,6 @@ import (
 // sites live under the instance's own *.<base> wildcard instead.
 func (h *SiteHandler) TeamSitesReady(eventSlug string) bool {
 	return eventSlug != "" && h.Hosts.Addressing().SiteHostsOn() && h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().HandoutBase())
-}
-
-// SetTeamSiteFlatHosts sets TEAM_SITE_FLAT_HOSTS, including the served
-// auth.js patch (basetext.go) that teaches it to take the part of a flat
-// team-site host's one label before "--" as the site name.
-func (h *SiteHandler) SetTeamSiteFlatHosts(on bool) {
-	h.Hosts.SetTeamSiteFlatHosts(on)
-	web.SetTeamSiteFlatHostsText(on && h.Ed.Routes().HostedEvents)
 }
 
 func (h *SiteHandler) TeamSiteFlatHostsOn() bool { return h.Hosts.Addressing().TeamSiteFlatHostsOn() }
@@ -72,13 +64,13 @@ func (h *SiteHandler) TeamPreviewLink(ctx context.Context, accountID, eventSlug,
 	if n < 1 || !h.Hosts.Addressing().SiteCertReadyOn(eventSlug, h.Hosts.Addressing().HandoutBase()) {
 		return "", time.Time{}, false
 	}
-	site, exists, err := h.LifecycleSvc().PreviewSite(ctx, sites.PreviewSiteInput{AccountID: accountID, Name: teamSlug, Version: n})
+	site, exists, err := h.exports().PreviewSite(ctx, export.PreviewSiteInput{AccountID: accountID, Name: teamSlug, Version: n})
 	if err != nil || !exists {
 		return "", time.Time{}, false
 	}
 
 	site.OwnerHandle = eventSlug
-	return h.previewLink(site, n)
+	return h.PreviewLink(site, n)
 }
 
 // TeamPreviewLinkFor is TeamPreviewLink for a site already read; the caller checked the version exists.
@@ -87,7 +79,7 @@ func (h *SiteHandler) TeamPreviewLinkFor(site model.Site, eventSlug string, n in
 		return "", false
 	}
 	site.OwnerHandle = eventSlug
-	link, _, ok := h.previewLink(site, n)
+	link, _, ok := h.PreviewLink(site, n)
 	return link, ok
 }
 

@@ -1,0 +1,154 @@
+package events
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/vsriram/simple-host/host/access/auth"
+	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/workers"
+)
+
+// eventTTL (EVENT_TTL_DAYS, default 21) is how long a claimed event name
+// lives before the sweep removes it. Long enough for a week-long event, short
+// enough that a forgotten claim does not point at a recycled cloud address for
+// months. An organiser can re-claim the same name to extend it.
+
+// maxClaimsPerAccount (EVENT_MAX_CLAIMS, default 5) caps how many event names
+// one account can hold at once. A name under our domain carrying a valid
+// certificate is a phishing surface, so the number one account can mint is
+// bounded and every claim is attributable. An organiser runs one event at a
+// time; five is generous.
+
+// Handler hands an organiser two hostnames under a domain we own,
+// pointing at their own server, so they never touch a registrar.
+type Handler struct {
+	service Service
+	domains []string // the domains we are willing to create names under
+	limiter *httpx.RateLimiter
+	sweep   *sweep
+}
+
+// NameClaimed reports whether name is claimed under zone here: what this
+// instance answers the peer.
+func (h *Handler) NameClaimed(ctx context.Context, zone, name string) (bool, error) {
+	return h.service.EventNameClaimed(ctx, EventNameInput{Name: name, Zone: zone})
+}
+
+// NewHandler serves the event names of service under domains.
+func NewHandler(service *sites.Service, domains []string) *Handler {
+	s := Service{Service: service}
+	// Burst of 10, refilling one a minute. Rejected requests still cost a token.
+	return &Handler{service: s, domains: domains, limiter: httpx.NewRateLimiter(10, 1.0/60.0), sweep: newSweep(s)}
+}
+
+func (h *Handler) Register(mux *http.ServeMux, authMiddleware func(http.Handler) http.Handler) {
+	mux.Handle("GET /v1/events", authMiddleware(http.HandlerFunc(h.List)))
+	mux.Handle("POST /v1/events", authMiddleware(http.HandlerFunc(h.Claim)))
+	mux.Handle("DELETE /v1/events/{name}", authMiddleware(http.HandlerFunc(h.Release)))
+}
+
+type claimRequest struct {
+	Name   string `json:"name"`
+	IP     string `json:"ip"`
+	Domain string `json:"domain"`
+	// Move acknowledges that this claim points an existing event at a different
+	// machine. Without it a re-claim with a new address silently repoints a
+	// running event: the organiser's dashboard and every participant's page
+	// start resolving to another server, under a valid certificate, with no
+	// error anywhere to look at.
+	Move bool `json:"move"`
+}
+
+func (h *Handler) Claim(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	if !h.limiter.AllowHTTP(w, user.ID) {
+		httpx.TooManyRequests(w)
+		return
+	}
+	var req claimRequest
+	if !httpx.DecodeJSON(w, r, 64<<10, &req) {
+		return
+	}
+
+	result, err := h.service.ClaimEventDomain(r.Context(), EventClaimInput{UserID: user.ID, Name: req.Name, Domain: req.Domain, IP: req.IP, Move: req.Move})
+	if writeEventDomainError(w, err) {
+		return
+	}
+	httpx.WriteJSON(w, http.StatusCreated, eventDomainResponse(result))
+}
+
+func (h *Handler) Release(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
+	domain := r.URL.Query().Get("domain")
+	if writeEventDomainError(w, h.service.ReleaseEventDomain(r.Context(), EventReleaseInput{UserID: user.ID, IsAdmin: user.IsAdmin, Name: name, Domain: domain})) {
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUser(r.Context())
+	if user == nil {
+		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	list, err := h.service.ListEventDomains(r.Context(), EventListInput{UserID: user.ID})
+	if writeEventDomainError(w, err) {
+		return
+	}
+	out := []map[string]any{}
+	for _, e := range list {
+		out = append(out, eventDomainResponse(e))
+	}
+	// The configured domains ship with the listing so an agent can discover them
+	// by asking rather than by provoking an error.
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"events": out, "domains": h.domains})
+}
+
+func (h *Handler) Owner() workers.Owner { return h.sweep }
+
+func (h *Handler) SweepOnce(ctx context.Context) { h.service.SweepEventDomains(ctx) }
+
+func eventDomainResponse(e EventDomainResult) map[string]any {
+	return map[string]any{"host": e.Host, "content_host": e.ContentHost, "ip": e.IP, "expires_at": e.ExpiresAt.UTC().Format(time.RFC3339)}
+}
+
+func writeEventDomainError(w http.ResponseWriter, err error) bool {
+	if err == nil {
+		return false
+	}
+	status := http.StatusInternalServerError
+	message, code := "internal server error", ""
+	var e *EventDomainError
+	if errors.As(err, &e) {
+		message, code = e.Message, e.WireCode
+		switch e.Code {
+		case "conflict":
+			status = http.StatusConflict
+		case "gateway":
+			status = http.StatusBadGateway
+		case "unavailable":
+			status = http.StatusServiceUnavailable
+		case "not_found":
+			status = http.StatusNotFound
+		case "invalid":
+			status = http.StatusBadRequest
+		}
+	}
+	httpx.WriteJSON(w, status, httpx.ErrorResponse{Error: message, Code: code})
+	return true
+}

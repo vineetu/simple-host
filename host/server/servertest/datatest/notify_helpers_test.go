@@ -20,7 +20,8 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
 	notifyapp "github.com/vsriram/simple-host/host/data/notify"
 	notificationsrepo "github.com/vsriram/simple-host/host/data/repo/notify"
 	"github.com/vsriram/simple-host/host/edition"
@@ -138,7 +139,7 @@ func notifyLimits(change func(*config.Limits)) *edition.Edition {
 func notificationFixture(t *testing.T, eds ...*edition.Edition) (Shop, *notificationReceiver) {
 	t.Helper()
 	isolateQueueTest(t)
-	s := NewShop(t, eds...)
+	s := newShop(t, eds...)
 	x := newNotificationReceiver(t)
 	setNotifyKey(t, s, notifyTestKey)
 	s.A.Data.Notifier().UseTestClient(x.roots(), true)
@@ -233,17 +234,6 @@ func getNotification(t *testing.T, s Shop, id string) model.Notification {
 	return n
 }
 
-func notificationGone(s Shop, id string) bool {
-	_, err := notificationsSvc(s.A.Data).GetNotification(context.Background(), id)
-	return err != nil
-}
-
-func saveNotification(t *testing.T, s Shop, n model.Notification, cursor *int64) error {
-	t.Helper()
-	_, _, err := notificationsSvc(s.A.Data).SaveNotification(context.Background(), n, 10, cursor, 7, s.A.Data.NotifyEnv().Secrets())
-	return err
-}
-
 // deliveryState is the newest delivery of subscription id.
 func deliveryState(t *testing.T, s Shop, id string) (state, category string, attempts int) {
 	t.Helper()
@@ -262,24 +252,8 @@ func countRows(t *testing.T, s Shop, query string, args ...any) int {
 	return n
 }
 
-func assertNotificationSealed(t *testing.T, stored, plain string) {
-	t.Helper()
-	if !strings.HasPrefix(stored, "enc1:") || strings.Contains(stored, plain) {
-		t.Fatal("notification value was not sealed")
-	}
-}
-
-func openedNotification(t *testing.T, s Shop, id, stored string) string {
-	t.Helper()
-	plain, err := s.A.Data.NotifyEnv().OpenSecret(id, stored)
-	if err != nil {
-		t.Fatal("could not open stored notification value")
-	}
-	return plain
-}
-
 // notificationsSvc is the notification store, for tests that read and seed it.
-func notificationsSvc(h *datahttp.DataHandler) notifyStore { return notifyStore{h.Database} }
+func notificationsSvc(h *appstorage.Handler) notifyStore { return notifyStore{h.Database} }
 
 type notifyStore struct{ db *sql.DB }
 

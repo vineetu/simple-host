@@ -27,7 +27,7 @@ file server and explicit page routes. `chrome.go:chromePage` composes page
 partials, theme/chrome and instance text; CSP middleware stamps script nonces.
 Files needing this pipeline must not bypass it through raw file serving.
 
-Hack pages live in `products/hack/hackhttp`, which receives the asset pipeline
+Hack pages live in `products/hack/pages`, which receives the asset pipeline
 through `hack.go:hackPages` and `HackHandler.ShareAssets`. The embedded tree
 belongs to `host/webassets`; presentation and instance rewriting remain in
 `handler`. Hack reads bundles through `webassets` and does not import `handler`
@@ -75,10 +75,10 @@ Go owners name the registration or rendering function.
 | `/enterprise` and its brief/architecture pages | Corresponding `enterprise*.html` | `handler/ui.go:RegisterUIRoutes` |
 | `/setup`, `/costs` | `setup-helper.html` with `setup/setup.js`; `costs.html` with `costs/calc.js` | `handler/ui.go:RegisterUIRoutes` |
 | First boot without SITE_DOMAIN | `setup.html`, a separate setup-only server | `handler/setup.go:SetupHandler.Register` |
-| Hack `/` | Canonical instance: `hack-home.html`; other instances: `hack-story.html` | `hackhttp/hack_home.go:RegisterHackHome` |
+| Hack `/` | Canonical instance: `hack-home.html`; other instances: `hack-story.html` | `pages/hack_home.go:RegisterHackHome` |
 | Hack `/directory`, `/get-started` | `hack-directory.html`, `hack-get-started.html` | `RegisterHackHome`, `hack_get_started.go:RegisterHackGetStarted` |
-| Hack public event | `hack-event.html`, rendered with event data | `hackhttp/hack_eventpage.go:assembleHackEventPage`; `hack_public.go:RegisterHackPublic` |
-| Hack `/signin`, `/events`, `/events/new`, `/account` | `hack/app.html` → `hack/app.js` → sign-in, `landing-your-events`, `organiser-create-event`, `account` | `hackhttp/hack_ui.go:RegisterHackUI` |
+| Hack public event | `hack-event.html`, rendered with event data | `public/hack_eventpage.go:assembleHackEventPage`; `public/hack_public.go:RegisterHackPublic` |
+| Hack `/signin`, `/events`, `/events/new`, `/account` | `hack/app.html` → `hack/app.js` → sign-in, `landing-your-events`, `organiser-create-event`, `account` | `pages/hack_ui.go:RegisterHackUI` |
 | Hack `/e/{slug}/manage`, `/team`, `/judge` | Same shell; `?s=` selects role screens | `RegisterHackUI`; `hack/nav.js:resolveRoute` |
 | Hack `/join/{code}`, `/judge/{code}`, `/organiser/{code}`, `/team/{code}`, `/e/{slug}/apply` | Same shell; standalone `public-*` modules | `RegisterHackUI`; `hack/nav.js:resolveRoute` |
 | Hack `/e/{slug}/vote`, `/voting-settings` | `hack-voting.html`, separate from the module app | `RegisterHackUI` |
@@ -102,7 +102,7 @@ The Hack module app uses its own light kit.
 | Presentation asset | Serving relationship |
 |---|---|
 | `static/film/` | `handler/film.go:serveFilm` serves embedded video/poster files at `/film/{file}`, with Range support and ETags; registered by `ui.go:RegisterUIRoutes` |
-| `static/film/` (Hack) | `products/hack/hackhttp/hack_film.go:RegisterHackFilm` serves Hack's film files from its own embed at one exact `/film/<file>` route each, with the same type, caching, ETag and Range answers |
+| `static/film/` (Hack) | `products/hack/pages/hack_film.go:RegisterHackFilm` serves Hack's film files from its own embed at one exact `/film/<file>` route each, with the same type, caching, ETag and Range answers |
 | `host-ink.css` / `hack-ink.css` | `chrome.go:addHostInk` supplies Host's local-font presentation; `addHackInk` supplies Hack's separate ink styling, never loaded by Host |
 | `host-status.css` | `chrome.go:hostedStatusPage` embeds the stylesheet and its data font in bare Host status pages; `passcode.go:hostPasscodeGateCSP` permits its style hash and `font-src data:` |
 | First-boot setup styles/fonts | `setup.go:SetupHandler.Register` explicitly serves `/host-ink.css` and `/fonts/{file...}` alongside the setup page |

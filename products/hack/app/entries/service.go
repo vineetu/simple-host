@@ -12,7 +12,7 @@ type Service struct {
 	siteLive SiteLiveFunc
 }
 
-// SiteLiveFunc reports whether a team's site is live (supplied by hackhttp,
+// SiteLiveFunc reports whether a team's site is live (supplied by core.Links,
 // which owns the site lookup).
 type SiteLiveFunc func(ctx context.Context, ev model.Event, teamSlug string, siteTakenDown bool) bool
 

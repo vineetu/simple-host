@@ -10,6 +10,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/sites/sitemap"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -61,8 +62,9 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		serveRobotsTxt(w, r, sh.Ed.Routes().HostedEvents, sh.Ed.Presentation())
 	})
-	mux.HandleFunc("GET /sitemap.xml", sh.ServeSitemap)
-	mux.HandleFunc("GET /sitemap-pages.xml", sh.ServeSitemap)
+	serveSitemap := sitemap.Serve(sh.Handler, &sh.Sitemaps)
+	mux.HandleFunc("GET /sitemap.xml", serveSitemap)
+	mux.HandleFunc("GET /sitemap-pages.xml", serveSitemap)
 
 	mux.HandleFunc("GET /.well-known/ard.json", web.DiscoveryDocument(assets, sh.Ed.Presentation().ProductAssets, "ard.json", "application/json", publicBaseURL))
 	mux.HandleFunc("GET /.well-known/api-catalog", web.DiscoveryDocument(assets, sh.Ed.Presentation().ProductAssets, "api-catalog", `application/linkset+json;profile="https://www.rfc-editor.org/info/rfc9727"`, publicBaseURL))
@@ -136,7 +138,7 @@ func RegisterUIRoutes(mux *http.ServeMux, publicBaseURL string, sh *SiteHandler)
 	fallback := assets.AdminUICSP(sh.OwnerAppOrStatic(assets.ChromeFileServer(handlerOnly, fileServer)))
 	mux.Handle("GET /", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/sitemap-sites-") && strings.HasSuffix(r.URL.Path, ".xml") {
-			sh.ServeSitemap(w, r)
+			serveSitemap(w, r)
 			return
 		}
 		fallback.ServeHTTP(w, r)

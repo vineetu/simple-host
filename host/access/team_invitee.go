@@ -33,13 +33,3 @@ func MyInvitations(ctx context.Context, db *sql.DB, user *model.User) ([]model.T
 	}
 	return InvitationsFor(ctx, db, email)
 }
-
-// AnswerMyInvitation accepts or declines an invitation addressed to the
-// signed-in person (AnswerInvitation); it returns the team's handle.
-func AnswerMyInvitation(ctx context.Context, db *sql.DB, user *model.User, id string, accept bool) (string, error) {
-	email, err := InviteeEmail(ctx, db, user)
-	if err != nil {
-		return "", err
-	}
-	return AnswerInvitation(ctx, db, user.ID, email, id, accept)
-}

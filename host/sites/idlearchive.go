@@ -35,10 +35,10 @@ type IdleArchiveInput struct {
 // deploy, save or new domain since the list was read rolls it back).
 func (svc *Service) RemoveIdleSite(ctx context.Context, in IdleArchiveInput) {
 	s, now := in.Site, in.Now
-	d := svc.deps.IdleArchive
-	unlock := svc.lockSite(s.UserID, s.Name)
+	d := svc.Deps.IdleArchive
+	unlock := svc.LockSite(s.UserID, s.Name)
 	defer unlock()
-	site, err := repo.GetSiteByUser(ctx, svc.database, s.UserID, s.Name)
+	site, err := repo.GetSiteByUser(ctx, svc.DB, s.UserID, s.Name)
 	if err != nil || site.ID != s.SiteID || !site.Live() {
 		return
 	}

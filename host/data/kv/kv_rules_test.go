@@ -1,0 +1,402 @@
+package kv
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/vsriram/simple-host/host/data"
+	"github.com/vsriram/simple-host/host/data/resources"
+	"github.com/vsriram/simple-host/host/data/storetest"
+
+	runtime "github.com/vsriram/simple-host/host/storage"
+	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
+)
+
+func kvRulesFixture(t *testing.T, set *json.RawMessage) (*data.Service, data.Call) {
+	t.Helper()
+	s, c := kvFixture(t, false)
+	s.Deps.SpamCheckAvailable = true
+	c.Resource = storetest.PutRules(t, s, resources.ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: set})
+	c.Owner, c.CSRFOK, c.ActiveChecked = false, true, true
+	c.PasscodeOK, c.ViewersOK = true, true
+	c.VisitorID = "writer"
+	return s, c
+}
+
+func kvRuleSet(read, add, edit, check, del string) *json.RawMessage {
+	return storetest.Set(ruleengine.Policy{Command: ruleengine.CmdRead, Using: read}, ruleengine.Policy{Command: ruleengine.CmdAdd, Check: add}, ruleengine.Policy{Command: ruleengine.CmdEdit, Using: edit, Check: check}, ruleengine.Policy{Command: ruleengine.CmdDelete, Using: del})
+}
+
+func kvRulesPut(t *testing.T, s *data.Service, c data.Call, key, value, requested, want string) {
+	t.Helper()
+	_, auth, err := PutKV(s, context.Background(), KVPutInput{Call: c, Key: key, Requested: requested, Body: strings.NewReader(`{"value":` + value + `}`)})
+	if got := storetest.Code(auth, err); got != want {
+		t.Fatalf("put %s: got %s want %s (%v)", key, got, want, err)
+	}
+}
+
+func kvRulesGet(t *testing.T, s *data.Service, c data.Call, key, want string) VisibleKVItem {
+	t.Helper()
+	out, err := GetKV(s, context.Background(), KVReadInput{Call: c, Key: key})
+	if got := storetest.Code(out.Authorization, err); got != want {
+		t.Fatalf("get %s: got %s want %s", key, got, want)
+	}
+	return out.Item
+}
+
+func kvRulesDelete(t *testing.T, s *data.Service, c data.Call, key, want string) {
+	t.Helper()
+	kvRulesDeleteContext(t, context.Background(), s, c, key, want)
+}
+
+func kvRulesDeleteContext(t *testing.T, ctx context.Context, s *data.Service, c data.Call, key, want string) {
+	t.Helper()
+	auth, err := DeleteKV(s, ctx, KVDeleteInput{Call: c, Key: key})
+	if got := storetest.Code(auth, err); got != want {
+		t.Fatalf("delete %s: got %s want %s", key, got, want)
+	}
+}
+
+type kvRulesRow struct{ Key, Value, Writer, Created, Updated string }
+
+func kvRulesSnapshot(t *testing.T, c data.Call) ([]kvRulesRow, runtime.KVMeta) {
+	t.Helper()
+	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(c.RuntimeDir, c.ResourceName), false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	meta, err := runtime.RuntimeKVMeta(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stmt, _, err := conn.Prepare(`SELECT key,value,visitor_id,created_at,updated_at FROM kv ORDER BY key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	var rows []kvRulesRow
+	for stmt.Step() {
+		rows = append(rows, kvRulesRow{stmt.ColumnText(0), stmt.ColumnText(1), stmt.ColumnText(2), stmt.ColumnText(3), stmt.ColumnText(4)})
+	}
+	if err = stmt.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return rows, meta
+}
+
+func TestKVRulesKeyValueVisibilityAndPaging(t *testing.T) {
+	for _, expr := range []string{`key contains "visible"`, `value contains "public"`} {
+		t.Run(expr, func(t *testing.T) {
+			s, c := kvRulesFixture(t, kvRuleSet(expr, "true", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
+			for _, entry := range []struct{ k, v string }{{"a-hidden", `"private"`}, {"b-visible", `"public"`}, {"c-hidden", `"private"`}, {"d-visible", `"public"`}} {
+				kvRulesPut(t, s, c, entry.k, entry.v, "", "")
+			}
+			kvRulesGet(t, s, c, "a-hidden", "key_not_found")
+			kvRulesGet(t, s, c, "missing", "key_not_found")
+			c.VisitorID = "other"
+			got := kvRulesGet(t, s, c, "b-visible", "")
+			if got.VisitorID != "" || got.Mine == nil || *got.Mine {
+				t.Fatalf("author leaked: %+v", got)
+			}
+			out, err := ListKV(s, context.Background(), KVListInput{Call: c, Limit: 1, ValidLimit: true})
+			if err != nil || out.Authorization != nil || len(out.Items) != 1 || out.Items[0].Key != "b-visible" || out.Next != "b-visible" {
+				t.Fatalf("first page %+v %v", out, err)
+			}
+			out, err = ListKV(s, context.Background(), KVListInput{Call: c, Limit: 1, ValidLimit: true, After: out.Next})
+			if err != nil || len(out.Items) != 1 || out.Items[0].Key != "d-visible" || out.Next != "" {
+				t.Fatalf("second page %+v %v", out, err)
+			}
+			kvRulesPut(t, s, c, "a-hidden", `"public"`, "", "key_exists")
+			kvRulesDelete(t, s, c, "a-hidden", "key_not_found")
+		})
+	}
+}
+
+func TestKVRulesLiteralPrefixPaging(t *testing.T) {
+	s, c := kvRulesFixture(t, kvRuleSet(`value == "1"`, "true", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
+	prefixes := []string{"%", "_", `x%_\`, "A", "é", "\U0010ffff"}
+	var visible []string
+	for _, prefix := range prefixes {
+		for _, suffix := range []string{"a", "b", "c"} {
+			value := "1"
+			if suffix == "b" {
+				value = "0"
+			} else {
+				visible = append(visible, prefix+suffix)
+			}
+			kvRulesPut(t, s, c, prefix+suffix, value, "", "")
+		}
+	}
+	// These would match wildcard-based implementations of the literal prefixes.
+	for _, key := range []string{"xAAone", "z"} {
+		kvRulesPut(t, s, c, key, "1", "", "")
+		visible = append(visible, key)
+	}
+	sort.Strings(visible)
+	for _, prefix := range append(prefixes, "", "missing") {
+		t.Run(prefix, func(t *testing.T) {
+			var want []string
+			for _, key := range visible {
+				if strings.HasPrefix(key, prefix) {
+					want = append(want, key)
+				}
+			}
+			var got []string
+			after := ""
+			for page := 0; ; page++ {
+				if page > len(visible) {
+					t.Fatal("cursor did not reach the end")
+				}
+				out, err := ListKV(s, context.Background(), KVListInput{Call: c, Prefix: prefix, After: after, Limit: 1, ValidLimit: true})
+				if err != nil || out.Authorization != nil || len(out.Items) > 1 {
+					t.Fatalf("page: %+v %v", out, err)
+				}
+				for _, item := range out.Items {
+					got = append(got, item.Key)
+				}
+				if out.Next == "" {
+					break
+				}
+				if len(out.Items) != 1 || out.Next != out.Items[0].Key || out.Next <= after {
+					t.Fatalf("invalid next cursor: %+v", out)
+				}
+				after = out.Next
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("keys: got %q want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestKVRulesAnonymousAndEmptyAuthors(t *testing.T) {
+	s, c := kvRulesFixture(t, kvRuleSet(`visitor_id == auth.id`, "true", "visitor_id == auth.id", "visitor_id == auth.id", "visitor_id == auth.id"))
+	owner := c
+	owner.Owner = true
+	kvRulesPut(t, s, owner, "moved-empty-author", `1`, "", "")
+	kvRulesPut(t, s, c, "own", `1`, "", "")
+	c.VisitorID = ""
+	kvRulesGet(t, s, c, "moved-empty-author", "sign_in_required")
+	out, err := ListKV(s, context.Background(), KVListInput{Call: c, Limit: 10, ValidLimit: true})
+	if storetest.Code(out.Authorization, err) != "sign_in_required" || len(out.Items) != 0 {
+		t.Fatalf("anonymous list %+v %v", out, err)
+	}
+	kvRulesPut(t, s, c, "own", `2`, "", "sign_in_required")
+	kvRulesDelete(t, s, c, "own", "sign_in_required")
+	// The guard also applies when edit and delete use signed-in rather than own.
+	s, c = kvRulesFixture(t, kvRuleSet("true", "true", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
+	kvRulesPut(t, s, c, "key", `1`, "", "")
+	c.VisitorID = ""
+	// Existing-key fallback precedes the ordinary sign-in refusal.
+	kvRulesPut(t, s, c, "key", `2`, "", "key_exists")
+	kvRulesDelete(t, s, c, "key", "sign_in_required")
+}
+
+func TestKVRulesFailedChecksRollbackAndKeepAuthor(t *testing.T) {
+	s, c := kvRulesFixture(t, kvRuleSet("true", `value == "1"`, "auth.signed_in", `value == "2"`, "auth.signed_in"))
+	rows, meta := kvRulesSnapshot(t, c)
+	kvRulesPut(t, s, c, "bad", `9`, "", "forbidden")
+	after, afterMeta := kvRulesSnapshot(t, c)
+	if !reflect.DeepEqual(rows, after) || meta != afterMeta {
+		t.Fatal("failed insert changed data or kv_meta")
+	}
+	kvRulesPut(t, s, c, "key", `1`, "", "")
+	rows, meta = kvRulesSnapshot(t, c)
+	kvRulesPut(t, s, c, "key", `9`, "", "key_exists")
+	after, afterMeta = kvRulesSnapshot(t, c)
+	if !reflect.DeepEqual(rows, after) || meta != afterMeta {
+		t.Fatal("failed edit changed data or kv_meta")
+	}
+	var event string
+	var payload map[string]any
+	s.Notified = func(ev data.Event) { event, payload = ev.Name, ev.Data }
+	c.VisitorID = "editor"
+	kvRulesPut(t, s, c, "key", `2`, "", "")
+	after, _ = kvRulesSnapshot(t, c)
+	if after[0].Writer != "writer" || event != "record.changed" || payload["row_visitor_id"] != "writer" || payload["owner_write"] != false {
+		t.Fatalf("author/notification changed: %+v %s %+v", after, event, payload)
+	}
+	owner := c
+	owner.Owner = true
+	kvRulesPut(t, s, owner, "key", `3`, "", "")
+	if payload["row_visitor_id"] != "writer" || payload["owner_write"] != true {
+		t.Fatalf("owner attribution %+v", payload)
+	}
+	kvRulesDelete(t, s, c, "key", "")
+	if payload["row_visitor_id"] != "writer" || payload["change"] != "deleted" {
+		t.Fatalf("delete attribution %+v", payload)
+	}
+	_, afterMeta = kvRulesSnapshot(t, c)
+	if afterMeta.Entries != 0 || afterMeta.LogicalBytes != 0 {
+		t.Fatal(afterMeta)
+	}
+}
+
+func TestKVRulesExistingCommentsBeforeSpamAndSuspension(t *testing.T) {
+	raw := json.RawMessage(ruleengine.EncodeSet(ruleengine.PolicySet{Version: 1, Policies: []ruleengine.Policy{
+		{Name: "read", Command: ruleengine.CmdRead, Using: `true`},
+		{Name: "add", Command: ruleengine.CmdAdd, Check: `auth.checked || auth.ai || auth.role == "owner"`},
+		{Name: "edit", Command: ruleengine.CmdEdit, Using: `auth.role == "owner"`},
+		{Name: "delete", Command: ruleengine.CmdDelete, Using: `auth.role == "owner"`},
+	}}))
+	s, c := kvRulesFixture(t, &raw)
+	c.SpamCheck = "ok"
+	s.Deps.SpamCheckedMaxBytes = 100
+	s.Deps.SpamCheckedMaxLinks = 1
+	kvRulesPut(t, s, c, "key", `1`, "", "")
+	c.SpamCheck = ""
+	kvRulesPut(t, s, c, "key", `2`, "", "key_exists")
+	c.ActiveChecked = false
+	c.VisitorID = c.OwnerID
+	c.VisitorSessionUserID = c.OwnerID
+	if _, err := s.DB.Exec(`UPDATE users SET suspended_at=now() WHERE id=$1`, c.OwnerID); err != nil {
+		t.Fatal(err)
+	}
+	kvRulesPut(t, s, c, "key", `2`, "", "key_exists")
+	kvRulesPut(t, s, c, "new", `2`, "", "account_suspended")
+}
+
+func TestKVRulesVisitorAIActionAndOwnConstraint(t *testing.T) {
+	s, c := kvRulesFixture(t, kvRuleSet("true", "true", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
+	kvRulesPut(t, s, c, "key", `1`, "", "")
+	c.VisitorAI = true
+	kvRulesPut(t, s, c, "key", `2`, "add", "key_exists")
+	kvRulesPut(t, s, c, "missing", `2`, "edit", "key_not_found")
+	kvRulesPut(t, s, c, "key", `2`, "edit", "")
+	c.VisitorID = "other"
+	kvRulesPut(t, s, c, "key", `3`, "edit", "key_exists")
+	// The AI author term makes this delete depend on the row, so it answers
+	// as today's author-filtered delete does: no change, no event. Before
+	// R3-S5a this answered success; the reversal is R3-S5a ruling 2,
+	// approved 2026-11-15 (a production change in kv_sqlite.go).
+	kvRulesDelete(t, s, c, "key", "key_not_found")
+	kvRulesDelete(t, s, c, "absent", "key_not_found")
+	owner := c
+	owner.Owner = true
+	if string(kvRulesGet(t, s, owner, "key", "").Value) != "2" {
+		t.Fatal("AI deleted another author's key")
+	}
+}
+
+func TestKVRulesCheckedPostLimitsAndMissingDelete(t *testing.T) {
+	s, c := kvRulesFixture(t, kvRuleSet("true", "auth.checked", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
+	c.SpamCheck = "ok"
+	s.Deps.SpamCheckedMaxBytes = 30
+	s.Deps.SpamCheckedMaxLinks = 1
+	kvRulesPut(t, s, c, "large", `"`+strings.Repeat("a", 30)+`"`, "", "post_too_large")
+	kvRulesPut(t, s, c, "links", `"http://a http://b"`, "", "too_many_links")
+	kvRulesPut(t, s, c, "ok", `"http://a"`, "", "")
+	notifications := 0
+	s.Notified = func(data.Event) { notifications++ }
+	kvRulesDelete(t, s, c, "missing", "")
+	if notifications != 0 {
+		t.Fatal("missing delete Notified")
+	}
+	s, c = kvRulesFixture(t, kvRuleSet(`visitor_id == auth.id || auth.role == "owner"`, "true", `visitor_id == auth.id || auth.role == "owner"`, `visitor_id == auth.id || auth.role == "owner"`, `visitor_id == auth.id || auth.role == "owner"`))
+	kvRulesDelete(t, s, c, "missing", "key_not_found")
+}
+
+// R3-S5a ruling 5: a delete that succeeds without removing anything (a missing
+// key, by a caller whose read and delete rights do not depend on the row)
+// calls the committed hook once and changes nothing.
+func TestKVRulesIdleDeleteCallsCommitted(t *testing.T) {
+	own := `visitor_id == auth.id || auth.role == "owner"`
+	s, c := kvRulesFixture(t, kvRuleSet(own, "true", own, own, own))
+	kvRulesPut(t, s, c, "kept", `1`, "", "")
+	owner := c
+	owner.Owner, owner.VisitorID = true, ""
+	rows, meta := kvRulesSnapshot(t, c)
+	committed, notifications := 0, 0
+	s.Notified = func(data.Event) { notifications++ }
+	counted := storetest.CountCommits(context.Background(), &committed)
+	kvRulesDeleteContext(t, counted, s, owner, "missing", "")
+	if committed != 1 || notifications != 0 {
+		t.Fatalf("idle delete: committed=%d notifications=%d, want 1 and 0", committed, notifications)
+	}
+	afterRows, afterMeta := kvRulesSnapshot(t, c)
+	if !reflect.DeepEqual(rows, afterRows) || !reflect.DeepEqual(meta, afterMeta) {
+		t.Fatalf("idle delete changed the store: before %+v %+v, after %+v %+v", rows, meta, afterRows, afterMeta)
+	}
+	// A refused idle delete (the right depends on the row) is not a commit.
+	kvRulesDeleteContext(t, counted, s, c, "missing", "key_not_found")
+	if committed != 1 {
+		t.Fatalf("refused delete called committed: %d", committed)
+	}
+}
+
+func TestKVRulesQuotaAtLimit(t *testing.T) {
+	s, c := kvRulesFixture(t, kvRuleSet("true", "true", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
+	dir := filepath.Join(c.RuntimeDir, "sqlite")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Create(filepath.Join(dir, "budget.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.Truncate(data.SiteLimitBytes("", false) - 4)
+	f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	kvRulesPut(t, s, c, "key", `10`, "", "site_full")
+	kvRulesPut(t, s, c, "key", `1`, "", "")
+	kvRulesPut(t, s, c, "key", `10`, "", "site_full")
+	hidden := c
+	hidden.Resource.Rules = *kvRuleSet(`key == "public"`, "true", "auth.signed_in", "auth.signed_in", "auth.signed_in")
+	kvRulesPut(t, s, hidden, "key", `10`, "", "key_exists")
+	kvRulesDelete(t, s, c, "key", "")
+	_, meta := kvRulesSnapshot(t, c)
+	if meta.Entries != 0 || meta.LogicalBytes != 0 {
+		t.Fatal(meta)
+	}
+}
+
+func TestKVRulesRejectAnonymousChangeAtSave(t *testing.T) {
+	for _, op := range []ruleengine.Command{ruleengine.CmdEdit, ruleengine.CmdDelete} {
+		t.Run(string(op), func(t *testing.T) {
+			s, c := kvFixture(t, false)
+			in := resources.ResourceInput{Call: c, Name: c.ResourceName, Kind: "kv", Rules: storetest.Set(ruleengine.Policy{Command: op, Using: "true"})}
+			storetest.Refusal(t, s, in, "anonymous_change")
+		})
+	}
+}
+
+func TestKVRulesWriteBindingSnapshot(t *testing.T) {
+	s, c := kvRulesFixture(t, kvRuleSet("true", "true", "auth.signed_in", "auth.signed_in", "auth.signed_in"))
+	p := &kvBindings{values: func(context.Context, int) (ruleengine.Values, error) {
+		return ruleengine.Values{"event.member": ruleengine.Text("yes")}, nil
+	}}
+	s.Deps.Bindings = data.SnapshotBindings(p)
+	owner := c
+	owner.Owner = true
+	c.Resource = storetest.PutRules(t, s, resources.ResourceInput{Call: owner, Name: c.ResourceName, Kind: "kv", Rules: kvRuleSet("true", `event.member == "yes"`, `auth.signed_in && event.member == "yes"`, "auth.signed_in", "auth.signed_in")})
+	kvRulesPut(t, s, c, "key", `1`, "", "")
+	kvRulesPut(t, s, c, "key", `2`, "", "")
+	if p.calls != 2 {
+		t.Fatalf("bindings read %d times for two writes; each write must use one snapshot", p.calls)
+	}
+}
+
+// kvBindings is a product binding provider whose values the test supplies.
+type kvBindings struct {
+	data.NoBindings
+	values func(context.Context, int) (ruleengine.Values, error)
+	calls  int
+}
+
+func (p *kvBindings) Schema() ruleengine.BindingSchema {
+	return ruleengine.BindingSchema{"event.member": {Type: ruleengine.TypeText, Nullable: true}}
+}
+func (p *kvBindings) Values(ctx context.Context, c data.BindingCall, needed []string) (ruleengine.Values, error) {
+	p.calls++
+	return p.values(ctx, p.calls)
+}
+func (p *kvBindings) OwnerOnSite(context.Context, string, string) (bool, error) { return false, nil }

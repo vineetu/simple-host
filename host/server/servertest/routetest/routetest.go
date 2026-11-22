@@ -37,7 +37,7 @@ const (
 	ContentHost = "sites.simple-host.test"
 )
 
-// VisitorCookie is Access's visitor session cookie (accesshttp.VisitorCookieHost).
+// VisitorCookie is Access's visitor session cookie (gate.VisitorCookieHost).
 const VisitorCookie = "__Host-sh_vsess"
 
 var schemaErr struct {

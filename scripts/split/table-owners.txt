@@ -33,6 +33,7 @@ analytics_ingest_state | host/sites/analytics | its functions
 collection_settings | host/data/repo | its functions
 data_history | host/data/repo | its functions
 domain_cert_requests | host/sites/repo | its functions
+event_domains | host/sites/events | its functions (event name claims)
 family_cert_requests | host/sites/repo | its functions
 oauth_clients | host/access/repo | its functions
 oauth_identities | host/access/repo | its functions
@@ -97,8 +98,8 @@ event_checklist_dismissals | products/hack/repository/hackevents | its functions
 event_content | products/hack/repository/hackevents | its functions
 event_create_log | products/hack/repository/hackevents | its functions
 event_organiser_invites | products/hack/repository/hackevents | its functions
-hack_assistant_spend | products/hack/repository/hackevents | its functions
-hack_assistant_usage | products/hack/repository/hackevents | its functions
+hack_assistant_spend | products/hack/assistant | its functions (store.go)
+hack_assistant_usage | products/hack/assistant | its functions (store.go)
 event_members | products/hack/repository/hackmembers | its functions
 event_notices | products/hack/repository/hackmembers | its functions
 hack_account_preferences | products/hack/repository/hackmembers | its functions

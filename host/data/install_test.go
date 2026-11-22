@@ -12,7 +12,7 @@ import (
 )
 
 func TestEnsureInstallIdentity(t *testing.T) {
-	db := admissionDB(t)
+	db := coreDB(t)
 	ctx := context.Background()
 	if _, err := db.Exec(`DELETE FROM install_identity`); err != nil {
 		t.Fatal(err)

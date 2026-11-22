@@ -13,20 +13,20 @@ import (
 )
 
 // checkFileCaps checks the projected disk use before writing a version.
-func (s *Service) checkFileCaps(ctx context.Context, user *model.User, site model.Site, files map[string][]byte, next int, publish bool) error {
-	if !s.deps.FileCaps {
+func (s *Service) CheckFileCaps(ctx context.Context, user *model.User, site model.Site, files map[string][]byte, next int, publish bool) error {
+	if !s.Deps.FileCaps {
 		return nil
 	}
-	handles := s.accounts.SiteAccountHandles(ctx, user)
-	siteMB, accountMB := s.deps.Limits.SiteTotalMBFor(handles...), s.deps.Limits.AccountMBFor(handles...)
-	cutoff, err := time.Parse(time.RFC3339, s.deps.CapCutoff)
+	handles := s.Accounts.SiteAccountHandles(ctx, user)
+	siteMB, accountMB := s.Deps.Limits.SiteTotalMBFor(handles...), s.Deps.Limits.AccountMBFor(handles...)
+	cutoff, err := time.Parse(time.RFC3339, s.Deps.CapCutoff)
 	if err != nil || site.CreatedAt.Before(cutoff) {
 		siteMB = 0
 	}
 	if siteMB == 0 && accountMB == 0 {
 		return nil
 	}
-	f, err := s.disk.SiteFootprint(user.ID, site.Name)
+	f, err := s.Disk.SiteFootprint(user.ID, site.Name)
 	if err != nil {
 		return &Error{Code: "site_measure_failed", Message: "could not measure website files"}
 	}
@@ -34,11 +34,11 @@ func (s *Service) checkFileCaps(ctx context.Context, user *model.User, site mode
 	for _, b := range files {
 		incoming += int64(len(b))
 	}
-	keep, err := s.retention(ctx, user.ID, site.KeepVersions)
+	keep, err := s.Retention(ctx, user.ID, site.KeepVersions)
 	if err != nil {
 		return err
 	}
-	versions, err := repo.ListVersionsBySite(ctx, s.database, site.ID)
+	versions, err := repo.ListVersionsBySite(ctx, s.DB, site.ID)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (s *Service) checkFileCaps(ctx context.Context, user *model.User, site mode
 		return &Error{Code: "site_total_too_large", Message: fmt.Sprintf("This website may use at most %d MB including its live files and kept versions; it currently uses %.1f MB. This deploy would use %.1f MB.", siteMB, float64(f.Total())/(1<<20), float64(projected)/(1<<20))}
 	}
 	if accountMB > 0 {
-		current, err := s.disk.AccountFileBytes(user.ID)
+		current, err := s.Disk.AccountFileBytes(user.ID)
 		if err != nil {
 			return &Error{Code: "account_measure_failed", Message: "could not measure account files"}
 		}

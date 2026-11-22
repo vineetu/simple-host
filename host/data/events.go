@@ -19,10 +19,10 @@ type Event struct {
 // Emit queues a committed storage write's event. Called only after the
 // write commits: notification trouble never changes the answer.
 func (s *Service) Emit(ev Event) {
-	if s.notified != nil {
-		s.notified(ev)
+	if s.Notified != nil {
+		s.Notified(ev)
 	}
-	EmitEvent(s.deps.Notifications, s.deps.Hosts, ev)
+	EmitEvent(s.Deps.Notifications, s.Deps.Hosts, ev)
 }
 
 // EmitEvent queues ev on the engine. An owner write stays silent unless it

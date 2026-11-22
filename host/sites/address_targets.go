@@ -19,7 +19,7 @@ func (s *Service) HostOwner(ctx context.Context, handle, name string) (model.Use
 	if !HandleAddressable(handle) || !rules.ValidSiteName.MatchString(name) {
 		return model.User{}, ErrInvalidHost
 	}
-	return accounts.GetUserByHandle(ctx, s.database, handle)
+	return accounts.GetUserByHandle(ctx, s.DB, handle)
 }
 
 // SiteHostAddress decides whether the site's host may be served and builds its hostname.
@@ -35,7 +35,7 @@ func (s *Service) PhotoTarget(ctx context.Context, userID, name string) (model.S
 	if err := rules.ValidateShape(name); err != nil {
 		return model.Site{}, &Error{Code: "invalid_name", Message: "Invalid site name."}
 	}
-	return repo.GetSiteByUser(ctx, s.database, userID, name)
+	return repo.GetSiteByUser(ctx, s.DB, userID, name)
 }
 
 // AddressedSite resolves a DNS-label site name without querying malformed names.
@@ -43,7 +43,7 @@ func (s *Service) AddressedSite(ctx context.Context, userID, name string) (model
 	if !rules.ValidSiteName.MatchString(name) {
 		return model.Site{}, sql.ErrNoRows
 	}
-	return repo.GetSiteByUser(ctx, s.database, userID, name)
+	return repo.GetSiteByUser(ctx, s.DB, userID, name)
 }
 
 // AddressedOldSite resolves a retired DNS-label name at the address boundary.
@@ -51,18 +51,18 @@ func (s *Service) AddressedOldSite(ctx context.Context, userID, name string) (st
 	if !rules.ValidSiteName.MatchString(name) {
 		return "", "", sql.ErrNoRows
 	}
-	return repo.ResolveOldSiteName(ctx, s.database, userID, name)
+	return repo.ResolveOldSiteName(ctx, s.DB, userID, name)
 }
 
 // AdminSiteTarget resolves the current site and owner before adapting an admin action.
 func (s *Service) AdminSiteTarget(ctx context.Context, id string, deleting bool) (model.Site, model.User, error) {
-	site, err := repo.GetSiteByID(ctx, s.database, id)
+	site, err := repo.GetSiteByID(ctx, s.DB, id)
 	if err == nil && site.Deleted {
 		err = sql.ErrNoRows
 	}
 	var owner model.User
 	if err == nil {
-		owner, err = accounts.GetUserByID(ctx, s.database, site.UserID)
+		owner, err = accounts.GetUserByID(ctx, s.DB, site.UserID)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return site, owner, &Error{Code: "site_not_found", Message: "site not found"}
@@ -82,7 +82,7 @@ func (s *Service) ContentPathOwner(ctx context.Context, handle, name string) (mo
 	if !ContentPathValid(handle, name) {
 		return model.User{}, sql.ErrNoRows
 	}
-	return accounts.GetUserByHandleOrAlias(ctx, s.database, handle)
+	return accounts.GetUserByHandleOrAlias(ctx, s.DB, handle)
 }
 
 // ContentPathValid applies the path-model naming rules shared by database and

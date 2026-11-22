@@ -29,7 +29,7 @@ func init() {
 
 func admissionShop(t *testing.T) Shop {
 	t.Helper()
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/data", map[string]string{"kind": "sqlite"}, s.Key, 201)
 	s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}, s.Key, 200)
 	s.Must(t, "POST", "/sqlite/data/execute", map[string]string{"sql": "INSERT INTO notes(body) VALUES ('saved')"}, s.Key, 200)
@@ -146,7 +146,7 @@ func TestRulesSaveAdmissionInjectedPanics(t *testing.T) {
 
 // A resource busy in SQLite admission is skipped by the pick list, not waited on.
 func TestPeopleSkipsBusySQLiteResource(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/data", StorageRules("sqlite", RulesPersonal), s.Key, 201)
 	s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT)"}, s.Key, 200)
 	s.Must(t, "POST", "/sqlite/data/tables/notes/rows", map[string]string{"body": "saved"}, s.Callers["alice"], 200)

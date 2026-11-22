@@ -16,14 +16,14 @@ const passwordMemory = 64 * 1024
 
 var passwordHashSlots = make(chan struct{}, 2)
 
-func validPassword(password string) error {
+func ValidPassword(password string) error {
 	n := utf8.RuneCountInString(password)
 	if n < 8 || n > 256 {
-		return lifecycleFail(400, "Password must be between 8 and 256 characters.", "invalid_password")
+		return LifecycleFail(400, "Password must be between 8 and 256 characters.", "invalid_password")
 	}
 	return nil
 }
-func hashPassword(password string) (string, error) {
+func HashPassword(password string) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
@@ -33,7 +33,7 @@ func hashPassword(password string) (string, error) {
 	key := argon2.IDKey([]byte(password), salt, 3, passwordMemory, 2, 32)
 	return fmt.Sprintf("$argon2id$v=19$m=65536,t=3,p=2$%s$%s", base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
-func verifyPassword(password, phc string) bool {
+func VerifyPassword(password, phc string) bool {
 	parts := strings.Split(phc, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != "v=19" || parts[3] != "m=65536,t=3,p=2" {
 		return false
@@ -53,4 +53,4 @@ func verifyPassword(password, phc string) bool {
 }
 
 // A missing password row still does the same Argon2 work as a real account.
-const dummyPasswordHash = "$argon2id$v=19$m=65536,t=3,p=2$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+const DummyPasswordHash = "$argon2id$v=19$m=65536,t=3,p=2$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"

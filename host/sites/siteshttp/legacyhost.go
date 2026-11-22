@@ -80,7 +80,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 			}
 			h.renderNotFoundPage(w, r, "This site was removed",
 				"The site that used this address isn’t on Simple Host any more.",
-				h.mainSiteURL(), "Go to "+siteDomain)
+				h.MainSiteURL(), "Go to "+siteDomain)
 			return
 		case !errors.Is(err, sql.ErrNoRows):
 			log.Printf("legacy host %s: %v", host, err)
@@ -97,7 +97,7 @@ func (h *SiteHandler) LegacyHostRedirect(next http.Handler) http.Handler {
 		} else if held {
 			h.renderNotFoundPage(w, r, "This site was removed",
 				"The site that used this address isn’t on Simple Host any more.",
-				h.mainSiteURL(), "Go to "+siteDomain)
+				h.MainSiteURL(), "Go to "+siteDomain)
 			return
 		}
 

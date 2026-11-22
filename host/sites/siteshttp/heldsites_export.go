@@ -12,6 +12,7 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/export"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -52,7 +53,7 @@ func (h *SiteHandler) ExportEventProjects(w http.ResponseWriter, r *http.Request
 			panic(http.ErrAbortHandler)
 		}
 	}
-	finishSiteTar(tw, gz)
+	export.FinishSiteTar(tw, gz)
 }
 
 func (h *SiteHandler) EventFileBytes(ctx context.Context, accountID string) (int64, error) {

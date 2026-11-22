@@ -53,17 +53,17 @@ func (u Usage) Total() int64 { return u.KV + u.SQLite + u.Files }
 // definition: normalized JSONB value text, SQLite main files after checkpoint,
 // and raw object bytes. WAL, retained deploys and legacy data are separate.
 func (s *Service) MeasureSiteStorage(ctx context.Context, siteID, root string) (Usage, error) {
-	names, err := storage.KVNamespaces(ctx, s.db, siteID)
+	names, err := storage.KVNamespaces(ctx, s.DB, siteID)
 	if err != nil {
 		return Usage{}, err
 	}
 	if len(names) == 0 {
-		return s.measureSiteStorageAdmitted(ctx, siteID, root)
+		return s.MeasureSiteStorageAdmitted(ctx, siteID, root)
 	}
 	var u Usage
-	err = s.deps.SiteSlots.Admit(ctx, siteID, func(ctx context.Context, _ *Admission) error {
+	err = s.Deps.SiteSlots.Admit(ctx, siteID, func(ctx context.Context, _ *Admission) error {
 		var err error
-		u, err = s.measureSiteStorageAdmitted(ctx, siteID, root)
+		u, err = s.MeasureSiteStorageAdmitted(ctx, siteID, root)
 		return err
 	})
 	return u, err
@@ -71,7 +71,7 @@ func (s *Service) MeasureSiteStorage(ctx context.Context, siteID, root string) (
 
 // measureSiteStorageAdmitted never acquires a slot: its callers already own one
 // whenever the site has KV namespaces.
-func (s *Service) measureSiteStorageAdmitted(ctx context.Context, siteID, root string) (Usage, error) {
+func (s *Service) MeasureSiteStorageAdmitted(ctx context.Context, siteID, root string) (Usage, error) {
 	u := Usage{FileObjects: map[string]int{}}
 	var err error
 	if u.KV, err = s.measureKVBytes(ctx, siteID, root); err != nil {
@@ -108,7 +108,7 @@ func (s *Service) measureSiteStorageAdmitted(ctx context.Context, siteID, root s
 // measureKVBytes sums the logical bytes of the site's KV namespaces; a
 // missing namespace file counts as zero.
 func (s *Service) measureKVBytes(ctx context.Context, siteID, root string) (int64, error) {
-	names, err := storage.KVNamespaces(ctx, s.db, siteID)
+	names, err := storage.KVNamespaces(ctx, s.DB, siteID)
 	if err != nil {
 		return 0, err
 	}
@@ -120,7 +120,7 @@ func (s *Service) measureKVBytes(ctx context.Context, siteID, root string) (int6
 			continue
 		}
 		if err != nil {
-			return total, kvFileError(err)
+			return total, KVFileError(err)
 		}
 		total += n
 	}
@@ -133,7 +133,7 @@ func kvNamespaceBytes(ctx context.Context, path string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer closeSQLite(done)
+	defer CloseSQLite(done)
 	meta, err := runtime.RuntimeKVMeta(conn)
 	return meta.LogicalBytes, err
 }
@@ -155,7 +155,7 @@ func (u *Usage) countFile(rel string, size int64) {
 
 // BudgetUsed returns the bytes charged to the site pool.
 func (s *Service) BudgetUsed(u Usage) int64 {
-	if s.deps.CombinedPool {
+	if s.Deps.CombinedPool {
 		return u.Total()
 	}
 	return u.Data()
@@ -163,32 +163,17 @@ func (s *Service) BudgetUsed(u Usage) int64 {
 
 // FilesLimitBytes returns the file pool limit.
 func (s *Service) FilesLimitBytes() int64 {
-	if s.deps.CombinedPool {
-		return SiteLimitBytes(s.deps.SiteLimit, true)
+	if s.Deps.CombinedPool {
+		return SiteLimitBytes(s.Deps.SiteLimit, true)
 	}
-	return LimitBytes(s.deps.FilesLimit, 10000000, 10<<30)
+	return LimitBytes(s.Deps.FilesLimit, 10000000, 10<<30)
 }
 
 // FilesRemaining returns the available file bytes.
 func (s *Service) FilesRemaining(u Usage) int64 {
 	used := u.Files
-	if s.deps.CombinedPool {
+	if s.Deps.CombinedPool {
 		used = u.Total()
 	}
 	return max(int64(0), s.FilesLimitBytes()-used)
-}
-
-// GetStorageUsage prepares the owner's storage usage report.
-func (s *Service) GetStorageUsage(ctx context.Context, call Call) (map[string]any, error) {
-	if !call.Owner {
-		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
-	}
-	u, err := s.MeasureSiteStorage(ctx, call.SiteID, call.RuntimeDir)
-	if err != nil {
-		return nil, err
-	}
-	limit := SiteLimitBytes(s.deps.SiteLimit, s.deps.CombinedPool)
-	used := s.BudgetUsed(u)
-	remaining := max(int64(0), limit-used)
-	return map[string]any{"used_bytes": used, "limit_bytes": limit, "remaining_bytes": remaining, "files_used_bytes": u.Files, "files_limit_bytes": s.FilesLimitBytes(), "files_remaining_bytes": s.FilesRemaining(u), "breakdown": map[string]int64{"kv_bytes": u.KV, "sqlite_bytes": u.SQLite, "files_bytes": u.Files}}, nil
 }

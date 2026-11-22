@@ -10,9 +10,6 @@ import (
 	"image"
 	"image/jpeg"
 	"mime/multipart"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
@@ -77,47 +74,5 @@ func TestPhotosAddedAndServed(t *testing.T) {
 	}
 	if r := a.At(t, "GET", host, "/", nil, nil); r.Status != 200 || string(r.Body) != "<h1>home</h1>" {
 		t.Fatalf("kept page: %d %s", r.Status, r.Body)
-	}
-}
-
-// A photo over the account's storage is refused and the live version stays.
-func TestPhotosQuotaKeepsLiveVersion(t *testing.T) {
-	a := NewApp(t)
-	p := a.NewPerson(t, "photoquota")
-	if r := a.files(t, p, "POST", "home", map[string]string{"index.html": strings.Repeat("x", 350000)}); r.Status != 201 {
-		t.Fatalf("setup: %d %s", r.Status, r.Body)
-	}
-	a.SetLimits(t, map[string]string{"MAX_ACCOUNT_MB": "1"})
-	if r := a.addPhotos(t, p.Key, "home", "front.jpg", photoJPEG(t, 8, 6)); r.Status != 413 {
-		t.Fatalf("quota: %d %s", r.Status, r.Body)
-	}
-	var active int
-	if err := a.Database.QueryRow(`SELECT active_version FROM sites WHERE id = $1`, a.SiteID(t, p, "home")).Scan(&active); err != nil || active != 1 {
-		t.Fatalf("live version after refusal: %d %v", active, err)
-	}
-}
-
-// A file where images/ or the photo's path would go is a conflict (409),
-// and the file is kept as it was.
-func TestPhotoAncestorConflictKeepsFile(t *testing.T) {
-	for _, path := range []string{"images", "images/front.jpg/child"} {
-		t.Run(path, func(t *testing.T) {
-			a := NewApp(t)
-			p := a.NewPerson(t, "photoconflict")
-			a.Deploy(t, p, "home")
-			dest := filepath.Join(a.Disk.VersionDir(p.ID, "home", 1), path)
-			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(dest, []byte("keep"), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			if r := a.addPhotos(t, p.Key, "home", "front.jpg", photoJPEG(t, 8, 6)); r.Status != 409 {
-				t.Fatalf("conflict: %d %s", r.Status, r.Body)
-			}
-			if got, err := os.ReadFile(dest); err != nil || string(got) != "keep" {
-				t.Fatal("conflicting file changed")
-			}
-		})
 	}
 }

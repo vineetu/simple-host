@@ -24,9 +24,9 @@ func (s *Service) SuspendHeldSite(ctx context.Context, in HeldSiteSuspension) er
 	if in.Prefix == "" {
 		return errors.New("held-site suspension requires a non-empty prefix")
 	}
-	unlock := s.lockSite(in.AccountID, in.Name)
+	unlock := s.LockSite(in.AccountID, in.Name)
 	defer unlock()
-	tx, err := s.database.BeginTx(ctx, nil)
+	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -64,11 +64,11 @@ func (s *Service) SuspendHeldSite(ctx context.Context, in HeldSiteSuspension) er
 		return err
 	}
 	if siteID != "" {
-		fresh, err := repo.GetSiteByID(ctx, s.database, siteID)
+		fresh, err := repo.GetSiteByID(ctx, s.DB, siteID)
 		if err != nil {
 			return err
 		}
-		return s.disk.SetSuspended(fresh.UserID, fresh.Name, fresh.Suspended())
+		return s.Disk.SetSuspended(fresh.UserID, fresh.Name, fresh.Suspended())
 	}
 	return nil
 }

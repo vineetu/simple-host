@@ -161,3 +161,11 @@ func OldestLiveSiteByName(ctx context.Context, q *sql.DB) (map[string]string, er
 	}
 	return out, rows.Err()
 }
+
+// AnySiteNamed reports whether any account has a site (live or Recently
+// deleted) with this name.
+func AnySiteNamed(ctx context.Context, q Querier, name string) (bool, error) {
+	var value bool
+	err := q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sites WHERE name = $1)`, name).Scan(&value)
+	return value, err
+}

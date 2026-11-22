@@ -8,24 +8,24 @@ Follow these steps literally. Every path below exists.
 
 ### Where things live
 
-- `host/access` (accounts, keys, sign-in, passcodes, viewers, editors, teams), routes in `host/access/accesshttp/routes.go` (the account, OAuth and connector handlers mount theirs in their own `Register`: `user.go`, `oauth.go`, `connector.go`).
-- `host/sites` (deploys, versions, domains, analytics), routes in `host/sites/siteshttp/routes.go` (setup, the dashboard pages, event domains and name peers mount theirs in `setup.go`, `ui.go`, `eventdomain.go`, `namepeer.go`).
-- `host/data` (saved data: KV, SQLite, files, notifications), routes in `host/data/datahttp/routes.go`.
+- `host/access` (accounts, keys, sign-in, passcodes, viewers, editors, teams): a small core (`host/access`: the person and look-ups, `ActsAsOwner`/`ResolveOwner`, `DecideVisit`, the visitor-session verdict; `auth/` the key middleware and scope gate; `repo/` the SQL) and one package per feature, each holding its routes (`Register`) beside its logic and tests: `signin`, `profile`, `keys`, `teams`, `editors`, `accountdata`, `operator`, `suspension`, `connector` (OAuth server and `/mcp`), `gate` (site gate, passcodes, named viewers, visitor sign-in, provider sign-in and the SSO hop). A feature imports the core, never a sibling; what two features need goes in the core. `host/access/accesshttp` only composes and mounts them.
+- `host/sites` is the Sites core (the site service, `sites.Hosts`, the door look-ups, locks, gate storage). Each feature is a package beside it holding its logic, its routes (`routes.go`, a `Register` function) and its route tests: `deploy`, `versions`, `lifecycle` (delete, rename, settings, Recently deleted), `domains`, `families`, `sitelist`, `sitemap`, `export`, `showcase`, `admin`, `idle`, `siteanalytics`, `setup`, `events`; plus `analytics` (the traffic store host/ops reads), `namepeer` and `repo`. A feature imports the core and `host/sites/sitesroute` (the shared route state and helpers), never a sibling feature. `host/sites/siteshttp/routes.go` mounts the features in order and keeps the serving at sites' own hosts and the dashboard pages (`ui.go`). Route tests run on `host/sites/sitesroute/fixture` (copy `host/sites/versions/routes_test.go`).
+- `host/data` (saved data): a small core (`host/data`: the caller facts, the gate, resource resolution, the rules decision, SQLite admission, quotas, the route core) and one package per feature, each with its logic, routes (`routes.go`, a `Register` the composition calls in `host/handler/routes.go`) and tests: `host/data/kv`, `rows`, `sqlconsole`, `files`, `resources`, `usage`, `visitors`, `notifications`, `push`. A feature imports the core, never another feature; the notification engine is `host/data/notify`, the shared test fixtures `host/data/storetest`.
 - Imports: access <- sites <- data (each imports only those to its left); `host/ops` sits above all three and holds the workflows that span them. A routes package imports any module, never another routes package and never a `repo` package.
 - `host/mcp`: the AI tools. Each tool makes one REST call in process and never reimplements a rule; if a tool needs more in one answer, the REST route returns it. The one exception: after `create_site`/`update_site` the tool reads the site's storage list to warn about a page using a resource that does not exist (`sites_pagecheck.go`).
-- `products/hack`: Simple Hack. `rules/` (pure rules) -> `repository/` (SQL) -> `app/` (workflows) -> `hackhttp/` (routes, `routes.go`) and `mcp/` (tools).
+- `products/hack`: Simple Hack. One package per feature (`lifecycle`, `registration`, `organisers`, `teams`, `teamsites`, `messages`, `notices`, `content`, `entries`, `judging`, `voting`, `results`, `public`, `assistant`, `checklist`, `exports`, `pages`), each with its routes (`routes.go`, a `Register`), the workflow only it uses, and its tests. They share the core: `core/` (the caller in an event, the refusal writer, site links, shared JSON views), `app/` (shared workflows), `repository/` (SQL of the shared tables), `rules/` and `model/`. A feature never imports another feature; `products/hack` (`compose_routes.go`) registers them all, and `mcp/` holds the tools.
 - `products/hack` may import `host`; `host` never imports `products`. `scripts/check-layering.sh` enforces the imports, and fails on SQL text or a repo import in a routes package, `host/handler` or `host/mcp` (exceptions with reasons: `scripts/split/thin-edges-allow.txt`).
 - Each of these packages has a `doc.go` saying the same in a few lines.
 - A table is read and written only by its owner package (`scripts/split/table-owners.txt`, e.g. `users` by `host/access/repo`, `sites` by `host/sites/repo`); other packages call its functions. `sqlcheck -owners` (in `make ready`) enforces it.
 
 ### Recipe: add a REST route
 
-1. Put the rule or workflow in the module, beside the closest neighbour (e.g. `ListKV` in `host/data/kv.go`). Hack: `products/hack/app/<area>/`.
-2. Add one `mux.Handle` line in the module's `routes.go` (copy a neighbour) and a thin handler beside its siblings: it reads the request, calls that one function, and writes the answer. Decisions live in the module; web work (cookies, redirects, streaming, which page to show) stays in the handler. A refusal is a typed error from the module (`sites.Error`, `access.Refusal`) whose status comes from `httpx.RefusalStatus`; never branch on `sql.ErrNoRows` in a route.
+1. Put the rule or workflow in the module, beside the closest neighbour (e.g. `ListKV` in `host/data/kv/kv.go`; a data feature's route goes in its own `routes.go`); in Access, in the feature's package (e.g. `host/access/keys`). Hack: in the feature's package `products/hack/<feature>/`; only what several features call goes in `products/hack/app/<area>/` or `products/hack/core`.
+2. Add one `mux.Handle` line in the module's (or the data or Hack feature's) `routes.go` (Access: the feature's `Register`; copy a neighbour) and a thin handler beside its siblings: it reads the request, calls that one function, and writes the answer. Decisions live in the module; web work (cookies, redirects, streaming, which page to show) stays in the handler. A refusal is a typed error from the module (`sites.Error`, `access.Refusal`) whose status comes from `httpx.RefusalStatus`; never branch on `sql.ErrNoRows` in a route.
 3. If a site editor or a deploy-only key may call it, add the pattern to `editorRoutes` or `deployRoutes` in `host/access/auth/scope.go`. Otherwise they are refused.
 4. Document it in `host/webassets/static/openapi.yaml` (Hack: `products/hack/webassets/openapi.part.yaml`).
 5. Name the path in backticks under its feature in `docs/FEATURES.md`.
-6. Test it through the real server: `host/server/servertest/{accesstest,sitestest,datatest}`, Hack `products/hack/hackhttp` or `products/hack/servertest`.
+6. Test it through the real server: Access in the feature's own package on `host/access/featuretest` (mount only that feature; what crosses features goes in `host/server/servertest/accesstest`); a data feature in its own package's tests on the `host/server/servertest/datatest` fixture, mounting the routes it names; a Sites feature in its own package on `host/sites/sitesroute/fixture`; Hack in the feature's own package (its `fixture_test.go` mounts only that feature on `products/hack/hacktest`), or `products/hack/servertest` when the test drives two features.
 7. Add a CHANGELOG line (see below). Run `make ready`.
 
 ### Recipe: add an MCP tool
@@ -49,6 +49,9 @@ Follow these steps literally. Every path below exists.
 7. Add a CHANGELOG line. Run `make ready`.
 
 ### Before you commit: `make ready`
+
+- A feature change → `make feature` (its tests, cached, without the whole-server journeys).
+- Before an install → `make ready` (everything, journeys included).
 
 It runs gofmt (rewrites files), build, vet, the rules module, `make inventory` (regenerates
 `docs/generated/` and Hack's `openapi.json`), the inventory check, `sqlcheck -migrations`,
@@ -134,7 +137,7 @@ make check    # everything, as CI runs it
 the DB-backed test fixtures (connector, hack, analytics, netusage, papermetrics -- anything
 gated on `DB_DSN`) a disposable Postgres and fails if any of them skip instead of running;
 `make test` is the fast no-DB loop (`go test ./...`), which still skips those fixtures. Quick
-loop: `go test ./host/data/datahttp/` (or the route package you changed) (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
+loop: `go test ./host/data/kv/` (or the route package you changed) (wrap heavy runs in the same `sudo systemd-run ... MemoryMax=2G` as the build).
 Each DB-backed test package has a `TestMain` calling `testdb.Main` (`host/testdb`): under the
 script (`TESTDB_ISOLATE=1`) every test process gets its own clone of the schema database, dropped
 afterwards, so packages never share rows. Fixtures that start background workers must cancel and

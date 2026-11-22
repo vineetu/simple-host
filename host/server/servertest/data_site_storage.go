@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/data/datahttp"
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
@@ -70,9 +70,9 @@ func (s StorageTestSite) Must(t *testing.T, method, path string, body any, heade
 	return r
 }
 
-func StorageKVFixtureCall(t *testing.T, h *datahttp.DataHandler, siteID, resource string) datahttp.StorageCall {
+func StorageKVFixtureCall(t *testing.T, h *appstorage.Handler, siteID, resource string) appstorage.Call {
 	t.Helper()
-	c := datahttp.StorageCall{SiteID: siteID, ResourceName: resource}
+	c := appstorage.Call{SiteID: siteID, ResourceName: resource}
 	site, err := sitesrepo.GetSiteByID(context.Background(), h.Database, siteID)
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func StorageKVFixtureCall(t *testing.T, h *datahttp.DataHandler, siteID, resourc
 	return c
 }
 
-func SeedStorageKV(t *testing.T, h *datahttp.DataHandler, siteID, resource, key, value, writer string) {
+func SeedStorageKV(t *testing.T, h *appstorage.Handler, siteID, resource, key, value, writer string) {
 	t.Helper()
 	c := StorageKVFixtureCall(t, h, siteID, resource)
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.StorageRuntimeDir(c), resource), true, false)
@@ -104,7 +104,7 @@ func SeedStorageKV(t *testing.T, h *datahttp.DataHandler, siteID, resource, key,
 	}
 }
 
-func ReadStorageKVAuthor(t *testing.T, h *datahttp.DataHandler, siteID, resource, key string) string {
+func ReadStorageKVAuthor(t *testing.T, h *appstorage.Handler, siteID, resource, key string) string {
 	t.Helper()
 	c := StorageKVFixtureCall(t, h, siteID, resource)
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.StorageRuntimeDir(c), resource), false, false)
@@ -119,7 +119,7 @@ func ReadStorageKVAuthor(t *testing.T, h *datahttp.DataHandler, siteID, resource
 	return item.VisitorID
 }
 
-func ReadStorageKVValue(t *testing.T, h *datahttp.DataHandler, c datahttp.StorageCall, key string) string {
+func ReadStorageKVValue(t *testing.T, h *appstorage.Handler, c appstorage.Call, key string) string {
 	t.Helper()
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.StorageRuntimeDir(c), c.ResourceName), false, false)
 	if err != nil {

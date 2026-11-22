@@ -13,7 +13,7 @@ import (
 
 type Error = hackmodel.Error
 
-func internalError(err error) error { return &Error{Code: "internal", Message: err.Error()} }
+func InternalError(err error) error { return &Error{Code: "internal", Message: err.Error()} }
 
 // The event_closed wordings of the organiser team routes.
 const (
@@ -26,7 +26,7 @@ func errTeamsLocked() error {
 }
 
 // errEventNotFound is the 404 that never confirms where someone belongs.
-func errEventNotFound() error { return &Error{Code: "event_not_found", Message: "event not found"} }
+func ErrEventNotFound() error { return &Error{Code: "event_not_found", Message: "event not found"} }
 
 func errDeadlinePassed() error {
 	return &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
@@ -34,7 +34,7 @@ func errDeadlinePassed() error {
 
 // participantStage refuses a participant team change outside the
 // team-building stages.
-func participantStage(stage string) error {
+func ParticipantStage(stage string) error {
 	if !hackteams.ParticipantTeamStages(stage) {
 		return errTeamsLocked()
 	}
@@ -50,7 +50,7 @@ func organiserStage(stage, msg string) error {
 	return nil
 }
 
-func isID(s string) bool { return sites.UUIDShape.MatchString(s) }
+func IsID(s string) bool { return sites.UUIDShape.MatchString(s) }
 
 func normSlug(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 
@@ -61,7 +61,7 @@ func notFoundAs(err, want error) error {
 	return err
 }
 
-func checkLine(s, field string, min, max int) (string, error) {
+func CheckLine(s, field string, min, max int) (string, error) {
 	v, e := eventapp.Line(s, field, min, max)
 	if e != nil {
 		return "", &Error{Code: e.Code, Message: e.Message}
@@ -75,7 +75,7 @@ func optionalLine(p *string, field string, min, max int) (*string, error) {
 	if p == nil {
 		return nil, nil
 	}
-	v, err := checkLine(eventapp.StripInvisible(*p), field, min, max)
+	v, err := CheckLine(eventapp.StripInvisible(*p), field, min, max)
 	if err != nil {
 		return nil, err
 	}

@@ -46,6 +46,8 @@
 # Usage:
 #   bash scripts/test-integration.sh                 # starts its own Postgres via Docker
 #   bash scripts/test-integration.sh --full          # run every package, ignoring the cache
+#   bash scripts/test-integration.sh --feature       # cached, without the whole-server journeys
+#     # (host/server, host/server/servertest/..., products/hack/servertest): `make feature`
 #   TEST_PG_URL=postgres://postgres:postgres@127.0.0.1:5432 bash scripts/test-integration.sh
 #   bash scripts/test-integration.sh -run '^TestFoo$' # extra args passed through to `go test`
 #   TEST_PKGS=./host/server/servertest/datatest TEST_COUNT=5 bash scripts/test-integration.sh -shuffle=on -run '^TestFoo'
@@ -56,10 +58,12 @@ set -u
 cd "$(dirname "$0")/.."
 
 count_flag=()
-if [ "${1:-}" = "--full" ]; then
-  shift
-  count_flag=(-count=1)
-fi
+feature_only=0
+while case "${1:-}" in
+  --full) count_flag=(-count=1) ;;
+  --feature) feature_only=1 ;;
+  *) false ;;
+esac; do shift; done
 if [ -n "${TEST_COUNT:-}" ]; then
   count_flag=(-count="$TEST_COUNT")
 fi
@@ -255,6 +259,11 @@ fi
 repo_root="$PWD"
 while read -r import_path package_dir; do
   [ -n "$import_path" ] || continue
+  if [ "$feature_only" = 1 ]; then
+    case "$package_dir" in
+      "$repo_root"/host/server|"$repo_root"/host/server/servertest|"$repo_root"/host/server/servertest/*|"$repo_root"/products/hack/servertest) continue ;;
+    esac
+  fi
   case "$package_dir" in
     "$repo_root"/products/*|"$repo_root"/cmd/simple-hack) product_packages+=("$import_path") ;;
     *) platform_packages+=("$import_path") ;;

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/access/connector"
 	accountrepo "github.com/vsriram/simple-host/host/access/repo"
 	operationrepo "github.com/vsriram/simple-host/host/ops/repo"
 )
@@ -67,7 +67,7 @@ func runOAuthClientCommand(args []string) int {
 			fmt.Fprintln(os.Stderr, "--name is required")
 			return 2
 		}
-		id, secret, err := accesshttp.CreateOperatorClient(ctx, database, *name, uris, !*noPKCE)
+		id, secret, err := connector.CreateOperatorClient(ctx, database, *name, uris, !*noPKCE)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "create:", err)
 			return 1
@@ -83,7 +83,7 @@ func runOAuthClientCommand(args []string) int {
 			fmt.Fprintln(os.Stderr, oauthClientUsage)
 			return 2
 		}
-		if err := accesshttp.SetOperatorClientRedirects(ctx, database, args[1], args[2:]); err != nil {
+		if err := connector.SetOperatorClientRedirects(ctx, database, args[1], args[2:]); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				fmt.Fprintln(os.Stderr, "no hand-registered client with that id")
 			} else {

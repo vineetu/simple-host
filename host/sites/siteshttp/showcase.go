@@ -4,16 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
 	"net/http"
-	"sort"
 	"strings"
 
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
-	xhtml "golang.org/x/net/html"
 )
 
 // publicSitesBase reconstructs the scheme://host the browser reached the content host on. Behind nginx,
@@ -30,14 +26,6 @@ func (h *SiteHandler) publicSitesBase(r *http.Request) string {
 	return scheme + "://" + host
 }
 
-func (h *SiteHandler) mainSiteURL() string {
-	d := h.SiteDomain
-	if d == "" {
-		d = "simple-host.app"
-	}
-	return "https://" + d
-}
-
 // showcase renders a user's public profile at sites.<domain>/<handle> (nginx proxies it here as
 // GET /internal/showcase/{handle}). Always the PUBLIC view; the page hydrates into the owner view
 // client-side when a matching same-origin API key is present.
@@ -47,7 +35,7 @@ func (h *SiteHandler) Showcase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.Ed.Routes().HostedEvents && !h.Hosts.Addressing().PersonHostsOn() && sites.ShowcaseHandle(handle) {
-		user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
+		user, err := h.StoreAccounts().GetUserByHandle(r.Context(), handle)
 		if err == nil {
 			s, has, err := h.SitesSvc().HomeSite(r.Context(), user.ID)
 			if err != nil {
@@ -73,10 +61,10 @@ func (h *SiteHandler) redirectHandleAlias(w http.ResponseWriter, r *http.Request
 	if !sites.ShowcaseHandle(handle) {
 		return false
 	}
-	if _, err := h.storeAccounts().GetUserByHandle(r.Context(), handle); err == nil {
+	if _, err := h.StoreAccounts().GetUserByHandle(r.Context(), handle); err == nil {
 		return false
 	}
-	current, err := h.storeAccounts().ResolveHandleAlias(r.Context(), handle)
+	current, err := h.StoreAccounts().ResolveHandleAlias(r.Context(), handle)
 	if err != nil || current == "" || current == handle {
 		return false
 	}
@@ -98,7 +86,7 @@ func (h *SiteHandler) OwnerAppOrStatic(fileServer http.Handler) http.Handler {
 		seg := strings.Trim(r.URL.Path, "/")
 		if seg != "" && !h.Ed.Routes().HostedEvents && !strings.ContainsAny(seg, "/.") &&
 			sites.ShowcaseHandle(strings.ToLower(seg)) {
-			if _, err := h.storeAccounts().GetUserByHandle(r.Context(), strings.ToLower(seg)); err == nil {
+			if _, err := h.StoreAccounts().GetUserByHandle(r.Context(), strings.ToLower(seg)); err == nil {
 				h.renderShowcase(w, r, strings.ToLower(seg))
 				return
 			}
@@ -110,16 +98,6 @@ func (h *SiteHandler) OwnerAppOrStatic(fileServer http.Handler) http.Handler {
 	})
 }
 
-// contentBaseURL is the absolute base for user site and showcase links: always the content host,
-// whichever origin served the page.
-func (h *SiteHandler) contentBaseURL() string {
-	host := h.ContentHost
-	if host == "" {
-		host = "sites." + h.SiteDomain
-	}
-	return "https://" + host
-}
-
 // renderShowcase renders the per-user showcase for handle: public read-only view on the content host,
 // hydrates into the owner dashboard on the base app.
 func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, handle string) {
@@ -128,7 +106,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
+	user, err := h.StoreAccounts().GetUserByHandle(r.Context(), handle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			h.RenderNotFound(w, r, "/"+handle)
@@ -138,7 +116,7 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 		return
 	}
 
-	data, err := h.publicShowcaseData(r.Context(), user)
+	data, err := h.PublicShowcaseData(r.Context(), user)
 	if err != nil {
 		h.renderServiceError(w, r)
 		return
@@ -155,112 +133,6 @@ func (h *SiteHandler) renderShowcase(w http.ResponseWriter, r *http.Request, han
 	w.Header().Set("X-Robots-Tag", "index")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(httpx.StampNonce(r, page))
-}
-
-func (h *SiteHandler) publicShowcaseData(ctx context.Context, user model.User) (web.ShowcaseData, error) {
-	sites, err := h.SitesSvc().ListSitesByUser(ctx, user.ID)
-	if err != nil {
-		return web.ShowcaseData{}, err
-	}
-	bio, err := h.storeAccounts().GetShowcaseBio(ctx, user.ID)
-	if err != nil {
-		return web.ShowcaseData{}, err
-	}
-	prefs, err := h.SitesSvc().ShowcasePreferences(ctx, user.ID)
-	if err != nil {
-		return web.ShowcaseData{}, err
-	}
-	handle := user.Handle.String
-	data := web.ShowcaseData{Bio: bio, Handle: handle, SitesBaseURL: h.contentBaseURL(), PublicShowcaseURL: h.PersonPageURL(handle), OwnerAppURL: h.mainSiteURL() + "/" + handle, MainURL: h.mainSiteURL(), Sites: []web.ShowcaseSite{}}
-	for _, s := range sites {
-		if s.Visibility != "public" || !s.OpenToAnyone() {
-			continue
-		}
-		title, desc := h.showcaseMetadata(s)
-		data.Sites = append(data.Sites, web.ShowcaseSite{Name: s.Name, URL: h.SiteURL(handle, s.Name), CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt, Visibility: "public", Title: title, Description: desc, Pinned: prefs[s.ID].Pinned, Order: prefs[s.ID].Order})
-	}
-	sort.SliceStable(data.Sites, func(i, j int) bool {
-		if data.Sites[i].Pinned != data.Sites[j].Pinned {
-			return data.Sites[i].Pinned
-		}
-		return data.Sites[i].Order < data.Sites[j].Order
-	})
-	return data, nil
-}
-
-// Metadata comes only from a visible site's deployed index, never a remote fetch.
-func (h *SiteHandler) showcaseMetadata(s model.Site) (title, description string) {
-	f, _, err := h.Disk.OpenFile(context.Background(), sites.FileVersion{UserID: s.UserID, SiteName: s.Name}, "index.html")
-	if err != nil {
-		return "", ""
-	}
-	defer f.Close()
-	z := xhtml.NewTokenizer(io.LimitReader(f, 256<<10))
-	inTitle := false
-	for {
-		switch z.Next() {
-		case xhtml.ErrorToken:
-			return strings.TrimSpace(title), strings.TrimSpace(description)
-		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
-			t := z.Token()
-			if t.Data == "title" {
-				inTitle = true
-			}
-			if t.Data == "meta" {
-				var name, content string
-				for _, a := range t.Attr {
-					if a.Key == "name" {
-						name = strings.ToLower(a.Val)
-					}
-					if a.Key == "content" {
-						content = a.Val
-					}
-				}
-				if name == "description" && description == "" {
-					description = content
-				}
-			}
-		case xhtml.EndTagToken:
-			if z.Token().Data == "title" {
-				inTitle = false
-			}
-		case xhtml.TextToken:
-			if inTitle {
-				title += string(z.Text())
-			}
-		}
-	}
-}
-
-func (h *SiteHandler) showcaseFeed(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Del("Access-Control-Allow-Credentials")
-	w.Header().Set("Cache-Control", "no-store")
-	handle := strings.ToLower(strings.TrimSpace(r.PathValue("handle")))
-	if h.Ed.Routes().HostedEvents || !sites.ShowcaseHandle(handle) {
-		httpx.WriteJSON(w, 404, httpx.ErrorResponse{Error: "not found", Code: "not_found"})
-		return
-	}
-	user, err := h.storeAccounts().GetUserByHandle(r.Context(), handle)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteJSON(w, 404, httpx.ErrorResponse{Error: "not found", Code: "not_found"})
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if h.ShowcaseLimiter != nil && !h.ShowcaseLimiter.Allow("showcase:"+user.ID+":"+httpx.ClientIP(r)) {
-		httpx.TooManyRequests(w)
-		return
-	}
-	data, err := h.publicShowcaseData(r.Context(), user)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	w.Header().Set("Cache-Control", "public, max-age=30")
-	httpx.WriteJSON(w, 200, map[string]any{"handle": data.Handle, "bio": data.Bio, "sites": data.Sites})
 }
 
 // notFound is the nginx error_page fallback. nginx sends file misses here and
@@ -326,7 +198,7 @@ func (h *SiteHandler) RenderNotFound(w http.ResponseWriter, r *http.Request, ori
 	base := h.publicSitesBase(r)
 	message := "Page not found"
 	subtext := "The page you’re looking for doesn’t exist."
-	backURL := h.mainSiteURL()
+	backURL := h.MainSiteURL()
 	// Baseline, unconditional literal on the hosted service, true for
 	// simple-hack.app too (same team, deliberate cross-brand reference) --
 	// must stay byte-identical there. A self-hosted install has no business
@@ -339,7 +211,7 @@ func (h *SiteHandler) RenderNotFound(w http.ResponseWriter, r *http.Request, ori
 	if len(segs) >= 1 {
 		handle := strings.ToLower(segs[0])
 		if sites.ShowcaseHandle(handle) {
-			if _, err := h.storeAccounts().GetUserByHandle(r.Context(), handle); err == nil {
+			if _, err := h.StoreAccounts().GetUserByHandle(r.Context(), handle); err == nil {
 				message = "That page isn’t here"
 				subtext = "This site or page doesn’t exist under @" + handle + "."
 				backURL = h.PersonPageURL(handle)

@@ -1,11 +1,12 @@
 package hack
 
 import (
+	"strings"
+	"testing"
+
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/extension"
 	"github.com/vsriram/simple-host/host/server"
-	"strings"
-	"testing"
 )
 
 func TestBadProductSettingStopsStartup(t *testing.T) {

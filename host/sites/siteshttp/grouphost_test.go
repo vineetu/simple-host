@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 	"github.com/vsriram/simple-host/host/web"
 
 	"github.com/vsriram/simple-host/host/edition"
@@ -51,7 +52,7 @@ func TestGroupHostDispatch(t *testing.T) {
 		{"api refuses builtin", "GET", "/v1/sites/group/me", nil, 404, false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "example.test"})
+			h := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "example.test"}})
 			page, api := false, false
 			h.Hosts.SetGroupHosts(&stubGroupHosts{err: tc.err, page: func(w http.ResponseWriter, r *http.Request, u model.User) bool {
 				page = true

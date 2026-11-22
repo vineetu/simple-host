@@ -1,8 +1,6 @@
 package sitestest
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,11 +10,8 @@ import (
 	"time"
 
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
-	"github.com/vsriram/simple-host/host/sites"
-	"github.com/vsriram/simple-host/host/sites/repo"
+	"github.com/vsriram/simple-host/host/sites/sitemap"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
-	"github.com/vsriram/simple-host/host/sqlkit"
-	"github.com/vsriram/simple-host/host/testdb"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -28,61 +23,8 @@ func hostedService(t *testing.T) {
 
 func (a *App) sitemap(method string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
-	a.Sites.ServeSitemap(w, httptest.NewRequest(method, "https://"+rt.SiteDomain+"/sitemap.xml", nil))
+	sitemap.Serve(a.Sites.Handler, &a.Sites.Sitemaps)(w, httptest.NewRequest(method, "https://"+rt.SiteDomain+"/sitemap.xml", nil))
 	return w
-}
-
-// A failing product sitemap filter answers 503 and is not cached.
-func TestSitemapFilterErrorIsNotCached(t *testing.T) {
-	a := NewApp(t)
-	hostedService(t)
-	a.Deploy(t, a.NewPerson(t, "sitemap-filter"), "open")
-	calls, fail := 0, true
-	a.Sites.SetSitemapFilter(func(ctx context.Context, q sqlkit.Querier, sites []repo.Site) ([]repo.Site, error) {
-		calls++
-		if fail {
-			return sites, errors.New("test sitemap filter failure")
-		}
-		return sites, nil
-	})
-	if w := a.sitemap("GET"); w.Code != http.StatusServiceUnavailable || calls != 1 || len(a.Sites.Sitemaps.ByBrand) != 0 {
-		t.Fatalf("filter error: status=%d calls=%d cached=%d", w.Code, calls, len(a.Sites.Sitemaps.ByBrand))
-	}
-	fail = false
-	for range 2 {
-		if w := a.sitemap("GET"); w.Code != http.StatusOK || calls != 2 || len(a.Sites.Sitemaps.ByBrand) != 1 {
-			t.Fatalf("recovered filter: status=%d calls=%d cached=%d", w.Code, calls, len(a.Sites.Sitemaps.ByBrand))
-		}
-	}
-}
-
-// The platform's sitemap query never touches a product's tables.
-func TestPlatformSitemapNoProductQueries(t *testing.T) {
-	a := NewApp(t)
-	a.Deploy(t, a.NewPerson(t, "sitemap-platform"), "open")
-	db, recorder := testdb.OpenRecording(os.Getenv("DB_DSN"))
-	t.Cleanup(func() { db.Close() })
-	a.Sites.Database = db
-	sites, err := a.Sites.SitesSvc().ListSitemapSites(t.Context())
-	if err != nil || len(sites) == 0 {
-		t.Fatalf("platform sitemap: %d sites, %v", len(sites), err)
-	}
-	if len(recorder.Statements()) != 1 || !recorder.Names("sites") {
-		t.Fatalf("expected one platform query, got %v", recorder.Statements())
-	}
-	objects, err := os.ReadFile("../../../../scripts/split/hack-objects.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, line := range strings.Split(string(objects), "\n") {
-		fields := strings.Split(line, "|")
-		if len(fields) < 2 || strings.TrimSpace(fields[0]) != "table" {
-			continue
-		}
-		if name := strings.TrimSpace(fields[1]); recorder.Names(name) {
-			t.Errorf("platform sitemap queried product table %s", name)
-		}
-	}
 }
 
 // The sitemap lists each servable, indexable site at its home address and
@@ -158,8 +100,8 @@ func TestHostedSitemapSites(t *testing.T) {
 		t.Fatal("HEAD cache miss")
 	}
 	for _, cache := range a.Sites.Sitemaps.ByBrand {
-		if left := time.Until(cache.Expires); left > sites.SitemapTTL || left < sites.SitemapTTL-time.Minute {
-			t.Fatalf("cache expiry %v, want about %v", left, sites.SitemapTTL)
+		if left := time.Until(cache.Expires); left > sitemap.SitemapTTL || left < sitemap.SitemapTTL-time.Minute {
+			t.Fatalf("cache expiry %v, want about %v", left, sitemap.SitemapTTL)
 		}
 	}
 	// Self-hosted uses the same generator but never enumerates sites.

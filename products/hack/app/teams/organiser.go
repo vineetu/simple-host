@@ -24,7 +24,7 @@ func isUnique(err error) bool { return hackevents.UniqueError(err) }
 // deleted team has nothing to rotate.
 func rotateTeamCode(ctx context.Context, q sqlkit.Querier, teamID string) error {
 	for attempt := 0; attempt < 8; attempt++ {
-		code, err := hackevents.RandomCode(teamCodeLength)
+		code, err := hackevents.RandomCode(TeamCodeLength)
 		if err != nil {
 			return err
 		}
@@ -45,12 +45,12 @@ func (s *Service) RemovePerson(ctx context.Context, ev model.Event, userID strin
 	if err := organiserStage(ev.Stage, msgEnded); err != nil {
 		return err
 	}
-	if !isID(userID) {
-		return errEventNotFound()
+	if !IsID(userID) {
+		return ErrEventNotFound()
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	defer tx.Rollback()
 	// Lock the event first, matching self-leave. Removing a judge locks the
@@ -58,7 +58,7 @@ func (s *Service) RemovePerson(ctx context.Context, ev model.Event, userID strin
 	// key-share lock. Self-leave can hold the event update lock while waiting
 	// for that member, causing a deadlock unless this locks the event first.
 	if _, err = eventrepo.GetEventForShare(ctx, tx, ev.ID); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	oldTeam := memberTeamID(ctx, tx, ev.ID, userID)
 	m, err := hackmembers.Member(ctx, tx, ev.ID, userID, hackmembers.ForUpdate)
@@ -81,7 +81,7 @@ func (s *Service) RemovePerson(ctx context.Context, ev model.Event, userID strin
 		return err
 	}
 	if err = rotateIfKept(ctx, tx, oldTeam); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	return syncAndCommit(ctx, tx, ev.ID)
 }
@@ -100,9 +100,9 @@ func rotateIfKept(ctx context.Context, tx *sql.Tx, teamID string) error {
 
 func syncAndCommit(ctx context.Context, tx *sql.Tx, eventID string) error {
 	if err := eventapp.SyncAccess(ctx, tx, eventID); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
-	return commit(tx)
+	return Commit(tx)
 }
 
 // MoveMember puts a participant on the team rawSlug names and rotates
@@ -112,25 +112,25 @@ func (s *Service) MoveMember(ctx context.Context, ev model.Event, userID, rawSlu
 	if err := organiserStage(ev.Stage, msgArchived); err != nil {
 		return model.EventTeam{}, err
 	}
-	if !isID(userID) {
-		return model.EventTeam{}, errEventNotFound()
+	if !IsID(userID) {
+		return model.EventTeam{}, ErrEventNotFound()
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.EventTeam{}, internalError(err)
+		return model.EventTeam{}, InternalError(err)
 	}
 	defer tx.Rollback()
 	oldTeam := memberTeamID(ctx, tx, ev.ID, userID)
 	team, err := teamrepo.MoveParticipantToTeam(ctx, tx, ev.ID, userID, normSlug(rawSlug), ev.TeamSizeMax)
 	if errors.Is(err, ErrNotParticipant) {
-		return team, errEventNotFound()
+		return team, ErrEventNotFound()
 	}
 	if err != nil {
 		return team, err
 	}
 	if oldTeam != "" && oldTeam != team.ID {
 		if err = rotateTeamCode(ctx, tx, oldTeam); err != nil {
-			return team, internalError(err)
+			return team, InternalError(err)
 		}
 	}
 	return team, syncAndCommit(ctx, tx, ev.ID)
@@ -143,8 +143,8 @@ func (s *Service) RemoveTeamMember(ctx context.Context, ev model.Event, caller m
 	if err := organiserStage(ev.Stage, msgArchived); err != nil {
 		return err
 	}
-	if !isID(userID) {
-		return errEventNotFound()
+	if !IsID(userID) {
+		return ErrEventNotFound()
 	}
 	participant := caller.Role == "participant"
 	slug, teamName, err := s.removalTeam(ctx, ev, caller, actorID, userID, normSlug(rawSlug))
@@ -153,7 +153,7 @@ func (s *Service) RemoveTeamMember(ctx context.Context, ev model.Event, caller m
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	defer tx.Rollback()
 	if participant {
@@ -179,10 +179,10 @@ func (s *Service) removalTeam(ctx context.Context, ev model.Event, caller model.
 	}
 	team, err := teamrepo.GetEventTeamByID(ctx, s.db, caller.TeamID.String)
 	if err != nil {
-		return "", "", internalError(err)
+		return "", "", InternalError(err)
 	}
 	if slug != "" && slug != team.Slug {
-		return "", "", errEventNotFound()
+		return "", "", ErrEventNotFound()
 	}
 	return team.Slug, team.Name, nil
 }
@@ -190,7 +190,7 @@ func (s *Service) removalTeam(ctx context.Context, ev model.Event, caller model.
 // checkRemover rechecks a participant remover's authority under locks: both member rows sorted by user id, then the team row.
 func checkRemover(ctx context.Context, tx *sql.Tx, eventID, actorID, userID, slug string) error {
 	if err := hackmembers.LockMembers(ctx, tx, eventID, actorID, userID); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	actor, err := approvedMember(ctx, tx, eventID, actorID, hackmembers.NoLock)
 	if err != nil || !actor.TeamID.Valid {
@@ -205,7 +205,7 @@ func checkRemover(ctx context.Context, tx *sql.Tx, eventID, actorID, userID, slu
 	}
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, teamID, true)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	if st.Frozen() {
 		return teamrepo.ErrHackTeamFrozen
@@ -222,25 +222,25 @@ func takeOffTeam(ctx context.Context, tx *sql.Tx, eventID, userID, slug, teamNam
 	}
 	if participant {
 		if err := hackmembers.SetRemovalNotice(ctx, tx, eventID, userID, "A teammate took you off "+teamName+"."); err != nil {
-			return internalError(err)
+			return InternalError(err)
 		}
 	}
 	// Email uses the same words as the removal notice.
 	m, err := hackmembers.Member(ctx, tx, eventID, userID, hackmembers.NoLock)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	notice := m.TeamRemovalNotice
 	if notice != "" {
 		if err := hackmembers.NotifyUsers(ctx, tx, eventID, hackmembers.NoticeTeamRemoved, oldTeam, "", notice, userID); err != nil {
-			return internalError(err)
+			return InternalError(err)
 		}
 	}
 	if oldTeam == "" {
 		return nil
 	}
 	if err := rotateTeamCode(ctx, tx, oldTeam); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	return nil
 }

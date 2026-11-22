@@ -2,13 +2,14 @@ package hack
 
 import (
 	"bytes"
-	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"sort"
 	"testing"
+
+	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"

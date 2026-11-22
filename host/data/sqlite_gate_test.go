@@ -14,10 +14,8 @@ import (
 
 func checkAdmissionIdle(t *testing.T, slots *SiteSlots) {
 	t.Helper()
-	slots.mu.Lock()
-	defer slots.mu.Unlock()
-	if len(slots.sites) != 0 || len(slots.gate.Slots) != 0 {
-		t.Fatalf("leaked slots: sites=%d global=%d", len(slots.sites), len(slots.gate.Slots))
+	if sites, global := slots.InUse(); sites != 0 || global != 0 {
+		t.Fatalf("leaked slots: sites=%d global=%d", sites, global)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/access/gate"
 	"github.com/vsriram/simple-host/host/access/oauth"
 	"github.com/vsriram/simple-host/host/config"
 )
@@ -20,16 +21,16 @@ func OAuthSettings(cfg config.Config, service *accounts.Service) accesshttp.OAut
 // signInProvider adapts provider snapshots to the accounts consumer contract.
 type signInProvider struct{ oauth.Provider }
 
-func (p signInProvider) Exchange(ctx context.Context, code, verifier string) (accounts.ProviderIdentity, error) {
+func (p signInProvider) Exchange(ctx context.Context, code, verifier string) (gate.ProviderIdentity, error) {
 	ident, err := p.Provider.Exchange(ctx, code, verifier)
-	return accounts.ProviderIdentity{
+	return gate.ProviderIdentity{
 		Provider: ident.Provider, UserID: ident.UserID,
 		Email: ident.Email, EmailVerified: ident.EmailVerified,
 	}, err
 }
 
-func configuredProviderSignIn(service *accounts.Service, cfg config.Config) *accounts.ProviderSignIn {
-	providers := make(map[string]accounts.Provider, 3)
+func configuredProviderSignIn(service *accounts.Service, cfg config.Config) *gate.ProviderSignIn {
+	providers := make(map[string]gate.Provider, 3)
 	if cfg.GoogleOAuthEnabled() {
 		providers["google"] = signInProvider{oauth.NewGoogle(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.OAuthRedirectURI("google"))}
 	}
@@ -43,5 +44,5 @@ func configuredProviderSignIn(service *accounts.Service, cfg config.Config) *acc
 			InsecureAllowed: cfg.OIDCInsecureAllowed,
 		})}
 	}
-	return accounts.NewProviderSignIn(service, providers)
+	return gate.NewProviderSignIn(service, providers)
 }

@@ -9,7 +9,8 @@ import (
 
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/handler"
 	"github.com/vsriram/simple-host/host/model"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
@@ -50,7 +51,7 @@ func TestRDVisitorDiscoveryHidesPrivateResources(t *testing.T) {
 		}
 	}
 	check()
-	path := f.A.Data.StorageSQLPath(datahttp.StorageCall{OwnerID: f.OwnerID, SiteName: "shop", ResourceName: "secretdb"})
+	path := f.A.Data.StorageSQLPath(appstorage.Call{OwnerID: f.OwnerID, SiteName: "shop", ResourceName: "secretdb"})
 	if err := os.WriteFile(path, []byte("not a SQLite database"), 0600); err != nil {
 		t.Fatal(err)
 	}

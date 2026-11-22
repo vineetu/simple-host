@@ -12,7 +12,7 @@ import (
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/config"
 	appstorage "github.com/vsriram/simple-host/host/data"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
 	"github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
@@ -66,7 +66,7 @@ type Deps struct {
 	Mail      *email.ResendSender
 	Accounts  *accountapp.Service
 	Site      *siteshttp.SiteHandler
-	Data      *datahttp.DataHandler
+	Data      *appstorage.Handler
 	Connector *accesshttp.ConnectorHandler
 	AuthMW    func(http.Handler) http.Handler
 	Mux       *http.ServeMux

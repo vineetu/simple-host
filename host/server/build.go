@@ -20,7 +20,7 @@ import (
 	"github.com/vsriram/simple-host/host/buildinfo"
 	"github.com/vsriram/simple-host/host/config"
 	storageapp "github.com/vsriram/simple-host/host/data"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
 	"github.com/vsriram/simple-host/host/db/migrations"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
@@ -36,6 +36,9 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/analytics"
 	"github.com/vsriram/simple-host/host/sites/eventdns"
+	"github.com/vsriram/simple-host/host/sites/events"
+	"github.com/vsriram/simple-host/host/sites/namepeer"
+	"github.com/vsriram/simple-host/host/sites/setup"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/host/web"
@@ -357,7 +360,7 @@ func prepareDatabase(db *sql.DB, cfg config.Config, exts []*extension.Extension)
 // applySavedSetup reads the hostnames saved by the setup page into cfg; they
 // win over the environment, which a catalog container may mount read-only.
 // With neither, it returns the setup handler the instance serves alone.
-func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, productInstanceURL string) (*siteshttp.SetupHandler, error) {
+func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, productInstanceURL string) (*setup.SetupHandler, error) {
 	savedDomain, savedContent, err := operations.InstanceConfigured(context.Background(), db)
 	if err != nil {
 		return nil, fmt.Errorf("read instance config: %v", err)
@@ -373,7 +376,7 @@ func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, produc
 	if cfg.SiteDomainSet {
 		return nil, nil
 	}
-	return siteshttp.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir, ed, productInstanceURL), nil
+	return setup.NewSetupHandler(db, cfg.SetupPublicAPI, cfg.SetupPassword, cfg.DataDir, ed, productInstanceURL), nil
 }
 
 // configurePresentation sets the instance hosts and support contact the pages
@@ -421,7 +424,7 @@ func configureSignIn(cfg config.Config, ed *edition.Edition, hosted bool) *email
 	if cfg.ResendAPIKey == "" {
 		log.Printf("no RESEND_API_KEY: no email is sent, so sign-in codes (/v1/auth) are off; accounts use keys the admin issues")
 	}
-	accesshttp.SetEmailSignIn(cfg.EmailSignInEnabled())
+	web.SetEmailSignIn(cfg.EmailSignInEnabled())
 	httpx.SetTrustedProxies(cfg.TrustedProxyCIDRs)
 	if len(cfg.TrustedProxyCIDRs) > 0 {
 		log.Printf("trusted proxies: %d network(s) (TRUSTED_PROXY_CIDRS); X-Forwarded-For is believed only from them", len(cfg.TrustedProxyCIDRs))
@@ -466,7 +469,7 @@ func newHosts(cfg config.Config, db *sql.DB, disk sites.Disk, ed *edition.Editio
 
 // configureSites applies the hosting settings to the site, access and data
 // handlers before their routes are registered.
-func configureSites(cfg config.Config, db *sql.DB, site *siteshttp.SiteHandler, access *accesshttp.AccessHandler, data *datahttp.DataHandler, user *accesshttp.UserHandler) error {
+func configureSites(cfg config.Config, db *sql.DB, site *siteshttp.SiteHandler, access *accesshttp.AccessHandler, data *storageapp.Handler, user *accesshttp.UserHandler) error {
 	access.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	site.SetVisitorSignIn(cfg.ResendAPIKey != "", cfg.EnabledVisitorProviders())
 	site.SetTeamSiteFlatHosts(cfg.TeamSiteFlatHosts)
@@ -511,7 +514,7 @@ func configureSites(cfg config.Config, db *sql.DB, site *siteshttp.SiteHandler, 
 // registerEventDomains serves event hostnames for hackathon organisers. It is
 // off unless a DNS token and at least one domain are configured, so a
 // self-hosted instance never hands out names under a domain it does not control.
-func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *siteshttp.EventDomainHandler {
+func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *events.Handler {
 	if cfg.EventDNSToken == "" || len(cfg.EventDomains) == 0 {
 		return nil
 	}
@@ -521,9 +524,9 @@ func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mu
 		// One name list with the hackathon platform.
 		deps.EventNamePeer = eventdns.NewNamePeer(cfg.EventNamePeer)
 	}
-	ev := siteshttp.NewEventDomainHandler(sites.New(db, nil, nil, 0, deps), cfg.EventDomains)
+	ev := events.NewHandler(sites.New(db, nil, nil, 0, deps), cfg.EventDomains)
 	if peered {
-		siteshttp.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)
+		namepeer.RegisterNamePeer(mux, cfg.EventDomains, ev.NameClaimed)
 		log.Printf("event hostnames: names checked with %s", cfg.EventNamePeer)
 	}
 	ev.Register(mux, authMW)
@@ -533,7 +536,7 @@ func registerEventDomains(cfg config.Config, db *sql.DB, ed *edition.Edition, mu
 
 // paperMetrics collects latency per route class, process samples and
 // aggregate snapshots for the research papers. PAPER_METRICS=off returns nil.
-func paperMetrics(cfg config.Config, db *sql.DB, hosted bool, data *datahttp.DataHandler, parts extension.Parts, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *papermetrics.Collector {
+func paperMetrics(cfg config.Config, db *sql.DB, hosted bool, data *storageapp.Handler, parts extension.Parts, mux *http.ServeMux, authMW func(http.Handler) http.Handler) *papermetrics.Collector {
 	if !papermetrics.Enabled() {
 		return nil
 	}

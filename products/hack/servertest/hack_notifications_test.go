@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/vsriram/simple-host/host/handler"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +18,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/vsriram/simple-host/host/handler"
 
 	notifyrepo "github.com/vsriram/simple-host/host/data/repo/notify"
 )

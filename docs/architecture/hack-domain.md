@@ -46,7 +46,7 @@ slug construction), and `hackentries` (completeness, judgeability, rubric valida
 assignment planning and score arithmetic). Rules receive values; services and repositories
 supply the clock, records and side effects.
 
-The transport entry points are `products/hack/hackhttp/hack.go` (`Register`, `loadMember`),
+The transport entry points are `products/hack/compose_routes.go` (`Register`) and `products/hack/core/core_access.go` (`LoadMember`),
 `hack_entries.go`, `hack_judging.go`, `hack_registration.go`, `hack_teams*.go` and
 `hack_voting.go`. MCP registers event and entry families in
 `products/hack/mcp/contribution.go` (`Contribution`); `hack_event_tools.go` and
@@ -71,7 +71,7 @@ stateDiagram-v2
 ```
 
 The arrows show the normal sequence and useful return paths, not an adjacency
-constraint. `hackhttp/hack.go` (`hackStagesOffered`, `setStage`) accepts any offered
+constraint. `core/core_hack.go` (`StagesOffered`) and `lifecycle/hack_events.go` (`setStage`) accepts any offered
 stage; `app/events/create.go` (`SetStage`) makes `archived` irreversible.
 Ending requires participants; an unused event must be deleted instead.
 Deletion is a separate operation and can occur at any stage (`DeleteEvent`).
@@ -227,7 +227,7 @@ scores. `app/entries/scores.go`, `PutJudgeScores`, locks the event, checks the
 judging lock, scoring stage, current judge/organiser membership, criterion bounds
 and pair eligibility, then commits scores together. The normal scoring stage is
 `judging`; the standing demo has a deliberate exception
-(`hackhttp/hack_judging.go`, `scoringStage`). Declaring a conflict leaves scores
+(`core/core_views.go`, `ScoringStage`). Declaring a conflict leaves scores
 stored; eligibility excludes them from totals and comments until it is removed.
 
 ```mermaid
@@ -246,7 +246,7 @@ transaction. There is no stage/lock prerequisite in that service or its HTTP
 publish handler; the screen's forward workflow is not an extra server constraint.
 `repository/hackentries/judging.go`, `UpsertEventResults`, preserves `full_ranking`
 on republish. Public reads filter rank/score visibility and refresh site links
-against current live sites (`hackhttp/hack_judging.go`, `getPublicResults`,
+against current live sites (`results/hack_results.go`, `getPublicResults`,
 `liveResultSites`); they do not recalculate the stored ranks.
 
 ## Actor and operation checks
@@ -257,30 +257,30 @@ actor's team or score. Every cell also obeys the operation's stage/deadline chec
 
 | Operation | O | P | A | J | Public | Permission check (under `products/hack/`) |
 |---|---|---|---|---|---|---|
-| Event settings, stages, registration decisions, announcements | yes | — | — | — | — | `hackhttp/hack.go`, `setStage`; `hack_registration.go`; `hack_content.go`: `loadMember(..., "organiser")` |
+| Event settings, stages, registration decisions, announcements | yes | — | — | — | — | `lifecycle/hack_events.go`, `setStage`; `registration/hack_registration.go`; `content/hack_content.go`: `core.LoadMember(..., "organiser")` |
 | Apply / join by shared code | existing role unchanged | existing role unchanged | same | same | signed-in applicant | `app/members/apply.go`, `Apply`; `app/events/join.go`, `JoinByCode` |
-| Create/join/leave team | — | own | own | — | — | `hackhttp/hack_teams.go`; `app/teams/membership.go`, `JoinTeam`, `LeaveTeam` |
-| Rename, lock, rotate link, manage admins | any team | — | own | — | — | `hackhttp/hack_teams_admin.go`; `app/teams/admin.go`, `participantTeam` |
+| Create/join/leave team | — | own | own | — | — | `teams/hack_teams.go`; `app/teams/membership.go`, `JoinTeam`, `LeaveTeam` |
+| Rename, lock, rotate link, manage admins | any team | — | own | — | — | `teams/hack_teams_admin.go`; `app/teams/admin.go`, `core.ParticipantTeam` |
 | Request to join | — | self, no team | — | — | — | `repository/hackteams/fill.go`, `NewTeamRequest` |
 | Withdraw join request | — | requester only | requester only | — | — | `repository/hackteams/fill.go`, `ResolveTeamRequest` |
 | Accept/decline join request | — | — | own team | — | — | `repository/hackteams/fill.go`, `ResolveTeamRequest`: team admin, no organiser override |
 | Send/cancel invitation | — | own team | own team | — | — | `repository/hackteams/fill.go`, `NewTeamRequest`, `ResolveTeamRequest`: any approved teammate |
 | Accept/decline invitation | — | invitee only | invitee only | — | — | `repository/hackteams/fill.go`, `ResolveTeamRequest`: invitee; acceptance also checks joining eligibility |
-| Place/remove people; delete team | yes | — | own member removal | — | — | `hackhttp/hack_teams.go`, `hack_finding.go`; `app/teams/organiser.go`, `RemoveTeamMember` |
-| Edit/submit/unsubmit entry, screenshot | — | own | own | — | — | `hackhttp/hack_entries.go`, `entryWrite`; `app/entries/entry.go`, `Write` |
-| Exclude/include entry, rubric/assignments/lock/publish | yes | — | — | — | — | `hackhttp/hack_entries.go`, `setEntryExcluded`; `hack_judging.go`: organiser role gate |
-| Queue and scores | own judging | — | — | own judging | — | `hackhttp/hack_judging.go`, `judgeQueue`, `putJudgeScores`; `app/entries/scores.go`, `PutJudgeScores` |
-| Declare conflict | any judge | — | — | self | — | `hackhttp/hack_judging.go`, `declareConflict` |
-| Vote | eligible | eligible, not own team | same | eligible | signed-in eligible voter | `app/entries/voting.go`, `CastVote`; `hackhttp/hack_voting.go` |
-| Public gallery / published results | yes | yes | yes | yes | yes | `hackhttp/hack_public.go`; `hack_judging.go`, `getPublicResults` |
-| Leave event | self | self | self | self | — | `app/members/leave.go`, `Leave`; custom membership gate in `hackhttp/hack_leave.go` |
+| Place/remove people; delete team | yes | — | own member removal | — | — | `teams/hack_teams.go`, `hack_finding.go`; `app/teams/organiser.go`, `RemoveTeamMember` |
+| Edit/submit/unsubmit entry, screenshot | — | own | own | — | — | `entries/hack_entries.go`, `entryWrite`; `app/entries/entry.go`, `Write` |
+| Exclude/include entry, rubric/assignments/lock/publish | yes | — | — | — | — | `entries/hack_entries.go`, `setEntryExcluded`; `judging/hack_judging.go`: organiser role gate |
+| Queue and scores | own judging | — | — | own judging | — | `judging/hack_judging.go`, `judgeQueue`, `putJudgeScores`; `app/entries/scores.go`, `PutJudgeScores` |
+| Declare conflict | any judge | — | — | self | — | `judging/hack_judging.go`, `declareConflict` |
+| Vote | eligible | eligible, not own team | same | eligible | signed-in eligible voter | `app/entries/voting.go`, `CastVote`; `voting/hack_voting.go` |
+| Public gallery / published results | yes | yes | yes | yes | yes | `public/hack_public.go`; `results/hack_results.go`, `getPublicResults` |
+| Leave event | self | self | self | self | — | `registration/members_leave.go`, `Leave`; custom membership gate in `registration/hack_leave.go` |
 
-`hackhttp/hack.go`, `loadMember`, rejects non-approved participants on writes and
+`core/core_access.go`, `LoadMember`, rejects non-approved participants on writes and
 role-specific reads, rejects taken-down-event writes, and hides wrong roles as
 not-found. A platform admin without membership gets read-only organiser access;
 that does not grant participant writes or judging identity. Request/invitation
 operations also require team finding enabled and an `open` or `building` stage
-(`hackhttp/hack_finding.go`, `findingAccess`).
+(`teams/hack_finding.go`, `findingAccess`).
 
 ## Holding account, departures and side effects
 
@@ -315,7 +315,7 @@ deletes their scores (`repository/hackevents/leave.go`, `RemoveCoOrganiser`). `L
 `repository/hackentries/judging.go` includes populated teams and self-leave-kept
 teams, not every empty frozen team. Explicit team deletion cascades its entry and
 scores; site trashing follows commit (`app/teams/membership.go`, `DeleteTeam`;
-`hackhttp/hack_teams.go`, `deleteTeam`). Orphan site cleanup is separate
+`teams/hack_teams.go`, `deleteTeam`). Orphan site cleanup is separate
 (`app/teams/keys.go`, `RemoveOrphanTeamSites`).
 
 ## Atomic writes and background delivery
@@ -330,7 +330,7 @@ scores; site trashing follows commit (`app/teams/membership.go`, `DeleteTeam`;
 | Voting | `entries/voting.go`, `CastVote`: fresh window, eligibility and vote together; `SaveVotingSettings` removes ineligible votes with confirmation in its settings transaction. |
 | Published results | `entries/results.go`, `PublishResults`: calculated snapshot and upsert together; post-commit callback records phase telemetry. |
 | Announcement | `events/content.go`, `PostAnnouncement`: announcement and requested mail queue together via repository `CreateEventAnnouncement`. |
-| Event deletion | `events/create.go`, `DeleteEventTx`: calls team-site trash before deleting the event/account and before the outer transaction commits; `hackhttp/hack.go`, `deleteEvent`: removes remaining event files after commit. A later database failure does not roll back earlier trash operations. |
+| Event deletion | `events/create.go`, `DeleteEventTx`: calls team-site trash before deleting the event/account and before the outer transaction commits; `lifecycle/hack_events.go`, `deleteEvent`: removes remaining event files after commit. A later database failure does not roll back earlier trash operations. |
 | Event ending | `events/create.go`, `ArchiveEventTx`: database stage/settling transaction; `members/leave.go`, `Leave`: last-organiser end commits before `afterEnd` work. |
 
 Paths in this table are under `products/hack/app/` unless qualified.
@@ -339,7 +339,7 @@ Hack action notices use `repository/hackevents/notice_delivery.go`, `NotifyUsers
 current facts (`app/events/notices.go`, `DeliverNoticeMail`, `sendNoticeBatch`).
 Announcement/receipt mail uses `DeliverContentMail`; deadline reminders enqueue
 through `events/reminders.go`, `QueueEntryReminders`. The transport starts the
-mail loop in `hackhttp/hack_content.go`, `StartContentDelivery`.
+mail loop in `products/hack/compose_mail_worker.go`, `ContentDeliveryOwner`.
 These are Hack mail queues, separate from site webhook/MCP Events outboxes;
 shared site mutations use the notification service described in [persistence](persistence.md).
 

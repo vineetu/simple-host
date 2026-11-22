@@ -12,7 +12,7 @@ func OrganiserMessage(stage string, teamIDs []string, text string) (string, erro
 	}
 	seen := map[string]bool{}
 	for _, id := range teamIDs {
-		if !isID(id) || seen[id] {
+		if !IsID(id) || seen[id] {
 			return "", &Error{Code: "invalid_team", Message: "team_ids must be distinct ids of this event's teams"}
 		}
 		seen[id] = true

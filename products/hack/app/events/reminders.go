@@ -98,7 +98,7 @@ func (s *Service) queueEntryReminder(ctx context.Context, r model.EntryReminder)
 	return n + 1, nil
 }
 
-// EntryEvaluator is the events service's small interface over the entries service, wired from hackhttp so this package never imports app/hack/entries directly.
+// EntryEvaluator is the events service's small interface over the entries service, wired from products/hack/core so this package never imports app/hack/entries directly.
 type EntryEvaluator interface {
 	EvaluateEntryTx(context.Context, *sql.Tx, model.Event, model.TeamWriteState, string, model.EventEntry) (hackentries.Check, error)
 	UnscoredTeams(ctx context.Context, ev model.Event, judgeID string) (int, error)

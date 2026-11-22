@@ -11,11 +11,11 @@ import (
 // still served while a new one is pending) and the names its sites retired,
 // for Download my data.
 func (svc *Service) AccountAddresses(ctx context.Context, userID string) ([]model.AccountAddress, []model.RetiredAccountName, error) {
-	addrs, err := repo.ListAccountAddresses(ctx, svc.database, userID)
+	addrs, err := repo.ListAccountAddresses(ctx, svc.DB, userID)
 	if err != nil {
 		return nil, nil, err
 	}
-	retired, err := repo.ListRetiredNames(ctx, svc.database, userID)
+	retired, err := repo.ListRetiredNames(ctx, svc.DB, userID)
 	if err != nil {
 		return nil, nil, err
 	}

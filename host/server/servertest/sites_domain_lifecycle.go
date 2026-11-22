@@ -11,6 +11,7 @@ import (
 	"time"
 
 	model "github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites/domains"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
@@ -57,7 +58,7 @@ func (a *PrivateApp) RedirectMarker(t *testing.T, p Person, site string) string 
 func (a *PrivateApp) Verify(t *testing.T, siteID, domain string) {
 	t.Helper()
 	info := a.DomainInfo(t, siteID)
-	a.Sites.ApplyDomainCheck(context.Background(), model.BoundDomain{
+	(domains.Handler{Handler: a.Sites.Handler}).ApplyDomainCheck(context.Background(), model.BoundDomain{
 		SiteID: siteID, Domain: domain, Status: info.Status, Verified: info.VerifiedAt.Valid, PreviousDomain: info.PreviousDomain,
 	}, "active", "", "live")
 }

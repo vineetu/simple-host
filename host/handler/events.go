@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 
-	"github.com/vsriram/simple-host/host/data/datahttp"
+	appstorage "github.com/vsriram/simple-host/host/data"
 	notifications "github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/mcp"
 )
@@ -11,9 +11,9 @@ import (
 // EventsBackend is MCP Events' backend: Data's notification engine with the
 // handler's current keys. It lives with the composition so the Data routes
 // never import the MCP server.
-func EventsBackend(h *datahttp.DataHandler) mcp.EventsBackend { return eventsBackend{h} }
+func EventsBackend(h *appstorage.Handler) mcp.EventsBackend { return eventsBackend{h} }
 
-type eventsBackend struct{ h *datahttp.DataHandler }
+type eventsBackend struct{ h *appstorage.Handler }
 
 func (b eventsBackend) EventsAvailability() error {
 	return notifications.EventsAvailability(b.h.NotifyEnv())

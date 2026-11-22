@@ -12,27 +12,27 @@ import (
 )
 
 func (s *Service) ListDeletedSitesByUser(ctx context.Context, userID string) ([]model.DeletedSite, error) {
-	return repo.ListDeletedSitesByUser(ctx, s.database, userID)
+	return repo.ListDeletedSitesByUser(ctx, s.DB, userID)
 }
 
 func (s *Service) VersionKept(ctx context.Context, siteID string, version int) (bool, error) {
-	return repo.VersionKept(ctx, s.database, siteID, version)
+	return repo.VersionKept(ctx, s.DB, siteID, version)
 }
 
 func (s *Service) ListVersionsBySite(ctx context.Context, siteID string) ([]model.Version, error) {
-	return repo.ListVersionsBySite(ctx, s.database, siteID)
+	return repo.ListVersionsBySite(ctx, s.DB, siteID)
 }
 
 func (s *Service) GetSiteIDByName(ctx context.Context, name string) (string, error) {
-	return repo.GetSiteIDByName(ctx, s.database, name)
+	return repo.GetSiteIDByName(ctx, s.DB, name)
 }
 
 func (s *Service) BackfillPreviewExpiry(ctx context.Context, username string, ttlHours int) (int64, error) {
-	return repo.BackfillPreviewExpiry(ctx, s.database, username, ttlHours)
+	return repo.BackfillPreviewExpiry(ctx, s.DB, username, ttlHours)
 }
 
 func (s *Service) GetAllowedOriginsByID(ctx context.Context, siteID string) ([]string, error) {
-	return repo.GetAllowedOriginsByID(ctx, s.database, siteID)
+	return repo.GetAllowedOriginsByID(ctx, s.DB, siteID)
 }
 
 // SetHomeSite makes the account's site name (nil: none) its home page and
@@ -45,7 +45,7 @@ func (s *Service) SetHomeSite(ctx context.Context, user *model.User, name *strin
 	if name != nil && ContentHostOnly(user.Handle.String, *name) {
 		return model.Site{}, false, &Error{Code: "home_content_host", Message: "this site depends on the content host"}
 	}
-	if err := repo.SetHomeSite(ctx, s.database, user.ID, name); errors.Is(err, sql.ErrNoRows) {
+	if err := repo.SetHomeSite(ctx, s.DB, user.ID, name); errors.Is(err, sql.ErrNoRows) {
 		return model.Site{}, false, &Error{Code: "not_found", Message: "site not found"}
 	} else if err != nil {
 		return model.Site{}, false, err
@@ -54,19 +54,19 @@ func (s *Service) SetHomeSite(ctx context.Context, user *model.User, name *strin
 }
 
 func (s *Service) ShowcasePreferences(ctx context.Context, userID string) (map[string]model.ShowcasePreference, error) {
-	return repo.ShowcasePreferences(ctx, s.database, userID)
+	return repo.ShowcasePreferences(ctx, s.DB, userID)
 }
 
 // GetShowcasePreference is one site's showcase pin and order; Error code
 // not_found when the account has no such site.
 func (s *Service) GetShowcasePreference(ctx context.Context, userID, name string) (model.ShowcasePreference, error) {
-	return showcasePreference(repo.GetShowcasePreference(ctx, s.database, userID, name))
+	return showcasePreference(repo.GetShowcasePreference(ctx, s.DB, userID, name))
 }
 
 // SetShowcasePreference sets one site's showcase pin and/or order; Error
 // code not_found when the account has no such site.
 func (s *Service) SetShowcasePreference(ctx context.Context, userID, name string, pinned *bool, order *int) (model.ShowcasePreference, error) {
-	return showcasePreference(repo.SetShowcasePreference(ctx, s.database, userID, name, pinned, order))
+	return showcasePreference(repo.SetShowcasePreference(ctx, s.DB, userID, name, pinned, order))
 }
 
 func showcasePreference(pref model.ShowcasePreference, err error) (model.ShowcasePreference, error) {
@@ -77,15 +77,15 @@ func showcasePreference(pref model.ShowcasePreference, err error) (model.Showcas
 }
 
 func (s *Service) ListHandlesWithSites(ctx context.Context) ([]string, error) {
-	return repo.ListHandlesWithSites(ctx, s.database)
+	return repo.ListHandlesWithSites(ctx, s.DB)
 }
 
 func (s *Service) SiteOffline(ctx context.Context, siteID string) (bool, error) {
-	return repo.SiteOffline(ctx, s.database, siteID)
+	return repo.SiteOffline(ctx, s.DB, siteID)
 }
 
 func (s *Service) AllowDomainCertRequest(ctx context.Context, userID, domain string, dailyCap int) (bool, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
+	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
 	}

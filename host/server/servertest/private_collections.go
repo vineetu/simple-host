@@ -18,6 +18,7 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
+	"github.com/vsriram/simple-host/host/access/gate"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/email"
@@ -181,7 +182,7 @@ func (a *PrivateApp) Session(t *testing.T, p Person, siteID, host string) string
 func Browser(host, cookie string, extra ...string) map[string]string {
 	h := map[string]string{"Origin": "https://" + host, "Sec-Fetch-Site": "same-origin", "X-SH-CSRF": "1"}
 	if cookie != "" {
-		h["Cookie"] = accesshttp.VisitorCookieHost + "=" + cookie
+		h["Cookie"] = gate.VisitorCookieHost + "=" + cookie
 	}
 	for i := 0; i+1 < len(extra); i += 2 {
 		if extra[i+1] == "" {

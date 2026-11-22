@@ -7,103 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/host/access/auth"
-	httpx "github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 )
-
-// SignPreviewToken binds a token to one site, one version and an expiry.
-func (h *SiteHandler) SignPreviewToken(siteID string, version int, expires time.Time) string {
-	payload := siteID + "." + strconv.Itoa(version) + "." + strconv.FormatInt(expires.Unix(), 10)
-	return httpx.SealLink(h.ExportKey, web.PreviewLinkDomain, []byte(payload))
-}
-
-// CheckPreviewToken returns the site and version a token was minted for, if
-// its authentication holds and it has not expired.
-func (h *SiteHandler) CheckPreviewToken(token string, now time.Time) (siteID string, version int, err error) {
-	return web.OpenPreviewToken(h.ExportKey, h.Limits.PreviewLinkTTL, token, now)
-}
-
-// previewBase is where a site's previews are served: "https://<host>" plus
-// the path prefix up to and including "/__preview/". ok=false when the site
-// has no address of its own to preview on (site and person hosts off, or a
-// site pinned to the content host).
-func (h *SiteHandler) previewBase(site model.Site) (string, bool) {
-	handle := site.OwnerHandle
-	switch {
-	case handle == "":
-		return "", false
-	case h.Hosts.Addressing().SiteHostLiveOn(handle, site.Name, h.Hosts.Addressing().HandoutBase()):
-		return "https://" + h.Hosts.Addressing().SiteHostOn(handle, site.Name, h.Hosts.Addressing().HandoutBase()) + "/" + web.PreviewPathSegment + "/", true
-	case h.Ed.Storage().EventSites:
-		// Person-path addresses are never served on the hackathon platform:
-		// a team's work lives on its own origin only.
-		return "", false
-	case h.Hosts.Addressing().PersonAddressFor(handle, site.Name):
-		return "https://" + h.Hosts.Addressing().PersonHostOn(handle, h.Hosts.Addressing().HandoutBase()) + "/" + site.Name + "/" + web.PreviewPathSegment + "/", true
-	}
-	return "", false
-}
-
-// SharedOrigin reports whether every site is served on the content host's
-// one origin (no per-site or per-person addresses: a small box).
-func (h *SiteHandler) SharedOrigin() bool { return h.Hosts.Addressing().SharedOrigin() }
-
-// noPreviewWhy says why a site has no preview link: previews are served on the site's own address, which a
-// server that gives sites none (SITE_HOSTS and PERSON_HOSTS off, a small box) does not have.
-func (h *SiteHandler) noPreviewWhy() string {
-	if h.SharedOrigin() {
-		return "preview links need a per-site address, and this server serves every site on one shared address, so it makes none. " +
-			"To see a stored version, make it live (PUT /v1/sites/<site>/active-version) and switch back if it is not right"
-	}
-	return "this site has no address of its own yet to preview on (its address is still being set up); try again later"
-}
-
-func (h *SiteHandler) previewLink(site model.Site, n int) (string, time.Time, bool) {
-	base, ok := h.previewBase(site)
-	if !ok {
-		return "", time.Time{}, false
-	}
-	expires := time.Now().Add(h.Limits.PreviewLinkTTL).Truncate(time.Second)
-	return base + strconv.Itoa(n) + "/" + h.SignPreviewToken(site.ID, n, expires) + "/", expires, true
-}
-
-// createPreviewLink is POST /v1/sites/{sitename}/versions/{version}/preview-link: an hour-long owner preview address.
-func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
-		return
-	}
-	name := strings.ToLower(strings.TrimSpace(r.PathValue("sitename")))
-	n, err := strconv.Atoi(r.PathValue("version"))
-	if err != nil || n < 1 {
-		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "version not found"})
-		return
-	}
-	expectedSiteID, checkSiteID := r.Context().Value(web.AdminSiteKey{}).(string)
-	site, err := h.SitesSvc().KeptVersion(r.Context(), user.ID, name, expectedSiteID, checkSiteID, n)
-	if err != nil {
-		writeSitesError(w, err, name)
-		return
-	}
-	link, expires, ok := h.previewLink(site, n)
-	if !ok {
-		httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: h.noPreviewWhy(), Code: "preview_unavailable"})
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"site":       site.Name,
-		"version":    n,
-		"live":       n == site.ActiveVersion,
-		"url":        link,
-		"expires_at": expires.UTC().Format(time.RFC3339),
-		"expires_in": int(h.Limits.PreviewLinkTTL.Seconds()),
-	})
-}
 
 // servePreview answers <prefix><n>/<token>/<rest>; tail is the decoded path after "__preview/".
 func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site model.Site, tail, prefix string) {
@@ -159,7 +66,7 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 			// (hackAppCSP, entryListItem's frameable). Only that origin: a CSP frame-ancestors also overrides the
 			// proxy's X-Frame-Options SAMEORIGIN, which would otherwise refuse the app. A signed-in member's own
 			// pages keep ownerFrameGuard's 'self' (checked above).
-			w.Header().Add("Content-Security-Policy", "frame-ancestors 'self' "+h.mainSiteURL())
+			w.Header().Add("Content-Security-Policy", "frame-ancestors 'self' "+h.MainSiteURL())
 		}
 		h.serveDirFile(w, r, h.Disk.VersionDir(site.UserID, site.Name, n), "/"+rest, r.URL.EscapedPath())
 	})
@@ -169,5 +76,5 @@ func (h *SiteHandler) servePreview(w http.ResponseWriter, r *http.Request, site 
 func (h *SiteHandler) renderPreviewExpired(w http.ResponseWriter, r *http.Request) {
 	h.renderNotFoundPage(w, r, "This preview link has expired",
 		"Preview links work for "+web.LimitSpan(h.Limits.PreviewLinkTTL)+". Make a new one from Versions on your Simple Host page, or ask your AI app.",
-		h.mainSiteURL(), "Go to "+h.SiteDomain)
+		h.MainSiteURL(), "Go to "+h.SiteDomain)
 }

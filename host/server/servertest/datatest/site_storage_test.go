@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/host/data/files"
+
 	"github.com/vsriram/simple-host/host/model"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 )
 
 func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	anon, alice := s.Callers["anon"], s.Callers["alice"]
 	put := func(name, kind, rules string) {
 		t.Helper()
@@ -92,7 +94,7 @@ func TestSiteStoragePoliciesAndIsolation(t *testing.T) {
 // A resource follows the site's passcode unless set to off; the owner is
 // never locked out.
 func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	for name, mode := range map[string]string{"locked": "inherit", "open": "off"} {
 		s.Must(t, "PUT", "/resources/"+name, `{"kind":"kv","site_passcode":"`+mode+`","rules":`+RulesOpenAdd+`}`, s.Key, 201)
 	}
@@ -112,7 +114,7 @@ func TestSiteStorageInheritsPasscodeAndExplicitOff(t *testing.T) {
 func TestSiteStorageUsageAndExactFileBoundary(t *testing.T) {
 	t.Setenv("SITE_STORAGE_FILES_MAX_BYTES", "1000000")
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "1000000")
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/photos", map[string]string{"kind": "files"}, s.Key, 201)
 	usage := func() (float64, float64) {
 		t.Helper()
@@ -140,7 +142,7 @@ func TestSiteStorageUsageAndExactFileBoundary(t *testing.T) {
 }
 
 func TestSiteStorageKVNormalizedQuotaAndSQLiteFull(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/kv", map[string]string{"kind": "kv"}, s.Key, 201)
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "3")
 	s.Must(t, "PUT", "/kv/kv/keys/n", `{"value":1e3}`, s.Key, 507) // counted as stored, "1000"
@@ -162,7 +164,7 @@ func TestSiteStorageKVNormalizedQuotaAndSQLiteFull(t *testing.T) {
 // A missing database answers as a bad row request to whoever may read,
 // and the read refusal comes first.
 func TestMissingSQLiteReadResponse(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	for preset, rules := range map[string]string{"wall": RulesWall, "private": string(model.OwnerOnlyRules)} {
 		s.Do(t, "PUT", "/resources/"+preset, StorageRules("sqlite", rules), s.Key)
 		for _, path := range []string{"/tables/posts/rows/1", "/tables/posts/rows"} {
@@ -180,7 +182,7 @@ func TestMissingSQLiteReadResponse(t *testing.T) {
 }
 
 func TestStorageKVRules(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/data", `{"kind":"kv","rules":{"policies":[{"command":"read","using":"key contains \"public\""},{"command":"add","check":"value == \"1\""},{"command":"edit","using":"auth.signed_in","check":"value == \"2\""},{"command":"delete","using":"auth.signed_in"}]}}`, s.Key, 201)
 	s.Must(t, "PUT", "/kv/data/keys/public", `{"value":1}`, s.Callers["alice"], 200)
 	for _, tc := range []struct {
@@ -207,7 +209,7 @@ func TestStorageKVRules(t *testing.T) {
 
 // A download link works as minted; a tampered or expired token is refused.
 func TestStorageDownloadLinkTokens(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/assets", map[string]string{"kind": "files"}, s.Key, 201)
 	s.Must(t, "PUT", "/files/assets/objects/a.txt", "hello", s.Key, 200)
 	u, _ := url.Parse(s.Must(t, "POST", "/files/assets/download-link", `{"path":"a.txt"}`, s.Key, 200).JSON(t)["url"].(string))
@@ -224,7 +226,7 @@ func TestStorageDownloadLinkTokens(t *testing.T) {
 	if token[mid] == 'A' {
 		swap = "B"
 	}
-	expired := s.A.Data.StorageFileToken(kvCall(t, s, "assets"), "a.txt", time.Now().Add(-time.Minute))
+	expired := files.StorageFileToken(s.A.Data, kvCall(t, s, "assets"), "a.txt", time.Now().Add(-time.Minute))
 	for _, bad := range []string{token[:mid] + swap + token[mid+1:], expired} {
 		if r := get(bad); r.Status != 404 || r.Code() != "file_link_invalid" {
 			t.Fatalf("bad token: %d %s", r.Status, r.Body)

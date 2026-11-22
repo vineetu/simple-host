@@ -4,30 +4,61 @@
 [final]
 # Kernel: every host package outside the three modules, ops and the layers above them. It imports no module.
 /** -> /** !access/** !sites/** !data/** !ops/** !web !handler !mcp !server/** !extension !testdb !geoip/geoiptest
-# Modules: access <- sites <- data; ops reports over all three.
-access/** -> access/** !access/accesshttp
-sites/** -> access/** sites/** !access/accesshttp !sites/siteshttp
-data/** -> access/** sites/** data/** !access/accesshttp !sites/siteshttp !data/datahttp
-ops/** -> access/** sites/** data/** ops/** !access/accesshttp !sites/siteshttp !data/datahttp
+# Modules: access <- sites <- data; ops reports over all three. Another module
+# sees Access's core only (the package, auth, oauth, repo, rules), never a feature.
+access/** -> access access/{auth,oauth,repo,rules}
+sites/** -> access access/{auth,oauth,repo,rules} sites/** !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
+# Data: a small core (data) over the notification engine and the repo; one leaf per feature.
+# The core never imports a feature, and a feature never imports another feature.
+data -> access access/{auth,oauth,repo,rules} sites/** data/notify data/repo/** !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
+data/{notify,repo/**} -> access access/{auth,oauth,repo,rules} sites/** data/repo/** !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
+data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} -> access access/{auth,oauth,repo,rules} sites/** data data/notify data/repo/** !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
+# The features' shared test fixture declares resources through the real rules.
+data/storetest -> access access/{auth,oauth,repo,rules} sites/** data data/resources !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
+ops/** -> access access/{auth,oauth,repo,rules} sites/** data/** ops/** !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/**
+# Access's features (one package each, its routes beside its logic) import the
+# modules, web and the kernel like a routes package, never a sibling feature,
+# another module's feature, a routes package or the composition.
+access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} -> /** !access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} !access/accesshttp !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/** !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !mcp !server/** !extension !testdb !geoip/geoiptest
+# The connector is the /mcp endpoint and hosts the MCP server; the gate serves
+# the visitor tools it carries (gate/visitor_tools.go), which are MCP tools.
+access/{connector,gate} -> mcp
+# The feature tests' shared fixture: the core, sites and the route-test helpers, never a feature.
+access/featuretest -> web server/servertest/routetest sites storage config edition email data ops
+# accesshttp composes Access's features and mounts them.
+access/accesshttp -> access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams}
+# A Sites feature holds its logic and its routes: it imports the Sites core, its sub-packages and
+# repo, the shared route state (sites/sitesroute), Access's core, the other modules and host/web;
+# never a sibling feature, another module's feature, a routes package or another module's repo.
+# Only siteshttp, the composition roots and tests import a feature.
+sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} -> access access/{auth,oauth,repo,rules} sites/** data/** ops/** web !sites/siteshttp !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !{access,data,ops}/repo/** !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/fixture
+# What every Sites route shares (sitesroute): the same imports as a feature, and no feature.
+sites/sitesroute -> access access/{auth,oauth,repo,rules} sites/** data/** ops/** web !sites/siteshttp !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !{access,data,ops}/repo/** !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/fixture
+# The features' route-test fixture is built only by tests: Sites' route state and the deploy routes
+# on a disposable database (server/servertest/routetest).
+sites/sitesroute/fixture -> /** !access/accesshttp !access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} !sites/siteshttp !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !mcp !server !extension !geoip/geoiptest
 # The pages and HTTP refusals every route package shares sit above the modules.
-web -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !server/** !extension !testdb !geoip/geoiptest
-# A module's routes may import every module, web and the kernel; never another module's routes.
-{access/accesshttp,sites/siteshttp,data/datahttp} -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !mcp !server/** !extension !testdb !geoip/geoiptest
-# The one routes package that may import the MCP server: the connector (accesshttp/connector*.go,
-# visitor_tools.go) is the /mcp endpoint, its OAuth and the visitor tools it serves.
-access/accesshttp -> mcp
+web -> /** !access/accesshttp !access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} !sites/siteshttp !sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} !sites/sitesroute/** !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !server/** !extension !testdb !geoip/geoiptest
+# A module's routes may import every module, web and the kernel; never another module's routes
+# or features (accesshttp's own features are granted above; siteshttp's by this row).
+{access/accesshttp,sites/siteshttp} -> /** !access/accesshttp !sites/siteshttp !access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !mcp !server/** !extension !testdb !geoip/geoiptest
 # The HTTP and MCP layers and the composition roots may import every module.
 {handler,mcp,server,server/servertest,extension} -> /** !testdb !geoip/geoiptest
 # A module's route suite builds that module's routes alone, on the modules, so a change to one
 # module's routes reruns only its own suite; the cross-module journeys are server/servertest's.
-server/servertest/routetest -> /** !access/accesshttp !sites/siteshttp !data/datahttp !handler !mcp !server !server/servertest/** !extension !geoip/geoiptest
-server/servertest/accesstest -> /** !sites/siteshttp !data/datahttp !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
-server/servertest/datatest -> /** !access/accesshttp !sites/siteshttp !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
-server/servertest/sitestest -> /** !access/accesshttp !data/datahttp !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
+server/servertest/routetest -> /** !access/accesshttp !access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} !sites/siteshttp !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !mcp !server !server/servertest/** !extension !geoip/geoiptest
+server/servertest/accesstest -> /** !sites/siteshttp !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
+server/servertest/datatest -> /** !access/accesshttp !access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} !sites/siteshttp !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
+server/servertest/sitestest -> /** !access/accesshttp !access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} !data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} !handler !mcp !server !server/servertest !extension !testdb !geoip/geoiptest
 # servertest is itself a test fixture: it builds the server on a disposable database.
 server/servertest -> testdb geoip/geoiptest
 # A product may import the platform and itself, never a module's repository; no platform row lists a product.
-@/products/hack/** -> /** !{access,sites,data,ops}/repo/** @/products/hack/**
+# Simple Hack: one package per feature ({assistant,checklist,content,entries,exports,judging,lifecycle,messages,notices,organisers,pages,public,registration,results,teams,teamsites,voting}). A feature imports the Hack core
+# (core, app, repository, rules, model, config) and the platform, never a sibling feature; nothing but the
+# composition root (products/hack) imports a feature. hacktest is the feature suites' fixture.
+@/products/hack/** -> /** !{access,sites,data,ops}/repo/** @/products/hack/** !@/products/hack/{assistant,checklist,content,entries,exports,judging,lifecycle,messages,notices,organisers,pages,public,registration,results,teams,teamsites,voting} !@/products/hack/hacktest
+@/products/hack -> @/products/hack/{assistant,checklist,content,entries,exports,judging,lifecycle,messages,notices,organisers,pages,public,registration,results,teams,teamsites,voting}
+@/products/hack/hacktest -> access/repo
 @/cmd/simple-host -> server
 @/cmd/simple-hack -> server extension @/products/hack
 @/cmd/analytics-rebuild -> sites/analytics config
@@ -36,11 +67,23 @@ server/servertest -> testdb geoip/geoiptest
 @/scripts/inventory -> mcp webassets @/products/hack/mcp
 @/scripts/layering -> -
 [test]
+# A Sites feature's route tests run on the fixture and may set rows up through the repos.
+sites/{deploy,versions,domains,lifecycle,events,families,sitelist,sitemap,export,siteanalytics,setup,showcase,admin,idle} -> sites/sitesroute/fixture server/servertest/routetest {access,sites,data}/repo/**
+# A feature's tests mount only that feature, on the shared fixture.
+access/{accountdata,connector,editors,gate,keys,operator,profile,signin,suspension,teams} -> access/featuretest server/servertest/routetest
 /** -> testdb geoip/geoiptest
+# A data feature's tests may set up with its siblings, the shared fixtures and
+# the module's route fixture (datatest), which mounts only the routes a suite names.
+data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} -> data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors} data/storetest server/servertest/datatest server/servertest/routetest
+server/servertest/datatest -> data/{files,kv,notifications,push,resources,rows,sqlconsole,usage,visitors}
 @/** -> testdb geoip/geoiptest @/products/hack/testdb
 # Only the composition roots' tests build the whole server (servertest).
 {server,server/servertest,@/cmd/**,@/products/**} -> server/servertest
 @/products/hack/** -> {access,sites,data,ops}/repo/**
+# A feature's suite builds only that feature, on hacktest (which sets up through the core); a test
+# that drives two features is a journey (servertest), which builds every feature.
+@/products/hack/** -> @/products/hack/hacktest
+@/products/hack/servertest -> @/products/hack/**
 [transitional]
 # Must remain empty: every transitional edge now fails the check.
 

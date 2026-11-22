@@ -45,13 +45,13 @@ Source: `host/edition/{edition,policies}.go`;
 | Email and optional providers | Resend (`host/email`; recipient-free Hack acceptance/failure journal, `scripts/hack-mail-report.py`), optional Vercel event DNS (`host/sites/eventdns/vercel.go`), OAuth (`host/oauth`) |
 
 There is no external queue or object store in this implementation. Webhook/MCP Events/Web Push
-delivery uses Postgres outboxes and in-process workers (`host/data/datahttp/notify*.go`, `host/data/repo/notify`,
+delivery uses Postgres outboxes and in-process workers (`host/data/notify.go`, `host/data/notifications`, `host/data/repo/notify`,
 `host/mcp/events.go`). Web Push (SIM-360, behind `WEB_PUSH_ACCOUNTS`) is a third delivery
 `kind` of the same `site_notifications` row and outbox, not a parallel engine: the row-write/kv/
 file emission call sites (`host/data`) carry the row's own `visitor_id` and whether
 the actor was the owner, so the fan-out (`host/data/repo/notify.EmitSiteEventFor`) can route a
 push to the right devices without that layer knowing push exists; the actual RFC 8291/8292
-encryption and send (`host/data/datahttp/notify_push.go`, `github.com/SherClockHolmes/webpush-go`)
+encryption and send (`host/data/push/routes.go`, `github.com/SherClockHolmes/webpush-go`)
 reuses the webhook delivery client's SSRF-guarded dial.
 Visitor writes emit in both editions, excluding owner writes (an owner write with no associated
 visitor row/key still emits nothing; one that touches a visitor's row -- D1's owner edit, or
@@ -68,7 +68,7 @@ compared against an owner-role push subscription's own `owner_id`. These same tw
 `push_target`, never delivered to any subscriber) so a cursor-based MCP replay applies the
 identical eligibility CASE a live delivery would have, instead of none at all. Host also emits
 deploy/activation, domain-status, named-viewer requests and visitor-sign-in events;
-`datahttp/notify.go:EmitSiteNotification` excludes Hack.
+`host/data/notify.go:EmitSiteNotification` excludes Hack.
 [Hosts and access](docs/architecture/hosts-and-access.md#notification-triggers) lists the sources.
 The product's hooks are few and named in `host/extension/extension.go`: `Extension.Early`
 returns `access.GroupHooks` (its one field, `Erasure`, is the product's answer before an
@@ -124,7 +124,7 @@ host/TLS hand-offs, identity, view locks, legacy access and request accounting a
 
 | Host | Routing, identity and code |
 |---|---|
-| Apex `simple-host.app` / `simple-hack.app` | Pages, `/v1/`, OAuth, `/mcp`, skill downloads and probes. Protected account routes require `X-API-Key` or a connector bearer token, with route-specific permissions. `sites/siteshttp/ui.go`, `access/accesshttp/connector.go`, `access/auth/middleware.go`; Hack registration in `hackhttp/hack.go`. |
+| Apex `simple-host.app` / `simple-hack.app` | Pages, `/v1/`, OAuth, `/mcp`, skill downloads and probes. Protected account routes require `X-API-Key` or a connector bearer token, with route-specific permissions. `sites/siteshttp/ui.go`, `access/connector/connector.go`, `access/auth/middleware.go`; Hack registration in `products/hack/compose_routes.go`. |
 | `<site>.<handle>.simple-host.app` | Files at `/`, API bound to that site, visitor cookies on that origin. Own-address redirects and rename/handle aliases are resolved before files; `sites/siteshttp/sitehost.go:SiteHosts`. |
 | Custom domain | nginx serves files and proxies API/gates; visitor identity stays on that site's origin. Verification/issuer lifecycle: `sites/siteshttp/domains.go`, `domaincheck.go`, `domaincert.go`; `deploy/domain-certs/`. |
 | Claimed `<name>.simple-host.app` | Immediately verified through the domain API; `sites/siteshttp/platformsubdomain.go:BoundSubdomains` serves files and same-origin API. Retired names redirect to their current site with 302; older unbound per-name hosts keep the legacy 301 path redirect (`legacyhost.go:LegacyHostRedirect`). |
@@ -157,15 +157,18 @@ repositories/disk mechanics. Routes and tools hold no SQL and import no reposito
 
 | Package (under `host/` unless prefixed) | Responsibility |
 |---|---|
-| `access`, `access/repo`, `access/rules`, `access/auth`, `access/oauth` | Accounts, keys, sign-in, connector, passcodes, named viewers, editors and teams; their SQL; pure grant rules; credential and scope middleware; provider clients |
-| `sites`, `sites/repo`, `sites/{analytics,eventdns,idempotency,pagepath,photos,redirects}` | Deploys, versions, addresses, domains, exports and serving decisions; their SQL; analytics ingest; deploy idempotency; page-address resolution; photos; `_redirects` rules |
-| `data`, `data/repo`, `data/notify`, `data/rules` | Saved data (KV, SQLite, files), the resource rules, notifications and web push; their SQL |
+| `access`, `access/repo`, `access/rules`, `access/auth`, `access/oauth` | Access core: the person and look-ups, owner resolution, the visit decision; its SQL; pure grant rules; credential and scope middleware; provider clients |
+| `access/{signin,profile,keys,teams,editors,accountdata,operator,suspension,connector,gate}` | One package per Access feature (sign-in, profile, keys, teams, editors, account data, operator, suspension, the connector's OAuth and `/mcp`, the site gate with passcodes, named viewers and visitor sign-in): its logic, routes and tests; `access/featuretest` is their test fixture |
+| `sites`, `sites/repo`, `sites/{analytics,eventdns,idempotency,namepeer,pagepath,photos,redirects}` | Sites core: the site service, `sites.Hosts`, door look-ups, locks and serving decisions; their SQL; analytics ingest; event DNS; deploy idempotency; name peers; page-address resolution; photos; `_redirects` rules |
+| `sites/{deploy,versions,lifecycle,domains,families,sitelist,sitemap,export,showcase,admin,idle,siteanalytics,setup,events}` | One package per Sites feature: its logic, routes and route tests; `sites/sitesroute` is the route state they share, `sites/sitesroute/fixture` their test fixture |
+| `data`, `data/repo`, `data/notify` | Data core: caller facts, the gate, resource resolution and rules decision, SQLite admission, quotas and the route core; their SQL; the notification engine |
+| `data/{kv,rows,sqlconsole,files,resources,usage,visitors,notifications,push}` | One package per Data feature (KV, table rows, the SQL console, files, resource rules, usage, visitor records, notification and web-push settings): its logic, routes and tests; `data/storetest` is their shared fixture |
 | `ops`, `ops/repo` | Workflows over more than one module (cutting a person off, named viewers with their devices, site export with saved data, setup) and the operator's reports; their SQL |
-| `access/accesshttp`, `sites/siteshttp`, `data/datahttp` | Each module's HTTP routes (`routes.go`): read the request, call the module once, write the answer |
+| `access/<feature>`, `sites/<feature>`, `data/<feature>` (`routes.go`, or Access's `Register`) | Each feature's HTTP routes, beside its logic: read the request, call the module once, write the answer. `access/accesshttp` and `sites/siteshttp` compose and mount their module's features; `handler` mounts Data's |
 | `handler` | Builds the three route handlers with what they share and mounts them; the connector's visitor tools |
 | `mcp` | JSON-RPC, discovery, the Host tool families (each one REST call, in process) and MCP Events |
 | `products/hack/mcp` | Hack's AI tool declarations, instructions, screens-in-chat (`apps/`) and event recipe, handed to `mcp` as one `mcp.Contribution` through `extension.Parts.Tools` |
-| `products/hack/hackhttp` | Hack HTTP routes and pages |
+| `products/hack/core`, `products/hack/<feature>` | Hack's shared door and one package per feature (routes, own workflow, tests) |
 | `products/hack/app/{events,teams,members,entries}` | Hack workflows: events, teams, registration, entries, judging and results |
 | `products/hack/rules`, `products/hack/repository` | Hack's pure rules and its SQL |
 | `webassets`, `web` | Platform pages, docs, skills and downloads; the page pipeline and shared HTTP refusals |
@@ -262,7 +265,7 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
   else in that path; the owner's raw `storage_sql_execute`/`execute` SQL console is a separate,
   pre-existing, unrestricted door and is not where this check runs.
 - Site gates include suspension/offline, passcodes or named viewers; List on my profile only controls the profile page
-  and does not grant access. Reads are not universally public (`access/accesshttp/passcode.go:SiteGate`, `host/access/visit_gate.go:DecideVisit`,
+  and does not grant access. Reads are not universally public (`access/gate/passcode.go:SiteGate`, `host/access/visit_gate.go:DecideVisit`,
   `viewers.go`, `seo.go`, `host/data/access.go`). A shared site-wide passcode and
   named viewers are mutually exclusive; named viewers sign in on the site origin. There is no per-page lock.
 - Normal site requests redirect to their verified own address with 302, so disconnection takes
@@ -271,7 +274,7 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
   (`host/access/account_handles.go:JudgeHandle`). Configured certificate hand-offs require readiness before advertising site URLs
   (`sites/addressing.go:SiteCertReadyOn`); no hand-off directory means ready.
 - Account UI and consent pages use nonce CSP; passcode pages use fixed script hashes. Do not
-  assume all apex responses use the same CSP (`host/web/shared_pages.go:AdminUICSP`, `access/accesshttp/connector_authorize.go:consentHeaders`, `passcode.go`).
+  assume all apex responses use the same CSP (`host/web/shared_pages.go:AdminUICSP`, `access/connector/connector_authorize.go:consentHeaders`, `passcode.go`).
 - `openapi.yaml` is the source contract; JSON is generated. Served specs filter `x-audience`
   operations and unused components (`host/webassets/openapi.go:PublicOpenAPISpec`).
 - Deployment versions and runtime saved files are distinct. `storage/disk.go` is not the only

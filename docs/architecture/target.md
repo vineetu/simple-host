@@ -34,7 +34,7 @@ host/
   workers/                  lifecycle and status contracts
 products/hack/
   extension.go              one description: Extension()
-  hackhttp/ mcp/             product HTTP, AI tools and screens-in-chat
+  core/ <feature>/ mcp/      the shared door, one package per feature, AI tools
   app/ repository/ rules/   product workflows, SQL and decisions
   model/ config/ edition/   product records, settings and policy
   db/                       product schema and migration catalogue
@@ -183,8 +183,8 @@ not built
 
 - Platform capability: use `host/app`, its rules/repositories and shared HTTP/MCP
   adapters. Keep compatibility work in `host/app/legacy`.
-- Hack capability: use `products/hack/hackhttp` or `products/hack/mcp`, with product
-  app/rules/repository code and shared platform services. Add a hook only at a real
+- Hack capability: use the feature's package under `products/hack` or `products/hack/mcp`, with the
+  core's app/rules/repository code and shared platform services. Add a hook only at a real
   platform caller that needs product knowledge.
 - Migration: update the owning area's schema and add its next assigned numbered
   migration. Keep frozen filenames and the combined catalogue order; see

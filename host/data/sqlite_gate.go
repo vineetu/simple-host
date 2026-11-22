@@ -39,7 +39,7 @@ func (g *SQLiteGate) Acquire(ctx context.Context) (func(), error) {
 // SiteSlots bounds SQLite operations in flight per site and holds the global
 // gate. All request-built services share the program's instance.
 type SiteSlots struct {
-	admitHook func(bool) // tests assert admission is never nested on a goroutine
+	AdmitHook func(bool) // tests assert admission is never nested on a goroutine
 
 	mu      sync.Mutex
 	sites   map[string]*siteSlot
@@ -59,18 +59,29 @@ func NewSiteSlots(perSite int, gate *SQLiteGate, wait time.Duration) *SiteSlots 
 	return &SiteSlots{sites: make(map[string]*siteSlot), perSite: perSite, gate: gate, wait: wait}
 }
 
+// InUse is how many sites hold or wait for a slot and how many global slots
+// are taken; both are 0 once every call has finished.
+func (s *SiteSlots) InUse() (sites, global int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.sites), len(s.gate.Slots)
+}
+
 // Admission records whether a write has committed.
 type Admission struct{ committed bool }
 
 // Committed must be called immediately after commit succeeds, before cleanup.
 func (a *Admission) Committed() { a.committed = true }
 
+// HasCommitted reports whether Committed was called.
+func (a *Admission) HasCommitted() bool { return a.committed }
+
 // Admit takes the site slot before the global gate, using a single wait budget.
 // The wait deadline applies to admission only; fn keeps the caller's context.
 func (s *SiteSlots) Admit(ctx context.Context, siteID string, fn func(context.Context, *Admission) error) (err error) {
-	if s.admitHook != nil {
-		s.admitHook(true)
-		defer s.admitHook(false)
+	if s.AdmitHook != nil {
+		s.AdmitHook(true)
+		defer s.AdmitHook(false)
 	}
 	wait, cancel := context.WithTimeout(ctx, s.wait)
 	defer cancel()
@@ -91,25 +102,25 @@ func (s *SiteSlots) Admit(ctx context.Context, siteID string, fn func(context.Co
 		s.mu.Unlock()
 	}()
 	if wait.Err() != nil {
-		return sqliteBusy()
+		return SQLiteBusy()
 	}
 	select {
 	case slot.slots <- struct{}{}:
 		defer func() { <-slot.slots }()
 	case <-wait.Done():
-		return sqliteBusy()
+		return SQLiteBusy()
 	}
 	if wait.Err() != nil {
-		return sqliteBusy()
+		return SQLiteBusy()
 	}
 	select {
 	case s.gate.Slots <- struct{}{}:
 		defer func() { <-s.gate.Slots }()
 	case <-wait.Done():
-		return sqliteBusy()
+		return SQLiteBusy()
 	}
 	if wait.Err() != nil {
-		return sqliteBusy()
+		return SQLiteBusy()
 	}
 	cancel()
 	a := &Admission{}
@@ -124,16 +135,16 @@ func (s *SiteSlots) Admit(ctx context.Context, siteID string, fn func(context.Co
 			}
 		}
 	}()
-	return sqliteFailure(fn(ctx, a))
+	return SQLiteFailure(fn(ctx, a))
 }
 
-func sqliteBusy() *Error {
+func SQLiteBusy() *Error {
 	return &Error{Code: "storage_busy", Message: "storage is busy; retry shortly"}
 }
 
 // closeSQLite prevents cleanup from replacing either a committed result or the
 // original failure. The close function itself must release its resources in defers.
-func closeSQLite(done func()) {
+func CloseSQLite(done func()) {
 	defer func() {
 		if recover() != nil {
 			log.Print("storage: recovered SQLite close panic")

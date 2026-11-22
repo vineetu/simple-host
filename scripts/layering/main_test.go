@@ -25,10 +25,17 @@ func TestAreaAndFineContract(t *testing.T) {
 		want     bool
 	}{
 		{"handler", "app/sites", true},
-		// Only the connector's routes host the MCP server.
-		{"access/accesshttp", "mcp", true},
+		// Only the connector (and the visitor tools it serves) host the MCP server.
+		{"access/connector", "mcp", true},
+		{"access/accesshttp", "mcp", false},
+		{"access/keys", "mcp", false},
+		// A feature never imports a sibling feature; the core never imports one.
+		{"access/teams", "access/editors", false},
+		{"access", "access/teams", false},
+		{"sites", "access/teams", false},
+		{"access/teams", "access", true},
 		{"sites/siteshttp", "mcp", false},
-		{"data/datahttp", "mcp", false},
+		{"data/kv", "mcp", false},
 		{"handler", "@/products/hack/app/teams", false},
 		{"repository/sites", "handler", false},
 		{"server", "extension", true},
@@ -40,12 +47,15 @@ func TestAreaAndFineContract(t *testing.T) {
 		{"@/cmd/simple-host", "@/products/hack", false},
 		{"@/products/hack", "@/products/other", false},
 		// Each module's route suite builds only its own routes (locality).
-		{"server/servertest/datatest", "data/datahttp", true},
+		{"server/servertest/datatest", "data", true},
 		{"server/servertest/datatest", "access/accesshttp", false},
 		{"server/servertest/datatest", "sites/siteshttp", false},
 		{"server/servertest/datatest", "server/servertest", false},
 		{"server/servertest/accesstest", "access/accesshttp", true},
-		{"server/servertest/accesstest", "data/datahttp", false},
+		{"server/servertest/accesstest", "data/kv", false},
+		// A data feature builds on the core; the core never imports a feature.
+		{"data/kv", "data", true},
+		{"data", "data/kv", false},
 		{"server/servertest/sitestest", "sites/siteshttp", true},
 		{"server/servertest/sitestest", "handler", false},
 		{"server/servertest/sitestest", "server/servertest/routetest", true},

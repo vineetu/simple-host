@@ -9,6 +9,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/vsriram/simple-host/products/hack/pages"
+
+	"github.com/vsriram/simple-host/products/hack/public"
+
+	"github.com/vsriram/simple-host/products/hack/assistant"
+
+	"github.com/vsriram/simple-host/products/hack/core"
+
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 
 	"sync"
@@ -21,6 +29,7 @@ import (
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/namepeer"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/host/web"
@@ -32,7 +41,6 @@ import (
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
 	hackmigrations "github.com/vsriram/simple-host/products/hack/db/migrations"
-	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
 	hackmetrics "github.com/vsriram/simple-host/products/hack/papermetrics"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
@@ -45,7 +53,7 @@ import (
 func Extension() *extension.Extension {
 	// The one Assets of this install: made when the platform asks for the
 	// product's files (before Wire), then used by the product's own routes.
-	var productAssets *hackhttp.Assets
+	var productAssets *pages.Assets
 	var productConfig productconfig.Config
 	catalog := hackdb.Catalog()
 	return &extension.Extension{
@@ -65,7 +73,7 @@ func Extension() *extension.Extension {
 			return warnings, err
 		}},
 		Assets: func(site *siteshttp.SiteHandler) extension.Assets {
-			assets := hackhttp.NewAssets(site.AssetServices(), site.Pages().InkBaseURL())
+			assets := pages.NewAssets(site.AssetServices(), site.Pages().InkBaseURL())
 			productAssets = assets
 			return extension.Assets{Replace: assetReplacements(), Own: ownAssetFiles(), Files: hackassets.Static, Skills: hackassets.HackSkills, Hooks: assets.Hooks(), Rewrite: assets.Rewrite,
 				Routes: func(mux *http.ServeMux, services web.AssetServices) {
@@ -76,7 +84,7 @@ func Extension() *extension.Extension {
 					})
 					mux.Handle("GET /setup/setup.js", services.AdminUICSP(assets.ServeSetupJS()))
 					RegisterOwnFiles(mux, services.ProductFiles())
-					hackhttp.RegisterHackFilm(mux)
+					pages.RegisterHackFilm(mux)
 				}}
 		},
 		CheckSchema: func(ctx context.Context, database *sql.DB) error {
@@ -94,7 +102,7 @@ func Extension() *extension.Extension {
 		Wire: func(d extension.Deps) (extension.Parts, error) {
 			cfg, ed := d.Config, d.Edition
 			siteHandler, mux, authMW := d.Site, d.Mux, d.AuthMW
-			hack := hackhttp.NewHackHandler(d.DB, cfg.PublicBaseURL, cfg.SiteDomain, ed)
+			hack := NewHackHandler(d.DB, cfg.PublicBaseURL, cfg.SiteDomain, ed)
 			hack.SetProductLimits(productConfig.Limits)
 			hack.ShareAssets(siteHandler.Pages())
 			hack.SetHandleChecker(func(ctx context.Context, q sqlkit.Querier, name string) (events.HandleVerdict, error) {
@@ -109,7 +117,7 @@ func Extension() *extension.Extension {
 				d.Mail.SetJournal("hack_mail_send")
 			}
 			if cfg.EventNamePeer != "" {
-				peer, zone := siteshttp.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
+				peer, zone := namepeer.NamePeerClient(cfg.EventNamePeer), cfg.SiteDomain
 				hack.SetNamePeer(func(ctx context.Context, name string) (bool, error) { return peer(ctx, zone, name) })
 				log.Printf("hosted events: event names checked with %s", cfg.EventNamePeer)
 			}
@@ -125,9 +133,9 @@ func Extension() *extension.Extension {
 					Model:           productConfig.AssistantModel,
 					APIKey:          productConfig.AssistantAPIKey,
 					ReasoningEffort: productConfig.AssistantReasoningEffort,
-					MaxTokens:       events.AssistantMaxTokens,
+					MaxTokens:       assistant.AssistantMaxTokens,
 				})
-				hack.SetAssistant(events.NewAssistant(d.DB, assistantLLM, events.AssistantConfig{
+				hack.SetAssistant(assistant.NewAssistant(d.DB, assistantLLM, assistant.AssistantConfig{
 					BaseURL:               productConfig.AssistantBaseURL,
 					Model:                 productConfig.AssistantModel,
 					APIKey:                productConfig.AssistantAPIKey,
@@ -144,17 +152,17 @@ func Extension() *extension.Extension {
 			}
 			hack.Register(mux, authMW)
 			hack.RegisterDemo(mux, productConfig.DemoEventSlug)
-			siteshttp.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
+			namepeer.RegisterNamePeer(mux, []string{cfg.SiteDomain}, func(ctx context.Context, _ string, name string) (bool, error) {
 				return hack.NameTaken(ctx, name)
 			})
-			hackPages := hackhttp.NewHackEventPages(hackassets.Static)
-			groupHosts := hackhttp.NewGroupHosts(d.DB, hackhttp.HackEventPage(d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages), hackhttp.HackScreenshot(d.DB, siteHandler.TeamSitesReady, hack))
+			hackPages := public.NewHackEventPages(hackassets.Static)
+			groupHosts := public.NewGroupHosts(d.DB, public.HackEventPage(d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages), public.HackScreenshot(d.DB, siteHandler.TeamSitesReady, hack.Hack))
 			if productAssets == nil {
 				return extension.Parts{}, fmt.Errorf("simple-hack: Assets must be installed before Wire")
 			}
-			hackhttp.RegisterHackHome(mux, siteHandler.Pages(), productAssets)
-			hackhttp.RegisterHackPublic(mux, d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages, hack)
-			hackhttp.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
+			pages.RegisterHackHome(mux, siteHandler.Pages(), productAssets)
+			public.RegisterHackPublic(mux, d.DB, cfg.PublicBaseURL, siteHandler.TeamSiteURL, siteHandler.TeamSitesReady, hackPages, hack.Hack)
+			pages.RegisterHackUI(mux, siteHandler.Pages(), siteHandler.TeamSitesFrameBase())
 			return extension.Parts{
 				Workers:   []workers.Owner{hack.LimiterWorkers(), hack.EventCleanupOwner(), hack.ContentDeliveryOwner()},
 				SiteSweep: NewSiteSweep(d.DB, siteHandler, siteSweep),
@@ -172,7 +180,7 @@ func Extension() *extension.Extension {
 					paper.WithRunLimits(limits)
 				},
 				PaperRecorder: func(next http.Handler) http.Handler {
-					return hackhttp.WithPaperRecorder(papermetrics.With(next, hackhttp.SitePaperRecorder{}), hackmetrics.RequestRecorder{})
+					return core.WithPaperRecorder(papermetrics.With(next, SitePaperRecorder{}), hackmetrics.RequestRecorder{})
 				},
 			}, nil
 		},
@@ -210,16 +218,16 @@ func hackTools(db *sql.DB) mcp.Contribution {
 	return tools
 }
 
-// newAssistantDocsTextFunc returns an events.DocsTextFunc: host/app/hack/events
+// newAssistantDocsTextFunc returns an assistant.DocsTextFunc: host/app/hack/events
 // may not import host/webassets (scripts/layering/rules.txt), so this wires
-// webassets' embedded Hack skills into hackhttp.AssistantDocsText (the one place
+// webassets' embedded Hack skills into assistant.AssistantDocsText (the one place
 // the text extraction lives) and injects the result into the assistant service.
 func newAssistantDocsTextFunc() func() string {
 	var once sync.Once
 	var text string
 	return func() string {
 		once.Do(func() {
-			text = hackhttp.AssistantDocsText(hackassets.HackSkills)
+			text = assistant.AssistantDocsText(hackassets.HackSkills)
 		})
 		return text
 	}

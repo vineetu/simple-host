@@ -165,7 +165,7 @@ func TestAnalyticsHackSchemasKeepPersonDataOut(t *testing.T) {
 }
 
 // Results recorded from the REST shapes Hack tools pass through
-// (products/hack/hackhttp), one or more per person-bearing tool.
+// (products/hack/core and the feature packages), one or more per person-bearing tool.
 func TestAnalyticsHackRecordedResultsKeepPersonDataOut(t *testing.T) {
 	s := newTestServer(nil)
 	person := map[string]any{"user_id": leak, "email": leak, "display_name": leak, "admin": true}
@@ -210,8 +210,12 @@ func TestAnalyticsHackRecordedResultsKeepPersonDataOut(t *testing.T) {
 func TestAnalyticsHackRESTKeysKeepPersonDataOut(t *testing.T) {
 	keyPattern := regexp.MustCompile(`json:"([a-z0-9_]+)|"([a-z][a-z0-9_]*)":`)
 	keys := map[string]bool{}
-	for _, dir := range []string{"../hackhttp", "../model", "../app", "../rules"} {
+	// Every Hack package but the tools themselves: the core, each feature, model, app and rules.
+	for _, dir := range []string{".."} {
 		_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+			if d != nil && d.IsDir() && path == "../mcp" {
+				return filepath.SkipDir
+			}
 			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return nil
 			}

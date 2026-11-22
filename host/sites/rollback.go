@@ -24,16 +24,16 @@ func (s *Service) activateVersion(ctx context.Context, tx *sql.Tx, site model.Si
 	if err := repo.ActivateVersionNumber(ctx, tx, site.ID, version); err != nil {
 		return 0, err
 	}
-	if err := s.ensureAccessMarker(site); err != nil {
+	if err := s.EnsureAccessMarker(site); err != nil {
 		return 0, err
 	}
 	// Change served files only after the database steps, and restore them if commit fails.
-	if err := s.disk.UpdateCurrent(site.UserID, site.Name, version); err != nil {
+	if err := s.Disk.UpdateCurrent(site.UserID, site.Name, version); err != nil {
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
 		if prev != version {
-			if rerr := s.disk.UpdateCurrent(site.UserID, site.Name, prev); rerr != nil {
+			if rerr := s.Disk.UpdateCurrent(site.UserID, site.Name, prev); rerr != nil {
 				log.Printf("rollback site_id=%s: commit failed (%v) and serving v%d again failed: %v", site.ID, err, prev, rerr)
 			}
 		}
@@ -45,8 +45,8 @@ func (s *Service) activateVersion(ctx context.Context, tx *sql.Tx, site model.Si
 // prepareRollback locks the site and checks the requested version before the transaction.
 // The caller must release the returned lock when it is non-nil.
 func (s *Service) prepareRollback(ctx context.Context, userID, name, expectedID string, checkID bool, version int) (model.Site, func(), bool, error) {
-	unlock := s.lockSite(userID, name)
-	site, err := repo.GetSiteByUser(ctx, s.database, userID, name)
+	unlock := s.LockSite(userID, name)
+	site, err := repo.GetSiteByUser(ctx, s.DB, userID, name)
 	if err == nil && checkID && site.ID != expectedID {
 		err = sql.ErrNoRows
 	}
@@ -62,7 +62,7 @@ func (s *Service) prepareRollback(ctx context.Context, userID, name, expectedID 
 	if site.ActiveVersion == version {
 		return site, unlock, true, nil
 	}
-	versions, err := repo.ListVersionsBySite(ctx, s.database, site.ID)
+	versions, err := repo.ListVersionsBySite(ctx, s.DB, site.ID)
 	if err != nil {
 		return site, unlock, false, err
 	}
@@ -78,7 +78,7 @@ func (s *Service) prepareRollback(ctx context.Context, userID, name, expectedID 
 // rollbackTransaction locks the site row, runs the transaction-time gate and
 // activates the version, announcing the change when it moved.
 func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, version int, user *model.User) (model.Site, int, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
+	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return site, 0, err
 	}
@@ -89,7 +89,7 @@ func (s *Service) rollbackTransaction(ctx context.Context, site model.Site, vers
 		}
 		return site, 0, err
 	}
-	if err := s.createGate(ctx, tx, user, site.Name); err != nil {
+	if err := s.CreateGate(ctx, tx, user, site.Name); err != nil {
 		return site, 0, err
 	}
 	prev, err := s.activateVersion(ctx, tx, site, version)
@@ -126,7 +126,7 @@ type RollbackResult struct {
 
 // Rollback activates an eligible version under the site lock.
 func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResult, error) {
-	ifMatch, err := ParseIfMatch(in.IfMatch, s.deps.PersonalSitesEnabled)
+	ifMatch, err := ParseIfMatch(in.IfMatch, s.Deps.PersonalSitesEnabled)
 	if err != nil {
 		return RollbackResult{}, err
 	}
@@ -136,7 +136,7 @@ func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResul
 		return RollbackResult{Site: site}, err
 	}
 	if ifMatch > 0 && site.ActiveVersion != ifMatch {
-		return RollbackResult{Site: site}, versionChanged(site.ActiveVersion)
+		return RollbackResult{Site: site}, VersionChanged(site.ActiveVersion)
 	}
 	var prev int
 	if !unchanged {
@@ -146,5 +146,5 @@ func (s *Service) Rollback(ctx context.Context, in RollbackInput) (RollbackResul
 		return RollbackResult{Site: site}, err
 	}
 	moved := !unchanged && prev != site.ActiveVersion
-	return RollbackResult{Site: site, Unchanged: unchanged, PreviousVersion: prev, Moved: moved, FileBytes: s.fileBytes(site)}, nil
+	return RollbackResult{Site: site, Unchanged: unchanged, PreviousVersion: prev, Moved: moved, FileBytes: s.FileBytes(site)}, nil
 }

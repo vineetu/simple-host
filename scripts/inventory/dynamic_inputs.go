@@ -35,10 +35,10 @@ func patternInputs(sites []dynamicSite, prefix, suffix string) []string {
 }
 func validateDynamicInputs(root string) error {
 	ui := dynamicSites["host/sites/siteshttp/ui.go:RegisterUIRoutes"]
-	connector := dynamicSites["host/access/accesshttp/connector.go:Register"]
-	hackVersions := dynamicSites["products/hack/hackhttp/hack_get_started.go:RegisterHackGetStarted"]
+	connector := dynamicSites["host/access/connector/connector.go:Register"]
+	hackVersions := dynamicSites["products/hack/pages/hack_get_started.go:RegisterHackGetStarted"]
 	ownFiles := dynamicSites["products/hack/asset_files.go:RegisterOwnFiles"]
-	hackFilm := dynamicSites["products/hack/hackhttp/hack_film.go:RegisterHackFilm"]
+	hackFilm := dynamicSites["products/hack/pages/hack_film.go:RegisterHackFilm"]
 	inputs := []dynamicInput{
 		{"host/server/build.go", "Build", "range", nil, 1, "redirects"},
 		{"cmd/simple-host/main.go", "compatibilityRedirects", "keys", patternInputs(dynamicSites["host/server/build.go:Build"], "", ""), 0, ""},
@@ -47,20 +47,20 @@ func validateDynamicInputs(root string) error {
 		{"host/sites/siteshttp/ui.go", "RegisterUIRoutes", "range", patternInputs(ui[1:2], "GET /", ""), 2, ""},
 		{"host/sites/siteshttp/ui.go", "RegisterUIRoutes", "range", nil, 3, "iconFiles()"},
 		{"host/sites/siteshttp/ui.go", "iconFiles", "keys", patternInputs(ui[2:3], "GET /", ""), 0, ""},
-		{"host/access/accesshttp/connector.go", "MuseClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
-		{"host/access/accesshttp/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
-		{"products/hack/hackhttp/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["products/hack/hackhttp/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
-		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
-		{"products/hack/hackhttp/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
+		{"host/access/connector/connector.go", "MuseClientPath", "values", patternInputs(connector[:1], "GET ", ""), 0, ""},
+		{"host/access/connector/connector.go", "Register", "range", patternInputs(connector[1:], "", " /mcp"), 2, ""},
+		{"products/hack/pages/hack_ui.go", "RegisterHackUI", "range", patternInputs(dynamicSites["products/hack/pages/hack_ui.go:RegisterHackUI"], "", ""), 1, ""},
+		{"products/hack/pages/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[:1], "GET /simple-hack-skills-only-", ".zip"), 1, ""},
+		{"products/hack/pages/hack_get_started.go", "RegisterHackGetStarted", "range", patternInputs(hackVersions[1:], "GET /simple-hack-skills-only-", ".zip"), 2, ""},
 		{"products/hack/asset_files.go", "RegisterOwnFiles", "range", nil, 1, "servedOwnFiles()"},
 		{"products/hack/asset_files.go", "servedOwnFiles", "keys", patternInputs(ownFiles[:1], "GET /", ""), 0, ""},
 		{"products/hack/asset_files.go", "RegisterOwnFiles", "range", nil, 2, "ownFolders"},
 		{"products/hack/asset_files.go", "ownFolders", "values", patternInputs(ownFiles[1:], "GET /", "/{$}"), 0, ""},
-		{"products/hack/hackhttp/hack_film.go", "RegisterHackFilm", "range", nil, 1, "hackFilmTypes()"},
-		{"products/hack/hackhttp/hack_film.go", "hackFilmTypes", "keys", patternInputs(hackFilm[:1], "GET /film/", ""), 0, ""},
-		{"products/hack/hackhttp/hack_film.go", "RegisterHackFilm", "range", nil, 2, "hackCompaniesFilmTypes()"},
-		{"products/hack/hackhttp/hack_film.go", "hackCompaniesFilmTypes", "keys", patternInputs(hackFilm[1:], "GET /film/", ""), 0, ""},
-		{"products/hack/hackhttp/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
+		{"products/hack/pages/hack_film.go", "RegisterHackFilm", "range", nil, 1, "hackFilmTypes()"},
+		{"products/hack/pages/hack_film.go", "hackFilmTypes", "keys", patternInputs(hackFilm[:1], "GET /film/", ""), 0, ""},
+		{"products/hack/pages/hack_film.go", "RegisterHackFilm", "range", nil, 2, "hackCompaniesFilmTypes()"},
+		{"products/hack/pages/hack_film.go", "hackCompaniesFilmTypes", "keys", patternInputs(hackFilm[1:], "GET /film/", ""), 0, ""},
+		{"products/hack/pages/hack_assets.go", "HackSkillNames", "values", []string{"run-hackathon", "join-hackathon", "judge-hackathon", "website-deploy", "website-deploy-builder"}, 0, ""},
 	}
 	for registration := 4; registration <= 7; registration++ {
 		inputs = append(inputs, dynamicInput{"host/sites/siteshttp/ui.go", "RegisterUIRoutes", "range", nil, registration, "assets.BundledSkillDirs()"})

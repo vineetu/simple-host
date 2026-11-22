@@ -10,7 +10,7 @@ import (
 // and created_at, and a child row may only reference a parent the visitor
 // may read.
 func TestStorageOrderChangeReferences(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	ah, bh := s.Callers["alice"], s.Callers["bob"]
 	s.Must(t, "PUT", "/resources/orders", StorageRules("sqlite", RulesRecords), s.Key, 201)
 	schema := func(sql string) {

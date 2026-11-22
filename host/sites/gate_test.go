@@ -43,20 +43,20 @@ func TestCreateGateDispatch(t *testing.T) {
 				user.Member = &model.MemberIdentity{PersonID: "person", Site: "site"}
 			}
 			svc := New(nil, nil, nil, 0, Deps{})
-			if err := svc.createGate(context.Background(), nil, user, "site"); err != nil {
+			if err := svc.CreateGate(context.Background(), nil, user, "site"); err != nil {
 				t.Fatalf("nil hook: %v", err)
 			}
 			tx := new(sql.Tx)
 			calls := 0
 			refusal := &GateError{Code: "event_not_found", Message: "event not found"}
-			svc.deps.GroupGate = groupGateFunc(func(ctx context.Context, got *sql.Tx, u *model.User, name string) *GateError {
+			svc.Deps.GroupGate = groupGateFunc(func(ctx context.Context, got *sql.Tx, u *model.User, name string) *GateError {
 				calls++
 				if got != tx || u != user || name != "site" {
 					t.Fatal("gate did not receive caller's transaction and identity")
 				}
 				return refusal
 			})
-			got := svc.createGate(context.Background(), tx, user, "site")
+			got := svc.CreateGate(context.Background(), tx, user, "site")
 			if identity == "personal" {
 				if calls != 0 || got != nil {
 					t.Fatal("personal user reached product gate")

@@ -14,6 +14,7 @@ import (
 	"go/token"
 	"go/types"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -25,10 +26,46 @@ const module = "github.com/vsriram/simple-host/"
 
 var routesPackages = []string{
 	"host/access/accesshttp",
+	"host/access/accountdata",
+	"host/access/connector",
+	"host/access/editors",
+	"host/access/gate",
+	"host/access/keys",
+	"host/access/operator",
+	"host/access/profile",
+	"host/access/signin",
+	"host/access/suspension",
+	"host/access/teams",
 	"host/sites/siteshttp",
-	"host/data/datahttp",
+	"host/data",
+	"host/data/files",
+	"host/data/kv",
+	"host/data/notifications",
+	"host/data/push",
+	"host/data/resources",
+	"host/data/rows",
+	"host/data/sqlconsole",
+	"host/data/usage",
+	"host/data/visitors",
 	"host/mcp",
-	"products/hack/hackhttp",
+	"products/hack/assistant",
+	"products/hack/checklist",
+	"products/hack/content",
+	"products/hack/core",
+	"products/hack/entries",
+	"products/hack/exports",
+	"products/hack/judging",
+	"products/hack/lifecycle",
+	"products/hack/messages",
+	"products/hack/notices",
+	"products/hack/organisers",
+	"products/hack/pages",
+	"products/hack/public",
+	"products/hack/registration",
+	"products/hack/results",
+	"products/hack/teams",
+	"products/hack/teamsites",
+	"products/hack/voting",
 }
 
 var sqlText = regexp.MustCompile(`(?is)\b(?:SELECT\s+[\w\s,.*()=$']{1,300}?\bFROM\s+\w|INSERT\s+INTO\s+\w|UPDATE\s+\w+\s+SET\s+\w|DELETE\s+FROM\s+\w)`)
@@ -53,8 +90,21 @@ func moduleFunc(obj types.Object) bool {
 			return false
 		}
 	}
-	_, ok := obj.(*types.Func)
-	return ok
+	f, ok := obj.(*types.Func)
+	return ok && !(p == "host/data" && dataRouteCore(f))
+}
+
+// dataRouteCore reports whether f is Data's route core (the Handler and the
+// refusal writers every data route shares): web work, like a routes package.
+func dataRouteCore(f *types.Func) bool {
+	if r := f.Type().(*types.Signature).Recv(); r != nil {
+		return strings.HasSuffix(r.Type().String(), "/host/data.Handler")
+	}
+	switch f.Name() {
+	case "WriteStorageError", "StorageAnswered", "StorageRefused", "StorageOwner", "StoragePage", "WriteNotifyError", "NotifyError":
+		return true
+	}
+	return false
 }
 
 func isHandler(info *types.Info, ft *ast.FuncType) bool {
@@ -134,7 +184,7 @@ func countPackage(pkg *packages.Package, verbose bool) *counts {
 // than one module function, or running over 40 lines.
 func (c *counts) countHandler(pkg *packages.Package, fd *ast.FuncDecl, verbose bool) {
 	c.handlers++
-	hasSQL, callees := handlerBody(pkg.TypesInfo, fd.Body)
+	hasSQL, callees := handlerBody(pkg.Fset, pkg.TypesInfo, fd.Body)
 	lines := pkg.Fset.Position(fd.End()).Line - pkg.Fset.Position(fd.Pos()).Line + 1
 	extra := false
 	if hasSQL {
@@ -159,7 +209,7 @@ func (c *counts) countHandler(pkg *packages.Package, fd *ast.FuncDecl, verbose b
 
 // handlerBody reports whether body holds SQL text or a database/sql call,
 // and how many distinct module functions it calls.
-func handlerBody(info *types.Info, body *ast.BlockStmt) (hasSQL bool, callees int) {
+func handlerBody(fset *token.FileSet, info *types.Info, body *ast.BlockStmt) (hasSQL bool, callees int) {
 	called := map[types.Object]bool{}
 	ast.Inspect(body, func(m ast.Node) bool {
 		switch x := m.(type) {
@@ -177,7 +227,8 @@ func handlerBody(info *types.Info, body *ast.BlockStmt) (hasSQL bool, callees in
 			}
 			if id != nil {
 				obj := info.Uses[id]
-				if moduleFunc(obj) {
+				// A data feature's routes.go helpers are web work, like a routes package's.
+				if moduleFunc(obj) && filepath.Base(fset.Position(obj.Pos()).Filename) != "routes.go" {
 					called[obj] = true
 				}
 				if fn, ok := obj.(*types.Func); ok && fn.Pkg() != nil && fn.Pkg().Path() == "database/sql" {

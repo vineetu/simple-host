@@ -12,7 +12,7 @@ import (
 // domains, where a relative link would land on the wrong server.
 func (h *SiteHandler) chromeBase(r *http.Request) string {
 	if strings.HasPrefix(r.URL.Path, "/internal/") || h.Hosts.IsPlatformSubdomain(httpx.HostName(r)) || h.Hosts.IsSiteHost(r.Context(), httpx.HostName(r)) {
-		return h.mainSiteURL()
+		return h.MainSiteURL()
 	}
 	return ""
 }

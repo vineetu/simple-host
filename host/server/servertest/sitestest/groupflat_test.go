@@ -10,6 +10,7 @@ import (
 	"github.com/vsriram/simple-host/host/edition"
 	model "github.com/vsriram/simple-host/host/model"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -44,11 +45,11 @@ func (a *App) withHandle(t *testing.T, p rt.Person, h string) rt.Person {
 func TestSiteHostsFlatRouting(t *testing.T) {
 	a := NewApp(t)
 	ctx := context.Background()
-	event := a.withHandle(t, a.NewPerson(t, "ev"), uniq("weekend"))
+	event := a.withHandle(t, a.NewPerson(t, "ev"), fixture.Uniq("weekend"))
 	a.files(t, event, "POST", "alpha", map[string]string{"index.html": "<h1>alpha</h1>"})
-	legacy := a.withHandle(t, a.NewPerson(t, "ev"), uniq("my")+"--"+uniq("event"))
+	legacy := a.withHandle(t, a.NewPerson(t, "ev"), fixture.Uniq("my")+"--"+fixture.Uniq("event"))
 	a.files(t, legacy, "POST", "alpha", map[string]string{"index.html": "<h1>legacy alpha</h1>"})
-	other := a.withHandle(t, a.NewPerson(t, "ev"), uniq("summer"))
+	other := a.withHandle(t, a.NewPerson(t, "ev"), fixture.Uniq("summer"))
 	a.files(t, other, "POST", "red", map[string]string{"index.html": "<h1>red</h1>"})
 	a.files(t, other, "POST", "blue", map[string]string{"index.html": "<h1>blue</h1>"})
 	clash := a.withHandle(t, a.NewPerson(t, "legacy"), "red--"+other.Handle)
@@ -86,7 +87,7 @@ func TestSiteHostsFlatRouting(t *testing.T) {
 // two-level one no longer is.
 func TestOriginIsSiteHostIDFlatHosts(t *testing.T) {
 	a := NewApp(t)
-	event := a.withHandle(t, a.NewPerson(t, "ev"), uniq("weekend"))
+	event := a.withHandle(t, a.NewPerson(t, "ev"), fixture.Uniq("weekend"))
 	siteID := a.Deploy(t, event, "alpha")
 	a.MarkReady(t, event.Handle)
 	ctx := context.Background()

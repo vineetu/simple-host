@@ -30,7 +30,7 @@ func countPeople(ctx context.Context, q sqlkit.Querier, ev model.Event) (partici
 
 // deleteEventAndAccount deletes the event (cascading members and teams) and
 // its notices, then the holding account, which frees the handle and slug.
-func deleteEventAndAccount(ctx context.Context, tx *sql.Tx, ev model.Event) error {
+func DeleteEventAndAccount(ctx context.Context, tx *sql.Tx, ev model.Event) error {
 	// Lock order: the event row (as PATCH, stage and extension changes take
 	// it), the holding account's sites (an update deploy holds its site row,
 	// then its team row), then the team rows.

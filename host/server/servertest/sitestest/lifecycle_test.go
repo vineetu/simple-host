@@ -14,7 +14,9 @@ import (
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	model "github.com/vsriram/simple-host/host/model"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
+	"github.com/vsriram/simple-host/host/sites/domains"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 )
 
 // waitBlocked gives a request started in a goroutine time to reach the lock
@@ -51,7 +53,7 @@ func TestRecentlyDeletedAndRestore(t *testing.T) {
 	a.Deploy(t, olive, "blog")
 	a.Deploy(t, oscar, "home")
 	ctx := context.Background()
-	claimed := uniq("olv") + "." + rt.SiteDomain
+	claimed := fixture.Uniq("olv") + "." + rt.SiteDomain
 	if r := a.bind(t, olive, "shop", claimed); r.Status != 200 {
 		t.Fatalf("claim: %d %s", r.Status, r.Body)
 	}
@@ -269,7 +271,7 @@ func TestPurgeLeavesAnotherSitesDomainLink(t *testing.T) {
 	a := NewApp(t)
 	olive := a.NewPerson(t, "olive")
 	siteID := a.Deploy(t, olive, "shop")
-	custom := uniq("shop") + ".example.test"
+	custom := fixture.Uniq("shop") + ".example.test"
 	if r := a.bind(t, olive, "shop", custom); r.Status != 200 {
 		t.Fatalf("bind: %d %s", r.Status, r.Body)
 	}
@@ -296,8 +298,8 @@ func TestPreviousDomainFollowsRenameAndLapses(t *testing.T) {
 	olive := a.NewPerson(t, "olive")
 	siteID := a.Deploy(t, olive, "shop")
 	ctx := context.Background()
-	first := uniq("first") + ".invalid"
-	second := uniq("second") + ".invalid"
+	first := fixture.Uniq("first") + ".invalid"
+	second := fixture.Uniq("second") + ".invalid"
 	a.bind(t, olive, "shop", first)
 	a.verify(t, siteID, first)
 	a.bind(t, olive, "shop", second)
@@ -322,48 +324,19 @@ func TestPreviousDomainFollowsRenameAndLapses(t *testing.T) {
 	}
 	a.bind(t, olive, "store", second)
 	bd := model.BoundDomain{SiteID: siteID, Domain: second, Status: "pending", PreviousDomain: first}
-	a.Sites.CheckPreviousDomain(ctx, bd, map[string]bool{})
+	(domains.Handler{Handler: a.Sites.Handler}).CheckPreviousDomain(ctx, bd, map[string]bool{})
 	if a.domainInfo(t, siteID).PreviousDomain != first {
 		t.Fatal("let go too early")
 	}
 	if _, err := a.Database.Exec(`UPDATE sites SET previous_domain_failing_since = now() - interval '73 hours' WHERE id = $1`, siteID); err != nil {
 		t.Fatal(err)
 	}
-	a.Sites.CheckPreviousDomain(ctx, bd, map[string]bool{})
+	(domains.Handler{Handler: a.Sites.Handler}).CheckPreviousDomain(ctx, bd, map[string]bool{})
 	if info := a.domainInfo(t, siteID); info.PreviousDomain != "" || info.Domain != second {
 		t.Fatalf("earlier address not let go: %+v", info)
 	}
 	if _, err := os.Lstat(filepath.Join(a.Disk.DataDir(), "domains", first)); !os.IsNotExist(err) {
 		t.Fatalf("earlier address still linked: %v", err)
-	}
-}
-
-// C4: the per-site lock is per account, and a delete or restore of a name
-// the account does not have takes no lock at all.
-func TestSiteLocksPerAccount(t *testing.T) {
-	a := NewApp(t)
-	olive, oscar := a.NewPerson(t, "olive"), a.NewPerson(t, "oscar")
-	a.Deploy(t, olive, "shop")
-	a.Deploy(t, oscar, "shop")
-	unlock := a.Sites.LockSite(olive.ID, "shop")
-	done := make(chan rt.Resp, 1)
-	go func() { done <- a.files(t, oscar, "PUT", "shop", map[string]string{"index.html": "o2"}) }()
-	select {
-	case r := <-done:
-		if r.Status != 200 {
-			t.Fatalf("other account's deploy: %d %s", r.Status, r.Body)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("another account's site of the same name waited on this lock")
-	}
-	unlock()
-	for _, c := range []struct{ method, path string }{{"DELETE", "/v1/sites/nope"}, {"POST", "/v1/sites/nope/restore"}} {
-		if r := a.api(t, oscar, c.method, c.path, nil); r.Status != 404 {
-			t.Fatalf("%s %s: %d %s", c.method, c.path, r.Status, r.Body)
-		}
-	}
-	if _, ok := a.Sites.UploadLocks.Load(oscar.ID + "/nope"); ok {
-		t.Fatal("a lock was made for a name the account does not have")
 	}
 }
 
@@ -409,7 +382,7 @@ func TestAdminExportLeavesOutDeletedSites(t *testing.T) {
 		t.Fatalf("download all: %d %s", r.Status, r.Body)
 	}
 	var hasKeep, hasGone bool
-	for name := range tarNames(t, r.Body) {
+	for name := range fixture.TarNames(t, r.Body) {
 		hasKeep = hasKeep || strings.HasPrefix(name, olive.Handle+"/keep/")
 		hasGone = hasGone || strings.HasPrefix(name, olive.Handle+"/gone/")
 	}
@@ -527,7 +500,7 @@ func TestSiteOffline(t *testing.T) {
 		t.Fatalf("owner deploy: %d %s", r.Status, r.Body)
 	}
 	isOffline(olive.SiteHost("shop"), "/")
-	claimed := uniq("olive-off") + "." + rt.SiteDomain
+	claimed := fixture.Uniq("olive-off") + "." + rt.SiteDomain
 	if r := a.bind(t, olive, "shop", claimed); r.Status != 200 {
 		t.Fatalf("claim: %d %s", r.Status, r.Body)
 	}

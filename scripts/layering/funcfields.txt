@@ -1,14 +1,27 @@
 # Func-typed struct fields allowed in host/access, host/sites, host/data and host/ops
 # (routes packages aside): scripts/layering/funcfields.go. One per line:
 # <dir> <Struct.Field>  # why it stays. A new field fails the check; a removed one must leave.
-host/access Connector.Now  # clock (tests set it)
-host/access ProviderCallbackInput.Attribution  # the route reads the original request (arrival headers) for a new account, inside the callback transaction once the state is spent
+host/access/connector Connector.Now  # clock (tests set it)
+host/access/gate ProviderCallbackInput.Attribution  # the route reads the original request (arrival headers) for a new account, inside the callback transaction once the state is spent
 host/access/repo activationQuery.scan  # local row scanner of one query table inside the repo (iterator adapter, not a cross-module hook)
-host/data Service.sqliteHook  # package tests only: observes SQLite stages
-host/data Service.notified  # package tests only: observes the events Service.Emit sends, as sqliteHook observes SQLite stages
-host/data SiteSlots.admitHook  # package tests only: asserts admission is never nested on a goroutine
+host/access/auth SignInAlerts.now  # clock (tests set it); was in accesshttp, a routes package
+host/access/connector Handler.now  # clock (tests set it); was in accesshttp, a routes package
+host/access/gate OAuthHandler.LookupIP  # DNS resolver for the custom-domain sign-in check (tests substitute it); was in accesshttp
+host/access/gate OAuthHandler.LookupCNAME  # DNS resolver, as LookupIP; was in accesshttp
+host/access/gate VisitorVisit.Revoke  # releases the in-process visitor credential a visitor tool call made; was in accesshttp
+host/access/gate passcodeState.Now  # clock (tests set it); was in accesshttp
+host/access/featuretest Base.Auth  # test fixture: the key middleware a feature's test mounts its routes with
+host/access/featuretest Base.Notice  # test fixture: the notice middleware, as Auth
+host/access/featuretest Base.Bearer  # test fixture: the connector's BearerAuth, set by the connector's tests
+host/data Service.SQLiteHook  # tests only: observes SQLite stages
+host/data Service.Notified  # tests only: observes the events Service.Emit sends, as SQLiteHook observes SQLite stages
+host/data SiteSlots.AdmitHook  # tests only: asserts admission is never nested on a goroutine
 host/data/notify client.resolver  # external provider mechanics: DNS lookup for the SSRF check (tests set it)
 host/sites Deps.Sitemap  # product extension point: the product filters its own sites out of the sitemap
 host/sites HeldSiteSuspension.Also  # product extension point: the product writes its own held-site rows in the same transaction (Hack TeamSiteChanger)
+host/sites/sitesroute Handler.WorkerStatus  # the server's worker status read, set once at start-up (host/server/workers.go) and shown by GET /v1/admin/usage; it was a routes-package field before the routes moved
+host/sites/sitesroute/fixture App.Auth  # test fixture: the auth middleware a feature's Register takes
+host/sites/sitesroute/fixture App.Notice  # test fixture: the notice middleware a feature's Register takes
 host/sites/idempotency Store.now  # clock (tests set it)
 host/sites/redirects Options.Exists  # local file-tree check the redirects parser runs over the deploy being built
+host/data turnstileVerifier.now  # clock (tests set it)

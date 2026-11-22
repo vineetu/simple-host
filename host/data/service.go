@@ -46,26 +46,26 @@ type Deps struct {
 // Service owns site storage workflows.
 type Service struct {
 	accounts   *accountapp.Service
-	db         *sql.DB
-	deps       Deps
-	sqliteHook func(string) // injected only by package tests
-	notified   func(Event)  // injected only by package tests
+	DB         *sql.DB
+	Deps       Deps
+	SQLiteHook func(string) // injected only by package tests
+	Notified   func(Event)  // injected only by package tests
 }
 
 // New constructs a storage service.
 func New(db *sql.DB, deps Deps) *Service {
-	return &Service{accounts: accountapp.New(db), db: db, deps: deps}
+	return &Service{accounts: accountapp.New(db), DB: db, Deps: deps}
 }
 
 // writeLock acquires the shared site lock and, when recheck is set and the
 // service rechecks (Deps.RecheckResource), checks that the call's resource is
 // still the one it was authorized against before starting the bounded write
 // context. The recheck runs while the lock is held.
-func (s *Service) writeLock(ctx context.Context, call Call, recheck bool) (context.Context, func(), error) {
-	key, wait, timeout := call.OwnerID+"/"+call.SiteName, s.deps.WriteLockWait, s.deps.WriteTimeout
+func (s *Service) WriteLock(ctx context.Context, call Call, recheck bool) (context.Context, func(), error) {
+	key, wait, timeout := call.OwnerID+"/"+call.SiteName, s.Deps.WriteLockWait, s.Deps.WriteTimeout
 	lockCtx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
-	mu, _ := s.deps.Locks.LoadOrStore(key, &sync.Mutex{})
+	mu, _ := s.Deps.Locks.LoadOrStore(key, &sync.Mutex{})
 	m := mu.(*sync.Mutex)
 	tick := time.NewTicker(5 * time.Millisecond)
 	defer tick.Stop()
@@ -76,7 +76,7 @@ func (s *Service) writeLock(ctx context.Context, call Call, recheck bool) (conte
 		case <-tick.C:
 		}
 	}
-	if recheck && s.deps.RecheckResource && !s.resourceUnchanged(lockCtx, call) {
+	if recheck && s.Deps.RecheckResource && !s.resourceUnchanged(lockCtx, call) {
 		m.Unlock()
 		return nil, nil, &Error{Code: "resource_changed", Message: "resource changed; retry"}
 	}

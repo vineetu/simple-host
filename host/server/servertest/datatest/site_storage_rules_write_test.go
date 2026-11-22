@@ -33,7 +33,7 @@ func saveWriteRules(t *testing.T, s Shop, add, check string, status int) {
 // An idempotent replay rechecks today's rules: a write the rules (or a
 // product binding) no longer allow is refused, never replayed.
 func TestStorageRulesWriteReplay(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	p := &replayBindings{member: true}
 	s.A.Data.SetStorageBindings(p)
 	saveWriteRules(t, s, "auth.signed_in", "true", 201)
@@ -91,7 +91,7 @@ func rtCopy(h map[string]string, k, v string) map[string]string {
 
 // An edit whose check fails answers like a missing row and changes nothing.
 func TestStorageRulesWriteFailedCheckMatchesMissing(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	saveWriteRules(t, s, "auth.signed_in", `status == "approved"`, 201)
 	s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(status TEXT)"}, s.Key, 200)
 	route := "/sqlite/data/tables/entries/rows"
@@ -108,7 +108,7 @@ func TestStorageRulesWriteFailedCheckMatchesMissing(t *testing.T) {
 
 // A visitor's values for the server's columns, in any spelling, are ignored.
 func TestStorageRulesWriteServerColumnSpelling(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	saveWriteRules(t, s, "auth.signed_in", "true", 201)
 	s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE entries(body TEXT, visitor_id TEXT, created_at TEXT, updated_at TEXT)"}, s.Key, 200)
 	route := "/sqlite/data/tables/entries/rows"

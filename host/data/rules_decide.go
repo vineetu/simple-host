@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,7 +15,7 @@ import (
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
-func rulesInvalid() *Error {
+func RulesInvalid() *Error {
 	return &Error{Code: "rules_invalid", Message: "stored rules are invalid; the owner must repair them"}
 }
 
@@ -36,7 +37,7 @@ func platformValues(c Call) ruleengine.Values {
 // A binding-only plan is compiled without opening SQLite or taking a lock.
 // Its catalog admits the identifiers in the rules; it is never used to build
 // SQL. Stage 2 recompiles against the actual catalog inside admission.
-func ruleBindingTable(set ruleengine.PolicySet, name string) ruleengine.Table {
+func RuleBindingTable(set ruleengine.PolicySet, name string) ruleengine.Table {
 	t := ruleengine.Table{Name: name, RowKey: "rowid"}
 	names := map[string]bool{}
 	for _, policy := range set.Policies {
@@ -50,24 +51,24 @@ func ruleBindingTable(set ruleengine.PolicySet, name string) ruleengine.Table {
 	return t
 }
 
-func (s *Service) compileCallRules(c *Call, table ruleengine.Table) error {
-	schema, err := s.rulesSchema()
+func (s *Service) CompileCallRules(c *Call, table ruleengine.Table) error {
+	schema, err := s.RulesSchema()
 	if err != nil {
-		return rulesInvalid()
+		return RulesInvalid()
 	}
 	set, errs := ruleengine.DecodeSet(c.Resource.EffectiveRules(table.Name))
 	if len(errs) != 0 {
-		return rulesInvalid()
+		return RulesInvalid()
 	}
 	plan, errs := ruleengine.Compile(set, table, schema, ruleengine.DefaultLimits())
 	if len(errs) != 0 {
-		return rulesInvalid()
+		return RulesInvalid()
 	}
-	c.ruleSet, c.rulePlan = set, plan
+	c.ruleSet, c.RulePlan = set, plan
 	return nil
 }
 
-func (s *Service) ruleValues(ctx context.Context, c *Call, op ruleengine.Op, refreshOwner bool, additional ...ruleengine.Op) error {
+func (s *Service) RuleValues(ctx context.Context, c *Call, op ruleengine.Op, refreshOwner bool, additional ...ruleengine.Op) error {
 	provider := s.bindings()
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -77,13 +78,13 @@ func (s *Service) ruleValues(ctx context.Context, c *Call, op ruleengine.Op, ref
 	}
 	v := platformValues(*c)
 	var needed []string
-	declared := s.deps.ProductBindingSchema
+	declared := s.Deps.ProductBindingSchema
 	if declared == nil {
 		declared = provider.Schema()
 	}
 	seen := map[string]bool{}
 	for _, operation := range append([]ruleengine.Op{op}, additional...) {
-		for _, name := range c.rulePlan.Needs(operation) {
+		for _, name := range c.RulePlan.Needs(operation) {
 			if _, ok := declared[name]; ok && !seen[name] {
 				needed = append(needed, name)
 				seen[name] = true
@@ -104,17 +105,17 @@ func (s *Service) ruleValues(ctx context.Context, c *Call, op ruleengine.Op, ref
 			v[name] = value
 		}
 	}
-	c.ruleValues = v
+	c.RuleValues = v
 	return nil
 }
 
-func (s *Service) ruleDecision(c *Call, op ruleengine.Op) *Error {
-	if c.VisitorID != "" && c.rulePlan.NeedsIdentity(op) {
+func (s *Service) RuleDecision(c *Call, op ruleengine.Op) *Error {
+	if c.VisitorID != "" && c.RulePlan.NeedsIdentity(op) {
 		if err := s.visitorActive(c); err != nil {
 			return err
 		}
 	}
-	permitted, code := rulePermission(c.rulePlan, c.ruleSet, op, c.ruleValues, c.SpamCheck)
+	permitted, code := rulePermission(c.RulePlan, c.ruleSet, op, c.RuleValues, c.SpamCheck)
 	if !permitted {
 		if code == "sign_in_required" {
 			return &Error{Code: code, Message: "sign in to this site first"}
@@ -138,7 +139,7 @@ func (s *Service) ruleDecision(c *Call, op ruleengine.Op) *Error {
 // for everyone else, the owner signed in on the site included
 // (EffectiveRules: no stored rules means owner only). Statements and file
 // checks re-run the same plan on each row inside the lock.
-func (s *Service) authorize(ctx context.Context, c *Call, table string, op ruleengine.Op) *Error {
+func (s *Service) Authorize(ctx context.Context, c *Call, table string, op ruleengine.Op) *Error {
 	c.Context = ctx
 	if err := s.Gate(*c, op != ruleengine.OpRead); err != nil {
 		return err.(*Error)
@@ -151,67 +152,67 @@ func (s *Service) authorize(ctx context.Context, c *Call, table string, op rulee
 
 // authorizeRuleOperation is stage 1 of authorize for a caller that rules govern.
 func (s *Service) authorizeRuleOperation(ctx context.Context, c *Call, table string, op ruleengine.Op) *Error {
-	if err := s.compileBindingRules(c, table); err != nil {
+	if err := s.CompileBindingRules(c, table); err != nil {
 		return err.(*Error)
 	}
-	if c.VisitorID != "" && c.rulePlan.NeedsIdentity(op) {
+	if c.VisitorID != "" && c.RulePlan.NeedsIdentity(op) {
 		if err := s.visitorActive(c); err != nil {
 			return err
 		}
 	}
-	if err := s.ruleValues(ctx, c, op, false); err != nil {
+	if err := s.RuleValues(ctx, c, op, false); err != nil {
 		return err.(*Error)
 	}
 	if op == ruleengine.OpAdd {
-		unchecked := cloneRuleValues(c.ruleValues)
+		unchecked := CloneRuleValues(c.RuleValues)
 		unchecked["auth.checked"] = ruleengine.Bool(false)
-		c.CheckedPost = c.SpamCheck == "ok" && c.rulePlan.ReferencesBinding(op, "auth.checked") && c.rulePlan.Partial(op, unchecked) != ruleengine.True
+		c.CheckedPost = c.SpamCheck == "ok" && c.RulePlan.ReferencesBinding(op, "auth.checked") && c.RulePlan.Partial(op, unchecked) != ruleengine.True
 	}
-	return s.ruleDecision(c, op)
+	return s.RuleDecision(c, op)
 }
 
 // ruleReadPredicate is stage 2: use the actual columns and fresh trusted facts.
-func (s *Service) ruleReadPredicate(ctx context.Context, c *Call, table string, meta rowMetadata) (ruleengine.Predicate, error) {
-	t := ruleengine.Table{Name: table, RowKey: meta.rowid}
-	for _, name := range meta.order {
+func (s *Service) RuleReadPredicate(ctx context.Context, c *Call, table string, meta RowMetadata) (ruleengine.Predicate, error) {
+	t := ruleengine.Table{Name: table, RowKey: meta.RowID}
+	for _, name := range meta.Order {
 		t.Columns = append(t.Columns, ruleengine.Column{Name: name})
 	}
-	if err := s.compileCallRules(c, t); err != nil {
+	if err := s.CompileCallRules(c, t); err != nil {
 		return ruleengine.Predicate{}, err
 	}
-	if err := s.ruleValues(ctx, c, ruleengine.OpRead, true); err != nil {
+	if err := s.RuleValues(ctx, c, ruleengine.OpRead, true); err != nil {
 		return ruleengine.Predicate{}, err
 	}
-	if err := s.ruleDecision(c, ruleengine.OpRead); err != nil {
+	if err := s.RuleDecision(c, ruleengine.OpRead); err != nil {
 		return ruleengine.Predicate{}, err
 	}
-	predicate, err := c.rulePlan.Using(ruleengine.OpRead, c.ruleValues)
+	predicate, err := c.RulePlan.Using(ruleengine.OpRead, c.RuleValues)
 	if err != nil {
 		if e, ok := err.(ruleengine.RuleError); ok && e.Clause == "binding" {
 			return predicate, &Error{Code: "internal_error", Message: "cannot read storage bindings"}
 		}
-		return predicate, rulesInvalid()
+		return predicate, RulesInvalid()
 	}
 	return predicate, nil
 }
 
 // ruleWritePlan is stage 2, after the fingerprint recheck and site admission.
 // All predicates for the transaction use this one fresh binding snapshot.
-func (s *Service) ruleWritePlan(c *Call, table string, meta rowMetadata, op ruleengine.Op) error {
-	if c.rulePlan == nil {
+func (s *Service) RuleWritePlan(c *Call, table string, meta RowMetadata, op ruleengine.Op) error {
+	if c.RulePlan == nil {
 		return nil
 	}
-	t := ruleengine.Table{Name: table, RowKey: meta.rowid}
-	for _, name := range meta.order {
+	t := ruleengine.Table{Name: table, RowKey: meta.RowID}
+	for _, name := range meta.Order {
 		t.Columns = append(t.Columns, ruleengine.Column{Name: name})
 	}
-	if err := s.compileCallRules(c, t); err != nil {
+	if err := s.CompileCallRules(c, t); err != nil {
 		return err
 	}
-	if err := s.ruleValues(c.Context, c, op, true); err != nil {
+	if err := s.RuleValues(c.Context, c, op, true); err != nil {
 		return err
 	}
-	if err := s.ruleDecision(c, op); err != nil {
+	if err := s.RuleDecision(c, op); err != nil {
 		return err
 	}
 	return nil
@@ -219,14 +220,14 @@ func (s *Service) ruleWritePlan(c *Call, table string, meta rowMetadata, op rule
 
 // ruleWritePredicates includes read visibility of the stored row and the AI
 // author constraint.
-func ruleWritePredicates(c Call, op ruleengine.Op) (ruleengine.Predicate, ruleengine.Predicate, error) {
-	read, err := c.rulePlan.Using(ruleengine.OpRead, c.ruleValues)
+func RuleWritePredicates(c Call, op ruleengine.Op) (ruleengine.Predicate, ruleengine.Predicate, error) {
+	read, err := c.RulePlan.Using(ruleengine.OpRead, c.RuleValues)
 	if err != nil {
-		return read, read, rulesInvalid()
+		return read, read, RulesInvalid()
 	}
-	using, err := c.rulePlan.Using(op, c.ruleValues)
+	using, err := c.RulePlan.Using(op, c.RuleValues)
 	if err != nil {
-		return read, using, rulesInvalid()
+		return read, using, RulesInvalid()
 	}
 	ai := ruleAIConstraint(op, c)
 	using.SQL = "(" + using.SQL + ") AND (" + ai.SQL + ")"
@@ -234,16 +235,16 @@ func ruleWritePredicates(c Call, op ruleengine.Op) (ruleengine.Predicate, ruleen
 	return read, using, nil
 }
 
-func ruleJSONArgs(args []ruleengine.Value) []json.RawMessage {
+func RuleJSONArgs(args []ruleengine.Value) []json.RawMessage {
 	params := make([]json.RawMessage, len(args))
 	for i, v := range args {
 		switch v.Kind {
 		case ruleengine.KindNull:
-			params[i] = rowJSON(nil)
+			params[i] = RowJSON(nil)
 		case ruleengine.KindBool:
-			params[i] = rowJSON(v.Bool)
+			params[i] = RowJSON(v.Bool)
 		case ruleengine.KindInt:
-			params[i] = rowJSON(v.Int)
+			params[i] = RowJSON(v.Int)
 		case ruleengine.KindFloat:
 			// Preserve REAL binding through the existing JSON parameter runner.
 			// Re-encoding 1.0 as 1 would change TEXT affinity from "1.0" to "1".
@@ -253,7 +254,7 @@ func ruleJSONArgs(args []ruleengine.Value) []json.RawMessage {
 			}
 			params[i] = json.RawMessage(number)
 		case ruleengine.KindText:
-			params[i] = rowJSON(v.Text)
+			params[i] = RowJSON(v.Text)
 		}
 	}
 	return params
@@ -261,39 +262,39 @@ func ruleJSONArgs(args []ruleengine.Value) []json.RawMessage {
 
 // checkWrittenRule reads the stored row (including affinity, defaults and
 // generated columns) inside the mutation's transaction, before commit.
-func (s *Service) checkWrittenRule(conn *sqlite3.Conn, c Call, table string, meta rowMetadata, id int64, op ruleengine.Op) error {
-	if c.rulePlan == nil {
+func (s *Service) CheckWrittenRule(conn *sqlite3.Conn, c Call, table string, meta RowMetadata, id int64, op ruleengine.Op) error {
+	if c.RulePlan == nil {
 		return nil
 	}
-	predicate, err := c.rulePlan.Check(op, c.ruleValues)
+	predicate, err := c.RulePlan.Check(op, c.RuleValues)
 	if err != nil {
-		return rulesInvalid()
+		return RulesInvalid()
 	}
-	query, args, err := runtime.RuleCheck(table, meta.rowid, ruleengine.Int(id), predicate)
+	query, args, err := runtime.RuleCheck(table, meta.RowID, ruleengine.Int(id), predicate)
 	if err != nil {
-		return rulesInvalid()
+		return RulesInvalid()
 	}
-	if err := rowReadAuthorizer(conn, false); err != nil {
-		return sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
+	if err := RowReadAuthorizer(conn, false); err != nil {
+		return SQLiteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
 	stmt, _, err := conn.Prepare(query)
 	if err != nil {
-		return sqliteRowFailure(err, rulesInvalid())
+		return SQLiteRowFailure(err, RulesInvalid())
 	}
 	defer stmt.Close()
 	if err := runtime.BindRuleArgs(stmt, 1, args); err != nil {
-		return sqliteRowFailure(err, rulesInvalid())
+		return SQLiteRowFailure(err, RulesInvalid())
 	}
 	if stmt.Step() {
 		return nil
 	}
 	if err := stmt.Err(); err != nil {
-		return sqliteRowFailure(err, rulesInvalid())
+		return SQLiteRowFailure(err, RulesInvalid())
 	}
 	if op == ruleengine.OpEdit {
 		return &Error{Code: "row_not_found", Message: "row not found"}
 	}
-	if err := s.ruleDecision(&c, op); err != nil {
+	if err := s.RuleDecision(&c, op); err != nil {
 		return err
 	}
 	return &Error{Code: "forbidden", Message: "add is not open to this visitor here"}
@@ -302,7 +303,7 @@ func (s *Service) checkWrittenRule(conn *sqlite3.Conn, c Call, table string, met
 // ensureSchemaRules preserves author columns even when some other column or
 // binding has made a saved set invalid. Invalid sets become owner-facing notes;
 // they continue to deny visitors until repaired.
-func (s *Service) ensureSchemaRules(conn *sqlite3.Conn, c Call, before map[string]bool) ([]string, error) {
+func (s *Service) EnsureSchemaRules(conn *sqlite3.Conn, c Call, before map[string]bool) ([]string, error) {
 	tables, err := runtime.SQLTables(conn)
 	if err != nil {
 		return nil, err
@@ -345,9 +346,23 @@ func (s *Service) ensureSchemaRules(conn *sqlite3.Conn, c Call, before map[strin
 		for _, col := range order {
 			table.Columns = append(table.Columns, ruleengine.Column{Name: col})
 		}
-		if err := s.compileCallRules(&c, table); err != nil {
+		if err := s.CompileCallRules(&c, table); err != nil {
 			notes = append(notes, "table "+name+": rules_invalid; repair the rules for this schema")
 		}
 	}
 	return notes, nil
+}
+
+// fileRulesTable is what file rules are written against, in the same words as
+// key-value rules: one row per file, its path and its uploader (visitor_id,
+// site_storage_files.writer_id, "" for the owner). It never becomes SQL.
+var FileRulesTable = ruleengine.Table{Name: "files", RowKey: "rowid", Columns: []ruleengine.Column{{Name: "path"}, {Name: "visitor_id"}}}
+
+var ruleIdentifier = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+
+func (s *Service) RulesSchema() (ruleengine.BindingSchema, error) {
+	if s.Deps.BindingSchema != nil {
+		return s.Deps.BindingSchema, nil
+	}
+	return MergeBindingSchema(s.Deps.SpamCheckAvailable, s.Deps.Bindings)
 }

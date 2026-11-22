@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/data/resources"
+
+	"github.com/vsriram/simple-host/host/access/gate"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/mcp"
@@ -277,13 +279,13 @@ func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 	}
 	r := httptest.NewRequest("GET", "https://"+f.Host+"/v1/sites/shop/storage/resources", nil)
 	r.Header.Set("Origin", "https://"+f.Host)
-	r.Header.Set(accesshttp.VisitorPassHeader, pass)
+	r.Header.Set(gate.VisitorPassHeader, pass)
 	r.SetPathValue("sitename", "shop")
 	if _, ok := f.A.Access.InternalVisitorSession(r, otherID); ok {
 		t.Fatal("pass accepted for other site")
 	}
 	rec := httptest.NewRecorder()
-	f.A.Data.StorageRouteFor(f.A.Access.StorageCaller, f.A.Data.ListStorageResources).ServeHTTP(rec, r)
+	f.A.Data.StorageRouteFor(f.A.Access.StorageCaller, resources.ListRoute).ServeHTTP(rec, r)
 	if rec.Code != 403 {
 		t.Fatalf("owner storage accepted visitor: %d", rec.Code)
 	}
@@ -295,7 +297,7 @@ func TestVisitorPassCannotCrossSitesOrBecomeOwner(t *testing.T) {
 	}
 	r.SetPathValue("sitename", "other")
 	rec = httptest.NewRecorder()
-	f.A.Data.StorageRouteFor(f.A.Access.StorageCaller, f.A.Data.ListStorageResources).ServeHTTP(rec, r)
+	f.A.Data.StorageRouteFor(f.A.Access.StorageCaller, resources.ListRoute).ServeHTTP(rec, r)
 	if rec.Code == 200 {
 		t.Fatal("cross-site name accepted")
 	}

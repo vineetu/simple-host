@@ -29,14 +29,14 @@ func (s *Service) LockAccountSites(ctx context.Context, userID string) (func(), 
 		}
 		return strings.Compare(a[1], b[1])
 	}
-	names, err := repo.AccountSiteKeys(ctx, s.database, userID)
+	names, err := repo.AccountSiteKeys(ctx, s.DB, userID)
 	for try := 0; err == nil; try++ {
 		slices.SortFunc(names, byKey)
 		for _, n := range names {
-			unlocks = append(unlocks, s.lockSite(n[0], n[1]))
+			unlocks = append(unlocks, s.LockSite(n[0], n[1]))
 		}
 		var again [][2]string
-		again, err = repo.AccountSiteKeys(ctx, s.database, userID)
+		again, err = repo.AccountSiteKeys(ctx, s.DB, userID)
 		if err != nil {
 			break
 		}
@@ -59,9 +59,9 @@ func (svc *Service) EraseAccountFiles(ctx context.Context, e model.ErasedAccount
 		}
 	}
 	for _, s := range e.Sites {
-		keep(svc.disk.PurgeTrashedSiteLinks(e.UserID, s.Name, ""))
+		keep(svc.Disk.PurgeTrashedSiteLinks(e.UserID, s.Name, ""))
 		for _, d := range s.Domains {
-			mine, err := svc.disk.UnbindDomainOf(d, e.UserID, s.Name)
+			mine, err := svc.Disk.UnbindDomainOf(d, e.UserID, s.Name)
 			keep(err)
 			if err != nil || !mine {
 				continue
@@ -72,19 +72,19 @@ func (svc *Service) EraseAccountFiles(ctx context.Context, e model.ErasedAccount
 		}
 	}
 	for _, a := range e.Aliases {
-		keep(svc.disk.RemoveHandleLinkOf(a, e.UserID))
+		keep(svc.Disk.RemoveHandleLinkOf(a, e.UserID))
 	}
 	// Address families: the link (only while it is still this account's)
 	// and the issuer's request, so nothing is served there any more.
 	for _, f := range e.Families {
-		if svc.disk.FamilyLinkTarget(f) == filepath.Join("..", "by-id", e.UserID) {
-			keep(svc.disk.UnbindFamily(f))
+		if svc.Disk.FamilyLinkTarget(f) == filepath.Join("..", "by-id", e.UserID) {
+			keep(svc.Disk.UnbindFamily(f))
 		}
 		hosts.RemoveFamilyRequest(context.Background(), f)
 	}
 	if len(e.Families) > 0 {
 		hosts.RefreshFamilies(ctx)
 	}
-	keep(svc.disk.DeleteUser(e.UserID, e.Handle))
+	keep(svc.Disk.DeleteUser(e.UserID, e.Handle))
 	return first
 }

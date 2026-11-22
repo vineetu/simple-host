@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	accounts "github.com/vsriram/simple-host/host/access"
+	"github.com/vsriram/simple-host/host/access/gate"
 	"github.com/vsriram/simple-host/host/access/oauth"
 )
 
@@ -28,7 +28,7 @@ func TestSignInProviderExchange(t *testing.T) {
 			return oauth.Identity{Provider: "oidc", UserID: "subject", Email: "person@example.test", EmailVerified: true}, exchangeErr
 		}}}
 		got, err := p.Exchange(t.Context(), "code", "verifier")
-		want := accounts.ProviderIdentity{Provider: "oidc", UserID: "subject", Email: "person@example.test", EmailVerified: true}
+		want := gate.ProviderIdentity{Provider: "oidc", UserID: "subject", Email: "person@example.test", EmailVerified: true}
 		if got != want || err != exchangeErr {
 			t.Fatalf("exchange = %+v, %v; want %+v, %v", got, err, want, exchangeErr)
 		}

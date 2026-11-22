@@ -8,6 +8,7 @@ import (
 
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 )
 
 // newTeam makes a team account with handle h and the given members, as
@@ -44,7 +45,7 @@ func (a *App) newTeam(t *testing.T, h string, members ...rt.Person) string {
 func TestTeamMembersManageTeamSites(t *testing.T) {
 	a := NewApp(t)
 	ann, cal := a.NewPerson(t, "team-ann"), a.NewPerson(t, "team-cal")
-	team := uniq("team")
+	team := fixture.Uniq("team")
 	teamID := a.newTeam(t, team, ann)
 	as := func(p rt.Person, method, path string, body any, extra ...string) rt.Resp {
 		h := p.Header()
@@ -147,8 +148,8 @@ func TestProtectedSiteOnOwnAddresses(t *testing.T) {
 	olive := a.NewPerson(t, "olive")
 	shopID := a.Deploy(t, olive, "shop")
 	a.Deploy(t, olive, "blog")
-	claimed := uniq("olv") + "." + rt.SiteDomain
-	custom := uniq("blog") + ".example.test"
+	claimed := fixture.Uniq("olv") + "." + rt.SiteDomain
+	custom := fixture.Uniq("blog") + ".example.test"
 	a.bind(t, olive, "shop", claimed)
 	a.bind(t, olive, "blog", custom)
 	a.verify(t, a.SiteID(t, olive, "blog"), custom)
@@ -179,7 +180,7 @@ func TestCreateExistingSiteRefused(t *testing.T) {
 	if r := a.files(t, olive, "POST", "shop", map[string]string{"index.html": "again"}); r.Status != http.StatusConflict || r.Code() != "site_exists" {
 		t.Fatalf("POST files: %d %s", r.Status, r.Body)
 	}
-	if r := a.At(t, "POST", rt.SiteDomain, "/v1/sites/shop", tarGzOf(t, 10), olive.Header()); r.Status != http.StatusConflict || r.Code() != "site_exists" {
+	if r := a.At(t, "POST", rt.SiteDomain, "/v1/sites/shop", fixture.TarGzOf(t, 10), olive.Header()); r.Status != http.StatusConflict || r.Code() != "site_exists" {
 		t.Fatalf("POST archive: %d %s", r.Status, r.Body)
 	}
 	if r := a.At(t, "GET", olive.SiteHost("shop"), "/", nil, nil); string(r.Body) != "<h1>shop</h1>" {

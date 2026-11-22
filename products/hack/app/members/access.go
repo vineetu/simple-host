@@ -28,8 +28,8 @@ func (e *ApprovalError) Error() string { return "your application is " + e.Statu
 func (e *ApprovalError) Code() string { return "approval_" + e.Status }
 
 var (
-	errEventNotFound = &Error{Code: "event_not_found", Message: "event not found"}
-	errTakenDown     = &Error{Code: "event_taken_down", Message: "this event has been taken down"}
+	ErrEventNotFound = &Error{Code: "event_not_found", Message: "event not found"}
+	ErrTakenDown     = &Error{Code: "event_taken_down", Message: "this event has been taken down"}
 )
 
 // Caller resolves the account in the event slug names.
@@ -63,10 +63,10 @@ func (s *Service) memberMay(ctx context.Context, ev model.Event, m model.EventMe
 		return &ApprovalError{Status: m.ApprovalStatus}
 	}
 	if len(roles) > 0 && !slices.Contains(roles, m.Role) {
-		return errEventNotFound
+		return ErrEventNotFound
 	}
 	if write && ev.TakenDown() {
-		return errTakenDown
+		return ErrTakenDown
 	}
 	return nil
 }
@@ -74,7 +74,7 @@ func (s *Service) memberMay(ctx context.Context, ev model.Event, m model.EventMe
 // notFound turns a missing row into event_not_found and keeps other errors.
 func notFound(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
-		return errEventNotFound
+		return ErrEventNotFound
 	}
 	return err
 }

@@ -1,6 +1,8 @@
-// Package access owns who may do what: accounts, keys, sign-in, the
-// connector, site passcodes, named viewers, site editors and teams. It
-// imports no other module: sites and data import it and call it directly.
+// Package access is the core of who may do what: the person and their
+// look-ups, and the few rules every module calls. Each feature (sign-in,
+// keys, teams, the site gate, the connector, ...) is its own package under
+// host/access, with its routes, and imports this core, never a sibling.
+// It imports no other module: sites and data import it and call it directly.
 //
 // Its door: repo/people.go (what other modules read and change
 // of an account, the users table's only reader and writer), product.go (what
@@ -18,5 +20,5 @@
 //   - the named-viewer list and count: ViewerEmails, NewViewers,
 //     NamedViewersRefusal and PasscodeRefusal (site_gates.go).
 //
-// Its HTTP routes are in accesshttp (routes.go).
+// accesshttp composes the features' routes.
 package access

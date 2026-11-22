@@ -25,7 +25,7 @@ func New(database *sql.DB, entryService *entries.Service) *Service {
 	return &Service{db: database, entries: entryService}
 }
 
-// Row is one event as the directory shows it: the raw fields hackhttp needs to build its JSON row.
+// Row is one event as the directory shows it: the raw fields products/hack/public needs to build its JSON row.
 type Row struct {
 	Slug, Title, Tagline, Stage, TimeZone string
 	AccentColor                           string
@@ -33,7 +33,7 @@ type Row struct {
 	ApplicationsOpen                      bool
 }
 
-// Directory is GET /v1/hack/directory's three groups, in the grouping hackhttp's getDirectory has always used.
+// Directory is GET /v1/hack/directory's three groups, in the grouping public's getDirectory has always used.
 type Directory struct {
 	Now, Upcoming, Past []Row
 }

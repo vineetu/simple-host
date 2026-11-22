@@ -3,12 +3,13 @@ package servertest
 import (
 	"context"
 	"database/sql"
-	"github.com/vsriram/simple-host/host/handler"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/handler"
 
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/web"

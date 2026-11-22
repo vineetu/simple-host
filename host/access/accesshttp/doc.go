@@ -1,18 +1,9 @@
-// Package accesshttp holds Access's HTTP routes: accounts, keys, sign-in
-// (email codes, OAuth, SSO), the connector, site passcodes, named viewers,
-// visitor sessions, and the gate in front of every site (SiteGate) and every
-// data route (StorageCaller, PasscodeGate).
-//
-// Routes are mounted in routes.go; copy a line there, e.g.
-//
-//	mux.Handle("GET /v1/sites/{sitename}/editors", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteEditors))))
-//
-// and write the handler method beside its siblings. A handler reads the
-// request, calls one function of host/access (or host/ops for a workflow
-// that spans modules) and writes the answer; decisions live there. Web work
-// stays here: cookies, redirects, which page to show and mapping a typed
-// refusal to its status (httpx.RefusalStatus). The account, OAuth and
-// connector handlers mount their own routes in Register (user.go, oauth.go,
-// connector.go). It imports the modules, host/web and host/httpx, never
-// another route package or a repo package.
+// Package accesshttp composes Access's routes from its features: the
+// person's own routes (UserHandler: signin, profile, keys, teams), the site
+// gate (AccessHandler, host/access/gate), the operator's and the account's
+// data routes (RegisterAccountRoutes: operator, accountdata, suspension,
+// profile.Patch), site editors (RegisterEditors) and the connector
+// (host/access/connector). A route lives in its feature's package, beside
+// its logic; this package only builds and mounts them and holds what
+// several features are set from (limits, the reviewer, the sites).
 package accesshttp

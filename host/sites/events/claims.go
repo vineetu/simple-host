@@ -1,0 +1,310 @@
+package events
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"log"
+	"slices"
+	"strings"
+	"time"
+
+	rules "github.com/vsriram/simple-host/host/rules/sites"
+
+	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/eventdns"
+)
+
+// recordTTL is deliberately short so teardown takes effect within minutes.
+const recordTTL = 120
+
+// EventDomainError describes a workflow failure and its optional public code.
+type EventDomainError struct{ Code, Message, WireCode string }
+
+func (e *EventDomainError) Error() string { return e.Message }
+
+// EventClaimInput is an event-domain claim as the organiser sent it; an
+// empty Domain is the first configured one.
+type EventClaimInput struct {
+	UserID, Name, IP, Domain string
+	Move                     bool
+}
+
+// EventDomainResult describes a claimed address without transport formatting.
+type EventDomainResult struct {
+	Host, ContentHost, IP string
+	ExpiresAt             time.Time
+}
+
+// EventReleaseInput identifies the claim and the caller releasing it.
+type EventReleaseInput struct {
+	UserID, Name, Domain string
+	IsAdmin              bool
+}
+
+// EventNameInput identifies a name under a zone.
+type EventNameInput struct{ Name, Zone string }
+
+// EventListInput identifies the account whose claims are listed.
+type EventListInput struct{ UserID string }
+
+// EventNameClaimed reports an unexpired claim held by this instance.
+func (s Service) EventNameClaimed(ctx context.Context, in EventNameInput) (bool, error) {
+	return eventNameClaimed(ctx, s.DB, in.Name, in.Zone)
+}
+
+// ClaimEventDomain claims a row, replaces DNS records and compensates failures in order.
+func (s Service) ClaimEventDomain(ctx context.Context, req EventClaimInput) (EventDomainResult, error) {
+	req, err := s.validEventClaim(req)
+	if err != nil {
+		return EventDomainResult{}, err
+	}
+	if err := s.checkEventNameFree(ctx, req); err != nil {
+		return EventDomainResult{}, err
+	}
+	// Refuse to move a live event unless the caller says that is the intent.
+	currentIP, _ := eventCurrentIP(ctx, s.DB, req.Name, req.Domain, req.UserID)
+	if currentIP != "" && currentIP != req.IP && !req.Move {
+		return EventDomainResult{}, &EventDomainError{Code: "conflict", Message: fmt.Sprintf(
+			"%s.%s already points at %s. Re-claiming with a different address moves a running event, and anyone using it would silently reach the new machine. Send \"move\": true if that is what you want.",
+			req.Name, req.Domain, currentIP), WireCode: ""}
+	}
+	// Cap concurrent holdings, counting only names this account does not
+	// already hold, so re-claiming to extend an existing event never trips it.
+	if held, err := eventHoldingCount(ctx, s.DB, req.UserID, req.Name, req.Domain); err == nil && held >= s.Deps.EventMaxClaims {
+		return EventDomainResult{}, &EventDomainError{Code: "conflict", Message: fmt.Sprintf("an account may hold %d event names at once; release one first", s.Deps.EventMaxClaims), WireCode: ""}
+	}
+
+	// Claim the row first. Whoever wins this insert owns the name, so two
+	// organisers racing for the same event name cannot both create records and
+	// leave one set orphaned in DNS with nothing tracking them.
+	_, existingIDs, wasNew, err := claimEventDomain(ctx, s.DB, req.Name, req.Domain, req.UserID, req.IP, fmt.Sprintf("%d hours", int(s.Deps.EventTTL.Hours())))
+	if errors.Is(err, sql.ErrNoRows) {
+		// The conflict clause refused: the row exists and belongs to somebody else.
+		return EventDomainResult{}, &EventDomainError{Code: "conflict", Message: "that event name is taken", WireCode: ""}
+	}
+	if err != nil {
+		log.Printf("event claim: %v", err)
+		return EventDomainResult{}, &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
+	}
+
+	// Re-claiming the same name replaces its records rather than accumulating
+	// them, otherwise a moved event would leave the old address answering.
+	for _, id := range existingIDs {
+		if err := s.Deps.EventDNS.DeleteRecord(ctx, req.Domain, id); err != nil {
+			log.Printf("event claim: stale record %s: %v", id, err)
+		}
+	}
+	var ids []string
+	for _, label := range []string{req.Name, "sites." + req.Name} {
+		id, err := s.Deps.EventDNS.CreateA(ctx, req.Domain, label, req.IP, recordTTL)
+		if err != nil {
+			s.undoEventClaim(ctx, req, ids, wasNew)
+			log.Printf("event claim: %v", err)
+			return EventDomainResult{}, &EventDomainError{Code: "gateway", Message: "could not create DNS records", WireCode: ""}
+		}
+		ids = append(ids, id)
+	}
+	// If this fails the records exist but nothing tracks them, so neither release
+	// nor the sweep would ever remove them. Undo rather than report success.
+	if _, err := setEventRecordIDs(ctx, s.DB, req.Name, req.Domain, ids); err != nil {
+		log.Printf("event claim: recording ids: %v", err)
+		s.undoEventClaim(ctx, req, ids, wasNew)
+		return EventDomainResult{}, &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
+	}
+
+	host := req.Name + "." + req.Domain
+	// Attributable by design: a name under our domain carrying a valid
+	// certificate is worth being able to trace back to an account.
+	log.Printf("event claim: %s -> %s by user %s", host, req.IP, req.UserID)
+	return EventDomainResult{Host: host, ContentHost: "sites." + host, IP: req.IP, ExpiresAt: time.Now().Add(s.Deps.EventTTL)}, nil
+}
+
+// checkEventNameFree refuses a name that something other than this account
+// already answers for: an explicit zone record, this instance, the hackathon
+// platform, or a live product served through the wildcard.
+func (s Service) checkEventNameFree(ctx context.Context, req EventClaimInput) error {
+	// A static reserved list cannot know what the zone already serves. Live
+	// products answered by the wildcard have no explicit record of their own, so
+	// without this check anyone could claim one of those exact names, override
+	// the wildcard, obtain a certificate and serve content under it.
+	taken, err := s.Deps.EventDNS.TakenNames(ctx, req.Domain)
+	if err != nil {
+		log.Printf("event claim: listing %s: %v", req.Domain, err)
+		return &EventDomainError{Code: "gateway", Message: "could not check the domain; try again", WireCode: ""}
+	}
+	// The instance knows its own names authoritatively, and they are the ones a
+	// probe is least likely to catch: a handle or a site name may answer no
+	// differently from an unknown host today, yet claiming it would still take
+	// an explicit record over a name this service is responsible for.
+	ours, err := eventNameLocal(ctx, s.DB, req.Name)
+	if err != nil {
+		return &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
+	}
+	if ours {
+		return &EventDomainError{Code: "conflict", Message: "that name belongs to an account or a site on this instance", WireCode: ""}
+	}
+	// The hackathon platform hands out names under the same zone from its
+	// own database; it is asked, and a failure to answer refuses the name.
+	if s.Deps.EventNamePeer != nil {
+		held, err := s.Deps.EventNamePeer.Taken(ctx, req.Domain, req.Name)
+		if err != nil {
+			log.Printf("event claim: name peer %s.%s: %v", req.Name, req.Domain, err)
+			return &EventDomainError{Code: "unavailable", Message: "could not check that name; try again", WireCode: "name_check_unavailable"}
+		}
+		if held {
+			return &EventDomainError{Code: "conflict", Message: "that name is an event on " + req.Domain, WireCode: "name_taken"}
+		}
+	}
+	// A name already in use is still free to this account when it is the
+	// account's own claim: re-claiming to extend must still work.
+	if taken[req.Name] || taken["sites."+req.Name] {
+		if mine, _ := eventNameOwned(ctx, s.DB, req.Name, req.Domain, req.UserID); !mine {
+			return &EventDomainError{Code: "conflict", Message: "that name is already in use on this domain", WireCode: ""}
+		}
+		return nil
+	}
+	// Listing the zone only sees explicit records. A live product served through
+	// the wildcard by name has none, so it would look free and claiming it would
+	// take a running product off the internet. Ask the internet as well.
+	inUse, perr := s.Deps.EventProbe.InUse(ctx, req.Domain, req.Name)
+	if perr == nil && !inUse {
+		return nil
+	}
+	if mine, _ := eventNameOwned(ctx, s.DB, req.Name, req.Domain, req.UserID); mine {
+		return nil
+	}
+	if perr != nil {
+		log.Printf("event claim: probe %s.%s: %v", req.Name, req.Domain, perr)
+		return &EventDomainError{Code: "gateway", Message: "could not check that name; try again", WireCode: ""}
+	}
+	return &EventDomainError{Code: "conflict", Message: "that name is already serving something on this domain", WireCode: ""}
+}
+
+// undoEventClaim deletes the records this claim made and, only if this request
+// created the row, the row too: a renewal that fails must leave the existing
+// claim standing, or the organiser's running event loses its name.
+func (s Service) undoEventClaim(ctx context.Context, req EventClaimInput, ids []string, wasNew bool) {
+	for _, made := range ids {
+		_ = s.Deps.EventDNS.DeleteRecord(ctx, req.Domain, made)
+	}
+	if wasNew {
+		_, _ = deleteEventDomain(ctx, s.DB, req.Name, req.Domain)
+	}
+}
+
+// ReleaseEventDomain authorizes the caller and deletes DNS records before the row.
+func (s Service) ReleaseEventDomain(ctx context.Context, in EventReleaseInput) error {
+	name := in.Name
+	domain := in.Domain
+	if domain == "" && len(s.Deps.EventDomains) > 0 {
+		domain = s.Deps.EventDomains[0]
+	}
+	owner, ids, err := eventDomainOwner(ctx, s.DB, name, domain)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &EventDomainError{Code: "not_found", Message: "not found", WireCode: ""}
+	}
+	if err != nil {
+		return &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
+	}
+	if owner != in.UserID && !in.IsAdmin {
+		return &EventDomainError{Code: "not_found", Message: "not found", WireCode: ""}
+	}
+	for _, id := range ids {
+		if err := s.Deps.EventDNS.DeleteRecord(ctx, domain, id); err != nil {
+			log.Printf("event release: %v", err)
+			return &EventDomainError{Code: "gateway", Message: "could not remove DNS records", WireCode: ""}
+		}
+	}
+	// Only after the records are gone. Dropping the row first would lose the
+	// only record of what still needs deleting.
+	if _, err := deleteEventDomain(ctx, s.DB, name, domain); err != nil {
+		return &EventDomainError{Code: "internal", Message: "internal server error", WireCode: ""}
+	}
+	return nil
+}
+
+// ListEventDomains returns claims in creation order.
+func (s Service) ListEventDomains(ctx context.Context, in EventListInput) ([]EventDomainResult, error) {
+	list, err := listEventDomains(ctx, s.DB, in.UserID)
+	if err != nil {
+		return nil, &sites.Error{Code: "internal", Message: "internal server error"}
+	}
+	out := []EventDomainResult{}
+	for _, e := range list {
+		out = append(out, EventDomainResult{Host: e.Name + "." + e.Domain, ContentHost: "sites." + e.Name + "." + e.Domain, IP: e.IP, ExpiresAt: e.Expiry})
+	}
+	return out, nil
+}
+
+// SweepEventDomains removes expired DNS records and unchanged claim snapshots.
+func (s Service) SweepEventDomains(ctx context.Context) {
+	list, err := expiredEventDomains(ctx, s.DB)
+	if err != nil {
+		sites.ReportWorkerFailure(ctx, "list expired claims", err)
+		return
+	}
+	for _, e := range list {
+		ok := true
+		for _, id := range e.IDs {
+			if err := s.Deps.EventDNS.DeleteRecord(ctx, e.Domain, id); err != nil {
+				sites.ReportWorkerFailure(ctx, "delete DNS record", err)
+				ok = false
+			}
+		}
+		if !ok {
+			continue // keep the row so the next sweep retries
+		}
+		// Delete only if the row is still the one we snapshotted. Deleting the
+		// records takes network calls, and an owner can renew in that window: a
+		// renewal replaces record_ids and pushes expires_at out. Deleting
+		// unconditionally would discard the renewal and leave its freshly
+		// created records live with nothing tracking them, which is exactly the
+		// orphaned-record case this sweep exists to prevent.
+		res, err := deleteExpiredEventDomain(ctx, s.DB, e)
+		if err != nil {
+			sites.ReportWorkerFailure(ctx, "delete expired claim", err)
+			continue
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			// Renewed underneath us. The records we just deleted were the old
+			// ones, which the renewal had already replaced, so nothing is lost.
+			log.Printf("event sweep: %s.%s was renewed mid-sweep, left alone", e.Name, e.Domain)
+			continue
+		}
+		sites.ReportWorkerProgress(ctx)
+		log.Printf("event sweep: released %s.%s", e.Name, e.Domain)
+	}
+}
+
+// NormalizeEventName is an event name as claimed: eventdns's DNS rules plus
+// the platform's event-name shape and reserved names (rules.EventNameShape).
+func NormalizeEventName(name string) (string, error) {
+	n, err := eventdns.NormalizeName(name)
+	if err == nil && (!rules.EventNameShape(n) || rules.LabelReservedForNew(n)) {
+		err = errors.New("event name must be 3 to 39 letters, digits or single hyphens, and not a reserved name")
+	}
+	return n, err
+}
+
+// validEventClaim normalises the name and address and checks the domain is
+// one this server creates names under (EventDomainError code invalid).
+func (s Service) validEventClaim(req EventClaimInput) (EventClaimInput, error) {
+	req.IP = strings.TrimSpace(req.IP)
+	if req.Domain == "" && len(s.Deps.EventDomains) > 0 {
+		req.Domain = s.Deps.EventDomains[0]
+	}
+	name, err := NormalizeEventName(req.Name)
+	if err != nil {
+		return req, &EventDomainError{Code: "invalid", Message: err.Error()}
+	}
+	req.Name = name
+	if req.IP, err = eventdns.ValidatePublicIP(req.IP); err != nil {
+		return req, &EventDomainError{Code: "invalid", Message: err.Error()}
+	}
+	if !slices.Contains(s.Deps.EventDomains, req.Domain) {
+		return req, &EventDomainError{Code: "invalid", Message: fmt.Sprintf("domain must be one of: %s", strings.Join(s.Deps.EventDomains, ", "))}
+	}
+	return req, nil
+}

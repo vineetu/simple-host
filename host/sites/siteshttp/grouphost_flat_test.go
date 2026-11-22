@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 
 	"github.com/vsriram/simple-host/host/edition"
 )
@@ -24,7 +25,7 @@ func groupFlatApp(t *testing.T, siteCertDir string) *SiteHandler {
 			}
 		}
 	}
-	h := withHosts(&SiteHandler{Ed: groupTestEdition(), SiteDomain: "simple-hack.test"})
+	h := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: groupTestEdition(), SiteDomain: "simple-hack.test"}})
 	h.Hosts.SetPersonHosts("canonical")
 	h.Hosts.SetSiteHosts("canonical", siteCertDir)
 	return h
@@ -41,7 +42,7 @@ func TestTeamSiteURLFlatHosts(t *testing.T) {
 	}
 	// Off on a Host-edition instance even if someone sets the field: the
 	// setting only ever takes effect for hosted events.
-	host := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.test"})
+	host := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.test"}})
 	host.Hosts.SetPersonHosts("canonical")
 	host.Hosts.SetSiteHosts("canonical", "")
 	host.SetTeamSiteFlatHosts(true)

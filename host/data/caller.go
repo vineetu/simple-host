@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -98,4 +99,23 @@ func visitorRefList(values []string, valid func(string) bool, hint string) ([]st
 		}
 	}
 	return out, nil
+}
+
+// ValidFilePath reports whether p can name a stored file: a clean relative
+// slash path of at most 16 segments and 1024 bytes, no segment hidden or
+// empty, no backslash or NUL.
+func ValidFilePath(p string) bool {
+	if p == "" || strings.HasPrefix(p, "/") || strings.ContainsAny(p, "\\\x00") || len(p) > 1024 || path.Clean(p) != p {
+		return false
+	}
+	segments := strings.Split(p, "/")
+	if len(segments) > 16 {
+		return false
+	}
+	for _, s := range segments {
+		if s == "" || strings.HasPrefix(s, ".") {
+			return false
+		}
+	}
+	return true
 }

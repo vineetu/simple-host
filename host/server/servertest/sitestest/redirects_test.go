@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 )
 
 const publicPageCache = "public, max-age=0, must-revalidate"
@@ -142,14 +143,14 @@ func TestRedirectsOnAddresses(t *testing.T) {
 	if r := a.files(t, owner, "PUT", "blog", map[string]string{"index.html": "home", "x/index.html": "folder", "_redirects": "/x/ /x 301!"}); r.Status != 400 || r.Code() != "redirects_invalid" {
 		t.Fatal(r.Status, string(r.Body))
 	}
-	claimed := uniq("redirect") + "." + rt.SiteDomain
+	claimed := fixture.Uniq("redirect") + "." + rt.SiteDomain
 	if r := a.bind(t, owner, "blog", claimed); r.Status != 200 {
 		t.Fatal(r.Status, string(r.Body))
 	}
 	if r := a.At(t, "GET", claimed, "/old", nil, nil); r.Status != 302 || location(r) != "/new" {
 		t.Fatal(r.Status, r.Header)
 	}
-	custom := uniq("redirect") + ".example.test"
+	custom := fixture.Uniq("redirect") + ".example.test"
 	if r := a.bind(t, owner, "blog", custom); r.Status != 200 {
 		t.Fatal(r.Status, string(r.Body))
 	}
@@ -175,7 +176,7 @@ func TestRedirectsOnFamilyAndGroupSite(t *testing.T) {
 	checkPageRedirect(t, f.App, "shop.redirects.fam.test", "/internal/family/%66aq/", "/%66aq", publicPageCache)
 
 	b := NewApp(t)
-	event := b.withHandle(t, b.NewPerson(t, "redirect-event"), uniq("weekend"))
+	event := b.withHandle(t, b.NewPerson(t, "redirect-event"), fixture.Uniq("weekend"))
 	if r := b.files(t, event, "POST", "alpha", files); r.Status != 201 {
 		t.Fatal(r.Status, string(r.Body))
 	}

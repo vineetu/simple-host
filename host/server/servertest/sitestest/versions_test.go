@@ -2,10 +2,8 @@ package sitestest
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,122 +13,6 @@ import (
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 )
-
-// ?author= on deploys (trimmed, cleaned, capped), ?pending=1, and DELETE
-// /v1/sites/{sitename}/versions/{version}: only a never-live version goes,
-// its folder with it, its number never handed out again; the admin mirror
-// runs the same handler; retention reports real versions only.
-func TestDiscardVersion(t *testing.T) {
-	a := NewApp(t)
-	owner := a.NewPerson(t, "discard-owner")
-	const site = "discard-site"
-	deploy := func(method, query string, want int) {
-		t.Helper()
-		if r := a.api(t, owner, method, "/v1/sites/"+site+"/files"+query, map[string]any{"files": map[string]string{"index.html": "<h1>" + query + "</h1>"}}); r.Status != want {
-			t.Fatalf("%s %s: %d %s", method, query, r.Status, r.Body)
-		}
-	}
-	type row struct {
-		VersionNumber int    `json:"version_number"`
-		Status        string `json:"status"`
-		Author        string `json:"author"`
-	}
-	list := func(query string) []row {
-		t.Helper()
-		r := a.api(t, owner, "GET", "/v1/sites/"+site+"/versions"+query, nil)
-		var out []row
-		if err := json.Unmarshal(r.Body, &out); r.Status != http.StatusOK || err != nil {
-			t.Fatalf("list %s: %d %s", query, r.Status, r.Body)
-		}
-		return out
-	}
-	numbers := func(rows []row) (out []int) {
-		for _, v := range rows {
-			out = append(out, v.VersionNumber)
-		}
-		return out
-	}
-	deploy("POST", "?author=%20Alice%20", http.StatusCreated)                              // v1, live
-	deploy("PUT", "?publish=false&author="+url.QueryEscape(strings.Repeat("é", 100)), 200) // v2
-	deploy("PUT", "?publish=false&author="+url.QueryEscape("Bo\x01b\x7f"), 200)            // v3
-	deploy("PUT", "", 200)                                                                 // v4, live
-	deploy("PUT", "?create=1&publish=false", 200)                                          // v5
-	authors := map[int]string{}
-	for _, v := range list("") {
-		authors[v.VersionNumber] = v.Author
-	}
-	if authors[1] != "Alice" || authors[2] != strings.Repeat("é", 80) || authors[3] != "Bob" || authors[4] != "" {
-		t.Errorf("authors: %v", authors)
-	}
-	if got := numbers(list("?pending=1")); len(got) != 3 || got[0] != 5 || got[1] != 3 || got[2] != 2 {
-		t.Fatalf("pending = %v, want 5 3 2", got)
-	}
-	// Live once: never pending again.
-	for _, n := range []int{3, 4} {
-		if r := a.api(t, owner, "PUT", "/v1/sites/"+site+"/active-version", map[string]any{"version_number": n}); r.Status != 200 {
-			t.Fatalf("make v%d live: %d %s", n, r.Status, r.Body)
-		}
-	}
-	if got := numbers(list("?pending=true")); len(got) != 2 || got[0] != 5 || got[1] != 2 {
-		t.Fatalf("pending after v3 was live = %v", got)
-	}
-
-	siteID := a.SiteID(t, owner, site)
-	base := "/v1/sites/" + site + "/versions/"
-	for path, want := range map[string]struct {
-		status int
-		code   string
-	}{
-		base + "4": {409, "version_live"}, base + "3": {409, "version_published"},
-		base + "99": {404, "version_not_found"}, base + "two": {404, "version_not_found"},
-		"/v1/sites/no-such-site/versions/2": {404, "site_not_found"},
-	} {
-		if r := a.api(t, owner, "DELETE", path, nil); r.Status != want.status || r.Code() != want.code {
-			t.Errorf("DELETE %s: %d %s, want %d %s", path, r.Status, r.Body, want.status, want.code)
-		}
-	}
-	if r := a.At(t, "DELETE", rt.SiteDomain, base+"2", nil, nil); r.Status != http.StatusUnauthorized {
-		t.Fatalf("no key: %d %s", r.Status, r.Body)
-	}
-	v2dir := a.Disk.VersionDir(owner.ID, site, 2)
-	if r := a.api(t, owner, "DELETE", base+"2", nil); r.Status != 200 || r.JSON(t)["discarded_version"] != float64(2) {
-		t.Fatalf("discard v2: %d %s", r.Status, r.Body)
-	}
-	if _, err := os.Stat(v2dir); !os.IsNotExist(err) {
-		t.Fatalf("v2 folder after discard: %v", err)
-	}
-	if _, err := os.Stat(a.Disk.VersionDir(owner.ID, site, 1)); err != nil {
-		t.Fatalf("v1 folder must stay: %v", err)
-	}
-	var status string
-	if err := a.Database.QueryRow(`SELECT status FROM versions WHERE site_id = $1 AND version_number = 2`, siteID).Scan(&status); err != nil || status != "discarded" {
-		t.Fatalf("v2 row after discard: %q %v", status, err)
-	}
-	for _, r := range []rt.Resp{
-		a.api(t, owner, "POST", base+"2/preview-link", nil),
-		a.api(t, owner, "PUT", "/v1/sites/"+site+"/active-version", map[string]any{"version_number": 2}),
-	} {
-		if r.Status < 400 {
-			t.Fatalf("a discarded version was used: %d %s", r.Status, r.Body)
-		}
-	}
-	if r := a.admin(t, "DELETE", "/v1/admin/sites/"+siteID+"/versions/5", nil); r.Status != 200 || r.JSON(t)["discarded_version"] != float64(5) {
-		t.Fatalf("admin discard v5: %d %s", r.Status, r.Body)
-	}
-	// v5 was the newest: the next draft is v6, not v5 again.
-	deploy("PUT", "?publish=false", 200)
-	if got := numbers(list("?pending=1")); len(got) != 1 || got[0] != 6 {
-		t.Fatalf("next draft = %v, want 6", got)
-	}
-	// Retention drops tombstones but reports only real versions (v1 and v3).
-	r := a.api(t, owner, "PUT", "/v1/sites/"+site+"/keep-versions", map[string]any{"keep_versions": 1})
-	var kept struct {
-		Removed []int `json:"removed_versions"`
-	}
-	if err := json.Unmarshal(r.Body, &kept); r.Status != 200 || err != nil || len(kept.Removed) != 2 || kept.Removed[0]+kept.Removed[1] != 4 {
-		t.Fatalf("removed_versions = %v: %d %s", kept.Removed, r.Status, r.Body)
-	}
-}
 
 // publish=false stores a version without making it live; an owner-only
 // preview link opens any kept version on the site's own host (not cached,

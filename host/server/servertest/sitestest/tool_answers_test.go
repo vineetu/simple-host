@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 )
 
 // The optional parameters that let one REST request answer a connector
@@ -67,7 +68,7 @@ func TestOneRequestToolAnswers(t *testing.T) {
 		t.Fatalf("live is for the listing only: %d %s", r.Status, r.Body)
 	}
 
-	claimed := uniq("olv") + "." + rt.SiteDomain
+	claimed := fixture.Uniq("olv") + "." + rt.SiteDomain
 	if r := a.bind(t, olive, "shop", claimed); r.Status != 200 {
 		t.Fatalf("claim: %d %s", r.Status, r.Body)
 	}

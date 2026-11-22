@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { offerStageAnnouncement } from '../../products/hack/webassets/static/hack/screens/_stage-announce-dialog.js'
 import { suggestedAnnouncement } from '../../products/hack/webassets/static/hack/stage-announce.js'
 
-// The announcements endpoint's real limits -- products/hack/hackhttp/
+// The announcements endpoint's real limits -- products/hack/content/
 // hack_content.go postAnnouncement: checkHackLine(req.Title, "title", 1,
 // 120), checkHackText(req.Body, "body", 1, 3000). Hard-coded here, not
 // imported (this is a Node script, not Go), so a future limit change

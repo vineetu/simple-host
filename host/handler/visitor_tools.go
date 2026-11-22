@@ -11,9 +11,14 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/vsriram/simple-host/host/data/kv"
+	"github.com/vsriram/simple-host/host/data/rows"
+
+	"github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/access/gate"
 	appstorage "github.com/vsriram/simple-host/host/data"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
 	httpx "github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
 )
@@ -25,14 +30,14 @@ import (
 // same storage routes a browser on the site uses.
 type VisitorTools struct {
 	Access *accesshttp.AccessHandler
-	Data   *datahttp.DataHandler
+	Data   *appstorage.Handler
 	oauth  *accesshttp.OAuthHandler
 }
 
 // SetVisitorTools gives the connector its visitor tools. They use the same
 // address validator as browser sign-in; no connector token or owner
 // credential reaches a visitor request.
-func SetVisitorTools(c *accesshttp.ConnectorHandler, a *accesshttp.AccessHandler, d *datahttp.DataHandler, oauth *accesshttp.OAuthHandler) {
+func SetVisitorTools(c *accesshttp.ConnectorHandler, a *accesshttp.AccessHandler, d *appstorage.Handler, oauth *accesshttp.OAuthHandler) {
 	c.SetVisitorTool(VisitorTools{Access: a, Data: d, oauth: oauth}.call)
 }
 
@@ -43,7 +48,7 @@ func (t VisitorTools) call(orig *http.Request, caller mcp.Caller, tool string, a
 	if err != nil {
 		return nil, err
 	}
-	address, err := accesshttp.VisitorString(args, "address")
+	address, err := gate.VisitorString(args, "address")
 	if err != nil {
 		return nil, err
 	}
@@ -68,18 +73,18 @@ func (t VisitorTools) call(orig *http.Request, caller mcp.Caller, tool string, a
 		return nil, err
 	}
 	t.Access.RecordVisitorSite(v.Req, caller, v.SiteID)
-	return accesshttp.VisitorResult(result, user.ID == v.OwnerID), nil
+	return gate.VisitorResult(result, user.ID == v.OwnerID), nil
 }
 
 // unlock asks Access for the site's passcode unless the call names a single
 // resource, and no page, that is known and explicitly exempt from it. A
 // resource that does not exist on an open site is refused here.
-func (t VisitorTools) unlock(v *accesshttp.VisitorVisit, args map[string]any) error {
-	resource, err := accesshttp.VisitorString(args, "resource")
+func (t VisitorTools) unlock(v *gate.VisitorVisit, args map[string]any) error {
+	resource, err := gate.VisitorString(args, "resource")
 	if err != nil {
 		return err
 	}
-	page, err := accesshttp.VisitorString(args, "page")
+	page, err := gate.VisitorString(args, "page")
 	if err != nil {
 		return err
 	}
@@ -103,11 +108,11 @@ func (t VisitorTools) unlock(v *accesshttp.VisitorVisit, args map[string]any) er
 // and every resource this visitor has rights on (with a first page of what
 // they may read when no resource was named).
 func (t VisitorTools) Read(r *http.Request, siteID, ownerID, siteName string, args map[string]any) (map[string]any, error) {
-	resource, err := accesshttp.VisitorString(args, "resource")
+	resource, err := gate.VisitorString(args, "resource")
 	if err != nil {
 		return nil, err
 	}
-	page, err := accesshttp.VisitorString(args, "page")
+	page, err := gate.VisitorString(args, "page")
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +154,7 @@ func (t VisitorTools) visibleResources(r *http.Request, siteID, ownerID, siteNam
 	if err != nil {
 		return nil, err
 	}
-	base := datahttp.StorageCall{SiteID: siteID, OwnerID: ownerID, SiteName: siteName, VisitorAI: r.Header.Get(accesshttp.VisitorPassHeader) != ""}
+	base := appstorage.Call{SiteID: siteID, OwnerID: ownerID, SiteName: siteName, VisitorAI: r.Header.Get(gate.VisitorPassHeader) != ""}
 	t.Access.StorageVisitor(r, &base)
 	base.RuntimeDir = t.Data.StorageRuntimeDir(base)
 	list := []map[string]any{}
@@ -170,7 +175,7 @@ func (t VisitorTools) visibleResources(r *http.Request, siteID, ownerID, siteNam
 
 // resourceEntries is one resource's listing: a KV namespace, or each table
 // of a database the visitor has rights on.
-func (t VisitorTools) resourceEntries(r *http.Request, c datahttp.StorageCall) ([]map[string]any, error) {
+func (t VisitorTools) resourceEntries(r *http.Request, c appstorage.Call) ([]map[string]any, error) {
 	svc := t.Data.StorageFor(c)
 	c.OwnerOnSite = svc.OwnerOnSite(r.Context(), c)
 	x := c.Resource
@@ -193,7 +198,7 @@ func (t VisitorTools) resourceEntries(r *http.Request, c datahttp.StorageCall) (
 
 // tableEntries opens a database and lists each table the visitor has rights
 // on, with its columns when they may read or add.
-func (t VisitorTools) tableEntries(r *http.Request, c datahttp.StorageCall, svc *appstorage.Service) ([]map[string]any, error) {
+func (t VisitorTools) tableEntries(r *http.Request, c appstorage.Call, svc *appstorage.Service) ([]map[string]any, error) {
 	list := []map[string]any{}
 	err := svc.Inspect(r.Context(), c, false, func(conn *appstorage.Inspection) error {
 		tables, err := conn.Tables()
@@ -218,14 +223,14 @@ func (t VisitorTools) tableEntries(r *http.Request, c datahttp.StorageCall, svc 
 	})
 	if err != nil {
 		rec := httptest.NewRecorder()
-		datahttp.WriteStorageError(rec, err, 400)
-		return nil, accesshttp.VisitorResponseError(rec)
+		appstorage.WriteStorageError(rec, err, 400)
+		return nil, gate.VisitorResponseError(rec)
 	}
 	return list, nil
 }
 
 // tableEntry is one table's listing, nil when the visitor has no rights on it.
-func (t VisitorTools) tableEntry(r *http.Request, c datahttp.StorageCall, svc *appstorage.Service, conn *appstorage.Inspection, table string) (map[string]any, error) {
+func (t VisitorTools) tableEntry(r *http.Request, c appstorage.Call, svc *appstorage.Service, conn *appstorage.Inspection, table string) (map[string]any, error) {
 	rights, err := svc.RuleRights(r.Context(), c, table)
 	if err != nil || !visitorRightsAny(rights) {
 		return nil, err
@@ -246,7 +251,7 @@ func (t VisitorTools) tableEntry(r *http.Request, c datahttp.StorageCall, svc *a
 		}
 		columns[name] = typ
 	}
-	entry["columns"] = accesshttp.VisitorStructure{Value: columns}
+	entry["columns"] = access.VisitorStructure{Value: columns}
 	return entry, nil
 }
 
@@ -277,7 +282,7 @@ func (t VisitorTools) write(r *http.Request, siteID, userID, app, tool string, a
 	action := "add"
 	if tool == "visitor_change_entry" {
 		var err error
-		action, err = accesshttp.VisitorString(args, "action")
+		action, err = gate.VisitorString(args, "action")
 		if err != nil {
 			return nil, err
 		}
@@ -285,8 +290,8 @@ func (t VisitorTools) write(r *http.Request, siteID, userID, app, tool string, a
 			return nil, fmt.Errorf("action must be edit or delete")
 		}
 	}
-	resource, _ := accesshttp.VisitorString(args, "resource")
-	kind, _ := accesshttp.VisitorString(args, "kind")
+	resource, _ := gate.VisitorString(args, "resource")
+	kind, _ := gate.VisitorString(args, "kind")
 	svc := t.Data.StorageSvc()
 	in := appstorage.VisitorToolWriteInput{
 		SiteID: siteID, UserID: userID, App: app, Action: action,
@@ -308,11 +313,11 @@ var visitorMethods = map[string]string{"read": "GET", "add": "POST", "edit": "PA
 // resourceRequest replays one visitor action on a resource as the storage
 // route a browser would call, with the visitor's pass.
 func (t VisitorTools) resourceRequest(base *http.Request, args map[string]any, action string) (any, error) {
-	resource, err := accesshttp.VisitorString(args, "resource")
+	resource, err := gate.VisitorString(args, "resource")
 	if err != nil {
 		return nil, err
 	}
-	kind, err := accesshttp.VisitorString(args, "kind")
+	kind, err := gate.VisitorString(args, "kind")
 	if err != nil {
 		return nil, err
 	}
@@ -357,12 +362,12 @@ func (t VisitorTools) pageQuery(base *http.Request, args map[string]any, kind, r
 		return nil, err
 	}
 	q.Set("limit", strconv.Itoa(limit))
-	after, err := accesshttp.VisitorString(args, "after")
+	after, err := gate.VisitorString(args, "after")
 	if err != nil || after == "" {
 		return q, err
 	}
 	if kind == "kv" {
-		pass, _ := t.Access.StoreAccounts().LookupInternalVisitorKey(base.Header.Get(accesshttp.VisitorPassHeader))
+		pass, _ := t.Access.StoreAccounts().LookupInternalVisitorKey(base.Header.Get(gate.VisitorPassHeader))
 		raw, err := httpx.OpenLink(t.Access.VisitorRefKey(), "visitor-kv-cursor:"+pass.SiteID+":"+resource, after)
 		if err != nil {
 			return nil, fmt.Errorf("invalid pagination cursor")
@@ -376,7 +381,7 @@ func (t VisitorTools) pageQuery(base *http.Request, args map[string]any, kind, r
 
 // kvRequest is a visitor action on one KV key (add and edit both put it).
 func (t VisitorTools) kvRequest(r *http.Request, args map[string]any, action, method string, value any) (any, error) {
-	key, err := accesshttp.VisitorString(args, "key")
+	key, err := gate.VisitorString(args, "key")
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +392,7 @@ func (t VisitorTools) kvRequest(r *http.Request, args map[string]any, action, me
 	if action == "add" || action == "edit" {
 		method = "PUT"
 	}
-	result, err := VisitorInvoke(r, method, map[string]any{"value": value}, t.Data.StorageRouteFor(t.Access.StorageCaller, t.Data.StorageKV).ServeHTTP)
+	result, err := VisitorInvoke(r, method, map[string]any{"value": value}, t.Data.StorageRouteFor(t.Access.StorageCaller, kv.StorageKV).ServeHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +402,7 @@ func (t VisitorTools) kvRequest(r *http.Request, args map[string]any, action, me
 // rowsRequest is a visitor action on a table's rows (one row, for edit and
 // delete); identity columns are blanked in what comes back.
 func (t VisitorTools) rowsRequest(r *http.Request, args map[string]any, action, method string, value any) (any, error) {
-	table, err := accesshttp.VisitorString(args, "table")
+	table, err := gate.VisitorString(args, "table")
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +413,7 @@ func (t VisitorTools) rowsRequest(r *http.Request, args map[string]any, action, 
 	if err := setVisitorRowID(r, args, action); err != nil {
 		return nil, err
 	}
-	result, err := VisitorInvoke(r, method, value, t.Data.StorageRouteFor(t.Access.StorageCaller, t.Data.StorageRows).ServeHTTP)
+	result, err := VisitorInvoke(r, method, value, t.Data.StorageRouteFor(t.Access.StorageCaller, rows.StorageRows).ServeHTTP)
 	if obj, ok := result.(map[string]any); ok {
 		if err := t.Access.ScrubVisitorRows(r, obj); err != nil {
 			return nil, err
@@ -473,7 +478,7 @@ func VisitorInvoke(base *http.Request, method string, body any, fn http.HandlerF
 	rec := httptest.NewRecorder()
 	fn(rec, r)
 	if rec.Code < 200 || rec.Code >= 300 {
-		return nil, accesshttp.VisitorResponseError(rec)
+		return nil, gate.VisitorResponseError(rec)
 	}
 	var result any
 	dec := json.NewDecoder(rec.Body)

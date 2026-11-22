@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 
 	"github.com/vsriram/simple-host/host/edition"
 )
 
 func TestLegacyHostRedirectMCPReachesNext(t *testing.T) {
-	h := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"})
+	h := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"}})
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// HACK_NAVIGATION_FIXTURE=/tmp/slice1-fixture.json TEST_PKGS=./products/hack/hackhttp ... scripts/test-integration.sh -run TestServeHackNavigationBrowser
+// HACK_NAVIGATION_FIXTURE=/tmp/slice1-fixture.json TEST_PKGS=./products/hack/servertest ... scripts/test-integration.sh -run TestServeHackNavigationBrowser
 // PLAYWRIGHT_DIR=/tmp/tsx/node_modules node scripts/e2e/e2e-hack-navigation.mjs /tmp/slice1-fixture.json
 import fs from 'node:fs'
 import assert from 'node:assert/strict'

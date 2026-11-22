@@ -10,7 +10,9 @@ import (
 
 	"github.com/vsriram/simple-host/host/edition"
 	model "github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites/domains"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 )
 
 func rsNear(got, want time.Time) bool {
@@ -22,7 +24,7 @@ func rsNear(got, want time.Time) bool {
 // DELETED_RETENTION_DAYS set later applies to new deletions only. A row deleted
 // before the date was stored falls back to the setting.
 func TestRsDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
-	a := NewApp(t, edition.Default(limits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})))
+	a := NewApp(t, edition.Default(fixture.Limits(t, map[string]string{"DELETED_RETENTION_DAYS": "30"})))
 	ctx := context.Background()
 	olive := a.NewPerson(t, "promised")
 	for _, name := range []string{"kept", "legacy"} {
@@ -39,7 +41,7 @@ func TestRsDeletedSiteKeepsPromisedPurgeDate(t *testing.T) {
 		return d.ID
 	}
 	kept, legacy := id("kept"), id("legacy")
-	short := limits(t, map[string]string{"DELETED_RETENTION_DAYS": "1"})
+	short := fixture.Limits(t, map[string]string{"DELETED_RETENTION_DAYS": "1"})
 	if _, err := a.Database.ExecContext(ctx, `UPDATE sites SET deleted_at = now() - interval '2 days' WHERE id IN ($1, $2)`, kept, legacy); err != nil {
 		t.Fatal(err)
 	}
@@ -73,14 +75,14 @@ func TestRsDomainLapseKeepsPromisedDate(t *testing.T) {
 	ctx := context.Background()
 	olive := a.NewPerson(t, "lapsedate")
 	id := a.Deploy(t, olive, "shop")
-	domain := uniq("shop") + ".example.test"
+	domain := fixture.Uniq("shop") + ".example.test"
 	if _, err := a.Database.ExecContext(ctx, `UPDATE sites SET custom_domain = $2, domain_status = 'error', domain_verified_at = now() - interval '10 days',
 		domain_failing_since = now() - interval '100 hours', domain_lapse_notified_at = now() - interval '76 hours',
 		domain_release_at = now() + interval '1 hour' WHERE id = $1`, id, domain); err != nil {
 		t.Fatal(err)
 	}
 	bd := model.BoundDomain{SiteID: id, Domain: domain, Status: "error", Verified: true}
-	a.Sites.ApplyDomainCheck(ctx, bd, "error", "no answer", "")
+	(domains.Handler{Handler: a.Sites.Handler}).ApplyDomainCheck(ctx, bd, "error", "no answer", "")
 	var cur *string
 	if err := a.Database.QueryRowContext(ctx, `SELECT custom_domain FROM sites WHERE id = $1`, id).Scan(&cur); err != nil || cur == nil || *cur != domain {
 		t.Fatalf("disconnected before the emailed date: %v %v", cur, err)
@@ -88,7 +90,7 @@ func TestRsDomainLapseKeepsPromisedDate(t *testing.T) {
 	if _, err := a.Database.ExecContext(ctx, `UPDATE sites SET domain_release_at = now() - interval '1 minute' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	a.Sites.ApplyDomainCheck(ctx, bd, "error", "no answer", "")
+	(domains.Handler{Handler: a.Sites.Handler}).ApplyDomainCheck(ctx, bd, "error", "no answer", "")
 	if err := a.Database.QueryRowContext(ctx, `SELECT custom_domain FROM sites WHERE id = $1`, id).Scan(&cur); err != nil || cur != nil {
 		t.Fatalf("still connected after the emailed date: %v %v", cur, err)
 	}
@@ -132,7 +134,7 @@ func TestRsDomainDeleteNamesTheDomain(t *testing.T) {
 	a := NewApp(t)
 	olive := a.NewPerson(t, "olive")
 	siteID := a.Deploy(t, olive, "shop")
-	one, two := uniq("one")+".example.test", uniq("two")+".example.test"
+	one, two := fixture.Uniq("one")+".example.test", fixture.Uniq("two")+".example.test"
 	for _, d := range []string{one, two} {
 		if r := a.bind(t, olive, "shop", d); r.Status != http.StatusOK {
 			t.Fatalf("bind %s: %d %s", d, r.Status, r.Body)
@@ -161,11 +163,11 @@ func TestRsForeignAccountCannotManageDomain(t *testing.T) {
 	olive, oscar := a.NewPerson(t, "olive"), a.NewPerson(t, "oscar")
 	shopID := a.Deploy(t, olive, "shop")
 	a.Deploy(t, oscar, "mine")
-	dom := uniq("shop") + ".example.test"
+	dom := fixture.Uniq("shop") + ".example.test"
 	if r := a.bind(t, olive, "shop", dom); r.Status != http.StatusOK {
 		t.Fatalf("bind: %d %s", r.Status, r.Body)
 	}
-	other := uniq("evil") + ".example.test"
+	other := fixture.Uniq("evil") + ".example.test"
 	for _, tc := range []struct {
 		name, method, path string
 		body               any

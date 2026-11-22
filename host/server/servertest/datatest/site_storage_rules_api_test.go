@@ -9,7 +9,7 @@ import (
 )
 
 func TestStorageRulesSaveAndList(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	body := `{"kind":"sqlite","rules":{"policies":[{"name":"read","command":"read","using":"true"}]},"tables":{"notes":{"rules":{"policies":[]}}}}`
 	saved := s.Must(t, "PUT", "/resources/rules", body, s.Key, 201).JSON(t)
 	check := func(r map[string]any) {
@@ -32,7 +32,7 @@ func TestStorageRulesSaveAndList(t *testing.T) {
 }
 
 func TestStorageRulesAPIErrors(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	for _, tc := range []struct{ name, body, code, clause string }{
 		{"syntax", `{"kind":"sqlite","rules":{"policies":[{"name":"broken","command":"read","using":"("}]}}`, "invalid_rules", "using"},
 		{"preset", `{"kind":"sqlite","preset":"","rules":{"policies":[]}}`, "invalid_resource", ""},
@@ -51,7 +51,7 @@ func TestStorageRulesAPIErrors(t *testing.T) {
 }
 
 func TestStorageRulesAPIBodyLimit(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	expression := `body == "` + strings.Repeat("x", 2038) + `"`
 	set := map[string]any{"policies": []any{map[string]any{"name": "a", "command": "read", "using": expression}, map[string]any{"name": "b", "command": "read", "using": expression}}}
 	tables := map[string]any{}
@@ -76,7 +76,7 @@ func TestStorageRulesAPIBodyLimit(t *testing.T) {
 
 // Stored rules that no longer compile are listed as invalid, not dropped.
 func TestStorageRulesAPIInvalidStoredState(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/broken", `{"kind":"sqlite","rules":{"policies":[]}}`, s.Key, 201)
 	if _, err := s.A.Database.Exec(`UPDATE site_storage_resources SET rules='{"policies":[{"name":"bad","command":"read","using":"auth.unknown"}]}' WHERE site_id=$1 AND name='broken'`, s.Sid); err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func TestStorageRulesAPIInvalidStoredState(t *testing.T) {
 
 // A table's own rules override the resource's.
 func TestStorageRulesReadTableOverride(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/data", `{"kind":"sqlite","rules":{"policies":[{"command":"read","using":"true"}]},"tables":{"closed":{"rules":{"policies":[]}}}}`, s.Key, 201)
 	for table, status := range map[string]int{"open": 200, "closed": 403} {
 		s.Must(t, "POST", "/sqlite/data/schema", map[string]string{"sql": "CREATE TABLE " + table + "(body TEXT)"}, s.Key, 200)

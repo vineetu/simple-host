@@ -8,6 +8,5 @@
 // Import order: hackevents (bottom) <- hackmembers <- hackteams <-
 // hackentries. This package is the top: it asks the three below for events,
 // members and team rows (hackteams/entries_door.go) and joins its own rows to
-// them by id. receipts.go's NextReceiptMail is the one statement that reads
-// the event and team row beside a receipt, a listed exception.
+// them by id.
 package hackentries

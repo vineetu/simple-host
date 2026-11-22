@@ -3,9 +3,15 @@ package data
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
+	"os"
+	"reflect"
 	"testing"
+
+	_ "github.com/lib/pq"
+	"github.com/vsriram/simple-host/host/testdb"
 
 	"github.com/vsriram/simple-host/host/papermetrics"
 	runtime "github.com/vsriram/simple-host/host/storage"
@@ -56,3 +62,33 @@ func (r fatalReader) Read([]byte) (int, error) {
 	r.t.Fatal("request body was read")
 	return 0, io.EOF
 }
+
+// codeOf is the refusal's or the failure's code ("" when there is neither).
+func codeOf(auth *Error, err error) string {
+	if err == nil && auth != nil {
+		err = auth
+	}
+	if err == nil || reflect.ValueOf(err).IsNil() {
+		return ""
+	}
+	if e, ok := err.(*Error); ok {
+		return e.Code
+	}
+	return err.Error()
+}
+
+// coreDB is the test's database (DB_DSN); the test skips without one.
+func coreDB(t *testing.T) *sql.DB {
+	t.Helper()
+	if os.Getenv("DB_DSN") == "" {
+		t.Skip("DB_DSN unset")
+	}
+	db, err := sql.Open("postgres", os.Getenv("DB_DSN"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
+
+func TestMain(m *testing.M) { testdb.Main(m) }

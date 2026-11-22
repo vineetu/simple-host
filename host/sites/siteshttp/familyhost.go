@@ -5,12 +5,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/families"
 )
 
 // Address families.
@@ -37,23 +37,6 @@ import (
 // name: ranking is own domain > the most specific canonical family > the
 // site host. Every family address of a site keeps working either way.
 
-var familyCertNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,252}$`)
-
-// familyPrefixRE is a family's site-name prefix ("" or up to 40 characters,
-// starting with a letter or digit; it may end with a hyphen: voucher-).
-var familyPrefixRE = regexp.MustCompile(`^(?:[a-z0-9][a-z0-9-]{0,39})?$`)
-
-// SetAddressFamilies sets the issuer hand-off directory and starts keeping
-// the list of live families (and checking them, when checks run here).
-func (h *SiteHandler) SetAddressFamilies(certDir string) {
-	h.Hosts.SetFamilyCertDir(certDir)
-	lim := h.Limits
-	h.familyCheckLimiter = httpx.NewRateLimiterFor(lim.RateFamilyCheck.Burst, lim.RateFamilyCheck.Every)
-	h.Caches.Rate("http.site.familyCheckLimiter", h.familyCheckLimiter, 10*time.Minute, 30*time.Minute)
-	h.familyCheckUserLimiter = httpx.NewRateLimiterFor(lim.RateFamilyCheckUser.Burst, lim.RateFamilyCheckUser.Every)
-	h.Caches.Rate("http.site.familyCheckUserLimiter", h.familyCheckUserLimiter, 10*time.Minute, 30*time.Minute)
-}
-
 func (h *SiteHandler) startAddressFamilies(ctx context.Context) {
 	o := h.siteLoop("sites.address_families")
 	initialized := make(chan struct{})
@@ -78,7 +61,7 @@ func (h *SiteHandler) startAddressFamilies(ctx context.Context) {
 	if o.Status()[0].Running {
 		<-initialized
 	}
-	o.periodic(ctx, 30*time.Second, h.Limits.FamilyCheckInterval, h.CheckFamilies)
+	o.periodic(ctx, 30*time.Second, h.Limits.FamilyCheckInterval, families.Handler{Handler: h.Handler}.CheckFamilies)
 }
 
 // FamilyHosts serves <label>.<suffix> for live families, as nginx hands it

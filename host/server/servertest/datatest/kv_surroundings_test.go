@@ -16,7 +16,7 @@ func kvRoot(s Shop) string { return filepath.Join(s.A.Disk.SiteDir(s.OwnerID, "s
 
 // A key-value resource is not a SQLite database to the SQL routes.
 func TestKVRefusesSQL(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/z", map[string]string{"kind": "kv"}, s.Key, 201)
 	for _, mode := range []string{"query", "execute", "schema"} {
 		s.Must(t, "POST", "/sqlite/z/"+mode, `{"sql":"SELECT 1"}`, s.Key, 409)
@@ -26,7 +26,7 @@ func TestKVRefusesSQL(t *testing.T) {
 // The people pick list and the visitor lookup see key-value authors, and
 // forget them when the resource goes.
 func TestKVPeopleAndVisitorEmails(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/entries", StorageRules("kv", RulesPersonal), s.Key, 201)
 	s.Must(t, "PUT", "/kv/entries/keys/mine", `{"value":"hello"}`, s.Callers["alice"], 200)
 	people := string(s.Must(t, "GET", "/people", nil, s.Key, 200).Body)
@@ -44,7 +44,7 @@ func TestKVPeopleAndVisitorEmails(t *testing.T) {
 }
 
 func TestKVInvalidUTF8KeyRefused(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.Key, 201)
 	s.Must(t, "PUT", "/kv/entries/keys/%FF", `{"value":1}`, s.Key, 500)
 	if r := s.Must(t, "GET", "/kv/entries/keys", nil, s.Key, 200); strings.Contains(string(r.Body), `"value":1`) {
@@ -54,7 +54,7 @@ func TestKVInvalidUTF8KeyRefused(t *testing.T) {
 
 // A key-value file gone from disk is a clear failure, and usage still answers.
 func TestKVFileMissing(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.Key, 201)
 	if err := os.Remove(runtime.RuntimeKVPath(kvRoot(s), "entries")); err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestKVFileMissing(t *testing.T) {
 
 // Key-value bytes still count for a site in the trash.
 func TestKVFileStatsLiveAndTrashed(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.Key, 201)
 	s.Must(t, "PUT", "/kv/entries/keys/long-key", `{"value":"é"}`, s.Key, 200)
 	check := func() {
@@ -87,7 +87,7 @@ func TestKVFileStatsLiveAndTrashed(t *testing.T) {
 }
 
 func TestKVUsageBusy(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/entries", map[string]string{"kind": "kv"}, s.Key, 201)
 	h := s.A.Data
 	h.SqliteSites = appstorage.NewSiteSlots(1, appstorage.NewSQLiteGate(1, time.Second), 20*time.Millisecond)
@@ -110,7 +110,7 @@ func TestKVUsageBusy(t *testing.T) {
 // While the site's key-value file is locked, SQLite writes cannot measure
 // the quota and are refused as busy (retryable), never let through.
 func TestKVQuotaBusySQLiteWrites(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/sqlite", map[string]string{"kind": "kv"}, s.Key, 201)
 	s.Must(t, "PUT", "/kv/sqlite/keys/one", `{"value":1}`, s.Key, 200)
 	s.Must(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite"}, s.Key, 201)

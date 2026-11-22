@@ -15,21 +15,21 @@ type WebsiteLimitsInput struct {
 
 // WebsiteUploadLimit reads the account's archive limit, falling back to the instance default.
 func (s *Service) WebsiteUploadLimit(ctx context.Context, in WebsiteLimitsInput) int64 {
-	holder, err := accounts.GetUserByID(ctx, s.database, in.AccountID)
+	holder, err := accounts.GetUserByID(ctx, s.DB, in.AccountID)
 	if err != nil {
-		return s.deps.WebsiteArchiveDefault
+		return s.Deps.WebsiteArchiveDefault
 	}
-	limit, _ := s.accounts.SiteLimit(ctx, &holder, s.deps.Limits, s.deps.WebsiteArchiveDefault)
+	limit, _ := s.Accounts.SiteLimit(ctx, &holder, s.Deps.Limits, s.Deps.WebsiteArchiveDefault)
 	return limit
 }
 
 // WebsiteUploadLimits describes the account's archive and unpacked-file limits.
 func (s *Service) WebsiteUploadLimits(ctx context.Context, in WebsiteLimitsInput) string {
-	holder, err := accounts.GetUserByID(ctx, s.database, in.AccountID)
+	holder, err := accounts.GetUserByID(ctx, s.DB, in.AccountID)
 	if err != nil {
 		return "Upload limits are unavailable."
 	}
-	limit, override := s.accounts.SiteLimit(ctx, &holder, s.deps.Limits, s.deps.WebsiteArchiveDefault)
-	total, file, entries := tarball.FileLimits(ExtractBudget(limit, override), s.deps.MaxFilesPerSite)
+	limit, override := s.Accounts.SiteLimit(ctx, &holder, s.Deps.Limits, s.Deps.WebsiteArchiveDefault)
+	total, file, entries := tarball.FileLimits(ExtractBudget(limit, override), s.Deps.MaxFilesPerSite)
 	return fmt.Sprintf("Zip up to %d MB. Unpacked, up to %d MB in total, %d MB per file and %d files.", limit>>20, total>>20, file>>20, entries)
 }

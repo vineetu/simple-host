@@ -16,9 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/host/data/files"
+
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/httpx"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 	"github.com/vsriram/simple-host/host/sites"
@@ -43,7 +46,7 @@ func (s Shop) add(t *testing.T, table string, body any, headers map[string]strin
 func (s Shop) lockSite() func() { return sites.LockSiteName(s.A.Data.UploadLocks, s.OwnerID, "shop") }
 
 func TestStorageSecurityRowIDs(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	alice, bob := s.Callers["alice"], s.Callers["bob"]
 	s.resource(t, "db", "sqlite", RulesRecords)
 	s.schema(t, "CREATE TABLE orders (id INTEGER PRIMARY KEY ON CONFLICT REPLACE, item TEXT UNIQUE ON CONFLICT REPLACE)")
@@ -64,7 +67,7 @@ func TestStorageSecurityRowIDs(t *testing.T) {
 }
 
 func TestStorageSecurityReferences(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	alice, bob := s.Callers["alice"], s.Callers["bob"]
 	s.resource(t, "db", "sqlite", RulesRecords)
 	s.schema(t, "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT)")
@@ -92,7 +95,7 @@ func TestStorageSecurityReferences(t *testing.T) {
 }
 
 func TestStorageSecurityFileObjects(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	alice, bob := s.Callers["alice"], s.Callers["bob"]
 	lim := config.DefaultLimits()
 	lim.StorageFileObjects = 2
@@ -109,10 +112,10 @@ func TestStorageSecurityFileObjects(t *testing.T) {
 		t.Fatalf("own listing not scoped: %s", list.Body)
 	}
 	// Temporary upload objects are never listed.
-	c := datahttp.StorageCall{OwnerID: s.OwnerID, SiteName: "shop"}
+	c := appstorage.Call{OwnerID: s.OwnerID, SiteName: "shop"}
 	for _, name := range []string{"files", "public"} {
 		c.ResourceName = name
-		dir := s.A.Data.StorageFilesDir(c)
+		dir := files.StorageFilesDir(s.A.Data, c)
 		_ = os.MkdirAll(dir, 0o700)
 		if err := os.WriteFile(filepath.Join(dir, ".upload-secret"), []byte("secret"), 0o600); err != nil {
 			t.Fatal(err)
@@ -152,7 +155,7 @@ func TestStorageSecurityFileObjects(t *testing.T) {
 }
 
 // insertKVRace runs the add-only save statement on its own connection.
-func insertKVRace(h *datahttp.DataHandler, c datahttp.StorageCall, key, value, writer string) (bool, error) {
+func insertKVRace(h *appstorage.Handler, c appstorage.Call, key, value, writer string) (bool, error) {
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.StorageRuntimeDir(c), c.ResourceName), true, false)
 	if err != nil {
 		return false, err
@@ -171,7 +174,7 @@ func insertKVRace(h *datahttp.DataHandler, c datahttp.StorageCall, key, value, w
 	return true, conn.Exec("COMMIT")
 }
 
-func readKV(t *testing.T, h *datahttp.DataHandler, c datahttp.StorageCall, key string) runtime.KVEntry {
+func readKV(t *testing.T, h *appstorage.Handler, c appstorage.Call, key string) runtime.KVEntry {
 	t.Helper()
 	conn, done, err := runtime.OpenRuntimeKV(context.Background(), runtime.RuntimeKVPath(h.StorageRuntimeDir(c), c.ResourceName), false, false)
 	if err != nil {
@@ -185,9 +188,9 @@ func readKV(t *testing.T, h *datahttp.DataHandler, c datahttp.StorageCall, key s
 	return item
 }
 
-func kvCall(t *testing.T, s Shop, resource string) datahttp.StorageCall {
+func kvCall(t *testing.T, s Shop, resource string) appstorage.Call {
 	t.Helper()
-	c := datahttp.StorageCall{SiteID: s.Sid, OwnerID: s.OwnerID, SiteName: "shop", ResourceName: resource}
+	c := appstorage.Call{SiteID: s.Sid, OwnerID: s.OwnerID, SiteName: "shop", ResourceName: resource}
 	var err error
 	if c.Resource, err = s.A.Data.LoadStorageResource(context.Background(), s.Sid, resource); err != nil {
 		t.Fatal(err)
@@ -196,7 +199,7 @@ func kvCall(t *testing.T, s Shop, resource string) datahttp.StorageCall {
 }
 
 func TestStorageSecurityKVQuotaAndConcurrentCreate(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.resource(t, "kv", "kv", RulesRecords)
 	// Key bytes count toward the quota.
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "5")
@@ -246,7 +249,7 @@ func TestStorageSecurityKVQuotaAndConcurrentCreate(t *testing.T) {
 }
 
 func TestStorageSecurityVisitorRateLimits(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	alice, anon := s.Callers["alice"], s.Callers["anon"]
 	s.resource(t, "kv", "kv", RulesOpenAdd)
 	s.resource(t, "files", "files", RulesOpenAdd)
@@ -265,7 +268,7 @@ func TestStorageSecurityVisitorRateLimits(t *testing.T) {
 
 // Each site has its own write buckets: one site's limit never throttles another.
 func TestStorageWriteBucketsPerSite(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.resource(t, "kv", "kv", RulesSignedInAdd)
 	otherID := s.A.Deploy(t, s.Owner, "other")
 	otherHost := s.Owner.SiteHost("other")
@@ -303,7 +306,7 @@ func (b *slowBody) Read(p []byte) (int, error) {
 
 // A slow request body never holds the site's write lock.
 func TestStorageSlowBodiesDoNotHoldSiteLock(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.resource(t, "db", "sqlite", RulesOpenAdd)
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")
 	s.resource(t, "kv", "kv", RulesOpenAdd)
@@ -350,7 +353,7 @@ func TestStorageSlowBodiesDoNotHoldSiteLock(t *testing.T) {
 // While a deploy holds the site lock, reads go on and a write waits a
 // bounded time, then answers 503.
 func TestStorageReadsAndBoundedLock(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.resource(t, "db", "sqlite", RulesPublic)
 	s.schema(t, "CREATE TABLE orders(id INTEGER PRIMARY KEY,item TEXT)")
 	s.resource(t, "kv", "kv", RulesOpenAdd)
@@ -375,7 +378,7 @@ func TestStorageReadsAndBoundedLock(t *testing.T) {
 
 // A write waits for a short deploy to finish rather than failing.
 func TestStorageWriteWaitsForDeploy(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.resource(t, "kv", "kv", RulesOpenAdd)
 	unlock := sync.OnceFunc(s.lockSite())
 	defer unlock()
@@ -390,7 +393,7 @@ func TestStorageWriteWaitsForDeploy(t *testing.T) {
 
 // Wide tables and big results are refused; errors never echo the schema.
 func TestStorageSecurityWideTablesAndGenericErrors(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	alice := s.Callers["alice"]
 	s.resource(t, "db", "sqlite", RulesRecords)
 	cols := []string{"id INTEGER PRIMARY KEY"}
@@ -420,7 +423,7 @@ func TestStorageSecurityWideTablesAndGenericErrors(t *testing.T) {
 // With every SQLite slot taken, owner and visitor reads get a quick 503 with
 // Retry-After, and a waiting writer gives the site lock back.
 func TestStorageSQLiteConcurrency(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.resource(t, "db", "sqlite", RulesPublic)
 	s.schema(t, "CREATE TABLE t(v)")
 	var releases []func()
@@ -464,7 +467,7 @@ func TestStorageSQLiteConcurrency(t *testing.T) {
 // New names are stored NFC; a pre-upgrade NFD name stays reachable,
 // listable and deletable by its exact name.
 func TestStorageLegacyNFDNames(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	alice := s.Callers["alice"]
 	s.resource(t, "photos", "files", RulesOpenAdd)
 	s.resource(t, "kv", "kv", RulesOpenAdd)
@@ -475,7 +478,7 @@ func TestStorageLegacyNFDNames(t *testing.T) {
 	if r := s.Must(t, "PUT", "/kv/kv/keys/"+url.PathEscape(nfd), `{"value":1}`, alice, 200); r.JSON(t)["key"] != nfc {
 		t.Fatal("KV did not normalize new name")
 	}
-	if err := os.WriteFile(filepath.Join(s.A.Data.StorageFilesDir(datahttp.StorageCall{OwnerID: s.OwnerID, SiteName: "shop", ResourceName: "photos"}), nfd), []byte("legacy"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(files.StorageFilesDir(s.A.Data, appstorage.Call{OwnerID: s.OwnerID, SiteName: "shop", ResourceName: "photos"}), nfd), []byte("legacy"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	c := kvCall(t, s, "kv")
@@ -505,15 +508,15 @@ func TestStorageLegacyNFDNames(t *testing.T) {
 
 // Own listings page past objects whose files are gone.
 func TestStorageOwnListStalePagination(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	alice := s.Callers["alice"]
 	s.resource(t, "photos", "files", RulesRecords)
 	for _, name := range []string{"a", "b", "c", "d"} {
 		s.Must(t, "PUT", "/files/photos/objects/"+name, "x", alice, 200)
 	}
-	c := datahttp.StorageCall{OwnerID: s.OwnerID, SiteName: "shop", ResourceName: "photos"}
+	c := appstorage.Call{OwnerID: s.OwnerID, SiteName: "shop", ResourceName: "photos"}
 	for _, name := range []string{"a", "b"} {
-		if err := os.Remove(s.A.Data.StorageFilePath(c, name)); err != nil {
+		if err := os.Remove(files.StorageFilePath(s.A.Data, c, name)); err != nil {
 			t.Fatal(err)
 		}
 	}

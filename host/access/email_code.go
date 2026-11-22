@@ -102,14 +102,14 @@ func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow f
 		return "", 0, http.StatusTooManyRequests, CodeFailure{Refusal: CodeRateLimited}
 	}
 
-	code, err := numericCode(6)
+	code, err := NumericCode(6)
 	if err != nil {
 		log.Printf("auth: generateNumericCode: %v", err)
 		return "", 0, http.StatusInternalServerError, CodeFailure{Error: "internal server error"}
 	}
 	// Visitor rows still need a random UNIQUE NOT NULL link token.
 	// GetAuthTokenByLink refuses non-dashboard rows, so it is inert for the dashboard link flow.
-	linkToken, err := secureHex(24)
+	linkToken, err := SecureHex(24)
 	if err != nil {
 		log.Printf("auth: generateLinkToken: %v", err)
 		return "", 0, http.StatusInternalServerError, CodeFailure{Error: "internal server error"}
@@ -131,7 +131,7 @@ func (s *Service) IssueEmailCode(ctx context.Context, mailer CodeSender, allow f
 	if err := mailer.SendSignInCode(address, code, link); err != nil {
 		// Don't expose details to the caller, but log loudly — this is the
 		// most likely failure mode in production (Resend misconfig, DNS, etc).
-		log.Printf("auth: mailer.SendSignInCode(%s): %v", redactedEmail(address), err)
+		log.Printf("auth: mailer.SendSignInCode(%s): %v", RedactedEmail(address), err)
 		return "", 0, http.StatusInternalServerError, CodeFailure{Refusal: CodeSendFailed}
 	}
 

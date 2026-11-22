@@ -15,10 +15,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/access/gate"
 	"github.com/vsriram/simple-host/host/config"
 	model "github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/families"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
@@ -40,7 +41,7 @@ func rgUnbind(t *testing.T, p *PasscodeApp) {
 }
 
 func rgCookie(raw string) map[string]string {
-	return map[string]string{"Cookie": accesshttp.VisitorCookieHost + "=" + raw}
+	return map[string]string{"Cookie": gate.VisitorCookieHost + "=" + raw}
 }
 
 func rgNoCanary(t *testing.T, what string, r Resp) {
@@ -442,7 +443,7 @@ func rgLiveFamily(t *testing.T, a *PrivateApp, famDir string, dns *rgFamilyDNS, 
 		t.Fatal(err)
 	}
 	dns.txt["_simple-host."+suffix] = fam.Token
-	a.Sites.CheckFamily(ctx, fam, a.Sites.Hosts.ServerAddrs(ctx))
+	families.Handler{Handler: a.Sites.Handler}.CheckFamily(ctx, fam, a.Sites.Hosts.ServerAddrs(ctx))
 	if r := a.At(t, "PUT", PcSiteDomain, "/v1/admin/address-families/"+id+"/cert-mode", map[string]string{"cert_mode": "wildcard", "cert_name": suffix}, map[string]string{"X-API-Key": a.Admin}); r.Status != 200 {
 		t.Fatalf("cert: %d %s", r.Status, r.Body)
 	}
@@ -509,8 +510,8 @@ func TestGateFamilyHostStorageAndOrigins(t *testing.T) {
 	if r := a.At(t, "POST", host, "/v1/sites/meera/visitor/auth", map[string]string{"email": "v@example.com"}, map[string]string{"Origin": "https://" + sib, "Sec-Fetch-Site": "same-site", "X-SH-CSRF": "1"}); r.Status != http.StatusForbidden {
 		t.Fatalf("email sign-in from a sibling: %d %s", r.Status, r.Body)
 	}
-	plain := rgRequest(host, map[string]string{"Cookie": accesshttp.VisitorCookieHTTP + "=" + sess, "Sec-Fetch-Site": "same-origin", "X-Forwarded-Proto": "https"})
-	if got := accesshttp.StrictVisitorCookie(plain); got != "" {
+	plain := rgRequest(host, map[string]string{"Cookie": gate.VisitorCookieHTTP + "=" + sess, "Sec-Fetch-Site": "same-origin", "X-Forwarded-Proto": "https"})
+	if got := gate.StrictVisitorCookie(plain); got != "" {
 		t.Fatalf("plain cookie read on a family host: %q", got)
 	}
 }
@@ -529,7 +530,7 @@ func TestGateFamilyHostVisitorSignIn(t *testing.T) {
 	returnTo := "https://" + host + "/page.html"
 	state, nonce := a.SignInStart(t, host, returnTo)
 	loc := a.SignInCallback(t, state, "visitor", host)
-	r := a.At(t, "GET", host, loc.RequestURI(), nil, map[string]string{"Cookie": accesshttp.VisitorNonceCookieHost + "=" + nonce, "X-Forwarded-For": "198.51.100.9"})
+	r := a.At(t, "GET", host, loc.RequestURI(), nil, map[string]string{"Cookie": gate.VisitorNonceCookieHost + "=" + nonce, "X-Forwarded-For": "198.51.100.9"})
 	if r.Status != http.StatusFound || r.Header.Get("Location") != returnTo {
 		t.Fatalf("establish: %d %q %s", r.Status, r.Header.Get("Location"), r.Body)
 	}

@@ -24,7 +24,7 @@ func (s *Service) OrganiserLock(ctx context.Context, ev model.Event, rawSlug, ac
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, 0, internalError(err)
+		return 0, 0, InternalError(err)
 	}
 	defer tx.Rollback()
 	team, err := teamBySlug(ctx, tx, ev.ID, rawSlug)
@@ -35,19 +35,19 @@ func (s *Service) OrganiserLock(ctx context.Context, ev model.Event, rawSlug, ac
 	if err != nil {
 		return 0, 0, notFoundAs(err, errMemberNotFound())
 	}
-	return requests, invites, commit(tx)
+	return requests, invites, Commit(tx)
 }
 
 func (s *Service) OrganiserAdmin(ctx context.Context, ev model.Event, rawSlug, userID string, admin bool) error {
 	if err := organiserStage(ev.Stage, msgEnded); err != nil {
 		return err
 	}
-	if !isID(userID) {
-		return errEventNotFound()
+	if !IsID(userID) {
+		return ErrEventNotFound()
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	defer tx.Rollback()
 	team, err := teamBySlug(ctx, tx, ev.ID, rawSlug)
@@ -57,7 +57,7 @@ func (s *Service) OrganiserAdmin(ctx context.Context, ev model.Event, rawSlug, u
 	if err = teamrepo.SetTeamAdmin(ctx, tx, ev.ID, team.ID, userID, admin); err != nil {
 		return notFoundAs(err, errMemberNotFound())
 	}
-	return commit(tx)
+	return Commit(tx)
 }
 
 func (s *Service) OrganiserLink(ctx context.Context, ev model.Event, rawSlug string) (model.EventTeam, error) {
@@ -66,7 +66,7 @@ func (s *Service) OrganiserLink(ctx context.Context, ev model.Event, rawSlug str
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.EventTeam{}, internalError(err)
+		return model.EventTeam{}, InternalError(err)
 	}
 	defer tx.Rollback()
 	team, err := teamBySlug(ctx, tx, ev.ID, rawSlug)
@@ -78,18 +78,18 @@ func (s *Service) OrganiserLink(ctx context.Context, ev model.Event, rawSlug str
 
 func rotateAndRead(ctx context.Context, tx *sql.Tx, team model.EventTeam) (model.EventTeam, error) {
 	if err := rotateTeamCode(ctx, tx, team.ID); err != nil {
-		return team, internalError(err)
+		return team, InternalError(err)
 	}
 	fresh, err := teamrepo.GetEventTeamByID(ctx, tx, team.ID)
 	if err != nil {
-		return team, internalError(err)
+		return team, InternalError(err)
 	}
-	return fresh, commit(tx)
+	return fresh, Commit(tx)
 }
 
-func commit(tx *sql.Tx) error {
+func Commit(tx *sql.Tx) error {
 	if err := tx.Commit(); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	return nil
 }
@@ -113,7 +113,7 @@ func participantTeam(ctx context.Context, tx *sql.Tx, eventID, userID string) (m
 func checkFrozen(ctx context.Context, tx *sql.Tx, eventID, teamID string) error {
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, eventID, teamID, false)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	if st.Frozen() {
 		return errDeadlinePassed()
@@ -124,12 +124,12 @@ func checkFrozen(ctx context.Context, tx *sql.Tx, eventID, teamID string) error 
 // beginAdminWrite checks the stage, opens the transaction and locks the
 // caller's team as its admin, refusing a frozen team. The caller rolls back.
 func (s *Service) beginAdminWrite(ctx context.Context, ev model.Event, userID string) (*sql.Tx, model.EventTeam, error) {
-	if err := participantStage(ev.Stage); err != nil {
+	if err := ParticipantStage(ev.Stage); err != nil {
 		return nil, model.EventTeam{}, err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, model.EventTeam{}, internalError(err)
+		return nil, model.EventTeam{}, InternalError(err)
 	}
 	team, err := participantTeam(ctx, tx, ev.ID, userID)
 	if err == nil {
@@ -145,7 +145,7 @@ func (s *Service) beginAdminWrite(ctx context.Context, ev model.Event, userID st
 // PatchTeam changes the caller's team name or finding note; nil leaves a
 // field as it is (with neither it only checks the caller is the admin).
 func (s *Service) PatchTeam(ctx context.Context, ev model.Event, userID string, name, note *string) (model.EventTeam, error) {
-	if err := participantStage(ev.Stage); err != nil {
+	if err := ParticipantStage(ev.Stage); err != nil {
 		return model.EventTeam{}, err
 	}
 	name, err := optionalLine(name, "team_name", 1, 80)
@@ -157,7 +157,7 @@ func (s *Service) PatchTeam(ctx context.Context, ev model.Event, userID string, 
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.EventTeam{}, internalError(err)
+		return model.EventTeam{}, InternalError(err)
 	}
 	defer tx.Rollback()
 	team, err := participantTeam(ctx, tx, ev.ID, userID)
@@ -172,7 +172,7 @@ func (s *Service) PatchTeam(ctx context.Context, ev model.Event, userID string, 
 	if err = patchTeam(ctx, tx, ev.ID, team, name, note); err != nil {
 		return team, err
 	}
-	return team, commit(tx)
+	return team, Commit(tx)
 }
 
 func patchTeam(ctx context.Context, tx *sql.Tx, eventID string, team model.EventTeam, name, note *string) error {
@@ -182,12 +182,12 @@ func patchTeam(ctx context.Context, tx *sql.Tx, eventID string, team model.Event
 			return errTeamNameTaken()
 		}
 		if err != nil {
-			return internalError(err)
+			return InternalError(err)
 		}
 	}
 	if note != nil {
 		if _, err := teamrepo.SetTeamLookingFor(ctx, tx, team.ID, *note); err != nil {
-			return internalError(err)
+			return InternalError(err)
 		}
 	}
 	return nil
@@ -203,22 +203,22 @@ func (s *Service) ParticipantLock(ctx context.Context, ev model.Event, userID st
 	if err != nil {
 		return 0, 0, err
 	}
-	return requests, invites, commit(tx)
+	return requests, invites, Commit(tx)
 }
 
 // ParticipantAdmin sets a teammate's admin flag under sorted member locks.
 // A target not on the caller's team is event_not_found, never confirming
 // where else someone belongs.
 func (s *Service) ParticipantAdmin(ctx context.Context, ev model.Event, userID, target string, admin bool) error {
-	if err := participantStage(ev.Stage); err != nil {
+	if err := ParticipantStage(ev.Stage); err != nil {
 		return err
 	}
-	if !isID(target) {
-		return errEventNotFound()
+	if !IsID(target) {
+		return ErrEventNotFound()
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	defer tx.Rollback()
 	teamID, callerAdmin, stage, err := LockCallerAndTargetTeam(ctx, tx, ev.ID, userID, target)
@@ -236,7 +236,7 @@ func (s *Service) ParticipantAdmin(ctx context.Context, ev model.Event, userID, 
 	if err = teamrepo.SetTeamAdmin(ctx, tx, ev.ID, teamID, target, admin); err != nil {
 		return err
 	}
-	return commit(tx)
+	return Commit(tx)
 }
 
 func (s *Service) ParticipantLink(ctx context.Context, ev model.Event, userID string) (model.EventTeam, error) {

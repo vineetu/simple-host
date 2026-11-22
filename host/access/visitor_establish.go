@@ -48,20 +48,3 @@ func (s *Service) ClaimEstablish(ctx context.Context, once, host, nonce string, 
 	}
 	return tok, sess, 0, ""
 }
-
-// SettleEstablish ends a claimed sign-in (ClaimEstablish): admit activates
-// the pending session id for ttl and idle (first: the visitor's first
-// session on the site); otherwise, or when activation fails, it is deleted.
-// No id (the code was never spent) settles nothing.
-func (s *Service) SettleEstablish(ctx context.Context, id []byte, admit bool, ttl, idle time.Duration) (first bool, err error) {
-	if len(id) == 0 {
-		return false, nil
-	}
-	if admit {
-		if first, err = repo.ActivateVisitorSession(ctx, s.database, id, ttl, idle); err == nil {
-			return first, nil
-		}
-	}
-	_ = repo.DeleteVisitorSession(ctx, s.database, id)
-	return false, err
-}

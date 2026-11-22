@@ -13,6 +13,7 @@ import (
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/access/gate"
 	"github.com/vsriram/simple-host/host/httpx"
 )
 
@@ -25,7 +26,7 @@ func TestNonceHash(n string) sql.NullString {
 }
 
 func NonceCookie(n string) map[string]string {
-	return map[string]string{"Cookie": accesshttp.VisitorNonceCookieHost + "=" + n}
+	return map[string]string{"Cookie": gate.VisitorNonceCookieHost + "=" + n}
 }
 
 // fakeProvider signs in whoever the callback's code names.
@@ -35,8 +36,8 @@ func (FakeProvider) Name() string { return "google" }
 func (FakeProvider) AuthCodeURL(state, _ string) string {
 	return "https://accounts.example.test/auth?state=" + url.QueryEscape(state)
 }
-func (FakeProvider) Exchange(_ context.Context, code, _ string) (accounts.ProviderIdentity, error) {
-	return accounts.ProviderIdentity{Provider: "google", UserID: "g-" + code, Email: code + "@example.test", EmailVerified: true}, nil
+func (FakeProvider) Exchange(_ context.Context, code, _ string) (gate.ProviderIdentity, error) {
+	return gate.ProviderIdentity{Provider: "google", UserID: "g-" + code, Email: code + "@example.test", EmailVerified: true}, nil
 }
 
 // withOAuth mounts visitor Google sign-in (fake provider) on the app.
@@ -47,7 +48,7 @@ func (a *PrivateApp) WithOAuth(t *testing.T) *accesshttp.OAuthHandler {
 		Limits:        a.Sites.Limits,
 		Cfg:           accesshttp.OAuthSettings{PublicBaseURL: "https://" + PcSiteDomain, SiteDomain: PcSiteDomain, ContentHost: PcContentHost, CNAMETarget: "cname." + PcSiteDomain},
 		Accounts:      accounts.New(a.Database),
-		SignIn:        accounts.NewProviderSignIn(accounts.New(a.Database), map[string]accounts.Provider{"google": FakeProvider{}}),
+		SignIn:        gate.NewProviderSignIn(accounts.New(a.Database), map[string]gate.Provider{"google": FakeProvider{}}),
 		IPLimiter:     httpx.NewRateLimiter(10000, 10000),
 		SSOKeyLimiter: httpx.NewRateLimiter(10000, 10000),
 		LookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },
@@ -68,7 +69,7 @@ func (a *PrivateApp) SignInStart(t *testing.T, host, returnTo string) (state, no
 		t.Fatalf("start on %s: %d %q %s", host, r.Status, r.Header.Get("Location"), r.Body)
 	}
 	sc := r.Header.Values("Set-Cookie")
-	if len(sc) != 1 || !strings.HasPrefix(sc[0], accesshttp.VisitorNonceCookieHost+"=") {
+	if len(sc) != 1 || !strings.HasPrefix(sc[0], gate.VisitorNonceCookieHost+"=") {
 		t.Fatalf("start cookie: %v", sc)
 	}
 	c := sc[0]
@@ -80,7 +81,7 @@ func (a *PrivateApp) SignInStart(t *testing.T, host, returnTo string) (state, no
 	if strings.Contains(strings.ToLower(c), "domain=") {
 		t.Errorf("nonce cookie has a Domain: %s", c)
 	}
-	nonce = strings.TrimPrefix(strings.SplitN(c, ";", 2)[0], accesshttp.VisitorNonceCookieHost+"=")
+	nonce = strings.TrimPrefix(strings.SplitN(c, ";", 2)[0], gate.VisitorNonceCookieHost+"=")
 	if strings.Contains(r.Header.Get("Location"), nonce) || strings.Contains(r.Header.Get("Location"), TestNonceHash(nonce).String) {
 		t.Errorf("nonce or its hash left the site host: %s", r.Header.Get("Location"))
 	}

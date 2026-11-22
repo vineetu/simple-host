@@ -2,12 +2,16 @@
 # path (file, or folder ending in /) | table, or * for every table | reason
 # sqlcheck -owners skips them; keep this list short and every reason true.
 host/papermetrics/ | * | nightly read-only operator measurement: one count per metric over a dozen tables; a kernel package, so it may not import the modules
-products/hack/papermetrics/ | * | Simple Hack's nightly read-only measurement, the product's copy of host/papermetrics
+products/hack/papermetrics/ | * | Simple Hack's nightly measurement, the product's copy of host/papermetrics: it reads across the tables; its one write outside its own tables is each daily value into paper_daily, in the transaction of its own paper_hack_daily row, because host/papermetrics has no function that writes it
 host/server/servertest/ | * | test fixtures (built only by tests) set up rows no door writes
+host/access/featuretest/ | * | Access feature tests' fixture (built only by tests): finds and removes the rows a test made
+host/sites/sitesroute/fixture/ | * | the Sites route-test fixture (built only by tests) sets up rows no door writes
+products/hack/hacktest/ | * | the Hack feature suites' fixture (built only by tests) sets up and reads back rows no door writes
 host/sites/analytics/report.go | sites | GetAnalyticsSummary unique visitors: one COUNT(DISTINCT) per site name across same-named sites, which needs the join to stay exact
 host/sites/repo/door_access.go | site_view_hourly | SiteActivationFor's person-visit count per account joins the views to the account's sites; the analytics package imports sites/repo, so it cannot be called back
 host/sites/repo/idlearchive.go | * | the idle cleanup's last-activity expression reads the latest version, saved entry and view of each site in the one UPDATE that re-checks it
 host/sites/repo/ops_idle.go | * | the idle cleanup's dry run reads the same last-activity expression and whether the analytics ingest is current
+host/sites/repo/erasure.go | event_domains | the erasure holds count an account's event names in the one statement that counts its other holds; the events feature imports sites/repo, so it cannot be called back
 host/sites/repo/deleted.go | site_notifications | moving a site to Recently deleted drops its web-push subscriptions in the same transaction; data sits above sites
 host/sites/repo/export.go | * | a site's export lists its saved files and KV names in the export's lock; data sits above sites
 host/data/notify/push.go | instance_config | the instance's web-push key pair; ops sits above data
@@ -23,5 +27,3 @@ host/sites/repo/with_owner.go | * | sites read with their owner: a site with its
 host/server/product.go | events | the composition root checks whether this install already holds Simple Hack events before it adopts the product
 products/hack/repository/hackteams/event_site.go | events | ReadSiteBindings and OwnerOnSite run on every storage request of an event's site: one statement each reads the event row (stage, deadline, take-down) beside the team rows
 products/hack/repository/hackteams/event_site.go | event_members | the same per-request statements read the caller's role, approval and team
-products/hack/repository/hackentries/receipts.go | events | NextReceiptMail claims one entry receipt per sent email: one statement reads the event's title and slug beside it
-products/hack/repository/hackentries/receipts.go | event_teams | NextReceiptMail claims one entry receipt per sent email: the same statement reads the team's name

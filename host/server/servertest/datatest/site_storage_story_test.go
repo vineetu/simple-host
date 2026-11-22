@@ -14,7 +14,7 @@ import (
 // One shop through the storage routes: own records on each kind, the
 // refusals a page most likely meets, and what the owner sees.
 func TestStorageStoryShopAndRefusals(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	ah, bh, anon := s.Callers["alice"], s.Callers["bob"], s.Callers["anon"]
 	check := func(method, path string, body any, headers map[string]string, status int, code string) rt.Resp {
 		t.Helper()
@@ -119,7 +119,7 @@ func TestStorageStorySeparateAllowances(t *testing.T) {
 	t.Setenv("SITE_STORAGE_MAX_BYTES", "16384")
 	t.Setenv("SITE_STORAGE_FILES_MAX_BYTES", "10")
 	t.Setenv("SITE_STORAGE_FILE_MAX_BYTES", "100")
-	s := NewShop(t)
+	s := newShop(t)
 	call := func(method, path string, body any, status int) map[string]any {
 		t.Helper()
 		r := s.Must(t, method, path, body, s.Key, status)

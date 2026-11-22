@@ -7,17 +7,19 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
-	operations "github.com/vsriram/simple-host/host/ops"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	operations "github.com/vsriram/simple-host/host/ops"
+
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/config"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/sites"
 )
 
@@ -167,7 +169,7 @@ func TestRDNotificationKeyDoesNotEnableSharedOriginPasscodes(t *testing.T) {
 	if err := h.SetPasscodeKey(TestPasscodeKey); err != nil {
 		t.Fatal(err)
 	}
-	d := &datahttp.DataHandler{PasscodeKeys: h.PasscodeKeys()}
+	d := &appstorage.Handler{PasscodeKeys: h.PasscodeKeys()}
 	if !d.NotificationsReady() {
 		t.Fatal("the key does not enable notifications")
 	}

@@ -9,7 +9,9 @@ import (
 
 	model "github.com/vsriram/simple-host/host/model"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
+	"github.com/vsriram/simple-host/host/sites/idle"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 )
 
 // The idle clean-up: a site unused for IDLE_AFTER_DAYS + IDLE_GRACE_DAYS
@@ -44,7 +46,7 @@ func TestIdleSiteCleanup(t *testing.T) {
 	if r := a.api(t, olive, "PUT", "/v1/sites/kept/keep", map[string]any{"keep": true}); r.Status != http.StatusOK {
 		t.Fatalf("keep flag: %d %s", r.Status, r.Body)
 	}
-	if r := a.api(t, olive, "POST", "/v1/sites/named/domain", map[string]any{"domain": uniq("idlename") + "." + rt.SiteDomain}); r.Status != http.StatusOK {
+	if r := a.api(t, olive, "POST", "/v1/sites/named/domain", map[string]any{"domain": fixture.Uniq("idlename") + "." + rt.SiteDomain}); r.Status != http.StatusOK {
 		t.Fatalf("claim name: %d %s", r.Status, r.Body)
 	}
 
@@ -71,12 +73,12 @@ func TestIdleSiteCleanup(t *testing.T) {
 		return d
 	}
 	a.Sites.SetIdleCleanup(false)
-	a.Sites.RunIdleCleanup(ctx, time.Now())
+	idle.Run(ctx, a.Sites.Handler, time.Now())
 	if deleted(quiet) {
 		t.Fatal("ran while off")
 	}
 	a.Sites.SetIdleCleanup(true)
-	a.Sites.RunIdleCleanup(ctx, time.Now())
+	idle.Run(ctx, a.Sites.Handler, time.Now())
 	if !deleted(quiet) {
 		t.Fatal("idle site not moved to Recently deleted")
 	}
@@ -89,7 +91,7 @@ func TestIdleSiteCleanup(t *testing.T) {
 	if r := a.api(t, olive, "POST", "/v1/sites/quiet/restore", nil); r.Status != http.StatusOK {
 		t.Fatalf("restore: %d %s", r.Status, r.Body)
 	}
-	a.Sites.RunIdleCleanup(ctx, time.Now())
+	idle.Run(ctx, a.Sites.Handler, time.Now())
 	if deleted(quiet) {
 		t.Fatal("restored site removed again")
 	}

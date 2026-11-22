@@ -191,7 +191,7 @@ browser family (`handler/sso.go:ssoCookie`, `setSSOCookie`, `endBrowserSSO`).
 Visitor sessions cover one site and host. Pages include `/auth.js` (`window.SH`) and use
 `SH.signIn()` / `SH.requireSignIn()` before identity-dependent storage. Hosted Hack serves
 the same helper with its own header and wording (`handler/static/auth.js`,
-`products/hack/hackhttp/hack_assets.go:hackAuthJS`). `GET /v1/sites/{site}/me` reports the session without extending it
+`products/hack/pages/hack_assets.go:hackAuthJS`). `GET /v1/sites/{site}/me` reports the session without extending it
 (`handler/visitorsession.go:getVisitorMe`).
 
 ### Legacy visitor login

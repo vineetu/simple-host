@@ -12,15 +12,16 @@ import (
 )
 
 // Service owns site lifecycle operations.
+// Its fields are exported so the feature packages under host/sites can run
+// their workflows on the same instance (they embed it).
 type Service struct {
-	accounts   *accountapp.Service
-	eventSweep *eventDNSState
+	Accounts *accountapp.Service
 
-	database        *sql.DB
-	disk            Disk
-	previewAccounts map[string]bool
-	previewTTL      time.Duration
-	deps            Deps
+	DB              *sql.DB
+	Disk            Disk
+	PreviewAccounts map[string]bool
+	PreviewTTL      time.Duration
+	Deps            Deps
 }
 
 // Deps holds collaborators shared by site workflows.
@@ -65,12 +66,12 @@ type Deps struct {
 
 // New constructs a site lifecycle service using the instance's shared locks.
 func New(database *sql.DB, disk Disk, previewAccounts map[string]bool, previewTTL time.Duration, deps Deps) *Service {
-	return &Service{accounts: accountapp.New(database), eventSweep: &eventDNSState{}, database: database, disk: disk, previewAccounts: previewAccounts, previewTTL: previewTTL, deps: deps}
+	return &Service{Accounts: accountapp.New(database), DB: database, Disk: disk, PreviewAccounts: previewAccounts, PreviewTTL: previewTTL, Deps: deps}
 }
 
 // fileBytes is the site's footprint on disk, 0 when it cannot be measured.
-func (s *Service) fileBytes(site model.Site) int64 {
-	footprint, err := s.disk.SiteFootprint(site.UserID, site.Name)
+func (s *Service) FileBytes(site model.Site) int64 {
+	footprint, err := s.Disk.SiteFootprint(site.UserID, site.Name)
 	if err != nil {
 		return 0
 	}

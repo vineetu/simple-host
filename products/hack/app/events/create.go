@@ -20,6 +20,12 @@ import (
 	"github.com/vsriram/simple-host/products/hack/rules/hackevents"
 )
 
+// JoinCodeLen and JudgeCodeLen are the lengths of a new event's join and judge codes.
+const (
+	JoinCodeLen  = 8
+	JudgeCodeLen = 12
+)
+
 func unique(err error) bool { return hackevents.UniqueError(err) }
 
 func (s *Service) CreateEvent(ctx context.Context, userID, slug, title, organiserName, organisation, contact, purpose, tz string, expected int, startsAt, endsAt sql.NullTime, perDay, maxActive, teamSize, joinLen, judgeLen int) (model.Event, model.EventMember, error) {
@@ -335,7 +341,7 @@ func (s *Service) DeleteEventTx(ctx context.Context, tx *sql.Tx, ev model.Event,
 			}
 		}
 	}
-	return deleteEventAndAccount(ctx, tx, ev)
+	return DeleteEventAndAccount(ctx, tx, ev)
 }
 
 func (s *Service) PatchEvent(ctx context.Context, eventID string, p EventPatch) (updated model.Event, deadlineChanged bool, err error) {

@@ -57,11 +57,11 @@ done <<<"$documented"
 # .../push/* (SIM-360) is excluded the same way /storage/ is: a signed-in
 # visitor subscribes/unsubscribes/mutes their own device too, so these go
 # through h.passcodeGate (TestPasscodeRouteTable enforces that wrap) and
-# each handler checks ownership itself (notify_push.go), exactly the
+# each handler checks ownership itself (host/data/push/routes.go), exactly the
 # storage-route pattern. The owner-only device/rule management routes
 # (push/devices, push/rules) are still wrapped with authMiddleware.
 echo "== owner routes wrapped with authMiddleware =="
-unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' host/handler host/web host/access/accesshttp host/data/datahttp host/sites/siteshttp \
+unwrapped=$(grep -rh --exclude='*_test.go' -oE 'mux\.Handle(Func)?\("[A-Z]+ /v1/sites/[^"]+"[^)]*' host/handler host/web host/access host/data host/sites \
   | grep -vE '/me"|/visitor/auth|/storage/|/push/(vapid-key|subscribe|unsubscribe|mute)"' \
   | grep -v authMiddleware || true)
 if [ -n "$unwrapped" ]; then

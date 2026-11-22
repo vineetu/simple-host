@@ -2,15 +2,9 @@ package siteshttp
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"strings"
 	"time"
 
-	"github.com/vsriram/simple-host/host/access/auth"
-	"github.com/vsriram/simple-host/host/httpx"
-	operations "github.com/vsriram/simple-host/host/ops"
-	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/idle"
 )
 
 // Idle-site cleanup (no emails are sent).
@@ -34,98 +28,7 @@ import (
 
 const idleRunEvery = 6 * time.Hour
 
-func (h *SiteHandler) SetIdleCleanup(on bool) { h.idleCleanup = on }
-
-// SetIdleExempt sets the accounts the cleanup never touches besides the
-// built-in rules: handles (IDLE_CLEANUP_EXEMPT_HANDLES) and the plugin
-// reviewer account (REVIEW_ACCOUNT_EMAIL).
-func (h *SiteHandler) SetIdleExempt(handles []string, reviewerEmail string) {
-	ex := sites.IdleExempt{ReviewerEmail: strings.TrimSpace(reviewerEmail), FamilySites: h.Limits.IdleExemptFamilySites}
-	for _, hd := range handles {
-		if hd = strings.ToLower(strings.TrimSpace(hd)); hd != "" {
-			ex.Handles = append(ex.Handles, hd)
-		}
-	}
-	h.IdleExempt = ex
-}
-
 func (h *SiteHandler) startIdleCleanup(ctx context.Context) {
 	o := h.siteLoop("sites.idle_cleanup")
-	o.periodicTicker(ctx, 10*time.Minute, idleRunEvery, func(ctx context.Context) { h.RunIdleCleanup(ctx, time.Now()) })
-}
-
-func (h *SiteHandler) RunIdleCleanup(ctx context.Context, now time.Time) {
-	h.Reporting.RunIdleCleanup(ctx, now, h.Ed, h.idleCleanup, h.IdleExempt, h.idleArchiveSvc())
-}
-
-func (h *SiteHandler) setSiteKeep(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
-		return
-	}
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	var req struct {
-		Keep *bool `json:"keep"`
-	}
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil || req.Keep == nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: `body must be {"keep": true} or {"keep": false}`})
-		return
-	}
-	site, err := h.SitesSvc().SetSiteKeep(r.Context(), user.ID, siteName, *req.Keep)
-	if err != nil {
-		writeSitesError(w, err, siteName)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"name": site.Name, "keep": *req.Keep})
-}
-
-type idleSiteRow struct {
-	Site         string    `json:"site"`
-	Owner        string    `json:"owner"`
-	LastActivity time.Time `json:"last_activity"`
-}
-
-// adminIdleSites is the dry run: what a run would move to Recently deleted, whether or not cleanup is on.
-func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
-	if !auth.Admin(w, r) {
-		return
-	}
-	const show = 500
-	run, err := h.Reporting.IdleCleanupDryRun(r.Context(), time.Now(), h.Ed, h.IdleExempt, show)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	rows := make([]idleSiteRow, 0, len(run.WouldRemove))
-	for _, s := range run.WouldRemove {
-		rows = append(rows, idleSiteRow{Site: s.Name, Owner: s.OwnerEmail, LastActivity: s.LastActivity.UTC()})
-	}
-	trusted, why, since, last := run.Trusted, run.Why, run.Since, run.LastRead
-	resp := map[string]any{
-		"enabled":       h.idleCleanup,
-		"idle_days":     int(operations.IdleRemoveAfter(h.Ed).Hours() / 24),
-		"visit_data_ok": trusted,
-		"would_remove":  rows,
-	}
-	if !trusted {
-		resp["visit_data_note"] = why
-	}
-	if !since.IsZero() {
-		resp["visits_recorded_since"] = since.UTC()
-	}
-	if !last.IsZero() {
-		resp["visits_last_read"] = last.UTC()
-	}
-	httpx.WriteJSON(w, http.StatusOK, resp)
-}
-
-func (h *SiteHandler) idleArchiveSvc() *sites.Service {
-	return sites.New(h.Database, h.Disk, nil, 0, sites.Deps{
-		Locks: &h.UploadLocks, DeletedRetention: h.Limits.DeletedRetention,
-		IdleArchive: sites.IdleArchiveDeps{
-			Exempt: sites.IdleExempt{Handles: h.IdleExempt.Handles, ReviewerEmail: h.IdleExempt.ReviewerEmail, FamilySites: h.IdleExempt.FamilySites},
-			After:  operations.IdleRemoveAfter(h.Ed),
-		},
-	})
+	o.periodicTicker(ctx, 10*time.Minute, idleRunEvery, func(ctx context.Context) { idle.Run(ctx, h.Handler, time.Now()) })
 }

@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 )
 
 func TestVersionAuthor(t *testing.T) {
@@ -16,11 +18,11 @@ func TestVersionAuthor(t *testing.T) {
 		{long, strings.Repeat("é", 80)},
 	} {
 		r := httptest.NewRequest("PUT", "/v1/sites/s/files?"+url.Values{"author": {c.in}}.Encode(), nil)
-		if got := versionAuthor(r); got != c.want {
-			t.Errorf("versionAuthor(%q) = %q, want %q", c.in, got, c.want)
+		if got := sitesroute.VersionAuthor(r); got != c.want {
+			t.Errorf("sitesroute.VersionAuthor(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
-	if got := versionAuthor(httptest.NewRequest("PUT", "/v1/sites/s/files", nil)); got != "" {
+	if got := sitesroute.VersionAuthor(httptest.NewRequest("PUT", "/v1/sites/s/files", nil)); got != "" {
 		t.Errorf("no ?author=: %q, want empty", got)
 	}
 }

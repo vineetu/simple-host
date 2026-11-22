@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/products/hack/hackhttp"
+	"github.com/vsriram/simple-host/products/hack/exports"
 )
 
 func TestHackArchiveLinksFullBytesAndRevocation(t *testing.T) {
@@ -96,7 +96,7 @@ func TestHackArchiveLinksFullBytesAndRevocation(t *testing.T) {
 	if err := a.database.QueryRow(`SELECT team_id FROM event_members WHERE event_id=$1 AND user_id=$2`, eventID, a.uid(t, part)).Scan(&ownTeamID); err != nil {
 		t.Fatal(err)
 	}
-	claim := hackhttp.HackArchiveClaim{UserID: a.uid(t, org), EventID: eventID, Slug: slug, Kind: "projects", Expiry: time.Now().Add(-time.Second).Unix()}
+	claim := exports.HackArchiveClaim{UserID: a.uid(t, org), EventID: eventID, Slug: slug, Kind: "projects", Expiry: time.Now().Add(-time.Second).Unix()}
 	wantTS(t, "expired link", download(a.srv.URL+"/v1/hack/archive?token="+a.hack.SignHackArchiveClaim(claim)), 404, "archive_link_invalid")
 	if _, err := a.database.Exec(`UPDATE event_members SET team_id=NULL WHERE event_id=$1 AND user_id=$2`, claim.EventID, a.uid(t, part)); err != nil {
 		t.Fatal(err)

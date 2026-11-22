@@ -7,16 +7,17 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/vsriram/simple-host/products/hack/public"
+
 	platformtestdb "github.com/vsriram/simple-host/host/testdb"
 	hackdb "github.com/vsriram/simple-host/products/hack/db"
 
-	"github.com/vsriram/simple-host/products/hack/hackhttp"
 	"github.com/vsriram/simple-host/products/hack/testdb"
 	"github.com/vsriram/simple-host/products/hack/webassets"
 )
 
 // testHackPages is the shared event template cache built from embedded assets.
-var testHackPages = hackhttp.NewHackEventPages(webassets.Static)
+var testHackPages = public.NewHackEventPages(webassets.Static)
 
 // TestMain keeps the moved tests in their own disposable package database.
 func TestMain(m *testing.M) { testdb.Main(m) }

@@ -51,21 +51,11 @@ type KeyInfo struct {
 	Expired       string
 }
 
-func keyInfo(k model.APIKey, now time.Time, idle time.Duration) KeyInfo {
+// KeyInfoOf is k as a person sees it at now, with idle expiry idle.
+func KeyInfoOf(k model.APIKey, now time.Time, idle time.Duration) KeyInfo {
 	return KeyInfo{APIKey: k, IdleExpiresAt: rules.IdleExpiresAt(k.IdleFrom, k.LastUsedAt, idle), Expired: rules.KeyExpired(now, k.ExpiresAt, k.IdleFrom, k.LastUsedAt, idle)}
 }
-func (s *Service) ListKeys(ctx context.Context, userID string, idle time.Duration) ([]KeyInfo, error) {
-	keys, err := repo.ListAPIKeys(ctx, s.database, userID)
-	if err != nil {
-		return nil, err
-	}
-	now := time.Now()
-	out := make([]KeyInfo, 0, len(keys))
-	for _, k := range keys {
-		out = append(out, keyInfo(k, now, idle))
-	}
-	return out, nil
-}
+
 func (s *Service) CreateKey(ctx context.Context, userID, callerKeyHash, plain, name, scope string, expiresAt *time.Time, maxKeys int, idle time.Duration) (KeyInfo, error) {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
@@ -96,21 +86,7 @@ func (s *Service) CreateKey(ctx context.Context, userID, callerKeyHash, plain, n
 	if err = tx.Commit(); err != nil {
 		return KeyInfo{}, err
 	}
-	return keyInfo(k, time.Now(), idle), nil
-}
-func (s *Service) DeleteKey(ctx context.Context, userID, keyID string) (bool, error) {
-	return repo.DeleteAPIKey(ctx, s.database, userID, keyID)
-}
-
-// SignOut retires the browser's SSO parent first, then the request's key. These remain separate writes.
-func (s *Service) SignOut(ctx context.Context, userID, keyHash, browserPass string) error {
-	if browserPass != "" {
-		if err := repo.DeleteSSOPassParent(ctx, s.database, repo.HashAPIKey(browserPass), userID); err != nil {
-			return err
-		}
-	}
-	_, err := repo.DeleteAPIKeyByHash(ctx, s.database, userID, keyHash)
-	return err
+	return KeyInfoOf(k, time.Now(), idle), nil
 }
 
 // MaxKeyExpiryDays bounds expires_in_days at mint (about ten years).

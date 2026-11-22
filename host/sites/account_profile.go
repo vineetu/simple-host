@@ -22,7 +22,7 @@ type ProfileInput struct {
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, in ProfileInput) (model.User, bool, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
+	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return model.User{}, false, profileInternalError()
 	}
@@ -64,10 +64,10 @@ func (s *Service) UpdateProfile(ctx context.Context, in ProfileInput) (model.Use
 		// link stays so old content-host paths keep resolving. The new
 		// handle needs its own *.<handle> certificate: until it is ready,
 		// every address handed out is the person-path one (siteHostLive).
-		if err := s.disk.EnsureHandleLink(updated.Handle.String, updated.ID); err != nil {
+		if err := s.Disk.EnsureHandleLink(updated.Handle.String, updated.ID); err != nil {
 			log.Printf("handle rename: ensure handle link %s: %v", updated.Handle.String, err)
 		}
-		s.requestCert(updated.Handle.String)
+		s.RequestCert(updated.Handle.String)
 	}
 	return updated, alertsOn, nil
 }
@@ -86,7 +86,7 @@ func (s *Service) changeHandleTx(ctx context.Context, tx *sql.Tx, in ProfileInpu
 	// sites left: old shared links and hand-made vhosts keyed on the
 	// folder must never follow a stranger who claims it. Only a handle
 	// that never published anything is freed.
-	if oldHandle != "" && (hasSites || s.disk.HasHandleLink(oldHandle)) {
+	if oldHandle != "" && (hasSites || s.Disk.HasHandleLink(oldHandle)) {
 		// The handle can change after publishing; old links redirect
 		// through the alias. Once per
 		// handleRenameEvery, so an address cannot be churned.
@@ -121,7 +121,7 @@ func (s *Service) changeHandleTx(ctx context.Context, tx *sql.Tx, in ProfileInpu
 	if err != nil {
 		return false, profileInternalError()
 	}
-	if err = s.disk.RemoveHandleLink(oldHandle); err != nil {
+	if err = s.Disk.RemoveHandleLink(oldHandle); err != nil {
 		return false, &accountapp.LifecycleError{Status: 500, Message: "could not remove old handle link"}
 	}
 	return false, nil

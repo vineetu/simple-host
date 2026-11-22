@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vsriram/simple-host/host/data/datahttp"
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/httpx"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 )
@@ -32,9 +32,9 @@ func newFakeSiteverify(t *testing.T, answer func(token string) map[string]any) *
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(answer(r.PostForm.Get("response")))
 	}))
-	old := datahttp.TurnstileVerifyURL
-	datahttp.TurnstileVerifyURL = srv.URL
-	t.Cleanup(func() { datahttp.TurnstileVerifyURL = old; srv.Close() })
+	old := appstorage.TurnstileVerifyURL
+	appstorage.TurnstileVerifyURL = srv.URL
+	t.Cleanup(func() { appstorage.TurnstileVerifyURL = old; srv.Close() })
 	return f
 }
 
@@ -46,11 +46,11 @@ func (f *fakeSiteverify) calls() int {
 
 func TestTurnstileOffWithoutKeys(t *testing.T) {
 	for _, c := range [][2]string{{"", ""}, {TurnstileTestSiteKey, ""}, {"", TurnstileTestSecret}} {
-		if datahttp.NewTurnstileVerifier(c[0], c[1], TurnstileTestApp) != nil {
+		if appstorage.NewTurnstileVerifier(c[0], c[1], TurnstileTestApp) != nil {
 			t.Fatalf("on with key %v, secret %v", c[0] != "", c[1] != "")
 		}
 	}
-	s := NewShop(t)
+	s := newShop(t)
 	// auth.checked is not a binding while the spam check is off.
 	if r := s.Must(t, "PUT", "/resources/guestbook", StorageRules("sqlite", RulesComments), s.Key, 400); r.Code() != "invalid_rules" {
 		t.Fatalf("off: %s", r.Body)
@@ -65,15 +65,15 @@ func TestTurnstileOffWithoutKeys(t *testing.T) {
 // by Shop.Token (for the host and resource in it).
 func commentsSite(t *testing.T) (Shop, *fakeSiteverify) {
 	t.Helper()
-	s := NewShop(t)
+	s := newShop(t)
 	app, _ := url.Parse(s.A.Srv.URL)
 	f := newFakeSiteverify(t, func(token string) map[string]any {
 		parts := strings.SplitN(strings.TrimPrefix(token, "ok-"), "|", 3)
 		if !strings.HasPrefix(token, "ok-") || len(parts) < 2 {
 			return map[string]any{"success": false, "error-codes": []string{"invalid-input-response"}}
 		}
-		return map[string]any{"success": true, "action": datahttp.TurnstileAction, "hostname": app.Hostname(),
-			"cdata": datahttp.TurnstileCData(parts[0], parts[1]), "challenge_ts": time.Now().UTC().Format(time.RFC3339)}
+		return map[string]any{"success": true, "action": appstorage.TurnstileAction, "hostname": app.Hostname(),
+			"cdata": appstorage.TurnstileCData(parts[0], parts[1]), "challenge_ts": time.Now().UTC().Format(time.RFC3339)}
 	})
 	s.A.Data.SetTurnstile(TurnstileTestSiteKey, TurnstileTestSecret, s.A.Srv.URL)
 	s.A.Data.SpamIPLimiter = httpx.NewRateLimiter(100000, 0)
@@ -84,7 +84,7 @@ func commentsSite(t *testing.T) (Shop, *fakeSiteverify) {
 }
 
 func withToken(h map[string]string, token string) map[string]string {
-	return rtCopy(h, datahttp.TurnstileHeader, token)
+	return rtCopy(h, appstorage.TurnstileHeader, token)
 }
 
 func TestCommentsRulesPolicy(t *testing.T) {
@@ -134,7 +134,7 @@ func TestCommentsRulesPolicy(t *testing.T) {
 		t.Fatalf("checked files: %s", r.Body)
 	}
 	// Siteverify down: refused, nothing saved.
-	datahttp.TurnstileVerifyURL = "http://127.0.0.1:1/siteverify"
+	appstorage.TurnstileVerifyURL = "http://127.0.0.1:1/siteverify"
 	if r := s.Must(t, "POST", rows, post, withToken(anon, s.Token("guestbook")), 403); r.Code() != "spam_check_unavailable" {
 		t.Fatalf("down: %s", r.Body)
 	}

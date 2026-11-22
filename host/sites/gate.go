@@ -25,11 +25,11 @@ type GroupGate interface {
 	Suspension(ctx context.Context, tx *sql.Tx, site repo.Site) (prefix, reason string, err error)
 }
 
-func (s *Service) createGate(ctx context.Context, tx *sql.Tx, user *model.User, siteName string) *GateError {
-	if s.deps.GroupGate == nil || user.Member == nil {
+func (s *Service) CreateGate(ctx context.Context, tx *sql.Tx, user *model.User, siteName string) *GateError {
+	if s.Deps.GroupGate == nil || user.Member == nil {
 		return nil
 	}
-	return s.deps.GroupGate.Check(ctx, tx, user, siteName)
+	return s.Deps.GroupGate.Check(ctx, tx, user, siteName)
 }
 
 // CheckWrite runs the product's gate for a change made for an account

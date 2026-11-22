@@ -9,11 +9,14 @@ import (
 	"strings"
 	"testing"
 
+	sitefamilies "github.com/vsriram/simple-host/host/sites/families"
+
 	model "github.com/vsriram/simple-host/host/model"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
 	"github.com/vsriram/simple-host/host/sites"
 	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/sites/sitesroute/fixture"
 )
 
 // Address families (*.<suffix> serving one account's sites).
@@ -112,7 +115,7 @@ func (f *familyApp) liveFamily(t *testing.T, p rt.Person, suffix, prefix string,
 		t.Fatal(err)
 	}
 	f.dns.txt["_simple-host."+suffix] = fam.Token
-	f.Sites.CheckFamily(ctx, fam, f.Hosts.ServerAddrs(ctx))
+	sitefamilies.Handler{Handler: f.Sites.Handler}.CheckFamily(ctx, fam, f.Hosts.ServerAddrs(ctx))
 	if r := f.admin(t, "PUT", "/v1/admin/address-families/"+id+"/cert-mode", map[string]string{"cert_mode": "wildcard", "cert_name": suffix}); r.Status != 200 {
 		t.Fatalf("cert: %d %s", r.Status, r.Body)
 	}
@@ -227,7 +230,7 @@ func TestFamilyServing(t *testing.T) {
 	f.api(t, olive, "PATCH", "/v1/sites/shop", map[string]bool{"offline": false})
 
 	// A domain of its own wins, and the marker tells nginx.
-	own := uniq("shop") + "." + rt.SiteDomain
+	own := fixture.Uniq("shop") + "." + rt.SiteDomain
 	if r := f.bind(t, olive, "shop", own); r.Status != 200 {
 		t.Fatalf("claim: %d %s", r.Status, r.Body)
 	}
@@ -320,84 +323,6 @@ func TestFamilyBindRules(t *testing.T) {
 	f.Sites.SetAddressFamilies("")
 	if r := post(map[string]any{"suffix": "*.late.test"}); r.Status != http.StatusConflict || r.Code() != "address_families_unavailable" {
 		t.Errorf("off: %d %s", r.Status, r.Body)
-	}
-}
-
-// Verification (TXT and the wildcard pointing here; the first account to
-// prove a name wins it), failing checks and the lapse, the admin's proof
-// exemption, and the unproven drop.
-func TestFamilyLifecycle(t *testing.T) {
-	f := newFamilyApp(t)
-	olive, oscar := f.NewPerson(t, "olive"), f.NewPerson(t, "oscar")
-	ctx := context.Background()
-	ours := f.Hosts.ServerAddrs(ctx)
-	mk := func(p rt.Person, suffix string) model.AddressFamily {
-		t.Helper()
-		r := f.connect(t, p, suffix)
-		if r.Status != http.StatusCreated {
-			t.Fatalf("connect %s: %d %s", suffix, r.Status, r.Body)
-		}
-		fam, _ := sitesrepo.GetFamilyByID(ctx, f.Database, r.JSON(t)["id"].(string))
-		return fam
-	}
-	reload := func(fam model.AddressFamily) model.AddressFamily {
-		got, _ := sitesrepo.GetFamilyByID(ctx, f.Database, fam.ID)
-		return got
-	}
-	fo, fs := mk(olive, "*.race.test"), mk(oscar, "*.race.test") // both may wait on it
-	f.Sites.CheckFamily(ctx, fo, ours)
-	if fo = reload(fo); fo.VerifiedAt.Valid {
-		t.Fatalf("verified without TXT: %+v", fo)
-	}
-	f.dns.txt["_simple-host.race.test"] = fo.Token
-	f.dns.away["*.race.test"] = "192.0.2.50"
-	f.Sites.CheckFamily(ctx, fo, ours)
-	if fo = reload(fo); fo.VerifiedAt.Valid {
-		t.Fatalf("verified pointing elsewhere: %+v", fo)
-	}
-	delete(f.dns.away, "*.race.test")
-	f.Sites.CheckFamily(ctx, fo, ours)
-	if fo = reload(fo); !fo.VerifiedAt.Valid || fo.Status != "active" {
-		t.Fatalf("not verified: %+v", fo)
-	}
-	if _, err := sitesrepo.GetFamilyByID(ctx, f.Database, fs.ID); err == nil {
-		t.Fatal("the loser's claim survived")
-	}
-	delete(f.dns.txt, "_simple-host.race.test")
-	f.Sites.CheckFamily(ctx, fo, ours)
-	if fo = reload(fo); fo.Status != "failing" || !fo.FailingSince.Valid {
-		t.Fatalf("failing: %+v", fo)
-	}
-	if _, err := f.Database.Exec(`UPDATE address_families SET failing_since = now() - interval '100 hours' WHERE id = $1`, fo.ID); err != nil {
-		t.Fatal(err)
-	}
-	f.Sites.CheckFamily(ctx, reload(fo), ours)
-	if _, err := sitesrepo.GetFamilyByID(ctx, f.Database, fo.ID); err == nil || f.Disk.FamilyLinkTarget("race.test") != "" {
-		t.Fatalf("lapsed family kept: %v", err)
-	}
-
-	r := f.admin(t, "POST", "/v1/admin/users/"+olive.ID+"/address-families", map[string]any{"suffix": "*.exempt.test", "proof_exempt": true, "cert_name": "exempt.test", "canonical": false})
-	if r.Status != http.StatusCreated || r.JSON(t)["proof_exempt"] != true || r.JSON(t)["dns_txt"] != nil {
-		t.Fatalf("exempt: %d %s", r.Status, r.Body)
-	}
-	fe, _ := sitesrepo.GetFamilyByID(ctx, f.Database, r.JSON(t)["id"].(string))
-	f.Sites.CheckFamily(ctx, fe, ours)
-	if fe = reload(fe); !fe.VerifiedAt.Valid {
-		t.Fatalf("exempt not verified: %+v", fe)
-	}
-	if r := f.api(t, olive, "PUT", "/v1/admin/address-families/"+fe.ID+"/proof-exempt", map[string]bool{"proof_exempt": false}); r.Status == 200 {
-		t.Fatal("owner changed the exemption")
-	}
-	if r := f.api(t, olive, "GET", "/v1/admin/address-families", nil); r.Status == 200 {
-		t.Fatal("owner read the admin list")
-	}
-	fp := mk(oscar, "*.late.test")
-	if _, err := f.Database.Exec(`UPDATE address_families SET bound_at = now() - interval '30 hours' WHERE id = $1`, fp.ID); err != nil {
-		t.Fatal(err)
-	}
-	f.Sites.CheckFamilies(ctx)
-	if _, err := sitesrepo.GetFamilyByID(ctx, f.Database, fp.ID); err == nil {
-		t.Fatal("never-proved family kept")
 	}
 }
 
@@ -508,7 +433,7 @@ func TestFamilyPendingDomainDoesNotBlock(t *testing.T) {
 	}
 	fam, _ := sitesrepo.GetFamilyByID(ctx, f.Database, r.JSON(t)["id"].(string))
 	f.dns.txt["_simple-host.block.test"] = fam.Token
-	f.Sites.CheckFamily(ctx, fam, f.Hosts.ServerAddrs(ctx))
+	sitefamilies.Handler{Handler: f.Sites.Handler}.CheckFamily(ctx, fam, f.Hosts.ServerAddrs(ctx))
 	if fam, _ = sitesrepo.GetFamilyByID(ctx, f.Database, fam.ID); !fam.VerifiedAt.Valid {
 		t.Fatalf("a pending domain held the family off: %+v", fam)
 	}

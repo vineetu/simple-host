@@ -25,11 +25,11 @@ func NormalizeLogin(login string) string { return strings.ToLower(strings.TrimSp
 func validLogin(login string) error {
 	n := utf8.RuneCountInString(login)
 	if n == 0 || n > 254 {
-		return lifecycleFail(400, "Enter an email or username, up to 254 characters.", "invalid_username")
+		return LifecycleFail(400, "Enter an email or username, up to 254 characters.", "invalid_username")
 	}
 	for _, r := range login {
 		if unicode.IsControl(r) {
-			return lifecycleFail(400, "Enter an email or username, up to 254 characters.", "invalid_username")
+			return LifecycleFail(400, "Enter an email or username, up to 254 characters.", "invalid_username")
 		}
 	}
 	return nil
@@ -48,71 +48,6 @@ func randomPasswordUsername() (string, error) {
 		return "", err
 	}
 	return "pw-" + hex.EncodeToString(b), nil
-}
-func badCredentials() error {
-	return lifecycleFail(401, "Wrong username or password.", "bad_credentials")
-}
-
-// changePasswordBadCredentials is ChangePassword's "wrong current password":
-// same bad_credentials code (so the handler's limiter-refund rule still
-// matches it) but 403, not 401 -- the dashboard and Hack account screens
-// treat any 401 on a signed-in request as an expired key and sign the
-// browser out, which a mistyped current password must not do.
-func changePasswordBadCredentials() error {
-	return lifecycleFail(403, "That is not your current password.", "bad_credentials")
-}
-func (s *Service) PasswordSignIn(ctx context.Context, login, password, newPassword string) (model.User, error) {
-	user, hash, _, err := repo.PasswordAccount(ctx, s.database, NormalizeLogin(login))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return model.User{}, err
-	}
-	missing := err != nil || hash == ""
-	if missing {
-		hash = dummyPasswordHash
-	}
-	// Bound input before hashing, including invalid attempts.
-	bounded := password
-	if len(bounded) > 1024 {
-		bounded = bounded[:1024]
-	}
-	matches := verifyPassword(bounded, hash)
-	if missing || !matches || validPassword(password) != nil {
-		return model.User{}, badCredentials()
-	}
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return model.User{}, err
-	}
-	defer tx.Rollback()
-	lockedHash, must, err := repo.LockPassword(ctx, tx, user.ID)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && lockedHash != hash {
-		return model.User{}, badCredentials()
-	}
-	if err != nil {
-		return model.User{}, err
-	}
-	if must {
-		if newPassword == "" {
-			return model.User{}, lifecycleFail(403, "Choose a new password to finish signing in.", "password_change_required")
-		}
-		if err := validPassword(newPassword); err != nil {
-			return model.User{}, err
-		}
-		if password == newPassword {
-			return model.User{}, lifecycleFail(400, "Choose a different password.", "invalid_password")
-		}
-		next, err := hashPassword(newPassword)
-		if err != nil {
-			return model.User{}, err
-		}
-		// This account was just found by repo.PasswordAccount, so its
-		// account_passwords row already exists: login is never used here
-		// (SetPassword only applies it to a fresh row).
-		if err := repo.SetPassword(ctx, tx, user.ID, next, "", false); err != nil {
-			return model.User{}, err
-		}
-	}
-	return user, tx.Commit()
 }
 
 // PasswordLogin reports a password account's own login for display (GET
@@ -133,57 +68,7 @@ func (s *Service) SelfSignupPasswordAccount(ctx context.Context, userID string) 
 	return repo.SelfSignupPasswordAccount(ctx, s.database, userID)
 }
 
-// ChangePassword lets a signed-in password account replace its own password:
-// current must verify, next must be a different valid password. Same
-// verify-then-lock-and-compare-hash pattern as PasswordSignIn, so a password
-// changed between the two reads is rejected rather than silently overwritten.
-// It never touches keys or sessions; every other sign-in stays valid.
-func (s *Service) ChangePassword(ctx context.Context, userID, current, next string) error {
-	hash, err := repo.PasswordHashByID(ctx, s.database, userID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return lifecycleFail(404, "not found", "")
-	}
-	if err != nil {
-		return err
-	}
-	bounded := current
-	if len(bounded) > 1024 {
-		bounded = bounded[:1024]
-	}
-	matches := verifyPassword(bounded, hash)
-	if !matches || validPassword(current) != nil {
-		return changePasswordBadCredentials()
-	}
-	if err := validPassword(next); err != nil {
-		return err
-	}
-	if current == next {
-		return lifecycleFail(400, "Choose a different password.", "invalid_password")
-	}
-	nextHash, err := hashPassword(next)
-	if err != nil {
-		return err
-	}
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	lockedHash, _, err := repo.LockPassword(ctx, tx, userID)
-	if errors.Is(err, sql.ErrNoRows) || err == nil && lockedHash != hash {
-		return changePasswordBadCredentials()
-	}
-	if err != nil {
-		return err
-	}
-	// hash was loaded by PasswordHashByID above (404 if it didn't exist),
-	// so this account_passwords row already exists: login is never used.
-	if err := repo.SetPassword(ctx, tx, userID, nextHash, "", false); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-func temporaryPassword(password string) (string, error) {
+func TemporaryPassword(password string) (string, error) {
 	if password == "" {
 		b := make([]byte, 12)
 		if _, err := rand.Read(b); err != nil {
@@ -191,7 +76,7 @@ func temporaryPassword(password string) (string, error) {
 		}
 		password = base64.RawURLEncoding.EncodeToString(b)
 	}
-	return password, validPassword(password)
+	return password, ValidPassword(password)
 }
 
 // CreatePasswordAccount creates a password account for login (what the
@@ -233,7 +118,7 @@ func (s *Service) CreatePasswordAccount(ctx context.Context, login, password str
 		return user, "", err
 	}
 	if !user.Handle.Valid {
-		return user, "", lifecycleFail(500, "could not assign account handle", "")
+		return user, "", LifecycleFail(500, "could not assign account handle", "")
 	}
 	if err := repo.SetPassword(ctx, tx, id, hash, login, temporary); err != nil {
 		if repo.IsUniqueViolation(err) {
@@ -248,7 +133,7 @@ func (s *Service) CreatePasswordAccount(ctx context.Context, login, password str
 	return user, password, tx.Commit()
 }
 
-func errUsernameTaken() error { return lifecycleFail(409, "That username is taken.", "username_taken") }
+func errUsernameTaken() error { return LifecycleFail(409, "That username is taken.", "username_taken") }
 
 // checkedPassword validates login and the password (a temporary one is
 // generated when empty) and hashes it.
@@ -258,14 +143,14 @@ func checkedPassword(login, password string, temporary bool) (string, string, er
 	}
 	var err error
 	if temporary {
-		password, err = temporaryPassword(password)
+		password, err = TemporaryPassword(password)
 	} else {
-		err = validPassword(password)
+		err = ValidPassword(password)
 	}
 	if err != nil {
 		return "", "", err
 	}
-	hash, err := hashPassword(password)
+	hash, err := HashPassword(password)
 	return password, hash, err
 }
 
@@ -295,44 +180,4 @@ func insertPasswordAccount(ctx context.Context, tx *sql.Tx, login string, tempor
 		}
 		return id, err
 	}
-}
-
-func (s *Service) ResetPassword(ctx context.Context, id, password string) (model.User, string, error) {
-	password, err := temporaryPassword(password)
-	if err != nil {
-		return model.User{}, "", err
-	}
-	hash, err := hashPassword(password)
-	if err != nil {
-		return model.User{}, "", err
-	}
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return model.User{}, "", err
-	}
-	defer tx.Rollback()
-	user, err := repo.LockReissueAccount(ctx, tx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return user, "", lifecycleFail(404, "not found", "")
-	}
-	if err != nil {
-		return user, "", err
-	}
-	if IsOperator(user.IsAdmin, user.Username) {
-		return user, "", lifecycleFail(400, "cannot set an admin password", "")
-	}
-	// Adding a password row here, including to an existing email-code or
-	// OAuth account by id, is the signed-in admin's own deliberate act on an
-	// account they already picked -- not an unauthenticated sign-in
-	// resolving to one it never proved it owned, so it is not the
-	// pre-account-hijacking case above and needs no refusal. login (used
-	// only if this account never had a password row before) is the
-	// account's own existing username: by the time an admin can name this
-	// account by id, it already has whatever address or name it signs in
-	// with, and the admin vouches for it the same as a fresh admin-created
-	// account's username == login.
-	if err := repo.SetPassword(ctx, tx, id, hash, NormalizeLogin(user.Username), true); err != nil {
-		return user, "", err
-	}
-	return user, password, tx.Commit()
 }

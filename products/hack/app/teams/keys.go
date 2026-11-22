@@ -283,12 +283,12 @@ type TeamSiteChanger interface {
 
 // SetSiteTakenDown takes the team's site down with a reason, or puts it back unless the platform took it down.
 func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger, event hackmodel.Event, team hackmodel.EventTeam, down bool, rawReason string) error {
-	reason, err := checkLine(rawReason, "reason", 0, 300)
+	reason, err := CheckLine(rawReason, "reason", 0, 300)
 	if err != nil {
 		return err
 	}
 	if changer == nil {
-		return internalError(errors.New("no site hooks"))
+		return InternalError(errors.New("no site hooks"))
 	}
 	err = changer.SuspendHeldSite(ctx, sites.HeldSiteSuspension{
 		AccountID: event.AccountID, Name: team.Slug, Prefix: organiserTakedownPrefix, Reason: reason, On: down,
@@ -298,7 +298,7 @@ func (s *Service) SetSiteTakenDown(ctx context.Context, changer TeamSiteChanger,
 		return &Error{Code: "platform_takedown", Message: "Simple Hack took this site down; only the platform can put it back"}
 	}
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	if down || team.SiteTakenDownAt.Valid {
 		s.NoticeSiteChange(ctx, event.ID, team.ID, down, reason)

@@ -3,13 +3,11 @@ package access
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 func (s *Service) ListVisitorSignIns(ctx context.Context, userID string) ([]model.VisitorSignIn, error) {
@@ -23,7 +21,7 @@ type LifecycleError struct {
 }
 
 func (e *LifecycleError) Error() string { return e.Message }
-func lifecycleFail(status int, message, code string) error {
+func LifecycleFail(status int, message, code string) error {
 	return &LifecycleError{Status: status, Message: message, Code: code}
 }
 
@@ -51,9 +49,9 @@ type DeletedAccount struct {
 func ErasureRefusal(ctx context.Context, tx *sql.Tx, acct model.AccountForDelete, in DeleteAccountInput) error {
 	if IsOperator(acct.IsAdmin, acct.Username) {
 		if in.Operator {
-			return lifecycleFail(400, "cannot delete an admin account", "")
+			return LifecycleFail(400, "cannot delete an admin account", "")
 		}
-		return lifecycleFail(403, "an admin account cannot delete itself here", "admin_account")
+		return LifecycleFail(403, "an admin account cannot delete itself here", "admin_account")
 	}
 	if !in.Operator {
 		if err := deletionHold(acct, "this account"); err != nil {
@@ -61,7 +59,7 @@ func ErasureRefusal(ctx context.Context, tx *sql.Tx, acct model.AccountForDelete
 		}
 	}
 	if acct.EventClaims > 0 {
-		return lifecycleFail(409, "this account still holds event hostnames; release them first so their DNS records are removed", "event_hostnames")
+		return LifecycleFail(409, "this account still holds event hostnames; release them first so their DNS records are removed", "event_hostnames")
 	}
 	if err := holdingRefusal(ctx, tx, acct.ID, in.Operator); err != nil {
 		return err
@@ -82,7 +80,7 @@ func holdingRefusal(ctx context.Context, tx *sql.Tx, accountID string, operator 
 		if operator {
 			action = "delete_operator"
 		}
-		return lifecycleFail(409, HoldingText(action), "event_account")
+		return LifecycleFail(409, HoldingText(action), "event_account")
 	}
 	if groupHooks.Erasure == nil {
 		return nil
@@ -92,7 +90,7 @@ func holdingRefusal(ctx context.Context, tx *sql.Tx, accountID string, operator 
 		return err
 	}
 	if code != "" {
-		return lifecycleFail(409, msg, code)
+		return LifecycleFail(409, msg, code)
 	}
 	return nil
 }
@@ -105,7 +103,7 @@ func confirmRefusal(acct model.AccountForDelete, confirm string) error {
 		want, what = acct.Username, "your email"
 	}
 	if !strings.EqualFold(strings.TrimSpace(confirm), want) {
-		return lifecycleFail(400, "type "+what+" ("+want+") as confirm to delete the account", "confirm_mismatch")
+		return LifecycleFail(400, "type "+what+" ("+want+") as confirm to delete the account", "confirm_mismatch")
 	}
 	return nil
 }
@@ -115,108 +113,10 @@ func confirmRefusal(acct model.AccountForDelete, confirm string) error {
 // one of its sites was taken down.
 func deletionHold(a model.AccountForDelete, what string) error {
 	if a.Suspended {
-		return lifecycleFail(403, what+" is suspended; write to support@simple-host.app about deleting it", "account_suspended")
+		return LifecycleFail(403, what+" is suspended; write to support@simple-host.app about deleting it", "account_suspended")
 	}
 	if a.TakenDown > 0 {
-		return lifecycleFail(403, "a site of "+what+" was taken down; write to support@simple-host.app about deleting it", "site_suspended")
+		return LifecycleFail(403, "a site of "+what+" was taken down; write to support@simple-host.app about deleting it", "site_suspended")
 	}
 	return nil
-}
-
-func issuedAPIKey() (string, error) {
-	key, err := secureHex(32)
-	if err != nil {
-		return "", err
-	}
-	return "shk_" + key, nil
-}
-func (s *Service) CreateAccounts(ctx context.Context, names []string, randomHandles bool, assign func(context.Context, sqlkit.Querier, string, string, bool)) (map[string]any, error) {
-	created := make([]map[string]string, 0, len(names))
-	skipped := make([]map[string]string, 0)
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, lifecycleFail(500, "internal server error", "")
-	}
-	defer tx.Rollback()
-	for _, name := range names {
-		key, err := issuedAPIKey()
-		if err != nil {
-			return nil, lifecycleFail(500, "internal server error", "")
-		}
-		var id string
-		id, err = repo.InsertIssuedAccount(ctx, tx, name)
-		if errors.Is(err, sql.ErrNoRows) {
-			skipped = append(skipped, map[string]string{"username": name, "reason": "account already exists"})
-			continue
-		}
-		if err == nil {
-			err = repo.AddAPIKey(ctx, tx, id, key, model.KeyNameEvent)
-		}
-		if err == nil {
-			err = repo.MarkEventAccount(ctx, tx, id)
-		}
-		if err != nil {
-			return nil, lifecycleFail(500, "internal server error", "")
-		}
-		assign(ctx, tx, id, name, randomHandles)
-		user, err := repo.GetUserByID(ctx, tx, id)
-		if err != nil || !user.Handle.Valid {
-			return nil, lifecycleFail(500, "could not assign account handle", "")
-		}
-		created = append(created, map[string]string{"username": name, "handle": user.Handle.String, "api_key": key, "display_name": user.DisplayName.String})
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, lifecycleFail(500, "internal server error", "")
-	}
-	return map[string]any{"created": created, "skipped": skipped}, nil
-}
-
-type ReissuedAccount struct {
-	User model.User
-	Key  string
-}
-
-func (s *Service) ReissueAccountKey(ctx context.Context, id string) (ReissuedAccount, error) {
-	tx, err := s.database.BeginTx(ctx, nil)
-	if err != nil {
-		return ReissuedAccount{}, err
-	}
-	defer tx.Rollback()
-	u, err := repo.LockReissueAccount(ctx, tx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ReissuedAccount{}, lifecycleFail(404, "not found", "")
-	}
-	if err != nil {
-		return ReissuedAccount{}, err
-	}
-	if held, err := HoldingAccount(ctx, tx, u.ID); err != nil {
-		return ReissuedAccount{}, err
-	} else if held {
-		return ReissuedAccount{}, lifecycleFail(409, HoldingText("reissue"), "event_account")
-	}
-	if IsOperator(u.IsAdmin, u.Username) {
-		return ReissuedAccount{}, lifecycleFail(400, "cannot reissue an admin account's key here", "")
-	}
-	if team, err := repo.IsTeamAccount(ctx, tx, u.ID); err != nil {
-		return ReissuedAccount{}, err
-	} else if team {
-		return ReissuedAccount{}, lifecycleFail(409, "a team has no key: its members act with their own", "team_account")
-	}
-	if u.Suspended {
-		return ReissuedAccount{}, lifecycleFail(409, "this account is suspended; re-enable it before giving it a new key", "account_suspended")
-	}
-	key, err := issuedAPIKey()
-	if err == nil {
-		err = repo.ReplaceAPIKeys(ctx, tx, u.ID, key, model.KeyNameEvent)
-	}
-	if err == nil {
-		err = repo.MarkEventAccount(ctx, tx, u.ID)
-	}
-	if err == nil {
-		err = tx.Commit()
-	}
-	if err != nil {
-		return ReissuedAccount{}, err
-	}
-	return ReissuedAccount{User: u, Key: key}, nil
 }

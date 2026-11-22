@@ -4,9 +4,9 @@ set -u
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." || exit 2
 # name|package|test|fixture env|runner (one row per check)
 checks=(
-'hack-navigation|./products/hack/hackhttp|TestServeHackNavigationBrowser|HACK_NAVIGATION_FIXTURE|hack-navigation'
-'hack-checklists|./products/hack/hackhttp|TestServeHackNavigationBrowser|HACK_NAVIGATION_FIXTURE|hack-checklists'
-'hack-forms|./products/hack/hackhttp|TestServeHackFormsBrowser|HACK_FORMS_FIXTURE|hack-forms'
+'hack-navigation|./products/hack/servertest|TestServeHackNavigationBrowser|HACK_NAVIGATION_FIXTURE|hack-navigation'
+'hack-checklists|./products/hack/servertest|TestServeHackNavigationBrowser|HACK_NAVIGATION_FIXTURE|hack-checklists'
+'hack-forms|./products/hack/pages|TestServeHackFormsBrowser|HACK_FORMS_FIXTURE|hack-forms'
 'storage-rules|./host/handler|TestServeStorageRulesBrowser|STORAGE_RULES_FIXTURE|storage-rules'
 'named-viewers|./host/handler|TestServeVisitorRecordsBrowser|VISITOR_RECORDS_FIXTURE|named-viewers'
 'signin-card||||signin-card'

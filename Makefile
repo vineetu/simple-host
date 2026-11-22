@@ -13,7 +13,7 @@
 # (`make check FULL=1`, what installs and CI run) runs every package.
 # `test-db` is the same run narrowed for chasing a flaky test, e.g.
 #   make test-db PKGS=./host/server/servertest/datatest RUN='^TestNotify' COUNT=5
-.PHONY: ready check check-release connector-check inventory test test-rules test-integration test-db boundary-report check-boundaries browser
+.PHONY: ready check check-release connector-check inventory test test-rules test-integration feature test-db boundary-report check-boundaries browser
 
 # `check` stays the default goal (`make` with no target) even though `test`
 # and `test-integration` are declared above it.
@@ -30,6 +30,11 @@ test-rules:
 
 test-integration:
 	bash scripts/test-integration.sh $(if $(FULL),--full)
+
+# The loop while changing one feature: its tests (cached) without the whole-server
+# journeys, which `make ready` and --full still run before an install.
+feature:
+	bash scripts/test-integration.sh --feature
 
 PKGS ?= ./...
 COUNT ?= 1

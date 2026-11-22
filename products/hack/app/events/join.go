@@ -164,3 +164,13 @@ func (s *Service) settleJoinRace(ctx context.Context, eventID, userID, role stri
 	}
 	return model.EventMember{}, errAlreadyMember
 }
+
+// ValidateSignupAnswers is SignupAnswers with the error as an Error, the
+// validator JoinByCode runs under its lock.
+func ValidateSignupAnswers(questions []model.SignupQuestion, in map[string]string) ([]model.SignupAnswer, error) {
+	answers, e := SignupAnswers(questions, in)
+	if e != nil {
+		return nil, &Error{Code: e.Code, Message: e.Message}
+	}
+	return answers, nil
+}

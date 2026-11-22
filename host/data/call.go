@@ -9,9 +9,9 @@ import (
 
 // Call contains the resolved site, caller and policy facts for a storage operation.
 type Call struct {
-	rulePlan                                *ruleengine.Plan
+	RulePlan                                *ruleengine.Plan
 	ruleSet                                 ruleengine.PolicySet
-	ruleValues                              ruleengine.Values
+	RuleValues                              ruleengine.Values
 	Context                                 context.Context
 	SiteID, OwnerID, SiteName, ResourceName string
 	AccountID                               string

@@ -29,20 +29,20 @@ func errTeamNameTaken() error {
 
 // CreateTeam creates a team and joins its creator atomically; flatHosts caps the slug for <team>--<event> hosts.
 func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, rawName, rawNote string, flatHosts bool) (model.EventTeam, error) {
-	if err := participantStage(event.Stage); err != nil {
+	if err := ParticipantStage(event.Stage); err != nil {
 		return model.EventTeam{}, err
 	}
-	name, err := checkLine(eventapp.StripInvisible(rawName), "team_name", 1, 80)
+	name, err := CheckLine(eventapp.StripInvisible(rawName), "team_name", 1, 80)
 	if err != nil {
 		return model.EventTeam{}, err
 	}
-	note, err := checkLine(eventapp.StripInvisible(rawNote), "looking_for", 0, 120)
+	note, err := CheckLine(eventapp.StripInvisible(rawNote), "looking_for", 0, 120)
 	if err != nil {
 		return model.EventTeam{}, err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.EventTeam{}, internalError(err)
+		return model.EventTeam{}, InternalError(err)
 	}
 	defer tx.Rollback()
 	if err := checkNewTeam(ctx, tx, event.ID, name); err != nil {
@@ -53,7 +53,7 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, raw
 		return model.EventTeam{}, err
 	}
 	if err := finishNewTeam(ctx, tx, event, team, note); err != nil {
-		return model.EventTeam{}, internalError(err)
+		return model.EventTeam{}, InternalError(err)
 	}
 	return team, nil
 }
@@ -63,14 +63,14 @@ func (s *Service) CreateTeam(ctx context.Context, event model.Event, userID, raw
 func checkNewTeam(ctx context.Context, tx *sql.Tx, eventID, name string) error {
 	closed, err := eventrepo.DeadlinePassed(ctx, tx, eventID, true)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	if closed {
 		return &Error{Code: "submissions_closed", Message: "the submission deadline has passed"}
 	}
 	taken, err := teamNameTaken(ctx, tx, eventID, name)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	if taken {
 		return errTeamNameTaken()
@@ -86,7 +86,7 @@ func insertTeam(ctx context.Context, tx *sql.Tx, event model.Event, userID, name
 		slug := hackteams.TeamSlugCandidate(base, n, maxLen)
 		free, err := teamSlugFree(ctx, tx, event, slug)
 		if err != nil {
-			return model.EventTeam{}, internalError(err)
+			return model.EventTeam{}, InternalError(err)
 		}
 		if !free {
 			continue
@@ -96,7 +96,7 @@ func insertTeam(ctx context.Context, tx *sql.Tx, event model.Event, userID, name
 			return team, err
 		}
 	}
-	return model.EventTeam{}, internalError(sql.ErrNoRows)
+	return model.EventTeam{}, InternalError(sql.ErrNoRows)
 }
 
 // teamSlugFree reports whether slug is a valid site name no team or site in
@@ -118,9 +118,9 @@ func teamSlugFree(ctx context.Context, tx *sql.Tx, event model.Event, slug strin
 // retrying a code collision; errCodesExhausted means every try collided.
 func createWithCode(ctx context.Context, tx *sql.Tx, eventID, userID, slug, name string) (model.EventTeam, error) {
 	for range codeTries {
-		code, err := hackevents.RandomCode(teamCodeLength)
+		code, err := hackevents.RandomCode(TeamCodeLength)
 		if err != nil {
-			return model.EventTeam{}, internalError(err)
+			return model.EventTeam{}, InternalError(err)
 		}
 		var team model.EventTeam
 		err = trySavepoint(ctx, tx, func() (err error) {
@@ -133,7 +133,7 @@ func createWithCode(ctx context.Context, tx *sql.Tx, eventID, userID, slug, name
 		case errors.Is(err, teamrepo.ErrHackAlreadyInTeam) || errors.Is(err, teamrepo.ErrHackNotParticipant):
 			return model.EventTeam{}, err
 		case !isUnique(err):
-			return model.EventTeam{}, internalError(err)
+			return model.EventTeam{}, InternalError(err)
 		case strings.Contains(err.Error(), "event_teams_name_idx"):
 			return model.EventTeam{}, errTeamNameTaken()
 		}

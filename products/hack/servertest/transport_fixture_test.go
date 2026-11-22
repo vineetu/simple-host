@@ -24,6 +24,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vsriram/simple-host/products/hack/lifecycle"
+
+	"github.com/vsriram/simple-host/products/hack/public"
+
 	productconfig "github.com/vsriram/simple-host/products/hack/config"
 	productedition "github.com/vsriram/simple-host/products/hack/edition"
 	hackmcp "github.com/vsriram/simple-host/products/hack/mcp"
@@ -31,7 +35,8 @@ import (
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
 	sitesapp "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/web"
@@ -48,7 +53,6 @@ import (
 	"github.com/vsriram/simple-host/products/hack/app/members"
 	"github.com/vsriram/simple-host/products/hack/app/storagebind"
 	"github.com/vsriram/simple-host/products/hack/app/teams"
-	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
 // Shared composition fixtures for tests spanning Host HTTP, Hack HTTP and MCP.
@@ -97,7 +101,7 @@ type hackApp struct {
 	admin    string
 	mux      *http.ServeMux
 	srv      *httptest.Server
-	hack     *hackhttp.HackHandler
+	hack     *hack.HackHandler
 }
 
 func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
@@ -121,7 +125,7 @@ func newHackApp(t *testing.T, eds ...*edition.Edition) *hackApp {
 	authMW := auth.Middleware(adminKey, adminID, accountapp.New(database), ed.Limits().KeyIdleExpiry)
 	users := accesshttp.NewUserHandler(database, accountapp.New(database), email.NewResendSender("", "test@example.com"), srv.URL, ed)
 	users.Register(mux, authMW, web.NoticeMiddleware("1.0.0"))
-	h := hackhttp.NewHackHandler(database, srv.URL, "simple-hack.test", ed)
+	h := hack.NewHackHandler(database, srv.URL, "simple-hack.test", ed)
 	h.ShareAssets(web.NewAssetPipeline(ed, srv.URL))
 	h.SetHandleChecker(hackHandleCheckerForTest)
 	h.Register(mux, authMW)
@@ -219,7 +223,7 @@ func uniqueSlug() string {
 	return "hax" + hex.EncodeToString(b[:])
 }
 
-// setHackAppLimits overwrites a's already-built hackhttp.HackHandler's own limits
+// setHackAppLimits overwrites a's already-built hack.HackHandler's own limits
 // snapshot in place (moved from host/handler/limits_test.go, cleanup
 // 3.2 slice 3: hackApp, its only caller, moved here; limits_test.go's
 // setAppLimits/setConnectorAppLimits stay there for the fixtures that stay
@@ -275,7 +279,7 @@ func (m *replyMailer) messages() []string {
 
 func runComposedCleanup(a *teamSiteApp, mail *replyMailer, now time.Time) {
 	l := productconfig.DefaultLimits()
-	events.New(a.database, nil).RunEventCleanup(context.Background(), now, l.EventSitesKeep, l.EventRemovalWarn, a.sites.TrashTeamSite, events.ArchiveWarningSender(mail), l.IdleReplyTo)
+	(&lifecycle.Handler{Hack: a.hack.Hack}).RunEventCleanup(context.Background(), now, l.EventSitesKeep, l.EventRemovalWarn, a.sites.TrashTeamSite, events.ArchiveWarningSender(mail), l.IdleReplyTo)
 }
 
 type rubricCriterion struct {
@@ -325,9 +329,9 @@ type teamSiteApp struct {
 	conn     *accesshttp.ConnectorHandler
 	sites    *siteshttp.SiteHandler
 	access   *accesshttp.AccessHandler
-	data     *datahttp.DataHandler
+	data     *appstorage.Handler
 	users    *accesshttp.UserHandler
-	hack     *hackhttp.HackHandler
+	hack     *hack.HackHandler
 	certDir  string
 	disk     fixtureDisk
 }
@@ -385,13 +389,13 @@ func newTeamSiteAppMailer(t *testing.T, mailer email.Sender) *teamSiteApp {
 	t.Cleanup(a.data.WaitNotifications)
 	a.sites.Hosts.SetPersonHosts("canonical")
 	a.sites.Hosts.SetSiteHosts("canonical", certDir)
-	a.hack = hackhttp.NewHackHandler(database, a.srv.URL, tsDomain)
+	a.hack = hack.NewHackHandler(database, a.srv.URL, tsDomain)
 	installAssets(a.sites, nil)
 	a.hack.ShareAssets(a.sites.Pages())
 	a.hack.SetHandleChecker(hackHandleCheckerForTest)
 	a.hack.SetSites(a.sites)
 	a.hack.Register(mux, authMW)
-	a.sites.Hosts.SetGroupHosts(hackhttp.NewGroupHosts(database, hackhttp.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), hackhttp.HackScreenshot(database, a.sites.TeamSitesReady)))
+	a.sites.Hosts.SetGroupHosts(public.NewGroupHosts(database, public.HackEventPage(database, a.srv.URL, a.sites.TeamSiteURL, a.sites.TeamSitesReady, testHackPages), public.HackScreenshot(database, a.sites.TeamSitesReady)))
 	gated := auth.ScopeGate(accountapp.New(database), mux, 180*24*time.Hour, func(ctx context.Context, user *model.User, site string) (int, string, string, error) {
 		return sitesapp.CheckWrite(ctx, database, gate, user, site)
 	})

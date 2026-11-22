@@ -9,6 +9,7 @@ import (
 	"github.com/vsriram/simple-host/host/sqlkit"
 	"github.com/vsriram/simple-host/products/hack/model"
 	"github.com/vsriram/simple-host/products/hack/repository/hackevents"
+	"github.com/vsriram/simple-host/products/hack/repository/hackteams"
 )
 
 // QueueEntryReceipt queues the "entry received" email to the person who
@@ -27,16 +28,23 @@ func QueueEntryReceipt(ctx context.Context, q sqlkit.Querier, eventID, teamID, u
 }
 
 // NextReceiptMail holds one due entry receipt until the caller commits after
-// sending. The sweep sends one email per transaction, so this is one
-// statement reading the event's title and the team's name beside the
-// receipt (a listed exception in scripts/split/table-owner-exceptions.txt).
+// sending (one email per transaction), with the event's title and slug and
+// the team's name read from their owners in the same transaction.
 func NextReceiptMail(ctx context.Context, tx *sql.Tx) (model.EventMail, error) {
 	m := model.EventMail{Kind: "receipt"}
-	err := tx.QueryRowContext(ctx, `SELECT r.team_id, r.event_id, r.recipient, e.title, e.slug, t.name
-		FROM event_entry_receipts r JOIN events e ON e.id = r.event_id JOIN event_teams t ON t.id = r.team_id
-		WHERE r.sent_at IS NULL AND (r.attempted_at IS NULL OR r.attempted_at <= now() - interval '1 minute')
-		ORDER BY r.attempted_at NULLS FIRST, r.event_id, r.team_id LIMIT 1 FOR UPDATE OF r SKIP LOCKED`).
-		Scan(&m.TeamID, &m.EventID, &m.Recipient, &m.EventTitle, &m.EventSlug, &m.TeamName)
+	err := tx.QueryRowContext(ctx, `SELECT team_id, event_id, recipient FROM event_entry_receipts
+		WHERE sent_at IS NULL AND (attempted_at IS NULL OR attempted_at <= now() - interval '1 minute')
+		ORDER BY attempted_at NULLS FIRST, event_id, team_id LIMIT 1 FOR UPDATE SKIP LOCKED`).
+		Scan(&m.TeamID, &m.EventID, &m.Recipient)
+	if err != nil {
+		return m, err
+	}
+	ev, err := hackevents.GetEventByID(ctx, tx, m.EventID)
+	if err != nil {
+		return m, err
+	}
+	team, err := hackteams.GetEventTeamByID(ctx, tx, m.TeamID)
+	m.EventTitle, m.EventSlug, m.TeamName = ev.Title, ev.Slug, team.Name
 	return m, err
 }
 

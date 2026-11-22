@@ -9,7 +9,7 @@ func rulePermission(p *ruleengine.Plan, set ruleengine.PolicySet, op ruleengine.
 	// Own-row comparisons remain Unknown even with a NULL auth.id. Apply the
 	// anonymous identity refusal before letting such a request reach the row.
 	if !v["auth.signed_in"].Bool && partial != ruleengine.True && p.NeedsIdentity(op) {
-		signedIn := cloneRuleValues(v)
+		signedIn := CloneRuleValues(v)
 		signedIn["auth.signed_in"] = ruleengine.Bool(true)
 		signedIn["auth.role"] = ruleengine.Text("visitor")
 		for _, name := range []string{"auth.id", "auth.team", "auth.teams"} {
@@ -22,7 +22,7 @@ func rulePermission(p *ruleengine.Plan, set ruleengine.PolicySet, op ruleengine.
 	if partial != ruleengine.False {
 		return true, ""
 	}
-	checked := cloneRuleValues(v)
+	checked := CloneRuleValues(v)
 	checked["auth.checked"] = ruleengine.Bool(true)
 	if op == ruleengine.OpAdd && p.Partial(op, checked) != ruleengine.False {
 		if spamCode == "" {
@@ -44,7 +44,7 @@ func rulePermission(p *ruleengine.Plan, set ruleengine.PolicySet, op ruleengine.
 	return false, "forbidden"
 }
 
-func cloneRuleValues(v ruleengine.Values) ruleengine.Values {
+func CloneRuleValues(v ruleengine.Values) ruleengine.Values {
 	copy := make(ruleengine.Values, len(v))
 	for name, value := range v {
 		copy[name] = value

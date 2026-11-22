@@ -12,13 +12,13 @@ import (
 )
 
 func suspendedMarker(s *Service, site model.Site) error {
-	return s.disk.SetSuspended(site.UserID, site.Name, site.Suspended())
+	return s.Disk.SetSuspended(site.UserID, site.Name, site.Suspended())
 }
 func (s *Service) SyncSiteSuspensionMarker(site model.Site) error {
 	if site.Suspended() {
 		return suspendedMarker(s, site)
 	}
-	unlock := s.lockSite(site.UserID, site.Name)
+	unlock := s.LockSite(site.UserID, site.Name)
 	defer unlock()
 	fresh, same, err := s.sameSiteAtName(context.Background(), site)
 	if !same {
@@ -32,7 +32,7 @@ func (s *Service) SyncSiteSuspensionMarker(site model.Site) error {
 // site or none, so an old site's verdict never reaches a replacement at the
 // same name. Additions need no lock.
 func (s *Service) sameSiteAtName(ctx context.Context, site model.Site) (fresh model.Site, same bool, err error) {
-	fresh, err = repo.GetSiteByUser(ctx, s.database, site.UserID, site.Name)
+	fresh, err = repo.GetSiteByUser(ctx, s.DB, site.UserID, site.Name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fresh, false, nil
 	}
@@ -42,7 +42,7 @@ func (s *Service) sameSiteAtName(ctx context.Context, site model.Site) (fresh mo
 	return fresh, fresh.ID == site.ID, nil
 }
 func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
-	sites, err := repo.ListAllSites(ctx, svc.database)
+	sites, err := repo.ListAllSites(ctx, svc.DB)
 	if err != nil {
 		ReportWorkerFailure(ctx, "sync site markers", err)
 		return
@@ -53,9 +53,9 @@ func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
 			want, have bool
 			set        func(bool) error
 		}{
-			{s.Suspended(), svc.disk.IsSuspended(s.UserID, s.Name), func(on bool) error { return svc.disk.SetSuspended(s.UserID, s.Name, on) }},
-			{s.Offline, svc.disk.IsOffline(s.UserID, s.Name), func(on bool) error { return svc.disk.SetOffline(s.UserID, s.Name, on) }},
-			{s.Gated(), svc.disk.HasPasscodeMarker(s.UserID, s.Name), func(on bool) error { return svc.disk.SetPasscodeMarker(s.UserID, s.Name, on) }},
+			{s.Suspended(), svc.Disk.IsSuspended(s.UserID, s.Name), func(on bool) error { return svc.Disk.SetSuspended(s.UserID, s.Name, on) }},
+			{s.Offline, svc.Disk.IsOffline(s.UserID, s.Name), func(on bool) error { return svc.Disk.SetOffline(s.UserID, s.Name, on) }},
+			{s.Gated(), svc.Disk.HasPasscodeMarker(s.UserID, s.Name), func(on bool) error { return svc.Disk.SetPasscodeMarker(s.UserID, s.Name, on) }},
 		} {
 			if marker.want != marker.have {
 				if !marker.want && !remove {
@@ -80,7 +80,7 @@ func (svc *Service) SyncSuspendMarkers(ctx context.Context) {
 		}
 	}
 	for _, site := range removals {
-		unlock := svc.lockSite(site.UserID, site.Name)
+		unlock := svc.LockSite(site.UserID, site.Name)
 		fresh, same, err := svc.sameSiteAtName(ctx, site)
 		if same {
 			repair(fresh, true)
@@ -104,14 +104,14 @@ func (s *Service) SuspendSite(ctx context.Context, id, reason, adminID string, o
 		}
 		return err
 	}
-	site, err := repo.GetSiteByID(ctx, s.database, id)
+	site, err := repo.GetSiteByID(ctx, s.DB, id)
 	if err != nil {
 		return model.Site{}, missing(err)
 	}
 	// Lock, then re-read so a rename or delete cannot be undone by stale markers.
 	for {
-		unlock := s.lockSite(site.UserID, site.Name)
-		fresh, err := repo.GetSiteByID(ctx, s.database, id)
+		unlock := s.LockSite(site.UserID, site.Name)
+		fresh, err := repo.GetSiteByID(ctx, s.DB, id)
 		if err != nil {
 			unlock()
 			return model.Site{}, missing(err)
@@ -124,7 +124,7 @@ func (s *Service) SuspendSite(ctx context.Context, id, reason, adminID string, o
 		unlock()
 		site = fresh
 	}
-	if err := repo.SetSiteSuspended(ctx, s.database, site.ID, reason); err != nil {
+	if err := repo.SetSiteSuspended(ctx, s.DB, site.ID, reason); err != nil {
 		return model.Site{}, err
 	}
 	site.SiteSuspended, site.SiteSuspendedReason = on, reason
@@ -143,7 +143,7 @@ func (s *Service) SuspendSite(ctx context.Context, id, reason, adminID string, o
 // MarkAccountSites re-marks every site of the account after its suspension
 // changed (access.SuspendPerson) and returns how many there are.
 func (s *Service) MarkAccountSites(ctx context.Context, accountID string) (int, error) {
-	list, err := repo.ListSitesByUser(ctx, s.database, accountID)
+	list, err := repo.ListSitesByUser(ctx, s.DB, accountID)
 	if err != nil {
 		return 0, &accountapp.LifecycleError{Status: 500, Message: "saved, but the account's sites could not be listed; retry"}
 	}

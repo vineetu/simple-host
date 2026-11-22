@@ -11,6 +11,7 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -27,16 +28,6 @@ import (
 // and self-hosted instances keep), serve (person hosts answer, but every
 // address handed out is still the path URL) or canonical (person hosts answer
 // and are the address handed out everywhere).
-
-// SiteURL is the address handed out for a site: the person address in
-// canonical mode, else the path URL on the content host. "" without a handle.
-func (h *SiteHandler) SiteURL(handle, name string) string {
-	return h.Hosts.Addressing().SiteURL(handle, name)
-}
-
-func (h *SiteHandler) PersonPageURL(handle string) string {
-	return h.Hosts.Addressing().PersonPageURL(handle)
-}
 
 // PersonHosts serves <handle>.<SITE_DOMAIN>: /v1/ goes to the API (which binds
 // every site lookup to this person), / is the person's page, /<site>/... is
@@ -55,14 +46,14 @@ func (h *SiteHandler) PersonHosts(api, next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		user, err := h.storeAccounts().GetUserByHandle(r.Context(), label)
+		user, err := h.StoreAccounts().GetUserByHandle(r.Context(), label)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				log.Printf("person host %s: %v", host, err)
 				h.renderServiceError(w, r)
 				return
 			}
-			if current, aerr := h.storeAccounts().ResolveHandleAlias(r.Context(), label); aerr == nil && sites.HandleAddressable(current) {
+			if current, aerr := h.StoreAccounts().ResolveHandleAlias(r.Context(), label); aerr == nil && sites.HandleAddressable(current) {
 				http.Redirect(w, r, "https://"+h.Hosts.Addressing().PersonHostOn(current, base)+r.URL.RequestURI(), http.StatusMovedPermanently)
 				return
 			}
@@ -132,7 +123,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 		http.Redirect(w, r, "/"+seg+"/"+query, http.StatusMovedPermanently)
 		return
 	}
-	markRestrictedSite(w, site)
+	sitesroute.MarkRestrictedSite(w, site)
 	// A preview of one of its versions (preview.go), before any redirect
 	// to the site's own host or domain.
 	if _, tail, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/"); strings.HasPrefix(tail, web.PreviewPathSegment+"/") && h.Hosts.Addressing().PersonAddressFor(handle, site.Name) {
@@ -141,7 +132,7 @@ func (h *SiteHandler) servePersonHost(w http.ResponseWriter, r *http.Request, us
 	}
 	if sites.ContentHostOnly(handle, site.Name) {
 		w.Header().Set("Cache-Control", "no-store")
-		http.Redirect(w, r, h.contentBaseURL()+"/"+handle+"/"+site.Name+"/"+escTail+query, http.StatusFound)
+		http.Redirect(w, r, h.ContentBaseURL()+"/"+handle+"/"+site.Name+"/"+escTail+query, http.StatusFound)
 		return
 	}
 	// A site with its own domain lives there (302, like the content host, so
@@ -206,7 +197,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 	if r.URL.RawQuery != "" {
 		query = "?" + r.URL.RawQuery
 	}
-	user, err := h.storeAccounts().GetUserByHandleOrAlias(r.Context(), handle)
+	user, err := h.StoreAccounts().GetUserByHandleOrAlias(r.Context(), handle)
 	if err != nil {
 		h.RenderNotFound(w, r, "/"+handle)
 		return
@@ -239,7 +230,7 @@ func (h *SiteHandler) contentHostRedirect(w http.ResponseWriter, r *http.Request
 		h.RenderNotFound(w, r, "/"+handle+"/"+name)
 		return
 	}
-	markRestrictedSite(w, site)
+	sitesroute.MarkRestrictedSite(w, site)
 	if info, has, err := h.Hosts.SiteOwnAddress(r.Context(), site.ID); err == nil && has {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, "https://"+info.Domain+rest+query, http.StatusFound)

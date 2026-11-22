@@ -13,14 +13,14 @@ import (
 // on it now: named viewers on, not offline, not taken down. ok=false
 // otherwise, a missing site included.
 func (s *Service) ViewerSignInSite(ctx context.Context, userID, name string) (model.SitePasscodeRow, bool, error) {
-	row, err := repo.GetSitePasscodeByName(ctx, s.database, userID, name)
+	row, err := repo.GetSitePasscodeByName(ctx, s.DB, userID, name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return row, false, nil
 	}
 	if err != nil {
 		return row, false, err
 	}
-	if !row.NamedViewers || row.Offline || s.disk.IsSuspended(row.UserID, row.Name) {
+	if !row.NamedViewers || row.Offline || s.Disk.IsSuspended(row.UserID, row.Name) {
 		return row, false, nil
 	}
 	return row, true, nil

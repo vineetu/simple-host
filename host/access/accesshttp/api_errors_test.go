@@ -9,8 +9,8 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
+	"github.com/vsriram/simple-host/host/access/connector"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -18,9 +18,9 @@ func TestAPIRoutingErrors(t *testing.T) {
 	for _, websiteFallback := range []bool{false, true} {
 		mux := http.NewServeMux()
 		identity := func(h http.Handler) http.Handler { return h }
-		users := &UserHandler{}
+		users := NewUserHandler(nil, accountapp.New(nil), nil, "")
 		users.Register(mux, auth.Middleware("admin", "admin-id", accountapp.New(nil), 0), identity)
-		connector := &ConnectorHandler{mcp: &mcp.Server{}}
+		connector := connector.New(nil, "https://simple-host.app", "", "simple-host.app", "sites.simple-host.app", "1.0.0", nil, false, nil, nil)
 		connector.Register(mux, identity)
 		// The archive route supports writes, but no GET at the site root.
 		mux.HandleFunc("PUT /v1/sites/{sitename}", func(w http.ResponseWriter, r *http.Request) {

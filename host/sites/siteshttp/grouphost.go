@@ -47,7 +47,7 @@ func (h *SiteHandler) ServeGroupHost(w http.ResponseWriter, r *http.Request, use
 		return
 	}
 	if ev.CustomWebsite && !ev.TakenDown {
-		if _, err := h.opsSitesSvc().GetSiteByUser(r.Context(), ev.AccountID, ev.ID); err == nil {
+		if _, err := h.OpsSitesSvc().GetSiteByUser(r.Context(), ev.AccountID, ev.ID); err == nil {
 			h.ServeSiteFileRel(w, r, ev.AccountID, ev.ID, r.URL.Path)
 			return
 		} else if !errors.Is(err, sql.ErrNoRows) {
@@ -68,7 +68,7 @@ func (h *SiteHandler) GroupAPIAllowed(r *http.Request, owner model.User) bool {
 	if err != nil || !ev.CustomWebsite || ev.TakenDown {
 		return false
 	}
-	if _, err := h.opsSitesSvc().GetSiteByUser(r.Context(), owner.ID, ev.ID); err != nil {
+	if _, err := h.OpsSitesSvc().GetSiteByUser(r.Context(), owner.ID, ev.ID); err != nil {
 		return false
 	}
 	p := r.URL.Path
@@ -86,5 +86,5 @@ func (h *SiteHandler) renderGroupNotFound(w http.ResponseWriter, r *http.Request
 	h.renderNotFoundPage(w, r,
 		texts.NotFoundTitle,
 		texts.NotFoundBody,
-		h.mainSiteURL(), "Go to "+h.SiteDomain)
+		h.MainSiteURL(), "Go to "+h.SiteDomain)
 }

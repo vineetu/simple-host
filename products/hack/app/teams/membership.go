@@ -13,7 +13,7 @@ import (
 // LeaveTeam takes a participant off their team; they stop editing its site.
 // A team past its deadline keeps its members.
 func (s *Service) LeaveTeam(ctx context.Context, ev model.Event, userID string) error {
-	if err := participantStage(ev.Stage); err != nil {
+	if err := ParticipantStage(ev.Stage); err != nil {
 		return err
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -44,18 +44,18 @@ func (s *Service) DeleteTeam(ctx context.Context, ev model.Event, rawSlug string
 	// The handler sends the team site to Recently deleted after commit.
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	defer tx.Rollback()
 	notice := team.Name + " was removed by the organiser."
 	if err = hackmembers.SetTeamRemovalNotices(ctx, tx, team.ID, notice); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	if err = hackmembers.NotifyTeamMembers(ctx, tx, ev.ID, team.ID, hackmembers.NoticeTeamRemoved, notice, ""); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	if err = teamrepo.DeleteEventTeam(ctx, tx, team.ID); err != nil {
-		return internalError(err)
+		return InternalError(err)
 	}
 	return syncAndCommit(ctx, tx, ev.ID)
 }
@@ -63,7 +63,7 @@ func (s *Service) DeleteTeam(ctx context.Context, ev model.Event, rawSlug string
 // JoinTeam joins the team with code under the event lock and checks its
 // deadline. An empty code is team_not_found.
 func (s *Service) JoinTeam(ctx context.Context, ev model.Event, userID, code string) (model.EventTeam, error) {
-	if err := participantStage(ev.Stage); err != nil {
+	if err := ParticipantStage(ev.Stage); err != nil {
 		return model.EventTeam{}, err
 	}
 	if code == "" {
@@ -71,14 +71,14 @@ func (s *Service) JoinTeam(ctx context.Context, ev model.Event, userID, code str
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return model.EventTeam{}, internalError(err)
+		return model.EventTeam{}, InternalError(err)
 	}
 	defer tx.Rollback()
 	// Recheck the stage under the event lock, before JoinTeamByCode locks
 	// member then team.
 	stage, err := LockEventStage(ctx, tx, ev.ID)
 	if err != nil {
-		return model.EventTeam{}, internalError(err)
+		return model.EventTeam{}, InternalError(err)
 	}
 	if !hackteams.ParticipantTeamStages(stage) {
 		return model.EventTeam{}, errTeamsLocked()
@@ -90,7 +90,7 @@ func (s *Service) JoinTeam(ctx context.Context, ev model.Event, userID, code str
 	// A team past its deadline takes nobody new: they could never publish or leave.
 	st, err := teamrepo.TeamWriteStateFor(ctx, tx, ev.ID, team.ID, true)
 	if err != nil {
-		return team, internalError(err)
+		return team, InternalError(err)
 	}
 	if st.Frozen() {
 		return team, errDeadlinePassed()

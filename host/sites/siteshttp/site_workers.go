@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/domains"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
@@ -94,7 +95,7 @@ func (h *SiteHandler) SiteWorkers(sweeps ...GroupSweep) workers.Owner {
 		add("sites.cert_requests", func() bool { return h.Hosts.Addressing().SiteHostsOn() && len(h.Hosts.CertRequestBases()) > 0 }, func(ctx context.Context) { h.startSiteCertRequests(ctx, 10*time.Minute) })
 		add(g.sweepName, func() bool { return false }, nil)
 		add("sites.trash_purge", yes, func(ctx context.Context) { h.startDeletedSitePurge(ctx, time.Hour) })
-		add("sites.idle_cleanup", func() bool { return h.idleCleanup }, h.startIdleCleanup)
+		add("sites.idle_cleanup", func() bool { return h.IdleCleanup }, h.startIdleCleanup)
 		add("sites.address_families", h.Hosts.FamiliesOn, h.startAddressFamilies)
 		add("sites.domain_checks", func() bool { return h.CustomDomainIP != "" }, func(ctx context.Context) { h.startDomainChecksContext(ctx, h.Limits.DomainCheckInterval) })
 		add("sites.preview_expiry", func() bool { return len(h.PreviewAccounts) > 0 }, func(ctx context.Context) { h.startExpirySweepContext(ctx, time.Hour) })
@@ -144,4 +145,8 @@ func (o *siteLoop) periodicTicker(ctx context.Context, first, every time.Duratio
 			}
 		}
 	})
+}
+
+func (h *SiteHandler) startDomainChecksContext(ctx context.Context, every time.Duration) {
+	h.siteLoop("sites.domain_checks").periodic(ctx, 30*time.Second, every, domains.Handler{Handler: h.Handler}.CheckBoundDomains)
 }

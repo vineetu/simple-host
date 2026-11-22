@@ -7,6 +7,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 )
 
 func groupTestEdition() *edition.Edition { return groupTestEditionWithLimits(config.DefaultLimits()) }
@@ -18,7 +19,7 @@ func platformTestEdition() *edition.Edition { return edition.Default(config.Defa
 
 // chromeTestHandler is a SiteHandler with no database, for routes that never query it.
 func chromeTestHandler(ed *edition.Edition) *SiteHandler {
-	return withHosts(&SiteHandler{Ed: ed, Assets: testAssetPipeline(ed, ""), Limits: ed.Limits(), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"})
+	return withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: ed, Assets: testAssetPipeline(ed, ""), Limits: ed.Limits(), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"}})
 }
 
 func chromeTestMux(t *testing.T, ed *edition.Edition) *http.ServeMux {

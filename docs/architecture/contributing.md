@@ -15,7 +15,7 @@ planned extraction is already complete.
 
 | Change | Current direction |
 |---|---|
-| Hack endpoint | Registration/HTTP mapping in `products/hack/hackhttp`; workflows in `products/hack/app/*`; pure decisions in `products/hack/rules/*`; SQL in `products/hack/repository/*` |
+| Hack endpoint | Routes, and the workflow only it uses, in the feature's package `products/hack/<feature>`; shared workflows in `products/hack/app/*`; pure decisions in `products/hack/rules/*`; SQL in `products/hack/repository/*` |
 | MCP tool | Its capability family registrar and the shared registry in `host/mcp`; retain service/REST authorization and error mapping |
 | Host sites/storage | `host/app/{sites,storage}`, rules/repositories and `host/storage` primitives; old contracts through `app/legacy` |
 | Browser screen / shared MCP screen | [Frontend guide](frontend.md); update the atlas before implementing Hack UX |

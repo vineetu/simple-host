@@ -1,16 +1,12 @@
 package siteshttp
 
 import (
-	"errors"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/pagepath"
 )
@@ -20,62 +16,6 @@ import (
 // once, first come first served. Once bound the host behaves like a custom domain (site at its root,
 // same-origin /v1, host-only __Host- cookie), so it counts as the site's own domain for private
 // collections. Unclaimed names keep the legacy 301 (LegacyHostRedirect).
-
-// claimableSubdomain validates a requested <label>.<siteDomain>: one DNS label, letters/digits/hyphens,
-// no edge hyphen, not reserved, not a platform host. While the base moves (sitebase.go) a name under
-// either domain is accepted, and it is always kept under the base handed out.
-func (h *SiteHandler) claimableSubdomain(host string) (string, error) {
-	label, _, ok := h.Hosts.UserHostLabel(host)
-	base := h.Hosts.Addressing().HandoutBase()
-	if !ok {
-		return "", errors.New("a free address is one name under " + base + ", e.g. my-shop." + base)
-	}
-	return appsites.ClaimPlatformAddress(label, base, h.SiteDomain, h.ContentHost, h.CNAMETarget)
-}
-
-// bindPlatformSubdomain claims <label>.<siteDomain> for site: verified at once,
-// refused if any other site holds it.
-func (h *SiteHandler) bindPlatformSubdomain(w http.ResponseWriter, r *http.Request, site model.Site, requested string) {
-	host, err := h.claimableSubdomain(requested)
-	if err != nil {
-		code := "invalid_name"
-		if errors.Is(err, appsites.ErrSubdomainReserved) {
-			code = "name_reserved"
-		}
-		httpx.WriteError(w, http.StatusBadRequest, code, err.Error())
-		return
-	}
-	released, err := h.opsSitesSvc().ClaimPlatformSubdomain(r.Context(), site.ID, host)
-	if err != nil {
-		if errors.Is(err, model.ErrNameIsAccountAddress) {
-			httpx.WriteError(w, http.StatusConflict, "domain_taken", "that name is someone's own address; pick another name")
-			return
-		}
-		if errors.Is(err, model.ErrDomainTaken) {
-			httpx.WriteError(w, http.StatusConflict, "domain_taken", "that address is taken by another site; pick another name")
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	// A site has one address of its own; a replaced one stops serving (a claimed name redirects as a retired name).
-	for _, d := range released {
-		if err := h.Disk.UnbindDomain(d); err != nil {
-			log.Printf("domain: unbind previous %s for %s: %v", d, site.Name, err)
-		}
-	}
-	if err := h.Disk.BindDomain(site.UserID, site.Name, host); err != nil {
-		log.Printf("domain: bind %s for %s/%s: %v", host, site.UserID, site.Name, err)
-	}
-	h.Hosts.SyncDomainRedirect(r.Context(), site.ID)
-	now := time.Now()
-	httpx.WriteJSON(w, http.StatusOK, domainResponse{
-		Domain:     host,
-		Status:     "active",
-		BoundAt:    &now,
-		VerifiedAt: &now,
-	})
-}
 
 // BoundSubdomains serves claimed <name>.<siteDomain> hosts like a custom domain: /v1/ goes to the API,
 // everything else is the site's live files. Any other request (unclaimed names keep their legacy 301) goes to fallback.

@@ -42,7 +42,7 @@ func entriesTable(t *testing.T, s Shop, rules string) string {
 }
 
 func TestStorageOwnerAddsForVisitor(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	aliceEmail := aliceEmailOf(t, s)
 	carol := s.A.NewPerson(t, "carol") // has an account, never signed in on the site
 
@@ -102,7 +102,7 @@ func TestStorageOwnerAddsForVisitor(t *testing.T) {
 }
 
 func TestStoragePeoplePickList(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	// carol signed in but saved nothing and is not a named viewer: not listed.
 	carol := s.A.NewPerson(t, "carol")
 	s.A.Session(t, carol, s.Sid, s.Host)
@@ -144,7 +144,7 @@ func TestStoragePeoplePickList(t *testing.T) {
 // for and the pick list are Host only: refused once a product storage
 // binding provider is installed.
 func TestStorageOwnerForGroupRefused(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.A.Data.SetStorageBindings(&ownerBindingFixture{})
 	rows := entriesTable(t, s, RulesRecords)
 	if r := s.Must(t, "POST", rows+"?for="+s.AliceID, map[string]string{"note": "nope"}, s.Key, 404); r.Code() != "for_not_available" {
@@ -156,7 +156,7 @@ func TestStorageOwnerForGroupRefused(t *testing.T) {
 
 // The owner's raw SQL cannot forge written_by (it may still set visitor_id).
 func TestStorageOwnerForRawSQLWrittenByBlocked(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	entriesTable(t, s, RulesRecords)
 	for _, q := range []struct{ route, sql string }{
 		{"/sqlite/orders/schema", "ALTER TABLE entries ADD COLUMN written_by TEXT"},
@@ -173,7 +173,7 @@ func TestStorageOwnerForRawSQLWrittenByBlocked(t *testing.T) {
 // A visitor_id the owner's raw SQL planted never puts that account's email
 // on the pick list: only ids the server recorded as signed in on the site.
 func TestStoragePeopleExcludesForgedVisitorID(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	carol := s.A.NewPerson(t, "carol")
 	entriesTable(t, s, RulesRecords)
 	s.Must(t, "POST", "/sqlite/orders/execute", map[string]string{"sql": "INSERT INTO entries(note, visitor_id) VALUES('planted', '" + carol.ID + "')"}, s.Key, 200)
@@ -188,7 +188,7 @@ func TestStoragePeopleExcludesForgedVisitorID(t *testing.T) {
 // for by email never guesses between two signed-in people with the same
 // canonical sign-in email.
 func TestStorageOwnerForAmbiguousEmail(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	aliceEmail := aliceEmailOf(t, s)
 	key, _ := auth.GenerateAPIKey()
 	username := "carol-handle-" + key[4:12]
@@ -210,7 +210,7 @@ func TestStorageOwnerForAmbiguousEmail(t *testing.T) {
 // A trigger that rewrites written_by is refused by the schema route, and
 // one planted in the file directly makes a for= add roll back.
 func TestStorageOwnerForTriggerTamperRolledBack(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	rows := entriesTable(t, s, RulesRecords)
 	wipe := "CREATE TRIGGER wipe AFTER INSERT ON entries BEGIN UPDATE entries SET written_by = '' WHERE id = NEW.id; END"
 	if r := s.Must(t, "POST", "/sqlite/orders/schema", map[string]string{"sql": wipe}, s.Key, 400); r.Code() != "server_column" {

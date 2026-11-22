@@ -10,9 +10,12 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/vsriram/simple-host/host/access/featuretest"
+
 	accounts "github.com/vsriram/simple-host/host/access"
-	"github.com/vsriram/simple-host/host/access/accesshttp"
 	"github.com/vsriram/simple-host/host/access/auth"
+	"github.com/vsriram/simple-host/host/access/gate"
+	"github.com/vsriram/simple-host/host/access/profile"
 	accountsrepo "github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/edition"
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
@@ -27,7 +30,6 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 	p := a.NewPerson(t, "levers")
 	siteID := a.Deploy(t, p, "shop")
 	host := p.SiteHost("shop")
-	svc := accounts.New(a.Database)
 	ended := func(lever string, pull func()) {
 		t.Helper()
 		a.Session(t, p, siteID, host)
@@ -53,7 +55,7 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 	ended("unlink", func() {
 		ident, err := accountsrepo.InsertOAuthIdentity(ctx, a.Database, p.ID, "google", "g-"+p.ID, p.Email, true)
 		if err == nil {
-			err = svc.UnlinkSignInIdentity(ctx, p.ID, ident.ID)
+			err = profile.UnlinkSignInIdentity(ctx, a.Database, p.ID, ident.ID)
 		}
 		if err != nil {
 			t.Fatal(err)
@@ -73,7 +75,7 @@ func TestLeversEndSiteSignIns(t *testing.T) {
 		}
 	})
 	ended("email change undo", func() {
-		if _, err := svc.UndoEmailChange(ctx, "undo-hash-"+p.ID); err != nil {
+		if _, err := profile.UndoEmailChange(ctx, a.Database, "undo-hash-"+p.ID); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -235,13 +237,13 @@ func TestSignInAlertFollowsEmailChange(t *testing.T) {
 	a, mb := NewAccountApp(t)
 	p := a.NewPerson(t, "switcher")
 	newAddr := Uniq("switched") + "@example.org"
-	code, cur := RequestEmailChange(t, a, mb, p.Header(), p.Email, newAddr)
+	code, cur := AskEmailChange(t, a.Base, mb, p.Header(), p.Email, newAddr)
 	if r := a.At(t, "POST", rt.SiteDomain, "/v1/me/email/verify", map[string]string{"code": code, "current_code": cur}, p.Header()); r.Status != 200 {
 		t.Fatalf("verify: %d %s", r.Status, r.Body)
 	}
 	t.Cleanup(func() { _, _ = a.Database.Exec(`DELETE FROM auth_tokens WHERE email = $1`, newAddr) })
 	before := len(mb.To(p.Email))
-	SignInWith(t, a, mb, newAddr, UaMacChrome)
+	SignInWith(t, a.Base, mb, newAddr, UaMacChrome)
 	if n := len(mb.To(newAddr)); n == 0 {
 		t.Fatal("no alert to the new address")
 	}
@@ -262,7 +264,7 @@ func TestVisitorSessionFollowsSetting(t *testing.T) {
 	state, nonce := a.SignInStart(t, host, "https://"+host+"/")
 	loc := a.SignInCallback(t, state, "visitor", host)
 	r := a.At(t, "GET", host, loc.RequestURI(), nil, NonceCookie(nonce))
-	sess := ResponseCookie(t, r, accesshttp.VisitorCookieHost)
+	sess := ResponseCookie(t, r, gate.VisitorCookieHost)
 	id, _ := hex.DecodeString(sess)
 	near := func(got time.Time, days int) bool {
 		d := got.Sub(time.Now().Add(time.Duration(days) * 24 * time.Hour))

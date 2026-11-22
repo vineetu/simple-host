@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vsriram/simple-host/products/hack/public"
+
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/products/hack/hackhttp"
 )
 
 // The platform half covers label parsing and dispatch using a group stub.
@@ -40,7 +41,7 @@ func TestHackFlatHostsRealEventWins(t *testing.T) {
 	if _, err := a.database.Exec(`UPDATE users SET handle=$1 WHERE id=$2`, flat, account); err != nil {
 		t.Fatal(err)
 	}
-	a.sites.Hosts.SetGroupHosts(hackhttp.NewGroupHosts(a.database, func(w http.ResponseWriter, r *http.Request, u model.User) bool {
+	a.sites.Hosts.SetGroupHosts(public.NewGroupHosts(a.database, func(w http.ResponseWriter, r *http.Request, u model.User) bool {
 		if u.ID != account {
 			return false
 		}
@@ -51,7 +52,7 @@ func TestHackFlatHostsRealEventWins(t *testing.T) {
 	if r.status != 200 || string(r.body) != "legacy event page" {
 		t.Fatalf("legacy event: %d %s", r.status, r.body)
 	}
-	g, err := hackhttp.NewGroupHosts(a.database, nil, nil).ByAccount(context.Background(), account)
+	g, err := public.NewGroupHosts(a.database, nil, nil).ByAccount(context.Background(), account)
 	if err != nil || g.Slug != flat {
 		t.Fatalf("group lookup: %+v %v", g, err)
 	}

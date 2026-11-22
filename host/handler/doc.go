@@ -6,5 +6,5 @@
 // site's data through Data's routes, so they live here too.
 //
 // Nothing else belongs here: a route goes in its module's route package
-// (host/access/accesshttp, host/data/datahttp, host/sites/siteshttp).
+// (host/access/accesshttp, host/data and its feature packages, host/sites/siteshttp).
 package handler

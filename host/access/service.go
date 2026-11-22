@@ -60,3 +60,6 @@ func (s *Service) GetUserByAPIKey(ctx context.Context, apiKey string, keyIdle ti
 	}
 	return user, err
 }
+
+// DB is the database s works on, for a feature handed the service.
+func (s *Service) DB() *sql.DB { return s.database }

@@ -30,7 +30,7 @@ func (s *Service) visitorActive(call *Call) *Error {
 	if suspended {
 		return &Error{Code: "account_suspended"}
 	}
-	_ = s.accounts.TouchVisitorSession(call.Context, call.VisitorSessionID, s.deps.VisitorSessionIdle)
+	_ = s.accounts.TouchVisitorSession(call.Context, call.VisitorSessionID, s.Deps.VisitorSessionIdle)
 	call.ActiveChecked = true
 	return nil
 }

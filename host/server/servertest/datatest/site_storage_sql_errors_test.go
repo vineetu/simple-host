@@ -8,7 +8,7 @@ import (
 // Storage SQL refusals from real SQLite carry their status and stable code
 // and leak no paths. Request validation order is host/data's.
 func TestSiteStorageSQLErrors(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.Must(t, "PUT", "/resources/db", map[string]string{"kind": "sqlite"}, s.Key, 201)
 	for _, ddl := range []string{
 		"CREATE TABLE parents (id INTEGER PRIMARY KEY)",

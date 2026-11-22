@@ -5,8 +5,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vsriram/simple-host/host/data/notifications"
+	"github.com/vsriram/simple-host/host/data/push"
+
+	"github.com/vsriram/simple-host/host/data/files"
+	"github.com/vsriram/simple-host/host/data/kv"
+	"github.com/vsriram/simple-host/host/data/resources"
+	"github.com/vsriram/simple-host/host/data/rows"
+	"github.com/vsriram/simple-host/host/data/sqlconsole"
+
+	"github.com/vsriram/simple-host/host/data/visitors"
+
+	"github.com/vsriram/simple-host/host/data/usage"
+
 	"github.com/vsriram/simple-host/host/access/accesshttp"
-	"github.com/vsriram/simple-host/host/data/datahttp"
+
+	appstorage "github.com/vsriram/simple-host/host/data"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/mcp"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
@@ -16,11 +30,18 @@ import (
 // Register mounts the site, access and data routes on mux. The rate
 // limiters for site operations and exports are shared between the site
 // routes and the account routes.
-func Register(mux *http.ServeMux, h *siteshttp.SiteHandler, a *accesshttp.AccessHandler, d *datahttp.DataHandler, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
-	d.RegisterNotifications(mux, authMiddleware, noticeMiddleware)
-	a.RegisterEditors(mux, authMiddleware, noticeMiddleware)
-	d.RegisterWebPush(mux, a.PasscodeGate, a.StorageCaller, authMiddleware, noticeMiddleware)
-	d.RegisterStorageRoutes(mux, a.StorageCaller)
+func Register(mux *http.ServeMux, h *siteshttp.SiteHandler, a *accesshttp.AccessHandler, d *appstorage.Handler, authMiddleware, noticeMiddleware func(http.Handler) http.Handler) {
+	notifications.Register(mux, d, authMiddleware, noticeMiddleware)
+	accesshttp.RegisterEditors(mux, a, authMiddleware, noticeMiddleware)
+	push.Register(mux, d, a.PasscodeGate, a.StorageCaller, authMiddleware, noticeMiddleware)
+	d.RegisterStorageRoutes(mux)
+	kv.Register(mux, d, a.StorageCaller)
+	rows.Register(mux, d, a.StorageCaller)
+	sqlconsole.Register(mux, d, a.StorageCaller)
+	files.Register(mux, d, a.StorageCaller)
+	resources.Register(mux, d, a.StorageCaller)
+	usage.Register(mux, d, a.StorageCaller)
+	visitors.Register(mux, d, a.StorageCaller)
 	// Delete, rename and restore each take per-site locks: rate-limited so a
 	// loop cannot pile up locks or disk moves.
 	siteOpLimiter := httpx.NewRateLimiterFor(h.Limits.RateSiteOps.Burst, h.Limits.RateSiteOps.Every)
@@ -30,7 +51,7 @@ func Register(mux *http.ServeMux, h *siteshttp.SiteHandler, a *accesshttp.Access
 	exportLimiter := httpx.NewRateLimiterFor(h.Limits.RateExport.Burst, h.Limits.RateExport.Every)
 	h.Caches.Rate("http.site.exportLimiter", exportLimiter, 10*time.Minute, 30*time.Minute)
 	h.RegisterRoutes(mux, authMiddleware, noticeMiddleware, siteOpLimiter, exportLimiter, a.DeleteSitePasscode)
-	a.RegisterAccountRoutes(mux, authMiddleware, siteOpLimiter, exportLimiter)
+	accesshttp.RegisterAccountRoutes(mux, a, authMiddleware, siteOpLimiter, exportLimiter)
 	a.RegisterGateRoutes(mux, authMiddleware, noticeMiddleware, siteOpLimiter)
 	mux.HandleFunc("GET /recipes/{topic}", serveRecipe)
 }

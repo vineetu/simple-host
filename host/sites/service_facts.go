@@ -11,54 +11,54 @@ import (
 )
 
 // lockSite takes the per-site upload lock (Deps.Locks).
-func (s *Service) lockSite(userID, name string) func() {
-	return LockSiteName(s.deps.Locks, userID, name)
+func (s *Service) LockSite(userID, name string) func() {
+	return LockSiteName(s.Deps.Locks, userID, name)
 }
 
 // lockAccount takes the account's file-caps lock, the site lock under the
 // empty name; without file caps there is nothing to serialize.
-func (s *Service) lockAccount(userID string) func() {
-	if !s.deps.FileCaps {
+func (s *Service) LockAccount(userID string) func() {
+	if !s.Deps.FileCaps {
 		return func() {}
 	}
-	return s.lockSite(userID, "")
+	return s.LockSite(userID, "")
 }
 
 // requestCert asks for the handle's site-host certificate.
-func (s *Service) requestCert(handle string) {
-	if s.deps.Hosts != nil {
-		s.deps.Hosts.RequestSiteCert(context.Background(), handle)
+func (s *Service) RequestCert(handle string) {
+	if s.Deps.Hosts != nil {
+		s.Deps.Hosts.RequestSiteCert(context.Background(), handle)
 	}
 }
 
 // syncFamilyRedirect brings the site's address-family redirect up to date
 // when any family is live.
-func (s *Service) syncFamilyRedirect(ctx context.Context, siteID string) {
-	if s.deps.Hosts != nil && s.deps.Hosts.HasLiveFamilies() {
-		s.deps.Hosts.SyncDomainRedirect(ctx, siteID)
+func (s *Service) SyncFamilyRedirect(ctx context.Context, siteID string) {
+	if s.Deps.Hosts != nil && s.Deps.Hosts.HasLiveFamilies() {
+		s.Deps.Hosts.SyncDomainRedirect(ctx, siteID)
 	}
 }
 
 // syncDomainRedirect rewrites the site's domain redirect marker.
-func (s *Service) syncDomainRedirect(ctx context.Context, siteID string) {
-	if s.deps.Hosts != nil {
-		s.deps.Hosts.SyncDomainRedirect(ctx, siteID)
+func (s *Service) SyncDomainRedirect(ctx context.Context, siteID string) {
+	if s.Deps.Hosts != nil {
+		s.Deps.Hosts.SyncDomainRedirect(ctx, siteID)
 	}
 }
 
 // renameURL is the address a renamed site is handed out at.
-func (s *Service) renameURL(handle, name string) string {
-	url := s.deps.Hosts.Addressing().SiteURL(handle, name)
+func (s *Service) RenameURL(handle, name string) string {
+	url := s.Deps.Hosts.Addressing().SiteURL(handle, name)
 	if url == "" {
-		url = fmt.Sprintf("https://%s/%s/%s/", s.deps.ContentHost, handle, name)
+		url = fmt.Sprintf("https://%s/%s/%s/", s.Deps.ContentHost, handle, name)
 	}
 	return url
 }
 
 // namedViewersRefusal is Access's refusal of named viewers for a new site.
-func (s *Service) namedViewersRefusal(handle, name string) error {
+func (s *Service) NamedViewersRefusal(handle, name string) error {
 	site := model.Site{OwnerHandle: handle, Name: name}
-	return accountapp.NamedViewersRefusal(model.SitePasscodeRow{}, s.deps.Hosts.GateSite(site, s.deps.NoVisitorSignIn))
+	return accountapp.NamedViewersRefusal(model.SitePasscodeRow{}, s.Deps.Hosts.GateSite(site, s.Deps.NoVisitorSignIn))
 }
 
 // DeletedNameMessage tells the owner a name is held by their site in
@@ -70,19 +70,19 @@ func DeletedNameMessage(d model.DeletedSite, retention time.Duration) string {
 
 // deletedNameConflict reports whether name is held by the account's site in
 // Recently deleted, and the message saying so.
-func (s *Service) deletedNameConflict(ctx context.Context, userID, name string) (string, bool) {
+func (s *Service) DeletedNameConflict(ctx context.Context, userID, name string) (string, bool) {
 	d, err := s.GetDeletedSiteByUser(ctx, userID, name)
 	if err != nil {
 		return "", false
 	}
-	return DeletedNameMessage(d, s.deps.DeletedRetention), true
+	return DeletedNameMessage(d, s.Deps.DeletedRetention), true
 }
 
 // retainedFloor is the lowest version retention keeps; an instance with
 // event version retention keeps the latest versions below the active one.
-func (s *Service) retainedFloor(versions []model.Version, keep, active, siteKeep int) int {
-	if s.deps.EventVersionRetention {
-		floor, _ := pruneThreshold(active, EffectiveKeepVersions(siteKeep, s.deps.DefaultRetention))
+func (s *Service) RetainedFloor(versions []model.Version, keep, active, siteKeep int) int {
+	if s.Deps.EventVersionRetention {
+		floor, _ := pruneThreshold(active, EffectiveKeepVersions(siteKeep, s.Deps.DefaultRetention))
 		return floor
 	}
 	return RetainedFloor(versions, keep)
@@ -90,11 +90,11 @@ func (s *Service) retainedFloor(versions []model.Version, keep, active, siteKeep
 
 // pinnedFloor lowers a prune threshold so a team's deadline version is
 // kept whatever the retention.
-func (s *Service) pinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
-	if s.deps.Hosts == nil || s.deps.Hosts.Groups() == nil {
+func (s *Service) PinnedFloor(ctx context.Context, userID, siteName string, keepFrom int) int {
+	if s.Deps.Hosts == nil || s.Deps.Hosts.Groups() == nil {
 		return keepFrom
 	}
-	v, ok, err := s.deps.Hosts.Groups().PinnedVersion(ctx, userID, siteName)
+	v, ok, err := s.Deps.Hosts.Groups().PinnedVersion(ctx, userID, siteName)
 	if err != nil {
 		log.Printf("prune versions for %s: pinned version: %v", siteName, err)
 		return 0 // keep everything rather than guess

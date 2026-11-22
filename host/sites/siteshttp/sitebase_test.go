@@ -9,11 +9,12 @@ import (
 	"github.com/vsriram/simple-host/host/config"
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/sites"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 )
 
 func TestPausedSiteBaseRedirect(t *testing.T) {
 	ed := edition.Default(config.DefaultLimits())
-	h := &SiteHandler{Ed: ed, SiteDomain: "simple-host.app", Hosts: sites.NewHosts(nil, nil, ed, "simple-host.app", "", "", "")}
+	h := &SiteHandler{Handler: &sitesroute.Handler{Ed: ed, SiteDomain: "simple-host.app", Hosts: sites.NewHosts(nil, nil, ed, "simple-host.app", "", "", "")}}
 	h.Hosts.SetSiteHosts("off", "/app-certs")
 	h.Hosts.SetSiteBase("simple-host.site", "off", "")
 	app := h.SiteBaseHosts(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +47,7 @@ func TestPausedSiteBaseRedirect(t *testing.T) {
 }
 
 func TestSiteBaseModes(t *testing.T) {
-	a := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app"})
+	a := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app"}})
 	for _, c := range []struct {
 		base, move      string
 		split           bool
@@ -79,7 +80,7 @@ func TestSiteBaseModes(t *testing.T) {
 }
 
 func TestTwinHost(t *testing.T) {
-	a := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"})
+	a := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"}})
 	a.Hosts.SetSiteBase("simple-host.site", "off", "")
 	if a.Hosts.TwinHost("clay.simple-host.app") != "" {
 		t.Fatal("twin while off")
@@ -104,14 +105,14 @@ func TestTwinHost(t *testing.T) {
 // TestSiteBaseNormalizeDomain: a custom domain may never be one of our zones,
 // the base included even before the move is on.
 func TestSiteBaseNormalizeDomain(t *testing.T) {
-	h := withHosts(&SiteHandler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"})
+	h := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Ed: edition.Default(config.DefaultLimits()), SiteDomain: "simple-host.app", ContentHost: "sites.simple-host.app"}})
 	h.Hosts.SetSiteBase("simple-host.site", "off", "")
 	for _, d := range []string{"simple-host.site", "x.simple-host.site", "a.b.simple-host.site", "x.simple-host.app"} {
-		if _, err := h.normalizeDomain(d); err == nil {
+		if _, err := h.NormalizeDomain(d); err == nil {
 			t.Errorf("%s accepted", d)
 		}
 	}
-	if _, err := h.normalizeDomain("shop.example.com"); err != nil {
+	if _, err := h.NormalizeDomain("shop.example.com"); err != nil {
 		t.Fatal(err)
 	}
 }

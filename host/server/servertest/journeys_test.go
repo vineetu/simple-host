@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vsriram/simple-host/host/access/accesshttp"
+	"github.com/vsriram/simple-host/host/access/gate"
 )
 
 // (a) Access's passcode gate stands in front of Sites' pages and Data's
@@ -272,7 +272,7 @@ func TestJourneyClaimedAddressCarriesVisitorSignIn(t *testing.T) {
 	if r := a.At(t, "GET", dom, "/v1/sites/clay/me", nil, Browser(dom, cookie)); r.JSON(t)["signed_in"] != true || r.JSON(t)["email"] != vic.Email {
 		t.Fatalf("/me on the claimed address: %s", r.Body)
 	}
-	if r := a.At(t, "GET", PcSiteDomain, "/v1/me", nil, map[string]string{"Cookie": accesshttp.VisitorCookieHost + "=" + cookie}); r.Status != http.StatusUnauthorized {
+	if r := a.At(t, "GET", PcSiteDomain, "/v1/me", nil, map[string]string{"Cookie": gate.VisitorCookieHost + "=" + cookie}); r.Status != http.StatusUnauthorized {
 		t.Fatalf("visitor cookie accepted as an apex credential: %d", r.Status)
 	}
 	if r := a.At(t, "DELETE", PcSiteDomain, "/v1/sites/clay/domain", nil, okey); r.Status != http.StatusNoContent {

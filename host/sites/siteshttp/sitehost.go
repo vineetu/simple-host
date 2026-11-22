@@ -17,6 +17,7 @@ import (
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/pagepath"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -77,15 +78,15 @@ func (h *SiteHandler) siteHostNoOwner(w http.ResponseWriter, r *http.Request, er
 			return
 		}
 	}
-	h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.mainSiteURL(), "Go to "+h.SiteDomain)
+	h.renderNotFoundPage(w, r, "Page not found", "The page you’re looking for doesn’t exist.", h.MainSiteURL(), "Go to "+h.SiteDomain)
 }
 
 func (h *SiteHandler) aliasSiteTarget(r *http.Request, handle, label, base string) (string, bool) {
-	current, err := h.storeAccounts().ResolveHandleAlias(r.Context(), handle)
+	current, err := h.StoreAccounts().ResolveHandleAlias(r.Context(), handle)
 	if err != nil || !sites.HandleAddressable(current) {
 		return "", false
 	}
-	cu, err := h.storeAccounts().GetUserByHandle(r.Context(), current)
+	cu, err := h.StoreAccounts().GetUserByHandle(r.Context(), current)
 	if err != nil {
 		return "", false
 	}
@@ -120,7 +121,7 @@ func (h *SiteHandler) siteHostNoSite(w http.ResponseWriter, r *http.Request, err
 // missing certificate, the API, then its files.
 func (h *SiteHandler) serveSiteHostSite(w http.ResponseWriter, r *http.Request, api http.Handler, user model.User, site model.Site, base string) {
 	papermetrics.RecordSite(h.Ed, r, site.UserID, site.Name, auth.GetUser(r.Context()))
-	markRestrictedSite(w, site)
+	sitesroute.MarkRestrictedSite(w, site)
 	handle, query := user.Handle.String, queryOf(r)
 	escaped := r.URL.EscapedPath()
 	if escaped == "" {
@@ -129,7 +130,7 @@ func (h *SiteHandler) serveSiteHostSite(w http.ResponseWriter, r *http.Request, 
 	live := h.Hosts.Addressing().SiteHostLiveOn(handle, site.Name, base)
 	if sites.ContentHostOnly(handle, site.Name) {
 		w.Header().Set("Cache-Control", "no-store")
-		http.Redirect(w, r, h.contentBaseURL()+"/"+handle+"/"+site.Name+escaped+query, http.StatusFound)
+		http.Redirect(w, r, h.ContentBaseURL()+"/"+handle+"/"+site.Name+escaped+query, http.StatusFound)
 		return
 	}
 	// A preview of one of its versions is served here even when the site

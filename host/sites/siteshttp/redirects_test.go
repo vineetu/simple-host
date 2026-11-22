@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/vsriram/simple-host/host/config"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 	"github.com/vsriram/simple-host/host/storage"
 )
 
@@ -34,7 +35,7 @@ func TestPlainAddressesAndHiddenRules(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	h := withHosts(&SiteHandler{})
+	h := withHosts(&SiteHandler{Handler: &sitesroute.Handler{}})
 	for _, tt := range []struct {
 		url, body, location string
 		status              int
@@ -71,7 +72,7 @@ func TestApplyRedirect(t *testing.T) {
 	if e := disk.UpdateCurrent("user", "site", 1); e != nil {
 		t.Fatal(e)
 	}
-	h := withHosts(&SiteHandler{Disk: disk, Limits: config.DefaultLimits()})
+	h := withHosts(&SiteHandler{Handler: &sitesroute.Handler{Disk: disk, Limits: config.DefaultLimits()}})
 	for _, tt := range []struct {
 		method, rel, public, query, location, body string
 		status                                     int

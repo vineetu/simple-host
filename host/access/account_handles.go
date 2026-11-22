@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -180,18 +179,6 @@ func CheckNewHandle(handle string) error {
 		return ErrReservedHandle
 	}
 	return nil
-}
-
-// BulkAccountNames checks the prefix before producing the requested account names.
-func BulkAccountNames(prefix string, count int) ([]string, error) {
-	if !rules.VisitorHandle.MatchString(prefix) {
-		return nil, errors.New("prefix must contain 1 to 39 lowercase letters, digits or hyphens")
-	}
-	names := make([]string, count)
-	for i := range names {
-		names[i] = fmt.Sprintf("%s-%02d", prefix, i+1)
-	}
-	return names, nil
 }
 
 // CheckAddress is the address check while someone types (GET

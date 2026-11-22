@@ -48,22 +48,3 @@ func TestLiveURLDuringDomainSwitch(t *testing.T) {
 		t.Fatal(got)
 	}
 }
-
-// An event name claim takes only what Simple Hack's own check takes.
-func TestNormalizeEventNameSharesProductShape(t *testing.T) {
-	for _, bad := range []string{"a--b", "ab", "abcdefghij-abcdefghij-abcdefghij-abcdefg"} {
-		if _, err := NormalizeEventName(bad); err == nil {
-			t.Fatal(bad)
-		}
-	}
-	if n, err := NormalizeEventName(" Meetup "); err != nil || n != "meetup" {
-		t.Fatal(n, err)
-	}
-}
-
-// One domain shape for site domains and the instance's own domain.
-func TestDomainShapeRefusesIP(t *testing.T) {
-	if DomainShape("1.2.3.4") == nil || DomainShape("-a.com") == nil || DomainShape("shop.example.com") != nil {
-		t.Fatal("domain shape")
-	}
-}

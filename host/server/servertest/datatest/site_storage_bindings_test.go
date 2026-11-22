@@ -22,7 +22,7 @@ func (p *ownerBindingFixture) OwnerOnSite(context.Context, string, string) (bool
 // platform's default provider, also when none is installed); a visitor, or
 // the owner framed in another page, does not.
 func TestStorageOwnerOnSite(t *testing.T) {
-	s := NewShop(t)
+	s := newShop(t)
 	s.A.Data.SetStorageBindings(nil)
 	s.Must(t, "PUT", "/resources/private", map[string]string{"kind": "kv"}, s.Key, 201)
 	s.Must(t, "PUT", "/kv/private/keys/key", `{"value":"only owner"}`, s.Key, 200)

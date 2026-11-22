@@ -24,6 +24,7 @@ import (
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/idempotency"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
+	"github.com/vsriram/simple-host/host/sites/sitesroute"
 	"github.com/vsriram/simple-host/host/storage"
 	"github.com/vsriram/simple-host/host/web"
 )
@@ -82,13 +83,13 @@ func NewAppMailer(t *testing.T, mailer email.Sender, eds ...*edition.Edition) *A
 	}
 	a := &App{Database: database, Disk: disk, Hosts: hosts, Ed: ed, Mux: http.NewServeMux(), Admin: adminKey, CertDir: certDir}
 	// Built as handler.NewSiteHandlers builds Sites, without Access and Data.
-	h := &siteshttp.SiteHandler{Ed: ed, Limits: lim, Mailer: mailer, Database: database, Disk: disk,
+	h := &siteshttp.SiteHandler{Handler: &sitesroute.Handler{Ed: ed, Limits: lim, Mailer: mailer, Database: database, Disk: disk,
 		SiteDomain: rt.SiteDomain, ContentHost: rt.ContentHost, CNAMETarget: "cname." + rt.SiteDomain, Hosts: hosts,
 		UploadLimiter:          httpx.NewRateLimiter(100000, 0),
 		DomainCheckLimiter:     httpx.NewRateLimiterFor(lim.RateDomainCheck.Burst, lim.RateDomainCheck.Every),
 		DomainCheckUserLimiter: httpx.NewRateLimiterFor(lim.RateDomainCheckUser.Burst, lim.RateDomainCheckUser.Every),
-		ExportKey:              siteshttp.NewExportKey(), Network: operations.NewNetworkUsage(database, ed), Reporting: operations.NewReporting(database),
-		ShowcaseLimiter: httpx.NewRateLimiter(60, 30)}
+		ExportKey:              sitesroute.NewExportKey(), Network: operations.NewNetworkUsage(database, ed), Reporting: operations.NewReporting(database),
+		ShowcaseLimiter: httpx.NewRateLimiter(60, 30)}}
 	h.Assets = web.NewAssetPipeline(ed, "")
 	h.CreateIdempotency = idempotency.New(lim)
 	sqlite := appstorage.NewSQLiteGate(lim.StorageSQLConcurrency, lim.StorageAcquireWait)

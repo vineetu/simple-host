@@ -21,6 +21,7 @@ func TestSQLiteOpenAllowList(t *testing.T) {
 		"host/storage/runtime_prepare_rules.go": true,
 		"host/storage/export_sqlite.go":         true,
 		"host/storage/runtime_kv.go":            true,
+		"host/data/storetest/storetest.go":      true, // test fixtures make a site's database file
 	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

@@ -13,15 +13,15 @@ type RecordVisitorSiteInput struct{ Address, GrantID, UserID string }
 
 // RecordVisitorSite records a successful visitor tool's site.
 func (s *Service) RecordVisitorSite(ctx context.Context, in RecordVisitorSiteInput) error {
-	return accounts.RecordVisitorSite(ctx, s.database, in.Address, in.GrantID, in.UserID)
+	return accounts.RecordVisitorSite(ctx, s.DB, in.Address, in.GrantID, in.UserID)
 }
 
 // VisitorAccountExists reports whether a structural identifier names an account.
 func (s *Service) VisitorAccountExists(ctx context.Context, id string) (bool, error) {
-	return accounts.VisitorAccountExists(ctx, s.database, id)
+	return accounts.VisitorAccountExists(ctx, s.DB, id)
 }
 
 // VisitorSharedSites lists shared sites in name order.
 func (s *Service) VisitorSharedSites(ctx context.Context, email string) ([]model.Site, error) {
-	return repo.VisitorSharedSites(ctx, s.database, email)
+	return repo.VisitorSharedSites(ctx, s.DB, email)
 }
