@@ -29,14 +29,7 @@ func (h *UserHandler) handleCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	handle := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("handle")))
-	userID, own := "", ""
-	if u := auth.GetUser(r.Context()); u != nil {
-		userID, own = u.ID, u.Handle.String
-	}
-	v, err := accounts.JudgeHandle(r.Context(), h.database, userID, handle)
-	if own != "" && handle == own {
-		v = accounts.HandleVerdict{Address: accounts.HandleAddress(handle)} // your own address, as it is
-	}
+	v, err := accounts.CheckAddress(r.Context(), h.database, auth.GetUser(r.Context()), handle)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return

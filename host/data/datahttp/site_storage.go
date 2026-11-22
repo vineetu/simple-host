@@ -74,14 +74,10 @@ func storageVisitorWrite(r *http.Request) bool {
 }
 
 func (h *DataHandler) ListStorageResources(w http.ResponseWriter, r *http.Request, c StorageCall) {
-	out, err := h.StorageSvc().ListStorageResources(r.Context(), c)
+	entries, err := h.StorageSvc().ResourceListJSON(r.Context(), c)
 	if err != nil {
 		WriteStorageError(w, err, 403)
 		return
-	}
-	entries := make([]map[string]any, 0, len(out))
-	for _, item := range out {
-		entries = append(entries, appstorage.ResourceRulesJSON(item.Resource, item.RulesErrors))
 	}
 	httpx.WriteJSON(w, 200, map[string]any{"resources": entries})
 }
@@ -102,24 +98,18 @@ func (h *DataHandler) putStorageResource(w http.ResponseWriter, r *http.Request,
 		WriteStorageError(w, &appstorage.Error{Code: "invalid_rules", Message: diagnostic.Message, RuleError: &diagnostic, RulesErrors: []httpx.RuleError{diagnostic}}, 400)
 		return
 	}
-	in, decodeErr := appstorage.DecodeResourceInput(body)
-	if err != nil || decodeErr != nil {
+	if err != nil {
 		httpx.WriteError(w, 400, "invalid_request", "invalid JSON body")
 		return
 	}
-	in.Call, in.Name = c, name
-	result, err := h.StorageFor(c).PutStorageResource(r.Context(), in)
+	out, created, err := h.StorageFor(c).SaveResource(r.Context(), c, name, body)
 	if err != nil {
 		WriteStorageError(w, err, 400)
 		return
 	}
 	status := 200
-	if result.Created {
+	if created {
 		status = 201
-	}
-	out := appstorage.ResourceRulesJSON(result.Resource, result.RulesErrors)
-	if len(result.Warnings) > 0 {
-		out["warnings"] = result.Warnings
 	}
 	httpx.WriteJSON(w, status, out)
 }

@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/vsriram/simple-host/host/sites/repo"
 	"log"
 	"time"
+
+	"github.com/vsriram/simple-host/host/sites/repo"
 )
 
 // IdleSite is a candidate for idle cleanup.

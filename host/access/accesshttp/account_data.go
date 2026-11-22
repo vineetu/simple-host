@@ -12,9 +12,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/ops"
 
-	datarepo "github.com/vsriram/simple-host/host/data/repo"
-
-	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
+	appstorage "github.com/vsriram/simple-host/host/data"
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/email"
@@ -289,11 +287,7 @@ func (h *AccessHandler) accountExport(ctx context.Context, me model.User) (map[s
 	if err != nil {
 		return nil, err
 	}
-	addrs, err := sitesrepo.ListAccountAddresses(ctx, h.Database, me.ID)
-	if err != nil {
-		return nil, err
-	}
-	retired, err := sitesrepo.ListRetiredNames(ctx, h.Database, me.ID)
+	addrs, retired, err := h.sitesSvc().AccountAddresses(ctx, me.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -423,7 +417,7 @@ func (h *AccessHandler) visitorExport(ctx context.Context, userID string) (map[s
 	if err != nil {
 		return nil, err
 	}
-	changes, err := datarepo.ListChangesElsewhere(ctx, h.Database, userID)
+	changes, err := appstorage.ChangesElsewhere(ctx, h.Database, userID)
 	if err != nil {
 		return nil, err
 	}

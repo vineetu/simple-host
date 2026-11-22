@@ -330,7 +330,6 @@ func TestArgumentValidationHappensBeforeAnyRequest(t *testing.T) {
 	}{
 		{"update_site", map[string]any{"site": "Bad Name!", "files": map[string]any{"index.html": "x"}}},
 		{"create_site", map[string]any{"site": "blog", "files": map[string]any{"index.html": "x"}, "mode": "replace"}},
-		{"delete_site", map[string]any{"site": "blog", "confirm_name": "blogg"}},
 		{"rollback_site", map[string]any{"site": "blog", "version": 1.5}},
 	}
 	for _, c := range cases {
@@ -352,26 +351,45 @@ func TestRefusedRESTCallBecomesReadableToolError(t *testing.T) {
 	}
 }
 
-// remove_domain disconnects only the address the person confirmed, and a
-// mismatch changes nothing.
-func TestRemoveDomainNeedsTheConnectedDomainConfirmed(t *testing.T) {
+// delete_site hands confirm_name to the server, which deletes nothing
+// unless it names the site.
+func TestDeleteSiteSendsConfirmName(t *testing.T) {
 	up := &recordingUpstream{answers: map[string]func() (int, string){
-		"GET /v1/sites/blog/domain":    func() (int, string) { return 200, `{"domain":"rsvp.example.com","status":"active"}` },
-		"DELETE /v1/sites/blog/domain": func() (int, string) { return 204, "" },
-		"GET /v1/sites":                func() (int, string) { return 200, `[{"name":"blog","site_url":"https://blog.ann.simple-host.app/"}]` },
+		"DELETE /v1/sites/blog": func() (int, string) {
+			return 400, `{"error":"confirm_name \"blogg\" does not match site \"blog\"; nothing was deleted","code":"confirm_name_mismatch"}`
+		},
 	}}
-	text, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("remove_domain", map[string]any{"site": "blog", "confirm_domain": "other.example.com"}), nil, true))
-	if !isErr {
+	text, _, isErr := resultOf(t, send(t, newTestServer(up), toolCall("delete_site", map[string]any{"site": "blog", "confirm_name": "blogg"}), nil, true))
+	if !isErr || !strings.Contains(text, "nothing was deleted") {
 		t.Fatalf("mismatch: isErr=%v text=%q", isErr, text)
 	}
-	for _, r := range up.requests {
-		if r.Method == http.MethodDelete {
-			t.Fatalf("mismatch still sent DELETE %s", r.URL.Path)
-		}
+	if len(up.requests) != 1 || up.requests[0].URL.Query().Get("confirm_name") != "blogg" {
+		t.Fatalf("requests: %v", up.requests)
 	}
+}
+
+// remove_domain disconnects only the address the person confirmed: the
+// server is told which one, and a mismatch changes nothing.
+func TestRemoveDomainNeedsTheConnectedDomainConfirmed(t *testing.T) {
+	up := &recordingUpstream{answers: map[string]func() (int, string){
+		"DELETE /v1/sites/blog/domain": func() (int, string) {
+			return 200, `{"name":"blog","site_url":"https://blog.ann.simple-host.app/"}`
+		},
+	}}
 	text, structured, isErr := resultOf(t, send(t, newTestServer(up), toolCall("remove_domain", map[string]any{"site": "blog", "confirm_domain": "https://RSVP.example.com/"}), nil, true))
 	if isErr || structured["removed"] != "rsvp.example.com" || structured["url"] != "https://blog.ann.simple-host.app/" {
 		t.Fatalf("remove: isErr=%v text=%q structured=%v", isErr, text, structured)
+	}
+	if len(up.requests) != 1 || up.requests[0].URL.Query().Get("domain") != "rsvp.example.com" || up.requests[0].URL.Query().Get("return") != "site" {
+		t.Fatalf("requests: %v", up.requests)
+	}
+	refused := &recordingUpstream{answers: map[string]func() (int, string){
+		"DELETE /v1/sites/blog/domain": func() (int, string) {
+			return 409, `{"error":"the site's domain is not other.example.com (it changed); nothing was changed","code":"domain_changed"}`
+		},
+	}}
+	if text, _, isErr := resultOf(t, send(t, newTestServer(refused), toolCall("remove_domain", map[string]any{"site": "blog", "confirm_domain": "other.example.com"}), nil, true)); !isErr {
+		t.Fatalf("mismatch: isErr=%v text=%q", isErr, text)
 	}
 }
 

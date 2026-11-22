@@ -1,7 +1,6 @@
 package siteshttp
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -9,6 +8,7 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites"
 )
 
 // getSiteAnalytics is owner-scoped; `owner` lets the platform admin read another account's site (see analyticsSite).
@@ -108,11 +108,12 @@ func (h *SiteHandler) getSiteTopAnalytics(w http.ResponseWriter, r *http.Request
 // learn which handles or sites exist.
 func (h *SiteHandler) analyticsSite(w http.ResponseWriter, r *http.Request, user *model.User) (model.Site, bool) {
 	site, err := h.Reporting.AnalyticsSite(r.Context(), user, r.URL.Query().Get("owner"), r.PathValue("sitename"))
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
-			return model.Site{}, false
-		}
+	var refusal *sites.Error
+	switch {
+	case errors.As(err, &refusal):
+		httpx.WriteError(w, httpx.RefusalStatus(refusal.Code, http.StatusInternalServerError), refusal.Code, refusal.Message)
+		return model.Site{}, false
+	case err != nil:
 		httpx.WriteInternal(w)
 		return model.Site{}, false
 	}

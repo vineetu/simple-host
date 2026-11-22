@@ -97,19 +97,19 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"GET /v1/sites": fixed(200, "["+site("blog", 2, "public", "rsvp.example.com", "active")+","+
 			strings.TrimSuffix(site("draft", 0, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ann.simple-host.app/<site>/ until ..."}}`+","+site("pend", 1, "public", "pend.example.com", "pending")+","+
 			strings.Replace(site("broken", 1, "unlisted", "broken.example.com", "error"), "{", `{"offline":true,"owner":"studio","access_role":"member",`, 1)+"]"),
-		"POST /v1/teams":                                 fixed(201, `{"id":"t-1","handle":"studio","members":1,"sites":0,"created_at":"2026-11-19T00:00:00Z"}`),
-		"GET /v1/teams":                                  fixed(200, `{"teams":[{"id":"t-1","handle":"studio","members":2,"sites":1,"created_at":"2026-11-19T00:00:00Z"}],"invitations":[{"id":"i-1","team":"crew","invited_by":"cal","created_at":"2026-11-19T00:00:00Z","expires_at":"2026-12-03T00:00:00Z"}]}`),
-		"GET /v1/teams/studio/members":                   fixed(200, `{"team":{"id":"t-1","handle":"studio","members":2,"sites":1,"created_at":"2026-11-19T00:00:00Z"},"members":[{"id":"u-1","handle":"ann","display_name":"Ann","added_at":"2026-11-19T00:00:00Z"},{"id":"u-2","handle":"ben","added_by":"ann","added_at":"2026-11-19T00:00:00Z"}],"invitations":[{"id":"i-2","team":"studio","addressed_to":"cal","invited_by":"ann","created_at":"2026-11-19T00:00:00Z","expires_at":"2026-12-03T00:00:00Z"}]}`),
-		"POST /v1/teams/studio/members":                  fixed(202, `{"invited":true,"expires_in_days":14,"note":"Nothing is sent."}`),
-		"DELETE /v1/teams/studio/invitations/i-2":        fixed(200, `{"cancelled":"i-2"}`),
-		"POST /v1/me/team-invitations/i-1":               fixed(200, `{"team":"crew","answer":"accept"}`),
-		"DELETE /v1/teams/studio/members/cal":            fixed(200, `{"removed":"cal"}`),
-		"DELETE /v1/teams/studio":                        fixed(200, `{"deleted":"studio"}`),
-		"GET /v1/sites/blog/versions/2/files":            fixed(200, `{"files":[{"path":"index.html","size":11},{"path":"logo.png","size":4}]}`),
-		"GET /v1/sites/blog/versions/2/files/index.html": fixed(200, "<h1>hi</h1>"),
-		"GET /v1/sites/blog/versions/1/files/logo.png":   fixed(200, "\x89PNG\x00\x01"),
-		"POST /v1/sites/fresh/files":                     fixed(201, strings.TrimSuffix(site("fresh", 1, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
-		"PUT /v1/sites/blog/files":                       fixed(200, strings.TrimSuffix(site("blog", 3, "public", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
+		"POST /v1/teams":                          fixed(201, `{"id":"t-1","handle":"studio","members":1,"sites":0,"created_at":"2026-11-19T00:00:00Z"}`),
+		"GET /v1/teams":                           fixed(200, `{"teams":[{"id":"t-1","handle":"studio","members":2,"sites":1,"created_at":"2026-11-19T00:00:00Z"}],"invitations":[{"id":"i-1","team":"crew","invited_by":"cal","created_at":"2026-11-19T00:00:00Z","expires_at":"2026-12-03T00:00:00Z"}]}`),
+		"GET /v1/teams/studio/members":            fixed(200, `{"team":{"id":"t-1","handle":"studio","members":2,"sites":1,"created_at":"2026-11-19T00:00:00Z"},"members":[{"id":"u-1","handle":"ann","display_name":"Ann","added_at":"2026-11-19T00:00:00Z"},{"id":"u-2","handle":"ben","added_by":"ann","added_at":"2026-11-19T00:00:00Z"}],"invitations":[{"id":"i-2","team":"studio","addressed_to":"cal","invited_by":"ann","created_at":"2026-11-19T00:00:00Z","expires_at":"2026-12-03T00:00:00Z"}]}`),
+		"POST /v1/teams/studio/members":           fixed(202, `{"invited":true,"expires_in_days":14,"note":"Nothing is sent."}`),
+		"DELETE /v1/teams/studio/invitations/i-2": fixed(200, `{"cancelled":"i-2"}`),
+		"POST /v1/me/team-invitations/i-1":        fixed(200, `{"team":"crew","answer":"accept"}`),
+		"DELETE /v1/teams/studio/members/cal":     fixed(200, `{"removed":"cal"}`),
+		"DELETE /v1/teams/studio":                 fixed(200, `{"deleted":"studio"}`),
+		"GET /v1/sites/blog/versions/2/files":     fixed(200, `{"version_number":2,"files":[{"path":"index.html","size":11,"content_type":"text/html; charset=utf-8","content":"<h1>hi</h1>"},{"path":"big.txt","error":"file not found","status":404}]}`),
+		"GET /v1/sites/blog/versions/live/files":  fixed(200, `{"version_number":2,"files":[{"path":"index.html","size":11,"content_type":"text/html; charset=utf-8","content":"<h1>hi</h1>"}]}`),
+		"GET /v1/sites/blog/versions/1/files":     fixed(200, `{"version_number":1,"files":[{"path":"logo.png","size":6,"content_type":"image/png","binary":true}]}`),
+		"POST /v1/sites/fresh/files":              fixed(201, strings.TrimSuffix(site("fresh", 1, "unlisted", "", ""), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
+		"PUT /v1/sites/blog/files":                fixed(200, strings.TrimSuffix(site("blog", 3, "public", "rsvp.example.com", "active"), "}")+`,"address_state":{"state":"waiting","note":"Your sites are at ..."}}`),
 		"GET /v1/sites/blog/versions": fixed(200, `[{"version_number":1,"created_at":"2026-09-01T00:00:00Z","is_active":false,"status":"active"},`+
 			`{"version_number":2,"created_at":"2026-09-02T00:00:00Z","is_active":true,"status":"active"},`+
 			`{"version_number":3,"created_at":"2026-09-03T00:00:00Z","is_active":false,"status":"ready"}]`),
@@ -140,7 +140,7 @@ func TestEveryToolResultMatchesItsOutputSchema(t *testing.T) {
 		"GET /v1/sites/blog/domain": fixed(200, `{"domain":"rsvp.example.com","status":"active","verified_at":"2026-09-01T00:00:00Z","dns":{"type":"A","host":"rsvp.example.com","value":"192.0.2.1"}}`),
 		"GET /v1/sites/pend/domain": fixed(200, `{"domain":"pend.example.com","status":"pending","bound_at":"2026-09-01T00:00:00Z","expires_at":"2026-09-02T00:00:00Z","certificate_status":"issuing","previous_domain":"pend.simple-host.app",`+
 			`"dns":{"type":"CNAME","host":"pend.example.com","value":"sites.simple-host.app"},"dns_txt":{"type":"TXT","host":"_simple-host.pend.example.com","value":"sh-0123456789abcdef0123456789abcdef"}}`),
-		"DELETE /v1/sites/blog/domain": fixed(204, ""),
+		"DELETE /v1/sites/blog/domain": fixed(200, site("blog", 2, "public", "", "")),
 		"POST /v1/me/address-families": fixed(201, `{"id":"f-1","family":"*.trips.example.com","suffix":"trips.example.com","site_prefix":"","rank":0,"canonical":true,"status":"pending","live":false,`+
 			`"bound_at":"2026-09-01T00:00:00Z","expires_at":"2026-09-02T00:00:00Z","dns":{"type":"CNAME","host":"*.trips.example.com","value":"cname.simple-host.app"},`+
 			`"dns_txt":{"type":"TXT","host":"_simple-host.trips.example.com","value":"sh-0123"},"certificate":{"mode":"wildcard","status":"waiting_for_operator","note":"the operator sets it up"},"example_url":"https://blog.trips.example.com/"}`),

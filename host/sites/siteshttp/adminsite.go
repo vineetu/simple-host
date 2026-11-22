@@ -3,7 +3,6 @@ package siteshttp
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"net/http"
 	"regexp"
@@ -35,16 +34,12 @@ func (h *SiteHandler) asSiteOwner(next http.HandlerFunc) http.Handler {
 		admin := auth.GetUser(r.Context())
 		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
 		if !siteIDShape.MatchString(id) {
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
+			httpx.WriteError(w, http.StatusNotFound, "site_not_found", "site not found")
 			return
 		}
 		site, owner, err := h.SitesSvc().AdminSiteTarget(r.Context(), id, r.Pattern == "DELETE /v1/admin/sites/{id}")
-		if e, ok := err.(*appsites.Error); ok && e.Code == "legacy_site_name" {
-			httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: e.Error(), Code: e.Code})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
+		if e, ok := err.(*appsites.Error); ok {
+			httpx.WriteError(w, httpx.RefusalStatus(e.Code, http.StatusConflict), e.Code, e.Message)
 			return
 		}
 		if err != nil {

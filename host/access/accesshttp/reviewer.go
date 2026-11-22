@@ -17,7 +17,6 @@ package accesshttp
 // figure for this construction. `simple-host review-account hash` makes one.
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/pbkdf2"
 	"crypto/rand"
@@ -36,7 +35,6 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
-	"github.com/vsriram/simple-host/host/sqlkit"
 )
 
 const (
@@ -195,36 +193,25 @@ func (h *ConnectorHandler) reviewerSignInHandler(w http.ResponseWriter, r *http.
 		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "That email and password did not match the reviewer account."})
 		return
 	}
-	user, err := h.reviewerAccount(r.Context(), rv.email)
-	if err != nil {
+	// Keys are stored only as hashes, so each sign-in hands out a new one.
+	key, err := auth.GenerateAPIKey()
+	var user model.User
+	if err == nil {
+		user, err = h.accountsSvc().ReviewerSignIn(r.Context(), rv.email, h.ed.Identity().RandomHandles, key)
+	}
+	switch {
+	case errors.Is(err, accounts.ErrReviewerUnavailable):
 		log.Printf("connector: reviewer account: %v", err)
 		httpx.WriteJSON(w, http.StatusForbidden, httpx.ErrorResponse{Error: "The reviewer account is not available."})
 		return
-	}
-	// Keys are stored only as hashes, so each sign-in hands out a new one;
-	// the reviewer's earlier keys keep working.
-	key, err := auth.GenerateAPIKey()
-	if err == nil {
-		err = h.accountsSvc().AddSignInKey(r.Context(), user.ID, key, model.KeyNameReviewer)
-	}
-	if errors.Is(err, model.ErrAccountSuspended) {
+	case errors.Is(err, model.ErrAccountSuspended):
 		auth.WriteSuspended(w, "", "")
 		return
-	}
-	if err != nil {
+	case err != nil:
 		log.Printf("connector: reviewer key: %v", err)
 		httpx.WriteInternal(w)
 		return
 	}
 	log.Printf("connector: reviewer sign-in user_id=%s", user.ID)
 	httpx.WriteJSON(w, http.StatusOK, map[string]string{"api_key": key, "username": user.Username})
-}
-
-// reviewerAccount returns the reviewer's ordinary account, creating it on first
-// use the way a first verified email code does. An admin account is refused:
-// the reviewer must never hold more than a normal person's power.
-func (h *ConnectorHandler) reviewerAccount(ctx context.Context, email string) (model.User, error) {
-	return h.accountsSvc().ReviewerAccount(ctx, email, h.ed.Identity().RandomHandles, func(ctx context.Context, q sqlkit.Querier, id, email string, random bool) {
-		accounts.AssignHandle(ctx, q, id, email, random)
-	})
 }

@@ -19,6 +19,7 @@ import (
 
 	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
+	"github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/eventdns"
 	"github.com/vsriram/simple-host/host/web"
@@ -67,35 +68,13 @@ func (h *SetupHandler) Register(mux *http.ServeMux) {
 	mux.Handle("POST /v1/setup/finish", h.authorize(h.finish))
 }
 
-// InstanceConfigured reads persisted hosts; absent rows mean setup is unfinished.
-// Apply host/db/migrations/instance-config.sql before calling this on older databases.
-func InstanceConfigured(ctx context.Context, db *sql.DB) (siteDomain, contentHost string, err error) {
-	rows, err := db.QueryContext(ctx, `SELECT key, value FROM instance_config WHERE key IN ('site_domain', 'content_host')`)
-	if err != nil {
-		return "", "", err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var key, value string
-		if err = rows.Scan(&key, &value); err != nil {
-			return "", "", err
-		}
-		if key == "site_domain" {
-			siteDomain = value
-		} else {
-			contentHost = value
-		}
-	}
-	return siteDomain, contentHost, rows.Err()
-}
-
 func setupError(w http.ResponseWriter, status int, message string) {
 	httpx.WriteJSON(w, status, httpx.ErrorResponse{Error: message})
 }
 
 func (h *SetupHandler) state(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	host, _, err := InstanceConfigured(r.Context(), h.db)
+	host, _, err := ops.InstanceConfigured(r.Context(), h.db)
 	if err != nil {
 		setupError(w, 500, "Cannot check setup. Try again.")
 		return
@@ -251,36 +230,15 @@ func (h *SetupHandler) finish(w http.ResponseWriter, r *http.Request) {
 		setupError(w, 500, "Set ADMIN_API_KEY on this server, then retry.")
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
-	if err != nil {
-		setupError(w, 500, "Cannot save setup. Try again.")
-		return
-	}
-	defer tx.Rollback()
-	// Establish a lockable row even on a fresh database. A concurrent insert
-	// waits for this transaction, then FOR UPDATE sees its committed value.
-	_, err = tx.ExecContext(r.Context(), `INSERT INTO instance_config (key, value) VALUES ('site_domain', '') ON CONFLICT (key) DO NOTHING`)
-	if err != nil {
-		setupError(w, 500, "Cannot save setup. Try again.")
-		return
-	}
-	var current string
-	err = tx.QueryRowContext(r.Context(), `SELECT value FROM instance_config WHERE key='site_domain' FOR UPDATE`).Scan(&current)
-	if err != nil {
-		setupError(w, 500, "Cannot save setup. Try again.")
-		return
-	}
-	if current != "" {
+	switch err := ops.FinishSetup(r.Context(), h.db, host, req.ContentHost); {
+	case errors.Is(err, ops.ErrSetupDone):
 		setupError(w, 409, "Setup is already complete. Open your instance.")
 		return
-	}
-	_, err = tx.ExecContext(r.Context(), `INSERT INTO instance_config (key, value) VALUES ('site_domain', $1), ('content_host', $2) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=now()`, host, req.ContentHost)
-	if err != nil {
-		setupError(w, 500, "Cannot save setup. Try again.")
-		return
-	}
-	if err = tx.Commit(); err != nil {
+	case errors.Is(err, ops.ErrSetupUnconfirmed):
 		setupError(w, 500, "Cannot confirm setup. Reload to check its status.")
+		return
+	case err != nil:
+		setupError(w, 500, "Cannot save setup. Try again.")
 		return
 	}
 	httpx.WriteJSON(w, 200, map[string]string{"admin_api_key": key})

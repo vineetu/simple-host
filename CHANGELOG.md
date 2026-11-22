@@ -1,5 +1,6 @@
 # Changelog
 
+2026-11-21: get_site, read_site_file, update_site edits, delete_site and remove_domain each make one API request. The API gains optional parameters for them: `GET /v1/sites?files=<site>` lists that site's live files, `GET /v1/sites/{site}/versions/live/files?read=<path>` reads files' text (also by version number), `DELETE /v1/sites/{site}?confirm_name=` deletes only when the name matches, and `DELETE /v1/sites/{site}/domain?return=site` answers with the site. Requests without them behave as before.
 2026-11-21: One visitor gate decides pages, saved-data routes, sign-in routes and visitor tools; who gets in is unchanged. A connector site name must also follow the site name rule (no leading or trailing hyphen, at most 63 characters), as the API already required.
 2026-11-21: Simple Hack votes are kept per account instead of per email address; team messages show the sender's current name.
 

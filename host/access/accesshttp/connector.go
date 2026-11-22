@@ -456,27 +456,9 @@ func (h *ConnectorHandler) register(w http.ResponseWriter, r *http.Request) {
 		oauthError(w, http.StatusBadRequest, "invalid_client_metadata", "body must be a JSON client metadata document")
 		return
 	}
-	method, err := accounts.CheckClientMetadata(req, oauthMaxRedirectURIs)
+	client, secret, err := h.accountsSvc().RegisterClient(r.Context(), req, oauthMaxRedirectURIs)
 	if err != nil {
-		oauthError(w, http.StatusBadRequest, err.Code, err.Description)
-		return
-	}
-	client := model.OAuthClient{
-		ClientID:                accounts.RandomToken(accounts.PrefixClient, 16),
-		Name:                    httpx.CleanClientName(req.ClientName),
-		RedirectURIs:            req.RedirectURIs,
-		TokenEndpointAuthMethod: method,
-		PKCERequired:            true,
-		Dynamic:                 true,
-	}
-	var secret string
-	if method != "none" {
-		secret = accounts.RandomToken(accounts.PrefixSecret, 32)
-		client.SecretHash = sql.NullString{String: accounts.HashSecret(secret), Valid: true}
-	}
-	if err := h.accountsSvc().InsertOAuthClient(r.Context(), client); err != nil {
-		log.Printf("connector: register client: %v", err)
-		oauthError(w, http.StatusInternalServerError, "server_error", "")
+		writeConnectorError(w, err)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -713,14 +695,34 @@ func (h *ConnectorHandler) accountsSvc() *accounts.Service { return accounts.New
 func (h *ConnectorHandler) connectorSvc() *accounts.Connector {
 	return accounts.NewConnector(h.database, h.now, h.Issuer, h.teamConnections, h.Limits.OAuthAccessTTL, h.Limits.OAuthRefreshTTL)
 }
+
+// writeConnectorError answers an *accounts.ConnectorError with its status.
+func writeConnectorError(w http.ResponseWriter, err error) {
+	e := err.(*accounts.ConnectorError)
+	oauthError(w, connectorErrorStatus(err), e.Code, e.Description)
+}
+
+// connectorErrorStatus is the status of a token, revocation or registration
+// refusal (an *accounts.ConnectorError): invalid_client 401,
+// temporarily_unavailable 503, an internal one 500, the rest 400.
+func connectorErrorStatus(err error) int {
+	e, ok := err.(*accounts.ConnectorError)
+	switch {
+	case !ok:
+		return 0
+	case e.Internal:
+		return http.StatusInternalServerError
+	case e.Code == "invalid_client":
+		return http.StatusUnauthorized
+	case e.Code == "temporarily_unavailable":
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusBadRequest
+}
+
 func (h *ConnectorHandler) writeConnectorTokens(w http.ResponseWriter, reply accounts.ConnectorTokens, err error) {
 	if err != nil {
-		e := err.(*accounts.ConnectorError)
-		status := http.StatusBadRequest
-		if e.Internal {
-			status = http.StatusInternalServerError
-		}
-		oauthError(w, status, e.Code, e.Description)
+		writeConnectorError(w, err)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")

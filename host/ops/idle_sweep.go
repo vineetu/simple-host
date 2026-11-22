@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"github.com/vsriram/simple-host/host/edition"
+	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 	"log"
 	"time"
@@ -57,4 +58,26 @@ func (h *Reporting) RunIdleCleanup(ctx context.Context, now time.Time, ed *editi
 	for _, s := range remove {
 		archive.RemoveIdleSite(ctx, sites.IdleArchiveInput{Site: s, Now: now})
 	}
+}
+
+// IdleDryRun is what a cleanup run would do now: whether visit data can be
+// trusted (and why not), how far back it goes, and up to show sites a run
+// would move to Recently deleted.
+type IdleDryRun struct {
+	Trusted         bool
+	Why             string
+	Since, LastRead time.Time
+	WouldRemove     []model.IdleSite
+}
+
+// IdleCleanupDryRun answers the operator's idle-sites view.
+func (h *Reporting) IdleCleanupDryRun(ctx context.Context, now time.Time, ed *edition.Edition, ex model.IdleExempt, show int) (IdleDryRun, error) {
+	var out IdleDryRun
+	var err error
+	out.Trusted, out.Why, out.Since, out.LastRead, err = h.IdleEvidenceStatus(ctx, now, ed)
+	if err != nil {
+		return out, err
+	}
+	out.WouldRemove, err = h.ListIdleSitesToRemove(ctx, ex, now.Add(-IdleRemoveAfter(ed)), show)
+	return out, err
 }

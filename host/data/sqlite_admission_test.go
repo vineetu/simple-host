@@ -111,19 +111,13 @@ func runAdmissionRowContext(ctx context.Context, s *Service, c Call, operation s
 	in := TableInput{Call: c, Table: "notes", ID: 1, Values: map[string]json.RawMessage{"body": json.RawMessage(`"changed"`)}, Query: url.Values{}}
 	switch operation {
 	case "get":
-		return s.TableGet(ctx, in)
+		return s.TableRead(ctx, in)
 	case "list":
-		return s.TableList(ctx, in)
+		in.ID = 0
+		return s.TableRead(ctx, in)
 	}
 	in.Authorized = s.AuthorizeTableWrite(ctx, in, operation)
-	switch operation {
-	case "add":
-		return s.TableAdd(ctx, in)
-	case "edit":
-		return s.TableEdit(ctx, in)
-	default:
-		return s.TableRemove(ctx, in)
-	}
+	return s.TableWrite(ctx, in)
 }
 
 func TestRowAdmissionInjectedPanics(t *testing.T) {
@@ -244,7 +238,7 @@ func TestRowAdmissionSharedByServicesAndResources(t *testing.T) {
 	<-entered
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
-	_, err = second.TableGet(ctx, TableInput{Call: secondCall, Table: "notes", ID: 1})
+	_, err = second.TableRead(ctx, TableInput{Call: secondCall, Table: "notes", ID: 1})
 	if err == nil || err.(*Error).Code != "storage_busy" {
 		t.Fatalf("second resource/service bypassed slot: %v", err)
 	}

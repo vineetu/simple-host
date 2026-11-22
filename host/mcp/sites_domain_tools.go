@@ -4,7 +4,7 @@ package mcp
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -272,34 +272,21 @@ func runRemoveDomain(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	path := "/v1/sites/" + url.PathEscape(name) + "/domain"
-	res := c.do(http.MethodGet, path, nil, nil)
-	if !res.ok() {
-		return output{}, restError("remove_domain", res)
-	}
-	var cur struct {
-		Domain *string `json:"domain"`
-	}
-	_ = json.Unmarshal(res.body, &cur)
-	if cur.Domain == nil || *cur.Domain == "" {
-		return output{}, fmt.Errorf("site %q has no domain connected; nothing was changed", name)
-	}
+	// The server drops the domain only if it is the one confirm_domain
+	// names (domain_changed otherwise), and answers with the site as it is
+	// now.
 	want := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(strings.ToLower(strings.TrimSpace(confirm)), "https://"), "http://"), "/")
-	if want != strings.ToLower(*cur.Domain) {
-		return output{}, fmt.Errorf("confirm_domain %q does not match the connected domain %q; nothing was changed", confirm, *cur.Domain)
+	if want == "" {
+		return output{}, errors.New("confirm_domain must be the domain connected to the site; nothing was changed")
 	}
-	// The server drops only this address: if the site's domain
-	// changed since the read above, it answers domain_changed.
-	res = c.do(http.MethodDelete, path+"?domain="+url.QueryEscape(*cur.Domain), nil, nil)
-	if !res.ok() {
-		return output{}, restError("remove_domain", res)
+	var site restSite
+	if err := c.doJSON("remove_domain", http.MethodDelete, sitePath(name, "/domain?return=site&domain="+url.QueryEscape(want)), nil, &site); err != nil {
+		return output{}, err
 	}
-	out := map[string]any{"site": name, "removed": *cur.Domain}
-	if site, err := c.findSite(name); err == nil {
-		out["url"] = site.liveURL()
-	}
-	text := "Disconnected " + *cur.Domain + " from " + name + "."
-	if u, ok := out["url"].(string); ok && u != "" {
+	out := map[string]any{"site": name, "removed": want}
+	text := "Disconnected " + want + " from " + name + "."
+	if u := site.liveURL(); u != "" {
+		out["url"] = u
 		text += " The site is now at " + u
 	}
 	return output{Text: text, Structured: out}, nil

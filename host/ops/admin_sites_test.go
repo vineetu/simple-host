@@ -1,4 +1,4 @@
-package siteshttp
+package ops
 
 import (
 	"database/sql"
@@ -6,27 +6,26 @@ import (
 	"time"
 
 	model "github.com/vsriram/simple-host/host/model"
-	operations "github.com/vsriram/simple-host/host/ops"
 )
 
 func TestAdminSiteSortsBeforePagination(t *testing.T) {
 	now := time.Now()
-	rows := []adminSiteEntry{
-		{site: model.Site{ID: "a", CreatedAt: now, LastDeployedAt: sql.NullTime{Time: now.Add(-time.Hour), Valid: true}}, size: operations.SiteUsage{Bytes: 100, LiveBytes: 90}, views: 0},
-		{site: model.Site{ID: "b", CreatedAt: now.Add(-time.Hour), LastDeployedAt: sql.NullTime{Time: now, Valid: true}}, size: operations.SiteUsage{Bytes: 200, LiveBytes: 10}, views: 10},
-		{site: model.Site{ID: "c", CreatedAt: now.Add(-2 * time.Hour)}, size: operations.SiteUsage{Bytes: 300, LiveBytes: 1}, views: 20},
+	rows := []AdminSiteRow{
+		{Site: model.Site{ID: "a", CreatedAt: now, LastDeployedAt: sql.NullTime{Time: now.Add(-time.Hour), Valid: true}}, Usage: SiteUsage{Bytes: 100, LiveBytes: 90}, Views: 0},
+		{Site: model.Site{ID: "b", CreatedAt: now.Add(-time.Hour), LastDeployedAt: sql.NullTime{Time: now, Valid: true}}, Usage: SiteUsage{Bytes: 200, LiveBytes: 10}, Views: 10},
+		{Site: model.Site{ID: "c", CreatedAt: now.Add(-2 * time.Hour)}, Usage: SiteUsage{Bytes: 300, LiveBytes: 1}, Views: 20},
 	}
 	for _, tt := range []struct{ key, want string }{{"created", "abc"}, {"size", "cba"}, {"live", "abc"}} {
 		t.Run(tt.key, func(t *testing.T) {
-			copyRows := append([]adminSiteEntry(nil), rows...)
+			copyRows := append([]AdminSiteRow(nil), rows...)
 			sortAdminSites(copyRows, tt.key, false)
 			for page := 0; page < 3; page++ {
-				if copyRows[page].site.ID != string(tt.want[page]) {
-					t.Fatalf("page %d: got %s", page, copyRows[page].site.ID)
+				if copyRows[page].Site.ID != string(tt.want[page]) {
+					t.Fatalf("page %d: got %s", page, copyRows[page].Site.ID)
 				}
 			}
 			sortAdminSites(copyRows, tt.key, true)
-			if copyRows[0].site.ID != string(tt.want[2]) {
+			if copyRows[0].Site.ID != string(tt.want[2]) {
 				t.Fatal("ascending order")
 			}
 		})
@@ -34,10 +33,10 @@ func TestAdminSiteSortsBeforePagination(t *testing.T) {
 }
 
 func TestAdminSiteSortTiesHaveStableIDs(t *testing.T) {
-	rows := []adminSiteEntry{{site: model.Site{ID: "b"}}, {site: model.Site{ID: "a"}}}
+	rows := []AdminSiteRow{{Site: model.Site{ID: "b"}}, {Site: model.Site{ID: "a"}}}
 	for _, key := range []string{"created", "updated", "size", "views"} {
 		sortAdminSites(rows, key, false)
-		if rows[0].site.ID != "a" {
+		if rows[0].Site.ID != "a" {
 			t.Fatal(key)
 		}
 	}

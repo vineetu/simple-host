@@ -45,10 +45,18 @@ func (h *SiteHandler) deleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expected, check := r.Context().Value(web.AdminSiteKey{}).(string)
-	if err := h.LifecycleSvc().Delete(r.Context(), sites.DeleteInput{UserID: user.ID, Name: siteName, ExpectedSiteID: expected, CheckSiteID: check}); err != nil {
+	in := sites.DeleteInput{UserID: user.ID, Name: siteName, ExpectedSiteID: expected, CheckSiteID: check}
+	if r.URL.Query().Has("confirm_name") {
+		confirm := r.URL.Query().Get("confirm_name")
+		in.ConfirmName = &confirm
+	}
+	if err := h.LifecycleSvc().Delete(r.Context(), in); err != nil {
 		var e *sites.Error
 		if errors.As(err, &e) {
 			switch e.Code {
+			case "confirm_name_mismatch":
+				httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: e.Message, Code: e.Code})
+				return
 			case "delete_not_found":
 				httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
 				return
@@ -107,7 +115,7 @@ func (h *SiteHandler) restoreSite(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, h.toSiteResponseState(result.Site, "Restored with all its versions and saved data.", result.ResponseState.(siteResponseState)))
+	httpx.WriteJSON(w, http.StatusOK, h.ToSiteResponse(result.Site, "Restored with all its versions and saved data."))
 }
 
 func (h *SiteHandler) PurgeDeletedSites(ctx context.Context) { h.LifecycleSvc().PurgeDeleted(ctx) }

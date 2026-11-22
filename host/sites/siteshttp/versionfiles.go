@@ -6,10 +6,8 @@ import (
 	"errors"
 	"io"
 	"log"
-	"mime"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,6 +25,13 @@ var errInvalidVersionPath = sites.ErrInvalidFilePath
 type versionFile struct {
 	Path string `json:"path"`
 	Size int64  `json:"size"`
+}
+
+type versionTextsResponse struct {
+	VersionNumber int              `json:"version_number"`
+	IsActive      bool             `json:"is_active"`
+	CreatedAt     time.Time        `json:"created_at"`
+	Files         []sites.FileText `json:"files"`
 }
 
 type versionFilesResponse struct {
@@ -55,8 +60,10 @@ func (h *SiteHandler) readVersionFiles(w http.ResponseWriter, r *http.Request, l
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "site name is required"})
 		return
 	}
+	// {version} "live" (listing only) is the site's live version.
+	live := listing && r.PathValue("version") == "live"
 	n, err := strconv.Atoi(r.PathValue("version"))
-	if err != nil || n < 1 {
+	if !live && (err != nil || n < 1) {
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "invalid version"})
 		return
 	}
@@ -68,6 +75,12 @@ func (h *SiteHandler) readVersionFiles(w http.ResponseWriter, r *http.Request, l
 			httpx.WriteInternal(w)
 		}
 		return
+	}
+	if live {
+		if n = site.ActiveVersion; n < 1 {
+			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "the site has no live version", Code: "no_live_version"})
+			return
+		}
 	}
 	versions, err := h.SitesSvc().ListVersionsBySite(r.Context(), site.ID)
 	if err != nil {
@@ -101,6 +114,24 @@ func serveVersionFiles(w http.ResponseWriter, r *http.Request, files sites.SiteF
 		return
 	}
 
+	if listing && r.URL.Query().Has("read") {
+		// ?read=<path> (repeated, up to sites.MaxReadPaths): those files' text in
+		// place of the listing.
+		paths := r.URL.Query()["read"]
+		if len(paths) > sites.MaxReadPaths {
+			httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "read takes at most " + strconv.Itoa(sites.MaxReadPaths) + " paths", Code: "invalid_request"})
+			return
+		}
+		texts, err := sites.ReadVersionTexts(r.Context(), files, ref, paths)
+		if err != nil {
+			httpx.WriteInternal(w)
+			return
+		}
+		// File contents, like the raw file route: never stored by a cache.
+		w.Header().Set("Cache-Control", "private, no-store")
+		httpx.WriteJSON(w, http.StatusOK, versionTextsResponse{n, n == active, version.CreatedAt, texts})
+		return
+	}
 	if listing {
 		entries, err := walkVersionFiles(r.Context(), files, ref)
 		if err != nil {
@@ -110,7 +141,7 @@ func serveVersionFiles(w http.ResponseWriter, r *http.Request, files sites.SiteF
 		httpx.WriteJSON(w, http.StatusOK, versionFilesResponse{n, n == active, version.CreatedAt, entries})
 		return
 	}
-	if !validVersionFilePath(r.PathValue("path")) {
+	if !sites.ValidVersionFilePath(r.PathValue("path")) {
 		writeVersionFileError(w, errInvalidVersionPath)
 		return
 	}
@@ -124,13 +155,7 @@ func serveVersionFiles(w http.ResponseWriter, r *http.Request, files sites.SiteF
 		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "file not found"})
 		return
 	}
-	contentType := mime.TypeByExtension(filepath.Ext(r.PathValue("path")))
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	} else if contentType == "text/html" {
-		contentType += "; charset=utf-8"
-	}
-	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Type", sites.VersionFileType(r.PathValue("path")))
 	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -156,18 +181,6 @@ func writeVersionFileError(w http.ResponseWriter, err error) {
 	}
 }
 
-func validVersionFilePath(path string) bool {
-	if strings.ContainsAny(path, "\\\x00") {
-		return false
-	}
-	for _, segment := range strings.Split(path, "/") {
-		if segment == "" || segment == "." || segment == ".." {
-			return false
-		}
-	}
-	return true
-}
-
 func walkVersionFiles(ctx context.Context, files sites.SiteFiles, ref sites.FileVersion) ([]versionFile, error) {
 	entries := make([]versionFile, 0)
 	err := files.WalkFiles(ctx, ref, func(file sites.SiteFile, err error) error {
@@ -176,7 +189,7 @@ func walkVersionFiles(ctx context.Context, files sites.SiteFiles, ref sites.File
 		}
 		// Retain the API's support for safe internal file symlinks and skip
 		// invalid names and links that escape or no longer exist.
-		if !validVersionFilePath(file.Name) {
+		if !sites.ValidVersionFilePath(file.Name) {
 			return nil
 		}
 		info, err := files.StatFile(ctx, ref, file.Name)
@@ -193,4 +206,17 @@ func walkVersionFiles(ctx context.Context, files sites.SiteFiles, ref sites.File
 	})
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
 	return entries, err
+}
+
+// liveVersionFiles lists the files of a site's live version, nil when it has
+// none or they cannot be read (GET /v1/sites?files=<name>).
+func liveVersionFiles(ctx context.Context, files sites.SiteFiles, site model.Site) *[]versionFile {
+	if site.ActiveVersion < 1 {
+		return nil
+	}
+	entries, err := walkVersionFiles(ctx, files, sites.FileVersion{UserID: site.UserID, SiteName: site.Name, Version: site.ActiveVersion})
+	if err != nil {
+		return nil
+	}
+	return &entries
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,42 +19,32 @@ import (
 
 // ---- token endpoint ----------------------------------------------------------------
 
-// authenticateClient applies RFC 6749 §2.3 to a token or revocation request.
-// A confidential client must prove its secret (Basic or in the body); a
-// public client identifies itself by client_id alone and is held to PKCE.
-func (h *ConnectorHandler) authenticateClient(r *http.Request) (model.OAuthClient, bool, string) {
-	formID, formSecret := r.PostForm.Get("client_id"), r.PostForm.Get("client_secret")
+// clientCredentials is the client a token or revocation request presents
+// (RFC 6749 §2.3): Basic credentials, form-encoded before base64 (§2.3.1),
+// or client_id and client_secret in the body. why says what is wrong with a
+// request that names no client or uses both methods.
+func clientCredentials(r *http.Request) (id, secret, why string) {
+	id, secret = r.PostForm.Get("client_id"), r.PostForm.Get("client_secret")
 	basicID, basicSecret, hasBasic := r.BasicAuth()
 	if hasBasic {
-		// Basic credentials are form-encoded before base64 (RFC 6749 §2.3.1).
 		if v, err := url.QueryUnescape(basicID); err == nil {
 			basicID = v
 		}
 		if v, err := url.QueryUnescape(basicSecret); err == nil {
 			basicSecret = v
 		}
-		if formSecret != "" || (formID != "" && formID != basicID) {
-			return model.OAuthClient{}, false, "use one client authentication method"
+		if secret != "" || (id != "" && id != basicID) {
+			return "", "", "use one client authentication method"
 		}
-		formID, formSecret = basicID, basicSecret
+		id, secret = basicID, basicSecret
 	}
-	if formID == "" {
-		return model.OAuthClient{}, false, "client_id is required"
+	if id == "" {
+		return "", "", "client_id is required"
 	}
-	client, err := h.accountsSvc().GetOAuthClient(r.Context(), formID)
-	if err != nil {
-		// Hash anyway so an unknown client costs what a known one does.
-		_ = accounts.HashSecret(formSecret)
-		return model.OAuthClient{}, false, "unknown client"
-	}
-	if client.SecretHash.Valid {
-		if formSecret == "" || subtle.ConstantTimeCompare([]byte(accounts.HashSecret(formSecret)), []byte(client.SecretHash.String)) != 1 {
-			return model.OAuthClient{}, false, "client authentication failed"
-		}
-	}
-	return client, true, ""
+	return id, secret, ""
 }
 
+// token is POST /oauth/token (accounts.Connector.Token).
 func (h *ConnectorHandler) token(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := r.ParseForm(); err != nil {
@@ -68,63 +57,38 @@ func (h *ConnectorHandler) token(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	client, ok, why := h.authenticateClient(r)
-	if !ok {
-		if _, _, basic := r.BasicAuth(); basic {
-			w.Header().Set("WWW-Authenticate", `Basic realm="simple-host"`)
-		}
-		oauthError(w, http.StatusUnauthorized, "invalid_client", why)
-		return
+	id, secret, why := clientCredentials(r)
+	var reply accounts.ConnectorTokens
+	err := error(&accounts.ConnectorError{Code: "invalid_client", Description: why})
+	if why == "" {
+		f := r.PostForm
+		in := accounts.ConnectorTokenInput{Code: f.Get("code"), RedirectURI: f.Get("redirect_uri"), Verifier: f.Get("code_verifier"), Resource: f.Get("resource"), RefreshToken: f.Get("refresh_token"), Scope: f.Get("scope")}
+		reply, err = h.connectorSvc().Token(r.Context(), id, secret, f.Get("grant_type"), in)
 	}
-	_ = h.accountsSvc().TouchOAuthClient(r.Context(), client.ClientID)
-	f := r.PostForm
-	in := accounts.ConnectorTokenInput{Code: f.Get("code"), RedirectURI: f.Get("redirect_uri"), Verifier: f.Get("code_verifier"), Resource: f.Get("resource"), RefreshToken: f.Get("refresh_token"), Scope: f.Get("scope")}
-	switch f.Get("grant_type") {
-	case "authorization_code":
-		reply, err := h.connectorSvc().RedeemCode(r.Context(), in, client)
-		h.writeConnectorTokens(w, reply, err)
-	case "refresh_token":
-		reply, err := h.connectorSvc().Refresh(r.Context(), in, client)
-		h.writeConnectorTokens(w, reply, err)
-	case "":
-		oauthError(w, http.StatusBadRequest, "invalid_request", "grant_type is required")
-	default:
-		oauthError(w, http.StatusBadRequest, "unsupported_grant_type", "")
+	if _, _, basic := r.BasicAuth(); basic && connectorErrorStatus(err) == http.StatusUnauthorized {
+		w.Header().Set("WWW-Authenticate", `Basic realm="simple-host"`)
 	}
+	h.writeConnectorTokens(w, reply, err)
 }
 
-// revoke is RFC 7009. It answers 200 whether or not the token was known, so it
-// cannot be used to test tokens.
+// revoke is RFC 7009 (accounts.Connector.Revoke). It answers 200 whether or
+// not the token was known, so it cannot be used to test tokens.
 func (h *ConnectorHandler) revoke(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	if err := r.ParseForm(); err != nil {
 		oauthError(w, http.StatusBadRequest, "invalid_request", "")
 		return
 	}
-	client, ok, why := h.authenticateClient(r)
-	if !ok {
-		oauthError(w, http.StatusUnauthorized, "invalid_client", why)
+	id, secret, why := clientCredentials(r)
+	err := error(&accounts.ConnectorError{Code: "invalid_client", Description: why})
+	if why == "" {
+		err = h.connectorSvc().Revoke(r.Context(), id, secret, r.PostForm.Get("token"))
+	}
+	if err != nil {
+		writeConnectorError(w, err)
 		return
 	}
-	token := r.PostForm.Get("token")
 	w.Header().Set("Cache-Control", "no-store")
-	if token == "" {
-		oauthError(w, http.StatusBadRequest, "invalid_request", "token is required")
-		return
-	}
-	tokenHash := accounts.HashSecret(token)
-	if tok, err := h.accountsSvc().GetOAuthToken(r.Context(), tokenHash); err == nil && tok.ClientID == client.ClientID {
-		if tok.Kind == "refresh" {
-			err = h.accountsSvc().DeleteOAuthGrant(r.Context(), tok.GrantID)
-		} else {
-			err = h.accountsSvc().DeleteOAuthToken(r.Context(), tokenHash)
-		}
-		if err != nil {
-			log.Printf("connector: revoke: %v", err)
-			oauthError(w, http.StatusServiceUnavailable, "temporarily_unavailable", "")
-			return
-		}
-	}
 	w.WriteHeader(http.StatusOK)
 }
 

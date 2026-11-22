@@ -5,12 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/vsriram/simple-host/host/access/auth"
 	appstorage "github.com/vsriram/simple-host/host/data"
 	httpx "github.com/vsriram/simple-host/host/httpx"
-	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 )
 
 func (h *DataHandler) StorageSvc() *appstorage.Service {
@@ -123,16 +121,7 @@ func storageRefused(w http.ResponseWriter, a *appstorage.Error) bool {
 	return !a.Allowed
 }
 
-// KVFileStats shares request admission with the paper collector. Trashed sites
-// retain their namespaces until permanent deletion, just as Postgres rows do.
+// KVFileStats shares request admission with the paper collector.
 func (h *DataHandler) KVFileStats(ctx context.Context, siteID string) (int64, int64, error) {
-	site, err := sitesrepo.GetSiteByID(ctx, h.Database, siteID)
-	if err != nil {
-		return 0, 0, err
-	}
-	dir := h.Disk.SiteDir(site.UserID, site.Name)
-	if site.Deleted {
-		dir = h.Disk.TrashDir(site.UserID, site.ID)
-	}
-	return h.StorageSvc().KVFileStats(ctx, siteID, filepath.Join(dir, "runtime"))
+	return h.StorageSvc().SiteKVFileStats(ctx, siteID)
 }

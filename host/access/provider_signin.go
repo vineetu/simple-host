@@ -61,9 +61,13 @@ func (flow *ProviderSignIn) Has(name string) bool {
 	return ok
 }
 
+// ProviderFailure is why a provider sign-in stopped: Blocked (the signup
+// geo-block refused the request's country), a Refusal to show, or a bare
+// Status.
 type ProviderFailure struct {
 	Status                 int
 	Message, Code, Refusal string
+	Blocked                bool
 }
 type ProviderResult struct {
 	State           model.OAuthState
@@ -71,9 +75,12 @@ type ProviderResult struct {
 }
 type ProviderCallbackInput struct {
 	Name, State, Code, ProviderError string
-	RandomHandles                    bool
-	AuthTTL                          time.Duration
-	Attribution                      func(context.Context, sqlkit.Querier, string, string) model.Signup
+	// ClientIP is the request's address, for GeoBlock.
+	ClientIP      string
+	GeoBlock      SignupGeoBlock
+	RandomHandles bool
+	AuthTTL       time.Duration
+	Attribution   func(context.Context, sqlkit.Querier, string, string) model.Signup
 }
 
 // NonceHashShape is the shape of a SHA-256 digest in unpadded base64url.
@@ -114,7 +121,18 @@ func providerRandomRaw(n int) ([]byte, error) {
 // the provider's code exchanged for an identity, the account found or made,
 // and either a dashboard sign-in link (owner) or a pending visitor session on
 // the site it started on is issued. Every refusal is a ProviderFailure.
+//
+// Every sign-in from a country the geo-block names is refused first, new
+// account or existing: unlike the email-code path, there is no separate
+// "does this identity already have an account" question to ask first, so
+// this is unconditional and happens before the state/provider round-trip.
 func (flow *ProviderSignIn) Callback(ctx context.Context, in ProviderCallbackInput) (ProviderResult, *ProviderFailure) {
+	if _, blocked := in.GeoBlock.BlockedCountry(in.ClientIP); blocked {
+		return ProviderResult{}, &ProviderFailure{Status: http.StatusForbidden, Blocked: true}
+	}
+	if in.State == "" {
+		return ProviderResult{}, &ProviderFailure{Status: http.StatusBadRequest}
+	}
 	st, ident, fail := flow.callbackIdentity(ctx, in)
 	if fail != nil {
 		return ProviderResult{}, fail

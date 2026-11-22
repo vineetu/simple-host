@@ -1,9 +1,7 @@
 package siteshttp
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -31,42 +29,9 @@ func (h *SiteHandler) ServeOffline(w http.ResponseWriter, r *http.Request) {
 
 func (h *SiteHandler) setSiteOffline(w http.ResponseWriter, r *http.Request, name string, on bool) {
 	user := auth.GetUser(r.Context())
-	if _, err := h.SitesSvc().GetSiteByUser(r.Context(), user.ID, name); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	// Same lock as a deploy, rename or delete: the marker is never written
-	// into a folder that moved meanwhile.
-	unlock := h.LockSite(user.ID, name)
-	defer unlock()
-	site, err := h.SitesSvc().GetSiteByUser(r.Context(), user.ID, name)
+	site, err := h.SitesSvc().SetSiteOffline(r.Context(), user.ID, name, on)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	if web.RefuseSuspendedSite(w, site) {
-		return
-	}
-	if err := h.SitesSvc().SetSiteOffline(r.Context(), site.ID, on); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	site.Offline = on
-	if err := h.Disk.SetOffline(site.UserID, site.Name, site.Offline); err != nil {
-		log.Printf("offline: marker for site %s: %v", site.ID, err)
-		httpx.WriteJSON(w, http.StatusInternalServerError, httpx.ErrorResponse{Error: "saved, but the site's files could not be marked; try again"})
+		writeSitesError(w, err, name)
 		return
 	}
 	log.Printf("site_offline on=%t site_id=%s name=%s by=%s", on, site.ID, site.Name, user.ID)

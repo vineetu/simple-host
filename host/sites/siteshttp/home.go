@@ -1,7 +1,6 @@
 package siteshttp
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -43,23 +42,22 @@ func (h *SiteHandler) homeSetting(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: "send site as a name or null"})
 			return
 		}
-		if name != nil && appsites.ContentHostOnly(u.Handle.String, *name) {
-			httpx.WriteJSON(w, 409, httpx.ErrorResponse{Error: "this site depends on the content host"})
-			return
-		}
-		if err := h.SitesSvc().SetHomeSite(r.Context(), u.ID, name); err != nil {
-			if e, ok := err.(*appsites.Error); ok && e.Code == "invalid_name" {
-				httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: e.Error()})
-			} else if errors.Is(err, sql.ErrNoRows) {
-				httpx.WriteJSON(w, 404, httpx.ErrorResponse{Error: "site not found", Code: "not_found"})
-			} else {
-				httpx.WriteInternal(w)
-			}
-			return
-		}
+		s, has, err := h.SitesSvc().SetHomeSite(r.Context(), u, name)
+		writeHomeSite(w, s, has, err)
+		return
 	}
 	s, has, err := h.SitesSvc().HomeSite(r.Context(), u.ID)
-	if err != nil {
+	writeHomeSite(w, s, has, err)
+}
+
+// writeHomeSite answers GET and PUT /v1/me/home.
+func writeHomeSite(w http.ResponseWriter, s model.Site, has bool, err error) {
+	var refusal *appsites.Error
+	switch {
+	case errors.As(err, &refusal):
+		httpx.WriteJSON(w, httpx.RefusalStatus(refusal.Code, http.StatusConflict), httpx.ErrorResponse{Error: refusal.Message, Code: refusal.Code})
+		return
+	case err != nil:
 		httpx.WriteInternal(w)
 		return
 	}

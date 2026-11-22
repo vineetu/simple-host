@@ -56,60 +56,99 @@ func tableUses(root string, tables map[string]bool) ([]tableUse, error) {
 			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return nil
 			}
-			f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
-			if err != nil {
-				return err
-			}
-			file := rel(root, path)
-			ast.Inspect(f, func(n ast.Node) bool {
-				// pq.CopyIn("table", columns...) writes table.
-				if call, ok := n.(*ast.CallExpr); ok && len(call.Args) > 0 {
-					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "CopyIn" {
-						if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-							if t, err := strconv.Unquote(lit.Value); err == nil && tables[t] {
-								out = append(out, tableUse{File: file, Pkg: filepath.ToSlash(filepath.Dir(file)), Table: t, Line: fset.Position(lit.Pos()).Line})
-							}
-						}
-					}
-				}
-				lit, ok := n.(*ast.BasicLit)
-				if !ok || lit.Kind != token.STRING {
-					return true
-				}
-				s, err := strconv.Unquote(lit.Value)
-				if err != nil || !looksSQL(s) {
-					return true
-				}
-				line := fset.Position(lit.Pos()).Line
-				use := func(t string, at int) {
-					if t = strings.ToLower(t); tables[t] {
-						out = append(out, tableUse{File: file, Pkg: filepath.ToSlash(filepath.Dir(file)), Table: t,
-							Line: line + strings.Count(s[:at], "\n")})
-					}
-				}
-				for _, m := range ownerTableRE.FindAllStringSubmatchIndex(s, -1) {
-					use(s[m[2]:m[3]], m[0])
-					if !strings.EqualFold(s[m[0]:m[0]+4], "FROM") {
-						continue
-					}
-					for rest := m[1]; ; {
-						l := ownerListRE.FindStringSubmatchIndex(s[rest:])
-						if l == nil {
-							break
-						}
-						use(s[rest+l[2]:rest+l[3]], rest)
-						rest += l[1]
-					}
-				}
-				return true
-			})
-			return nil
+			uses, err := fileTableUses(fset, root, path, tables)
+			out = append(out, uses...)
+			return err
 		})
 		if err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
 	}
 	return out, nil
+}
+
+// fileTableUses lists the table uses in one Go file: pq.CopyIn targets and
+// tables named in SQL string literals.
+func fileTableUses(fset *token.FileSet, root, path string, tables map[string]bool) ([]tableUse, error) {
+	f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, err
+	}
+	file := rel(root, path)
+	base := tableUse{File: file, Pkg: filepath.ToSlash(filepath.Dir(file))}
+	var out []tableUse
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.CallExpr:
+			if lit, t, ok := copyInTable(n, tables); ok {
+				u := base
+				u.Table, u.Line = t, fset.Position(lit.Pos()).Line
+				out = append(out, u)
+			}
+		case *ast.BasicLit:
+			if n.Kind != token.STRING {
+				return true
+			}
+			s, err := strconv.Unquote(n.Value)
+			if err != nil || !looksSQL(s) {
+				return true
+			}
+			u := base
+			u.Line = fset.Position(n.Pos()).Line
+			out = append(out, sqlTableUses(u, s, tables)...)
+		}
+		return true
+	})
+	return out, nil
+}
+
+// copyInTable reports a pq.CopyIn("table", columns...) call, which writes
+// that table, when the table is in tables.
+func copyInTable(call *ast.CallExpr, tables map[string]bool) (*ast.BasicLit, string, bool) {
+	if len(call.Args) == 0 {
+		return nil, "", false
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "CopyIn" {
+		return nil, "", false
+	}
+	lit, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return nil, "", false
+	}
+	t, err := strconv.Unquote(lit.Value)
+	if err != nil || !tables[t] {
+		return nil, "", false
+	}
+	return lit, t, true
+}
+
+// sqlTableUses lists the tables in tables that SQL text s names, including
+// each table of a FROM's comma list; base.Line is the line s starts on.
+func sqlTableUses(base tableUse, s string, tables map[string]bool) []tableUse {
+	var out []tableUse
+	use := func(t string, at int) {
+		if t = strings.ToLower(t); tables[t] {
+			u := base
+			u.Table, u.Line = t, base.Line+strings.Count(s[:at], "\n")
+			out = append(out, u)
+		}
+	}
+	for _, m := range ownerTableRE.FindAllStringSubmatchIndex(s, -1) {
+		use(s[m[2]:m[3]], m[0])
+		if !strings.EqualFold(s[m[0]:m[0]+4], "FROM") {
+			continue
+		}
+		for rest := m[1]; ; {
+			l := ownerListRE.FindStringSubmatchIndex(s[rest:])
+			if l == nil {
+				break
+			}
+			use(s[rest+l[2]:rest+l[3]], rest)
+			rest += l[1]
+		}
+	}
+	return out
 }
 
 // readRows reads a "a | b | c" file, skipping blank and # lines.

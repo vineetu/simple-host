@@ -2,6 +2,8 @@ package sites
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/vsriram/simple-host/host/sites/repo"
 )
@@ -31,7 +33,11 @@ type ExportSiteInput struct {
 // ExportSite resolves the site for an archive or a download link.
 func (s *Service) ExportSite(ctx context.Context, in ExportSiteInput) (repo.Site, error) {
 	if !in.DownloadLink {
-		return repo.GetSiteByUser(ctx, s.database, in.UserID, in.Name)
+		site, err := repo.GetSiteByUser(ctx, s.database, in.UserID, in.Name)
+		if errors.Is(err, sql.ErrNoRows) {
+			return site, &Error{Code: "site_not_found", Message: "site not found"}
+		}
+		return site, err
 	}
 	site, err := repo.GetSiteByID(ctx, s.database, in.SiteID)
 	if err != nil || site.UserID != in.UserID || site.Deleted {

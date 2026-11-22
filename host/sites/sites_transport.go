@@ -2,6 +2,8 @@ package sites
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	rules "github.com/vsriram/simple-host/host/rules/sites"
 
@@ -33,43 +35,53 @@ func (s *Service) GetAllowedOriginsByID(ctx context.Context, siteID string) ([]s
 	return repo.GetAllowedOriginsByID(ctx, s.database, siteID)
 }
 
-func (s *Service) SetHomeSite(ctx context.Context, userID string, name *string) error {
+// SetHomeSite makes the account's site name (nil: none) its home page and
+// returns the home as it now is. Refusals: invalid_name, home_content_host
+// (a site that depends on the content host), not_found (no such site).
+func (s *Service) SetHomeSite(ctx context.Context, user *model.User, name *string) (model.Site, bool, error) {
 	if name != nil && !rules.ValidSiteName.MatchString(*name) {
-		return &Error{Code: "invalid_name", Message: "send site as a name or null"}
+		return model.Site{}, false, &Error{Code: "invalid_name", Message: "send site as a name or null"}
 	}
-	return repo.SetHomeSite(ctx, s.database, userID, name)
+	if name != nil && ContentHostOnly(user.Handle.String, *name) {
+		return model.Site{}, false, &Error{Code: "home_content_host", Message: "this site depends on the content host"}
+	}
+	if err := repo.SetHomeSite(ctx, s.database, user.ID, name); errors.Is(err, sql.ErrNoRows) {
+		return model.Site{}, false, &Error{Code: "not_found", Message: "site not found"}
+	} else if err != nil {
+		return model.Site{}, false, err
+	}
+	return s.HomeSite(ctx, user.ID)
 }
 
 func (s *Service) ShowcasePreferences(ctx context.Context, userID string) (map[string]model.ShowcasePreference, error) {
 	return repo.ShowcasePreferences(ctx, s.database, userID)
 }
 
+// GetShowcasePreference is one site's showcase pin and order; Error code
+// not_found when the account has no such site.
 func (s *Service) GetShowcasePreference(ctx context.Context, userID, name string) (model.ShowcasePreference, error) {
-	return repo.GetShowcasePreference(ctx, s.database, userID, name)
+	return showcasePreference(repo.GetShowcasePreference(ctx, s.database, userID, name))
 }
 
+// SetShowcasePreference sets one site's showcase pin and/or order; Error
+// code not_found when the account has no such site.
 func (s *Service) SetShowcasePreference(ctx context.Context, userID, name string, pinned *bool, order *int) (model.ShowcasePreference, error) {
-	return repo.SetShowcasePreference(ctx, s.database, userID, name, pinned, order)
+	return showcasePreference(repo.SetShowcasePreference(ctx, s.database, userID, name, pinned, order))
+}
+
+func showcasePreference(pref model.ShowcasePreference, err error) (model.ShowcasePreference, error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return pref, &Error{Code: "not_found", Message: "site not found"}
+	}
+	return pref, err
 }
 
 func (s *Service) ListHandlesWithSites(ctx context.Context) ([]string, error) {
 	return repo.ListHandlesWithSites(ctx, s.database)
 }
 
-func (s *Service) SetAllowedOrigins(ctx context.Context, siteID, origins string) error {
-	return repo.SetAllowedOrigins(ctx, s.database, siteID, origins)
-}
-
 func (s *Service) SiteOffline(ctx context.Context, siteID string) (bool, error) {
 	return repo.SiteOffline(ctx, s.database, siteID)
-}
-
-func (s *Service) SetSiteOffline(ctx context.Context, siteID string, on bool) error {
-	return repo.SetSiteOffline(ctx, s.database, siteID, on)
-}
-
-func (s *Service) ListSiteKeep(ctx context.Context, userID string) (map[string]bool, error) {
-	return repo.ListSiteKeep(ctx, s.database, userID)
 }
 
 func (s *Service) AllowDomainCertRequest(ctx context.Context, userID, domain string, dailyCap int) (bool, error) {

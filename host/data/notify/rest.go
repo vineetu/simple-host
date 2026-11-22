@@ -130,9 +130,19 @@ func View(n model.Notification) map[string]any {
 	return out
 }
 
-// List is who's subscriptions on siteName ("": on every site) as REST
-// views. A member's site not published yet has none.
-func (e *Engine) List(ctx context.Context, who Requester, siteName string) ([]map[string]any, error) {
+// List answers GET .../notifications: who's subscriptions on siteName
+// ("": on every site) as REST views, with the limits the dashboard shows.
+func (e *Engine) List(ctx context.Context, env Env, who Requester, siteName string) (map[string]any, error) {
+	views, err := e.views(ctx, who, siteName)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"notifications": views, "limits": e.Limits(env)}, nil
+}
+
+// views is who's subscriptions on siteName as REST views. A member's site
+// not published yet has none.
+func (e *Engine) views(ctx context.Context, who Requester, siteName string) ([]map[string]any, error) {
 	out := []map[string]any{}
 	if err := e.refuse(ctx, who.Person, who.DeployOnly); err != nil {
 		return out, err
@@ -234,27 +244,29 @@ type CreateInput struct {
 }
 
 // Create validates and saves a webhook subscription on the subject's site.
-// It returns the saved subscription and its signing secret (generated
-// when the input has none).
-func (e *Engine) Create(ctx context.Context, env Env, s Subject, in CreateInput) (model.Notification, string, error) {
+// It returns the saved subscription as the REST API shows it (View) and its
+// signing secret (generated when the input has none).
+func (e *Engine) Create(ctx context.Context, env Env, s Subject, in CreateInput) (map[string]any, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.limits.NotifyTimeout)
 	defer cancel()
 	if err := e.checkCreate(ctx, s, &in); err != nil {
-		return model.Notification{}, "", err
+		return nil, "", err
 	}
 	now := time.Now()
 	n := model.Notification{ID: RandomID("sub_", 12), SiteID: s.Site.ID, OwnerID: s.Person, Product: s.Member, Source: "owner", URL: in.URL, Events: in.Events, Storage: in.Storage, Secret: in.Secret, Label: in.Label, AuthHeaderName: in.HeaderName, AuthHeaderValue: in.HeaderValue, VerifiedAt: &now}
 	_, _, err := repo.SaveNotification(ctx, e.db, n, e.limits.NotifyMaxPerSite, nil, e.limits.NotifyHistoryDays, env.Secrets())
 	switch {
 	case errors.Is(err, model.ErrNotificationAccess):
-		return n, "", refusal("notification_access_ended")
+		return nil, "", refusal("notification_access_ended")
 	case errors.Is(err, model.ErrNotificationCap):
-		return n, "", refusal("too_many_notifications")
+		return nil, "", refusal("too_many_notifications")
 	case err != nil:
-		return n, "", err
+		return nil, "", err
 	}
-	n, err = repo.GetNotification(ctx, e.db, n.ID)
-	return n, in.Secret, err
+	if n, err = repo.GetNotification(ctx, e.db, n.ID); err != nil {
+		return nil, "", err
+	}
+	return View(n), in.Secret, nil
 }
 
 // checkCreate validates a new subscription, in the order refusals are
@@ -282,16 +294,18 @@ func (e *Engine) checkCreate(ctx context.Context, s Subject, in *CreateInput) er
 	return err
 }
 
-// Pause pauses or resumes the subject's subscription and returns it.
-func (e *Engine) Pause(ctx context.Context, s Subject, paused bool) (model.Notification, error) {
+// Pause pauses or resumes the subject's subscription and returns it as the
+// REST API shows it (View).
+func (e *Engine) Pause(ctx context.Context, s Subject, paused bool) (map[string]any, error) {
 	if err := repo.PauseNotification(ctx, e.db, s.Notification.ID, paused); err != nil {
-		return model.Notification{}, err
+		return nil, err
 	}
 	n, err := repo.GetNotification(ctx, e.db, s.Notification.ID)
-	if err == nil {
-		e.signal()
+	if err != nil {
+		return nil, err
 	}
-	return n, err
+	e.signal()
+	return View(n), nil
 }
 
 // Delete removes the subject's subscription.

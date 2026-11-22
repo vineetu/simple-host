@@ -14,27 +14,39 @@ import (
 )
 
 // VisitorsInput identifies the site's requested visitors, by id, by email,
-// or both; each list is resolved independently and the results concatenated
-// in that order.
+// or both, as the request sent them (VisitorRefs reads them); each list is
+// resolved independently and the results concatenated in that order.
 type VisitorsInput struct {
 	Call   Call
 	IDs    []string
 	Emails []string
 }
 
-// Visitor is a resolved visitor identity.
+// Visitor is a resolved visitor identity. Found false: the id never signed
+// in on this site, or its account is gone.
 type Visitor struct {
-	VisitorID, Email string
-	Found            bool
+	VisitorID string `json:"visitor_id"`
+	Email     string `json:"email,omitempty"`
+	Found     bool   `json:"found"`
 }
 
 // Visitors resolves identities only for visitors who signed in on the site:
 // ids to the email each one signed in with, emails to the visitor_id they
 // signed in as. An id or email that never signed in on this site answers
 // Found: false, whatever account it otherwise names.
+//
+// Email resolution is not a Simple Hack concept, so a product's bindings
+// answer as if the route did not exist.
 func (s *Service) Visitors(ctx context.Context, in VisitorsInput) ([]Visitor, error) {
+	if s.deps.Bindings != nil {
+		return nil, &Error{Code: "not_found", Message: "storage route not found"}
+	}
 	if !in.Call.Owner && !in.Call.OwnerOnSite {
 		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
+	}
+	var err error
+	if in.IDs, in.Emails, err = VisitorRefs(in.IDs, in.Emails); err != nil {
+		return nil, err
 	}
 	wrote, err := accountsrepo.SignedInAmong(ctx, s.db, in.Call.SiteID, in.IDs)
 	if err != nil {

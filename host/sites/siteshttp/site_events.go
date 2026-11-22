@@ -10,8 +10,8 @@ import (
 
 // noteDeployed follows an update that made a new version live: the owner's
 // site.deployed event and the deploy count.
-func (h *SiteHandler) noteDeployed(ctx context.Context, user *model.User, result sites.UpdateResult) {
-	h.emitDeployed(result.Site.ID, result.Version, result.PreviousVersion, "deploy")
+func (h *SiteHandler) noteDeployed(ctx context.Context, user *model.User, siteID string, version, prev int) {
+	h.emitDeployed(siteID, version, prev, "deploy")
 	h.countDeploy(ctx, user)
 }
 

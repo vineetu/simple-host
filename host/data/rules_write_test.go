@@ -29,14 +29,7 @@ func ruleWrite(t *testing.T, s *Service, c Call, action string, id int64, body s
 	if !in.Authorized.Allowed() {
 		return TableResult{Authorization: in.Authorized.Authorization}, nil
 	}
-	switch action {
-	case "add":
-		return s.TableAdd(context.Background(), in)
-	case "edit":
-		return s.TableEdit(context.Background(), in)
-	default:
-		return s.TableRemove(context.Background(), in)
-	}
+	return s.TableWrite(context.Background(), in)
 }
 func mustRuleWrite(t *testing.T, s *Service, c Call, action string, id int64, body, want string) TableResult {
 	t.Helper()
@@ -445,8 +438,8 @@ func TestRulesWriteRefusalOrderAndCheckedPost(t *testing.T) {
 		c.Resource = putRules(t, s, in)
 		c.SpamCheck = tc.spam
 		auth := s.AuthorizeTableWrite(context.Background(), TableInput{Call: c, Table: "entries"}, "add")
-		if got := readCode(TableResult{Authorization: auth.Authorization}, nil); got != tc.want || auth.CheckedPost() != tc.checked {
-			t.Fatalf("%+v: %+v checked=%v", tc, auth.Authorization, auth.CheckedPost())
+		if got := readCode(TableResult{Authorization: auth.Authorization}, nil); got != tc.want || auth.call.CheckedPost != tc.checked {
+			t.Fatalf("%+v: %+v checked=%v", tc, auth.Authorization, auth.call.CheckedPost)
 		}
 	}
 	c.VisitorID = "caller"

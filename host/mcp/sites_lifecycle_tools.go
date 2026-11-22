@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -142,10 +143,8 @@ func runDeleteSite(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	if strings.ToLower(confirm) != name {
-		return output{}, fmt.Errorf("confirm_name %q does not match site %q; nothing was deleted", confirm, name)
-	}
-	if err := c.doJSON("delete_site", http.MethodDelete, sitePath(name, ""), nil, nil); err != nil {
+	// The server refuses the delete unless confirm_name names the site.
+	if err := c.doJSON("delete_site", http.MethodDelete, sitePath(name, "?confirm_name="+url.QueryEscape(confirm)), nil, nil); err != nil {
 		return output{}, err
 	}
 	retention := c.limits().DeletedRetention

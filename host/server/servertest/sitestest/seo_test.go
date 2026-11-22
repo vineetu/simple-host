@@ -12,6 +12,7 @@ import (
 	"time"
 
 	rt "github.com/vsriram/simple-host/host/server/servertest/routetest"
+	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/repo"
 	"github.com/vsriram/simple-host/host/sites/siteshttp"
 	"github.com/vsriram/simple-host/host/sqlkit"
@@ -157,8 +158,8 @@ func TestHostedSitemapSites(t *testing.T) {
 		t.Fatal("HEAD cache miss")
 	}
 	for _, cache := range a.Sites.Sitemaps.ByBrand {
-		if left := time.Until(cache.Expires); left > siteshttp.SitemapTTL || left < siteshttp.SitemapTTL-time.Minute {
-			t.Fatalf("cache expiry %v, want about %v", left, siteshttp.SitemapTTL)
+		if left := time.Until(cache.Expires); left > sites.SitemapTTL || left < sites.SitemapTTL-time.Minute {
+			t.Fatalf("cache expiry %v, want about %v", left, sites.SitemapTTL)
 		}
 	}
 	// Self-hosted uses the same generator but never enumerates sites.

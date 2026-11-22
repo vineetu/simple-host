@@ -11,7 +11,6 @@ host/sites/repo/ops_idle.go | * | the idle cleanup's dry run reads the same last
 host/sites/repo/deleted.go | site_notifications | moving a site to Recently deleted drops its web-push subscriptions in the same transaction; data sits above sites
 host/sites/repo/export.go | * | a site's export lists its saved files and KV names in the export's lock; data sits above sites
 host/data/notify/push.go | instance_config | the instance's web-push key pair; ops sits above data
-host/sites/siteshttp/setup.go | instance_config | first-run setup stores the instance's settings before ops exists
 host/server/migrate.go | * | migrate records the installed product and settings before any module runs
 host/server/product.go | install_product | the composition root reads which product this install runs
 host/db/migrations/migrations.go | instance_config | a migration helper seeds the setting

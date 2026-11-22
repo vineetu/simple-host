@@ -102,9 +102,9 @@ func (h *SiteHandler) AddPhotos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Published {
-		h.noteDeployed(r.Context(), user, result)
+		h.noteDeployed(r.Context(), user, result.Site.ID, result.Version, result.PreviousVersion)
 	}
-	response := h.siteResponseFromState(result.Site, result.ResponseState.(siteResponseState))
+	response := h.siteResponse(result.Site, result.FileBytes)
 	results := make([]photoResult, 0, len(uploads))
 	for i, p := range uploads {
 		path := result.PhotoPaths[i]
@@ -126,7 +126,7 @@ func writePhotoTargetError(w http.ResponseWriter, r *http.Request, name string, 
 func (h *SiteHandler) writePhotoSaveError(w http.ResponseWriter, r *http.Request, input sites.UpdateInput, err error) {
 	var siteErr *sites.Error
 	if !errors.As(err, &siteErr) {
-		h.writeSiteUpdateError(w, r, input.Name, input, err)
+		h.writeDeployError(w, r, input.Name, input.Limit, false, err)
 		return
 	}
 	switch siteErr.Code {
@@ -138,6 +138,6 @@ func (h *SiteHandler) writePhotoSaveError(w http.ResponseWriter, r *http.Request
 		httpx.WriteJSON(w, 500, httpx.ErrorResponse{Error: "Could not read this site."})
 	case "photo_allocation_cancelled":
 	default:
-		h.writeSiteUpdateError(w, r, input.Name, input, err)
+		h.writeDeployError(w, r, input.Name, input.Limit, false, err)
 	}
 }

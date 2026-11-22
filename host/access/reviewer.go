@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/vsriram/simple-host/host/access/repo"
 	"github.com/vsriram/simple-host/host/model"
@@ -49,4 +50,20 @@ func (s *Service) ReviewerAccount(ctx context.Context, email string, randomHandl
 		}
 	}
 	return user, nil
+}
+
+// ErrReviewerUnavailable: the reviewer's account could not be had (see
+// ReviewerAccount); the wrapped error says why.
+var ErrReviewerUnavailable = errors.New("the reviewer account is not available")
+
+// ReviewerSignIn is the store reviewer's sign-in once their configured
+// email and password matched: their ordinary account (ReviewerAccount,
+// ErrReviewerUnavailable when it cannot be had) gets plain as a new
+// sign-in key; earlier keys keep working.
+func (s *Service) ReviewerSignIn(ctx context.Context, email string, randomHandles bool, plain string) (model.User, error) {
+	user, err := s.ReviewerAccount(ctx, email, randomHandles, AssignHandle)
+	if err != nil {
+		return model.User{}, fmt.Errorf("%w: %w", ErrReviewerUnavailable, err)
+	}
+	return user, s.AddSignInKey(ctx, user.ID, plain, model.KeyNameReviewer)
 }

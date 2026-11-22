@@ -18,6 +18,7 @@ import (
 	notifications "github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/papermetrics"
 	"github.com/vsriram/simple-host/host/web"
 )
@@ -62,12 +63,11 @@ func hasVisitorCSRF(r *http.Request) bool {
 	return err == nil && media == "application/json"
 }
 
-// establishVisitor handles GET /v1/visitor/establish: consume the one-time
-// token, check this browser holds the nonce the sign-in started with, then
+// establishVisitor handles GET /v1/visitor/establish: claim the one-time
+// token for this browser and host (operations.ClaimVisitorEstablish), let a
+// company sign-in's site recheck its gate, settle the session, then
 // Set-Cookie on this host and 302 to the stored return_to.
 //
-// The code is burned before any check, so a code tried in the wrong browser
-// (no nonce cookie, or another one) or on the wrong host cannot be retried.
 // Only the __Host- nonce cookie counts over HTTPS: a sibling host under the
 // same parent domain can plant a plain cookie, never a __Host- one.
 func (h *AccessHandler) establishVisitor(w http.ResponseWriter, r *http.Request) {
@@ -87,43 +87,26 @@ func (h *AccessHandler) establishVisitor(w http.ResponseWriter, r *http.Request)
 		fail(http.StatusBadRequest, "no_code")
 		return
 	}
-	tok, err := h.StoreAccounts().ConsumeEstablishToken(r.Context(), once, host)
-	if err != nil {
-		fail(http.StatusBadRequest, "code_used_or_expired")
-		return
-	}
-	activated := false
-	defer func() {
-		if !activated {
-			_ = h.StoreAccounts().DeleteVisitorSession(r.Context(), tok.SessionID)
-		}
-	}()
-	if retry == "" {
-		fail(http.StatusBadRequest, "wrong_host")
-		return
-	}
-	if target, err := url.Parse(tok.ReturnTo); err == nil && strings.EqualFold(target.Hostname(), host) {
+	tok, sess, status, reason := operations.ClaimVisitorEstablish(r.Context(), h.Database, h.Hosts, once, host, visitorNonceCookie(r), retry != "", h.Limits.KeyIdleExpiry)
+	if target, err := url.Parse(tok.ReturnTo); retry != "" && err == nil && strings.EqualFold(target.Hostname(), host) {
 		retry = tok.ReturnTo
 	}
-	sess, status, reason := h.establishSession(r, tok, host)
 	if reason == "" && sess.SSOPassHash.Valid {
 		status, reason = h.establishSiteOpen(r, sess.SiteID)
 	}
-	if reason == "passcode" {
+	first, err := h.StoreAccounts().SettleEstablish(r.Context(), tok.SessionID, reason == "", h.Limits.VisitorSessionTTL, h.Limits.VisitorSessionIdle)
+	switch {
+	case reason == "passcode":
 		logSignInFail(r, "establish", "passcode", once)
 		writeSiteLocked(w)
 		return
-	}
-	if reason != "" {
+	case reason != "":
 		fail(status, reason)
 		return
-	}
-	first, err := h.StoreAccounts().ActivateVisitorSession(r.Context(), tok.SessionID, h.Limits.VisitorSessionTTL, h.Limits.VisitorSessionIdle)
-	if err != nil {
+	case err != nil:
 		fail(400, "activate")
 		return
 	}
-	activated = true
 	h.VisitorSignedIn(r, sess.SiteID, sess.UserID, first)
 	setVisitorSessionCookie(w, r, hex.EncodeToString(tok.SessionID), int(h.Limits.VisitorSessionTTL/time.Second))
 	setVisitorNonceCookie(w, r, "", -1)
@@ -142,41 +125,6 @@ func (h *AccessHandler) establishRetry(r *http.Request, host string) string {
 		return "http://" + r.Host + "/"
 	}
 	return "https://" + r.Host + "/"
-}
-
-// establishSession is the pending session the token stands for, once this
-// browser shows the nonce the sign-in started with and the host still names
-// the site it was for. A refusal is its status and reason.
-func (h *AccessHandler) establishSession(r *http.Request, tok model.EstablishToken, host string) (model.VisitorSession, int, string) {
-	if !tok.NonceHash.Valid || visitorNonceCookie(r) == "" {
-		return model.VisitorSession{}, http.StatusBadRequest, "nonce_missing"
-	}
-	if !nonceMatches(visitorNonceCookie(r), tok.NonceHash.String) {
-		return model.VisitorSession{}, http.StatusBadRequest, "nonce_mismatch"
-	}
-	// A revoked or expired parent, an offline site, or a passcode set while
-	// the browser was on the apex must not yield a usable session.
-	sess, err := h.StoreAccounts().VisitorSession(r.Context(), tok.SessionID, httpx.HostName(r), "", h.Limits.KeyIdleExpiry)
-	if err != nil {
-		return sess, 400, "session_invalid"
-	}
-	// The current host binding must still name the original immutable site.
-	target, parseErr := url.Parse(tok.ReturnTo)
-	if parseErr != nil || !strings.EqualFold(target.Hostname(), host) {
-		return sess, 400, "return_host"
-	}
-	boundID, ok := h.Hosts.ReturnSite(r.Context(), host, target.Path)
-	if !ok {
-		info, err := h.sitesSvc().GetSiteByCustomDomain(r.Context(), host)
-		if err != nil || !info.VerifiedAt.Valid {
-			return sess, 400, "site_unbound"
-		}
-		boundID = info.SiteID
-	}
-	if boundID != sess.SiteID {
-		return sess, 400, "site_moved"
-	}
-	return sess, 0, ""
 }
 
 // signInRefusal is why a site takes no visitor sign-in now.
@@ -313,16 +261,9 @@ func (h *AccessHandler) resolveWriterKey(ctx context.Context, key string) (model
 	if subtle.ConstantTimeCompare([]byte(key), []byte(h.AdminAPIKey)) == 1 {
 		return model.User{ID: h.AdminUserID, Username: "admin", IsAdmin: true}, true, nil
 	}
-	u, err := h.StoreAccounts().GetUserByAPIKey(ctx, key, h.Limits.KeyIdleExpiry)
-	if err != nil {
-		// A suspended account's key is refused like an unknown one; an expired
-		// one (which also wraps sql.ErrNoRows) is told it expired.
-		if (errors.Is(err, sql.ErrNoRows) && !errors.Is(err, model.ErrKeyExpired) && !errors.Is(err, model.ErrKeyExpiredIdle)) || errors.Is(err, model.ErrAccountSuspended) {
-			return model.User{}, false, nil
-		}
-		return u, false, err
-	}
-	return u, true, nil
+	// A suspended account's key is refused like an unknown one; an expired
+	// one is told it expired (accounts.Service.KeyHolder).
+	return h.StoreAccounts().KeyHolder(ctx, key, h.Limits.KeyIdleExpiry)
 }
 
 // getVisitorMe reports the current site session without extending its lifetime.
@@ -339,11 +280,7 @@ func (h *AccessHandler) getVisitorMe(w http.ResponseWriter, r *http.Request) {
 	}
 	siteID, err := h.resolveSiteID(r, siteName)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "site not found"})
-			return
-		}
-		httpx.WriteInternal(w)
+		web.WriteSiteLookupError(w, err)
 		return
 	}
 	// Shared host: sign-in is never offered (one origin for every site).
@@ -397,15 +334,9 @@ func (h *AccessHandler) signedInMe(r *http.Request, siteID string, sess model.Vi
 		expires = sess.IdleExpiresAt
 	}
 	resp := h.visitorSignedInResponse(r, expires, "", "")
-	email, err := accountapp.VisitorEmail(r.Context(), h.Database, sess.UserID)
-	resp.Email = email
+	email, provider, err := accountapp.VisitorIdentity(r.Context(), h.Database, sess.UserID)
+	resp.Email, resp.Provider = email, provider
 	if err != nil {
-		return resp, err
-	}
-	identity, err := h.StoreAccounts().GetLatestOAuthIdentity(r.Context(), sess.UserID)
-	if err == nil && strings.EqualFold(identity.Email.String, email) {
-		resp.Provider = identity.Provider
-	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return resp, err
 	}
 	// The same test storage applies (storageOwnerOnSite): the owner's

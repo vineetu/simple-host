@@ -92,7 +92,7 @@ func (h *SiteHandler) checkBoundDomainsContext(parent context.Context) {
 		return
 	}
 	for _, info := range released {
-		h.releaseDomainFiles(info)
+		h.opsSitesSvc().ReleaseDomainFiles(info)
 		h.Hosts.CancelDomainCert(info.Domain)
 		log.Printf("domain: released unproven binding %s from %s", info.Domain, info.Name)
 	}

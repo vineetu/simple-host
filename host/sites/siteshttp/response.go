@@ -38,6 +38,9 @@ type SiteResponse struct {
 	// Only in the site list: views by people over the last 7 and 30 days, the owner's own visits
 	// excluded (operations.SiteViews); on every item when the analytics log is read.
 	Views *operations.SiteViews `json:"views,omitempty"`
+	// Only in the site list asked with ?files=<this site's name>: the files
+	// of its live version. Absent when nothing is published yet.
+	Files *[]versionFile `json:"files,omitempty"`
 	// Only in the site list: what is wrong with a domain that is not active yet, the DNS record it
 	// needs, and when an unproven binding lapses.
 	DomainLastError string     `json:"domain_last_error,omitempty"`
@@ -99,54 +102,22 @@ type versionResponse struct {
 	IsActive      bool      `json:"is_active"`
 }
 
-type siteResponseState struct {
-	siteURL         string
-	familyAddresses []string
-	familyAddress   string
-	addressState    *sites.AddressState
-	partner         *partnerInfo
-	fileBytes       int64
-	previewURL      string
-	previewExpires  time.Time
-	previewOK       bool
-}
-
-func (h *SiteHandler) captureSiteResponseState(site model.Site, version int, preview, footprint bool) siteResponseState {
-	state := siteResponseState{siteURL: h.Hosts.Addressing().SiteURLFor(site)}
-	for _, a := range h.Hosts.SiteFamilyAddrs(site.UserID, site.Name) {
-		state.familyAddresses = append(state.familyAddresses, "https://"+a.Host+"/")
-	}
-	if host, ok := h.Hosts.SiteFamilyAddress(site.UserID, site.Name); ok {
-		state.familyAddress = "https://" + host + "/"
-	}
-	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
-		state.addressState = h.Hosts.SiteAddressStateFor(site.OwnerHandle, site.Name)
-	}
-	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
-		state.partner = h.PartnerInfoFor(site.CustomDomain.String, site.ID)
-	}
-	if footprint {
-		if f, err := h.Disk.SiteFootprint(site.UserID, site.Name); err == nil {
-			state.fileBytes = f.Total()
-		}
-	}
-	if preview {
-		state.previewURL, state.previewExpires, state.previewOK = h.previewLink(site, version)
-	}
-	return state
-}
-
-func (h *SiteHandler) siteResponseFromState(site model.Site, state siteResponseState) SiteResponse {
-	resp := h.toSiteResponseState(site, "", state)
-	resp.FileBytes = state.fileBytes
+// siteResponse is a deploy's or rollback's answer: the site with its
+// footprint on disk (measured by Sites under the deploy lock).
+func (h *SiteHandler) siteResponse(site model.Site, fileBytes int64) SiteResponse {
+	resp := h.ToSiteResponse(site, "")
+	resp.FileBytes = fileBytes
 	return resp
 }
 
+// ToSiteResponse is the site as the API shows it, with its addresses and,
+// while its custom domain is not live, the records the domain needs.
 func (h *SiteHandler) ToSiteResponse(site model.Site, note string) SiteResponse {
-	return h.toSiteResponseState(site, note, h.captureSiteResponseState(site, 0, false, false))
-}
-
-func (h *SiteHandler) toSiteResponseState(site model.Site, note string, state siteResponseState) SiteResponse {
+	siteURL := h.Hosts.Addressing().SiteURLFor(site)
+	var familyAddress string
+	if host, ok := h.Hosts.SiteFamilyAddress(site.UserID, site.Name); ok {
+		familyAddress = "https://" + host + "/"
+	}
 	visibility := site.Visibility
 	if visibility == "" {
 		visibility = "unlisted" // never guess "public"
@@ -156,8 +127,8 @@ func (h *SiteHandler) toSiteResponseState(site model.Site, note string, state si
 		UserID:            site.UserID,
 		Name:              site.Name,
 		ActiveVersion:     site.ActiveVersion,
-		SiteURL:           state.siteURL,
-		LiveURL:           sites.LiveURL(site, state.familyAddress, state.siteURL),
+		SiteURL:           siteURL,
+		LiveURL:           sites.LiveURL(site, familyAddress, siteURL),
 		CreatedAt:         site.CreatedAt,
 		UpdatedAt:         site.UpdatedAt,
 		CustomDomain:      site.CustomDomain.String,
@@ -180,13 +151,15 @@ func (h *SiteHandler) toSiteResponseState(site model.Site, note string, state si
 		t := site.LastDeployedAt.Time
 		resp.DeployedAt = &t
 	}
-	resp.FamilyAddresses = state.familyAddresses
-	resp.FamilyAddress = state.familyAddress
+	for _, a := range h.Hosts.SiteFamilyAddrs(site.UserID, site.Name) {
+		resp.FamilyAddresses = append(resp.FamilyAddresses, "https://"+a.Host+"/")
+	}
+	resp.FamilyAddress = familyAddress
 	if !(site.CustomDomain.Valid && site.DomainVerifiedAt.Valid) {
-		resp.AddressState = state.addressState
+		resp.AddressState = h.Hosts.SiteAddressStateFor(site.OwnerHandle, site.Name)
 	}
 	if site.CustomDomain.Valid && site.CustomDomain.String != "" {
-		if p := state.partner; p != nil {
+		if p := h.PartnerInfoFor(site.CustomDomain.String, site.ID); p != nil {
 			resp.DomainPartner, resp.DomainPartnerDNS, resp.DomainPartnerStatus, resp.DomainPartnerNote = p.Domain, p.DNS, p.Status, p.Note
 		}
 	}
@@ -248,13 +221,15 @@ func (h *SiteHandler) adminSiteRow(s model.Site) map[string]any {
 	return m
 }
 
-func (h *SiteHandler) writeUnpublishedState(w http.ResponseWriter, user *model.User, site model.Site, n int, state siteResponseState) {
+// writeUnpublished answers an update stored with publish=false: the version
+// it stored, which is not live, and an hour-long preview link for it.
+func (h *SiteHandler) writeUnpublished(w http.ResponseWriter, site model.Site, n int, fileBytes int64) {
 	note := "Stored as version " + strconv.Itoa(n) + " without making it live; visitors still see version " + strconv.Itoa(site.ActiveVersion) +
 		". Make it live with PUT /v1/sites/" + site.Name + "/active-version {\"version_number\": " + strconv.Itoa(n) + "}."
-	resp := h.toSiteResponseState(site, note, state)
-	resp.FileBytes = state.fileBytes
+	resp := h.ToSiteResponse(site, note)
+	resp.FileBytes = fileBytes
 	resp.UnpublishedVersion = n
-	if link, exp, ok := state.previewURL, state.previewExpires, state.previewOK; ok {
+	if link, exp, ok := h.previewLink(site, n); ok {
 		resp.PreviewURL = link
 		resp.PreviewExpiresAt = &exp
 	} else {

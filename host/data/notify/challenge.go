@@ -12,6 +12,7 @@ import (
 	repo "github.com/vsriram/simple-host/host/data/repo/notify"
 
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites"
 )
 
 // challengeClient is the webhook client for one verification or test send
@@ -58,9 +59,17 @@ func (e *Engine) verifySlot() (release func(), ok bool) {
 // Test sends one test event to the subject's subscription through its real
 // delivery path: a signed webhook, or for a push device a fixed generic
 // payload (a test confirms the device works whatever the push rules say).
-// siteName and siteURL are the site as payloads show it. A refused
-// receiver or an offline site is a Result, not an error.
-func (e *Engine) Test(ctx context.Context, env Env, s Subject, siteName, siteURL string) (Result, error) {
+// The site is named in payloads as hosts shows it (a site not live has no
+// name or address). A refused receiver or an offline site is a Result, not
+// an error.
+func (e *Engine) Test(ctx context.Context, env Env, hosts *sites.Hosts, s Subject) (Result, error) {
+	var siteName, siteURL string
+	if s.Site.Live() {
+		var err error
+		if siteName, siteURL, err = hosts.NotificationSite(ctx, s.Site); err != nil {
+			return Result{}, err
+		}
+	}
 	n := s.Notification
 	if n.Source == "mcp" || n.ExpiresAt != nil && !n.ExpiresAt.After(time.Now()) {
 		return Result{}, refusal("client_subscription")

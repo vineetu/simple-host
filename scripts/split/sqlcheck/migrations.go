@@ -70,9 +70,11 @@ func migrationOrder(root string) ([]string, map[string]bool, error) {
 	out = append(out, sortedKeys(present)...)
 	return out, baseline, nil
 }
-func proposeMigrations(root string, order []string, objects []object, z schemaInfo) ([]migration, error) {
-	hack := map[string]bool{}
-	known := map[string]bool{}
+
+// migrationIndex is what a proposal matches against: the Hack object names,
+// and every name that is a schema object rather than a column.
+func migrationIndex(objects []object, z schemaInfo) (hack, known map[string]bool) {
+	hack, known = map[string]bool{}, map[string]bool{}
 	for n := range z.Tables {
 		known[n] = true
 	}
@@ -88,127 +90,161 @@ func proposeMigrations(root string, order []string, objects []object, z schemaIn
 			known[o.Name] = true
 		}
 	}
+	return hack, known
+}
+
+// readMigration reads a migration from the platform directory, or from the
+// product directory when the platform has no such file.
+func readMigration(root, n string) ([]byte, error) {
+	b, e := os.ReadFile(filepath.Join(root, "host/db/migrations", n))
+	if os.IsNotExist(e) {
+		b, e = os.ReadFile(filepath.Join(root, "products/hack/db/migrations", n))
+	}
+	return b, e
+}
+
+func proposeMigrations(root string, order []string, objects []object, z schemaInfo) ([]migration, error) {
+	hack, known := migrationIndex(objects, z)
 	var out []migration
 	for _, n := range order {
-		m := migration{Name: n}
 		if strings.HasSuffix(n, ".sh") {
-			m.Owner = "platform?"
-			m.Reason = "shell step, not SQL: read by a person"
-			out = append(out, m)
+			out = append(out, migration{Name: n, Owner: "platform?", Reason: "shell step, not SQL: read by a person"})
 			continue
 		}
-		b, e := os.ReadFile(filepath.Join(root, "host/db/migrations", n))
-		if os.IsNotExist(e) {
-			b, e = os.ReadFile(filepath.Join(root, "products/hack/db/migrations", n))
-		}
+		b, e := readMigration(root, n)
 		if e != nil {
 			return nil, e
 		}
-		ha, pa, reads, mentions := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
-		created := map[string]bool{}
-		touchHack := false
+		u := &migrationUses{hack: hack, known: known, ha: map[string]bool{}, pa: map[string]bool{}, reads: map[string]bool{}, mentions: map[string]bool{}, created: map[string]bool{}}
 		for _, st := range splitSQL(string(b)) {
-			t := st.Text
-			for name := range known {
-				if len(occurrences(withoutColumnNames(t), name)) > 0 {
-					mentions[name] = true
-					if hack[name] {
-						touchHack = true
-					} else if z.Tables[name] {
-						reads[name] = true
-					}
-				}
-			}
-			for _, o := range objects {
-				if o.Kind == "column" && len(occurrences(t, objectName(o), true)) > 0 {
-					touchHack = true
-				}
-			}
-			mark := func(action, name string, create bool) {
-				mentions[name] = true
-				if hack[name] {
-					touchHack = true
-					ha[action+" "+name] = true
-				} else {
-					pa[action+" "+name] = true
-					if create {
-						created[name] = true
-					}
-				}
-				delete(reads, name)
-			}
-			for _, a := range actionRE.FindAllStringSubmatch(t, -1) {
-				verb, kind, name := strings.ToLower(a[1]), strings.ToUpper(a[2]), a[3]
-				mentions[a[3]] = true
-				if kind == "INDEX" || kind == "TRIGGER" {
-					if on := onRE.FindStringSubmatch(t); on != nil {
-						name = on[1]
-					} else {
-						continue
-					}
-				}
-				action := map[string]string{"create": "creates", "alter": "alters", "drop": "drops"}[verb]
-				if kind == "INDEX" || kind == "TRIGGER" {
-					action += " " + strings.ToLower(kind) + " on"
-				}
-				mark(action, name, false)
-				if verb == "create" && !hack[name] {
-					created[a[3]] = true
-				}
-			}
-			// Function bodies and data-only migrations contribute writes too.
-			for _, a := range writeRE.FindAllStringSubmatch(t, -1) {
-				name := a[2]
-				if !known[name] {
-					continue
-				}
-				action := "writes"
-				mark(action, name, false)
-			}
+			u.statement(st.Text, objects, z)
 		}
-		if !touchHack {
-			m.Owner = "platform"
-		} else if len(pa) == 0 {
-			m.Owner = "hack"
-		} else {
-			m.Owner = "mixed?"
-		}
-		var reason []string
-		for _, a := range sortedKeys(pa) {
-			if touchHack {
-				a += " (platform)"
-			}
-			reason = append(reason, a)
-		}
-		for _, a := range sortedKeys(ha) {
-			reason = append(reason, a+" (hack)")
-		}
-		if touchHack && len(ha) == 0 {
-			var ns []string
-			for n := range mentions {
-				if hack[n] {
-					ns = append(ns, n)
-				}
-			}
-			sort.Strings(ns)
-			if len(ns) > 0 {
-				reason = append(reason, "reads "+strings.Join(ns, ", ")+" (hack)")
-			} else {
-				reason = append(reason, "uses Hack-owned column")
-			}
-		}
-		if len(reads) > 0 {
-			reason = append(reason, "reads "+strings.Join(sortedKeys(reads), ", "))
-		}
-		if len(reason) == 0 {
-			reason = append(reason, "SQL configuration; no schema objects")
-		}
-		m.Reason = strings.Join(reason, "; ")
-		m.CreatedPlatform = sortedKeys(created)
-		m.Mentions = sortedKeys(mentions)
-		out = append(out, m)
+		out = append(out, u.proposal(n))
 	}
 	return out, nil
+}
+
+// migrationUses collects what one migration does: Hack and platform actions,
+// platform tables it only reads, every name it mentions, the platform
+// objects it creates, and whether it touches Hack at all.
+type migrationUses struct {
+	hack, known                      map[string]bool
+	ha, pa, reads, mentions, created map[string]bool
+	touchHack                        bool
+}
+
+// statement records one SQL statement's mentions, schema actions and writes.
+func (u *migrationUses) statement(t string, objects []object, z schemaInfo) {
+	for name := range u.known {
+		if len(occurrences(withoutColumnNames(t), name)) > 0 {
+			u.mentions[name] = true
+			if u.hack[name] {
+				u.touchHack = true
+			} else if z.Tables[name] {
+				u.reads[name] = true
+			}
+		}
+	}
+	for _, o := range objects {
+		if o.Kind == "column" && len(occurrences(t, objectName(o), true)) > 0 {
+			u.touchHack = true
+		}
+	}
+	u.schemaActions(t)
+	// Function bodies and data-only migrations contribute writes too.
+	for _, a := range writeRE.FindAllStringSubmatch(t, -1) {
+		if u.known[a[2]] {
+			u.mark("writes", a[2])
+		}
+	}
+}
+
+// schemaActions records each CREATE, ALTER or DROP in t; an index or trigger
+// counts against the table it is on.
+func (u *migrationUses) schemaActions(t string) {
+	for _, a := range actionRE.FindAllStringSubmatch(t, -1) {
+		verb, kind, name := strings.ToLower(a[1]), strings.ToUpper(a[2]), a[3]
+		u.mentions[a[3]] = true
+		if kind == "INDEX" || kind == "TRIGGER" {
+			if on := onRE.FindStringSubmatch(t); on != nil {
+				name = on[1]
+			} else {
+				continue
+			}
+		}
+		action := map[string]string{"create": "creates", "alter": "alters", "drop": "drops"}[verb]
+		if kind == "INDEX" || kind == "TRIGGER" {
+			action += " " + strings.ToLower(kind) + " on"
+		}
+		u.mark(action, name)
+		if verb == "create" && !u.hack[name] {
+			u.created[a[3]] = true
+		}
+	}
+}
+
+// mark records action on name as a Hack or platform action; a name acted on
+// is no longer only read.
+func (u *migrationUses) mark(action, name string) {
+	u.mentions[name] = true
+	if u.hack[name] {
+		u.touchHack = true
+		u.ha[action+" "+name] = true
+	} else {
+		u.pa[action+" "+name] = true
+	}
+	delete(u.reads, name)
+}
+
+// proposal names the owner the uses point to, and the reason that shows why.
+func (u *migrationUses) proposal(n string) migration {
+	m := migration{Name: n}
+	if !u.touchHack {
+		m.Owner = "platform"
+	} else if len(u.pa) == 0 {
+		m.Owner = "hack"
+	} else {
+		m.Owner = "mixed?"
+	}
+	var reason []string
+	for _, a := range sortedKeys(u.pa) {
+		if u.touchHack {
+			a += " (platform)"
+		}
+		reason = append(reason, a)
+	}
+	for _, a := range sortedKeys(u.ha) {
+		reason = append(reason, a+" (hack)")
+	}
+	if u.touchHack && len(u.ha) == 0 {
+		reason = append(reason, u.hackReadReason())
+	}
+	if len(u.reads) > 0 {
+		reason = append(reason, "reads "+strings.Join(sortedKeys(u.reads), ", "))
+	}
+	if len(reason) == 0 {
+		reason = append(reason, "SQL configuration; no schema objects")
+	}
+	m.Reason = strings.Join(reason, "; ")
+	m.CreatedPlatform = sortedKeys(u.created)
+	m.Mentions = sortedKeys(u.mentions)
+	return m
+}
+
+// hackReadReason explains a migration that touches Hack without acting on a
+// Hack object: the Hack names it reads, or a Hack-owned column.
+func (u *migrationUses) hackReadReason() string {
+	var ns []string
+	for n := range u.mentions {
+		if u.hack[n] {
+			ns = append(ns, n)
+		}
+	}
+	sort.Strings(ns)
+	if len(ns) > 0 {
+		return "reads " + strings.Join(ns, ", ") + " (hack)"
+	}
+	return "uses Hack-owned column"
 }
 func mixedComment(m migration, all []migration, confirmed map[string]migration, baseline map[string]bool) string {
 	var later []string
@@ -241,101 +277,135 @@ func mixedComment(m migration, all []migration, confirmed map[string]migration, 
 	}
 	return "#   mixed: platform objects created: " + objects + "; later platform files that mention them: " + deps
 }
+
+// migrationCheck compares migration-owners.txt with the proposals, collecting
+// messages; any failing message sets code to 1.
+type migrationCheck struct {
+	lines     []string
+	confirmed map[string]migration
+	indices   map[string]int
+	expected  map[int]string
+	messages  []string
+	code      int
+	fix       bool
+}
+
+func (c *migrationCheck) note(msg string) { c.messages = append(c.messages, msg) }
+func (c *migrationCheck) fail(msg string) { c.note(msg); c.code = 1 }
+
 func checkMigrations(path string, all []migration, baseline map[string]bool, fix bool) (string, int, error) {
 	b, e := os.ReadFile(path)
 	if e != nil && !os.IsNotExist(e) {
 		return "", 1, e
 	}
-	lines := strings.Split(string(b), "\n")
-	confirmed := map[string]migration{}
-	var messages []string
-	code := 0
-	indices := map[string]int{}
-	for i, l := range lines {
+	c := &migrationCheck{lines: strings.Split(string(b), "\n"), confirmed: map[string]migration{}, indices: map[string]int{}, expected: map[int]string{}, fix: fix}
+	c.parseOwners()
+	c.compare(all, baseline)
+	c.staleComments()
+	if fix {
+		if e := os.WriteFile(path, []byte(c.rewritten()), 0644); e != nil {
+			return "", 1, e
+		}
+	}
+	return strings.Join(c.messages, "\n") + "\n", c.code, nil
+}
+
+// parseOwners reads each "file | owner | reason" line, rejecting malformed,
+// duplicate, unknown-owner and empty-reason lines.
+func (c *migrationCheck) parseOwners() {
+	for i, l := range c.lines {
 		if strings.TrimSpace(l) == "" || strings.HasPrefix(strings.TrimSpace(l), "#") {
 			continue
 		}
 		p := strings.SplitN(l, "|", 3)
 		if len(p) != 3 {
-			messages = append(messages, fmt.Sprintf("line %d: expected file | owner | reason", i+1))
-			code = 1
+			c.fail(fmt.Sprintf("line %d: expected file | owner | reason", i+1))
 			continue
 		}
 		for j := range p {
 			p[j] = strings.TrimSpace(p[j])
 		}
-		if _, ok := confirmed[p[0]]; ok {
-			messages = append(messages, "duplicate file: "+p[0])
-			code = 1
+		if _, ok := c.confirmed[p[0]]; ok {
+			c.fail("duplicate file: " + p[0])
 		}
-		confirmed[p[0]] = migration{Name: p[0], Owner: p[1], Reason: p[2]}
-		indices[p[0]] = i
+		c.confirmed[p[0]] = migration{Name: p[0], Owner: p[1], Reason: p[2]}
+		c.indices[p[0]] = i
 		if p[1] != "platform" && p[1] != "hack" && p[1] != "mixed" {
-			messages = append(messages, "invalid owner: "+p[0]+": "+p[1])
-			code = 1
+			c.fail("invalid owner: " + p[0] + ": " + p[1])
 		}
 		if p[2] == "" {
-			messages = append(messages, "empty reason: "+p[0])
-			code = 1
+			c.fail("empty reason: " + p[0])
 		}
 	}
+}
+
+// compare checks every migration has a line, notes owners that differ from
+// the proposal, checks each mixed entry's generated comment, and rejects
+// lines for files that do not exist.
+func (c *migrationCheck) compare(all []migration, baseline map[string]bool) {
 	present := map[string]bool{}
-	expected := map[int]string{}
 	for _, m := range all {
 		present[m.Name] = true
-		c, ok := confirmed[m.Name]
+		confirmed, ok := c.confirmed[m.Name]
 		if !ok {
-			messages = append(messages, "missing file: "+m.Name+"; add a line to scripts/split/migration-owners.txt: "+m.Name+" | platform or hack | what it changes")
-			code = 1
+			c.fail("missing file: " + m.Name + "; add a line to scripts/split/migration-owners.txt: " + m.Name + " | platform or hack | what it changes")
 			continue
 		}
-		if c.Owner != m.Owner {
-			messages = append(messages, m.Name+": confirmed "+c.Owner+"; proposal "+m.Owner+" | "+m.Reason)
+		if confirmed.Owner != m.Owner {
+			c.note(m.Name + ": confirmed " + confirmed.Owner + "; proposal " + m.Owner + " | " + m.Reason)
 		}
-		if c.Owner == "mixed" {
-			comment := mixedComment(m, all, confirmed, baseline)
-			messages = append(messages, m.Name+": "+comment)
-			idx := indices[m.Name]
-			expected[idx] = comment
-			if idx+1 >= len(lines) || lines[idx+1] != comment {
-				if !fix {
-					messages = append(messages, "missing or stale mixed comment; expected: "+comment)
-					code = 1
-				}
-			}
+		if confirmed.Owner == "mixed" {
+			c.mixed(m, all, baseline)
 		}
 	}
-	for _, n := range sortedKeys(confirmed) {
+	for _, n := range sortedKeys(c.confirmed) {
 		if !present[n] {
-			messages = append(messages, "file does not exist: "+n)
-			code = 1
+			c.fail("file does not exist: " + n)
 		}
 	}
+}
+
+// mixed records the comment a mixed entry needs directly beneath it, and
+// fails when it is missing or stale, unless fixing.
+func (c *migrationCheck) mixed(m migration, all []migration, baseline map[string]bool) {
+	comment := mixedComment(m, all, c.confirmed, baseline)
+	c.note(m.Name + ": " + comment)
+	idx := c.indices[m.Name]
+	c.expected[idx] = comment
+	if idx+1 >= len(c.lines) || c.lines[idx+1] != comment {
+		if !c.fix {
+			c.fail("missing or stale mixed comment; expected: " + comment)
+		}
+	}
+}
+
+// staleComments fails on generated comments not directly beneath their mixed
+// entry, unless fixing.
+func (c *migrationCheck) staleComments() {
 	// A generated line is valid only directly beneath its mixed entry.
-	for i, l := range lines {
-		if strings.HasPrefix(l, "#   mixed:") && (i == 0 || expected[i-1] != l) {
-			if !fix {
-				messages = append(messages, "stale mixed comment: "+l)
-				code = 1
+	for i, l := range c.lines {
+		if strings.HasPrefix(l, "#   mixed:") && (i == 0 || c.expected[i-1] != l) {
+			if !c.fix {
+				c.fail("stale mixed comment: " + l)
 			}
 		}
 	}
-	if fix {
-		var rewritten []string
-		for i, l := range lines {
-			if strings.HasPrefix(l, "#   mixed:") {
-				continue
-			}
-			rewritten = append(rewritten, l)
-			if c := expected[i]; c != "" {
-				rewritten = append(rewritten, c)
-			}
+}
+
+// rewritten is the file with every generated comment replaced by the
+// expected one beneath its entry.
+func (c *migrationCheck) rewritten() string {
+	var rewritten []string
+	for i, l := range c.lines {
+		if strings.HasPrefix(l, "#   mixed:") {
+			continue
 		}
-		if e := os.WriteFile(path, []byte(strings.Join(rewritten, "\n")), 0644); e != nil {
-			return "", 1, e
+		rewritten = append(rewritten, l)
+		if comment := c.expected[i]; comment != "" {
+			rewritten = append(rewritten, comment)
 		}
 	}
-	return strings.Join(messages, "\n") + "\n", code, nil
+	return strings.Join(rewritten, "\n")
 }
 func migrationColumns(root string, z schemaInfo) ([]string, error) {
 	proposed, _ := proposeObjects(z)
@@ -405,28 +475,8 @@ func withoutColumnNames(s string) string {
 			if c == ' ' || c == '\n' || c == '\t' || c == '\r' {
 				continue
 			}
-			end := i
-			if c == '"' {
-				end++
-				for end < len(s) && s[end] != '"' {
-					end++
-				}
-				if end < len(s) {
-					end++
-				}
-			} else {
-				for end < len(s) && identifier(s[end]) {
-					end++
-				}
-			}
-			word := strings.ToUpper(strings.Trim(s[i:end], `"`))
-			switch word {
-			case "CONSTRAINT", "PRIMARY", "FOREIGN", "UNIQUE", "CHECK", "EXCLUDE":
-			default:
-				for j := i; j < end; j++ {
-					b[j] = ' '
-				}
-			}
+			end := definitionWordEnd(s, i)
+			maskColumnName(b, s[i:end], i)
 			first = false
 			if end > i {
 				i = end - 1
@@ -447,4 +497,37 @@ func withoutColumnNames(s string) string {
 		}
 	}
 	return string(b)
+}
+
+// definitionWordEnd is where the first word of a definition starting at i
+// ends: after a quoted identifier's closing quote, or after its identifier
+// bytes.
+func definitionWordEnd(s string, i int) int {
+	end := i
+	if s[i] == '"' {
+		end++
+		for end < len(s) && s[end] != '"' {
+			end++
+		}
+		if end < len(s) {
+			end++
+		}
+		return end
+	}
+	for end < len(s) && identifier(s[end]) {
+		end++
+	}
+	return end
+}
+
+// maskColumnName blanks word, at offset i of b, when it names a column rather
+// than starting a table constraint.
+func maskColumnName(b []byte, word string, i int) {
+	switch strings.ToUpper(strings.Trim(word, `"`)) {
+	case "CONSTRAINT", "PRIMARY", "FOREIGN", "UNIQUE", "CHECK", "EXCLUDE":
+		return
+	}
+	for j := i; j < i+len(word); j++ {
+		b[j] = ' '
+	}
 }

@@ -285,17 +285,7 @@ func (h *AccessHandler) viewerSiteForForm(r *http.Request, next string) (model.S
 	if err != nil || !ok {
 		return model.SitePasscodeRow{}, false, err
 	}
-	row, err := h.sitesSvc().GetSitePasscodeByName(r.Context(), userID, name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return row, false, nil
-	}
-	if err != nil {
-		return row, false, err
-	}
-	if !row.NamedViewers || row.Offline || h.Disk.IsSuspended(row.UserID, row.Name) {
-		return row, false, nil
-	}
-	return row, true, nil
+	return h.sitesSvc().ViewerSignInSite(r.Context(), userID, name)
 }
 
 // viewerSignIn is POST /v1/site-signin, the sign-in page's form: email alone
@@ -418,42 +408,13 @@ func (h *AccessHandler) viewerSignOut(w http.ResponseWriter, r *http.Request) {
 
 // --- Owner API ---
 
-// siteAccessResponse is what the owner routes answer.
-type siteAccessResponse struct {
-	Site              string             `json:"site"`
-	Access            string             `json:"access"`
-	Viewers           []model.SiteViewer `json:"viewers"`
-	ViewerLimit       int                `json:"viewer_limit"`
-	PasscodeProtected bool               `json:"passcode_protected"`
-	Added             []string           `json:"added,omitempty"`
-	AlreadyListed     []string           `json:"already_listed,omitempty"`
-	Removed           string             `json:"removed,omitempty"`
-	Note              string             `json:"note,omitempty"`
-}
-
-func (h *AccessHandler) siteAccessState(r *http.Request, site model.Site) (siteAccessResponse, error) {
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
+// writeSiteAccess answers an owner access route: the site's access now and
+// what the call changed, or the refusal.
+func writeSiteAccess(w http.ResponseWriter, state operations.SiteAccess, err error) {
 	if err != nil {
-		return siteAccessResponse{}, err
-	}
-	viewers, err := h.sitesSvc().ListSiteViewers(r.Context(), site.ID)
-	if err != nil {
-		return siteAccessResponse{}, err
-	}
-	access := web.AccessAnyone
-	if row.NamedViewers {
-		access = web.AccessSpecific
-	}
-	return siteAccessResponse{Site: site.Name, Access: access, Viewers: viewers, ViewerLimit: h.Limits.SiteViewersMax, PasscodeProtected: row.Enc != nil}, nil
-}
-
-func (h *AccessHandler) writeSiteAccess(w http.ResponseWriter, r *http.Request, site model.Site, resp siteAccessResponse) {
-	state, err := h.siteAccessState(r, site)
-	if err != nil {
-		web.WriteSiteLookupError(w, err)
+		web.WriteAccessError(w, err)
 		return
 	}
-	state.Added, state.AlreadyListed, state.Removed, state.Note = resp.Added, resp.AlreadyListed, resp.Removed, resp.Note
 	w.Header().Set("Cache-Control", "no-store")
 	httpx.WriteJSON(w, http.StatusOK, state)
 }
@@ -461,35 +422,12 @@ func (h *AccessHandler) writeSiteAccess(w http.ResponseWriter, r *http.Request, 
 // getSiteAccess is GET /v1/sites/{sitename}/access: who can open the site
 // (access "anyone" or "specific") and its named viewers.
 func (h *AccessHandler) getSiteAccess(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, strings.TrimSpace(r.PathValue("sitename")))
-	if err != nil {
-		web.WriteSiteLookupError(w, err)
-		return
-	}
-	h.writeSiteAccess(w, r, site, siteAccessResponse{})
-}
-
-// turnOnNamedViewers sets access to specific: the marker first, then the
-// database, so a failure in between leaves the site closed, never open.
-func (h *AccessHandler) turnOnNamedViewers(r *http.Request, site model.Site, row model.SitePasscodeRow) error {
-	if row.NamedViewers {
-		return nil
-	}
-	if err := accounts.NamedViewersRefusal(row, h.gateSite(site)); err != nil {
-		return err
-	}
-	if err := h.sitesSvc().SetSiteAccess(r.Context(), site, row, web.AccessSpecific); err != nil {
-		return err
-	}
-	log.Printf("site_access access=specific site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
-	return nil
+	state, err := operations.OwnSiteAccess(r.Context(), h.sitesSvc(), auth.GetUser(r.Context()).ID, strings.TrimSpace(r.PathValue("sitename")), h.Limits.SiteViewersMax)
+	writeSiteAccess(w, state, err)
 }
 
 // putSiteAccess is PUT /v1/sites/{sitename}/access {"access": "anyone" |
-// "specific"}. specific: only the owner and the named viewers can open the
-// site (with none named yet, only the owner). anyone: open to everyone with
-// the address again; the list is kept for next time.
+// "specific"} (operations.SetSiteAccess).
 func (h *AccessHandler) putSiteAccess(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Access string `json:"access"`
@@ -506,34 +444,13 @@ func (h *AccessHandler) putSiteAccess(w http.ResponseWriter, r *http.Request) {
 	if web.RefuseSuspendedSite(w, site) {
 		return
 	}
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
-	if err != nil {
-		web.WriteSiteLookupError(w, err)
-		return
-	}
-	note := ""
-	if req.Access == web.AccessSpecific {
-		if err := h.turnOnNamedViewers(r, site, row); err != nil {
-			web.WriteAccessError(w, err)
-			return
-		}
-		note = "Only you and the named viewers can open the site now; everyone else sees a sign-in page. Viewers sign in on the site with the email you named."
-	} else {
-		if row.NamedViewers {
-			if err := h.sitesSvc().SetSiteAccess(r.Context(), site, row, web.AccessAnyone); err != nil {
-				web.WriteAccessMutationError(w, err)
-				return
-			}
-
-			log.Printf("site_access access=anyone site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
-		}
-		note = "Anyone with the address can open the site. The named viewers are kept, in case you turn it back on."
-	}
-	h.writeSiteAccess(w, r, site, siteAccessResponse{Note: note})
+	state, err := operations.SetSiteAccess(r.Context(), h.sitesSvc(), h.gateSite(site), site, req.Access, auth.GetUser(r.Context()).ID, h.Limits.SiteViewersMax)
+	writeSiteAccess(w, state, err)
 }
 
 // addSiteViewers is POST /v1/sites/{sitename}/viewers {"emails": [...]}: names
-// viewers and sets access to specific (one call: "only mom and dad").
+// viewers and sets access to specific (one call: "only mom and dad";
+// operations.NameSiteViewers).
 func (h *AccessHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Emails []string `json:"emails"`
@@ -555,47 +472,12 @@ func (h *AccessHandler) addSiteViewers(w http.ResponseWriter, r *http.Request) {
 	if web.RefuseSuspendedSite(w, site) {
 		return
 	}
-	resp, err := h.nameViewers(r, site, emails)
-	if err != nil {
-		web.WriteAccessError(w, err)
-		return
-	}
-	h.writeSiteAccess(w, r, site, resp)
-}
-
-// nameViewers adds the emails not yet named and turns named viewers on: the
-// list first, then the gate, so a failure in between leaves the site as it
-// was, with the names ready. The caller holds the site's lock.
-func (h *AccessHandler) nameViewers(r *http.Request, site model.Site, emails []string) (siteAccessResponse, error) {
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
-	if err != nil {
-		return siteAccessResponse{}, err
-	}
-	if !row.NamedViewers {
-		if err := accounts.NamedViewersRefusal(row, h.gateSite(site)); err != nil {
-			return siteAccessResponse{}, err
-		}
-	}
-	fresh, already, err := h.StoreAccounts().NewViewers(r.Context(), site.ID, emails, h.Limits.SiteViewersMax)
-	if err != nil {
-		return siteAccessResponse{}, err
-	}
-	for _, e := range fresh {
-		if _, err := h.sitesSvc().AddSiteViewer(r.Context(), site.ID, e); err != nil {
-			return siteAccessResponse{}, err
-		}
-	}
-	if err := h.turnOnNamedViewers(r, site, row); err != nil {
-		return siteAccessResponse{}, err
-	}
-	log.Printf("site_viewers added=%d site_id=%s name=%s by=%s", len(fresh), site.ID, site.Name, auth.GetUser(r.Context()).ID)
-	note := "Only you and the named viewers can open the site. Tell them to open its address and sign in with the email you named (an emailed code, or Google for a Google address)."
-	return siteAccessResponse{Added: fresh, AlreadyListed: already, Note: note}, nil
+	state, err := operations.NameSiteViewers(r.Context(), h.Database, h.sitesSvc(), h.gateSite(site), site, emails, auth.GetUser(r.Context()).ID, h.Limits.SiteViewersMax)
+	writeSiteAccess(w, state, err)
 }
 
 // removeSiteViewer is DELETE /v1/sites/{sitename}/viewers/{email}: takes one
-// person off the list; their next request is refused. Access stays as it is:
-// removing the last viewer leaves the site open only to its owner.
+// person off the list (operations.UnnameSiteViewer, push devices included).
 func (h *AccessHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request) {
 	e, ok := authrules.NormalEmail(r.PathValue("email"))
 	if !ok {
@@ -607,20 +489,8 @@ func (h *AccessHandler) removeSiteViewer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer unlock()
-	removed, err := operations.RemoveSiteViewer(r.Context(), h.Database, h.Notify, site.ID, e)
-	if err != nil {
-		web.WriteSiteLookupError(w, err)
-		return
-	}
-	if !removed {
-		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: e + " is not a named viewer of this site", Code: "viewer_not_found"})
-		return
-	}
-	// A removed named viewer stops receiving push too: operations.RemoveSiteViewer
-	// deleted their push devices on the site.
-	log.Printf("site_viewers removed=1 site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)
-	note := e + " can no longer open the site."
-	h.writeSiteAccess(w, r, site, siteAccessResponse{Removed: e, Note: note})
+	state, err := operations.UnnameSiteViewer(r.Context(), h.Database, h.Notify, h.sitesSvc(), site, e, auth.GetUser(r.Context()).ID, h.Limits.SiteViewersMax)
+	writeSiteAccess(w, state, err)
 }
 
 // SetSignupGeoBlock wires SIGNUP_BLOCKED_COUNTRIES for visitor email-code sign-ins.

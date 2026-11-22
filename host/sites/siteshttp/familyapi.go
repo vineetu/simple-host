@@ -18,7 +18,6 @@ import (
 
 	"github.com/vsriram/simple-host/host/access/auth"
 	notifications "github.com/vsriram/simple-host/host/data/notify"
-	"github.com/vsriram/simple-host/host/edition"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
@@ -335,14 +334,11 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 		}
 		b.CertName, b.ProofExempt = name, req.ProofExempt
 	}
-	f, err := h.SitesSvc().BindFamily(r.Context(), b)
+	f, created, err := h.SitesSvc().ConnectFamily(r.Context(), b)
 	switch {
-	case errors.Is(err, model.ErrFamilyExists):
-		f, err = h.SitesSvc().GetFamilyByUserSuffix(r.Context(), userID, suffix)
-		if err == nil {
-			httpx.WriteJSON(w, http.StatusOK, h.familyResponseFor(r.Context(), f, false))
-			return
-		}
+	case err == nil && !created:
+		httpx.WriteJSON(w, http.StatusOK, h.familyResponseFor(r.Context(), f, false))
+		return
 	case errors.Is(err, model.ErrFamilyTaken):
 		httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: "*." + suffix + " (or a name under it) is connected to another account", Code: "domain_taken"})
 		return
@@ -355,7 +351,6 @@ func (h *SiteHandler) createFamilyFor(w http.ResponseWriter, r *http.Request, us
 		httpx.WriteInternal(w)
 		return
 	}
-	h.Hosts.RefreshFamilies(r.Context())
 	if admin {
 		log.Printf("admin %s connected address family *.%s for %s (cert %q, proof exempt %v)", adminName(r), suffix, userID, f.CertName, f.ProofExempt)
 	}
@@ -450,8 +445,6 @@ func (h *SiteHandler) patchFamily(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteInternal(w)
 		return
 	}
-	h.syncFamilyRequest(f)
-	h.Hosts.RefreshFamilies(r.Context())
 	httpx.WriteJSON(w, http.StatusOK, h.familyResponseFor(r.Context(), f, false))
 }
 
@@ -460,7 +453,7 @@ func (h *SiteHandler) deleteFamily(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.releaseFamily(r.Context(), f); err != nil {
+	if err := h.SitesSvc().ReleaseFamily(r.Context(), f); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
@@ -492,49 +485,6 @@ func (h *SiteHandler) checkFamilyNow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, h.familyResponseFor(r.Context(), f, false))
-}
-
-// releaseFamily lets a family go: the row, the link (so nginx stops serving
-// it at once), the issuer's request (so it withdraws the server; it never
-// touches the operator's certificate), and every redirect that followed it.
-func (h *SiteHandler) releaseFamily(ctx context.Context, f model.AddressFamily) error {
-	if _, err := h.SitesSvc().DeleteFamily(ctx, f.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	if err := h.Disk.UnbindFamily(f.Suffix); err != nil {
-		log.Printf("address family %s: unbind: %v", f.Suffix, err)
-	}
-	h.Hosts.RemoveFamilyRequest(context.Background(), f.Suffix)
-	if f.VerifiedAt.Valid || f.ProofExempt {
-		h.Hosts.ReleaseFamily(f.Suffix)
-	}
-	h.Hosts.RefreshFamilies(ctx)
-	h.Hosts.SyncUserRedirects(ctx, f.UserID)
-	log.Printf("address family *.%s of %s released", f.Suffix, f.UserID)
-	return nil
-}
-
-// --- The hand-off with the issuer (deploy/family-certs/issue.sh) ---
-
-// familyRequestBody is requests/<suffix>: the token, the link target, the
-// certificate mode and lineage, the site prefix and the reserved labels.
-func familyRequestBody(f model.AddressFamily, l edition.Limits) string {
-	return f.Token + "\n" + filepath.Join("..", "by-id", f.UserID) + "\n" + f.CertMode + "\n" + f.CertName + "\n" +
-		f.SitePrefix + "\n" + strings.Join(l.ReservedFamilyLabels(), " ") + "\n"
-}
-
-// syncFamilyRequest keeps requests/<suffix> in step with a verified family
-// that has its certificate set up (Rewritten only when it changed, so the
-// issuer's path unit fires only then); anything else has none.
-func (h *SiteHandler) syncFamilyRequest(f model.AddressFamily, contexts ...context.Context) {
-	ctx := context.Background()
-	if len(contexts) > 0 {
-		ctx = contexts[0]
-	}
-	sites.New(h.Database, h.Disk, nil, 0, sites.Deps{}).SyncFamilyCertRequest(ctx, sites.FamilyCertRequestInput{
-		Directory: h.Hosts.FamilyCertDir(), Suffix: f.Suffix, Body: familyRequestBody(f, h.Limits),
-		ValidKey: sites.ValidFamilyKey(f.Suffix), Verified: f.VerifiedAt.Valid, CertName: f.CertName, Wildcard: f.CertMode == "wildcard",
-	})
 }
 
 // CheckFamilies is one pass: drop pending families that never proved
@@ -687,7 +637,7 @@ func (h *SiteHandler) CheckFamily(ctx context.Context, f model.AddressFamily, ou
 		if err := h.Disk.BindFamily(f.UserID, f.Suffix); err != nil {
 			sites.ReportWorkerFailure(ctx, "check address family", err)
 		}
-		h.syncFamilyRequest(f, ctx)
+		h.SitesSvc().SyncFamilyRequest(ctx, f)
 		sites.ReportWorkerProgress(ctx)
 		log.Printf("address family *.%s of %s verified", f.Suffix, f.UserID)
 		h.Hosts.RefreshFamilies(ctx)
@@ -697,7 +647,7 @@ func (h *SiteHandler) CheckFamily(ctx context.Context, f model.AddressFamily, ou
 	if err := h.Disk.BindFamily(f.UserID, f.Suffix); err != nil {
 		sites.ReportWorkerFailure(ctx, "check address family", err)
 	}
-	h.syncFamilyRequest(f, ctx)
+	h.SitesSvc().SyncFamilyRequest(ctx, f)
 	check, err := h.SitesSvc().SetFamilyCheck(ctx, f.ID, ok, why)
 	if err != nil {
 		sites.ReportWorkerFailure(ctx, "check address family", err)
@@ -715,7 +665,7 @@ func (h *SiteHandler) CheckFamily(ctx context.Context, f model.AddressFamily, ou
 	}
 	switch {
 	case due:
-		if err := h.releaseFamily(ctx, f); err != nil {
+		if err := h.SitesSvc().ReleaseFamily(ctx, f); err != nil {
 			sites.ReportWorkerFailure(ctx, "check address family", err)
 			return
 		}
@@ -817,14 +767,13 @@ func (h *SiteHandler) adminSetFamilyCert(w http.ResponseWriter, r *http.Request)
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "cert_name is a certificate lineage name (letters, digits, dots, hyphens)", Code: "invalid_cert_name"})
 		return
 	}
-	if err := h.SitesSvc().SetFamilyCert(r.Context(), f.ID, "wildcard", name); err != nil {
+	suffix := f.Suffix
+	f, err := h.SitesSvc().SetFamilyCert(r.Context(), f.ID, "wildcard", name)
+	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	log.Printf("admin %s set address family *.%s certificate to wildcard %q", adminName(r), f.Suffix, name)
-	f, _ = h.SitesSvc().GetFamilyByID(r.Context(), f.ID)
-	h.syncFamilyRequest(f)
-	h.Hosts.RefreshFamilies(r.Context())
+	log.Printf("admin %s set address family *.%s certificate to wildcard %q", adminName(r), suffix, name)
 	resp := h.familyResponseFor(r.Context(), f, false)
 	resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 	httpx.WriteJSON(w, http.StatusOK, resp)
@@ -845,12 +794,13 @@ func (h *SiteHandler) adminSetFamilyProofExempt(w http.ResponseWriter, r *http.R
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "proof_exempt (true or false) is required"})
 		return
 	}
-	if err := h.SitesSvc().SetFamilyProofExempt(r.Context(), f.ID, *req.ProofExempt); err != nil {
+	suffix := f.Suffix
+	f, err := h.SitesSvc().SetFamilyProofExempt(r.Context(), f.ID, *req.ProofExempt)
+	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	log.Printf("admin %s set address family *.%s proof exempt to %v", adminName(r), f.Suffix, *req.ProofExempt)
-	f, _ = h.SitesSvc().GetFamilyByID(r.Context(), f.ID)
+	log.Printf("admin %s set address family *.%s proof exempt to %v", adminName(r), suffix, *req.ProofExempt)
 	resp := h.familyResponseFor(r.Context(), f, false)
 	resp.Owner, resp.OwnerID, resp.CertName = f.Email, f.UserID, f.CertName
 	httpx.WriteJSON(w, http.StatusOK, resp)
@@ -863,7 +813,7 @@ func (h *SiteHandler) adminDeleteFamily(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if err := h.releaseFamily(r.Context(), f); err != nil {
+	if err := h.SitesSvc().ReleaseFamily(r.Context(), f); err != nil {
 		httpx.WriteInternal(w)
 		return
 	}

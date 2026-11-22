@@ -1,9 +1,7 @@
 package accesshttp
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -55,22 +53,16 @@ func (h *AccessHandler) ownerSiteForPasscode(w http.ResponseWriter, r *http.Requ
 // passcode, since when, and the passcode itself (owner only; the admin's
 // routes never read it).
 func (h *AccessHandler) getSitePasscode(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	site, err := h.sitesSvc().GetSiteByUser(r.Context(), user.ID, strings.TrimSpace(r.PathValue("sitename")))
+	row, err := h.sitesSvc().GetSitePasscodeByName(r.Context(), auth.GetUser(r.Context()).ID, strings.TrimSpace(r.PathValue("sitename")))
 	if err != nil {
 		web.WriteSiteLookupError(w, err)
 		return
 	}
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
-	if err != nil {
-		web.WriteSiteLookupError(w, err)
-		return
-	}
-	resp := passcodeResponse{Site: site.Name, PasscodeProtected: row.Enc != nil}
+	resp := passcodeResponse{Site: row.Name, PasscodeProtected: row.Enc != nil}
 	if row.Enc != nil {
-		code, err := h.Passcode.open(site.ID, row.Enc)
+		code, err := h.Passcode.open(row.SiteID, row.Enc)
 		if err != nil {
-			log.Printf("passcode read site_id=%s: %v", site.ID, err)
+			log.Printf("passcode read site_id=%s: %v", row.SiteID, err)
 			resp.Note = "The passcode is set but cannot be read on this server (its key changed). Set a new one."
 		} else {
 			resp.Passcode = code
@@ -191,19 +183,14 @@ func (h *AccessHandler) DeleteSitePasscode(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	defer unlock()
-	row, err := h.sitesSvc().GetSitePasscode(r.Context(), site.ID)
+	had, err := h.sitesSvc().ClearSitePasscode(r.Context(), site)
 	if err != nil {
-		web.WriteSiteLookupError(w, err)
-		return
-	}
-	if err := h.sitesSvc().ClearSitePasscode(r.Context(), site); err != nil {
 		web.WriteAccessMutationError(w, err)
 		return
 	}
-
-	log.Printf("site_passcode set=false had=%t site_id=%s name=%s by=%s", row.Enc != nil, site.ID, site.Name, auth.GetUser(r.Context()).ID)
+	log.Printf("site_passcode set=false had=%t site_id=%s name=%s by=%s", had, site.ID, site.Name, auth.GetUser(r.Context()).ID)
 	note := "The passcode is removed: every address of the site is open to everyone again."
-	if row.Enc == nil {
+	if !had {
 		// Say so, so no one reports taking off a passcode that was never set.
 		note = "This site had no passcode, so nothing changed."
 	}
@@ -219,11 +206,7 @@ func (h *AccessHandler) signOutEveryone(w http.ResponseWriter, r *http.Request) 
 	}
 	defer unlock()
 	if _, err := h.sitesSvc().BumpSitePasscodeGeneration(r.Context(), site.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: "this site has no passcode", Code: "no_passcode"})
-			return
-		}
-		httpx.WriteInternal(w)
+		web.WriteAccessError(w, err)
 		return
 	}
 	log.Printf("site_passcode sign_out_everyone site_id=%s name=%s by=%s", site.ID, site.Name, auth.GetUser(r.Context()).ID)

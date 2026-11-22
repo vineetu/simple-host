@@ -6,11 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
-	accounts "github.com/vsriram/simple-host/host/access"
-	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/sites"
 )
@@ -25,155 +22,105 @@ type filesRequest struct {
 	RemoveFiles []string          `json:"remove_files"`
 }
 
-// readJSONFiles decodes the body and applies the same path/secret/size guards as archive
-// extraction (sites.SanitizeFiles + ValidateExtensions). On any error the response is already written.
-func (h *SiteHandler) readJSONFiles(w http.ResponseWriter, r *http.Request, siteName string) (map[string][]byte, string, error) {
-	raw, _, limit, override, err := h.DecodeJSONFiles(w, r)
-	if err != nil {
-		return nil, "", err
-	}
-	return h.finishJSONFiles(w, raw, limit, override)
+// createSiteFiles is POST /v1/sites/{sitename}/files.
+func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
+	h.deployFiles(w, r, true)
 }
 
-func (h *SiteHandler) DecodeJSONFiles(w http.ResponseWriter, r *http.Request) (map[string][]byte, []string, int64, bool, error) {
-	limit, override := accounts.New(h.Database).SiteLimit(r.Context(), auth.GetUser(r.Context()), h.Limits, sites.Upload.Body)
-	// The files themselves are held to the limit once decoded.
-	bodyLimit := sites.JSONBodyLimit(limit)
-	r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
+// UpdateSiteFiles is PUT /v1/sites/{sitename}/files; with ?keep=1 the files
+// patch the live ones and remove_files drops live files.
+func (h *SiteHandler) UpdateSiteFiles(w http.ResponseWriter, r *http.Request) {
+	h.deployFiles(w, r, false)
+}
 
+func (h *SiteHandler) deployFiles(w http.ResponseWriter, r *http.Request, isNew bool) {
+	target, ok := deployTarget(w, r, isNew)
+	if !ok {
+		return
+	}
+	adm, err := h.SitesSvc().AdmitDeploy(r.Context(), target)
+	if err != nil {
+		writeCreatePreflight(w, err)
+		return
+	}
+	req, ok := h.decodeJSONFiles(w, r, adm.Limit)
+	if !ok {
+		return
+	}
+	in := deployInput(r, target, adm)
+	in.Files, in.Remove, in.Keep = req.files, req.remove, req.keep
+	result, err := h.SitesSvc().Deploy(r.Context(), in)
+	h.writeDeploy(w, r, in, result, err)
+}
+
+// jsonFiles is a decoded JSON deploy body: its files (text and base64
+// together), the live files to remove and whether it patches (keep=1).
+type jsonFiles struct {
+	files  map[string][]byte
+	remove []string
+	keep   bool
+}
+
+// decodeJSONFiles reads the JSON body under the upload limit and checks its
+// shape; the access it names is checked by readCreateAccess. On a refusal
+// the answer is already written.
+func (h *SiteHandler) decodeJSONFiles(w http.ResponseWriter, r *http.Request, limit int64) (jsonFiles, bool) {
+	bodyLimit := sites.JSONBodyLimit(limit) // the files themselves are held to the limit once decoded
+	r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
 	rc := http.NewResponseController(w)
 	_ = rc.SetReadDeadline(time.Now().Add(httpx.BodyReadTimeout(bodyLimit)))
 	defer rc.SetReadDeadline(time.Time{})
 	var req filesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		var requestErr *sites.Error
-		if errors.As(err, &requestErr) {
-			httpx.WriteJSON(w, 400, httpx.ErrorResponse{Code: requestErr.Code, Error: requestErr.Message})
-			return nil, nil, limit, override, err
-		}
 		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
+		switch {
+		case errors.As(err, &requestErr):
+			httpx.WriteJSON(w, 400, httpx.ErrorResponse{Code: requestErr.Code, Error: requestErr.Message})
+		case errors.As(err, &maxBytesErr):
 			writeTooLarge(w, limit, "")
-			return nil, nil, limit, override, err
+		default:
+			httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "invalid JSON body"})
 		}
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "invalid JSON body"})
-		return nil, nil, limit, override, err
+		return jsonFiles{}, false
 	}
 	if !h.readCreateAccess(w, r, req.Access, req.Viewers) {
-		return nil, nil, limit, override, errors.New("invalid creation access")
+		return jsonFiles{}, false
 	}
-	keep := r.Method == http.MethodPut && r.URL.Query().Get("keep") == "1"
-	if req.RemoveFiles != nil && !keep {
-		err := errors.New("remove_files requires keep=1")
-		httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: err.Error()})
-		return nil, nil, limit, override, err
+	out := jsonFiles{remove: req.RemoveFiles, keep: r.Method == http.MethodPut && r.URL.Query().Get("keep") == "1"}
+	if req.RemoveFiles != nil && !out.keep {
+		httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: "remove_files requires keep=1"})
+		return jsonFiles{}, false
 	}
-	if len(req.Files) == 0 && !keep {
+	if len(req.Files) == 0 && !out.keep {
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "files object is required and must be non-empty"})
-		return nil, nil, limit, override, errors.New("empty files")
+		return jsonFiles{}, false
 	}
+	files, refusal := req.decodedFiles()
+	if refusal != "" {
+		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: refusal})
+		return jsonFiles{}, false
+	}
+	out.files = files
+	return out, true
+}
 
-	raw := make(map[string][]byte, len(req.Files)+len(req.FilesBase64))
+// decodedFiles is the body's files, text and base64 together; a refusal
+// says why they cannot be read.
+func (req filesRequest) decodedFiles() (map[string][]byte, string) {
+	files := make(map[string][]byte, len(req.Files)+len(req.FilesBase64))
 	for path, contents := range req.Files {
-		raw[path] = []byte(contents)
+		files[path] = []byte(contents)
 	}
 	for path, contents := range req.FilesBase64 {
 		if _, exists := req.Files[path]; exists {
-			httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: fmt.Sprintf("path %q is present in both files and files_base64", path)})
-			return nil, nil, limit, override, errors.New("duplicate text and base64 path")
+			return nil, fmt.Sprintf("path %q is present in both files and files_base64", path)
 		}
 		decoded, err := base64.StdEncoding.DecodeString(contents)
 		if err != nil {
-			httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: fmt.Sprintf("invalid base64 for %q", path)})
-			return nil, nil, limit, override, err
+			return nil, fmt.Sprintf("invalid base64 for %q", path)
 		}
-		raw[path] = decoded
+		files[path] = decoded
 	}
-
-	if keep && len(raw) > 0 {
-		clean, _, err := h.SitesSvc().PrepareFiles(sites.FilePreparationInput{Files: raw, Limit: limit, Override: override, Patch: true})
-		if err != nil {
-			h.writePreparationError(w, err, limit, false)
-			return nil, nil, limit, override, err
-		}
-		raw = clean
-	}
-	return raw, req.RemoveFiles, limit, override, nil
-}
-
-func (h *SiteHandler) finishJSONFiles(w http.ResponseWriter, raw map[string][]byte, limit int64, override bool) (map[string][]byte, string, error) {
-	files, digest, err := h.SitesSvc().PrepareFiles(sites.FilePreparationInput{Files: raw, Limit: limit, Override: override})
-	if err != nil {
-		h.writePreparationError(w, err, limit, false)
-		return nil, "", err
-	}
-	return files, digest, nil
-}
-
-// createSiteFiles is the JSON create path: createSite's pre-checks, then commitNewSite.
-func (h *SiteHandler) createSiteFiles(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
-		return
-	}
-
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "site name is required"})
-		return
-	}
-	if !writeCreatePreflight(w, h.SitesSvc().CreatePreflight(r.Context(), sites.PreflightInput{
-		User: user, Name: siteName, CheckName: true, Publish: r.URL.Query().Get("publish"),
-	})) {
-		return
-	}
-
-	files, digest, err := h.readJSONFiles(w, r, siteName)
-	if err != nil {
-		return
-	}
-
-	h.commitCreate(w, r, user, siteName, files, digest, false)
-}
-
-// UpdateSiteFiles is the JSON update path: updateSite's pre-checks, then commitSiteUpdate.
-func (h *SiteHandler) UpdateSiteFiles(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	if user == nil {
-		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: "unauthorized"})
-		return
-	}
-
-	siteName := strings.TrimSpace(r.PathValue("sitename"))
-	if siteName == "" {
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: "site name is required"})
-		return
-	}
-	preflight, err := h.SitesSvc().UpdatePreflight(r.Context(), sites.UpdatePreflightInput{
-		User: user, Name: siteName, Publish: r.URL.Query().Get("publish"), Create: r.URL.Query().Get("create"),
-	})
-	if !writeCreatePreflight(w, err) {
-		return
-	}
-	publish, create := preflight.Publish, preflight.Create
-
-	raw, remove, limit, override, err := h.DecodeJSONFiles(w, r)
-	if err != nil {
-		return
-	}
-	keep := r.URL.Query().Get("keep") == "1"
-	if keep {
-		h.respondSiteUpdate(w, r, user, siteName, sites.UpdateInput{User: user, Name: siteName, Files: raw, Author: versionAuthor(r), Publish: publish, CreateIfMissing: create, Keep: true, Remove: remove, LimitOverride: override, Limit: limit}, func(site SiteResponse) { httpx.WriteJSON(w, http.StatusOK, site) })
-		return
-	}
-	files, digest, err := h.finishJSONFiles(w, raw, limit, override)
-	if err != nil {
-		return
-	}
-	if create {
-		h.createOrUpdateSite(w, r, user, siteName, files, digest, publish)
-	} else {
-		h.commitSiteUpdate(w, r, user, siteName, files, digest, publish)
-	}
+	return files, ""
 }

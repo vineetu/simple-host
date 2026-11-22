@@ -24,23 +24,34 @@ import (
 // the opaque reference an MCP caller holds) with the email they signed in
 // with when known, and why they are listed.
 type Person struct {
-	VisitorID, Email string
+	VisitorID string `json:"visitor_id,omitempty"`
+	Email     string `json:"email,omitempty"`
 	// NamedViewer: one of this site's named viewers (set_site_access,
 	// grant_site_viewer).
-	NamedViewer bool
+	NamedViewer bool `json:"named_viewer"`
 	// HasData: at least one KV key, stored file, or SQLite row of theirs.
-	HasData bool
+	HasData bool `json:"has_data"`
 	// SignedIn: a visitor_id is known for them. false only for a named
 	// viewer who has never signed in on this site: listed (the owner
 	// already named them) but not yet a usable ResolveOwnerFor target.
-	SignedIn bool
+	SignedIn bool `json:"signed_in"`
 }
 
 // SitePeople lists the site's people for the owner's pick list: visitors
 // who have saved data here, plus named viewers, and only them — never
 // everyone who ever merely signed in (the privacy rule). Owner only (API
 // key, connector token, or signed in on the site's own address).
+//
+// Named viewers (one input to this list) are not a Simple Hack concept, and
+// email resolution (the other) is not either: a product's bindings answer as
+// if the route did not exist, the same as Visitors.
 func (s *Service) SitePeople(ctx context.Context, c Call) ([]Person, error) {
+	if s.deps.Bindings != nil {
+		return nil, &Error{Code: "not_found", Message: "storage route not found"}
+	}
+	if !c.Owner && !c.OwnerOnSite {
+		c.OwnerOnSite = s.OwnerOnSite(ctx, c)
+	}
 	if !c.Owner && !c.OwnerOnSite {
 		return nil, &Error{Code: "forbidden", Message: "owner credential required"}
 	}

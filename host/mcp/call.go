@@ -248,7 +248,7 @@ var selfExplainedCodes = map[string]bool{
 	"sql_use_schema": true, "sql_no_such_table": true, "sql_no_such_column": true, "sql_no_such_function": true,
 	"sql_unique_failed": true, "sql_not_null_failed": true, "sql_check_failed": true, "sql_foreign_key_failed": true,
 	"sql_constraint_failed": true, "sql_visitor_rule": true, "sql_timeout": true, "sql_value_too_large": true,
-	"sql_error": true, "invalid_site_name": true, "invalid_argument": true,
+	"sql_error": true, "invalid_site_name": true, "invalid_argument": true, "confirm_name_mismatch": true,
 }
 
 // codeHints says what to do about a refusal the server named with a code.
@@ -286,6 +286,7 @@ var codeHints = map[string]string{
 	"account_suspended":              "This account is suspended by the operator. Tell the person to contact support@simple-host.app; do not retry.",
 	"preview_unavailable":            "This site has no address of its own to show a preview on. Tell the person; the version can still be made live with rollback_site.",
 	"version_not_found":              "No kept version of that number on this site. list_versions shows the versions that exist.",
+	"no_live_version":                "This site has nothing live yet. Publish its files with update_site, or read a kept version by number (list_versions).",
 	"version_live":                   "That version is live, so it cannot be discarded; only versions that were never live can be.",
 	"version_published":              "That version has been live, so it stays as history; only never-live versions can be discarded.",
 	"site_offline":                   "The owner has taken this site offline, so visitors cannot save to it. Put it back online with set_site_offline if the person wants that; the owner's own changes still work.",

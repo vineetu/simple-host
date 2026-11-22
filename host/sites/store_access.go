@@ -112,27 +112,11 @@ func (svc *Service) ResolveOldSiteName(ctx context.Context, userID string, name 
 	return repo.ResolveOldSiteName(ctx, svc.database, userID, name)
 }
 
-// SetFamilyCert sets the family's certificate mode and the operator's
-// lineage name (admin only).
-func (svc *Service) SetFamilyCert(ctx context.Context, id string, mode string, certName string) error {
-	return repo.SetFamilyCert(ctx, svc.database, id, mode, certName)
-}
-
 // SetFamilyCheck records one check: ok clears any failure; otherwise a
 // verified family starts (or keeps) its failing clock and a pending one keeps
 // waiting with the reason.
 func (svc *Service) SetFamilyCheck(ctx context.Context, id string, ok bool, reason string) (model.FamilyCheck, error) {
 	return repo.SetFamilyCheck(ctx, svc.database, id, ok, reason)
-}
-
-// SetFamilyProofExempt turns the admin's "no TXT record needed" flag on or off.
-func (svc *Service) SetFamilyProofExempt(ctx context.Context, id string, on bool) error {
-	return repo.SetFamilyProofExempt(ctx, svc.database, id, on)
-}
-
-// UpdateFamily applies p to the account's family and returns it.
-func (svc *Service) UpdateFamily(ctx context.Context, userID string, suffix string, p model.FamilyPatch) (model.AddressFamily, error) {
-	return repo.UpdateFamily(ctx, svc.database, userID, suffix, p)
 }
 
 // GetSiteByCustomDomain and HomeSite answer sign-in, which has no Service.

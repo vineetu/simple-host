@@ -1,17 +1,15 @@
 package siteshttp
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"strings"
-	"unicode/utf8"
 
+	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	"github.com/vsriram/simple-host/host/sites"
 )
 
 func (h *SiteHandler) showcaseOwner(w http.ResponseWriter, r *http.Request) *model.User {
@@ -32,14 +30,6 @@ func (h *SiteHandler) showcaseOwner(w http.ResponseWriter, r *http.Request) *mod
 	return u
 }
 
-func normalizeBio(bio string, max int) (string, error) {
-	bio = strings.TrimSpace(bio)
-	if utf8.RuneCountInString(bio) > max {
-		return "", fmt.Errorf("bio must be at most %d characters", max)
-	}
-	return bio, nil
-}
-
 func (h *SiteHandler) showcaseBio(w http.ResponseWriter, r *http.Request) {
 	u := h.showcaseOwner(w, r)
 	if u == nil {
@@ -56,22 +46,24 @@ func (h *SiteHandler) showcaseBio(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: "send a plain-text bio"})
 			return
 		}
-		bio, err := normalizeBio(*body.Bio, max)
-		if err != nil {
-			httpx.WriteJSON(w, 400, httpx.ErrorResponse{Error: err.Error(), Code: "bio_too_long"})
-			return
-		}
-		if err := h.storeAccounts().SetShowcaseBio(r.Context(), u.ID, bio); err != nil {
-			httpx.WriteInternal(w)
-			return
-		}
-	}
-	bio, err := h.storeAccounts().GetShowcaseBio(r.Context(), u.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
+		bio, err := h.storeAccounts().SetShowcaseBio(r.Context(), u.ID, *body.Bio, max)
+		writeShowcaseBio(w, bio, max, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"bio": bio, "max_length": max})
+	bio, err := h.storeAccounts().GetShowcaseBio(r.Context(), u.ID)
+	writeShowcaseBio(w, bio, max, err)
+}
+
+func writeShowcaseBio(w http.ResponseWriter, bio string, max int, err error) {
+	var refusal *accounts.Refusal
+	switch {
+	case errors.As(err, &refusal):
+		httpx.WriteJSON(w, refusal.Status, httpx.ErrorResponse{Error: refusal.Message, Code: refusal.Code})
+	case err != nil:
+		httpx.WriteInternal(w)
+	default:
+		httpx.WriteJSON(w, 200, map[string]any{"bio": bio, "max_length": max})
+	}
 }
 
 func (h *SiteHandler) showcaseSite(w http.ResponseWriter, r *http.Request) {
@@ -97,11 +89,12 @@ func (h *SiteHandler) showcaseSite(w http.ResponseWriter, r *http.Request) {
 	} else {
 		pref, err = h.SitesSvc().GetShowcasePreference(r.Context(), u.ID, name)
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteJSON(w, 404, httpx.ErrorResponse{Error: "site not found", Code: "not_found"})
+	var refusal *sites.Error
+	switch {
+	case errors.As(err, &refusal):
+		httpx.WriteJSON(w, httpx.RefusalStatus(refusal.Code, http.StatusInternalServerError), httpx.ErrorResponse{Error: refusal.Message, Code: refusal.Code})
 		return
-	}
-	if err != nil {
+	case err != nil:
 		httpx.WriteInternal(w)
 		return
 	}

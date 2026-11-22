@@ -8,20 +8,20 @@ Follow these steps literally. Every path below exists.
 
 ### Where things live
 
-- `host/access` (accounts, keys, sign-in, passcodes, viewers, editors, teams), routes in `host/access/accesshttp/routes.go`.
-- `host/sites` (deploys, versions, domains, analytics), routes in `host/sites/siteshttp/routes.go`.
+- `host/access` (accounts, keys, sign-in, passcodes, viewers, editors, teams), routes in `host/access/accesshttp/routes.go` (the account, OAuth and connector handlers mount theirs in their own `Register`: `user.go`, `oauth.go`, `connector.go`).
+- `host/sites` (deploys, versions, domains, analytics), routes in `host/sites/siteshttp/routes.go` (setup, the dashboard pages, event domains and name peers mount theirs in `setup.go`, `ui.go`, `eventdomain.go`, `namepeer.go`).
 - `host/data` (saved data: KV, SQLite, files, notifications), routes in `host/data/datahttp/routes.go`.
-- Imports: access <- sites <- data (each imports only those to its left). A routes package imports any module, never another routes package.
-- `host/mcp`: the AI tools. Each tool calls a REST route in process; it never reimplements one.
+- Imports: access <- sites <- data (each imports only those to its left); `host/ops` sits above all three and holds the workflows that span them. A routes package imports any module, never another routes package and never a `repo` package.
+- `host/mcp`: the AI tools. Each tool makes one REST call in process and never reimplements a rule; if a tool needs more in one answer, the REST route returns it. The one exception: after `create_site`/`update_site` the tool reads the site's storage list to warn about a page using a resource that does not exist (`sites_pagecheck.go`).
 - `products/hack`: Simple Hack. `rules/` (pure rules) -> `repository/` (SQL) -> `app/` (workflows) -> `hackhttp/` (routes, `routes.go`) and `mcp/` (tools).
-- `products/hack` may import `host`; `host` never imports `products`. `scripts/check-layering.sh` enforces all of this.
+- `products/hack` may import `host`; `host` never imports `products`. `scripts/check-layering.sh` enforces the imports, and fails on SQL text or a repo import in a routes package, `host/handler` or `host/mcp` (exceptions with reasons: `scripts/split/thin-edges-allow.txt`).
 - Each of these packages has a `doc.go` saying the same in a few lines.
 - A table is read and written only by its owner package (`scripts/split/table-owners.txt`, e.g. `users` by `host/access/repo`, `sites` by `host/sites/repo`); other packages call its functions. `sqlcheck -owners` (in `make ready`) enforces it.
 
 ### Recipe: add a REST route
 
 1. Put the rule or workflow in the module, beside the closest neighbour (e.g. `ListKV` in `host/data/kv.go`). Hack: `products/hack/app/<area>/`.
-2. Add one `mux.Handle` line in the module's `routes.go` (copy a neighbour) and a thin handler beside its siblings.
+2. Add one `mux.Handle` line in the module's `routes.go` (copy a neighbour) and a thin handler beside its siblings: it reads the request, calls that one function, and writes the answer. Decisions live in the module; web work (cookies, redirects, streaming, which page to show) stays in the handler. A refusal is a typed error from the module (`sites.Error`, `access.Refusal`) whose status comes from `httpx.RefusalStatus`; never branch on `sql.ErrNoRows` in a route.
 3. If a site editor or a deploy-only key may call it, add the pattern to `editorRoutes` or `deployRoutes` in `host/access/auth/scope.go`. Otherwise they are refused.
 4. Document it in `host/webassets/static/openapi.yaml` (Hack: `products/hack/webassets/openapi.part.yaml`).
 5. Name the path in backticks under its feature in `docs/FEATURES.md`.
@@ -30,7 +30,7 @@ Follow these steps literally. Every path below exists.
 
 ### Recipe: add an MCP tool
 
-1. Declare it beside its neighbours: Host in `host/mcp/<family>_tools.go` (e.g. `sites_read_tools.go`), Hack in `products/hack/mcp/hack_*_tools.go`. It calls the REST route.
+1. Declare it beside its neighbours: Host in `host/mcp/<family>_tools.go` (e.g. `sites_read_tools.go`), Hack in `products/hack/mcp/hack_*_tools.go`. It makes one call to the REST route; if the answer needs more, add an optional field or query flag to that route.
 2. Add its row ("read", "write" or "destructive") to `hostAnnotationTable` in `host/mcp/annotations_test.go` (Hack: `hackAnnotationTable` in `products/hack/mcp/annotations_test.go`).
 3. Add it to the kit: `plugins/openai/chatgpt-app-submission.json` (Hack: `plugins/openai-hack/chatgpt-app-submission.json`), same three hints.
 4. A Host tool with no `site` argument that should take `owner` (a team) must be named in `ownerTools` in `host/mcp/access_team_tools.go`.

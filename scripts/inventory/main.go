@@ -52,25 +52,7 @@ func run(args []string) error {
 		return fmt.Errorf("usage: inventory routes|tools|write|check")
 	}
 	if args[0] == "tools" {
-		flags := flag.NewFlagSet("tools", flag.ContinueOnError)
-		edition := flags.String("edition", "host", "host, hack, or screen")
-		if err := flags.Parse(args[1:]); err != nil {
-			return err
-		}
-		if *edition != "host" && *edition != "hack" && *edition != "screen" {
-			return fmt.Errorf("unknown edition: %s", *edition)
-		}
-		var names []string
-		for _, t := range programToolInventory() {
-			if t.Edition == *edition {
-				names = append(names, t.Name)
-			}
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			fmt.Println(name)
-		}
-		return nil
+		return printTools(args[1:])
 	}
 	if len(args) != 1 {
 		return fmt.Errorf("unexpected arguments: %v", args[1:])
@@ -95,9 +77,68 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	placements, err := parseFeatures(string(features))
+	inv, err := placedInventory(routes, string(features))
 	if err != nil {
 		return err
+	}
+	files, err := generated(inv)
+	if err != nil {
+		return err
+	}
+	var problems []string
+	if args[0] == "check" {
+		registry, err := os.ReadFile("docs/feature-ids.txt")
+		if err != nil {
+			return err
+		}
+		if err := validateFeatureIDs(string(features), string(registry)); err != nil {
+			problems = append(problems, err.Error())
+		}
+	}
+	stale, err := syncGenerated(args[0] == "write", files)
+	if err != nil {
+		return err
+	}
+	problems = append(problems, stale...)
+	if args[0] == "check" {
+		problems = append(problems, unplaced(inv)...)
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("%s\nFix: place each new route or tool under its feature in docs/FEATURES.md, then run: make inventory", strings.Join(problems, "\n"))
+	}
+	fmt.Printf("%s: %d route registrations, %d tools\n", args[0], len(inv.Routes), len(inv.Tools))
+	return nil
+}
+
+// printTools prints the sorted tool names of one edition.
+func printTools(args []string) error {
+	flags := flag.NewFlagSet("tools", flag.ContinueOnError)
+	edition := flags.String("edition", "host", "host, hack, or screen")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *edition != "host" && *edition != "hack" && *edition != "screen" {
+		return fmt.Errorf("unknown edition: %s", *edition)
+	}
+	var names []string
+	for _, t := range programToolInventory() {
+		if t.Edition == *edition {
+			names = append(names, t.Name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		fmt.Println(name)
+	}
+	return nil
+}
+
+// placedInventory gives every route and tool its feature ID from
+// FEATURES.md, with tools ordered by edition then name.
+func placedInventory(routes []route, features string) (inventory, error) {
+	placements, err := parseFeatures(features)
+	if err != nil {
+		return inventory{}, err
 	}
 	inv := inventory{Routes: routes, Tools: []tool{}}
 	for i := range inv.Routes {
@@ -113,53 +154,46 @@ func run(args []string) error {
 		}
 		return a.Name < b.Name
 	})
-	files, err := generated(inv)
-	if err != nil {
-		return err
-	}
-	var problems []string
-	if args[0] == "check" {
-		registry, err := os.ReadFile("docs/feature-ids.txt")
-		if err != nil {
-			return err
-		}
-		if err := validateFeatureIDs(string(features), string(registry)); err != nil {
-			problems = append(problems, err.Error())
-		}
-	}
+	return inv, nil
+}
+
+// syncGenerated writes the generated docs when write is set, and otherwise
+// lists each one that differs from what is on disk.
+func syncGenerated(write bool, files map[string][]byte) ([]string, error) {
+	var stale []string
 	for _, name := range []string{"routes.md", "mcp-tools.md", "inventory.json"} {
 		path := "docs/generated/" + name
-		if args[0] == "write" {
+		if write {
 			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-				return err
+				return nil, err
 			}
 			if err := os.WriteFile(path, files[name], 0644); err != nil {
-				return err
+				return nil, err
 			}
 		} else {
 			current, err := os.ReadFile(path)
 			if err != nil || !bytes.Equal(current, files[name]) {
-				problems = append(problems, "stale "+path)
+				stale = append(stale, "stale "+path)
 			}
 		}
 	}
-	if args[0] == "check" {
-		for _, r := range inv.Routes {
-			if r.FeatureID == "UNPLACED" {
-				problems = append(problems, fmt.Sprintf("unplaced route: %s %s (%s)", r.Method, r.Path, r.Source))
-			}
-		}
-		for _, t := range inv.Tools {
-			if t.FeatureID == "UNPLACED" {
-				problems = append(problems, fmt.Sprintf("unplaced tool: %s (%s)", t.Name, t.Edition))
-			}
+	return stale, nil
+}
+
+// unplaced lists the routes and tools that no feature in FEATURES.md names.
+func unplaced(inv inventory) []string {
+	var problems []string
+	for _, r := range inv.Routes {
+		if r.FeatureID == "UNPLACED" {
+			problems = append(problems, fmt.Sprintf("unplaced route: %s %s (%s)", r.Method, r.Path, r.Source))
 		}
 	}
-	if len(problems) > 0 {
-		return fmt.Errorf("%s\nFix: place each new route or tool under its feature in docs/FEATURES.md, then run: make inventory", strings.Join(problems, "\n"))
+	for _, t := range inv.Tools {
+		if t.FeatureID == "UNPLACED" {
+			problems = append(problems, fmt.Sprintf("unplaced tool: %s (%s)", t.Name, t.Edition))
+		}
 	}
-	fmt.Printf("%s: %d route registrations, %d tools\n", args[0], len(inv.Routes), len(inv.Tools))
-	return nil
+	return problems
 }
 
 // Each dynamic entry is keyed by file + enclosing function, then by its order
@@ -180,9 +214,17 @@ func muxReceiver(e ast.Expr) bool {
 	}
 	return false
 }
+
+// routeScanner collects mux registrations, counting each function's dynamic
+// calls so they can be matched against the dynamic table in order.
+type routeScanner struct {
+	table  dynamicTable
+	seen   map[string]int
+	routes []route
+}
+
 func scanRoutes(root string, table dynamicTable) ([]route, error) {
-	var routes []route
-	seen := map[string]int{}
+	s := &routeScanner{table: table, seen: map[string]int{}}
 	for _, dir := range []string{"cmd", "host", "products"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -194,85 +236,18 @@ func scanRoutes(root string, table dynamicTable) ([]route, error) {
 			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return nil
 			}
-			file, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			file = filepath.ToSlash(file)
-			fset := token.NewFileSet()
-			tree, err := parser.ParseFile(fset, path, nil, 0)
-			if err != nil {
-				return err
-			}
-			for _, decl := range tree.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok {
-					continue
-				}
-				key := file + ":" + fn.Name.Name
-				var scanErr error
-				ast.Inspect(fn, func(n ast.Node) bool {
-					if scanErr != nil {
-						return false
-					}
-					call, ok := n.(*ast.CallExpr)
-					if !ok {
-						return true
-					}
-					sel, ok := call.Fun.(*ast.SelectorExpr)
-					if !ok || (sel.Sel.Name != "Handle" && sel.Sel.Name != "HandleFunc") || !muxReceiver(sel.X) || len(call.Args) == 0 {
-						return true
-					}
-					var patterns []string
-					lit, literal := call.Args[0].(*ast.BasicLit)
-					literal = literal && lit.Kind == token.STRING
-					if literal {
-						pattern, err := strconv.Unquote(lit.Value)
-						if err != nil {
-							scanErr = err
-							return false
-						}
-						patterns = []string{pattern}
-					} else {
-						var expression bytes.Buffer
-						if err := format.Node(&expression, fset, call.Args[0]); err != nil {
-							scanErr = err
-							return false
-						}
-						idx := seen[key]
-						seen[key]++
-						sites := table[key]
-						if idx >= len(sites) || sites[idx].Expression != expression.String() {
-							scanErr = fmt.Errorf("unknown dynamic registration: %s:%d (%s, call %d): %s", file, fset.Position(call.Pos()).Line, fn.Name.Name, idx+1, expression.String())
-							return false
-						}
-						patterns = sites[idx].Patterns
-					}
-					for _, pattern := range patterns {
-						method, path, found := strings.Cut(pattern, " ")
-						if !found {
-							path = method
-							method = "ANY"
-						}
-						routes = append(routes, route{Method: method, Path: path, Source: fmt.Sprintf("%s:%d", file, fset.Position(call.Pos()).Line), Package: filepath.ToSlash(filepath.Dir(file)), Dynamic: !literal})
-					}
-					return true
-				})
-				if scanErr != nil {
-					return scanErr
-				}
-			}
-			return nil
+			return s.scanFile(root, path)
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
 	for key, sites := range table {
-		if seen[key] != len(sites) {
-			return nil, fmt.Errorf("dynamic table is stale: %s: found %d calls, want %d", key, seen[key], len(sites))
+		if s.seen[key] != len(sites) {
+			return nil, fmt.Errorf("dynamic table is stale: %s: found %d calls, want %d", key, s.seen[key], len(sites))
 		}
 	}
+	routes := s.routes
 	sort.Slice(routes, func(i, j int) bool {
 		a, b := routes[i], routes[j]
 		if a.Method != b.Method {
@@ -284,6 +259,94 @@ func scanRoutes(root string, table dynamicTable) ([]route, error) {
 		return a.Source < b.Source
 	})
 	return routes, nil
+}
+
+// scanFile records the registrations in each function of one Go file.
+func (s *routeScanner) scanFile(root, path string) error {
+	file, err := filepath.Rel(root, path)
+	if err != nil {
+		return err
+	}
+	file = filepath.ToSlash(file)
+	fset := token.NewFileSet()
+	tree, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return err
+	}
+	for _, decl := range tree.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		var scanErr error
+		ast.Inspect(fn, func(n ast.Node) bool {
+			if scanErr != nil {
+				return false
+			}
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			scanErr = s.registration(fset, file, fn, call)
+			return scanErr == nil
+		})
+		if scanErr != nil {
+			return scanErr
+		}
+	}
+	return nil
+}
+
+// registration records the routes of call when it is mux.Handle or
+// mux.HandleFunc. A literal pattern is read directly; any other expression
+// must match the next dynamic table entry for its function.
+func (s *routeScanner) registration(fset *token.FileSet, file string, fn *ast.FuncDecl, call *ast.CallExpr) error {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || (sel.Sel.Name != "Handle" && sel.Sel.Name != "HandleFunc") || !muxReceiver(sel.X) || len(call.Args) == 0 {
+		return nil
+	}
+	var patterns []string
+	lit, literal := call.Args[0].(*ast.BasicLit)
+	literal = literal && lit.Kind == token.STRING
+	if literal {
+		pattern, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return err
+		}
+		patterns = []string{pattern}
+	} else {
+		var err error
+		if patterns, err = s.dynamicPatterns(fset, file, fn, call); err != nil {
+			return err
+		}
+	}
+	for _, pattern := range patterns {
+		method, path, found := strings.Cut(pattern, " ")
+		if !found {
+			path = method
+			method = "ANY"
+		}
+		s.routes = append(s.routes, route{Method: method, Path: path, Source: fmt.Sprintf("%s:%d", file, fset.Position(call.Pos()).Line), Package: filepath.ToSlash(filepath.Dir(file)), Dynamic: !literal})
+	}
+	return nil
+}
+
+// dynamicPatterns returns the patterns the dynamic table lists for this
+// non-literal registration, which must be the next one in its function with
+// the same expression.
+func (s *routeScanner) dynamicPatterns(fset *token.FileSet, file string, fn *ast.FuncDecl, call *ast.CallExpr) ([]string, error) {
+	key := file + ":" + fn.Name.Name
+	var expression bytes.Buffer
+	if err := format.Node(&expression, fset, call.Args[0]); err != nil {
+		return nil, err
+	}
+	idx := s.seen[key]
+	s.seen[key]++
+	sites := s.table[key]
+	if idx >= len(sites) || sites[idx].Expression != expression.String() {
+		return nil, fmt.Errorf("unknown dynamic registration: %s:%d (%s, call %d): %s", file, fset.Position(call.Pos()).Line, fn.Name.Name, idx+1, expression.String())
+	}
+	return sites[idx].Patterns, nil
 }
 
 var anchorRE = regexp.MustCompile(`<a id="([^"]+)"></a>`)

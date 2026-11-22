@@ -1,15 +1,10 @@
 package accesshttp
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
-	"strings"
-
-	sitesrepo "github.com/vsriram/simple-host/host/sites/repo"
 
 	"github.com/vsriram/simple-host/host/ops"
 
@@ -92,46 +87,12 @@ func (h *UserHandler) createTeam(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) listTeams(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUser(r.Context())
-	teams, err := accounts.ListTeams(r.Context(), h.database, user.ID)
-	if err == nil {
-		err = withSiteCounts(r.Context(), h.database, teams)
-	}
-	if err != nil {
-		writeTeamError(w, err)
-		return
-	}
-	invitations, err := h.invitationsFor(r.Context(), user)
+	teams, invitations, err := ops.MyTeams(r.Context(), h.database, auth.GetUser(r.Context()))
 	if err != nil {
 		writeTeamError(w, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"teams": teams, "invitations": invitations})
-}
-
-// inviteeEmail is the one address invitations reach the signed-in person
-// at: their sign-in email, when the platform counts it as verified
-// (visitorEmail), in its sign-in form (authrules.NormalEmail: lower case, no
-// +tag folding). An account whose username is not an email, or whose email
-// is unverified, gets "" and matches no invitation. Invitations follow the
-// address, not the account: if a person's sign-in email changes, they see
-// those sent to the new address and no longer those sent to the old one.
-func inviteeEmail(ctx context.Context, database *sql.DB, user *model.User) (string, error) {
-	email, err := accounts.VisitorEmail(ctx, database, user.ID)
-	if err != nil || !strings.EqualFold(email, user.Username) {
-		return "", err
-	}
-	email, _ = authrules.NormalEmail(email)
-	return email, nil
-}
-
-// invitationsFor lists the invitations waiting for the signed-in person.
-func (h *UserHandler) invitationsFor(ctx context.Context, user *model.User) ([]model.TeamInvitation, error) {
-	email, err := inviteeEmail(ctx, h.database, user)
-	if err != nil {
-		return nil, err
-	}
-	return accounts.InvitationsFor(ctx, h.database, email)
 }
 
 func (h *UserHandler) listTeamMembers(w http.ResponseWriter, r *http.Request) {
@@ -186,13 +147,7 @@ func (h *UserHandler) answerTeamInvitation(w http.ResponseWriter, r *http.Reques
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: `send {"answer": "accept"} or {"answer": "decline"}`, Code: "invalid_request"})
 		return
 	}
-	user := auth.GetUser(r.Context())
-	email, err := inviteeEmail(r.Context(), h.database, user)
-	if err != nil {
-		writeTeamError(w, err)
-		return
-	}
-	team, err := accounts.AnswerInvitation(r.Context(), h.database, user.ID, email, r.PathValue("invitation"), body.Answer == "accept")
+	team, err := accounts.AnswerMyInvitation(r.Context(), h.database, auth.GetUser(r.Context()), r.PathValue("invitation"), body.Answer == "accept")
 	if err != nil {
 		writeTeamError(w, err)
 		return
@@ -240,17 +195,4 @@ func teamsForMe(teams []model.Team) []map[string]string {
 		out = append(out, map[string]string{"id": t.ID, "handle": t.Handle})
 	}
 	return out
-}
-
-// withSiteCounts fills each team's live-site count (Sites owns them).
-func withSiteCounts(ctx context.Context, db *sql.DB, teams []model.Team) error {
-	ids := make([]string, len(teams))
-	for i, t := range teams {
-		ids[i] = t.ID
-	}
-	counts, err := sitesrepo.LiveSiteCounts(ctx, db, ids)
-	for i := range teams {
-		teams[i].Sites = counts[teams[i].ID]
-	}
-	return err
 }

@@ -1,10 +1,8 @@
 package siteshttp
 
 import (
-	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -241,92 +239,20 @@ func (h *SiteHandler) bindDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	current, has, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
+	info, tookOverFrom, err := h.opsSitesSvc().BindDomain(r.Context(), site, domain)
+	var refusal *sites.Error
 	switch {
+	case errors.Is(err, model.ErrDomainTaken):
+		httpx.WriteError(w, http.StatusConflict, "domain_taken", "domain is connected to another site")
+	case errors.As(err, &refusal):
+		httpx.WriteError(w, httpx.RefusalStatus(refusal.Code, http.StatusConflict), refusal.Code, refusal.Message)
 	case err != nil:
 		httpx.WriteInternal(w)
-	case has && current.Domain == domain && current.VerifiedAt.Valid:
-		httpx.WriteJSON(w, http.StatusOK, h.domainResponseFor(current)) // already its working domain
-	case has && current.PreviousDomain == domain:
-		h.returnToPreviousDomain(w, r, site, current.Domain)
 	default:
-		h.connectDomain(w, r, site, domain)
+		resp := h.domainResponseFor(info)
+		resp.TookOverFrom = tookOverFrom
+		httpx.WriteJSON(w, http.StatusOK, resp)
 	}
-}
-
-// returnToPreviousDomain drops the pending domain of a site going back to
-// the earlier address it still serves at.
-func (h *SiteHandler) returnToPreviousDomain(w http.ResponseWriter, r *http.Request, site model.Site, pending string) {
-	dropped, _, err := h.opsSitesSvc().DropCustomDomain(r.Context(), site.ID, pending)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if dropped != "" {
-		if _, err := h.Disk.UnbindDomainOf(dropped, site.UserID, site.Name); err != nil {
-			log.Printf("domain: unbind %s: %v", dropped, err)
-		}
-	}
-	h.Hosts.SyncDomainRedirect(r.Context(), site.ID)
-	info, _, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	httpx.WriteJSON(w, http.StatusOK, h.domainResponseFor(info))
-}
-
-// connectDomain binds domain to site (pending DNS): it takes the domain over
-// from a site whose binding was never proven, and a pending domain it
-// replaces stops pointing at the site.
-func (h *SiteHandler) connectDomain(w http.ResponseWriter, r *http.Request, site model.Site, domain string) {
-	// The issuer still serves this domain for a binding that just ended:
-	// wait until it has let go, so nobody inherits a live server and
-	// certificate.
-	if fileExists(h.Hosts.DomainCertFile("ready", domain)) {
-		if _, err := h.opsSitesSvc().GetSiteByCustomDomain(r.Context(), domain); errors.Is(err, sql.ErrNoRows) {
-			httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: "this domain was just disconnected and is still being released; try again in 10 minutes", Code: "domain_releasing"})
-			return
-		}
-	}
-	holder, replaced, err := h.opsSitesSvc().BindCustomDomain(r.Context(), site.ID, domain)
-	if errors.Is(err, model.ErrDomainTaken) {
-		httpx.WriteJSON(w, http.StatusConflict, struct {
-			Error string `json:"error"`
-			Code  string `json:"code"`
-		}{"domain is connected to another site", "domain_taken"})
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	tookOverFrom := ""
-	if holder != nil {
-		h.Hosts.CancelDomainCert(domain)
-		h.releaseDomainFiles(*holder)
-		tookOverFrom = holder.Handle + "/" + holder.Name
-	}
-	// A proven replaced domain is kept (previous_domain) and serves until
-	// this one is live; a pending one stops pointing at the site.
-	if replaced != "" {
-		if _, err := h.Disk.UnbindDomainOf(replaced, site.UserID, site.Name); err != nil {
-			log.Printf("domain: unbind replaced %s: %v", replaced, err)
-		}
-		h.Hosts.CancelDomainCert(replaced)
-	}
-	if err := h.Disk.BindDomain(site.UserID, site.Name, domain); err != nil {
-		log.Printf("domain: bind %s for %s/%s: %v", domain, site.UserID, site.Name, err)
-	}
-	h.Hosts.SyncDomainRedirect(r.Context(), site.ID) // follows only a proven domain
-	info, _, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	resp := h.domainResponseFor(info)
-	resp.TookOverFrom = tookOverFrom
-	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
@@ -342,19 +268,9 @@ func (h *SiteHandler) getDomain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	site, err := h.opsSitesSvc().GetSiteByUser(r.Context(), user.ID, siteName)
+	info, ok, err := h.opsSitesSvc().SiteDomain(r.Context(), user.ID, siteName)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, siteName)
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-
-	info, ok, err := h.opsSitesSvc().GetSiteDomainInfo(r.Context(), site.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
+		writeSitesError(w, err, siteName)
 		return
 	}
 	if !ok {
@@ -416,9 +332,12 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 	// with the site as a retired name that redirects to its current address.
 	// ?domain= names the address the caller means to drop (what it was shown);
 	// if the site's domain changed since, nothing is dropped.
-	expected := ""
-	if q := strings.TrimSpace(r.URL.Query().Get("domain")); q != "" {
-		expected = domainCandidate(q)
+	// An empty ?domain= (after clean-up) names nothing, so it drops nothing;
+	// only a request without the parameter drops whatever is connected.
+	expected := domainCandidate(r.URL.Query().Get("domain"))
+	if r.URL.Query().Has("domain") && expected == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid_request", "domain must name the domain connected to the site; nothing was changed")
+		return
 	}
 	dropped, _, err := h.opsSitesSvc().DropCustomDomain(r.Context(), site.ID, expected)
 	if err != nil {
@@ -437,6 +356,16 @@ func (h *SiteHandler) deleteDomain(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Hosts.SyncDomainRedirect(r.Context(), site.ID)
 
+	// ?return=site answers with the site as it is now (its new live_url)
+	// instead of an empty 204.
+	if r.URL.Query().Get("return") == "site" {
+		if site, err = h.SiteForCaller(r, user.ID, siteName); err != nil {
+			httpx.WriteInternal(w)
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, h.ToSiteResponse(site, ""))
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -526,14 +455,4 @@ func (h *SiteHandler) domainRedirect(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	http.Redirect(w, r, target, http.StatusFound)
-}
-
-// releaseDomainFiles is best-effort cleanup after a database Release: the
-// released domain stops pointing at the site, and the content-host redirect
-// follows whatever the site now has (an earlier address it got back, or none).
-func (h *SiteHandler) releaseDomainFiles(info model.SiteDomainInfo) {
-	if err := h.Disk.UnbindDomain(info.Domain); err != nil {
-		log.Printf("domain: unbind %s: %v", info.Domain, err)
-	}
-	h.Hosts.SyncDomainRedirect(context.Background(), info.SiteID)
 }

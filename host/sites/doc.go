@@ -2,7 +2,8 @@
 // domains, addresses and analytics. It may import access (and calls it
 // directly for limits, retention, handles and viewers), never data: a step
 // that touches saved data after a Sites call (events, push devices, an
-// export with SQLite) is done by the routes or by host/ops.
+// export with SQLite) is done by host/ops (the domain and family check
+// workers in siteshttp still emit their events through data/notify).
 //
 // Its door: repo/door.go and repo/door_access.go (the sites table's only
 // reader and writer), product.go (what a product reads of sites) and the
@@ -15,7 +16,7 @@
 //   - which site a host or name means: Hosts.ResolveSite;
 //   - the site name: host/rules/sites.ValidateShape and ValidateReserved.
 //
-// Deps holds configuration and concrete collaborators only; the two hooks it
-// keeps are named with their reasons in scripts/layering/funcfields.txt.
+// Deps holds configuration and concrete collaborators only; the hook it
+// keeps (Sitemap) is named with its reason in scripts/layering/funcfields.txt.
 // Its HTTP routes are in siteshttp (routes.go).
 package sites

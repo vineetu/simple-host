@@ -22,12 +22,12 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
-	usage, measuredAt, err := h.usage.Get(h.Disk.DataDir(), h.Disk.Changes())
+	report, err := h.Reporting.InstanceUsage(r.Context(), h.Disk, &h.usage, h.Network)
 	if err != nil {
 		httpx.WriteJSON(w, 500, httpx.ErrorResponse{Error: "could not read this server's disk"})
 		return
 	}
-	accounts := h.Reporting.AccountCount(r.Context())
+	usage, measuredAt := report.Disk, report.MeasuredAt
 	out := map[string]any{
 		"disk_bytes":      usage.DiskBytes,
 		"disk_free_bytes": usage.DiskFreeBytes,
@@ -35,7 +35,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		"disk_used_pct":   usage.DiskUsedPct,
 		"site_bytes":      usage.SiteBytes,
 		"sites":           usage.Sites,
-		"accounts":        accounts,
+		"accounts":        report.Accounts,
 		"largest":         usage.Largest,
 		"site_limit_mb":   sites.Upload.Body >> 20,
 		// MAX_ARCHIVE_MB_OVERRIDES: handle -> MB, for the accounts that
@@ -51,7 +51,7 @@ func (h *SiteHandler) adminUsage(w http.ResponseWriter, r *http.Request) {
 		// When the walk behind these figures ran. A served-stale reading is
 		// better than a page that hangs, but only if the page can say so.
 		"measured_at": measuredAt.UTC().Format(time.RFC3339),
-		"network":     h.Network.Report(r.Context(), time.Now()),
+		"network":     report.Network,
 	}
 	statuses := []workers.Status{}
 	if h.workerStatus != nil {

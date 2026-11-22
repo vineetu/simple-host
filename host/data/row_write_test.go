@@ -52,11 +52,11 @@ func TestAddTableRowCommitAndRollback(t *testing.T) {
 	}
 	in := TableInput{Table: "child", Values: map[string]json.RawMessage{"parent_id": json.RawMessage(`1`)}}
 	var id int64
-	if err := s.addTableRow(conn, c, in, meta, &Admission{}, &id); err == nil || err.(*Error).Code != "invalid_reference" || disk.Changes() != 0 {
+	if err := addTestRow(s, conn, c, in, meta, &id); err == nil || err.(*Error).Code != "invalid_reference" || disk.Changes() != 0 {
 		t.Fatalf("inaccessible parent: %v, marks %d", err, disk.Changes())
 	}
 	in.Values = map[string]json.RawMessage{"parent_id": json.RawMessage(`2`)}
-	err = s.addTableRow(conn, c, in, meta, &Admission{}, &id)
+	err = addTestRow(s, conn, c, in, meta, &id)
 	if err != nil || id != 1 || disk.Changes() != 1 {
 		t.Fatalf("accessible parent: id %d, error %v, marks %d", id, err, disk.Changes())
 	}
@@ -80,7 +80,7 @@ func TestAddTableRowRejectsClientIDWithoutWriting(t *testing.T) {
 	}
 	in := TableInput{Table: "notes", Values: map[string]json.RawMessage{"id": json.RawMessage(`42`), "body": json.RawMessage(`"hello"`)}}
 	var id int64
-	if err := s.addTableRow(conn, c, in, meta, &Admission{}, &id); err == nil || err.(*Error).Message != "the server assigns ids" {
+	if err := addTestRow(s, conn, c, in, meta, &id); err == nil || err.(*Error).Message != "the server assigns ids" {
 		t.Fatalf("client id: %v", err)
 	}
 	if disk.Changes() != 0 || conn.TotalChanges() != 0 {
@@ -107,7 +107,7 @@ func TestAddTableRowRejectsTriggerWritingAnotherTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	var id int64
-	err = s.addTableRow(conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta, &Admission{}, &id)
+	err = addTestRow(s, conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta, &id)
 	if e, ok := err.(*Error); !ok || e.Code != "forbidden" || disk.Changes() != 0 || conn.TotalChanges() != 0 {
 		t.Fatalf("trigger insert: error %v, marks %d, changes %d", err, disk.Changes(), conn.TotalChanges())
 	}
@@ -132,7 +132,7 @@ func TestAddTableRowOwnerMayUseTrigger(t *testing.T) {
 		t.Fatal(err)
 	}
 	var id int64
-	err = s.addTableRow(conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta, &Admission{}, &id)
+	err = addTestRow(s, conn, c, TableInput{Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"hello"`)}}, meta, &id)
 	if err != nil || id != 1 || disk.Changes() != 1 || conn.TotalChanges() != 2 {
 		t.Fatalf("owner trigger insert: id %d, error %v, marks %d, changes %d", id, err, disk.Changes(), conn.TotalChanges())
 	}
@@ -147,4 +147,20 @@ func TestTableWriteAuthorizesBeforeReplay(t *testing.T) {
 			t.Fatalf("%s: %#v", action, result)
 		}
 	}
+}
+
+// addTestRow runs one add the way TableWrite does on an open table: begin,
+// addRow, commit.
+func addTestRow(s *Service, conn *sqlite3.Conn, c Call, in TableInput, meta rowMetadata, id *int64) error {
+	commit, rollback, err := beginTableWrite(conn)
+	if err != nil {
+		return err
+	}
+	defer rollback()
+	out, err := s.addRow(&rowTable{conn: conn, c: c, table: in.Table, meta: meta}, in.Values)
+	if err != nil {
+		return err
+	}
+	*id, _ = out.Body["last_insert_id"].(int64)
+	return s.finishTableWrite(conn, c, commit, &Admission{})
 }

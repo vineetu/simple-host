@@ -76,7 +76,6 @@ func recordingNames(s, n string) bool {
 	if n == "" {
 		return false
 	}
-	ident := func(c byte) bool { return c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' }
 	for off := 0; off < len(s); {
 		i := strings.Index(s[off:], n)
 		if i < 0 {
@@ -93,17 +92,9 @@ func recordingNames(s, n string) bool {
 			}
 			left--
 		}
-		ok := (i == 0 || !ident(s[i-1])) && (end == len(s) || !ident(s[end]))
+		ok := (i == 0 || !recordingIdent(s[i-1])) && (end == len(s) || !recordingIdent(s[end]))
 		if left > 0 && s[left-1] == '.' {
-			prefix := s[:left-1]
-			schema := "public"
-			if strings.HasSuffix(prefix, `"public"`) {
-				schema = `"public"`
-			}
-			start := len(prefix) - len(schema)
-			ok = ok && start >= 0 && prefix[start:] == schema &&
-				(schema != `"public"` || original[start:left-1] == schema) &&
-				(start == 0 || !ident(prefix[start-1]) && prefix[start-1] != '.')
+			ok = ok && recordingPublic(s, original, left)
 		}
 		if ok {
 			return true
@@ -111,6 +102,23 @@ func recordingNames(s, n string) bool {
 		off = end
 	}
 	return false
+}
+
+func recordingIdent(c byte) bool { return c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' }
+
+// recordingPublic reports whether the qualifier before the dot ending at
+// left in lower-cased s is the public schema: bare, or quoted exactly as
+// "public" in the original statement.
+func recordingPublic(s, original string, left int) bool {
+	prefix := s[:left-1]
+	schema := "public"
+	if strings.HasSuffix(prefix, `"public"`) {
+		schema = `"public"`
+	}
+	start := len(prefix) - len(schema)
+	return start >= 0 && prefix[start:] == schema &&
+		(schema != `"public"` || original[start:left-1] == schema) &&
+		(start == 0 || !recordingIdent(prefix[start-1]) && prefix[start-1] != '.')
 }
 
 type recordingConnector struct {

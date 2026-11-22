@@ -193,3 +193,18 @@ func BulkAccountNames(prefix string, count int) ([]string, error) {
 	}
 	return names, nil
 }
+
+// CheckAddress is the address check while someone types (GET
+// /v1/handles/check): JudgeHandle, except that the signed-in account's own
+// handle (user may be nil) is its own address, as it is.
+func CheckAddress(ctx context.Context, q sqlkit.Querier, user *model.User, handle string) (HandleVerdict, error) {
+	userID, own := "", ""
+	if user != nil {
+		userID, own = user.ID, user.Handle.String
+	}
+	v, err := JudgeHandle(ctx, q, userID, handle)
+	if own != "" && handle == own {
+		v = HandleVerdict{Address: HandleAddress(handle)}
+	}
+	return v, err
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 
@@ -190,10 +191,16 @@ func (s *Service) PurgeDeleted(ctx context.Context) {
 type DeleteInput struct {
 	UserID, Name, ExpectedSiteID string
 	CheckSiteID                  bool
+	// ConfirmName, when set, must name the site (in any case), or nothing
+	// is deleted: the caller's own check that it means this site.
+	ConfirmName *string
 }
 
 // Delete authorizes and moves a live site to Recently deleted under its lock.
 func (s *Service) Delete(ctx context.Context, in DeleteInput) error {
+	if in.ConfirmName != nil && strings.ToLower(*in.ConfirmName) != in.Name {
+		return &Error{Code: "confirm_name_mismatch", Message: fmt.Sprintf("confirm_name %q does not match site %q; nothing was deleted", *in.ConfirmName, in.Name)}
+	}
 	if err := rules.ValidateShape(in.Name); err != nil {
 		return &Error{Code: "delete_not_found"}
 	}
@@ -234,8 +241,7 @@ type RestoreInput struct{ UserID, Name, Handle string }
 
 // RestoreResult keeps the site and address response snapshot captured under its lock.
 type RestoreResult struct {
-	Site          repo.Site
-	ResponseState any
+	Site repo.Site
 }
 
 // Restore restores a deleted site under its name lock, with its current addresses.
@@ -272,5 +278,5 @@ func (s *Service) Restore(ctx context.Context, in RestoreInput) (RestoreResult, 
 		}
 	}
 	s.syncFamilyRedirect(ctx, site.ID)
-	return RestoreResult{Site: site, ResponseState: s.deps.ResponseState(site, 0, false, false)}, nil
+	return RestoreResult{Site: site}, nil
 }

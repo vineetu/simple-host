@@ -2,9 +2,7 @@ package siteshttp
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -13,7 +11,6 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/sites"
-	"github.com/vsriram/simple-host/host/web"
 )
 
 // Idle-site cleanup (no emails are sent).
@@ -75,20 +72,9 @@ func (h *SiteHandler) setSiteKeep(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: `body must be {"keep": true} or {"keep": false}`})
 		return
 	}
-	site, err := h.opsSitesSvc().GetSiteByUser(r.Context(), user.ID, siteName)
+	site, err := h.SitesSvc().SetSiteKeep(r.Context(), user.ID, siteName, *req.Keep)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, siteName)
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	if web.RefuseSuspendedSite(w, site) {
-		return
-	}
-	if err := h.Reporting.SetSiteKeep(r.Context(), site.ID, *req.Keep); err != nil {
-		httpx.WriteInternal(w)
+		writeSitesError(w, err, siteName)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"name": site.Name, "keep": *req.Keep})
@@ -105,22 +91,17 @@ func (h *SiteHandler) adminIdleSites(w http.ResponseWriter, r *http.Request) {
 	if !auth.Admin(w, r) {
 		return
 	}
-	now := time.Now()
-	trusted, why, since, last, err := h.Reporting.IdleEvidenceStatus(r.Context(), now, h.Ed)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
 	const show = 500
-	remove, err := h.Reporting.ListIdleSitesToRemove(r.Context(), h.IdleExempt, now.Add(-operations.IdleRemoveAfter(h.Ed)), show)
+	run, err := h.Reporting.IdleCleanupDryRun(r.Context(), time.Now(), h.Ed, h.IdleExempt, show)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	rows := make([]idleSiteRow, 0, len(remove))
-	for _, s := range remove {
+	rows := make([]idleSiteRow, 0, len(run.WouldRemove))
+	for _, s := range run.WouldRemove {
 		rows = append(rows, idleSiteRow{Site: s.Name, Owner: s.OwnerEmail, LastActivity: s.LastActivity.UTC()})
 	}
+	trusted, why, since, last := run.Trusted, run.Why, run.Since, run.LastRead
 	resp := map[string]any{
 		"enabled":       h.idleCleanup,
 		"idle_days":     int(operations.IdleRemoveAfter(h.Ed).Hours() / 24),

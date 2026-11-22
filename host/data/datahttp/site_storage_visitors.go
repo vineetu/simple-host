@@ -25,77 +25,24 @@ import (
 // concatenated in that order. The same "only people who signed in here"
 // rule applies; there is no pre-sign-in email binding.
 
-type storageVisitor struct {
-	VisitorID string `json:"visitor_id"`
-	Email     string `json:"email,omitempty"`
-	// Found false: the id never signed in on this site, or its account is gone.
-	Found bool `json:"found"`
-}
-
 func (h *DataHandler) storageVisitors(w http.ResponseWriter, r *http.Request, c StorageCall) {
-	if h.storageBindings != nil {
-		httpx.WriteError(w, 404, "not_found", "storage route not found")
-		return
-	}
-	if !storageOwner(w, c) {
-		return
-	}
-	ids, emails, err := appstorage.VisitorRefs(r.URL.Query()["id"], r.URL.Query()["email"])
+	visitors, err := h.StorageSvc().Visitors(r.Context(), appstorage.VisitorsInput{Call: c, IDs: r.URL.Query()["id"], Emails: r.URL.Query()["email"]})
 	if err != nil {
 		WriteStorageError(w, err, 0)
 		return
 	}
-	visitors, err := h.StorageSvc().Visitors(r.Context(), appstorage.VisitorsInput{Call: c, IDs: ids, Emails: emails})
-	if err != nil {
-		WriteStorageError(w, err, 0)
-		return
-	}
-	out := make([]storageVisitor, 0, len(visitors))
-	for _, v := range visitors {
-		out = append(out, storageVisitor{VisitorID: v.VisitorID, Email: v.Email, Found: v.Found})
-	}
-	httpx.WriteJSON(w, 200, map[string]any{"visitors": out})
-}
-
-// storagePerson is one entry of the owner's pick list (GET
-// .../storage/people): who they may add a row for, with why they are
-// listed. It never includes a signed-in visitor who merely signed in, with
-// no saved data and no named-viewer status (the privacy rule).
-type storagePerson struct {
-	VisitorID   string `json:"visitor_id,omitempty"`
-	Email       string `json:"email,omitempty"`
-	NamedViewer bool   `json:"named_viewer"`
-	HasData     bool   `json:"has_data"`
-	SignedIn    bool   `json:"signed_in"`
+	httpx.WriteJSON(w, 200, map[string]any{"visitors": visitors})
 }
 
 // storagePeople serves GET /v1/sites/{sitename}/storage/people: the site's
 // people with saved data or named-viewer status, for the owner to pick
-// whom a new row is for. Owner credential, or the owner signed in
-// on the site's own address (SH.me().site_owner), only.
+// whom a new row is for (appstorage.Person). Owner credential, or the owner
+// signed in on the site's own address (SH.me().site_owner), only.
 func (h *DataHandler) storagePeople(w http.ResponseWriter, r *http.Request, c StorageCall) {
-	// Named viewers (one input to this list) are not a Simple Hack concept,
-	// and storage_visitor_emails (email resolution, the other input) is
-	// already excluded there; keep this list Host-only too, the same as
-	// storageVisitors above.
-	if h.storageBindings != nil {
-		httpx.WriteError(w, 404, "not_found", "storage route not found")
-		return
-	}
-	svc := h.StorageFor(c)
-	c.OwnerOnSite = svc.OwnerOnSite(r.Context(), c)
-	if !c.Owner && !c.OwnerOnSite {
-		httpx.WriteError(w, 403, "forbidden", "owner credential required")
-		return
-	}
-	people, err := svc.SitePeople(r.Context(), c)
+	people, err := h.StorageFor(c).SitePeople(r.Context(), c)
 	if err != nil {
 		WriteStorageError(w, err, 0)
 		return
 	}
-	out := make([]storagePerson, 0, len(people))
-	for _, p := range people {
-		out = append(out, storagePerson{VisitorID: p.VisitorID, Email: p.Email, NamedViewer: p.NamedViewer, HasData: p.HasData, SignedIn: p.SignedIn})
-	}
-	httpx.WriteJSON(w, 200, map[string]any{"people": out})
+	httpx.WriteJSON(w, 200, map[string]any{"people": people})
 }

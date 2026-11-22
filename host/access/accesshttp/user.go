@@ -273,10 +273,7 @@ func (h *UserHandler) verifySignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	if created {
 		source := signupForVerify(r.Context(), h.database, r, h.publicBaseURL, req.SignupClient, strings.TrimSpace(req.Token) != "")
-		if _, err := h.accounts.GetSSOHop(r.Context(), req.SSOState, false); req.SSOState != "" && err == nil {
-			source.Source = "visitor_sso"
-		}
-		accounts.RecordSignup(r.Context(), h.database, user.ID, source)
+		h.accounts.RecordNewSignup(r.Context(), user.ID, source, req.SSOState)
 	}
 
 	h.finishSignIn(w, r, user, created, req)
@@ -309,30 +306,20 @@ func (h *UserHandler) finishSignIn(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 
-	// A suspended account gets no new key. It has proved its identity, so it is
-	// told why.
-	fresh, err := h.accounts.GetUserByID(r.Context(), user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if fresh.Suspended {
-		auth.WriteSuspended(w, fresh.SuspendedReason, "")
-		return
-	}
-
-	// Keys are stored only as hashes, so each sign-in hands out a new key;
-	// keys from earlier sign-ins keep working until the person rotates.
 	apiKey, err := auth.GenerateAPIKey()
+	login := ""
 	if err == nil {
-		err = h.accounts.AddSignInKey(r.Context(), user.ID, apiKey, keyName)
+		login, err = h.accounts.IssueSignInKey(r.Context(), user.ID, apiKey, keyName, h.passwordEnabled)
 	}
-	if errors.Is(err, model.ErrAccountSuspended) {
-		// Suspended between the check above and the insert.
+	var suspended *accounts.SuspendedError
+	switch {
+	case errors.As(err, &suspended):
+		auth.WriteSuspended(w, suspended.Reason, "")
+		return
+	case errors.Is(err, model.ErrAccountSuspended):
 		auth.WriteSuspended(w, "", "")
 		return
-	}
-	if err != nil {
+	case err != nil:
 		log.Printf("auth: issue key after verify: %v", err)
 		httpx.WriteInternal(w)
 		return
@@ -341,17 +328,6 @@ func (h *UserHandler) finishSignIn(w http.ResponseWriter, r *http.Request, user 
 	// one-time link): the owner hears about it. Browser sign-in then calls
 	// /v1/sso/session so cookie replacement stays inside the SSO namespace.
 	h.Alerts.Alert(user.ID, r.UserAgent(), "")
-	// A password account's own login (account_passwords.login), never its
-	// possibly-synthetic Username: a cosmetic field, so a lookup failure
-	// here logs and falls back to "" rather than failing the sign-in.
-	login := ""
-	if h.passwordEnabled {
-		if l, has, lerr := h.accounts.PasswordLogin(r.Context(), user.ID); lerr != nil {
-			log.Printf("auth: password login lookup after verify: %v", lerr)
-		} else if has {
-			login = l
-		}
-	}
 	httpx.WriteJSON(w, http.StatusOK, authResponse{
 		ID:       user.ID,
 		Username: user.Username,
@@ -459,7 +435,7 @@ func (h *UserHandler) mePersonalSites(ctx context.Context, user *model.User, res
 		return err
 	}
 	resp.Teams = teamsForMe(teams)
-	resp.TeamInvitations, err = h.invitationsFor(ctx, user)
+	resp.TeamInvitations, err = accounts.MyInvitations(ctx, h.database, user)
 	return err
 }
 

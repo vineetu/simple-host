@@ -64,33 +64,13 @@ func (h *UserHandler) SetPreviewAccounts(accounts map[string]bool) { h.previewAc
 // emailChangeRefused writes why the account cannot change its sign-in email
 // and reports true, or reports false.
 func (h *UserHandler) emailChangeRefused(w http.ResponseWriter, r *http.Request, user *model.User) bool {
-	refuse := func(code, msg string) bool {
-		httpx.WriteJSON(w, http.StatusForbidden, httpx.ErrorResponse{Error: msg, Code: code})
-		return true
-	}
-	switch {
-	case !web.EmailSignInEnabled:
+	if !web.EmailSignInEnabled {
 		// EMAIL_SIGNIN=off: the company's identity provider owns the
 		// address, and no emailed code is sent or accepted anywhere.
-		return refuse(web.ErrEmailSignInOff.Code, "the sign-in email comes from your company account on this server")
-	case h.reviewerEmail != "" && strings.EqualFold(user.Username, h.reviewerEmail):
-		return refuse("reviewer_account", "this account's email is set by the operator")
-	case accounts.IsOperator(user.IsAdmin, user.Username):
-		return refuse("admin_account", "the admin account's sign-in email cannot be changed here")
-	case h.previewAccounts[strings.ToLower(user.Username)]:
-		return refuse("preview_account", "this account's email is set by the operator")
-	case !strings.Contains(user.Username, "@"):
-		return refuse("no_current_email", web.SupportText("this account does not sign in with an email address, so there is none to confirm the change from; write to support@simple-host.app"))
-	}
-	t, err := h.accounts.EmailChangeTarget(r.Context(), user.ID)
-	if err != nil {
-		httpx.WriteInternal(w)
+		httpx.WriteJSON(w, http.StatusForbidden, httpx.ErrorResponse{Error: "the sign-in email comes from your company account on this server", Code: web.ErrEmailSignInOff.Code})
 		return true
 	}
-	if t.Event {
-		return refuse("event_account", accounts.HoldingText("email"))
-	}
-	return false
+	return writeLifecycleFailure(w, h.accounts.EmailChangeRefusal(r.Context(), user, h.reviewerEmail, h.previewAccounts))
 }
 
 func (h *UserHandler) requestEmailChange(w http.ResponseWriter, r *http.Request) {
@@ -281,13 +261,7 @@ func (h *UserHandler) unlinkIdentity(w http.ResponseWriter, r *http.Request) {
 	if user == nil {
 		return
 	}
-	err := h.accounts.UnlinkSignInIdentity(r.Context(), user.ID, strings.TrimSpace(r.PathValue("id")))
-	if errors.Is(err, sql.ErrNoRows) {
-		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "no such sign-in on this account"})
-		return
-	}
-	if err != nil {
-		httpx.WriteInternal(w)
+	if writeLifecycleFailure(w, h.accounts.UnlinkSignInIdentity(r.Context(), user.ID, strings.TrimSpace(r.PathValue("id")))) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

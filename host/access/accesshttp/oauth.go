@@ -334,30 +334,19 @@ func (h *OAuthHandler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Every OAuth sign-in from a blocked country is refused here, new account
-	// or existing: unlike the email-code path, there is no separate "does
-	// this identity already have an account" question to ask first, so this
-	// is unconditional and happens before the state/provider round-trip.
-	if _, blocked := h.geoBlock.BlockedCountry(httpx.ClientIP(r)); blocked {
-		h.writeOAuthHTMLBlocked(w)
-		return
-	}
-
 	q := r.URL.Query()
-	state := strings.TrimSpace(q.Get("state"))
-	if state == "" {
-		writeOAuthHTMLError(h.pipeline(), w, http.StatusBadRequest)
-		return
-	}
-
 	out, failure := h.SignIn.Callback(r.Context(), accounts.ProviderCallbackInput{
-		Name: name, State: state, Code: q.Get("code"), ProviderError: q.Get("error"), RandomHandles: h.ed.Identity().RandomHandles, AuthTTL: h.Limits.SigninCodeTTL,
+		Name: name, State: strings.TrimSpace(q.Get("state")), Code: q.Get("code"), ProviderError: q.Get("error"),
+		ClientIP: httpx.ClientIP(r), GeoBlock: h.geoBlock,
+		RandomHandles: h.ed.Identity().RandomHandles, AuthTTL: h.Limits.SigninCodeTTL,
 		Attribution: func(ctx context.Context, q sqlkit.Querier, returnTo, provider string) model.Signup {
 			return SignupForOwnerReturnTo(ctx, q, r, returnTo, provider)
 		},
 	})
 	if failure != nil {
-		if failure.Refusal != "" {
+		if failure.Blocked {
+			h.writeOAuthHTMLBlocked(w)
+		} else if failure.Refusal != "" {
 			writeOAuthHTMLRefused(h.pipeline(), w, failure.Refusal)
 		} else {
 			writeOAuthHTMLError(h.pipeline(), w, failure.Status)

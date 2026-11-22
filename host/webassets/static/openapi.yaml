@@ -1511,6 +1511,10 @@ paths:
         in: query
         schema: {type: string, enum: ['1']}
         description: 'Admin only: every account''s sites instead of just this one.'
+      - name: files
+        in: query
+        schema: {type: string}
+        description: A site name; that site's entry also lists the files of its live version (files, absent when nothing is published).
       responses:
         '200':
           description: List of sites
@@ -1919,8 +1923,17 @@ paths:
       - {apiKey: []}
       parameters:
       - {$ref: '#/components/parameters/sitename'}
+      - name: confirm_name
+        in: query
+        required: false
+        description: 'When given, must be the site''s name (any case), or nothing is deleted. Errors: 400 confirm_name_mismatch.'
+        schema: {type: string}
       responses:
         '204': {description: Site deleted (restorable for 7 days)}
+        '400':
+          description: '`confirm_name_mismatch`: confirm_name is not this site''s name; nothing was deleted.'
+          content:
+            application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
   /v1/sites/{sitename}/restore:
@@ -2098,12 +2111,23 @@ paths:
       tags: [Versions]
       operationId: getSitesBySitenameVersionFiles
       summary: List files in a retained version
-      description: Owner only. Walks the version directory; paths are relative, use forward slashes, and are sorted.
+      description: 'Owner only. Walks the version directory; paths are relative, use forward slashes, and are sorted. With read, answers those files'' text instead: each item then has content (text, at most 200 KB, truncated true when cut) or binary true, content_type, and error with status for a file that cannot be read.'
       security:
       - {apiKey: []}
       parameters:
       - {$ref: '#/components/parameters/sitename'}
-      - {$ref: '#/components/parameters/version'}
+      - name: version
+        in: path
+        required: true
+        description: 'Version number, or live for the site''s live version (404 no_live_version when nothing is published).'
+        schema: {type: string}
+      - name: read
+        in: query
+        required: false
+        description: A file path to read (repeat for up to 50).
+        schema: {type: array, items: {type: string}, maxItems: 50}
+        style: form
+        explode: true
       responses:
         '200':
           description: Version metadata and files
@@ -2120,10 +2144,18 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [path, size]
-                      properties: {path: {type: string}, size: {type: integer, format: int64, description: Size in bytes}}
+                      required: [path]
+                      properties:
+                        path: {type: string}
+                        size: {type: integer, format: int64, description: Size in bytes}
+                        content_type: {type: string, description: With read.}
+                        content: {type: string, description: 'With read: the file''s text.'}
+                        binary: {type: boolean, description: 'With read: not text, so no content.'}
+                        truncated: {type: boolean, description: 'With read: content holds the first 200 KB only.'}
+                        error: {type: string, description: 'With read: why this file could not be read.'}
+                        status: {type: integer, description: 'With read: the status a single-file read would answer (400, 404).'}
         '400':
-          description: Invalid version, empty site name, or invalid file path
+          description: Invalid version, empty site name, invalid file path, or more than 50 read paths
           content:
             application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -3234,7 +3266,16 @@ paths:
         required: false
         description: 'The address you mean to disconnect. Errors: 409 domain_changed.'
         schema: {type: string}
+      - name: return
+        in: query
+        required: false
+        description: site answers 200 with the site as it is now (its new live_url) instead of 204.
+        schema: {type: string, enum: [site]}
       responses:
+        '200':
+          description: Domain unbound (return=site)
+          content:
+            application/json: {schema: {$ref: '#/components/schemas/Site'}}
         '204': {description: Domain unbound}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
@@ -7200,6 +7241,12 @@ components:
             description: {type: string, description: Meta description (up to 300 bytes).}
             headings: {type: string, description: First six headings (up to 300 bytes).}
             text: {type: string, description: Visible body text (up to 300 bytes).}
+        files:
+          type: array
+          description: 'Only on GET /v1/sites?files=<this site>: the files of the live version.'
+          items:
+            type: object
+            properties: {path: {type: string}, size: {type: integer, format: int64}}
         id: {type: string, format: uuid}
         user_id: {type: string, format: uuid}
         name: {type: string}

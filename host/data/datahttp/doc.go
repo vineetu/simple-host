@@ -8,6 +8,8 @@
 // route runs Access's caller resolution first (the caller middleware the
 // composition passes in), so the method receives the resolved
 // appstorage.Call. The storage rules and reads/writes live in host/data
-// (appstorage.Service). This package imports host/data, host/access,
-// host/sites, host/web and host/httpx, never another route package.
+// (appstorage.Service): a handler decodes, calls one function and writes its
+// result or its refusal through WriteStorageError. Streaming file bodies and
+// web push stay here. This package imports the modules, host/web and
+// host/httpx, never another route package or a repo package.
 package datahttp

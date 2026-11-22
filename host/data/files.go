@@ -274,6 +274,9 @@ func (s *Service) CreateFileLink(ctx context.Context, in FileLinkInput) (FileLin
 	if !in.Call.Owner {
 		return FileLink{}, &Error{Code: "forbidden", Message: "owner credential required"}
 	}
+	if !ValidFilePath(in.Path) {
+		return FileLink{}, &Error{Code: "invalid_path", Message: "invalid path"}
+	}
 	if _, err := os.Stat(s.filePath(in.Call, in.Path)); err != nil {
 		return FileLink{}, &Error{Code: "file_not_found", Message: "file not found"}
 	}

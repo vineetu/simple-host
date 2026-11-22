@@ -69,9 +69,10 @@ func WriteInternal(w http.ResponseWriter) {
 // Codes ending in _not_found are 404 and codes starting invalid_ are 400
 // without being listed; other unlisted codes take the caller's fallback.
 var refusalStatus = map[string]int{
-	"invalid_code": 404, "not_found": 404, "visitor_unknown": 404, "invalid_reference": 404,
-	"sign_in_required": 401,
-	"forbidden":        403, "event_taken_down": 403, "team_site_taken_down": 403, "checklist_role_forbidden": 403,
+	"invalid_code": 404, "not_found": 404, "visitor_unknown": 404, "invalid_reference": 404, "for_not_available": 404,
+	"method_not_allowed": 405,
+	"sign_in_required":   401,
+	"forbidden":          403, "event_taken_down": 403, "team_site_taken_down": 403, "checklist_role_forbidden": 403,
 	"team_admin_only": 403, "team_action_unavailable": 403, "vote_ineligible": 403, "organiser_read_only": 403,
 	"rules_invalid": 403, "site_locked": 403, "site_private": 403, "csrf_required": 403, "for_requires_own": 403,
 	"sql_visitor_rule": 403, "fixed_routes_required": 403, "account_suspended": 403, "add_only": 403,

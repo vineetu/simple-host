@@ -51,7 +51,7 @@ func readCode(result TableResult, err error) string {
 }
 func readGet(t *testing.T, s *Service, c Call, table string, id int64, want string) TableResult {
 	t.Helper()
-	out, err := s.TableGet(context.Background(), TableInput{Call: c, Table: table, ID: id})
+	out, err := s.TableRead(context.Background(), TableInput{Call: c, Table: table, ID: id})
 	if code := readCode(out, err); code != want {
 		t.Fatalf("get %s/%d: want %s, got %s (%+v, %v)", table, id, want, code, out, err)
 	}
@@ -59,7 +59,7 @@ func readGet(t *testing.T, s *Service, c Call, table string, id int64, want stri
 }
 func readList(t *testing.T, s *Service, c Call, table string, q url.Values) TableResult {
 	t.Helper()
-	out, err := s.TableList(context.Background(), TableInput{Call: c, Table: table, Query: q})
+	out, err := s.TableRead(context.Background(), TableInput{Call: c, Table: table, Query: q})
 	if code := readCode(out, err); code != "" {
 		t.Fatalf("list: %s (%v)", code, err)
 	}
@@ -83,8 +83,8 @@ func TestRulesReadHiddenPagingAndFilters(t *testing.T) {
 			s, c, _ := readFixture(t, `CREATE TABLE entries(id INTEGER PRIMARY KEY, body TEXT, visitor_id TEXT);`, set)
 			execReadFixture(t, s, `INSERT INTO entries VALUES(1,'hidden','other'),(2,'visible-a','caller'),(3,'hidden','other'),(4,'visible-b','caller'),(5,'hidden','other');`)
 			c.VisitorID, c.ActiveChecked = "caller", true
-			hidden, e1 := s.TableGet(context.Background(), TableInput{Call: c, Table: "entries", ID: 1})
-			missing, e2 := s.TableGet(context.Background(), TableInput{Call: c, Table: "entries", ID: 99})
+			hidden, e1 := s.TableRead(context.Background(), TableInput{Call: c, Table: "entries", ID: 1})
+			missing, e2 := s.TableRead(context.Background(), TableInput{Call: c, Table: "entries", ID: 99})
 			if !reflect.DeepEqual(hidden, missing) || !reflect.DeepEqual(e1, e2) || readCode(hidden, e1) != "row_not_found" {
 				t.Fatalf("hidden != missing: %+v %v; %+v %v", hidden, e1, missing, e2)
 			}
@@ -363,7 +363,7 @@ func TestRulesReadOwnerQueryOptionsRechecked(t *testing.T) {
 							prepared++
 						}
 					}
-					out, err := s.TableList(context.Background(), TableInput{Call: c, Table: "entries", Query: q})
+					out, err := s.TableRead(context.Background(), TableInput{Call: c, Table: "entries", Query: q})
 					if readCode(out, err) != "invalid_rows" || out.Body != nil || prepared != 0 {
 						t.Fatalf("owner query survived refresh: %+v, %v, prepares=%d", out, err, prepared)
 					}

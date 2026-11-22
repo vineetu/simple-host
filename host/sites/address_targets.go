@@ -64,6 +64,9 @@ func (s *Service) AdminSiteTarget(ctx context.Context, id string, deleting bool)
 	if err == nil {
 		owner, err = accounts.GetUserByID(ctx, s.database, site.UserID)
 	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return site, owner, &Error{Code: "site_not_found", Message: "site not found"}
+	}
 	if err != nil {
 		return site, owner, err
 	}

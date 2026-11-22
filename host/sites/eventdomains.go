@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
+	"strings"
 	"time"
 
 	rules "github.com/vsriram/simple-host/host/rules/sites"
@@ -22,7 +24,8 @@ type EventDomainError struct{ Code, Message, WireCode string }
 
 func (e *EventDomainError) Error() string { return e.Message }
 
-// EventClaimInput contains a validated event-domain claim.
+// EventClaimInput is an event-domain claim as the organiser sent it; an
+// empty Domain is the first configured one.
 type EventClaimInput struct {
 	UserID, Name, IP, Domain string
 	Move                     bool
@@ -53,6 +56,10 @@ func (s *Service) EventNameClaimed(ctx context.Context, in EventNameInput) (bool
 
 // ClaimEventDomain claims a row, replaces DNS records and compensates failures in order.
 func (s *Service) ClaimEventDomain(ctx context.Context, req EventClaimInput) (EventDomainResult, error) {
+	req, err := s.validEventClaim(req)
+	if err != nil {
+		return EventDomainResult{}, err
+	}
 	if err := s.checkEventNameFree(ctx, req); err != nil {
 		return EventDomainResult{}, err
 	}
@@ -279,4 +286,25 @@ func NormalizeEventName(name string) (string, error) {
 		err = errors.New("event name must be 3 to 39 letters, digits or single hyphens, and not a reserved name")
 	}
 	return n, err
+}
+
+// validEventClaim normalises the name and address and checks the domain is
+// one this server creates names under (EventDomainError code invalid).
+func (s *Service) validEventClaim(req EventClaimInput) (EventClaimInput, error) {
+	req.IP = strings.TrimSpace(req.IP)
+	if req.Domain == "" && len(s.deps.EventDomains) > 0 {
+		req.Domain = s.deps.EventDomains[0]
+	}
+	name, err := NormalizeEventName(req.Name)
+	if err != nil {
+		return req, &EventDomainError{Code: "invalid", Message: err.Error()}
+	}
+	req.Name = name
+	if req.IP, err = eventdns.ValidatePublicIP(req.IP); err != nil {
+		return req, &EventDomainError{Code: "invalid", Message: err.Error()}
+	}
+	if !slices.Contains(s.deps.EventDomains, req.Domain) {
+		return req, &EventDomainError{Code: "invalid", Message: fmt.Sprintf("domain must be one of: %s", strings.Join(s.deps.EventDomains, ", "))}
+	}
+	return req, nil
 }

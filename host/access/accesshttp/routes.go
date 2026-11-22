@@ -52,7 +52,7 @@ func (h *AccessHandler) RegisterAccountRoutes(mux *http.ServeMux, authMiddleware
 // RegisterGateRoutes mounts the passcode, named-viewer and visitor sign-in
 // routes; siteOpLimiter is the site routes' own, shared with them.
 func (h *AccessHandler) RegisterGateRoutes(mux *http.ServeMux, authMiddleware, noticeMiddleware func(http.Handler) http.Handler, siteOpLimiter *httpx.RateLimiter) {
-	// Site passcodes (passcode.go): the owner's switch, and the gate's form.
+	// Site passcodes (passcode_api.go, passcode_unlock.go): the owner's switch, and the gate's form.
 	mux.Handle("GET /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(http.HandlerFunc(h.getSitePasscode))))
 	mux.Handle("PUT /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(siteOpLimiter, http.HandlerFunc(h.putSitePasscode)))))
 	mux.Handle("DELETE /v1/sites/{sitename}/lock", noticeMiddleware(authMiddleware(httpx.RateLimitByIP(siteOpLimiter, http.HandlerFunc(h.DeleteSitePasscode)))))

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
@@ -136,26 +135,9 @@ func (h *AccessHandler) setUserSuspension(on bool) http.HandlerFunc {
 		}
 		id := strings.ToLower(strings.TrimSpace(r.PathValue("id")))
 		target, siteCount, err := h.cutoff().SuspendPerson(r.Context(), id, auth.GetUser(r.Context()).ID, reason, on)
-		var failure *accounts.LifecycleError
-		switch {
-		case err == nil:
-		case errors.Is(err, sql.ErrNoRows):
-			httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "not found"})
-			return
-		case errors.As(err, &failure) && failure.Code == "event_account":
-			httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: failure.Message, Code: failure.Code})
-			return
-		case errors.As(err, &failure) && failure.Code == "admin_account":
-			httpx.WriteError(w, 400, failure.Code, failure.Message)
-			return
-		case failure == nil:
-			httpx.WriteInternal(w)
-			return
-		default:
-			writeLifecycleFailure(w, err)
+		if writeLifecycleFailure(w, err) {
 			return
 		}
-
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{
 			"id":               target.ID,
 			"username":         target.Username,

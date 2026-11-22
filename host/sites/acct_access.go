@@ -2,8 +2,14 @@ package sites
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"net/http"
+
 	"log"
 	"time"
+
+	accountapp "github.com/vsriram/simple-host/host/access"
 
 	"github.com/vsriram/simple-host/host/sites/repo"
 
@@ -14,8 +20,15 @@ import (
 func (s *Service) GetSitePasscode(ctx context.Context, siteID string) (model.SitePasscodeRow, error) {
 	return repo.GetSitePasscode(ctx, s.database, siteID)
 }
+
+// BumpSitePasscodeGeneration ends every unlock of the site's passcode; a
+// site without one is refused (409 no_passcode).
 func (s *Service) BumpSitePasscodeGeneration(ctx context.Context, siteID string) (int, error) {
-	return repo.BumpSitePasscodeGeneration(ctx, s.database, siteID)
+	gen, err := repo.BumpSitePasscodeGeneration(ctx, s.database, siteID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, &accountapp.Refusal{Status: http.StatusConflict, Code: "no_passcode", Message: "this site has no passcode"}
+	}
+	return gen, err
 }
 func (s *Service) GetSitePasscodeByName(ctx context.Context, userID, name string) (model.SitePasscodeRow, error) {
 	return repo.GetSitePasscodeByName(ctx, s.database, userID, name)
@@ -50,15 +63,23 @@ func (s *Service) SetSitePasscode(ctx context.Context, site model.Site, previous
 	}
 	return now, nil
 }
-func (s *Service) ClearSitePasscode(ctx context.Context, site model.Site) error {
+
+// ClearSitePasscode opens the site to everyone again; had says whether it
+// had a passcode. The caller holds the site's lock. sql.ErrNoRows for an
+// unknown or deleted site.
+func (s *Service) ClearSitePasscode(ctx context.Context, site model.Site) (had bool, err error) {
+	row, err := repo.GetSitePasscode(ctx, s.database, site.ID)
+	if err != nil {
+		return false, err
+	}
 	if err := repo.ClearSitePasscode(ctx, s.database, site.ID); err != nil {
-		return err
+		return false, err
 	}
 	if err := s.disk.SetPasscodeMarker(site.UserID, site.Name, site.NamedViewers); err != nil {
 		log.Printf("passcode: marker for site %s: %v", site.ID, err)
-		return &Error{Code: "access_marker", Message: "the passcode is removed, but the site's files could not be updated; try again"}
+		return false, &Error{Code: "access_marker", Message: "the passcode is removed, but the site's files could not be updated; try again"}
 	}
-	return nil
+	return row.Enc != nil, nil
 }
 func (s *Service) SetSiteAccess(ctx context.Context, site model.Site, row model.SitePasscodeRow, access string) error {
 	if access == "specific" {

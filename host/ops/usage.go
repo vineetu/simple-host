@@ -1,9 +1,12 @@
 package ops
 
 import (
-	"github.com/vsriram/simple-host/host/capacity"
+	"context"
 	"sync"
 	"time"
+
+	"github.com/vsriram/simple-host/host/capacity"
+	"github.com/vsriram/simple-host/host/sites"
 )
 
 // SiteUsage is a measured site footprint returned to operator transports.
@@ -107,4 +110,22 @@ func (c *UsageCache) refresh(dataDir string, gen int64) {
 	if err == nil && gen >= c.gen {
 		c.value, c.taken, c.gen, c.hasValue = usage, time.Now(), gen, true
 	}
+}
+
+// InstanceUsage is the operator's usage report: the disk reading (from the
+// cache) and when it was taken, the account count and the network report.
+type InstanceUsage struct {
+	Disk       capacity.Usage
+	MeasuredAt time.Time
+	Accounts   int
+	Network    map[string]any
+}
+
+// InstanceUsage reads what this instance is using and what it has left.
+func (s *Reporting) InstanceUsage(ctx context.Context, disk sites.Disk, usage *UsageCache, network *NetworkUsage) (InstanceUsage, error) {
+	reading, measured, err := usage.Get(disk.DataDir(), disk.Changes())
+	if err != nil {
+		return InstanceUsage{}, err
+	}
+	return InstanceUsage{Disk: reading, MeasuredAt: measured, Accounts: s.AccountCount(ctx), Network: network.Report(ctx, time.Now())}, nil
 }

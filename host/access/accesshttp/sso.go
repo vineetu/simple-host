@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"html"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,9 +14,9 @@ import (
 
 	accounts "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/access/auth"
-	notifications "github.com/vsriram/simple-host/host/data/notify"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/model"
+	operations "github.com/vsriram/simple-host/host/ops"
 	"github.com/vsriram/simple-host/host/web"
 )
 
@@ -59,20 +59,6 @@ func setSSOCookie(w http.ResponseWriter, r *http.Request, value string, maxAge i
 	http.SetCookie(w, &http.Cookie{Name: ssoCookieName(r), Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: httpx.IsHTTPS(r), SameSite: http.SameSiteLaxMode})
 }
 
-// Issuance runs only through /v1/sso/session, after account sign-in on the
-// apex. ttl and idle are the visitor session limits (Limits.
-// VisitorSessionTTL/VisitorSessionIdle) of the handler issuing the pass.
-func issueSSOPass(w http.ResponseWriter, r *http.Request, service *accounts.Service, keyHash string, ttl, idle, keyIdle time.Duration) error {
-	raw, err := RandomHex(32)
-	if err != nil {
-		return err
-	}
-	if err = service.ReplaceSSOPass(r.Context(), accounts.HashSecret(raw), keyHash, accounts.HashSecret(ssoCookie(r)), ttl, idle, keyIdle); err != nil {
-		return err
-	}
-	setSSOCookie(w, r, raw, int(ttl/time.Second))
-	return nil
-}
 func (h *OAuthHandler) registerSSO(mux *http.ServeMux) {
 	assets := h.pipeline()
 	mux.Handle("GET /v1/sso/start", ssoNavigationFirst(assets, httpx.RateLimitByIP(h.IPLimiter, http.HandlerFunc(h.startSSO))))
@@ -138,17 +124,17 @@ func (h *OAuthHandler) bootstrapSSO(w http.ResponseWriter, r *http.Request) {
 		httpx.TooManyRequests(w)
 		return
 	}
-	if p, err := h.Accounts.GetSSOPass(r.Context(), accounts.HashSecret(ssoCookie(r)), h.Limits.KeyIdleExpiry); err == nil && p.ParentKeyHash == keyHash {
-		if err := h.Accounts.TouchSSOPass(r.Context(), p.Hash, h.Limits.VisitorSessionIdle); err != nil {
-			writeOAuthHTMLError(h.pipeline(), w, 500)
-			return
-		}
-		w.WriteHeader(204)
-		return
-	}
-	if err := issueSSOPass(w, r, h.Accounts, keyHash, h.Limits.VisitorSessionTTL, h.Limits.VisitorSessionIdle, h.Limits.KeyIdleExpiry); err != nil {
+	// Issuance runs only here, after account sign-in on the apex.
+	raw, err := h.Accounts.BootstrapSSOPass(r.Context(), keyHash, accounts.HashSecret(ssoCookie(r)), h.Limits.VisitorSessionTTL, h.Limits.VisitorSessionIdle, h.Limits.KeyIdleExpiry)
+	switch {
+	case errors.Is(err, accounts.ErrSSOPassNotIssued):
 		http.Error(w, "Sign in first.", 401)
 		return
+	case err != nil:
+		writeOAuthHTMLError(h.pipeline(), w, 500)
+		return
+	case raw != "":
+		setSSOCookie(w, r, raw, int(h.Limits.VisitorSessionTTL/time.Second))
 	}
 	w.WriteHeader(204)
 }
@@ -179,19 +165,8 @@ func (h *OAuthHandler) startSSO(w http.ResponseWriter, r *http.Request) {
 	if !h.siteSignInAllowed(w, r, siteID.String) {
 		return
 	}
-	nonce, err := RandomHex(32)
+	state, nonce, err := h.Accounts.StartSSOHop(r.Context(), siteID.String, host, sanitized)
 	if err != nil {
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return
-	}
-	state, err := RandomHex(32)
-	if err != nil {
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return
-	}
-	sum := sha256.Sum256([]byte(nonce))
-	hop := model.SSOHop{State: state, SiteID: siteID.String, Host: host, ReturnTo: sanitized, NonceHash: base64.RawURLEncoding.EncodeToString(sum[:])}
-	if err := h.Accounts.InsertSSOHop(r.Context(), hop); err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 500)
 		return
 	}
@@ -332,12 +307,11 @@ func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 	} else if !h.signoutConfirmed(w, r, token, cookieHash) {
 		return
 	}
-	back, err := h.Accounts.CompleteSSOSignout(r.Context(), token, cookieHash, formHash)
+	back, err := operations.CompleteSSOSignout(r.Context(), h.Database, token, cookieHash, formHash)
 	if err != nil {
 		writeOAuthHTMLError(h.pipeline(), w, 400)
 		return
 	}
-	deleteFamilyPush(r, h.Database, cookieHash)
 	setSSOCookie(w, r, "", -1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// The pass may have been swept already, leaving its dashboard key alive.
@@ -350,46 +324,23 @@ func (h *OAuthHandler) signedOutSSO(w http.ResponseWriter, r *http.Request) {
 // signoutConfirmed: the ticket is this browser's own pass. Otherwise it
 // serves the confirmation form (bound to this browser) and reports false.
 func (h *OAuthHandler) signoutConfirmed(w http.ResponseWriter, r *http.Request, token, cookieHash string) bool {
-	ticket, err := h.Accounts.GetSSOSignout(r.Context(), token)
-	if err != nil {
+	confirmed, form, back, err := h.Accounts.ConfirmSSOSignout(r.Context(), token, cookieHash)
+	switch {
+	case errors.Is(err, accounts.ErrSSOSignoutUnknown):
 		writeOAuthHTMLError(h.pipeline(), w, 400)
 		return false
-	}
-	if ticket.PassHash != "" && ticket.PassHash == cookieHash {
+	case err != nil:
+		writeOAuthHTMLError(h.pipeline(), w, 500)
+		return false
+	case confirmed:
 		return true
-	}
-	form, err := RandomHex(32)
-	if err != nil {
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return false
-	}
-	if err := h.Accounts.SetSSOSignoutForm(r.Context(), token, accounts.HashSecret(form), cookieHash); err != nil {
-		writeOAuthHTMLError(h.pipeline(), w, 500)
-		return false
 	}
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Content-Security-Policy", w.Header().Get("Content-Security-Policy")+"; form-action 'self'")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	page := strings.NewReplacer("__TOKEN__", html.EscapeString(token), "__FORM__", html.EscapeString(form), "__BACK__", html.EscapeString(ticket.ReturnTo)).Replace(ssoSignoutPage)
+	page := strings.NewReplacer("__TOKEN__", html.EscapeString(token), "__FORM__", html.EscapeString(form), "__BACK__", html.EscapeString(back)).Replace(ssoSignoutPage)
 	w.Write(httpx.StampNonce(r, h.pipeline().HostedStatusPage(page)))
 	return false
-}
-
-// deleteFamilyPush deletes the push subscriptions of a sign-in family
-// when the sign-in-everywhere apex signs out the whole family's dashboard
-// key (RevokeVisitorSSO's sibling path). The pass
-// hash is the family's own (compared directly against
-// sso_passes/visitor_sessions.sso_pass_hash by CompleteSSOSignout's own
-// query), the exact value DeletePushSubscriptionsForFamily matches
-// push_family against -- so every push subscription any site in this
-// family's sign-in created is deleted here too, not only the one site a
-// plain current-site sign-out would have reached.
-func deleteFamilyPush(r *http.Request, database *sql.DB, passHash string) {
-	if n, err := notifications.DeletePushSubscriptionsForFamily(r.Context(), database, passHash); err != nil {
-		log.Printf("web push: delete on SSO sign-out: %v", err)
-	} else if n > 0 {
-		log.Printf("web push: deleted %d subscription(s) on SSO sign-out", n)
-	}
 }
 
 var ssoSignoutPage = web.Themed(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><!--sh:theme--><title>Sign out</title><style>` + passcodeGateCSS + `</style></head><body><main class="gate"><h1>Sign out of Simple Host on this browser?</h1><form method="post" action="/v1/sso/signed-out"><input type="hidden" name="token" value="__TOKEN__"><input type="hidden" name="form_token" value="__FORM__"><button class="primary" type="submit">Sign out</button></form><p><a href="__BACK__">Cancel</a></p></main></body></html>`)
@@ -431,6 +382,9 @@ func (h *AccessHandler) startGateSSO(w http.ResponseWriter, r *http.Request) boo
 	return true
 }
 
+// errNoSiteHere: a site sign-out on a host that names no site.
+var errNoSiteHere = errors.New("no site on this host")
+
 // endSiteSSO never reads the apex cookie. Every site logout with an account
 // apex returns a one-use navigation, including absent, expired and legacy sessions.
 func (h *AccessHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next string) (string, error) {
@@ -438,13 +392,8 @@ func (h *AccessHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next 
 	if err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
-	if err == nil && (!sess.SSOPassHash.Valid || h.ssoBaseURL == "") {
-		if err := h.StoreAccounts().DeleteVisitorSession(r.Context(), sess.ID); err != nil {
-			return "", err
-		}
-	}
 	if h.ssoBaseURL == "" {
-		return "", nil
+		return operations.EndSiteSignIn(r.Context(), h.Database, sess, "", "")
 	}
 	// Without a host-bound session, resolve the site before storing a return
 	// address. A missing session must not turn the apex into an open redirect.
@@ -454,35 +403,14 @@ func (h *AccessHandler) endSiteSSO(w http.ResponseWriter, r *http.Request, next 
 			return "", err
 		}
 		if !ok {
-			return "", sql.ErrNoRows
+			return "", errNoSiteHere
 		}
-	}
-	token, err := RandomHex(32)
-	if err != nil {
-		return "", err
 	}
 	scheme := "http"
 	if httpx.IsHTTPS(r) {
 		scheme = "https"
 	}
-	back := scheme + "://" + r.Host + safeNext(next)
-	if err = h.StoreAccounts().RevokeVisitorSSO(r.Context(), sess, token, back); err != nil {
-		return "", err
-	}
-	// RevokeVisitorSSO deletes the dashboard key
-	// that cascades to every sibling session this family's sign-in
-	// created, across whichever sites they are on; push subscriptions
-	// those sessions created follow the same family scope (pushFamilyFor,
-	// notify_push.go), so this one call reaches every site's push rows
-	// too, not only the current one a plain sign-out would scope to.
-	if family := notifications.PushFamily(sess); family != "" {
-		if n, perr := notifications.DeletePushSubscriptionsForFamily(r.Context(), h.Database, family); perr != nil {
-			log.Printf("web push: delete on SSO revoke: %v", perr)
-		} else if n > 0 {
-			log.Printf("web push: deleted %d subscription(s) on SSO revoke", n)
-		}
-	}
-	return h.ssoBaseURL + "/v1/sso/signed-out?token=" + token, nil
+	return operations.EndSiteSignIn(r.Context(), h.Database, sess, h.ssoBaseURL, scheme+"://"+r.Host+safeNext(next))
 }
 
 // ssoReturnToOK is the owner-provider callback allow-list for the apex card.

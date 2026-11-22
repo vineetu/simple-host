@@ -1,8 +1,6 @@
 package siteshttp
 
 import (
-	"database/sql"
-	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -85,25 +83,10 @@ func (h *SiteHandler) createPreviewLink(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "version not found"})
 		return
 	}
-	site, err := h.SiteForCaller(r, user.ID, name)
+	expectedSiteID, checkSiteID := r.Context().Value(web.AdminSiteKey{}).(string)
+	site, err := h.SitesSvc().KeptVersion(r.Context(), user.ID, name, expectedSiteID, checkSiteID, n)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, name)
-			return
-		}
-		httpx.WriteInternal(w)
-		return
-	}
-	if web.RefuseSuspendedSite(w, site) {
-		return
-	}
-	kept, err := h.SitesSvc().VersionKept(r.Context(), site.ID, n)
-	if err != nil {
-		httpx.WriteInternal(w)
-		return
-	}
-	if !kept {
-		httpx.WriteJSON(w, http.StatusNotFound, httpx.ErrorResponse{Error: "version not found"})
+		writeSitesError(w, err, name)
 		return
 	}
 	link, expires, ok := h.previewLink(site, n)

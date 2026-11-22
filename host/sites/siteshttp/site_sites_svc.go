@@ -6,7 +6,6 @@ import (
 
 	accountapp "github.com/vsriram/simple-host/host/access"
 	"github.com/vsriram/simple-host/host/httpx"
-	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/web"
 )
@@ -16,9 +15,6 @@ func (h *SiteHandler) SitesSvc() *sites.Service {
 		Sitemap:        h.sitemapFilter,
 		SiteViewersMax: h.Limits.SiteViewersMax, ContentHost: h.ContentHost, SiteDomain: h.SiteDomain, PersonalSitesEnabled: h.Ed.Identity().PersonalSites,
 		Locks: &h.UploadLocks, Hosts: h.Hosts, NoVisitorSignIn: h.noVisitorSignIn, EventVersionRetention: h.Ed.Storage().EventVersionRetention, DeletedRetention: h.Limits.DeletedRetention,
-		ResponseState: func(site model.Site, version int, preview, footprint bool) any {
-			return h.captureSiteResponseState(site, version, preview, footprint)
-		},
 		DefaultRetention: web.DefaultKeepVersions, Limits: h.Limits, RandomHandles: h.Ed.Identity().RandomHandles,
 		MaxFilesPerSite:   h.Limits.MaxFilesPerSite,
 		RedirectsMaxRules: h.Limits.RedirectsMaxRules,

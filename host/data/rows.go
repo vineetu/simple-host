@@ -19,6 +19,16 @@ import (
 	ruleengine "github.com/vsriram/simple-host/host/storage/rules"
 )
 
+// RowsRequest is a row route's request as the route decoded it: the action
+// its method names ("" for a method the routes do not know), the table, the
+// row id from the path, for= on an add and the list query.
+type RowsRequest struct {
+	Call           Call
+	Action         string
+	Table, ID, For string
+	Query          url.Values
+}
+
 // TableInput contains the decoded facts for a table operation.
 type TableInput struct {
 	Call       Call
@@ -29,34 +39,104 @@ type TableInput struct {
 	Authorized TableAuthorization
 }
 
-// TableAuthorization carries the decisions made before idempotency replay.
+// TableAuthorization is an add, edit or delete as AuthorizeTableWrite
+// decided it, before the idempotency boundary: the call as the rules refined
+// it, the table, the row and the action. Authorization is the refusal.
 type TableAuthorization struct {
 	call          Call
 	Authorization *Error
 	allowed       bool
 	verified      bool
 	table, action string
+	id            int64
+	// Account is whose idempotency entries the write uses: the owner's
+	// account, or the visitor's.
+	Account string
 }
 
 // Allowed reports whether the table write was authorized.
 func (a TableAuthorization) Allowed() bool { return a.verified && a.allowed }
 
-// CheckedPost reports whether checked-post limits apply.
-func (a TableAuthorization) CheckedPost() bool { return a.call.CheckedPost }
-
 // AuthorizeTableWrite checks the gates before the idempotency boundary.
 func (s *Service) AuthorizeTableWrite(ctx context.Context, in TableInput, action string) TableAuthorization {
 	c, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, action)
-	return TableAuthorization{call: c, Authorization: auth, allowed: allowed, verified: true, table: in.Table, action: action}
+	account := in.Call.AccountID
+	if !in.Call.Owner {
+		account = in.Call.VisitorID
+	}
+	return TableAuthorization{call: c, Authorization: auth, allowed: allowed, verified: true, table: in.Table, action: action, id: in.ID, Account: account}
 }
 
-// TableResult contains the response and any ordered authorization responses.
+// TableResult is a row operation's answer: the response body, or the
+// refusal in Authorization. Event is a committed write's notification
+// (nil sends nothing); WriteRow queues it.
 type TableResult struct {
 	Body          map[string]any
 	Authorization *Error
-	// Event is the committed write's notification, sent by the caller
-	// (Service.Emit) once the response is written; nil sends nothing.
-	Event *Event
+	Event         *Event
+}
+
+// ReadRows answers a row route's read: one row when the path names an id,
+// otherwise a page of rows.
+func (s *Service) ReadRows(ctx context.Context, req RowsRequest) (TableResult, error) {
+	id, err := RowRequest(req.Action, req.Table, req.ID)
+	if err != nil {
+		return TableResult{}, err
+	}
+	return s.TableRead(ctx, TableInput{Call: req.Call, Table: req.Table, ID: id, Query: req.Query})
+}
+
+// AuthorizeRowWrite decides a row route's add, edit or delete before the
+// idempotency boundary, so a replay never skips the gates: the request's
+// shape, then for= on an add, then the table's rules. A request that cannot
+// run is the error; a refusal is the result's Authorization.
+//
+// for= is the owner adding the row on behalf of one signed-in visitor (a
+// visitor_id or the email they signed in with): ResolveOwnerFor refuses
+// anyone but the owner, and a target who never signed in on this site.
+// Named viewers and this email resolution are not a Simple Hack concept, so
+// a product's bindings refuse for= altogether.
+func (s *Service) AuthorizeRowWrite(ctx context.Context, req RowsRequest) (TableAuthorization, error) {
+	id, err := RowRequest(req.Action, req.Table, req.ID)
+	if err != nil {
+		return TableAuthorization{}, err
+	}
+	c := req.Call
+	if ref := strings.TrimSpace(req.For); req.Action == "add" && ref != "" {
+		if s.deps.Bindings != nil {
+			return TableAuthorization{}, &Error{Code: "for_not_available", Message: "for is not available on Simple Hack"}
+		}
+		if c.OwnerFor, err = s.ResolveOwnerFor(ctx, c, ref); err != nil {
+			return TableAuthorization{}, err
+		}
+	}
+	return s.AuthorizeTableWrite(ctx, TableInput{Call: c, Table: req.Table, ID: id}, req.Action), nil
+}
+
+// WriteRow runs an add, edit or delete AuthorizeRowWrite allowed, with the
+// request body (the column values; a delete has none), and queues its
+// notification once it commits.
+func (s *Service) WriteRow(ctx context.Context, a TableAuthorization, body []byte) (TableResult, error) {
+	in := TableInput{Call: a.call, Table: a.table, ID: a.id, Authorized: a}
+	if a.action != "delete" {
+		if a.action == "add" && a.call.CheckedPost {
+			if err := CheckPostLimits(body, s.deps.SpamCheckedMaxBytes, s.deps.SpamCheckedMaxLinks); err != nil {
+				return TableResult{}, err
+			}
+		}
+		var err error
+		if in.Values, err = DecodeRowValues(body, a.action); err != nil {
+			return TableResult{}, err
+		}
+	}
+	out, err := s.TableWrite(ctx, in)
+	if err != nil {
+		return TableResult{}, err
+	}
+	if out.Event != nil {
+		s.Emit(*out.Event)
+	}
+	return out, nil
 }
 
 // openTableConn opens the per-site database and translates runtime errors.
@@ -181,72 +261,125 @@ func (s *Service) authorizeTable(ctx context.Context, c Call, table, action stri
 	return c, err, err == nil
 }
 
-// tableSession is one authorized row operation on an open connection: the
-// call as the rules refined it, the table's checked metadata and, for a read
-// under rules, the row predicate.
-type tableSession struct {
+// rowTable is one authorized row operation's open table: the connection,
+// the call as the rules refined it, the table's checked metadata and, for a
+// read under rules, the row predicate.
+type rowTable struct {
 	conn      *sqlite3.Conn
 	c         Call
 	table     string
 	meta      rowMetadata
 	predicate ruleengine.Predicate
-	a         *Admission
 }
 
-// withTable owns the steps every row route shares: authorize, take the site
-// write lock for a change, admit the site, open the database, check the
-// table and settle its rules, then run work. work fills out before it
-// commits, so a panic after the commit keeps the result. A refusal is
-// returned as the result's Authorization with no error.
-func (s *Service) withTable(ctx context.Context, in TableInput, action string, work func(t *tableSession, out *TableResult) error) (TableResult, error) {
-	// A read is authorized here; a change was authorized before the
-	// idempotency boundary (AuthorizeTableWrite), for this table and action.
-	c, auth, allowed := in.Authorized.call, in.Authorized.Authorization, in.Authorized.Allowed() && in.Authorized.table == in.Table && in.Authorized.action == action
-	if action == "read" {
-		c, auth, allowed = s.authorizeTable(ctx, in.Call, in.Table, action)
+// openTable opens the site's database for one row operation (inside its
+// admission), checks the table and settles its rules for op; the caller
+// defers the returned close. An add for someone first gives the table its
+// written_by column, in the same locked window as the add.
+func (s *Service) openTable(ctx context.Context, c Call, table string, op ruleengine.Op) (*rowTable, func(), error) {
+	conn, done, err := s.openTableConn(ctx, c, op != ruleengine.OpRead)
+	if err != nil {
+		return nil, nil, err
 	}
+	closeTable := func() { closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") }) }
+	opened := false
+	defer func() {
+		if !opened {
+			closeTable()
+		}
+	}()
+	s.sqliteStage("after_open")
+	if op == ruleengine.OpAdd && c.OwnerFor != "" {
+		if err := addWrittenByColumn(conn, table); err != nil {
+			return nil, nil, err
+		}
+	}
+	t := &rowTable{conn: conn, c: c, table: table}
+	if t.meta, err = tableMetadata(conn, c, table); err != nil {
+		return nil, nil, err
+	}
+	if op != ruleengine.OpRead {
+		err = s.ruleWritePlan(&t.c, table, t.meta, op)
+	} else if c.rulePlan != nil {
+		t.predicate, err = s.ruleReadPredicate(ctx, &t.c, table, t.meta)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	opened = true
+	return t, closeTable, nil
+}
+
+// TableRead authorizes and reads a table: one row when in names an id,
+// otherwise a page of rows. A refusal is the result's Authorization.
+func (s *Service) TableRead(ctx context.Context, in TableInput) (TableResult, error) {
+	c, auth, allowed := s.authorizeTable(ctx, in.Call, in.Table, "read")
 	if !allowed {
 		return TableResult{Authorization: auth}, nil
 	}
-	op := tableActionOps[action]
-	write := op != ruleengine.OpRead
-	if write {
-		lockCtx, unlock, err := s.writeLock(ctx, c, true)
-		if err != nil {
-			return TableResult{}, err
-		}
-		defer unlock()
-		ctx = lockCtx
-	}
 	var out TableResult
-	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, a *Admission) error {
-		if write {
-			c.Context = ctx
-		}
-		conn, done, err := s.openTableConn(ctx, c, write)
+	err := s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, _ *Admission) error {
+		t, closeTable, err := s.openTable(ctx, c, in.Table, ruleengine.OpRead)
 		if err != nil {
 			return err
 		}
-		defer closeSQLite(func() { defer s.sqliteStage("closed"); defer done(); s.sqliteStage("close") })
-		s.sqliteStage("after_open")
-		if op == ruleengine.OpAdd && c.OwnerFor != "" {
-			if err := addWrittenByColumn(conn, in.Table); err != nil {
-				return err
-			}
+		defer closeTable()
+		if in.ID != 0 {
+			out, err = s.readRow(t, in.ID)
+		} else {
+			out, err = s.readRows(t, in.Query)
 		}
-		t := &tableSession{conn: conn, c: c, table: in.Table, a: a}
-		if t.meta, err = tableMetadata(conn, c, in.Table); err != nil {
+		return err
+	})
+	if err != nil {
+		return TableResult{}, err
+	}
+	return out, nil
+}
+
+// TableWrite runs an add, edit or delete AuthorizeTableWrite allowed for
+// this table. It takes the site write lock and an admission slot, opens the
+// table, and keeps the change, its reference and rule checks and the commit
+// in one SQLite transaction. The answer is settled before the commit, so a
+// panic after the commit keeps it. A refusal is the result's Authorization.
+func (s *Service) TableWrite(ctx context.Context, in TableInput) (TableResult, error) {
+	a := in.Authorized
+	if !a.Allowed() || a.table != in.Table {
+		return TableResult{Authorization: a.Authorization}, nil
+	}
+	c, op := a.call, tableActionOps[a.action]
+	ctx, unlock, err := s.writeLock(ctx, c, true)
+	if err != nil {
+		return TableResult{}, err
+	}
+	defer unlock()
+	var out TableResult
+	err = s.deps.SiteSlots.Admit(ctx, c.SiteID, func(ctx context.Context, admission *Admission) error {
+		c.Context = ctx
+		t, closeTable, err := s.openTable(ctx, c, in.Table, op)
+		if err != nil {
 			return err
 		}
-		if write {
-			err = s.ruleWritePlan(&t.c, in.Table, t.meta, op)
-		} else if c.rulePlan != nil {
-			t.predicate, err = s.ruleReadPredicate(ctx, &t.c, in.Table, t.meta)
+		defer closeTable()
+		commit, rollback, err := beginTableWrite(t.conn)
+		if err != nil {
+			return err
+		}
+		defer rollback()
+		var result TableResult
+		switch op {
+		case ruleengine.OpAdd:
+			result, err = s.addRow(t, in.Values)
+		case ruleengine.OpEdit:
+			result, err = s.editRow(t, in.ID, in.Values)
+		default:
+			result, err = s.removeRow(t, in.ID)
 		}
 		if err != nil {
 			return err
 		}
-		return work(t, &out)
+		out = result
+		return s.finishTableWrite(t.conn, t.c, commit, admission)
 	})
 	if err != nil {
 		return TableResult{}, err
@@ -289,7 +422,7 @@ func visibleRow(stmt *sqlite3.Stmt, columns []string, c Call) ([]any, bool) {
 
 // prepareRowRead compiles a row read under the caller's read authorizer and
 // binds its values: the rules' arguments under rules, params otherwise.
-func (s *Service) prepareRowRead(t *tableSession, query string, ruleArgs []ruleengine.Value, params []json.RawMessage) (*sqlite3.Stmt, error) {
+func (s *Service) prepareRowRead(t *rowTable, query string, ruleArgs []ruleengine.Value, params []json.RawMessage) (*sqlite3.Stmt, error) {
 	if err := rowReadAuthorizer(t.conn, t.c.Owner); err != nil {
 		return nil, sqliteRowFailure(err, &Error{Code: "internal_error", Message: "internal server error"})
 	}
@@ -316,68 +449,62 @@ func (s *Service) prepareRowRead(t *tableSession, query string, ruleArgs []rulee
 	return stmt, nil
 }
 
-// TableGet authorizes and reads one SQLite table row.
-func (s *Service) TableGet(ctx context.Context, in TableInput) (TableResult, error) {
-	return s.withTable(ctx, in, "read", func(t *tableSession, out *TableResult) error {
-		c, meta := t.c, t.meta
-		query := "SELECT *, " + meta.rowid + " FROM " + runtime.Quote(in.Table) + " WHERE " + meta.rowid + " = ?"
-		if meta.hold && !seesEveryRow(c) {
-			query += " AND approved_at IS NOT NULL"
+// readRow reads one row of an open table.
+func (s *Service) readRow(t *rowTable, id int64) (TableResult, error) {
+	c, meta := t.c, t.meta
+	query := "SELECT *, " + meta.rowid + " FROM " + runtime.Quote(t.table) + " WHERE " + meta.rowid + " = ?"
+	if meta.hold && !seesEveryRow(c) {
+		query += " AND approved_at IS NOT NULL"
+	}
+	var ruleArgs []ruleengine.Value
+	if c.rulePlan != nil {
+		var err error
+		if query, ruleArgs, err = runtime.RuleSelectOne(t.table, meta.rowid, ruleengine.Int(id), t.predicate); err != nil {
+			return TableResult{}, rulesInvalid()
 		}
-		var ruleArgs []ruleengine.Value
-		if c.rulePlan != nil {
-			var err error
-			if query, ruleArgs, err = runtime.RuleSelectOne(in.Table, meta.rowid, ruleengine.Int(in.ID), t.predicate); err != nil {
-				return rulesInvalid()
-			}
+	}
+	stmt, err := s.prepareRowRead(t, query, ruleArgs, []json.RawMessage{rowJSON(id)})
+	if err != nil {
+		return TableResult{}, err
+	}
+	defer stmt.Close()
+	if !stmt.Step() {
+		if stmt.Err() != nil {
+			return TableResult{}, sqliteRowFailure(stmt.Err(), &Error{Code: "invalid_rows", Message: "query failed"})
 		}
-		stmt, err := s.prepareRowRead(t, query, ruleArgs, []json.RawMessage{rowJSON(in.ID)})
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-		if !stmt.Step() {
-			if stmt.Err() != nil {
-				return sqliteRowFailure(stmt.Err(), &Error{Code: "invalid_rows", Message: "query failed"})
-			}
-			return &Error{Code: "row_not_found", Message: "row not found"}
-		}
-		s.sqliteStage("after_step")
-		row, mine := visibleRow(stmt, meta.order, c)
-		body := map[string]any{"columns": meta.order, "row": row}
-		if !seesEveryRow(c) {
-			body["mine"] = mine
-		}
-		out.Body = body
-		return nil
-	})
+		return TableResult{}, &Error{Code: "row_not_found", Message: "row not found"}
+	}
+	s.sqliteStage("after_step")
+	row, mine := visibleRow(stmt, meta.order, c)
+	body := map[string]any{"columns": meta.order, "row": row}
+	if !seesEveryRow(c) {
+		body["mine"] = mine
+	}
+	return TableResult{Body: body}, nil
 }
 
-// TableList authorizes and lists SQLite table rows.
-func (s *Service) TableList(ctx context.Context, in TableInput) (TableResult, error) {
-	return s.withTable(ctx, in, "read", func(t *tableSession, out *TableResult) error {
-		page, err := parseRowPage(in.Query, t.c, t.meta)
-		if err != nil {
-			return err
+// readRows reads one page of an open table's rows.
+func (s *Service) readRows(t *rowTable, q url.Values) (TableResult, error) {
+	page, err := parseRowPage(q, t.c, t.meta)
+	if err != nil {
+		return TableResult{}, err
+	}
+	var query string
+	var params []json.RawMessage
+	var ruleArgs []ruleengine.Value
+	if t.c.rulePlan != nil {
+		if query, ruleArgs, err = runtime.RuleSelectPage(t.table, t.meta.rowid, page.rule, t.predicate); err != nil {
+			return TableResult{}, rulesInvalid()
 		}
-		var query string
-		var params []json.RawMessage
-		var ruleArgs []ruleengine.Value
-		if t.c.rulePlan != nil {
-			if query, ruleArgs, err = runtime.RuleSelectPage(in.Table, t.meta.rowid, page.rule, t.predicate); err != nil {
-				return rulesInvalid()
-			}
-		} else {
-			query, params = page.query(in.Table, t.meta.rowid, t.meta.hold && !seesEveryRow(t.c))
-		}
-		stmt, err := s.prepareRowRead(t, query, ruleArgs, params)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-		*out, err = s.readRowPage(stmt, page, t.c, t.meta.order)
-		return err
-	})
+	} else {
+		query, params = page.query(t.table, t.meta.rowid, t.meta.hold && !seesEveryRow(t.c))
+	}
+	stmt, err := s.prepareRowRead(t, query, ruleArgs, params)
+	if err != nil {
+		return TableResult{}, err
+	}
+	defer stmt.Close()
+	return s.readRowPage(stmt, page, t.c, t.meta.order)
 }
 
 // rowPage is a parsed list request: page size, sort and the cursor of the

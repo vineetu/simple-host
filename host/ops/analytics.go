@@ -3,11 +3,13 @@ package ops
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/vsriram/simple-host/host/model"
 	"github.com/vsriram/simple-host/host/ops/repo"
+	appsites "github.com/vsriram/simple-host/host/sites"
 	"github.com/vsriram/simple-host/host/sites/analytics"
 	sites "github.com/vsriram/simple-host/host/sites/repo"
 )
@@ -24,19 +26,32 @@ type CountryStat struct {
 }
 type SiteViews = analytics.SiteViews
 
+// AnalyticsSite is the site the analytics reads report on: the caller's own
+// by name, or (owner set to another handle) any account's for the platform
+// admin. Anyone else naming another owner gets the same site_not_found as a
+// site that does not exist, so the parameter cannot be used to learn which
+// handles or sites exist.
 func (s *Reporting) AnalyticsSite(ctx context.Context, user *model.User, owner, name string) (model.Site, error) {
+	notFound := &appsites.Error{Code: "site_not_found", Message: "site not found"}
 	ownerID := user.ID
 	if owner = strings.TrimSpace(owner); owner != "" && !strings.EqualFold(owner, user.Handle.String) {
 		if !user.IsAdmin {
-			return model.Site{}, sql.ErrNoRows
+			return model.Site{}, notFound
 		}
 		u, err := repo.GetAnalyticsOwner(ctx, s.database, owner)
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.Site{}, notFound
+		}
 		if err != nil {
 			return model.Site{}, err
 		}
 		ownerID = u.ID
 	}
-	return sites.GetSiteByUser(ctx, s.database, ownerID, name)
+	site, err := sites.GetSiteByUser(ctx, s.database, ownerID, name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return site, notFound
+	}
+	return site, err
 }
 func (s *Reporting) SiteAnalytics(ctx context.Context, id string, days int) (*analytics.SiteAnalytics, error) {
 	return analytics.GetSiteAnalytics(ctx, s.database, id, days)

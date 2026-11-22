@@ -186,3 +186,13 @@ func ViewersAdmit(kind VisitKind, row model.SitePasscodeRow, who Visitor) VisitV
 // NoVisitorSignIn: the install has no way for a visitor to sign in (no
 // emailed codes and no sign-in provider).
 func NoVisitorSignIn(email bool, providers []string) bool { return !email && len(providers) == 0 }
+
+// Gated: the site's row loaded and it has a passcode or named viewers, so
+// nothing of it is cached by anyone or indexed.
+func (v Visit) Gated() bool { return v.RowErr == nil && (v.Row.Enc != nil || v.Row.NamedViewers) }
+
+// PastViewers: a named-viewers site and the request got past that rule
+// (served, or stopped only by the passcode after it).
+func (v Visit) PastViewers(verdict VisitVerdict) bool {
+	return v.Row.NamedViewers && (verdict == VisitServe || verdict == VisitNeedPasscode)
+}

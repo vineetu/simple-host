@@ -1,0 +1,5 @@
+# Edge code (routes packages, host/handler, host/mcp) that names SQL or a repo package, with why.
+# path | sql or import:<package> | reason
+# check-layering.sh fails on any other SQL text or repo import there; keep this list short and every reason true.
+host/mcp/sites_pagecheck.go | sql | lists the tables of the site's own SQLite file, a query the tool sends through the REST storage route
+host/mcp/data_storage_tools.go | sql | hint text naming the site SQLite schema query a model may send

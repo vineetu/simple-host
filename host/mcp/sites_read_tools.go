@@ -3,7 +3,6 @@ package mcp
 // Sites family, read side: list, get and read files.
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,7 +11,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 func siteReadTools() []Tool {
@@ -157,27 +155,18 @@ func runGetSite(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	site, err := c.findSite(name)
+	// One listing: the account's sites, with the live files of this one.
+	site, err := c.findSiteIn(name, url.Values{"files": {name}})
 	if err != nil {
 		return output{}, err
 	}
 	out := site.summary()
-	if site.ActiveVersion > 0 {
-		res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(name)+"/versions/"+strconv.Itoa(site.ActiveVersion)+"/files", nil, nil)
-		if res.ok() {
-			var listing struct {
-				Files []struct {
-					Path string `json:"path"`
-					Size int64  `json:"size"`
-				} `json:"files"`
-			}
-			_ = json.Unmarshal(res.body, &listing)
-			files := make([]any, 0, len(listing.Files))
-			for _, f := range listing.Files {
-				files = append(files, map[string]any{"path": f.Path, "size": f.Size})
-			}
-			out["files"] = files
+	if site.Files != nil {
+		files := make([]any, 0, len(*site.Files))
+		for _, f := range *site.Files {
+			files = append(files, map[string]any{"path": f.Path, "size": f.Size})
 		}
+		out["files"] = files
 	}
 	answer := sitePreviewOutput(c, site, out)
 	if site.Views != nil {
@@ -256,6 +245,12 @@ type restSite struct {
 		People7Days  int64 `json:"people_7_days"`
 		People30Days int64 `json:"people_30_days"`
 	} `json:"views"`
+	// Files is the live version's files, on a listing asked with
+	// ?files=<this site>.
+	Files *[]struct {
+		Path string `json:"path"`
+		Size int64  `json:"size"`
+	} `json:"files"`
 }
 
 // liveURL is the one address to give people: REST's live_url (sites.LiveURL
@@ -315,8 +310,11 @@ func (c *call) listSites(query url.Values) ([]restSite, error) {
 	return sites, nil
 }
 
-func (c *call) findSite(name string) (restSite, error) {
-	sites, err := c.listSites(nil)
+func (c *call) findSite(name string) (restSite, error) { return c.findSiteIn(name, nil) }
+
+// findSiteIn finds the named site in the account's listing, read with query.
+func (c *call) findSiteIn(name string, query url.Values) (restSite, error) {
+	sites, err := c.listSites(query)
 	if err != nil {
 		return restSite{}, err
 	}
@@ -360,10 +358,6 @@ func ownerViewsLine(sites []restSite) string {
 // ownVisitsCaveat goes wherever the owner-excluded figures do.
 const ownVisitsCaveat = " A device never used while signed in to Simple Host still counts as a person, and other people behind an address you were signed in from are left out while that mark lasts (30 days)."
 
-// maxFileText bounds how much of one file read_site_file hands back, so one
-// call cannot flood the conversation.
-const maxFileText = 200 << 10
-
 const maxReadPaths = 10
 
 // siteFile is one file read from a site version.
@@ -374,6 +368,7 @@ type siteFile struct {
 	binary    bool
 	truncated bool
 	ctype     string
+	err       error // this file could not be read
 }
 
 func (f siteFile) structured() map[string]any {
@@ -389,32 +384,47 @@ func (f siteFile) structured() map[string]any {
 	return out
 }
 
-// readFile reads one file of a site version through the REST API.
-func readFile(c *call, tool, site string, version int, path string) (siteFile, error) {
-	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	for i, s := range segments {
-		segments[i] = url.PathEscape(s)
+// readFiles reads paths of a site version (0: the live one) in one request,
+// returning the version read and each file, or that file's own refusal.
+func readFiles(c *call, tool, site string, version int, paths []string) (int, []siteFile, error) {
+	ref := "live"
+	if version > 0 {
+		ref = strconv.Itoa(version)
 	}
-	res := c.do(http.MethodGet, "/v1/sites/"+url.PathEscape(site)+"/versions/"+strconv.Itoa(version)+"/files/"+strings.Join(segments, "/"), nil, nil)
-	if !res.ok() {
-		return siteFile{}, restError(tool, res)
+	q := url.Values{}
+	for _, path := range paths {
+		q.Add("read", strings.TrimPrefix(path, "/"))
 	}
-	f := siteFile{path: path, size: len(res.body), ctype: res.header.Get("Content-Type")}
-	textual := utf8.Valid(res.body) && !bytes.ContainsRune(res.body, 0) &&
-		!strings.HasPrefix(f.ctype, "image/") && !strings.HasPrefix(f.ctype, "font/") && !strings.HasPrefix(f.ctype, "audio/") && !strings.HasPrefix(f.ctype, "video/")
-	if !textual {
-		f.binary = true
-		return f, nil
+	var body struct {
+		Version int `json:"version_number"`
+		Files   []struct {
+			Size        int     `json:"size"`
+			ContentType string  `json:"content_type"`
+			Content     *string `json:"content"`
+			Binary      bool    `json:"binary"`
+			Truncated   bool    `json:"truncated"`
+			Error       string  `json:"error"`
+			Status      int     `json:"status"`
+		} `json:"files"`
 	}
-	f.content = string(res.body)
-	if len(f.content) > maxFileText {
-		f.content = f.content[:maxFileText]
-		for !utf8.ValidString(f.content) {
-			f.content = f.content[:len(f.content)-1]
+	if err := c.doJSON(tool, http.MethodGet, sitePath(site, "/versions/"+ref+"/files?"+q.Encode()), nil, &body); err != nil {
+		return 0, nil, err
+	}
+	if len(body.Files) != len(paths) {
+		return 0, nil, errors.New(tool + ": unexpected answer from the server")
+	}
+	files := make([]siteFile, len(paths))
+	for i, f := range body.Files {
+		files[i] = siteFile{path: paths[i], size: f.Size, binary: f.Binary, truncated: f.Truncated, ctype: f.ContentType}
+		if f.Content != nil {
+			files[i].content = *f.Content
 		}
-		f.truncated = true
+		if f.Error != "" {
+			refusal, _ := json.Marshal(map[string]string{"error": f.Error})
+			files[i].err = restError(tool, upstreamResult{status: f.Status, body: refusal})
+		}
 	}
-	return f, nil
+	return body.Version, files, nil
 }
 
 func readSiteFiles(c *call, args map[string]any) (output, error) {
@@ -426,16 +436,20 @@ func readSiteFiles(c *call, args map[string]any) (output, error) {
 	if err != nil {
 		return output{}, err
 	}
-	version, err := siteVersionArg(c, args, name)
+	version, _, err := wholeNumber(args, "version", false, 1, math.MaxInt32)
+	if err != nil {
+		return output{}, err
+	}
+	version, files, err := readFiles(c, "read_site_file", name, version, paths)
 	if err != nil {
 		return output{}, err
 	}
 	if !single {
-		return readManyFiles(c, name, version, paths), nil
+		return readManyFiles(name, version, files), nil
 	}
-	f, err := readFile(c, "read_site_file", name, version, paths[0])
-	if err != nil {
-		return output{}, err
+	f := files[0]
+	if f.err != nil {
+		return output{}, f.err
 	}
 	out := f.structured()
 	out["site"], out["version"] = name, version
@@ -473,34 +487,20 @@ func readPathsArg(args map[string]any) (paths []string, single bool, err error) 
 	return paths, false, nil
 }
 
-// siteVersionArg is the version argument, else the site's live version.
-func siteVersionArg(c *call, args map[string]any, site string) (int, error) {
-	version, given, err := wholeNumber(args, "version", false, 1, math.MaxInt32)
-	if err != nil || given {
-		return version, err
-	}
-	live, err := c.findSite(site)
-	if err != nil {
-		return 0, err
-	}
-	return live.ActiveVersion, nil
-}
-
-// readManyFiles reads several files; one missing file does not hide the others.
-func readManyFiles(c *call, name string, version int, paths []string) output {
-	files := make([]any, 0, len(paths))
+// readManyFiles answers several files; one missing file does not hide the others.
+func readManyFiles(name string, version int, read []siteFile) output {
+	files := make([]any, 0, len(read))
 	var text strings.Builder
-	for _, path := range paths {
-		f, err := readFile(c, "read_site_file", name, version, path)
+	for _, f := range read {
 		switch {
-		case err != nil:
-			files = append(files, map[string]any{"path": path, "error": err.Error()})
-			fmt.Fprintf(&text, "=== %s ===\n%s\n", path, err.Error())
+		case f.err != nil:
+			files = append(files, map[string]any{"path": f.path, "error": f.err.Error()})
+			fmt.Fprintf(&text, "=== %s ===\n%s\n", f.path, f.err.Error())
 			continue
 		case f.binary:
-			fmt.Fprintf(&text, "=== %s ===\n(binary file, %s, %d bytes; contents not shown)\n", path, f.ctype, f.size)
+			fmt.Fprintf(&text, "=== %s ===\n(binary file, %s, %d bytes; contents not shown)\n", f.path, f.ctype, f.size)
 		default:
-			fmt.Fprintf(&text, "=== %s ===\n%s\n", path, f.content)
+			fmt.Fprintf(&text, "=== %s ===\n%s\n", f.path, f.content)
 		}
 		files = append(files, f.structured())
 	}

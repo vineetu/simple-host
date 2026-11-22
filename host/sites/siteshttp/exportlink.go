@@ -2,7 +2,6 @@ package siteshttp
 
 import (
 	"crypto/rand"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/url"
@@ -91,11 +90,7 @@ func (h *SiteHandler) createExportLink(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("sitename")))
 	site, err := h.LifecycleSvc().ExportSite(r.Context(), sites.ExportSiteInput{UserID: user.ID, Name: name})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeSiteNotFound(w, name)
-			return
-		}
-		httpx.WriteInternal(w)
+		writeSitesError(w, err, name)
 		return
 	}
 	expires := time.Now().Add(h.Limits.ExportLinkTTL).Truncate(time.Second)

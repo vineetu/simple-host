@@ -31,7 +31,7 @@ and limit policies; event stages and deadlines remain database state.
 | Site policy | Deployment file caps, photos | Strict archives, event retention and judging previews |
 | Notifications | Site scope | Event membership and website scope |
 
-Source: `host/edition/{routes,presentation,identity,storage,notifications}.go`;
+Source: `host/edition/{edition,policies}.go`;
 `Limits()` returns the configured limits by value.
 
 | Component | Responsibility and source |
@@ -42,16 +42,16 @@ Source: `host/edition/{routes,presentation,identity,storage,notifications}.go`;
 | TLS reverse proxy | Hosted nginx routes hosts and serves some files directly; self-hosted Caddy configurations are in `deploy/` |
 | Certificate issuers | External root-owned request/ready-marker services; `deploy/site-certs/`, `domain-certs/`, `family-certs/` |
 | Local Geo DB | DB-IP Lite files in `GEOIP_DIR`; `host/geoip`, `scripts/geoip-refresh.sh`, `simple-host-geoip-refresh.timer` |
-| Email and optional providers | Resend (`host/email`; recipient-free Hack acceptance/failure journal, `scripts/hack-mail-report.py`), optional Vercel event DNS (`host/eventdns/vercel.go`), OAuth (`host/oauth`) |
+| Email and optional providers | Resend (`host/email`; recipient-free Hack acceptance/failure journal, `scripts/hack-mail-report.py`), optional Vercel event DNS (`host/sites/eventdns/vercel.go`), OAuth (`host/oauth`) |
 
 There is no external queue or object store in this implementation. Webhook/MCP Events/Web Push
-delivery uses Postgres outboxes and in-process workers (`host/handler/notify*.go`,
+delivery uses Postgres outboxes and in-process workers (`host/data/datahttp/notify*.go`, `host/data/repo/notify`,
 `host/mcp/events.go`). Web Push (SIM-360, behind `WEB_PUSH_ACCOUNTS`) is a third delivery
 `kind` of the same `site_notifications` row and outbox, not a parallel engine: the row-write/kv/
-file emission call sites (`host/app/storage`) carry the row's own `visitor_id` and whether
-the actor was the owner, so the fan-out (`repository/notifications.EmitSiteEventFor`) can route a
+file emission call sites (`host/data`) carry the row's own `visitor_id` and whether
+the actor was the owner, so the fan-out (`host/data/repo/notify.EmitSiteEventFor`) can route a
 push to the right devices without that layer knowing push exists; the actual RFC 8291/8292
-encryption and send (`host/handler/notify_push.go`, `github.com/SherClockHolmes/webpush-go`)
+encryption and send (`host/data/datahttp/notify_push.go`, `github.com/SherClockHolmes/webpush-go`)
 reuses the webhook delivery client's SSRF-guarded dial.
 Visitor writes emit in both editions, excluding owner writes (an owner write with no associated
 visitor row/key still emits nothing; one that touches a visitor's row -- D1's owner edit, or
@@ -68,28 +68,18 @@ compared against an owner-role push subscription's own `owner_id`. These same tw
 `push_target`, never delivered to any subscriber) so a cursor-based MCP replay applies the
 identical eligibility CASE a live delivery would have, instead of none at all. Host also emits
 deploy/activation, domain-status, named-viewer requests and visitor-sign-in events;
-`notify.go:emitSiteNotification` excludes Hack.
+`datahttp/notify.go:EmitSiteNotification` excludes Hack.
 [Hosts and access](docs/architecture/hosts-and-access.md#notification-triggers) lists the sources.
-The notification service asks `notifications.GroupSites` for held-site access and
-website labels. `products/hack.NotificationGroups` supplies the event queries;
-`server.Build` installs it on `SiteHandler` from `Parts.Hooks.Notifications` before
-serving. Platform-only services have no hook and issue no product-table queries.
-Label enrichment follows repository reads on the same database or transaction;
-subscription creation retains the membership lock before the site lock.
+The product's hooks are few and named in `host/extension/extension.go`: `Extension.Early`
+returns `access.GroupHooks` (its one field, `Erasure`, is the product's answer before an
+account it holds is erased), and `Parts.Hooks` carries the storage binding provider, the
+sitemap filter, `GroupHosts` (group lookups, product pages, notification addresses and pinned
+versions) and `GroupGate` (writes to a held site). Platform-only installs have none and issue
+no product-table queries.
 
-Group credentials and scoped file links use `accounts.GroupKeys`, supplied by
-`products/hack/repository/hackevents.GroupKeys` through `Extension.Early` before
-account services are constructed. Services read the hook at call time, including
-the REST/MCP scope gate. The platform keeps the route allowlist and holding-account
-impersonation; Hack owns membership, write refusals and organiser file-link checks.
-With no product hook, stored team keys cannot authenticate and scoped links fail.
-
-Account deletion uses `accounts.Erasure`, installed through `Extension.Early`.
-Hack's `members.AccountErasure` owns holding-account lookup, running-event
-refusals, membership cleanup and orphan-site sweeping. The platform keeps
-transaction and statement order; sweeping follows commit. With no hook,
-account erasure issues no product-table queries. `users.event_account` retains
-its meaning for accounts that do not sign in and is not a holding-account test.
+Cutting a person off (erasure, team deletion, suspension) is one workflow in
+`host/ops/person.go`, on one transaction where it must be atomic; each module does its own part
+with its own functions and the routes call it once.
 
 No CLI-proxy sidecar is needed by the Go request path; deployment-specific integrations belong
 with the proxy configuration.
@@ -109,7 +99,7 @@ Startup can initialize/migrate with `MIGRATE_ON_START=true`, then verifies requi
 without a configured hostname it serves only setup and exits after configuration so the supervisor
 can restart it. See `host/server/build.go:Build` and [deployment profiles](docs/operations/deployment-profiles.md).
 
-Root `_redirects` is parsed by the pure `host/redirects` package. `app/sites` validates the final file map before creating a version; `storage.UpdateCurrent` retains the file in versions and writes a sibling `redirects` marker instead of serving it. `handler/redirects.go` caches marker parses (including failures), applies rules after `siteGate` in `serveSiteFile`, and supports legacy `current/_redirects`. Shared exports restore the file from the marker, including account/trash exports. Proxy templates send rule-bearing sites to this same gated path. `host/pagepath.Resolve` decides what a page address means: the exact file, the HTML sibling, the folder index, or the redirect to the page's other spelling. Rules are applied first; the slash redirect is always the last hop. See [Page address resolution](docs/architecture/page-path.md#page-address-resolution).
+Root `_redirects` is parsed by the pure `host/sites/redirects` package. `host/sites` validates the final file map before creating a version; `storage.UpdateCurrent` retains the file in versions and writes a sibling `redirects` marker instead of serving it. `host/sites/siteshttp/redirects.go` caches marker parses (including failures), applies rules after `siteGate` in `serveSiteFile`, and supports legacy `current/_redirects`. Shared exports restore the file from the marker, including account/trash exports. Proxy templates send rule-bearing sites to this same gated path. `host/sites/pagepath.Resolve` decides what a page address means: the exact file, the HTML sibling, the folder index, or the redirect to the page's other spelling. Rules are applied first; the slash redirect is always the last hop. See [Page address resolution](docs/architecture/page-path.md#page-address-resolution).
 
 ## Hosts and how a request flows
 
@@ -134,19 +124,19 @@ host/TLS hand-offs, identity, view locks, legacy access and request accounting a
 
 | Host | Routing, identity and code |
 |---|---|
-| Apex `simple-host.app` / `simple-hack.app` | Pages, `/v1/`, OAuth, `/mcp`, skill downloads and probes. Protected account routes require `X-API-Key` or a connector bearer token, with route-specific permissions. `handler/ui.go`, `connector.go`, `auth/middleware.go`; Hack registration in `hackhttp/hack.go`. |
-| `<site>.<handle>.simple-host.app` | Files at `/`, API bound to that site, visitor cookies on that origin. Own-address redirects and rename/handle aliases are resolved before files; `handler/sitehost.go:SiteHosts`. |
-| Custom domain | nginx serves files and proxies API/gates; visitor identity stays on that site's origin. Verification/issuer lifecycle: `handler/domains.go`, `domaincheck.go`, `domaincert.go`; `deploy/domain-certs/`. |
-| Claimed `<name>.simple-host.app` | Immediately verified through the domain API; `handler/platformsubdomain.go:BoundSubdomains` serves files and same-origin API. Retired names redirect to their current site with 302; older unbound per-name hosts keep the legacy 301 path redirect (`legacyhost.go:LegacyHostRedirect`). |
-| `<label>.<suffix>` address family | Host resolves one account and its prefixed site. nginx serves files; `handler/familyhost.go:FamilyHosts` handles API, misses, aliases and own-domain redirects. Visitor auth is site-bound. |
-| `<handle>.simple-host.app` | Public site listing/home page and legacy `/<site>/` fallback; `/v1/` binds to that person's sites. Own addresses get 302 redirects; site-host redirects also require canonical mode and readiness. `handler/personhost.go:PersonHosts`. |
+| Apex `simple-host.app` / `simple-hack.app` | Pages, `/v1/`, OAuth, `/mcp`, skill downloads and probes. Protected account routes require `X-API-Key` or a connector bearer token, with route-specific permissions. `sites/siteshttp/ui.go`, `access/accesshttp/connector.go`, `access/auth/middleware.go`; Hack registration in `hackhttp/hack.go`. |
+| `<site>.<handle>.simple-host.app` | Files at `/`, API bound to that site, visitor cookies on that origin. Own-address redirects and rename/handle aliases are resolved before files; `sites/siteshttp/sitehost.go:SiteHosts`. |
+| Custom domain | nginx serves files and proxies API/gates; visitor identity stays on that site's origin. Verification/issuer lifecycle: `sites/siteshttp/domains.go`, `domaincheck.go`, `domaincert.go`; `deploy/domain-certs/`. |
+| Claimed `<name>.simple-host.app` | Immediately verified through the domain API; `sites/siteshttp/platformsubdomain.go:BoundSubdomains` serves files and same-origin API. Retired names redirect to their current site with 302; older unbound per-name hosts keep the legacy 301 path redirect (`legacyhost.go:LegacyHostRedirect`). |
+| `<label>.<suffix>` address family | Host resolves one account and its prefixed site. nginx serves files; `sites/siteshttp/familyhost.go:FamilyHosts` handles API, misses, aliases and own-domain redirects. Visitor auth is site-bound. |
+| `<handle>.simple-host.app` | Public site listing/home page and legacy `/<site>/` fallback; `/v1/` binds to that person's sites. Own addresses get 302 redirects; site-host redirects also require canonical mode and readiness. `sites/siteshttp/personhost.go:PersonHosts`. |
 | Legacy `sites.simple-host.app/<handle>/<site>/` | nginx redirects through `/internal/domain-redirect` or `/internal/site-redirect`; same path/query, 302 with no-store. `/v1/` remains; canonical person-host mode requires keys for shared-host writes, without visitor sign-in. `personhost.go:contentHostRedirect`, `domains.go`. |
-| Hack `<event>.simple-hack.app` | `PersonHosts` selects `handler/grouphost.go:serveGroupHost`: event page/gallery screenshot, or custom event website. Only a custom website's own storage/visitor API allowlist is served here; event management stays apex-only. |
-| Hack `<team>.<event>.simple-hack.app` | Site-host dispatch with the event holding account and team site. Scoped credentials authorize website management; visitor sessions cover that website. `handler/sitehost.go`, `heldsites.go`, `auth/scope.go`. |
+| Hack `<event>.simple-hack.app` | `PersonHosts` selects `sites/siteshttp/grouphost.go:ServeGroupHost`: event page/gallery screenshot, or custom event website. Only a custom website's own storage/visitor API allowlist is served here; event management stays apex-only. |
+| Hack `<team>.<event>.simple-hack.app` | Site-host dispatch with the event holding account and team site. Scoped credentials authorize website management; visitor sessions cover that website. `sites/siteshttp/sitehost.go`, `heldsites.go`, `access/auth/scope.go`. |
 
 Host modes retain the path model when off; canonical site URLs wait for certificate readiness
 when a hand-off directory is configured. Without that directory the app treats certificates as
-ready (`handler/sitebase.go:siteCertReadyOn`). Custom domains and families have separate verification
+ready (`sites/addressing.go:SiteCertReadyOn`). Custom domains and families have separate verification
 and readiness contracts. Owner keys, connector credentials and site-scoped visitor sessions serve
 different routes; the [access guide](docs/architecture/hosts-and-access.md) specifies each boundary.
 
@@ -160,43 +150,35 @@ never import each other. `host/server` assembles the product's one description f
 `host/extension`; platform consumers declare its plain interfaces and function fields.
 See the [contribution and hook inventory](docs/architecture/products.md#composition-and-contribution-points).
 
-Current flow: HTTP/MCP transport → application services → rules and repositories/disk mechanics.
-Services own extracted workflows and transactions; rules make pure decisions; repositories execute
-SQL. This is an ongoing boundary, not a claim that transport is already free of SQL or disk calls.
-The following packages exist today; Hack-only packages live under `products/hack/`.
+Flow: HTTP/MCP transport → module functions (workflows and transactions) → rules and
+repositories/disk mechanics. Routes and tools hold no SQL and import no repository;
+`scripts/check-layering.sh` fails otherwise (exceptions with reasons in
+`scripts/split/thin-edges-allow.txt`). The packages; Hack-only ones live under `products/hack/`.
 
 | Package (under `host/` unless prefixed) | Responsibility |
 |---|---|
-| `handler` | Shared HTTP, accounts, sites/storage, admin, connector composition, asset presentation, remaining workers |
-| `products/hack/mcp` | Hack's AI tool declarations, instructions, wording, screens-in-chat (with their app-only tools and files under `apps/`) and its event recipe, handed to `host/mcp` as one `mcp.Contribution` through `extension.Parts.Tools` |
-| `products/hack/hackhttp` | Hack HTTP/pages and transport mapping; held-site interfaces use the platform's `handler.GroupRef` |
-| `mcp` | JSON-RPC, discovery, family registrars and common tool/schema inventory (`registry.go`); MCP Events; refusal codes (`call.go`: `codedError`/`CodedError`, `codeHints`) let a converted error site carry an AgentCat-visible code instead of the generic `tool_error`, and `server.go`'s `resolveArgAlias` accepts a sibling tool family's name for the same argument before the schema's additionalProperties check runs (SIM-359) |
-| `products/hack/mcp/apps/{bundlegen,gentool}` | Browser-bundle generator and command for Hack's screens-in-chat |
-| `webassets` | Platform pages, docs, skills and downloads; Hack owns its embeds in `products/hack/webassets` |
-| `server`, `extension` | Program composition, CLI and lifecycle; the platform-typed product description and returned contributions |
-| `workers` | Standard-library lifecycle owners, cancellation, joins and progress/status tracking |
-| `httpx` | Shared HTTP responses, limits, signed links and route metadata |
-| `auth` | Account credential/context and scope middleware, with injected account authorization |
-| `app/accounts` | Principal/session resolution, scoped team authority, who may act as an account's owner (`ActsAsOwner`, `ResolveOwner`: [teams](docs/architecture/hosts-and-access.md#teams-who-may-act-as-an-accounts-owner)) and sign-in country decisions |
-| `products/hack/app/events` | Event lifecycle/content, organisers, settings and public directory |
-| `products/hack/app/teams` | Team lifecycle/admin/links and team finding |
-| `products/hack/app/members` | Registration, applications, tracks and leaving |
-| `products/hack/app/entries` | Entry writes/settling, judging, assignments, scoring, voting and results |
-| `app/sites` | Deploy/publication, versions, addresses, site/account file lifecycle and exports |
-| `app/storage` | KV, SQLite and runtime-file workflows, quotas and access decisions |
-| `rules/{auth,sites,storage}` | Pure grant/name/storage decisions |
-| `products/hack/rules/{hackevents,hackteams,hackentries}` | Pure event codes, team decisions, eligibility, judging and result arithmetic |
-| `repository/{accounts,sites,storage}` | Extracted account/site/storage SQL |
-| `products/hack/repository/{hackevents,hackteams,hackentries}` | Extracted Hack SQL |
-| `repository/sqlkit` | Shared Querier and transaction-opening primitives |
-| `app/notifications`, `repository/notifications` | Subscription and outbox delivery workflows; notification SQL |
+| `access`, `access/repo`, `access/rules`, `access/auth`, `access/oauth` | Accounts, keys, sign-in, connector, passcodes, named viewers, editors and teams; their SQL; pure grant rules; credential and scope middleware; provider clients |
+| `sites`, `sites/repo`, `sites/{analytics,eventdns,idempotency,pagepath,photos,redirects}` | Deploys, versions, addresses, domains, exports and serving decisions; their SQL; analytics ingest; deploy idempotency; page-address resolution; photos; `_redirects` rules |
+| `data`, `data/repo`, `data/notify`, `data/rules` | Saved data (KV, SQLite, files), the resource rules, notifications and web push; their SQL |
+| `ops`, `ops/repo` | Workflows over more than one module (cutting a person off, named viewers with their devices, site export with saved data, setup) and the operator's reports; their SQL |
+| `access/accesshttp`, `sites/siteshttp`, `data/datahttp` | Each module's HTTP routes (`routes.go`): read the request, call the module once, write the answer |
+| `handler` | Builds the three route handlers with what they share and mounts them; the connector's visitor tools |
+| `mcp` | JSON-RPC, discovery, the Host tool families (each one REST call, in process) and MCP Events |
+| `products/hack/mcp` | Hack's AI tool declarations, instructions, screens-in-chat (`apps/`) and event recipe, handed to `mcp` as one `mcp.Contribution` through `extension.Parts.Tools` |
+| `products/hack/hackhttp` | Hack HTTP routes and pages |
+| `products/hack/app/{events,teams,members,entries}` | Hack workflows: events, teams, registration, entries, judging and results |
+| `products/hack/rules`, `products/hack/repository` | Hack's pure rules and its SQL |
+| `webassets`, `web` | Platform pages, docs, skills and downloads; the page pipeline and shared HTTP refusals |
+| `server`, `extension` | Program composition, CLI and lifecycle; the product description and its contributions |
+| `workers` | Background job lifecycle, cancellation and status |
+| `httpx` | Shared HTTP responses, the one refusal-code status table (`RefusalStatus`), limits and signed links |
 | `model` | Shared records without SQL or transport |
-| `storage` | Deployment trees, symlinks/markers, runtime files and per-site SQLite mechanics |
-| `edition`, `config` | Injected fixed product policy; environment parsing and settings catalog |
-| `app/operations`, `repository/operations` | Operator reports, API aggregation/retention, measurement and scan lifecycle; report, scan and startup schema-verification SQL |
-| `analytics`, `netusage`, `papermetrics` | Access-log, network-counter and research measurement mechanisms |
-| `email`, `eventdns`, `oauth` | Provider clients |
-| `geoip`, `capacity`, `tarball` | Local country lookup, disk capacity and archives |
+| `storage` | Deployment trees, markers, runtime files and per-site SQLite mechanics |
+| `rules/sites` | Pure site-name rules |
+| `sqlkit`, `db`, `db/migrations` | Querier and transaction primitives; schema and migrations |
+| `edition`, `config` | Fixed product policy; environment parsing and the settings catalog |
+| `netusage`, `papermetrics` | Network counters and the nightly research measurement |
+| `email`, `llm`, `geoip`, `capacity`, `tarball` | Mail, model and country clients; disk capacity; archives |
 | `buildinfo` | Stamped version/commit/build time |
 | `testdb`, `geoip/geoiptest` | Test fixtures |
 
@@ -211,7 +193,7 @@ Platform server tests use
 `host/server/servertest` from `package server_test`; Hack integration tests and
 their own isolated database fixture live in `products/hack/servertest`. Shared lock maps
 are injected by existing wiring
-(`app/sites/service.go:New`, `app/storage/service.go:Deps`), not by a new lock package.
+(`host/sites/service.go:New`, `host/data/service.go`), not by a new lock package.
 Follow [target §2](docs/architecture/target.md#2-package-map-and-import-contract).
 
 Outside the platform, `products/hack` owns its extension, HTTP, MCP, app, repository, rule,
@@ -223,7 +205,7 @@ before writes. The read-only adoption-evidence probe in `host/server/product.go`
 single allowlisted platform product-table query. See [persistence](docs/architecture/persistence.md#install-product-identity).
 
 `cmd/analytics-rebuild` and `cmd/ip-country-load` are operator tools; `host/server/reviewaccount.go`
-manages reviewer accounts. `handler/instancehost.go` rewrites instance hostnames in assets.
+manages reviewer accounts. `host/web/instancehost.go` rewrites instance hostnames in assets.
 `plugins/openai/` is the Host ChatGPT package; Hack owns its bundles under
 `products/hack/webassets/hack-toolkit/`. `deploy/` holds proxy,
 issuer and deployment templates; `scripts/` holds checks/generators/ops. Website skills live in
@@ -244,7 +226,7 @@ Simple Hack has no person pages.
 Markdown twice, for Host and Hack. `scripts/build-docs-site.sh` uses Node 22 only at
 build time; committed output in `host/webassets/docs-site/host` and
 `products/hack/webassets/docs-site/hack` has dedicated `all:` embeds and is never
-reachable through the ordinary static server. `handler/docs.go`
+reachable through the ordinary static server. `host/sites/siteshttp/ui.go`
 serves `/docs/` with shared chrome, theme, instance text, limits, and UI CSP. Assembled
 HTML and extracted shared chrome scripts are cached per asset pipeline. Pagefind search
 uses only that brand's compiled pages. The API reference (`/docs/api/`) and MCP tools reference (`/docs/mcp/`) are generated per brand by `scripts/docs-reference.py`.
@@ -269,29 +251,29 @@ CI rebuilds both brands; the offline docs check verifies source and output hashe
 
 - Visitor analytics use local country lookup and salted visitor hashes, without injected page
   analytics. Logs exclude query strings (`deploy/prod/nginx-analytics-logformat.conf`); API metrics
-  truncate IPs to /24 or /48 (`host/analytics`, `app/operations/apimetrics.go:truncateIP`).
-- Account middleware reads keys, not visitor cookies (`auth/middleware.go:Middleware`). Hosted
+  truncate IPs to /24 or /48 (`host/analytics`, `host/ops/apimetrics.go:truncateIP`).
+- Account middleware reads keys, not visitor cookies (`host/access/auth/middleware.go:Middleware`). Hosted
   pages use site-scoped visitor identity; do not embed an owner's key in a hosted page.
 - An owner add on behalf of a visitor (`for`, SIM-358) is resolved and validated once
-  (`app/storage.Service.ResolveOwnerFor`) and carried on `Call.OwnerFor`; `stampInsertValues`
-  (`app/storage/row_write.go`) is the only place that turns it into `visitor_id` and the
+  (`host/data/visitors.go:Service.ResolveOwnerFor`) and carried on `Call.OwnerFor`; `stampInsertValues`
+  (`host/data/row_write.go`) is the only place that turns it into `visitor_id` and the
   server-owned `written_by` column, for the owner's key, connector token, or the owner signed in
   on the site's own address alike. Do not set `visitor_id` from caller-supplied values anywhere
   else in that path; the owner's raw `storage_sql_execute`/`execute` SQL console is a separate,
   pre-existing, unrestricted door and is not where this check runs.
 - Site gates include suspension/offline, passcodes or named viewers; List on my profile only controls the profile page
-  and does not grant access. Reads are not universally public (`handler/passcode.go:siteGate`,
-  `viewers.go`, `seo.go`, `host/app/storage/access.go`). A shared site-wide passcode and
+  and does not grant access. Reads are not universally public (`access/accesshttp/passcode.go:SiteGate`, `host/access/visit_gate.go:DecideVisit`,
+  `viewers.go`, `seo.go`, `host/data/access.go`). A shared site-wide passcode and
   named viewers are mutually exclusive; named viewers sign in on the site origin. There is no per-page lock.
 - Normal site requests redirect to their verified own address with 302, so disconnection takes
-  effect; version previews are an explicit exception (`handler/sitehost.go:SiteHosts`).
+  effect; version previews are an explicit exception (`sites/siteshttp/sitehost.go:SiteHosts`).
 - Handles, claimed platform names, reserved names and retired hosts share a namespace
-  (`handler/handlecheck.go:JudgeHandle`). Configured certificate hand-offs require readiness before advertising site URLs
-  (`handler/sitebase.go:siteCertReadyOn`); no hand-off directory means ready.
+  (`host/access/account_handles.go:JudgeHandle`). Configured certificate hand-offs require readiness before advertising site URLs
+  (`sites/addressing.go:SiteCertReadyOn`); no hand-off directory means ready.
 - Account UI and consent pages use nonce CSP; passcode pages use fixed script hashes. Do not
-  assume all apex responses use the same CSP (`handler/ui.go:adminUICSP`, `connector.go:consentHeaders`, `passcode.go`).
+  assume all apex responses use the same CSP (`host/web/shared_pages.go:AdminUICSP`, `access/accesshttp/connector_authorize.go:consentHeaders`, `passcode.go`).
 - `openapi.yaml` is the source contract; JSON is generated. Served specs filter `x-audience`
-  operations and unused components (`handler/public_openapi.go:publicOpenAPISpec`).
+  operations and unused components (`host/webassets/openapi.go:PublicOpenAPISpec`).
 - Deployment versions and runtime saved files are distinct. `storage/disk.go` is not the only
   writer under a site directory (`storage/runtime_files.go`).
 - `index.html` and `showcase.html` inline the same analytics parser; showcase also runs on the

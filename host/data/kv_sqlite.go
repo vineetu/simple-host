@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 	"unicode/utf8"
 
@@ -16,6 +17,7 @@ import (
 
 	sqlite3 "github.com/ncruces/go-sqlite3"
 	repository "github.com/vsriram/simple-host/host/data/repo"
+	siterepo "github.com/vsriram/simple-host/host/sites/repo"
 	runtime "github.com/vsriram/simple-host/host/storage"
 )
 
@@ -174,6 +176,21 @@ func kvFileError(err error) error {
 		return &Error{Code: "storage_failed", Message: "key-value namespace file is missing"}
 	}
 	return err
+}
+
+// SiteKVFileStats is KVFileStats for a site by id. Trashed sites keep their
+// namespaces until permanent deletion, just as Postgres rows do, so a site in
+// Recently deleted is measured in its trash directory.
+func (s *Service) SiteKVFileStats(ctx context.Context, siteID string) (entries, bytes int64, err error) {
+	site, err := siterepo.GetSiteByID(ctx, s.db, siteID)
+	if err != nil {
+		return 0, 0, err
+	}
+	dir := s.deps.Disk.SiteDir(site.UserID, site.Name)
+	if site.Deleted {
+		dir = s.deps.Disk.TrashDir(site.UserID, site.ID)
+	}
+	return s.KVFileStats(ctx, siteID, filepath.Join(dir, "runtime"))
 }
 
 // KVFileStats is the admitted disk half of paper metrics. A failure discards

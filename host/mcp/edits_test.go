@@ -22,14 +22,17 @@ func editsUpstream(t *testing.T, published *map[string]string, mu *sync.Mutex) h
 			io.WriteString(w, `[{"name":"blog","url":"https://blog.alice.simple-host.app/","active_version":4,"visibility":"public"}]`)
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/sites/blog":
 			io.WriteString(w, `{"name":"blog","url":"https://blog.alice.simple-host.app/","active_version":4,"visibility":"public"}`)
-		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/sites/blog/versions/4/files/"):
-			body, ok := files[strings.TrimPrefix(r.URL.Path, "/v1/sites/blog/versions/4/files/")]
-			if !ok {
-				w.WriteHeader(http.StatusNotFound)
-				io.WriteString(w, `{"error":"file not found","code":"file_not_found"}`)
-				return
+		case r.Method == http.MethodGet && (r.URL.Path == "/v1/sites/blog/versions/live/files" || r.URL.Path == "/v1/sites/blog/versions/4/files"):
+			read := []map[string]any{}
+			for _, path := range r.URL.Query()["read"] {
+				body, ok := files[path]
+				if !ok {
+					read = append(read, map[string]any{"path": path, "error": "file not found", "status": 404})
+					continue
+				}
+				read = append(read, map[string]any{"path": path, "size": len(body), "content_type": "text/html; charset=utf-8", "content": body})
 			}
-			io.WriteString(w, body)
+			_ = json.NewEncoder(w).Encode(map[string]any{"version_number": 4, "files": read})
 		case r.Method == http.MethodPut && r.URL.Path == "/v1/sites/blog/files":
 			if r.URL.Query().Get("keep") != "1" {
 				t.Error("an edit published without keeping the other files")

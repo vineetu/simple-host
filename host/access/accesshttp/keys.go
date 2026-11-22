@@ -1,7 +1,6 @@
 package accesshttp
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -112,17 +111,12 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 	if !httpx.DecodeJSON(w, r, 4096, &req) {
 		return
 	}
-	spec, err := accounts.CheckNewKey(req, time.Now())
-	if err != nil {
-		web.WriteAccessError(w, err)
-		return
-	}
 	plain, err := auth.GenerateAPIKey()
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	k, err := h.accounts.CreateKey(r.Context(), user.ID, user.KeyHash, plain, spec.Name, spec.Scope, spec.ExpiresAt, h.Limits.MaxKeysPerAccount, h.Limits.KeyIdleExpiry)
+	k, err := h.accounts.IssueKey(r.Context(), user, req, plain, h.Limits.MaxKeysPerAccount, h.Limits.KeyIdleExpiry)
 	if err != nil {
 		h.writeCreateKeyError(w, user.ID, err)
 		return
@@ -136,12 +130,16 @@ func (h *UserHandler) createKey(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// writeCreateKeyError answers a key that could not be made: the key this
+// writeCreateKeyError answers a key that could not be made: the request is
+// malformed, the key this
 // request came with was revoked or rotated away meanwhile, or the account
 // holds its limit.
 func (h *UserHandler) writeCreateKeyError(w http.ResponseWriter, userID string, err error) {
+	var refusal *accounts.Refusal
 	switch {
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.As(err, &refusal):
+		web.WriteAccessError(w, err)
+	case errors.Is(err, accounts.ErrCallerKeyGone):
 		httpx.WriteJSON(w, http.StatusUnauthorized, httpx.ErrorResponse{Error: auth.InvalidKeyMessage(), Code: "invalid_api_key"})
 	case errors.Is(err, accounts.ErrKeyLimit):
 		httpx.WriteJSON(w, http.StatusConflict, httpx.ErrorResponse{Error: fmt.Sprintf("this account already holds %d keys; revoke ones you no longer use first", h.Limits.MaxKeysPerAccount), Code: "key_limit"})

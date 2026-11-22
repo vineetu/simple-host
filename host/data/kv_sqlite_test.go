@@ -182,7 +182,7 @@ func TestKVAdmissionBesideOtherStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.TableAdd(ctx, TableInput{Call: rc, Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"ok"`)}, Authorized: s.AuthorizeTableWrite(ctx, TableInput{Call: rc, Table: "notes"}, "add")})
+	_, err = s.TableWrite(ctx, TableInput{Call: rc, Table: "notes", Values: map[string]json.RawMessage{"body": json.RawMessage(`"ok"`)}, Authorized: s.AuthorizeTableWrite(ctx, TableInput{Call: rc, Table: "notes"}, "add")})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -96,7 +97,8 @@ func filesBase64Schema() map[string]any {
 	}
 }
 
-const maxEdits = 50
+// maxEdits matches what one REST read of the edited files takes.
+const maxEdits = appsites.MaxReadPaths
 
 // applyEdits reads each edited file from the live version, replaces each
 // find text (which must occur exactly once), and returns the new contents.
@@ -105,31 +107,46 @@ func applyEdits(c *call, site string, raw any) (map[string]string, error) {
 	if !ok || len(list) == 0 || len(list) > maxEdits {
 		return nil, fmt.Errorf("edits must be a list of 1 to %d {path, find, replace} changes", maxEdits)
 	}
-	live, err := c.findSite(site)
-	if err != nil {
-		return nil, err
-	}
-	if live.ActiveVersion < 1 {
-		return nil, fmt.Errorf("%s has no live version to edit; send whole files instead", site)
-	}
-	texts := map[string]string{}
+	edits := make([]edit, 0, len(list))
+	var paths []string
+	seen := map[string]bool{}
 	for i, item := range list {
 		path, find, replace, err := readEdit(i, item)
 		if err != nil {
 			return nil, err
 		}
-		text, seen := texts[path]
+		edits = append(edits, edit{path, find, replace})
+		if !seen[path] {
+			seen[path] = true
+			paths = append(paths, path)
+		}
+	}
+	// One read of every edited file from the live version.
+	_, read, err := readFiles(c, "update_site", site, 0, paths)
+	var refusal *refusalError
+	if errors.As(err, &refusal) && refusal.code == "no_live_version" {
+		return nil, fmt.Errorf("%s has no live version to edit; send whole files instead", site)
+	}
+	if err != nil {
+		return nil, err
+	}
+	texts := map[string]string{}
+	for i, e := range edits {
+		text, seen := texts[e.path]
 		if !seen {
-			if text, err = editableText(c, site, live.ActiveVersion, path, i); err != nil {
+			if text, err = editableText(read[slices.Index(paths, e.path)], i); err != nil {
 				return nil, err
 			}
 		}
-		if texts[path], err = replaceOnce(text, find, replace, path, i); err != nil {
+		if texts[e.path], err = replaceOnce(text, e.find, e.replace, e.path, i); err != nil {
 			return nil, err
 		}
 	}
 	return texts, nil
 }
+
+// edit is one {path, find, replace} change.
+type edit struct{ path, find, replace string }
 
 // readEdit reads edits[i]: {path, find, replace}, all strings, find not empty.
 func readEdit(i int, item any) (path, find, replace string, err error) {
@@ -152,13 +169,12 @@ func readEdit(i int, item any) (path, find, replace string, err error) {
 }
 
 // editableText is a live text file's content, for edits[i].
-func editableText(c *call, site string, version int, path string, i int) (string, error) {
-	f, err := readFile(c, "update_site", site, version, path)
-	if err != nil {
-		return "", fmt.Errorf("edits[%d]: could not read %s: %w", i, path, err)
+func editableText(f siteFile, i int) (string, error) {
+	if f.err != nil {
+		return "", fmt.Errorf("edits[%d]: could not read %s: %w", i, f.path, f.err)
 	}
 	if f.binary || f.truncated {
-		return "", fmt.Errorf("edits[%d]: %s is not a text file under 200 KB; send it whole in files", i, path)
+		return "", fmt.Errorf("edits[%d]: %s is not a text file under 200 KB; send it whole in files", i, f.path)
 	}
 	return f.content, nil
 }

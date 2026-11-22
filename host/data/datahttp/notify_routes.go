@@ -46,12 +46,12 @@ func (h *DataHandler) listNotificationsRoute(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	views, err := h.Notifier().List(r.Context(), who, r.PathValue("sitename"))
+	body, err := h.Notifier().List(r.Context(), h.NotifyEnv(), who, r.PathValue("sitename"))
 	if err != nil {
 		writeNotifyError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"notifications": views, "limits": h.Notifier().Limits(h.NotifyEnv())})
+	httpx.WriteJSON(w, 200, body)
 }
 
 // POST /v1/sites/{sitename}/notifications
@@ -84,7 +84,7 @@ func (h *DataHandler) createNotificationRoute(w http.ResponseWriter, r *http.Req
 		writeNotifyError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 201, map[string]any{"notification": notifications.View(n), "secret": secret})
+	httpx.WriteJSON(w, 201, map[string]any{"notification": n, "secret": secret})
 }
 
 // PATCH /v1/sites/{sitename}/notifications/{id}
@@ -105,7 +105,7 @@ func (h *DataHandler) pauseNotificationRoute(w http.ResponseWriter, r *http.Requ
 		writeNotifyError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"notification": notifications.View(n)})
+	httpx.WriteJSON(w, 200, map[string]any{"notification": n})
 }
 
 // DELETE /v1/sites/{sitename}/notifications/{id}
@@ -156,15 +156,7 @@ func (h *DataHandler) testNotificationRoute(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	var name, siteURL string
-	if s.Site.Live() {
-		var err error
-		if name, siteURL, err = h.Hosts.NotificationSite(r.Context(), s.Site); err != nil {
-			notifyError(w, 500, "internal_error")
-			return
-		}
-	}
-	result, err := h.Notifier().Test(r.Context(), h.NotifyEnv(), s, name, siteURL)
+	result, err := h.Notifier().Test(r.Context(), h.NotifyEnv(), h.Hosts, s)
 	if err != nil {
 		writeNotifyError(w, err)
 		return

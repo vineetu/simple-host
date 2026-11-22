@@ -149,13 +149,7 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 		return nil, err
 	}
 	siteHandler, accessHandler, dataHandler := handler.NewSiteHandlers(ed, productInstanceURL, db, diskStorage, hosts, cfg.SiteDomain, cfg.ContentHost, cfg.CNAMETarget, cfg.CustomDomainIP, cfg.DeployScript, cfg.AdminAPIKey, cfg.PreviewAccounts, cfg.PreviewTTL, adminUserID, mailer, userHandler.EmailLimiter)
-	if ext != nil && ext.Assets != nil {
-		assets := ext.Assets(siteHandler)
-		siteHandler.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
-		if assets.Routes != nil {
-			assets.Routes(mux, siteHandler.AssetServices())
-		}
-	}
+	mountProductAssets(ext, siteHandler, mux)
 	userHandler.ShareAssets(siteHandler.Pages())
 	userHandler.SetSites(accessHandler)
 	if err := configureSites(cfg, db, siteHandler, accessHandler, dataHandler, userHandler); err != nil {
@@ -209,16 +203,13 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	}
 	siteshttp.RegisterSkillsHub(mux, cfg.PublicBaseURL, siteHandler)
 
-	var parts extension.Parts
-	if ext != nil && ext.Wire != nil {
-		parts, err = ext.Wire(extension.Deps{
-			DB: db, Disk: diskStorage, Mail: mailer, Accounts: accountsService,
-			Site: siteHandler, Data: dataHandler, Connector: connector,
-			AuthMW: authMW, Mux: mux, Config: cfg, Edition: ed,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("wire extension %s: %w", ext.Name, err)
-		}
+	parts, err := wireExtension(ext, extension.Deps{
+		DB: db, Disk: diskStorage, Mail: mailer, Accounts: accountsService,
+		Site: siteHandler, Data: dataHandler, Connector: connector,
+		AuthMW: authMW, Mux: mux, Config: cfg, Edition: ed,
+	})
+	if err != nil {
+		return nil, err
 	}
 	connector.SetTools(parts.Tools)
 	siteHandler.SetSitemapFilter(parts.Hooks.Sitemap)
@@ -257,6 +248,30 @@ func Build(cfg config.Config, exts []*extension.Extension, redirects map[string]
 	workerSet := registerWorkers(siteHandler, dataHandler, userHandler, oauthHandler, connector, parts, apiMetrics.APIMetrics, geo, eventDomains, ingester, paper)
 	siteHandler.SetWorkerStatus(workerSet.Status)
 	return &App{Mux: mux, Handler: served, Workers: workerSet, Close: closeDeps}, nil
+}
+
+// mountProductAssets hands the product's files and asset routes to Sites.
+func mountProductAssets(ext *extension.Extension, siteHandler *siteshttp.SiteHandler, mux *http.ServeMux) {
+	if ext == nil || ext.Assets == nil {
+		return
+	}
+	assets := ext.Assets(siteHandler)
+	siteHandler.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
+	if assets.Routes != nil {
+		assets.Routes(mux, siteHandler.AssetServices())
+	}
+}
+
+// wireExtension asks the product for its parts; none without a product.
+func wireExtension(ext *extension.Extension, deps extension.Deps) (extension.Parts, error) {
+	if ext == nil || ext.Wire == nil {
+		return extension.Parts{}, nil
+	}
+	parts, err := ext.Wire(deps)
+	if err != nil {
+		return parts, fmt.Errorf("wire extension %s: %w", ext.Name, err)
+	}
+	return parts, nil
 }
 
 func loadProductConfig(ext *extension.Extension) error {
@@ -343,7 +358,7 @@ func prepareDatabase(db *sql.DB, cfg config.Config, exts []*extension.Extension)
 // win over the environment, which a catalog container may mount read-only.
 // With neither, it returns the setup handler the instance serves alone.
 func applySavedSetup(cfg *config.Config, db *sql.DB, ed *edition.Edition, productInstanceURL string) (*siteshttp.SetupHandler, error) {
-	savedDomain, savedContent, err := siteshttp.InstanceConfigured(context.Background(), db)
+	savedDomain, savedContent, err := operations.InstanceConfigured(context.Background(), db)
 	if err != nil {
 		return nil, fmt.Errorf("read instance config: %v", err)
 	}

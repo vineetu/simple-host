@@ -12,6 +12,3 @@ func (s *Reporting) IdleEvidence(ctx context.Context) (since, lastIngest time.Ti
 func (s *Reporting) ListIdleSitesToRemove(ctx context.Context, ex repo.IdleExempt, idleBefore time.Time, limit int) ([]repo.IdleSite, error) {
 	return repo.ListIdleSitesToRemove(ctx, s.database, ex, idleBefore, limit)
 }
-func (s *Reporting) SetSiteKeep(ctx context.Context, siteID string, keep bool) error {
-	return repo.SetSiteKeep(ctx, s.database, siteID, keep)
-}

@@ -7,8 +7,12 @@
 //
 //	mux.Handle("GET /v1/sites/{sitename}/editors", noticeMiddleware(authMiddleware(http.HandlerFunc(h.listSiteEditors))))
 //
-// and write the handler method beside its siblings. The rules (who may do
-// what) live in host/access; this package reads the request, calls them and
-// writes the answer. It imports host/access, host/sites, host/data, host/web
-// and host/httpx, never another route package.
+// and write the handler method beside its siblings. A handler reads the
+// request, calls one function of host/access (or host/ops for a workflow
+// that spans modules) and writes the answer; decisions live there. Web work
+// stays here: cookies, redirects, which page to show and mapping a typed
+// refusal to its status (httpx.RefusalStatus). The account, OAuth and
+// connector handlers mount their own routes in Register (user.go, oauth.go,
+// connector.go). It imports the modules, host/web and host/httpx, never
+// another route package or a repo package.
 package accesshttp

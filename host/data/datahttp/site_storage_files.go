@@ -53,10 +53,14 @@ func (h *DataHandler) storageFiles(w http.ResponseWriter, r *http.Request, c Sto
 	case http.MethodPut:
 		h.storeStorageFile(w, r, c, p)
 	case http.MethodDelete:
-		auth, err := h.StorageFor(c).DeleteFile(r.Context(), appstorage.FileDeleteInput{Call: c, Path: p})
-		if !storageAnswered(w, auth, err, 0) {
-			httpx.WriteJSON(w, 200, map[string]any{"deleted": true})
-		}
+		h.deleteStorageFile(w, r, c, p)
+	}
+}
+
+func (h *DataHandler) deleteStorageFile(w http.ResponseWriter, r *http.Request, c StorageCall, p string) {
+	auth, err := h.StorageFor(c).DeleteFile(r.Context(), appstorage.FileDeleteInput{Call: c, Path: p})
+	if !storageAnswered(w, auth, err, 0) {
+		httpx.WriteJSON(w, 200, map[string]any{"deleted": true})
 	}
 }
 
@@ -114,7 +118,7 @@ func (h *DataHandler) createStorageFileLink(w http.ResponseWriter, r *http.Reque
 		var req struct {
 			Path string `json:"path"`
 		}
-		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil || !appstorage.ValidFilePath(req.Path) {
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req) != nil {
 			httpx.WriteError(w, 400, "invalid_path", "invalid path")
 			return
 		}

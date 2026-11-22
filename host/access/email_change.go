@@ -10,6 +10,7 @@ import (
 	"errors"
 	"log"
 	"math/big"
+	"net/http"
 	"strings"
 	"time"
 
@@ -126,13 +127,18 @@ func (s *Service) UndoEmailChange(ctx context.Context, hash string) (model.Email
 func (s *Service) ListSignInIdentities(ctx context.Context, userID string) ([]model.SignInIdentity, error) {
 	return repo.ListSignInIdentities(ctx, s.database, userID)
 }
+
+// UnlinkSignInIdentity: that Google or GitHub account no longer signs in to
+// this one; a 404 *LifecycleError when the account has no such sign-in.
 func (s *Service) UnlinkSignInIdentity(ctx context.Context, userID, id string) error {
 	tx, err := s.database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	if err := repo.UnlinkSignInIdentityInTx(ctx, tx, userID, id); err != nil {
+	if err := repo.UnlinkSignInIdentityInTx(ctx, tx, userID, id); errors.Is(err, sql.ErrNoRows) {
+		return &LifecycleError{Status: http.StatusNotFound, Message: "no such sign-in on this account"}
+	} else if err != nil {
 		return err
 	}
 	return tx.Commit()

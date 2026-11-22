@@ -3,7 +3,6 @@ package siteshttp
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/vsriram/simple-host/host/access/auth"
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/host/sites"
-	"github.com/vsriram/simple-host/host/sites/eventdns"
 	"github.com/vsriram/simple-host/host/workers"
 )
 
@@ -63,15 +61,6 @@ type claimRequest struct {
 	Move bool `json:"move"`
 }
 
-func (h *EventDomainHandler) allowed(domain string) bool {
-	for _, d := range h.domains {
-		if d == domain {
-			return true
-		}
-	}
-	return false
-}
-
 func (h *EventDomainHandler) Claim(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUser(r.Context())
 	if user == nil {
@@ -84,27 +73,6 @@ func (h *EventDomainHandler) Claim(w http.ResponseWriter, r *http.Request) {
 	}
 	var req claimRequest
 	if !httpx.DecodeJSON(w, r, 64<<10, &req) {
-		return
-	}
-	req.IP = strings.TrimSpace(req.IP)
-	if req.Domain == "" && len(h.domains) > 0 {
-		req.Domain = h.domains[0]
-	}
-	name, nerr := sites.NormalizeEventName(req.Name)
-	if nerr != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: nerr.Error()})
-		return
-	}
-	req.Name = name
-	canonicalIP, err := eventdns.ValidatePublicIP(req.IP)
-	if err != nil {
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{Error: err.Error()})
-		return
-	}
-	req.IP = canonicalIP
-	if !h.allowed(req.Domain) {
-		httpx.WriteJSON(w, http.StatusBadRequest, httpx.ErrorResponse{
-			Error: fmt.Sprintf("domain must be one of: %s", strings.Join(h.domains, ", "))})
 		return
 	}
 
@@ -123,9 +91,6 @@ func (h *EventDomainHandler) Release(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.ToLower(strings.TrimSpace(r.PathValue("name")))
 	domain := r.URL.Query().Get("domain")
-	if domain == "" && len(h.domains) > 0 {
-		domain = h.domains[0]
-	}
 	if writeEventDomainError(w, h.service.ReleaseEventDomain(r.Context(), sites.EventReleaseInput{UserID: user.ID, IsAdmin: user.IsAdmin, Name: name, Domain: domain})) {
 		return
 	}
@@ -177,6 +142,8 @@ func writeEventDomainError(w http.ResponseWriter, err error) bool {
 			status = http.StatusServiceUnavailable
 		case "not_found":
 			status = http.StatusNotFound
+		case "invalid":
+			status = http.StatusBadRequest
 		}
 	}
 	httpx.WriteJSON(w, status, httpx.ErrorResponse{Error: message, Code: code})

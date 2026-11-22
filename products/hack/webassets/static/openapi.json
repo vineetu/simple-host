@@ -3046,6 +3046,22 @@
             "description": "Website file footprint including live copy and kept versions; populated in GET /v1/sites",
             "type": "integer"
           },
+          "files": {
+            "description": "Only on GET /v1/sites?files=\u003cthis site\u003e: the files of the live version.",
+            "items": {
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -18017,6 +18033,14 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "A site name; that site's entry also lists the files of its live version (files, absent when nothing is published).",
+            "in": "query",
+            "name": "files",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -18075,11 +18099,30 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
+          },
+          {
+            "description": "When given, must be the site's name (any case), or nothing is deleted. Errors: 400 confirm_name_mismatch.",
+            "in": "query",
+            "name": "confirm_name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "204": {
             "description": "Site deleted (restorable for 7 days)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`confirm_name_mismatch`: confirm_name is not this site's name; nothing was deleted."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -21214,14 +21257,35 @@
     },
     "/v1/sites/{sitename}/versions/{version}/files": {
       "get": {
-        "description": "Owner only. Walks the version directory; paths are relative, use forward slashes, and are sorted.",
+        "description": "Owner only. Walks the version directory; paths are relative, use forward slashes, and are sorted. With read, answers those files' text instead: each item then has content (text, at most 200 KB, truncated true when cut) or binary true, content_type, and error with status for a file that cannot be read.",
         "operationId": "getSitesBySitenameVersionFiles",
         "parameters": [
           {
             "$ref": "#/components/parameters/sitename"
           },
           {
-            "$ref": "#/components/parameters/version"
+            "description": "Version number, or live for the site's live version (404 no_live_version when nothing is published).",
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A file path to read (repeat for up to 50).",
+            "explode": true,
+            "in": "query",
+            "name": "read",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 50,
+              "type": "array"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -21237,6 +21301,22 @@
                     "files": {
                       "items": {
                         "properties": {
+                          "binary": {
+                            "description": "With read: not text, so no content.",
+                            "type": "boolean"
+                          },
+                          "content": {
+                            "description": "With read: the file's text.",
+                            "type": "string"
+                          },
+                          "content_type": {
+                            "description": "With read.",
+                            "type": "string"
+                          },
+                          "error": {
+                            "description": "With read: why this file could not be read.",
+                            "type": "string"
+                          },
                           "path": {
                             "type": "string"
                           },
@@ -21244,11 +21324,18 @@
                             "description": "Size in bytes",
                             "format": "int64",
                             "type": "integer"
+                          },
+                          "status": {
+                            "description": "With read: the status a single-file read would answer (400, 404).",
+                            "type": "integer"
+                          },
+                          "truncated": {
+                            "description": "With read: content holds the first 200 KB only.",
+                            "type": "boolean"
                           }
                         },
                         "required": [
-                          "path",
-                          "size"
+                          "path"
                         ],
                         "type": "object"
                       },
@@ -21281,7 +21368,7 @@
                 }
               }
             },
-            "description": "Invalid version, empty site name, or invalid file path"
+            "description": "Invalid version, empty site name, invalid file path, or more than 50 read paths"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
