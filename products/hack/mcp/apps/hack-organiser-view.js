@@ -12,7 +12,7 @@
 // screen to read or change anything. The route table below maps every
 // REST path and method the three organiser screens call to the MCP tool
 // that does the same thing; every row's method+path matches the
-// hackRouteTool/hand-written-tool registration it stands for (internal/
+// hackRouteTool/hand-written-tool registration it stands for (products/hack/
 // mcp/hack_organiser_tools.go, hack_tools.go), checked by
 // TestHackOrganiserRouteMapCoversCalls.
 (function () {
@@ -41,7 +41,7 @@
   // applications in a row, or ticking several score-affecting settings,
   // must not let a later tap's save overtake an earlier one.
   // hack_app_* names are app-only twins (Grok security review finding 1,
-  // SIM-344 phase 2, internal/mcp/hack_app_only_tools.go): the view calls
+  // SIM-344 phase 2, products/hack/mcp/hack_app_only_tools.go): the view calls
   // these, never the originals, for every read it makes on its own and
   // for the four writes whose REST body carries a secret the show tool
   // deliberately withholds (a new join/judge link, a co-organiser
@@ -140,7 +140,7 @@
   // reading hack_organiser_tools.go side by side, when the People view's
   // own render() failed on exactly that in the browser harness.
   // opts.appOnly marks a route whose tool is an app-only twin
-  // (hack_app_get_people and the rest, internal/mcp/hack_app_only_tools.go,
+  // (hack_app_get_people and the rest, products/hack/mcp/hack_app_only_tools.go,
   // Grok security review finding 1, SIM-344 phase 2): api() calls it
   // through callToolResult instead of callTool and reads the real data
   // out of the result's own _meta (see api()'s own comment below), since
@@ -151,7 +151,7 @@
   // the same wrap/no-wrap split holds.
   // opts.wrapEvent marks the one hand-written-tool exception to "the
   // structured result already IS the shape the reused screens read
-  // directly" above: hack_update_event's own output (internal/mcp/
+  // directly" above: hack_update_event's own output (products/hack/mcp/
   // hack_event_tools.go's hackEventOutput) is a flat object (slug, stage,
   // ... -- shaped for the model, which never reads it nested), but
   // organiser-judging.js's onSaveCloses, unmodified from the website,

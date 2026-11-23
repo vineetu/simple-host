@@ -89,7 +89,7 @@ export async function render(ctx, section) {
 ${archived
     ? `<p>${ev.submission_deadline ? 'Entries closed ' + esc(ui.dateTime(ev.submission_deadline, ev)) : 'No deadline was set.'}</p>`
     : `<div class="field"><label>Entries close · ${esc(ev.time_zone || 'UTC')}<input class="input" id="deadline-input" type="datetime-local" value="${esc(deadlineInput)}"${lockReason ? ' disabled' : ''}></label><p class="help">${ev.submission_deadline ? 'Entries close ' + esc(ui.dateTime(ev.submission_deadline, ev)) + '.' : 'No deadline yet.'} At the deadline, drafts with nothing missing are submitted for their teams. Drafts still missing something are judged too, marked Incomplete. You can exclude one on <a href="${esc(resolve('o.entries', slug).href)}">Entries</a>.</p></div>
-${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Building on Overview.</p>' : ''}
+${closedStages.includes(ev.stage) ? '<p>To reopen, move the event back to Building on Home.</p>' : ''}
 <div class="form-actions"><button class="btn primary" type="button" id="deadline-save"${lockReason ? ' disabled' : ''}>Save deadline</button><button class="btn quiet" type="button" id="deadline-clear"${ev.submission_deadline && !lockReason ? '' : ' disabled'}>Clear deadline</button></div>`}
 </section>
 <div id="entry-rules">${handInHTML(rulesLockReason)}</div>`

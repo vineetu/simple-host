@@ -453,12 +453,11 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [version, screens, targets, aliases]
+                required: [version, screens, targets]
                 properties:
                   version: {type: integer}
                   screens: {type: array, items: {type: object, additionalProperties: true}}
                   targets: {type: array, items: {type: object, additionalProperties: true}}
-                  aliases: {type: array, items: {type: object, additionalProperties: true}}
                   roles: {type: array, items: {type: object, additionalProperties: true}}
                   resolution: {type: object, additionalProperties: true}
         '401': {$ref: '#/components/responses/Unauthorized'}

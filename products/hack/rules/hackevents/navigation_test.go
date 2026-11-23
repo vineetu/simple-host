@@ -25,11 +25,6 @@ func TestNavigationMap(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, a := range m.Aliases {
-		if !seen[a.Target] {
-			t.Fatalf("alias target %s missing", a.Target)
-		}
-	}
 	m.Targets[0].ID = "changed"
 	if Navigation().Targets[0].ID == "changed" {
 		t.Fatal("accessor shared mutable data")
@@ -64,11 +59,6 @@ func TestValidateNavigation(t *testing.T) {
 	m.Targets = append(m.Targets, m.Targets[0])
 	if err := ValidateNavigation(m); err == nil {
 		t.Fatal("duplicate target accepted")
-	}
-	m = Navigation()
-	m.Aliases[0].Target = "missing"
-	if err := ValidateNavigation(m); err == nil {
-		t.Fatal("missing alias target accepted")
 	}
 	m = Navigation()
 	m.Targets[0].Screen = "missing"

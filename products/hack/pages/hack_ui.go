@@ -3,6 +3,7 @@ package pages
 import (
 	"io/fs"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -34,9 +35,11 @@ func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 		w.Write(httpx.StampNonce(r, body))
 	})
 	page := assets.AdminUICSP(announcementImages(app))
-	votePage := assets.AdminUICSP(assets.ServeStaticPage("hack-voting.html"))
-	mux.Handle("GET /e/{slug}/vote", votePage)
-	mux.Handle("GET /e/{slug}/voting-settings", votePage)
+	mux.Handle("GET /e/{slug}/vote", assets.AdminUICSP(assets.ServeStaticPage("hack-voting.html")))
+	// The old voting settings page lives on in the Results section; an old bookmark lands there.
+	mux.HandleFunc("GET /e/{slug}/voting-settings", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/e/"+url.PathEscape(r.PathValue("slug"))+"/manage?s=results", http.StatusFound)
+	})
 	for _, p := range []string{
 		"GET /signin",
 		"GET /account",

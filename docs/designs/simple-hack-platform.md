@@ -398,7 +398,7 @@ event to leave it.
 
 ## Story and ink presentation (2026-10-04)
 
-The owner-approved story now serves `/` in hosted mode from `hack-story.html`.
+The owner-approved landing serves `/` from `hack-home.html`.
 The first visit shows the 12-scene film; `sh-film-seen` returns to actions with
 replay. Tap, swipe, keys, wheel, progress, counter, skip, `#scene-n`, Back and
 reduced motion retain the approved behavior. Create event uses `/events/new`

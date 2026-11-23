@@ -15927,13 +15927,6 @@
               "application/json": {
                 "schema": {
                   "properties": {
-                    "aliases": {
-                      "items": {
-                        "additionalProperties": true,
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
                     "resolution": {
                       "additionalProperties": true,
                       "type": "object"
@@ -15966,8 +15959,7 @@
                   "required": [
                     "version",
                     "screens",
-                    "targets",
-                    "aliases"
+                    "targets"
                   ],
                   "type": "object"
                 }

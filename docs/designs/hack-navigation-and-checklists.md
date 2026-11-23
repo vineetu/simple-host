@@ -138,40 +138,26 @@ Reuse means extract the existing tab/card renderers into small modules consumed 
 
 ### URL compatibility
 
-Normalise with `history.replaceState` before mounting, so Back does not walk through alias hops. Preserve unrelated query parameters (`team`, `walkthrough`, etc.). Native server app routes continue serving the same shell. Unknown section/tab still falls back to its documented default.
+Preserve unrelated query parameters (`team`, `walkthrough`, etc.). Native server app routes continue serving the same shell. Unknown section/tab still falls back to its documented default.
 
 | Old URL query / fragment | Canonical destination |
 |---|---|
 | `s=overview`, bare `/manage` | Same, organiser Home |
 | `s=event-page` and `tab=basics/about/schedule/tracks/sponsors/faq/look/website` | Unchanged; missing/unknown tab defaults to Basics |
-| Event-page `#basics/#schedule/#sponsors/#faq/#appearance/#address` | Existing Basics/Schedule/Sponsors/FAQ/Look/Website resolution; recognised explicit tab wins |
-| Event-page `tab=announcements` or `#announcements` | `s=announcements` (explicit recognised content tab wins over hash) |
-| `s=teams&tab=tracks` | `s=event-page&tab=tracks` |
-| `s=teams&tab=settings` | `s=settings&tab=teams` |
-| `s=teams`, `tab=teams/solo` | Same |
-| `s=people#signup` or `s=people&tab=signup` | Settings signup |
-| `s=people#coorg` or `s=people&tab=coorg/co-organisers/organisers` | Settings organisers |
-| `s=settings` | Default Sign-up; `#applications` → signup; `#notify-list/#notify-form/#notify-advanced` → notifications; `#set-name/#set-org/#set-email/#set-purpose/#set-n` → details; `#leave-open/#delete-open` → danger |
-| `s=entries#deadline/#entry-rules/#handin/#reminders` (including live Overview/SIM-382 `#handin`) | Settings entries `#deadline` / entries `#entry-rules` (both entry-rules and handin) / reminders |
-| `s=judging#jg-rubric-card/#jg-tie-card/#jg-mode-card/#jg-closes-card` | Settings judging, anchor rubric/tie-break/mode/closes |
-| `s=results#res-score-mode/#res-score-mode-save/#res-visibility/#res-public-scores/#res-public-ranks/#res-visibility-save/#res-visibility-hint` | Settings results, `#ranking` |
-| `s=results#res-vote-status/#res-vote-enabled/#res-vote-opens/#res-vote-closes/#res-vote-window-save/#res-vote-eligibility/#res-vote-eligibility-save` | Settings results, `#voting` |
-| `s=results#res-directory-listed/#res-directory-save` | Settings signup, `#directory` |
 | `s=people`, `announcements`, `entries`, `judging`, `assignments`, `results`, `team&team=…`, `entry&team=…` without a moved-control fragment | Same operational screen; short link to its settings replaces removed configuration |
 | Every participant/judge query and every standalone BUILD.md invite/account/create route | Unchanged |
 
-The concrete alias inventory above is mirrored in navigation.json. Recognised canonical Settings tab wins over a legacy hash; aliases preserve unrelated parameters and replace only section/tab/anchor. Compatibility tests enumerate every alias, precedence case and malformed/unknown hash. No removed `?s=` value may resolve accidentally to Home.
+The aliases this design first listed were removed on 2026-11-23: Simple Hack has no users with old bookmarks. No removed `?s=` value may resolve accidentally to Home.
 
 ## 3. One navigation map
 
-Canonical file: `host/rules/hackevents/navigation.json`, embedded by that package. It contains data, no transport imports. A small generator reads it to produce the navigation data export used by `host/webassets/static/hack/nav.js` and `docs/ux-atlas/prototype/nav.js`; keep route-resolution code handwritten. Atlas `roles[].nav` and settings destinations are generated projections, not separately maintained link lists. `build.py` uses the same source. No runtime frontend build or fetch is required to route.
+Canonical file: `products/hack/rules/hackevents/navigation.json`, embedded by that package. It contains data, no transport imports. A small generator reads it to produce the navigation data export used by `host/webassets/static/hack/nav.js` and `docs/ux-atlas/prototype/nav.js`; keep route-resolution code handwritten. Atlas `roles[].nav` and settings destinations are generated projections, not separately maintained link lists. `build.py` uses the same source. No runtime frontend build or fetch is required to route.
 
 ```json
 {
   "version": 1,
   "screens": [{"id":"organiser-settings","role":"organiser","ability":"manage","path":"/e/{slug}/manage","module":"organiser-settings"}],
-  "targets": [{"id":"o.rubric","kind":"setting","label":"Rubric","role":"organiser","screen":"organiser-settings","section":"settings","tab":"judging","anchor":"rubric","href_pattern":"/e/{slug}/manage?s=settings&tab=judging#rubric","group":"set-up","settings_group":"rules","order":40,"nav":false}],
-  "aliases": [{"section":"teams","tab":"tracks","target":"o.tracks"}]
+  "targets": [{"id":"o.rubric","kind":"setting","label":"Rubric","role":"organiser","screen":"organiser-settings","section":"settings","tab":"judging","anchor":"rubric","href_pattern":"/e/{slug}/manage?s=settings&tab=judging#rubric","group":"set-up","settings_group":"rules","order":40,"nav":false}]
 }
 ```
 
@@ -179,9 +165,9 @@ Target kinds: `screen`, `section`, `setting`, `action`. Nav entries additionally
 
 Checklist definitions store `target_id`, never literal URLs. A shared resolver supplies `screen`, `section`, `tab`, `href` (and anchor) from IDs plus slug/team. Navigation, fixed-schedule “Set in…” links, Needs you links, checklist links and assistant links resolve through this map. No assistant-specific list of settings.
 
-Serve `GET /v1/hack/navigation` (static, no event/private values), returning version, screens, targets and aliases. MCP `hack_get_navigation {}` returns that same map; a future assistant can filter by ability and resolve targets with the event slug. Checklist results already return resolved links, so a caller need not reconstruct a URL.
+Serve `GET /v1/hack/navigation` (static, no event/private values), returning version, screens, targets, roles and resolution. MCP `hack_get_navigation {}` returns that same map; a future assistant can filter by ability and resolve targets with the event slug. Checklist results already return resolved links, so a caller need not reconstruct a URL.
 
-Offline check: generator `--check` compares committed client/prototype data and atlas projections; validates unique target IDs, every checklist target/alias, every registered screen module, every role-nav section, and every mapped path against the app-route inventory. REST route/tool inventory checks cover new endpoints separately (HTTP registry does not enumerate `?s=`). `build.py --check` still checks prototypes/features. Add this map check to existing offline checks; no new validation framework. Focused browser destination tests resolve every moved-control target, mount the screen and assert its tab/section/control is selected and visible; include alias precedence and parameter preservation.
+Offline check: generator `--check` compares committed client/prototype data and atlas projections; validates unique target IDs, every checklist target, every registered screen module, every role-nav section, and every mapped path against the app-route inventory. REST route/tool inventory checks cover new endpoints separately (HTTP registry does not enumerate `?s=`). `build.py --check` still checks prototypes/features. Add this map check to existing offline checks; no new validation framework. Focused browser destination tests resolve every moved-control target, mount the screen and assert its tab/section/control is selected and visible; include alias precedence and parameter preservation.
 
 ## 4. Abilities and organiser judging
 
@@ -296,7 +282,7 @@ Keep the current before-team fallback four rows, pending/rejected gate, stage-sp
 
 | Layer / location | Responsibility |
 |---|---|
-| `host/rules/hackevents/checklist.go` | Pure catalogue, stage selection, item state/next rules; explicit input facts and `now`, no SQL, ambient clock or HTTP. Embed/read navigation data here. Entry predicates stay in/reuse `rules/hackentries`; pass typed entry-rule facts into hackevents pure rules, never import rules/hackentries from rules/hackevents. |
+| `products/hack/rules/hackevents/checklist.go` | Pure catalogue, stage selection, item state/next rules; explicit input facts and `now`, no SQL, ambient clock or HTTP. Embed/read navigation data here. Entry predicates stay in/reuse `rules/hackentries`; pass typed entry-rule facts into hackevents pure rules, never import rules/hackentries from rules/hackevents. |
 | `host/app/hack/events/checklist.go` | Load member/event/content/settings/marks; obtain judging/entry progress facts through existing entries service; assemble organiser/judge/participant result and abilities. Own acknowledgement/dismissal transactions. Fits target.md's allowed events → entries dependency. |
 | `host/app/hack/entries` | Reuse EntryProgress, judge queue, actor-scoped conflicts, pre-conflict candidates, eligibility, current standings and tie computation. Assemble scoring-completion facts using JudgeDoneForTeam, not ScoreCoverage (which counts even partially scored pairs). Return typed facts; do not duplicate queue SQL in checklist code. |
 | `host/repository/hackevents/checklists.go` | SQL for marks/acknowledgements and missing read facts. Reuse existing area repositories for content/settings. No orchestration here. |

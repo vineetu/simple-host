@@ -40,13 +40,6 @@ type NavigationTarget struct {
 	ActionLabel   string  `json:"action_label,omitempty"`
 	SettingsGroup string  `json:"settings_group,omitempty"`
 }
-type NavigationAlias struct {
-	Section        string `json:"section"`
-	Tab            string `json:"tab,omitempty"`
-	Anchor         string `json:"anchor,omitempty"`
-	Target         string `json:"target"`
-	UnlessValidTab bool   `json:"unless_valid_tab,omitempty"`
-}
 type NavigationItem struct {
 	ID        string   `json:"id"`
 	Label     string   `json:"label"`
@@ -82,7 +75,6 @@ type NavigationMap struct {
 	Screens    []NavigationScreen   `json:"screens"`
 	Targets    []NavigationTarget   `json:"targets"`
 	Roles      []NavigationRole     `json:"roles"`
-	Aliases    []NavigationAlias    `json:"aliases"`
 	Resolution NavigationResolution `json:"resolution"`
 }
 type NavigationLink struct {
@@ -147,11 +139,6 @@ func ValidateNavigation(m NavigationMap) error {
 			return fmt.Errorf("invalid navigation target %s", target.ID)
 		}
 		targets[target.ID] = true
-	}
-	for _, alias := range m.Aliases {
-		if !targets[alias.Target] {
-			return fmt.Errorf("unknown alias target %s", alias.Target)
-		}
 	}
 	for _, role := range m.Roles {
 		for _, item := range role.Nav {

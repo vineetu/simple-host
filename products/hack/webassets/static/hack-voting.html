@@ -47,29 +47,6 @@
   </div>
 </section>
 
-<section id="settings-panel" hidden>
-  <p class="muted">Choose when voting opens and closes. Times are in this event's time zone. The entry gallery must be open before voting can open.</p>
-  <section class="card">
-    <form id="voting-form">
-      <label class="check"><input id="enabled" type="checkbox"><span>Enable people's choice</span></label>
-      <p class="form-intro" id="zone"></p>
-      <div class="field-row">
-        <div class="field"><label for="opens">Opens</label><input class="input" id="opens" type="datetime-local" step="60"></div>
-        <div class="field"><label for="closes">Closes</label><input class="input" id="closes" type="datetime-local" step="60"></div>
-      </div>
-      <div class="field"><label for="eligibility">Who may vote</label>
-        <select class="select" id="eligibility"><option value="all_signed_in">Anyone signed in</option><option value="event_members">Approved event members</option><option value="participants">Approved participants</option></select>
-      </div>
-      <div class="form-actions"><button class="btn primary" id="save-voting" type="submit">Save voting settings</button></div>
-    </form>
-  </section>
-  <section class="card">
-    <label class="check"><input id="listed" type="checkbox"><span>List this event in the public directory<span class="help">New events are not listed until you tick this. A taken-down event never appears.</span></span></label>
-    <div class="form-actions"><button class="btn" id="save-directory" type="button">Save directory setting</button></div>
-  </section>
-  <p><a id="vote-preview" href="#">Open voting page</a> &middot; <a href="/directory">Public directory</a></p>
-</section>
-
 </main>
 
 <footer class="pub-foot">
@@ -83,9 +60,9 @@
 </div>
 <script>
 (function () {
-  var m = location.pathname.match(/^\/e\/([^/]+)\/(vote|voting-settings)$/);
+  var m = location.pathname.match(/^\/e\/([^/]+)\/vote$/);
   if (!m) return;
-  var slug = decodeURIComponent(m[1]), settings = m[2] === 'voting-settings';
+  var slug = decodeURIComponent(m[1]);
   var base = '/v1/hack/events/' + encodeURIComponent(slug);
   var $ = function (id) { return document.getElementById(id); };
   var key = function () { try { return localStorage.getItem('apiKey') || ''; } catch (_) { return ''; } };
@@ -96,9 +73,8 @@
     var top = $('top-account');
     if (top && !key()) top.textContent = 'Sign in';
   } catch (e) {}
-  $('back').href = settings ? '/e/' + encodeURIComponent(slug) + '/manage' : '/e/' + encodeURIComponent(slug);
+  $('back').href = '/e/' + encodeURIComponent(slug);
   $('signin-link').href = '/signin?next=' + encodeURIComponent(location.pathname);
-  $('vote-preview').href = '/e/' + encodeURIComponent(slug) + '/vote';
   function live(msg, bad) { $('live').textContent = msg; $('live').className = 'muted small' + (bad ? ' live-err' : msg ? ' live-ok' : ''); }
   function node(tag, text, cls) { var n = document.createElement(tag); n.textContent = text; if (cls) n.className = cls; return n; }
   async function request(method, path, body, signed) {
@@ -199,57 +175,6 @@
     if (eligibility === 'event_members') return 'Only approved event members can vote in this event.';
     return 'Your account is not eligible to vote in this event.';
   }
-  // In-page confirm dialog (Grok re-test #1): this page carries no site
-  // chrome any more (the restyle dropped the sh:head marker comment this
-  // file used to have), so the shared in-page-dialog helper from
-  // partials/dialog.html is never loaded here, and calling it would throw.
-  // A tiny copy of the app kit's own scrim/dialog primitive from ui.js,
-  // kept local to this page since it is not an ES module and can't import
-  // ui.js. Never the browser's own native dialog.
-  function confirmDialog(opts) {
-    return new Promise(function (resolve) {
-      var previous = document.activeElement;
-      var scrim = document.createElement('div'); scrim.className = 'scrim';
-      var box = document.createElement('div'); box.className = 'dialog';
-      box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
-      var h2 = document.createElement('h2'); h2.id = 'confirm-dialog-title'; h2.textContent = opts.title || '';
-      box.setAttribute('aria-labelledby', 'confirm-dialog-title');
-      box.appendChild(h2);
-      var p = document.createElement('p'); p.id = 'confirm-dialog-body'; p.textContent = opts.body || '';
-      box.setAttribute('aria-describedby', 'confirm-dialog-body');
-      box.appendChild(p);
-      var acts = document.createElement('div'); acts.className = 'acts';
-      var cancelBtn = document.createElement('button'); cancelBtn.type = 'button'; cancelBtn.className = 'btn'; cancelBtn.textContent = opts.cancelLabel || 'Cancel'; cancelBtn.setAttribute('data-cancel', '');
-      var confirmBtn = document.createElement('button'); confirmBtn.type = 'button'; confirmBtn.className = 'btn primary'; confirmBtn.textContent = opts.confirmLabel || 'Confirm'; confirmBtn.setAttribute('data-confirm', '');
-      var els = [cancelBtn, confirmBtn];
-      function done(value) { document.removeEventListener('keydown', keydown, true); scrim.parentNode && scrim.parentNode.removeChild(scrim); if (previous && previous.focus) previous.focus(); resolve(value); }
-      cancelBtn.addEventListener('click', function () { done(false); });
-      confirmBtn.addEventListener('click', function () { done(true); });
-      acts.appendChild(cancelBtn); acts.appendChild(confirmBtn);
-      box.appendChild(acts);
-      scrim.appendChild(box);
-      function keydown(e) {
-        if (e.key === 'Escape') { e.preventDefault(); done(false); }
-        if (e.key === 'Tab') {
-          e.preventDefault();
-          var index = els.indexOf(document.activeElement);
-          els[(index + (e.shiftKey ? els.length - 1 : 1)) % els.length].focus();
-        }
-      }
-      scrim.addEventListener('click', function (e) { if (e.target === scrim) done(false); });
-      document.addEventListener('keydown', keydown, true);
-      document.body.appendChild(scrim);
-      cancelBtn.focus();
-    });
-  }
-  function localInZone(s, zone) {
-    if (!s) return '';
-    try {
-      var parts = new Intl.DateTimeFormat('en-GB', { timeZone:zone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(new Date(s));
-      var o = {}; parts.forEach(function (p) { o[p.type] = p.value; });
-      return o.year + '-' + o.month + '-' + o.day + 'T' + o.hour + ':' + o.minute;
-    } catch (_) { return s.slice(0,16); }
-  }
   async function loadVote() {
     var r = await request('GET', base + '/vote');
     if (!r.ok) { live(r.data.error || 'Voting page unavailable.', true); return; }
@@ -340,42 +265,7 @@
       });
     }
   }
-  var savedEligibility = 'all_signed_in';
-  async function loadSettings() {
-    if (!key()) { location.assign('/signin?next=' + encodeURIComponent(location.pathname)); return; }
-    var er = await request('GET', base, null, true), vr = await request('GET', base + '/voting', null, true);
-    if (!er.ok || !vr.ok || er.data.role !== 'organiser') { live("You can't manage this event.", true); return; }
-    var ev = er.data.event || {}, v = vr.data;
-    $('title').textContent = "People's choice · " + (ev.title || slug); $('intro').textContent = 'Voting and directory settings'; $('settings-panel').hidden = false;
-    $('enabled').checked = !!v.enabled; $('opens').value = localInZone(v.opens_at, ev.time_zone || 'UTC'); $('closes').value = localInZone(v.closes_at, ev.time_zone || 'UTC');
-    savedEligibility = v.eligibility;
-    $('eligibility').value = v.eligibility || 'all_signed_in'; $('listed').checked = !!v.directory_listed;
-    $('zone').textContent = 'Event time zone: ' + (ev.time_zone || 'UTC');
-    if (ev.stage === 'archived') { $('voting-form').querySelectorAll('input,select,button').forEach(function (x) { x.disabled = true; }); }
-    $('live').textContent = '';
-  }
-  $('voting-form').addEventListener('submit', async function (e) {
-    e.preventDefault(); var btn = $('save-voting'); btn.disabled = true;
-    try {
-      var confirmRemoval = false;
-      if ($('eligibility').value !== savedEligibility) {
-        var preview = await request('GET', base + '/voting', null, true);
-        if (!preview.ok) { live(preview.data.error || 'Could not check earlier votes.', true); return; }
-        var count = (preview.data.votes_to_remove || {})[$('eligibility').value] || 0;
-        if (count && !await confirmDialog({ title: 'Remove earlier votes?', body: count + (count === 1 ? ' earlier vote no longer qualifies and will be removed.' : ' earlier votes no longer qualify and will be removed.'), confirmLabel: 'Save and remove votes' })) return;
-        confirmRemoval = count > 0;
-      }
-      var r = await request('PUT', base + '/voting', { enabled:$('enabled').checked, opens_at:$('opens').value, closes_at:$('closes').value, eligibility:$('eligibility').value, confirm_vote_removal:confirmRemoval }, true);
-      if (r.ok) savedEligibility = $('eligibility').value;
-      live(r.ok ? ('Voting settings saved.' + (r.data.votes_removed ? ' ' + r.data.votes_removed + (r.data.votes_removed === 1 ? ' earlier vote no longer qualified and was removed.' : ' earlier votes no longer qualified and were removed.') : '')) : (r.data.error || 'Could not save.'), !r.ok);
-    } catch (_) { live('Cannot reach the server.', true); } finally { btn.disabled = false; }
-  });
-  $('save-directory').addEventListener('click', async function () {
-    var btn = $('save-directory'); btn.disabled = true;
-    try { var r = await request('PATCH', base + '/directory', { listed:$('listed').checked }, true); live(r.ok ? 'Directory setting saved.' : (r.data.error || 'Could not save.'), !r.ok); }
-    catch (_) { live('Cannot reach the server.', true); } finally { btn.disabled = false; }
-  });
-  (settings ? loadSettings() : loadVote()).catch(function () { live('Cannot reach the server.', true); });
+  loadVote().catch(function () { live('Cannot reach the server.', true); });
 })();
 </script>
 </body>

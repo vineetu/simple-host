@@ -7,26 +7,6 @@ export function href(role, slug, section) {
 }
 export { resolve } from './navigation.js'
 
-export function normalizeURL(input) {
-  const url = new URL(input.href || input, location.origin)
-  if (!/^\/e\/[^/]+\/manage\/?$/.test(url.pathname)) return url
-  const section = url.searchParams.get('s') || 'overview'
-  const tab = url.searchParams.get('tab') || ''
-  let anchor = ''
-  try { anchor = decodeURIComponent(url.hash.slice(1)) } catch (_) {}
-  const validTab = navigation.targets.some(t => t.section === section && t.tab === tab && tab)
-  const alias = navigation.aliases.find(a => a.section === section && a.tab === tab && a.tab)
-    || navigation.aliases.find(a => a.section === section && a.anchor === anchor && a.anchor && !(a.unless_valid_tab && validTab))
-  if (alias) {
-    const t = navigation.targets.find(t => t.id === alias.target)
-    url.searchParams.set('s', t.section)
-    if (t.tab) url.searchParams.set('tab', t.tab)
-    else url.searchParams.delete('tab')
-    url.hash = t.anchor || ''
-  }
-  return url
-}
-
 export function isAppRoute(path) {
   return /^\/(events(?:\/new)?|account|signin|(?:join|judge|organiser|team)\/[^/]+|e\/[^/]+\/(?:manage|team|judge|apply))\/?$/.test(path)
 }

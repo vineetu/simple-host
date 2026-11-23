@@ -25,8 +25,6 @@ for s in screens.values():
 for t in data['targets']:
     assert t['screen'] in screens, t
     assert t['href_pattern'].split('?')[0].split('#')[0] == screens[t['screen']]['path'], t
-for a in data['aliases']:
-    assert a['target'] in ids, a
 for r in data['roles']:
     if r['id'] == 'visitor':
         continue

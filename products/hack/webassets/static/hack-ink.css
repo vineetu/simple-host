@@ -64,22 +64,22 @@ html.sh-hack:not(.hack-story) :is(.btn,.sh-btn,.sh-dlg-btn):hover { box-shadow:1
 html.sh-hack:not(.hack-story) :is(.btn.ghost,.sh-dlg-btn) { background:var(--paper-hi); color:var(--line); border-color:var(--line-soft); }
 html.sh-hack:not(.hack-story) :is(.btn.danger,.banner) { color:var(--error); border-color:var(--error); }
 html.sh-hack:not(.hack-story) :is(.btn.danger,.btn.ghost):hover { background:var(--paper-lo); }
-html.sh-hack:not(.hack-story) :is(button,.tab,.text-btn,.auth-secondary,.back,a.hit,.gcard-open,summary,.sh-theme-toggle) { min-height:44px; }
-html.sh-hack:not(.hack-story) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,.in,.auth-input input) {
+html.sh-hack:not(.hack-story) :is(button,.tab,.back,a.hit,summary,.sh-theme-toggle) { min-height:44px; }
+html.sh-hack:not(.hack-story) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,.in) {
   font:16px/1.5 var(--font); min-height:44px; max-width:100%; min-width:0; color:var(--line);
 }
 html.sh-hack:not(.hack-story) :is(input.in,textarea.in,select.in,.sh-dlg-input) {
   background:var(--paper-hi); border:1.5px solid var(--line-soft); border-radius:12px 5px 14px 6px;
 }
-html.sh-hack:not(.hack-story) :is(.auth-input,.coc,.box,.card,.gcard,.sponsor,.results-row,.banner,.sh-dlg,:where(#hack-tour),.chip) {
+html.sh-hack:not(.hack-story) :is(.coc,.box,.card,.sponsor,.banner,.sh-dlg,:where(#hack-tour),.chip) {
   border-radius:var(--wobble); border-width:1.5px; border-color:var(--paper-ink); background:var(--paper-hi); box-shadow:var(--shadow);
 }
-html.sh-hack:not(.hack-story) :is(.card,.box,.gcard,.sponsor) { border-color:var(--line-soft); }
+html.sh-hack:not(.hack-story) :is(.card,.box,.sponsor) { border-color:var(--line-soft); }
 html.sh-hack:not(.hack-story) .card h2 { font-size:26px; }
 html.sh-hack:not(.hack-story) :is(.stats,.banner,.sticky,.callout) { background:var(--accent-soft); border-radius:7px 3px 9px 4px; }
 html.sh-hack:not(.hack-story) .stats { padding:10px 14px; border:1px dashed var(--line-soft); }
-html.sh-hack:not(.hack-story) :is(.stat .n,table,.score,.results-rank,.results-tie-note,input[type=number],.judge-summary) { font-family:var(--font); font-variant-numeric:tabular-nums; }
-html.sh-hack:not(.hack-story) :is(table,.coc,.desc,.entry-ro,.announcement-body,.hint,.code,pre) { line-height:1.6; }
+html.sh-hack:not(.hack-story) :is(.stat .n,table,.score,input[type=number]) { font-family:var(--font); font-variant-numeric:tabular-nums; }
+html.sh-hack:not(.hack-story) :is(table,.coc,.desc,.hint,.code,pre) { line-height:1.6; }
 html.sh-hack:not(.hack-story) :is(th,td) { border-color:var(--paper-ink); }
 html.sh-hack:not(.hack-story) th { background:var(--paper-lo); }
 html.sh-hack:not(.hack-story) .tabs { border-bottom:1.5px dashed var(--line-soft); gap:6px; padding:4px 0; }
@@ -100,14 +100,13 @@ html.sh-hack:not(.hack-story) :is(#events-list .card,.hack-directory li):nth-chi
 html.sh-hack:not(.hack-story) :is(#events-list .card,.hack-directory li):nth-child(3n+2) { border-radius:17px 4px 14px 8px; }
 html.sh-hack:not(.hack-story) .sh-event-default .hero { border:1.5px solid var(--line-soft); border-left:6px solid var(--event-color,var(--brand)); border-radius:var(--wobble); box-shadow:3px 4px 0 var(--paper-ink); background:var(--paper-hi); }
 html.sh-hack:not(.hack-story) .sh-event-default .hero::after { border-width:3px; border-style:dashed; opacity:.55; }
-html.sh-hack:not(.hack-story) .sh-event-default :is(section,.content-list) { border-top-style:dashed; }
+html.sh-hack:not(.hack-story) .sh-event-default section { border-top-style:dashed; }
 html.sh-hack:not(.hack-story) .sh-event-default section > h2 { border-left-width:3px; }
-html.sh-hack:not(.hack-story) :is(.event-icon,.event-list-icon,#event-icon-preview) { border:1.5px solid var(--line-soft); border-radius:50% 46% 49% 45%; }
+html.sh-hack:not(.hack-story) #event-icon-preview { border:1.5px solid var(--line-soft); border-radius:50% 46% 49% 45%; }
 @media(max-width:700px) {
   html.sh-hack:not(.hack-story) :is(.wrap,main) { min-width:0; }
   html.sh-hack:not(.hack-story) #mg-tabs .tab { font-size:16px; }
   html.sh-hack:not(.hack-story) :is(.sh-bar,.sh-footer-inner) { flex-wrap:wrap; }
-  html.sh-hack:not(.hack-story) :is(.cap-row,.auth-input) { max-width:100%; }
 }
 
 html.sh-hack:not(.hack-story) body.sh-event-default {
@@ -144,7 +143,7 @@ html.sh-hack :is(button,a):not([role="tab"],.tab,.chip,.owner-tab,.range-opt,[da
   [aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),
   .active,.on,.selected,.current
 ),
-html.sh-hack :is(.progress li.on,.current-label,.key-tag),
+html.sh-hack :is(.progress li.on,.key-tag),
 html.sh-hack tr.on td {
   background:var(--line); color:var(--paper); border-color:var(--line);
   --text:var(--paper); --text-secondary:var(--paper); --dim:var(--paper);

@@ -29,7 +29,7 @@ func RegisterHackGetStarted(mux *http.ServeMux, pages Pages, product *Assets) {
 			http.Error(w, "this older download was withdrawn", http.StatusGone)
 		})
 	}
-	for _, version := range []string{"0.2.6", "0.2.7", "0.2.8", "0.2.9", "0.2.10", "0.2.11", "0.2.12", "0.2.13"} {
+	for _, version := range []string{"0.2.13"} {
 		mux.HandleFunc("GET /simple-hack-skills-only-"+version+".zip", func(w http.ResponseWriter, r *http.Request) {
 			data, err := hackassets.HackFiles.ReadFile("site/downloads/simple-hack-skills-only-" + version + ".zip")
 			if err != nil {

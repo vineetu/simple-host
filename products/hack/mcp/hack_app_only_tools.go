@@ -327,7 +327,7 @@ func organiserWriteTwins() []twinSpec {
 func judgeTwins() []twinSpec {
 	return []twinSpec{
 		{base: "hack_get_rubric", name: "hack_app_get_rubric", title: "App: load the rubric", gate: sharedTwin, out: countSchema("criteria"), summarize: rubricSummary},
-		{base: "hack_get_judge_queue", name: "hack_app_get_judge_queue", title: "App: load the judging queue", gate: judgeTwin, out: countSchema("count"), summarize: loaded(ownField("queue"), "entry", "entries")},
+		{base: "hack_get_judge_queue", name: "hack_app_get_judge_queue", title: "App: load My teams (judging)", gate: judgeTwin, out: countSchema("count"), summarize: loaded(ownField("queue"), "entry", "entries")},
 		{base: "hack_get_judge_scores", name: "hack_app_get_judge_scores", title: "App: load my scores for a team", gate: judgeTwin,
 			out: mcp.OutObject(map[string]any{"scored": mcp.OutInteger("Count.")}), summarize: scoresSummary},
 		{base: "hack_get_my_conflicts", name: "hack_app_get_my_conflicts", title: "App: load my conflicts", gate: judgeTwin, out: countSchema("count"), summarize: loaded(ownField("conflicts"), "conflict", "conflicts")},

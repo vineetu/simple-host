@@ -169,7 +169,7 @@ export async function render(ctx, section) {
     // naming a heading ("Gallery & appearance") that no longer exists.
     p.append(document.createTextNode('Turn on Show entries on the event page first, on '))
     const a = document.createElement('a')
-    a.href = href(role, slug, 'event-page') + '#appearance'
+    a.href = href(role, slug, 'event-page') + '&tab=look'
     a.textContent = 'Event page → Look'
     p.append(a, document.createTextNode('.'))
     btn.insertAdjacentElement('afterend', p)

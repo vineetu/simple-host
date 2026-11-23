@@ -10,7 +10,7 @@
 // or change anything. The route table below maps each REST path and
 // method the judge screens call to the MCP tool that does the same thing;
 // every row's method+path matches the memberTool/hackRouteTool
-// registration it stands for (internal/mcp/hack_member_tools.go,
+// registration it stands for (products/hack/mcp/hack_member_tools.go,
 // hack_organiser_tools.go), checked by TestHackJudgeRouteMapCoversCalls.
 (function () {
   'use strict';
@@ -37,7 +37,7 @@
   // later tap's save overtake an earlier one.
   //
   // hack_app_* names are app-only twins (Grok security review finding 1,
-  // SIM-344 phase 2, internal/mcp/hack_app_only_tools.go): the view calls
+  // SIM-344 phase 2, products/hack/mcp/hack_app_only_tools.go): the view calls
   // these, never the originals, for every read it makes on its own --
   // queue, rubric, scores and conflicts all carry participant-written
   // text (team/entry names, a judge's own comment) that must never reach
@@ -99,7 +99,7 @@
 
   // --- route table: REST (method, path) -> MCP tool -------------------
   // appOnly marks a route whose tool is an app-only twin (hack_app_get_
-  // judge_queue and the rest, internal/mcp/hack_app_only_tools.go): api()
+  // judge_queue and the rest, products/hack/mcp/hack_app_only_tools.go): api()
   // calls it through callToolResult instead of callTool and reads the
   // real data out of the result's own _meta, since the twin's own
   // content/structuredContent is deliberately reduced to a fixed sentence
@@ -407,8 +407,8 @@
     main.insertBefore(back, main.firstChild);
   }
   // Called by public-judge.js's accept-invite handler through the
-  // platform adapter (internal/handler/static/hack/platform.js's
-  // judgeJoined, internal/mcp/apps/frame/platform.js's frame version):
+  // platform adapter (products/hack/webassets/static/hack/platform.js's
+  // judgeJoined, products/hack/mcp/apps/frame/platform.js's frame version):
   // the website's own success path is
   // `location.assign('/e/<slug>/judge')`, a real page navigation this
   // sandboxed frame cannot make (no allow-top-navigation) and should not

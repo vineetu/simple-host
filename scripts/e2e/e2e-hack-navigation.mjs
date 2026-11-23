@@ -75,21 +75,6 @@ try {
  }
  const { context, page } = await person('organiser')
  const manage = `/e/${info.slug}/manage`
- for (const a of map.aliases) {
-  const query = new URLSearchParams({ s: a.section, keep: 'unchanged' })
-  if (a.tab) query.set('tab', a.tab)
-  const target = map.targets.find(t => t.id === a.target)
-  // Some legacy aliases select an editor with an internally named control.
-  const selector = ['o.schedule','o.sponsors','o.faq'].includes(a.target) ? 'main .sp h2' : control[a.target] || 'main h2'
-  await open(page, manage + '?' + query + (a.anchor ? '#' + a.anchor : ''), selector)
-  console.log('alias', a.target)
-  const url = new URL(page.url())
-  assert.equal(url.searchParams.get('s'), target.section, JSON.stringify(a))
-  assert.equal(url.searchParams.get('tab'), target.tab, JSON.stringify(a))
-  assert.equal(url.hash, target.anchor ? '#' + target.anchor : '', JSON.stringify(a))
-  assert.equal(url.searchParams.get('keep'), 'unchanged')
- }
- console.log('ok all', map.aliases.length, 'aliases')
  // Every anchored destination is a rendered control, including judge projections.
  const judgeAnchors = await person('judge')
  const absent = {

@@ -1,5 +1,5 @@
-// Frame stand-in for internal/handler/static/hack/tour.js, swapped in by
-// the esbuild OnResolve plugin in internal/mcp/apps/bundlegen for both the
+// Frame stand-in for products/hack/webassets/static/hack/tour.js, swapped in by
+// the esbuild OnResolve plugin in products/hack/mcp/apps/bundlegen for both the
 // judge and organiser frame: the guided walkthrough (judge-scoring.js and
 // organiser-overview.js's own first-visit tour) is a full-page feature
 // with room for a card next to a target element in a real sidebar/nav;

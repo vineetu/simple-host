@@ -443,7 +443,7 @@
       "icon": "rubric",
       "phone_tab": false,
       "badge": null,
-      "stage_rule": "Always shown. Progress, assignments and conflicts; configuration links to Settings \u2192 Judging.",
+      "stage_rule": "Always shown. Progress, assignments and conflicts; configuration links to Settings → Judging.",
       "order": 80,
       "group": "Run",
       "action_label": "Edit"
@@ -1106,7 +1106,7 @@
     {
       "id": "o.voting",
       "kind": "setting",
-      "label": "People\u2019s choice",
+      "label": "People’s choice",
       "role": "organiser",
       "screen": "organiser-settings",
       "section": "settings",
@@ -1843,7 +1843,7 @@
           "icon": "rubric",
           "phone_tab": false,
           "badge": null,
-          "stage_rule": "Always shown. Progress, assignments and conflicts; configuration links to Settings \u2192 Judging.",
+          "stage_rule": "Always shown. Progress, assignments and conflicts; configuration links to Settings → Judging.",
           "order": 80,
           "group": "Run",
           "target_id": "o.judging"
@@ -2050,281 +2050,6 @@
       ]
     }
   ],
-  "aliases": [
-    {
-      "section": "teams",
-      "target": "o.tracks",
-      "tab": "tracks"
-    },
-    {
-      "section": "teams",
-      "target": "o.team-rules",
-      "tab": "settings"
-    },
-    {
-      "section": "people",
-      "target": "o.signup",
-      "tab": "signup"
-    },
-    {
-      "section": "people",
-      "target": "o.organisers",
-      "tab": "coorg"
-    },
-    {
-      "section": "people",
-      "target": "o.organisers",
-      "tab": "co-organisers"
-    },
-    {
-      "section": "people",
-      "target": "o.organisers",
-      "tab": "organisers"
-    },
-    {
-      "section": "people",
-      "target": "o.signup",
-      "anchor": "signup"
-    },
-    {
-      "section": "people",
-      "target": "o.organisers",
-      "anchor": "coorg"
-    },
-    {
-      "section": "entries",
-      "target": "o.deadline",
-      "anchor": "deadline"
-    },
-    {
-      "section": "entries",
-      "target": "o.entry-rules",
-      "anchor": "entry-rules"
-    },
-    {
-      "section": "entries",
-      "target": "o.entry-rules",
-      "anchor": "handin"
-    },
-    {
-      "section": "entries",
-      "target": "o.reminders",
-      "anchor": "reminders"
-    },
-    {
-      "section": "judging",
-      "target": "o.rubric",
-      "anchor": "jg-rubric-card"
-    },
-    {
-      "section": "judging",
-      "target": "o.tie-break",
-      "anchor": "jg-tie-card"
-    },
-    {
-      "section": "judging",
-      "target": "o.judging-mode",
-      "anchor": "jg-mode-card"
-    },
-    {
-      "section": "judging",
-      "target": "o.judging-closes",
-      "anchor": "jg-closes-card"
-    },
-    {
-      "section": "results",
-      "target": "o.result-rules",
-      "anchor": "res-score-mode"
-    },
-    {
-      "section": "results",
-      "target": "o.result-rules",
-      "anchor": "res-score-mode-save"
-    },
-    {
-      "section": "results",
-      "target": "o.result-rules",
-      "anchor": "res-visibility"
-    },
-    {
-      "section": "results",
-      "target": "o.result-rules",
-      "anchor": "res-public-scores"
-    },
-    {
-      "section": "results",
-      "target": "o.result-rules",
-      "anchor": "res-public-ranks"
-    },
-    {
-      "section": "results",
-      "target": "o.result-rules",
-      "anchor": "res-visibility-save"
-    },
-    {
-      "section": "results",
-      "target": "o.result-rules",
-      "anchor": "res-visibility-hint"
-    },
-    {
-      "section": "results",
-      "target": "o.voting",
-      "anchor": "res-vote-status"
-    },
-    {
-      "section": "results",
-      "target": "o.voting",
-      "anchor": "res-vote-enabled"
-    },
-    {
-      "section": "results",
-      "target": "o.voting",
-      "anchor": "res-vote-opens"
-    },
-    {
-      "section": "results",
-      "target": "o.voting",
-      "anchor": "res-vote-closes"
-    },
-    {
-      "section": "results",
-      "target": "o.voting",
-      "anchor": "res-vote-window-save"
-    },
-    {
-      "section": "results",
-      "target": "o.voting",
-      "anchor": "res-vote-eligibility"
-    },
-    {
-      "section": "results",
-      "target": "o.voting",
-      "anchor": "res-vote-eligibility-save"
-    },
-    {
-      "section": "results",
-      "target": "o.directory",
-      "anchor": "res-directory-listed"
-    },
-    {
-      "section": "results",
-      "target": "o.directory",
-      "anchor": "res-directory-save"
-    },
-    {
-      "section": "settings",
-      "target": "o.signup",
-      "anchor": "applications",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.notifications",
-      "anchor": "notify-list",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.notifications",
-      "anchor": "notify-form",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.notifications",
-      "anchor": "notify-advanced",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.details",
-      "anchor": "set-name",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.details",
-      "anchor": "set-org",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.details",
-      "anchor": "set-email",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.details",
-      "anchor": "set-purpose",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.details",
-      "anchor": "set-n",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.leave",
-      "anchor": "leave-open",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "settings",
-      "target": "o.delete",
-      "anchor": "delete-open",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.basics",
-      "anchor": "basics",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.schedule",
-      "anchor": "schedule",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.sponsors",
-      "anchor": "sponsors",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.faq",
-      "anchor": "faq",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.look",
-      "anchor": "appearance",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.website",
-      "anchor": "address",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.announcements",
-      "anchor": "announcements",
-      "unless_valid_tab": true
-    },
-    {
-      "section": "event-page",
-      "target": "o.announcements",
-      "tab": "announcements"
-    }
-  ],
   "resolution": {
     "default_sections": {
       "organiser": "overview",
@@ -2338,7 +2063,7 @@
     },
     "preserve_other_parameters": true,
     "replace_history": true,
-    "precedence": "Recognised canonical tab before legacy hash; exact tab aliases before fragment aliases; unknown or malformed values use screen default.",
+    "precedence": "Unknown or malformed values use the screen default.",
     "settings_tabs": [
       {
         "id": "signup",

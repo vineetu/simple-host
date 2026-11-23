@@ -1,7 +1,7 @@
 import * as api from './api.js'
 import * as ui from './ui.js'
 import { mount } from './shell.js'
-import { resolveRoute, isAppRoute, href, normalizeURL } from './nav.js'
+import { resolveRoute, isAppRoute, href } from './nav.js'
 import { endTour } from './tour.js'
 import { openLeave } from './leave.js'
 import { clearAllAssistantHistory, mountAssistant, unmountAssistant } from './assistant.js'
@@ -425,8 +425,6 @@ async function route() {
       return { me: m.data, events: Array.isArray(e.data) ? e.data : e.data.events || [] }
     }).catch(e => { initialData = null; throw e })
     const data = initialData ? await initialData : { me: {}, events: [] }
-    const normalized = normalizeURL(location)
-    if (normalized.href !== location.href) { history.replaceState(history.state, '', normalized); ui.notePath(normalized.pathname + normalized.search + normalized.hash) }
     const match = resolveRoute(location)
     let event = null, role = null
     if (match.slug) {

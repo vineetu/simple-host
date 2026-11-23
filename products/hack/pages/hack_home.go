@@ -17,14 +17,8 @@ const homepageLinks = `</sitemap.xml>; rel="sitemap", </index.md>; rel="alternat
 func RegisterHackHome(mux *http.ServeMux, pages Pages, product *Assets) {
 	assets := pages
 	registerHackathons(mux, pages)
-	story := assets.ServeStaticPage("hack-story.html")
 	home := assets.ServeStaticPage("hack-home.html")
-	canonical := assets.IsCanonicalInstance()
-	page := "hack-story.html"
-	if canonical {
-		page = "hack-home.html"
-	}
-	markdown := assets.LandingMarkdownHandler(page, "Simple Hack", "Create events, join teams, and judge entries.", assets.InkBaseURL(), true)
+	markdown := assets.LandingMarkdownHandler("hack-home.html", "Simple Hack", "Create events, join teams, and judge entries.", assets.InkBaseURL(), true)
 	mux.HandleFunc("GET /index.md", markdown)
 	mux.HandleFunc("GET /llms.md", markdown)
 	mux.Handle("GET /{$}", assets.AdminUICSP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,11 +35,7 @@ func RegisterHackHome(mux *http.ServeMux, pages Pages, product *Assets) {
 			markdown(w, r)
 			return
 		}
-		if canonical {
-			home.ServeHTTP(w, r)
-		} else {
-			story.ServeHTTP(w, r)
-		}
+		home.ServeHTTP(w, r)
 	})))
 	mux.Handle("GET /directory", assets.AdminUICSP(assets.ServeStaticPage("hack-directory.html")))
 	RegisterHackWatch(mux, pages)

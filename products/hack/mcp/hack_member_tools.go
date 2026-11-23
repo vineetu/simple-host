@@ -80,7 +80,7 @@ func memberOutputSchema(name string) map[string]any {
 	case "hack_get_team_status":
 		schema["properties"] = map[string]any{"can": hackAbilitiesSchema(), "checklist": checklistNullableObject(hackChecklistSchema())}
 	case "hack_get_navigation":
-		schema = mcp.OutObject(map[string]any{"roles": mcp.OutArray("Roles.", open()), "resolution": open(), "version": mcp.OutInteger("Map version."), "screens": mcp.OutArray("Screens.", open()), "targets": mcp.OutArray("Destinations.", open()), "aliases": mcp.OutArray("Old destinations.", open())}, "version", "screens", "targets", "aliases", "roles", "resolution")
+		schema = mcp.OutObject(map[string]any{"roles": mcp.OutArray("Roles.", open()), "resolution": open(), "version": mcp.OutInteger("Map version."), "screens": mcp.OutArray("Screens.", open()), "targets": mcp.OutArray("Destinations.", open())}, "version", "screens", "targets", "roles", "resolution")
 	}
 	return schema
 }

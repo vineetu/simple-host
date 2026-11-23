@@ -34,7 +34,7 @@ export async function render(ctx) {
   // in exactly those cases; the real screen, with the real event detail,
   // still shows the precise state once they open it.
   function nextAction(e) {
-    if (e.taken_down) return e.role === 'organiser' ? 'Overview' : ''
+    if (e.taken_down) return e.role === 'organiser' ? 'Home' : ''
     // Apply to a hackathon (owner, 2026-10-31): a participant whose
     // application or join-link sign-up is still waiting, or was turned
     // down, sees that instead of a stage guess -- same copy either way
@@ -46,7 +46,7 @@ export async function render(ctx) {
       return ({
         draft: 'Finish setting up', open: 'Sign-up is open', building: 'Teams are building',
         closed: 'Set up judging', judging: 'Judges are scoring', results: 'Open event'
-      })[e.stage] || 'Overview'
+      })[e.stage] || 'Home'
     }
     if (e.role === 'judge') {
       return ({

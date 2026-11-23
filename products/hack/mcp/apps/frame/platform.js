@@ -1,6 +1,6 @@
-// Frame implementation of internal/handler/static/hack/platform.js -- the
+// Frame implementation of products/hack/webassets/static/hack/platform.js -- the
 // MCP App's own answers for the same adapter calls, swapped in by the
-// esbuild OnResolve plugin in internal/mcp/apps/bundlegen for exactly the
+// esbuild OnResolve plugin in products/hack/mcp/apps/bundlegen for exactly the
 // reasons the old bundlegen/patches.go used to patch these call sites by
 // hand, one exact-text replacement at a time (SIM-344): this frame has no
 // real address bar, is never navigated to /judge/<code>, and

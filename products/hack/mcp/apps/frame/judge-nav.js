@@ -1,6 +1,6 @@
 export { resolve } from '../../../webassets/static/hack/navigation.js'
-// Frame stand-in for internal/handler/static/hack/nav.js, swapped in by
-// the esbuild OnResolve plugin in internal/mcp/apps/bundlegen for the
+// Frame stand-in for products/hack/webassets/static/hack/nav.js, swapped in by
+// the esbuild OnResolve plugin in products/hack/mcp/apps/bundlegen for the
 // judge app only: there is no sidebar or browser address bar here, just
 // this frame's own four views, switched by hack-judge-view.js's own click
 // handler intercepting '#v=' links (its VIEW_ALIAS maps the website's

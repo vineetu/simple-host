@@ -207,13 +207,13 @@ func (s *hackScreens) hackShowJudgeTool() mcp.Tool {
 	return mcp.WithRun(mcp.WithPolicy(mcp.Tool{
 		Name:  "hack_show_judge",
 		Title: "Show the judge view",
-		Description: "Open the judge app view in chat: invite (accept a judge invite, needs code), queue (My teams), score (one entry's scoring, optional team_id) or rubric. " +
+		Description: "Open the judge app view in chat: invite (accept a judge invite, needs code), queue (the My teams list), score (one entry's scoring, optional team_id) or rubric. " +
 			"Only offered to a connection whose app can render it; every judging action also has a plain tool (hack_get_judge_queue, hack_score_team, hack_declare_my_conflict, hack_get_rubric, hack_preview_judge, hack_join_judge) that works the same everywhere.",
 		InputSchema: mcp.Object(map[string]any{
 			"slug":    mcp.Str("Event name. Required for view queue, score or rubric."),
 			"code":    mcp.Str("Code from the judge invite link. Required for view invite."),
 			"view":    map[string]any{"type": "string", "enum": []string{"invite", "queue", "score", "rubric"}, "description": "Which judge view to open."},
-			"team_id": mcp.Str("Team ID from the judge queue. Optional for view score: opens that team directly instead of the first unscored one."),
+			"team_id": mcp.Str("Team ID from My teams. Optional for view score: opens that team directly instead of the first unscored one."),
 		}, "view"),
 		OutputSchema: mcp.OutObject(map[string]any{
 			"view":    mcp.OutString("The view that was opened."),
@@ -256,7 +256,7 @@ func showJudgeInvite(c *mcp.Call, args map[string]any) (mcp.Output, error) {
 	return mcp.Output{Text: "Opened the judge invite.", Structured: map[string]any{"view": "invite", "code": code}}, nil
 }
 
-var judgeViewNames = map[string]string{"queue": "the judging queue", "score": "scoring", "rubric": "the rubric"}
+var judgeViewNames = map[string]string{"queue": "My teams", "score": "scoring", "rubric": "the rubric"}
 
 // showJudgeEvent opens a judging view of one event for a judge of it. The text
 // is a fixed sentence (slug is a constrained identifier). About/rules/prizes

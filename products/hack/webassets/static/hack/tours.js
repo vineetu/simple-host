@@ -35,7 +35,7 @@ export const tours = {
     pref: 'organiser_walkthrough_done',
     home: 'overview',
     steps: [
-      { title: 'Welcome to your event', body: 'This is Overview, your event’s home. It always says the next thing to do. Here is a one-minute look around.' },
+      { title: 'Welcome to your event', body: 'This is Home, your event’s home. It always says the next thing to do. Here is a one-minute look around.' },
       { target: '.status', title: 'Stage and next deadline', body: 'The stage and the next deadline are always shown here. The stage decides what participants and judges can do right now.' },
       // Teams redesign (owner, 2026-10-31): the next-step card now has one
       // button that moves the event forward itself; Change stage stays for

@@ -75,13 +75,13 @@ Go owners name the registration or rendering function.
 | `/enterprise` and its brief/architecture pages | Corresponding `enterprise*.html` | `handler/ui.go:RegisterUIRoutes` |
 | `/setup`, `/costs` | `setup-helper.html` with `setup/setup.js`; `costs.html` with `costs/calc.js` | `handler/ui.go:RegisterUIRoutes` |
 | First boot without SITE_DOMAIN | `setup.html`, a separate setup-only server | `handler/setup.go:SetupHandler.Register` |
-| Hack `/` | Canonical instance: `hack-home.html`; other instances: `hack-story.html` | `pages/hack_home.go:RegisterHackHome` |
+| Hack `/` | `hack-home.html` on every install (the film and the hosted-only links sit in `<!--sh:hosted-->` blocks) | `pages/hack_home.go:RegisterHackHome` |
 | Hack `/directory`, `/get-started` | `hack-directory.html`, `hack-get-started.html` | `RegisterHackHome`, `hack_get_started.go:RegisterHackGetStarted` |
 | Hack public event | `hack-event.html`, rendered with event data | `public/hack_eventpage.go:assembleHackEventPage`; `public/hack_public.go:RegisterHackPublic` |
 | Hack `/signin`, `/events`, `/events/new`, `/account` | `hack/app.html` → `hack/app.js` → sign-in, `landing-your-events`, `organiser-create-event`, `account` | `pages/hack_ui.go:RegisterHackUI` |
 | Hack `/e/{slug}/manage`, `/team`, `/judge` | Same shell; `?s=` selects role screens | `RegisterHackUI`; `hack/nav.js:resolveRoute` |
 | Hack `/join/{code}`, `/judge/{code}`, `/organiser/{code}`, `/team/{code}`, `/e/{slug}/apply` | Same shell; standalone `public-*` modules | `RegisterHackUI`; `hack/nav.js:resolveRoute` |
-| Hack `/e/{slug}/vote`, `/voting-settings` | `hack-voting.html`, separate from the module app | `RegisterHackUI` |
+| Hack `/e/{slug}/vote` (and `/voting-settings`, which redirects to the app's Results section) | `hack-voting.html`, separate from the module app | `RegisterHackUI` |
 
 Public shells do not establish API authority. For example, `/admin` paints
 its data only after the gated admin API answers (`ui.go:RegisterUIRoutes`).

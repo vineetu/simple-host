@@ -946,14 +946,6 @@
     },
     {
       "method": "GET",
-      "path": "/hack-film-narration.mp3",
-      "feature_id": "hack-voting",
-      "source": "products/hack/asset_files.go",
-      "package": "products/hack",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
       "path": "/hack-get-started-preview.png",
       "feature_id": "hack-voting",
       "source": "products/hack/asset_files.go",
@@ -2042,30 +2034,6 @@
     },
     {
       "method": "GET",
-      "path": "/simple-hack-skills-only-0.2.10.zip",
-      "feature_id": "dashboard-icon",
-      "source": "products/hack/pages/hack_get_started.go",
-      "package": "products/hack/pages",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
-      "path": "/simple-hack-skills-only-0.2.11.zip",
-      "feature_id": "dashboard-icon",
-      "source": "products/hack/pages/hack_get_started.go",
-      "package": "products/hack/pages",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
-      "path": "/simple-hack-skills-only-0.2.12.zip",
-      "feature_id": "dashboard-icon",
-      "source": "products/hack/pages/hack_get_started.go",
-      "package": "products/hack/pages",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
       "path": "/simple-hack-skills-only-0.2.13.zip",
       "feature_id": "hackathon-event-instances",
       "source": "products/hack/pages/hack_get_started.go",
@@ -2100,38 +2068,6 @@
       "method": "GET",
       "path": "/simple-hack-skills-only-0.2.5.zip",
       "feature_id": "dashboard-icon",
-      "source": "products/hack/pages/hack_get_started.go",
-      "package": "products/hack/pages",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
-      "path": "/simple-hack-skills-only-0.2.6.zip",
-      "feature_id": "dashboard-icon",
-      "source": "products/hack/pages/hack_get_started.go",
-      "package": "products/hack/pages",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
-      "path": "/simple-hack-skills-only-0.2.7.zip",
-      "feature_id": "hackathon-event-instances",
-      "source": "products/hack/pages/hack_get_started.go",
-      "package": "products/hack/pages",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
-      "path": "/simple-hack-skills-only-0.2.8.zip",
-      "feature_id": "hackathon-event-instances",
-      "source": "products/hack/pages/hack_get_started.go",
-      "package": "products/hack/pages",
-      "dynamic": true
-    },
-    {
-      "method": "GET",
-      "path": "/simple-hack-skills-only-0.2.9.zip",
-      "feature_id": "hackathon-event-instances",
       "source": "products/hack/pages/hack_get_started.go",
       "package": "products/hack/pages",
       "dynamic": true
