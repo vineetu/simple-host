@@ -120,9 +120,17 @@
     if (offset2 != null && offset2 !== offset1) instant = guess - offset2 * 6e4;
     return instant;
   }
+  var DEADLINES_BY_STAGE = {
+    draft: ["Starts", "Entries close", "Ends"],
+    open: ["Starts", "Entries close", "Ends"],
+    building: ["Entries close", "Ends"],
+    closed: ["Ends"],
+    judging: ["Judging closes"]
+  };
   function nextDeadline(event) {
     const now = Date.now();
-    return [["Starts", event?.starts_at], ["Entries close", event?.submission_deadline], ["Ends", event?.ends_at]].filter(([, value]) => value && !Number.isNaN(new Date(value).getTime())).map(([label, value]) => {
+    const wanted = DEADLINES_BY_STAGE[event?.stage] || [];
+    return [["Starts", event?.starts_at], ["Entries close", event?.submission_deadline], ["Ends", event?.ends_at], ["Judging closes", event?.judging_ends_at]].filter(([label, value]) => wanted.includes(label) && value && !Number.isNaN(new Date(value).getTime())).map(([label, value]) => {
       const dateOnly2 = label !== "Entries close" && isLocalMidnight(value, event);
       const endOfDay = label === "Ends" && dateOnly2 ? nextLocalMidnight(value, event) : null;
       const until = endOfDay ?? new Date(value).getTime();
@@ -133,8 +141,8 @@
   function placeToast(note, near) {
     const main = document.querySelector("main");
     const pageLevel = !near || near === main || near === document.body || main != null && typeof near.contains === "function" && near.contains(main);
-    if (!pageLevel && near.parentNode) {
-      const row = near.closest(TOAST_ROW) || near;
+    const row = !pageLevel && near.parentNode ? near.closest(TOAST_ROW) || near : null;
+    if (row && !row.parentElement?.matches(".subnav-split")) {
       const existing = row.matches(".sticky-foot") ? row.previousElementSibling : row.nextElementSibling;
       if (existing && existing.matches("[data-toast]")) existing.remove();
       row.insertAdjacentElement(row.matches(".sticky-foot") ? "beforebegin" : "afterend", note);
@@ -880,8 +888,9 @@
   function dateRange(uiArg, info) {
     if (!info || !info.starts_at) return "";
     const shim = { time_zone: info.time_zone };
-    const start = uiArg.eventBoundaryDate(info.starts_at, shim);
-    const end = info.ends_at ? uiArg.eventBoundaryDate(info.ends_at, shim) : "";
+    const at = (v) => uiArg.dateTime(v, shim, { dateOnly: uiArg.isLocalMidnight(v, shim), zone: true });
+    const start = at(info.starts_at);
+    const end = info.ends_at ? at(info.ends_at) : "";
     return end ? `${start} \u2013 ${end}` : start;
   }
   function paragraphs(text) {
@@ -915,8 +924,9 @@
     const code = judgeCode();
     const signedIn = !!(me && (me.username || me.email));
     main.innerHTML = `<div class="pub"><p class="muted">Loading\u2026</p></div>`;
+    const badLink = `<div class="pub"><section class="hero"><h1>This judge link doesn\u2019t work</h1></section><section class="card"><p class="sub">The organiser may have made a new judge link, or this one was copied wrong. Ask the organiser to send it again.</p><div class="row-flex"><a class="btn primary" href="${signedIn ? "/events" : "/"}">${signedIn ? "Go to your events" : "Go to Simple Hack"}</a></div></section></div>`;
     if (!code) {
-      main.innerHTML = `<div class="pub"><div class="note bad" role="alert">This link does not work any more.</div></div>`;
+      main.innerHTML = badLink;
       return;
     }
     let r;
@@ -928,7 +938,7 @@
       return;
     }
     if (r.status === 404 || r.data && r.data.code === "invalid_code") {
-      main.innerHTML = `<div class="pub"><section class="hero"><h1>This link does not work any more</h1></section></div>`;
+      main.innerHTML = badLink;
       return;
     }
     if (!r.ok) {
@@ -940,7 +950,7 @@
     const eventHref = ui.esc("/e/" + encodeURIComponent(info.slug));
     if (info.joinable === false) {
       const sentence = info.stage === "draft" ? "This event is not open yet." : info.stage === "archived" ? "This event is over." : "This judge invite isn\u2019t open any more.";
-      main.innerHTML = `<div class="pub"><section class="hero"><h1>You\u2019re invited to judge</h1><p>${ui.esc(info.title || "")}</p></section><div class="note">${ui.esc(sentence)} <a href="${eventHref}">See the event page</a>.</div></div>`;
+      main.innerHTML = `<div class="pub"><section class="hero"><h1>${ui.esc(sentence.replace(/\.$/, ""))}</h1><p>${ui.esc(info.title || "")}</p></section><p><a class="btn" href="${eventHref}">See the event page</a></p></div>`;
       return;
     }
     if (signedIn && (events || []).some((e) => e.slug === info.slug)) {
@@ -1016,7 +1026,7 @@
   });
 
   // internal/handler/static/hack/checklist.js
-  async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after, version }) {
+  async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after, version, help = "", doneText = "" }) {
     const { ui, api, event } = ctx;
     if (id !== "j.conflicts" && !version) return;
     const base = `/v1/hack/events/${encodeURIComponent(event.event.slug)}/checklist`;
@@ -1031,7 +1041,10 @@
     const displayedVersion = version ?? item.version;
     const button = ui.el("button", { class: "btn", type: "button", text: label });
     button.disabled = !!ui.writeLockReason(event.event, event.admin_view);
-    node.append(button);
+    const row = ui.el("div", { class: "ack-row" });
+    const note = ui.el("span", { class: "small muted", text: help });
+    row.append(note, button);
+    node.append(row);
     button.addEventListener("click", async () => {
       button.disabled = true;
       try {
@@ -1043,8 +1056,13 @@
           else button.disabled = false;
           return;
         }
-        button.textContent = "Done";
-        ui.live(node)("Saved", "ok", button);
+        if (doneText) {
+          note.textContent = doneText;
+          button.remove();
+        } else {
+          button.textContent = "Done";
+          ui.live(node)("Saved", "ok", button);
+        }
         if (after) await after();
       } catch (_) {
         button.disabled = false;
@@ -1122,7 +1140,7 @@
     function rowFor(row, mode2, isFirst) {
       const title5 = row.title || row.team.name || "Entry";
       const sub = subLine(row);
-      const openBtn = newTabLink(siteHref(row), "Open site", "btn sm");
+      const openBtn = newTabLink(siteHref(row), "Open site", "btn sm") || newTabLink(row.video && row.video.url, "Watch video", "btn sm");
       const shotBtn = row.has_screenshot ? `<button type="button" class="btn sm" data-shot="${ui.esc(row.team_id)}" data-slug="${ui.esc(row.team.slug)}">View screenshot</button>` : "";
       const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title5)}" hidden></div>` : "";
       const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(row.team_id)}`;
@@ -1161,7 +1179,7 @@
     const active = tabs.find((t) => t.id === ctx.params.get("tab")) || tabs.find((t) => t.count > 0) || tabs[0];
     main.innerHTML = `<div class="ph"><div class="t"><h1>My teams</h1><p>Teams you are scoring.</p></div></div>` + banner + `<nav class="subtabs" aria-label="My teams filters">${tabs.map((t) => `<a href="#" data-tab="${t.id}"${t.id === active.id ? ' aria-current="page"' : ""}>${ui.esc(t.label)} <span class="count">${t.count}</span></a>`).join("")}</nav>` + tabs.map((t) => `<section data-panel="${t.id}"${t.id === active.id ? "" : " hidden"}>${t.panel}</section>`).join("");
     if (!locked && !resultsOut) {
-      await bindAcknowledgement(ctx, { node: main.querySelector("#conflicts"), id: "j.conflicts", label: "I don't know any of these teams", role: "judge" });
+      await bindAcknowledgement(ctx, { node: main.querySelector("#conflicts"), id: "j.conflicts", label: "I don't know any of these teams", role: "judge", help: "Checked the list and know nobody on it? Say so once.", doneText: "Saved: you don't know anyone on these teams." });
       if (ctx.alive && !ctx.alive()) return;
     }
     main.querySelectorAll("[data-tab]").forEach((a) => a.addEventListener("click", (e) => {
@@ -1334,8 +1352,10 @@
     const noFrames = !!ctx.noFrames;
     const judgeFirst = (queueRes.data && queueRes.data.judge_first) === "site" ? "site" : "video";
     const card = ui.entryCard({
+      // The team line names the team only when the entry has its own title,
+      // so a team without one doesn't read "SafeRoute / SafeRoute" (UX-1 A2).
       title: row.title || row.team.name,
-      team_name: row.team.name,
+      team_name: row.title && row.title !== row.team.name ? row.team.name : "",
       team_members: "",
       track: row.track,
       problem: row.problem,
@@ -1431,7 +1451,7 @@
       const n = doneCount(), m = orderedQueue.length;
       return `<div class="row-flex"><span class="small muted">${n} of ${m} scored</span><span class="grow"></span><a class="small muted" href="${ui.esc(href("judge", slug, "rubric"))}">Rubric &amp; brief</a></div><div class="bar" style="margin:6px 0 10px" role="img" aria-label="${n} of ${m} scored"><i style="width:${m ? Math.round(n / m * 100) : 0}%"></i></div>`;
     };
-    const right = `<div id="jsc-progress">${progressHTML()}</div><h2 id="score">Score</h2>` + (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : "") + `<div id="jsc-criteria">${rubric.map((crit, i) => critRow(crit, i === 0)).join("")}</div>` + (locked ? `<div class="field"><span class="lab">Comment for the team</span><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>` : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? " disabled" : ""}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? "Optional. Not shown with your name. Saves automatically." : "Optional. Not shown with your name. Add a score before writing a comment."}</p><p class="small muted" id="jsc-saved" aria-live="polite">${hasScore ? "" : "Tap a score. It saves straight away."}</p></div>`) + (locked ? "" : `<div class="danger-zone"><h2>Know this team?</h2><div class="setting"><button type="button" class="btn danger sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></div></div>`) + `<div class="note warn next-guard" id="jsc-guard" role="status" hidden></div><div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? " disabled" : ""}>Previous</button>${locked ? "" : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}<span class="small muted kbd-hint">${locked ? "" : '<span class="kbd">N</span> next \xB7 '}<span class="kbd">P</span> previous</span></div>`;
+    const right = `<div id="jsc-progress">${progressHTML()}</div><h2 id="score">Score</h2>` + (locked ? `<div class="note warn"><b>Scoring is locked.</b> Your scores are read-only.</div>` : "") + `<div id="jsc-criteria">${rubric.map((crit, i) => critRow(crit, i === 0)).join("")}</div>` + (locked ? `<div class="field"><span class="lab">Comment for the team</span><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>` : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback">${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? "Optional. Not shown with your name. Saves automatically." : "Optional. Not shown with your name. Saves once you tap a score."}</p><p class="small muted" id="jsc-saved" aria-live="polite">${hasScore ? "" : "Tap a score. It saves straight away."}</p></div>`) + (locked ? "" : `<div class="danger-zone"><h2>Know this team?</h2><div class="setting"><button type="button" class="btn danger sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></div></div>`) + `<div class="note warn next-guard" id="jsc-guard" role="status" hidden></div><div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? " disabled" : ""}>Previous</button>${locked ? "" : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}<span class="small muted kbd-hint">${locked ? "" : '<span class="kbd">N</span> next \xB7 '}<span class="kbd">P</span> previous</span></div>`;
     main.innerHTML = `<div class="page wide" style="padding:0;height:100%"><div class="focus"><section class="left">${left}</section><section class="right">${right}</section></div></div>`;
     const shotImg = main.querySelector("#jsc-shot");
     if (shotImg) {
@@ -1468,6 +1488,7 @@
       if (!box) return true;
       const val = box.value;
       if (val === savedComment) return true;
+      if (!Object.keys(scores).some((k) => scores[k] != null)) return true;
       const pending = (async () => {
         let r;
         try {
@@ -1567,10 +1588,7 @@
         if (prog) prog.innerHTML = progressHTML();
         if (rubric.every((c) => scores[c.id] != null)) hideGuard();
         const box = main.querySelector("#jsc-comment");
-        if (box.disabled) {
-          box.disabled = false;
-          main.querySelector("#jsc-comment-help").textContent = "Optional. Not shown with your name. Saves automatically.";
-        }
+        main.querySelector("#jsc-comment-help").textContent = "Optional. Not shown with your name. Saves automatically.";
         const saved2 = main.querySelector("#jsc-saved");
         if (saved2) saved2.textContent = "Score saved";
         if (box.value !== savedComment) flushComment();

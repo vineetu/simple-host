@@ -1,4 +1,5 @@
 import { href } from '../nav.js'
+import { labelList, joinAnd } from './_orgB-util.js'
 
 export function title () { return 'Entry' }
 
@@ -18,18 +19,6 @@ export function title () { return 'Entry' }
 //   POST /v1/hack/events/{slug}/teams/{team}/entry/include {}
 // returning the updated entryListItem.
 
-const PLAIN = {
-  title: 'project name', problem: 'the problem', tagline: 'the solution', audience: "who it's for",
-  track: 'a track', tools: 'tools and AI', maturity: 'what works today',
-  video_url: 'a video link', site: 'a published website', code_url: 'a code link', screenshot: 'a screenshot', description: 'a description',
-  one_of: 'a video or website'
-}
-function labelList (fields) { return (fields || []).map(f => PLAIN[f] || f) }
-function joinAnd (items) {
-  if (!items.length) return ''
-  if (items.length === 1) return items[0]
-  return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]
-}
 
 export async function render (ctx) {
   const { main, api: client, ui, event, role, params } = ctx
@@ -84,7 +73,7 @@ export async function render (ctx) {
     }
     if (e.status === 'submitted') {
       const when = e.submitted_at ? ' · ' + esc(ui.dateTime(e.submitted_at, ev)) : ''
-      const tightened = missing.length ? `<span>The organisers now also ask for ${esc(joinAnd(labelList(missing)))}. It stays submitted.</span>` : '<span>Judges can see this.</span>'
+      const tightened = missing.length ? `<span>The organisers now also ask for ${esc(joinAnd(labelList(missing)))}. It stays submitted.</span>` : `<span>${['judging', 'results', 'archived'].includes(ev.stage) ? 'Judges can see this.' : 'Judges see this once judging starts.'}</span>`
       return `<div class="entry-status submitted"><div class="t"><b>Submitted${when}</b>${tightened}</div></div>`
     }
     const deadlineBit = team.deadline ? ('Deadline' + (team.extended ? ' with their extension' : '') + ': ' + esc(ui.dateTime(team.deadline, ev)) + '.') : ''

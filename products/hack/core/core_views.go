@@ -361,7 +361,7 @@ func (h *Hack) entryProgressJSON(ctx context.Context, ev hackmodel.Event, team h
 		{"id": "evidence", "done": p.EvidenceDone, "summary": p.Summary, "missing": p.EvidenceMissing},
 		{"id": "submit", "done": e.Status() == "submitted", "status": e.Status(), "submitted_at": RFC3339(e.SubmittedAt), "auto": e.SubmitAuto},
 	}
-	return map[string]any{"steps": steps, "next": p.Next, "deadline": RFC3339(st.Deadline), "deadline_is_extension": st.HasOverride, "event_deadline": RFC3339(st.EventDeadline), "server_now": RFC3339Time(p.Now)}, nil
+	return map[string]any{"steps": steps, "next": p.Next, "title": e.Title, "deadline": RFC3339(st.Deadline), "deadline_is_extension": st.HasOverride, "event_deadline": RFC3339(st.EventDeadline), "server_now": RFC3339Time(p.Now)}, nil
 }
 
 // scoringStage reports whether judges may score in the event's stage:

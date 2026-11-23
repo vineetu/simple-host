@@ -196,6 +196,19 @@ func (s *Service) newsText(ctx context.Context, q sqlkit.Querier, eventTitle, zo
 			return "", "", false
 		}
 		return "Message from the organisers: " + oneLine(body), "team", true
+	case hackmembers.NoticeRequestAnswered, hackmembers.NoticeApplicationDecided:
+		// "You're on the team" holds only while you are on that team, and
+		// "approved, welcome" only until you are on a team.
+		m, err := hackmembers.Member(ctx, q, n.EventID, n.UserID, hackmembers.NoLock)
+		if err != nil {
+			return "", "", false
+		}
+		if n.Kind == hackmembers.NoticeRequestAnswered && n.Detail == "accepted" && m.TeamID.String != n.TeamID {
+			return "", "", false
+		}
+		if n.Kind == hackmembers.NoticeApplicationDecided && m.TeamID.Valid {
+			return "", "", false
+		}
 	}
 	if text, section, ok := teamNewsText(eventTitle, team, n); ok {
 		return text, section, true
@@ -268,25 +281,26 @@ func (s *Service) judgingNoticeLine(ctx context.Context, q sqlkit.Querier, n mod
 	if !m.Judge(nil) {
 		return "", false, nil
 	}
-	total, count, err := judges.QueueCounts(ctx, ev, n.UserID)
+	_, count, err := judges.QueueCounts(ctx, ev, n.UserID)
 	if err != nil {
 		return "", false, err
 	}
 	if n.Kind == hackmembers.NoticeJudgingOpen {
-		return judgingOpenLine(total, count), true, nil
+		line, ok := judgingOpenLine(count)
+		return line, ok, nil
 	}
 	line, ok := judgingReminderLine(ev, n.Detail, count, zone)
 	return line, ok, nil
 }
 
-func judgingOpenLine(total, count int) string {
-	switch {
-	case total == 0:
-		return "Judging is open. No teams are in your queue yet."
-	case count == 0:
-		return "Judging is open. You've scored every team in your queue."
+// judgingOpenLine asks for something only while there is a team left to
+// score: a judge who is done, or whose teams are all ones they know, has
+// nothing to do, and Home already says so (UX-1 S4, S5).
+func judgingOpenLine(count int) (string, bool) {
+	if count == 0 {
+		return "", false
 	}
-	return "Judging is open: you have " + teamCount(count) + " to score."
+	return "Judging is open: you have " + teamCount(count) + " to score.", true
 }
 
 func judgingReminderLine(ev model.Event, detail string, count int, zone string) (string, bool) {

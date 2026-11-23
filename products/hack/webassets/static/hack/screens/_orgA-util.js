@@ -30,6 +30,41 @@ export function fileAsArrayBuffer(file) {
   })
 }
 
+function zoneOffsetLabel(zone, date) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(date)
+    const raw = (parts.find(p => p.type === 'timeZoneName') || {}).value || ''
+    const m = raw.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/)
+    if (!m) return ''
+    return 'UTC' + m[1] + (m[2] ? ':' + m[2] : '')
+  } catch { return '' }
+}
+// A select of IANA zones, each showing its abbreviation and offset (spec:
+// "Asia/Jakarta · WIB, UTC+7"). Intl.supportedValuesOf is young enough that
+// a browser without it falls back to a short curated list (still including
+// whatever zone the event is already set to, so saving never loses it).
+function zoneOptions(ui, current) {
+  let zones
+  try { zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : null } catch { zones = null }
+  if (!zones || !zones.length) {
+    zones = ['UTC', 'Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Singapore', 'Asia/Kolkata',
+      'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Australia/Sydney']
+  }
+  if (current && !zones.includes(current)) zones = [current, ...zones]
+  const now = new Date()
+  return zones.slice().sort().map(z => {
+    const abbr = ui.zoneAbbr ? ui.zoneAbbr(z, now) : ''
+    const off = zoneOffsetLabel(z, now)
+    return { zone: z, label: z + (abbr || off ? ' · ' + [abbr, off].filter(Boolean).join(', ') : '') }
+  })
+}
+
+// zoneOptionsHTML is the options of the one time-zone <select> (Create
+// event and Event page -> Basics), with `current` selected.
+export function zoneOptionsHTML(ui, current) {
+  return zoneOptions(ui, current).map(z => `<option value="${esc(z.zone)}"${z.zone === current ? ' selected' : ''}>${esc(z.label)}</option>`).join('')
+}
+
 // moveItem reorders arr in place, swapping i with i-1 (dir<0) or i+1 (dir>0).
 export function moveItem(arr, i, dir) {
   const j = i + dir
@@ -41,10 +76,10 @@ export function moveItem(arr, i, dir) {
 // that explains why, for either case these settings-style screens (Event
 // page, People) share: a platform-admin inspection, or -- passing the
 // event as the third argument -- an archived event (S14: one note,
-// "Settings can't change any more", not sprinkled per section). Copy
-// buttons and the People role filter stay live either way (marked
-// data-admin-live).
-export function adminLock(main, admin, ev) {
+// "Settings can't change any more", not sprinkled per section; a screen
+// that is not Settings passes its own `endedText`). Copy buttons and the
+// People role filter stay live either way (marked data-admin-live).
+export function adminLock(main, admin, ev, endedText) {
   const archived = !admin && ev && ev.stage === 'archived'
   if (!admin && !archived) return
   const banner = document.createElement('div')
@@ -52,7 +87,7 @@ export function adminLock(main, admin, ev) {
   banner.setAttribute('role', 'alert')
   banner.textContent = admin
     ? 'Viewing as platform admin. Everything here is read only.'
-    : "This event has ended. Settings can't change any more."
+    : endedText || "This event has ended. Settings can't change any more."
   main.insertBefore(banner, main.firstChild)
   main.querySelectorAll('button, input, textarea, select').forEach(n => {
     if (n.hasAttribute('data-admin-live')) return

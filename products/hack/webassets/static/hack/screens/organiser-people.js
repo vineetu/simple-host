@@ -59,10 +59,9 @@ export async function render(ctx) {
   function applicationCard(a) {
     const esc = ui.esc
     const pill = a.joined_via === 'link' ? 'Join link' : 'Applied'
-    const verb = a.joined_via === 'link' ? 'Joined with your link' : 'Applied'
     return `<section class="card" data-app="${esc(a.user_id)}"><h2>${esc(a.display_name)}</h2>
 <p class="sub">${esc(a.email || '')} · <span class="pill">${pill}</span></p>
-<p class="small muted">${verb} ${esc(ui.dateTime(a.joined_at, ev))}</p>
+<p class="small muted">Applied ${esc(ui.dateTime(a.joined_at, ev))}</p>
 ${appFacts(ui, a)}
 ${(a.answers || []).map(q => `<p><b>${esc(q.prompt)}</b><br>${q.answer ? esc(q.answer) : '<span class="muted">No answer</span>'}</p>`).join('')}
 <div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger" type="button" data-app-reject title="${esc(a.display_name)} can't join a team or take part in this event, and you can't change this decision later. They can still leave and apply again while your event takes applications, and you'd decide again.">Reject</button></div></section>`
@@ -129,7 +128,7 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
 
 <p><a href="${ui.esc(resolve('o.signup', ev.slug).href)}">Sign-up settings</a> · <a href="${ui.esc(resolve('o.organisers', ev.slug).href)}">Organisers</a></p>`
 
-    adminLock(main, admin, ev)
+    adminLock(main, admin, ev, "This event has ended, so you can't approve or remove anyone.")
 
 
     $('role-filter').addEventListener('change', () => { roleFilter = $('role-filter').value; paint() })
@@ -163,6 +162,7 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
         if (p2.ok) people = p2.data || []
         setLive('Application ' + decision + '.', 'ok')
         paint()
+        ctx.refreshBadges?.()
       } catch (e) { setLive('Cannot reach the server.', 'err', btn); btn.disabled = false }
     }
 

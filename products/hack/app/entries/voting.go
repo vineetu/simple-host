@@ -232,24 +232,27 @@ func (s *Service) ReadPublicVote(ctx context.Context, ev hackmodel.Event, now fu
 	return out, err
 }
 
-// ReadMyVote returns the selection and eligibility for a signed-in visitor.
-func (s *Service) ReadMyVote(ctx context.Context, ev hackmodel.Event, voterID, username string) (hackmodel.Event, string, bool, error) {
-	selected, err := repo.OwnVote(ctx, s.db, ev.ID, voterID)
+// ReadMyVote returns the selection, eligibility and the voter's own team (which they cannot vote for) for a signed-in visitor.
+func (s *Service) ReadMyVote(ctx context.Context, ev hackmodel.Event, voterID, username string) (selected string, eligible bool, ownTeam string, err error) {
+	selected, err = repo.OwnVote(ctx, s.db, ev.ID, voterID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return ev, "", false, err
+		return "", false, "", err
 	}
-	eligible := username != ""
+	if ownTeam, err = repo.VoterTeamSlug(ctx, s.db, ev.ID, voterID); err != nil {
+		return "", false, "", err
+	}
+	eligible = username != ""
 	if eligible {
 		v, err := eventrepo.GetVotingSettings(ctx, s.db, ev.ID)
 		if err != nil {
-			return ev, "", false, err
+			return "", false, "", err
 		}
 		eligible, err = repo.VoterEligible(ctx, s.db, ev.ID, v.Eligibility, voterID)
 		if err != nil {
-			return ev, "", false, err
+			return "", false, "", err
 		}
 	}
-	return ev, selected, eligible, nil
+	return selected, eligible, ownTeam, nil
 }
 
 // ValidateVotingEligibility checks the requested voter rule before parsing the window.

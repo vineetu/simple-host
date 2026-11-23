@@ -38,7 +38,7 @@ func (h *OAuthHandler) registerSSO(mux *http.ServeMux) {
 	mux.Handle("GET /v1/sso/start", ssoNavigationFirst(assets, httpx.RateLimitByIP(h.IPLimiter, http.HandlerFunc(h.startSSO))))
 	mux.Handle("GET /v1/sso/hop", h.ssoApex(httpx.RateLimitByIP(h.IPLimiter, assets.AdminUICSP(http.HandlerFunc(h.hopSSO)))))
 	mux.Handle("POST /v1/sso/consent", h.ssoApex(httpx.RateLimitByIP(h.IPLimiter, http.HandlerFunc(h.hopSSO))))
-	mux.Handle("POST /v1/sso/session", h.ssoApex(httpx.RateLimitByIP(h.IPLimiter, http.HandlerFunc(h.bootstrapSSO))))
+	mux.Handle("POST /v1/sso/session", h.ssoApex(httpx.RateLimitByIP(h.SSOSessionIPLimiter, http.HandlerFunc(h.bootstrapSSO))))
 	mux.Handle("GET /v1/sso/signed-out", h.ssoApex(httpx.RateLimitByIP(h.IPLimiter, assets.AdminUICSP(http.HandlerFunc(h.signedOutSSO)))))
 	mux.Handle("POST /v1/sso/signed-out", h.ssoApex(httpx.RateLimitByIP(h.IPLimiter, assets.AdminUICSP(http.HandlerFunc(h.signedOutSSO)))))
 }

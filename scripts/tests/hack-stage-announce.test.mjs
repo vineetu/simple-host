@@ -85,7 +85,7 @@ test('backward stage moves do not offer an announcement dialog', async () => {
   }
 })
 
-test('forward moves and publishing default to Don’t send with editable text', async () => {
+test('forward moves and publishing default to Don’t post with editable text', async () => {
   const previous = globalThis.document
   globalThis.document = { createElement: () => ({ innerHTML: '' }) }
   try {
@@ -98,13 +98,22 @@ test('forward moves and publishing default to Don’t send with editable text', 
       }
       await offerStageAnnouncement(ctx, { move, back: false, emailableCount: 2 })
       assert.equal(dialog.focus, 0)
-      assert.equal(dialog.buttons[0].label, "Don't send")
+      assert.equal(dialog.buttons[0].label, "Don't post")
       assert.equal(dialog.buttons[0].className, 'btn primary')
-      assert.equal(dialog.buttons[1].label, 'Send')
+      assert.equal(dialog.buttons[1].label, 'Post')
       assert.equal(dialog.buttons[1].className, 'btn')
       assert.match(dialog.body.innerHTML, /<input[^>]*id="sa-title"/)
       assert.match(dialog.body.innerHTML, /<textarea[^>]*id="sa-body"/)
       assert.doesNotMatch(dialog.body.innerHTML, /readonly/)
     }
   } finally { globalThis.document = previous }
+})
+
+test('no dialog when nobody has joined the event', async () => {
+  const ctx = {
+    event: { event: { slug: 'demo', title: 'Demo' }, organiser: { counts: { participants: 0 } } },
+    api: { api: () => assert.fail('must not post') },
+    ui: { esc: s => s, dialog: async () => assert.fail('must not open') }
+  }
+  await offerStageAnnouncement(ctx, { move: 'open', back: false, emailableCount: 0 })
 })

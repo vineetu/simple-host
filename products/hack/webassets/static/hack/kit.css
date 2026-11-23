@@ -91,6 +91,8 @@ p{margin:0 0 10px}
 .col{display:flex;flex-direction:column;min-width:0;min-height:0}
 .status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 24px;border-bottom:1px solid var(--rule);background:var(--paper-hi);font-size:13.5px;min-height:46px}
 .status .grow{flex:1}
+/* The deadline gives way, not the stage track (UX-1 organiser D15). */
+@media (min-width:761px){.status{flex-wrap:nowrap}.status .dl{flex:0 100 auto;min-width:4em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status .pill,.status .btn{flex:none}.status .stages{flex:0 1 auto;justify-content:flex-end}}
 .content{overflow-y:auto;flex:1}
 /* SIM-415: content layout follows the space it has, not the window. The
    app's scroll area (and inside it a sub-page column, .sp) is the container;
@@ -326,6 +328,8 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
 .tour-ring{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px;transition:outline-offset .15s}
 .tour-card{position:fixed;z-index:55;width:min(340px,calc(100vw - 24px));background:var(--surface);border:1px solid var(--rule-hi);border-radius:12px;box-shadow:0 14px 36px rgba(43,41,37,.22);padding:16px 18px}
 .tour-card:focus{outline:none}
+/* A confirm dialog always wins: the walkthrough card waits behind it (UX-1 B4). */
+body:has(.scrim) .tour-card{display:none}
 .tour-progress{font-size:11.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
 .tour-title{font-size:16px;margin:0 0 6px}
 .tour-body{font-size:13.5px;color:var(--line-soft);margin:0 0 14px}
@@ -373,7 +377,9 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
   body{font-size:15px}
   .app{display:block;height:auto}
   .side{display:none}
-  .app.menu-open .side{display:flex;position:fixed;inset:0 20% 0 0;z-index:50;box-shadow:0 0 0 100vmax rgba(43,41,37,.3)}
+  /* Menu/More is a full-screen pane with its own Close (atlas shell.phone; UX-1 A6). */
+  .app.menu-open .side{display:flex;position:fixed;inset:0;z-index:50;overflow-y:auto}
+  .app.menu-open .menu-close{display:inline-flex}
   .phone-top{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30;background:var(--paper-hi);border-bottom:1px solid var(--rule);padding:8px 12px}
   .phone-top .switcher,.phone-top .brand{margin:0;width:auto;flex:1;min-width:0;padding:4px 6px}
   /* Cosmetic #6: the Menu button measured 32px tall against the ~44px
@@ -599,6 +605,11 @@ input[type=file].input::file-selector-button{font:inherit;font-size:13.5px;font-
 .sp-head .btn{grid-column:2;grid-row:1 / span 2;align-self:end}
 
 /* card foot: the one place a form's Save lives */
+/* A page's closing action, set apart under its lists (Your events: Create event). */
+.page-links{margin-top:16px}
+.ack-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin-top:12px}
+.list>.ack-row{margin:0;padding:10px 14px;border-top:1px solid var(--rule);background:var(--paper-hi)}
+.page-foot{display:flex;margin-top:24px;padding-top:16px;border-top:1px solid var(--rule)}
 .card-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:4px -18px -16px;padding:12px 18px;border-top:1px solid var(--rule);background:var(--paper-hi);border-radius:0 0 10px 10px}
 .card-foot .hint{margin-right:auto;font-size:13px;color:var(--line-soft)}
 .card-foot .hint.dirty{color:var(--warn);font-weight:550}
@@ -756,6 +767,7 @@ button.toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .brand .mark-short{display:none}
 .side-toggle{flex:none;display:inline-grid;place-items:center;width:30px;height:30px;margin-top:8px;border-radius:var(--r-sm);border:0;background:none;color:var(--line-faint);cursor:pointer;padding:0}
 .side-toggle:hover{background:#e6dec9;color:var(--line)}
+.menu-close{display:none;align-items:center;margin:8px 0 0 auto;min-height:44px;padding:5px 12px;border:1px solid var(--rule-hi);border-radius:7px;background:var(--surface);font:inherit;font-size:13.5px;color:var(--line);cursor:pointer}
 .side-toggle .ico{width:18px;height:18px}
 @media (min-width:761px){
   .app{transition:grid-template-columns .16s ease}
@@ -1240,6 +1252,9 @@ input[type=date].input,input[type=datetime-local].input,input[type=time].input{m
 /* --- a control and its button(s) on one row --------------------------- */
 .control-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2)}
 .control-row > .input,.control-row > .select{flex:1 1 200px;width:auto;min-width:0}
+/* A file picker keeps its "No file chosen" readable: on a phone it takes the
+   whole row and its button wraps below (UX-1 participant #27). */
+@media (max-width:760px){.control-row > .input[type=file]{flex-basis:100%}}
 .control-row > .btn,.copy > .btn{flex:none;min-height:var(--control-h)}
 .control-row > .check{margin:0}
 .control-row + .control-row{margin-top:var(--s2)}
@@ -1387,6 +1402,11 @@ details.card > :is(.field,.field-row,.check,.form-actions,.help):last-child,
    .scrim 50-60), but above the phone sticky save bars it shares the
    bottom-right corner with at narrow widths (see the bump below). */
 .assistant-fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:45;border-radius:999px;box-shadow:0 10px 24px rgba(43,41,37,.18)}
+/* The Ask pill never covers a main action (UX-1 organiser D1): above a
+   sticky save bar at every width, and the page keeps room at its end so
+   the last row can scroll clear of the pill. */
+body:has(.sticky-foot,.card-foot.sticky) .assistant-fab{bottom:calc(76px + env(safe-area-inset-bottom))}
+body:has(.assistant-fab) .content > .page{padding-bottom:96px}
 .assistant-panel{position:fixed;top:0;right:0;bottom:0;width:400px;z-index:50;background:var(--surface);border-left:1px solid var(--rule-hi);box-shadow:0 16px 40px rgba(43,41,37,.18);display:flex;flex-direction:column;min-height:0}
 .assistant-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 4px}
 .assistant-head h2{font-size:16px;flex:1;min-width:0}

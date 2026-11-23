@@ -80,7 +80,7 @@ export function bindChecklist(node, { api, slug, refresh, alive = () => true, ui
 }
 
 // Rubric acknowledgements bind to the version delivered with the displayed criteria.
-export async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after, version }) {
+export async function bindAcknowledgement(ctx, { node = ctx.main, id, label, role, after, version, help = '', doneText = '' }) {
   const { ui, api, event } = ctx
   if (id !== 'j.conflicts' && !version) return
   const base = `/v1/hack/events/${encodeURIComponent(event.event.slug)}/checklist`
@@ -92,7 +92,12 @@ export async function bindAcknowledgement(ctx, { node = ctx.main, id, label, rol
   const displayedVersion = version ?? item.version
   const button = ui.el('button', { class: 'btn', type: 'button', text: label })
   button.disabled = !!ui.writeLockReason(event.event, event.admin_view)
-  node.append(button)
+  // The button sits in its own row with a line saying what it records
+  // (UX-1 L1), and that line says what was recorded once it is pressed.
+  const row = ui.el('div', { class: 'ack-row' })
+  const note = ui.el('span', { class: 'small muted', text: help })
+  row.append(note, button)
+  node.append(row)
   button.addEventListener('click', async () => {
     button.disabled = true
     try {
@@ -104,8 +109,8 @@ export async function bindAcknowledgement(ctx, { node = ctx.main, id, label, rol
         else button.disabled = false
         return
       }
-      button.textContent = 'Done'
-      ui.live(node)('Saved', 'ok', button)
+      if (doneText) { note.textContent = doneText; button.remove() }
+      else { button.textContent = 'Done'; ui.live(node)('Saved', 'ok', button) }
       if (after) await after()
     } catch (_) { button.disabled = false; ui.live(node)('Cannot reach the server.', 'err', button) }
   })

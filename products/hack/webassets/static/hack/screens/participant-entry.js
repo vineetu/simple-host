@@ -194,7 +194,7 @@ function statusHTML (ui, status, data, { rules, deadlineText, submittedAtText })
   // incomplete. Both lines say so before it happens.
   const lines = ['Submit by ' + esc(deadlineText || 'the deadline') + '.']
   if (complete) lines.push('If you don’t, it is submitted for you at the deadline.')
-  else lines.push('Not complete. It will still be judged, marked incomplete.')
+  else lines.push('Not complete yet. If it is still not complete at the deadline, it is judged as it is, marked incomplete.')
   return '<div class="entry-status draft" id="en-status"><div class="t"><b>' + title + '</b><span>' + lines.join(' ') + '</span>' + need + '</div><button class="btn primary" type="button" id="en-submit">Submit entry</button></div>'
 }
 
@@ -707,6 +707,17 @@ function paintReadOnly (ctx, ev, data, { rules, hasTracks, status }) {
     return
   }
 
+  // Entries just closed and the deadline sweep has not settled this draft
+  // yet: say what the sweep is about to do, never "nothing was entered".
+  if (status === 'draft' && data.refusal === 'submissions_closed' && hasAnyContent(entry)) {
+    const bodyCard = buildReadOnlyCard(ctx, ev, entry, !data.complete, data.site, rules)
+    const line = data.complete ? 'It is being submitted for you automatically.' : 'Not complete. It will still be judged, marked incomplete.'
+    main.innerHTML = head +
+      '<div class="entry-status ' + (data.complete ? 'submitted' : 'incomplete') + '" role="status"><div class="t"><b>Entries closed</b><span>' + esc(line) + ' This is what the judges see.</span></div></div>' +
+      '<div class="split"><div>' + bodyCard + '</div><aside>' + rubricCardHTML(ui, main.__enRubric) + '</aside></div>'
+    return
+  }
+
   // Nothing was ever entered.
   const closedText = CLOSED_TEXT[data.refusal] || CLOSED_TEXT.submissions_closed
   const closedSentence = closedText.replace(/\.+$/, '') + '. This is what the judges see.'
@@ -734,11 +745,13 @@ function buildReadOnlyCard (ctx, ev, entry, incomplete, site = {}, rules) {
       : '(none)'
     extra += '<dt>Website</dt><dd>' + website + '</dd>'
   }
+  // A line the event switched off is left out unless something is in it.
+  const shown = (f, has) => has || mode(rules, false, f) !== 'off'
   const videoLink = entry.video_url ? safeHref(entry.video_url) : ''
-  extra += '<dt>Video</dt><dd>' + (videoLink ? '<a href="' + esc(videoLink) + '" target="_blank" rel="noopener">' + esc(entry.video_url) + '</a>' : '(none)') + '</dd>'
+  if (shown('video_url', entry.video_url)) extra += '<dt>Video</dt><dd>' + (videoLink ? '<a href="' + esc(videoLink) + '" target="_blank" rel="noopener">' + esc(entry.video_url) + '</a>' : '(none)') + '</dd>'
   const codeLink = entry.code_url ? safeHref(entry.code_url) : ''
-  extra += '<dt>Code</dt><dd>' + (codeLink ? '<a href="' + esc(codeLink) + '" target="_blank" rel="noopener">' + esc(entry.code_url) + '</a>' : '(none)') + '</dd>'
-  extra += '<dt>Screenshot</dt><dd>' + (entry.has_screenshot ? '<span id="en-ro-shot">Loading…</span>' : '(none)') + '</dd>'
+  if (shown('code_url', entry.code_url)) extra += '<dt>Code</dt><dd>' + (codeLink ? '<a href="' + esc(codeLink) + '" target="_blank" rel="noopener">' + esc(entry.code_url) + '</a>' : '(none)') + '</dd>'
+  if (shown('screenshot', entry.has_screenshot)) extra += '<dt>Screenshot</dt><dd>' + (entry.has_screenshot ? '<span id="en-ro-shot">Loading…</span>' : '(none)') + '</dd>'
   extra += '</dl></section>'
   wrap.innerHTML += extra
   if (entry.has_screenshot) {

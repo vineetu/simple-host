@@ -6,6 +6,8 @@
 // new membership). The team link never admits anyone to the event itself
 // -- a non-member is told to apply or ask the organiser (spec.json
 // public-team-link decisions).
+import { href } from '../nav.js'
+
 function codes(ui) { return { ...ui.ERROR_MESSAGES, rate_limited: 'Too many tries at once. Wait a moment and try again.' } }
 
 function codeFromPath() {
@@ -44,7 +46,8 @@ export async function render(ctx) {
   const you = info.you
   const slug = ev.slug
   const openHref = '/e/' + encodeURIComponent(slug || '')
-  const teamHref = '/e/' + encodeURIComponent(slug || '') + '/team'
+  // The participant's Team screen, not the event's Overview.
+  const teamHref = href('participant', slug || '', 'team')
 
   const header = `<section class="hero"><h1>Join ${esc(team.name || 'this team')}</h1><p>A team in ${esc(ev.title || 'this event')}</p></section>`
 
@@ -118,7 +121,7 @@ export async function render(ctx) {
     if (!jr.ok) { ui.toast(ui.errText(jr, { codes: CODES }), main, true); joinBtn.disabled = false; return }
     // A real navigation, same reasoning as public-join.js: the cached event
     // list from this load predates the just-created team membership.
-    try { sessionStorage.setItem('sh-selfjoin-' + slug, '1') } catch (e) {}
-    location.assign(teamHref)
+    try { sessionStorage.setItem('sh-selfjoin-' + slug, 'joined') } catch (e) {}
+    location.assign(teamHref + '&tab=members')
   })
 }

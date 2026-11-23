@@ -1,5 +1,5 @@
 import { href, resolve } from '../nav.js'
-import { fmtBytes } from './_orgB-util.js'
+import { fmtBytes, labelList, joinAnd } from './_orgB-util.js'
 import { wantsSection } from '../platform.js'
 
 export function title() { return 'Entries' }
@@ -17,18 +17,6 @@ export function title() { return 'Entries' }
 // flagged row or on organiser-entry-detail.js (POST .../teams/{team}/entry/
 // exclude and /include).
 
-const PLAIN = {
-  title: 'project name', problem: 'the problem', tagline: 'the solution', audience: "who it's for",
-  track: 'a track', tools: 'tools and AI', maturity: 'what works today',
-  video_url: 'a video link', site: 'a published website', code_url: 'a code link', screenshot: 'a screenshot', description: 'a description',
-  one_of: 'a video or website'
-}
-function joinAnd (items) {
-  if (!items.length) return ''
-  if (items.length === 1) return items[0]
-  return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1]
-}
-function labelList (fields) { return fields.map(f => PLAIN[f] || f) }
 
 export async function render (ctx) {
   const { main, api: client, ui, event, role } = ctx

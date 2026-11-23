@@ -49,6 +49,8 @@ function entrySectionHTML (ctx, ev, progress) {
   const esc = ui.esc
   const team = stepByID(progress, 'team'), summary = stepByID(progress, 'summary'), evidence = stepByID(progress, 'evidence'), submit = stepByID(progress, 'submit')
 
+  // No deadline means entries stay open until the stage moves on.
+  const entriesOpen = !['judging', 'results', 'archived'].includes(ev.stage) && (!progress.deadline || new Date(progress.server_now || Date.now()) < new Date(progress.deadline))
   const rows = []
   function row(step, num, label, detail, action) {
     const id = 'p.' + ['team', 'summary', 'evidence', 'submit'][num - 1]
@@ -67,11 +69,11 @@ function entrySectionHTML (ctx, ev, progress) {
   const summarySub = !team.done ? "Problem, solution, who it's for, track, tools and what works." : summary.done
     ? ('All ' + (summary.of || 0) + ' lines filled.')
     : ((summary.filled || 0) + ' of ' + (summary.of || 0) + ' filled' + ((summary.missing || []).length ? ': add ' + joinAnd(summary.missing.map(f => PLAIN[f] || f)) : '') + '.')
-  const r2 = row(summary, 2, 'Fill in the summary card', summarySub, (!summary.done && team.done) ? '<a class="btn quiet sm act" href="' + esc(entryHref) + '">Edit</a>' : '')
+  const r2 = row(summary, 2, 'Fill in the summary card', summarySub, (!summary.done && team.done && entriesOpen) ? '<a class="btn sm act" href="' + esc(entryHref) + '">Edit</a>' : '')
 
   const evidenceTitle = evidence.summary ? ('Add ' + evidence.summary) : 'Show your work'
   const evidenceSub = !team.done ? 'A video or your website, as the event asks.' : evidence.done ? 'Done.' : (evidence.summary && evidence.summary.indexOf(' or ') >= 0 && evidence.summary.indexOf(', and ') < 0 ? 'Nothing yet. One of these is enough.' : 'Nothing yet.')
-  const evidenceAction = (!evidence.done && team.done) ? ('<a class="btn sm act" href="' + esc(ctx.event.checklist?.items.find(i => i.id === 'p.evidence')?.link?.href || entryHref) + '">' + (ctx.event.checklist?.items.find(i => i.id === 'p.evidence')?.target_id === 'p.website' ? 'Publish website' : 'Add evidence') + '</a>') : ''
+  const evidenceAction = (!evidence.done && team.done && entriesOpen) ? ('<a class="btn sm act" href="' + esc(ctx.event.checklist?.items.find(i => i.id === 'p.evidence')?.link?.href || entryHref) + '">' + (ctx.event.checklist?.items.find(i => i.id === 'p.evidence')?.target_id === 'p.website' ? 'Publish website' : 'Open Entry') + '</a>') : ''
   const r3 = row(evidence, 3, evidenceTitle, evidenceSub, evidenceAction)
 
   let submitSub, submitAction = ''
@@ -86,6 +88,10 @@ function entrySectionHTML (ctx, ev, progress) {
     submitSub = submit.auto ? 'Submitted automatically at the deadline.' : ('Submitted' + (submit.submitted_at ? ' ' + ui.dateTime(submit.submitted_at, ev) : '') + '.')
   } else if (!team.done) {
     submitSub = 'Then the judges can see it. You can still change it after.'
+  } else if (!entriesOpen) {
+    // Entries just closed and the deadline sweep has not settled the draft
+    // yet: say what it is about to do.
+    submitSub = progress.next === 'submit' ? 'Entries are closed. It is being submitted for you automatically.' : 'Entries are closed. Not complete. It will still be judged, marked incomplete.'
   } else if (progress.next === 'submit') {
     submitSub = 'Ready. Then the judges can see it. You can still change it after.'
     submitAction = '<button type="button" class="btn primary sm act" id="ph-submit-step">Submit</button>'
@@ -95,7 +101,6 @@ function entrySectionHTML (ctx, ev, progress) {
   const submitSettled = submit.status === 'submitted' || submit.status === 'not_submitted'
   const r4 = row({ done: submit.status === 'submitted', opt: submit.status === 'not_submitted' }, 4, 'Submit before the deadline', submitSub, submitAction)
 
-  const entriesOpen = !['judging', 'results', 'archived'].includes(ev.stage) && new Date(progress.server_now || Date.now()) < new Date(progress.deadline)
   const countdownHTML = entriesOpen && ((progress.deadline && !submitSettled) || (progress.deadline && submit.status === 'submitted'))
     ? '<span class="countdown" data-deadline="' + esc(progress.deadline) + '"><span class="v"></span> <small>' + (submit.status === 'submitted' ? 'left to make changes' : 'left') + '</small></span>'
     : ''
@@ -383,7 +388,9 @@ export async function render(ctx) {
     } else if (next === 'summary') {
       const step = stepByID(progress, 'summary')
       const missingWords = (step.missing || []).map(f => PLAIN[f] || f)
-      heroTitle = 'Finish your summary card' + (missingWords.length ? ': add ' + joinAnd(missingWords) : '')
+      // Up to two lines are named; more read as a count (the checklist
+      // below names them all).
+      heroTitle = 'Finish your summary card' + (missingWords.length > 2 ? ': ' + missingWords.length + ' lines left' : missingWords.length ? ': add ' + joinAnd(missingWords) : '')
       heroLabel = 'Finish your entry'
       heroHref = entryHref
     } else if (next === 'evidence') {
@@ -392,7 +399,7 @@ export async function render(ctx) {
       heroLabel = 'Publish your website'
       heroHref = websiteHref
     } else if (next === 'submit') {
-      heroTitle = me.team.name + ' is ready. Submit it so judges can see it.'
+      heroTitle = (progress.title || me.team.name) + ' is ready. Submit it so judges can see it.'
       // The Your-entry card below carries the real Submit button (with its
       // own confirm); this link is a plain fallback straight to Entry.
       heroLabel = 'Go to your entry'
@@ -400,7 +407,7 @@ export async function render(ctx) {
     } else {
       // next === '' : nothing left in `progress.steps` to do, and status is
       // "submitted" (the only other value `submitStep.status` can be here).
-      heroTitle = me.team.name + ' is submitted'
+      heroTitle = (progress.title || me.team.name) + ' is submitted'
       heroNote = teamDeadline ? ('You can still change it until ' + teamDeadline + '. It stays submitted.') : 'It stays submitted.'
       heroLabel = 'View your entry'
       heroHref = entryHref

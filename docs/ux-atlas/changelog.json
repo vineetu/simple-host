@@ -1,5 +1,17 @@
 [
   {
+    "date": "2026-11-23",
+    "what": "UX-1 (judge, public, shell): judge Overview layout and locking words brought in step with the product (next-step card shows one step; finishing judging locks scoring); Your events titled as shipped, with Create event at the bottom and an only-past state; Ended maps to API stage archived and the public pill uses the app's stage words; phone Menu/More is a full-screen pane with Close. Account: both email preferences are switches, the sign-in alert is off and says why for a key-only account, and the unused Theme row is gone. Shell: the status header shows only dates that still matter at the stage, the copy-link buttons go once the link can't be used, sidebar badges refresh after a People decision, and the Ask pill sits above sticky Save bars."
+  },
+  {
+    "date": "2026-11-23",
+    "what": "UX-1 participant fixes: entry and Home say what happens in the minutes after the deadline, Members describes locked, full and frozen teams, Messages with the organisers moves below the member list, joining lands on Members with 'You joined' or 'You started', an invite row shows size and track, the summary-card headline shortens past two missing lines, and public-apply's not-accepted state matches leave-then-apply-again."
+  },
+  {
+    "date": "2026-11-23",
+    "what": "UX-1 organiser fixes: Create event puts the title first and uses the time zone select; Home is headed Home; Tell participants? buttons read Don't post / Post and the dialog is skipped when nobody has joined; judging shortfall reads 'Needs N judges, M can score it'; Entries and Teams primary actions follow where settings live now; plain wording for conflicts, People and the publish confirm."
+  },
+  {
     "date": "2026-11-12",
     "what": "SIM-442: Participants browse Submissions from Judging onward; organisers can show them publicly from Event page."
   },

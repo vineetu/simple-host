@@ -67,9 +67,15 @@ type OAuthHandler struct {
 	SignIn        *ProviderSignIn
 	IPLimiter     *httpx.RateLimiter
 	SSOKeyLimiter *httpx.RateLimiter
-	ssoEnabled    bool
-	LookupIP      func(ctx context.Context, host string) ([]net.IP, error)
-	LookupCNAME   func(ctx context.Context, host string) (string, error)
+	// SSOSessionIPLimiter is POST /v1/sso/session's own per-IP budget. That
+	// route runs on every app page load, so many people behind one venue
+	// address would drain IPLimiter, which every sign-in route shares. It
+	// accepts only an account API key (unguessable, and still held to
+	// SSOKeyLimiter per key), so it gets a roomier bucket of its own.
+	SSOSessionIPLimiter *httpx.RateLimiter
+	ssoEnabled          bool
+	LookupIP            func(ctx context.Context, host string) ([]net.IP, error)
+	LookupCNAME         func(ctx context.Context, host string) (string, error)
 
 	// geoBlock gates new-account creation (a first OAuth sign-in, owner or
 	// visitor) by the request's country (SIGNUP_BLOCKED_COUNTRIES). Zero
@@ -109,21 +115,26 @@ func NewOAuthHandler(database *sql.DB, service *accounts.Service, cfg OAuthSetti
 	lim := ed.Limits()
 	ipLimiter := httpx.NewRateLimiterFor(lim.RateVisitorOAuth.Burst, lim.RateVisitorOAuth.Every)
 	ssoKeyLimiter := httpx.NewRateLimiterFor(lim.RateVisitorOAuth.Burst, lim.RateVisitorOAuth.Every)
+	// Ten times the sign-in budget per address: 200 at once, then one every
+	// 500ms with the defaults.
+	ssoSessionIPLimiter := httpx.NewRateLimiterFor(lim.RateVisitorOAuth.Burst*10, lim.RateVisitorOAuth.Every/10)
 	h := &OAuthHandler{
-		ed:            ed,
-		Limits:        lim,
-		Access:        access,
-		Database:      database,
-		Accounts:      service,
-		Cfg:           cfg,
-		SignIn:        cfg.SignIn,
-		IPLimiter:     ipLimiter,
-		SSOKeyLimiter: ssoKeyLimiter,
-		LookupIP:      defaultLookupIP,
-		LookupCNAME:   net.DefaultResolver.LookupCNAME,
+		ed:                  ed,
+		Limits:              lim,
+		Access:              access,
+		Database:            database,
+		Accounts:            service,
+		Cfg:                 cfg,
+		SignIn:              cfg.SignIn,
+		IPLimiter:           ipLimiter,
+		SSOKeyLimiter:       ssoKeyLimiter,
+		SSOSessionIPLimiter: ssoSessionIPLimiter,
+		LookupIP:            defaultLookupIP,
+		LookupCNAME:         net.DefaultResolver.LookupCNAME,
 	}
 	h.httpCaches.Rate("http.oauth.ipLimiter", ipLimiter, 10*time.Minute, 30*time.Minute)
 	h.httpCaches.Rate("http.oauth.ssoKeyLimiter", ssoKeyLimiter, 10*time.Minute, 30*time.Minute)
+	h.httpCaches.Rate("http.oauth.ssoSessionIPLimiter", ssoSessionIPLimiter, 10*time.Minute, 30*time.Minute)
 	return h
 }
 

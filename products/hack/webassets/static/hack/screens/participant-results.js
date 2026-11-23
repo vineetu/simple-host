@@ -70,7 +70,9 @@ export async function render(ctx) {
   // kindness call from spec.json, not something the API enforces for the
   // participant's own row (my-results always reveals it to the team itself).
   if (winnersOnly && !amWinner) {
-    body.innerHTML = `<div class="card"><h2>Results</h2><p>Winners are posted. Your team isn't in the top placements this time — thanks for building with us.</p><a class="btn" href="/e/${encodeURIComponent(ev.slug)}">Open the event</a></div>`
+    // With nothing ranked there are no placements to be outside of (UX-1 participant #8).
+    const line = rows.length ? "Winners are posted. Your team isn't in the top placements this time — thanks for building with us." : 'Results are posted. No teams were placed this time — thanks for building with us.'
+    body.innerHTML = `<div class="card"><h2>Results</h2><p>${line}</p><a class="btn" href="/e/${encodeURIComponent(ev.slug)}">Open the event</a></div>`
     return
   }
 

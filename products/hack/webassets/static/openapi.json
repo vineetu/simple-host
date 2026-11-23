@@ -1288,6 +1288,10 @@
                   "type": "object"
                 },
                 "type": "array"
+              },
+              "title": {
+                "description": "The project name, or empty before it is set.",
+                "type": "string"
               }
             },
             "type": "object"
@@ -10303,7 +10307,7 @@
                 }
               }
             },
-            "description": "{team, eligible}: team slug or empty string when no vote."
+            "description": "{team, eligible, own_team}: team slug or empty string when no vote; own_team is the slug of your own team, which you cannot vote for, or null."
           },
           "404": {
             "content": {

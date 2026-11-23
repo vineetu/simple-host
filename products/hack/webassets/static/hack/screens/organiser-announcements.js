@@ -148,9 +148,14 @@ ${announcements.length ? `<div class="list editable" aria-label="Posted announce
 
   main.querySelector('#ann-form').addEventListener('submit', async e => {
     e.preventDefault()
+    // Same inline required check as the Edit dialog, before any request.
+    main.querySelectorAll('#ann-form .err').forEach(n => n.remove())
+    const bodyInput = main.querySelector('#ann-body')
+    if (!titleInput.value.trim()) { titleInput.insertAdjacentHTML('afterend', '<p class="err">Title is required.</p>'); titleInput.focus(); return }
+    if (!bodyInput.value.trim()) { bodyInput.insertAdjacentHTML('afterend', '<p class="err">Message is required.</p>'); bodyInput.focus(); return }
     postBtn.disabled = true
     try {
-      const r = await api('POST', path, { title: titleInput.value, body: main.querySelector('#ann-body').value, email_participants: emailBox.checked })
+      const r = await api('POST', path, { title: titleInput.value, body: bodyInput.value, email_participants: emailBox.checked })
       if (!r.ok) { setLive(ui.errText(r), 'err', postBtn); postBtn.disabled = false; return }
       // The result line reports the real count the server queued
       // (emails_queued), never the pre-submission estimate above -- that

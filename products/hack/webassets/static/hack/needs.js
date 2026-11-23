@@ -18,7 +18,7 @@ export function needHref(role, slug, item) {
 // in the span instead.
 // `queue` (judge section, added for judging_open/judging_reminder) and
 // `team` already covering team_message -- notices contract 2026-11-05.
-const OPEN = { team: 'Open Team', website: 'Open Website', entry: 'Open Entry', people: 'Review applications', home: '', queue: 'Open queue' }
+const OPEN = { team: 'Open Team', website: 'Open Website', entry: 'Open Entry', people: 'Review applications', home: '', queue: 'Open My teams' }
 export function splitNeed(item) {
   const text = String(item.text || '')
   if (item.kind === 'team_message') return [text, OPEN[item.section] || '']

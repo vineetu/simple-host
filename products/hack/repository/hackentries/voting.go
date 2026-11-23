@@ -3,6 +3,7 @@ package hackentries
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/lib/pq"
@@ -113,6 +114,19 @@ func VoteTeamID(ctx context.Context, q sqlkit.Querier, eventID string, live []st
 func VoteOwnTeam(ctx context.Context, q sqlkit.Querier, eventID, teamID, voterID string) (bool, error) {
 	n, err := hackmembers.Count(ctx, q, hackmembers.Filter{EventID: eventID, TeamID: teamID, Role: "participant", UserID: voterID})
 	return n > 0, err
+}
+
+// VoterTeamSlug is the slug of the voter's own team in the event, or "" when they are on none.
+func VoterTeamSlug(ctx context.Context, q sqlkit.Querier, eventID, voterID string) (string, error) {
+	m, err := hackmembers.Member(ctx, q, eventID, voterID, hackmembers.NoLock)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && (!m.TeamID.Valid || m.Role != "participant") {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	t, err := hackteams.GetEventTeamByID(ctx, q, m.TeamID.String)
+	return t.Slug, err
 }
 
 func SaveVote(ctx context.Context, q sqlkit.Querier, eventID, voterID, teamID string) (bool, error) {

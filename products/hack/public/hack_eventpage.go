@@ -380,7 +380,7 @@ func hackEventPageView(p hackEventPage, now time.Time) hackEventView {
 	loc, zoneFallback := hackEventLocation(p.TimeZone)
 	resultsPublished := p.resultsPublished()
 	pageStage := events.PageStage(p.Stage, resultsPublished)
-	v := hackEventHeader(p, pageStage, resultsPublished, loc, zoneFallback, now)
+	v := hackEventHeader(p, pageStage, loc, zoneFallback, now)
 	v.About, v.Rules, v.Prizes = hackTextParas(p.About), hackTextParas(p.Rules), hackTextParas(p.Prizes)
 	v.Tracks, v.FAQ, v.Gallery = p.Tracks, p.Content.FAQ, p.Gallery
 	v.VoteURL = app + "/e/" + p.Slug + "/vote"
@@ -411,7 +411,7 @@ func hackEventPageView(p hackEventPage, now time.Time) hackEventView {
 	return v
 }
 
-func hackEventHeader(p hackEventPage, pageStage string, resultsPublished bool, loc *time.Location, zoneFallback string, now time.Time) hackEventView {
+func hackEventHeader(p hackEventPage, pageStage string, loc *time.Location, zoneFallback string, now time.Time) hackEventView {
 	color := strings.TrimSpace(p.Color)
 	if color == "" {
 		color = "#d15d48" // the kit's own brand-red fallback (kit.css .pub-event)
@@ -419,7 +419,7 @@ func hackEventHeader(p hackEventPage, pageStage string, resultsPublished bool, l
 	v := hackEventView{
 		Slug: p.Slug, Title: p.Title, Tagline: p.Tagline,
 		OrganisedBy: hackOrganisedBy(p.OrganiserName, p.Organisation),
-		StagePill:   hackStagePill(pageStage, resultsPublished),
+		StagePill:   hackStagePills[pageStage],
 		IconURL:     p.IconURL, Initial: hackInitials(p.Title), Color: color, Ink: core.EventInk(color),
 		Theme: p.Theme, AppURL: strings.TrimRight(p.AppURL, "/"),
 		TakenDown: p.TakenDown, TakenDownReason: p.TakenDownReason,
@@ -434,7 +434,7 @@ func hackEventHeader(p hackEventPage, pageStage string, resultsPublished bool, l
 		v.CountLine = hackPlural(p.Teams, "team") + " · " + hackPlural(p.Participants, "participant")
 	}
 	if v.MetaDescription == "" {
-		v.MetaDescription = v.StagePill
+		v.MetaDescription = strings.TrimSpace(p.Title + " · " + v.StagePill)
 	}
 	if !p.TakenDown {
 		v.OGImage = p.IconURL

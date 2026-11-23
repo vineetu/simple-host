@@ -54,7 +54,7 @@
     "desktop": "Persistent Your events list on every signed-in screen, including Account/Create event. Current event first and expanded with role sections; other events collapsed. Five current rows maximum, All events (N) always shown. Group headings are small non-link labels: Set up / Run / Wrap up. Pane middle scrolls; Account/Sign out/Help remain reachable. Current groups include non-archived taken-down events; disable non-organiser taken-down rows. Past means archived, independent of automatic arrival eligibility.",
     "phone": "390px: organiser Menu; participant Overview/Team/Entry/Website/More and judge Overview/My teams/Rubric/More unchanged. Menu/More opens full-screen pane with persistent events. Header switcher remains. Scroll lists, close on link, restore opener focus. Settings uses labelled native Settings section select, never a horizontal strip.",
     "switcher": "Same event ordering, five-row cap, Past events native toggle (five most recently ended, then All past events) and All events link as pane; current archived event stays expanded above toggle. Current event first, others title/slug; past ended_at descending (events.closed_at projection), missing dates last then title/slug. Membership labels Organiser / Participant / Judge. Event clicks open membership Home. Refetch after membership/stage changes and on focus.",
-    "status_header": "Every role sees the same stage, in the same words (owner decision 2026-10-31): a .pill.stage with the event's stage -- Not open yet, Sign-up open, Building, Entries closed, Judging, Results, Ended -- plus the next deadline as muted text. On each role's home screen (organiser Overview, participant Overview, judge Home) the full .stages track sits on the right of the bar, done/now/upcoming, read-only for participants and judges (plain spans, nothing to click). Judges also get a second pill for scoring right after the stage pill: 'Scoring open' (.pill.ok), 'Scoring locked' (.pill.warn) or 'Scoring not open' (.pill), none once the event has ended. Organisers keep the join/judge Copy buttons on screens other than Overview. Phone: the track is hidden (as today), the pill or pills and the deadline stay on one line.",
+    "status_header": "Every role sees the same stage, in the same words (owner decision 2026-10-31): a .pill.stage with the event's stage -- Not open yet, Sign-up open, Building, Entries closed, Judging, Results, Ended (API stages draft, open, building, closed, judging, results, archived) -- plus the next date that still matters at this stage as muted text (Starts until building, Entries close until closed, Ends until judging, Judging closes during Judging, none from Results on; it truncates before the track wraps). Organisers' Copy join link shows until entries close, Copy judge link until Results. The public event page's stage pill uses the same words. On each role's home screen (organiser Overview, participant Overview, judge Home) the full .stages track sits on the right of the bar, done/now/upcoming, read-only for participants and judges (plain spans, nothing to click). Judges also get a second pill for scoring right after the stage pill: 'Scoring open' (.pill.ok), 'Scoring locked' (.pill.warn) or 'Scoring not open' (.pill), none once the event has ended. Organisers keep the join/judge Copy buttons on screens other than Overview. Phone: the track is hidden (as today), the pill or pills and the deadline stay on one line.",
     "fixes": [
       "Retest (Grok SIM-346, round 3): a judge on an event that ended without ever being locked (archived, judging_locked_at never set) saw the status pill read 'Scoring not open', as if scoring had simply never started -- it now reads 'Event ended' first, checked before the locked/open/not-open wording.",
       "Retest (Grok SIM-346, round 1 S15): a signed-in person opening an event they're not part of (or that was deleted) gets an in-app 'Event not found' card instead of the generic error catch -- only for 404 event_not_found, guarded against a superseded navigation.",
@@ -183,7 +183,7 @@
         "target": ".status",
         "when": "scoring is open (not locked, results not out)",
         "title": "Is scoring open?",
-        "body": "This tells you whether you can score. It stays open until the organiser locks judging."
+        "body": "This tells you whether you can score. It stays open until the organiser finishes judging."
       },
       {
         "target": ".status",
@@ -858,8 +858,8 @@
         },
         {
           "name": "offering to tell participants (SIM-341, 2026-11-05)",
-          "when": "the next-step move, Publish results, Change stage, or End event just succeeded",
-          "shows": "a dialog (formDialog/ui.dialog, never a new scrim), now built once as offerStageAnnouncement (_stage-announce-dialog.js) and used by Home's Publish/Publish again flow: heading 'Tell participants?', 'Post an announcement about this change. You can edit it first.', an editable Title input and Body textarea prefilled with a suggested message for that move (stage-announce.js's suggestedAnnouncement; e.g. open: 'Sign-up is open' / 'Sign-up is open. Join with the event link and find a team.', archived: 'The event has ended' / 'The event has ended. Thanks for taking part. The event page stays up as a record.'; a backward Change-stage move gets its own wording, e.g. closed backward: 'Entries are closed' / 'Entries are closed. Teams with extra time can still edit.', judging backward: 'Judging has reopened' / 'Judging has reopened. Entries stay as they are.'), the same 'Email N participants' checkbox the Announcements screen uses (off by default, disabled with its explanation when emailable_participants is 0), and two buttons, 'Don't send' and 'Send'. Escape or a scrim click is 'Don't send'. Send posts through the same POST .../announcements call and reports the same live-region messages (posted / posted and emailed N) as Announcements; an empty title or body is refused inline, and a server error keeps what was typed. For End event, the event archives after this dialog closes, and the announcement posts (when Send was chosen) before the archive call -- the server refuses an announcement on an already-ended event."
+          "when": "the next-step move, Publish results, Change stage, or End event just succeeded, and at least one person has joined the event",
+          "shows": "a dialog (formDialog/ui.dialog, never a new scrim), now built once as offerStageAnnouncement (_stage-announce-dialog.js) and used by Home's Publish/Publish again flow: heading 'Tell participants?', 'Post an announcement about this change. You can edit it first.', an editable Title input and Body textarea prefilled with a suggested message for that move (stage-announce.js's suggestedAnnouncement; e.g. open: 'Sign-up is open' / 'Sign-up is open. Join with the event link and find a team.', archived: 'The event has ended' / 'The event has ended. Thanks for taking part. The event page stays up as a record.'; a backward Change-stage move gets its own wording, e.g. closed backward: 'Entries are closed' / 'Entries are closed. Teams with extra time can still edit.', judging backward: 'Judging has reopened' / 'Judging has reopened. Entries stay as they are.'), the same 'Email N participants' checkbox the Announcements screen uses (off by default, disabled with its explanation when emailable_participants is 0), and two buttons, 'Don't post' and 'Post'. Escape or a scrim click is 'Don't post'. Post posts through the same POST .../announcements call and reports the same live-region messages (posted / posted and emailed N) as Announcements; an empty title or body is refused inline, and a server error keeps what was typed. For End event, the event archives after this dialog closes, and the announcement posts (when Post was chosen) before the archive call -- the server refuses an announcement on an already-ended event."
         },
         {
           "name": "Ask: empty thread with starters (SIM-394)",
@@ -971,7 +971,7 @@
         },
         {
           "q": "Should every stage change offer to tell participants? (owner, SIM-341, 2026-11-05)",
-          "decision": "Yes, after the move itself succeeds, not before: a dialog with an editable Title/Body prefilled from a per-move suggestion, the Announcements screen's own email checkbox and wording, and 'Don't send' / 'Send' (Escape and the scrim both mean Don't send). For End event specifically, the announcement (when Send is chosen) posts before the archive call, since the server refuses one on an already-ended event; every other move posts after. Home's Publish results (and Publish again, on a republish) offers the same dialog before its own refresh, through the same shared helper, not a second copy. A backward move to Judging reopens scoring and suggests 'Judging has reopened'.",
+          "decision": "Yes, after the move itself succeeds, not before: a dialog with an editable Title/Body prefilled from a per-move suggestion, the Announcements screen's own email checkbox and wording, and 'Don't post' / 'Post' (Escape and the scrim both mean Don't post). For End event specifically, the announcement (when Post is chosen) posts before the archive call, since the server refuses one on an already-ended event; every other move posts after. Home's Publish results (and Publish again, on a republish) offers the same dialog before its own refresh, through the same shared helper, not a second copy. A backward move to Judging reopens scoring and suggests 'Judging has reopened'.",
           "why": "Owner: 'Every stage change should offer to send an announcement, with the option not to send, or to edit what is sent.' Reusing Announcements' own endpoint, checkbox and live-region wording keeps the two screens from ever describing the same result differently, and extracting the dialog itself into _stage-announce-dialog.js keeps organiser-results's offer from drifting out of step with organiser-overview's."
         },
         {
@@ -1006,7 +1006,7 @@
         },
         {
           "q": "SIM-426 owner-approved corrections",
-          "decision": "At Sign-up open, the entry deadline stays listed but does not gate Start building. Forward announcements, including publishing results, default to Don’t send (primary and initial focus); Send is secondary and the text stays editable. At Judging, an optional, non-blocking “N teams have fewer judges than the target” item links to Judging progress. Archived history retains blocked earlier items.",
+          "decision": "At Sign-up open, the entry deadline stays listed but does not gate Start building. Forward announcements, including publishing results, default to Don’t post (primary and initial focus); Post is secondary and the text stays editable. At Judging, an optional, non-blocking “N teams have fewer judges than the target” item links to Judging progress. Archived history retains blocked earlier items.",
           "why": "Owner approved, 2026-11-10."
         },
         {
@@ -2052,7 +2052,7 @@
         {
           "name": "no pending applications",
           "when": "nothing waiting",
-          "shows": "Applications collapses to one line: 'Nothing waiting on you', so People isn't pushed far down the page"
+          "shows": "Applications collapses to one line: 'Nobody is waiting for approval', so People isn't pushed far down the page"
         },
         {
           "name": "sign-up not open yet",
@@ -2157,7 +2157,7 @@
       "title": "Teams",
       "user_moment": "Amara checks who's still without a team the night before the deadline, places them with Fill teams, and checks each team has an admin and room.",
       "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
-      "primary_action": "One per sub-page: open a team (Teams), Fill teams (Not on a team), Add track (Tracks), Save (Settings, team size).",
+      "primary_action": "One per sub-page: open a team (Teams), Fill teams (Not on a team). Tracks live on the Event page; team size is in Settings.",
       "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
       "sections": [
         {
@@ -2564,7 +2564,7 @@
       "title": "Entries",
       "user_moment": "Amara checks which teams haven't finished their entry with two hours left before the deadline.",
       "purpose": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
-      "primary_action": "Set the deadline and what teams hand in.",
+      "primary_action": "Review entries and give a team more time. The deadline and what teams hand in are set in Settings → Entries.",
       "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
       "sections": [
         {
@@ -2852,7 +2852,7 @@
       "layout": "Operational sections below, plus a short link to the matching Settings section; no configuration tabs. Existing exports stay where they are.",
       "sections": [
         {
-          "name": "Conflicts of interest",
+          "name": "Judges who know a team",
           "contents": [
             "Dewi Lestari -- conflicted with CodeBloom"
           ],
@@ -3655,13 +3655,13 @@
       "user_moment": "Amara starts a brand-new hackathon from Your events.",
       "purpose": "Collect the minimum to create a Draft event; everything else is editable afterward.",
       "primary_action": "Create.",
-      "layout": "Single centred form, address/slug with a live availability check shown first, then title, organiser name, organisation, contact email, purpose, start/end dates, timezone, expected participants.",
+      "layout": "Single centred form: title first, which fills in the address (slug) below it with a live availability check; then organiser name, organisation, contact email, purpose, start/end dates, a time zone select defaulted to the browser's zone, expected participants.",
       "sections": [
         {
           "name": "Create event",
           "contents": [
-            "Address: generationgirl2026 -- available",
             "Title: Generation Girl Online Hack 2026",
+            "Address: generationgirl2026 -- available",
             "Your name: Amara Wijaya",
             "Organisation: Generation Girl",
             "Contact email: team@generationgirl.org",
@@ -3716,7 +3716,7 @@
       "id": "participant-home",
       "role": "participant",
       "nav_id": "home",
-      "title": "Home",
+      "title": "Overview",
       "user_moment": "Siti opens the app not sure what to do next -- team? entry? is there something due today?",
       "purpose": "Answer 'what do I do now' in one sentence, and show the whole path to a submitted entry with a live clock on the team's own deadline.",
       "primary_action": "Whatever the single next step is.",
@@ -3851,7 +3851,7 @@
         {
           "name": "on a team, summary incomplete",
           "when": "team yes, summary card has unfilled Required lines",
-          "shows": "Next step 'Finish your summary card: add Tools and AI and What works today.' with Finish your entry (to Entry, focus on the first missing line)."
+          "shows": "Next step 'Finish your summary card: add tools and AI and what works today' with Finish your entry (to Entry, focus on the first missing line). With more than two lines missing it reads 'Finish your summary card: 4 lines left'; the checklist below names them."
         },
         {
           "name": "on a team, work not shown yet",
@@ -3876,7 +3876,7 @@
         {
           "name": "deadline passed",
           "when": "the team's effective deadline passed",
-          "shows": "Checklist freezes: step 4 reads 'Submitted Sat 14:02' or 'Submitted automatically at the deadline' or 'Not complete. It will still be judged, marked incomplete.' Countdown is replaced by 'Entries closed Sun 18:00 WIB'."
+          "shows": "Checklist freezes: step 4 reads 'Submitted Sat 14:02' or 'Submitted automatically at the deadline' or 'Not complete. It will still be judged, marked incomplete.' In the minutes before the deadline sweep settles a draft it reads 'Entries are closed. It is being submitted for you automatically.' (complete) or 'Entries are closed. Not complete. It will still be judged, marked incomplete.', and no step has an action. Countdown is replaced by 'Entries closed Sun 18:00 WIB'."
         },
         {
           "name": "extension granted",
@@ -4308,7 +4308,7 @@
       "user_moment": "Siti has no team yet and wants one: a friend sent her a team link, or she wants to ask a team that's looking, or start her own. Once on a team, she copies its link to bring people in, and as its admin says yes or no to requests and locks it when it's complete.",
       "purpose": "Get onto a team (no team), then run the team you're on: who's in, who wants in, how people join, and its settings.",
       "primary_action": "No team: the chosen way in (Ask to join, Join team, Start team). On a team: Copy link (Members).",
-      "layout": "No team: page header (h1 Team, 'You're not on a team yet.'), the team-removal notice first if there is one (2026-11-02), then any 'Invites for you', then the question 'How do you want to team up?' with three stacked .choice radio cards (one column at every width): Ask to join a team, Join with a link or code, Start a new team. Under them only the chosen way's panel: Ask -> 'Teams looking for people' .list (name, size, track, members, Looking for) with Ask to join / Withdraw request, then a 'Let teams find you' form. Join -> one field 'Team link or code' and Join team. Start -> one field 'Team name' and Start team. On a team: page header (h1 the team name, 'Good Health · 3 of 20 people · You're an admin'), then .subnav-split: Members (default), Find people (team finding on), Settings. Members: the Team link card (.addr: link + Copy link, then 'Or share the code k7m2-p9qa'), then join requests (if any, admin rows have Accept/Decline), then the member .list.editable (name, 'Admin · You', row menu for admins: Make admin / Remove as admin / Remove from team). Find people: solo people looking for a team with Invite / Cancel invite. Settings: Team form (name, Looking for) with one Save in the card foot, Track select that saves on change, Lock team toggle and New team link (admins), Leave team in a danger zone.",
+      "layout": "No team: page header (h1 Team, 'You're not on a team yet.'), the team-removal notice first if there is one (2026-11-02), then any 'Invites for you', then the question 'How do you want to team up?' with three stacked .choice radio cards (one column at every width): Ask to join a team, Join with a link or code, Start a new team. Under them only the chosen way's panel: Ask -> 'Teams looking for people' .list (name, size, track, members, Looking for) with Ask to join / Withdraw request, then a 'Let teams find you' form. Join -> one field 'Team link or code' and Join team. Start -> one field 'Team name' and Start team. On a team: page header (h1 the team name, 'Good Health · 3 of 20 people · You're an admin'), then .subnav-split: Members (default), Find people (team finding on), Settings. Members: the Team link card (.addr: link + Copy link, then 'Or share the code k7m2-p9qa'), then join requests (if any, admin rows have Accept/Decline), then the member .list.editable (name, 'Admin · You', row menu for admins: Make admin / Remove as admin / Remove from team), then Messages with the organisers. Find people: solo people looking for a team with Invite / Cancel invite. Settings: Team form (name, Looking for) with one Save in the card foot, Track select that saves on change, Lock team toggle and New team link (admins), Leave team in a danger zone.",
       "sections": [
         {
           "name": "Invites for you (no team)",
@@ -4546,7 +4546,7 @@
         {
           "name": "no team, Join with a link or code",
           "when": "the person picks Join",
-          "shows": "one field 'Team link or code' with help 'Paste the whole link or type the 8-character code. Ask a teammate to send it from their Team page.' and Join team. Errors under the field: 'That link or code doesn't match a team in this event.', 'Kopi Kode isn't taking new people.', 'Kopi Kode is full.'"
+          "shows": "one field 'Team link or code' with help 'Paste the whole link or type the 8-character code. Ask a teammate to send it from their Team page.' and Join team. Errors under the field: 'That link or code doesn't match a team in this event.', 'Kopi Kode isn't taking new people.', 'Kopi Kode is full.' After joining: Members with 'You joined Kopi Kode.' Joining from a team link lands there too."
         },
         {
           "name": "no team, Start a new team",
@@ -4566,7 +4566,7 @@
         {
           "name": "invite waiting",
           "when": "a team invited this person",
-          "shows": "'Invites for you' above the question, with Accept and Decline. Accepting joins at once and clears every other offer."
+          "shows": "'Invites for you' above the question, with Accept and Decline. Accepting joins at once and clears every other offer. The row reads 'Invited you · 2 of 20 · Good Health' when the team is in the looking list, and that team is left out of the Ask list below."
         },
         {
           "name": "on a team, admin",
@@ -4581,17 +4581,17 @@
         {
           "name": "locked",
           "when": "the team is locked",
-          "shows": "Members: the link card becomes .note warn 'Kopi Kode is locked. No more people can join.' with Unlock for admins or 'Ask an admin to unlock it.' for members. Find people: Invite buttons disabled with the same note. Settings: the Lock toggle on."
+          "shows": "Members: the intro has no joining rule, the link card becomes .note warn 'Kopi Kode is locked. No more people can join.' with Unlock for admins or 'Ask an admin to unlock it.' for members. Find people: Invite buttons disabled with the same note. Settings: the Lock toggle on."
         },
         {
           "name": "full",
           "when": "members reach the event's team size",
-          "shows": "the link card adds 'Kopi Kode is full, 20 of 20.' Accept and Invite read Full and are disabled"
+          "shows": "the Members intro reads 'Kopi Kode is full.' and the link card 'Kopi Kode is full, 20 of 20. Nobody else can join until someone leaves.' Accept and Invite read Full and are disabled"
         },
         {
           "name": "frozen",
           "when": "the team's deadline passed, or stage Entries closed or later",
-          "shows": "a note 'Entries are closed, so Kopi Kode can't change now.' The code shows as a record without Copy, no row menus, Settings read-only, no Leave team (Leave event on Overview still works)"
+          "shows": "the Members intro has no joining rule, a note 'Entries are closed, so Kopi Kode can't change now.' The code shows as a record without Copy, no row menus, Settings read-only, no Leave team (Leave event on Overview still works)"
         },
         {
           "name": "just joined",
@@ -5007,7 +5007,7 @@
         {
           "name": "draft, something missing",
           "when": "draft with Required lines or the One-of rule unmet",
-          "shows": "Status lists the open items with hollow dots (Summary card · 5 of 6 · Missing: Tools and AI, then Video or website), naming fields as the form labels them. Submit stays enabled: pressing it is how a team learns precisely what's missing."
+          "shows": "Status lists the open items with hollow dots (Summary card · 5 of 6 · Missing: Tools and AI, then Video or website), naming fields as the form labels them. Submit stays enabled: pressing it is how a team learns precisely what's missing. The status line reads 'Submit by <deadline>. Not complete yet. If it is still not complete at the deadline, it is judged as it is, marked incomplete.'"
         },
         {
           "name": "submit refused",
@@ -5035,6 +5035,11 @@
           "shows": "Amber status 'Entries closed. Not complete. It will still be judged, marked incomplete.' The card carries an Incomplete pill. Read-only."
         },
         {
+          "name": "deadline passed, not settled yet",
+          "when": "the team's deadline passed and the deadline sweep has not settled the draft yet (a few minutes at most)",
+          "shows": "Read-only like the settled states: status 'Entries closed. It is being submitted for you automatically.' (complete draft) or 'Entries closed. Not complete. It will still be judged, marked incomplete.' with the summary card as judges see it. Never 'Nothing was entered' for a draft with something in it."
+        },
+        {
           "name": "a teammate changed this since you opened it",
           "when": "someone else saved the entry after this person loaded the page",
           "shows": "Unchanged mechanism (updated_at): the .dialog lists only the lines that differ, Keep mine / Take theirs."
@@ -5042,7 +5047,7 @@
         {
           "name": "read-only after Closed",
           "when": "the team's deadline passed, or stage Closed or later",
-          "shows": "The summary card as judges see it, Show your work as a definition list, and a What happens next card; no form. Website comes before Video: Published · version N · <team site link>, or (none); omit only when the site field is off and no site exists."
+          "shows": "The summary card as judges see it, Show your work as a definition list, and a What happens next card; no form. Website comes before Video: Published · version N · <team site link>, or (none); omit only when the site field is off and no site exists. Video, Code and Screenshot follow the same rule: a line the event switched off is left out unless something is in it."
         }
       ],
       "replaces": [
@@ -5440,11 +5445,11 @@
       "id": "judge-home",
       "role": "judge",
       "nav_id": "home",
-      "title": "Home",
+      "title": "Overview",
       "user_moment": "Pak Budi sits down for an hour and wants to know: is scoring open, and what's left.",
-      "purpose": "Say, in one word, whether scoring is open or locked, and offer the single next action.",
+      "purpose": "Show where scoring stands and offer the single next action.",
       "primary_action": "First actionable required checklist item; otherwise existing Score next / Review my scores.",
-      "layout": "A large .pill.stage status line (Open/Locked) at the top, a progress .bar, Score next as the one big button, a link to Rubric & brief.",
+      "layout": "Needs you (only while there is a team left to score), then the next-step card: the first open checklist step (Read the rubric, Check who you know) with its own verb and nothing else, or, once those are done, Score next with the scored count and a progress .bar. The judge's checklist follows, then Leave this event. The stage and scoring state sit in the shell's status header (stage pill plus Scoring open / locked / not open).",
       "sections": [
         {
           "name": "Checklist",
@@ -5504,7 +5509,7 @@
         {
           "name": "before judging opens",
           "when": "stage is before Closed",
-          "shows": "'Scoring not open -- Scoring opens when the organiser starts judging' in place of Open/Locked; Score next replaced with a disabled note; Rubric & brief stays open if already saved"
+          "shows": "'Scoring not open -- Scoring opens when the organiser starts judging.' in place of the next-step card, said once."
         },
         {
           "name": "locked, fully done",
@@ -5514,7 +5519,7 @@
         {
           "name": "locked, some left unscored",
           "when": "judging locked before this judge finished",
-          "shows": "a distinct line: 'Locked before you finished -- 2 entries you were assigned are now closed to scoring. The organiser closed scoring, this isn't an error.'"
+          "shows": "a distinct line: 'Scoring was locked before you finished. 2 teams you were assigned are now closed to scoring. The organiser finished judging, so this isn't an error.' Checklist setup rows read 'Scoring is closed.' with no button; Judging closes reads 'Closed'."
         },
         {
           "name": "locked, after results",
@@ -5529,12 +5534,12 @@
         {
           "name": "everything conflicted",
           "when": "judge declared a conflict with every team they were assigned",
-          "shows": "distinct from 'nothing assigned': 'You've declared a conflict with everyone assigned to you. There's nothing left for you to score, by design.'"
+          "shows": "distinct from 'nothing assigned': 'You've declared a conflict with everyone assigned to you. There's nothing left for you to score, by design.' The checklist's Score each team reads 'You know someone on every team you were given, so there is nothing to score.' Needs you is empty."
         },
         {
           "name": "all scored, still open",
           "when": "every assigned team is scored and judging is not locked",
-          "shows": "'You're done. Thank you.' with 6 of 6 scored, a note that scores can still be changed until the organiser locks judging, and a quiet 'Review my scores' link"
+          "shows": "'You are done. Thank you.' with 6 of 6 scored, a note that scores can still be changed until the organiser finishes judging, and 'Review my scores'. Needs you is empty."
         },
         {
           "name": "leave",
@@ -5574,7 +5579,7 @@
         },
         {
           "q": "When is a judge done, and by when must she finish?",
-          "decision": "Home shows 'You're done' as soon as every team is scored, and while scoring is open says 'The organiser locks scoring when judging ends. Until then you can change any score.'",
+          "decision": "Home shows 'You're done' as soon as every team is scored, and while scoring is open says 'Until the organiser finishes judging, you can change any score.' (Finishing judging moves the event to Results, which locks scoring; there is no separate lock.)",
           "why": "The product has no scoring deadline (lock is manual), so the honest message is who ends it, not a date."
         },
         {
@@ -6201,12 +6206,12 @@
       "user_moment": "Anyone -- organiser, participant or judge -- checks or changes their sign-in details.",
       "purpose": "Manage display name, email, linked sign-in, preferences and the account itself, with irreversible actions visibly separated.",
       "primary_action": "Save display name.",
-      "layout": "Name, Email, Google sign-in (with per-identity Unlink), Connected AI apps (every connected app with last use, publishing team and Disconnect with confirm, then a plain details disclosure containing per-app connection steps), Preferences (sign-in alerts, email me when something waits on me, theme), then a red-bordered Danger zone (API key rotation, sign out everywhere, delete account) -- identical for every role, independent of the event switcher.",
+      "layout": "Name, Email, Google sign-in (with per-identity Unlink), Connected AI apps (every connected app with last use, publishing team and Disconnect with confirm, then a plain details disclosure containing per-app connection steps), Preferences (sign-in alerts, email me when something waits on me), then a red-bordered Danger zone (API key rotation, sign out everywhere, delete account) -- identical for every role, independent of the event switcher.",
       "sections": [
         {
           "name": "Name",
           "contents": [
-            "The one name shown in every event you join -- to teams, organisers and judges: Siti Rahma"
+            "The one name teams, organisers and judges see in every event you join: Siti Rahma"
           ],
           "actions": [
             {
@@ -6251,8 +6256,7 @@
           "name": "Preferences",
           "contents": [
             "Email me after each new sign-in or connected app, so I notice one that wasn't me (toggle, on)",
-            "Email me when something waits on me (toggle, on). Team requests and invites, application answers, and changes to your team or its site. Organisers also hear about new applications. At most one email of each kind every 15 minutes.",
-            "Theme: System -- Simple Hack is light-only today, this is saved for when that changes"
+            "Email me when something waits on me (toggle, on). Team requests and invites, application answers, and changes to your team or its site. Organisers also hear about new applications. At most one email of each kind every 15 minutes."
           ],
           "actions": []
         },
@@ -6408,7 +6412,7 @@
       "id": "landing-your-events",
       "role": "shared",
       "nav_id": null,
-      "title": "Home",
+      "title": "Your events",
       "user_moment": "The top-left brand link, clicked from any screen -- a brand-new account with nothing yet, or a returning person with several events across roles deciding what to do next.",
       "purpose": "Your events; no implicit redirect when visiting /events. Absent-return sign-in alone uses one eligible membership → Home; zero/multiple → /events. Preserve explicit return provenance through every authentication method.",
       "primary_action": "Open an event -- or Create event, Find a hackathon, Account.",
@@ -6490,6 +6494,11 @@
           "name": "something waits on you",
           "when": "GET /v1/hack/todos returns at least one event with items (2026-11-02 notify design)",
           "shows": "A 'Needs you' card above Your events, one row per item, each prefixed with its event's name and linking straight into that event's screen for it. The card is absent when every event answers with no items."
+        },
+        {
+          "name": "only past events",
+          "when": "every membership is archived",
+          "shows": "'Nothing is on right now. Your past events are below.' above the closed Past events toggle, then Find a hackathon and Account, then Create event."
         }
       ],
       "replaces": [
@@ -7810,7 +7819,7 @@
         {
           "name": "not accepted",
           "when": "their application (or join) was rejected",
-          "shows": ".note bad 'Your application wasn't accepted this time.' then 'Organisers decide who joins each event.' Buttons: Find another hackathon (primary), See the event page. No re-apply: a decision is final for this event, as today."
+          "shows": ".note bad 'Your application wasn't accepted this time.' then 'Organisers decide who joins each event.' Buttons: Find another hackathon (primary), See the event page. To apply again, they leave the event from its Overview first, then apply while it takes applications, and the organisers decide again (owner, 2026-10-31)."
         },
         {
           "name": "already in another role",

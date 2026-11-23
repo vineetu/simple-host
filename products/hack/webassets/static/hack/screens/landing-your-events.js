@@ -51,7 +51,7 @@ export async function render(ctx) {
     if (e.role === 'judge') {
       return ({
         draft: 'Not open yet', open: 'Not open yet', building: 'Not open yet',
-        closed: 'Score teams', judging: 'Score teams',
+        closed: 'Judging starts soon', judging: 'Score teams',
         results: 'Open event', archived: 'Open event', ended: 'Open event'
       })[e.stage] || 'Open'
     }
@@ -120,9 +120,14 @@ export async function render(ctx) {
       if (!ctx.alive()) return
     }
   }
-  const quickLinks = `<div class="row-flex"><a class="btn" href="/directory">Find a hackathon</a><a class="btn quiet" href="/account">Account</a></div>`
+  // Atlas layout: Find a hackathon and Account in a row under the lists,
+  // then Create event pinned at the bottom, set apart (UX-1 A3).
+  const quickLinks = `<div class="row-flex page-links"><a class="btn" href="/directory">Find a hackathon</a><a class="btn quiet" href="/account">Account</a></div><div class="page-foot"><a class="btn primary" href="/events/new">Create event</a></div>`
+  const currentList = current.length
+    ? `<div class="list editable" aria-label="Current events">${current.map(row).join('')}</div>`
+    : `<p class="muted">Nothing is on right now. Your past events are below.</p>`
   const flashText = takeFlash()
-  main.innerHTML = `<div class="ph"><div class="t"><h1>Your events</h1></div>${list.length ? `<a class="btn primary" href="/events/new">Create event</a>` : ''}</div>` + needs + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div><div class="row-flex"><a class="btn quiet" href="/account">Account</a></div>` : `<div class="list editable" aria-label="Current events">${current.map(row).join('')}</div>${past.length ? `<details${ctx.params.get('past') === '1' ? ' open' : ''}><summary>Past events (${past.length})</summary><div class="list editable" aria-label="Past events">${past.map(row).join('')}</div></details>` : ''}` + quickLinks)
+  main.innerHTML = `<div class="ph"><div class="t"><h1>Your events</h1></div></div>` + needs + (!list.length ? `<div class="locked"><h2>You’re not part of any event yet</h2><p><a class="btn primary" href="/events/new">Create event</a></p><p><a class="btn" href="/directory">Find a hackathon</a></p><p>Have a join or judge link? Open it to get started.</p></div>` : currentList + `${past.length ? `<details${ctx.params.get('past') === '1' ? ' open' : ''}><summary>Past events (${past.length})</summary><div class="list editable" aria-label="Past events">${past.map(row).join('')}</div></details>` : ''}` + quickLinks)
   main.querySelectorAll('.ev-mark').forEach((mark,i) => {
     const color = list[i].color
     if (/^#[0-9a-f]{6}$/i.test(color || '')) { mark.style.setProperty('--ev',color); mark.style.color = ui.markInk(color) }

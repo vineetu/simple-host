@@ -2535,9 +2535,17 @@
     if (offset2 != null && offset2 !== offset1) instant = guess - offset2 * 6e4;
     return instant;
   }
+  var DEADLINES_BY_STAGE = {
+    draft: ["Starts", "Entries close", "Ends"],
+    open: ["Starts", "Entries close", "Ends"],
+    building: ["Entries close", "Ends"],
+    closed: ["Ends"],
+    judging: ["Judging closes"]
+  };
   function nextDeadline(event) {
     const now = Date.now();
-    return [["Starts", event?.starts_at], ["Entries close", event?.submission_deadline], ["Ends", event?.ends_at]].filter(([, value]) => value && !Number.isNaN(new Date(value).getTime())).map(([label, value]) => {
+    const wanted = DEADLINES_BY_STAGE[event?.stage] || [];
+    return [["Starts", event?.starts_at], ["Entries close", event?.submission_deadline], ["Ends", event?.ends_at], ["Judging closes", event?.judging_ends_at]].filter(([label, value]) => wanted.includes(label) && value && !Number.isNaN(new Date(value).getTime())).map(([label, value]) => {
       const dateOnly2 = label !== "Entries close" && isLocalMidnight(value, event);
       const endOfDay = label === "Ends" && dateOnly2 ? nextLocalMidnight(value, event) : null;
       const until = endOfDay ?? new Date(value).getTime();
@@ -2548,8 +2556,8 @@
   function placeToast(note, near) {
     const main = document.querySelector("main");
     const pageLevel = !near || near === main || near === document.body || main != null && typeof near.contains === "function" && near.contains(main);
-    if (!pageLevel && near.parentNode) {
-      const row = near.closest(TOAST_ROW) || near;
+    const row = !pageLevel && near.parentNode ? near.closest(TOAST_ROW) || near : null;
+    if (row && !row.parentElement?.matches(".subnav-split")) {
       const existing = row.matches(".sticky-foot") ? row.previousElementSibling : row.nextElementSibling;
       if (existing && existing.matches("[data-toast]")) existing.remove();
       row.insertAdjacentElement(row.matches(".sticky-foot") ? "beforebegin" : "afterend", note);
@@ -3371,13 +3379,13 @@
   function canScoreAsJudge(data) {
     return !!data.can?.judge && ["judging", "results", "archived"].includes(data.event.stage);
   }
-  function adminLock(main, admin, ev) {
+  function adminLock(main, admin, ev, endedText) {
     const archived = !admin && ev && ev.stage === "archived";
     if (!admin && !archived) return;
     const banner = document.createElement("div");
     banner.className = "note warn";
     banner.setAttribute("role", "alert");
-    banner.textContent = admin ? "Viewing as platform admin. Everything here is read only." : "This event has ended. Settings can't change any more.";
+    banner.textContent = admin ? "Viewing as platform admin. Everything here is read only." : endedText || "This event has ended. Settings can't change any more.";
     main.insertBefore(banner, main.firstChild);
     main.querySelectorAll("button, input, textarea, select").forEach((n) => {
       if (n.hasAttribute("data-admin-live")) return;
@@ -3605,6 +3613,7 @@
   // internal/handler/static/hack/screens/_stage-announce-dialog.js
   async function offerStageAnnouncement(ctx, { move, back, emailableCount, setLive }) {
     if (back || ctx.noAnnounce) return;
+    if (ctx.event.organiser?.counts?.participants === 0) return;
     const ui = ctx.ui;
     const api = ctx.api.api;
     const ev = ctx.event.event;
@@ -3617,7 +3626,7 @@
 <div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
 <label class="check"><input type="checkbox" id="sa-email"${emailableCount ? "" : " disabled"}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? "Editing it later never sends another email." : "No participant has an email address yet."}</span></span></label>`;
     const q = (sel) => body.querySelector(sel);
-    await formDialog(ui, { title: "Tell participants?", body, saveLabel: "Send", cancelLabel: "Don't send", primary: "cancel", focus: 0 }, async () => {
+    await formDialog(ui, { title: "Tell participants?", body, saveLabel: "Post", cancelLabel: "Don't post", primary: "cancel", focus: 0 }, async () => {
       body.querySelectorAll(".err").forEach((n) => n.remove());
       const t = q("#sa-title").value.trim(), b = q("#sa-body").value.trim();
       if (!t) {
@@ -4533,18 +4542,18 @@
   function title(ctx) {
     return "Home";
   }
-  function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
+  function nextStepContent(ev, step, settingsHref, entriesHref) {
     if (!step || step.kind === "none") {
       return { h2: ev.stage === "archived" ? "This event has ended" : ev.taken_down ? "This event is taken down" : "Read-only view", sentence: ev.stage === "archived" ? "The public page stays up as a record." : "", confirmBody: "", button: null };
     }
     if (step.kind === "entry_rules") {
-      return { h2: step.label, sentence: "", button: step.label, navHref: entriesHref };
+      return { h2: step.label, sentence: "Video or website is selected now. Change it if you want a code link too.", button: step.label, navHref: entriesHref };
     }
     if (step.kind === "publish_results") {
       return {
         h2: "Publish results",
-        sentenceHTML: `Teams see their results straight away. Your event page shows them the way you set on <a href="${resultsHref}">Results</a>.`,
-        confirmBody: "Teams see their results straight away. Your event page shows them the way you set on Results.",
+        sentenceHTML: `Teams see their results straight away. Your event page shows them the way you set in <a href="${settingsHref}&amp;tab=results">Settings \u2192 Results</a>.`,
+        confirmBody: "Teams see their results straight away. Your event page shows them the way you set in Settings \u2192 Results.",
         button: step.label
       };
     }
@@ -4594,7 +4603,6 @@
     const $ = (id) => main.querySelector("#" + id);
     const setLive = ui.live(main);
     const archived = ev.stage === "archived";
-    const resultsHref = href("organiser", ev.slug, "results");
     const settingsHref = href("organiser", ev.slug, "settings");
     const entriesHandInHref = resolve2("o.entry-rules", ev.slug).href;
     const guidance = data.checklist?.next;
@@ -4612,7 +4620,7 @@
     if (["o.publish", "o.ties"].includes(step.item_id) && step.target_id !== "o.lock") step = { ...step, kind: "publish_results", label: "Publish results" };
     if (!admin && !ev.taken_down && ev.stage === "results" && !ev.results_published && step.kind !== "publish_results") step = { kind: "publish_results", label: "Publish results" };
     if (step.kind === "link" && step.target_id === "o.lock") step = { ...step, kind: "stage", stage: "results" };
-    const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref);
+    const content = nextStepContent(ev, step, ui.esc(settingsHref), entriesHandInHref);
     if (step.kind === "link" && step.link) Object.assign(content, { h2: step.label, sentence: "", button: checklistActionLabel(step), navHref: step.link.href });
     const cue = content.button && !content.blocked ? cueHeading(ui, ev, step) : "";
     if (cue) {
@@ -4877,10 +4885,9 @@ ${archived || content.isEnd ? "" : `<section class="danger-zone" id="ov-end-targ
     function applicationCard(a) {
       const esc2 = ui.esc;
       const pill = a.joined_via === "link" ? "Join link" : "Applied";
-      const verb = a.joined_via === "link" ? "Joined with your link" : "Applied";
       return `<section class="card" data-app="${esc2(a.user_id)}"><h2>${esc2(a.display_name)}</h2>
 <p class="sub">${esc2(a.email || "")} \xB7 <span class="pill">${pill}</span></p>
-<p class="small muted">${verb} ${esc2(ui.dateTime(a.joined_at, ev))}</p>
+<p class="small muted">Applied ${esc2(ui.dateTime(a.joined_at, ev))}</p>
 ${appFacts(ui, a)}
 ${(a.answers || []).map((q) => `<p><b>${esc2(q.prompt)}</b><br>${q.answer ? esc2(q.answer) : '<span class="muted">No answer</span>'}</p>`).join("")}
 <div class="row-flex"><button class="btn" type="button" data-app-approve>Approve</button><button class="btn danger" type="button" data-app-reject title="${esc2(a.display_name)} can't join a team or take part in this event, and you can't change this decision later. They can still leave and apply again while your event takes applications, and you'd decide again.">Reject</button></div></section>`;
@@ -4932,7 +4939,7 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
 </section>
 
 <p><a href="${ui.esc(resolve2("o.signup", ev.slug).href)}">Sign-up settings</a> \xB7 <a href="${ui.esc(resolve2("o.organisers", ev.slug).href)}">Organisers</a></p>`;
-      adminLock(main, admin, ev);
+      adminLock(main, admin, ev, "This event has ended, so you can't approve or remove anyone.");
       $("role-filter").addEventListener("change", () => {
         roleFilter = $("role-filter").value;
         paint();
@@ -4987,6 +4994,7 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
           if (p2.ok) people = p2.data || [];
           setLive("Application " + decision + ".", "ok");
           paint();
+          ctx.refreshBadges?.();
         } catch (e) {
           setLive("Cannot reach the server.", "err", btn);
           btn.disabled = false;
@@ -5054,7 +5062,7 @@ ${showApplications ? `<h2 class="section-title">Applications</h2>${pending.lengt
     let draftPerTeam = settings.judges_per_team;
     const restBlock = `
 <section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading\u2026</p></section>
-<section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading\u2026</p></section>
+<section class="card" id="jg-conflicts-card"><h2>Judges who know a team</h2><p class="note">Loading\u2026</p></section>
 `;
     const canJudge = canScoreAsJudge(ctx.event);
     main.innerHTML = `
@@ -5190,7 +5198,7 @@ ${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href("org
         const target = settings.assignment_mode !== "open" ? settings.judges_per_team : 0;
         const short = target > 0 && t.judges_eligible < target;
         row.appendChild(ui.el("span", { class: "meta", text }));
-        if (short) row.appendChild(ui.el("span", { class: "pill warn", text: t.judges_eligible + " of " + target + " judges" }));
+        if (short) row.appendChild(ui.el("span", { class: "pill warn", text: "Needs " + target + " judges, " + t.judges_eligible + " can score it" }));
         tlist.appendChild(row);
       });
       card.appendChild(tlist);

@@ -267,7 +267,7 @@
     // "don't know yet" -- vote controls stay unavailable until it resolves
     // true, and a failed lookup shows a retryable error instead of quietly
     // assuming the best.
-    var chosen = '', eligible = null, checkFailed = false;
+    var chosen = '', eligible = null, checkFailed = false, ownTeam = '';
     if (key() && (status === 'open' || status === 'closed')) {
       // request() has no try/catch of its own around fetch -- a network-
       // level failure (not just a non-2xx response) must not take down the
@@ -276,7 +276,7 @@
       // already produces above.
       try {
         var own = await request('GET', base + '/my-vote', null, true);
-        if (own.ok) { chosen = own.data.team || ''; eligible = own.data.eligible !== false; }
+        if (own.ok) { chosen = own.data.team || ''; eligible = own.data.eligible !== false; ownTeam = own.data.own_team || ''; }
         else checkFailed = true;
       } catch (_) { checkFailed = true; }
     }
@@ -297,7 +297,9 @@
       if (o.tagline) box.appendChild(node('p', o.tagline, 'sub'));
       var row = node('div', '', 'row-flex');
       var link = node('a', 'View ' + possessive(o.team_name) + ' site', 'btn sm'); link.href = o.url; link.target = '_blank'; link.rel = 'noopener'; row.appendChild(link);
-      if (status === 'open' && key() && eligible === true && chosen === o.team) {
+      if (status === 'open' && key() && ownTeam === o.team) {
+        row.appendChild(node('span', 'This is your team', 'pill'));
+      } else if (status === 'open' && key() && eligible === true && chosen === o.team) {
         row.appendChild(node('span', 'Your current vote', 'pill ok'));
       } else if (status === 'open' && key() && eligible === true) {
         var btn = node('button', 'Vote for this team', 'btn primary sm'); btn.type = 'button';
@@ -305,7 +307,7 @@
           btn.disabled = true;
           try {
             var v = await request('PUT', base + '/vote', { team:o.team }, true);
-            if (!v.ok) { live(v.data.code === 'vote_ineligible' ? ineligibleNote(d.eligibility) : (v.data.error || 'Could not save vote.'), true); btn.disabled = false; return; }
+            if (!v.ok) { live(v.data.code === 'vote_ineligible' ? ineligibleNote(d.eligibility) : v.data.code === 'own_team_vote' ? "You can't vote for your own team." : (v.data.error || 'Could not save vote.'), true); btn.disabled = false; return; }
             chosen = o.team; $('vote-current').textContent = 'Your vote: ' + o.team_name;
             await loadVote();
             live(v.data.changed ? 'Vote changed.' : 'Vote saved.');

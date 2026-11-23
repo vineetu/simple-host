@@ -179,12 +179,12 @@ func (h *handler) getMyVote(w http.ResponseWriter, r *http.Request) {
 		core.WriteError(w, err)
 		return
 	}
-	_, selected, eligible, err := h.Entries.ReadMyVote(r.Context(), ev, user.ID, user.Username)
+	selected, eligible, ownTeam, err := h.Entries.ReadMyVote(r.Context(), ev, user.ID, user.Username)
 	if err != nil {
 		httpx.WriteInternal(w)
 		return
 	}
-	httpx.WriteJSON(w, 200, map[string]any{"team": selected, "eligible": eligible})
+	httpx.WriteJSON(w, 200, map[string]any{"team": selected, "eligible": eligible, "own_team": core.OrNil(ownTeam)})
 }
 
 func (h *handler) putVote(w http.ResponseWriter, r *http.Request) {

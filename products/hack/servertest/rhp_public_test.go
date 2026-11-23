@@ -151,6 +151,9 @@ func TestRhpVotingEndpoint(t *testing.T) {
 		t.Fatalf("open vote response must list teams and hide tallies: %s", view.body)
 	}
 	wantTS(t, "own team", vote(p1.key, alpha), 409, "own_team_vote")
+	if got := a.api(t, "GET", base+"/my-vote", nil, p1.key).json(t)["own_team"]; got != alpha {
+		t.Fatalf("my-vote own_team = %v, want %s", got, alpha)
+	}
 
 	voter := a.newPerson(t, "rhpvoter")
 	wantTS(t, "cast", vote(voter.key, alpha), 200, "")

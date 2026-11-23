@@ -186,19 +186,31 @@ func judgeFacts(ev model.Event, member model.EventMember, judging entries.Checkl
 	facts["j.invite"] = rules.ChecklistFact{Done: !member.JoinedAt.IsZero(), BlockedReason: "informational"}
 	facts["j.coc"] = rules.ChecklistFact{Done: member.CocAcceptedAt.Valid, BlockedReason: "conduct_record_only"}
 	facts["j.rubric"] = judgeRubricFact(version, acks["j.rubric"], judging)
+	if rubric := facts["j.rubric"]; closed && !rubric.Done {
+		// Once scoring is closed there is nothing left to set up for.
+		rubric.BlockedReason = "judging_closed"
+		facts["j.rubric"] = rubric
+	}
 	_, conflictAck := acks["j.conflicts"]
 	conflicts := rules.ChecklistFact{Done: judging.OwnConflicts > 0 || conflictAck}
-	if !queueOpen {
+	switch {
+	case closed:
+		conflicts.BlockedReason = "judging_closed"
+	case !queueOpen:
 		conflicts.BlockedReason = "judging_not_open"
 	}
 	facts["j.conflicts"] = conflicts
 	facts["j.scores"] = judgeScoreFact(judging, queueOpen, closed)
 	params["team"] = judging.FirstUnfinished
+	closesDone := ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "archived"
 	detail := "No time set"
-	if ev.JudgingEndsAt.Valid {
+	switch {
+	case closesDone:
+		detail = "Closed"
+	case ev.JudgingEndsAt.Valid:
 		detail = ev.JudgingEndsAt.Time.In(eventLocation(ev)).Format("Mon 2 Jan, 15:04")
 	}
-	facts["j.closes"] = rules.ChecklistFact{Done: ev.JudgingLockedAt.Valid || judging.Published || ev.Stage == "archived", Detail: detail, BlockedReason: "informational"}
+	facts["j.closes"] = rules.ChecklistFact{Done: closesDone, Detail: detail, BlockedReason: "informational"}
 }
 
 func judgeScoredAll(j entries.ChecklistJudgingFacts) bool {
@@ -221,10 +233,10 @@ func judgeScoreFact(j entries.ChecklistJudgingFacts, queueOpen, closed bool) rul
 	}
 	if j.OwnTotal == 0 {
 		score.BlockedReason = "nothing_assigned"
-		score.Detail = "No teams are in your queue yet."
+		score.Detail = "No teams are assigned to you yet."
 		if j.OwnCandidates > 0 {
 			score.Done = true
-			score.Detail = "All your teams have declared conflicts; nothing to score."
+			score.Detail = "You know someone on every team you were given, so there is nothing to score."
 		}
 	}
 	switch {

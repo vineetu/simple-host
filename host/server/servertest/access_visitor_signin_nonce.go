@@ -44,16 +44,17 @@ func (FakeProvider) Exchange(_ context.Context, code, _ string) (gate.ProviderId
 func (a *PrivateApp) WithOAuth(t *testing.T) *accesshttp.OAuthHandler {
 	t.Helper()
 	oh := &accesshttp.OAuthHandler{
-		Database:      a.Database,
-		Limits:        a.Sites.Limits,
-		Cfg:           accesshttp.OAuthSettings{PublicBaseURL: "https://" + PcSiteDomain, SiteDomain: PcSiteDomain, ContentHost: PcContentHost, CNAMETarget: "cname." + PcSiteDomain},
-		Accounts:      accounts.New(a.Database),
-		SignIn:        gate.NewProviderSignIn(accounts.New(a.Database), map[string]gate.Provider{"google": FakeProvider{}}),
-		IPLimiter:     httpx.NewRateLimiter(10000, 10000),
-		SSOKeyLimiter: httpx.NewRateLimiter(10000, 10000),
-		LookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },
-		LookupCNAME:   func(context.Context, string) (string, error) { return "cname." + PcSiteDomain + ".", nil },
-		Access:        a.Access,
+		Database:            a.Database,
+		Limits:              a.Sites.Limits,
+		Cfg:                 accesshttp.OAuthSettings{PublicBaseURL: "https://" + PcSiteDomain, SiteDomain: PcSiteDomain, ContentHost: PcContentHost, CNAMETarget: "cname." + PcSiteDomain},
+		Accounts:            accounts.New(a.Database),
+		SignIn:              gate.NewProviderSignIn(accounts.New(a.Database), map[string]gate.Provider{"google": FakeProvider{}}),
+		IPLimiter:           httpx.NewRateLimiter(10000, 10000),
+		SSOKeyLimiter:       httpx.NewRateLimiter(10000, 10000),
+		SSOSessionIPLimiter: httpx.NewRateLimiter(10000, 10000),
+		LookupIP:            func(context.Context, string) ([]net.IP, error) { return nil, nil },
+		LookupCNAME:         func(context.Context, string) (string, error) { return "cname." + PcSiteDomain + ".", nil },
+		Access:              a.Access,
 	}
 	oh.Register(a.Mux)
 	return oh

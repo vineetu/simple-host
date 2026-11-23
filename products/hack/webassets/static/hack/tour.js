@@ -103,8 +103,23 @@ function reserveContent(px) {
   el.style.scrollPaddingBottom = px > 0 ? px + 'px' : ''
 }
 
+// The desktop sidebar's empty middle: where a card goes when it would
+// otherwise have to sit on the page (an untargeted step, or a target too tall
+// to leave room above or below it). Null on phone or with the collapsed rail.
+function sideDock() {
+  const side = document.querySelector('.app:not(.side-collapsed) .side')
+  const foot = side && side.querySelector('.side-foot')
+  if (!foot || !visible(side)) return null
+  const s = side.getBoundingClientRect()
+  if (s.width < 200) return null
+  return { left: s.left + 8, width: s.width - 16, bottom: foot.getBoundingClientRect().top - 8 }
+}
+
 function place(card, target, step) {
   const pad = 8, gap = 12
+  const dock = isPhone() ? null : sideDock()
+  const t = target ? target.getBoundingClientRect() : null
+  card.style.width = ''
   const vw = document.documentElement.clientWidth
   // Fixed bars at the bottom (phone tab bar, a sticky save bar) cover the
   // page: the card must stay above them or its buttons can't be pressed.
@@ -113,8 +128,21 @@ function place(card, target, step) {
     const r = bar.getBoundingClientRect()
     if (r.height && getComputedStyle(bar).position === 'fixed' && r.top < vh) vh = Math.min(vh, r.top)
   }
-  const c = card.getBoundingClientRect()
+  let c = card.getBoundingClientRect()
   let top, left
+  // B4 (UX-1): never on top of the step's own target or the page under an
+  // untargeted card: on desktop, a card with no room beside its target
+  // docks in the sidebar instead.
+  const fitsNear = t && (t.bottom + gap + c.height <= vh || t.top - gap - c.height >= 0 ||
+    (step && step.side === 'left' && t.left - gap - c.width >= pad))
+  if (dock && !fitsNear) {
+    card.style.width = dock.width + 'px'
+    c = card.getBoundingClientRect()
+    card.style.left = dock.left + 'px'
+    card.style.top = Math.max(pad, dock.bottom - c.height) + 'px'
+    reserveContent(0)
+    return
+  }
   if (isPhone()) {
     // Docked along the bottom, independent of the target's position, so
     // the card never ends up over a button or checklist mid-page. A target
@@ -127,7 +155,6 @@ function place(card, target, step) {
     top = vh - c.height - pad - gap
     left = (vw - c.width) / 2
   } else if (target) {
-    const t = target.getBoundingClientRect()
     if (step && step.side === 'left' && t.left - gap - c.width >= pad) {
       left = t.left - gap - c.width
       top = t.top
@@ -274,11 +301,13 @@ export async function startTour(role, ctx, { force = false } = {}) {
     card.querySelector('.tour-body').textContent = step.body
     card.querySelector('[data-tour-back]').disabled = backDisabled
     card.querySelector('[data-tour-next]').textContent = isLastShown ? 'Done' : 'Next'
+    // Place first: that reserves the card's room at the bottom of the page,
+    // so scrolling the target into view then keeps it above the card.
+    place(card, target, step)
     if (target) {
       target.classList.add('tour-ring')
       try { target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) } catch (e) {}
     }
-    place(card, target, step)
     requestAnimationFrame(() => place(card, target, step))
     card.focus()
   }

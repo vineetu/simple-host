@@ -174,3 +174,27 @@ func TestOwnFilesAreServedByTheFileRoute(t *testing.T) {
 		t.Errorf("the film is answered by %q", pattern)
 	}
 }
+
+// A wrong address on a hackathon platform shows Simple Hack's own not-found
+// page: no Simple Host header or theme menu, and no link to another service.
+func TestNotFoundIsSimpleHacksOwn(t *testing.T) {
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", nil, nil)
+	assets := Extension().Assets(sh)
+	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
+	rec := httptest.NewRecorder()
+	sh.RenderNotFound(rec, httptest.NewRequest(http.MethodGet, "/no-such.page", nil), "/no-such.page")
+	body := rec.Body.String()
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status %d", rec.Code)
+	}
+	for _, want := range []string{"simple<b>·</b>hack", `href="/">Go to Simple Hack</a>`, "Page not found"} {
+		if !bytes.Contains([]byte(body), []byte(want)) {
+			t.Errorf("not-found page lacks %q", want)
+		}
+	}
+	for _, bad := range []string{"simple-host.app", "data-theme", "Dark"} {
+		if bytes.Contains([]byte(body), []byte(bad)) {
+			t.Errorf("not-found page has %q", bad)
+		}
+	}
+}

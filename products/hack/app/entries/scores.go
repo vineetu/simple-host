@@ -105,7 +105,7 @@ func saveJudgeScores(ctx context.Context, tx *sql.Tx, eventID, judgeID, teamID s
 		return nil, "", err
 	}
 	if !eligible {
-		return nil, "", &Error{Code: "forbidden", Message: "This team is not in your judging queue."}
+		return nil, "", &Error{Code: "forbidden", Message: "This team is not on your My teams list."}
 	}
 	return entryrepo.UpsertJudgeScores(ctx, tx, eventID, judgeID, teamID, scores, comment)
 }

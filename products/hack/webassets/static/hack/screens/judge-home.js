@@ -101,7 +101,7 @@ export async function render(ctx) {
   if (resultsOut) {
     top = `<div class="note ok"><p><b>Results are out.</b></p><p><a href="${ui.esc('/e/' + encodeURIComponent(slug))}">See results on the event page</a></p></div>`
   } else if (!ev.scoring_open && !locked) {
-    top = `<section class="locked"><h2>Scoring not open</h2><p>Scoring opens when the organiser starts judging.</p><p class="muted">Scoring will be available here when judging opens.</p></section>`
+    top = `<section class="locked"><h2>Scoring not open</h2><p>Scoring opens when the organiser starts judging.</p></section>`
   } else if (total === 0 && !(queueRes.data.candidates?.length > 0)) {
     top = `<div class="note"><p>Nothing assigned to you yet. Check back once the organiser assigns judges.</p></div>`
   } else if (total === 0 && queueRes.data.candidates?.length > 0) {
@@ -111,14 +111,14 @@ export async function render(ctx) {
       top = `<div class="note warn"><b>Scoring is locked.</b> You scored every team. Results are not out yet.</div>` + bar(teamWord(total) + ' scored', total)
     } else {
       const left = total - scored
-      top = `<div class="note warn"><b>Scoring was locked before you finished.</b> ${left} ${teamWord(left)} you were assigned ${left === 1 ? 'is' : 'are'} now closed to scoring. The organiser closed scoring, this isn’t an error.</div>` + bar(teamWord(total) + ' scored', total)
+      top = `<div class="note warn"><b>Scoring was locked before you finished.</b> ${left} ${teamWord(left)} you were assigned ${left === 1 ? 'is' : 'are'} now closed to scoring. The organiser finished judging, so this isn’t an error.</div>` + bar(teamWord(total) + ' scored', total)
     }
   } else if (scored >= total) {
-    top = `<section class="next" data-tour="next"><div class="t"><p class="k">All done</p><h2>You are done. Thank you.</h2><p>${total} of ${total} ${teamWord(total)} scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends. Until then you can change any score.</p></div><a class="btn" href="${ui.esc(href('judge', slug, 'queue'))}">Review my scores</a></section>`
+    top = `<section class="next" data-tour="next"><div class="t"><p class="k">All done</p><h2>You are done. Thank you.</h2><p>${total} of ${total} ${teamWord(total)} scored.</p>${heroBar(total)}<p class="small muted">Until the organiser finishes judging, you can change any score.</p></div><a class="btn" href="${ui.esc(href('judge', slug, 'queue'))}">Review my scores</a></section>`
   } else {
     const next = queue.find(r => !r.done)
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(next.team_id)}`
-    top = `<section class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>Scoring is open</h2><p>${scored} of ${total} ${teamWord(total)} scored.</p>${heroBar(total)}<p class="small muted">The organiser locks scoring when judging ends.</p></div><a class="btn primary lg" href="${ui.esc(scoreHref)}">Score next</a></section>`
+    top = `<section class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>Scoring is open</h2><p>${scored} of ${total} ${teamWord(total)} scored.</p>${heroBar(total)}<p class="small muted">Scoring closes when the organiser finishes judging.</p></div><a class="btn primary lg" href="${ui.esc(scoreHref)}">Score next</a></section>`
   }
 
   // replay-judging-walkthrough: the shell's Help menu links here with
@@ -132,9 +132,13 @@ export async function render(ctx) {
   if (checklistRes.ok) {
     const checklist = checklistRes.data.checklist
     const next = checklist.next
+    // A setup step (read the rubric, check who you know) comes before
+    // scoring: the next-step card then shows that step alone, with its own
+    // verb, not the scoring count and bar (UX-1 S1).
     if (next?.kind === 'link' && next.item_id !== 'j.scores' && next.link) {
       const hero = body.querySelector('.next')
-      if (hero) { hero.querySelector('h2').textContent = next.label; const link = hero.querySelector('a'); link.href = next.link.href; link.textContent = checklistActionLabel(next) }
+      const item = (checklist.items || []).find(i => i.id === next.item_id) || { id: next.item_id }
+      if (hero) hero.outerHTML = `<section class="next" data-tour="next"><div class="t"><p class="k">Your next step</p><h2>${ui.esc(next.label)}</h2>${item.detail ? `<p>${ui.esc(item.detail)}</p>` : ''}</div><a class="btn primary lg" href="${ui.esc(next.link.href)}">${ui.esc(checklistActionLabel(item))}</a></section>`
     }
     const card = renderChecklist({ ui, checklist, title: 'Your checklist' })
     const danger = body.querySelector('.danger-zone')

@@ -445,3 +445,47 @@ func TestHackTeams(t *testing.T) {
 		t.Fatalf("remove person: %d %s", r.Status, r.Body)
 	}
 }
+
+// News lines in Needs you hold only while they are true: "accepted your
+// request. You're on the team." goes once the person is off that team.
+func TestHackAcceptedRequestNewsExpires(t *testing.T) {
+	a := newFeatApp(t)
+	org := a.NewPerson(t, "nexorg")
+	leader := a.NewPerson(t, "nexleader")
+	asker := a.NewPerson(t, "nexasker")
+	slug := hacktest.UniqueSlug()
+	a.CreateEvent(t, org, slug, nil)
+	a.OpenEvent(t, org, slug)
+	join, _ := a.JoinCodes(t, org, slug)
+	a.JoinParticipant(t, join, leader, "Leader")
+	a.JoinParticipant(t, join, asker, "Asker")
+	a.CreateTeamAndJoin(t, slug, leader, "Alpha")
+	base := "/v1/hack/events/" + slug
+	r := a.At(t, "POST", base+"/teams/alpha/requests", nil, a.Key(asker))
+	hacktest.WantCode(t, "ask", r, 201, "")
+	var reqID string
+	for _, p := range a.At(t, "GET", base+"/teams/open", nil, a.Key(leader)).JSON(t)["pending"].([]any) {
+		if m := p.(map[string]any); m["kind"] == "request" {
+			reqID = m["id"].(string)
+		}
+	}
+	if reqID == "" {
+		t.Fatal("no pending request")
+	}
+	hacktest.WantCode(t, "accept", a.At(t, "POST", base+"/requests/"+reqID+"/accept", nil, a.Key(leader)), 200, "")
+	accepted := func() bool {
+		for _, n := range a.At(t, "GET", base, nil, a.Key(asker)).JSON(t)["needs_you"].([]any) {
+			if strings.Contains(n.(map[string]any)["text"].(string), "accepted your request") {
+				return true
+			}
+		}
+		return false
+	}
+	if !accepted() {
+		t.Fatal("accepted news missing while on the team")
+	}
+	hacktest.WantCode(t, "remove", a.At(t, "DELETE", base+"/team/members/"+a.UserID(t, asker), nil, a.Key(leader)), 204, "")
+	if accepted() {
+		t.Fatal("accepted news still shown after leaving the team")
+	}
+}

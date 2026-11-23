@@ -1,3 +1,5 @@
+import { zoneOptionsHTML } from './_orgA-util.js'
+
 export function title(ctx) { return 'Create event' }
 
 function slugify(s, limit) {
@@ -23,7 +25,7 @@ export async function render(ctx) {
 <div class="field"><label>Title<input class="input" id="new-title" type="text" maxlength="120" required></label></div>
 <div class="field"><label>Address<input class="input" id="new-slug" type="text" maxlength="39" required></label><p class="help" id="new-slug-help">yourname.${ui.esc(slugDomain)}</p></div>
 <div class="field-row"><div class="field"><label>Starts<input class="input" id="new-start" type="date" required></label></div><div class="field"><label>Ends (optional)<input class="input" id="new-end" type="date"></label></div></div>
-<div class="field"><label>Time zone<input class="input" id="new-tz" type="text" value="${ui.esc(tz)}" required></label><p class="help">For example Asia/Jakarta or Europe/London.</p></div>
+<div class="field"><label for="new-tz">Time zone</label><select class="select" id="new-tz">${zoneOptionsHTML(ui, tz)}</select><p class="help">Every deadline and schedule time shows in this zone.</p></div>
 <div class="field"><label>Your name<input class="input" id="new-organiser" type="text" maxlength="100" required></label></div>
 <div class="field"><label>Organisation (optional)<input class="input" id="new-org" type="text" maxlength="120" placeholder="Company, college or group, optional"></label></div>
 <div class="field"><label>Contact email<input class="input" id="new-email" type="email" required></label></div>
@@ -73,7 +75,7 @@ export async function render(ctx) {
       purpose: $('new-purpose').value.trim(),
       expected_participants: Number(nRaw),
       starts_at: $('new-start').value,
-      time_zone: $('new-tz').value.trim()
+      time_zone: $('new-tz').value
     }
     if ($('new-end').value) body.ends_at = $('new-end').value
     // Two submit buttons share this one form (header, per Part B #3, plus

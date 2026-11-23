@@ -28,7 +28,9 @@ export async function render(ctx) {
     await ctx.go(target)
   })
   const content = main.querySelector('#settings-content')
-  const subctx = { ...ctx, main: content }
+  // A section's own status line (ui.live(main) with no control to sit by)
+  // goes under the page heading, never into the sub-nav grid beside it.
+  const subctx = { ...ctx, main: content, ui: { ...ui, live: m => ui.live(m === content ? main : m) } }
   if (section === 'teams') await renderTeams(subctx)
   else if (section === 'entries' || section === 'reminders') await renderEntries(subctx, section)
   else if (section === 'judging') await renderJudging(subctx)

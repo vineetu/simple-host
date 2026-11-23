@@ -26,7 +26,7 @@ export function title(ctx) { return 'Home' }
 // the confirm's heads-up, using the exact copy spec.json's
 // `organiser-overview.next_step_map` and prototype states give for each
 // (kind, stage, deadline_passed, blocked) combination.
-function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
+function nextStepContent(ev, step, settingsHref, entriesHref) {
   if (!step || step.kind === 'none') {
     return { h2: ev.stage === 'archived' ? 'This event has ended' : ev.taken_down ? 'This event is taken down' : 'Read-only view', sentence: ev.stage === 'archived' ? 'The public page stays up as a record.' : '', confirmBody: '', button: null }
   }
@@ -42,13 +42,13 @@ function nextStepContent(ev, step, resultsHref, settingsHref, entriesHref) {
   // judging.js's "Open the assignment grid" link already does for a
   // section this frame doesn't host either.
   if (step.kind === 'entry_rules') {
-    return { h2: step.label, sentence: '', button: step.label, navHref: entriesHref }
+    return { h2: step.label, sentence: 'Video or website is selected now. Change it if you want a code link too.', button: step.label, navHref: entriesHref }
   }
   if (step.kind === 'publish_results') {
     return {
       h2: 'Publish results',
-      sentenceHTML: `Teams see their results straight away. Your event page shows them the way you set on <a href="${resultsHref}">Results</a>.`,
-      confirmBody: 'Teams see their results straight away. Your event page shows them the way you set on Results.',
+      sentenceHTML: `Teams see their results straight away. Your event page shows them the way you set in <a href="${settingsHref}&amp;tab=results">Settings → Results</a>.`,
+      confirmBody: 'Teams see their results straight away. Your event page shows them the way you set in Settings → Results.',
       button: step.label
     }
   }
@@ -106,7 +106,6 @@ export async function render(ctx) {
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
   const archived = ev.stage === 'archived'
-  const resultsHref = href('organiser', ev.slug, 'results')
   const settingsHref = href('organiser', ev.slug, 'settings')
   const entriesHandInHref = resolve('o.entry-rules', ev.slug).href
 
@@ -126,7 +125,7 @@ export async function render(ctx) {
   // item (e.g. Describe the event) must not hide the publish step.
   if (!admin && !ev.taken_down && ev.stage === 'results' && !ev.results_published && step.kind !== 'publish_results') step = { kind: 'publish_results', label: 'Publish results' }
   if (step.kind === 'link' && step.target_id === 'o.lock') step = { ...step, kind: 'stage', stage: 'results' }
-  const content = nextStepContent(ev, step, ui.esc(resultsHref), ui.esc(settingsHref), entriesHandInHref)
+  const content = nextStepContent(ev, step, ui.esc(settingsHref), entriesHandInHref)
   if (step.kind === 'link' && step.link) Object.assign(content, { h2: step.label, sentence: '', button: checklistActionLabel(step), navHref: step.link.href })
   // A schedule that acts (owner, 2026-11-02): when a schedule row lining up
   // with this move has come (next_step.cue, computed by the server), the
@@ -287,8 +286,8 @@ ${archived || content.isEnd ? '' : `<section class="danger-zone" id="ov-end-targ
         // The server refuses an announcement on an already-archived event
         // (hack_content.go postAnnouncement: event_ended), so the offer
         // has to come BEFORE the archive call here, not after like every
-        // other move -- only when the person chose Send does anything
-        // post; "Don't send" or Escape falls straight through to archive.
+        // other move -- only when the person chose Post does anything
+        // post; "Don't post" or Escape falls straight through to archive.
         await offerAnnouncement('archived', false)
         const r = await callStage('archived')
         if (!r.ok) { setLive(ui.errText(r), 'err'); btn.disabled = false; return }

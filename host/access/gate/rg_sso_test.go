@@ -61,8 +61,8 @@ func TestSSOSessionIssuanceLimits(t *testing.T) {
 		t.Run(by, func(t *testing.T) {
 			a, o := newSSOApp(t)
 			one, two := a.NewPerson(t, "limitone"), a.NewPerson(t, "limittwo")
-			o.IPLimiter.Capacity = 1
-			o.IPLimiter.Rate = 0
+			o.SSOSessionIPLimiter.Capacity = 1
+			o.SSOSessionIPLimiter.Rate = 0
 			o.SSOKeyLimiter.Capacity = 1
 			o.SSOKeyLimiter.Rate = 0
 			request := func(key, ip string) Resp {
@@ -79,6 +79,28 @@ func TestSSOSessionIssuanceLimits(t *testing.T) {
 				t.Fatalf("limit: %d", r.Status)
 			}
 		})
+	}
+}
+
+// The page-load session check never spends the sign-in budget: with the
+// shared sign-in limiter exhausted for an address, POST /v1/sso/session still
+// answers, and a sign-in route at that address is still refused.
+func TestSSOSessionCheckDoesNotSpendSignInBudget(t *testing.T) {
+	a, o := newSSOApp(t)
+	p := a.NewPerson(t, "venueperson")
+	o.IPLimiter.Capacity = 1
+	o.IPLimiter.Rate = 0
+	ip := "192.0.2.9"
+	nav := map[string]string{"X-Forwarded-For": ip, "Origin": "https://" + a.AppHost(), "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"}
+	a.At(t, "GET", a.AppHost(), "/v1/sso/signed-out", nil, nav) // spends the one sign-in token
+	for i := 0; i < 5; i++ {
+		r := a.At(t, "POST", a.AppHost(), "/v1/sso/session", nil, map[string]string{"X-API-Key": p.Key, "X-Forwarded-For": ip, "Origin": "https://" + a.AppHost()})
+		if r.Status != 204 {
+			t.Fatalf("session check %d: %d", i, r.Status)
+		}
+	}
+	if r := a.At(t, "GET", a.AppHost(), "/v1/sso/signed-out", nil, nav); r.Status != 429 {
+		t.Fatalf("sign-in budget not kept: %d", r.Status)
 	}
 }
 

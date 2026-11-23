@@ -318,7 +318,8 @@ ${deleteOpen ? `<div class="setting"><div class="t">${requireTyped ? `<div class
           ? await api('DELETE', path, { confirm: ev.slug })
           : await api('DELETE', path)
         if (r.status !== 204) { setLive(ui.errText(r), 'err', delGo); delGo.disabled = requireTyped ? (delInput.value.trim() !== ev.slug) : false; return }
-        ctx.go('/events')
+        await ctx.go('/events')
+        ui.toast('Event deleted.')
       } catch (e) { setLive('Cannot reach the server.', 'err', delGo); delGo.disabled = false }
     })
   }

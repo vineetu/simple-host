@@ -9,7 +9,7 @@ import { render as renderTracks } from './_event-tracks.js'
 // remove, colour, gallery and public submissions toggles, built-in vs own website, zip upload with
 // plain errors, versions, read-only states, admin view). Announcements
 // moved out to its own screen (screens/organiser-announcements.js).
-import { fileAsDataURL, fileAsArrayBuffer, moveItem, rowMenuHTML, wireRowMenus, formDialog, undoToast } from './_orgA-util.js'
+import { fileAsDataURL, fileAsArrayBuffer, moveItem, rowMenuHTML, wireRowMenus, formDialog, undoToast, zoneOptionsHTML } from './_orgA-util.js'
 import { merge, label as labelRows, MOVES, setInLink, timeOnly } from '../schedule.js'
 
 // R19: title() used to read only ctx.params ('tab='), so an old #schedule
@@ -105,35 +105,6 @@ function setContent(d) {
 // outlived by a newer navigation (ctx.alive() false) must never touch the
 // cache at all.
 function cacheStale(ctx, ev) { return !ctx.alive() || cache.slug !== ev.slug }
-
-function zoneOffsetLabel(zone, date) {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortOffset' }).formatToParts(date)
-    const raw = (parts.find(p => p.type === 'timeZoneName') || {}).value || ''
-    const m = raw.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/)
-    if (!m) return ''
-    return 'UTC' + m[1] + (m[2] ? ':' + m[2] : '')
-  } catch { return '' }
-}
-// A select of IANA zones, each showing its abbreviation and offset (spec:
-// "Asia/Jakarta · WIB, UTC+7"). Intl.supportedValuesOf is young enough that
-// a browser without it falls back to a short curated list (still including
-// whatever zone the event is already set to, so saving never loses it).
-function zoneOptions(ui, current) {
-  let zones
-  try { zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : null } catch { zones = null }
-  if (!zones || !zones.length) {
-    zones = ['UTC', 'Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Singapore', 'Asia/Kolkata',
-      'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Australia/Sydney']
-  }
-  if (current && !zones.includes(current)) zones = [current, ...zones]
-  const now = new Date()
-  return zones.slice().sort().map(z => {
-    const abbr = ui.zoneAbbr ? ui.zoneAbbr(z, now) : ''
-    const off = zoneOffsetLabel(z, now)
-    return { zone: z, label: z + (abbr || off ? ' · ' + [abbr, off].filter(Boolean).join(', ') : '') }
-  })
-}
 
 function focusHeading(sp) {
   const h = sp.querySelector('#sp-h')
@@ -322,7 +293,7 @@ ${ended ? '<div class="note">This event has ended. You can still fix the page te
 <div class="field-row">
 ${dateTimeField(ui, 'f-start', 'Starts', snapshot.starts, snapshot.startTime, { dateID: 'f-start' })}
 ${dateTimeField(ui, 'f-end', 'Ends', snapshot.ends, snapshot.endTime, { dateID: 'f-end' })}
-<div class="field grow"><label for="f-tz">Time zone</label><select class="select" id="f-tz">${zoneOptions(ui, ev.time_zone).map(z => `<option value="${ui.esc(z.zone)}"${z.zone === ev.time_zone ? ' selected' : ''}>${ui.esc(z.label)}</option>`).join('')}</select><p class="help">Every deadline and schedule time shows in this zone.</p></div>
+<div class="field grow"><label for="f-tz">Time zone</label><select class="select" id="f-tz">${zoneOptionsHTML(ui, ev.time_zone)}</select><p class="help">Every deadline and schedule time shows in this zone.</p></div>
 </div>
 <div class="card-foot"><span class="hint" id="f-hint">No unsaved changes</span><button class="btn quiet" type="button" id="f-discard" hidden>Discard</button><button class="btn primary" type="button" id="f-save" disabled>Save</button></div>
 </form>`

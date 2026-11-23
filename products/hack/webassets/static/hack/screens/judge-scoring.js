@@ -144,7 +144,9 @@ export async function render(ctx) {
   // The summary card is the page header (the 20-second read): its title
   // becomes the page's h1.
   const card = ui.entryCard({
-    title: row.title || row.team.name, team_name: row.team.name, team_members: '',
+    // The team line names the team only when the entry has its own title,
+    // so a team without one doesn't read "SafeRoute / SafeRoute" (UX-1 A2).
+    title: row.title || row.team.name, team_name: row.title && row.title !== row.team.name ? row.team.name : '', team_members: '',
     track: row.track, problem: row.problem, tagline: row.tagline, audience: row.audience,
     tools: row.tools, maturity: row.maturity
   }, { incomplete: !!row.incomplete })
@@ -282,7 +284,7 @@ export async function render(ctx) {
     `<div id="jsc-criteria">${rubric.map((crit, i) => critRow(crit, i === 0)).join('')}</div>` +
     (locked
       ? `<div class="field"><span class="lab">Comment for the team</span><p>${comment ? ui.esc(comment) : '<span class="muted">No comment.</span>'}</p><p class="help">Not shown with your name.</p></div>`
-      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback"${!hasScore ? ' disabled' : ''}>${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. Not shown with your name. Saves automatically.' : 'Optional. Not shown with your name. Add a score before writing a comment.'}</p><p class="small muted" id="jsc-saved" aria-live="polite">${hasScore ? '' : 'Tap a score. It saves straight away.'}</p></div>`) +
+      : `<div class="field"><label for="jsc-comment">Comment for the team</label><textarea class="input" id="jsc-comment" data-tour="comment" maxlength="1000" rows="3" placeholder="Share useful feedback">${ui.esc(comment)}</textarea><p class="help" id="jsc-comment-help">${hasScore ? 'Optional. Not shown with your name. Saves automatically.' : 'Optional. Not shown with your name. Saves once you tap a score.'}</p><p class="small muted" id="jsc-saved" aria-live="polite">${hasScore ? '' : 'Tap a score. It saves straight away.'}</p></div>`) +
     (locked ? '' : `<div class="danger-zone"><h2>Know this team?</h2><div class="setting"><button type="button" class="btn danger sm" id="jsc-conflict" data-tour="conflict">I know someone on this team</button></div></div>`) +
     `<div class="note warn next-guard" id="jsc-guard" role="status" hidden></div>` +
     `<div class="sticky-foot"><button type="button" class="btn" id="jsc-prev" data-tour="prev"${index <= 0 ? ' disabled' : ''}>Previous</button>${locked ? '' : `<button type="button" class="btn primary" id="jsc-next" data-tour="save-next">${nextLabel}</button>`}<span class="small muted kbd-hint">${locked ? '' : '<span class="kbd">N</span> next · '}<span class="kbd">P</span> previous</span></div>`
@@ -332,6 +334,9 @@ export async function render(ctx) {
     if (!box) return true
     const val = box.value
     if (val === savedComment) return true
+    // A comment is saved with a score (the server needs one first): notes
+    // typed before any score wait in the box until the first tap saves them.
+    if (!Object.keys(scores).some(k => scores[k] != null)) return true
     const pending = (async () => {
       let r
       try { r = await api('PUT', `/v1/hack/events/${encodeURIComponent(slug)}/judge/scores/${encodeURIComponent(teamID)}`, { scores: [], comment: val }) }
@@ -430,10 +435,7 @@ export async function render(ctx) {
       if (prog) prog.innerHTML = progressHTML()
       if (rubric.every(c => scores[c.id] != null)) hideGuard()
       const box = main.querySelector('#jsc-comment')
-      if (box.disabled) {
-        box.disabled = false
-        main.querySelector('#jsc-comment-help').textContent = 'Optional. Not shown with your name. Saves automatically.'
-      }
+      main.querySelector('#jsc-comment-help').textContent = 'Optional. Not shown with your name. Saves automatically.'
       const saved = main.querySelector('#jsc-saved')
       if (saved) saved.textContent = 'Score saved'
       if (box.value !== savedComment) flushComment()

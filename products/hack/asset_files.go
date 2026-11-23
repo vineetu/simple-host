@@ -22,6 +22,7 @@ func assetReplacements() map[string]string {
 		"features.json":                 "static/features.json",
 		"features.html":                 "static/features.html",
 		"setup-helper.html":             "static/setup-helper.html",
+		"notfound.html":                 "static/hack-notfound.html",
 	}
 }
 

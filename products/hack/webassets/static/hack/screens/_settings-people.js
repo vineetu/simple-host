@@ -80,7 +80,7 @@ export async function render(ctx, section) {
 <p>A co-organiser can do everything you can on this event, including Delete this event. Only the creator can’t be removed.</p>
 <p>Anyone with this link can become an organiser until you revoke it or it expires in 7 days. Creating a new link stops the old one.</p>
 <div class="form-actions"><button class="btn" type="button" id="coorg-create">Create invitation</button></div>
-${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div class="control-row"><input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly><button class="btn" type="button" id="coorg-copy">Copy invitation</button></div></div>` : ''}
+${invite ? `<div class="field"><label for="coorg-url">Invitation</label><div class="control-row"><input class="input mono" id="coorg-url" type="text" value="${ui.esc(invite.url)}" readonly><button class="btn" type="button" id="coorg-copy">Copy invitation</button></div><p class="help">Expires ${ui.esc(ui.dateTime(invite.expires_at, ev))}. The link shows only here, right after you create it.</p></div>` : `<p class="help">An invitation link shows only once, right after you create it. One you made earlier keeps working until it is used, expires or you revoke it.</p>`}
 <div class="form-actions"><button class="btn danger" type="button" id="coorg-revoke">Revoke invitation</button></div>
 </section>`
     main.querySelectorAll('[data-remove-organiser]').forEach(btn => btn.addEventListener('click', async () => {

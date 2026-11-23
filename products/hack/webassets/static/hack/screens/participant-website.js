@@ -126,6 +126,13 @@ function connStripHTML (ui, esc, site, conn, closedForPublish, teamName) {
     appLabel = 'Connected in ' + esc(joinedApps(conn))
     const mates = conn.teammates_connected || []
     appSub = 'Last used ' + agoText(conn.last_used_at) + (mates.length ? ' · ' + teammateText(esc, mates) : '')
+  } else if (closedForPublish) {
+    appLabel = 'Not connected'
+    appSub = 'Publishing is closed.'
+  } else if (site.exists) {
+    // The connect steps are folded under "Publish again" once a site is live.
+    appLabel = 'Not connected'
+    appSub = 'To publish from an AI app, open Publish again below.'
   } else {
     appLabel = 'Not connected yet'
     appSub = 'Follow the steps below once. It takes about two minutes.'

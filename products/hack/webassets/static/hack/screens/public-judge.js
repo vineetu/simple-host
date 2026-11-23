@@ -23,8 +23,10 @@ export async function render(ctx) {
   const code = judgeCode()
   const signedIn = !!(me && (me.username || me.email))
   main.innerHTML = `<div class="pub"><p class="muted">Loading…</p></div>`
+  // A judge link that leads nowhere says why and offers a way on (UX-1 B1).
+  const badLink = `<div class="pub"><section class="hero"><h1>This judge link doesn’t work</h1></section><section class="card"><p class="sub">The organiser may have made a new judge link, or this one was copied wrong. Ask the organiser to send it again.</p><div class="row-flex"><a class="btn primary" href="${signedIn ? '/events' : '/'}">${signedIn ? 'Go to your events' : 'Go to Simple Hack'}</a></div></section></div>`
   if (!code) {
-    main.innerHTML = `<div class="pub"><div class="note bad" role="alert">This link does not work any more.</div></div>`
+    main.innerHTML = badLink
     return
   }
 
@@ -36,7 +38,7 @@ export async function render(ctx) {
     return
   }
   if (r.status === 404 || (r.data && r.data.code === 'invalid_code')) {
-    main.innerHTML = `<div class="pub"><section class="hero"><h1>This link does not work any more</h1></section></div>`
+    main.innerHTML = badLink
     return
   }
   if (!r.ok) {
@@ -55,7 +57,8 @@ export async function render(ctx) {
 
   if (info.joinable === false) {
     const sentence = info.stage === 'draft' ? 'This event is not open yet.' : info.stage === 'archived' ? 'This event is over.' : 'This judge invite isn’t open any more.'
-    main.innerHTML = `<div class="pub"><section class="hero"><h1>You’re invited to judge</h1><p>${ui.esc(info.title || '')}</p></section><div class="note">${ui.esc(sentence)} <a href="${eventHref}">See the event page</a>.</div></div>`
+    // No welcome heading over a closed invite (UX-1 C6): the heading says it.
+    main.innerHTML = `<div class="pub"><section class="hero"><h1>${ui.esc(sentence.replace(/\.$/, ''))}</h1><p>${ui.esc(info.title || '')}</p></section><p><a class="btn" href="${eventHref}">See the event page</a></p></div>`
     return
   }
 

@@ -134,7 +134,7 @@ func TestEntryMissingMessageCanonicalOrder(t *testing.T) {
 		t.Fatalf("canonical order: %v", check.Missing)
 	}
 	msg := MissingMessage(check.Missing, fields)
-	want := "a title, the problem it solves, the one-line solution, who it's for, a track, and a video or a published website or a screenshot"
+	want := "a project name, the problem, the solution, who it's for, a track, and a video or a published website or a screenshot"
 	if msg != want {
 		t.Fatalf("message = %q, want %q", msg, want)
 	}

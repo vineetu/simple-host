@@ -24,12 +24,14 @@ func EventOver(end time.Time, zone string) time.Time {
 	return end
 }
 
-// DirectoryGroup is GET /v1/hack/directory's now/upcoming/past choice for one event.
+// DirectoryGroup is GET /v1/hack/directory's now/upcoming/past choice for one
+// event. The stage wins over the dates: an event at Results or Ended is past,
+// and only one still taking sign-ups can be upcoming.
 func DirectoryGroup(stage string, endsAt sql.NullTime, zone string, startsAt sql.NullTime, now time.Time) string {
-	if stage == "archived" || (endsAt.Valid && !now.Before(EventOver(endsAt.Time, zone))) {
+	if stage == "archived" || stage == "results" || (endsAt.Valid && !now.Before(EventOver(endsAt.Time, zone))) {
 		return "past"
 	}
-	if startsAt.Valid && now.Before(startsAt.Time) {
+	if (stage == "open" || stage == "building") && startsAt.Valid && now.Before(startsAt.Time) {
 		return "upcoming"
 	}
 	return "now"

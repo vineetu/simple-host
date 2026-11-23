@@ -128,16 +128,17 @@ func (a *App) EnablePasscodes(t *testing.T) {
 func (a *App) WithOAuth(t *testing.T) *OAuthHandler {
 	t.Helper()
 	oh := &OAuthHandler{
-		Database:      a.Database,
-		Limits:        a.Access.Limits,
-		Cfg:           OAuthSettings{PublicBaseURL: "https://" + rt.SiteDomain, SiteDomain: rt.SiteDomain, ContentHost: rt.ContentHost, CNAMETarget: "cname." + rt.SiteDomain},
-		Accounts:      accounts.New(a.Database),
-		SignIn:        NewProviderSignIn(accounts.New(a.Database), map[string]Provider{"google": FakeProvider{}}),
-		IPLimiter:     httpx.NewRateLimiter(10000, 10000),
-		SSOKeyLimiter: httpx.NewRateLimiter(10000, 10000),
-		LookupIP:      func(context.Context, string) ([]net.IP, error) { return nil, nil },
-		LookupCNAME:   func(context.Context, string) (string, error) { return "cname." + rt.SiteDomain + ".", nil },
-		Access:        a.Access,
+		Database:            a.Database,
+		Limits:              a.Access.Limits,
+		Cfg:                 OAuthSettings{PublicBaseURL: "https://" + rt.SiteDomain, SiteDomain: rt.SiteDomain, ContentHost: rt.ContentHost, CNAMETarget: "cname." + rt.SiteDomain},
+		Accounts:            accounts.New(a.Database),
+		SignIn:              NewProviderSignIn(accounts.New(a.Database), map[string]Provider{"google": FakeProvider{}}),
+		IPLimiter:           httpx.NewRateLimiter(10000, 10000),
+		SSOKeyLimiter:       httpx.NewRateLimiter(10000, 10000),
+		SSOSessionIPLimiter: httpx.NewRateLimiter(10000, 10000),
+		LookupIP:            func(context.Context, string) ([]net.IP, error) { return nil, nil },
+		LookupCNAME:         func(context.Context, string) (string, error) { return "cname." + rt.SiteDomain + ".", nil },
+		Access:              a.Access,
 	}
 	oh.Register(a.Mux)
 	return oh

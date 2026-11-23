@@ -51,8 +51,10 @@ export function scoreTotals(scores, rubric) {
 export function dateRange(uiArg, info) {
   if (!info || !info.starts_at) return ''
   const shim = { time_zone: info.time_zone }
-  const start = uiArg.eventBoundaryDate(info.starts_at, shim)
-  const end = info.ends_at ? uiArg.eventBoundaryDate(info.ends_at, shim) : ''
+  // A time of day carries its zone ("5:00 am WIB"), like the public page (UX-1 C7).
+  const at = v => uiArg.dateTime(v, shim, { dateOnly: uiArg.isLocalMidnight(v, shim), zone: true })
+  const start = at(info.starts_at)
+  const end = info.ends_at ? at(info.ends_at) : ''
   return end ? `${start} – ${end}` : start
 }
 

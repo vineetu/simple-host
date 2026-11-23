@@ -158,6 +158,7 @@ function confirmJudge(ui, preview, title, warn) {
     ? `You'll lose access to judging. Your scores for ${n} team${n === 1 ? '' : 's'} stay and still count in the results.`
     : "You'll lose access to judging.")]
   if (preview.rejoin === 'judge_link') body.push(para('You can come back with the judge link until results are published.', 'muted'))
+  else body.push(para("Results are out, so you can't rejoin as a judge.", 'muted'))
   if (warn) body.unshift(warnNote(warn))
   return ui.confirm({ title: `Leave ${title}?`, body, confirmLabel: 'Leave event', danger: true })
 }

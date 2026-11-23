@@ -199,12 +199,14 @@ func (h *SiteHandler) RenderNotFound(w http.ResponseWriter, r *http.Request, ori
 	message := "Page not found"
 	subtext := "The page you’re looking for doesn’t exist."
 	backURL := h.MainSiteURL()
-	// Baseline, unconditional literal on the hosted service, true for
-	// simple-hack.app too (same team, deliberate cross-brand reference) --
-	// must stay byte-identical there. A self-hosted install has no business
-	// sending anyone to simple-host.app, so it names itself instead.
+	// Baseline literal on simple-host.app, which must stay byte-identical. A
+	// self-hosted install has no business sending anyone to simple-host.app,
+	// so it names itself instead. A hackathon platform (simple-hack.app or a
+	// self-hosted copy) never links out: it sends people to its own home.
 	backLabel := "Go to simple-host.app"
-	if h.Pages().HostedOwner() == "" {
+	if h.Ed.Routes().HostedEvents {
+		backURL, backLabel = "/", "Go to "+h.Ed.Presentation().ProductName
+	} else if h.Pages().HostedOwner() == "" {
 		backLabel = "Go to " + h.SiteDomain
 	}
 

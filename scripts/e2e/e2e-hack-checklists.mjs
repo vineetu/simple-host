@@ -181,7 +181,7 @@ try {
  assert.equal(tieInputs.length,2,'new tie must use current preview')
  for (let i=0;i<tieInputs.length;i++) await tieInputs[i].fill(String(i+1))
  await org.page.getByRole('dialog').getByRole('button',{name:'Publish again',exact:true}).click()
- await org.page.getByRole('button',{name:"Don't send",exact:true}).click()
+ await org.page.getByRole('button',{name:"Don't post",exact:true}).click()
  await home(org.page,'organiser'); await state(org.page,'o.ties',true)
  await org.page.goto(info.url+`/e/${info.slug}/manage?s=results`)
  await org.page.locator('#res-status').waitFor()

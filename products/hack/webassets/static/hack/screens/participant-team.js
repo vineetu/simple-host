@@ -29,19 +29,23 @@ let autoTourTried = false
 // right before the refresh those actions already do, so a join/accept the
 // person themselves triggered never reads back as "placed by the
 // organiser".
+// Returns '' (no note), 'joined' or 'started' (this person's own action),
+// or 'placed' (on a new team for a reason the screen can't tell).
 function justPlacedNote(uid, slug, team) {
   const selfKey = 'sh-selfjoin-' + slug
-  let self = false
-  try { self = sessionStorage.getItem(selfKey) === '1'; sessionStorage.removeItem(selfKey) } catch (e) {}
+  let self = ''
+  try { self = sessionStorage.getItem(selfKey) || ''; sessionStorage.removeItem(selfKey) } catch (e) {}
   const baselineKey = 'sh-team-baseline-' + uid + '-' + slug
   const teamSlug = team ? team.slug : ''
   let baseline = null
   try { baseline = localStorage.getItem(baselineKey) } catch (e) {}
   try { localStorage.setItem(baselineKey, teamSlug) } catch (e) {}
-  if (baseline === null) return false
-  return baseline !== teamSlug && !!teamSlug && !self
+  if (!teamSlug) return ''
+  if (self === 'joined' || self === 'started') return self
+  if (baseline === null) return ''
+  return baseline !== teamSlug ? 'placed' : ''
 }
-function markSelfJoin(slug) { try { sessionStorage.setItem('sh-selfjoin-' + slug, '1') } catch (e) {} }
+function markSelfJoin(slug, kind) { try { sessionStorage.setItem('sh-selfjoin-' + slug, kind) } catch (e) {} }
 
 const WAY_COPY = {
   ask: ['Ask to join a team', "Pick a team that's looking for people. Its admins say yes or no."],
@@ -78,6 +82,7 @@ export async function render(ctx) {
   // every member (decision 6), gated by canInvite below instead.
   const canAct = !!team && !frozen
   const canInvite = canAct && !team.locked
+  const teamFull = !!team && (team.members || []).length >= ev.team_size_max
   const uid = (ctx.me && (ctx.me.id || ctx.me.username)) || 'anon'
   const justPlaced = justPlacedNote(uid, ev.slug, team)
 
@@ -101,18 +106,19 @@ export async function render(ctx) {
 
   const $ = id => main.querySelector('#' + id)
 
-  async function act(btn, fn, { onBlocked, saved } = {}) {
+  async function act(btn, fn, { onBlocked, saved, joins, onError } = {}) {
     if (btn) btn.disabled = true
     try {
       const r = await fn()
       if (!r.ok) {
         const code = r.data && r.data.code
         if (isBlockedCode(code) && onBlocked !== false) { ui.toast(errText(r), main, true); await refresh(); return }
-        ui.toast(errText(r), btn || main, true)
+        if (onError) onError(errText(r))
+        else ui.toast(errText(r), btn || main, true)
         if (btn) btn.disabled = false
         return
       }
-      if (!team) markSelfJoin(ev.slug)
+      if (!team && joins) markSelfJoin(ev.slug, joins)
       if (saved) ui.saved(btn || main)
       await refresh()
     } catch (e) {
@@ -139,7 +145,7 @@ export async function render(ctx) {
     }
     const invites = finding.enabled ? finding.pending.filter(p => p.kind === 'invite') : []
     const invitesHTML = invites.length
-      ? `<h2 class="section-title">Invites for you</h2><div class="list">${invites.map(p => row(esc, p.team_name, 'Invited you to join', `<button type="button" class="btn primary sm" data-accept="${esc(p.id)}">Accept</button><button type="button" class="btn sm" data-decline="${esc(p.id)}">Decline</button>`)).join('')}</div>`
+      ? `<h2 class="section-title">Invites for you</h2><div class="list">${invites.map(p => row(esc, p.team_name, inviteSub(p), `<button type="button" class="btn primary sm" data-accept="${esc(p.id)}">Accept</button><button type="button" class="btn sm" data-decline="${esc(p.id)}">Decline</button>`)).join('')}</div>`
       : ''
     const choices = `<h2 class="section-title">How do you want to team up?</h2><div class="choices stack" role="radiogroup" aria-label="How do you want to team up?" data-tour="team-ways">${ways.map(w => {
       const [t, d] = WAY_COPY[w]
@@ -152,8 +158,19 @@ export async function render(ctx) {
     return invitesHTML + choices + panel
   }
 
+  // "Invited you · 2 of 4 · Good Health": size and track when the team is
+  // in the looking list, which is where they are known.
+  function inviteSub(p) {
+    const t = finding.teams.find(x => x.slug === p.team)
+    if (!t) return 'Invited you to join'
+    return 'Invited you · ' + t.member_count + ' of ' + t.team_size_max + (t.track && t.track.name ? ' · ' + t.track.name : '')
+  }
+
   function askPanelHTML() {
-    const rows = finding.teams.map(t => {
+    // A team that already invited you shows under Invites for you only.
+    const invitedBy = new Set(finding.pending.filter(p => p.kind === 'invite').map(p => p.team))
+    const listed = finding.teams.filter(t => !invitedBy.has(t.slug))
+    const rows = listed.map(t => {
       const req = finding.pending.find(p => p.kind === 'request' && p.team === t.slug)
       const blocked = t.full || !canJoinByCode
       const members = Array.isArray(t.members) ? t.members.filter(Boolean) : []
@@ -166,7 +183,7 @@ export async function render(ctx) {
         : `<button type="button" class="btn sm" data-ask="${esc(t.slug)}"${blocked ? ' disabled' : ''}>${t.full ? 'Full' : 'Ask to join'}</button>`
       return row(esc, t.name, sub, btn)
     }).join('')
-    return `<section class="sp" data-tour="open-teams"><div class="sp-head"><h2>Teams looking for people</h2><p>Ask as many as you like. When one says yes, your other requests are withdrawn.</p></div>${finding.teams.length ? `<div class="list">${rows}</div>` : `<div class="empty-state"><h3>No teams looking right now</h3><p>Check back later, or start your own.</p></div>`}</section>` + beFoundHTML()
+    return `<section class="sp" data-tour="open-teams"><div class="sp-head"><h2>Teams looking for people</h2><p>Ask as many as you like. When one says yes, your other requests are withdrawn.</p></div>${listed.length ? `<div class="list">${rows}</div>` : `<div class="empty-state"><h3>No teams looking right now</h3><p>Check back later, or start your own.</p></div>`}</section>` + beFoundHTML()
   }
 
   function beFoundHTML() {
@@ -193,7 +210,7 @@ export async function render(ctx) {
     }))
     main.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/' + encodeURIComponent(b.getAttribute('data-ask')) + '/requests'))))
     main.querySelectorAll('[data-withdraw]').forEach(b => b.addEventListener('click', () => act(b, () => api('DELETE', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-withdraw'))))))
-    main.querySelectorAll('[data-accept]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-accept')) + '/accept'))))
+    main.querySelectorAll('[data-accept]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-accept')) + '/accept'), { joins: 'joined' })))
     main.querySelectorAll('[data-decline]').forEach(b => b.addEventListener('click', () => act(b, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/requests/' + encodeURIComponent(b.getAttribute('data-decline')) + '/decline'))))
     const lookOn = $('look-on'), lookSave = $('look-save')
     if (lookSave) lookSave.addEventListener('click', () => act(lookSave, () => api('PUT', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/me/looking', { looking: lookOn.checked, intro: $('look-intro').value }), { saved: true }))
@@ -204,7 +221,10 @@ export async function render(ctx) {
       const code = input.value.trim()
       if (!code) { err.hidden = false; err.textContent = 'Enter a team link or code.'; input.setAttribute('aria-invalid', 'true'); return }
       err.hidden = true; input.removeAttribute('aria-invalid')
-      act(joinGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/join', { code }))
+      act(joinGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams/join', { code }), {
+        joins: 'joined',
+        onError: msg => { err.hidden = false; err.textContent = msg; input.setAttribute('aria-invalid', 'true'); input.focus() }
+      })
     })
     const startGo = $('start-go')
     if (startGo) startGo.addEventListener('click', () => {
@@ -213,7 +233,10 @@ export async function render(ctx) {
       const name = input.value.trim()
       if (!name) { err.hidden = false; err.textContent = 'Enter a team name.'; input.setAttribute('aria-invalid', 'true'); return }
       err.hidden = true; input.removeAttribute('aria-invalid')
-      act(startGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams', { name }))
+      act(startGo, () => api('POST', '/v1/hack/events/' + encodeURIComponent(ev.slug) + '/teams', { name }), {
+        joins: 'started',
+        onError: msg => { err.hidden = false; err.textContent = msg; input.setAttribute('aria-invalid', 'true'); input.focus() }
+      })
     })
   }
 
@@ -242,13 +265,16 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
       const tail = isAdmin ? `<button class="btn" type="button" id="unlock-team">Unlock team</button>` : `Ask an admin to unlock it.`
       return `<div class="note warn" role="status">${esc(team.name)} is locked. No more people can join, by link, code, request or invite. ${tail}</div>`
     }
-    return `<section class="card"><h2>Team link</h2><p class="sub">Anyone in this event who opens it joins ${esc(team.name)} straight away.</p><div class="addr"><span class="mono">${esc(addr)}</span><button class="btn primary" type="button" id="copy-team-link" data-link="${esc(link)}">${COPY_ICON}Copy link</button></div><p class="help" style="margin:10px 0 0">Or share the code <b class="mono">${esc(team.code || '')}</b>.</p></section>`
+    const sub = teamFull ? esc(team.name) + ' is full, ' + (team.members || []).length + ' of ' + ev.team_size_max + '. Nobody else can join until someone leaves.' : 'Anyone in this event who opens it joins ' + esc(team.name) + ' straight away.'
+    return `<section class="card"><h2>Team link</h2><p class="sub">${sub}</p><div class="addr"><span class="mono">${esc(addr)}</span><button class="btn primary" type="button" id="copy-team-link" data-link="${esc(link)}">${COPY_ICON}Copy link</button></div><p class="help" style="margin:10px 0 0">Or share the code <b class="mono">${esc(team.code || '')}</b>.</p></section>`
   }
 
   function requestsHTML(pendingRequests) {
     if (!pendingRequests.length) return ''
     const rows = pendingRequests.map(p => {
-      const act_ = isAdmin
+      const act_ = isAdmin && teamFull
+        ? `<button type="button" class="btn sm" disabled>Full</button><button type="button" class="btn sm" data-decline="${esc(p.id)}">Decline</button>`
+        : isAdmin
         ? `<button type="button" class="btn primary sm" data-accept="${esc(p.id)}">Accept</button><button type="button" class="btn sm" data-decline="${esc(p.id)}">Decline</button>`
         : `<span class="meta">Waiting for an admin</span>`
       return `<div class="r"><div class="main"><b>${esc(p.display_name)}</b><span>Asked to join</span></div>${act_}</div>`
@@ -277,18 +303,21 @@ ${finding.enabled ? `<a href="?s=team&tab=people"${tab === 'people' ? ' aria-cur
     const members = team.members || []
     const pendingRequests = finding.pending.filter(p => p.kind === 'request')
     const parts = []
-    if (justPlaced) parts.push(`<div class="note ok" role="status">You joined ${esc(team.name)}.</div>`)
+    const placedNote = { joined: 'You joined ' + team.name + '.', started: 'You started ' + team.name + '. Copy its link to bring people in.', placed: 'You are on ' + team.name + ' now.' }[justPlaced]
+    if (placedNote) parts.push(`<div class="note ok" role="status">${esc(placedNote)}</div>`)
     // Round-6 Confusing 2: one clear rule instead of two that contradicted
-    // each other -- "Admins decide who joins" sat right above the Team
-    // link card's own "Anyone ... joins straight away."
-    parts.push(`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Members</h2><p>Anyone with the team link joins straight away. Admins approve requests to join.</p></div>`)
+    // each other. The rule follows the team's state: a locked, full or
+    // frozen team takes nobody new, so it never says "joins straight away"
+    // (locked and frozen have their own note right below).
+    const intro = frozen || team.locked ? '' : teamFull ? esc(team.name) + ' is full.' : 'Anyone with the team link joins straight away. Admins approve requests to join.'
+    parts.push(`<div class="sp-head"><h2 id="sp-h" tabindex="-1">Members</h2>${intro ? `<p>${intro}</p>` : ''}</div>`)
     if (frozen) parts.push(`<div class="note" role="status">Entries are closed, so ${esc(team.name)} can’t change now.</div>`)
-    parts.push(organiserThreadCardHTML(ui, ev, messages))
     parts.push(teamLinkCardHTML())
     if (!frozen) parts.push(requestsHTML(pendingRequests))
     parts.push(`<div class="list editable" aria-label="Members"><div class="lh">Members · ${members.length}</div>${members.map(m => memberRowHTML(m, members.length >= ev.team_size_max)).join('')}</div>`)
     const foot = members.length + ' of ' + ev.team_size_max + ' people.' + (isAdmin && canAct && !team.locked ? ' Lock the team in Settings when it’s complete.' : '')
     parts.push(`<p class="list-foot">${foot}</p>`)
+    parts.push(organiserThreadCardHTML(ui, ev, messages))
     return parts.join('')
   }
 

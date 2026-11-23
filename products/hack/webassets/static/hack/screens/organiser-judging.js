@@ -51,12 +51,12 @@ export async function render(ctx) {
   // explicit, organiser-set event time -- no inference from a schedule row
   // any more. PATCH /v1/hack/events/{slug} {"judging_ends_at": "..."}
   // ("" clears), same parsing as submission_deadline/ends_at. Drives the
-  // judging-reminder emails on Entries' Reminder times card, and shows as a
+  // judging-reminder emails on Settings → Reminders, and shows as a
   // fixed, read-only "Judging closes" row on the Event page's Schedule
   // (schedule.js setInLink's 'judging' case points back here).
   const restBlock = `
 <section class="card" id="jg-progress-card"><h2>Progress</h2><p class="note">Loading…</p></section>
-<section class="card" id="jg-conflicts-card"><h2>Conflicts of interest</h2><p class="note">Loading…</p></section>
+<section class="card" id="jg-conflicts-card"><h2>Judges who know a team</h2><p class="note">Loading…</p></section>
 `
 
   const canJudge = canScoreAsJudge(ctx.event)
@@ -184,7 +184,7 @@ ${locked && !ev.results_published ? `<p>Publish from <a href="${ui.esc(href('org
       const target = settings.assignment_mode !== 'open' ? settings.judges_per_team : 0
       const short = target > 0 && t.judges_eligible < target
       row.appendChild(ui.el('span', { class: 'meta', text }))
-      if (short) row.appendChild(ui.el('span', { class: 'pill warn', text: t.judges_eligible + ' of ' + target + ' judges' }))
+      if (short) row.appendChild(ui.el('span', { class: 'pill warn', text: 'Needs ' + target + ' judges, ' + t.judges_eligible + ' can score it' }))
       tlist.appendChild(row)
     })
     card.appendChild(tlist)

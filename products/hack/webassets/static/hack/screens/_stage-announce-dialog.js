@@ -21,6 +21,8 @@ export async function offerStageAnnouncement(ctx, { move, back, emailableCount, 
   // "not available here"), so inside a chat the AI app makes this offer
   // itself, per hack_set_event_stage's description.
   if (back || ctx.noAnnounce) return
+  // Nobody to tell: nobody has joined the event yet.
+  if (ctx.event.organiser?.counts?.participants === 0) return
   const ui = ctx.ui
   const api = ctx.api.api
   const ev = ctx.event.event
@@ -33,7 +35,7 @@ export async function offerStageAnnouncement(ctx, { move, back, emailableCount, 
 <div class="field"><label for="sa-body">Message</label><textarea class="input" id="sa-body" rows="4" maxlength="3000">${ui.esc(suggestion.body)}</textarea></div>
 <label class="check"><input type="checkbox" id="sa-email"${emailableCount ? '' : ' disabled'}><span><b>Email ${emailableCount} participants</b><span>${emailableCount ? 'Editing it later never sends another email.' : 'No participant has an email address yet.'}</span></span></label>`
   const q = sel => body.querySelector(sel)
-  await formDialog(ui, { title: 'Tell participants?', body, saveLabel: 'Send', cancelLabel: "Don't send", primary: 'cancel', focus: 0 }, async () => {
+  await formDialog(ui, { title: 'Tell participants?', body, saveLabel: 'Post', cancelLabel: "Don't post", primary: 'cancel', focus: 0 }, async () => {
     body.querySelectorAll('.err').forEach(n => n.remove())
     const t = q('#sa-title').value.trim(), b = q('#sa-body').value.trim()
     if (!t) { q('#sa-title').insertAdjacentHTML('afterend', '<p class="err">Title is required.</p>'); return false }
@@ -59,6 +61,6 @@ export async function offerStageAnnouncement(ctx, { move, back, emailableCount, 
       return true
     } catch (e) { body.insertAdjacentHTML('beforeend', '<p class="err">Cannot reach the server.</p>'); return false }
   })
-  // 'Don't send', Escape and a scrim click all resolve formDialog false
+  // "Don't post", Escape and a scrim click all resolve formDialog false
   // with nothing posted -- there is no "nothing sent" message to show.
 }

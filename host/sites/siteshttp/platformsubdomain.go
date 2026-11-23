@@ -158,5 +158,11 @@ func (h *SiteHandler) siteNotFound(w http.ResponseWriter, r *http.Request, root 
 			return
 		}
 	}
+	if h.Ed.Routes().HostedEvents {
+		// A hackathon platform never shows a bare "404 page not found": a
+		// site without its own 404.html gets the platform's page.
+		h.renderNotFoundPage(w, r, "Page not found", "No page lives at this address.", "/", "Go to this site’s home page")
+		return
+	}
 	http.NotFound(w, r)
 }

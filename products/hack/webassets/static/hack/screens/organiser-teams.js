@@ -117,7 +117,6 @@ export async function render(ctx) {
     const canMessage = teams.length && ev.stage !== 'archived'
     sp.innerHTML = `<div class="sp-head"><h2 id="sp-h" tabindex="-1">Teams</h2><p>Open a team to rename it, place people, choose its admins or lock it.</p>${canMessage ? `<button class="btn" type="button" id="msg-selected" disabled>Message selected</button>` : ''}</div>
 ${ev.team_finding ? '' : `<div class="note">Team finding is off. People join teams with a link or code.</div>`}
-${ev.stage === 'archived' ? `<div class="note warn">This event has ended. Teams can’t change any more.</div>` : ''}
 ${teams.length ? `<div class="list">${teams.map(teamRow).join('')}</div><p class="list-foot"><span>Teams hold up to ${teamSizeMax} people. Change that in <a href="?s=settings&tab=teams">Settings</a>. Select teams to message them.</span></p>` : `<div class="empty-state"><h3>No teams yet</h3><p>Teams show here once participants start them, or when Fill teams places people.</p></div>`}`
     wireTeamMessaging(sp)
   }
@@ -176,7 +175,7 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
     const subtitle = teams.length + ' team' + (teams.length === 1 ? '' : 's') + ' · ' + (onNoTeamCount ? onNoTeamCount + (onNoTeamCount === 1 ? ' person' : ' people') + ' not on a team' : 'Everyone is on a team')
     main.innerHTML = `<div class="ph"><div class="t"><h1>Teams</h1><p>${esc(subtitle)}</p></div></div>
 <div class="subnav-split">${subnavHTML()}<section class="sp" aria-labelledby="sp-h"></section></div>
-<p class="list-foot">Team and participant lists download as CSV from <a href="${esc(href(role, slug, 'results'))}">Results</a>.</p>`
+<p class="list-foot"><span>Team and participant lists download as CSV from <a href="${esc(href(role, slug, 'results'))}">Results</a>.</span></p>`
     const sp = main.querySelector('.sp')
     if (tab === 'teams') paintTeams(sp)
     else if (tab === 'solo') paintSolo(sp)
@@ -185,7 +184,7 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
     // on whichever sub-page is showing (Fill teams, the solo row menus,
     // track Add/Edit/Remove, team finding, team size) gets disabled with
     // the one shared banner, same as Overview/People/Settings.
-    adminLock(main, admin, ev)
+    adminLock(main, admin, ev, "This event has ended. Teams can't change any more.")
   }
 
   async function onFillTeams() {
@@ -217,18 +216,25 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
 
   // The Fill-teams dialog previews a given "people per team" size, and
   // re-previews when the organiser changes it (spec.json organiser-teams
-  // "fill-teams preview" state). Resolves { plan, size } on Apply, false on
-  // cancel. `size` and `plan` are only ever updated together, from the same
-  // response, and only while that response is still the latest one asked
-  // for (a `token` guard) -- so Apply can never send a size whose plan the
-  // organiser never actually saw, even if two previews overlap or the
-  // organiser types a new size before the first one answers.
+  // "fill-teams preview" state): while typing (debounced) and on change.
+  // Resolves { plan, size } on Apply, false on cancel. `size` and `plan` are
+  // only ever updated together, from the same response, and only while that
+  // response is still the latest one asked for (a `token` guard). The Apply
+  // button stays enabled while a preview runs: disabling it on `change`
+  // (which fires on blur, i.e. on the very mousedown that presses Apply)
+  // swallowed the click. Instead Apply waits for a preview still running,
+  // or starts one for a typed size not yet previewed, and then keeps the
+  // dialog open on the new plan -- so it never sends a size whose plan the
+  // organiser did not see.
   function fillTeamsDialog(initial) {
     return new Promise(resolve => {
       let size = initial.size || Math.min(4, teamSizeMax)
       let plan = initial.plan || [], skipped = initial.skipped || []
       let requestToken = 0
+      let pending = null, pendingSize = 0, typingTimer = 0
       const body = document.createElement('div')
+      body.innerHTML = `<div class="field"><label for="fill-size">People per team</label><input class="input" id="fill-size" type="number" min="1" max="${teamSizeMax}" value="${size}"><p class="help">Up to ${teamSizeMax}, your team size.</p></div><div id="fill-plan"></div><div id="fill-skipped"></div>`
+      const input = body.querySelector('#fill-size')
       function skipNote(s) { return `${esc(s.name)} is locked, so it was skipped.` }
       function saveLabel() {
         const n = plan.reduce((s, p) => s + p.members.length, 0)
@@ -244,6 +250,7 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
         btn.textContent = saveLabel()
         btn.disabled = !plan.length
       }
+      // Repaints the plan only, never the size field, so typing keeps focus.
       function renderPlan() {
         const list = document.createElement('ul')
         list.className = 'steps'
@@ -263,44 +270,56 @@ ${onNoTeam.length ? `<div class="list editable">${onNoTeam.map(soloRow).join('')
           li.append(tick, what)
           list.append(li)
         }
-        const note = skipped.length ? `<p class="small muted">${skipped.map(skipNote).join(' ')}</p>` : ''
-        body.innerHTML = `<div class="field"><label for="fill-size">People per team</label><input class="input" id="fill-size" type="number" min="1" max="${teamSizeMax}" value="${size}"><p class="help">Up to ${teamSizeMax}, your team size.</p></div><div id="fill-plan"></div>${note}`
-        body.querySelector('#fill-plan').append(list)
-        if (!plan.length) body.querySelector('#fill-plan').innerHTML = '<p class="muted">Nobody is left to place.</p>'
-        body.querySelector('#fill-size').addEventListener('change', onSizeChange)
+        const planEl = body.querySelector('#fill-plan')
+        planEl.replaceChildren(list)
+        if (!plan.length) planEl.innerHTML = '<p class="muted">Nobody is left to place.</p>'
+        body.querySelector('#fill-skipped').innerHTML = skipped.length ? `<p class="small muted">${skipped.map(skipNote).join(' ')}</p>` : ''
         syncApplyButton()
       }
-      async function onSizeChange(e) {
-        const n = Number(e.target.value)
-        if (!n || n < 1 || n > teamSizeMax) return
-        const token = ++requestToken
-        const applyBtn = applyButton()
-        if (applyBtn) applyBtn.disabled = true
-        let r
-        try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/fill', { apply: false, size: n }) }
-        catch (err) {
-          // Restores whatever the button should read for the plan already
-          // on screen (syncApplyButton's own rule) -- not a bare re-enable,
-          // since that plan might itself be empty.
-          if (token === requestToken) syncApplyButton()
-          return
-        }
-        // A newer preview already started (or finished) after this one --
-        // this response is stale, whether or not it happens to be the one
-        // that arrives last. Never let it touch size/plan/the button.
-        if (token !== requestToken) return
-        if (!r.ok) { syncApplyButton(); return }
-        size = n
-        plan = r.data.plan || []
-        skipped = r.data.skipped || []
-        renderPlan() // rebuilds body AND re-syncs/re-enables the Apply button
+      function typedSize() {
+        const n = Number(input.value)
+        return Number.isInteger(n) && n >= 1 && n <= teamSizeMax ? n : 0
       }
+      // Starts a preview for the typed size unless it is already shown or
+      // already being fetched.
+      function requestPreview() {
+        clearTimeout(typingTimer)
+        const n = typedSize()
+        if (!n || (pending ? n === pendingSize : n === size)) return
+        const token = ++requestToken
+        pendingSize = n
+        const run = (async () => {
+          let r
+          try { r = await api('POST', '/v1/hack/events/' + encodeURIComponent(slug) + '/teams/fill', { apply: false, size: n }) }
+          catch (err) { r = null }
+          // A newer preview already started after this one -- this response
+          // is stale. Never let it touch size/plan.
+          if (token !== requestToken) return
+          pending = null
+          if (!r || !r.ok) return
+          size = n
+          plan = r.data.plan || []
+          skipped = r.data.skipped || []
+          renderPlan()
+        })()
+        pending = run
+      }
+      input.addEventListener('input', () => { clearTimeout(typingTimer); typingTimer = setTimeout(requestPreview, 300) })
+      input.addEventListener('change', requestPreview)
       renderPlan()
       formDialog(ui, { title: 'Fill teams?', body, saveLabel: saveLabel(), focus: 0 }, async () => {
+        requestPreview()
+        if (pending) {
+          // Show the plan for the size just typed before placing anyone.
+          while (pending) await pending
+          setTimeout(syncApplyButton)
+          return false
+        }
         if (!plan.length) return false
         resolve({ plan, size })
         return true
       }).then(saved => { if (!saved) resolve(false) })
+      setTimeout(syncApplyButton)
     })
   }
 

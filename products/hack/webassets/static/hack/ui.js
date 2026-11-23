@@ -120,10 +120,18 @@ export function nextLocalMidnight(value, event) {
 // day -- its own next local midnight (nextLocalMidnight, DST-correct; not a
 // flat +24h) -- so it stays "next" until the day is over (full-test fix
 // 2026-11-02).
+// Only the dates that still matter at this stage (UX-1 organiser D14): an
+// event moved on early never shows a "Starts" it has already passed by
+// stage. Judging shows when judging closes; Results and later show none.
+const DEADLINES_BY_STAGE = {
+  draft: ['Starts', 'Entries close', 'Ends'], open: ['Starts', 'Entries close', 'Ends'],
+  building: ['Entries close', 'Ends'], closed: ['Ends'], judging: ['Judging closes']
+}
 export function nextDeadline(event) {
   const now = Date.now()
-  return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at]]
-    .filter(([, value]) => value && !Number.isNaN(new Date(value).getTime()))
+  const wanted = DEADLINES_BY_STAGE[event?.stage] || []
+  return [['Starts', event?.starts_at], ['Entries close', event?.submission_deadline], ['Ends', event?.ends_at], ['Judging closes', event?.judging_ends_at]]
+    .filter(([label, value]) => wanted.includes(label) && value && !Number.isNaN(new Date(value).getTime()))
     .map(([label, value]) => {
       const dateOnly = label !== 'Entries close' && isLocalMidnight(value, event)
       const endOfDay = label === 'Ends' && dateOnly ? nextLocalMidnight(value, event) : null
@@ -151,8 +159,10 @@ const TOAST_ROW = '.r, .row-flex, .field, .setting, .card, .sticky-foot, .ph, .a
 function placeToast(note, near) {
   const main = document.querySelector('main')
   const pageLevel = !near || near === main || near === document.body || (main != null && typeof near.contains === 'function' && near.contains(main))
-  if (!pageLevel && near.parentNode) {
-    const row = near.closest(TOAST_ROW) || near
+  const row = !pageLevel && near.parentNode ? (near.closest(TOAST_ROW) || near) : null
+  // A row that is itself a cell of a two-column grid (.subnav-split) would
+  // put the note in the wrong column: those notes go to the page top.
+  if (row && !row.parentElement?.matches('.subnav-split')) {
     const existing = row.matches('.sticky-foot') ? row.previousElementSibling : row.nextElementSibling
     if (existing && existing.matches('[data-toast]')) existing.remove()
     // A fixed save bar sits over the page end: put its note just above it.

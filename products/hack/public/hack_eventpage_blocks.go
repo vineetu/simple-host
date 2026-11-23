@@ -20,19 +20,12 @@ func hackOrganisedBy(name, org string) string {
 	return "Organised by " + name + org
 }
 
-// hackStagePills is the short phrase in the event header's stage pill.
+// hackStagePills is the event header's stage pill: the same words the app's
+// status header uses for every role (ui.js stages; atlas shell.status_header).
 var hackStagePills = map[string]string{
-	"draft": "Not open yet", "open": "Sign-up is open", "building": "Teams are building",
-	"closed": "Entries are closed", "judging": "Judging is under way",
-	"results": "Results coming soon", "archived": "This event has ended",
-}
-
-// hackStagePill is the stage's pill; published results read "Results are out".
-func hackStagePill(stage string, published bool) string {
-	if stage == "results" && published {
-		return "Results are out"
-	}
-	return hackStagePills[stage]
+	"draft": "Not open yet", "open": "Sign-up open", "building": "Building",
+	"closed": "Entries closed", "judging": "Judging",
+	"results": "Results", "archived": "Ended",
 }
 
 // hackStageCardInput is what the stage card is decided from: the raw stage (not
@@ -199,9 +192,9 @@ func buildHackResultsBlock(res *hackResultsView) *hackResultsBlockView {
 
 func hackScoreNote(mode string) string {
 	if mode == "normalised" {
-		return "Scores are adjusted so strict and generous judges count the same."
+		return "Scores are out of 100, adjusted so strict and generous judges count the same."
 	}
-	return "Scores are the judges' average."
+	return "Scores are out of 100, the judges' average."
 }
 
 func hackResultsRowViewOf(row hackResultsRow, fullRanking bool) hackResultsRowView {

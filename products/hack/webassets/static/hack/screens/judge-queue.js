@@ -94,7 +94,9 @@ export async function render(ctx) {
   function rowFor(row, mode, isFirst) {
     const title = row.title || row.team.name || 'Entry'
     const sub = subLine(row)
-    const openBtn = newTabLink(siteHref(row), 'Open site', 'btn sm')
+    // A team without a site still gets a way to see its work: its demo
+    // video (UX-1 A4).
+    const openBtn = newTabLink(siteHref(row), 'Open site', 'btn sm') || newTabLink(row.video && row.video.url, 'Watch video', 'btn sm')
     const shotBtn = row.has_screenshot ? `<button type="button" class="btn sm" data-shot="${ui.esc(row.team_id)}" data-slug="${ui.esc(row.team.slug)}">View screenshot</button>` : ''
     const shotFrame = row.has_screenshot ? `<div class="site-frame" id="shot-${ui.esc(row.team_id)}" hidden><img alt="Screenshot of ${ui.esc(row.team.name || title)}" hidden></div>` : ''
     const scoreHref = `/e/${encodeURIComponent(slug)}/judge?s=scoring&team=${encodeURIComponent(row.team_id)}`
@@ -154,7 +156,7 @@ export async function render(ctx) {
     tabs.map(t => `<section data-panel="${t.id}"${t.id === active.id ? '' : ' hidden'}>${t.panel}</section>`).join('')
 
   if (!locked && !resultsOut) {
-    await bindAcknowledgement(ctx, { node: main.querySelector('#conflicts'), id: 'j.conflicts', label: "I don't know any of these teams", role: 'judge' })
+    await bindAcknowledgement(ctx, { node: main.querySelector('#conflicts'), id: 'j.conflicts', label: "I don't know any of these teams", role: 'judge', help: 'Checked the list and know nobody on it? Say so once.', doneText: "Saved: you don't know anyone on these teams." })
     if (ctx.alive && !ctx.alive()) return
   }
   main.querySelectorAll('[data-tab]').forEach(a => a.addEventListener('click', e => {

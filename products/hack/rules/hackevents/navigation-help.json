@@ -2824,8 +2824,7 @@
       "target": "o.entry-rules",
       "label": "Description",
       "sources": [
-        "screens/_orgB-util.js",
-        "screens/organiser-entry-detail.js"
+        "screens/participant-entry.js"
       ],
       "explains": "Legacy long description: optional in current presets, with no organiser rule row.",
       "limits": [

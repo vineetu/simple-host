@@ -431,7 +431,7 @@ paths:
       - {apiKey: []}
       responses:
         '200':
-          description: '{team, eligible}: team slug or empty string when no vote.'
+          description: '{team, eligible, own_team}: team slug or empty string when no vote; own_team is the slug of your own team, which you cannot vote for, or null.'
           content:
             application/json: {schema: {type: object}}
         '404':
@@ -5806,6 +5806,7 @@ components_add:
               description: team, summary, evidence, submit, each {id, done, ...step-specific fields}.
               items: {type: object, additionalProperties: true}
             next: {type: string, description: 'The next step id to do, or empty when every step is done.'}
+            title: {type: string, description: 'The project name, or empty before it is set.'}
             deadline: {type: string, format: date-time, nullable: true}
             deadline_is_extension: {type: boolean}
             event_deadline:

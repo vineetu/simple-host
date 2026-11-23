@@ -22,21 +22,21 @@ export async function render(ctx) {
   const api = client.api
   const $ = id => main.querySelector('#' + id)
   const setLive = ui.live(main)
-  let accountEmail = '', accountConfirm = '', accountGoogleOn = false, accountGoogleLinked = false, accountOidcLabel = ''
+  let accountEmail = '', accountConfirm = '', accountGoogleOn = false, accountGoogleLinked = false, accountOidcLabel = '', accountHasEmail = false
   const signOut = (deleted = false) => client.signOut(ui.confirm, deleted)
   if (me.team || me.username === 'admin' || !(me.username || me.email)) {
     main.innerHTML = '<div class="note">Sign in with your email to open your account.</div>'
     return
   }
   main.innerHTML = `<div class="ph"><div class="t"><h1>Account</h1></div></div>
-<section class="card"><h2>Your name</h2><form id="acct-name-form"><div class="field"><label class="sr-only" for="acct-name">Name</label><div class="control-row"><input class="input" id="acct-name" type="text" maxlength="100"><button class="btn primary" id="acct-name-save">Save</button></div><p class="help">The one name shown in every event you join -- to teams, organisers and judges. A change here updates it everywhere at once.</p><p class="help" id="acct-name-err"></p></div></form></section>
+<section class="card"><h2>Your name</h2><form id="acct-name-form"><div class="field"><label class="sr-only" for="acct-name">Name</label><div class="control-row"><input class="input" id="acct-name" type="text" maxlength="100"><button class="btn primary" id="acct-name-save">Save</button></div><p class="help">The one name teams, organisers and judges see in every event you join. A change here updates it everywhere at once.</p><p class="help" id="acct-name-err"></p></div></form></section>
 <section class="card" id="acct-connect-card"><h2>Connected AI apps</h2><div id="acct-connect-status">Loading…</div><details id="acct-connect-how"><summary>Connect an AI app</summary><nav class="app-tabs" id="acct-connect-tabs" aria-label="How you connect"></nav><div id="acct-connect-steps"></div></details></section>
 <section class="card"><h2>Email</h2><div id="acct-email-row"><p id="acct-email-text">You sign in with <b id="acct-email"></b>. A change needs a code from this address and one from the new one.</p><div class="form-actions" id="acct-email-actions"><button class="btn" id="acct-email-open">Change email</button></div></div>
 <form id="acct-email-form" hidden><div class="field"><label>New email<input class="input" id="acct-email-input" type="email" required autocomplete="email"></label></div><div class="form-actions"><button class="btn primary" id="acct-email-send">Send codes</button><button class="btn" id="acct-email-cancel" type="button">Cancel</button></div></form>
 <form id="acct-code-form" hidden><p>Enter the codes sent to <span id="acct-code-to"></span> and <span id="acct-current-to"></span>.</p><div class="field"><label>New email code<input class="input" id="acct-code" inputmode="numeric" autocomplete="one-time-code" required pattern="[0-9]{6}"></label></div><div class="field"><label>Current email code<input class="input" id="acct-current-code" inputmode="numeric" required pattern="[0-9]{6}"></label></div><div class="form-actions"><button class="btn primary" id="acct-code-go">Change email</button><button class="btn" id="acct-code-cancel" type="button">Cancel</button></div></form></section>
 <section class="card" id="acct-password-card" hidden><h2>Password</h2><p class="help" id="acct-password-login" hidden></p><form id="acct-password-form"><div class="field"><label for="acct-password-current">Current password<input class="input" id="acct-password-current" type="password" autocomplete="current-password" required></label></div><div class="field"><label for="acct-password-new">New password<input class="input" id="acct-password-new" type="password" autocomplete="new-password" minlength="8" required></label></div><div class="field"><label for="acct-password-confirm">Confirm new password<input class="input" id="acct-password-confirm" type="password" autocomplete="new-password" minlength="8" required></label></div><p class="help">At least 8 characters. Your other keys and sessions are not affected.</p><div class="form-actions"><button class="btn primary" id="acct-password-save">Change password</button></div><p class="help" id="acct-password-err"></p></form></section>
 <section class="card"><h2>Google sign-in</h2><div id="acct-ids"></div><p class="help" id="acct-google-hint" hidden>Use the Google account with your sign-in email.</p><div class="form-actions"><button class="btn" id="acct-google" hidden>Link Google</button></div></section>
-<section class="card"><h2>Preferences</h2><label class="check"><input type="checkbox" id="acct-alerts"><span>Email me after each new sign-in or connected app, so I notice one that wasn’t me</span></label><div class="setting"><div class="t"><div class="t-row"><b>Email me when something waits on me</b><span class="saved" id="acct-wait-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span id="acct-wait-help">Team requests and invites, application answers, and changes to your team or its site. Organisers also hear about new applications. At most one email of each kind every 15 minutes.</span></div><div class="ctl"><button class="toggle" type="button" role="switch" aria-checked="false" id="acct-wait" aria-label="Email me when something waits on me" disabled></button></div></div></section>
+<section class="card"><h2>Preferences</h2><div class="setting"><div class="t"><b>Email me about new sign-ins</b><span id="acct-alerts-help">An email after each new sign-in or connected app, so you notice one that wasn’t you.</span></div><div class="ctl"><button class="toggle" type="button" role="switch" aria-checked="false" id="acct-alerts" aria-label="Email me about new sign-ins"></button></div></div><div class="setting"><div class="t"><div class="t-row"><b>Email me when something waits on me</b><span class="saved" id="acct-wait-saved" hidden><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>Saved</span></div><span id="acct-wait-help">Team requests and invites, application answers, and changes to your team or its site. Organisers also hear about new applications. At most one email of each kind every 15 minutes.</span></div><div class="ctl"><button class="toggle" type="button" role="switch" aria-checked="false" id="acct-wait" aria-label="Email me when something waits on me" disabled></button></div></div></section>
 <section class="danger-zone"><h2>Danger zone</h2><div class="setting"><div class="t"><b>Make a new account key</b><span>The old key stops working at once, including in connected AI apps.</span></div><button class="btn danger" id="rotate-key">New key</button></div><div class="setting"><div class="t"><b>Sign out everywhere</b><span>Every key stops working and connected apps are disconnected. This browser keeps the new key.</span></div><button class="btn danger" id="acct-everywhere">Sign out everywhere</button></div><div class="setting" id="acct-delete-row"><div class="t"><b>Delete your account</b><span>Delete your account and all its data at once and for good. Blocked while you’re organising an event that hasn’t ended.</span></div><button class="btn danger" id="acct-delete-open">Delete account</button></div><div class="setting" id="acct-delete" hidden><div class="t"><div class="field"><label for="acct-delete-input">Type <b id="acct-delete-word"></b> to confirm. This cannot be undone.</label><input class="input" id="acct-delete-input" type="email" autocomplete="off"></div><div class="form-actions"><button class="btn danger" id="acct-delete-go" disabled>Delete account</button><button class="btn" id="acct-delete-cancel">Cancel</button></div></div></div></section>`
   async function showKey(key) {
     const box = document.createElement('section')
@@ -102,7 +102,7 @@ export async function render(ctx) {
   function paintGoogleLink() {
     var on = accountGoogleOn && !accountGoogleLinked;
     $('acct-google').hidden = !on;
-    $('acct-google-hint').hidden = !on;
+    $('acct-google-hint').hidden = !on || !accountHasEmail;
   }
   function paintAccount(me) {
     // accountEmail/accountConfirm are the account's "identifying word" for
@@ -128,7 +128,15 @@ export async function render(ctx) {
       $('acct-email-actions').hidden = true;
     }
     $('acct-delete-word').textContent = accountEmail;
-    $('acct-alerts').checked = !(me && me.signin_alerts === false);
+    // Two email preferences, one control: switches (UX-1 participant #25). A
+    // key-only account has no address, so this one stays off and says why (#9).
+    var alerts = $('acct-alerts'), alertsOn = !!realEmail && !(me && me.signin_alerts === false);
+    alerts.classList.toggle('on', alertsOn);
+    alerts.setAttribute('aria-checked', String(alertsOn));
+    alerts.disabled = !realEmail;
+    accountHasEmail = !!realEmail;
+    if (!realEmail) $('acct-alerts-help').textContent = "Your account has no email address, so there's nothing to email.";
+    paintGoogleLink();
     $('acct-password-card').hidden = !(me && me.has_password === true);
     var loginLine = $('acct-password-login');
     if (loginLine) {
@@ -300,21 +308,23 @@ export async function render(ctx) {
     saveNext('/account');
     startGoogle();
   });
-  $('acct-alerts').addEventListener('change', async function () {
+  $('acct-alerts').addEventListener('click', async function () {
     var box = $('acct-alerts');
-    var want = box.checked;
+    var want = !box.classList.contains('on');
+    function show(on) { box.classList.toggle('on', on); box.setAttribute('aria-checked', String(on)); }
+    show(want);
     box.disabled = true;
     setLive('');
     try {
       var r = await api('PATCH', '/v1/me', { signin_alerts: want });
       if (!r.ok) {
-        box.checked = !want;
-        setLive(accountErr(r, 'Could not save'), 'err', box.closest('label') || box);
+        show(!want);
+        setLive(accountErr(r, 'Could not save'), 'err', box);
         return;
       }
-      setLive(want ? 'Sign-in alerts on' : 'Sign-in alerts off', 'ok', box.closest('label') || box);
+      setLive(want ? 'Sign-in alerts on' : 'Sign-in alerts off', 'ok', box);
     } catch (err) {
-      if (!client.isSignedOut(err)) { box.checked = !want; setLive('Cannot reach the server.', 'err', box); }
+      if (!client.isSignedOut(err)) { show(!want); setLive('Cannot reach the server.', 'err', box); }
     } finally { box.disabled = false; }
   });
   $('acct-everywhere').addEventListener('click', async function () {

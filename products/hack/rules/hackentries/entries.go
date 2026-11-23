@@ -292,9 +292,9 @@ var SummaryFields = []string{"title", "problem", "tagline", "audience", "track",
 // renders and for progress.steps["summary"].missing. one_of is reworded
 // per-event by MissingMessage; this is only the generic fallback.
 var FieldWords = map[string]string{
-	"title": "a title", "problem": "the problem it solves", "tagline": "the one-line solution",
-	"audience": "who it's for", "track": "a track", "tools": "the tools used",
-	"maturity": "how far along it is", "description": "a description",
+	"title": "a project name", "problem": "the problem", "tagline": "the solution",
+	"audience": "who it's for", "track": "a track", "tools": "tools and AI",
+	"maturity": "what works today", "description": "a description",
 	"video_url": "a video", "site": "a published website", "code_url": "your code link",
 	"screenshot": "a screenshot", "one_of": "a video or a published website",
 }

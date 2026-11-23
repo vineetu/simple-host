@@ -89,6 +89,9 @@ func (p *AssetPipeline) WriteMessagePage(w http.ResponseWriter, r *http.Request,
 	page = strings.ReplaceAll(page, "__SH_SUBTEXT__", subtext)
 	page = strings.ReplaceAll(page, "__SH_BACKLINK_URL__", backURL)
 	page = strings.ReplaceAll(page, "__SH_BACKLINK_LABEL__", backLabel)
+	// A product's own message page links its styles from the app's origin,
+	// which is not this host when the page answers on a site's address.
+	page = strings.ReplaceAll(page, "__SH_BASE__", html.EscapeString(base))
 	if status != http.StatusNotFound {
 		// Same layout, without the "404".
 		page = strings.Replace(page, `<div class="nf-code">404</div>`, "", 1)

@@ -3,10 +3,17 @@
 // screen-local, like BUILD.md allows for a module more than one of these
 // screens needs.
 
-export const FIELD_LABEL = { title: 'Title', tagline: 'Tagline', description: 'Description', video_url: 'Video link', code_url: 'Code link', screenshot: 'Screenshot' }
+// The plain name of each entry field, one list for every organiser screen
+// that says what an entry is missing (Entries, Entry detail, Team detail).
+const FIELD_LABEL = {
+  title: 'project name', problem: 'the problem', tagline: 'the solution', audience: "who it's for",
+  track: 'a track', tools: 'tools and AI', maturity: 'what works today',
+  video_url: 'a video link', site: 'a published website', code_url: 'a code link', screenshot: 'a screenshot', description: 'a description',
+  one_of: 'a video or website'
+}
 
 export function labelList(fields) {
-  return fields.map(f => FIELD_LABEL[f] || f)
+  return (fields || []).map(f => FIELD_LABEL[f] || f)
 }
 
 // Joins ["Title","Tagline"] as "Title and Tagline", ["A","B","C"] as "A, B and C".

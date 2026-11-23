@@ -113,7 +113,7 @@ export const tours = {
       // Cosmetic #3 (retest 3): side:'left' keeps this card from landing on
       // top of the Execution/Design score rows above the comment box --
       // see tour.js's place().
-      { target: '[data-tour="comment"]', side: 'left', title: 'Add a comment', body: 'Add feedback once you score. The team sees it without your name.' },
+      { target: '[data-tour="comment"]', side: 'left', title: 'Add a comment', body: 'Write feedback any time. It saves once you tap a score, and the team sees it without your name.' },
       { target: '[data-tour="save-next"]', title: 'Save & next', body: 'Your scores already saved themselves. This just moves you to the next team. On your last team it reads Save & finish. On a keyboard, N does the same and P goes back.' },
       { target: '[data-tour="conflict"]', title: 'Know someone on this team?', body: 'If you know someone on this team, press this. The team leaves your list and your score for it stops counting. You can undo it from My teams.' },
       { target: '[data-tour="prev"]', title: 'Previous', body: 'Go back to the team before this one. Disabled on your first team.' }

@@ -119,7 +119,7 @@ export function mount(ctx, section, screenId) {
   // Announcements: posted since this browser last opened that screen
   // (client-only, needs.js). Organiser People: applications waiting for a
   // decision (nav.js's own stage_rule for People).
-  const needs = detail?.needs_you || []
+  let needs = detail?.needs_you || []
   function badgeFor(it) {
     if (role === 'participant' && it.id === 'team') return needCount(needs, ['join_request', 'invite']) || (detail?.me?.team?.admin && detail.me.team.pending_requests) || 0
     if (role === 'participant' && it.id === 'home') return newsCount(needs)
@@ -129,6 +129,28 @@ export function mount(ctx, section, screenId) {
     return 0
   }
   function tip(label, badge) { return label + (badge ? ' · ' + badge : '') }
+  // Sidebar and tab-bar badges after a screen changes what they count (a
+  // People decision, UX-1 organiser D4): re-read the event and repaint only
+  // the counts, so the screen underneath is left as it is.
+  if (ctx && event) ctx.refreshBadges = async () => {
+    let r
+    try { r = await ctx.api.getEvent(event.slug) } catch (_) { return }
+    if (!r || !r.ok || !r.data) return
+    Object.assign(detail, r.data)
+    needs = detail.needs_you || []
+    for (const it of items) {
+      const badge = badgeFor(it)
+      const want = href(role, event.slug, it.id)
+      document.querySelectorAll('.nav a[href], .tabbar a[href]').forEach(a => {
+        if (a.getAttribute('href') !== want) return
+        let count = a.querySelector('.count')
+        if (!badge) { count?.remove(); if (a.dataset.tip) a.dataset.tip = it.label; return }
+        if (!count) { count = document.createElement('span'); count.className = 'count'; a.append(count) }
+        count.textContent = String(badge)
+        if (a.dataset.tip) a.dataset.tip = tip(it.label, badge)
+      })
+    }
+  }
   function link(it) {
     const disabled = role === 'participant' && ['entry','website'].includes(it.id) && !detail?.me?.team
     const badge = badgeFor(it)
@@ -240,7 +262,7 @@ export function mount(ctx, section, screenId) {
   // own home screen (organiser Overview, participant/judge Home, nav_id
   // "home") -- not only the organiser's, per the same decision.
   const showTrack = !!event && ((role === 'organiser' && section === 'overview') || ((role === 'participant' || role === 'judge') && section === 'home'))
-  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(stageLabel(event.stage))}</span>${judgeScoringPill}${next ? `<span class="muted">${esc(next[0])} · ${esc(dateTime(next[1], event, next[2] ? { dateOnly: true } : {}))}</span>` : ''}<span class="grow"></span>${showTrack ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
+  const status = event ? `<div class="status"><span class="pill stage"><span class="d"></span>${esc(stageLabel(event.stage))}</span>${judgeScoringPill}${next ? `<span class="muted dl">${esc(next[0])} · ${esc(dateTime(next[1], event, next[2] ? { dateOnly: true } : {}))}</span>` : ''}<span class="grow"></span>${showTrack ? `<div class="stages">${track.map((s,i) => `<span class="${s === event.stage ? 'now' : i < track.indexOf(event.stage) ? 'done' : ''}">${esc(stageLabel(s))}</span>`).join('')}</div>` : ''}</div>` : ''
   const root = document.getElementById('app')
   // Two sidebar levels (owner decision 2026-10-30): the top-nav (Home, Find a
   // hackathon) is always shown; the event section (switcher + role nav) only
@@ -248,7 +270,7 @@ export function mount(ctx, section, screenId) {
   // section shows.
   const eventNav = signedIn ? `<div class="event-nav"><nav class="nav" aria-label="Your events">${eventList(true)}</nav></div>` : ''
   let collapsed = readSideCollapsed()
-  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}${collapsed ? ' side-collapsed' : ''}"><aside class="side" id="side" aria-label="Navigation"><div class="side-top">${brand()}${toggleBtn(collapsed)}</div>${topNav}${eventNav}<div class="side-foot"><a href="/account" data-tip="Account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout data-tip="Sign out">${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help" data-tip="Help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}${supportLink()}</details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
+  root.innerHTML = `<div class="app${tabbar ? ' has-tabs' : ''}${collapsed ? ' side-collapsed' : ''}"><aside class="side" id="side" aria-label="Navigation"><div class="side-top">${brand()}${toggleBtn(collapsed)}<button class="menu-close" type="button" data-menu aria-label="Close menu">Close</button></div>${topNav}${eventNav}<div class="side-foot"><a href="/account" data-tip="Account">${ico('user')}<span>Account</span></a>${signedIn ? `<a href="/" data-signout data-tip="Sign out">${ico('signout')}<span>Sign out</span></a>` : ''}<details><summary data-tour="help" data-tip="Help">${ico('help')}<span>Help</span></summary><a href="/get-started">Get started</a>${walkthroughHref ? `<a href="${esc(walkthroughHref)}">Replay walkthrough</a>` : ''}${supportLink()}</details></div></aside>${event ? popup : ''}<div class="col"><div class="phone-top">${phoneTop}<button class="menu-btn" data-menu>Menu</button></div>${status}<div class="content"><main class="page"></main></div></div>${tabbar}</div>`
   const app = root.firstElementChild
   // On Home itself (no event) there is no switcher and no popup to toggle --
   // pop is null there, so every branch below that touches it is guarded.
@@ -276,7 +298,7 @@ export function mount(ctx, section, screenId) {
       root.querySelectorAll('.switcher').forEach(b => b.setAttribute('aria-expanded','false'))
     }
     if (e.target.closest('[data-signout]')) { e.preventDefault(); ctx.api.signOut(ctx.ui.confirm); return }
-    if (e.target.closest('[data-menu]')) { e.preventDefault(); menuOpener = e.target.closest('[data-menu]'); app.classList.toggle('menu-open'); if (app.classList.contains('menu-open')) app.querySelector('.side a')?.focus(); else menuOpener.focus() }
+    if (e.target.closest('[data-menu]')) { e.preventDefault(); const btn = e.target.closest('[data-menu]'); if (!btn.classList.contains('menu-close')) menuOpener = btn; app.classList.toggle('menu-open'); if (app.classList.contains('menu-open')) app.querySelector('.side a')?.focus(); else menuOpener.focus() }
     else if (e.target.closest('.side a')) { app.classList.remove('menu-open'); menuOpener?.focus() }
     else if (!e.target.closest('.side')) app.classList.remove('menu-open')
     if (e.target.closest('[aria-disabled="true"]')) { e.preventDefault(); e.stopPropagation() }
@@ -296,8 +318,11 @@ export function mount(ctx, section, screenId) {
   // deadline, so the join/judge links only need to live here outside
   // Overview, where the Share cards already carry them.
   if (role === 'organiser' && section !== 'overview') {
+    // Only while the link can still be used (UX-1 organiser D22): people
+    // join until entries close; judges join until results.
+    const linkStages = { join_url: ['draft', 'open', 'building'], judge_url: ['draft', 'open', 'building', 'closed', 'judging'] }
     for (const [key,label] of [['join_url','Copy join link'],['judge_url','Copy judge link']]) {
-      if (detail.organiser?.[key]) root.querySelector('.status').append(copyButton(detail.organiser[key],label))
+      if (detail.organiser?.[key] && linkStages[key].includes(event.stage)) root.querySelector('.status').append(copyButton(detail.organiser[key],label))
     }
   }
   ctx.updateEvents = fresh => {
