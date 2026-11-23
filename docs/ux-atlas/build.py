@@ -13,15 +13,12 @@ What it does:
   * writes prototype/files.json (every prototype view, for the atlas viewer);
   * checks feature placement, known screen features, prototype files and references
     to FEATURES.md anchors; --check also verifies generated files without writing;
-  * copies today's production screenshots from $ATLAS_TODAY
-    (default /home/ubuntu/simple-hack-ux-atlas-today) into dist/today/.
 """
 import argparse, json, os, re, shutil, sys, tarfile, io, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROTO = os.path.join(HERE, "prototype")
 DIST = os.path.join(HERE, "dist")
-TODAY = os.environ.get("ATLAS_TODAY", "/home/ubuntu/simple-hack-ux-atlas-today")
 SITE = "simple-hack-ux-atlas"
 
 
@@ -98,10 +95,6 @@ def main():
         if os.path.exists(os.path.join(HERE, n)):
             shutil.copy(os.path.join(HERE, n), DIST)
     shutil.copytree(PROTO, os.path.join(DIST, "prototype"))
-    if os.path.isdir(TODAY):
-        shutil.copytree(TODAY, os.path.join(DIST, "today"))
-    else:
-        print(f"  warning: no screenshots at {TODAY}; the Today pictures will be missing")
 
     if args.publish:
         publish()

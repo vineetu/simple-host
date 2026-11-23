@@ -1,6 +1,10 @@
 [
   {
     "date": "2026-11-23",
+    "what": "Removed the old \"Today (before)\" pictures: the redesign is live and they showed a design that no longer exists."
+  },
+  {
+    "date": "2026-11-23",
     "what": "UX-1 (judge, public, shell): judge Overview layout and locking words brought in step with the product (next-step card shows one step; finishing judging locks scoring); Your events titled as shipped, with Create event at the bottom and an only-past state; Ended maps to API stage archived and the public pill uses the app's stage words; phone Menu/More is a full-screen pane with Close. Account: both email preferences are switches, the sign-in alert is off and says why for a key-only account, and the unused Theme row is gone. Shell: the status header shows only dates that still matter at the stage, the copy-link buttons go once the link can't be used, sidebar badges refresh after a People decision, and the Ask pill sits above sticky Save bars."
   },
   {

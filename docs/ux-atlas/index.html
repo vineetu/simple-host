@@ -56,14 +56,6 @@ h2{font-size:16px;margin:22px 0 8px}
 .btnk{font-size:12px;border-radius:5px;padding:0 6px;margin-left:4px;border:1px solid var(--line);color:var(--muted)}
 .btnk.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btnk.danger{color:var(--bad);border-color:#e3b6aa}
-.today{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
-.today figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:zoom-in}
-.today img{display:block;width:100%;height:170px;object-fit:cover;object-position:top}
-.today figcaption{padding:7px 10px;font-size:13px}
-.today figcaption span{display:block;color:var(--bad);font-size:12.5px}
-.zoom{position:fixed;inset:0;background:rgba(20,19,17,.82);z-index:90;display:none;overflow:auto;padding:24px;cursor:zoom-out}
-.zoom.open{display:block}.zoom img{display:block;max-width:min(1300px,100%);margin:0 auto;border-radius:8px}
-.zoom p{color:#fff;text-align:center;margin:0 0 12px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;cursor:pointer}
 .card:hover{border-color:var(--faint)}
@@ -99,10 +91,9 @@ td a{cursor:pointer}
   <aside id="side"></aside>
   <main id="main"><button class="menu" id="menu">Contents</button><div class="wrap" id="view">Loading…</div></main>
 </div>
-<div class="zoom" id="zoom"></div>
 <script>
 (function(){
-  var S={spec:null,features:[],today:[],files:[],log:[]}, cur='', dev='desktop', st=null;
+  var S={spec:null,features:[],files:[],log:[]}, cur='', dev='desktop', st=null;
   var ROLES=[['organiser','Organiser'],['participant','Participant'],['judge','Judge'],['shared','Shared'],['visitor','Public pages']];
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   function screens(){return (S.spec.screens||[]).concat((S.spec.public_pages||[]).map(function(x){x.role=x.role||'visitor';return x}))}
@@ -116,7 +107,7 @@ td a{cursor:pointer}
     var term=q().toLowerCase();
     var h='<div class="brand"><b>Simple Hack UX atlas</b></div>'+
       '<input class="search" id="q" placeholder="Find a screen or feature" value="'+esc(q())+'">'+
-      nl('','Overview')+nl('shell','App shell and kit')+nl('features','Features',S.features.length)+nl('today','Today (before)',S.today.length)+nl('log','Changelog');
+      nl('','Overview')+nl('shell','App shell and kit')+nl('features','Features',S.features.length)+nl('log','Changelog');
     ROLES.forEach(function(r){
       var xs=byRole(r[0]).filter(function(x){return !term||(x.title+' '+x.id+' '+(x.purpose||'')).toLowerCase().indexOf(term)>=0});
       if(!xs.length)return;
@@ -131,8 +122,8 @@ td a{cursor:pointer}
 
   function overview(){
     var sp=S.spec, all=screens(), mapped=S.features.filter(function(f){return screenOfFeature(f.id).length}).length;
-    var h='<h1>Simple Hack UX atlas</h1><p class="lead">The living map of every screen in Simple Hack: how each one is designed, who it is for, what it holds, and how it looks today. When a feature is added or a screen changes, this atlas changes first. Updated '+esc(S.spec.updated||'')+'.</p>'+
-      '<div class="stats"><div><b>'+all.length+'</b>screens</div><div><b>'+S.files.length+'</b>prototype views</div><div><b>'+mapped+' / '+S.features.length+'</b>features placed</div><div><b>'+S.today.length+'</b>screens captured today</div></div>';
+    var h='<h1>Simple Hack UX atlas</h1><p class="lead">The living map of every screen in Simple Hack: the design of every screen, with a clickable prototype. When a feature is added or a screen changes, this atlas changes first. Updated '+esc(S.spec.updated||'')+'.</p>'+
+      '<div class="stats"><div><b>'+all.length+'</b>screens</div><div><b>'+S.files.length+'</b>prototype views</div><div><b>'+mapped+' / '+S.features.length+'</b>features placed</div></div>';
     if(sp.universal_properties) h+='<div class="panel"><h3>Universal properties</h3><ul>'+sp.universal_properties.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul></div>';
     if(sp.summary) h+='<div class="panel"><h3>What changes</h3>'+(Array.isArray(sp.summary)?'<ul>'+sp.summary.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul>':'<p>'+esc(sp.summary)+'</p>')+'</div>';
     h+='<h2>Start with a role</h2><div class="cards">';
@@ -180,10 +171,6 @@ td a{cursor:pointer}
     if((x.sections||[]).length){
       h+='<h2>What is on it</h2><div class="panel">'+x.sections.map(function(s){return '<div class="sec"><b>'+esc(s.name)+'</b>'+(s.actions||[]).map(function(a){return '<span class="btnk '+esc(a.kind)+'">'+esc(a.label)+'</span>'}).join('')+'<ul>'+(s.contents||[]).map(function(c){return '<li>'+esc(c)+'</li>'}).join('')+'</ul></div>'}).join('')+'</div>';
     }
-    var reps=(x.replaces||[]).map(function(id){return S.today.find(function(t){return t.id===id})}).filter(Boolean);
-    if(reps.length){
-      h+='<h2>Today (what this replaces)</h2><div class="today">'+reps.map(function(t){var o=(t.observations||[]).filter(function(s){return !/^no (concrete )?ux/i.test(s)});return '<figure data-z="today/'+esc((dev==='phone'?t.phone:t.desktop).replace(/^shots\//,''))+'" data-c="'+esc(t.screen+' · '+t.state)+'"><img loading="lazy" src="today/'+esc((dev==='phone'?t.phone:t.desktop).replace(/^shots\//,''))+'" alt=""><figcaption>'+esc(t.screen)+' · '+esc(t.state)+(o[0]?'<span>'+esc(o[0])+'</span>':'')+'</figcaption></figure>'}).join('')+'</div>';
-    }
     h+='</div><div>';
     h+='<div class="panel"><h3>Purpose</h3><p>'+esc(x.purpose||'')+'</p>'+(x.primary_action?'<p><b>Main action:</b> '+esc(x.primary_action)+'</p>':'')+'</div>';
     if((x.states||[]).length) h+='<div class="panel"><h3>States</h3>'+x.states.map(function(s){return '<div class="dec"><b>'+esc(s.name)+'</b><span>'+esc(s.when)+(s.shows?' → '+esc(s.shows):'')+'</span></div>'}).join('')+'</div>';
@@ -209,14 +196,6 @@ td a{cursor:pointer}
     return h;
   }
 
-  function todayPage(){
-    var h='<h1>Today (before)</h1><p class="lead">How each screen looks in the live product right now, captured from production. These are the "before" pictures; each proposed screen lists the ones it replaces.</p>';
-    ['visitor','participant','judge','organiser'].forEach(function(r){
-      var xs=S.today.filter(function(t){return t.role===r}); if(!xs.length)return;
-      h+='<h2 style="text-transform:capitalize">'+r+'</h2><div class="today">'+xs.map(function(t){var o=(t.observations||[]).filter(function(s){return !/^no (concrete )?ux/i.test(s)});return '<figure data-z="today/'+esc(t.desktop.replace(/^shots\//,''))+'" data-c="'+esc(t.screen+' · '+t.state)+'"><img loading="lazy" src="today/'+esc(t.desktop.replace(/^shots\//,''))+'" alt=""><figcaption>'+esc(t.screen)+' · '+esc(t.state)+(o[0]?'<span>'+esc(o[0])+'</span>':'')+'</figcaption></figure>'}).join('')+'</div>';
-    });
-    return h;
-  }
   function logPage(){
     return '<h1>Changelog</h1><p class="lead">What changed in the atlas, newest first.</p><div class="panel"><ul class="log">'+S.log.map(function(e){return '<li><b>'+esc(e.date)+'</b> · '+esc(e.what)+'</li>'}).join('')+'</ul></div>'+
       '<div class="panel"><h3>How this atlas is kept</h3><p>Source: <code>docs/ux-atlas/</code> in the Simple Host repo. spec.json is the design, features.json the inventory, prototype/ the clickable screens, changelog.json this list. Rebuild and publish with <code>docs/ux-atlas/build.sh</code>.</p></div>';
@@ -230,7 +209,6 @@ td a{cursor:pointer}
     if(m){var x=screens().find(function(s){return s.id===m[1]});h=x?screenPage(x):'<p>Not found.</p>'}
     else if(fm) h=featuresPage(fm[1]);
     else if(cur==='shell') h=shellPage();
-    else if(cur==='today') h=todayPage();
     else if(cur==='log') h=logPage();
     else h=overview();
     v.innerHTML=h; side(); fit();
@@ -238,15 +216,13 @@ td a{cursor:pointer}
     v.querySelectorAll('[data-st]').forEach(function(b){b.onclick=function(){st=b.dataset.st;draw()}});
     v.querySelectorAll('[data-fr]').forEach(function(b){b.onclick=function(){st='role:'+b.dataset.fr;draw()}});
     v.querySelectorAll('[data-r]').forEach(function(b){b.onclick=function(){go(b.dataset.r)}});
-    v.querySelectorAll('[data-z]').forEach(function(f){f.onclick=function(){var z=document.getElementById('zoom');z.innerHTML='<p>'+esc(f.dataset.c)+'</p><img src="'+esc(f.dataset.z)+'" alt="">';z.classList.add('open')}});
     if(fm&&fm[1]){var row=document.getElementById('f-'+fm[1]);if(row)row.scrollIntoView({block:'center'})}else document.getElementById('main').scrollTop=0;
   }
-  document.getElementById('zoom').onclick=function(){this.classList.remove('open')};
   document.getElementById('menu').onclick=function(){document.getElementById('side').classList.toggle('open')};
   function go(r){if(r.indexOf('features')!==0&&cur.indexOf('s/')!==0)st=null;if(r.indexOf('s/')===0&&r!==cur)st=null;cur=r;try{history.replaceState(null,'','#'+r)}catch(e){}document.getElementById('side').classList.remove('open');draw()}
   function j(u){return fetch(u,{cache:'no-store'}).then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
-  Promise.all([j('spec.json'),j('features.json'),j('today/atlas.json'),j('prototype/files.json'),j('changelog.json')]).then(function(a){
-    S.spec=a[0]||{screens:[]};S.features=a[1]||[];S.today=a[2]||[];S.files=a[3]||[];S.log=a[4]||[];
+  Promise.all([j('spec.json'),j('features.json'),j('prototype/files.json'),j('changelog.json')]).then(function(a){
+    S.spec=a[0]||{screens:[]};S.features=a[1]||[];S.files=a[2]||[];S.log=a[3]||[];
     cur=decodeURIComponent(location.hash.slice(1));draw();
   });
 })();

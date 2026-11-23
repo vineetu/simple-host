@@ -892,11 +892,6 @@
           "shows": "Publish again takes precedence over End event and opens the same publish dialog. After End there is no announcement offer."
         }
       ],
-      "replaces": [
-        "organiser-manage-judging-overview",
-        "organiser-manage-open-overview",
-        "organiser-tour"
-      ],
       "fixes": [
         "'New link sits directly beside Copy ... no confirmation step' -- New link now opens a confirm dialog naming the effect.",
         "Generic, non-stage-aware walkthrough replaced by the always-current next-action card; Help in the sidebar foot still replays the full walkthrough on request (features: replay-organiser-walkthrough).",
@@ -1608,10 +1603,6 @@
           "shows": ".note.bad 'Sponsors, FAQ and schedule could not be loaded. Reload to edit them.' with Reload; list controls hidden"
         }
       ],
-      "replaces": [
-        "organiser-manage-judging-page",
-        "organiser-manage-judging-content"
-      ],
       "fixes": [
         "Owner 2026-10-30: 'When I click on Basics it shows basics; if I click on Schedule it scrolls down to schedule… FAQ can't because it's at the bottom… Why are you showing me the whole list in a single page?' -- the jump nav over one long page is gone; each sub-page is shown alone with its own URL.",
         "Owner screenshot: full-width file inputs in boxes -- icon, logo and zip pickers are kit buttons with a preview (.file-pick, label.btn), never a bare input[type=file].",
@@ -1921,9 +1912,6 @@
           "shows": "the email checkbox disabled with 'No participant has an email address yet.'; Post stays available for a web-only announcement"
         }
       ],
-      "replaces": [
-        "organiser-manage-judging-content"
-      ],
       "fixes": [
         "Announcements were a block in the middle of the Event page editor, between Schedule and Sponsors, with the composer under the list and per-card Edit/Delete buttons. They are now a section of their own with the composer first."
       ],
@@ -2069,10 +2057,6 @@
           "when": "applications switched off and no pending sign-ups",
           "shows": "Applications collapses as before ('Nobody is waiting for approval'); the Sign-up card's line reads 'Applications are off -- change in Settings'."
         }
-      ],
-      "replaces": [
-        "organiser-manage-judging-people",
-        "organiser-people-applications"
       ],
       "fixes": [
         "'Pending applications and the sign-up question editor share the People tab ... has to scroll past unrelated settings' -- Applications leads; Sign-up moved to its own card below the full people list.",
@@ -2232,11 +2216,6 @@
           "when": "stage Ended",
           "shows": "one note 'This event has ended. Teams can't change any more.' and every control read-only"
         }
-      ],
-      "replaces": [
-        "organiser-manage-judging-teams",
-        "organiser-manage-open-teams",
-        "organiser-fillteams-confirm"
       ],
       "fixes": [
         "'Fill teams is the first thing on the tab ... above the information an organiser needs to decide whether to use it' -- summary and list come first.",
@@ -2486,7 +2465,6 @@
           "shows": "read-only with the usual note"
         }
       ],
-      "replaces": [],
       "fixes": [
         "No atlas entry captured this sub-view; added because 'Manage team' existed with nowhere documented to land.",
         "Critique: rename-team, move-member-to-team and delete-team were all NO HOME in v1 -- all three now have a real control here.",
@@ -2665,10 +2643,6 @@
           "shows": "A draft that wasn't complete gets an amber Incomplete pill and an Exclude button (with a confirm): it is still judged, flagged, unless the organiser excludes it. Auto-submitted entries read 'Submitted automatically at the deadline'. Coordinator decision 2026-11-02, the owner can overrule."
         }
       ],
-      "replaces": [
-        "organiser-manage-judging-projects",
-        "organiser-manage-open-projects"
-      ],
       "fixes": [
         "'Storage/version stats shown in raw technical units' -- plain units.",
         "'Entries closed ... sits directly above the unrelated checklist with no sub-heading' -- each gets its own heading.",
@@ -2806,7 +2780,6 @@
           "shows": "Amber status 'Not complete. It will still be judged, marked incomplete.' naming what's missing, with Give more time and Exclude from judging (confirm). Excluded reads 'Excluded from judging' with Include in judging."
         }
       ],
-      "replaces": [],
       "fixes": [
         "Critique: take-team-site-down and restore-team-site were entirely absent from the spec -- given a home here, next to the entry and site they act on.",
         "Retest (Grok SIM-346, Cosmetic #1): a team name ending in s (‘Alpha Testers’) now gets a bare possessive apostrophe instead of doubling the s."
@@ -2928,14 +2901,6 @@
           "when": "a judge (or an organiser who scored) left after scoring",
           "shows": "Progress -> Judges keeps them as a row: 'Pak Budi', a 'Left the event' pill, 'Scored 4 of 6, still counted', and a quiet Delete scores button. Its confirm (Round-5 C3: typed, same pattern as Settings' Delete this event, since the server already requires confirm=slug): 'Delete Pak Budi’s scores? Pak Budi left the event. Their scores and comments for 4 teams will be deleted and stop counting toward totals and ranks. Published results only change when you publish again.' with a 'Type generationgirl2026 to confirm' field, [Cancel] [Delete scores] disabled until it matches. Disabled while judging is locked, with 'Move the event back to Judging to change scores.'"
         }
-      ],
-      "replaces": [
-        "organiser-manage-judging-judging",
-        "organiser-judging-mode-open",
-        "organiser-judging-mode-automatic-before",
-        "organiser-judging-mode-automatic-after",
-        "organiser-judging-mode-manual",
-        "organiser-judging-mode-panel"
       ],
       "fixes": [
         "'No way to tell genuinely nothing scored yet from this count is stale' -- explicit 'Assignments not generated yet' state.",
@@ -3084,7 +3049,6 @@
           "shows": "Checkboxes and Save are disabled. No dirty form or leave prompt."
         }
       ],
-      "replaces": [],
       "fixes": [
         "Critique: manual-assignment-grid and panel-assignment-grid were both NO HOME in v1 -- this screen is their home.",
         "Retest (Grok SIM-346, Confusing #3): the Panel grid now shows the same ‘this grid is used only in ... mode’ note the Manual grid already showed, and blocks Save, whenever the saved assignment mode doesn't match the grid being viewed."
@@ -3169,10 +3133,6 @@
           "when": "Live standings differ from snapshot",
           "shows": "Scores have changed since you published. Publish again from Home."
         }
-      ],
-      "replaces": [
-        "organiser-results-after-publish",
-        "organiser-voting-settings"
       ],
       "fixes": [
         "'No distinct results are live confirmation banner' -- added explicit status line.",
@@ -3355,10 +3315,6 @@
           "when": "the leave succeeded",
           "shows": "Home with one toast: 'You left Generation Girl Online Hack 2026.', 'You handed Generation Girl Online Hack 2026 to Rina Hartono and left it.', 'You ended Generation Girl Online Hack 2026 and left it.' or 'Generation Girl Online Hack 2026 was deleted.'"
         }
-      ],
-      "replaces": [
-        "organiser-manage-judging-settings",
-        "organiser-manage-open-settings"
       ],
       "fixes": [
         "Team finding toggle, deadline/entry-requirements and the voting-settings link all moved out (to Teams, Entries, Results), leaving Settings as identity + integrations + danger zone only.",
@@ -3686,9 +3642,6 @@
           "shows": "an inline message under the address field; every other field stays filled"
         }
       ],
-      "replaces": [
-        "organiser-create-form"
-      ],
       "fixes": [
         "'The form asks for details before the slug availability check resolves ... fields are at risk of being lost' -- address/slug moves to the top; the rest of the form persists through a slug conflict."
       ],
@@ -3969,7 +3922,6 @@
           "shows": "A .card titled 'Needs you' above the next-step card, one row per item with a link to its own screen: a live row for a pending join request ('2 people asked to join Kopi Kode', to Team) or an invite, and a news row for a request answered, a site taken down or restored, a deadline changed, or being made admin, each written as a plain sentence by the server. Every news row carries a Dismiss button; live rows don't, since they clear themselves once the request is answered, withdrawn or the application is decided."
         }
       ],
-      "replaces": [],
       "fixes": [
         "Addresses the brief's point that every role needs a Home; no atlas screen played this role for participants before.",
         "Critique missing state: 'just placed by Fill teams' and the team-removal notice (team-removal-notice) are now explicit states here, not silently absent.",
@@ -4221,7 +4173,6 @@
           "shows": "'Entries due for your team' at the team's own deadline, not the event's"
         }
       ],
-      "replaces": [],
       "fixes": [
         "Gives the schedule a stable, findable home instead of only appearing embedded at the top of another page."
       ],
@@ -4283,7 +4234,6 @@
           "shows": "The sidebar's Announcements badge, a count of announcements posted since this browser last opened the screen, is cleared at once. The count lives in this browser's own storage, not the server, so it does not change on another device."
         }
       ],
-      "replaces": [],
       "fixes": [],
       "features": [
         "read-schedule-and-announcements",
@@ -4618,12 +4568,6 @@
           "when": "a teammate or organiser removed this person and they have no current team (2026-11-02, team-removal-notice)",
           "shows": "At the top of the no-team page, above 'Invites for you': a .note bad 'You were taken off Kopi Kode.' The three ways to team up stay reachable underneath. The same notice already shows on Home; here it sits where the person actually needs to act."
         }
-      ],
-      "replaces": [
-        "participant-teamfind-openteams-solo",
-        "participant-team-entry-empty",
-        "participant-team-entry-filled",
-        "participant-team-entries-closed"
       ],
       "fixes": [
         "'Start a team and Join a team sit above the open-teams and solo-people lists' -- looking-for list now comes first.",
@@ -5050,11 +4994,6 @@
           "shows": "The summary card as judges see it, Show your work as a definition list, and a What happens next card; no form. Website comes before Video: Published · version N · <team site link>, or (none); omit only when the site field is off and no site exists. Video, Code and Screenshot follow the same rule: a line the event switched off is left out unless something is in it."
         }
       ],
-      "replaces": [
-        "participant-team-entry-empty",
-        "participant-team-entry-filled",
-        "participant-team-entries-closed"
-      ],
       "fixes": [
         "'The entry form is the third card on the page' -- Entry is now its own first-class screen.",
         "'One field behaves differently with no visual cue why' -- Screenshot keeps its immediate-save (it's a file upload, consistent everywhere in the product) and says so in its own label; everything else shares one visible Save.",
@@ -5314,9 +5253,6 @@
           "shows": "Website state reads Taken down with the reason (unchanged)."
         }
       ],
-      "replaces": [
-        "participant-team-site-published"
-      ],
       "fixes": [
         "'curl snippet and MCP option side by side with equal weight' -- curl/API key moved behind Advanced; AI-app and zip (what a non-technical team uses) stay up front.",
         "Critique: team-site-notifications and download-own-team-archive were both missing -- added.",
@@ -5419,7 +5355,6 @@
           "shows": "if your team isn't a top placement, the page reads 'Winners are posted. Your team isn't in the top placements this time -- thanks for building with us.'"
         }
       ],
-      "replaces": [],
       "fixes": [],
       "phone": "Same content, your row pinned to the top with a small 'Your team' label regardless of rank.",
       "features": [
@@ -5556,9 +5491,6 @@
           "when": "stage is Closed or earlier",
           "shows": "Scoring not open. Scoring opens when the organiser starts judging."
         }
-      ],
-      "replaces": [
-        "judge-before-open"
       ],
       "fixes": [
         "'No sense of when judging will open or what to do meanwhile' -- shows the exact opening time and a live link into the rubric if it exists.",
@@ -5775,11 +5707,6 @@
           "shows": "Scoring not open. Scoring opens when the organiser starts judging."
         }
       ],
-      "replaces": [
-        "judge-queue",
-        "judge-locked-after-results",
-        "judge-tour"
-      ],
       "fixes": [
         "'Progress numbers can read as if nothing is assigned even when scores exist' -- the To score / Scored split makes current state unambiguous.",
         "'No compact view, long scroll with 6+ teams' -- splitting into segments shortens each list to only what's relevant now.",
@@ -5988,9 +5915,6 @@
           "shows": "Score inputs and saving are available again. The earlier published snapshot remains until the organiser publishes again from Home."
         }
       ],
-      "replaces": [
-        "judge-scoring-entry"
-      ],
       "fixes": [
         "'A first-visit walkthrough blocked the Score this team button underneath it' -- this is a real, dedicated route with no overlay ever covering an actionable control.",
         "Critique #2 (code-confirmed): the conflict confirm previously claimed scores 'are dropped' -- they are not deleted by DeclareConflict, only excluded from this judge's future queue. Copy corrected to what actually happens, and flagged below as an open product question.",
@@ -6164,9 +6088,6 @@
           "when": "organiser hasn't saved one",
           "shows": "'The organiser hasn't published a rubric yet. Check back closer to judging.'"
         }
-      ],
-      "replaces": [
-        "judge-tour"
       ],
       "fixes": [
         "'Tour step 3 describes an organiser-side feature the judge can't see or act on' -- the tour is gone; this page only shows what a judge can actually read."
@@ -6343,9 +6264,6 @@
           "shows": "Existing error text; connection details open, summary Connect an AI app."
         }
       ],
-      "replaces": [
-        "participant-account"
-      ],
       "fixes": [
         "'Irreversible actions sit in the same plain list styling as harmless ones' -- all three live together in one red-bordered Danger zone.",
         "Critique: unlink-identity, rotate-api-key, set-theme-preference and who-am-i had no home anywhere -- all four placed here, the last two documented plainly rather than inventing UI weight they don't need today.",
@@ -6501,10 +6419,6 @@
           "shows": "'Nothing is on right now. Your past events are below.' above the closed Past events toggle, then Find a hackathon and Account, then Create event."
         }
       ],
-      "replaces": [
-        "participant-your-events-empty",
-        "participant-your-events-withevents"
-      ],
       "fixes": [
         "'Role and stage as plain text in a dense single line, no visual indicator' -- role and stage are pills now, sorted needs-attention-first, matching the switcher dropdown exactly.",
         "The event switcher doubled as the only way home, with no actual home screen of its own, and its full-page version just repeated the dropdown with no next action per row -- the top-left brand link now always leads here, this page is the person's real home (title 'Home', the switcher is one level below it), and every row says the plain next thing to do.",
@@ -6608,7 +6522,6 @@
         "empty": "No submissions to show yet.",
         "not_open": "Submissions open to everyone when judging starts."
       },
-      "replaces": [],
       "fixes": [],
       "phone": "One column at 390px, two columns at 1280px. No search, filter or sort controls.",
       "features": [
@@ -7347,14 +7260,6 @@
           "shows": "Site cards of teams shown in the results add their tools tags and link to their result card (#entry-<team>); other cards are unchanged."
         }
       ],
-      "replaces": [
-        "visitor-event-open",
-        "visitor-event-building-with-gallery",
-        "visitor-event-judging",
-        "visitor-event-results",
-        "visitor-event-ended",
-        "visitor-event-draft"
-      ],
       "custom_website": "Unchanged. When the organiser switches the event address to their own uploaded site, <event>.simple-hack.app serves that site and this built-in page stays reachable at simple-hack.app/e/<slug>, which is the stable, trusted copy (same template, same data). Join, judge and vote links always go to simple-hack.app, so they work with either mode. A take-down overrides the custom site and shows the taken-down state above. The redesign touches only the built-in page.",
       "tech_notes": [
         "Server-rendered from the existing hackEventView. Every section works without JavaScript. Jump chips are plain anchor links, older announcements, FAQ, collapsed Schedule and Rules use details/summary.",
@@ -7671,12 +7576,6 @@
           "shows": "'Sign-up has closed for this event.' plus a link to the public event page"
         }
       ],
-      "replaces": [
-        "participant-join-open",
-        "participant-join-pending",
-        "participant-join-rejected",
-        "participant-join-closed"
-      ],
       "fixes": [
         "'Registration questions only revealed after sign-in' -- now shown read-only first.",
         "'No indication of how long approval takes' -- added a plain expectation.",
@@ -7852,7 +7751,6 @@
           "shows": "Provider buttons, username/email and password, Create an account if self sign-up is on, then email code if enabled. Temporary passwords prompt for a new password before sign-in completes."
         }
       ],
-      "replaces": [],
       "fixes": [],
       "features": [
         "preview-application",
@@ -8001,7 +7899,6 @@
           "shows": "'This judge invite isn't open any more.' with a link to the public event page"
         }
       ],
-      "replaces": [],
       "fixes": [
         "Critique item 8: the judge invite's own preview-then-accept page was entirely missing from v1 (no public-judge page existed at all) -- both join-hackathon and judge-hackathon skill docs require this preview-before-account order; added, mirroring public-join."
       ],
@@ -8079,7 +7976,6 @@
           "shows": "'This invitation isn't open any more. Ask the organiser for a new one.'"
         }
       ],
-      "replaces": [],
       "fixes": [
         "Critique item 8: no page existed for this invite at all -- added. Also carries the scope warning from critique §1 Q3 (co-organiser = full control including delete) at the one moment it matters most: before accepting."
       ],
@@ -8153,10 +8049,6 @@
           "when": "voting is open but no team has a live site yet, for a visitor not already shown an ineligible or sign-in message",
           "shows": "'No teams to vote for yet. Teams appear here once their site is live.' in place of the empty team-card grid"
         }
-      ],
-      "replaces": [
-        "visitor-vote-signedout",
-        "participant-vote-signedin"
       ],
       "fixes": [
         "'No preview of the teams or that voting is even open' while signed out -- the team gallery now shows before sign-in.",
@@ -8252,9 +8144,6 @@
           "shows": "The row exactly as today: one link, no button, no 'closed' label (absence is not news on a list)."
         }
       ],
-      "replaces": [
-        "visitor-directory"
-      ],
       "fixes": [],
       "decisions": [
         {
@@ -8315,9 +8204,6 @@
         }
       ],
       "states": [],
-      "replaces": [
-        "visitor-home"
-      ],
       "fixes": [],
       "features": [],
       "prototype_states": [
@@ -8477,7 +8363,6 @@
         }
       ],
       "fixes": [],
-      "replaces": [],
       "phone": "Single column, the card's button full width."
     }
   ],
