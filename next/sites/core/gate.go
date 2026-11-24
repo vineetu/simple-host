@@ -18,7 +18,7 @@ a{color:inherit}</style></head><body><main>
 {{if eq .D "passcode"}}<form method="post" action="/_sh/passcode"><input type="hidden" name="next" value="{{.Next}}">
 <input name="passcode" type="password" autocomplete="current-password" aria-label="Passcode" required autofocus>
 <button type="submit">Open</button></form>{{end}}
-{{if eq .D "sign_in"}}<p><a href="/_sh/signin?next={{.Next}}">Sign in</a></p>{{end}}
+{{if eq .D "sign_in"}}<p><a href="/_sh/signin?return={{.Next}}">Sign in</a></p>{{end}}
 {{if eq .D "ask_access"}}<form method="post" action="/_sh/ask-access"><input type="hidden" name="next" value="{{.Next}}">
 <button type="submit">Ask for access</button></form>{{end}}
 </main></body></html>`))

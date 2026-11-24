@@ -2,55 +2,30 @@ package locks_test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"simplehost/access/signin"
+	"simplehost/access/visitors"
 	"simplehost/app"
 	"simplehost/core/testkit"
-	"simplehost/core/web"
+	datarules "simplehost/data/rules"
+	"simplehost/data/values"
 	sites "simplehost/sites/core"
 	"simplehost/sites/locks"
+	"simplehost/sites/serve"
 )
 
-// stand-ins for page serving and a data route (other packages): each runs
-// the one access decision first, as they do.
-func pages(a *app.App) {
-	a.Routes.Site.Handle("GET /{$}", web.Func(func(w http.ResponseWriter, r *http.Request) error {
-		site, err := a.Sites.Of(r)
-		if err != nil {
-			return err
-		}
-		d, err := a.Sites.Visit(r, site)
-		if err != nil {
-			return err
-		}
-		if d != sites.Open {
-			sites.GatePage(w, r, d, 0, "")
-			return nil
-		}
-		w.Write([]byte("the page"))
-		return nil
-	}))
-	a.Routes.Site.Handle("GET /v1/sites/{site}/storage/kv/{ns}/keys/{key}", web.Func(func(w http.ResponseWriter, r *http.Request) error {
-		site, err := a.Sites.Of(r)
-		if err != nil {
-			return err
-		}
-		d, err := a.Sites.Visit(r, site)
-		if err != nil {
-			return err
-		}
-		if err := d.Err(); err != nil {
-			return err
-		}
-		web.JSON(w, 200, map[string]string{"value": "data"})
-		return nil
-	}))
+// features mounts the real page serving, values, rules and sign-in beside locks.
+func features(a *app.App) {
+	for _, m := range []func(*app.App){serve.Mount, values.Mount, datarules.Mount, signin.Mount, visitors.Mount, locks.Mount} {
+		m(a)
+	}
 }
 
 func site(t *testing.T, k *testkit.Kit, who testkit.Who, name string) *sites.Site {
@@ -68,13 +43,20 @@ const form = "application/x-www-form-urlencoded"
 // SPEC test 26 (F19): the right passcode opens pages and data. Wrong tries
 // are slowed, then locked out.
 func TestPasscode(t *testing.T) {
-	k := testkit.Start(t, pages, locks.Mount)
+	k := testkit.Start(t, features)
 	ctx := context.Background()
 	ann := k.Person(t, "ann")
 	s := site(t, k, ann, "club")
 	if err := locks.SetPasscode(ctx, k.App, s, "sesame-42"); err != nil {
 		t.Fatal(err)
 	}
+	owner := func(method, path, body string) {
+		if r := testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/club/storage/"+path, body, "Authorization", "Bearer "+ann.Key); r.Status != 200 {
+			t.Fatalf("%s %s: %d %s", method, path, r.Status, r.Body)
+		}
+	}
+	owner("PUT", "x/rules", `{"rules": {"_values": {"policies": [{"name": "read", "command": "read", "using": "true"}]}}}`)
+	owner("PUT", "kv/x/keys/y", `{"value": "data"}`)
 	page, data := "https://club--ann.simple-host.site/", "https://club--ann.simple-host.site/v1/sites/club/storage/kv/x/keys/y"
 	b := k.Browser()
 	if r := testkit.Call(t, b, "GET", page, nil); r.Status != 401 || !strings.Contains(r.Body, `action="/_sh/passcode"`) {
@@ -96,7 +78,7 @@ func TestPasscode(t *testing.T) {
 	if r := testkit.Call(t, b, "GET", page, nil); r.Status != 200 || r.Body != "the page" {
 		t.Fatalf("unlocked page: %d %s", r.Status, r.Body)
 	}
-	if r := testkit.Call(t, b, "GET", data, nil); r.Status != 200 {
+	if r := testkit.Call(t, b, "GET", data, nil); r.Status != 200 || !strings.Contains(r.Body, `"data"`) {
 		t.Fatalf("unlocked data: %d %s", r.Status, r.Body)
 	}
 	// The owner sees it again, and signing everyone out ends the unlock.
@@ -121,25 +103,32 @@ func TestPasscode(t *testing.T) {
 	}
 }
 
-// signIn signs email in on the site in browser b, as the visitor sign-in does.
-func signIn(t *testing.T, k *testkit.Kit, b *http.Client, email string, s *sites.Site, address string) {
+// signIn signs email in on the site in browser b with the real visitor
+// sign-in: a hop to the platform, an emailed code, the ticket back.
+func signIn(t *testing.T, k *testkit.Kit, b *http.Client, email, address string) {
 	t.Helper()
-	p, err := k.App.People.Ensure(context.Background(), email)
-	if err != nil {
-		t.Fatal(err)
+	r := testkit.Call(t, b, "GET", address+"_sh/signin?return=/", nil)
+	u, err := url.Parse(r.Header.Get("Location"))
+	if r.Status != http.StatusFound || err != nil {
+		t.Fatalf("start sign-in: %d %s", r.Status, r.Body)
 	}
-	id := make([]byte, 32)
-	rand.Read(id)
-	u, _ := url.Parse(address)
-	k.Exec(t, `INSERT INTO visitor_sessions (id, person_id, site_id, host, expires_at) VALUES ($1, $2, $3, $4, now() + interval '1 day')`, id, p.ID, s.ID, u.Host)
-	k.Exec(t, `INSERT INTO visitor_signins (site_id, person_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, s.ID, p.ID)
-	b.Jar.SetCookies(u, []*http.Cookie{{Name: "__Host-sh_vsess", Value: hex.EncodeToString(id), Path: "/", Secure: true}})
+	testkit.Call(t, b, "POST", "https://simple-host.app/v1/auth/code", map[string]string{"email": email})
+	mails := k.Mail.To(email)
+	code := regexp.MustCompile(`\d{6}`).FindString(mails[len(mails)-1].Text)
+	r = testkit.Call(t, b, "POST", "https://simple-host.app/v1/auth/verify", map[string]string{"email": email, "code": code, "hop": u.Query().Get("hop")})
+	var out struct{ Next string }
+	if json.Unmarshal([]byte(r.Body), &out); r.Status != 200 || out.Next == "" {
+		t.Fatalf("verify: %d %s", r.Status, r.Body)
+	}
+	if r := testkit.Call(t, b, "GET", out.Next, nil); r.Status != http.StatusFound {
+		t.Fatalf("finish sign-in: %d %s", r.Status, r.Body)
+	}
 }
 
 // SPEC test 28 (F20): a listed email opens the site after sign-in. An
 // unlisted one sees "Ask for access", and the owner is told.
 func TestNamedViewers(t *testing.T) {
-	k := testkit.Start(t, pages, locks.Mount)
+	k := testkit.Start(t, features)
 	ctx := context.Background()
 	ann := k.Person(t, "ann")
 	s := site(t, k, ann, "notes")
@@ -154,7 +143,7 @@ func TestNamedViewers(t *testing.T) {
 		t.Fatalf("viewers before sign-in: %+v", v)
 	}
 	bea := k.Browser()
-	signIn(t, k, bea, "bea@example.com", s, page)
+	signIn(t, k, bea, "bea@example.com", page)
 	if r := testkit.Call(t, bea, "GET", page, nil); r.Status != 200 || r.Body != "the page" {
 		t.Fatalf("listed: %d %s", r.Status, r.Body)
 	}
@@ -162,7 +151,7 @@ func TestNamedViewers(t *testing.T) {
 		t.Fatalf("viewers after sign-in: %+v", v)
 	}
 	cara := k.Browser()
-	signIn(t, k, cara, "cara@example.com", s, page)
+	signIn(t, k, cara, "cara@example.com", page)
 	if r := testkit.Call(t, cara, "GET", page, nil); r.Status != 403 || !strings.Contains(r.Body, "Ask for access") {
 		t.Fatalf("unlisted: %d %s", r.Status, r.Body)
 	}
@@ -186,7 +175,7 @@ func TestNamedViewers(t *testing.T) {
 // SPEC test 29 (F20): with the database down, a named-viewer site shows an
 // error, never the page.
 func TestNamedViewersDatabaseDown(t *testing.T) {
-	k := testkit.Start(t, pages, locks.Mount)
+	k := testkit.Start(t, features)
 	ann := k.Person(t, "ann")
 	s := site(t, k, ann, "notes")
 	if err := locks.SetViewers(context.Background(), k.App, s, []string{"bea@example.com"}); err != nil {
@@ -194,7 +183,7 @@ func TestNamedViewersDatabaseDown(t *testing.T) {
 	}
 	page := "https://notes--ann.simple-host.site/"
 	bea := k.Browser()
-	signIn(t, k, bea, "bea@example.com", s, page)
+	signIn(t, k, bea, "bea@example.com", page)
 	if r := testkit.Call(t, bea, "GET", page, nil); r.Status != 200 {
 		t.Fatalf("before: %d %s", r.Status, r.Body)
 	}

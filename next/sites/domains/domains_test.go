@@ -5,27 +5,15 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"simplehost/app"
 	"simplehost/core/testkit"
 	"simplehost/core/web"
 	"simplehost/sites/domains"
+	"simplehost/sites/serve"
 )
-
-// pages stands in for page serving (another package): the site's name.
-func pages(a *app.App) {
-	a.Routes.Site.Handle("GET /", web.Func(func(w http.ResponseWriter, r *http.Request) error {
-		s, err := a.Sites.Of(r)
-		if err == nil {
-			w.Write([]byte(s.Name))
-		}
-		return err
-	}))
-}
 
 const here = "203.0.113.7" // the service's address: simple-host.app's A record
 
@@ -49,11 +37,11 @@ func certFor(t *testing.T, k *testkit.Kit, name string) {
 // SPEC test 18 (F13): an own domain shows the missing records, then goes
 // live with a certificate when DNS is right. www redirects to it.
 func TestOwnDomain(t *testing.T) {
-	k := testkit.Start(t, pages, domains.Mount)
+	k := testkit.Start(t, serve.Mount, domains.Mount)
 	ctx, a, b := context.Background(), k.App, k.Browser()
 	k.DNS.Set("simple-host.app", "A", here)
 	bob := k.Person(t, "bob")
-	k.Publish(t, bob, "bakery", map[string]string{"index.html": "hi"})
+	k.Publish(t, bob, "bakery", map[string]string{"index.html": "bakery"})
 	site, _ := a.Sites.Get(ctx, bob.ID, "bakery")
 
 	d, err := domains.Connect(ctx, a, site, "Bakery-Shop.com")
@@ -116,7 +104,7 @@ func TestOwnDomain(t *testing.T) {
 // SPEC test 19 (F14): with the shared domain set, a newly published site
 // answers at <site>.<domain>, and gets its certificate.
 func TestSharedDomain(t *testing.T) {
-	k := testkit.Start(t, pages, domains.Mount)
+	k := testkit.Start(t, serve.Mount, domains.Mount)
 	ctx, a, b := context.Background(), k.App, k.Browser()
 	k.DNS.Set("simple-host.app", "A", here)
 	cb := k.Person(t, "cb")
@@ -134,7 +122,7 @@ func TestSharedDomain(t *testing.T) {
 		t.Fatalf("after DNS: %+v %v", ds, err)
 	}
 
-	k.Publish(t, cb, "goa", map[string]string{"index.html": "hi"})
+	k.Publish(t, cb, "goa", map[string]string{"index.html": "goa"})
 	if r := testkit.Call(t, b, "GET", "https://goa.cb-travel.com/", nil); r.Status != 200 || r.Body != "goa" {
 		t.Fatalf("new site: %d %s", r.Status, r.Body)
 	}

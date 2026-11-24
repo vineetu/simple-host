@@ -15,6 +15,7 @@ import (
 	datarules "simplehost/data/rules"
 	datasql "simplehost/data/sql"
 	"simplehost/data/values"
+	"simplehost/sites/locks"
 )
 
 // block is the text of the fenced block that opens with fence.
@@ -55,11 +56,13 @@ func TestEachRecipeWorks(t *testing.T) {
 					res = testkit.Call(t, k.Browser(), "POST", base+"sqlite/"+ns+"/execute", in, "Authorization", "Bearer "+owner.Key)
 				case "set_data_rules":
 					res = testkit.Call(t, k.Browser(), "PUT", base+ns+"/rules", in, "Authorization", "Bearer "+owner.Key)
-				case "set_site_access": // the sites feature's tool; done here directly
-					k.Exec(t, `UPDATE sites SET access = $2 WHERE id = $1`, s.ID, in["access"])
+				case "set_site_access": // the only recipe that uses it names viewers
+					var emails []string
 					for _, e := range in["viewers"].([]any) {
-						p, _ := k.App.People.Ensure(context.Background(), e.(string))
-						k.Exec(t, `INSERT INTO viewers (site_id, person_id) VALUES ($1, $2)`, s.ID, p.ID)
+						emails = append(emails, e.(string))
+					}
+					if err := locks.SetViewers(context.Background(), k.App, s, emails); err != nil {
+						t.Fatal(err)
 					}
 					continue
 				default:

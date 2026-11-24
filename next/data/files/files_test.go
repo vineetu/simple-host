@@ -1,22 +1,25 @@
 package files_test
 
 import (
+	"bytes"
 	"context"
-	"net/http/httptest"
+	"encoding/json"
+	"mime/multipart"
+	"net/textproto"
 	"strings"
 	"testing"
 
 	"simplehost/core/limits"
 	"simplehost/core/testkit"
-	"simplehost/core/web"
 	"simplehost/data/files"
 	datarules "simplehost/data/rules"
+	"simplehost/sites/uploads"
 )
 
 // SPEC test 11 (F7): owner photos through an upload link and a visitor
 // upload land in the same file store. Over the namespace size is refused.
 func TestOneFileStore(t *testing.T) {
-	k := testkit.Start(t, files.Mount, datarules.Mount)
+	k := testkit.Start(t, files.Mount, datarules.Mount, uploads.Mount)
 	bob, ann := k.Person(t, "bob"), k.Person(t, "ann")
 	k.Publish(t, bob, "gallery", map[string]string{"index.html": "gallery"})
 	ctx := context.Background()
@@ -28,16 +31,20 @@ func TestOneFileStore(t *testing.T) {
 		t.Fatal(r.Body)
 	}
 
-	// The owner's photo, the way an upload link stores it (sites/uploads
-	// calls this same function).
-	req := web.WithCaller(httptest.NewRequest("PUT", "/", nil), web.Caller{ID: bob.ID})
-	ns, err := k.App.Data.Open(req, s, "photos")
-	if err == nil {
-		err = k.App.Data.PutFile(req, ns, "owner/dosa.jpg", "image/jpeg", bob.ID, strings.NewReader("owner photo"))
-		ns.Close()
+	// The owner's photo, through an upload link.
+	r = testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/gallery/upload-links", `{"kind": "files", "namespace": "photos"}`,
+		"Authorization", "Bearer "+bob.Key)
+	var link struct{ Put string }
+	if json.Unmarshal([]byte(r.Body), &link); r.Status != 200 {
+		t.Fatalf("upload link: %d %s", r.Status, r.Body)
 	}
-	if err != nil {
-		t.Fatal(err)
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	part, _ := mw.CreatePart(textproto.MIMEHeader{"Content-Disposition": {`form-data; name="file"; filename="dosa.jpg"`}, "Content-Type": {"image/jpeg"}})
+	part.Write([]byte("owner photo"))
+	mw.Close()
+	if r := testkit.Call(t, k.Browser(), "PUT", link.Put, body.Bytes(), "Content-Type", mw.FormDataContentType()); r.Status != 200 {
+		t.Fatalf("owner upload: %d %s", r.Status, r.Body)
 	}
 
 	page := k.Browser()
@@ -47,10 +54,10 @@ func TestOneFileStore(t *testing.T) {
 		t.Fatalf("visitor upload: %d %s", r.Status, r.Body)
 	}
 	list := testkit.Call(t, k.Browser(), "GET", objects, nil)
-	if !strings.Contains(list.Body, `"owner/dosa.jpg"`) || !strings.Contains(list.Body, `"ann.jpg"`) {
+	if !strings.Contains(list.Body, `"dosa.jpg"`) || !strings.Contains(list.Body, `"ann.jpg"`) {
 		t.Fatalf("one store holds both: %s", list.Body)
 	}
-	if r := testkit.Call(t, k.Browser(), "GET", objects+"/owner/dosa.jpg", nil); r.Body != "owner photo" || r.Header.Get("Content-Type") != "image/jpeg" {
+	if r := testkit.Call(t, k.Browser(), "GET", objects+"/dosa.jpg", nil); r.Body != "owner photo" || r.Header.Get("Content-Type") != "image/jpeg" {
 		t.Fatalf("fetch: %d %q", r.Status, r.Body)
 	}
 
