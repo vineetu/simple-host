@@ -312,6 +312,9 @@ func (d Decision) Err() error {
 	if fix == "" {
 		return nil
 	}
+	if d == TakenDown {
+		return web.Refuse(http.StatusGone, string(d), fix) // the live service's answer for a taken-down site
+	}
 	return web.Refuse(http.StatusForbidden, string(d), fix)
 }
 

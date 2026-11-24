@@ -27,7 +27,7 @@ var gateText = map[Decision]struct {
 	status      int
 	title, text string
 }{
-	TakenDown:  {451, "This site was taken down", "The operator took this site down."},
+	TakenDown:  {http.StatusGone, "This site was taken down", "The operator took this site down."},
 	Offline:    {503, "This site is offline", "Its owner has taken it offline for now."},
 	NeedCode:   {401, "This site has a passcode", "Enter the passcode its owner gave you."},
 	NeedSignIn: {401, "This site is private", "Sign in to see it. Only people its owner named can open it."},

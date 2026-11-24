@@ -15,6 +15,12 @@ import (
 	"simplehost/app"
 	"simplehost/sites/domains"
 	"simplehost/sites/locks"
+	"simplehost/sites/manage"
+	"simplehost/sites/publicpage"
+	"simplehost/sites/publish"
+	"simplehost/sites/serve"
+	"simplehost/sites/stats"
+	"simplehost/sites/uploads"
 )
 
 func main() {
@@ -46,9 +52,17 @@ func main() {
 func mount(a *app.App) {
 	domains.Mount(a)
 	locks.Mount(a)
+	publish.Mount(a)
+	uploads.Mount(a)
+	manage.Mount(a)
+	serve.Mount(a)
+	stats.Mount(a)
+	publicpage.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).
 func work(ctx context.Context, a *app.App) {
 	go domains.Work(ctx, a)
+	go serve.Work(ctx, a)
+	go manage.Work(ctx, a)
 }
