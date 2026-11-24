@@ -18,6 +18,12 @@ import (
 	"simplehost/access/teams"
 	"simplehost/access/visitors"
 	"simplehost/app"
+	"simplehost/data/files"
+	"simplehost/data/recipes"
+	"simplehost/data/rows"
+	datarules "simplehost/data/rules"
+	datasql "simplehost/data/sql"
+	"simplehost/data/values"
 	"simplehost/sites/domains"
 	"simplehost/sites/locks"
 	"simplehost/sites/manage"
@@ -68,6 +74,12 @@ func mount(a *app.App) {
 	serve.Mount(a)
 	stats.Mount(a)
 	publicpage.Mount(a)
+	rows.Mount(a)
+	values.Mount(a)
+	files.Mount(a)
+	datasql.Mount(a)
+	datarules.Mount(a)
+	recipes.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).

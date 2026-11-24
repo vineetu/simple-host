@@ -59,9 +59,11 @@ type NS struct {
 var nsName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
 
 // tables every namespace file starts with: named values and file records.
+// visitor_id is who added the row (a person's opaque id), the column the
+// rules engine and carried rules name, as in the owner's own tables.
 const builtIn = `
-CREATE TABLE IF NOT EXISTS _values (key TEXT PRIMARY KEY, value TEXT NOT NULL, author TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-CREATE TABLE IF NOT EXISTS _files (name TEXT PRIMARY KEY, size INTEGER NOT NULL, type TEXT NOT NULL DEFAULT '', author TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`
+CREATE TABLE IF NOT EXISTS _values (key TEXT PRIMARY KEY, value TEXT NOT NULL, visitor_id TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS _files (name TEXT PRIMARY KEY, size INTEGER NOT NULL, type TEXT NOT NULL DEFAULT '', visitor_id TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`
 
 func (d *Data) path(siteID, name string) string {
 	return filepath.Join(d.Dir, "sites", siteID, "data", name+".sqlite")

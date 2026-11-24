@@ -14,21 +14,38 @@ import (
 // FilePath is where a stored file of a namespace lives on disk:
 // Dir/sites/<site id>/files/<namespace>/<name>.
 func (d *Data) FilePath(siteID, ns, name string) string {
-	return filepath.Join(d.Dir, "sites", siteID, "files", ns, name)
+	return filepath.Join(d.Dir, "sites", siteID, "files", ns, filepath.FromSlash(name))
+}
+
+// ValidFileName refuses a name that is not a relative path of plain parts
+// (photos/cat.jpg). Published pages already use paths with folders.
+func ValidFileName(name string) error {
+	for _, part := range strings.Split(name, "/") {
+		if part == "" || part == "." || part == ".." || len(name) > 512 || strings.ContainsAny(name, "\x00\\") {
+			return web.Refuse(http.StatusBadRequest, "bad_file_name", "Name the file with a relative path such as photos/cat.jpg, at most 512 characters.")
+		}
+	}
+	return nil
 }
 
 // PutFile stores one file in the namespace's file store, replacing one of
-// the same name, and records it in _files with its author. The store may hold
-// limits.FilesBytes in all. This is the one way a file enters a file store.
+// the same name, and records it in _files (a replaced file keeps its first
+// author; "" is nobody). The store may hold limits.FilesBytes in all. This is
+// the one way a file enters a file store: owners' upload links and visitors'
+// uploads alike.
 func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID string, body io.Reader) error {
-	if name == "" || len(name) > 200 || strings.ContainsAny(name, `/\`) || strings.HasPrefix(name, ".") {
-		return web.Refuse(http.StatusBadRequest, "bad_file_name", "Name the file without slashes and not starting with a dot, at most 200 characters.")
+	if err := ValidFileName(name); err != nil {
+		return err
 	}
-	used, err := n.Query(r.Context(), `SELECT COALESCE(SUM(size), 0) FROM _files WHERE name <> ?`, name)
+	sum, err := n.Query(r.Context(), `SELECT COALESCE(SUM(size), 0) FROM _files WHERE name <> ?`, name)
 	if err != nil {
 		return err
 	}
-	room := limits.FilesBytes.N - used.Rows[0][0].(int64)
+	used := sum.Rows[0][0].(int64)
+	room := limits.FilesBytes.N - used
+	if web.CallerOf(r).Operator {
+		room = 1 << 50
+	}
 	final := d.FilePath(n.Site.ID, n.Name, name)
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return err
@@ -38,19 +55,24 @@ func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID strin
 		return err
 	}
 	defer os.Remove(tmp.Name())
-	if web.CallerOf(r).Operator {
-		room = 1 << 50
-	}
 	size, err := io.Copy(tmp, io.LimitReader(body, max(room, 0)+1))
-	tmp.Close()
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
 	if err != nil {
 		return err
 	}
-	if err := limits.Fits(r, limits.FilesBytes, used.Rows[0][0].(int64)+size); err != nil {
+	if err := limits.Fits(r, limits.FilesBytes, used+size); err != nil {
 		return err
 	}
-	if _, err := n.Exec(r.Context(), `INSERT OR REPLACE INTO _files (name, size, type, author) VALUES (?, ?, ?, ?)`, name, size, contentType, authorID); err != nil {
+	if err := os.Rename(tmp.Name(), final); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), final)
+	var author any
+	if authorID != "" {
+		author = authorID
+	}
+	_, err = n.Exec(r.Context(), `INSERT INTO _files (name, size, type, visitor_id) VALUES (?, ?, ?, ?)
+		ON CONFLICT (name) DO UPDATE SET size = excluded.size, type = excluded.type, created_at = CURRENT_TIMESTAMP`, name, size, contentType, author)
+	return err
 }
