@@ -2,17 +2,20 @@
 // per site, and an Account page (profile, Keys, apps, Notifications, teams,
 // Your data). Everything goes through the same /v1 routes the AI app uses.
 //
-// Answers this page reads (fields it does not find are left out):
-//   GET /v1/me            {id, email, handle, display_name, operator, home_site, domain,
+// Answers this page reads:
+//   GET /v1/me            {id, email, handle, display_name, operator, home_site, domain (host), domain_status (as below),
 //                          teams: [{handle, display_name, members: [{id, email}], invites: [{email}]}],
-//                          invitations: [{id, team}], keys: [{id, name, last4, last_used_at}],
-//                          apps: [{id, name, last_used_at}], devices: [{id, name}], push_key, use: {...}}
+//                          invitations: [{id, team, display_name}], keys: [{id, name, last4, last_used_at}],
+//                          apps: [{id, name, connected_at}], devices: [{id, name}], push_key,
+//                          use: {sites, site_bytes_limit, data_bytes_limit, files_bytes_limit, kept_versions, unlimited}}
 //   GET /v1/sites         {sites: [{name, owner, url, changed_at, offline, listed, access, deleted_at}]}  ?q= ?bin=true
-//   GET /v1/sites/{site}  {name, owner, url, live_version, versions: [{n, author, at}], listed, offline,
+//   GET /v1/sites/{site}  {name, owner, url, live_version, versions: [{n, author, at}], listed, offline, taken_down,
 //                          access, passcode, viewers: [{email, signed_in}], short_name,
-//                          domain: {host, status, error, records: [{type, name, value}]},
-//                          namespaces: [{name, bytes, rules}], notifications: [{kind, namespace, target}]}
+//                          domain: {host, status, says, error, records: [{type, host, value, ok, optional}]},
+//                          namespaces: [{name, bytes, rules, spam_check, tables}], notifications: [{kind, namespace, target}]}
+//                          PATCH answers with the site as GET shows it.
 //   GET /v1/sites/{site}/stats  {days: [{day, views, people}], views, pages, referrers, countries: [{key, n}]}
+//   Owner SQL: POST /v1/sites/{site}/storage/sqlite/{ns}/query {columns, rows} | execute {changes}
 (function () {
   'use strict';
   var app = document.getElementById('app');
@@ -38,7 +41,7 @@
     node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
   }
   function api(method, path, body) {
-    var opts = { method: method, credentials: 'same-origin', headers: {} };
+    var opts = { method: method, credentials: 'same-origin', headers: { 'X-SH-CSRF': '1' } };
     if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     return fetch(path, opts).then(function (r) {
       return r.text().then(function (t) {
@@ -75,15 +78,20 @@
   }
   function bytes(n) {
     n = Number(n) || 0;
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
-    if (n >= 1e6) return (n / 1e6).toFixed(1) + ' MB';
-    return Math.max(n ? 1 : 0, Math.round(n / 1e3)) + ' KB';
+    function one(x) { return String(Math.round(x * 10) / 10); }
+    if (n >= 1 << 30) return one(n / (1 << 30)) + ' GB';
+    if (n >= 1 << 20) return one(n / (1 << 20)) + ' MB';
+    return Math.max(n ? 1 : 0, Math.round(n / 1024)) + ' KB';
   }
   function copy(text, button) {
     navigator.clipboard.writeText(text).then(function () { button.textContent = 'Copied'; }, function () { button.textContent = 'Select and copy'; });
   }
-  function q(owner) { return owner && me && owner !== me.handle ? '?owner=' + encodeURIComponent(owner) : ''; }
-  function siteAPI(s, rest) { return '/v1/sites/' + encodeURIComponent(s.name) + (rest || '') + q(s.owner); }
+  // siteAPI is a site's route; params are more query values, like keep_other_files.
+  function siteAPI(s, rest, params) {
+    var p = new URLSearchParams(params || {});
+    if (s.owner && me && s.owner !== me.handle) p.set('owner', s.owner);
+    return '/v1/sites/' + encodeURIComponent(s.name) + (rest || '') + (p.toString() ? '?' + p : '');
+  }
   function confirmDo(text) { return window.confirm(text); }
   function show() { app.replaceChildren(); add(app, Array.prototype.slice.call(arguments)); window.scrollTo(0, 0); }
 
@@ -110,7 +118,7 @@
   function publish(s, list, keep) {
     return readFiles(list).then(function (files) {
       if (!Object.keys(files).length) throw new Error('Choose at least one file.');
-      return api('PUT', siteAPI(s), { files_base64: files, keep_other_files: keep });
+      return api('PUT', siteAPI(s, '', keep ? { keep_other_files: 'true' } : null), { files_base64: files });
     });
   }
 
@@ -204,25 +212,29 @@
     var inv = me.invitations || [];
     if (!inv.length) return null;
     return h('div', { class: 'panel' }, h('h2', { text: 'Invitations' }), h('ul', { class: 'list' }, inv.map(function (i) {
-      var out = status(), b = h('button', { class: 'primary', text: 'Join ' + i.team });
+      var out = status(), b = h('button', { class: 'primary', text: 'Join ' + (i.display_name || i.team) });
       b.onclick = function () { act(b, out, function () { return api('POST', '/v1/invites/' + encodeURIComponent(i.id) + '/accept', {}); }, function () { boot(); }); };
-      return h('li', {}, h('span', { class: 'grow', text: 'Team ' + i.team + ' invited you.' }), b, out);
+      return h('li', {}, h('span', { class: 'grow', text: 'The team ' + (i.display_name ? i.display_name + ' (' + i.team + ')' : i.team) + ' invited you.' }), b, out);
     })));
   }
 
   // ---- one site
+  // redraw draws the open site page again from a site as GET (or PATCH) answers it.
+  var redraw = function () {};
   function sitePage(owner, name) {
     var s = { owner: owner, name: name };
     var body = h('div', {}, h('p', { class: 'muted', text: 'Loading…' }));
-    api('GET', siteAPI(s)).then(function (site) {
+    redraw = function (site) {
       site.owner = site.owner || owner;
       site.name = site.name || name;
       body.replaceChildren(
         siteHead(site), updatePanel(site), accessPanel(site), statsPanel(site), dataPanel(site),
         notifyPanel(site), addressPanel(site), versionsPanel(site), settingsPanel(site));
-    }).catch(function (e) { body.replaceChildren(h('p', { class: 'bad', text: e.message })); });
+    };
+    api('GET', siteAPI(s)).then(redraw).catch(function (e) { body.replaceChildren(h('p', { class: 'bad', text: e.message })); });
     return [h('p', {}, h('a', { href: '#', text: '← Your sites' })), body];
   }
+  function reload(site) { return api('GET', siteAPI(site)).then(redraw); }
   function siteHead(site) {
     var c = h('button', { text: 'Copy address' });
     c.onclick = function () { copy(site.url, c); };
@@ -272,7 +284,7 @@
         var b = h('button', { class: 'danger', text: 'Remove' });
         b.onclick = function () {
           if (!confirmDo('Remove ' + v.email + '? They lose access at once.')) return;
-          act(b, out, function () { return api('PATCH', siteAPI(site), { viewers_remove: [v.email] }); }, function () { list = list.filter(function (x) { return x !== v; }); drawViewers(); });
+          act(b, out, function () { return api('PATCH', siteAPI(site), { viewers_remove: [v.email] }); }, function (r) { list = r.viewers || []; drawViewers(); });
         };
         viewers.appendChild(h('li', {}, h('span', { class: 'grow', text: v.email }), h('span', { class: 'tag' + (v.signed_in ? ' on' : ''), text: v.signed_in ? 'has signed in' : 'not signed in yet' }), b));
       });
@@ -289,7 +301,7 @@
         var addB = h('button', { text: 'Add' });
         addB.onclick = function () {
           var e = email.value.trim();
-          act(addB, out, function () { return api('PATCH', siteAPI(site), { viewers_add: [e] }); }, function () { list.push({ email: e, signed_in: false }); email.value = ''; drawViewers(); });
+          act(addB, out, function () { return api('PATCH', siteAPI(site), { viewers_add: [e] }); }, function (r) { list = r.viewers || []; email.value = ''; drawViewers(); });
         };
         drawViewers();
         detail.append(h('p', { class: 'muted', text: 'Only these people can open the site, after signing in. Your team always can.' }), viewers, h('div', { class: 'row' }, email, addB));
@@ -328,31 +340,48 @@
     var sql = h('textarea', { id: 'sql', 'aria-label': 'SQL', placeholder: 'SELECT * FROM bookings ORDER BY id DESC LIMIT 20' });
     var result = h('div', { class: 'scroll' });
     var run = h('button', { text: 'Run' });
-    function ns() { return fresh.value.trim() || pick.value; }
+    function ns() { return fresh.value.trim().toLowerCase() || pick.value; }
     run.onclick = function () {
-      act(run, out, function () { return api('POST', siteAPI(site, '/storage/' + encodeURIComponent(ns()) + '/sql'), { sql: sql.value }); }, function (r) {
+      // A statement that reads goes to query; anything else to execute,
+      // which also makes a new namespace.
+      var reads = /^\s*(select|with|pragma|explain)\b/i.test(sql.value), name = ns();
+      act(run, out, function () {
+        if (!name) throw new Error('Pick a namespace, or type a new one.');
+        return api('POST', siteAPI(site, '/storage/sqlite/' + encodeURIComponent(name) + (reads ? '/query' : '/execute')), { sql: sql.value });
+      }, function (r) {
+        if (!reads && (fresh.value.trim() || /^\s*(create|drop|alter)\b/i.test(sql.value))) { reload(site); return; }
         var cols = r.columns || [], rows = r.rows || [];
-        result.replaceChildren(cols.length ? h('table', {}, h('thead', {}, h('tr', {}, cols.map(function (c) { return h('th', { text: c }); }))),
-          h('tbody', {}, rows.map(function (row) { return h('tr', {}, row.map(function (v) { return h('td', { text: v == null ? '' : String(v) }); })); })))
-          : h('p', { class: 'muted', text: r.changed != null ? r.changed + ' rows changed.' : 'Done.' }));
+        result.replaceChildren(reads ? h('table', {}, h('thead', {}, h('tr', {}, cols.map(function (c) { return h('th', { text: c }); }))),
+          h('tbody', {}, rows.length ? rows.map(function (row) { return h('tr', {}, row.map(function (v) { return h('td', { text: v == null ? '' : String(v) }); })); })
+            : h('tr', {}, h('td', { class: 'muted', colspan: cols.length || 1, text: 'No rows.' }))))
+          : h('p', { class: 'muted', text: r.changes === 1 ? '1 row changed.' : (r.changes || 0) + ' rows changed.' }));
       });
     };
     var rules = h('textarea', { id: 'rules', 'aria-label': 'Rules' });
-    function fillRules() { var n = nss.filter(function (x) { return x.name === pick.value; })[0]; rules.value = n && n.rules ? JSON.stringify(n.rules, null, 2) : '{}'; }
+    var spam = h('input', { type: 'checkbox', id: 'spam' });
+    function fillRules() {
+      var n = nss.filter(function (x) { return x.name === pick.value; })[0];
+      rules.value = n && n.rules ? JSON.stringify(n.rules, null, 2) : '{}';
+      spam.checked = !!(n && n.spam_check);
+    }
     pick.onchange = fillRules; fillRules();
     var saveRules = h('button', { text: 'Save rules' }), rout = status();
     saveRules.onclick = function () {
       var parsed;
       try { parsed = JSON.parse(rules.value || '{}'); } catch (e) { say(rout, 'The rules are not valid JSON: ' + e.message, true); return; }
-      act(saveRules, rout, function () { return api('PUT', siteAPI(site, '/storage/' + encodeURIComponent(ns()) + '/rules'), parsed); }, 'Rules saved.');
+      act(saveRules, rout, function () { return api('PUT', siteAPI(site, '/storage/' + encodeURIComponent(ns()) + '/rules'), { rules: parsed, spam_check: spam.checked }); }, 'Rules saved.');
     };
     return panel('Saved data', 'Your site\'s tables, values and files. You can read and change anything here, or ask your AI app, for example "show my bookings".',
-      nss.length ? h('ul', { class: 'list' }, nss.map(function (n) { return h('li', {}, h('span', { class: 'grow', text: n.name }), h('span', { class: 'muted', text: bytes(n.bytes) })); })) : h('p', { class: 'muted', text: 'No saved data yet. Type a new namespace name below and run a CREATE TABLE to start one.' }),
+      nss.length ? h('ul', { class: 'list' }, nss.map(function (n) {
+        var tables = (n.tables || []).filter(function (t) { return t.charAt(0) !== '_'; });
+        return h('li', {}, h('div', { class: 'grow' }, h('div', { text: n.name }), h('div', { class: 'muted', text: tables.length ? 'Tables: ' + tables.join(', ') : 'No tables yet' })), h('span', { class: 'muted', text: bytes(n.bytes) }));
+      })) : h('p', { class: 'muted', text: 'No saved data yet. Type a new namespace name below and run a CREATE TABLE to start one.' }),
       h('div', { class: 'row field' }, nss.length ? pick : null, fresh),
       h('div', { class: 'field' }, sql), run, out, result,
       h('h3', { style: 'margin-top:16px', text: 'Who may read and write' }),
       h('p', { class: 'muted', text: 'For each table, "_values" and "_files": who may read, add, change and delete (anyone, signed-in people, the row\'s author, you). No rules means only you.' }),
-      h('div', { class: 'field' }, rules), saveRules, rout);
+      h('div', { class: 'field' }, rules),
+      h('label', { class: 'check' }, spam, 'Anonymous visitors pass a spam check before they add (rules name it auth.checked)'), saveRules, rout);
   }
   function notifyPanel(site) {
     var out = status(), current = site.notifications || [];
@@ -380,33 +409,43 @@
     var out = status(), d = site.domain;
     var short = h('input', { id: 'short', placeholder: 'name', value: site.short_name || '', 'aria-label': 'Short name' });
     var sb = h('button', { text: site.short_name ? 'Change' : 'Get it' });
-    sb.onclick = function () { act(sb, out, function () { return api('PATCH', siteAPI(site), { short_name: short.value.trim().toLowerCase() }); }, function () { route(); }); };
+    sb.onclick = function () { act(sb, out, function () { return api('PATCH', siteAPI(site), { short_name: short.value.trim().toLowerCase() }); }, redraw); };
     var dom = h('input', { id: 'domain', placeholder: 'www.example.com', 'aria-label': 'Your domain' });
     var db = h('button', { text: 'Connect' });
-    db.onclick = function () { act(db, out, function () { return api('PATCH', siteAPI(site), { domain: dom.value.trim().toLowerCase() }); }, function () { route(); }); };
+    db.onclick = function () { act(db, out, function () { return api('PATCH', siteAPI(site), { domain: dom.value.trim().toLowerCase() }); }, redraw); };
     var rm = function (field, label) {
       var b = h('button', { class: 'danger', text: label });
-      b.onclick = function () { if (confirmDo(label + '? The site\'s own address keeps working.')) act(b, out, function () { var x = {}; x[field] = ''; return api('PATCH', siteAPI(site), x); }, function () { route(); }); };
+      b.onclick = function () { if (confirmDo(label + '? The site\'s own address keeps working.')) act(b, out, function () { var x = {}; x[field] = ''; return api('PATCH', siteAPI(site), x); }, redraw); };
       return b;
     };
     return panel('Address', null,
       h('h3', { text: 'A free short name' }),
-      site.short_name ? h('p', {}, site.short_name + '.simple-host.app ', rm('short_name', 'Let it go')) : h('div', { class: 'row field' }, short, h('span', { text: '.simple-host.app' }), sb),
+      site.short_name ? h('p', {}, site.short_name + '.' + location.hostname + ' ', rm('short_name', 'Let it go')) : h('div', { class: 'row field' }, short, h('span', { text: '.' + location.hostname }), sb),
       h('h3', { text: 'Your own domain' }),
       d && d.host ? h('div', {},
-        h('p', {}, h('strong', { text: d.host }), ' ', h('span', { class: 'tag' + (d.status === 'live' ? ' on' : ''), text: d.status || 'waiting' })),
-        d.error ? h('p', { class: 'bad', text: d.error }) : null,
-        (d.records || []).length ? h('div', { class: 'scroll' }, h('p', { text: 'Add these records at your domain\'s DNS provider:' }), h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Type' }), h('th', { text: 'Name' }), h('th', { text: 'Value' }))),
-          h('tbody', {}, d.records.map(function (r) { return h('tr', {}, h('td', { text: r.type }), h('td', {}, h('code', { text: r.name })), h('td', {}, h('code', { text: r.value }))); })))) : null,
+        domainStatus(d),
         rm('domain', 'Remove domain'))
         : h('div', { class: 'row field' }, dom, db),
       out);
+  }
+  // domainStatus is a domain's state and the DNS records it needs (own domain, or one for all sites).
+  function domainStatus(d) {
+    var tag = { live: 'live', certificate: 'HTTPS on its way', waiting: 'waiting for DNS' }[d.status] || d.status;
+    return h('div', {},
+      h('p', {}, h('strong', { text: d.host }), ' ', h('span', { class: 'tag' + (d.status === 'live' ? ' on' : ''), text: tag })),
+      d.says ? h('p', { class: 'muted', text: d.says }) : null,
+      d.error ? h('p', { class: 'bad', text: d.error }) : null,
+      d.status !== 'live' && (d.records || []).length ? h('div', { class: 'scroll' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { text: 'Type' }), h('th', { text: 'Name' }), h('th', { text: 'Value' }), h('th', { text: '' }))),
+        h('tbody', {}, d.records.map(function (r) {
+          return h('tr', {}, h('td', { text: r.type }), h('td', {}, h('code', { text: r.host })), h('td', {}, h('code', { text: r.value })),
+            h('td', { class: r.ok ? '' : 'muted', text: r.ok ? 'found' : (r.optional ? 'optional' : 'missing') }));
+        })))) : null);
   }
   function versionsPanel(site) {
     var out = status(), vs = (site.versions || []).slice().sort(function (a, b) { return b.n - a.n; });
     return panel('Versions', 'Each publish is a version. The last few are kept.', h('ul', { class: 'list' }, vs.map(function (v) {
       var live = v.n === site.live_version, b = h('button', { text: 'Make live' });
-      b.onclick = function () { act(b, out, function () { return api('PATCH', siteAPI(site), { live_version: v.n }); }, function () { route(); }); };
+      b.onclick = function () { act(b, out, function () { return api('PATCH', siteAPI(site), { live_version: v.n }); }, redraw); };
       return h('li', {}, h('span', { class: 'grow', text: 'Version ' + v.n + (v.author ? ' by ' + v.author : '') + ' · ' + when(v.at) }), live ? h('span', { class: 'tag on', text: 'live' }) : b);
     })), out);
   }
@@ -415,7 +454,7 @@
     var listed = h('input', { type: 'checkbox', checked: !!site.listed });
     listed.onchange = function () { act(listed, out, function () { return api('PATCH', siteAPI(site), { listed: listed.checked }); }, 'Saved.'); };
     var off = h('button', { text: site.offline ? 'Put back online' : 'Take offline' });
-    off.onclick = function () { act(off, out, function () { return api('PATCH', siteAPI(site), { offline: !site.offline }); }, function () { route(); }); };
+    off.onclick = function () { act(off, out, function () { return api('PATCH', siteAPI(site), { offline: !site.offline }); }, redraw); };
     var del = h('button', { class: 'danger', text: 'Delete site' });
     del.onclick = function () {
       if (confirmDo('Delete ' + site.name + '? It goes to the bin for 7 days, with its saved data, and can be restored.')) act(del, out, function () { return api('DELETE', siteAPI(site)); }, function () { location.hash = '#'; });
@@ -426,7 +465,7 @@
       ops.onclick = function () {
         var reason = site.taken_down ? '' : window.prompt('Why is it taken down? The owner sees this.');
         if (reason === null) return;
-        act(ops, out, function () { return api('PATCH', siteAPI(site), { taken_down: !site.taken_down, reason: reason }); }, function () { route(); });
+        act(ops, out, function () { return api('PATCH', siteAPI(site), { taken_down: !site.taken_down, reason: reason }); }, redraw);
       };
     }
     return panel('Site', null,
@@ -449,7 +488,10 @@
     var domain = h('input', { id: 'alldomain', value: me.domain || '', placeholder: 'example.com' });
     var b = h('button', { text: 'Save' });
     b.onclick = function () {
-      var body = { display_name: dname.value, home_site: home.value.trim(), domain: domain.value.trim().toLowerCase() };
+      var body = {};
+      if (dname.value !== (me.display_name || '')) body.display_name = dname.value;
+      if (home.value.trim() !== (me.home_site || '')) body.home_site = home.value.trim();
+      if (domain.value.trim().toLowerCase() !== (me.domain || '')) body.domain = domain.value.trim().toLowerCase();
       var newHandle = handle.value.trim().toLowerCase();
       if (newHandle !== me.handle) {
         if (!confirmDo('Change your handle to ' + newHandle + '? Every site moves to addresses under the new handle at once. Old links stop working, and nobody can use the old handle again.')) return;
@@ -463,8 +505,16 @@
       h('div', { class: 'field' }, h('label', { for: 'home', text: 'Home page site' }), home,
         h('p', { class: 'muted', text: 'Your public page lists the sites you switched on, unless you pick one site to be that page.' })),
       h('div', { class: 'field' }, h('label', { for: 'alldomain', text: 'One domain for all my sites' }), domain,
-        h('p', { class: 'muted', text: 'Point *.yourdomain at Simple Host once, and every site answers at site.yourdomain.' })),
-      b, out);
+        h('p', { class: 'muted', text: 'Point *.yourdomain at Simple Host once, and every site answers at site.yourdomain.' }),
+        me.domain_status ? domainStatus(me.domain_status) : null),
+      b, out, usePanel());
+  }
+  // usePanel is what the limits allow this account.
+  function usePanel() {
+    var u = me.use || {};
+    if (u.unlimited) return h('p', { class: 'muted', text: (u.sites || 0) + ' sites. This account has no limits.' });
+    return h('p', { class: 'muted', text: (u.sites || 0) + ' sites. Each site may hold ' + bytes(u.site_bytes_limit) + ' of files, ' +
+      bytes(u.data_bytes_limit) + ' of saved data, and each file store ' + bytes(u.files_bytes_limit) + '. The last ' + (u.kept_versions || 0) + ' versions are kept.' });
   }
   function keysPanel() {
     var out = status(), name = h('input', { id: 'keyname', placeholder: 'What it is for, like deploy script', 'aria-label': 'Key name' });
@@ -497,7 +547,7 @@
     (me.apps || []).forEach(function (a) {
       var b = h('button', { class: 'danger', text: 'Disconnect' });
       b.onclick = function () { if (confirmDo('Disconnect ' + a.name + '?')) act(b, out, function () { return api('DELETE', '/v1/me/apps/' + encodeURIComponent(a.id)); }, function () { me.apps = me.apps.filter(function (x) { return x !== a; }); list.removeChild(b.parentNode); }); };
-      list.appendChild(h('li', {}, h('div', { class: 'grow' }, h('div', { text: a.name || 'AI app' }), h('div', { class: 'muted', text: a.last_used_at ? 'Last used ' + when(a.last_used_at) : '' })), b));
+      list.appendChild(h('li', {}, h('div', { class: 'grow' }, h('div', { text: a.name || 'AI app' }), h('div', { class: 'muted', text: a.connected_at ? 'Connected ' + when(a.connected_at) : '' })), b));
     });
     if (!(me.apps || []).length) list.appendChild(h('li', {}, h('span', { class: 'muted' }, 'No apps yet. ', h('a', { href: '/install', text: 'Connect one' }))));
     return panel('Connected AI apps', null, list, out);

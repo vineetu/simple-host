@@ -86,7 +86,7 @@
   // that frame; the token comes back the same way and goes with one save.
   var APP_ORIGIN = (function () { try { return new URL(APP).origin; } catch (e) { return ""; } })();
   var spamBox = null;
-  function spamCheck(ns) {
+  function spamCheck() {
     if (spamBox) return spamBox;
     spamBox = new Promise(function (resolve, reject) {
       var wrap = document.createElement("div"), panel = document.createElement("div");
@@ -97,7 +97,7 @@
       note.textContent = "One quick check that you are not a bot, then your post is sent.";
       note.style.margin = "0 0 10px";
       frame.title = "Spam check";
-      frame.src = APP_ORIGIN + "/spam-check?host=" + encodeURIComponent(location.host) + "&ns=" + encodeURIComponent(ns);
+      frame.src = APP_ORIGIN + "/spam-check";
       frame.style.cssText = "border:0;width:300px;max-width:100%;height:70px;display:block";
       frame.setAttribute("referrerpolicy", "no-referrer");
       cancel.style.marginTop = "10px";
@@ -127,10 +127,10 @@
   }
   // checkedWrite sends a save; when the namespace needs the spam check, it
   // runs the check and sends the save once more with the token.
-  function checkedWrite(url, method, body, ns) {
+  function checkedWrite(url, method, body) {
     return write(url, method, body).catch(function (e) {
       if (!e || e.code !== "spam_check_required") throw e;
-      return spamCheck(ns).then(function (token) {
+      return spamCheck().then(function (token) {
         return write(url, method, body, {"X-SH-Turnstile": token});
       });
     });
@@ -325,7 +325,7 @@
         return {
           keys: function (prefix, options) { return request(base + "/keys" + pageQuery(prefix, options)); },
           get: function (key) { return request(base + "/keys/" + segment(key, "key")); },
-          set: function (key, value) { return checkedWrite(base + "/keys/" + segment(key, "key"), "PUT", {value: value}, ns); },
+          set: function (key, value) { return checkedWrite(base + "/keys/" + segment(key, "key"), "PUT", {value: value}); },
           delete: function (key) { return remove(base + "/keys/" + segment(key, "key")); }
         };
       },
@@ -335,7 +335,7 @@
           table: function (table) {
             var rows = base + "/tables/" + segment(table, "table name") + "/rows";
             return {
-              add: function (values) { return checkedWrite(rows, "POST", values, ns); },
+              add: function (values) { return checkedWrite(rows, "POST", values); },
               // where: {column: value}, equality only. order "-id" or "id desc" means newest first.
               list: function (options) {
                 options = Object.assign({}, options || {});
@@ -404,7 +404,7 @@
           };
           return send({}).catch(function (e) {
             if (!e || e.code !== "spam_check_required") throw e;
-            return spamCheck(ns).then(function (token) { return send({"X-SH-Turnstile": token}); });
+            return spamCheck().then(function (token) { return send({"X-SH-Turnstile": token}); });
           });
         }
         return {

@@ -68,6 +68,19 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 	}
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	if name == "signin" && h.a.Config.GoogleClientID == "" {
+		// No Google sign-in on this install: the page offers only the emailed code.
+		body, err := fs.ReadFile(static, "signin.html")
+		if err != nil {
+			return err
+		}
+		before, rest, _ := bytes.Cut(body, []byte("<!--google-->"))
+		_, after, _ := bytes.Cut(rest, []byte("<!--/google-->"))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write(append(before, after...))
+		return nil
+	}
 	return serve(w, r, name+".html", "no-cache")
 }
 

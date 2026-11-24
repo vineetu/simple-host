@@ -18,8 +18,8 @@
   <section id="sign">
     <h1>Sign in</h1>
     <p class="muted" id="sub">No password. New here? This makes your account.</p>
-    <p><a class="btn" id="google" href="/v1/auth/google">Continue with Google</a></p>
-    <p class="muted">Or get a code by email:</p>
+    <!--google--><p><a class="btn" id="google" href="/v1/auth/google">Continue with Google</a></p>
+    <p class="muted">Or get a code by email:</p><!--/google-->
     <form id="f" novalidate>
       <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required></div>
       <div class="field" id="code-field" hidden><label for="code">The 6-digit code we emailed you</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
@@ -42,7 +42,7 @@
   var next = q.get('next') || '/dashboard';
   if (!/^\/(?!\/)/.test(next)) next = '/dashboard';
   var step = 'email';
-  $('google').href = '/v1/auth/google' + (hop ? '?hop=' + encodeURIComponent(hop) : '');
+  if ($('google')) $('google').href = '/v1/auth/google' + (hop ? '?hop=' + encodeURIComponent(hop) : '');
   if (hop) $('sub').textContent = 'Sign in to continue to the site. No password.';
   function say(text, bad) { $('status').textContent = text; $('status').className = 'status' + (bad ? ' bad' : ''); }
   function post(path, body) {
