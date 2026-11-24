@@ -7,7 +7,7 @@ Who sees what:
 - Anyone posts, once the page's spam check (Cloudflare Turnstile) says they are not a bot. Nobody edits or deletes a post but the owner.
 - The owner removes posts by asking you.
 
-## Setup (run these as the owner before publishing the page)
+## Setup (publish the page first, then run these as the owner)
 
 The spam check is Simple Host's own: switch it on with spam_check, nothing to set up.
 

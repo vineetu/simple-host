@@ -9,7 +9,7 @@ Who sees what:
 
 One site per client keeps one client's documents away from every other client.
 
-## Setup (run these as the owner, before anything private goes in)
+## Setup (publish the page first, then run these as the owner, before anything private goes in)
 
 Name the site after the client (client-patel). Publish the page below, then lock the site to the client's email. Use only an email the owner gave you in this chat:
 

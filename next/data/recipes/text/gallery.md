@@ -7,7 +7,7 @@ Who sees what:
 - A visitor signs in on the site (an emailed code or Google) to add a photo, and may take back their own. Nobody replaces or removes someone else's photo but the owner.
 - The owner's photos from create_upload_link land in the same place.
 
-## Setup (run this as the owner before publishing the page)
+## Setup (publish the page first, then run this as the owner)
 
 set_data_rules {"site": "{site}", "namespace": "photos", "rules": {"_files": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "take back", "command": "delete", "using": "visitor_id == auth.id"}]}}}
 

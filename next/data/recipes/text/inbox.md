@@ -6,7 +6,7 @@ Who sees what:
 - Anyone can send the form, without signing in.
 - Nobody reads the entries back, not even the sender. Only the owner reads them, by asking you ("show my messages").
 
-## Setup (run these as the owner before publishing the page)
+## Setup (publish the page first, then run these as the owner)
 
 run_sql {"site": "{site}", "namespace": "inbox", "sql": "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT)"}
 

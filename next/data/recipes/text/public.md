@@ -6,7 +6,7 @@ Who sees what:
 - Anyone reads it, without signing in.
 - Only the owner changes it, by asking you ("the dosa is now $8").
 
-## Setup (run these as the owner before publishing the page)
+## Setup (publish the page first, then run these as the owner)
 
 set_data_rules {"site": "{site}", "namespace": "menu", "rules": {"_values": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}]}}}
 

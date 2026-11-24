@@ -6,7 +6,7 @@ Who sees what:
 - Each visitor signs in on the site (an emailed code or Google; no account, no password) and sees only their own rows.
 - The owner sees and changes every row by asking you ("show my bookings", "confirm Ann's booking").
 
-## Setup (run these as the owner before publishing the page)
+## Setup (publish the page first, then run these as the owner)
 
 run_sql {"site": "{site}", "namespace": "bookings", "sql": "CREATE TABLE IF NOT EXISTS bookings (id INTEGER PRIMARY KEY, day TEXT NOT NULL, time TEXT NOT NULL, name TEXT NOT NULL, note TEXT, status TEXT NOT NULL DEFAULT 'requested', visitor_id TEXT, created_at TEXT, updated_at TEXT)"}
 
