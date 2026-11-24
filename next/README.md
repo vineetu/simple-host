@@ -48,6 +48,14 @@ p := sites.PlaceOf(r)             // p.Site, or p.Owner on a public page
 ```
 
 Suspended people are refused before any route runs. A key and an app token are the person.
+
+```go
+access.Cookie(r, "sh_session"); access.SetCookie(w, r, name, value, life) // __Host- over HTTPS; life 0 removes
+a.People.EndSignIns(ctx, id)      // every browser, site session and app grant (keys stay)
+access.NewTeam(ctx, tx, name); access.Remove(ctx, q, id) // a team row; delete a person or team, handle retired
+access.SealHop(h, life); access.OpenHop(s) // visitor sign-in hop/ticket between a site and the platform
+a.Sites.Count(ctx, ownerID)       // live sites of an owner
+```
 ## The one access decision for a visit
 
 ```go
