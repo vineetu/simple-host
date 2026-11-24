@@ -44,15 +44,16 @@ func (r *runner) versions(ctx context.Context, write bool) ([]row, error) {
 	var out []row
 	for _, x := range old {
 		n, _ := strconv.Atoi(x[1].String)
-		src, dst, link := filepath.Join(r.cfg.OldDir, x[4].String), r.sites.VersionDir(x[0].String, n), true
+		src, dst, link, rules := filepath.Join(r.cfg.OldDir, x[4].String), r.sites.VersionDir(x[0].String, n), true, ""
 		if x[5].String == "true" {
+			rules = siteRedirects(src)
 			src, link = liveFolder(src)
 		}
 		if _, err := os.Stat(src); err != nil {
 			r.note("files missing on disk", x[0].String, "version %d has no folder in the old data folder", n)
 			continue
 		}
-		size, err := r.tree(src, dst, link, write)
+		size, err := r.tree(src, dst, link, write, rules)
 		if err != nil {
 			return nil, err
 		}
@@ -83,10 +84,23 @@ func liveFolder(v string) (string, bool) {
 
 func text(s string) sql.NullString { return sql.NullString{String: s, Valid: true} }
 
+// siteRedirects is the old site folder's own redirects file (beside
+// current/ and the version folders of version folder v), or "". The old
+// service reads it before current/_redirects, so it becomes the live
+// version's _redirects.
+func siteRedirects(v string) string {
+	p := filepath.Join(filepath.Dir(v), "redirects")
+	if info, err := os.Lstat(p); err == nil && info.Mode().IsRegular() {
+		return p
+	}
+	return ""
+}
+
 // tree makes dst hold exactly the regular files of src: hard links for
-// versions, copies for file stores. Without write it only reports what
+// versions, copies for file stores. rules, when set, is copied in as
+// _redirects in place of src's own. Without write it only reports what
 // differs. It returns the bytes in src.
-func (r *runner) tree(src, dst string, link, write bool) (int64, error) {
+func (r *runner) tree(src, dst string, link, write bool, rules string) (int64, error) {
 	var total int64
 	seen := map[string]bool{}
 	err := filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
@@ -94,6 +108,9 @@ func (r *runner) tree(src, dst string, link, write bool) (int64, error) {
 			return err
 		}
 		rel, _ := filepath.Rel(src, p)
+		if rules != "" && rel == "_redirects" {
+			return nil
+		}
 		seen[rel] = true
 		info, err := d.Info()
 		if err != nil {
@@ -120,6 +137,27 @@ func (r *runner) tree(src, dst string, link, write bool) (int64, error) {
 	})
 	if err != nil {
 		return 0, err
+	}
+	if rules != "" {
+		seen["_redirects"] = true
+		to := filepath.Join(dst, "_redirects")
+		if info, err := os.Stat(rules); err == nil {
+			total += info.Size()
+		}
+		if !same(rules, to) {
+			if !write {
+				r.diff("file %s: missing or different in the new data folder", to)
+			} else {
+				r.changes++
+				os.Remove(to)
+				if err := os.MkdirAll(dst, 0o755); err != nil {
+					return 0, err
+				}
+				if err := copyFile(rules, to); err != nil {
+					return 0, err
+				}
+			}
+		}
 	}
 	filepath.WalkDir(dst, func(p string, d fs.DirEntry, err error) error {
 		if rel, _ := filepath.Rel(dst, p); err == nil && !d.IsDir() && !seen[rel] {
@@ -423,7 +461,7 @@ func (r *runner) build(ctx context.Context, sp *space, write bool) (row, error) 
 		dst := filepath.Join(r.cfg.New.DataDir, "sites", sp.site, "files", sp.name)
 		r.keep[dst], r.keep[filepath.Dir(dst)] = true, true
 		if _, err := os.Stat(sp.files); err == nil {
-			if _, err := r.tree(sp.files, dst, false, write); err != nil {
+			if _, err := r.tree(sp.files, dst, false, write, ""); err != nil {
 				return nil, err
 			}
 		}

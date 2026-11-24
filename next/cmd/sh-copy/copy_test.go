@@ -129,6 +129,9 @@ func files(t *testing.T, old string) {
 	// The old service serves current/: shop's was changed in place (a real
 	// folder), blog's is a link to its live version.
 	write("by-id/"+alice+"/shop/current/index.html", "<h1>shop, edited in place</h1>")
+	// shop's redirect rules are in its site folder, which wins over current/_redirects.
+	write("by-id/"+alice+"/shop/redirects", "/menu /prices 301\n")
+	write("by-id/"+alice+"/shop/current/_redirects", "/menu /loses 301\n")
 	os.Symlink("v5", filepath.Join(old, "by-id", alice, "blog", "current"))
 	write("by-id/"+alice+"/club/v1/app.js", "fetch('/v1/sites/club/storage/people')")
 	write("deleted/"+alice+"/"+binned+"/v1/index.html", "<h1>binned</h1>")
@@ -257,6 +260,9 @@ func TestCopyRecopyCheck(t *testing.T) {
 
 	if b, _ := os.ReadFile(filepath.Join(newDir, "sites", shop, "v1", "index.html")); string(b) != "<h1>shop, edited in place</h1>" {
 		t.Errorf("shop's live version is %q, want its current/ folder", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(newDir, "sites", shop, "v1", "_redirects")); string(b) != "/menu /prices 301\n" {
+		t.Errorf("shop's live _redirects is %q, want its site folder's redirects file", b)
 	}
 	// Old copied visitor sessions are stored hashed; the old cookie still works.
 	var stored []byte
