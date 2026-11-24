@@ -96,6 +96,12 @@ func (s *Sites) Get(ctx context.Context, ownerID, name string) (*Site, error) {
 	return s.one(ctx, `s.owner_id = $1 AND s.name = $2`, ownerID, name)
 }
 
+// Count is how many live (not deleted) sites an owner has.
+func (s *Sites) Count(ctx context.Context, ownerID string) (n int, err error) {
+	err = s.DB.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE owner_id = $1 AND deleted_at IS NULL`, ownerID).Scan(&n)
+	return n, err
+}
+
 // ByID reads a live site by id.
 func (s *Sites) ByID(ctx context.Context, id string) (*Site, error) {
 	return s.one(ctx, `s.id = $1`, id)
