@@ -11,6 +11,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -167,7 +168,9 @@ func (d *Data) Open(r *http.Request, site *sites.Site, name string) (*NS, error)
 		if err := c.Exec("PRAGMA busy_timeout = 2000; PRAGMA page_size = 4096; PRAGMA max_page_count = " + strconv.FormatInt(max(maxPages, 1), 10)); err != nil {
 			return err
 		}
-		c.Limit(sqlite3.LIMIT_LENGTH, int(limits.QueryBytes.N)) // no one value bigger than an answer may be
+		// One value and one row stay small inside SQLite itself.
+		c.Limit(sqlite3.LIMIT_LENGTH, int(limits.ValueBytes.N))
+		c.Limit(sqlite3.LIMIT_COLUMN, int(limits.Columns.N))
 
 		return c.SetAuthorizer(func(action sqlite3.AuthorizerActionCode, a, _, _, _ string) sqlite3.AuthorizerReturnCode {
 			if action == sqlite3.AUTH_ATTACH || action == sqlite3.AUTH_DETACH || action == sqlite3.AUTH_PRAGMA && !safePragmas[strings.ToLower(a)] {
@@ -187,11 +190,21 @@ func (d *Data) Open(r *http.Request, site *sites.Site, name string) (*NS, error)
 func (n *NS) Close() error { return n.db.Close() }
 
 // Exec runs one writing statement under the two guards.
-func (n *NS) Exec(ctx context.Context, query string, args ...any) (sql.Result, error) {
+func (n *NS) Exec(ctx context.Context, query string, args ...any) (res sql.Result, err error) {
+	defer outOfMemory(&err)
 	ctx, cancel := context.WithTimeout(ctx, limits.QueryTime.Per)
 	defer cancel()
-	res, err := n.db.ExecContext(ctx, query, args...)
+	res, err = n.db.ExecContext(ctx, query, args...)
 	return res, guard(err)
+}
+
+// outOfMemory turns the SQLite driver running out of memory (it panics)
+// into a refusal; the namespace is closed after the request anyway.
+func outOfMemory(err *error) {
+	if p := recover(); p != nil {
+		log.Printf("saved data query ran out of memory: %v", p)
+		*err = web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.QueryBytes.Name, limits.QueryBytes.Fix)
+	}
 }
 
 // Rows is a query's answer: column names and values in order. Cut: there
@@ -203,11 +216,12 @@ type Rows struct {
 }
 
 // Query runs one reading statement under the two guards and returns its
-// rows, at most limits.QueryRows of them and limits.QueryBytes in all.
-func (n *NS) Query(ctx context.Context, query string, args ...any) (Rows, error) {
+// rows, at most limits.QueryRows of them and limits.QueryBytes in all,
+// counted value by value: a row that would pass the cap is not kept.
+func (n *NS) Query(ctx context.Context, query string, args ...any) (out Rows, err error) {
+	defer outOfMemory(&err)
 	ctx, cancel := context.WithTimeout(ctx, limits.QueryTime.Per)
 	defer cancel()
-	var out Rows
 	rows, err := n.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return out, guard(err)
@@ -218,11 +232,8 @@ func (n *NS) Query(ctx context.Context, query string, args ...any) (Rows, error)
 	}
 	size := int64(0)
 	for rows.Next() {
-		if int64(len(out.Rows)) >= limits.QueryRows.N || size >= limits.QueryBytes.N {
+		if int64(len(out.Rows)) >= limits.QueryRows.N {
 			out.Cut = limits.QueryRows.Fix
-			if size >= limits.QueryBytes.N {
-				out.Cut = limits.QueryBytes.Fix
-			}
 			break
 		}
 		vals := make([]any, len(out.Columns))
@@ -236,10 +247,16 @@ func (n *NS) Query(ctx context.Context, query string, args ...any) (Rows, error)
 		for i, v := range vals {
 			size += 8
 			if b, ok := v.([]byte); ok {
-				vals[i] = string(b)
 				size += int64(len(b))
 			} else if s, ok := v.(string); ok {
 				size += int64(len(s))
+			}
+			if size > limits.QueryBytes.N {
+				out.Cut = limits.QueryBytes.Fix
+				return out, nil
+			}
+			if b, ok := v.([]byte); ok {
+				vals[i] = string(b)
 			}
 		}
 		out.Rows = append(out.Rows, vals)
@@ -257,7 +274,7 @@ func guard(err error) error {
 	case errors.Is(err, sqlite3.FULL):
 		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.DataBytes.Name, limits.DataBytes.Fix)
 	case errors.Is(err, sqlite3.TOOBIG):
-		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.QueryBytes.Name, "One value would be over 8 MB. Store smaller values.")
+		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.ValueBytes.Name, limits.ValueBytes.Fix)
 	case errors.Is(err, sqlite3.ERROR) || errors.Is(err, sqlite3.CONSTRAINT) || errors.Is(err, sqlite3.AUTH) || errors.Is(err, sqlite3.MISMATCH) || errors.Is(err, sqlite3.RANGE):
 		return web.Refuse(http.StatusBadRequest, "sql_error", err.Error())
 	}

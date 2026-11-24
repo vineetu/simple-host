@@ -264,12 +264,13 @@ func check(ctx context.Context, a *app.App, r row) (Domain, error) {
 		}
 	}
 	d.Says = says[d.Status]
-	var errText string
+	var errText, was string
 	err = a.DB.QueryRowContext(ctx, `UPDATE hostnames SET status = $2, cert_expires_at = $3,
-		proven_at = CASE WHEN $4 THEN COALESCE(proven_at, now()) ELSE proven_at END WHERE host = $1 RETURNING error`,
-		r.host, d.Status, d.Expires, proven).Scan(&errText)
-	if err == nil && proven && !r.proven {
-		a.Sites.Forget()
+		proven_at = CASE WHEN $4 THEN COALESCE(proven_at, now()) ELSE proven_at END WHERE host = $1
+		RETURNING error, (SELECT status FROM hostnames WHERE host = $1)`,
+		r.host, d.Status, d.Expires, proven).Scan(&errText, &was)
+	if err == nil && (proven && !r.proven || was != d.Status) {
+		a.Sites.Forget() // the address answers, or its main address redirects, differently now
 	}
 	d.Error = errText
 	return d, err

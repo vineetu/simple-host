@@ -20,23 +20,25 @@ import (
 // setupCode is the one-time code that proves the person finishing setup
 // runs this machine: made at the first start (or first visit) while there
 // is no operator, printed only to the service's own log, kept only in memory.
+// A database error leaves it unmade, to be made on the next try.
 type setupCode struct {
-	once sync.Once
+	mu   sync.Mutex
 	code string
 }
 
 func (h *handler) setupCode() string {
-	setupCode := &h.firstRun
-	setupCode.once.Do(func() {
-		if done, err := h.a.People.HasOperator(context.Background()); err != nil || done {
-			return
+	s := &h.firstRun
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.code == "" {
+		if done, err := h.a.People.HasOperator(context.Background()); err == nil && !done {
+			b := make([]byte, 8)
+			rand.Read(b)
+			s.code = hex.EncodeToString(b)
+			log.Printf("first-run setup code: %s (open https://%s/setup and enter it)", s.code, h.a.Config.AppDomain)
 		}
-		b := make([]byte, 8)
-		rand.Read(b)
-		setupCode.code = hex.EncodeToString(b)
-		log.Printf("first-run setup code: %s (open https://%s/setup and enter it)", setupCode.code, h.a.Config.AppDomain)
-	})
-	return setupCode.code
+	}
+	return s.code
 }
 
 // setupPage is the first-run page of a self-hosted install: it shows the

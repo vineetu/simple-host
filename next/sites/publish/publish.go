@@ -38,6 +38,11 @@ func Mount(a *app.App) {
 // the site if it is new, and puts the files live as the next version. With
 // ?keep_other_files=true the live files not sent stay.
 func (h *handler) publish(w http.ResponseWriter, r *http.Request) error {
+	done, err := limits.Enter(r, limits.Publishes) // a body is held in memory: only a few at once
+	if err != nil {
+		return err
+	}
+	defer done()
 	site, ownerID, err := h.target(r)
 	if err != nil {
 		return err
@@ -96,7 +101,11 @@ func read(w http.ResponseWriter, r *http.Request) (map[string][]byte, error) {
 		room = 1 << 50
 	}
 	tooBig := func() error { return limits.Fits(r, limits.SiteBytes, limits.SiteBytes.N+1) }
-	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+	isJSON := strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
+	if isJSON && r.ContentLength > room/3*4+1<<20 || !isJSON && r.ContentLength > room {
+		return nil, tooBig() // refused by its declared size, before a byte is read
+	}
+	if isJSON {
 		var in struct {
 			Files       map[string]string `json:"files"`
 			FilesBase64 map[string]string `json:"files_base64"`

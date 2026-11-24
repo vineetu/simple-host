@@ -283,6 +283,8 @@
       } catch (e) {}
       try { localStorage.setItem(CHIP_KEY, "1"); } catch (e) {}
       saveTyped();
+      // A browser leaves \ (and spaces) as they are in an address; send them encoded.
+      back = back.replace(/[\\\s]/g, function (c) { return encodeURIComponent(c); });
       location.href = location.origin + "/_sh/signin?return=" + encodeURIComponent(back);
       return new Promise(function () {});
     },

@@ -31,11 +31,20 @@ var (
 	AccessAsks    = Limit{"access_asks", 3, time.Hour, "You asked for access a few times already. The owner has been told; wait for them."}
 	SiteBytes     = Limit{"site_size", 100 << 20, 0, "A site can hold 100 MB of published files. Remove or shrink some files."}
 	DataBytes     = Limit{"data_size", 100 << 20, 0, "A site's saved data can hold 100 MB. Delete rows or values you no longer need."}
-	FilesBytes    = Limit{"files_size", 200 << 20, 0, "A namespace's file store can hold 200 MB. Delete files you no longer need."}
+	FilesBytes    = Limit{"files_size", 200 << 20, 0, "A site's file stores can hold 200 MB in all. Delete files you no longer need."}
 	// QueryRows and QueryBytes cap one saved-data query's answer (and
 	// QueryBytes any one value): the rest is cut, and the answer says so.
 	QueryRows  = Limit{"query_rows", 10_000, 0, "The answer was cut at 10,000 rows. Add a WHERE or LIMIT to get the rest."}
 	QueryBytes = Limit{"query_bytes", 8 << 20, 0, "The answer was cut at 8 MB. Pick fewer columns or rows."}
+	// ValueBytes and Columns bound one value and one row inside SQLite
+	// itself, so no single row can be big (the old service's value limit).
+	ValueBytes = Limit{"value_size", 1 << 20, 0, "One value may be at most 1 MB. Store bigger things in a file store."}
+	Columns    = Limit{"columns", 100, 0, "A table or an answer may have at most 100 columns."}
+	// HeavyQueries is how many owner SQL statements run at once across the
+	// service (one per person); Publishes, how many publishes. Past that:
+	// busy, try again.
+	HeavyQueries = Limit{"busy_queries", 4, 0, "The server is running other queries. Try again in a few seconds."}
+	Publishes    = Limit{"busy_publishes", 3, 0, "The server is taking other publishes. Try again in a few seconds."}
 	// PushDevices is how many browsers one person gets notifications on.
 	PushDevices = Limit{"push_devices", 20, 0, "You have 20 devices for notifications. Remove one in the dashboard first."}
 	// KeptVersions is how many published versions are kept per site.
@@ -67,6 +76,40 @@ func Allow(r *http.Request, l Limit, key string) error {
 	ref.RetryAfter = int(wait/time.Second) + 1
 	return ref
 }
+
+// Enter takes one of a fixed number of slots for heavy work (HeavyQueries,
+// Publishes): l.N across the service and one per person (or address).
+// Call the returned func when done. Full: a plain "busy, try again".
+func Enter(r *http.Request, l Limit) (func(), error) {
+	c := web.CallerOf(r)
+	who := l.Name + "\x00" + c.ID
+	if c.ID == "" {
+		who = l.Name + "\x00ip:" + Address(r)
+	}
+	busy.Lock()
+	defer busy.Unlock()
+	if busy.n[l.Name] >= l.N || busy.n[who] >= 1 {
+		ref := web.Refuse(http.StatusServiceUnavailable, "limit_"+l.Name, l.Fix)
+		ref.RetryAfter = 5
+		return nil, ref
+	}
+	busy.n[l.Name]++
+	busy.n[who]++
+	return func() {
+		busy.Lock()
+		defer busy.Unlock()
+		for _, k := range []string{l.Name, who} {
+			if busy.n[k]--; busy.n[k] <= 0 {
+				delete(busy.n, k)
+			}
+		}
+	}, nil
+}
+
+var busy = struct {
+	sync.Mutex
+	n map[string]int64
+}{n: map[string]int64{}}
 
 // Address is the caller's address as limits count it: an IPv4 address, or
 // the /64 an IPv6 address is in (one home or server holds a whole /64, so

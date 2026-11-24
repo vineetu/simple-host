@@ -23,9 +23,21 @@ func Mount(a *app.App) {
 	h := &handler{a}
 	const base = "/v1/sites/{site}/storage/sqlite/{ns}/"
 	for _, mux := range []*http.ServeMux{a.Routes.Platform, a.Routes.Site} {
-		mux.Handle("POST "+base+"query", web.Func(h.query))
-		mux.Handle("POST "+base+"execute", web.Func(h.execute))
-		mux.Handle("POST "+base+"schema", web.Func(h.schema))
+		mux.Handle("POST "+base+"query", web.Func(heavy(h.query)))
+		mux.Handle("POST "+base+"execute", web.Func(heavy(h.execute)))
+		mux.Handle("POST "+base+"schema", web.Func(heavy(h.schema)))
+	}
+}
+
+// heavy runs an owner statement in one of the few limits.HeavyQueries slots.
+func heavy(fn func(http.ResponseWriter, *http.Request) error) func(http.ResponseWriter, *http.Request) error {
+	return func(w http.ResponseWriter, r *http.Request) error {
+		done, err := limits.Enter(r, limits.HeavyQueries)
+		if err != nil {
+			return err
+		}
+		defer done()
+		return fn(w, r)
 	}
 }
 

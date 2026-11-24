@@ -2,10 +2,12 @@ package data
 
 import (
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"simplehost/core/limits"
 	"simplehost/core/web"
@@ -28,6 +30,44 @@ func (d *Data) FilePath(siteID, ns, name string) (string, error) {
 	return p, nil
 }
 
+// running is the room each site's running uploads have taken.
+var running = struct {
+	sync.Mutex
+	taken map[string]int64
+}{taken: map[string]int64{}}
+
+// takeRoom measures the site's file stores on disk (leaving out the file
+// being replaced) and takes room for one upload: its declared length, or all
+// that is left when it gives none. done gives it back.
+func (d *Data) takeRoom(siteID, replaced string, declared int64, operator bool) (used, room int64, done func()) {
+	running.Lock()
+	defer running.Unlock()
+	filepath.WalkDir(filepath.Join(d.Dir, "sites", siteID, "files"), func(p string, e fs.DirEntry, err error) error {
+		if err == nil && e.Type().IsRegular() && p != replaced && !strings.HasPrefix(e.Name(), ".upload-") {
+			if info, err := e.Info(); err == nil {
+				used += info.Size()
+			}
+		}
+		return nil
+	})
+	used += running.taken[siteID]
+	room = max(limits.FilesBytes.N-used, 0)
+	if operator {
+		room = 1 << 50
+	}
+	if declared >= 0 && declared < room {
+		room = declared
+	}
+	running.taken[siteID] += room
+	return used, room, func() {
+		running.Lock()
+		defer running.Unlock()
+		if running.taken[siteID] -= room; running.taken[siteID] <= 0 {
+			delete(running.taken, siteID)
+		}
+	}
+}
+
 var errBadFileName = web.Refuse(http.StatusBadRequest, "bad_file_name", "Name the file with a relative path such as photos/cat.jpg, at most 512 characters.")
 
 // ValidFileName refuses a name that is not a relative path of plain parts
@@ -43,7 +83,9 @@ func ValidFileName(name string) error {
 
 // PutFile stores one file in the namespace's file store, replacing one of
 // the same name, and records it in _files (a replaced file keeps its first
-// author; "" is nobody). The store may hold limits.FilesBytes in all. This is
+// author; "" is nobody). A site's file stores may hold limits.FilesBytes in
+// all, measured on disk (never from _files, which the owner may rewrite):
+// what is stored, plus the room uploads still running have taken. This is
 // the one way a file enters a file store: owners' upload links and visitors'
 // uploads alike.
 func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID string, body io.Reader) error {
@@ -51,15 +93,8 @@ func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID strin
 	if err != nil {
 		return err
 	}
-	sum, err := n.Query(r.Context(), `SELECT COALESCE(SUM(size), 0) FROM _files WHERE name <> ?`, name)
-	if err != nil {
-		return err
-	}
-	used := sum.Rows[0][0].(int64)
-	room := limits.FilesBytes.N - used
-	if web.CallerOf(r).Operator {
-		room = 1 << 50
-	}
+	used, room, done := d.takeRoom(n.Site.ID, final, r.ContentLength, web.CallerOf(r).Operator)
+	defer done()
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return err
 	}
@@ -68,12 +103,15 @@ func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID strin
 		return err
 	}
 	defer os.Remove(tmp.Name())
-	size, err := io.Copy(tmp, io.LimitReader(body, max(room, 0)+1))
+	size, err := io.Copy(tmp, io.LimitReader(body, room+1))
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}
 	if err != nil {
 		return err
+	}
+	if size > room {
+		used = limits.FilesBytes.N // more than it said, or than is left
 	}
 	if err := limits.Fits(r, limits.FilesBytes, used+size); err != nil {
 		return err

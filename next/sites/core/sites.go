@@ -183,9 +183,11 @@ func (s *Sites) lookup(ctx context.Context, host string) (Place, error) {
 			return Place{}, err
 		}
 		// One address per site: its main address sends page visits to its
-		// own domain, else to its short name.
+		// own domain once that is fully live (address right, certificate
+		// issued), else to its short name.
 		var to string
-		err = s.DB.QueryRowContext(ctx, `SELECT COALESCE((SELECT host FROM hostnames WHERE site_id = $1 AND kind = 'own' AND proven_at IS NOT NULL ORDER BY host LIMIT 1),
+		err = s.DB.QueryRowContext(ctx, `SELECT COALESCE((SELECT host FROM hostnames WHERE site_id = $1 AND kind = 'own' AND proven_at IS NOT NULL
+				AND status = 'live' AND cert_expires_at > now() ORDER BY host LIMIT 1),
 			(SELECT name || '.' || $2 FROM names WHERE site_id = $1 AND kind = 'short' AND retired_at IS NULL ORDER BY name LIMIT 1), '')`, x.ID, s.AppDomain).Scan(&to)
 		return Place{Site: x, Redirect: to}, err
 	}

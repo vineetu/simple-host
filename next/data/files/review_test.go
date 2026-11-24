@@ -1,11 +1,13 @@
 package files_test
 
 import (
+	"bytes"
 	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"simplehost/core/limits"
 	"simplehost/core/testkit"
 	"simplehost/data/files"
 	datasql "simplehost/data/sql"
@@ -34,5 +36,37 @@ func TestFileNameCheckedWhereUsed(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(victim); string(b) != "secret" {
 		t.Fatal("the file outside the namespace was removed")
+	}
+}
+
+// Round 2: the file-store cap is measured on disk for the whole site, so
+// rewriting _files sizes or using another namespace lets nothing more in.
+func TestFileCapIsMeasuredOnDisk(t *testing.T) {
+	n := limits.FilesBytes.N
+	limits.FilesBytes.N = 1 << 20
+	t.Cleanup(func() { limits.FilesBytes.N = n })
+	k := testkit.Start(t, files.Mount, datasql.Mount)
+	eve := k.Person(t, "eve")
+	k.Publish(t, eve, "evil", map[string]string{"index.html": "x"})
+	key := []string{"Authorization", "Bearer " + eve.Key}
+	base := "https://simple-host.app/v1/sites/evil/storage/"
+	for _, ns := range []string{"ns", "ns2"} {
+		testkit.Call(t, k.Browser(), "POST", base+"sqlite/"+ns+"/execute", map[string]any{"sql": "SELECT 1"}, key...)
+	}
+	big := bytes.Repeat([]byte("a"), 700<<10)
+	put := func(path string) int {
+		return testkit.Call(t, k.Browser(), "PUT", base+"files/"+path, big, append(key, "Content-Type", "application/octet-stream")...).Status
+	}
+	if s := put("ns/objects/a"); s != 200 {
+		t.Fatalf("first: %d", s)
+	}
+	testkit.Call(t, k.Browser(), "POST", base+"sqlite/ns/execute", map[string]any{"sql": "UPDATE _files SET size = 0"}, key...)
+	for _, p := range []string{"ns/objects/b", "ns2/objects/c"} {
+		if s := put(p); s != 413 {
+			t.Fatalf("%s over the cap after UPDATE _files: %d", p, s)
+		}
+	}
+	if s := put("ns/objects/a"); s != 200 {
+		t.Fatalf("replacing a file: %d", s)
 	}
 }
