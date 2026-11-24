@@ -56,6 +56,9 @@ type Config struct {
 	// SelfHosted: an install someone runs for themselves; its operator may
 	// make accounts.
 	SelfHosted bool
+	// CountryFile is the IP-to-country file (MaxMind .mmdb format, such as
+	// DB-IP's) for the admin page's world map; "" means no countries.
+	CountryFile string
 }
 
 // FromEnv reads the config from the environment, with production defaults.
@@ -92,7 +95,8 @@ func FromEnv() Config {
 		CompanyAuthURL: env("COMPANY_AUTH_URL", ""), CompanyTokenURL: env("COMPANY_TOKEN_URL", ""), CompanyUserURL: env("COMPANY_USER_URL", ""),
 		VAPIDKey:    env("SH_VAPID_KEY", ""),
 		AgentCatURL: env("SH_AGENTCAT_URL", "https://api.agentcat.com/v1/public/events/"), AgentCatProject: env("AGENTCAT_PROJECT_ID", ""),
-		SelfHosted: env("SH_SELF_HOSTED", "") == "1",
+		SelfHosted:  env("SH_SELF_HOSTED", "") == "1",
+		CountryFile: env("SH_COUNTRY_FILE", ""),
 	}
 }
 
