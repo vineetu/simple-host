@@ -1,6 +1,6 @@
 // Package rules is route 32: the owner sets who may read, add, change and
 // delete each table, the values (_values) and the file records (_files) of a
-// namespace, and its spam check keys. A mistake is reported exactly when the
+// namespace, and whether anonymous adds need the spam check. A mistake is reported exactly when the
 // rules are saved. No rules for a table means only the owner touches it.
 package rules
 
@@ -22,8 +22,8 @@ func Mount(a *app.App) {
 	a.Routes.Platform.Handle("PUT /v1/sites/{site}/storage/{ns}/rules", web.Func(h.set))
 }
 
-// set replaces the namespace's rules (making the namespace if new). The
-// Turnstile keys are kept unless sent; the secret is never shown.
+// set replaces the namespace's rules (making the namespace if new).
+// spam_check switches the platform's spam check on or off; kept unless sent.
 func (h *handler) set(w http.ResponseWriter, r *http.Request) error {
 	site, err := h.a.Sites.Of(r)
 	if err == nil {
@@ -36,9 +36,8 @@ func (h *handler) set(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	var in struct {
-		Rules           map[string]json.RawMessage `json:"rules"`
-		TurnstileKey    *string                    `json:"turnstile_key"`
-		TurnstileSecret *string                    `json:"turnstile_secret"`
+		Rules     map[string]json.RawMessage `json:"rules"`
+		SpamCheck *bool                      `json:"spam_check"`
 	}
 	if err := web.Read(r, &in); err != nil {
 		return err
@@ -52,11 +51,8 @@ func (h *handler) set(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	defer ns.Close()
-	if in.TurnstileKey != nil {
-		ns.TurnstileKey = *in.TurnstileKey
-	}
-	if in.TurnstileSecret != nil {
-		ns.TurnstileSecret = *in.TurnstileSecret
+	if in.SpamCheck != nil {
+		ns.SpamCheck = *in.SpamCheck
 	}
 	if in.Rules == nil {
 		in.Rules = map[string]json.RawMessage{}
@@ -80,11 +76,11 @@ func (h *handler) set(w http.ResponseWriter, r *http.Request) error {
 		}
 	}
 	saved, _ := json.Marshal(in.Rules)
-	_, err = h.a.DB.ExecContext(r.Context(), `UPDATE namespaces SET rules = $3, turnstile_key = $4, turnstile_secret = $5 WHERE site_id = $1 AND name = $2`,
-		site.ID, name, saved, ns.TurnstileKey, ns.TurnstileSecret)
+	_, err = h.a.DB.ExecContext(r.Context(), `UPDATE namespaces SET rules = $3, spam_check = $4 WHERE site_id = $1 AND name = $2`,
+		site.ID, name, saved, ns.SpamCheck)
 	if err != nil {
 		return err
 	}
-	web.JSON(w, http.StatusOK, map[string]any{"namespace": name, "rules": in.Rules, "spam_check": ns.TurnstileSecret != ""})
+	web.JSON(w, http.StatusOK, map[string]any{"namespace": name, "rules": in.Rules, "spam_check": ns.SpamCheck})
 	return nil
 }

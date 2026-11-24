@@ -9,11 +9,11 @@ Who sees what:
 
 ## Setup (run these as the owner before publishing the page)
 
-The spam check needs a Turnstile site key and secret (free at dash.cloudflare.com, Turnstile, add a widget for the site's address). Ask the owner for them, then:
+The spam check is Simple Host's own: switch it on with spam_check, nothing to set up.
 
 run_sql {"site": "{site}", "namespace": "comments", "sql": "CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL CHECK (length(name) <= 80), message TEXT NOT NULL CHECK (length(message) <= 1000), created_at TEXT)"}
 
-set_data_rules {"site": "{site}", "namespace": "comments", "turnstile_key": "{turnstile_key}", "turnstile_secret": "{turnstile_secret}", "rules": {"entries": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "post", "command": "add", "check": "auth.checked"}]}}}
+set_data_rules {"site": "{site}", "namespace": "comments", "spam_check": true, "rules": {"entries": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "post", "command": "add", "check": "auth.checked"}]}}}
 
 To hold posts until the owner approves them, add an approved_at column and read only approved posts: {"name": "read", "command": "read", "using": "approved_at is not null"}.
 

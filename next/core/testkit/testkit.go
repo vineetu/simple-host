@@ -63,7 +63,7 @@ func Start(t *testing.T, mounts ...func(*app.App)) *Kit {
 	a, err := app.New(context.Background(), app.Config{
 		DatabaseURL: freshDatabase(t), DataDir: t.TempDir(), AppDomain: "simple-host.app", SiteDomain: "simple-host.site",
 		PasscodeKey: base64.StdEncoding.EncodeToString(key), MailKey: "test", MailFrom: "Simple Host <hello@simple-host.app>",
-		MailURL: fakes.URL + "/mail", TurnstileURL: fakes.URL + "/turnstile", DNSURL: fakes.URL + "/resolve",
+		MailURL: fakes.URL + "/mail", TurnstileURL: fakes.URL + "/turnstile", TurnstileSiteKey: "site-key", TurnstileSecret: "secret", DNSURL: fakes.URL + "/resolve",
 		GoogleClientID: "test", GoogleClientSecret: "test", GoogleAuthURL: fakes.URL + "/google/auth",
 		GoogleTokenURL: fakes.URL + "/google/token", GoogleUserURL: fakes.URL + "/google/userinfo",
 		ACMEDirectories: []string{fakes.URL + "/dir"}, LoopbackOutbound: true,

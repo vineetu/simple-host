@@ -96,7 +96,7 @@ rows, err := ns.Query(ctx, `SELECT * FROM b WHERE id = ?`, id) // rows.Columns, 
 res, err := ns.Exec(ctx, `INSERT INTO b (name, author) VALUES (?, ?)`, n, c.ID)
 plan, err := ns.Plan(ctx, "b")                // nil plan: no rules, owner only
 pred, err := plan.Using(rules.OpRead, data.Bindings(r, isOwner, checked)) // SQL predicate
-err = a.Data.Turnstile(r, ns.TurnstileSecret, token)
+err = a.Data.Turnstile(r, token)       // the platform's one key pair; ns.SpamCheck: switched on
 ```
 A row's author is the person's id (`auth.id` in rules), in the column `visitor_id` (also in
 `_values` and `_files`). Space used: `a.Data.Sizes(site.ID)`.

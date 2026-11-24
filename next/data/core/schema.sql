@@ -5,8 +5,7 @@ CREATE TABLE namespaces (
   site_id          UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
   name             TEXT NOT NULL,
   rules            JSONB NOT NULL DEFAULT '{}',
-  turnstile_key    TEXT NOT NULL DEFAULT '',
-  turnstile_secret TEXT NOT NULL DEFAULT '',
+  spam_check       BOOLEAN NOT NULL DEFAULT false, -- anonymous adds pass the platform's Turnstile check
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (site_id, name)
 );

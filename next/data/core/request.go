@@ -53,8 +53,8 @@ func (d *Data) Begin(r *http.Request, s *sites.Sites, write bool) (*Req, error) 
 		return nil, err
 	}
 	q := &Req{NS: ns, r: r, Owner: owner}
-	if tok := r.Header.Get("X-SH-Turnstile"); write && tok != "" && ns.TurnstileSecret != "" {
-		if err := d.Turnstile(r, ns.TurnstileSecret, tok); err != nil {
+	if tok := r.Header.Get("X-SH-Turnstile"); write && tok != "" && ns.SpamCheck {
+		if err := d.Turnstile(r, tok); err != nil {
 			ns.Close()
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func (q *Req) Refused(ctx context.Context, table string, op rules.Op) error {
 
 func (q *Req) refusal(plan *rules.Plan, op rules.Op) error {
 	switch {
-	case plan != nil && op == rules.OpAdd && !q.Checked && q.TurnstileSecret != "" && plan.ReferencesBinding(rules.OpAdd, "auth.checked"):
+	case plan != nil && op == rules.OpAdd && !q.Checked && q.SpamCheck && plan.ReferencesBinding(rules.OpAdd, "auth.checked"):
 		return web.Refuse(http.StatusForbidden, "spam_check_required", "Pass the spam check first: send its token as X-SH-Turnstile.")
 	case web.CallerOf(q.r).ID == "":
 		return web.Refuse(http.StatusUnauthorized, "sign_in_required", "Sign in on this site first, or ask the owner to open this data.")

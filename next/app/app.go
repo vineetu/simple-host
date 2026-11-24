@@ -34,6 +34,7 @@ type Config struct {
 	MailFrom    string
 
 	MailURL, TurnstileURL, DNSURL                string
+	TurnstileSiteKey, TurnstileSecret            string // the platform's one spam check key pair
 	GoogleClientID, GoogleClientSecret           string
 	GoogleAuthURL, GoogleTokenURL, GoogleUserURL string
 	ACMEDirectories                              []string // in order: Let's Encrypt, Google, ZeroSSL
@@ -68,6 +69,8 @@ func FromEnv() Config {
 		MailURL:            "https://api.resend.com/emails",
 		TurnstileURL:       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
 		DNSURL:             "https://dns.google/resolve",
+		TurnstileSiteKey:   env("TURNSTILE_SITE_KEY", ""),
+		TurnstileSecret:    env("TURNSTILE_SECRET", ""),
 		GoogleClientID:     env("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: env("GOOGLE_CLIENT_SECRET", ""),
 		GoogleAuthURL:      "https://accounts.google.com/o/oauth2/v2/auth",
@@ -113,7 +116,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		conn.Close()
 		return nil, err
 	}
-	a.Data = &data.Data{DB: conn, Dir: cfg.DataDir, TurnstileURL: cfg.TurnstileURL, Client: a.HTTP}
+	a.Data = &data.Data{DB: conn, Dir: cfg.DataDir, TurnstileURL: cfg.TurnstileURL, TurnstileSecret: cfg.TurnstileSecret, Client: a.HTTP}
 	a.Routes.Platform.Handle("GET /health", web.Func(func(w http.ResponseWriter, r *http.Request) error {
 		if err := conn.PingContext(r.Context()); err != nil {
 			return err

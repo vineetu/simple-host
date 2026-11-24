@@ -34,7 +34,7 @@ func TestEachRecipeWorks(t *testing.T) {
 			r := testkit.Call(t, k.Browser(), "GET", "https://simple-host.app/v1/recipes/"+topic+"?site="+topic, nil)
 			var got struct{ Text string }
 			json.Unmarshal([]byte(r.Body), &got)
-			text := strings.NewReplacer("{turnstile_key}", "site-key", "{turnstile_secret}", "secret").Replace(got.Text)
+			text := got.Text
 			k.Publish(t, owner, topic, map[string]string{"index.html": block(text, "html")})
 			s, _ := k.App.Sites.Get(context.Background(), owner.ID, topic)
 			addr := k.App.Sites.URL(s)

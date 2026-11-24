@@ -63,7 +63,7 @@ func TestRulesDecideWhoAdds(t *testing.T) {
 // A suspended person is refused.
 func TestSpamCheckAndSuspension(t *testing.T) {
 	f := setup(t)
-	want(t, f.owner("PUT", "posts/rules", `{"turnstile_key": "site-key", "turnstile_secret": "secret", "rules": {"posts": {"policies": [
+	want(t, f.owner("PUT", "posts/rules", `{"spam_check": true, "rules": {"posts": {"policies": [
 		{"name": "post", "command": "add", "check": "auth.checked"}, {"name": "members", "command": "add", "check": "auth.signed_in"}]}}}`), 200, `"spam_check":true`)
 	rows := f.addr + "v1/sites/wall/storage/sqlite/posts/tables/posts/rows"
 	post := map[string]any{"text": "hi"}
