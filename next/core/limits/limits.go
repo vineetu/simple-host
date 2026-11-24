@@ -1,0 +1,107 @@
+// Package limits is the one table of limits, the same for everyone. The
+// operator's own account has none. Every refusal names the limit it hit.
+package limits
+
+import (
+	"net/http"
+	"strconv"
+	"sync"
+	"time"
+
+	"simplehost/core/web"
+)
+
+// Limit is one row of the table. A rate limit allows N per Per. A size limit
+// allows N bytes (Per is zero). Fix is what the refusal tells the person.
+type Limit struct {
+	Name string
+	N    int64
+	Per  time.Duration
+	Fix  string
+}
+
+// The table. Change a number here and it changes for everyone.
+var (
+	Requests      = Limit{"requests", 600, time.Minute, "Too many requests from you. Wait a minute and try again."}
+	SignInCodes   = Limit{"sign_in_codes", 5, 15 * time.Minute, "Too many codes asked for this email. Wait 15 minutes."}
+	PasscodeTries = Limit{"passcode_tries", 5, 15 * time.Minute, "Too many wrong passcodes. Wait 15 minutes and try again."}
+	SiteBytes     = Limit{"site_size", 100 << 20, 0, "A site can hold 100 MB of published files. Remove or shrink some files."}
+	DataBytes     = Limit{"data_size", 100 << 20, 0, "A site's saved data can hold 100 MB. Delete rows or values you no longer need."}
+	FilesBytes    = Limit{"files_size", 200 << 20, 0, "A namespace's file store can hold 200 MB. Delete files you no longer need."}
+	// KeptVersions is how many published versions are kept per site.
+	KeptVersions = Limit{"kept_versions", 4, 0, ""}
+	// QueryTime is the longest one saved-data query may run. It is a guard
+	// on the database, so it applies to every caller.
+	QueryTime = Limit{"query_time", 0, 2 * time.Second, "The query ran longer than 2 seconds. Add a WHERE or LIMIT, or an index."}
+)
+
+// Allow counts one use of a rate limit for key, and refuses when the window
+// is full. An empty key means the caller, or their address when nobody is
+// signed in. The operator is never limited.
+func Allow(r *http.Request, l Limit, key string) error {
+	c := web.CallerOf(r)
+	if c.Operator {
+		return nil
+	}
+	if key == "" {
+		key = c.ID
+		if key == "" {
+			key = "ip:" + web.ClientIP(r)
+		}
+	}
+	wait := counters.take(l, key, time.Now())
+	if wait == 0 {
+		return nil
+	}
+	ref := web.Refuse(http.StatusTooManyRequests, "limit_"+l.Name, l.Fix)
+	ref.RetryAfter = int(wait/time.Second) + 1
+	return ref
+}
+
+// Fits refuses when total bytes would exceed a size limit. The operator is
+// never limited.
+func Fits(r *http.Request, l Limit, total int64) error {
+	if total <= l.N || web.CallerOf(r).Operator {
+		return nil
+	}
+	return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+l.Name, l.Fix+" (limit "+strconv.FormatInt(l.N>>20, 10)+" MB)")
+}
+
+// window counts uses of one limit by one key since start.
+type window struct {
+	start time.Time
+	n     int64
+}
+
+type table struct {
+	mu    sync.Mutex
+	m     map[string]*window
+	swept time.Time
+}
+
+var counters = table{m: map[string]*window{}}
+
+// take records a use and returns zero, or how long until the window opens.
+func (t *table) take(l Limit, key string, now time.Time) time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if now.Sub(t.swept) > time.Hour {
+		for k, w := range t.m {
+			if now.Sub(w.start) > time.Hour {
+				delete(t.m, k)
+			}
+		}
+		t.swept = now
+	}
+	k := l.Name + "\x00" + key
+	w := t.m[k]
+	if w == nil || now.Sub(w.start) >= l.Per {
+		w = &window{start: now}
+		t.m[k] = w
+	}
+	if w.n >= l.N {
+		return w.start.Add(l.Per).Sub(now)
+	}
+	w.n++
+	return 0
+}
