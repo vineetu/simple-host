@@ -229,11 +229,27 @@ func ValidName(name string) error {
 	return nil
 }
 
+// reserved are names no one may claim as a handle or short name: addresses
+// the service itself uses, and names that would pass for the service.
+var reserved = map[string]bool{}
+
+func init() {
+	for _, n := range strings.Fields(`www sites api mcp admin app cname mail email smtp mx ns
+		auth login signin signup oauth sso connect dashboard console static assets cdn status help support v1
+		root security abuse postmaster hostmaster webmaster noreply no-reply billing payments account
+		verify secure official internal localhost simplehost simple-host simplehack simple-hack`) {
+		reserved[n] = true
+	}
+}
+
 // ClaimName gives name (kind "handle" or "short") to a person or a site. A
-// taken or retired name is refused, naming the clash.
+// reserved, taken or retired name is refused, naming the clash.
 func ClaimName(ctx context.Context, q db.Q, name, kind, personID, siteID string) error {
 	if err := ValidName(name); err != nil {
 		return err
+	}
+	if reserved[name] {
+		return web.Refuse(http.StatusConflict, "name_reserved", "The name "+name+" is kept for Simple Host itself. Pick another.")
 	}
 	var person, site any
 	if personID != "" {
