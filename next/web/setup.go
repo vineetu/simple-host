@@ -13,8 +13,11 @@ import (
 
 // setupPage is the first-run page of a self-hosted install: it shows the
 // domain from .env, checks its DNS and makes the first account the operator.
-// Once an operator exists, it is gone.
+// Once an operator exists, it is gone. The hosted service has none.
 func (h *handler) setupPage(w http.ResponseWriter, r *http.Request) error {
+	if !h.a.Config.SelfHosted {
+		return cw.NotFound
+	}
 	if done, err := h.a.People.HasOperator(r.Context()); err != nil || done {
 		return cmp(err, cw.NotFound)
 	}
@@ -36,6 +39,9 @@ func (h *handler) setup(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Email string `json:"email"`
 		Check bool   `json:"check"`
+	}
+	if !h.a.Config.SelfHosted {
+		return cw.NotFound
 	}
 	if err := cw.Read(r, &in); err != nil {
 		return err

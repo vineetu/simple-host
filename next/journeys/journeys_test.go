@@ -38,12 +38,13 @@ import (
 	"simplehost/sites/serve"
 	"simplehost/sites/stats"
 	"simplehost/sites/uploads"
+	"simplehost/web"
 )
 
 // every feature, as main mounts them
 var all = []func(*app.App){signin.Mount, keys.Mount, teams.Mount, connector.Mount, visitors.Mount, domains.Mount, locks.Mount,
 	publish.Mount, uploads.Mount, manage.Mount, serve.Mount, stats.Mount, publicpage.Mount, rows.Mount, values.Mount, files.Mount,
-	datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, notify.Mount, export.Mount, erase.Mount, admin.Mount, holds.Mount}
+	datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, notify.Mount, export.Mount, erase.Mount, admin.Mount, holds.Mount, web.Mount}
 
 const platform = "https://simple-host.app"
 
@@ -244,13 +245,42 @@ func TestVisitorJourney(t *testing.T) {
 	}
 }
 
-// SPEC journey 41. Operator: read the admin overview, open a reported site's
-// data, suspend the account, restore it; then a self-hosted install's first
-// account, made by the operator, publishes its first site.
+// SPEC journey 41. Operator: a self-hosted install's first-run setup page
+// checks DNS and makes the first account the operator; the operator reads the
+// admin overview, opens a reported site's data, suspends the account and
+// restores it, then makes an account that publishes its first site.
 func TestOperatorJourney(t *testing.T) {
 	k := testkit.Start(t, all...)
-	op, nina := as(t, k, k.Person(t, "op")), as(t, k, k.Person(t, "nina"))
-	k.Exec(t, `UPDATE people SET operator = true WHERE id = $1`, op.who.ID)
+	b := k.Browser()
+	page(t, b, platform+"/setup", 404, "") // the hosted service has no setup page
+	k.App.Config.SelfHosted = true
+	page(t, b, platform+"/setup", 200, "Finish setup")
+	setup := func(body any) map[string]any {
+		r := testkit.Call(t, b, "POST", platform+"/setup", body, "Content-Type", "application/json")
+		var out map[string]any
+		if json.Unmarshal([]byte(r.Body), &out); r.Status != 200 {
+			t.Fatalf("setup: %d %s", r.Status, r.Body)
+		}
+		return out
+	}
+	if out := setup(map[string]any{"email": "op@example.com"}); out["ok"] != false || out["next"] != nil {
+		t.Fatalf("setup before DNS: %v", out)
+	}
+	k.DNS.Set("simple-host.app", "A", "203.0.113.7")
+	k.DNS.Set("setup-check--x.simple-host.site", "A", "203.0.113.7")
+	if out := setup(map[string]any{"email": "op@example.com"}); out["ok"] != true || out["next"] != "/dashboard" {
+		t.Fatalf("setup: %v", out)
+	}
+	page(t, b, platform+"/setup", 404, "") // gone once there is an operator
+	r := testkit.Call(t, b, "POST", platform+"/v1/keys", map[string]string{"name": "admin"}, "Content-Type", "application/json")
+	var key struct{ Key string }
+	json.Unmarshal([]byte(r.Body), &key)
+	op := &person{t, k, testkit.Who{Email: "op@example.com", Key: key.Key}, b}
+	if me := op.api("GET", "/v1/me", nil, 200); me["operator"] != true {
+		t.Fatalf("setup did not make the operator: %v", me)
+	}
+
+	nina := as(t, k, k.Person(t, "nina"))
 	nina.api("PUT", "/v1/sites/promo", map[string]any{"files": map[string]string{"index.html": "promo"}}, 200)
 	nina.api("POST", "/v1/sites/promo/storage/sqlite/leads/execute", map[string]any{"sql": "CREATE TABLE leads (email TEXT)"}, 200)
 	url := "https://promo--nina.simple-host.site/"
@@ -272,9 +302,7 @@ func TestOperatorJourney(t *testing.T) {
 	page(t, k.Browser(), url, 200, "promo")
 	nina.api("GET", "/v1/me", nil, 200)
 
-	// Self-hosted: the operator makes the first account; it signs in and publishes.
-	op.api("POST", "/v1/admin/people", map[string]string{"email": "first@example.com"}, 403)
-	k.App.Config.SelfHosted = true
+	// The operator makes an account; it signs in and publishes its first site.
 	op.api("POST", "/v1/admin/people", map[string]string{"email": "first@example.com"}, 200)
 	first := signUp(t, k, "first@example.com", "first")
 	site := first.tool("publish_site", map[string]any{"site": "hello", "files": map[string]string{"index.html": "my first site"}})
