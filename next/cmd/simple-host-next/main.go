@@ -12,7 +12,26 @@ import (
 	"syscall"
 	"time"
 
+	"simplehost/access/connector"
+	"simplehost/access/keys"
+	"simplehost/access/signin"
+	"simplehost/access/teams"
+	"simplehost/access/visitors"
 	"simplehost/app"
+	"simplehost/data/files"
+	"simplehost/data/recipes"
+	"simplehost/data/rows"
+	datarules "simplehost/data/rules"
+	datasql "simplehost/data/sql"
+	"simplehost/data/values"
+	"simplehost/sites/domains"
+	"simplehost/sites/locks"
+	"simplehost/sites/manage"
+	"simplehost/sites/publicpage"
+	"simplehost/sites/publish"
+	"simplehost/sites/serve"
+	"simplehost/sites/stats"
+	"simplehost/sites/uploads"
 )
 
 func main() {
@@ -42,8 +61,30 @@ func main() {
 // mount adds every feature's routes: one line per feature, Mount(a).
 // The journey tests mount the same list through the test kit.
 func mount(a *app.App) {
+	signin.Mount(a)
+	keys.Mount(a)
+	teams.Mount(a)
+	connector.Mount(a)
+	visitors.Mount(a)
+	domains.Mount(a)
+	locks.Mount(a)
+	publish.Mount(a)
+	uploads.Mount(a)
+	manage.Mount(a)
+	serve.Mount(a)
+	stats.Mount(a)
+	publicpage.Mount(a)
+	rows.Mount(a)
+	values.Mount(a)
+	files.Mount(a)
+	datasql.Mount(a)
+	datarules.Mount(a)
+	recipes.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).
 func work(ctx context.Context, a *app.App) {
+	go domains.Work(ctx, a)
+	go serve.Work(ctx, a)
+	go manage.Work(ctx, a)
 }

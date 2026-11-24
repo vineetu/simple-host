@@ -7,11 +7,11 @@
 //	sh-copy check    compare old and new; prints each difference (none = pass)
 //	sh-copy report   the owners affected by something dropped
 //
-// Environment: OLD_DATABASE_URL (a read-only role) and OLD_DATA_DIR for the
-// old service; DATABASE_URL, SH_DATA_DIR, SH_APP_DOMAIN, SH_SITE_DOMAIN and
-// PASSCODE_ENC_KEY as the new service reads them; TURNSTILE_SITE_KEY and
-// TURNSTILE_SECRET (the old service's) for saved data whose rules use the
-// spam check.
+// Environment: for the old service OLD_DATABASE_URL (a read-only role),
+// OLD_DATA_DIR, OLD_CERT_READY_DIR (one file per handle that has its own
+// certificate, so keeps <site>.<handle>.<app domain>) and OLD_LETSENCRYPT_DIR
+// (the live/ folder of carried certificates); for the new one DATABASE_URL,
+// SH_DATA_DIR, SH_APP_DOMAIN and SH_SITE_DOMAIN as it reads them.
 package main
 
 import (
@@ -34,9 +34,8 @@ import (
 )
 
 type config struct {
-	New                           app.Config
-	OldDB, OldDir                 string
-	TurnstileKey, TurnstileSecret string
+	New                                     app.Config
+	OldDB, OldDir, OldCertReady, OldCertDir string
 }
 
 func main() {
@@ -45,7 +44,7 @@ func main() {
 		os.Exit(2)
 	}
 	cfg := config{New: app.FromEnv(), OldDB: os.Getenv("OLD_DATABASE_URL"), OldDir: os.Getenv("OLD_DATA_DIR"),
-		TurnstileKey: os.Getenv("TURNSTILE_SITE_KEY"), TurnstileSecret: os.Getenv("TURNSTILE_SECRET")}
+		OldCertReady: os.Getenv("OLD_CERT_READY_DIR"), OldCertDir: os.Getenv("OLD_LETSENCRYPT_DIR")}
 	n, err := run(context.Background(), cfg, os.Args[1], os.Stdout)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "sh-copy:", err)
@@ -73,8 +72,8 @@ type note struct{ what, siteID, ownerID, detail string }
 // run does one command and returns its count: changes made (copy),
 // differences (check) or affected lines (report).
 func run(ctx context.Context, cfg config, cmd string, out io.Writer) (int, error) {
-	if cfg.OldDB == "" || cfg.OldDir == "" || cfg.New.DatabaseURL == "" {
-		return 0, fmt.Errorf("set OLD_DATABASE_URL, OLD_DATA_DIR and DATABASE_URL")
+	if cfg.OldDB == "" || cfg.OldDir == "" || cfg.OldCertReady == "" || cfg.OldCertDir == "" || cfg.New.DatabaseURL == "" {
+		return 0, fmt.Errorf("set OLD_DATABASE_URL, OLD_DATA_DIR, OLD_CERT_READY_DIR, OLD_LETSENCRYPT_DIR and DATABASE_URL")
 	}
 	oldURL, err := withParams(cfg.OldDB, "default_transaction_read_only", "on")
 	if err != nil {
@@ -117,7 +116,8 @@ func run(ctx context.Context, cfg config, cmd string, out io.Writer) (int, error
 		if err := r.copy(ctx); err != nil {
 			return r.changes, err
 		}
-		fmt.Fprintf(out, "%d changes\n", r.changes)
+		// The running service keeps its address lookups in memory.
+		fmt.Fprintf(out, "%d changes. Restart simple-host-next so it sees them.\n", r.changes)
 		return r.changes, nil
 	case "check":
 		if err := r.check(ctx); err != nil {

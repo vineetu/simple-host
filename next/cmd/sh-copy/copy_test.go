@@ -3,8 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,8 +61,9 @@ INSERT INTO sites (id, user_id, name, active_version, visibility, created_at) VA
  ('PARIS', 'BOB', 'quote-paris', 1, 'unlisted', now()), ('NAPPING', 'BOB', 'napping', 1, 'unlisted', now()), ('BAD', 'BOB', 'bad', 1, 'unlisted', now());
 UPDATE sites SET passcode_enc = '\x0102030405', passcode_generation = 2 WHERE id = 'SECRET';
 UPDATE sites SET access = 'specific' WHERE id = 'CLUB';
-UPDATE sites SET custom_domain = 'Shop.Example.com', domain_status = 'active', domain_verified_at = now(), domain_cert_status = 'live', domain_proof_exempt = '{shop.example.com}' WHERE id = 'SHOP';
+UPDATE sites SET custom_domain = 'ShopExample.com', domain_status = 'active', domain_verified_at = now(), domain_cert_status = 'live', domain_proof_exempt = '{shopexample.com}' WHERE id = 'SHOP';
 UPDATE sites SET custom_domain = 'menu.simple-host.app', domain_status = 'active', domain_verified_at = now() WHERE id = 'MENU';
+UPDATE sites SET custom_domain = 'help.simple-host.app', domain_status = 'active', domain_verified_at = now() WHERE id = 'TASKS';
 UPDATE sites SET deleted_at = now() - interval '2 days' WHERE id = 'BINNED';
 UPDATE sites SET deleted_at = now() - interval '30 days' WHERE id = 'GONE';
 UPDATE sites SET offline_at = now(), state = '{"count": 3}' WHERE id = 'NAPPING';
@@ -143,6 +151,22 @@ func files(t *testing.T, old string) {
 		`INSERT INTO kv VALUES ('theme', '"dark"', '`+carol+`', '2026-11-01', '2026-11-02'), ('motd', '{"text":"hi"}', '', '2026-11-01', '2026-11-01')`)
 }
 
+// certificate writes a self-signed certificate lineage (as certbot's live/
+// folder holds) for names, ending in 60 days.
+func certificate(t *testing.T, dir string, names ...string) {
+	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	tmpl := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: names[0]}, DNSNames: names,
+		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(60 * 24 * time.Hour).Truncate(time.Second)}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, _ := x509.MarshalECPrivateKey(key)
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "fullchain.pem"), pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o644)
+	os.WriteFile(filepath.Join(dir, "privkey.pem"), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: k}), 0o600)
+}
+
 // Phase 5: a full copy of the fixture, a second copy that changes nothing,
 // and a check with zero differences. A broken file is found by the check and
 // mended by the next copy.
@@ -167,7 +191,13 @@ func TestCopyRecopyCheck(t *testing.T) {
 	files(t, oldDir)
 	nc := app.FromEnv()
 	nc.DatabaseURL, nc.DataDir, nc.AppDomain, nc.SiteDomain = newURL, newDir, "simple-host.app", "simple-host.site"
-	cfg := config{New: nc, OldDB: oldURL, OldDir: oldDir, TurnstileKey: "site-key", TurnstileSecret: "secret"}
+	// alice has her own certificate (keeps blog.alice.simple-host.app); bob
+	// and crew are one-level accounts (quote-paris--bob.simple-host.site).
+	ready, live := t.TempDir(), t.TempDir()
+	os.WriteFile(filepath.Join(ready, "alice"), nil, 0o644)
+	certificate(t, filepath.Join(live, "shopexample.com"), "shopexample.com", "www.shopexample.com")
+	certificate(t, filepath.Join(live, "quotes.example.com"), "*.quotes.example.com")
+	cfg := config{New: nc, OldDB: oldURL, OldDir: oldDir, OldCertReady: ready, OldCertDir: live}
 	do := func(cmd string) (int, string) {
 		var out bytes.Buffer
 		n, err := run(ctx, cfg, cmd, &out)
@@ -190,14 +220,16 @@ func TestCopyRecopyCheck(t *testing.T) {
 	newDB, _ := sql.Open("postgres", newURL)
 	defer newDB.Close()
 	for q, want := range map[string]string{
-		`SELECT string_agg(name, ',' ORDER BY name) FROM keys`:                                                                             "ci,laptop",
-		`SELECT string_agg(name || ':' || (retired_at IS NOT NULL), ',' ORDER BY name) FROM names`:                                         "alice:false,alice-old:true,bob:false,crew:false,menu:false,oldname:true,zed:true",
-		`SELECT string_agg(name || ':' || access, ',' ORDER BY name) FROM sites WHERE deleted_at IS NULL`:                                  "bad:open,blog:open,club:viewers,menu:open,napping:open,quote-paris:open,secret:passcode,shop:open,tasks:open",
-		`SELECT string_agg(n::text, ',' ORDER BY n) FROM versions WHERE site_id = '` + blog + `'`:                                          "2,3,4,5",
-		`SELECT string_agg(hash, ',' ORDER BY hash) FROM oauth_tokens`:                                                                     "t-access,t-refresh",
-		`SELECT string_agg(name, ',' ORDER BY name) FROM namespaces`:                                                                       "collections,guestbook,photos,prefs,state",
-		`SELECT count(*)::text FROM viewers v JOIN people p ON p.id = v.person_id WHERE p.email IN ('bob@example.com', 'eve@example.com')`: "2",
-		`SELECT turnstile_key FROM namespaces WHERE name = 'guestbook'`:                                                                    "site-key",
+		`SELECT string_agg(name, ',' ORDER BY name) FROM keys`:                                                                                     "ci,laptop",
+		`SELECT string_agg(name || ':' || (retired_at IS NOT NULL), ',' ORDER BY name) FROM names`:                                                 "alice:false,alice-old:true,bob:false,crew:false,help:false,menu:false,oldname:true,zed:true",
+		`SELECT string_agg(owner_id || ':' || app_shape, ',' ORDER BY owner_id) FROM owner_addresses`:                                              alice + ":true," + bob + ":false," + crew + ":false",
+		`SELECT string_agg(host || ':' || status || ':' || cert_status || ':' || (cert_expires_at IS NOT NULL), ',' ORDER BY host) FROM hostnames`: "quotes.example.com:live:issued:false,shopexample.com:live:issued:true",
+		`SELECT string_agg(name || ':' || access, ',' ORDER BY name) FROM sites WHERE deleted_at IS NULL`:                                          "bad:open,blog:open,club:viewers,menu:open,napping:open,quote-paris:open,secret:passcode,shop:open,tasks:open",
+		`SELECT string_agg(n::text, ',' ORDER BY n) FROM versions WHERE site_id = '` + blog + `'`:                                                  "2,3,4,5",
+		`SELECT string_agg(hash, ',' ORDER BY hash) FROM oauth_tokens`:                                                                             "t-access,t-refresh",
+		`SELECT string_agg(name, ',' ORDER BY name) FROM namespaces`:                                                                               "collections,guestbook,photos,prefs,state",
+		`SELECT count(*)::text FROM viewers v JOIN people p ON p.id = v.person_id WHERE p.email IN ('bob@example.com', 'eve@example.com')`:         "2",
+		`SELECT string_agg(name || ':' || spam_check, ',' ORDER BY name) FROM namespaces WHERE site_id = '` + blog + `'`:                           "collections:false,guestbook:true,photos:false,prefs:false,state:false",
 	} {
 		var got string
 		if err := newDB.QueryRow(q).Scan(&got); err != nil || got != want {
@@ -206,10 +238,16 @@ func TestCopyRecopyCheck(t *testing.T) {
 	}
 	values, _ := driver.Open("file:" + filepath.Join(newDir, "sites", blog, "data", "prefs.sqlite"))
 	var author string
-	values.QueryRow(`SELECT author FROM _values WHERE key = 'theme'`).Scan(&author)
+	values.QueryRow(`SELECT visitor_id FROM _values WHERE key = 'theme'`).Scan(&author)
 	values.Close()
 	if author != carol {
 		t.Errorf("a value's author is %q, want %q", author, carol)
+	}
+
+	for _, p := range []string{"shopexample.com/privkey.pem", "www.shopexample.com/fullchain.pem", "*.quotes.example.com/fullchain.pem"} {
+		if _, err := os.Stat(filepath.Join(newDir, "certs", p)); err != nil {
+			t.Errorf("carried certificate: %v", err)
+		}
 	}
 
 	broken := filepath.Join(newDir, "sites", blog, "v5", "index.html")
@@ -225,7 +263,7 @@ func TestCopyRecopyCheck(t *testing.T) {
 
 	_, report := do("report")
 	for _, want := range []string{"older view password", "redirect rules not supported", "allowed_origins dropped", "webhook dropped",
-		"deploy key is now a full key", "page calls a dropped address", "older saved data not carried", "saved data not carried", "notification choices not carried"} {
+		"deploy key is now a full key", "page calls a dropped address", "older saved data not carried", "saved data not carried", "notification choices not carried", "reserved name carried"} {
 		if !strings.Contains(report, want) {
 			t.Errorf("the report has no %q line:\n%s", want, report)
 		}

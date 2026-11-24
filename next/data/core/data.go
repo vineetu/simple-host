@@ -40,9 +40,10 @@ type Data struct {
 	DB *sql.DB
 	// Dir is the data folder: Dir/sites/<site id>/data/<namespace>.sqlite.
 	Dir string
-	// TurnstileURL is Cloudflare's siteverify address (the fake in tests).
-	TurnstileURL string
-	Client       *http.Client
+	// TurnstileURL is Cloudflare's siteverify address (the fake in tests);
+	// TurnstileSecret is the platform's one Turnstile secret.
+	TurnstileURL, TurnstileSecret string
+	Client                        *http.Client
 }
 
 // NS is one open namespace. Close it when the request is done.
@@ -50,10 +51,9 @@ type NS struct {
 	Site  *sites.Site
 	Name  string
 	Rules map[string]json.RawMessage // table, "_values" or "_files" -> rule set
-	// TurnstileKey and TurnstileSecret are the namespace's spam check keys
-	// ("" = none).
-	TurnstileKey, TurnstileSecret string
-	db                            *sql.DB
+	// SpamCheck: the owner switched on the spam check for this namespace.
+	SpamCheck bool
+	db        *sql.DB
 }
 
 var nsName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
@@ -63,9 +63,11 @@ func ValidName(name string) bool { return nsName.MatchString(name) }
 
 // BuiltIn makes the tables every namespace file starts with: named values
 // and file records.
+// visitor_id is who added the row (a person's opaque id), the column the
+// rules engine and carried rules name, as in the owner's own tables.
 const BuiltIn = `
-CREATE TABLE IF NOT EXISTS _values (key TEXT PRIMARY KEY, value TEXT NOT NULL, author TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-CREATE TABLE IF NOT EXISTS _files (name TEXT PRIMARY KEY, size INTEGER NOT NULL, type TEXT NOT NULL DEFAULT '', author TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`
+CREATE TABLE IF NOT EXISTS _values (key TEXT PRIMARY KEY, value TEXT NOT NULL, visitor_id TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS _files (name TEXT PRIMARY KEY, size INTEGER NOT NULL, type TEXT NOT NULL DEFAULT '', visitor_id TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`
 
 func (d *Data) path(siteID, name string) string {
 	return filepath.Join(d.Dir, "sites", siteID, "data", name+".sqlite")
@@ -116,8 +118,8 @@ var safePragmas = map[string]bool{"table_info": true, "table_xinfo": true, "tabl
 func (d *Data) Open(r *http.Request, site *sites.Site, name string) (*NS, error) {
 	ns := &NS{Site: site, Name: name}
 	var rulesJSON []byte
-	err := d.DB.QueryRowContext(r.Context(), `SELECT rules, turnstile_key, turnstile_secret FROM namespaces WHERE site_id = $1 AND name = $2`,
-		site.ID, name).Scan(&rulesJSON, &ns.TurnstileKey, &ns.TurnstileSecret)
+	err := d.DB.QueryRowContext(r.Context(), `SELECT rules, spam_check FROM namespaces WHERE site_id = $1 AND name = $2`,
+		site.ID, name).Scan(&rulesJSON, &ns.SpamCheck)
 	if err == sql.ErrNoRows {
 		return nil, web.Refuse(http.StatusNotFound, "no_namespace", "This site has no saved data named "+name+". The owner creates it first.")
 	}
@@ -235,7 +237,7 @@ func (n *NS) Plan(ctx context.Context, table string) (*rules.Plan, error) {
 	for _, c := range cols.Rows {
 		t.Columns = append(t.Columns, rules.Column{Name: c[0].(string)})
 	}
-	plan, errs := rules.Compile(set, t, RuleSchema(n.TurnstileSecret != ""), rules.DefaultLimits())
+	plan, errs := rules.Compile(set, t, RuleSchema(n.SpamCheck), rules.DefaultLimits())
 	if len(errs) > 0 {
 		return nil, ruleErr(errs)
 	}
@@ -284,11 +286,12 @@ func Bindings(r *http.Request, owner, checked bool) rules.Values {
 		"auth.ai": rules.Bool(false), "auth.teams": rules.List(), "auth.checked": rules.Bool(checked)}
 }
 
-// Turnstile asks Cloudflare whether a spam-check token passed.
-func (d *Data) Turnstile(r *http.Request, secret, token string) error {
+// Turnstile asks Cloudflare whether a spam-check token passed, with the
+// platform's one key pair.
+func (d *Data) Turnstile(r *http.Request, token string) error {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	form := url.Values{"secret": {secret}, "response": {token}, "remoteip": {web.ClientIP(r)}}
+	form := url.Values{"secret": {d.TurnstileSecret}, "response": {token}, "remoteip": {web.ClientIP(r)}}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, d.TurnstileURL, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res, err := d.Client.Do(req)

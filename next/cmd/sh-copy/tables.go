@@ -60,8 +60,7 @@ var tables = []table{
 			s.passcode_enc, s.passcode_generation FROM sites s WHERE s.id IN {copied}`, nil},
 	{"names", 1, cols("name kind person_id site_id created_at retired_at"),
 		`SELECT DISTINCT ON (name) name, kind, person_id, site_id, created_at, retired_at FROM (` + nameCandidates + `) c ORDER BY name, pri`, nil},
-	{"owner_addresses", 1, cols("owner_id home_site_id app_shape"),
-		`SELECT id, CASE WHEN home_site_id IN {copied} THEN home_site_id END, true FROM users WHERE handle IS NOT NULL`, nil},
+	{"owner_addresses", 1, cols("owner_id home_site_id app_shape"), "", (*runner).addresses},
 	{"keys", 1, cols("id hash person_id name last4 created_at last_used_at"), `
 		SELECT id, key_hash, user_id, COALESCE(name, ''), COALESCE(last4, ''), created_at, last_used_at FROM api_keys
 		WHERE COALESCE(name, '') <> 'dashboard sign-in' AND (expires_at IS NULL OR expires_at > now())`, nil},
@@ -89,13 +88,8 @@ var tables = []table{
 		SELECT v.site_id, COALESCE(u.id, md5('viewer:' || lower(v.email))::uuid), min(v.added_at) FROM site_viewers v
 		LEFT JOIN users u ON lower(u.username) = lower(v.email) AND NOT u.is_team WHERE v.site_id IN {copied} GROUP BY 1, 2`, nil},
 	{"versions", 2, cols("site_id n author_id created_at bytes"), "", (*runner).versions},
-	{"hostnames", 1, cols("host kind site_id owner_id prefix proof_token proven_at status cert_status cert_expires_at error created_at"), `
-		SELECT lower(s.custom_domain), 'own', s.id, s.user_id, '', COALESCE(s.domain_token, ''), s.domain_verified_at, COALESCE(s.domain_status, 'waiting'),
-			COALESCE(s.domain_cert_status, 'none'), NULL::timestamptz, COALESCE(s.domain_last_error, ''), COALESCE(s.domain_bound_at, s.created_at, {never})
-			FROM sites s WHERE s.id IN {copied} AND s.custom_domain IS NOT NULL AND NOT (` + isShort + `)
-		UNION ALL SELECT * FROM (SELECT DISTINCT ON (lower(suffix)) lower(suffix), 'shared', NULL::uuid, user_id, site_prefix, token, verified_at, status,
-			'none', NULL::timestamptz, COALESCE(last_error, ''), created_at FROM address_families ORDER BY lower(suffix), verified_at IS NULL, created_at) f`, nil},
-	{"namespaces", 2, cols("site_id name rules turnstile_key turnstile_secret created_at"), "", (*runner).namespaces},
+	{"hostnames", 1, cols("host kind site_id owner_id prefix proof_token proven_at status cert_status cert_expires_at error created_at"), "", (*runner).hostnames},
+	{"namespaces", 2, cols("site_id name rules spam_check created_at"), "", (*runner).namespaces},
 	{"push_devices", 1, cols("id person_id endpoint p256dh auth created_at"), `
 		SELECT DISTINCT ON (owner_id, url) md5('push:' || owner_id || url)::uuid, owner_id, url, push_p256dh, push_auth, created_at FROM site_notifications
 		WHERE kind = 'web-push' AND state = 'active' AND subscriber_role = 'owner' AND site_id IN {copied} ORDER BY owner_id, url, created_at`, nil},

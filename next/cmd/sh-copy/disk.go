@@ -204,14 +204,14 @@ func (r *runner) namespaces(ctx context.Context, write bool) ([]row, error) {
 			}
 		case "kv":
 			if all != nil {
-				sp.rules["_values"] = rename(all, "visitor_id", "author")
+				sp.rules["_values"] = all
 			}
 			sp.fill = func(ctx context.Context, f *sql.DB) error {
 				return r.values(ctx, f, filepath.Join(dir, "kv", name+".sqlite"))
 			}
 		case "files":
 			if all != nil {
-				sp.rules["_files"] = rename(rename(all, "visitor_id", "author"), "path", "name")
+				sp.rules["_files"] = rename(all, "path", "name")
 			}
 			sp.files = filepath.Join(dir, "files", name)
 			sp.fill = func(ctx context.Context, f *sql.DB) error {
@@ -224,7 +224,7 @@ func (r *runner) namespaces(ctx context.Context, write bool) ([]row, error) {
 						r.note("files missing on disk", site, "file %s of %s is missing", y[2].String, name)
 						continue
 					}
-					if _, err := f.ExecContext(ctx, `INSERT INTO _files (name, size, type, author, created_at) VALUES (?, ?, ?, ?, ?)`,
+					if _, err := f.ExecContext(ctx, `INSERT INTO _files (name, size, type, visitor_id, created_at) VALUES (?, ?, ?, ?, ?)`,
 						y[2].String, size, http.DetectContentType(head), y[3], y[4].String); err != nil {
 						return err
 					}
@@ -267,7 +267,7 @@ func (r *runner) values(ctx context.Context, f *sql.DB, old string) error {
 	defer kv.Close()
 	rows, err := query(ctx, kv, `SELECT key, value, NULLIF(visitor_id, ''), updated_at FROM kv`)
 	for _, x := range rows {
-		if _, err := f.ExecContext(ctx, `INSERT INTO _values (key, value, author, updated_at) VALUES (?, ?, ?, ?)`, args(x)...); err != nil {
+		if _, err := f.ExecContext(ctx, `INSERT INTO _values (key, value, visitor_id, updated_at) VALUES (?, ?, ?, ?)`, args(x)...); err != nil {
 			return err
 		}
 	}
@@ -328,12 +328,12 @@ func (r *runner) older(ctx context.Context, taken map[string]bool) ([]*space, er
 				for _, x := range group {
 					t := `"` + strings.ReplaceAll(x[1].String, `"`, `""`) + `"`
 					if !made[t] {
-						if _, err := f.ExecContext(ctx, `CREATE TABLE `+t+` (id INTEGER PRIMARY KEY, data TEXT NOT NULL, author TEXT, created_at TEXT)`); err != nil {
+						if _, err := f.ExecContext(ctx, `CREATE TABLE `+t+` (id INTEGER PRIMARY KEY, data TEXT NOT NULL, visitor_id TEXT, created_at TEXT)`); err != nil {
 							return err
 						}
 						made[t] = true
 					}
-					if _, err := f.ExecContext(ctx, `INSERT INTO `+t+` (id, data, author, created_at) VALUES (?, ?, ?, ?)`, x[2].String, x[3].String, x[4], x[5].String); err != nil {
+					if _, err := f.ExecContext(ctx, `INSERT INTO `+t+` (id, data, visitor_id, created_at) VALUES (?, ?, ?, ?)`, x[2].String, x[3].String, x[4], x[5].String); err != nil {
 						return err
 					}
 				}
@@ -402,17 +402,12 @@ func (r *runner) build(ctx context.Context, sp *space, write bool) (row, error) 
 	if err != nil {
 		return nil, err
 	}
-	var canon, key, secret string
+	var canon string
 	if err := r.new.QueryRowContext(ctx, `SELECT $1::jsonb::text`, string(rules)).Scan(&canon); err != nil {
 		return nil, err
 	}
-	if strings.Contains(canon, "auth.checked") {
-		key, secret = r.cfg.TurnstileKey, r.cfg.TurnstileSecret
-		if key == "" || secret == "" {
-			r.note("spam check needs keys", sp.site, "%s: rules use the spam check; run the copy with TURNSTILE_SITE_KEY and TURNSTILE_SECRET", sp.name)
-		}
-	}
-	return row{text(sp.site), text(sp.name), text(canon), text(key), text(secret), text(sp.created)}, nil
+	spam := strings.Contains(canon, "auth.checked") // the platform's one key pair checks it
+	return row{text(sp.site), text(sp.name), text(canon), text(strconv.FormatBool(spam)), text(sp.created)}, nil
 }
 
 // seed copies an old SQLite file and its write-ahead log, so a file whose
@@ -490,7 +485,7 @@ func diffSums(want, got map[string]string) []string {
 }
 
 // rename changes a column name inside a rule set's expressions: the new
-// _values and _files tables call the author "author" and a file "name".
+// _files table calls a file's path "name".
 func rename(set json.RawMessage, from, to string) json.RawMessage {
 	re := regexp.MustCompile(`\b` + from + `\b`)
 	var s struct {

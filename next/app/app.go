@@ -34,10 +34,19 @@ type Config struct {
 	MailFrom    string
 
 	MailURL, TurnstileURL, DNSURL                string
+	TurnstileSiteKey, TurnstileSecret            string // the platform's one spam check key pair
 	GoogleClientID, GoogleClientSecret           string
 	GoogleAuthURL, GoogleTokenURL, GoogleUserURL string
 	ACMEDirectories                              []string // in order: Let's Encrypt, Google, ZeroSSL
-	LoopbackOutbound                             bool     // tests only: let the guarded client reach the fakes
+	// ACMEBindings is, per directory, "" or "<key id>:<base64url HMAC key>":
+	// the account binding Google and ZeroSSL ask for.
+	ACMEBindings     []string
+	LoopbackOutbound bool // tests only: let the guarded client reach the fakes
+
+	// A company's own sign-in, one more way to prove an email (off when
+	// CompanyClientID is empty). The same three URLs as Google.
+	CompanyClientID, CompanyClientSecret            string
+	CompanyAuthURL, CompanyTokenURL, CompanyUserURL string
 }
 
 // FromEnv reads the config from the environment, with production defaults.
@@ -60,6 +69,8 @@ func FromEnv() Config {
 		MailURL:            "https://api.resend.com/emails",
 		TurnstileURL:       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
 		DNSURL:             "https://dns.google/resolve",
+		TurnstileSiteKey:   env("TURNSTILE_SITE_KEY", ""),
+		TurnstileSecret:    env("TURNSTILE_SECRET", ""),
 		GoogleClientID:     env("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: env("GOOGLE_CLIENT_SECRET", ""),
 		GoogleAuthURL:      "https://accounts.google.com/o/oauth2/v2/auth",
@@ -67,6 +78,9 @@ func FromEnv() Config {
 		GoogleUserURL:      "https://openidconnect.googleapis.com/v1/userinfo",
 		ACMEDirectories: []string{"https://acme-v02.api.letsencrypt.org/directory",
 			"https://dv.acme-v02.api.pki.goog/directory", "https://acme.zerossl.com/v2/DV90"},
+		ACMEBindings:    []string{"", env("ACME_EAB_GOOGLE", ""), env("ACME_EAB_ZEROSSL", "")},
+		CompanyClientID: env("COMPANY_CLIENT_ID", ""), CompanyClientSecret: env("COMPANY_CLIENT_SECRET", ""),
+		CompanyAuthURL: env("COMPANY_AUTH_URL", ""), CompanyTokenURL: env("COMPANY_TOKEN_URL", ""), CompanyUserURL: env("COMPANY_USER_URL", ""),
 	}
 }
 
@@ -102,7 +116,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		conn.Close()
 		return nil, err
 	}
-	a.Data = &data.Data{DB: conn, Dir: cfg.DataDir, TurnstileURL: cfg.TurnstileURL, Client: a.HTTP}
+	a.Data = &data.Data{DB: conn, Dir: cfg.DataDir, TurnstileURL: cfg.TurnstileURL, TurnstileSecret: cfg.TurnstileSecret, Client: a.HTTP}
 	a.Routes.Platform.Handle("GET /health", web.Func(func(w http.ResponseWriter, r *http.Request) error {
 		if err := conn.PingContext(r.Context()); err != nil {
 			return err
@@ -122,6 +136,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p, err := a.Sites.Lookup(r.Context(), web.Host(r))
 		if err != nil {
 			web.Fail(w, r, err)
+			return
+		}
+		if p.Redirect != "" && web.HTTPS(r) {
+			http.Redirect(w, r, "https://"+p.Redirect+r.URL.RequestURI(), http.StatusMovedPermanently)
 			return
 		}
 		r = sites.WithPlace(r, p)

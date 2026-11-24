@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	access "simplehost/access/core"
 	sites "simplehost/sites/core"
 )
 
@@ -38,8 +39,10 @@ func (r *runner) check(ctx context.Context) error {
 	for _, s := range live {
 		id, name, owner, handle, domain, gate := s[0].String, s[1].String, s[2].String, s[3].String, s[4].String, s[5].String
 		var hosts []string
-		if handle != "" {
+		if r.appShape(handle) {
 			hosts = append(hosts, name+"."+handle+"."+r.cfg.New.AppDomain)
+		} else if handle != "" {
+			hosts = append(hosts, name+"--"+handle+"."+r.cfg.New.SiteDomain)
 		}
 		if domain != "" {
 			hosts = append(hosts, domain)
@@ -92,6 +95,16 @@ func (r *runner) report(ctx context.Context, out io.Writer) (int, error) {
 	}
 	for _, x := range found {
 		r.notes = append(r.notes, note{x[0].String, x[1].String, x[2].String, x[3].String})
+	}
+	held, err := query(ctx, r.old, r.sql(`SELECT DISTINCT ON (name) name, kind, site_id::text, person_id::text FROM (`+nameCandidates+`) c
+		WHERE retired_at IS NULL ORDER BY name, pri`))
+	if err != nil {
+		return 0, err
+	}
+	for _, x := range held {
+		if access.Reserved(x[0].String) {
+			r.notes = append(r.notes, note{"reserved name carried", x[2].String, x[3].String, x[0].String + " (" + x[1].String + ") is now kept for the service; it was copied as it is"})
+		}
 	}
 	if err := r.scanLive(ctx); err != nil {
 		return 0, err

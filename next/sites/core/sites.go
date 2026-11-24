@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/net/publicsuffix"
+
 	access "simplehost/access/core"
 	"simplehost/core/limits"
 	"simplehost/core/web"
@@ -68,10 +70,12 @@ type Site struct {
 }
 
 // Place is what a host name answers for: a site, or the public page of a
-// person or team (Owner set, Site nil).
+// person or team (Owner set, Site nil). Redirect is set on the www or bare
+// partner of an own domain: the connected host, which HTTPS visits go to.
 type Place struct {
-	Site  *Site
-	Owner *access.Person
+	Site     *Site
+	Owner    *access.Person
+	Redirect string
 }
 
 const siteColumns = `s.id, s.owner_id, COALESCE(n.name, ''), COALESCE(a.app_shape, false), o.suspended_at IS NOT NULL,
@@ -94,6 +98,12 @@ func (s *Sites) one(ctx context.Context, where string, args ...any) (*Site, erro
 // Get reads a live (not deleted) site by owner and name.
 func (s *Sites) Get(ctx context.Context, ownerID, name string) (*Site, error) {
 	return s.one(ctx, `s.owner_id = $1 AND s.name = $2`, ownerID, name)
+}
+
+// Count is how many live (not deleted) sites an owner has.
+func (s *Sites) Count(ctx context.Context, ownerID string) (n int, err error) {
+	err = s.DB.QueryRowContext(ctx, `SELECT count(*) FROM sites WHERE owner_id = $1 AND deleted_at IS NULL`, ownerID).Scan(&n)
+	return n, err
 }
 
 // ByID reads a live site by id.
@@ -182,10 +192,16 @@ func (s *Sites) lookup(ctx context.Context, host string) (Place, error) {
 		return site(o, err, label)
 	}
 	var siteID sql.NullString
-	err := s.DB.QueryRowContext(ctx, `SELECT site_id FROM hostnames WHERE host = $1 AND kind = 'own' AND proven_at IS NOT NULL`, host).Scan(&siteID)
+	var own string
+	err := s.DB.QueryRowContext(ctx, `SELECT host, site_id FROM hostnames WHERE host IN ($1, $2) AND kind = 'own' AND proven_at IS NOT NULL
+		ORDER BY host = $1 DESC LIMIT 1`, host, Partner(host)).Scan(&own, &siteID)
 	if err == nil {
 		x, err := s.ByID(ctx, siteID.String)
-		return Place{Site: x}, err
+		p := Place{Site: x}
+		if own != host {
+			p.Redirect = own
+		}
+		return p, err
 	}
 	if err != sql.ErrNoRows {
 		return Place{}, err
@@ -302,6 +318,9 @@ func (d Decision) Err() error {
 	if fix == "" {
 		return nil
 	}
+	if d == TakenDown {
+		return web.Refuse(http.StatusGone, string(d), fix) // the live service's answer for a taken-down site
+	}
 	return web.Refuse(http.StatusForbidden, string(d), fix)
 }
 
@@ -406,3 +425,16 @@ func (s *Sites) URL(site *Site) string {
 }
 
 var errNoKey = errors.New("passcodes are not available: PASSCODE_ENC_KEY is not set")
+
+// Partner is the www or bare partner of an own domain: www.<apex> for an
+// apex, the apex for www.<apex>, "" for any other name.
+func Partner(host string) string {
+	apex := func(h string) bool { d, err := publicsuffix.EffectiveTLDPlusOne(h); return err == nil && d == h }
+	if rest, ok := strings.CutPrefix(host, "www."); ok && apex(rest) {
+		return rest
+	}
+	if apex(host) {
+		return "www." + host
+	}
+	return ""
+}
