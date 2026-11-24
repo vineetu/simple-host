@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"simplehost/app"
+	"simplehost/web"
 )
 
 func main() {
@@ -42,6 +43,7 @@ func main() {
 // mount adds every feature's routes: one line per feature, Mount(a).
 // The journey tests mount the same list through the test kit.
 func mount(a *app.App) {
+	web.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).

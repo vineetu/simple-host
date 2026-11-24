@@ -1,0 +1,71 @@
+# Run your own Simple Host: set DOMAIN and the secrets in .env (copy
+# .env.example), point DOMAIN and *.DOMAIN at this server, then
+#   docker compose up -d
+# and open https://DOMAIN/setup to finish.
+# Upgrade, with a backup first:
+#   docker compose exec db pg_dump -U simplehost simplehost > backup-$(date +%F).sql
+#   docker compose pull && docker compose up -d
+name: simple-host
+
+x-logging: &logging
+  driver: local
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  db:
+    image: postgres:16-alpine
+    logging: *logging
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: simplehost
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      POSTGRES_DB: simplehost
+    volumes: [db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simplehost -d simplehost"]
+      interval: 3s
+      retries: 30
+
+  app:
+    image: ${IMAGE:-simple-host:local}
+    build: ../..  # the next/ folder and its Dockerfile
+    logging: *logging
+    restart: unless-stopped
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgres://simplehost:${DB_PASSWORD}@db:5432/simplehost?sslmode=disable
+      SH_ADDR: 0.0.0.0:8091
+      SH_DATA_DIR: /data
+      SH_APP_DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      SH_SITE_DOMAIN: ${DOMAIN}
+      PASSCODE_ENC_KEY: ${PASSCODE_ENC_KEY:?set PASSCODE_ENC_KEY in .env}
+      RESEND_API_KEY: ${RESEND_API_KEY-}
+      MAIL_FROM: ${MAIL_FROM:-Simple Host <hello@${DOMAIN}>}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET-}
+    volumes: [data:/data]
+    networks:
+      default:
+        # Caddy asks the app, by the install's own name, before it gets a
+        # certificate for a host (see Caddyfile).
+        aliases: ["${DOMAIN}"]
+
+  # HTTPS: a certificate per host name on first visit (HTTP challenge), so
+  # every site--handle.DOMAIN and every connected domain works without DNS API keys.
+  caddy:
+    image: caddy:2-alpine
+    logging: *logging
+    restart: unless-stopped
+    depends_on: [app]
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+
+volumes:
+  db:
+  data:
+  caddy:

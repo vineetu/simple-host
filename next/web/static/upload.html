@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add photos and files</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+  .drop { margin: 0 0 16px; padding: 24px 16px; border: 2px dashed var(--line); border-radius: var(--radius); background: var(--soft); }
+  .drop.drag { border-color: var(--accent); }
+  .drop input { margin-top: 8px; background: var(--page); }
+  .photo { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); align-items: start; }
+  .photo img, .photo .file { width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius); background: var(--soft); }
+</style>
+</head>
+<body>
+<header class="top"><div class="in"><a class="brand" href="/">Simple Host</a></div></header>
+<main class="narrow">
+  <h1>Add photos and files</h1>
+  <p>Choose them from your phone or computer. Photos are made smaller on this device first, and camera and location details are removed.</p>
+  <section id="editor">
+    <div id="drop" class="drop">
+      <label for="files">Choose photos or files</label>
+      <input id="files" type="file" multiple>
+      <p class="muted">Or drop them here. Up to 30 at a time.</p>
+    </div>
+    <p id="name-hint" class="muted">Give each one a short name, such as kitchen or menu.</p>
+    <div id="photos"></div>
+    <p><button id="save" class="primary" disabled>Save to site</button></p>
+  </section>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <section id="done" hidden>
+    <h2>Saved</h2>
+    <ul id="results" class="list"></ul>
+    <p>Paste this into your chat:</p>
+    <p id="summary"></p>
+    <p><button id="copy-summary">Copy message</button></p>
+  </section>
+  <p class="muted"><a href="/assets/photo-codecs/v3/README.txt">Photo decoder licenses and source</a></p>
+</main>
+<footer class="foot"><div class="in"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a></div></footer>
+<script src="/assets/photo-process.js"></script>
+<script src="/assets/picker.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spam check</title>
+<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}</style>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>
+</head><body><div id="w"></div>
+<script>
+(function () {
+  "use strict";
+  var SITE_KEY = "__SITE_KEY__", started = false;
+  if (window.parent === window) return;
+  window.addEventListener("message", function (e) {
+    if (started || e.source !== window.parent || !e.data || e.data.type !== "sh-turnstile-start") return;
+    if (!/^https?:\/\/[^\/]+$/.test(e.origin)) return;
+    started = true;
+    var origin = e.origin;
+    function send(msg) { window.parent.postMessage(msg, origin); }
+    window.turnstile.render("#w", {
+      sitekey: SITE_KEY,
+      callback: function (token) { send({type: "sh-turnstile-token", token: token}); },
+      "error-callback": function (code) { send({type: "sh-turnstile-error", code: String(code || "")}); return true; },
+      "expired-callback": function () { send({type: "sh-turnstile-error", code: "expired"}); },
+      "timeout-callback": function () { send({type: "sh-turnstile-error", code: "timeout"}); }
+    });
+  });
+  window.parent.postMessage({type: "sh-turnstile-ready"}, "*");
+})();
+</script></body></html>

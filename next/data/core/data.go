@@ -310,3 +310,13 @@ func (d *Data) Changed(ctx context.Context, site *sites.Site, ns, target, action
 	}
 	return db.Event(ctx, d.DB, "data", site.OwnerID, site.ID, map[string]string{"site": site.Name, "namespace": ns, "target": target, "action": action})
 }
+
+// SiteKey is a namespace's public Turnstile site key ("" = no spam check).
+func (d *Data) SiteKey(ctx context.Context, siteID, name string) (string, error) {
+	var key string
+	err := d.DB.QueryRowContext(ctx, `SELECT turnstile_key FROM namespaces WHERE site_id = $1 AND name = $2`, siteID, name).Scan(&key)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return key, err
+}

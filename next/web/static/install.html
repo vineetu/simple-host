@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="/">Simple Host</a>
+  <nav><a href="/install">Get started</a><a href="/docs">Docs</a><a href="/dashboard">Your sites</a></nav>
+</div></header>
+<main>
+  <section class="lead">
+    <h1>Get started</h1>
+    <p>Connect your AI app to Simple Host with one address. Then ask it for a page, a form or a small tool. It publishes the site and gives you the link.</p>
+    <p>The connector address is:</p>
+    <pre>https://simple-host.app/mcp</pre>
+  </section>
+
+  <section>
+    <h2>Claude</h2>
+    <ol class="steps">
+      <li>Open Settings, then Connectors.</li>
+      <li>Choose Add custom connector.</li>
+      <li>Paste the address above.</li>
+      <li>Sign in to Simple Host with your email or Google.</li>
+      <li>Approve the connection.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>ChatGPT</h2>
+    <ol class="steps">
+      <li>Open Settings, then Connectors (also called Apps). Turn on developer mode.</li>
+      <li>Add a new connector and paste the address above.</li>
+      <li>Sign in to Simple Host and approve.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>Other apps that support MCP</h2>
+    <p>Find where the app adds a remote MCP server or connector. Paste the address above. Sign in and approve when asked.</p>
+    <p>You can see connected apps in your <a href="/dashboard">dashboard</a> and disconnect any of them there.</p>
+  </section>
+
+  <section>
+    <h2>Download the skill</h2>
+    <p>The skill is one short file that tells an AI app how to use Simple Host well. Add it to your app if it supports skills.</p>
+    <p><a class="btn" href="/skills.zip">Download skills.zip</a></p>
+  </section>
+
+  <section>
+    <h2>Publish from a script</h2>
+    <p>Make a key in your <a href="/dashboard">dashboard</a>. It is shown once. A key acts as you, with your rights. Then send files to one route:</p>
+    <pre>curl -X PUT https://simple-host.app/v1/sites/my-site \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"files":{"index.html":"&lt;h1&gt;Hello&lt;/h1&gt;"}}'</pre>
+    <p>The reply holds the address of your site. The routes are in the <a href="/docs">API reference</a>.</p>
+  </section>
+
+  <section id="self-host">
+    <h2>Run your own copy</h2>
+    <p>You need a small server with Docker and Docker Compose, and a domain you control.</p>
+    <ol class="steps">
+      <li>Download <code>compose.yaml</code> and <code>.env.example</code> from the source repository. Save <code>.env.example</code> as <code>.env</code>.</li>
+      <li>In <code>.env</code>, set <code>DOMAIN</code> to your domain.</li>
+      <li>Point <code>DOMAIN</code> and <code>*.DOMAIN</code> at the server with your DNS provider.</li>
+      <li>Run <code>docker compose up -d</code>.</li>
+      <li>Open <code>https://DOMAIN/setup</code> and finish setup there. It checks your DNS.</li>
+    </ol>
+    <p>On your own copy, sites live at <code>&lt;site&gt;--&lt;handle&gt;.DOMAIN</code>.</p>
+    <h3>Upgrade</h3>
+    <p>Make a backup first, then pull and restart:</p>
+    <pre>docker compose exec db pg_dump -U simplehost simplehost &gt; backup.sql
+docker compose pull &amp;&amp; docker compose up -d</pre>
+  </section>
+</main>
+<footer class="foot"><div class="in">
+  <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a><span>Simple Host</span>
+</div></footer>
+</body>
+</html>
