@@ -8,6 +8,7 @@ package signin
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -69,6 +70,9 @@ func (h *handler) sendCode(w http.ResponseWriter, r *http.Request) error {
 	if err := limits.Allow(r, limits.SignInCodes, email); err != nil {
 		return err
 	}
+	if err := limits.Allow(r, limits.CodeMails, "mail:"+limits.Address(r)); err != nil {
+		return err
+	}
 	n, _ := rand.Int(rand.Reader, big.NewInt(1_000_000))
 	code := fmt.Sprintf("%06d", n.Int64())
 	if _, err := h.a.DB.ExecContext(r.Context(), `INSERT INTO sign_in_codes (email, code_hash, expires_at) VALUES ($1, $2, $3)`,
@@ -105,18 +109,20 @@ func (h *handler) verify(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
+		// Every try is counted, in the same statement that checks the
+		// count, before the code is compared: parallel guesses cannot pass
+		// the limit.
 		var hash string
-		var tries int
-		err = h.a.DB.QueryRowContext(ctx, `SELECT id, code_hash, tries FROM sign_in_codes
-			WHERE email = $1 AND used_at IS NULL AND expires_at > now() ORDER BY id DESC LIMIT 1`, email).Scan(&codeID, &hash, &tries)
-		if err != nil || tries >= codeTries {
+		err = h.a.DB.QueryRowContext(ctx, `UPDATE sign_in_codes SET tries = tries + 1 WHERE id = (SELECT id FROM sign_in_codes
+			WHERE email = $1 AND used_at IS NULL AND expires_at > now() ORDER BY id DESC LIMIT 1) AND tries < $2 RETURNING id, code_hash`,
+			email, codeTries).Scan(&codeID, &hash)
+		if err == sql.ErrNoRows {
 			return errBadCode
 		}
+		if err != nil {
+			return err
+		}
 		if subtle.ConstantTimeCompare([]byte(access.Hash(strings.TrimSpace(in.Code))), []byte(hash)) != 1 {
-			_, err := h.a.DB.ExecContext(ctx, `UPDATE sign_in_codes SET tries = tries + 1 WHERE id = $1`, codeID)
-			if err != nil {
-				return err
-			}
 			return errBadCode
 		}
 		if who, err = h.a.People.Ensure(ctx, email); err != nil {

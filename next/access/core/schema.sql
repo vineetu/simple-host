@@ -114,7 +114,8 @@ CREATE TABLE oauth_tokens (
 );
 CREATE INDEX oauth_tokens_grant ON oauth_tokens (grant_id);
 
--- A visitor's sign-in on one site. The cookie (__Host-sh_vsess) is the hex of id.
+-- A visitor's sign-in on one site. id is the SHA-256 of the cookie's bytes (the
+-- cookie, __Host-sh_vsess, is their hex): access.SiteSessionID.
 CREATE TABLE visitor_sessions (
   id           BYTEA PRIMARY KEY,
   person_id    UUID NOT NULL REFERENCES people(id) ON DELETE CASCADE,

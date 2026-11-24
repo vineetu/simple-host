@@ -23,6 +23,8 @@
     <p class="muted">The first account runs this copy: it sees the admin page and can make accounts for others.</p>
     <form id="f" novalidate>
       <div class="field"><label for="email">Your email</label><input id="email" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="code">Setup code</label><input id="code" autocomplete="off" spellcheck="false" required>
+        <p class="muted">The service printed it in its log when it first started (<code>docker compose logs</code> or <code>journalctl</code>).</p></div>
       <button class="primary" id="go">Finish setup</button>
     </form>
     <p class="status" id="status" role="status" aria-live="polite"></p>
@@ -33,7 +35,7 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   function post(body) {
-    return fetch('/setup', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    return fetch('/setup', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.fix || 'Setup is already finished, or something broke.'); return b; }); });
   }
   function show(b) {
@@ -53,7 +55,7 @@
     e.preventDefault();
     $('go').disabled = true;
     $('status').textContent = 'Checking…';
-    post({ email: $('email').value.trim() }).then(function (b) {
+    post({ email: $('email').value.trim(), code: $('code').value.trim() }).then(function (b) {
       show(b);
       if (b.next) { location.replace(b.next); return; }
       $('status').textContent = 'Fix the DNS above, wait a few minutes, then try again.';

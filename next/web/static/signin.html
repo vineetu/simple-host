@@ -40,13 +40,15 @@
   var q = new URLSearchParams(location.search);
   var hop = q.get('hop') || '';
   var next = q.get('next') || '/dashboard';
-  if (!/^\/(?!\/)/.test(next)) next = '/dashboard';
+  // A path on this host only: the same rule as web.LocalPath in Go.
+  function localPath(s) { return /^\/(?![\/\\])[^\\\s\u0000-\u001f\u007f-\u009f]*$/.test(s); }
+  if (!localPath(next)) next = '/dashboard';
   var step = 'email';
   if ($('google')) $('google').href = '/v1/auth/google' + (hop ? '?hop=' + encodeURIComponent(hop) : '');
   if (hop) $('sub').textContent = 'Sign in to continue to the site. No password.';
   function say(text, bad) { $('status').textContent = text; $('status').className = 'status' + (bad ? ' bad' : ''); }
   function post(path, body) {
-    return fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    return fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) { var e = new Error(b.fix || 'That did not work. Try again.'); e.code = b.code; throw e; } return b; }); });
   }
   // after is what a verify answer leads to.

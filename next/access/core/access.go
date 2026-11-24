@@ -55,6 +55,7 @@ func NewSecret(prefix string) string {
 
 var (
 	errBadCredential = web.Refuse(http.StatusUnauthorized, "bad_credential", "This key or token does not work. Make a new key in the dashboard, or connect the app again.")
+	errForged        = web.Refuse(http.StatusForbidden, "csrf_header", "Send the header X-SH-CSRF: 1 with every change made from a page, and send it from a page on this same address.")
 	errSuspended     = web.Refuse(http.StatusForbidden, "account_suspended", "This account is suspended. Write to support if you think this is a mistake.")
 )
 
@@ -66,8 +67,9 @@ const (
 // Caller resolves the request's credential to a person. On a site address
 // (siteID set) it reads a key or app token, or that site's visitor session;
 // on the platform it reads a key or app token, or the dashboard session. A
-// bad key is refused; a stale cookie is just nobody. A suspended person is
-// refused here, so no feature has to check.
+// bad key is refused; a stale cookie is just nobody. A cookie counts only
+// under web.FromOwnPage, and never on a web.KeyOnly path. A suspended person
+// is refused here, so no feature has to check.
 func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 	ctx := r.Context()
 	var id, via string
@@ -85,8 +87,9 @@ func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 		}
 	} else if siteID != "" {
 		via = "site"
-		raw, _ := hex.DecodeString(Cookie(r, "sh_vsess"))
-		err = p.DB.QueryRowContext(ctx, `SELECT person_id FROM visitor_sessions WHERE id = $1 AND site_id = $2 AND expires_at > now()`, raw, siteID).Scan(&id)
+		err = p.DB.QueryRowContext(ctx, `SELECT person_id FROM visitor_sessions WHERE id = $1 AND site_id = $2 AND expires_at > now()`, SiteSessionID(Cookie(r, "sh_vsess")), siteID).Scan(&id)
+	} else if web.KeyOnly(r) {
+		return web.Caller{}, nil
 	} else {
 		via = "session"
 		err = p.DB.QueryRowContext(ctx, `UPDATE sessions SET last_seen_at = now() WHERE id_hash = $1 AND expires_at > now() RETURNING person_id`, Hash(Cookie(r, "sh_session"))).Scan(&id)
@@ -96,6 +99,9 @@ func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 	}
 	if err != nil {
 		return web.Caller{}, err
+	}
+	if (via == "site" || via == "session") && !web.FromOwnPage(r) {
+		return web.Caller{}, errForged
 	}
 	who, err := p.Get(ctx, id)
 	if err != nil {
@@ -149,13 +155,24 @@ func (p *People) StartSession(w http.ResponseWriter, r *http.Request, personID s
 
 // StartSiteSession signs personID in on this one site, on this host.
 func (p *People) StartSiteSession(w http.ResponseWriter, r *http.Request, personID, siteID string) error {
-	id := make([]byte, 32)
-	rand.Read(id)
-	_, err := p.DB.ExecContext(r.Context(), `INSERT INTO visitor_sessions (id, person_id, site_id, host, expires_at) VALUES ($1, $2, $3, $4, $5)`, id, personID, siteID, web.Host(r), time.Now().Add(siteSessionLife))
+	raw := make([]byte, 32)
+	rand.Read(raw)
+	cookie := hex.EncodeToString(raw)
+	_, err := p.DB.ExecContext(r.Context(), `INSERT INTO visitor_sessions (id, person_id, site_id, host, expires_at) VALUES ($1, $2, $3, $4, $5)`, SiteSessionID(cookie), personID, siteID, web.Host(r), time.Now().Add(siteSessionLife))
 	if err == nil {
-		SetCookie(w, r, "sh_vsess", hex.EncodeToString(id), siteSessionLife)
+		SetCookie(w, r, "sh_vsess", cookie, siteSessionLife)
 	}
 	return err
+}
+
+// SiteSessionID is how a visitor session is stored and looked up: the
+// SHA-256 of the cookie's 32 bytes (the cookie is their hex), so the
+// database never holds a working cookie. The copy tool stores old sessions
+// the same way: sha256(id).
+func SiteSessionID(cookie string) []byte {
+	raw, _ := hex.DecodeString(cookie)
+	sum := sha256.Sum256(raw)
+	return sum[:]
 }
 
 // NewKey makes a named key for personID and returns it. It is shown once.

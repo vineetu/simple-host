@@ -25,13 +25,16 @@ import (
 )
 
 // versions: the live version and the last published ones before it, up to
-// the kept count, hard-linked from the old folders. Drafts never published
-// stay behind.
+// the kept count, hard-linked from the old folders. The live version comes
+// from the old site's current/ folder, which is what the old service serves
+// (some sites change files there in place, or rsync straight into it):
+// followed when it is a link, copied when it is a real folder. Drafts never
+// published stay behind.
 func (r *runner) versions(ctx context.Context, write bool) ([]row, error) {
 	old, err := query(ctx, r.old, r.sql(fmt.Sprintf(`
 		SELECT v.site_id::text, v.version_number::text,
 			(SELECT u.id FROM users u WHERE u.id::text = v.author OR lower(u.username) = lower(v.author) OR u.handle = v.author LIMIT 1)::text,
-			COALESCE(v.created_at, {never})::text, {dir} || '/v' || v.version_number
+			COALESCE(v.created_at, {never})::text, {dir} || '/v' || v.version_number, (v.version_number = s.active_version)::text
 		FROM (SELECT v.*, row_number() OVER (PARTITION BY v.site_id ORDER BY v.version_number = s.active_version DESC, v.version_number DESC) AS rank
 			FROM versions v JOIN sites s ON s.id = v.site_id WHERE v.status = 'active' AND s.id IN {copied}) v
 		JOIN sites s ON s.id = v.site_id WHERE v.rank <= %d ORDER BY 1, 2`, limits.KeptVersions.N)))
@@ -41,12 +44,15 @@ func (r *runner) versions(ctx context.Context, write bool) ([]row, error) {
 	var out []row
 	for _, x := range old {
 		n, _ := strconv.Atoi(x[1].String)
-		src, dst := filepath.Join(r.cfg.OldDir, x[4].String), r.sites.VersionDir(x[0].String, n)
+		src, dst, link := filepath.Join(r.cfg.OldDir, x[4].String), r.sites.VersionDir(x[0].String, n), true
+		if x[5].String == "true" {
+			src, link = liveFolder(src)
+		}
 		if _, err := os.Stat(src); err != nil {
 			r.note("files missing on disk", x[0].String, "version %d has no folder in the old data folder", n)
 			continue
 		}
-		size, err := r.tree(src, dst, true, write)
+		size, err := r.tree(src, dst, link, write)
 		if err != nil {
 			return nil, err
 		}
@@ -54,6 +60,25 @@ func (r *runner) versions(ctx context.Context, write bool) ([]row, error) {
 		out = append(out, row{x[0], x[1], x[2], x[3], text(strconv.FormatInt(size, 10))})
 	}
 	return out, nil
+}
+
+// liveFolder is what the old service serves for a site whose live version is
+// in folder v: its current/ folder beside v, followed when it is a link (then
+// hard links are safe), copied when it is a real folder (it changes in place).
+// No current/ at all: v itself.
+func liveFolder(v string) (string, bool) {
+	cur := filepath.Join(filepath.Dir(v), "current")
+	info, err := os.Lstat(cur)
+	switch {
+	case err != nil:
+		return v, true
+	case info.Mode()&fs.ModeSymlink != 0:
+		if to, err := filepath.EvalSymlinks(cur); err == nil {
+			return to, true
+		}
+		return v, true
+	}
+	return cur, false
 }
 
 func text(s string) sql.NullString { return sql.NullString{String: s, Valid: true} }
@@ -219,7 +244,12 @@ func (r *runner) namespaces(ctx context.Context, write bool) ([]row, error) {
 					if y[0].String != site || y[1].String != name {
 						continue
 					}
-					head, size, err := sniff(filepath.Join(sp.files, y[2].String))
+					err := data.ValidFileName(y[2].String) // a plain path inside the store, or never read
+					var head []byte
+					var size int64
+					if err == nil {
+						head, size, err = sniff(filepath.Join(sp.files, y[2].String))
+					}
 					if err != nil {
 						r.note("files missing on disk", site, "file %s of %s is missing", y[2].String, name)
 						continue

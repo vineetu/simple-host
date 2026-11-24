@@ -67,7 +67,7 @@
     msg.textContent = "";
     fetch("/v1/reports", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-SH-CSRF": "1" },
       body: JSON.stringify({ url: url.value, reason: document.getElementById("reason").value })
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, body: b }; });

@@ -12,17 +12,30 @@ import (
 )
 
 // FilePath is where a stored file of a namespace lives on disk:
-// Dir/sites/<site id>/files/<namespace>/<name>.
-func (d *Data) FilePath(siteID, ns, name string) string {
-	return filepath.Join(d.Dir, "sites", siteID, "files", ns, filepath.FromSlash(name))
+// Dir/sites/<site id>/files/<namespace>/<name>. It is checked here, where
+// every read, write and delete gets it, since a _files row is the owner's
+// to write with SQL: a name that is not a plain relative path, or that would
+// leave the namespace's folder, is refused (a route answers it as missing).
+func (d *Data) FilePath(siteID, ns, name string) (string, error) {
+	if err := ValidFileName(name); err != nil {
+		return "", err
+	}
+	dir := filepath.Join(d.Dir, "sites", siteID, "files", ns)
+	p := filepath.Join(dir, filepath.FromSlash(name))
+	if !strings.HasPrefix(p, dir+string(filepath.Separator)) {
+		return "", errBadFileName
+	}
+	return p, nil
 }
+
+var errBadFileName = web.Refuse(http.StatusBadRequest, "bad_file_name", "Name the file with a relative path such as photos/cat.jpg, at most 512 characters.")
 
 // ValidFileName refuses a name that is not a relative path of plain parts
 // (photos/cat.jpg). Published pages already use paths with folders.
 func ValidFileName(name string) error {
 	for _, part := range strings.Split(name, "/") {
 		if part == "" || part == "." || part == ".." || len(name) > 512 || strings.ContainsAny(name, "\x00\\") {
-			return web.Refuse(http.StatusBadRequest, "bad_file_name", "Name the file with a relative path such as photos/cat.jpg, at most 512 characters.")
+			return errBadFileName
 		}
 	}
 	return nil
@@ -34,7 +47,8 @@ func ValidFileName(name string) error {
 // the one way a file enters a file store: owners' upload links and visitors'
 // uploads alike.
 func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID string, body io.Reader) error {
-	if err := ValidFileName(name); err != nil {
+	final, err := d.FilePath(n.Site.ID, n.Name, name)
+	if err != nil {
 		return err
 	}
 	sum, err := n.Query(r.Context(), `SELECT COALESCE(SUM(size), 0) FROM _files WHERE name <> ?`, name)
@@ -46,7 +60,6 @@ func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID strin
 	if web.CallerOf(r).Operator {
 		room = 1 << 50
 	}
-	final := d.FilePath(n.Site.ID, n.Name, name)
 	if err := os.MkdirAll(filepath.Dir(final), 0o755); err != nil {
 		return err
 	}

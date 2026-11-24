@@ -24,7 +24,8 @@ type Req struct {
 
 // Begin opens the namespace a data route names ({ns}) on the request's
 // site. The owner passes; anyone else first passes the visit decision. A
-// write runs the spam check when it carries X-SH-Turnstile. Close it.
+// write runs the spam check when it carries X-SH-Turnstile (a forged write
+// never gets here: access.Caller refuses it). Close it.
 func (d *Data) Begin(r *http.Request, s *sites.Sites, write bool) (*Req, error) {
 	site, err := s.Of(r)
 	if err != nil {
@@ -40,11 +41,6 @@ func (d *Data) Begin(r *http.Request, s *sites.Sites, write bool) (*Req, error) 
 			return nil, err
 		}
 		if err := dec.Err(); err != nil {
-			return nil, err
-		}
-	}
-	if write {
-		if err := Unforged(r); err != nil {
 			return nil, err
 		}
 	}
@@ -72,15 +68,6 @@ func IsOwner(r *http.Request, s *sites.Sites, site *sites.Site) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
-}
-
-// Unforged refuses a write a browser sends with its cookie unless it carries
-// X-SH-CSRF, which another site's page cannot add without asking first.
-func Unforged(r *http.Request) error {
-	if v := web.CallerOf(r).Via; (v == "site" || v == "session") && r.Header.Get("X-SH-CSRF") == "" {
-		return web.Refuse(http.StatusForbidden, "csrf_header", "Send the header X-SH-CSRF: 1 with every write from a page.")
-	}
-	return nil
 }
 
 // Rule is the SQL condition, with its arguments, a row must meet for this

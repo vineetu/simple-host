@@ -10,8 +10,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Routes are the three places a feature mounts routes. Platform answers on
@@ -63,7 +65,11 @@ func Func(fn func(w http.ResponseWriter, r *http.Request) error) http.Handler {
 func Fail(w http.ResponseWriter, r *http.Request, err error) {
 	var ref *Refusal
 	if !errors.As(err, &ref) {
-		log.Printf("error %s %s: %v", r.Method, r.URL.Path, err)
+		where := r.Pattern // the route, not the path: a path can carry a secret (an upload link)
+		if where == "" {
+			where = r.URL.Path
+		}
+		log.Printf("error %s %s: %v", r.Method, where, err)
 		ref = Refuse(http.StatusInternalServerError, "server_error", "Something broke on our side. Try again in a minute.")
 	}
 	if ref.RetryAfter > 0 {
@@ -128,6 +134,52 @@ func ClientIP(r *http.Request) string {
 		}
 	}
 	return host
+}
+
+// FromOwnPage is the one rule for a request a browser sends with a session
+// cookie (the dashboard's or a site visitor's): a read (GET, HEAD) always
+// passes; anything else must come from a page on this same origin. It must
+// carry X-SH-CSRF (which a page elsewhere cannot add without this host's
+// permission) or a same-origin Origin (a form), and no Origin or
+// Sec-Fetch-Site that names another origin, a sibling address included.
+func FromOwnPage(r *http.Request) bool {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
+		return true
+	}
+	if s := r.Header.Get("Sec-Fetch-Site"); s != "" && s != "same-origin" {
+		return false
+	}
+	origin := r.Header.Get("Origin")
+	scheme := "http://"
+	if HTTPS(r) {
+		scheme = "https://"
+	}
+	if origin != "" && !strings.EqualFold(origin, scheme+r.Host) {
+		return false
+	}
+	return origin != "" || r.Header.Get("X-SH-CSRF") != ""
+}
+
+// KeyOnly is a path only keys and AI app tokens may use (the AI app's
+// endpoint): a browser cookie is never read there.
+func KeyOnly(r *http.Request) bool { return r.URL.Path == "/mcp" }
+
+// LocalPath is the one rule for where a browser may be sent back to (a
+// return, next or hop's path): a path on this same host. One leading slash,
+// never "//", and no backslash, space or control character anywhere (a
+// browser drops or turns those into a slash, which would name another host).
+// web/static/signin.html keeps the same rule for its next.
+func LocalPath(s string) bool {
+	if !strings.HasPrefix(s, "/") || strings.HasPrefix(s, "//") {
+		return false
+	}
+	for _, c := range s {
+		if c == '\\' || unicode.IsSpace(c) || unicode.IsControl(c) {
+			return false
+		}
+	}
+	u, err := url.Parse(s)
+	return err == nil && u.Scheme == "" && u.Host == ""
 }
 
 // HTTPS reports whether the visitor's browser is on HTTPS (nginx says so in

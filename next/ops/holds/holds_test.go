@@ -24,7 +24,8 @@ func TestTakeDownAndRestore(t *testing.T) {
 	if r := patch(nina, map[string]any{"short_name": "ninablog"}); r.Status != 200 {
 		t.Fatalf("short name: %d %s", r.Status, r.Body)
 	}
-	addresses := []string{"https://blog--nina.simple-host.site/", "https://ninablog.simple-host.app/"}
+	// Over HTTPS the main address sends pages to the short name; plain HTTP shows it serving too.
+	addresses := []string{"http://blog--nina.simple-host.site/", "https://ninablog.simple-host.app/"}
 	every := func(status int, has string) {
 		t.Helper()
 		for _, url := range addresses {

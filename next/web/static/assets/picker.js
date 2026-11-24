@@ -96,5 +96,32 @@
   $('drop').addEventListener('drop', e => choose(Array.from(e.dataTransfer.files)));
   $('save').addEventListener('click', save);
   $('copy-summary').addEventListener('click', () => copyText($('summary').textContent, $('copy-summary')));
-  if (!token) { $('editor').hidden = true; status('This link is not complete. Ask your chat for a new one.', true); }
+  // The link is checked as soon as the page opens: a used or expired link
+  // says so now, and an archive link shows the archive form instead.
+  async function publish() {
+    const file = $('archive-file').files[0];
+    if (!file) return;
+    $('publish').disabled = true; status('Publishing…');
+    try {
+      const res = await fetch('/v1/uploads/' + encodeURIComponent(token), { method: 'PUT', body: file, credentials: 'omit',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.fix || 'Could not publish. Try again.');
+      $('archive').hidden = true;
+      status('Published version ' + body.version + ' at ' + body.url + '. This link has now been used.');
+    } catch (e) { status(e.message, true); $('publish').disabled = false; }
+  }
+  $('archive-file').addEventListener('change', () => { $('publish').disabled = !$('archive-file').files.length; });
+  $('publish').addEventListener('click', publish);
+  if (!token) { status('This link is not complete. Ask your chat for a new one.', true); return; }
+  fetch('/v1/uploads/' + encodeURIComponent(token), { credentials: 'omit', cache: 'no-store' })
+    .then(r => r.json().then(b => { if (!r.ok) throw new Error(b.fix || 'This upload link does not work. Ask your chat for a new one.'); return b; }))
+    .then(link => {
+      if (link.kind === 'archive') {
+        document.title = 'Publish the site'; document.querySelector('h1').textContent = 'Publish the site';
+        document.querySelector('main > p').textContent = 'Choose the whole site as one archive file.';
+        $('archive').hidden = false;
+      } else $('editor').hidden = false;
+    })
+    .catch(e => status(e.message, true));
 })();

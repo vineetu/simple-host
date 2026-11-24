@@ -167,6 +167,8 @@ func (d *Data) Open(r *http.Request, site *sites.Site, name string) (*NS, error)
 		if err := c.Exec("PRAGMA busy_timeout = 2000; PRAGMA page_size = 4096; PRAGMA max_page_count = " + strconv.FormatInt(max(maxPages, 1), 10)); err != nil {
 			return err
 		}
+		c.Limit(sqlite3.LIMIT_LENGTH, int(limits.QueryBytes.N)) // no one value bigger than an answer may be
+
 		return c.SetAuthorizer(func(action sqlite3.AuthorizerActionCode, a, _, _, _ string) sqlite3.AuthorizerReturnCode {
 			if action == sqlite3.AUTH_ATTACH || action == sqlite3.AUTH_DETACH || action == sqlite3.AUTH_PRAGMA && !safePragmas[strings.ToLower(a)] {
 				return sqlite3.AUTH_DENY
@@ -192,14 +194,16 @@ func (n *NS) Exec(ctx context.Context, query string, args ...any) (sql.Result, e
 	return res, guard(err)
 }
 
-// Rows is a query's answer: column names and values in order.
+// Rows is a query's answer: column names and values in order. Cut: there
+// were more rows than limits.QueryRows or limits.QueryBytes let through.
 type Rows struct {
 	Columns []string `json:"columns"`
 	Rows    [][]any  `json:"rows"`
+	Cut     string   `json:"cut,omitempty"`
 }
 
-// Query runs one reading statement under the two guards and returns every
-// row it gives.
+// Query runs one reading statement under the two guards and returns its
+// rows, at most limits.QueryRows of them and limits.QueryBytes in all.
 func (n *NS) Query(ctx context.Context, query string, args ...any) (Rows, error) {
 	ctx, cancel := context.WithTimeout(ctx, limits.QueryTime.Per)
 	defer cancel()
@@ -212,7 +216,15 @@ func (n *NS) Query(ctx context.Context, query string, args ...any) (Rows, error)
 	if out.Columns, err = rows.Columns(); err != nil {
 		return out, err
 	}
+	size := int64(0)
 	for rows.Next() {
+		if int64(len(out.Rows)) >= limits.QueryRows.N || size >= limits.QueryBytes.N {
+			out.Cut = limits.QueryRows.Fix
+			if size >= limits.QueryBytes.N {
+				out.Cut = limits.QueryBytes.Fix
+			}
+			break
+		}
 		vals := make([]any, len(out.Columns))
 		ptrs := make([]any, len(vals))
 		for i := range vals {
@@ -222,8 +234,12 @@ func (n *NS) Query(ctx context.Context, query string, args ...any) (Rows, error)
 			return out, guard(err)
 		}
 		for i, v := range vals {
+			size += 8
 			if b, ok := v.([]byte); ok {
 				vals[i] = string(b)
+				size += int64(len(b))
+			} else if s, ok := v.(string); ok {
+				size += int64(len(s))
 			}
 		}
 		out.Rows = append(out.Rows, vals)
@@ -240,6 +256,8 @@ func guard(err error) error {
 		return web.Refuse(http.StatusRequestTimeout, "limit_"+limits.QueryTime.Name, limits.QueryTime.Fix)
 	case errors.Is(err, sqlite3.FULL):
 		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.DataBytes.Name, limits.DataBytes.Fix)
+	case errors.Is(err, sqlite3.TOOBIG):
+		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.QueryBytes.Name, "One value would be over 8 MB. Store smaller values.")
 	case errors.Is(err, sqlite3.ERROR) || errors.Is(err, sqlite3.CONSTRAINT) || errors.Is(err, sqlite3.AUTH) || errors.Is(err, sqlite3.MISMATCH) || errors.Is(err, sqlite3.RANGE):
 		return web.Refuse(http.StatusBadRequest, "sql_error", err.Error())
 	}

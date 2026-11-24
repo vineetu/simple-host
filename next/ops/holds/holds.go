@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"simplehost/app"
+	"simplehost/core/limits"
 	"simplehost/core/web"
 	sites "simplehost/sites/core"
 )
@@ -84,8 +85,11 @@ func (h *handler) report(w http.ResponseWriter, r *http.Request) error {
 	}
 	u, err := url.Parse(strings.TrimSpace(in.URL))
 	in.Reason = strings.TrimSpace(in.Reason)
-	if err != nil || u.Host == "" || in.Reason == "" || len(in.Reason) > 2000 || len(in.URL) > 2000 {
-		return web.Refuse(http.StatusBadRequest, "bad_report", "Give the page's full address and a reason of at most 2000 characters.")
+	if err != nil || u.Scheme != "http" && u.Scheme != "https" || u.Host == "" || in.Reason == "" || len(in.Reason) > 2000 || len(in.URL) > 2000 {
+		return web.Refuse(http.StatusBadRequest, "bad_report", "Give the page's full address (https://...) and a reason of at most 2000 characters.")
+	}
+	if err := limits.Allow(r, limits.Reports, ""); err != nil {
+		return err
 	}
 	var siteID any
 	if p, err := h.a.Sites.Lookup(r.Context(), u.Hostname()); err == nil && p.Site != nil {

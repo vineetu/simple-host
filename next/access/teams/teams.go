@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	access "simplehost/access/core"
@@ -96,7 +97,7 @@ func (h *handler) invite(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))
-	if !strings.Contains(email, "@") {
+	if a, err := mail.ParseAddress(email); err != nil || a.Address != email {
 		return web.Refuse(http.StatusBadRequest, "bad_email", "Give a full email address, like name@example.com.")
 	}
 	var id string
@@ -114,7 +115,8 @@ func (h *handler) invite(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// accept is route 18: only the account with the invited email can accept.
+// accept is route 18: only the account with the invited email can accept,
+// and only once: an accepted invitation is spent.
 func (h *handler) accept(w http.ResponseWriter, r *http.Request) error {
 	c := web.CallerOf(r)
 	if c.ID == "" {
@@ -127,7 +129,7 @@ func (h *handler) accept(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer tx.Rollback()
 	var teamID, email string
-	err = tx.QueryRowContext(ctx, `SELECT team_id, email FROM team_invites WHERE id::text = $1 FOR UPDATE`, r.PathValue("id")).Scan(&teamID, &email)
+	err = tx.QueryRowContext(ctx, `SELECT team_id, email FROM team_invites WHERE id::text = $1 AND accepted_at IS NULL FOR UPDATE`, r.PathValue("id")).Scan(&teamID, &email)
 	if err == sql.ErrNoRows {
 		return web.NotFound
 	}
@@ -169,6 +171,11 @@ func (h *handler) remove(w http.ResponseWriter, r *http.Request) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return web.NotFound
+	}
+	// Their open invitations to this team end with their membership.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM team_invites WHERE team_id = $1 AND accepted_at IS NULL
+		AND email = (SELECT lower(email) FROM people WHERE id::text = $2)`, t.ID, r.PathValue("person")); err != nil {
+		return err
 	}
 	var left int
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM team_members WHERE team_id = $1`, t.ID).Scan(&left); err != nil {

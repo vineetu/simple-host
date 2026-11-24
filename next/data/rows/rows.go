@@ -105,13 +105,17 @@ func (h *handler) list(w http.ResponseWriter, r *http.Request) error {
 	order := q.Get("order")
 	if order == "" {
 		order = "_rowid"
-	} else if !t.cols[order] {
+	} else if !t.cols[order] || order == "visitor_id" && !t.Owner {
 		return web.Refuse(http.StatusBadRequest, "bad_order", "Order by one of the table's columns.")
 	}
 	for key, vals := range q {
 		if col, ok := strings.CutPrefix(key, "where."); ok {
 			if !t.cols[col] {
 				return web.Refuse(http.StatusBadRequest, "bad_column", "Filter on one of the table's columns, not "+col+".")
+			}
+			if col == "visitor_id" && !t.Owner && vals[0] != web.CallerOf(r).ID {
+				// Authors are hidden from others: no ordering or matching on them.
+				return web.Refuse(http.StatusBadRequest, "bad_column", "Filter visitor_id only on your own id.")
 			}
 			where, args = append(where, quote(col)+" = ?"), append(args, vals[0])
 		}

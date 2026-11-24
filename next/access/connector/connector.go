@@ -251,7 +251,6 @@ func (h *handler) authorize(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
-	w.Header().Set("X-Frame-Options", "DENY")
 	return approvalPage.Execute(w, map[string]any{"App": name, "Email": who.Email, "Host": u.Host, "Fields": fields})
 }
 
@@ -315,12 +314,13 @@ func (h *handler) token(w http.ResponseWriter, r *http.Request) error {
 	return oauthError(w, http.StatusBadRequest, "unsupported_grant_type", "use authorization_code or refresh_token")
 }
 
-// redeem spends a code once, whatever happens next, then checks it.
+// redeem spends a code once (only its own app can), whatever happens next,
+// then checks it. An app without a secret must have used PKCE.
 func (h *handler) redeem(w http.ResponseWriter, r *http.Request, c client) error {
 	f := r.PostForm
 	var clientID, personID, redirect, challenge, sc string
-	err := h.a.DB.QueryRowContext(r.Context(), `UPDATE oauth_codes SET used_at = now() WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now()
-		RETURNING client_id, person_id, redirect_uri, code_challenge, scope`, access.Hash(f.Get("code"))).Scan(&clientID, &personID, &redirect, &challenge, &sc)
+	err := h.a.DB.QueryRowContext(r.Context(), `UPDATE oauth_codes SET used_at = now() WHERE code_hash = $1 AND client_id = $2 AND used_at IS NULL AND expires_at > now()
+		RETURNING client_id, person_id, redirect_uri, code_challenge, scope`, access.Hash(f.Get("code")), c.id).Scan(&clientID, &personID, &redirect, &challenge, &sc)
 	if err == sql.ErrNoRows {
 		return oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown, used or expired code")
 	}
@@ -333,7 +333,7 @@ func (h *handler) redeem(w http.ResponseWriter, r *http.Request, c client) error
 	switch {
 	case clientID != c.id, redirect != f.Get("redirect_uri"):
 		return oauthError(w, http.StatusBadRequest, "invalid_grant", "the code was issued to another app or address")
-	case challenge != "" && subtle.ConstantTimeCompare([]byte(pkce), []byte(challenge)) != 1, challenge == "" && verifier != "":
+	case challenge != "" && subtle.ConstantTimeCompare([]byte(pkce), []byte(challenge)) != 1, challenge == "" && (verifier != "" || !c.secretHash.Valid):
 		return oauthError(w, http.StatusBadRequest, "invalid_grant", "PKCE verification failed")
 	}
 	var grant string

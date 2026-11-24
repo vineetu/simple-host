@@ -32,7 +32,8 @@ func TestRollback(t *testing.T) {
 	if err := manage.Rollback(r, k.App, site, 3); err != nil {
 		t.Fatal(err)
 	}
-	for _, url := range []string{"https://blog--bob.simple-host.site/", "https://bobsblog.simple-host.app/"} {
+	// Over HTTPS the main address sends pages to the short name; plain HTTP shows it serving too.
+	for _, url := range []string{"http://blog--bob.simple-host.site/", "https://bobsblog.simple-host.app/"} {
 		if res := testkit.Call(t, b, "GET", url, nil); res.Status != 200 || res.Body != "v3" {
 			t.Fatalf("%s: %d %q, want v3", url, res.Status, res.Body)
 		}

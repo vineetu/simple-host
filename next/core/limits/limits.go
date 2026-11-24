@@ -3,6 +3,7 @@
 package limits
 
 import (
+	"net"
 	"net/http"
 	"strconv"
 	"sync"
@@ -24,11 +25,19 @@ type Limit struct {
 var (
 	Requests      = Limit{"requests", 600, time.Minute, "Too many requests from you. Wait a minute and try again."}
 	SignInCodes   = Limit{"sign_in_codes", 5, 15 * time.Minute, "Too many codes asked for this email. Wait 15 minutes."}
+	CodeMails     = Limit{"code_mails", 30, time.Hour, "Too many sign-in codes sent from your address. Wait an hour."}
 	PasscodeTries = Limit{"passcode_tries", 5, 15 * time.Minute, "Too many wrong passcodes. Wait 15 minutes and try again."}
+	Reports       = Limit{"reports", 10, time.Hour, "You sent a few reports already. The operator will read them; wait an hour to send more."}
 	AccessAsks    = Limit{"access_asks", 3, time.Hour, "You asked for access a few times already. The owner has been told; wait for them."}
 	SiteBytes     = Limit{"site_size", 100 << 20, 0, "A site can hold 100 MB of published files. Remove or shrink some files."}
 	DataBytes     = Limit{"data_size", 100 << 20, 0, "A site's saved data can hold 100 MB. Delete rows or values you no longer need."}
 	FilesBytes    = Limit{"files_size", 200 << 20, 0, "A namespace's file store can hold 200 MB. Delete files you no longer need."}
+	// QueryRows and QueryBytes cap one saved-data query's answer (and
+	// QueryBytes any one value): the rest is cut, and the answer says so.
+	QueryRows  = Limit{"query_rows", 10_000, 0, "The answer was cut at 10,000 rows. Add a WHERE or LIMIT to get the rest."}
+	QueryBytes = Limit{"query_bytes", 8 << 20, 0, "The answer was cut at 8 MB. Pick fewer columns or rows."}
+	// PushDevices is how many browsers one person gets notifications on.
+	PushDevices = Limit{"push_devices", 20, 0, "You have 20 devices for notifications. Remove one in the dashboard first."}
 	// KeptVersions is how many published versions are kept per site.
 	KeptVersions = Limit{"kept_versions", 4, 0, ""}
 	// QueryTime is the longest one saved-data query may run. It is a guard
@@ -47,7 +56,7 @@ func Allow(r *http.Request, l Limit, key string) error {
 	if key == "" {
 		key = c.ID
 		if key == "" {
-			key = "ip:" + web.ClientIP(r)
+			key = "ip:" + Address(r)
 		}
 	}
 	wait := counters.take(l, key, time.Now())
@@ -57,6 +66,17 @@ func Allow(r *http.Request, l Limit, key string) error {
 	ref := web.Refuse(http.StatusTooManyRequests, "limit_"+l.Name, l.Fix)
 	ref.RetryAfter = int(wait/time.Second) + 1
 	return ref
+}
+
+// Address is the caller's address as limits count it: an IPv4 address, or
+// the /64 an IPv6 address is in (one home or server holds a whole /64, so
+// counting single addresses would let it rotate past every limit).
+func Address(r *http.Request) string {
+	ip := net.ParseIP(web.ClientIP(r))
+	if ip == nil || ip.To4() != nil {
+		return web.ClientIP(r)
+	}
+	return ip.Mask(net.CIDRMask(64, 128)).String() + "/64"
 }
 
 // Fits refuses when total bytes would exceed a size limit. The operator is

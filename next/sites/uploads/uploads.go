@@ -6,6 +6,7 @@
 package uploads
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"io"
@@ -24,11 +25,25 @@ const LinkLife = 24 * time.Hour
 
 type handler struct{ a *app.App }
 
-// Mount adds routes 27 and 29. Route 28, the picker page, is in web.
+// Mount adds routes 27 and 29. Route 28, the picker page, is in web; it asks
+// GET /v1/uploads/{token} when it opens, so a spent link says so at once and
+// an archive link shows the archive form, not the photo picker.
 func Mount(a *app.App) {
 	h := &handler{a}
 	a.Routes.Platform.Handle("POST /v1/sites/{site}/upload-links", web.Func(h.link))
+	a.Routes.Platform.Handle("GET /v1/uploads/{token}", web.Func(h.check))
 	a.Routes.Platform.Handle("PUT /v1/uploads/{token}", web.Func(h.upload))
+}
+
+// check is what the picker page shows: the link's kind, or that it is spent.
+func (h *handler) check(w http.ResponseWriter, r *http.Request) error {
+	l, err := h.find(r, false)
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	web.JSON(w, http.StatusOK, map[string]string{"kind": l.kind, "namespace": l.namespace})
+	return nil
 }
 
 // link is route 27: {"kind": "archive"} or {"kind": "files", "namespace": "photos"}.
@@ -69,10 +84,16 @@ func (h *handler) link(w http.ResponseWriter, r *http.Request) error {
 
 type uploadLink struct{ siteID, personID, kind, namespace string }
 
-func (h *handler) find(r *http.Request) (uploadLink, error) {
+// find reads an unused link. With take it also marks it used in the same
+// statement, so two uploads at once cannot both use it; a failed upload
+// gives it back (give).
+func (h *handler) find(r *http.Request, take bool) (uploadLink, error) {
 	var l uploadLink
-	err := h.a.DB.QueryRowContext(r.Context(), `SELECT site_id, person_id, kind, namespace FROM upload_links
-		WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`, access.Hash(r.PathValue("token"))).Scan(&l.siteID, &l.personID, &l.kind, &l.namespace)
+	q := `SELECT site_id, person_id, kind, namespace FROM upload_links WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()`
+	if take {
+		q = `UPDATE upload_links SET used_at = now() WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING site_id, person_id, kind, namespace`
+	}
+	err := h.a.DB.QueryRowContext(r.Context(), q, access.Hash(r.PathValue("token"))).Scan(&l.siteID, &l.personID, &l.kind, &l.namespace)
 	if err == sql.ErrNoRows {
 		return l, web.Refuse(http.StatusNotFound, "link_used", "This upload link was used or has run out. Ask for a new one.")
 	}
@@ -81,12 +102,18 @@ func (h *handler) find(r *http.Request) (uploadLink, error) {
 
 // upload is route 29. An archive goes to route 22 as the link's maker; files
 // (multipart, one part per file) go to the namespace's file store. The link
-// is spent once the upload succeeds.
+// is taken first and given back when the upload fails.
 func (h *handler) upload(w http.ResponseWriter, r *http.Request) error {
-	l, err := h.find(r)
+	l, err := h.find(r, true)
 	if err != nil {
 		return err
 	}
+	done := false
+	defer func() {
+		if !done {
+			h.a.DB.ExecContext(context.WithoutCancel(r.Context()), `UPDATE upload_links SET used_at = NULL WHERE token_hash = $1`, access.Hash(r.PathValue("token")))
+		}
+	}()
 	who, err := h.a.People.Get(r.Context(), l.personID)
 	if err != nil {
 		return err
@@ -109,9 +136,7 @@ func (h *handler) upload(w http.ResponseWriter, r *http.Request) error {
 		to.RequestURI = to.URL.RequestURI()
 		rec := &status{ResponseWriter: w}
 		h.a.Routes.Platform.ServeHTTP(rec, to)
-		if rec.code == http.StatusOK {
-			return h.spend(r)
-		}
+		done = rec.code == http.StatusOK
 		return nil
 	}
 	ns, err := h.a.Data.Open(r, site, l.namespace)
@@ -146,16 +171,9 @@ func (h *handler) upload(w http.ResponseWriter, r *http.Request) error {
 	if len(names) == 0 {
 		return web.Refuse(http.StatusBadRequest, "no_files", "Choose at least one file.")
 	}
-	if err := h.spend(r); err != nil {
-		return err
-	}
+	done = true
 	web.JSON(w, http.StatusOK, map[string]any{"namespace": l.namespace, "files": names})
 	return nil
-}
-
-func (h *handler) spend(r *http.Request) error {
-	_, err := h.a.DB.ExecContext(r.Context(), `UPDATE upload_links SET used_at = now() WHERE token_hash = $1`, access.Hash(r.PathValue("token")))
-	return err
 }
 
 // status remembers the status route 22 answered with.

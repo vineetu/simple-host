@@ -105,7 +105,11 @@ func (h *handler) file(w http.ResponseWriter, r *http.Request) error {
 	if st, err := root.Stat(name); err == nil && st.IsDir() {
 		name = path.Join(name, "index.html")
 	}
+	// A published file read here is data, never a page of the platform.
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if name == "" || !serveFile(w, r, root, name) {
 		return web.NotFound
 	}

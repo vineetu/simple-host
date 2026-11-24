@@ -11,7 +11,6 @@ import (
 
 	"simplehost/app"
 	"simplehost/core/web"
-	data "simplehost/data/core"
 )
 
 type handler struct{ a *app.App }
@@ -28,9 +27,6 @@ func (h *handler) set(w http.ResponseWriter, r *http.Request) error {
 	site, err := h.a.Sites.Of(r)
 	if err == nil {
 		err = h.a.Sites.Manage(r, site)
-	}
-	if err == nil {
-		err = data.Unforged(r)
 	}
 	if err != nil {
 		return err

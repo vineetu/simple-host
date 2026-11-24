@@ -27,8 +27,9 @@ var files embed.FS
 var static, _ = fs.Sub(files, "static")
 
 type handler struct {
-	a      *app.App
-	skills []byte
+	a        *app.App
+	skills   []byte
+	firstRun setupCode
 }
 
 // Mount adds the pages to the platform host and the page helper to every site address.
@@ -44,6 +45,9 @@ func Mount(a *app.App) {
 	p.Handle("GET /setup", cw.Func(h.setupPage))
 	p.Handle("POST /setup", cw.Func(h.setup))
 	a.Routes.Site.Handle("GET /_sh/page.js", cw.Func(h.helper))
+	if a.Config.SelfHosted {
+		h.setupCode() // printed to the log at the first start
+	}
 }
 
 // pages are the static pages under /{page}.
@@ -66,8 +70,6 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 	if !pages[name] {
 		return cw.NotFound
 	}
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	if name == "signin" && h.a.Config.GoogleClientID == "" {
 		// No Google sign-in on this install: the page offers only the emailed code.
 		body, err := fs.ReadFile(static, "signin.html")
@@ -103,7 +105,6 @@ func serve(w http.ResponseWriter, r *http.Request, name, cache string) error {
 		return cw.NotFound
 	}
 	w.Header().Set("Cache-Control", cache)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
 	return nil
 }
@@ -169,6 +170,7 @@ func (h *handler) spamCheck(w http.ResponseWriter, r *http.Request) error {
 	}
 	k, _ := json.Marshal(key)
 	body = bytes.Replace(body, []byte(`"__SITE_KEY__"`), k, 1)
+	w.Header().Del("X-Frame-Options")
 	w.Header().Set("Content-Security-Policy", "frame-ancestors *")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")

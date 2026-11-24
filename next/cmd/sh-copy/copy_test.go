@@ -20,6 +20,7 @@ import (
 
 	"github.com/ncruces/go-sqlite3/driver"
 
+	access "simplehost/access/core"
 	"simplehost/app"
 	"simplehost/core/testkit"
 )
@@ -125,6 +126,10 @@ func files(t *testing.T, old string) {
 	for _, s := range [][2]string{{alice, "secret"}, {alice, "club"}, {alice, "shop"}, {alice, "menu"}, {crew, "tasks"}, {bob, "quote-paris"}, {bob, "napping"}, {bob, "bad"}} {
 		write("by-id/"+s[0]+"/"+s[1]+"/v1/index.html", "<h1>"+s[1]+"</h1>")
 	}
+	// The old service serves current/: shop's was changed in place (a real
+	// folder), blog's is a link to its live version.
+	write("by-id/"+alice+"/shop/current/index.html", "<h1>shop, edited in place</h1>")
+	os.Symlink("v5", filepath.Join(old, "by-id", alice, "blog", "current"))
 	write("by-id/"+alice+"/club/v1/app.js", "fetch('/v1/sites/club/storage/people')")
 	write("deleted/"+alice+"/"+binned+"/v1/index.html", "<h1>binned</h1>")
 	write("by-id/"+alice+"/blog/runtime/files/photos/a.jpg", "\xff\xd8\xff\xe0 jpeg")
@@ -248,6 +253,16 @@ func TestCopyRecopyCheck(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(newDir, "certs", p)); err != nil {
 			t.Errorf("carried certificate: %v", err)
 		}
+	}
+
+	if b, _ := os.ReadFile(filepath.Join(newDir, "sites", shop, "v1", "index.html")); string(b) != "<h1>shop, edited in place</h1>" {
+		t.Errorf("shop's live version is %q, want its current/ folder", b)
+	}
+	// Old copied visitor sessions are stored hashed; the old cookie still works.
+	var stored []byte
+	newDB.QueryRow(`SELECT id FROM visitor_sessions`).Scan(&stored)
+	if want := access.SiteSessionID("aa01"); !bytes.Equal(stored, want) {
+		t.Errorf("copied visitor session id %x, want %x (the hash of the old cookie)", stored, want)
 	}
 
 	broken := filepath.Join(newDir, "sites", blog, "v5", "index.html")

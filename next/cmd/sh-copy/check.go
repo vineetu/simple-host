@@ -129,7 +129,7 @@ func (r *runner) scanLive(ctx context.Context) error {
 		return err
 	}
 	for _, s := range live {
-		root := filepath.Join(r.cfg.OldDir, s[1].String)
+		root, _ := liveFolder(filepath.Join(r.cfg.OldDir, s[1].String))
 		if b, err := os.ReadFile(filepath.Join(root, "_redirects")); err == nil {
 			if _, mistakes := sites.ParseRedirects(string(b)); len(mistakes) > 0 {
 				r.note("redirect rules not supported", s[0].String, "%s", strings.Join(mistakes, "; "))

@@ -8,6 +8,7 @@ package notify
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"simplehost/app"
+	"simplehost/core/limits"
 	"simplehost/core/web"
 )
 
@@ -129,6 +131,13 @@ func (h *handler) addDevice(w http.ResponseWriter, r *http.Request) error {
 	u, err := url.Parse(in.Endpoint)
 	if err != nil || u.Scheme != "https" || u.Host == "" || in.Keys.P256dh == "" || in.Keys.Auth == "" {
 		return web.Refuse(http.StatusBadRequest, "bad_push", "Send the browser's push subscription: its https endpoint and its p256dh and auth keys.")
+	}
+	var n int
+	if err := h.a.DB.QueryRowContext(r.Context(), `SELECT count(*) FROM push_devices WHERE person_id = $1 AND endpoint <> $2`, c.ID, in.Endpoint).Scan(&n); err != nil {
+		return err
+	}
+	if int64(n) >= limits.PushDevices.N {
+		return web.Refuse(http.StatusConflict, "limit_"+limits.PushDevices.Name, limits.PushDevices.Fix)
 	}
 	var id string
 	err = h.a.DB.QueryRowContext(r.Context(), `INSERT INTO push_devices (person_id, endpoint, name, p256dh, auth) VALUES ($1, $2, $3, $4, $5)
@@ -321,6 +330,9 @@ func pushAll(ctx context.Context, a *app.App, key *signer, ownerID string, msg m
 	payload, _ := json.Marshal(msg)
 	for _, d := range devices {
 		status, err := key.send(ctx, a.Guarded, d[1], d[2], d[3], payload)
+		if ue := (*url.Error)(nil); errors.As(err, &ue) {
+			err = ue.Err // the endpoint is the device's secret address: never in the log
+		}
 		if err != nil {
 			log.Printf("push to a device: %v", err)
 		}

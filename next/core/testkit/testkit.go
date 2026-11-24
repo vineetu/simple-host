@@ -85,7 +85,9 @@ func Start(t *testing.T, mounts ...func(*app.App)) *Kit {
 // Browser is a new browser with its own cookies. Every address, whatever
 // its host, reaches this kit's service (the fakes' 127.0.0.1 addresses reach
 // the fakes); https:// addresses arrive as nginx sends them
-// (X-Forwarded-Proto: https). Redirects are not followed.
+// (X-Forwarded-Proto: https). Like a browser, it sends Origin (its own
+// address unless the call names another) with anything but a read.
+// Redirects are not followed.
 func (k *Kit) Browser() *http.Client {
 	jar, _ := cookiejar.New(nil)
 	return &http.Client{Jar: jar, Transport: toServer{k.server.URL, k.fakes},
@@ -102,6 +104,9 @@ func (s toServer) RoundTrip(r *http.Request) (*http.Response, error) {
 		return s.fakes.RoundTrip(r)
 	}
 	r = r.Clone(r.Context())
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") == "" {
+		r.Header.Set("Origin", r.URL.Scheme+"://"+r.URL.Host) // as a browser sends it from the same address
+	}
 	if r.URL.Scheme == "https" {
 		r.Header.Set("X-Forwarded-Proto", "https")
 	}
@@ -285,6 +290,6 @@ func (k *Kit) SignIn(t *testing.T, b *http.Client, who Who, siteURL string) {
 	id := make([]byte, 32)
 	rand.Read(id)
 	k.Exec(t, `INSERT INTO visitor_sessions (id, person_id, site_id, host, expires_at) VALUES ($1, $2, $3, $4, now() + interval '1 day')`,
-		id, who.ID, p.Site.ID, u.Hostname())
+		access.SiteSessionID(hex.EncodeToString(id)), who.ID, p.Site.ID, u.Hostname())
 	b.Jar.SetCookies(u, []*http.Cookie{{Name: "__Host-sh_vsess", Value: hex.EncodeToString(id), Path: "/", Secure: true}})
 }

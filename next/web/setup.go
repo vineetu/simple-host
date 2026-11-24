@@ -1,15 +1,43 @@
 package web
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 
 	cw "simplehost/core/web"
 )
+
+// setupCode is the one-time code that proves the person finishing setup
+// runs this machine: made at the first start (or first visit) while there
+// is no operator, printed only to the service's own log, kept only in memory.
+type setupCode struct {
+	once sync.Once
+	code string
+}
+
+func (h *handler) setupCode() string {
+	setupCode := &h.firstRun
+	setupCode.once.Do(func() {
+		if done, err := h.a.People.HasOperator(context.Background()); err != nil || done {
+			return
+		}
+		b := make([]byte, 8)
+		rand.Read(b)
+		setupCode.code = hex.EncodeToString(b)
+		log.Printf("first-run setup code: %s (open https://%s/setup and enter it)", setupCode.code, h.a.Config.AppDomain)
+	})
+	return setupCode.code
+}
 
 // setupPage is the first-run page of a self-hosted install: it shows the
 // domain from .env, checks its DNS and makes the first account the operator.
@@ -21,13 +49,13 @@ func (h *handler) setupPage(w http.ResponseWriter, r *http.Request) error {
 	if done, err := h.a.People.HasOperator(r.Context()); err != nil || done {
 		return cmp(err, cw.NotFound)
 	}
+	h.setupCode()
 	body, err := fs.ReadFile(static, "setup.html")
 	if err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Frame-Options", "DENY")
 	w.Write([]byte(strings.ReplaceAll(string(body), "__DOMAIN__", h.a.Config.AppDomain)))
 	return nil
 }
@@ -38,6 +66,7 @@ func (h *handler) setupPage(w http.ResponseWriter, r *http.Request) error {
 func (h *handler) setup(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		Email string `json:"email"`
+		Code  string `json:"code"`
 		Check bool   `json:"check"`
 	}
 	if !h.a.Config.SelfHosted {
@@ -63,6 +92,9 @@ func (h *handler) setup(w http.ResponseWriter, r *http.Request) error {
 	if in.Check || !ok {
 		cw.JSON(w, http.StatusOK, map[string]any{"ok": ok, "records": records})
 		return nil
+	}
+	if code := h.setupCode(); code == "" || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(in.Code)), []byte(code)) != 1 {
+		return cw.Refuse(http.StatusForbidden, "bad_setup_code", "Enter the setup code the service printed in its log when it first started.")
 	}
 	person, made, err := h.a.People.FirstOperator(r.Context(), in.Email)
 	if err != nil {

@@ -49,7 +49,7 @@ func (h *handler) unlock(w http.ResponseWriter, r *http.Request) error {
 		http.Redirect(w, r, sites.Next(r), http.StatusSeeOther)
 		return nil
 	}
-	if err := limits.Allow(r, limits.PasscodeTries, site.ID+"|"+web.ClientIP(r)); err != nil {
+	if err := limits.Allow(r, limits.PasscodeTries, site.ID+"|"+limits.Address(r)); err != nil {
 		ref := err.(*web.Refusal)
 		w.Header().Set("Retry-After", strconv.Itoa(ref.RetryAfter))
 		sites.GatePage(w, r, sites.NeedCode, http.StatusTooManyRequests, ref.Fix)

@@ -6,10 +6,8 @@
 package visitors
 
 import (
-	"encoding/hex"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	access "simplehost/access/core"
@@ -41,7 +39,7 @@ func (h *handler) start(w http.ResponseWriter, r *http.Request) error {
 	if back == "" {
 		back = "/"
 	}
-	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") || strings.Contains(back, "\\") {
+	if !web.LocalPath(back) {
 		return web.Refuse(http.StatusBadRequest, "bad_return", "Give return as a path on this site, like /bookings.")
 	}
 	nonce := access.NewSecret("")
@@ -58,7 +56,7 @@ func (h *handler) start(w http.ResponseWriter, r *http.Request) error {
 func (h *handler) finish(w http.ResponseWriter, r *http.Request) error {
 	site := sites.PlaceOf(r).Site
 	t, err := access.OpenHop(r.URL.Query().Get("ticket"))
-	if err != nil || t.Person == "" || t.Site != site.ID || t.Host != web.Host(r) || t.Nonce != access.Hash(access.Cookie(r, "sh_vnonce")) {
+	if err != nil || t.Person == "" || !web.LocalPath(t.Return) || t.Site != site.ID || t.Host != web.Host(r) || t.Nonce != access.Hash(access.Cookie(r, "sh_vnonce")) {
 		return errTicket
 	}
 	if _, err := h.a.DB.ExecContext(r.Context(), `INSERT INTO visitor_signins (site_id, person_id, confirmed) VALUES ($1, $2, true)
@@ -76,7 +74,7 @@ func (h *handler) finish(w http.ResponseWriter, r *http.Request) error {
 
 // signOut is route 37: end this site's session in this browser.
 func (h *handler) signOut(w http.ResponseWriter, r *http.Request) error {
-	id, _ := hex.DecodeString(access.Cookie(r, "sh_vsess"))
+	id := access.SiteSessionID(access.Cookie(r, "sh_vsess"))
 	if _, err := h.a.DB.ExecContext(r.Context(), `DELETE FROM visitor_sessions WHERE id = $1 AND site_id = $2`, id, sites.PlaceOf(r).Site.ID); err != nil {
 		return err
 	}

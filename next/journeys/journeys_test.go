@@ -3,9 +3,12 @@
 package journeys_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -254,7 +257,14 @@ func TestOperatorJourney(t *testing.T) {
 	b := k.Browser()
 	page(t, b, platform+"/setup", 404, "") // the hosted service has no setup page
 	k.App.Config.SelfHosted = true
+	var logged bytes.Buffer
+	log.SetOutput(&logged)
 	page(t, b, platform+"/setup", 200, "Finish setup")
+	log.SetOutput(os.Stderr)
+	code := regexp.MustCompile(`setup code: (\w+)`).FindStringSubmatch(logged.String())
+	if code == nil {
+		t.Fatalf("no setup code in the log: %q", logged.String())
+	}
 	setup := func(body any) map[string]any {
 		r := testkit.Call(t, b, "POST", platform+"/setup", body, "Content-Type", "application/json")
 		var out map[string]any
@@ -268,7 +278,10 @@ func TestOperatorJourney(t *testing.T) {
 	}
 	k.DNS.Set("simple-host.app", "A", "203.0.113.7")
 	k.DNS.Set("setup-check--x.simple-host.site", "A", "203.0.113.7")
-	if out := setup(map[string]any{"email": "op@example.com"}); out["ok"] != true || out["next"] != "/dashboard" {
+	if r := testkit.Call(t, b, "POST", platform+"/setup", map[string]any{"email": "mallory@example.com", "code": "guess"}); r.Status != 403 {
+		t.Fatalf("setup without the code: %d %s", r.Status, r.Body)
+	}
+	if out := setup(map[string]any{"email": "op@example.com", "code": code[1]}); out["ok"] != true || out["next"] != "/dashboard" {
 		t.Fatalf("setup: %v", out)
 	}
 	page(t, b, platform+"/setup", 404, "") // gone once there is an operator

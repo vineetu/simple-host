@@ -22,7 +22,7 @@ type handler struct{ a *app.App }
 // Mount adds routes 52 and 53.
 func Mount(a *app.App) {
 	h := &handler{a}
-	a.Routes.Page.Handle("GET /", web.Func(h.page))
+	a.Routes.Page.Handle("/", web.Func(h.page)) // every method: a home site's forms post here too
 	a.Routes.Page.Handle("GET /sitemap.xml", web.Func(h.sitemap))
 }
 
@@ -48,7 +48,7 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 			return nil
 		}
 	}
-	if r.URL.Path != "/" {
+	if r.URL.Path != "/" || r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return web.NotFound
 	}
 	list, err := h.sites(r, `s.listed AND NOT s.offline AND s.taken_down_at IS NULL AND s.live_version > 0`, o.ID)

@@ -42,9 +42,6 @@ func (h *handler) open(r *http.Request, create, needSQL bool) (*data.NS, input, 
 	if err == nil {
 		err = h.a.Sites.Manage(r, site)
 	}
-	if err == nil {
-		err = data.Unforged(r)
-	}
 	if err != nil {
 		return nil, in, err
 	}

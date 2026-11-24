@@ -409,7 +409,7 @@ func (h *handler) access(ctx context.Context, site *sites.Site, mode, code *stri
 		emails := []string{}
 		for _, e := range append(*list, add...) {
 			e = strings.ToLower(strings.TrimSpace(e))
-			if !slices.Contains(remove, e) && !slices.Contains(emails, e) {
+			if !slices.ContainsFunc(remove, func(x string) bool { return strings.EqualFold(strings.TrimSpace(x), e) }) && !slices.Contains(emails, e) {
 				emails = append(emails, e)
 			}
 		}

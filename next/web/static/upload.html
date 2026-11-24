@@ -19,7 +19,15 @@
 <main class="narrow">
   <h1>Add photos and files</h1>
   <p>Choose them from your phone or computer. Photos are made smaller on this device first, and camera and location details are removed.</p>
-  <section id="editor">
+  <section id="archive" hidden>
+    <div class="drop">
+      <label for="archive-file">Choose the site as one .zip or .tar.gz file</label>
+      <input id="archive-file" type="file" accept=".zip,.tar.gz,.tgz,application/zip,application/gzip">
+      <p class="muted">Every file in it goes live at once, as the site's next version.</p>
+    </div>
+    <p><button id="publish" class="primary" disabled>Publish</button></p>
+  </section>
+  <section id="editor" hidden>
     <div id="drop" class="drop">
       <label for="files">Choose photos or files</label>
       <input id="files" type="file" multiple>

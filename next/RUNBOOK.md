@@ -37,7 +37,7 @@ DATABASE_URL=postgres://… PASSCODE_ENC_KEY=… RESEND_API_KEY=… SH_COUNTRY_F
 curl -s -H 'Host: simple-host.app' http://127.0.0.1:8095/health     # {"ok":true}
 ```
 Tests: `go test ./...` (one throwaway Postgres in docker on 127.0.0.1:54329, or `SH_TEST_POSTGRES`).
-Self-hosted: `web/selfhost/compose.yaml` and `.env.example`; `docker compose up -d`, then open `https://DOMAIN/setup`.
+Self-hosted: `web/selfhost/compose.yaml` and `.env.example`; `docker compose up -d`, then open `https://DOMAIN/setup` and enter the setup code the service printed in its log (`docker compose logs`).
 
 ## What the web server must do
 

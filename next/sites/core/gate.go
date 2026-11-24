@@ -4,6 +4,8 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+
+	"simplehost/core/web"
 )
 
 var gatePage = template.Must(template.New("gate").Parse(`<!doctype html>
@@ -56,7 +58,7 @@ func Next(r *http.Request) string {
 	if r.Method == http.MethodPost {
 		next = r.PostFormValue("next")
 	}
-	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") || strings.HasPrefix(next, "/_sh/") {
+	if !web.LocalPath(next) || strings.HasPrefix(next, "/_sh/") {
 		return "/"
 	}
 	return next

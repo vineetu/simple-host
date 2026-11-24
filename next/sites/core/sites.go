@@ -44,6 +44,7 @@ type Sites struct {
 
 	mu    sync.Mutex
 	cache map[string]Place
+	gen   int // counts Forget calls: a lookup read before one is not kept
 }
 
 // New makes the sites core. passcodeKey is PASSCODE_ENC_KEY (32 bytes,
@@ -72,8 +73,9 @@ type Site struct {
 }
 
 // Place is what a host name answers for: a site, or the public page of a
-// person or team (Owner set, Site nil). Redirect is set on the www or bare
-// partner of an own domain: the connected host, which HTTPS visits go to.
+// person or team (Owner set, Site nil). Redirect is where page visits go
+// instead (over HTTPS): on the www or bare partner of an own domain, the
+// connected host; on a site's main address, its own domain or short name.
 type Place struct {
 	Site     *Site
 	Owner    *access.Person
@@ -116,21 +118,34 @@ func (s *Sites) ByID(ctx context.Context, id string) (*Site, error) {
 // Lookup turns a host name into a site or a public page. It knows four
 // shapes: <site>--<handle>.<SiteDomain>, <site>.<handle>.<AppDomain>, a
 // connected own domain or short name, and <label>.<shared domain>. Anything
-// else is not found. Answers are kept in memory until Forget.
+// else is not found. Which site or owner a host names is kept in memory
+// until Forget; what a visit decision reads (access, passcode, offline, taken
+// down, suspended) never is: the site or owner row is read fresh every time.
 func (s *Sites) Lookup(ctx context.Context, host string) (Place, error) {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	s.mu.Lock()
 	p, ok := s.cache[host]
+	gen := s.gen
 	s.mu.Unlock()
 	if ok {
-		return p, nil
+		var err error
+		if p.Site != nil {
+			p.Site, err = s.ByID(ctx, p.Site.ID)
+		} else if p.Owner != nil {
+			var o access.Person
+			o, err = s.People.Get(ctx, p.Owner.ID)
+			p.Owner = &o
+		}
+		return p, err
 	}
 	p, err := s.lookup(ctx, host)
 	if err != nil {
 		return p, err
 	}
 	s.mu.Lock()
-	s.cache[host] = p
+	if s.gen == gen {
+		s.cache[host] = p
+	}
 	s.mu.Unlock()
 	return p, nil
 }
@@ -141,6 +156,7 @@ func (s *Sites) Lookup(ctx context.Context, host string) (Place, error) {
 func (s *Sites) Forget() {
 	s.mu.Lock()
 	s.cache = map[string]Place{}
+	s.gen++
 	s.mu.Unlock()
 }
 
@@ -163,7 +179,15 @@ func (s *Sites) lookup(ctx context.Context, host string) (Place, error) {
 			return Place{}, err
 		}
 		x, err := s.Get(ctx, o.ID, name)
-		return Place{Site: x}, err
+		if err != nil {
+			return Place{}, err
+		}
+		// One address per site: its main address sends page visits to its
+		// own domain, else to its short name.
+		var to string
+		err = s.DB.QueryRowContext(ctx, `SELECT COALESCE((SELECT host FROM hostnames WHERE site_id = $1 AND kind = 'own' AND proven_at IS NOT NULL ORDER BY host LIMIT 1),
+			(SELECT name || '.' || $2 FROM names WHERE site_id = $1 AND kind = 'short' AND retired_at IS NULL ORDER BY name LIMIT 1), '')`, x.ID, s.AppDomain).Scan(&to)
+		return Place{Site: x, Redirect: to}, err
 	}
 	switch {
 	case rest == s.SiteDomain:

@@ -33,7 +33,11 @@ func (h *handler) makeKey(w http.ResponseWriter, r *http.Request) error { ... } 
 ```
 
 Before a route runs, the host's site or public page is found (unknown host: "not found"), the
-caller resolved, and the request counted against `limits.Requests`. Data routes that pages call
+caller resolved, and the request counted against `limits.Requests`.
+
+Forged requests (one rule, `web.FromOwnPage`, applied in `access.Caller`): a browser cookie
+(dashboard or site visitor) counts on anything but GET/HEAD only with `X-SH-CSRF` or a same-origin
+`Origin`, and never with an `Origin`/`Sec-Fetch-Site` naming another address; `/mcp` never reads a cookie. Data routes that pages call
 on their origin and the AI calls on the platform are mounted on both `Site` and `Platform`.
 
 ## Core functions, by package
@@ -71,8 +75,9 @@ if err := limits.Allow(r, limits.SignInCodes, email); err != nil { return err } 
 if err := limits.Fits(r, limits.SiteBytes, total); err != nil { return err }    // size, total after change
 limits.KeptVersions.N, limits.QueryTime.Per                                     // plain numbers
 ```
-Rows: Requests, SignInCodes, PasscodeTries, AccessAsks, SiteBytes, DataBytes, FilesBytes,
-KeptVersions, QueryTime. The operator is never limited. Add a row there; never a setting.
+Rows: Requests, SignInCodes, CodeMails, PasscodeTries, Reports, AccessAsks, SiteBytes, DataBytes,
+FilesBytes, QueryRows, QueryBytes, PushDevices, KeptVersions, QueryTime. `limits.Address(r)`: the IP
+as limits count it (an IPv6 address by its /64). A site's page and file views are not counted. The operator is never limited. Add a row there; never a setting.
 
 ### core/mail, core/guard
 ```go
@@ -128,12 +133,13 @@ res, err := ns.Exec(ctx, `INSERT INTO b (name, visitor_id) VALUES (?, ?)`, n, c.
 err = ns.Tx(ctx, func() error { ... })        // all or nothing
 plan, err := ns.Plan(ctx, "b")                // nil plan: no rules, owner only
 pred, err := plan.Using(rules.OpRead, data.Bindings(r, isOwner, checked)) // SQL predicate; data.RuleSchema(spam)
-q, err := a.Data.Begin(r, a.Sites, write)     // a data route's {ns}: visit decision, X-SH-CSRF, spam check
+q, err := a.Data.Begin(r, a.Sites, write)     // a data route's {ns}: visit decision, spam check
 cond, args, err := q.Rule(ctx, "b", rules.OpRead, false) // "1" for the owner; refuses those left out
 q.Visible(ctx, "b", op); q.Refused(ctx, "b", op); q.Author(v)
-data.IsOwner(r, a.Sites, site); data.Unforged(r); data.Limit(r)
+data.IsOwner(r, a.Sites, site); data.Limit(r)
 err = a.Data.PutFile(r, ns, "photos/a.jpg", "image/jpeg", c.ID, body) // the ONE way into a file store
-a.Data.FilePath(siteID, ns, name); data.ValidFileName(name); a.Data.Sizes(site.ID); a.Data.Namespaces(ctx, site.ID)
+a.Data.FilePath(siteID, ns, name) // the name checked where used: inside the namespace or refused
+data.ValidFileName(name); a.Data.Sizes(site.ID); a.Data.Namespaces(ctx, site.ID)
 err = a.Data.Turnstile(r, token)              // the platform's one key pair; ns.SpamCheck: switched on
 a.Data.Changed(ctx, site, ns, table, "add")   // data change: an event only if watched. ops/notify delivers
 ```

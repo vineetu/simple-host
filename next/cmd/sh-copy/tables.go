@@ -78,7 +78,7 @@ var tables = []table{
 		JOIN oauth_grants g ON g.id = t.grant_id JOIN kept k ON k.user_id = g.user_id AND k.client_id = g.client_id
 		WHERE t.expires_at > now() AND t.used_at IS NULL`, nil},
 	{"visitor_sessions", 1, cols("id person_id site_id host created_at last_seen_at expires_at"), `
-		SELECT id, user_id, site_id, host, created_at, last_seen_at, LEAST(expires_at, idle_expires_at) FROM visitor_sessions
+		SELECT sha256(id), user_id, site_id, host, created_at, last_seen_at, LEAST(expires_at, idle_expires_at) FROM visitor_sessions
 		WHERE site_id IN {copied} AND expires_at > now() AND idle_expires_at > now()`, nil},
 	{"visitor_signins", 2, cols("site_id person_id first_at confirmed"), `
 		SELECT site_id, user_id, min(at), bool_or(confirmed) FROM (

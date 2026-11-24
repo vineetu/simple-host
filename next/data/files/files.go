@@ -79,6 +79,10 @@ func (h *handler) get(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	name := r.PathValue("path")
+	file, err := h.a.Data.FilePath(q.Site.ID, q.Name, name)
+	if err != nil {
+		return web.NotFound
+	}
 	res, err := q.Query(r.Context(), `SELECT type FROM _files WHERE name = ? AND `+cond, append([]any{name}, args...)...)
 	if err != nil {
 		return err
@@ -86,7 +90,7 @@ func (h *handler) get(w http.ResponseWriter, r *http.Request) error {
 	if len(res.Rows) == 0 {
 		return web.NotFound
 	}
-	f, err := os.Open(h.a.Data.FilePath(q.Site.ID, q.Name, name))
+	f, err := os.Open(file)
 	if err != nil {
 		return web.NotFound
 	}
@@ -182,6 +186,10 @@ func (h *handler) remove(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	name := r.PathValue("path")
+	file, err := h.a.Data.FilePath(q.Site.ID, q.Name, name)
+	if err != nil {
+		return web.NotFound
+	}
 	res, err := q.Exec(r.Context(), `DELETE FROM _files WHERE name = ? AND `+cond, append([]any{name}, args...)...)
 	if err != nil {
 		return err
@@ -189,7 +197,7 @@ func (h *handler) remove(w http.ResponseWriter, r *http.Request) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return web.NotFound
 	}
-	os.Remove(h.a.Data.FilePath(q.Site.ID, q.Name, name))
+	os.Remove(file)
 	if err := h.a.Data.Changed(r.Context(), q.Site, q.Name, table, "delete"); err != nil {
 		return err
 	}

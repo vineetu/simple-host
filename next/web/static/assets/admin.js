@@ -11,13 +11,15 @@
 (function () {
   'use strict';
   var box = document.getElementById('overview'), growth = document.getElementById('growth'), started = false;
+  // A stored address becomes a link only when it is http(s).
+  function href(u) { return /^https?:\/\//i.test(String(u)) ? esc(u) : '#'; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function num(n) { return Number(n || 0).toLocaleString('en-US'); }
   function bytes(n) { n = Number(n) || 0; return n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.round(n / 1e3) + ' KB'; }
   function day(s) { return s ? new Date(s).toLocaleDateString() : ''; }
   function siteLink(owner, name) { return '/dashboard#site/' + encodeURIComponent(owner) + '/' + encodeURIComponent(name); }
   function api(method, path, body) {
-    return fetch(path, { method: method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
+    return fetch(path, { method: method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json', 'X-SH-CSRF': '1' } : { 'X-SH-CSRF': '1' }, body: body ? JSON.stringify(body) : undefined })
       .then(function (r) {
         if (r.status === 401) { location.replace('/signin?next=/admin'); return new Promise(function () {}); }
         return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.fix || 'That did not work.'); return b; });
@@ -41,7 +43,7 @@
       '<section><h2>Open a site</h2><p class="muted">See any site\'s versions and data, or take it down, on its ordinary page.</p>' +
         '<form class="row" id="open"><input id="o-owner" placeholder="handle" aria-label="Owner handle"><input id="o-name" placeholder="site name" aria-label="Site name"><button class="primary">Open</button></form></section>' +
       '<section><h2>Reports</h2><ul class="list">' + ((o.reports || []).map(function (r) {
-        return '<li><div class="grow"><div><a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.url) + '</a></div><div class="muted">' + esc(r.reason) + ' · ' + day(r.created_at) + '</div></div>' +
+        return '<li><div class="grow"><div><a href="' + href(r.url) + '" target="_blank" rel="noopener">' + esc(r.url) + '</a></div><div class="muted">' + esc(r.reason) + ' · ' + day(r.created_at) + '</div></div>' +
           (r.owner && r.site ? '<a class="btn" href="' + siteLink(r.owner, r.site) + '">Open site</a>' : '') + '</li>';
       }).join('') || '<li><span class="muted">No reports.</span></li>') + '</ul></section>' +
       (o.self_hosted ? '<section><h2>Make an account</h2><form class="row" id="make"><input id="m-email" type="email" placeholder="name@example.com" aria-label="Email"><button>Make account</button></form><p class="status" id="m-status" role="status"></p></section>' : '') +
@@ -51,7 +53,7 @@
           '<td><button data-id="' + esc(x.id) + '" data-on="' + (x.suspended ? '1' : '') + '" class="' + (x.suspended ? '' : 'danger') + '">' + (x.suspended ? 'Restore' : 'Suspend') + '</button></td></tr>';
       }).join('') + '</tbody></table></div><p class="status" id="p-status" role="status"></p></section>' +
       '<section><h2>Largest sites</h2><ul class="list">' + (o.largest_sites || []).map(function (x) {
-        return '<li><div class="grow"><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.name) + '</a> <span class="muted">' + esc(x.owner) + ' · ' + bytes(x.bytes) + '</span></div><a class="btn" href="' + siteLink(x.owner, x.name) + '">Open</a></li>';
+        return '<li><div class="grow"><a href="' + href(x.url) + '" target="_blank" rel="noopener">' + esc(x.name) + '</a> <span class="muted">' + esc(x.owner) + ' · ' + bytes(x.bytes) + '</span></div><a class="btn" href="' + siteLink(x.owner, x.name) + '">Open</a></li>';
       }).join('') + '</ul></section>';
     document.getElementById('open').onsubmit = function (e) {
       e.preventDefault();

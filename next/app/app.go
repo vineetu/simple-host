@@ -148,13 +148,19 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 // and hands it to that host's routes.
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	mux, siteID := a.Routes.Platform, ""
-	if web.Host(r) != a.Config.AppDomain {
+	if web.Host(r) == a.Config.AppDomain {
+		// The platform's own answers: never sniffed, never framed (the spam
+		// check frame says otherwise for itself), no full address sent on.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	} else {
 		p, err := a.Sites.Lookup(r.Context(), web.Host(r))
 		if err != nil {
 			web.Fail(w, r, err)
 			return
 		}
-		if p.Redirect != "" && web.HTTPS(r) {
+		if p.Redirect != "" && web.HTTPS(r) && pageView(r) {
 			http.Redirect(w, r, "https://"+p.Redirect+r.URL.RequestURI(), http.StatusMovedPermanently)
 			return
 		}
@@ -170,11 +176,20 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r = web.WithCaller(r, c)
-	if err := limits.Allow(r, limits.Requests, ""); err != nil {
-		web.Fail(w, r, err)
-		return
+	if mux == a.Routes.Platform || !pageView(r) { // a site's pages and files are not counted
+		if err := limits.Allow(r, limits.Requests, ""); err != nil {
+			web.Fail(w, r, err)
+			return
+		}
 	}
 	mux.ServeHTTP(w, r)
+}
+
+// pageView is a visit to a page or file of a site or public page: a read
+// outside the service's own paths (/v1/ data and /_sh/ sign-in and gates).
+func pageView(r *http.Request) bool {
+	return (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
+		!strings.HasPrefix(r.URL.Path, "/v1/") && !strings.HasPrefix(r.URL.Path, "/_sh/")
 }
 
 // Close releases the database.
