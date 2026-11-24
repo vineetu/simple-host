@@ -87,7 +87,7 @@ a.People.Get(ctx, id); a.People.ByHandle(ctx, h); a.People.Ensure(ctx, email)
 a.People.ActsFor(ctx, c, ownerID) // the owner, a member of the owning team, or the operator
 a.People.StartSession(w, r, id); a.People.StartSiteSession(w, r, id, siteID)
 a.People.SiteConfirmed(ctx, siteID, id); a.People.EndSignIns(ctx, id) // every browser, site session, app grant (keys stay)
-a.People.NewKey(ctx, id, name)
+a.People.NewKey(ctx, id, name); a.People.Rename(ctx, id, displayName)
 access.ValidName(n); access.ClaimName(ctx, q, n, kind, personID, siteID); access.RetireName(ctx, q, n)
                                   // ClaimName refuses the short reserved list (www, api, mcp, ...)
 access.NewTeam(ctx, tx, name); access.Remove(ctx, q, id) // a team row; delete a person or team, handle retired
@@ -114,6 +114,8 @@ a.Sites.SetUnlocked(w, r, site); a.Sites.Unlocked(r, site); a.Sites.SealPasscode
 dir, err := a.Sites.Stage(site)   // write the files into dir, then:
 n, err := a.Sites.Commit(ctx, site, dir, c.ID) // live on every address at once; old ones pruned
 a.Sites.VersionDir(site.ID, site.LiveVersion); sites.ParseRedirects(text)
+a.Sites.Versions(ctx, site.ID)    // kept versions, newest first, with their author
+a.Sites.Rehome(ctx, tx, ownerID)  // after a handle change: the flat address shape
 ```
 
 ### data/core (namespaces in SQLite, rules, the spam check)
@@ -131,12 +133,24 @@ cond, args, err := q.Rule(ctx, "b", rules.OpRead, false) // "1" for the owner; r
 q.Visible(ctx, "b", op); q.Refused(ctx, "b", op); q.Author(v)
 data.IsOwner(r, a.Sites, site); data.Unforged(r); data.Limit(r)
 err = a.Data.PutFile(r, ns, "photos/a.jpg", "image/jpeg", c.ID, body) // the ONE way into a file store
-a.Data.FilePath(siteID, ns, name); data.ValidFileName(name); a.Data.Sizes(site.ID)
+a.Data.FilePath(siteID, ns, name); data.ValidFileName(name); a.Data.Sizes(site.ID); a.Data.Namespaces(ctx, site.ID)
 err = a.Data.Turnstile(r, token)              // the platform's one key pair; ns.SpamCheck: switched on
 a.Data.Changed(ctx, site, ns, table, "add")   // data change: an event only if watched. ops/notify delivers
 ```
 A row's author is the person's id (`auth.id` in rules), in the column `visitor_id` (also in
 `_values` and `_files`). `"simplehost/data/core/rules"` is the rules engine (copied).
+
+## Phase 3: ops, api, mcp
+
+- `ops/notify`: routes 14-15 and the AI app's event stream `GET /mcp`; `notify.Set/Rules` (what the
+  owner is told about), `Devices`, `PublicKey`, `Feed`, `Deliver` (browser push, RFC 8291 + VAPID).
+- `ops/export` (9-10, `export.Next`), `ops/erase` (8), `ops/holds` (64, 66, `holds.TakeDown`),
+  `ops/admin` (65, self-hosted `POST /v1/admin/people`, `admin.Counted` wraps the service for API and
+  network counts), `ops/idle` (`idle.Sweep`).
+- `api`: routes 6, 7, 23, 24; each field calls the owning package.
+- `mcp`: `POST /mcp`, the 26-row tool table in `mcp/tools.go` (each row names the route it replays
+  as the caller), the in-chat screens in `mcp/screens/`, AgentCat.
+- `journeys/`: tests 38-41 with every feature mounted.
 
 ## Tests
 
