@@ -15,13 +15,12 @@ import (
 
 // Hop carries a visitor's sign-in from a site to the platform and back,
 // sealed so neither leg needs a table. Going out, Person is "". Coming back
-// (the ticket), Person is who signed in and Fresh says they proved their
-// email just now rather than riding an existing platform session.
+// (the ticket), Person is who signed in, having proved the email or
+// confirmed this site on the platform.
 type Hop struct {
 	Site, Host, Return string
 	Nonce              string // hash of the nonce cookie on the site host
 	Person             string
-	Fresh              bool
 	Exp                int64
 }
 
@@ -59,6 +58,13 @@ func OpenHop(s string) (Hop, error) {
 		return Hop{}, errBadHop
 	}
 	return h, nil
+}
+
+// SiteConfirmed reports whether the person once confirmed signing in on the
+// site, so riding their platform sign-in needs no question.
+func (p *People) SiteConfirmed(ctx context.Context, siteID, personID string) (ok bool, err error) {
+	err = p.DB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM visitor_signins WHERE site_id = $1 AND person_id = $2 AND confirmed)`, siteID, personID).Scan(&ok)
+	return ok, err
 }
 
 // EndSignIns signs a person out everywhere: every browser, every site and

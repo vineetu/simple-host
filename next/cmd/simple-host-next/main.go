@@ -12,6 +12,11 @@ import (
 	"syscall"
 	"time"
 
+	"simplehost/access/connector"
+	"simplehost/access/keys"
+	"simplehost/access/signin"
+	"simplehost/access/teams"
+	"simplehost/access/visitors"
 	"simplehost/app"
 )
 
@@ -42,6 +47,11 @@ func main() {
 // mount adds every feature's routes: one line per feature, Mount(a).
 // The journey tests mount the same list through the test kit.
 func mount(a *app.App) {
+	signin.Mount(a)
+	keys.Mount(a)
+	teams.Mount(a)
+	connector.Mount(a)
+	visitors.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).
