@@ -37,14 +37,14 @@ func TestOneAddressPerSite(t *testing.T) {
 		t.Fatalf("no other address yet: %d %v", r.Status, r.Header.Get("Location"))
 	}
 	k.Exec(t, `INSERT INTO names (name, kind, site_id) VALUES ('ninablog', 'short', $1)`, s.ID)
-	if r := testkit.Call(t, b, "GET", main+"/about?x=1", nil); r.Status != 301 || r.Header.Get("Location") != "https://ninablog.simple-host.app/about?x=1" {
+	if r := testkit.Call(t, b, "GET", main+"/about?x=1", nil); r.Status != 302 || r.Header.Get("Location") != "https://ninablog.simple-host.app/about?x=1" {
 		t.Fatalf("short name: %d %q", r.Status, r.Header.Get("Location"))
 	}
 	k.Exec(t, `INSERT INTO hostnames (host, kind, site_id, owner_id, proven_at) VALUES ('blog.example.com', 'own', $1, $2, now())`, s.ID, nina.ID)
-	if r := testkit.Call(t, b, "GET", main+"/", nil); r.Status != 301 || r.Header.Get("Location") != "https://blog.example.com/" {
+	if r := testkit.Call(t, b, "GET", main+"/", nil); r.Status != 302 || r.Header.Get("Location") != "https://blog.example.com/" {
 		t.Fatalf("own domain first: %d %q", r.Status, r.Header.Get("Location"))
 	}
-	if r := testkit.Call(t, b, "GET", main+"/v1/sites/blog/storage/kv/x/keys", nil); r.Status == 301 {
+	if r := testkit.Call(t, b, "GET", main+"/v1/sites/blog/storage/kv/x/keys", nil); r.Status == 302 {
 		t.Fatal("a data call on the main address was redirected")
 	}
 	if r := testkit.Call(t, b, "GET", "https://blog.example.com/", nil); r.Status != 200 || r.Body != "one" {

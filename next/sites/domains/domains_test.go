@@ -76,7 +76,7 @@ func TestOwnDomain(t *testing.T) {
 		t.Fatal(err)
 	}
 	certFor(t, k, "www.bakery-shop.com")
-	if r := testkit.Call(t, b, "GET", "https://www.bakery-shop.com/menu?day=1", nil); r.Status != 301 || r.Header.Get("Location") != "https://bakery-shop.com/menu?day=1" {
+	if r := testkit.Call(t, b, "GET", "https://www.bakery-shop.com/menu?day=1", nil); r.Status != 302 || r.Header.Get("Location") != "https://bakery-shop.com/menu?day=1" {
 		t.Fatalf("www: %d %s", r.Status, r.Header.Get("Location"))
 	}
 

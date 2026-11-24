@@ -161,7 +161,9 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if p.Redirect != "" && web.HTTPS(r) && pageView(r) {
-			http.Redirect(w, r, "https://"+p.Redirect+r.URL.RequestURI(), http.StatusMovedPermanently)
+			// 302, as the live service: a browser keeps no 301, so the site's own
+			// address works again at once when its domain or short name goes.
+			http.Redirect(w, r, "https://"+p.Redirect+r.URL.RequestURI(), http.StatusFound)
 			return
 		}
 		r = sites.WithPlace(r, p)
