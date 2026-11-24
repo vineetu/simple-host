@@ -11,7 +11,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -55,6 +54,29 @@ type NS struct {
 	// SpamCheck: the owner switched on the spam check for this namespace.
 	SpamCheck bool
 	db        *sql.DB
+	conn      *sql.Conn     // the one connection: this namespace's sandbox
+	raw       *sqlite3.Conn // the same, under database/sql
+	spent     bool          // the sandbox ran out of memory
+	done      func()        // gives the sandbox back
+}
+
+// sandboxes are the database sandboxes that may be open at once: the memory
+// given to databases over one sandbox's fixed ceiling.
+var sandboxes = make(chan struct{}, max(limits.DatabaseMemory.N/limits.SandboxMemory.N, 1))
+
+// sandbox waits briefly for a free sandbox; all busy: "busy, try again".
+func sandbox(ctx context.Context) (func(), error) {
+	wait := time.NewTimer(2 * time.Second)
+	defer wait.Stop()
+	select {
+	case sandboxes <- struct{}{}:
+		return func() { <-sandboxes }, nil
+	case <-wait.C:
+	case <-ctx.Done():
+	}
+	ref := web.Refuse(http.StatusServiceUnavailable, "limit_"+limits.DatabaseMemory.Name, limits.DatabaseMemory.Fix)
+	ref.RetryAfter = 5
+	return nil, ref
 }
 
 var nsName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
@@ -87,7 +109,7 @@ func (d *Data) Create(ctx context.Context, site *sites.Site, name string) error 
 		return err
 	}
 	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, BuiltIn); err != nil {
+	if _, err := conn.ExecContext(sqlite3.WithMaxMemory(ctx, limits.SandboxMemory.N), BuiltIn); err != nil {
 		return err
 	}
 	_, err = d.DB.ExecContext(ctx, `INSERT INTO namespaces (site_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`, site.ID, name)
@@ -168,9 +190,6 @@ func (d *Data) Open(r *http.Request, site *sites.Site, name string) (*NS, error)
 		if err := c.Exec("PRAGMA busy_timeout = 2000; PRAGMA page_size = 4096; PRAGMA max_page_count = " + strconv.FormatInt(max(maxPages, 1), 10)); err != nil {
 			return err
 		}
-		// One value and one row stay small inside SQLite itself.
-		c.Limit(sqlite3.LIMIT_LENGTH, int(limits.ValueBytes.N))
-		c.Limit(sqlite3.LIMIT_COLUMN, int(limits.Columns.N))
 
 		return c.SetAuthorizer(func(action sqlite3.AuthorizerActionCode, a, _, _, _ string) sqlite3.AuthorizerReturnCode {
 			if action == sqlite3.AUTH_ATTACH || action == sqlite3.AUTH_DETACH || action == sqlite3.AUTH_PRAGMA && !safePragmas[strings.ToLower(a)] {
@@ -183,46 +202,82 @@ func (d *Data) Open(r *http.Request, site *sites.Site, name string) (*NS, error)
 		return nil, err
 	}
 	ns.db.SetMaxOpenConns(1)
+	// The namespace runs in its own sandbox: one SQLite instance whose
+	// memory can never pass limits.SandboxMemory; a query that needs more
+	// fails there and hurts nothing else.
+	if ns.done, err = sandbox(r.Context()); err != nil {
+		ns.db.Close()
+		return nil, err
+	}
+	if ns.conn, err = ns.db.Conn(sqlite3.WithMaxMemory(context.WithoutCancel(r.Context()), limits.SandboxMemory.N)); err != nil {
+		ns.done()
+		ns.db.Close()
+		return nil, err
+	}
+	ns.conn.Raw(func(c any) error {
+		ns.raw = c.(interface{ Raw() *sqlite3.Conn }).Raw()
+		return nil
+	})
 	return ns, nil
 }
 
-// Close releases the namespace's file.
-func (n *NS) Close() error { return n.db.Close() }
+// Close releases the namespace's file and its sandbox. A sandbox that ran
+// out of memory is closed under database/sql, which the driver's panic left
+// holding its lock.
+func (n *NS) Close() (err error) {
+	defer n.done()
+	defer func() { recover() }() // a spent sandbox may say so again on close
+	if n.spent {
+		n.raw.Close()
+	} else {
+		n.conn.Close()
+	}
+	return n.db.Close()
+}
 
 // Exec runs one writing statement under the two guards.
 func (n *NS) Exec(ctx context.Context, query string, args ...any) (res sql.Result, err error) {
-	defer outOfMemory(&err)
+	if n.spent {
+		return nil, errSandboxFull
+	}
+	defer n.outOfMemory(&err)
 	ctx, cancel := context.WithTimeout(ctx, limits.QueryTime.Per)
 	defer cancel()
-	res, err = n.db.ExecContext(ctx, query, args...)
+	res, err = n.conn.ExecContext(ctx, query, args...)
 	return res, guard(err)
 }
 
-// outOfMemory turns the SQLite driver running out of memory (it panics)
+// outOfMemory turns a sandbox running out of memory (the driver panics)
 // into a refusal; the namespace is closed after the request anyway.
-func outOfMemory(err *error) {
+func (n *NS) outOfMemory(err *error) {
 	if p := recover(); p != nil {
-		log.Printf("saved data query ran out of memory: %v", p)
-		*err = web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.QueryBytes.Name, limits.QueryBytes.Fix)
+		if e, ok := p.(error); !ok || !strings.Contains(e.Error(), "out of memory") {
+			panic(p) // not the sandbox's ceiling: a real bug
+		}
+		n.spent = true
+		*err = errSandboxFull
 	}
 }
 
-// Rows is a query's answer: column names and values in order. Cut: there
-// were more rows than limits.QueryRows or limits.QueryBytes let through.
+var errSandboxFull = web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.SandboxMemory.Name, limits.SandboxMemory.Fix)
+
+// Rows is a query's answer: column names and values in order.
 type Rows struct {
 	Columns []string `json:"columns"`
 	Rows    [][]any  `json:"rows"`
-	Cut     string   `json:"cut,omitempty"`
 }
 
 // Query runs one reading statement under the two guards and returns its
-// rows, at most limits.QueryRows of them and limits.QueryBytes in all,
-// counted value by value: a row that would pass the cap is not kept.
+// rows. The answer is held for the sandbox, so it counts against the same
+// ceiling: past limits.SandboxMemory it fails as the sandbox would.
 func (n *NS) Query(ctx context.Context, query string, args ...any) (out Rows, err error) {
-	defer outOfMemory(&err)
+	if n.spent {
+		return out, errSandboxFull
+	}
+	defer n.outOfMemory(&err)
 	ctx, cancel := context.WithTimeout(ctx, limits.QueryTime.Per)
 	defer cancel()
-	rows, err := n.db.QueryContext(ctx, query, args...)
+	rows, err := n.conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return out, guard(err)
 	}
@@ -232,10 +287,6 @@ func (n *NS) Query(ctx context.Context, query string, args ...any) (out Rows, er
 	}
 	size := int64(0)
 	for rows.Next() {
-		if int64(len(out.Rows)) >= limits.QueryRows.N {
-			out.Cut = limits.QueryRows.Fix
-			break
-		}
 		vals := make([]any, len(out.Columns))
 		ptrs := make([]any, len(vals))
 		for i := range vals {
@@ -251,9 +302,8 @@ func (n *NS) Query(ctx context.Context, query string, args ...any) (out Rows, er
 			} else if s, ok := v.(string); ok {
 				size += int64(len(s))
 			}
-			if size > limits.QueryBytes.N {
-				out.Cut = limits.QueryBytes.Fix
-				return out, nil
+			if size > limits.SandboxMemory.N {
+				return Rows{}, errSandboxFull
 			}
 			if b, ok := v.([]byte); ok {
 				vals[i] = string(b)
@@ -274,7 +324,7 @@ func guard(err error) error {
 	case errors.Is(err, sqlite3.FULL):
 		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.DataBytes.Name, limits.DataBytes.Fix)
 	case errors.Is(err, sqlite3.TOOBIG):
-		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.ValueBytes.Name, limits.ValueBytes.Fix)
+		return errSandboxFull
 	case errors.Is(err, sqlite3.ERROR) || errors.Is(err, sqlite3.CONSTRAINT) || errors.Is(err, sqlite3.AUTH) || errors.Is(err, sqlite3.MISMATCH) || errors.Is(err, sqlite3.RANGE):
 		return web.Refuse(http.StatusBadRequest, "sql_error", err.Error())
 	}

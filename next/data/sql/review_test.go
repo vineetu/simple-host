@@ -1,7 +1,8 @@
 package sql_test
 
 import (
-	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -10,56 +11,56 @@ import (
 	datasql "simplehost/data/sql"
 )
 
-// Review A7: an owner's query answer is cut at the row and byte caps, and
-// says so; one value over the byte cap is refused.
-func TestQueryAnswerIsCapped(t *testing.T) {
+// peak is the process's memory high-water mark in MB.
+func peak() int {
+	b, _ := os.ReadFile("/proc/self/status")
+	for _, l := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(l, "VmHWM:"); ok {
+			var kb int
+			fmt.Sscanf(strings.TrimSpace(v), "%d", &kb)
+			return kb >> 10
+		}
+	}
+	return 0
+}
+
+// Each site's database runs in its own sandbox with a fixed memory ceiling:
+// a memory-hungry query fails inside its sandbox while another site's query
+// answers at the same time, and 40 at once leave the process's memory bounded.
+func TestQueryFailsInsideItsSandbox(t *testing.T) {
 	k := testkit.Start(t, datasql.Mount)
-	bob := k.Person(t, "bob")
+	ann, bob := k.Person(t, "ann"), k.Person(t, "bob")
+	k.Publish(t, ann, "shop", map[string]string{"index.html": "shop"})
 	k.Publish(t, bob, "shop", map[string]string{"index.html": "shop"})
-	run := func(mode, sql string) testkit.Res {
-		return testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/shop/storage/sqlite/big/"+mode,
-			map[string]any{"sql": sql}, "Authorization", "Bearer "+bob.Key)
+	run := func(who testkit.Who, sql string) testkit.Res {
+		return testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/shop/storage/sqlite/big/execute",
+			map[string]any{"sql": sql}, "Authorization", "Bearer "+who.Key)
 	}
-	run("execute", "CREATE TABLE t (x)")
-	r := run("query", "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT x FROM c")
-	var out struct {
-		Rows [][]any
-		Cut  string
-	}
-	if json.Unmarshal([]byte(r.Body), &out); r.Status != 200 || len(out.Rows) != 10_000 || out.Cut == "" {
-		t.Fatalf("endless rows: %d, %d rows, cut %q", r.Status, len(out.Rows), out.Cut)
-	}
-	if r := run("query", "SELECT randomblob(9000000)"); r.Status != 413 {
-		t.Fatalf("one huge value: %d %.200s", r.Status, r.Body)
-	}
-	// Round 2: one wide row cannot pass the byte cap, and too wide a row is
-	// refused, not a crash. Several at once: the rest are told to wait.
-	cols := func(n int, e string) string { return "SELECT " + strings.TrimSuffix(strings.Repeat(e+",", n), ",") }
-	if r := run("query", cols(20, "hex(randomblob(400000))")); r.Status != 200 || len(r.Body) > 9<<20 || !strings.Contains(r.Body, `"cut"`) {
-		t.Fatalf("one wide row: %d, %d bytes", r.Status, len(r.Body))
-	}
-	if r := run("query", cols(40, "zeroblob(8000000)")); r.Status != 413 {
-		t.Fatalf("40 huge values: %d %.200s", r.Status, r.Body)
-	}
-	if r := run("query", cols(101, "1")); r.Status != 400 {
-		t.Fatalf("101 columns: %d %.200s", r.Status, r.Body)
-	}
+	run(ann, "SELECT 1")
+	run(bob, "SELECT 1")
+	hungry := "SELECT length(group_concat(hex(zeroblob(10000)))) FROM (WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c LIMIT 10000) SELECT x FROM c)"
+	before := peak()
 	var wg sync.WaitGroup
-	status := make([]int, 8)
+	status := make([]int, 40)
 	for i := range status {
 		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			r := run("query", cols(20, "hex(randomblob(400000))"))
-			if status[i] = r.Status; len(r.Body) > 9<<20 {
-				status[i] = -1
-			}
-		}(i)
+		go func(i int) { defer wg.Done(); status[i] = run(ann, hungry).Status }(i)
 	}
+	other := run(bob, "SELECT 41 + 1")
 	wg.Wait()
 	for _, s := range status {
-		if s != 200 && s != 503 {
-			t.Fatalf("8 at once: %v", status)
+		if s != 413 && s != 503 {
+			t.Fatalf("40 hungry queries: %v", status)
 		}
+	}
+	if other.Status != 200 {
+		t.Fatalf("another site's query meanwhile: %d %s", other.Status, other.Body)
+	}
+	t.Logf("40 hungry queries: %v; process peak %d -> %d MB", status, before, peak())
+	if grew := peak() - before; grew > 1200 {
+		t.Fatalf("40 hungry queries grew the process by %d MB", grew)
+	}
+	if r := run(ann, "SELECT 2"); r.Status != 200 {
+		t.Fatalf("after: %d %s", r.Status, r.Body)
 	}
 }

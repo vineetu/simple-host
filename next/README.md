@@ -76,7 +76,7 @@ if err := limits.Fits(r, limits.SiteBytes, total); err != nil { return err }    
 limits.KeptVersions.N, limits.QueryTime.Per                                     // plain numbers
 ```
 Rows: Requests, SignInCodes, CodeMails, PasscodeTries, Reports, AccessAsks, SiteBytes, DataBytes,
-FilesBytes, QueryRows, QueryBytes, PushDevices, KeptVersions, QueryTime. `limits.Address(r)`: the IP
+FilesBytes, SandboxMemory, DatabaseMemory, Publishes, PushDevices, KeptVersions, QueryTime. `limits.Address(r)`: the IP
 as limits count it (an IPv6 address by its /64). A site's page and file views are not counted. The operator is never limited. Add a row there; never a setting.
 
 ### core/mail, core/guard
@@ -126,7 +126,7 @@ a.Sites.Rehome(ctx, tx, ownerID)  // after a handle change: the flat address sha
 ### data/core (namespaces in SQLite, rules, the spam check)
 ```go
 a.Data.Create(ctx, site, "bookings")          // namespace + its file (_values, _files tables)
-ns, err := a.Data.Open(r, site, "bookings")   // sandboxed, size cap and query time guards
+ns, err := a.Data.Open(r, site, "bookings")   // its own sandbox (fixed memory), size cap, query time
 defer ns.Close()
 rows, err := ns.Query(ctx, `SELECT * FROM b WHERE id = ?`, id) // rows.Columns, rows.Rows
 res, err := ns.Exec(ctx, `INSERT INTO b (name, visitor_id) VALUES (?, ?)`, n, c.ID)

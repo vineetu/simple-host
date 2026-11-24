@@ -146,15 +146,17 @@ func sqlValue(v rules.Value) any {
 // Tx runs fn's statements on this namespace as one transaction: all of them
 // or none. (The namespace has one connection, so they all run inside it.)
 func (n *NS) Tx(ctx context.Context, fn func() error) error {
-	if _, err := n.db.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return guard(err)
-	}
-	if err := fn(); err != nil {
-		n.db.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+	if _, err := n.Exec(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return err
 	}
-	_, err := n.db.ExecContext(ctx, "COMMIT")
-	return guard(err)
+	if err := fn(); err != nil {
+		if !n.spent { // a spent sandbox is thrown away whole, its transaction with it
+			n.Exec(context.WithoutCancel(ctx), "ROLLBACK")
+		}
+		return err
+	}
+	_, err := n.Exec(ctx, "COMMIT")
+	return err
 }
 
 // Author is what this caller sees of a row's visitor_id: the owner sees
