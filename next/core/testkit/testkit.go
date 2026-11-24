@@ -268,3 +268,19 @@ func replaceDB(dsn, name string) string {
 	u.Path = "/" + name
 	return u.String()
 }
+
+// SignIn signs who in on the site at siteURL in browser b, as visitor
+// sign-in does when it ends (for tests of features that need a visitor).
+func (k *Kit) SignIn(t *testing.T, b *http.Client, who Who, siteURL string) {
+	t.Helper()
+	u, _ := url.Parse(siteURL)
+	p, err := k.App.Sites.Lookup(context.Background(), u.Hostname())
+	if err != nil || p.Site == nil {
+		t.Fatalf("no site at %s: %v", siteURL, err)
+	}
+	id := make([]byte, 32)
+	rand.Read(id)
+	k.Exec(t, `INSERT INTO visitor_sessions (id, person_id, site_id, host, expires_at) VALUES ($1, $2, $3, $4, now() + interval '1 day')`,
+		id, who.ID, p.Site.ID, u.Hostname())
+	b.Jar.SetCookies(u, []*http.Cookie{{Name: "__Host-sh_vsess", Value: hex.EncodeToString(id), Path: "/", Secure: true}})
+}

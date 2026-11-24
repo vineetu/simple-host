@@ -88,7 +88,15 @@ plan, err := ns.Plan(ctx, "b")                // nil plan: no rules, owner only
 pred, err := plan.Using(rules.OpRead, data.Bindings(r, isOwner, checked)) // SQL predicate
 err = a.Data.Turnstile(r, ns.TurnstileSecret, token)
 ```
-A row's author is the person's id (`auth.id` in rules). Space used: `a.Data.Sizes(site.ID)`.
+A row's author is the person's id (`auth.id` in rules), in the column `visitor_id` (also in
+`_values` and `_files`). Space used: `a.Data.Sizes(site.ID)`.
+
+```go
+q, err := a.Data.Begin(r, a.Sites, write)     // a data route's {ns}: visit decision, X-SH-CSRF, spam check
+cond, args, err := q.Rule(ctx, "b", rules.OpRead, false) // "1" for the owner; refuses those left out
+err = ns.Tx(ctx, func() error { ... })        // all or nothing
+err = a.Data.PutFile(r, ns, "photos/a.jpg", "image/jpeg", c.ID, body) // the ONE way into a file store
+```
 
 ## Refusals
 Return `web.Refuse(status, "code", "One plain sentence saying how to fix it.")` from a

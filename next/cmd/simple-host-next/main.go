@@ -13,6 +13,12 @@ import (
 	"time"
 
 	"simplehost/app"
+	"simplehost/data/files"
+	"simplehost/data/recipes"
+	"simplehost/data/rows"
+	datarules "simplehost/data/rules"
+	datasql "simplehost/data/sql"
+	"simplehost/data/values"
 )
 
 func main() {
@@ -42,6 +48,12 @@ func main() {
 // mount adds every feature's routes: one line per feature, Mount(a).
 // The journey tests mount the same list through the test kit.
 func mount(a *app.App) {
+	rows.Mount(a)
+	values.Mount(a)
+	files.Mount(a)
+	datasql.Mount(a)
+	datarules.Mount(a)
+	recipes.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).
