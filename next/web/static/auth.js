@@ -213,7 +213,7 @@
     b.type = "button";
     b.textContent = label;
     b.style.cssText = FONT + "cursor:pointer;min-height:40px;padding:6px 14px;border-radius:var(--sh-radius,8px);" +
-      (primary ? "color:#fff;background:var(--sh-accent,#2557d6);border:1px solid var(--sh-accent,#2557d6)" : "color:inherit;background:transparent;border:1px solid #c6cad3");
+      (primary ? "color:#fff;background:var(--sh-accent,#116b77);border:1px solid var(--sh-accent,#116b77)" : "color:inherit;background:transparent;border:1px solid #c6cad3");
     return b;
   }
   var chip = null, CHIP_KEY = "sh:chip:" + location.host;

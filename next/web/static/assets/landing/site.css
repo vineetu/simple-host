@@ -1,0 +1,429 @@
+/* Copied from the old service for the landing and Get started pages (light only).
+ * Simple Host — the one shared stylesheet.
+ *
+ * Holds the design tokens, the base typography and the site chrome (header and
+ * footer). Every page links it through the <!--sh:head--> marker, which the
+ * server fills from partials/head.html; see chrome.go.
+ *
+ * Tokens keep the names the homepage has always used so a page's own styles
+ * keep resolving. A page may still redefine a token in its own <style> while
+ * its body waits to be restyled, and that must never reach the chrome, so the
+ * token blocks below are applied to the header and footer elements as well as
+ * to the root: the chrome reads its own copy, not the page's.
+ *
+ * No third-party font or script is loaded from here, or anywhere in the chrome:
+ * a visitor's IP must never go to a third party. The body face is the system
+ * sans stack; --mono is for code and keys only, and names JetBrains Mono first
+ * only so pages that still load it keep their look.
+ */
+
+:root,
+.sh-header,
+.sh-footer {
+  color-scheme: dark;
+  --bg: #020617;
+  --surface: #0b1222;
+  --grid: #0f1830;
+  --border: #1e293b;
+  --border-hi: #334155;
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --dim: #475569;
+  --accent: #22d3ee;
+  --accent-hover: #67e8f9;
+  --success: #34d399;
+  --error: #fb7185;
+  --row-hi: rgba(148, 163, 184, 0.08);
+  --radius: 10px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --header-bg: rgba(2, 6, 23, 0.75);
+  --on-accent: #020617;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] .sh-header,
+html[data-theme="light"] .sh-footer {
+  color-scheme: light;
+  --bg: #f7f8fb;
+  --surface: #ffffff;
+  --grid: #e9edf4;
+  --border: #e2e8f0;
+  --border-hi: #cbd5e1;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --dim: #94a3b8;
+  --accent: #0e7490;
+  --accent-hover: #155e75;
+  --success: #059669;
+  --error: #e11d48;
+  --row-hi: rgba(15, 23, 42, 0.04);
+  --header-bg: rgba(255, 255, 255, 0.82);
+  --on-accent: #ffffff;
+}
+
+/* Built-in Simple Hack event pages keep their own civic palette; custom event
+   websites and the shared header/footer continue to use their own styling. */
+body.sh-event-default {
+  --bg: #f3f6f1;
+  --surface: #fffdf8;
+  --grid: #e2ebe6;
+  --border: #b9c9c1;
+  --text: #17333d;
+  --text-secondary: #465e64;
+  --accent: #176d7a;
+  --accent-hover: #10545f;
+  --on-accent: #fff;
+  --event-page: #f3f6f1;
+  --event-warm: #efb979;
+  --event-wash: #d9eee6;
+}
+
+/* ---- Base ---------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+/* Author display rules otherwise beat the UA [hidden]{display:none}. */
+[hidden] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+code, kbd, samp, pre { font-family: var(--mono); }
+
+/* ---- Header -------------------------------------------------------------- */
+/* Selectors are two classes deep on purpose: every page still carries its own
+   element rules (a, p, nav a, button …) until it is restyled, and those must
+   not be able to reach into the chrome. */
+
+.sh-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin: 0;
+  background: var(--header-bg);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font);
+  color: var(--text);
+}
+.sh-header .sh-bar {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sh-header .sh-logo {
+  margin: 0 auto 0 0;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-header .sh-logo b { color: var(--accent); font-weight: 700; }
+.sh-header .sh-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0 8px 0 0;
+  padding: 0;
+}
+.sh-header .sh-nav a {
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-header .sh-nav a:hover { color: var(--text); }
+.sh-header .sh-nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
+/* The entrance: a bordered control rather than another nav link, because it
+   is the one thing a first-time visitor should press. */
+.sh-header .sh-signin {
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-header .sh-signin:hover,
+.sh-header .sh-signin[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+/* Signed in: "Your sites" plus a quiet "Sign out" beside it. On a phone they
+   fold into one "Your sites" menu (.sh-acct) so the bar keeps to one line.
+   The header script sets .sh-authed from localStorage before first paint. */
+.sh-header .sh-signout,
+.sh-header .sh-acct { display: none; }
+.sh-header.sh-authed .sh-signout {
+  display: inline-block;
+  margin: 0;
+  padding: 6px 4px;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sh-header.sh-authed .sh-signout:hover { color: var(--text); }
+.sh-header .sh-acct { position: relative; }
+.sh-header .sh-acct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sh-header .sh-acct-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.sh-header .sh-acct-btn svg { display: block; flex: none; }
+.sh-header .sh-acct-menu,
+.sh-header .sh-theme-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  min-width: 160px;
+  margin: 0;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.18);
+}
+.sh-header .sh-acct-menu[hidden],
+.sh-header .sh-theme-menu[hidden] { display: none; }
+.sh-header .sh-acct-menu a,
+.sh-header .sh-acct-menu button,
+.sh-header .sh-theme-menu button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.2;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.sh-header .sh-acct-menu a:hover,
+.sh-header .sh-acct-menu button:hover,
+.sh-header .sh-theme-menu button:hover { background: var(--grid); }
+.sh-header .sh-acct-menu button { color: var(--text-secondary); }
+.sh-header .sh-theme {
+  flex: none;
+  width: 32px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: none;
+}
+.sh-header .sh-theme:hover,
+.sh-header .sh-theme[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+/* The theme menu: Match my system, Light, Dark. The chosen one carries a tick. */
+.sh-header .sh-themes { position: relative; flex: none; }
+.sh-header .sh-theme-menu { min-width: 180px; }
+.sh-header .sh-theme-menu button { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sh-header .sh-theme-menu button[aria-checked="true"] { font-weight: 600; }
+.sh-header .sh-theme-menu button[aria-checked="true"]::after { content: "\2713"; color: var(--accent); }
+.sh-header .sh-theme svg { display: block; }
+
+/* ---- Footer -------------------------------------------------------------- */
+
+.sh-footer {
+  margin: 64px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  font-family: var(--font);
+  color: var(--text-secondary);
+  background: transparent;
+}
+.sh-footer .sh-foot {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 22px 24px 40px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.sh-footer .sh-foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0;
+  padding: 0;
+}
+.sh-footer .sh-foot-links a {
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sh-footer .sh-foot-links a:hover { color: var(--text); }
+.sh-footer .sh-foot-links a[aria-current="page"] { color: var(--text); }
+.sh-footer .sh-credit {
+  margin: 10px 0 0;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+/* ---- Phones -------------------------------------------------------------- */
+/* Logo, two links, the entrance and the toggle stay on one line at 390px. */
+@media (max-width: 640px) {
+  .sh-header .sh-bar { padding: 12px 16px; gap: 10px; }
+  .sh-header .sh-logo { font-size: 14px; }
+  .sh-header .sh-nav { gap: 14px; margin-right: 2px; }
+  .sh-header .sh-nav a { font-size: 13.5px; }
+  .sh-header .sh-signin { padding: 6px 10px; font-size: 13.5px; }
+  .sh-header.sh-authed #dash-link,
+  .sh-header.sh-authed .sh-signout { display: none; }
+  .sh-header.sh-authed .sh-acct { display: block; }
+  .sh-footer { margin-top: 48px; }
+  .sh-footer .sh-foot { padding: 20px 16px 32px; }
+  .sh-footer .sh-foot-links { gap: 6px 16px; }
+}
+/* Narrow phones (iPhone mini/SE, small Androids): tighten so the signed-in
+   "Your sites" menu still fits beside the toggle. */
+@media (max-width: 389px) {
+  .sh-header .sh-bar { gap: 8px; padding: 12px 14px; }
+  .sh-header .sh-nav { gap: 10px; margin-right: 0; }
+  .sh-header .sh-acct-btn { padding: 6px 8px; gap: 3px; }
+}
+@media (max-width: 359px) {
+  .sh-header .sh-bar { gap: 8px; padding: 12px 12px; }
+  .sh-header .sh-nav { gap: 10px; }
+  .sh-header .sh-nav a, .sh-header .sh-signin { font-size: 13px; }
+  /* Signed in, "Your sites" is wider than "Sign in" and the bar ran ~30px
+     past a 320px screen. The logo already goes home, so Home steps aside. */
+  .sh-header.sh-authed .sh-nav .sh-nav-home { display: none; }
+}
+
+
+
+
+/* ---- In-page dialogs (partials/dialog.html) ------------------------------ */
+/* shConfirm / shPrompt / shAlert. Replaces the browser's native confirm, alert
+   and prompt, which an AI browser agent cannot see or press. Two classes deep
+   so a page's own button, input, h2 and p rules cannot reach in. */
+.sh-dlg { width: min(440px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 32px); margin: auto; padding: 0; border: 1px solid var(--border-hi); border-radius: 14px; background: var(--surface); color: var(--text); font-family: var(--font); box-shadow: 0 18px 48px rgba(15, 23, 42, .28), 0 2px 6px rgba(15, 23, 42, .12); overflow: auto; }
+.sh-dlg::backdrop { background: rgba(2, 6, 23, .55); }
+.sh-dlg .sh-dlg-box { display: block; margin: 0; padding: 20px; border: 0; background: none; }
+.sh-dlg .sh-dlg-title { margin: 0 0 8px; padding: 0; font-family: var(--font); font-size: 17px; font-weight: 650; line-height: 1.35; color: var(--text); overflow-wrap: anywhere; }
+.sh-dlg .sh-dlg-body { margin: 0 0 4px; padding: 0; font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); white-space: pre-line; overflow-wrap: anywhere; }
+.sh-dlg .sh-dlg-field { display: block; margin: 12px 0 0; padding: 0; }
+.sh-dlg .sh-dlg-label { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--text); }
+.sh-dlg .sh-dlg-input { display: block; width: 100%; min-width: 0; margin: 0; font-family: var(--mono); font-size: 16px; padding: 9px 12px; border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg); color: var(--text); }
+.sh-dlg .sh-dlg-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.sh-dlg .sh-dlg-copy { display: flex; gap: 8px; margin: 12px 0 0; }
+.sh-dlg .sh-dlg-copy .sh-dlg-input { flex: 1; }
+.sh-dlg .sh-dlg-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 20px 0 0; }
+.sh-dlg .sh-dlg-btn { flex: none; margin: 0; font-family: var(--font); font-size: 15px; font-weight: 600; line-height: 1.3; padding: 9px 16px; border: 1px solid var(--border-hi); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; text-transform: none; letter-spacing: normal; }
+.sh-dlg .sh-dlg-btn:hover { background: var(--bg); }
+.sh-dlg .sh-dlg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sh-dlg .sh-dlg-primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.sh-dlg .sh-dlg-primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
+.sh-dlg .sh-dlg-primary.sh-dlg-danger { border-color: var(--error); background: var(--error); color: var(--on-accent); }
+.sh-dlg .sh-dlg-primary.sh-dlg-danger:hover { filter: brightness(1.08); background: var(--error); }
+@media (max-width: 480px) {
+  .sh-dlg .sh-dlg-box { padding: 16px; }
+  .sh-dlg .sh-dlg-actions { flex-direction: column-reverse; }
+  .sh-dlg .sh-dlg-actions .sh-dlg-btn { width: 100%; }
+}
+.sh-dlg .sh-dlg-msg { margin: 8px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--success); overflow-wrap: anywhere; }
+.sh-dlg .sh-dlg-msg.sh-dlg-bad { color: var(--error); }
+.sh-dlg .sh-dlg-btn:disabled { opacity: .55; cursor: default; }
+
+/* ---- Row menu (admin Sites, owner Your sites) ---------------------------- */
+/* Floating action menu. position:fixed so a table or card never clips it. */
+.row-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: min(240px, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.28);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.row-menu .mi {
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-height: 36px;
+  width: 100%;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.row-menu .mi:hover,
+.row-menu .mi:focus { background: var(--row-hi); outline: none; }
+.row-menu .mi:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row-menu .mi.danger { color: var(--error); }
+.row-menu .mi[aria-disabled="true"] { color: var(--dim); cursor: default; }
+.row-menu .mi-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+.row-menu .mi-state {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-left: auto;
+  padding-left: 16px;
+  font-weight: 500;
+}
+@media (pointer: coarse), (any-pointer: coarse), (max-width: 700px) {
+  .row-menu .mi { min-height: 44px; }
+}

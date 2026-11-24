@@ -2,8 +2,8 @@
    order: deploy, data, auth, connector, admin, other. */
 :root{
   --g-1:#2a78d6;--g-2:#eb6834;--g-3:#1baf7a;--g-4:#eda100;--g-5:#e87ba4;--g-6:#008300;
-  --g-line:#2a78d6;
-  --g-seq-0:#e9edf3;--g-seq-1:#cde2fb;--g-seq-2:#9ec5f4;--g-seq-3:#5598e7;--g-seq-4:#256abf;--g-seq-5:#104281;
+  --g-line:#116b77;
+  --g-seq-0:#e9edf3;--g-seq-1:#d3eaec;--g-seq-2:#a6d3d8;--g-seq-3:#5fb0b8;--g-seq-4:#1f8590;--g-seq-5:#0d525d;
   --g-stroke:#ffffff;
 }
 .g-top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin:6px 0 4px}
