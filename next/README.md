@@ -56,6 +56,8 @@ if err != nil { return err }      // database down: an error, never the page
 if err := d.Err(); err != nil { return err } // data/API routes: the decision as a refusal
 ```
 
+A page that is not Open: `sites.GatePage(w, r, d, 0, "")` (passcode form, sign in, Ask for access,
+offline, taken down); `sites.Next(r)` is where a gate form goes back to.
 Passcode: `a.Sites.SetUnlocked(w, r, site)`, `Unlocked(r, site)`, `SealPasscode`, `OpenPasscode`.
 After changing anything an address or visit depends on (sites, names, hostnames,
 owner_addresses, a suspension) call `a.Sites.Forget()`: lookups are cached in memory.

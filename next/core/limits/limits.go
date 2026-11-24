@@ -25,6 +25,7 @@ var (
 	Requests      = Limit{"requests", 600, time.Minute, "Too many requests from you. Wait a minute and try again."}
 	SignInCodes   = Limit{"sign_in_codes", 5, 15 * time.Minute, "Too many codes asked for this email. Wait 15 minutes."}
 	PasscodeTries = Limit{"passcode_tries", 5, 15 * time.Minute, "Too many wrong passcodes. Wait 15 minutes and try again."}
+	AccessAsks    = Limit{"access_asks", 3, time.Hour, "You asked for access a few times already. The owner has been told; wait for them."}
 	SiteBytes     = Limit{"site_size", 100 << 20, 0, "A site can hold 100 MB of published files. Remove or shrink some files."}
 	DataBytes     = Limit{"data_size", 100 << 20, 0, "A site's saved data can hold 100 MB. Delete rows or values you no longer need."}
 	FilesBytes    = Limit{"files_size", 200 << 20, 0, "A namespace's file store can hold 200 MB. Delete files you no longer need."}

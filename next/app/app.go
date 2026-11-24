@@ -37,7 +37,10 @@ type Config struct {
 	GoogleClientID, GoogleClientSecret           string
 	GoogleAuthURL, GoogleTokenURL, GoogleUserURL string
 	ACMEDirectories                              []string // in order: Let's Encrypt, Google, ZeroSSL
-	LoopbackOutbound                             bool     // tests only: let the guarded client reach the fakes
+	// ACMEBindings is, per directory, "" or "<key id>:<base64url HMAC key>":
+	// the account binding Google and ZeroSSL ask for.
+	ACMEBindings     []string
+	LoopbackOutbound bool // tests only: let the guarded client reach the fakes
 }
 
 // FromEnv reads the config from the environment, with production defaults.
@@ -67,6 +70,7 @@ func FromEnv() Config {
 		GoogleUserURL:      "https://openidconnect.googleapis.com/v1/userinfo",
 		ACMEDirectories: []string{"https://acme-v02.api.letsencrypt.org/directory",
 			"https://dv.acme-v02.api.pki.goog/directory", "https://acme.zerossl.com/v2/DV90"},
+		ACMEBindings: []string{"", env("ACME_EAB_GOOGLE", ""), env("ACME_EAB_ZEROSSL", "")},
 	}
 }
 
@@ -122,6 +126,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p, err := a.Sites.Lookup(r.Context(), web.Host(r))
 		if err != nil {
 			web.Fail(w, r, err)
+			return
+		}
+		if p.Redirect != "" && web.HTTPS(r) {
+			http.Redirect(w, r, "https://"+p.Redirect+r.URL.RequestURI(), http.StatusMovedPermanently)
 			return
 		}
 		r = sites.WithPlace(r, p)
