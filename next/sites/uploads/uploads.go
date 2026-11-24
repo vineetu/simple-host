@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -151,13 +152,16 @@ func (h *handler) upload(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return web.Refuse(http.StatusBadRequest, "bad_upload", "The upload was cut off. Try again.")
 		}
-		if p.FileName() == "" {
+		// The file name as sent, folders kept (p.FileName drops them).
+		_, params, _ := mime.ParseMediaType(p.Header.Get("Content-Disposition"))
+		name := params["filename"]
+		if name == "" {
 			continue
 		}
-		if err := h.a.Data.PutFile(r, ns, p.FileName(), p.Header.Get("Content-Type"), who.ID, p); err != nil {
+		if err := h.a.Data.PutFile(r, ns, name, p.Header.Get("Content-Type"), who.ID, p); err != nil {
 			return err
 		}
-		names = append(names, p.FileName())
+		names = append(names, name)
 	}
 	if len(names) == 0 {
 		return web.Refuse(http.StatusBadRequest, "no_files", "Choose at least one file.")

@@ -89,6 +89,35 @@ func (d *Data) Create(ctx context.Context, site *sites.Site, name string) error 
 	return err
 }
 
+// Namespace is one namespace of a site and its rules.
+type Namespace struct {
+	Name      string                     `json:"name"`
+	Rules     map[string]json.RawMessage `json:"rules"`
+	SpamCheck bool                       `json:"spam_check"`
+}
+
+// Namespaces is a site's namespaces, by name.
+func (d *Data) Namespaces(ctx context.Context, siteID string) ([]Namespace, error) {
+	rows, err := d.DB.QueryContext(ctx, `SELECT name, rules, spam_check FROM namespaces WHERE site_id = $1 ORDER BY name`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Namespace{}
+	for rows.Next() {
+		var n Namespace
+		var raw []byte
+		if err := rows.Scan(&n.Name, &raw, &n.SpamCheck); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &n.Rules); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 // Sizes is the bytes each namespace of a site uses on disk.
 func (d *Data) Sizes(siteID string) (map[string]int64, int64) {
 	out, total := map[string]int64{}, int64(0)

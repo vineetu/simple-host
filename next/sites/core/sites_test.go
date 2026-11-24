@@ -2,35 +2,18 @@ package sites_test
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"testing"
 
-	"simplehost/app"
 	"simplehost/core/testkit"
-	"simplehost/core/web"
+	"simplehost/sites/publicpage"
+	"simplehost/sites/serve"
 )
-
-// echo mounts a stand-in for page serving: it answers with the site (or
-// public page) the host found.
-func echo(a *app.App) {
-	a.Routes.Site.Handle("GET /", web.Func(func(w http.ResponseWriter, r *http.Request) error {
-		s, err := a.Sites.Of(r)
-		if err == nil {
-			fmt.Fprintf(w, "%s v%d", s.Name, s.LiveVersion)
-		}
-		return err
-	}))
-	a.Routes.Page.Handle("GET /{$}", web.Func(func(w http.ResponseWriter, r *http.Request) error {
-		return nil
-	}))
-}
 
 // SPEC test 15 (F11): a new account's site answers at once on
 // site--handle.simple-host.site, an existing one on site.handle.simple-host.app,
 // and the address the service returns is the one that works.
 func TestSiteAnswersAtItsAddress(t *testing.T) {
-	k := testkit.Start(t, echo)
+	k := testkit.Start(t, serve.Mount, publicpage.Mount)
 	b := k.Browser()
 	nina := k.Person(t, "nina")
 	olga := k.Person(t, "olga")
@@ -39,8 +22,8 @@ func TestSiteAnswersAtItsAddress(t *testing.T) {
 	k.Publish(t, nina, "blog", map[string]string{"index.html": "one"})
 	k.Publish(t, olga, "shop", map[string]string{"index.html": "one"})
 	for url, want := range map[string]string{
-		"https://blog--nina.simple-host.site/": "blog v1",
-		"https://shop.olga.simple-host.app/":   "shop v1",
+		"https://blog--nina.simple-host.site/": "one",
+		"https://shop.olga.simple-host.app/":   "one",
 	} {
 		if r := testkit.Call(t, b, "GET", url, nil); r.Status != 200 || r.Body != want {
 			t.Fatalf("%s: %d %q, want %q", url, r.Status, r.Body, want)
@@ -50,8 +33,8 @@ func TestSiteAnswersAtItsAddress(t *testing.T) {
 	k.Publish(t, nina, "blog", map[string]string{"index.html": "two"})
 	k.Publish(t, nina, "notes", map[string]string{"index.html": "one"})
 	for url, want := range map[string]string{
-		"https://blog--nina.simple-host.site/":  "blog v2",
-		"https://notes--nina.simple-host.site/": "notes v1",
+		"https://blog--nina.simple-host.site/":  "two",
+		"https://notes--nina.simple-host.site/": "one",
 	} {
 		if r := testkit.Call(t, b, "GET", url, nil); r.Status != 200 || r.Body != want {
 			t.Fatalf("%s: %d %q, want %q", url, r.Status, r.Body, want)
@@ -76,7 +59,7 @@ func TestSiteAnswersAtItsAddress(t *testing.T) {
 
 // SPEC test 16 (F11): a path-style old link answers "not found".
 func TestPathStyleLinksAreNotFound(t *testing.T) {
-	k := testkit.Start(t, echo)
+	k := testkit.Start(t, serve.Mount, publicpage.Mount)
 	b := k.Browser()
 	nina := k.Person(t, "nina")
 	olga := k.Person(t, "olga")

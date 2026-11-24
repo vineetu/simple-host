@@ -24,7 +24,7 @@ import (
 // Config is everything the service reads at start. The URLs of outside
 // services point at the real ones in production and at fakes in tests.
 type Config struct {
-	Addr        string // where to listen (127.0.0.1:8091)
+	Addr        string // where to listen (127.0.0.1:8095)
 	DatabaseURL string
 	DataDir     string // /srv/simple-host-next
 	AppDomain   string // the service's own host, and the older address family
@@ -47,6 +47,15 @@ type Config struct {
 	// CompanyClientID is empty). The same three URLs as Google.
 	CompanyClientID, CompanyClientSecret            string
 	CompanyAuthURL, CompanyTokenURL, CompanyUserURL string
+
+	// VAPIDKey is the browser push signing key: base64url of a P-256
+	// private key's 32 bytes (push is off when empty).
+	VAPIDKey string
+	// AgentCat receives every AI tool call (off when AgentCatProject is empty).
+	AgentCatURL, AgentCatProject string
+	// SelfHosted: an install someone runs for themselves; its operator may
+	// make accounts.
+	SelfHosted bool
 }
 
 // FromEnv reads the config from the environment, with production defaults.
@@ -58,7 +67,7 @@ func FromEnv() Config {
 		return def
 	}
 	return Config{
-		Addr:               env("SH_ADDR", "127.0.0.1:8091"),
+		Addr:               env("SH_ADDR", "127.0.0.1:8095"),
 		DatabaseURL:        env("DATABASE_URL", ""),
 		DataDir:            env("SH_DATA_DIR", "/srv/simple-host-next"),
 		AppDomain:          env("SH_APP_DOMAIN", "simple-host.app"),
@@ -66,7 +75,7 @@ func FromEnv() Config {
 		PasscodeKey:        env("PASSCODE_ENC_KEY", ""),
 		MailKey:            env("RESEND_API_KEY", ""),
 		MailFrom:           env("MAIL_FROM", "Simple Host <hello@simple-host.app>"),
-		MailURL:            "https://api.resend.com/emails",
+		MailURL:            env("SH_MAIL_URL", "https://api.resend.com/emails"),
 		TurnstileURL:       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
 		DNSURL:             "https://dns.google/resolve",
 		TurnstileSiteKey:   env("TURNSTILE_SITE_KEY", ""),
@@ -81,6 +90,9 @@ func FromEnv() Config {
 		ACMEBindings:    []string{"", env("ACME_EAB_GOOGLE", ""), env("ACME_EAB_ZEROSSL", "")},
 		CompanyClientID: env("COMPANY_CLIENT_ID", ""), CompanyClientSecret: env("COMPANY_CLIENT_SECRET", ""),
 		CompanyAuthURL: env("COMPANY_AUTH_URL", ""), CompanyTokenURL: env("COMPANY_TOKEN_URL", ""), CompanyUserURL: env("COMPANY_USER_URL", ""),
+		VAPIDKey:    env("SH_VAPID_KEY", ""),
+		AgentCatURL: env("SH_AGENTCAT_URL", "https://api.agentcat.com/v1/public/events/"), AgentCatProject: env("AGENTCAT_PROJECT_ID", ""),
+		SelfHosted: env("SH_SELF_HOSTED", "") == "1",
 	}
 }
 

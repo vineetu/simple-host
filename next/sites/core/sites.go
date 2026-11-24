@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/publicsuffix"
 
@@ -414,6 +415,34 @@ func (s *Sites) Commit(ctx context.Context, site *Site, dir, authorID string) (i
 		}
 	}
 	return n, rows.Err()
+}
+
+// Version is one kept version of a site.
+type Version struct {
+	N      int       `json:"n"`
+	Author string    `json:"author"` // the author's handle or email, "" when gone
+	At     time.Time `json:"at"`
+	Bytes  int64     `json:"bytes"`
+}
+
+// Versions is the site's kept versions, newest first.
+func (s *Sites) Versions(ctx context.Context, siteID string) ([]Version, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT v.n, COALESCE(n.name, p.email, ''), v.created_at, v.bytes FROM versions v
+		LEFT JOIN people p ON p.id = v.author_id LEFT JOIN names n ON n.person_id = p.id AND n.kind = 'handle' AND n.retired_at IS NULL
+		WHERE v.site_id = $1 ORDER BY v.n DESC`, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Version{}
+	for rows.Next() {
+		var v Version
+		if err := rows.Scan(&v.N, &v.Author, &v.At, &v.Bytes); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
 }
 
 // URL is the site's own address, the one a tool returns.

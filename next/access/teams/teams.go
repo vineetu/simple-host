@@ -236,3 +236,44 @@ func List(ctx context.Context, q db.Q, personID, email string) ([]Team, error) {
 	}
 	return out, rows.Err()
 }
+
+// Member is one member of a team.
+type Member struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
+// Members is a team's members and the emails invited but not yet joined
+// (for GET /v1/me).
+func Members(ctx context.Context, q db.Q, teamID string) (members []Member, invited []string, err error) {
+	rows, err := q.QueryContext(ctx, `SELECT p.id, p.email FROM team_members m JOIN people p ON p.id = m.person_id WHERE m.team_id = $1 ORDER BY p.email`, teamID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	members = []Member{}
+	for rows.Next() {
+		var m Member
+		if err := rows.Scan(&m.ID, &m.Email); err != nil {
+			return nil, nil, err
+		}
+		members = append(members, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	inv, err := q.QueryContext(ctx, `SELECT email FROM team_invites WHERE team_id = $1 AND accepted_at IS NULL ORDER BY email`, teamID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer inv.Close()
+	invited = []string{}
+	for inv.Next() {
+		var e string
+		if err := inv.Scan(&e); err != nil {
+			return nil, nil, err
+		}
+		invited = append(invited, e)
+	}
+	return members, invited, inv.Err()
+}

@@ -66,7 +66,7 @@ func Start(t *testing.T, mounts ...func(*app.App)) *Kit {
 		MailURL: fakes.URL + "/mail", TurnstileURL: fakes.URL + "/turnstile", TurnstileSiteKey: "site-key", TurnstileSecret: "secret", DNSURL: fakes.URL + "/resolve",
 		GoogleClientID: "test", GoogleClientSecret: "test", GoogleAuthURL: fakes.URL + "/google/auth",
 		GoogleTokenURL: fakes.URL + "/google/token", GoogleUserURL: fakes.URL + "/google/userinfo",
-		ACMEDirectories: []string{fakes.URL + "/dir"}, LoopbackOutbound: true,
+		ACMEDirectories: []string{fakes.URL + "/dir"}, LoopbackOutbound: true, VAPIDKey: base64.RawURLEncoding.EncodeToString(key),
 	})
 	if err != nil {
 		t.Fatal(err)

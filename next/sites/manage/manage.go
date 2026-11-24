@@ -127,6 +127,11 @@ func SetOffline(r *http.Request, a *app.App, site *sites.Site, offline bool) err
 	return change(r, a, site, `UPDATE sites SET offline = $2, changed_at = now() WHERE id = $1`, offline)
 }
 
+// SetListed puts the site on its owner's public page, or takes it off.
+func SetListed(r *http.Request, a *app.App, site *sites.Site, listed bool) error {
+	return change(r, a, site, `UPDATE sites SET listed = $2 WHERE id = $1`, listed)
+}
+
 // Rollback makes kept version n live at once on every address.
 func Rollback(r *http.Request, a *app.App, site *sites.Site, n int) error {
 	err := change(r, a, site, `UPDATE sites SET live_version = $2, changed_at = now() WHERE id = $1

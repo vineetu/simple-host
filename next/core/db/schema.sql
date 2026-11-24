@@ -34,8 +34,11 @@ CREATE TABLE push_devices (
   UNIQUE (person_id, endpoint)
 );
 
+-- A download of everything a person has. The link's token is made when the
+-- download is ready, and only its hash is kept.
 CREATE TABLE exports (
-  token_hash TEXT PRIMARY KEY,
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token_hash TEXT UNIQUE,
   person_id  UUID NOT NULL REFERENCES people(id) ON DELETE CASCADE,
   status     TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'ready', 'failed')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
