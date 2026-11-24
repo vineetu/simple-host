@@ -85,11 +85,11 @@ func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 		}
 	} else if siteID != "" {
 		via = "site"
-		raw, _ := hex.DecodeString(cookie(r, "sh_vsess"))
+		raw, _ := hex.DecodeString(Cookie(r, "sh_vsess"))
 		err = p.DB.QueryRowContext(ctx, `SELECT person_id FROM visitor_sessions WHERE id = $1 AND site_id = $2 AND expires_at > now()`, raw, siteID).Scan(&id)
 	} else {
 		via = "session"
-		err = p.DB.QueryRowContext(ctx, `UPDATE sessions SET last_seen_at = now() WHERE id_hash = $1 AND expires_at > now() RETURNING person_id`, Hash(cookie(r, "sh_session"))).Scan(&id)
+		err = p.DB.QueryRowContext(ctx, `UPDATE sessions SET last_seen_at = now() WHERE id_hash = $1 AND expires_at > now() RETURNING person_id`, Hash(Cookie(r, "sh_session"))).Scan(&id)
 	}
 	if err == sql.ErrNoRows {
 		return web.Caller{}, nil
@@ -111,9 +111,9 @@ func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 	return c, nil
 }
 
-// cookie reads the __Host- form over HTTPS (a sibling host cannot plant it)
+// Cookie reads the __Host- form over HTTPS (a sibling host cannot plant it)
 // and the plain form over HTTP.
-func cookie(r *http.Request, name string) string {
+func Cookie(r *http.Request, name string) string {
 	if web.HTTPS(r) {
 		name = "__Host-" + name
 	}
@@ -124,11 +124,17 @@ func cookie(r *http.Request, name string) string {
 	return c.Value
 }
 
-func setCookie(w http.ResponseWriter, r *http.Request, name, value string, life time.Duration) {
+// SetCookie sets a host-only cookie in the same two forms. A zero life
+// removes it.
+func SetCookie(w http.ResponseWriter, r *http.Request, name, value string, life time.Duration) {
+	maxAge := int(life.Seconds())
+	if maxAge == 0 {
+		maxAge = -1
+	}
 	if web.HTTPS(r) {
 		name = "__Host-" + name
 	}
-	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", MaxAge: int(life.Seconds()), HttpOnly: true, Secure: web.HTTPS(r), SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", MaxAge: maxAge, HttpOnly: true, Secure: web.HTTPS(r), SameSite: http.SameSiteLaxMode})
 }
 
 // StartSession signs personID in to the dashboard in this browser.
@@ -136,7 +142,7 @@ func (p *People) StartSession(w http.ResponseWriter, r *http.Request, personID s
 	secret := NewSecret("")
 	_, err := p.DB.ExecContext(r.Context(), `INSERT INTO sessions (id_hash, person_id, expires_at) VALUES ($1, $2, $3)`, Hash(secret), personID, time.Now().Add(sessionLife))
 	if err == nil {
-		setCookie(w, r, "sh_session", secret, sessionLife)
+		SetCookie(w, r, "sh_session", secret, sessionLife)
 	}
 	return err
 }
@@ -147,7 +153,7 @@ func (p *People) StartSiteSession(w http.ResponseWriter, r *http.Request, person
 	rand.Read(id)
 	_, err := p.DB.ExecContext(r.Context(), `INSERT INTO visitor_sessions (id, person_id, site_id, host, expires_at) VALUES ($1, $2, $3, $4, $5)`, id, personID, siteID, web.Host(r), time.Now().Add(siteSessionLife))
 	if err == nil {
-		setCookie(w, r, "sh_vsess", hex.EncodeToString(id), siteSessionLife)
+		SetCookie(w, r, "sh_vsess", hex.EncodeToString(id), siteSessionLife)
 	}
 	return err
 }

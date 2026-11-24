@@ -41,6 +41,11 @@ type Config struct {
 	// the account binding Google and ZeroSSL ask for.
 	ACMEBindings     []string
 	LoopbackOutbound bool // tests only: let the guarded client reach the fakes
+
+	// A company's own sign-in, one more way to prove an email (off when
+	// CompanyClientID is empty). The same three URLs as Google.
+	CompanyClientID, CompanyClientSecret            string
+	CompanyAuthURL, CompanyTokenURL, CompanyUserURL string
 }
 
 // FromEnv reads the config from the environment, with production defaults.
@@ -70,7 +75,9 @@ func FromEnv() Config {
 		GoogleUserURL:      "https://openidconnect.googleapis.com/v1/userinfo",
 		ACMEDirectories: []string{"https://acme-v02.api.letsencrypt.org/directory",
 			"https://dv.acme-v02.api.pki.goog/directory", "https://acme.zerossl.com/v2/DV90"},
-		ACMEBindings: []string{"", env("ACME_EAB_GOOGLE", ""), env("ACME_EAB_ZEROSSL", "")},
+		ACMEBindings:    []string{"", env("ACME_EAB_GOOGLE", ""), env("ACME_EAB_ZEROSSL", "")},
+		CompanyClientID: env("COMPANY_CLIENT_ID", ""), CompanyClientSecret: env("COMPANY_CLIENT_SECRET", ""),
+		CompanyAuthURL: env("COMPANY_AUTH_URL", ""), CompanyTokenURL: env("COMPANY_TOKEN_URL", ""), CompanyUserURL: env("COMPANY_USER_URL", ""),
 	}
 }
 
