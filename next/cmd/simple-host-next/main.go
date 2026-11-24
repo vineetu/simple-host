@@ -17,6 +17,7 @@ import (
 	"simplehost/access/signin"
 	"simplehost/access/teams"
 	"simplehost/access/visitors"
+	"simplehost/api"
 	"simplehost/app"
 	"simplehost/data/files"
 	"simplehost/data/recipes"
@@ -24,6 +25,13 @@ import (
 	datarules "simplehost/data/rules"
 	datasql "simplehost/data/sql"
 	"simplehost/data/values"
+	"simplehost/mcp"
+	"simplehost/ops/admin"
+	"simplehost/ops/erase"
+	"simplehost/ops/export"
+	"simplehost/ops/holds"
+	"simplehost/ops/idle"
+	"simplehost/ops/notify"
 	"simplehost/sites/domains"
 	"simplehost/sites/locks"
 	"simplehost/sites/manage"
@@ -45,7 +53,7 @@ func main() {
 	defer a.Close()
 	mount(a)
 	work(ctx, a)
-	srv := &http.Server{Addr: cfg.Addr, Handler: a, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: cfg.Addr, Handler: admin.Counted(a), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -80,6 +88,13 @@ func mount(a *app.App) {
 	datasql.Mount(a)
 	datarules.Mount(a)
 	recipes.Mount(a)
+	api.Mount(a)
+	mcp.Mount(a)
+	notify.Mount(a)
+	export.Mount(a)
+	erase.Mount(a)
+	admin.Mount(a)
+	holds.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).
@@ -87,4 +102,8 @@ func work(ctx context.Context, a *app.App) {
 	go domains.Work(ctx, a)
 	go serve.Work(ctx, a)
 	go manage.Work(ctx, a)
+	go notify.Work(ctx, a)
+	go export.Work(ctx, a)
+	go idle.Work(ctx, a)
+	go admin.Work(ctx, a)
 }

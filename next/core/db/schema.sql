@@ -28,6 +28,7 @@ CREATE TABLE push_devices (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   person_id  UUID NOT NULL REFERENCES people(id) ON DELETE CASCADE,
   endpoint   TEXT NOT NULL,
+  name       TEXT NOT NULL DEFAULT '',
   p256dh     TEXT NOT NULL,
   auth       TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

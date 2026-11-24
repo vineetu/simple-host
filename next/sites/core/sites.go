@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 
 	access "simplehost/access/core"
+	"simplehost/core/db"
 	"simplehost/core/limits"
 	"simplehost/core/web"
 )
@@ -443,6 +444,14 @@ func (s *Sites) Versions(ctx context.Context, siteID string) ([]Version, error) 
 		out = append(out, v)
 	}
 	return out, rows.Err()
+}
+
+// Rehome moves an owner whose handle changed to the flat address shape
+// (<site>--<new handle>.<SiteDomain>): an existing account's .app addresses
+// rest on a certificate for the old handle.
+func (s *Sites) Rehome(ctx context.Context, q db.Q, ownerID string) error {
+	_, err := q.ExecContext(ctx, `UPDATE owner_addresses SET app_shape = false WHERE owner_id = $1`, ownerID)
+	return err
 }
 
 // URL is the site's own address, the one a tool returns.

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"simplehost/core/db"
@@ -92,5 +93,11 @@ func Remove(ctx context.Context, q db.Q, id string) error {
 		return err
 	}
 	_, err := q.ExecContext(ctx, `DELETE FROM people WHERE id = $1`, id)
+	return err
+}
+
+// Rename sets a person's or team's display name. It is in no address.
+func (p *People) Rename(ctx context.Context, id, displayName string) error {
+	_, err := p.DB.ExecContext(ctx, `UPDATE people SET display_name = $2 WHERE id = $1`, id, strings.TrimSpace(displayName))
 	return err
 }

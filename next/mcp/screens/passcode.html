@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Passcode</title>
+<style>body{margin:0;padding:16px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a1a1a;background:#fff}
+input,button{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid #d4d4d4}input{width:100%;box-sizing:border-box;margin:8px 0}
+button{background:#fff;cursor:pointer;margin-right:8px}button.main{background:#1a1a1a;color:#fff;border-color:#1a1a1a}.muted{color:#666}</style></head>
+<body><p id="about">Loading.</p>
+<label for="code">New passcode</label><input id="code" type="text" autocomplete="off" spellcheck="false" placeholder="At least 6 characters">
+<button id="set" class="main">Set passcode</button><button id="show">Show the passcode</button>
+<p id="shown" hidden>The passcode is <strong id="value"></strong></p><p id="status" class="muted" role="status"></p>
+<script>__BRIDGE__</script>
+<script>
+(function () {
+  'use strict';
+  var site = '', owner = '', el = function (id) { return document.getElementById(id); };
+  SH.on('tool-result', function (r) {
+    var s = r.structuredContent || {};
+    site = s.site || s.name || site; owner = s.owner || owner;
+    el('about').textContent = site ? 'Lock every address of ' + site + ', its pages and its data, with one passcode. It stays out of the chat.' : 'No site named.';
+  });
+  el('set').onclick = function () {
+    el('status').textContent = 'Saving.';
+    SH.call('set_site_access', { site: site, owner: owner, access: 'passcode', passcode: el('code').value }).then(function () {
+      el('code').value = ''; el('status').textContent = 'Passcode set. Visitors need it from now on.';
+    }, function (e) { el('status').textContent = e.message; });
+  };
+  el('show').onclick = function () {
+    SH.call('get_site', { site: site, owner: owner }).then(function (r) {
+      var code = r._meta && r._meta.passcode;
+      el('value').textContent = code || 'none set'; el('shown').hidden = false;
+    }, function (e) { el('status').textContent = e.message; });
+  };
+  SH.start();
+})();
+</script></body></html>

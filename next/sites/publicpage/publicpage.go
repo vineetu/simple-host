@@ -136,3 +136,30 @@ func (h *handler) sites(r *http.Request, where, ownerID string) ([]site, error) 
 	}
 	return ids, nil
 }
+
+// Home is the name of the site the owner chose for their public page ("" for the list).
+func Home(r *http.Request, a *app.App, ownerID string) (string, error) {
+	var name string
+	err := a.DB.QueryRowContext(r.Context(), `SELECT s.name FROM owner_addresses o JOIN sites s ON s.id = o.home_site_id
+		WHERE o.owner_id = $1 AND s.deleted_at IS NULL`, ownerID).Scan(&name)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return name, err
+}
+
+// SetHome makes one of the owner's sites their public page, or with "" the
+// list of listed sites again.
+func SetHome(r *http.Request, a *app.App, ownerID, name string) error {
+	var siteID any
+	if name != "" {
+		s, err := a.Sites.Get(r.Context(), ownerID, name)
+		if err != nil {
+			return web.Refuse(http.StatusNotFound, "no_site", "You have no site called "+name+". Give one of your site names, or empty for the list.")
+		}
+		siteID = s.ID
+	}
+	_, err := a.DB.ExecContext(r.Context(), `INSERT INTO owner_addresses (owner_id, home_site_id) VALUES ($1, $2)
+		ON CONFLICT (owner_id) DO UPDATE SET home_site_id = $2`, ownerID, siteID)
+	return err
+}

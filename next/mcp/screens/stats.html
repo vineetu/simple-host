@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Visits</title>
+<style>body{margin:0;padding:16px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a1a1a;background:#fff}
+.big{font-size:1.6rem;margin:0}.muted{color:#666}.bars{display:flex;align-items:flex-end;gap:2px;height:64px;margin:12px 0}
+.bars span{flex:1;background:#2f6f4f;min-height:1px}.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+h3{font-size:.95rem;margin:8px 0 4px}ul{list-style:none;padding:0;margin:0}li{display:flex;justify-content:space-between;gap:8px}</style></head>
+<body><p class="big" id="total">Loading.</p><p class="muted">Your own visits and bots are not counted.</p><div class="bars" id="bars"></div>
+<div class="cols"><div><h3>Top pages</h3><ul id="pages"></ul></div><div><h3>Referrers</h3><ul id="referrers"></ul></div><div><h3>Countries</h3><ul id="countries"></ul></div></div>
+<script>__BRIDGE__</script>
+<script>
+(function () {
+  'use strict';
+  var el = function (id) { return document.getElementById(id); };
+  function top(id, rows) {
+    el(id).replaceChildren();
+    (rows || []).slice(0, 5).forEach(function (r) {
+      var li = document.createElement('li'), a = document.createElement('span'), b = document.createElement('span');
+      a.textContent = r.key || '(none)'; b.textContent = r.n; li.append(a, b); el(id).append(li);
+    });
+    if (!(rows || []).length) el(id).textContent = 'None yet.';
+  }
+  SH.on('tool-result', function (r) {
+    var s = r.structuredContent || {}, days = s.days || [];
+    var max = Math.max.apply(null, days.map(function (d) { return d.views; }).concat([1]));
+    el('total').textContent = (s.views || 0).toLocaleString() + ' visits, ' + (s.people || 0).toLocaleString() + ' people';
+    el('bars').replaceChildren.apply(el('bars'), days.map(function (d) {
+      var b = document.createElement('span'); b.title = d.day + ': ' + d.views; b.style.height = Math.round(d.views / max * 100) + '%'; return b;
+    }));
+    top('pages', s.pages); top('referrers', s.referrers); top('countries', s.countries);
+  });
+  SH.start();
+})();
+</script></body></html>

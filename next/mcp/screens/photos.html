@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Add photos</title>
+<style>body{margin:0;padding:16px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1a1a1a;background:#fff}
+button{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid #1a1a1a;background:#1a1a1a;color:#fff;cursor:pointer}.muted{color:#666}</style></head>
+<body><p id="about">Loading.</p><button id="pick" hidden>Choose photos</button><p id="status" class="muted" role="status"></p>
+<script>__BRIDGE__</script>
+<script>
+(function () {
+  'use strict';
+  var link = '', el = function (id) { return document.getElementById(id); };
+  SH.on('tool-result', function (r) {
+    var s = r.structuredContent || {};
+    if (!s.url) { el('about').textContent = 'No upload link.'; return; }
+    link = s.url;
+    el('about').textContent = s.kind === 'archive' ? 'Send the site as one archive on this page.' :
+      'Pick photos and files on your device. Photos are made smaller there before they are sent to ' + (s.namespace || 'the site') + '.';
+    el('pick').hidden = false;
+  });
+  el('pick').onclick = function () { SH.open(link).catch(function () { el('status').textContent = 'Open this link: ' + link; }); };
+  SH.start();
+})();
+</script></body></html>
