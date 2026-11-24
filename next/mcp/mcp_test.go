@@ -60,7 +60,9 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 	nina := k.Person(t, "nina")
 	k.Publish(t, nina, "blog", map[string]string{"index.html": "hello"})
 	call := ai(t, k, nina.Key)
-	page := func() int { return testkit.Call(t, k.Browser(), "GET", "https://blog--nina.simple-host.site/", nil).Status }
+	page := func() int {
+		return testkit.Call(t, k.Browser(), "GET", "https://blog--nina.simple-host.site/", nil).Status
+	}
 
 	if v := call("initialize", map[string]any{"protocolVersion": "2025-06-18"}); v["serverInfo"] == nil {
 		t.Fatalf("initialize: %v", v)
