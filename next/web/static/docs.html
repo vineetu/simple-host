@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API reference</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="/"><span class="wa">simple</span><b>-</b><span class="wb">host</span></a>
+  <nav><a href="/install">Get started</a><a href="/docs">Docs</a><a href="/dashboard">Your sites</a></nav>
+</div></header>
+<main>
+  <section class="lead">
+    <h1>API reference</h1>
+    <p>Every route of the service. Paths under <code>/v1/sites/{site}</code> take an optional <code>owner</code> (a team handle). The default is you.</p>
+    <p>For AI readers there is also <a href="/llms.txt">llms.txt</a>.</p>
+  </section>
+  <section>
+    <h2>Keys</h2>
+    <p>Make a key in the dashboard. Send it as <code>Authorization: Bearer &lt;key&gt;</code>. A key acts as the person who made it. Revoke it in the dashboard and it stops at once.</p>
+    <h2>Refusals</h2>
+    <p>Every refusal is JSON, <code>{"code": "...", "fix": "..."}</code>, with an HTTP status. <code>fix</code> says in plain words what to do. When a limit was hit, the refusal names that limit.</p>
+    <h2>Addresses</h2>
+    <p>New accounts: <code>https://&lt;site&gt;--&lt;handle&gt;.simple-host.site/</code>. Existing accounts: <code>https://&lt;site&gt;.&lt;handle&gt;.simple-host.app/</code>. Use the address a route or tool returns, because old path-style links do not work.</p>
+  </section>
+  <section>
+    <h2>Sign-in and account</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/v1/auth/code</code></td><td>Email a sign-in code.</td></tr>
+        <tr><td>POST</td><td><code>/v1/auth/verify</code></td><td>Check the code and start a session. A new person picks a handle here.</td></tr>
+        <tr><td>GET</td><td><code>/v1/auth/{provider}</code></td><td>Start sign-in with Google (or another provider).</td></tr>
+        <tr><td>GET</td><td><code>/v1/auth/{provider}/callback</code></td><td>Finish provider sign-in. The verified email picks the person.</td></tr>
+        <tr><td>POST</td><td><code>/v1/auth/signout</code></td><td>End this session, or all of them with <code>everywhere</code>.</td></tr>
+        <tr><td>GET</td><td><code>/v1/me</code></td><td>Me, teams, invitations, key names, connected apps, use against limits.</td></tr>
+        <tr><td>PATCH</td><td><code>/v1/owners/{owner}</code></td><td>Change handle, display name, home site or domain for all sites (person or team).</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/me</code></td><td>Delete my account.</td></tr>
+        <tr><td>POST</td><td><code>/v1/me/export</code></td><td>Queue my data download.</td></tr>
+        <tr><td>GET</td><td><code>/v1/exports/{token}</code></td><td>Fetch the download from the emailed link.</td></tr>
+        <tr><td>POST</td><td><code>/v1/keys</code></td><td>Make a key. It is shown once.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/keys/{id}</code></td><td>Revoke a key.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/me/apps/{id}</code></td><td>Disconnect an AI app.</td></tr>
+        <tr><td>POST</td><td><code>/v1/me/push</code></td><td>Register this browser for push.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/me/push/{id}</code></td><td>Remove a push device.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>Teams</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/v1/teams</code></td><td>Make a team.</td></tr>
+        <tr><td>POST</td><td><code>/v1/teams/{team}/invites</code></td><td>Invite someone by email.</td></tr>
+        <tr><td>POST</td><td><code>/v1/invites/{id}/accept</code></td><td>Accept an invitation.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/teams/{team}/members/{person}</code></td><td>Remove a member, or leave.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/teams/{team}</code></td><td>Delete a team that has no sites.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>Sites</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/v1/sites</code></td><td>My sites and my teams' sites, with text search and the bin.</td></tr>
+        <tr><td>PUT</td><td><code>/v1/sites/{site}</code></td><td>Publish an archive or files. <code>keep_other_files</code> keeps the rest. Creates the site if new.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}</code></td><td>Address, versions, access, viewers, domain status, namespaces, rules, use.</td></tr>
+        <tr><td>PATCH</td><td><code>/v1/sites/{site}</code></td><td>Offline, listed, live version, restore, access, viewers, passcode, own domain, short name, notifications. Operator only: taken down.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/sites/{site}</code></td><td>Move the site to the bin.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/files/{path}</code></td><td>Read one published file.</td></tr>
+        <tr><td>POST</td><td><code>/v1/sites/{site}/upload-links</code></td><td>Make a one-time link for an archive or for photos and files.</td></tr>
+        <tr><td>GET</td><td><code>/upload/{token}</code></td><td>The picker page behind that link.</td></tr>
+        <tr><td>PUT</td><td><code>/v1/uploads/{token}</code></td><td>Send the archive or files to that link.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/stats</code></td><td>Visit numbers.</td></tr>
+        <tr><td>POST</td><td><code>/v1/sites/{site}/storage/sqlite/{ns}/query</code></td><td>Owner only. Run a read-only SQL query on a namespace.</td></tr>
+        <tr><td>POST</td><td><code>/v1/sites/{site}/storage/sqlite/{ns}/execute</code></td><td>Owner only. Run SQL that changes the namespace, including its tables.</td></tr>
+        <tr><td>PUT</td><td><code>/v1/sites/{site}/storage/{ns}/rules</code></td><td>Set the rules for a namespace. Mistakes are reported exactly.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>Every site address (pages and saved data)</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/{path}</code></td><td>The page. Access check, redirects and clean links.</td></tr>
+        <tr><td>POST</td><td><code>/_sh/passcode</code></td><td>Unlock the site with its passcode.</td></tr>
+        <tr><td>GET</td><td><code>/_sh/signin</code></td><td>Start visitor sign-in.</td></tr>
+        <tr><td>GET</td><td><code>/_sh/signin/return</code></td><td>Finish visitor sign-in and set this site's cookie.</td></tr>
+        <tr><td>POST</td><td><code>/_sh/signout</code></td><td>End this site's session.</td></tr>
+        <tr><td>GET</td><td><code>/_sh/me</code></td><td>Who is signed in on this site.</td></tr>
+        <tr><td>POST</td><td><code>/_sh/ask-access</code></td><td>Ask the owner for access.</td></tr>
+        <tr><td>GET</td><td><code>/_sh/page.js</code></td><td>The page script.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/storage/sqlite/{ns}/tables/{table}/rows</code></td><td>List rows. Filters and paging.</td></tr>
+        <tr><td>POST</td><td><code>/v1/sites/{site}/storage/sqlite/{ns}/tables/{table}/rows</code></td><td>Add a row.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/storage/sqlite/{ns}/tables/{table}/rows/{id}</code></td><td>Read a row.</td></tr>
+        <tr><td>PATCH</td><td><code>/v1/sites/{site}/storage/sqlite/{ns}/tables/{table}/rows/{id}</code></td><td>Change a row.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/sites/{site}/storage/sqlite/{ns}/tables/{table}/rows/{id}</code></td><td>Delete a row.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/storage/kv/{ns}/keys</code></td><td>List value names.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/storage/kv/{ns}/keys/{key}</code></td><td>Read a value.</td></tr>
+        <tr><td>PUT</td><td><code>/v1/sites/{site}/storage/kv/{ns}/keys/{key}</code></td><td>Set a value.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/sites/{site}/storage/kv/{ns}/keys/{key}</code></td><td>Delete a value.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/storage/files/{ns}/objects</code></td><td>List files.</td></tr>
+        <tr><td>POST</td><td><code>/v1/sites/{site}/storage/files/{ns}</code></td><td>Upload a file.</td></tr>
+        <tr><td>GET</td><td><code>/v1/sites/{site}/storage/files/{ns}/objects/{path}</code></td><td>Fetch a file.</td></tr>
+        <tr><td>DELETE</td><td><code>/v1/sites/{site}/storage/files/{ns}/objects/{path}</code></td><td>Delete a file.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>Public page of a person or team</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/</code></td><td>On <code>&lt;handle&gt;.simple-host.app</code> or <code>.site</code>: the listed sites, or the chosen home site.</td></tr>
+        <tr><td>GET</td><td><code>/sitemap.xml</code></td><td>Open sites only.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>AI app connection</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>POST, GET</td><td><code>/mcp</code></td><td>Every tool, and MCP events.</td></tr>
+        <tr><td>GET</td><td><code>/.well-known/oauth-protected-resource</code></td><td>Tells apps where to sign in.</td></tr>
+        <tr><td>GET</td><td><code>/.well-known/oauth-authorization-server</code></td><td>Sign-in server details.</td></tr>
+        <tr><td>POST</td><td><code>/oauth/register</code></td><td>An app registers itself.</td></tr>
+        <tr><td>GET, POST</td><td><code>/oauth/authorize</code></td><td>Sign in and approve.</td></tr>
+        <tr><td>POST</td><td><code>/oauth/token</code></td><td>Tokens and refresh.</td></tr>
+        <tr><td>GET</td><td><code>/oauth/clients/meta-muse.json</code></td><td>Metadata document for the Meta Muse client.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>Website, dashboard, admin</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/{page}</code></td><td>Home, install, docs, terms, privacy, support, dashboard, admin, sign-in.</td></tr>
+        <tr><td>GET</td><td><code>/llms.txt</code></td><td>A plain description for AI readers.</td></tr>
+        <tr><td>GET</td><td><code>/skills.zip</code></td><td>The skill set.</td></tr>
+        <tr><td>POST</td><td><code>/v1/reports</code></td><td>Report a page. Body: <code>{"url","reason"}</code>.</td></tr>
+        <tr><td>GET</td><td><code>/v1/admin/overview</code></td><td>Operator only. People, sites, sizes, sign-ups, reports, network use, API growth.</td></tr>
+        <tr><td>PATCH</td><td><code>/v1/admin/people/{id}</code></td><td>Operator only. Suspend or restore an account.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>Self-hosted and certificates</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/v1/admin/people</code></td><td>Self-hosted only. Make an account for someone.</td></tr>
+        <tr><td>GET, POST</td><td><code>/setup</code></td><td>Self-hosted only. First-run setup.</td></tr>
+        <tr><td>GET</td><td><code>/.well-known/acme-challenge/{token}</code></td><td>Certificate checks.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section>
+    <h2>The page helper</h2>
+    <p>A page on a site loads one script. It runs in the visitor's browser.</p>
+    <pre>&lt;script src="https://simple-host.app/auth.js"&gt;&lt;/script&gt;</pre>
+    <div class="scroll"><table>
+      <thead><tr><th>Call</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>SH.me()</code></td><td>Who is signed in on this site, or nobody.</td></tr>
+        <tr><td><code>SH.signIn()</code></td><td>Start sign-in with Google or an emailed code.</td></tr>
+        <tr><td><code>SH.signOut()</code></td><td>Sign out of this site.</td></tr>
+        <tr><td><code>SH.requireSignIn()</code></td><td>Sign in first if needed, then carry on.</td></tr>
+        <tr><td><code>SH.mount('#box')</code></td><td>Show the sign-in box in that element.</td></tr>
+        <tr><td><code>SH.storage.sqlite(ns).table(t).add(row)</code></td><td>Add a row.</td></tr>
+        <tr><td><code>.list(options)</code></td><td>List rows.</td></tr>
+        <tr><td><code>.get(id)</code></td><td>Read a row.</td></tr>
+        <tr><td><code>.edit(id, changes)</code></td><td>Change a row.</td></tr>
+        <tr><td><code>.delete(id)</code></td><td>Delete a row.</td></tr>
+        <tr><td><code>SH.storage.sqlite(ns).query(sql)</code></td><td>Owner only. Read with SQL.</td></tr>
+        <tr><td><code>SH.storage.sqlite(ns).execute(sql)</code></td><td>Owner only. Change with SQL.</td></tr>
+        <tr><td><code>SH.storage.kv(ns).keys()</code></td><td>List value names.</td></tr>
+        <tr><td><code>SH.storage.kv(ns).get(key)</code></td><td>Read a value.</td></tr>
+        <tr><td><code>SH.storage.kv(ns).set(key, value)</code></td><td>Set a value.</td></tr>
+        <tr><td><code>SH.storage.kv(ns).delete(key)</code></td><td>Delete a value.</td></tr>
+        <tr><td><code>SH.storage.files(ns).list()</code></td><td>List files.</td></tr>
+        <tr><td><code>SH.storage.files(ns).get(path)</code></td><td>Fetch a file.</td></tr>
+        <tr><td><code>SH.storage.files(ns).put(path, data)</code></td><td>Save a file.</td></tr>
+        <tr><td><code>SH.storage.files(ns).upload(file)</code></td><td>Upload a file from a file input.</td></tr>
+        <tr><td><code>SH.storage.files(ns).url(path)</code></td><td>The address of a file.</td></tr>
+        <tr><td><code>SH.storage.files(ns).delete(path)</code></td><td>Delete a file.</td></tr>
+        <tr><td><code>SH.storage.toObjects(result)</code></td><td>Turn a SQL result into a list of objects.</td></tr>
+      </tbody>
+    </table></div>
+    <p>What a page may do depends on the rules the owner set for that table, value set or file store: anyone, signed-in people, the row's author, or the owner. With no rules, only the owner can touch the data. Anonymous visitors can post only where the owner allows it and a spam check (Cloudflare Turnstile) passes.</p>
+  </section>
+</main>
+<footer class="foot"><div class="in">
+  <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a><span>Simple Host</span>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="/"><span class="wa">simple</span><b>-</b><span class="wb">host</span></a>
+  <nav><a href="/install">Get started</a><a href="/docs">Docs</a><a href="/dashboard">Your sites</a></nav>
+</div></header>
+<main>
+  <section class="lead">
+    <h1>Support</h1>
+    <p>Email <a href="mailto:support@simple-host.app">support@simple-host.app</a>. Please include:</p>
+    <ul>
+      <li>the email you sign in with</li>
+      <li>the address of the site</li>
+      <li>what you expected, what happened, and any error message</li>
+    </ul>
+    <p>You can also ask your AI app. It can do what you can do in the <a href="/dashboard">dashboard</a>.</p>
+  </section>
+
+  <section>
+    <h2>Common questions</h2>
+    <h3>My AI app says Simple Host is not connected.</h3>
+    <p>Reconnect Simple Host in the app's connector settings. You sign in once more.</p>
+    <h3>I want to disconnect an app.</h3>
+    <p>Open your dashboard and remove it under connected apps.</p>
+    <h3>I deleted a site by mistake.</h3>
+    <p>Deleted sites stay in a bin for 7 days. Restore one from the dashboard, with its saved data.</p>
+    <h3>I want a copy of my data, or to delete my account.</h3>
+    <p>Both are in the dashboard under Your data. A download comes as a link by email. Deleting an account removes everything at once.</p>
+  </section>
+
+  <section>
+    <h2>Report a page</h2>
+    <p>If a page here is illegal, abusive or a scam, tell us. We read every report.</p>
+    <form id="report" class="panel">
+      <div class="field">
+        <label for="url">Page address</label>
+        <input id="url" name="url" type="url" required placeholder="https://">
+      </div>
+      <div class="field">
+        <label for="reason">What is wrong</label>
+        <textarea id="reason" name="reason" required></textarea>
+      </div>
+      <button class="primary" type="submit">Send report</button>
+      <p class="status" role="status" id="msg"></p>
+    </form>
+  </section>
+<script>
+(function () {
+  var form = document.getElementById("report");
+  var msg = document.getElementById("msg");
+  var url = document.getElementById("url");
+  var q = new URLSearchParams(location.search).get("url");
+  if (q) url.value = q;
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var btn = form.querySelector("button");
+    btn.disabled = true;
+    msg.className = "status";
+    msg.textContent = "";
+    fetch("/v1/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url.value, reason: document.getElementById("reason").value })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      if (res.ok) {
+        msg.textContent = "Thanks. We will look at it.";
+        form.reset();
+      } else {
+        msg.className = "status bad";
+        msg.textContent = res.body.fix || "Something went wrong. Please try again.";
+      }
+    }).catch(function () {
+      msg.className = "status bad";
+      msg.textContent = "Could not reach the service. Please try again.";
+    }).then(function () { btn.disabled = false; });
+  });
+})();
+</script>
+</main>
+<footer class="foot"><div class="in">
+  <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a><span>Simple Host</span>
+</div></footer>
+</body>
+</html>

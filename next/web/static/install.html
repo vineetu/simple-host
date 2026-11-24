@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en" class="sh-host" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get started · Simple Host</title>
+  <meta name="description" content="Add Simple Host to ChatGPT, Claude, Grok, Gemini, Meta Muse, Mistral Vibe, Claude Code, Codex, OpenClaw or Hermes once. Then ask for a site and it goes online.">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/landing/site.css">
+  <link rel="stylesheet" href="/assets/landing/host-ink.css">
+  <style>
+    /* Tokens, base type and the header/footer live in /site.css. */
+
+    body { min-height: 100vh; }
+    .container { max-width: 680px; margin: 0 auto; padding: 0 24px; }
+    main { padding: 48px 0 88px; }
+
+    h1 {
+      font-size: clamp(30px, 5vw, 44px); font-weight: 700; color: var(--text);
+      letter-spacing: -0.025em; line-height: 1.1; margin: 0 0 14px;
+    }
+    .lede { color: var(--text-secondary); font-size: 18px; line-height: 1.55; margin: 0; }
+
+    section { margin-top: 48px; }
+    h2 {
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;
+    }
+    a { color: var(--accent); }
+
+    /* ── Pick your AI: one list, each row opens in place ── */
+    .apps { border-top: 1px solid var(--border); }
+    .app { border-bottom: 1px solid var(--border); }
+    .app h3 { margin: 0; font-size: inherit; font-weight: inherit; }
+    .app-btn {
+      width: 100%; min-height: 64px; display: flex; align-items: center; gap: 12px;
+      padding: 14px 4px; background: none; border: 0; cursor: pointer;
+      font-family: var(--font); color: var(--text); text-align: left;
+    }
+    .app-btn:hover .app-name { color: var(--accent); }
+    .app-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+    .app-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .app-name { font-size: 19px; font-weight: 650; line-height: 1.3; }
+    .app-sub { font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
+    .chev {
+      flex: 0 0 auto; width: 10px; height: 10px; margin-right: 6px;
+      border-right: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary);
+      transform: rotate(45deg); transition: transform .15s;
+    }
+    .app-btn[aria-expanded="true"] .chev { transform: translateY(3px) rotate(-135deg); }
+
+    .app-panel { padding: 0 4px 22px; }
+    .steps { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+    .steps li {
+      counter-increment: s; position: relative; padding-left: 38px;
+      margin: 0 0 14px; font-size: 16px; line-height: 1.55; color: var(--text);
+    }
+    .steps li:last-child { margin-bottom: 0; }
+    .steps li::before {
+      content: counter(s); position: absolute; left: 0; top: 0;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--surface); border: 1px solid var(--border-hi);
+      color: var(--text); font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .steps b { font-weight: 600; }
+    .hint { color: var(--text-secondary); font-size: 14px; margin: 14px 0 0 38px; line-height: 1.5; }
+
+    /* A value to copy: the text and its button on one line, wrapping on a phone. */
+    .copyrow {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 8px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 8px 8px 8px 14px;
+    }
+    .copyrow code {
+      flex: 1 1 auto; font-size: 14px; color: var(--text); white-space: nowrap;
+    }
+    /* Long terminal commands wrap anywhere instead of pushing the page sideways. */
+    .copyrow.cmd code { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+    .copy-btn {
+      flex: 0 0 auto; min-height: 36px; min-width: 72px;
+      border: 1px solid var(--border-hi); border-radius: 8px; background: var(--bg);
+      color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 500;
+      padding: 6px 14px; cursor: pointer; transition: border-color .15s, color .15s;
+    }
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .copy-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* ── Try one of these ── */
+    .prompts { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .prompt {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 12px 16px 18px;
+    }
+    .nw { white-space: nowrap; }
+    .prompt p { flex: 1; min-width: 0; margin: 0; font-size: 16px; line-height: 1.5; color: var(--text); }
+
+    .live { font-size: 17px; line-height: 1.55; color: var(--text); margin: 0; }
+
+    /* ── Questions ── */
+    .qs { border-top: 1px solid var(--border); }
+    .q { border-bottom: 1px solid var(--border); }
+    .q summary {
+      cursor: pointer; list-style: none; min-height: 52px; display: flex; align-items: center; gap: 12px;
+      font-size: 17px; font-weight: 600; color: var(--text); padding: 12px 4px;
+    }
+    .q summary::-webkit-details-marker { display: none; }
+    .q summary::after {
+      content: ""; margin-left: auto; margin-right: 6px; width: 9px; height: 9px; flex: 0 0 auto;
+      border-right: 2px solid var(--text-secondary); border-bottom: 2px solid var(--text-secondary);
+      transform: rotate(45deg); transition: transform .15s;
+    }
+    .q[open] summary::after { transform: translateY(3px) rotate(-135deg); }
+    .q summary:hover { color: var(--accent); }
+    .q summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+    .q p { margin: 0 4px 16px; color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
+
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      main { padding-top: 32px; }
+      .lede { font-size: 17px; }
+      section { margin-top: 40px; }
+      .steps li { padding-left: 36px; }
+      .hint { margin-left: 36px; }
+      .prompt { padding: 14px 10px 14px 14px; }
+      .copyrow { padding-left: 12px; }
+      .copyrow code { font-size: 12.5px; }
+      .copy-btn { min-width: 64px; padding: 6px 12px; }
+    }
+      #self-host pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+  </style>
+</head>
+<body>
+  <header class="sh-header">
+  <div class="sh-bar">
+    <a class="sh-logo" href="/"><span class="sh-logo-a">simple</span><b>-</b><span class="sh-logo-b">host</span></a>
+    <nav class="sh-nav" aria-label="Main">
+      <a class="sh-nav-home" href="/">Home</a>
+      <a href="/install" aria-current="page">Get started</a>
+      <a href="/docs">Docs</a>
+    </nav>
+    <a class="sh-signin" id="dash-link" href="/dashboard">Your sites</a>
+  </div>
+</header>
+
+  <main>
+    <div class="container">
+      <h1>Build websites by talking to the AI you already use.</h1>
+      <p class="lede">Add Simple Host to your AI once. Then ask for a site and it goes online.</p>
+
+      <!-- Connect your AI app: the one address, prominent, near the top. -->
+      <section aria-labelledby="connect">
+        <h2 id="connect">Connect your AI app</h2>
+        <p class="hint">Paste this address into Claude, ChatGPT, Claude Code, or any other AI app that takes a custom MCP connector URL.</p>
+        <div class="copyrow"><code id="mcp-url" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-url">Copy</button></div>
+      </section>
+
+      <!-- Pick your AI. One row open at a time; each opens in place. -->
+      <section aria-labelledby="pick">
+        <h2 id="pick">Pick your AI</h2>
+        <div class="apps">
+
+          <details class="app" id="chatgpt" name="pick-ai">
+            <summary class="app-btn" id="b-chatgpt" aria-expanded="false" aria-controls="p-chatgpt">
+              <span class="app-text"><span class="app-name">ChatGPT</span><span class="app-sub">On the web</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-chatgpt" role="region" aria-labelledby="b-chatgpt">
+              <p><b>Add custom MCP server</b></p>
+              <p class="hint">The fastest way: one address to paste.</p>
+              <ol class="steps">
+                <li><a href="https://chatgpt.com/plugins" target="_blank" rel="noopener">Open ChatGPT Plugins</a>.</li>
+                <li>Click <b>Add</b>, then choose <b>Add custom MCP server</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address, and save.
+                  <div class="copyrow"><code id="mcp-chatgpt">https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-chatgpt">Copy</button></div>
+                </li>
+                <li>A sign-in window opens. Choose Continue with Google, or enter your email and the 6-digit code we send, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">ChatGPT keeps the tool list from the day you added Simple Host. When Simple Host adds features, open ChatGPT Plugins, choose Simple Host, then Refresh.</p>
+              <p class="hint">Or add it by its address, in developer mode:</p>
+              <ol class="steps">
+                <li>Open <b>Settings</b>, then <b>Apps &amp; Connectors</b>, then <b>Advanced settings</b>, and turn on <b>Developer mode</b>.</li>
+                <li>Back in <b>Apps &amp; Connectors</b>, choose <b>Create</b>.</li>
+                <li>Name it <b>Simple Host</b>, and paste this address as the <b>MCP server URL</b>:
+                  <div class="copyrow"><code id="mcp-chatgpt-dev" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-chatgpt-dev">Copy</button></div>
+                </li>
+                <li>Choose <b>OAuth</b> for authentication, then <b>Create</b>.</li>
+                <li>Sign in with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
+              
+            </div>
+          </details>
+
+          <details class="app" id="claude" name="pick-ai">
+            <summary class="app-btn" id="b-claude" aria-expanded="false" aria-controls="p-claude">
+              <span class="app-text"><span class="app-name">Claude</span><span class="app-sub">Web, desktop, and phone</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-claude" role="region" aria-labelledby="b-claude">
+              <div data-hosted><p><b>From Claude's directory</b></p>
+              <ol class="steps">
+                <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Browse connectors</b>.</li>
+                <li>Search for <b>Simple Host</b>, choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">Works on web, desktop, and phone.</p>
+              <p class="hint">Or add it by its address:</p>
+              <ol class="steps">
+                <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address, and choose <b>Add</b>.
+                  <div class="copyrow"><code id="mcp-claude-addr" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude-addr">Copy</button></div>
+                </li>
+                <li>Choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
+              </ol></div>
+              <div data-self><p><b>Add a custom connector</b></p>
+              <ol class="steps">
+                <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address, and choose <b>Add</b>.
+                  <div class="copyrow"><code id="mcp-claude-self" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-claude-self">Copy</button></div>
+                </li>
+                <li>Choose <b>Connect</b>, sign in, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">Works on web, desktop, and phone. Claude's connector directory has the hosted service, not this server, so add this one by its address.</p></div>
+            </div>
+          </details>
+
+          <details class="app" id="grok" name="pick-ai">
+            <summary class="app-btn" id="b-grok" aria-expanded="false" aria-controls="p-grok">
+              <span class="app-text"><span class="app-name">Grok</span><span class="app-sub">Free plan works</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-grok" role="region" aria-labelledby="b-grok">
+              <ol class="steps">
+                <li>Go to <a href="https://grok.com/connectors" target="_blank" rel="noopener">grok.com/connectors</a>, choose <b>New Connector</b>, then <b>Custom</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address into Server URL, and click <b>Add Connector</b>:
+                  <div class="copyrow"><code id="mcp-grok" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-grok">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="copilot" name="pick-ai">
+            <summary class="app-btn" id="b-copilot" aria-expanded="false" aria-controls="p-copilot">
+              <span class="app-text"><span class="app-name">GitHub Copilot</span><span class="app-sub">In VS Code</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-copilot" role="region" aria-labelledby="b-copilot">
+              <ol class="steps">
+                <li>In VS Code, open the Command Palette and run <b>MCP: Add Server</b>, then choose <b>HTTP</b>.</li>
+                <li>Paste this address and name it <b>simple-host</b>:
+                  <div class="copyrow"><code id="mcp-copilot" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-copilot">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then ask Copilot Chat for a site.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="muse" name="pick-ai">
+            <summary class="app-btn" id="b-muse" aria-expanded="false" aria-controls="p-muse">
+              <span class="app-text"><span class="app-name">Meta Muse</span><span class="app-sub">Custom connector</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-muse" role="region" aria-labelledby="b-muse">
+              <ol class="steps">
+                <li>In Muse, open <b>Settings</b>, then <b>Connectors</b>, then <b>Add custom connector</b>.</li>
+                <li>Paste this address as the MCP URL:
+                  <div class="copyrow"><code id="mcp-muse" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-muse">Copy</button></div>
+                </li>
+                <li>Muse asks for a Client ID. Type this, not your email:
+                  <div class="copyrow"><code id="muse-client-id">meta-muse</code><button class="copy-btn" type="button" data-copy-target="muse-client-id">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="gemini" name="pick-ai">
+            <summary class="app-btn" id="b-gemini" aria-expanded="false" aria-controls="p-gemini">
+              <span class="app-text"><span class="app-name">Gemini</span><span class="app-sub">Personal Google account, in the US</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-gemini" role="region" aria-labelledby="b-gemini">
+              <ol class="steps">
+                <li>On a computer, open <a href="https://gemini.google.com" target="_blank" rel="noopener">gemini.google.com</a>, then <b>Settings</b>, then <b>Connected Apps</b>.</li>
+                <li>Under <b>Custom apps</b>, choose <b>Add a custom app</b>, paste this address, and choose <b>Next</b>:
+                  <div class="copyrow"><code id="mcp-gemini" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-gemini">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">Google offers custom apps to people 18 and over in the US, signed in with a personal account, with Keep Activity on. Once added, it works in the phone app too.</p>
+            </div>
+          </details>
+
+          <details class="app" id="mistral" name="pick-ai">
+            <summary class="app-btn" id="b-mistral" aria-expanded="false" aria-controls="p-mistral">
+              <span class="app-text"><span class="app-name">Mistral Vibe</span><span class="app-sub">Formerly Le Chat. Free plan works</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-mistral" role="region" aria-labelledby="b-mistral">
+              <ol class="steps">
+                <li>Open <b>Connectors</b>, choose <b>Add Connector</b>, then the <b>Custom MCP Connector</b> tab.</li>
+                <li>Name it <b>simplehost</b>, paste this address as the Server URL, and choose <b>Connect</b>:
+                  <div class="copyrow"><code id="mcp-mistral" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-mistral">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">On a team plan, an admin adds it first.</p>
+            </div>
+          </details>
+
+          <details class="app" id="claude-code" name="pick-ai">
+            <summary class="app-btn" id="b-claude-code" aria-expanded="false" aria-controls="p-claude-code">
+              <span class="app-text"><span class="app-name">Claude Code</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-claude-code" role="region" aria-labelledby="b-claude-code">
+              <ol class="steps">
+                <li>Run this in your terminal. It adds the connector:
+                  <div class="copyrow cmd"><code id="cmd-claude-plugin" data-mcp-cmd="claude mcp add --transport http simple-host {address}">claude mcp add --transport http simple-host https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-claude-plugin">Copy</button></div>
+                </li>
+                <li>In Claude Code, type <b>/mcp</b>, choose <b>simple-host</b>, then <b>Authenticate</b>.</li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+              <p class="hint">For the skill, see <a href="#manual-skills">Add the skill</a> under Other coding agents.</p>
+            </div>
+          </details>
+
+          <details class="app" id="codex" name="pick-ai">
+            <summary class="app-btn" id="b-codex" aria-expanded="false" aria-controls="p-codex">
+              <span class="app-text"><span class="app-name">Codex</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-codex" role="region" aria-labelledby="b-codex">
+              <ol class="steps">
+                <li>Run this in your terminal. It adds the connector:
+                  <div class="copyrow cmd"><code id="cmd-codex" data-mcp-cmd="codex mcp add simple-host --url {address}">codex mcp add simple-host --url https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="cmd-codex">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+                <li>Start Codex and ask for a site.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="openclaw" name="pick-ai">
+            <summary class="app-btn" id="b-openclaw" aria-expanded="false" aria-controls="p-openclaw">
+              <span class="app-text"><span class="app-name">OpenClaw</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-openclaw" role="region" aria-labelledby="b-openclaw">
+              <ol class="steps">
+                <li>Run this on the computer where OpenClaw runs. It adds the connector:
+                  <div class="copyrow cmd"><code id="cmd-openclaw" data-mcp-cmd="openclaw mcp add simple-host --url {address} --transport streamable-http --auth oauth &amp;&amp; openclaw mcp login simple-host">openclaw mcp add simple-host --url https://simple-host.app/mcp --transport streamable-http --auth oauth &amp;&amp; openclaw mcp login simple-host</code><button class="copy-btn" type="button" data-copy-target="cmd-openclaw">Copy</button></div>
+                </li>
+                <li>Open the link it prints, sign in, then choose <b>Allow</b>.</li>
+                <li>Ask OpenClaw for a site, from any chat you use it in.</li>
+              </ol>
+              <p class="hint">If OpenClaw runs on another computer, the browser ends on a page that does not load. Copy the code after <code>code=</code> in its address and run <code>openclaw mcp login simple-host --code</code> followed by the code.</p>
+            </div>
+          </details>
+
+          <details class="app" id="hermes" name="pick-ai">
+            <summary class="app-btn" id="b-hermes" aria-expanded="false" aria-controls="p-hermes">
+              <span class="app-text"><span class="app-name">Hermes Agent</span><span class="app-sub">One command</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-hermes" role="region" aria-labelledby="b-hermes">
+              <ol class="steps">
+                <li>Run this on the computer where Hermes runs. It adds the connector:
+                  <div class="copyrow cmd"><code id="cmd-hermes" data-mcp-cmd="hermes mcp add simple-host --url {address} --auth oauth --connect-timeout 300">hermes mcp add simple-host --url https://simple-host.app/mcp --auth oauth --connect-timeout 300</code><button class="copy-btn" type="button" data-copy-target="cmd-hermes">Copy</button></div>
+                </li>
+                <li>Open the link it prints, sign in, then choose <b>Allow</b>. When Hermes asks to enable the tools, press Enter.</li>
+                <li>Ask Hermes for a site, from any chat you use it in.</li>
+              </ol>
+              <p class="hint">If Hermes runs on another computer, the browser ends on a page that does not load. Paste that page's address into Hermes when it asks.</p>
+            </div>
+          </details>
+
+          <details class="app" id="coding-agents" name="pick-ai">
+            <summary class="app-btn" id="b-code" aria-expanded="false" aria-controls="p-code">
+              <span class="app-text"><span class="app-name">Other coding agents</span><span class="app-sub">Skills and a connector</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-code" role="region" aria-labelledby="b-code">
+              <ol class="steps">
+                                <li>In your agent's MCP settings, add a remote HTTP server named <b>simple-host</b> with this address:
+                  <div class="copyrow"><code id="mcp-code" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-code">Copy</button></div>
+                </li>
+                <li>Sign in once in the window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+              
+              <p class="hint">Your agent needs to support MCP sign-in (OAuth). <a href="#manual-skills">Add the skill</a></p>
+              <details id="manual-skills">
+                <summary>Add the skill</summary>
+                <p>Download <a href="/skills.zip">skills.zip</a>. Unzip it into your agent's skills directory (it holds one folder, simple-host), then restart the agent.</p>
+                <ul>
+                  <li>Claude Code: <code>~/.claude/skills/</code></li>
+                  <li>Codex: <code>~/.agents/skills/</code>; Cursor: <code>~/.cursor/skills/</code></li>
+                  <li>opencode: <code>~/.config/opencode/skills/</code>; Hermes: <code>~/.hermes/skills/</code>; OpenClaw: <code>~/.openclaw/skills/</code></li>
+                </ul>
+                <p>On Windows, replace <code>~</code> with your user profile directory.</p>
+              </details>
+            </div>
+          </details>
+
+          <details class="app" id="lovable" name="pick-ai">
+            <summary class="app-btn" id="b-lovable" aria-expanded="false" aria-controls="p-lovable">
+              <span class="app-text"><span class="app-name">Lovable</span><span class="app-sub">App builder</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-lovable" role="region" aria-labelledby="b-lovable">
+              <ol class="steps">
+                <li>In Lovable, open <b>Connectors</b>, choose <b>Add custom</b>, then <b>MCP server</b>.</li>
+                <li>Name it <b>Simple Host</b>, leave <b>Connection</b> on <b>Direct connection</b>, and paste this address as the <b>Server URL</b>:
+                  <div class="copyrow"><code id="mcp-lovable" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-lovable">Copy</button></div>
+                </li>
+                <li>Keep <b>OAuth</b>, choose <b>Add &amp; authorize</b>, sign in once in the Simple Host window that opens, then choose <b>Allow</b>.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="bolt" name="pick-ai">
+            <summary class="app-btn" id="b-bolt" aria-expanded="false" aria-controls="p-bolt">
+              <span class="app-text"><span class="app-name">Bolt</span><span class="app-sub">App builder</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-bolt" role="region" aria-labelledby="b-bolt">
+              <ol class="steps">
+                <li>In Bolt, click <b>+</b> in the chat box, then <b>Connectors</b>, then <b>Manage connectors</b>, then <b>Custom MCP server</b>.</li>
+                <li>Name it <b>Simple Host</b>, paste this address as the <b>URL</b>, and keep the <b>HTTP</b> transport:
+                  <div class="copyrow"><code id="mcp-bolt" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-bolt">Copy</button></div>
+                </li>
+                <li>Under <b>Authentication</b>, choose <b>MCP OAuth</b>, then <b>Connect</b>. Sign in once in the Simple Host window that opens, then choose <b>Allow</b>.</li>
+                <li>In your project, click <b>+</b>, then <b>Connectors</b>, and turn on <b>Simple Host</b>.</li>
+              </ol>
+            </div>
+          </details>
+
+          <details class="app" id="other" name="pick-ai">
+            <summary class="app-btn" id="b-other" aria-expanded="false" aria-controls="p-other">
+              <span class="app-text"><span class="app-name">Any other AI app</span><span class="app-sub">Replit, v0, Windsurf and others</span></span>
+              <span class="chev" aria-hidden="true"></span>
+            </summary>
+            <div class="app-panel" id="p-other" role="region" aria-labelledby="b-other">
+              <ol class="steps">
+                <li>Add this address as a custom MCP connector (sometimes called an MCP server) in your app's settings, for example in Replit, v0 or Windsurf. If it asks how to sign in, choose <b>OAuth</b>:
+                  <div class="copyrow"><code id="mcp-other" data-mcp-address>https://simple-host.app/mcp</code><button class="copy-btn" type="button" data-copy-target="mcp-other">Copy</button></div>
+                </li>
+                <li>Sign in once in the Simple Host window that opens, with Google or an email code, then choose <b>Allow</b>.</li>
+              </ol>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section aria-labelledby="try">
+        <h2 id="try">Try one of these</h2>
+        <ul class="prompts">
+          <li class="prompt"><p id="ex-1">Make a website for my salon with a booking request form.</p><button class="copy-btn" type="button" data-copy-target="ex-1">Copy</button></li>
+          <li class="prompt"><p id="ex-2">Build a landing page for my new product with a waitlist.</p><button class="copy-btn" type="button" data-copy-target="ex-2">Copy</button></li>
+          <li class="prompt"><p id="ex-3">Make a client portal for my clients.</p><button class="copy-btn" type="button" data-copy-target="ex-3">Copy</button></li>
+          <li class="prompt"><p id="ex-4">Put my bakery site on bakerybyanna.com.</p><button class="copy-btn" type="button" data-copy-target="ex-4">Copy</button></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="live">
+        <h2 id="live">It's live</h2>
+        <p class="live">Your site is online at its own address, and it shows up under <a href="/dashboard">Your sites</a>.</p>
+      </section>
+
+      <section id="faq" aria-label="Questions">
+        <div class="qs">
+          <details class="q" name="faq">
+            <summary>Who can see my site?</summary>
+            <p>Anyone with the link can see its pages. Each person’s records lets people add records and see only their own status and history, while you see and update all. Use it for shop orders, RSVPs and event sign-ups, bookings and appointments, applications (jobs, clubs, hackathons), support requests, homework or assignment submissions, survey answers people can revisit, and a waitlist with “my place in line”.</p>
+          </details>
+          <details class="q" name="faq">
+            <summary>Is it free?</summary>
+            <p>Yes.</p>
+          </details>
+          <details class="q" name="faq">
+            <summary>Can I use my own domain?</summary>
+            <p>Yes.<span data-hosted> Or pick a free <b>name</b>.simple-host.app address.</span></p>
+          </details>
+          <details class="q" name="faq">
+            <summary>Can I run my own?</summary>
+            <p>Yes, on one small server with Docker Compose. See <a href="#self-host">Run your own copy</a>.</p>
+          </details>
+        </div>
+      </section>
+      <section class="section"><h2>Your public page</h2><p>Your own address lists the sites you switch on for it. Or ask your connected app to "make this my home page" to show one site there instead.</p></section>
+  <section id="self-host" class="section">
+    <h2>Run your own copy</h2>
+    <p>You need a small server with Docker and Docker Compose, and a domain you control.</p>
+    <ol class="steps">
+      <li>Download <code>compose.yaml</code> and <code>.env.example</code> from the source repository. Save <code>.env.example</code> as <code>.env</code>.</li>
+      <li>In <code>.env</code>, set <code>DOMAIN</code> to your domain.</li>
+      <li>Point <code>DOMAIN</code> and <code>*.DOMAIN</code> at the server with your DNS provider.</li>
+      <li>Run <code>docker compose up -d</code>.</li>
+      <li>Open <code>https://DOMAIN/setup</code> and finish setup there. It checks your DNS.</li>
+    </ol>
+    <p>On your own copy, sites live at <code>&lt;site&gt;--&lt;handle&gt;.DOMAIN</code>.</p>
+    <h3>Upgrade</h3>
+    <p>Make a backup first, then pull and restart:</p>
+    <pre>docker compose exec db pg_dump -U simplehost simplehost &gt; backup.sql
+docker compose pull &amp;&amp; docker compose up -d</pre>
+  </section>
+    </div>
+
+</main>
+
+  <footer class="sh-footer">
+  <div class="sh-foot">
+    <nav class="sh-foot-links" aria-label="More">
+      <a href="/docs">Docs</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/support">Support</a>
+    </nav>
+    <p class="sh-credit" data-hosted>Simple Host is made and run by Vineet Sriram.</p>
+    <p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>
+  </div>
+</footer>
+<script>
+// One page for every install: what only simple-host.app can say is marked
+// data-hosted and removed elsewhere; data-self is the other way round.
+(function () {
+  var hosted = location.hostname === 'simple-host.app';
+  document.querySelectorAll(hosted ? '[data-self]' : '[data-hosted]').forEach(function (el) { el.remove(); });
+})();
+</script>
+
+  <script>
+    // Native rows, with exclusivity for browsers without details name support.
+    document.querySelectorAll('details[name]').forEach(function(row){
+      row.addEventListener('toggle',function(){
+        var summary=row.querySelector('summary');if(summary)summary.setAttribute('aria-expanded',String(row.open));
+        if(row.open)document.querySelectorAll('details[name="'+row.getAttribute('name')+'"]').forEach(function(other){if(other!==row)other.open=false;});
+      });
+    });
+    function openLinkedAI(){var id=location.hash.slice(1);var row=document.getElementById(id);if(row&&row.matches('.apps > details')){document.querySelectorAll('.apps > details').forEach(function(other){other.open=other===row;});row.scrollIntoView({block:'nearest'});}}
+    window.addEventListener('hashchange',openLinkedAI);openLinkedAI();
+
+    // The MCP address, and any command built from it, are filled from this
+    // page's own origin so they are exact on every instance without waiting
+    // on a server-side rewrite.
+    (function () {
+      var mcp = location.origin + '/mcp';
+      document.querySelectorAll('[data-mcp-address]').forEach(function (el) { el.textContent = mcp; });
+      document.querySelectorAll('[data-mcp-cmd]').forEach(function (el) {
+        el.textContent = el.getAttribute('data-mcp-cmd').split('{address}').join(mcp);
+      });
+    })();
+
+    // Copy buttons.
+    document.querySelectorAll('[data-copy-target]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var target = document.getElementById(button.dataset.copyTarget);
+        if (!target) return;
+        var text = target.textContent.trim();
+        var done = function () {
+          button.textContent = 'Copied';
+          setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+        };
+        var fallback = function () {
+          var ta = document.createElement('textarea'); ta.value = text;
+          ta.style.position = 'fixed'; ta.style.top = '-1000px';
+          document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          ta.remove(); done();
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(done).catch(fallback);
+        } else fallback();
+      });
+    });
+  </script>
+</body>
+</html>

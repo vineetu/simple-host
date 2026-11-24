@@ -40,6 +40,7 @@ import (
 	"simplehost/sites/serve"
 	"simplehost/sites/stats"
 	"simplehost/sites/uploads"
+	"simplehost/web"
 )
 
 func main() {
@@ -95,6 +96,7 @@ func mount(a *app.App) {
 	erase.Mount(a)
 	admin.Mount(a)
 	holds.Mount(a)
+	web.Mount(a)
 }
 
 // work starts the background workers: one line per worker, go Work(ctx, a).

@@ -7,13 +7,11 @@ package uploads
 
 import (
 	"database/sql"
-	_ "embed"
 	"errors"
 	"io"
 	"mime"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	access "simplehost/access/core"
@@ -24,16 +22,12 @@ import (
 // LinkLife is how long an unused upload link works.
 const LinkLife = 24 * time.Hour
 
-//go:embed picker.html
-var picker string
-
 type handler struct{ a *app.App }
 
-// Mount adds routes 27, 28 and 29.
+// Mount adds routes 27 and 29. Route 28, the picker page, is in web.
 func Mount(a *app.App) {
 	h := &handler{a}
 	a.Routes.Platform.Handle("POST /v1/sites/{site}/upload-links", web.Func(h.link))
-	a.Routes.Platform.Handle("GET /upload/{token}", web.Func(h.page))
 	a.Routes.Platform.Handle("PUT /v1/uploads/{token}", web.Func(h.upload))
 }
 
@@ -83,20 +77,6 @@ func (h *handler) find(r *http.Request) (uploadLink, error) {
 		return l, web.Refuse(http.StatusNotFound, "link_used", "This upload link was used or has run out. Ask for a new one.")
 	}
 	return l, err
-}
-
-// page is route 28: the picker page behind a link. It shrinks photos in the
-// browser before sending them.
-func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
-	l, err := h.find(r)
-	if err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Referrer-Policy", "no-referrer")
-	io.WriteString(w, strings.ReplaceAll(picker, "{{kind}}", l.kind))
-	return nil
 }
 
 // upload is route 29. An archive goes to route 22 as the link's maker; files

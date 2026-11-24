@@ -273,3 +273,25 @@ func RetireName(ctx context.Context, q db.Q, name string) error {
 	_, err := q.ExecContext(ctx, `UPDATE names SET retired_at = now() WHERE name = $1 AND retired_at IS NULL`, name)
 	return err
 }
+
+// FirstOperator makes the person with this email the operator, only while
+// nobody is (a self-hosted install's first run). ok is false once one exists.
+func (p *People) FirstOperator(ctx context.Context, email string) (person Person, ok bool, err error) {
+	if person, err = p.Ensure(ctx, email); err != nil {
+		return person, false, err
+	}
+	res, err := p.DB.ExecContext(ctx, `UPDATE people SET operator = true WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM people WHERE operator)`, person.ID)
+	if err != nil {
+		return person, false, err
+	}
+	n, _ := res.RowsAffected()
+	person.Operator = n == 1
+	return person, n == 1, nil
+}
+
+// HasOperator reports whether any person is the operator.
+func (p *People) HasOperator(ctx context.Context) (bool, error) {
+	var yes bool
+	err := p.DB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM people WHERE operator)`).Scan(&yes)
+	return yes, err
+}

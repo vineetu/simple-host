@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finish setup - Simple Host</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top"><div class="in"><span class="brand"><span class="wa">simple</span><b>-</b><span class="wb">host</span></span></div></header>
+<main class="narrow">
+  <h1>Finish setup</h1>
+  <p>This copy of Simple Host runs at <strong>__DOMAIN__</strong> (DOMAIN in your <code>.env</code>). Sites will live at <code>site--handle.__DOMAIN__</code>.</p>
+  <section>
+    <h2>DNS</h2>
+    <p class="muted">Both names must point at this server.</p>
+    <ul class="list" id="records"><li><span class="muted">Checking…</span></li></ul>
+    <button id="again">Check again</button>
+  </section>
+  <section>
+    <h2>Your account</h2>
+    <p class="muted">The first account runs this copy: it sees the admin page and can make accounts for others.</p>
+    <form id="f" novalidate>
+      <div class="field"><label for="email">Your email</label><input id="email" type="email" autocomplete="email" required></div>
+      <button class="primary" id="go">Finish setup</button>
+    </form>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  function post(body) {
+    return fetch('/setup', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.fix || 'Setup is already finished, or something broke.'); return b; }); });
+  }
+  function show(b) {
+    $('records').replaceChildren.apply($('records'), (b.records || []).map(function (r) {
+      var li = document.createElement('li'), name = document.createElement('code'), st = document.createElement('span');
+      name.textContent = r.name; name.className = 'grow';
+      st.textContent = r.ok ? 'points at ' + r.addresses.join(', ') : (r.addresses && r.addresses.length ? 'points somewhere else: ' + r.addresses.join(', ') : 'not found yet');
+      st.className = r.ok ? 'good' : 'bad';
+      li.append(name, st);
+      return li;
+    }));
+    return b;
+  }
+  function check() { return post({ check: true }).then(show).catch(function (e) { $('status').textContent = e.message; }); }
+  $('again').onclick = check;
+  $('f').onsubmit = function (e) {
+    e.preventDefault();
+    $('go').disabled = true;
+    $('status').textContent = 'Checking…';
+    post({ email: $('email').value.trim() }).then(function (b) {
+      show(b);
+      if (b.next) { location.replace(b.next); return; }
+      $('status').textContent = 'Fix the DNS above, wait a few minutes, then try again.';
+      $('status').className = 'status bad';
+      $('go').disabled = false;
+    }).catch(function (err) { $('status').textContent = err.message; $('status').className = 'status bad'; $('go').disabled = false; });
+  };
+  check();
+})();
+</script>
+</body>
+</html>

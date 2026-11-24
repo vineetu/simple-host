@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="/"><span class="wa">simple</span><b>-</b><span class="wb">host</span></a>
+  <nav><a href="/install">Get started</a><a href="/docs">Docs</a><a href="/dashboard">Your sites</a></nav>
+</div></header>
+<main>
+  <section class="lead">
+    <h1>Privacy</h1>
+    <p class="muted">Last updated 2026-11-24</p>
+    <p>We collect what we need to sign you in, host your sites and stop abuse. We do not sell your data, show ads or add tracking scripts to pages.</p>
+    <p>Simple Host is run by Vineet Sriram, an individual. Questions: <a href="mailto:support@simple-host.app">support@simple-host.app</a>. The rules for using the service are in the <a href="/terms">Terms</a>.</p>
+  </section>
+
+  <section>
+    <h2>What we keep about you</h2>
+    <ul>
+      <li><strong>Your email.</strong> It is your account. We get it when you enter a code we emailed you, or when Google confirms it. If you use Google, we keep Google's ID for you and the verified email. We do not keep your Google name, picture or password.</li>
+      <li><strong>Your handle and display name.</strong> A handle is part of your site addresses.</li>
+      <li><strong>Keys and app connections.</strong> Used to prove a request comes from you. Keys and tokens are stored only as one-way hashes, so we cannot show a key again.</li>
+      <li><strong>Your sites.</strong> Files, kept versions, names and any domain or short name you connect.</li>
+      <li><strong>Data your sites save.</strong> Tables, values and files, with the rules you set. Also the emails of named viewers, and your notification settings. For browser push, a device's push address and keys.</li>
+      <li><strong>Request records.</strong> The time and a shortened IP address of API calls, kept for 30 days, for limits, security and abuse. The web server log keeps the full IP address for 30 days.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>If you visit a site hosted here</h2>
+    <p>Each site's owner decides what it shows and what it asks of you. We only host it.</p>
+    <ul>
+      <li><strong>What you submit belongs to that site's owner.</strong> The owner can read it and is responsible for it. Ask the owner to change or delete it. Where a site's rules let anyone read entries, others can read yours.</li>
+      <li><strong>Signing in.</strong> When you sign in on a site with Google or an emailed code, that creates a Simple Host account under your email. You get a cookie for that one site. It lasts up to 30 days. The site never gets your key. Entries you save while signed in are linked to your account. The owner sees an opaque reference by default, and sees your email only when they ask who sent an entry.</li>
+      <li><strong>Spam check.</strong> Where a site lets anonymous visitors post, Cloudflare Turnstile checks that you are not a bot.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Visit counts</h2>
+    <p>We count visits so a site's owner can see how many people read it. We do not add a script, cookie or fingerprint to your pages. The count comes from our web server's own log.</p>
+    <ul>
+      <li>The counts hold a hash of your IP address (made with a secret key), your country, the site, the page, the referring domain and the day. We do not keep your IP address or User-Agent in the counts.</li>
+      <li>Countries only. There is no city or network lookup. The country comes from a local copy of a public database, so your IP address is sent nowhere.</li>
+      <li>Owners' own visits and bots are not counted as people.</li>
+      <li>Owners see numbers for their own sites. We see them for all sites. Nobody is shown your IP address or the hash.</li>
+      <li>Counts are deleted after 400 days, or when the site is deleted.</li>
+    </ul>
+  </section>
+
+  <section id="abandoned">
+    <h2>Abandoned sites</h2>
+    <p>A site with no visits and no changes for 3 months gets one email to its owner. Visiting the site or changing it keeps it. If nothing happens, the site is removed.</p>
+  </section>
+
+  <section>
+    <h2>Connected AI apps</h2>
+    <p>When you connect an AI app, you sign in on simple-host.app and approve. The app gets an access token that lasts one hour and a refresh token that expires after 90 days without use. The app acts as you. It can do what you can do.</p>
+    <ul>
+      <li><strong>What we receive.</strong> Only what the app sends in a tool call, such as site names, files and data to save. Not your chat history.</li>
+      <li><strong>What we send back.</strong> What you asked for. Results leave out personal details such as emails unless asked. The app handles results under its own privacy policy.</li>
+      <li><strong>AgentCat.</strong> Tool calls from AI apps are sent to AgentCat for analysis. Sign-in codes and passcodes are never sent.</li>
+      <li><strong>Disconnecting.</strong> Remove an app in your dashboard. Signing out everywhere disconnects all apps.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Who else handles data</h2>
+    <p>The service makes only its own outbound calls:</p>
+    <ul>
+      <li>Certificate authorities (Let's Encrypt, Google, ZeroSSL) for HTTPS.</li>
+      <li>Cloudflare Turnstile, for spam checks.</li>
+      <li>An email provider, to send sign-in codes and notices to you.</li>
+      <li>Browser push services, for notifications you turn on.</li>
+      <li>AgentCat, for tool calls from AI apps.</li>
+    </ul>
+    <p>Pages you publish do not call anyone through us. We do not sell or share your data for advertising.</p>
+  </section>
+
+  <section>
+    <h2>How long we keep things</h2>
+    <ul>
+      <li>Your account, sites and data: until you delete them.</li>
+      <li>A deleted site stays 7 days in a bin, then is gone for good.</li>
+      <li>Deleting your account removes your sites, data, keys, sign-ins and app connections at once.</li>
+      <li>Request records: 30 days. Visit counts: 400 days.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Your rights</h2>
+    <p>In the dashboard under Your data you can download everything we hold for your account, and you can delete the account there too. A download comes as a link by email. For anything else, such as a correction, or a site that collected your details, email <a href="mailto:support@simple-host.app">support@simple-host.app</a>.</p>
+  </section>
+</main>
+<footer class="foot"><div class="in">
+  <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a><span>Simple Host</span>
+</div></footer>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in - Simple Host</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<header class="top"><div class="in"><a class="brand" href="/"><span class="wa">simple</span><b>-</b><span class="wb">host</span></a></div></header>
+<main class="narrow">
+  <section id="ask" hidden>
+    <h1>Continue to <span id="site-name"></span>?</h1>
+    <p class="muted">The site's owner will see the email you are signed in with: <strong id="who"></strong>.</p>
+    <div class="row"><button class="primary" id="yes">Continue</button><a class="btn" id="no" href="/">Cancel</a></div>
+  </section>
+  <section id="sign">
+    <h1>Sign in</h1>
+    <p class="muted" id="sub">No password. New here? This makes your account.</p>
+    <p><a class="btn" id="google" href="/v1/auth/google">Continue with Google</a></p>
+    <p class="muted">Or get a code by email:</p>
+    <form id="f" novalidate>
+      <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required></div>
+      <div class="field" id="code-field" hidden><label for="code">The 6-digit code we emailed you</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+      <button class="primary" id="go" type="submit">Email me a code</button>
+    </form>
+  </section>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+</main>
+<footer class="foot"><div class="in"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a></div></footer>
+<script>
+(function () {
+  'use strict';
+  // /signin?next=<path>: back to that path after signing in (default the dashboard).
+  // /signin?hop=<token>: a visitor from a site. After the email is proved the
+  // answer carries next (the site's finish address); a browser already signed
+  // in here is asked once per site to continue (answer: confirm = the site).
+  var $ = function (id) { return document.getElementById(id); };
+  var q = new URLSearchParams(location.search);
+  var hop = q.get('hop') || '';
+  var next = q.get('next') || '/dashboard';
+  if (!/^\/(?!\/)/.test(next)) next = '/dashboard';
+  var step = 'email';
+  $('google').href = '/v1/auth/google' + (hop ? '?hop=' + encodeURIComponent(hop) : '');
+  if (hop) $('sub').textContent = 'Sign in to continue to the site. No password.';
+  function say(text, bad) { $('status').textContent = text; $('status').className = 'status' + (bad ? ' bad' : ''); }
+  function post(path, body) {
+    return fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) { var e = new Error(b.fix || 'That did not work. Try again.'); e.code = b.code; throw e; } return b; }); });
+  }
+  // after is what a verify answer leads to.
+  function after(b) {
+    if (b.next) { location.replace(b.next); return; }
+    if (b.confirm) {
+      $('sign').hidden = true; $('ask').hidden = false;
+      $('site-name').textContent = b.confirm; $('who').textContent = b.email || '';
+      say('');
+      $('yes').focus();
+      return;
+    }
+    location.replace(next);
+  }
+  $('yes').onclick = function () {
+    $('yes').disabled = true;
+    post('/v1/auth/verify', { hop: hop, confirm: true }).then(after).catch(function (e) { say(e.message, true); $('yes').disabled = false; });
+  };
+  // Already signed in here? Then a visitor only confirms.
+  if (hop) post('/v1/auth/verify', { hop: hop }).then(after).catch(function (e) { if (e.code !== 'no_code' && e.code !== 'sign_in') say(e.message, true); });
+  $('f').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var email = $('email').value.trim();
+    $('go').disabled = true;
+    var done = function () { $('go').disabled = false; };
+    if (step === 'email') {
+      say('Sending…');
+      post('/v1/auth/code', { email: email }).then(function () {
+        step = 'code';
+        $('code-field').hidden = false; $('code').focus();
+        $('go').textContent = 'Sign in';
+        say('Check your email for the code.');
+      }).catch(function (err) { say(err.message, true); }).then(done);
+      return;
+    }
+    say('Checking…');
+    var body = { email: email, code: $('code').value.trim() };
+    if (hop) body.hop = hop;
+    post('/v1/auth/verify', body).then(after).catch(function (err) { say(err.message, true); done(); });
+  });
+})();
+</script>
+</body>
+</html>
