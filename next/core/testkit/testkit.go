@@ -252,6 +252,10 @@ func freshDatabase(t *testing.T) string {
 	return replaceDB(server.url, name)
 }
 
+// Database is a fresh empty database on the throwaway Postgres, dropped when
+// the test ends (for the copy tool, which needs an old and a new one).
+func Database(t *testing.T) string { return freshDatabase(t) }
+
 func answers(dsn string) bool {
 	c, err := sql.Open("postgres", dsn)
 	if err != nil {

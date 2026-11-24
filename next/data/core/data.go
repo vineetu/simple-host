@@ -58,8 +58,12 @@ type NS struct {
 
 var nsName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,62}$`)
 
-// tables every namespace file starts with: named values and file records.
-const builtIn = `
+// ValidName reports whether name may name a namespace.
+func ValidName(name string) bool { return nsName.MatchString(name) }
+
+// BuiltIn makes the tables every namespace file starts with: named values
+// and file records.
+const BuiltIn = `
 CREATE TABLE IF NOT EXISTS _values (key TEXT PRIMARY KEY, value TEXT NOT NULL, author TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS _files (name TEXT PRIMARY KEY, size INTEGER NOT NULL, type TEXT NOT NULL DEFAULT '', author TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`
 
@@ -80,7 +84,7 @@ func (d *Data) Create(ctx context.Context, site *sites.Site, name string) error 
 		return err
 	}
 	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, builtIn); err != nil {
+	if _, err := conn.ExecContext(ctx, BuiltIn); err != nil {
 		return err
 	}
 	_, err = d.DB.ExecContext(ctx, `INSERT INTO namespaces (site_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`, site.ID, name)
