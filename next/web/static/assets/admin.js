@@ -36,7 +36,7 @@
       '<div class="grid2">' +
         '<div class="panel"><h3>People</h3><p class="big">' + num(p.total) + '</p><p class="muted">' + num(p.new_7d) + ' new this week, ' + num(p.new_30d) + ' in 30 days</p></div>' +
         '<div class="panel"><h3>Sites</h3><p class="big">' + num(s.total) + '</p><p class="muted">' + bytes(s.bytes) + ' on disk</p></div>' +
-        '<div class="panel"><h3>Network, last ' + net.length + ' days</h3><p class="big">' + bytes(outTotal) + ' out</p><p class="muted">' + bytes(inTotal) + ' in</p></div>' +
+        '<div class="panel"><h3>Network, last ' + (net.length === 1 ? 'day' : net.length + ' days') + '</h3><p class="big">' + bytes(outTotal) + ' out</p><p class="muted">' + bytes(inTotal) + ' in</p></div>' +
       '</div>' +
       '<section><h2>Open a site</h2><p class="muted">See any site\'s versions and data, or take it down, on its ordinary page.</p>' +
         '<form class="row" id="open"><input id="o-owner" placeholder="handle" aria-label="Owner handle"><input id="o-name" placeholder="site name" aria-label="Site name"><button class="primary">Open</button></form></section>' +
@@ -62,7 +62,7 @@
       e.preventDefault();
       var st = document.getElementById('m-status');
       api('POST', '/v1/admin/people', { email: document.getElementById('m-email').value.trim() })
-        .then(function () { st.textContent = 'Account made. They sign in with that email.'; }, function (err) { st.textContent = err.message; });
+        .then(function (b) { st.textContent = b.says || 'Account made. They sign in with that email.'; }, function (err) { st.textContent = err.message; });
     };
     box.querySelectorAll('button[data-id]').forEach(function (b) {
       b.onclick = function () {

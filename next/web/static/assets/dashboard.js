@@ -124,6 +124,7 @@
 
   // ---- sites list
   function sitesPage(bin) {
+    if (!me.handle) return [handleCard(), invitationsCard()];
     var out = status(), list = h('ul', { class: 'list' });
     var search = h('input', { type: 'search', placeholder: 'Search your sites', 'aria-label': 'Search your sites' });
     var t = null;
@@ -141,11 +142,10 @@
     search.addEventListener('input', function () { clearTimeout(t); t = setTimeout(load, 250); });
     load();
     return [
-      me.handle ? null : handleCard(),
       invitationsCard(),
       h('div', { class: 'row', style: 'justify-content:space-between;margin-bottom:16px' },
         h('h1', { style: 'margin:0', text: bin ? 'Bin' : 'Your sites' }),
-        bin ? h('a', { href: '#', text: 'Back to your sites' }) : (me.handle ? newSiteButton() : null)),
+        bin ? h('a', { href: '#', text: 'Back to your sites' }) : newSiteButton()),
       bin ? h('p', { class: 'muted', text: 'Deleted sites stay here for 7 days, with their saved data. Restore puts one back as it was.' }) : null,
       h('div', { class: 'field' }, search),
       list, out,
@@ -328,7 +328,8 @@
           return h('li', {}, h('span', { class: 'grow', text: r.key || r.name || '(none)' }), h('span', { class: 'muted', text: String(r.n || r.count || 0) }));
         }).concat((rows || []).length ? [] : [h('li', {}, h('span', { class: 'muted', text: 'None yet.' }))])));
       }
-      box.replaceChildren(h('p', { class: 'big', text: total.toLocaleString() + ' visits' }), h('p', { class: 'muted', text: 'Last ' + days.length + ' days. Your own visits and bots are not counted.' }), bars,
+      box.replaceChildren(h('p', { class: 'big', text: total.toLocaleString() + (total === 1 ? ' visit' : ' visits') }),
+        h('p', { class: 'muted', text: (days.length ? 'Last ' + days.length + (days.length === 1 ? ' day' : ' days') + '. ' : 'No visits yet. ') + 'Your own visits and bots are not counted. New visits show within a minute.' }), days.length ? bars : null,
         h('div', { class: 'grid2' }, top('Top pages', st.pages), top('Referrers', st.referrers), top('Countries', st.countries)));
     }).catch(function (e) { box.replaceChildren(h('p', { class: 'bad', text: e.message })); });
     return panel('Visits', null, box);
