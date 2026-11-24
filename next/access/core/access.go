@@ -233,6 +233,9 @@ func ValidName(name string) error {
 // the service itself uses, and names that would pass for the service.
 var reserved = map[string]bool{}
 
+// Reserved reports whether name is kept for the service itself.
+func Reserved(name string) bool { return reserved[name] }
+
 func init() {
 	for _, n := range strings.Fields(`www sites api mcp admin app cname mail email smtp mx ns
 		auth login signin signup oauth sso connect dashboard console static assets cdn status help support v1
