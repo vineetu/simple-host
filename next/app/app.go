@@ -166,6 +166,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w = k
 		p, err := a.Sites.Lookup(r.Context(), web.Host(r))
 		k.place = p
+		if err == web.NotFound && pageView(r) && strings.Contains(r.Header.Get("Accept"), "text/html") {
+			sites.NotFoundPage(w, r) // a browser gets a page, a program the JSON
+			return
+		}
 		if err != nil {
 			web.Fail(w, r, err)
 			return
