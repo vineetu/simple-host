@@ -452,7 +452,7 @@
             box.style.cssText = FONT + "font-size:15px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 14px;color:#1a1a1a;background:#fff;border-radius:var(--sh-radius,14px)";
             var who = document.createElement("span");
             who.textContent = me.email ? "Signed in as " + me.email : "Signed in";
-            var out = button("Sign out");
+            var out = button("Sign out", true);
             out.onclick = function () { SH.signOut().then(render).catch(function (e) { who.textContent = e.message; }); };
             box.appendChild(who);
             box.appendChild(out);
