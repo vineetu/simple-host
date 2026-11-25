@@ -17,6 +17,8 @@
 ## The catalogue
 `app/src/catalogue/entries.ts` lists every screen in every state: a URL, the API's answers (fixtures in `fixtures.ts`) and steps to reach a dialog or step. `catalogue.html` shows them all side by side; `catalogue.html?id=<id>` one alone. The clock is frozen at `NOW` for the pictures.
 
+The pages the Go server writes (gates, status, the four text pages) are in the catalogue too (`app/src/catalogue/pages.ts`): `make web-pages` renders the gate pages from `sites/core/gate.go` into `app/.catalogue-pages` (web-check and web-accept run it first), and the catalogue build copies them and the text pages to `/catalogue-pages/`.
+
 ## How to add a screen
 1. Read `DESIGN.md`. Make `app/src/screens/<area>/<Screen>.tsx` from `components/ui` pieces only, inside `AppShell` (signed in) or `PageShell` (signed out).
 2. Fetch with `useApi()` + TanStack Query; put the route's types and hooks in `screens/<area>/data.ts`. Unit-test any plain logic beside it (`*.test.ts`).

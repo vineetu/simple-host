@@ -304,6 +304,18 @@ for (const width of [390, 1280]) {
       await check(page, "gate-" + name, width);
     }
 
+    // The text pages, on the shared stylesheet.
+    for (const [path, title] of [
+      ["/privacy", "Privacy"],
+      ["/terms", "Terms"],
+      ["/support", "Support"],
+      ["/docs", "API reference"],
+    ]) {
+      await page.goto(APP + path);
+      await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+      await check(page, "text" + path.replace("/", "-"), width);
+    }
+
     await page.goto(site("club", "ana"));
     await expect(page.getByRole("heading", { name: "This site is private" })).toBeVisible();
     await noScript();
@@ -322,6 +334,10 @@ for (const width of [390, 1280]) {
     await check(page, "gate-ask", width);
     await page.getByRole("button", { name: "Ask for access", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("We told the owner");
+    await check(page, "gate-asked", width);
+    // Signing out of the site (a plain form) goes back to the private page.
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "This site is private" })).toBeVisible();
 
     // Signed in on the platform already: a second site only asks to continue.
     // (a redirect answered by the test's router: wait for the first answer only)
