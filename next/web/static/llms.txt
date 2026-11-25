@@ -31,7 +31,7 @@ Sites
 - list_sites: my sites and my teams' sites, search, bin.
 - get_site: everything about one site, by name or address (any site the person may open).
 - publish_site: files in, address out. keep_other_files keeps the rest of the live site.
-- create_upload_link: a big archive, or the photo/file picker (an in-chat screen).
+- create_upload_link: the photo/file picker (an in-chat screen; namespace photos unless named), or with kind archive a big archive.
 - read_site_file: one file of any site the person may open.
 - change_site: offline or online, listed, roll back to a version, restore from the bin. Asks first.
 - delete_site: move to the bin. Asks first.

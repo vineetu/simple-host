@@ -74,7 +74,7 @@
   const hideArchive = () => { archive = true; ready = false; document.body.hidden = true; };
   app.on('tool-input', params => {
     const args = params.arguments || {};
-    if (args.kind === 'archive' || (!args.namespace && args.kind !== 'files')) { hideArchive(); return; }
+    if (args.kind === 'archive') { hideArchive(); return; } // no namespace: the result names it (photos)
     if (archive || finished || busy) return;
     if (typeof args.namespace === 'string') namespace = args.namespace;
     if (typeof args.site === 'string') selectSite(args.site, typeof args.owner === 'string' ? args.owner : '');

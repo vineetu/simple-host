@@ -23,15 +23,16 @@ Only call tools for what the person asked. A planning question does not authoriz
 3. **New site.** Name it with lowercase letters, numbers and hyphens (no `--`). Say the name
    and that anyone with the link can open it, then `publish_site`. Give the person the
    address the tool returns, exactly as returned.
-4. **Big site** (many photos, a build). Call `create_upload_link` for an archive and run the
-   command it returns.
+4. **Big site** (many photos, a build). Call `create_upload_link` with `kind: "archive"` and
+   run the command it returns.
 5. **Forms and saved entries.** Call `get_recipe` with the topic that fits: inbox
    (contact, quote, sign-up), public (menu, prices), personal (bookings), comments,
    portal, gallery. Publish its page first, then run its setup (`run_sql`, `set_data_rules`). Tell the
    person who can see what and how they see entries ("ask me: show my bookings", which uses
    `data` or `run_sql`). Offer `set_notifications` so they hear when entries arrive.
 6. **Photos.** When the page needs the person's own photos, call `create_upload_link` after
-   publishing, unasked. It shows a picker in the chat. Never build an upload page for that.
+   publishing, unasked. It shows a picker in the chat; photos go to the namespace `photos`
+   unless you name another. Never build an upload page for that.
 7. **Who may open it.** `set_site_access`: open, a passcode, or named viewers (emails the
    person gave you, nothing else). For a passcode the in-chat screen sets and shows it, so
    it never enters the chat. Do not ask for or repeat it.

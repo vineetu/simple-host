@@ -78,45 +78,26 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 	return res, true
 }
 
-// photoPicker stands in for the old create_upload_link {site}: a photo
-// picker that saved into the site's images/. Photos now go to a namespace's
-// file store, so this uses the namespace "photos" (the upload link makes it)
-// and, when compat made it, lets anyone who can open the site see its files,
-// as they could see images/. Goes with this package.
+// photoPicker answers the old create_upload_link {site}, a photo picker
+// that saved into the site's images/. The current tool gives the picker for
+// the namespace photos; this adds the old answer's photos_url and says where
+// photos now land. Goes with this package.
 func photoPicker(a args, run func(string, map[string]any) (map[string]any, bool)) map[string]any {
-	site, _ := run("get_site", a.keep("site", "owner"))
-	if site["isError"] == true {
-		return site
-	}
-	sc, _ := site["structuredContent"].(map[string]any)
-	nss, _ := sc["namespaces"].([]any)
-	made := true
-	for _, n := range nss {
-		if m, _ := n.(map[string]any); m["name"] == "photos" {
-			made = false
-		}
-	}
-	res, _ := run("create_upload_link", a.keep("site", "owner").with("namespace", "photos").with("kind", "files"))
-	if res["isError"] == true {
+	if a["archive"] == true {
+		res, _ := run("create_upload_link", a.keep("site", "owner").with("kind", "archive"))
 		return res
 	}
-	if made {
-		read := map[string]any{"_files": map[string]any{"version": 1, "policies": []any{map[string]any{"name": "read", "command": "read", "using": "true"}}}}
-		if rr, _ := run("set_data_rules", a.keep("site", "owner").with("namespace", "photos").with("rules", read)); rr["isError"] == true {
-			return rr
-		}
-	}
+	res, _ := run("create_upload_link", a.keep("site", "owner"))
 	link, _ := res["structuredContent"].(map[string]any)
-	if link == nil {
-		link = map[string]any{}
+	if res["isError"] == true || link == nil {
+		return res
 	}
 	link["photos_url"] = link["url"] // the old answer's name for it
-	res["structuredContent"] = link
-		content, _ := res["content"].([]any)
-	res["content"] = append(content, text("Give the person url: it is the photo picker (it shrinks photos on their device). "+
+	content, _ := res["content"].([]any)
+	res["content"] = append(content, text("The photo picker is in the chat; url is the same picker as a page. "+
 		"Photos now go to this site's photos namespace, not images/. When they say done, list them with data GET storage/files/photos/objects, "+
-		"and show one on a page with <img src=\"/v1/sites/"+url.PathEscape(a.s("site"))+"/storage/files/photos/objects/<path>\"> (or SH.storage.files(\"photos\").url(path)). "+
-		"For a whole-site archive link instead, call create_upload_link with kind: \"archive\"."))
+		"and show one on a page with <img src=\"/v1/sites/"+url.PathEscape(a.s("site"))+"/storage/files/photos/objects/<path>\">. "+
+		"Only the owner can see them until set_data_rules lets visitors read _files (ask the person first)."))
 	return res
 }
 
@@ -293,8 +274,8 @@ func OldArgs(name string, in map[string]any) bool {
 	}
 	a := args(in)
 	switch name {
-	case "create_upload_link": // the old {site}: a photo picker, not an archive link
-		return a["archive"] != true && a.s("namespace") == "" && a.s("kind") == ""
+	case "create_upload_link": // the old {site} (photo picker) or {site, archive: true}
+		return a.s("namespace") == "" && a.s("kind") == ""
 	case "set_site_access":
 		return a.s("access") == "anyone" || a.s("access") == "specific"
 	case "read_site_file":

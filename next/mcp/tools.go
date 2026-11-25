@@ -109,15 +109,15 @@ var tools = []tool{
 			p, err := c.site("", url.Values{"keep_other_files": {c.str("keep_other_files")}})
 			return "PUT", p, c.pick("files", "files_base64"), err
 		}},
-	{name: "create_upload_link", about: "With a namespace: the photo picker, shown in the chat, where the person adds photos (shrunk on their device) straight to that namespace's file store; the answer's url is the same picker as a page, for apps without screens. Without: a one-time link for a big site as one archive.",
-		input: siteIn("namespace", str("Where photos and files go, like photos."), "kind", str(`"files" or "archive"; follows from namespace when left out.`)), screen: "photo-picker",
+	{name: "create_upload_link", about: "The photo picker, shown in the chat, where the person adds photos (shrunk on their device) straight to a namespace's file store (photos unless namespace says otherwise); the answer's url is the same picker as a page, for apps without screens. With kind archive: a one-time link for a big site as one archive.",
+		input: siteIn("namespace", str("Where photos and files go; photos when left out."), "kind", str(`"files" (the default) or "archive".`)), screen: "photo-picker",
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("/upload-links", nil)
-			kind := c.or("kind", "archive")
-			if c.str("namespace") != "" && c.str("kind") == "" {
-				kind = "files"
+			kind, ns := c.or("kind", "files"), c.or("namespace", "photos")
+			if kind == "archive" {
+				ns = ""
 			}
-			return "POST", p, map[string]any{"kind": kind, "namespace": c.str("namespace")}, err
+			return "POST", p, map[string]any{"kind": kind, "namespace": ns}, err
 		}},
 	{name: "read_site_file", about: "Read one published file of any site you may open.", input: siteIn("path!", str("The file's path, like index.html.")), readOnly: true,
 		route: func(c *call) (string, string, any, error) {
