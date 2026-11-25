@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,7 +18,8 @@ type tool struct {
 	input       map[string]any
 	readOnly    bool
 	asks        bool   // deletes or widens access: the app asks the person first
-	screen      string // the in-chat screen shown with the result
+	screen      string // the in-chat screen shown with the result (mcp.go)
+	appOnly     bool   // called by an in-chat screen, hidden from the model
 	route       func(c *call) (method, path string, body any, err error)
 }
 
@@ -89,7 +91,7 @@ var tools = []tool{
 		}},
 	// Sites
 	{name: "list_sites", about: "My sites and my teams' sites, most recently changed first.", readOnly: true,
-		input: in("q", str("Text to search site names for."), "bin", boolean("List the bin (deleted in the last 7 days) instead.")),
+		input: in("q", str("Text to search site names for."), "bin", boolean("List the bin (deleted in the last 7 days) instead.")), screen: "my-sites",
 		route: func(c *call) (string, string, any, error) {
 			q := url.Values{"q": {c.str("q")}}
 			if c.args["bin"] == true {
@@ -106,8 +108,8 @@ var tools = []tool{
 			p, err := c.site("", url.Values{"keep_other_files": {c.str("keep_other_files")}})
 			return "PUT", p, c.pick("files", "files_base64"), err
 		}},
-	{name: "create_upload_link", about: "With a namespace: the photo and file picker, shown in the chat (photos are shrunk on the device), saving to that namespace's file store. Without: a one-time link for a big site as one archive.",
-		input: siteIn("namespace", str("Where photos and files go, like photos."), "kind", str(`"files" or "archive"; follows from namespace when left out.`)), screen: "photos",
+	{name: "create_upload_link", about: "With a namespace: the photo picker, shown in the chat, where the person adds photos (shrunk on their device) straight to that namespace's file store; the answer's url is the same picker as a page, for apps without screens. Without: a one-time link for a big site as one archive.",
+		input: siteIn("namespace", str("Where photos and files go, like photos."), "kind", str(`"files" or "archive"; follows from namespace when left out.`)), screen: "photo-picker",
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("/upload-links", nil)
 			kind := c.or("kind", "archive")
@@ -134,8 +136,8 @@ var tools = []tool{
 		}},
 	{name: "delete_site", about: "Move a site to the bin, with its data. It can be restored for 7 days. Ask first.", input: siteIn(), asks: true,
 		route: func(c *call) (string, string, any, error) { p, err := c.site("", nil); return "DELETE", p, nil, err }},
-	{name: "set_site_access", about: "Who may open the site: open, a passcode, or people named by email; or sign everyone out. For a passcode, call with access \"passcode\" and no passcode: the person types it in the screen shown, so it never enters the chat. Ask first.",
-		input: siteIn("access", str(`"open", "passcode" or "viewers".`), "passcode", str("Only from the passcode screen."), "viewers", emails,
+	{name: "set_site_access", about: "Who may open the site: open, a passcode, or people named by email; or sign everyone out. For a passcode, or to see the one it has, call with access \"passcode\" and no passcode: the person sets or sees it in the screen shown, so it never enters the chat. Ask first.",
+		input: siteIn("access", str(`"open", "passcode" or "viewers".`), "passcode", str("Only one the person gave; never ask for one in chat."), "viewers", emails,
 			"viewers_add", emails, "viewers_remove", emails, "sign_everyone_out", boolean("End every unlock and visitor sign-in.")), asks: true, screen: "passcode",
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("", nil)
@@ -145,13 +147,17 @@ var tools = []tool{
 			}
 			return "PATCH", p, c.pick("access", "passcode", "viewers", "viewers_add", "viewers_remove", "sign_everyone_out"), err
 		}},
+	{name: "passcode_screen", about: "The passcode screen's own calls: it shows and sets the passcode sealed, so it never enters the chat.", appOnly: true,
+		input: siteIn("action!", str(`"begin", "show", "set" or "generate".`), "client_key", str("begin: the screen's P-256 public key, base64url."),
+			"session", str("The session begin gave."), "nonce", str("set: AES-GCM nonce, base64url."), "ciphertext", str("set: the sealed passcode, base64url.")),
+		route: passcodeScreen},
 	{name: "set_site_address", about: "Connect the site's own domain (answers with the DNS records to add and what is missing), or give it a free short name (<name>.simple-host.app, live at once). \"\" removes either. Ask first.", asks: true,
 		input: siteIn("domain", str("Like shop.example.com."), "short_name", str("Like bakery.")),
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("", nil)
 			return "PATCH", p, c.pick("domain", "short_name"), err
 		}},
-	{name: "site_stats", about: "Visit numbers: visits per day, top pages, referrers and countries. Shown in the chat.", input: siteIn("days", integer("Days back, 1 to 365 (30).")), readOnly: true, screen: "stats",
+	{name: "site_stats", about: "Visit numbers: visits per day, top pages, referrers and countries. Shown in the chat.", input: siteIn("days", integer("Days back, 1 to 365 (30).")), readOnly: true, screen: "dashboard",
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("/stats", url.Values{"days": {c.str("days")}})
 			return "GET", p, nil, err
@@ -164,7 +170,8 @@ var tools = []tool{
 		}},
 	// Saved data
 	{name: "data", about: "Rows, values and stored files of any site you may open, with your rights (the routes pages use). path is under the site, like storage/sqlite/bookings/tables/bookings/rows, storage/kv/menu/keys/today, storage/files/photos/objects.",
-		input: siteIn("method", str("GET (default), POST, PATCH, PUT or DELETE."), "path!", str("Starts with storage/."), "body", object("The JSON body, for POST, PATCH and PUT.")),
+		input: siteIn("method", str("GET (default), POST, PATCH, PUT or DELETE."), "path!", str("Starts with storage/."), "body", object("The JSON body, for POST, PATCH and PUT."),
+			"body_base64", str("Instead of body: a file's bytes in base64, to PUT at storage/files/<namespace>/objects/<name>."), "type", str("The file's type with body_base64, like image/jpeg.")),
 		route: func(c *call) (string, string, any, error) {
 			rest, query, _ := strings.Cut(c.str("path"), "?")
 			if !strings.HasPrefix(rest, "storage/") {
@@ -172,6 +179,13 @@ var tools = []tool{
 			}
 			q, _ := url.ParseQuery(query)
 			p, err := c.site("/"+rest, q)
+			if raw := c.str("body_base64"); raw != "" && err == nil {
+				b, err := base64.StdEncoding.DecodeString(raw)
+				if err != nil {
+					return "", "", nil, web.Refuse(http.StatusBadRequest, "bad_base64", "Send body_base64 as standard base64.")
+				}
+				return strings.ToUpper(c.or("method", "PUT")), p, file{b, c.or("type", "application/octet-stream")}, nil
+			}
 			return strings.ToUpper(c.or("method", "GET")), p, c.args["body"], err
 		}},
 	{name: "run_sql", about: "The owner's SQL on a namespace of their site: any statement (made if new). Without sql: the tables and space used. Values are in _values, stored files' records in _files.",

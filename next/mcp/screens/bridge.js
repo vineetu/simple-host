@@ -1,43 +1,92 @@
-/* MCP Apps bridge: talks only to the chat app that shows this screen. */
+/* Standard MCP Apps transport. No credentials or direct API requests. */
 (function () {
   'use strict';
-  var next = 0, waiting = {}, handlers = {}, origin = '*';
-  function send(m) { m.jsonrpc = '2.0'; window.parent.postMessage(m, origin); }
+  let nextID = 0, context = {}, initialized = false, parentOrigin = '*';
+  const pending = new Map(), handlers = new Map();
+  const send = message => window.parent.postMessage({ jsonrpc: '2.0', ...message }, parentOrigin);
+  const notify = (method, params) => send({ method, params });
   function request(method, params) {
-    var id = ++next;
-    return new Promise(function (resolve, reject) {
-      waiting[id] = { resolve: resolve, reject: reject, method: method };
-      send({ id: id, method: method, params: params });
+    const id = ++nextID;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { pending.delete(id); reject(new Error('The chat app did not respond. Try again.')); }, 60000);
+      pending.set(id, { resolve, reject, timer, method });
+      send({ id, method, params });
     });
   }
-  window.addEventListener('message', function (e) {
-    var m = e.data;
-    if (e.source !== window.parent || !m || m.jsonrpc !== '2.0') return;
-    if (!m.method && waiting[m.id]) {
-      var w = waiting[m.id]; delete waiting[m.id];
-      if (w.method === 'ui/initialize' && e.origin && e.origin !== 'null') origin = e.origin;
-      if (m.error) w.reject(new Error(m.error.message || 'The chat app could not do that.')); else w.resolve(m.result);
+  function hostContext(update) {
+    context = { ...context, ...update };
+    const theme = context.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+    const host = context.hostInfo?.name || '';
+    document.documentElement.dataset.host = /claude/i.test(host) ? 'claude' : 'default';
+    for (const [key, value] of Object.entries(context.styles?.variables || {})) {
+      if (key.startsWith('--') && typeof value === 'string') document.documentElement.style.setProperty(key, value);
+    }
+  }
+  window.addEventListener('message', event => {
+    if (event.source !== window.parent || !event.data || event.data.jsonrpc !== '2.0') return;
+    const message = event.data;
+    if (!message.method && pending.has(message.id)) {
+      const wait = pending.get(message.id); pending.delete(message.id); clearTimeout(wait.timer);
+      if (message.error) wait.reject(new Error(message.error.message || 'The chat app could not finish this action.'));
+      else {
+        // Opaque sandbox proxy origins cannot be used as targetOrigin.
+        if (wait.method === 'ui/initialize') parentOrigin = event.origin && event.origin !== 'null' ? event.origin : '*';
+        wait.resolve(message.result);
+      }
       return;
     }
-    if (handlers[m.method]) handlers[m.method](m.params || {});
+    if (message.method === 'ui/notifications/host-context-changed') hostContext(message.params || {});
+    if (message.method === 'ui/resource-teardown') {
+      const teardown = handlers.get('teardown');
+      if (teardown) teardown();
+      for (const wait of pending.values()) { clearTimeout(wait.timer); wait.reject(new Error('Closed')); }
+      pending.clear(); send({ id: message.id, result: {} }); return;
+    }
+    const handler = handlers.get(message.method);
+    if (handler) handler(message.params || {});
+    else if (message.id !== undefined) send({ id: message.id, error: { code: -32601, message: 'Method not supported' } });
   });
-  function text(r) { var t = (r.content || []).filter(function (c) { return c.type === 'text'; })[0]; return t ? t.text : ''; }
-  window.SH = {
-    on: function (name, fn) { handlers['ui/notifications/' + name] = fn; },
-    call: function (name, args) {
-      return request('tools/call', { name: name, arguments: args }).then(function (r) {
-        if (r.isError) throw new Error(text(r) || 'That did not work. Try again.');
-        return r;
-      });
+  window.SHApp = {
+    // Raw results retain host-only metadata (for example chart series).
+    callToolResult: async (name, args = {}) => {
+      const result = await request('tools/call', { name, arguments: args });
+      if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text || 'Could not load this data. Try again.');
+      return result;
     },
-    open: function (url) { return request('ui/open-link', { url: url }); },
-    start: function () {
-      return request('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'Simple Host', version: '2' }, appCapabilities: {} }).then(function () {
-        send({ method: 'ui/notifications/initialized', params: {} });
-        new ResizeObserver(function () {
-          send({ method: 'ui/notifications/size-changed', params: { height: Math.ceil(document.body.getBoundingClientRect().height) } });
-        }).observe(document.body);
+
+    get hostContext() { return context; },
+    onTeardown: handler => handlers.set('teardown', handler),
+    updateModelContext: text => request('ui/update-model-context', { content: [{ type: 'text', text }] }),
+    on: (method, handler) => handlers.set('ui/notifications/' + method, handler),
+    callTool: async (name, args = {}) => {
+      const result = await request('tools/call', { name, arguments: args });
+      if (result.isError) throw new Error(result.content?.find(item => item.type === 'text')?.text || 'Could not save. Try again.');
+      if (result.structuredContent) return result.structuredContent;
+      const text = result.content?.find(item => item.type === 'text')?.text;
+      return text ? JSON.parse(text) : {};
+    },
+    // Callers must use a URL returned by a server tool, never visitor input.
+    openLink: url => {
+      if (new URL(url).protocol !== 'https:') return Promise.reject(new Error('Only HTTPS links can be opened.'));
+      return request('ui/open-link', { url });
+    },
+    requestDisplayMode: mode => request('ui/request-display-mode', { mode }),
+    start: async () => {
+      hostContext({});
+      const result = await request('ui/initialize', {
+        protocolVersion: '2026-01-26', appInfo: { name: 'Simple Host', version: '1.0.0' },
+        appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] }
       });
+      window.SHApp.hostCapabilities = result.hostCapabilities || {};
+      hostContext({ ...result.hostContext, hostInfo: result.hostInfo });
+      initialized = true;
+      notify('ui/notifications/initialized', {});
+      const resize = () => {
+        if (initialized) notify('ui/notifications/size-changed', { height: Math.ceil(document.body.getBoundingClientRect().height), width: document.documentElement.clientWidth });
+      };
+      new ResizeObserver(resize).observe(document.body);
+      resize();
     }
   };
 })();

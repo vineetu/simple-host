@@ -1,6 +1,13 @@
 package mcp_test
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/ecdh"
+	"crypto/hkdf"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -68,16 +75,19 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		t.Fatalf("initialize: %v", v)
 	}
 	list := call("tools/list", nil)["tools"].([]any)
-	if len(list) != 26 {
-		t.Fatalf("%d tools, want 26", len(list))
+	if len(list) != 27 { // 26 and the passcode screen's own
+		t.Fatalf("%d tools, want 27", len(list))
 	}
 	for _, x := range list {
 		if x := x.(map[string]any); x["name"] == "set_site_access" && !strings.Contains(text(x), "ui://simple-host/passcode") {
 			t.Fatalf("set_site_access names no passcode screen: %v", x)
 		}
 	}
+	if n := len(call("resources/list", nil)["resources"].([]any)); n != 4 {
+		t.Fatalf("%d screens, want 4", n)
+	}
 	screen := call("resources/read", map[string]any{"uri": "ui://simple-host/passcode"})
-	if !strings.Contains(text(screen), "Set passcode") {
+	if s := text(screen); !strings.Contains(s, "Set passcode") || strings.Contains(s, "__") {
 		t.Fatalf("passcode screen: %v", screen)
 	}
 
@@ -85,16 +95,33 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 	if res := tool(call, "set_site_access", map[string]any{"site": "blog", "access": "passcode"}); res["isError"] == true || page() != 200 {
 		t.Fatalf("asking for the screen: %v, page %d", res, page())
 	}
-	// The screen sets it: the result never carries the code.
+	// The screen sets it, sealed: no result carries the code.
+	private, _ := ecdh.P256().GenerateKey(rand.Reader)
+	session := base64.RawURLEncoding.EncodeToString(private.PublicKey().Bytes())
+	begin := tool(call, "passcode_screen", map[string]any{"site": "blog", "action": "begin", "client_key": session})["structuredContent"].(map[string]any)
+	serverKey, _ := base64.RawURLEncoding.DecodeString(begin["server_key"].(string))
+	public, _ := ecdh.P256().NewPublicKey(serverKey)
+	shared, _ := private.ECDH(public)
+	key, _ := hkdf.Key(sha256.New, shared, nil, "simple-host passcode screen v1", 32)
+	block, _ := aes.NewCipher(key)
+	aead, _ := cipher.NewGCM(block)
 	const code = "tulip-garden-7"
-	res := tool(call, "set_site_access", map[string]any{"site": "blog", "access": "passcode", "passcode": code})
+	nonce := make([]byte, 12)
+	sealed := aead.Seal(nil, nonce, []byte(code), []byte("set|blog|"+session))
+	res := tool(call, "passcode_screen", map[string]any{"site": "blog", "action": "set", "session": session,
+		"nonce": base64.RawURLEncoding.EncodeToString(nonce), "ciphertext": base64.RawURLEncoding.EncodeToString(sealed)})
 	if res["isError"] == true || strings.Contains(text(res), code) || page() != 401 {
 		t.Fatalf("set from the screen: %v, page %d", res, page())
 	}
-	// Shown again only to the screen, in _meta.
-	res = tool(call, "get_site", map[string]any{"site": "https://blog--nina.simple-host.site/"})
-	meta, _ := res["_meta"].(map[string]any)
-	if strings.Contains(text(res["content"]), code) || strings.Contains(text(res["structuredContent"]), code) || meta["passcode"] != code {
+	// Shown again only to the screen, sealed; get_site never carries it.
+	res = tool(call, "passcode_screen", map[string]any{"site": "blog", "action": "show", "session": session})
+	box := res["structuredContent"].(map[string]any)["sealed"].(map[string]any)
+	n, _ := base64.RawURLEncoding.DecodeString(box["nonce"].(string))
+	c, _ := base64.RawURLEncoding.DecodeString(box["ciphertext"].(string))
+	if shown, err := aead.Open(nil, n, c, []byte("show|blog|"+session)); err != nil || string(shown) != code || strings.Contains(text(res), code) {
+		t.Fatalf("show: %v %q", res, shown)
+	}
+	if res = tool(call, "get_site", map[string]any{"site": "https://blog--nina.simple-host.site/"}); strings.Contains(text(res), code) {
 		t.Fatalf("get_site: %v", res)
 	}
 	deadline := time.Now().Add(3 * time.Second)

@@ -1,7 +1,7 @@
 // Package mcp is the AI app's connection (route 54, POST /mcp): the MCP
 // protocol over HTTP, the tool table (tools.go) where each tool replays one
-// route of the platform with the caller's own identity, the three in-chat
-// screens (photo picker, passcode, visit numbers), and AgentCat, which
+// route of the platform with the caller's own identity, the four in-chat
+// screens (my sites, visitor numbers, photo picker, passcode), and AgentCat, which
 // receives every tool call. No feature knows MCP exists; the event stream
 // (GET /mcp) belongs to ops/notify.
 package mcp
@@ -9,6 +9,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
 	"crypto/rand"
 	"crypto/sha256"
 	"embed"
@@ -29,11 +30,18 @@ import (
 	"simplehost/core/web"
 )
 
-type server struct{ a *app.App }
+type server struct {
+	a   *app.App
+	key *ecdh.PrivateKey // the passcode screen's key exchange (passcode.go)
+}
 
 // Mount adds POST /mcp.
 func Mount(a *app.App) {
-	h := &server{a}
+	key, err := ecdh.P256().GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	h := &server{a, key}
 	a.Routes.Platform.Handle("POST /mcp", web.Func(h.post))
 }
 
@@ -100,8 +108,12 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 		for _, t := range tools {
 			x := map[string]any{"name": t.name, "description": t.about, "inputSchema": t.input,
 				"annotations": map[string]any{"readOnlyHint": t.readOnly, "destructiveHint": t.asks, "openWorldHint": false}}
-			if t.screen != "" {
-				x["_meta"] = map[string]any{"ui": map[string]any{"resourceUri": "ui://simple-host/" + t.screen}}
+			switch {
+			case t.appOnly: // called by a screen, never by the model
+				x["_meta"] = map[string]any{"ui": map[string]any{"visibility": []string{"app"}}}
+			case t.screen != "": // MCP Apps (Claude, ChatGPT) and ChatGPT's Apps SDK name the same screen
+				uri := "ui://simple-host/" + t.screen
+				x["_meta"] = map[string]any{"ui": map[string]any{"resourceUri": uri}, "openai/outputTemplate": uri, "openai/widgetAccessible": true}
 			}
 			list = append(list, x)
 		}
@@ -123,32 +135,71 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 	case "resources/list":
 		list := []map[string]any{}
 		for _, s := range screens {
-			list = append(list, map[string]any{"uri": "ui://simple-host/" + s, "name": s, "mimeType": screenType, "_meta": screenMeta})
+			list = append(list, map[string]any{"uri": "ui://simple-host/" + s.name, "name": s.title, "mimeType": screenType, "_meta": h.screenMeta(s)})
 		}
 		return map[string]any{"resources": list}, nil
 	case "resources/read":
 		var p struct{ URI string }
 		json.Unmarshal(req.Params, &p)
 		name, _ := strings.CutPrefix(p.URI, "ui://simple-host/")
-		if !slices.Contains(screens, name) {
+		i := slices.IndexFunc(screens, func(s screen) bool { return s.name == name })
+		if i < 0 {
 			return nil, &rpcError{-32602, "No screen at " + p.URI + "."}
 		}
-		page, _ := screenFiles.ReadFile("screens/" + name + ".html")
-		bridge, _ := screenFiles.ReadFile("screens/bridge.js")
-		html := strings.Replace(string(page), "__BRIDGE__", string(bridge), 1)
-		return map[string]any{"contents": []any{map[string]any{"uri": p.URI, "mimeType": screenType, "text": html, "_meta": screenMeta}}}, nil
+		return map[string]any{"contents": []any{map[string]any{"uri": p.URI, "mimeType": screenType, "text": h.screenPage(screens[i]), "_meta": h.screenMeta(screens[i])}}}, nil
 	}
 	return nil, &rpcError{-32601, "Simple Host does not answer " + req.Method + "."}
 }
 
-// The in-chat screens: MCP Apps HTML, shown with the tools that name them.
+// The in-chat screens: MCP Apps HTML, shown with the tools that name them
+// (tools.go). Each page is filled with the shared style, the bridge to the
+// chat app and its own script. Visitor numbers is the my-sites page opened
+// on one site's numbers.
+type screen struct {
+	name, title, page, script string
+	assets                    bool // loads the photo shrinker from the platform
+}
+
 var (
 	//go:embed screens
 	screenFiles embed.FS
-	screens     = []string{"passcode", "photos", "stats"}
-	screenType  = "text/html;profile=mcp-app"
-	screenMeta  = map[string]any{"ui": map[string]any{"prefersBorder": true, "csp": map[string]any{"connectDomains": []string{}, "resourceDomains": []string{}}}}
+	screens     = []screen{
+		{"my-sites", "My sites", "my-sites.html", "my-sites.js", false},
+		{"dashboard", "Visitor numbers", "my-sites.html", "my-sites.js", false},
+		{"photo-picker", "Photo picker", "photo-picker.html", "photo-picker.js", true},
+		{"passcode", "Passcode", "passcode.html", "passcode.js", false},
+	}
+	screenType = "text/html;profile=mcp-app"
 )
+
+func screenFile(name string) string {
+	b, _ := screenFiles.ReadFile("screens/" + name)
+	return string(b)
+}
+
+func (h *server) screenPage(s screen) string {
+	origin := "https://" + h.a.Config.AppDomain
+	config, _ := json.Marshal(map[string]any{"assetOrigin": origin, "maxBytes": 1000000, "maxDimension": 2048})
+	return strings.NewReplacer("__STYLE__", screenFile("shared.css"), "__BRIDGE__", screenFile("bridge.js"),
+		"__SCREEN__", screenFile(s.script), "__CONFIG__", string(config), "__VIEW__", s.name,
+		"__ASSET_ORIGIN__", origin, "__PASSCODE_MIN__", "6").Replace(screenFile(s.page))
+}
+
+// screenMeta is what both chat apps read about a screen: its border, and
+// that it reaches nothing but the photo shrinker's scripts.
+func (h *server) screenMeta(s screen) map[string]any {
+	resources := []string{}
+	if s.assets {
+		resources = append(resources, "https://"+h.a.Config.AppDomain)
+	}
+	ui := map[string]any{"prefersBorder": true,
+		"csp": map[string]any{"connectDomains": []string{}, "resourceDomains": resources, "frameDomains": []string{}, "baseUriDomains": []string{}}}
+	if s.name == "passcode" {
+		ui["permissions"] = map[string]any{"clipboardWrite": map[string]any{}}
+	}
+	return map[string]any{"ui": ui, "openai/widgetPrefersBorder": true,
+		"openai/widgetCSP": map[string]any{"connect_domains": []string{}, "resource_domains": resources}}
+}
 
 // call is one tool call: its arguments and the request it came on.
 type call struct {
@@ -231,9 +282,9 @@ func (h *server) call(r *http.Request, t tool, args map[string]any) map[string]a
 	case err != nil:
 		res = refusal(err)
 	case method == "":
-		res = result(body, false)
+		res = result(body)
 	default:
-		res = h.replay(r, method, path, body, t.name == "get_site")
+		res = h.replay(r, method, path, body)
 	}
 	go h.agentcat(web.CallerOf(r), t.name, args, res, time.Since(start))
 	return res
@@ -249,58 +300,71 @@ func refusal(err error) map[string]any {
 }
 
 // result is a route's JSON answer as a tool result. A passcode never goes in
-// it, except for get_site (show) in _meta, which only the passcode screen
-// reads: the chat never shows _meta.
-func result(v any, show bool) map[string]any {
+// it: the passcode screen gets it sealed (passcode.go).
+func result(v any) map[string]any {
 	obj, ok := v.(map[string]any)
 	if !ok {
 		obj = map[string]any{"items": v}
 	}
-	out := map[string]any{"structuredContent": obj}
-	if code, ok := obj["passcode"]; ok {
-		delete(obj, "passcode")
-		if show {
-			out["_meta"] = map[string]any{"passcode": code}
-		}
-	}
+	delete(obj, "passcode")
 	text, _ := json.Marshal(obj)
-	out["content"] = []any{map[string]any{"type": "text", "text": string(text)}}
-	return out
+	return map[string]any{"structuredContent": obj, "content": []any{map[string]any{"type": "text", "text": string(text)}}}
 }
 
-// replay sends the call through the platform's own routes as the caller.
-func (h *server) replay(r *http.Request, method, path string, body any, show bool) map[string]any {
+// file is a route body sent as it is (a stored file), not as JSON.
+type file struct {
+	bytes []byte
+	ctype string
+}
+
+// do sends one request through the platform's own routes as the caller. A
+// refusal comes back as the error; v is the JSON answer, if it is JSON.
+func (h *server) do(r *http.Request, method, path string, body any) (rec *httptest.ResponseRecorder, v any, err error) {
 	var rd io.Reader = http.NoBody
-	if body != nil {
+	ctype := "application/json"
+	if f, ok := body.(file); ok {
+		rd, ctype = bytes.NewReader(f.bytes), f.ctype
+	} else if body != nil {
 		b, _ := json.Marshal(body)
 		rd = bytes.NewReader(b)
 	}
 	req, err := http.NewRequestWithContext(r.Context(), method, "https://"+h.a.Config.AppDomain+path, rd)
 	if err != nil {
-		return refusal(web.Refuse(http.StatusBadRequest, "bad_path", "That path is not valid."))
+		return nil, nil, web.Refuse(http.StatusBadRequest, "bad_path", "That path is not valid.")
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", ctype)
 	req.Header.Set("X-Forwarded-Proto", "https")
 	req.RemoteAddr = r.RemoteAddr
 	req.Header.Set("X-Real-IP", r.Header.Get("X-Real-IP"))
-	rec := httptest.NewRecorder()
+	rec = httptest.NewRecorder()
 	h.a.Routes.Platform.ServeHTTP(rec, web.WithCaller(req, web.CallerOf(r)))
-	var v any
-	isJSON := strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") && json.Unmarshal(rec.Body.Bytes(), &v) == nil
-	switch {
-	case rec.Code >= 400 && isJSON:
+	if !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") || json.Unmarshal(rec.Body.Bytes(), &v) != nil {
+		v = nil
+	}
+	if rec.Code >= 400 {
 		m, _ := v.(map[string]any)
 		code, _ := m["code"].(string)
 		fix, _ := m["fix"].(string)
-		return refusal(web.Refuse(rec.Code, code, fix))
-	case rec.Code >= 400:
-		return refusal(web.Refuse(rec.Code, "not_found", "Nothing is there. Check the site and the path."))
-	case isJSON:
-		return result(v, show)
+		if code == "" {
+			code, fix = "not_found", "Nothing is there. Check the site and the path."
+		}
+		return rec, v, web.Refuse(rec.Code, code, fix)
+	}
+	return rec, v, nil
+}
+
+// replay is do as a tool result.
+func (h *server) replay(r *http.Request, method, path string, body any) map[string]any {
+	rec, v, err := h.do(r, method, path, body)
+	switch {
+	case err != nil:
+		return refusal(err)
+	case v != nil:
+		return result(v)
 	case utf8.Valid(rec.Body.Bytes()):
 		return map[string]any{"content": []any{map[string]any{"type": "text", "text": rec.Body.String()}}}
 	}
-	return result(map[string]any{"type": rec.Header().Get("Content-Type"), "bytes": rec.Body.Len(), "says": "A binary file; open it at the site's address."}, false)
+	return result(map[string]any{"type": rec.Header().Get("Content-Type"), "bytes": rec.Body.Len(), "says": "A binary file; open it at the site's address."})
 }
 
 // agentcat sends one tool call to AgentCat: its arguments and result, with
