@@ -21,7 +21,7 @@ match in all three.
    `dist/simple-host-openai-skills.zip`, which holds only skill folders.
 3. Copy the listing fields below. Upload `plugins/openai/assets/logo.png` (512 by 512) and
    `plugins/openai/assets/icon.png` (256 by 256).
-4. Fill in the MCP tab as below, then **Scan Tools**. Expect 27 tools (26 for the model and `passcode_screen`, which only the in-chat passcode screen calls). Domain
+4. Fill in the MCP tab as below, then **Scan Tools**. Expect 25 tools (24 for the model and `passcode_screen`, which only the in-chat passcode screen calls). Domain
    verification: the portal shows a token; put it in `/etc/simple-host.env` as
    `OPENAI_APPS_CHALLENGE=<token>`, restart, check that
    `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token,
@@ -99,13 +99,13 @@ they are in that folder; there is no separate OpenAI copy.
 - Server: `https://simple-host.app/mcp`, Streamable HTTP, as in `mcp.json`.
 - Authentication: OAuth with dynamic client registration (DCR), authorization code flow and
   PKCE (S256). Use the server's discovery metadata; do not paste an API key or a client secret.
-- Tool inventory: 27 tools, each listed on its own, with no `find_tools` or `run_tool`. Account:
+- Tool inventory: 25 tools, each listed on its own, with no `find_tools` or `run_tool`. Account:
   `who_am_i`, `update_account`, `download_my_data`, `delete_account`. Teams: `create_team`,
   `invite_to_team`, `accept_invite`, `remove_from_team`, `delete_team`. Sites: `list_sites`,
   `get_site`, `publish_site`, `create_upload_link`, `read_site_file`, `change_site`, `delete_site`,
   `set_site_access`, `set_site_address`, `site_stats`, `set_notifications`, `passcode_screen`
   (called only by the passcode screen). Saved data: `data`, `run_sql`, `set_data_rules`,
-  `get_recipe`. Operator only (refused for everyone else): `admin_overview`, `set_hold`. Site
+  `get_recipe`. Site
   tools take an optional `owner` to act on a team's sites. Notifications are in the same server.
 - Annotations: every tool sets readOnlyHint, destructiveHint and openWorldHint. The server sets
   readOnly on the read tools and destructive on the tools that delete or widen access (the ones
@@ -155,7 +155,7 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
 - 2026-10-28, production build b4c65325: `scripts/e2e/e2e-reviewer.py` signed in as the reviewer
   and ran the then P1 to P5 at the tool level; all 45 checks passed. That run predates Teams.
 - 2026-11-21: the kit was updated to the old service's 68 tools (Teams added).
-- 2026-11-25: the kit was rewritten for the new service's 27 tools (tool names, cases P1 to P5,
+- 2026-11-25: the kit was rewritten for the new service's 25 tools (the two operator tools are left out; tool names, cases P1 to P5,
   listing text, skills 0.28.0). Not yet run against the new service in ChatGPT or MCPJam. The
   reviewer demo data (`scripts/seed-reviewer-demo.py`, `scripts/e2e/e2e-reviewer.py`) was written
   for the old API and has not been checked against the new service.

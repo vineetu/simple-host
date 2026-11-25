@@ -307,30 +307,6 @@
         "open_world_justification": "Returns fixed text.",
         "destructive_justification": "Changes nothing."
       }
-    },
-    "admin_overview": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Operator only: people, sites, sizes, sign-ups, reports and use.",
-        "open_world_justification": "Reads only the operator's own service.",
-        "destructive_justification": "Changes nothing."
-      }
-    },
-    "set_hold": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Operator only: takes a site down or restores it, suspends or restores an account.",
-        "open_world_justification": "Acts only inside the operator's own service.",
-        "destructive_justification": "Takes a site or account out of use; the app asks first. Refused for everyone but the operator."
-      }
     }
   },
   "test_cases": [

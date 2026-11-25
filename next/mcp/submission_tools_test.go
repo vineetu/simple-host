@@ -9,9 +9,9 @@ import (
 	"simplehost/core/web"
 )
 
-// listed is tools/list as the operator's AI app sees it (all tools). It needs no database.
+// listed is tools/list as an ordinary user's AI app sees it (the operator tools are left out). It needs no database.
 func listed() []map[string]any {
-	r := web.WithCaller(httptest.NewRequest("POST", "/mcp", nil), web.Caller{Operator: true})
+	r := web.WithCaller(httptest.NewRequest("POST", "/mcp", nil), web.Caller{})
 	res, _ := (&server{}).answer(r, rpc{Method: "tools/list"})
 	return res.(map[string]any)["tools"].([]map[string]any)
 }

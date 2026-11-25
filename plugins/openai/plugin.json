@@ -111,7 +111,7 @@
         "demo_recording_url": "https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-demo.mp4"
       },
       "publication": {
-        "release_notes": "A rewritten Simple Host connector with 27 tools instead of 68 (one is only called by the passcode screen): publish, change, access, address and visit numbers on a site; saved data with rules and the owner's SQL; teams; in-chat screens for the passcode, the photo picker, my sites and visit numbers. Same account and sites."
+        "release_notes": "A rewritten Simple Host connector with 25 tools instead of 68 (one is only called by the passcode screen): publish, change, access, address and visit numbers on a site; saved data with rules and the owner's SQL; teams; in-chat screens for the passcode, the photo picker, my sites and visit numbers. Same account and sites."
       }
     }
   }
