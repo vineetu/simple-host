@@ -8,6 +8,7 @@ package uploads
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"io"
 	"mime"
@@ -47,7 +48,9 @@ func (h *handler) check(w http.ResponseWriter, r *http.Request) error {
 }
 
 // link is route 27: {"kind": "archive"} or {"kind": "files", "namespace": "photos"}.
-// The site must exist; publish it once first. A files link makes the namespace if new.
+// The site must exist; publish it once first. A files link makes the namespace if new;
+// with "public": true a new one lets anyone who can open the site see its files
+// (the owner's photos for a public page); only the owner writes.
 func (h *handler) link(w http.ResponseWriter, r *http.Request) error {
 	site, err := h.a.Sites.Of(r)
 	if err != nil {
@@ -56,7 +59,10 @@ func (h *handler) link(w http.ResponseWriter, r *http.Request) error {
 	if err := h.a.Sites.Manage(r, site); err != nil {
 		return err
 	}
-	var in struct{ Kind, Namespace string }
+	var in struct {
+		Kind, Namespace string
+		Public          bool
+	}
 	if err := web.Read(r, &in); err != nil {
 		return err
 	}
@@ -64,7 +70,11 @@ func (h *handler) link(w http.ResponseWriter, r *http.Request) error {
 	case "archive":
 		in.Namespace = ""
 	case "files":
-		if err := h.a.Data.Create(r.Context(), site, in.Namespace); err != nil {
+		var first []json.RawMessage
+		if in.Public {
+			first = append(first, json.RawMessage(`{"_files": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}]}}`))
+		}
+		if err := h.a.Data.Create(r.Context(), site, in.Namespace, first...); err != nil {
 			return err
 		}
 	default:

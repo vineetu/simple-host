@@ -97,7 +97,7 @@ func photoPicker(a args, run func(string, map[string]any) (map[string]any, bool)
 	res["content"] = append(content, text("The photo picker is in the chat; url is the same picker as a page. "+
 		"Photos now go to this site's photos namespace, not images/. When they say done, list them with data GET storage/files/photos/objects, "+
 		"and show one on a page with <img src=\"/v1/sites/"+url.PathEscape(a.s("site"))+"/storage/files/photos/objects/<path>\">. "+
-		"Only the owner can see them until set_data_rules lets visitors read _files (ask the person first)."))
+		"Anyone who can open the site sees them, as with images/; only the owner adds them."))
 	return res
 }
 

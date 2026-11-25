@@ -11,6 +11,7 @@ import (
 	"simplehost/api"
 	"simplehost/compat"
 	"simplehost/core/testkit"
+	"simplehost/data/files"
 	"simplehost/data/recipes"
 	datarules "simplehost/data/rules"
 	datasql "simplehost/data/sql"
@@ -28,7 +29,7 @@ const platform = "https://simple-host.app"
 // start is the service with compat in front, as main serves it, and a
 // client that reaches it at any address.
 func start(t *testing.T) (*testkit.Kit, *http.Client) {
-	k := testkit.Start(t, publish.Mount, manage.Mount, serve.Mount, values.Mount, datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, web.Mount, uploads.Mount)
+	k := testkit.Start(t, publish.Mount, manage.Mount, serve.Mount, values.Mount, datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, web.Mount, uploads.Mount, files.Mount)
 	srv := httptest.NewServer(compat.Wrap(k.App, k.App))
 	t.Cleanup(srv.Close)
 	return k, &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
@@ -143,6 +144,11 @@ func TestOldArgumentsTranslate(t *testing.T) {
 		if s := call(c.name, c.args); !strings.Contains(s, c.want) || strings.Contains(s, "new tools") {
 			t.Fatalf("%s: want %s in %s", c.name, c.want, s)
 		}
+	}
+	k.Publish(t, ann, "cafe", map[string]string{"index.html": "menu"}) // shop is viewers-only by now
+	call("create_upload_link", map[string]any{"site": "cafe"})
+	if r := testkit.Call(t, b, "GET", "https://cafe--ann.simple-host.site/v1/sites/cafe/storage/files/photos/objects", nil); r.Status != 200 {
+		t.Fatalf("visitors cannot see the photos: %d %s", r.Status, r.Body)
 	}
 	if r := testkit.Call(t, b, "GET", platform+"/v1/sites/shop/files/index.html", nil, "X-API-Key", ann.Key); r.Body != "hi" {
 		t.Fatalf("draft went live: %s", r.Body)

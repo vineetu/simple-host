@@ -97,7 +97,8 @@ func (d *Data) path(siteID, name string) string {
 }
 
 // Create makes a namespace on a site, with its empty file.
-func (d *Data) Create(ctx context.Context, site *sites.Site, name string) error {
+// rules, when given, are a new namespace's first rules (an existing one keeps its own).
+func (d *Data) Create(ctx context.Context, site *sites.Site, name string, rules ...json.RawMessage) error {
 	if !nsName.MatchString(name) {
 		return web.Refuse(http.StatusBadRequest, "bad_namespace", "Name the namespace with lower-case letters, digits, _ or -.")
 	}
@@ -112,7 +113,11 @@ func (d *Data) Create(ctx context.Context, site *sites.Site, name string) error 
 	if _, err := conn.ExecContext(sqlite3.WithMaxMemory(ctx, limits.SandboxMemory.N), BuiltIn); err != nil {
 		return err
 	}
-	_, err = d.DB.ExecContext(ctx, `INSERT INTO namespaces (site_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING`, site.ID, name)
+	first := json.RawMessage(`{}`)
+	if len(rules) > 0 {
+		first = rules[0]
+	}
+	_, err = d.DB.ExecContext(ctx, `INSERT INTO namespaces (site_id, name, rules) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, site.ID, name, []byte(first))
 	return err
 }
 

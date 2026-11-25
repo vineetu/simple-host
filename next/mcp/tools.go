@@ -109,7 +109,7 @@ var tools = []tool{
 			p, err := c.site("", url.Values{"keep_other_files": {c.str("keep_other_files")}})
 			return "PUT", p, c.pick("files", "files_base64"), err
 		}},
-	{name: "create_upload_link", about: "The photo picker, shown in the chat, where the person adds photos (shrunk on their device) straight to a namespace's file store (photos unless namespace says otherwise); the answer's url is the same picker as a page, for apps without screens. With kind archive: a one-time link for a big site as one archive.",
+	{name: "create_upload_link", about: "The photo picker, shown in the chat, where the person adds photos (shrunk on their device) straight to a namespace's file store (photos unless namespace says otherwise; a new photos namespace is seen by anyone who can open the site, written only by the owner); the answer's url is the same picker as a page, for apps without screens. With kind archive: a one-time link for a big site as one archive.",
 		input: siteIn("namespace", str("Where photos and files go; photos when left out."), "kind", str(`"files" (the default) or "archive".`)), screen: "photo-picker",
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("/upload-links", nil)
@@ -117,7 +117,7 @@ var tools = []tool{
 			if kind == "archive" {
 				ns = ""
 			}
-			return "POST", p, map[string]any{"kind": kind, "namespace": ns}, err
+			return "POST", p, map[string]any{"kind": kind, "namespace": ns, "public": c.str("namespace") == "" && kind == "files"}, err
 		}},
 	{name: "read_site_file", about: "Read one published file of any site you may open.", input: siteIn("path!", str("The file's path, like index.html.")), readOnly: true,
 		route: func(c *call) (string, string, any, error) {
