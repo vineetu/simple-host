@@ -131,7 +131,7 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 		if p.Arguments == nil {
 			p.Arguments = map[string]any{}
 		}
-		if t, ok := findTool(p.Name); ok && (!t.operator || isOperator(r)) {
+		if t, ok := findTool(p.Name); ok && (!t.operator || isOperator(r)) && !compat.OldArgs(p.Name, p.Arguments) {
 			return h.call(r, t, p.Arguments), nil
 		}
 		// An old tool list: next/compat answers the old names (goes with it).

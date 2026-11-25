@@ -26,5 +26,5 @@ tool names the "tools changed" error. Two weeks after the date in the repository
 1. `rm -r next/compat`
 2. `cmd/simple-host-next/main.go`: `Handler: compat.Wrap(a, admin.Counted(a))` back to
    `Handler: admin.Counted(a)`, and drop the import.
-3. `mcp/mcp.go`: remove the block after "An old tool list" in `tools/call` (and the import).
+3. `mcp/mcp.go`: remove the block after "An old tool list" in `tools/call`, the `!compat.OldArgs(...)` condition above it, and the import.
 4. `DROP TABLE compat_calls;`

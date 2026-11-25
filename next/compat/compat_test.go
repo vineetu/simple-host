@@ -11,6 +11,10 @@ import (
 	"simplehost/api"
 	"simplehost/compat"
 	"simplehost/core/testkit"
+	"simplehost/data/recipes"
+	datarules "simplehost/data/rules"
+	datasql "simplehost/data/sql"
+	"simplehost/data/values"
 	"simplehost/mcp"
 	"simplehost/sites/manage"
 	"simplehost/sites/publish"
@@ -23,7 +27,7 @@ const platform = "https://simple-host.app"
 // start is the service with compat in front, as main serves it, and a
 // client that reaches it at any address.
 func start(t *testing.T) (*testkit.Kit, *http.Client) {
-	k := testkit.Start(t, publish.Mount, api.Mount, manage.Mount, serve.Mount, mcp.Mount, web.Mount)
+	k := testkit.Start(t, publish.Mount, manage.Mount, serve.Mount, values.Mount, datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, web.Mount)
 	srv := httptest.NewServer(compat.Wrap(k.App, k.App))
 	t.Cleanup(srv.Close)
 	return k, &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
@@ -103,6 +107,41 @@ func TestOldToolNamesStillWork(t *testing.T) {
 	}
 	if s := call("rename_site", map[string]any{"site": "cafe"}); !strings.Contains(s, "was removed") {
 		t.Fatalf("dropped tool: %s", s)
+	}
+}
+
+// Old arguments translate: presets become rules, the old access words,
+// several paths at once, old recipe topics, params as JSON text; a draft
+// (publish: false) is refused, not published.
+func TestOldArgumentsTranslate(t *testing.T) {
+	k, _ := start(t)
+	ann := k.Person(t, "ann")
+	b := k.Browser()
+	call := func(name string, args map[string]any) string {
+		t.Helper()
+		return testkit.Call(t, b, "POST", platform+"/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+			"params": map[string]any{"name": name, "arguments": args}}, "X-API-Key", ann.Key).Body
+	}
+	k.Publish(t, ann, "shop", map[string]string{"index.html": "hi", "a.txt": "aaa"})
+	for _, c := range []struct {
+		name string
+		args map[string]any
+		want string
+	}{
+		{"storage_set_resource", map[string]any{"site": "shop", "name": "menu", "body": map[string]any{"kind": "kv", "preset": "public"}}, `using\":\"true`},
+		{"storage_set_resource", map[string]any{"site": "shop", "name": "orders", "body": map[string]any{"kind": "sqlite", "preset": "records"}}, "rules_per_table"},
+		{"set_site_access", map[string]any{"site": "shop", "access": "specific"}, `access\":\"viewers`},
+		{"read_site_file", map[string]any{"site": "shop", "paths": []any{"index.html", "a.txt"}}, `"text":"aaa"`},
+		{"get_page_recipe", map[string]any{"topic": "menu"}, "Public"},
+		{"storage_sql_query", map[string]any{"site": "shop", "name": "menu", "sql": "SELECT ?", "params": `[7]`}, `[[7]]`},
+		{"update_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "draft"}, "publish": false}, "Nothing was published"},
+	} {
+		if s := call(c.name, c.args); !strings.Contains(s, c.want) || !strings.Contains(s, "old tool list") {
+			t.Fatalf("%s: want %s in %s", c.name, c.want, s)
+		}
+	}
+	if r := testkit.Call(t, b, "GET", platform+"/v1/sites/shop/files/index.html", nil, "X-API-Key", ann.Key); r.Body != "hi" {
+		t.Fatalf("draft went live: %s", r.Body)
 	}
 }
 

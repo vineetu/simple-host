@@ -1,6 +1,7 @@
 package compat
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,6 +35,9 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 			inner = map[string]any{}
 		}
 		innerName := args(in).s("name")
+		if OldArgs(innerName, inner) {
+			return Tool(a, r, innerName, inner, list, run)
+		}
 		var ok bool
 		if res, ok = run(innerName, inner); !ok {
 			if res, ok = Tool(a, r, innerName, inner, list, run); ok {
@@ -50,14 +54,20 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 		if err != nil {
 			res = refusal(err)
 		}
+		var content []any // every step's answer, in order
 		for _, s := range steps {
 			var ok bool
 			if res, ok = run(s.tool, s.args); !ok {
 				res = refusal(web.Refuse(http.StatusInternalServerError, "server_error", "Something broke on our side. Try again in a minute."))
 			}
+			more, _ := res["content"].([]any)
+			content = append(content, more...)
 			if res["isError"] == true {
 				break
 			}
+		}
+		if len(steps) > 1 {
+			res["content"] = content
 		}
 	}
 	count(a, r, "tool "+name)
@@ -95,13 +105,37 @@ var oldTools = map[string]func(a args) ([]step, error){
 		return steps, nil
 	},
 	"update_site": func(a args) ([]step, error) {
+		if a["publish"] == false {
+			return nil, web.Refuse(http.StatusGone, "removed", "Drafts and preview links were removed: publishing puts the files live. Nothing was published; call again without publish: false when the person wants it live.")
+		}
 		if a["remove_files"] != nil || a["edits"] != nil {
 			return nil, web.Refuse(http.StatusBadRequest, "send_whole_files", "remove_files and edits are gone: send each changed file whole with keep_other_files: true, or send every file to drop the others.")
 		}
 		return one("publish_site", a.keep("site", "owner", "files", "files_base64", "keep_other_files"))
 	},
-	"site_analytics":         func(a args) ([]step, error) { return one("site_stats", a.keep("site", "owner", "days")) },
-	"get_page_recipe":        func(a args) ([]step, error) { return one("get_recipe", a.keep("topic", "site")) },
+	"site_analytics": func(a args) ([]step, error) { return one("site_stats", a.keep("site", "owner", "days")) },
+	"get_page_recipe": func(a args) ([]step, error) {
+		s := a.keep("topic", "site")
+		if t, ok := recipeTopics[a.s("topic")]; ok {
+			s["topic"] = t
+		}
+		return one("get_recipe", s)
+	},
+	// Old arguments of tools whose names stayed (see OldArgs).
+	"set_site_access": func(a args) ([]step, error) {
+		return one("set_site_access", a.keep("site", "owner").with("access", map[string]string{"anyone": "open", "specific": "viewers"}[a.s("access")]))
+	},
+	"read_site_file": func(a args) ([]step, error) {
+		if a["version"] != nil {
+			return nil, web.Refuse(http.StatusGone, "removed", "Reading a file of an older version was removed: read the live one (no version), or make the older version live with change_site live_version.")
+		}
+		steps := []step{}
+		for _, p := range append(a.list("path"), a.list("paths")...) {
+			steps = append(steps, step{"read_site_file", a.keep("site", "owner").with("path", p)})
+		}
+		return steps, nil
+	},
+	"list_sites":             func(a args) ([]step, error) { return one("list_sites", args{"q": a.s("query")}) },
 	"list_versions":          siteOnly("get_site"),
 	"list_site_viewers":      siteOnly("get_site"),
 	"domain_status":          siteOnly("get_site"),
@@ -157,11 +191,15 @@ var oldTools = map[string]func(a args) ([]step, error){
 	},
 	"storage_set_resource": func(a args) ([]step, error) {
 		body, _ := a["body"].(map[string]any)
-		rules, err := namespaceRules(body)
+		rules, spam, err := namespaceRules(body)
 		if err != nil {
 			return nil, err
 		}
-		return one("set_data_rules", a.keep("site", "owner").with("namespace", a.s("name")).with("rules", rules))
+		s := a.keep("site", "owner").with("namespace", a.s("name")).with("rules", rules)
+		if spam {
+			s["spam_check"] = true
+		}
+		return one("set_data_rules", s)
 	},
 	"storage_put_kv":            kv("PUT", func(a args) any { return map[string]any{"value": a["value"]} }),
 	"storage_get_kv":            kv("GET", nil),
@@ -197,6 +235,28 @@ var oldTools = map[string]func(a args) ([]step, error){
 	"storage_file_download_link": gone("Download links for stored files"),
 	"storage_delete_resource":    gone("Deleting a whole storage resource"),
 	"passcode_screen":            gone("The old passcode screen"),
+}
+
+// recipeTopics are the old recipe topics that have a current one.
+var recipeTopics = map[string]string{"contact": "inbox", "quote": "inbox", "waitlist": "inbox", "form": "inbox",
+	"menu": "public", "guestbook": "comments", "booking": "personal", "reservation": "personal", "appointment": "personal"}
+
+// OldArgs reports whether a call of a current tool name carries arguments
+// only the old tool of that name took; mcp then sends it to Tool.
+func OldArgs(name string, in map[string]any) bool {
+	if over() {
+		return false
+	}
+	a := args(in)
+	switch name {
+	case "set_site_access":
+		return a.s("access") == "anyone" || a.s("access") == "specific"
+	case "read_site_file":
+		return a["paths"] != nil || a["version"] != nil
+	case "list_sites":
+		return a["query"] != nil
+	}
+	return false
 }
 
 // args are a call's arguments.
@@ -275,7 +335,15 @@ func kv(method string, body func(args) any) func(args) ([]step, error) {
 }
 
 func sql(a args) ([]step, error) {
-	return one("run_sql", a.keep("site", "owner", "sql", "params").with("namespace", a.s("name")))
+	s := a.keep("site", "owner", "sql", "params").with("namespace", a.s("name"))
+	if p, ok := a["params"].(string); ok { // the old tools also took the list as JSON text
+		var list []any
+		if json.Unmarshal([]byte(p), &list) != nil {
+			return nil, web.Refuse(http.StatusBadRequest, "bad_params", "Send params as a list, like [\"a\", 1].")
+		}
+		s["params"] = list
+	}
+	return one("run_sql", s)
 }
 
 func filePath(a args) string {

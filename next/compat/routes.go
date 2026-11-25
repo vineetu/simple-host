@@ -467,12 +467,12 @@ func (c *compat) setResource(w http.ResponseWriter, r *http.Request) error {
 	if err := web.Read(r, &in); err != nil {
 		return err
 	}
-	rules, err := namespaceRules(in)
+	rules, spam, err := namespaceRules(in)
 	if err != nil {
 		return err
 	}
 	name := r.PathValue("name")
-	if _, err := c.do(r, "PUT", sitePath(r, "/storage/"+url.PathEscape(name)+"/rules"), map[string]any{"rules": rules}); err != nil {
+	if _, err := c.do(r, "PUT", sitePath(r, "/storage/"+url.PathEscape(name)+"/rules"), spamRules(rules, spam)); err != nil {
 		return err
 	}
 	kind, _ := in["kind"].(string)
@@ -480,24 +480,36 @@ func (c *compat) setResource(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// namespaceRules turns an old resource body ({kind, rules, tables}) into a
-// namespace's rules per table: kv rules are for _values, files for _files.
-func namespaceRules(b args) (map[string]any, error) {
-	rules := map[string]any{}
+// namespaceRules turns an old resource body ({kind, rules, tables}, or
+// {kind, preset, tables: {t: {preset}}} with read/add/edit/delete overrides)
+// into a namespace's rules per table: kv rules are for _values, files for
+// _files. spam is true when a preset lets anyone who passes the spam check add.
+func namespaceRules(b args) (map[string]any, bool, error) {
+	rules, spam := map[string]any{}, false
+	set := func(table string, x args) {
+		if x["preset"] == nil && x["read"] == nil && x["add"] == nil && x["edit"] == nil && x["delete"] == nil {
+			if x["rules"] != nil {
+				rules[table] = x["rules"]
+			}
+			return
+		}
+		policies, checked := presetPolicies(x, b["approve_first"] == true)
+		rules[table], spam = map[string]any{"version": 1, "policies": policies}, spam || checked
+	}
 	switch b.s("kind") {
 	case "kv":
-		rules["_values"] = b["rules"]
+		set("_values", b)
 	case "files":
-		rules["_files"] = b["rules"]
+		set("_files", b)
 	default:
 		tables, _ := b["tables"].(map[string]any)
 		for t, v := range tables {
 			if m, ok := v.(map[string]any); ok {
-				rules[t] = m["rules"]
+				set(t, m)
 			}
 		}
-		if len(rules) == 0 && b["rules"] != nil {
-			return nil, web.Refuse(http.StatusBadRequest, "rules_per_table", `SQLite rules are now set per table: send "tables", like {"orders": {"rules": {...}}}.`)
+		if len(rules) == 0 && (b["rules"] != nil || (b["preset"] != nil && b.s("preset") != "private")) {
+			return nil, false, web.Refuse(http.StatusBadRequest, "rules_per_table", `SQLite rules are now set per table: make the tables first (with a visitor_id TEXT column where visitors' own rows matter), then send "tables", like {"orders": {"preset": "records"}}.`)
 		}
 	}
 	for t, v := range rules {
@@ -505,7 +517,55 @@ func namespaceRules(b args) (map[string]any, error) {
 			delete(rules, t)
 		}
 	}
-	return rules, nil
+	return rules, spam, nil
+}
+
+// spamRules is a rules body, with the spam check switched on when a preset needs it.
+func spamRules(rules map[string]any, spam bool) map[string]any {
+	if spam {
+		return map[string]any{"rules": rules, "spam_check": true}
+	}
+	return map[string]any{"rules": rules}
+}
+
+// presets are the old read/add/edit/delete settings by name.
+var presets = map[string][4]string{
+	"public": {"anyone", "owner", "owner", "owner"}, "inbox": {"owner", "anyone", "owner", "owner"},
+	"wall": {"anyone", "signed-in", "owner", "own"}, "comments": {"anyone", "checked", "owner", "owner"},
+	"records": {"own", "signed-in", "owner", "owner"}, "personal": {"own", "signed-in", "own", "own"},
+	"board": {"signed-in", "signed-in", "signed-in", "owner"}, "private": {"owner", "owner", "owner", "owner"},
+}
+
+// presetPolicies is a preset (with its overrides) as rules, the way the old
+// service converted them; checked is true when adding needs the spam check.
+func presetPolicies(x args, approveFirst bool) ([]any, bool) {
+	m, ok := presets[x.s("preset")]
+	if !ok {
+		m = presets["private"]
+	}
+	policies, checked := []any{}, false
+	for i, cmd := range []string{"read", "add", "edit", "delete"} {
+		who := m[i]
+		if o := x.s(cmd); o != "" {
+			who = o
+		}
+		expr := map[string]string{"owner": `auth.role == "owner"`, "own": `visitor_id == auth.id || auth.role == "owner"`,
+			"signed-in": "auth.signed_in", "checked": `auth.checked || auth.ai || auth.role == "owner"`, "anyone": "true"}[who]
+		if expr == "" { // nobody
+			continue
+		}
+		if cmd == "add" {
+			checked = checked || who == "checked"
+			policies = append(policies, map[string]any{"name": cmd, "command": cmd, "check": expr})
+		} else {
+			policies = append(policies, map[string]any{"name": cmd, "command": cmd, "using": expr})
+		}
+	}
+	if approveFirst && checked {
+		policies = append(policies, map[string]any{"name": "approve_first", "command": "read", "restrictive": true,
+			"using": `auth.role == "owner" || approved_at is not null`})
+	}
+	return policies, checked
 }
 
 func (c *compat) usage(w http.ResponseWriter, r *http.Request) error {
