@@ -253,8 +253,14 @@ func (k *keeper) Unwrap() http.ResponseWriter { return k.ResponseWriter }
 // tagged by the site's or owner's id so every address shares one tag. Every
 // other answer (a gate, a locked, offline or taken-down site, a redirect to
 // another address, /v1/ and /_sh/, an error, one that sets a cookie) is
-// never kept.
+// never kept, except the page helper /_sh/page.js (5 minutes, an hour at the edge, no tag).
 func cacheRule(h http.Header, r *http.Request, p sites.Place, status int) {
+	if r.URL.Path == "/_sh/page.js" && status == http.StatusOK { // the one exception: the same helper for every visitor and site
+		h.Set("Cache-Control", "public, max-age=300")
+		h.Set("Cloudflare-CDN-Cache-Control", "public, max-age=3600")
+		h.Del("Cache-Tag")
+		return
+	}
 	tag := ""
 	s, o := p.Site, p.Owner
 	switch {

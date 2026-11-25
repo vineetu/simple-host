@@ -37,7 +37,8 @@ caller resolved, and the request counted against `limits.Requests`.
 
 Caching (one rule, `cacheRule` in `app`, applied to every answer on a site address or public page):
 a page or file of an open site, or a public page, gets `Cache-Control: public, max-age=60`, an hour at
-Cloudflare and `Cache-Tag: site:<id>` / `owner:<id>`; everything else gets `private, no-store`.
+Cloudflare and `Cache-Tag: site:<id>` / `owner:<id>`; everything else gets `private, no-store`,
+except the page helper `/_sh/page.js` (public, 5 minutes in browsers, an hour at the edge, no tag).
 
 Forged requests (one rule, `web.FromOwnPage`, applied in `access.Caller`): a browser cookie
 (dashboard or site visitor) counts on anything but GET/HEAD only with `X-SH-CSRF` or a same-origin

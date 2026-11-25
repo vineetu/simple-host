@@ -12,12 +12,13 @@ import (
 	"simplehost/data/values"
 	"simplehost/sites/publish"
 	"simplehost/sites/serve"
+	"simplehost/web"
 )
 
 // An open site's page is kept (a minute in browsers, an hour at the edge,
 // tagged by the site's id); a locked site's page and a data route never are.
 func TestCacheHeaders(t *testing.T) {
-	k := testkit.Start(t, serve.Mount, values.Mount)
+	k := testkit.Start(t, serve.Mount, values.Mount, web.Mount)
 	b := k.Browser()
 	bob := k.Person(t, "bob")
 	k.Publish(t, bob, "blog", map[string]string{"index.html": "home"})
@@ -29,6 +30,10 @@ func TestCacheHeaders(t *testing.T) {
 	if r.Status != 200 || r.Header.Get("Cache-Control") != "public, max-age=60" ||
 		r.Header.Get("Cloudflare-CDN-Cache-Control") != "public, max-age=3600" || r.Header.Get("Cache-Tag") != "site:"+blog.ID {
 		t.Fatalf("open page: %d %v", r.Status, r.Header)
+	}
+	if r := testkit.Call(t, b, "GET", "https://diary--bob.simple-host.site/_sh/page.js", nil); r.Status != 200 ||
+		r.Header.Get("Cache-Control") != "public, max-age=300" || r.Header.Get("Cloudflare-CDN-Cache-Control") != "public, max-age=3600" || r.Header.Get("Cache-Tag") != "" {
+		t.Fatalf("page helper: %d %v", r.Status, r.Header)
 	}
 	for _, url := range []string{"https://diary--bob.simple-host.site/", "https://blog--bob.simple-host.site/v1/sites/blog/storage/kv/notes/keys"} {
 		r := testkit.Call(t, b, "GET", url, nil)
