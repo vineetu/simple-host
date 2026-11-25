@@ -194,10 +194,56 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	mux.ServeHTTP(w, r)
+	if mux != a.Routes.Page && strings.HasPrefix(r.URL.Path, "/v1/") && !v1Route(mux, r) {
+		web.Fail(w, r, a.changed(mux, r))
+	} else {
+		mux.ServeHTTP(w, r)
+	}
 	if k, ok := w.(*keeper); ok && !k.done {
 		k.WriteHeader(http.StatusOK) // an empty answer gets the rule too
 	}
+}
+
+// changed is the answer for a /v1/ address no route takes: most likely a
+// caller of the service before it was rebuilt. 405 when the path has a
+// route for another method.
+func (a *App) changed(mux *http.ServeMux, r *http.Request) *web.Refusal {
+	status := http.StatusNotFound
+	for _, m := range []string{"GET", "POST", "PUT", "PATCH", "DELETE"} {
+		other := r.Clone(r.Context())
+		other.Method = m
+		if m != r.Method && v1Route(mux, other) {
+			status = http.StatusMethodNotAllowed
+			break
+		}
+	}
+	d := "https://" + a.Config.AppDomain
+	routes := "Current routes: " + d + "/llms.txt."
+	ai := "Using an AI app? Reconnect Simple Host, or start a new chat so it lists the tools again."
+	skill := "Using the installed skill? Get the new one at " + d + "/skills.zip."
+	fix := []string{routes, ai, skill}
+	seg := strings.Split(strings.Trim(r.URL.Path, "/"), "/") // v1, sites, {s}, ...
+	switch {
+	case len(seg) >= 4 && seg[1] == "sites" && seg[3] == "files" && (r.Method == "POST" || r.Method == "PUT"):
+		fix = append([]string{"Publish with PUT /v1/sites/" + seg[2] + " and the same JSON body; send ?keep_other_files=true to keep files you do not send."}, fix...)
+	case len(seg) >= 2 && seg[1] == "skills":
+		fix = []string{skill, routes, ai}
+	case len(seg) == 5 && seg[1] == "sites" && seg[3] == "storage" && seg[4] == "people":
+		fix = append([]string{"The people list was removed."}, fix...)
+	}
+	ref := web.Refuse(status, "changed", strings.Join(fix, " "))
+	ref.Message = "This address is not part of Simple Host any more. The service was rebuilt on 25 November 2026."
+	return ref
+}
+
+// v1Route: one of mux's /v1/ routes takes r (not a catch-all such as GET /).
+func v1Route(mux *http.ServeMux, r *http.Request) bool {
+	_, pattern := mux.Handler(r)
+	_, path, ok := strings.Cut(pattern, " ")
+	if !ok {
+		path = pattern
+	}
+	return strings.HasPrefix(path, "/v1/")
 }
 
 // ServeSite answers r with a site's routes, exactly as on its own address

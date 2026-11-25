@@ -35,7 +35,9 @@ func NewRoutes() *Routes {
 type Refusal struct {
 	Status int    `json:"-"`
 	Code   string `json:"code"`
-	Fix    string `json:"fix"`
+	// Message says what happened, when the code alone does not.
+	Message string `json:"message,omitempty"`
+	Fix     string `json:"fix"`
 	// RetryAfter is seconds, sent as Retry-After when set.
 	RetryAfter int `json:"-"`
 }
