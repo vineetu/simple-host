@@ -26,3 +26,15 @@ func TestChangedAddresses(t *testing.T) {
 		}
 	}
 }
+
+// The main domain tells crawlers where its public pages are.
+func TestRobotsAndSitemap(t *testing.T) {
+	k := testkit.Start(t, all...)
+	b := k.Browser()
+	if r := testkit.Call(t, b, "GET", platform+"/robots.txt", nil); r.Status != 200 || !strings.Contains(r.Body, "Sitemap: "+platform+"/sitemap.xml") {
+		t.Fatalf("robots.txt: %d %s", r.Status, r.Body)
+	}
+	if r := testkit.Call(t, b, "GET", platform+"/sitemap.xml", nil); r.Status != 200 || !strings.Contains(r.Body, "<loc>"+platform+"/docs</loc>") {
+		t.Fatalf("sitemap.xml: %d %s", r.Status, r.Body)
+	}
+}

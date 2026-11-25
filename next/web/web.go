@@ -73,6 +73,8 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 		name = "home"
 	case "spam-check":
 		return h.spamCheck(w, r)
+	case "robots.txt", "sitemap.xml":
+		return h.seo(w, name)
 	}
 	if name == "llms.txt" || name == "push-sw.js" {
 		return serve(w, r, name, "public, max-age=300")
@@ -84,6 +86,27 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 		return cw.NotFound
 	}
 	return serve(w, r, name+".html", "no-cache")
+}
+
+// seo answers robots.txt (allow all, and where the sitemap is) and
+// sitemap.xml (the service's own public pages), as the live service does.
+func (h *handler) seo(w http.ResponseWriter, name string) error {
+	base := "https://" + h.a.Config.AppDomain
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	if name == "robots.txt" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte("User-agent: *\nAllow: /\nSitemap: " + base + "/sitemap.xml\n"))
+		return nil
+	}
+	var b strings.Builder
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+	for _, p := range []string{"/", "/install", "/docs", "/terms", "/privacy", "/support"} {
+		b.WriteString("  <url><loc>" + base + p + "</loc></url>\n")
+	}
+	b.WriteString("</urlset>\n")
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	w.Write([]byte(b.String()))
+	return nil
 }
 
 // appPage is the owner app's one page; it reads its screen from the address.
