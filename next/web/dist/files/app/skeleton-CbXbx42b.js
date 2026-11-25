@@ -1,1 +1,0 @@
-import{j as n,c as o}from"./index-DRD53Ome.js";function s({className:e,...a}){return n.jsx("div",{"aria-hidden":"true",className:o("rounded-field bg-paper-lo motion-safe:animate-pulse",e),...a})}export{s as S};

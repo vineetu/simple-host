@@ -26,8 +26,8 @@
 /* The type roles (sizes in tokens.css). Screens use these for headings and
    labels, so every screen reads the same. */
 @utility type-page {
-  font-size: var(--text-2xl);
-  line-height: var(--text-2xl--line-height);
+  font-size: var(--page-size);
+  line-height: var(--page-leading);
   font-weight: var(--w-strong);
   letter-spacing: -0.015em;
 }

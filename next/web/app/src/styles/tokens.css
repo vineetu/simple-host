@@ -11,10 +11,12 @@
 
 /* Weights are tokens. Wide screens: 500 for controls and labels, 600 for titles
    and names. Phone widths (below the 700 px breakpoint): 400 everywhere, owner
-   rule, so hierarchy there comes from size, colour and spacing only. */
-:root { --w-medium: 500; --w-strong: 600; }
+   rule, so hierarchy there comes from size, colour and spacing only.
+   Without bold, a page title on a phone is one size step up (28, not 24) so
+   it still stands out from section headings and body text. */
+:root { --w-medium: 500; --w-strong: 600; --page-size: var(--text-2xl); --page-leading: var(--text-2xl--line-height); }
 @media (max-width: 699.98px) {
-  :root { --w-medium: 400; --w-strong: 400; }
+  :root { --w-medium: 400; --w-strong: 400; --page-size: var(--text-3xl); --page-leading: var(--text-3xl--line-height); }
   b, strong, th, h1, h2, h3, h4, h5, h6 { font-weight: 400; }
 }
 
@@ -48,7 +50,7 @@
      (app.css names them as type-* utilities; pages.css uses the same sizes):
        4xl 34  title of a text page (privacy, terms)        bold
        3xl 28  title of a card (sign-in, a gate page)       bold
-       2xl 24  page title in the app (Your sites, Admin)    bold
+       2xl 24  page title in the app (Your sites, Admin)    bold (28 on a phone: --page-size)
        xl  20  a big number (stats)                         bold
        lg  18  section heading                              semibold
        base 16 body, buttons, inputs, tabs, table cells     regular / medium for controls
