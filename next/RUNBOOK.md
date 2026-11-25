@@ -124,3 +124,10 @@ copied tokens; top 20 sites and every recipe pass in a real browser; the `report
 Back: restore the symlinks, reload nginx, start the old service. Keep the old service and data
 untouched for 30 days. Writes on the new service are not carried back (copy namespace SQLite files by
 hand if needed), so keep the window short.
+
+## As installed on the hosted server (25 Nov 2026)
+
+`next/deploy/` holds the files in use: the nginx configuration, the systemd unit, `env.example`,
+the switch steps and the go-back script. `mcp.<app domain>` and `www.<app domain>` are answered by
+the main-address block with `Host` set to the app domain, because connected AI apps and directory
+checkers use `mcp.<app domain>/mcp`. Keep them when the configuration is regenerated.

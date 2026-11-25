@@ -1,0 +1,47 @@
+# /etc/systemd/system/simple-host-next.service — the new Simple Host (branch `next`).
+# Install: sudo install -m 644 simple-host-next.service /etc/systemd/system/ && sudo systemctl daemon-reload
+# Settings and secrets: /etc/simple-host-next.env (chmod 640 root:simplehost-next), see env.example.
+[Unit]
+Description=Simple Host (next) web service
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=simplehost-next
+Group=simplehost-next
+EnvironmentFile=/etc/simple-host-next.env
+ExecStart=/usr/local/bin/simple-host-next
+Restart=on-failure
+RestartSec=2
+# The old unit had 768M while nginx served the pages; this one serves them itself.
+MemoryMax=1G
+
+# ── Hardening: the old unit's set, with the new data folder ──
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/simple-host-next
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
