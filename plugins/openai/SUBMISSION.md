@@ -49,7 +49,7 @@ TODO-OWNER: approve the final listing copy below before submitting.
 - **Package description:** Host websites you or your AI have made, at their own addresses. Publish and update files through the Simple Host connector, manage saved data and access, connect domains, and read visitor counts.
 - **Website:** https://simple-host.app
 - **Support:** https://simple-host.app/support
-- **Privacy policy:** https://simple-host.app/privacy.html
+- **Privacy policy:** https://simple-host.app/privacy
 - **Terms:** https://simple-host.app/terms
 - **Brand color:** #157e8a
 - **Dark brand color:** #3fb0bb
@@ -120,29 +120,32 @@ they are in that folder; there is no separate OpenAI copy.
 
 ## Privacy and data handling
 
-AgentCat (agentcat.com) processes connector usage analytics. For each tool call it receives the
-arguments and result, with passcodes, keys and file contents left out by us and email addresses
-and other identifiers removed by AgentCat's redaction. It never receives the IP address a person
-connects from. Every connection may supply a short stated reason for the call. It is free text
-that by instruction carries no names, emails or secrets. We remove email addresses, private
-links, codes and keys from it, and it goes through the same redaction. A failed call sends only its short
-error code, not the error message. The
-privacy page is https://simple-host.app/privacy.html.
+AgentCat (agentcat.com) processes connector usage analytics. For each tool call the new service
+(`next/mcp/mcp.go`, `agentcat`) sends the tool name, the arguments and the result, with only
+`passcode` fields and `_meta` taken out by us; file contents in `publish_site`, `data` and
+`read_site_file` are sent as they are. It also sends the account id as the actor id and a daily
+session hash. Email addresses and other identifiers are left to AgentCat's own redaction. It
+never receives the IP address a person connects from. A failed call sends only its short error
+code. The privacy page (https://simple-host.app/privacy) says tool calls go to AgentCat and that
+sign-in codes and passcodes are never sent, which matches.
 
 ## Reviewer sign-in
 
-Start the Simple Host connection in ChatGPT. On the Simple Host sign-in page, open **Other ways
-to sign in**, enter the reviewer email **openai-review@simple-host.app** and the password from
-the portal, choose **Sign in**, then **Allow**. No email code or 2FA. The form shows only when
-`REVIEW_ACCOUNT_EMAIL` is set on the server (`host/webassets/static/connect.html`).
+The new service signs people in only with an emailed code or Google (`next/access/signin`).
+There is no password sign-in and no reviewer sign-in form, and OpenAI requires a test account
+that works "without MFA approval, email or SMS codes, magic links". The reviewer account
+`openai-review@simple-host.app` exists on the new service (not an operator, so it sees the 25
+tools, with the three demo sites) but a reviewer cannot sign in to it today.
 
-TODO-OWNER: check that reviewer sign-in is on in production and the password in the portal works.
+TODO-OWNER: decide how the reviewer signs in (a reviewer password sign-in on the new service, or
+a dedicated Google account with a password and no 2-step check), then put the credentials in the
+portal's Review details form.
 
 ## Integration prerequisites
 
-The privacy page's daily analytics hash wording needs the companion analytics change before
-release: `host/sites/analytics/ingest.go` still uses one lasting salt. Check daily rotation, no
-stored IPs in analytics and no hash disclosure before publishing the policy.
+None left from the old service. The pre-submission review of 2026-11-25 found server changes
+still needed before submitting (reviewer sign-in, personal details in `who_am_i`, output schemas,
+the screens' own domain, and several annotations); they are not in this kit.
 
 ## Demo fixtures and execution status
 
@@ -196,7 +199,7 @@ retake them if you want the new screens shown.
 
 **Expected tools:** create_team, invite_to_team
 
-**Expected result:** Says the team name becomes its address and cannot be changed later, waits for a yes, then calls create_team once and invite_to_team with sam@example.com. Says that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted.
+**Expected result:** Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted.
 
 ### P4
 

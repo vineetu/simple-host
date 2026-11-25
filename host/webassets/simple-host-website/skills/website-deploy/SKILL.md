@@ -48,8 +48,7 @@ the person's own domain.
 | Teams | `create_team`, `invite_to_team`, `accept_invite`, `remove_from_team`, `delete_team` |
 | Download everything; delete the account | `download_my_data`, `delete_account` |
 
-`admin_overview` and `set_hold` are for the operator only. Site tools take `site` (name or
-address) and, for a team's site, `owner` (the team handle).
+Site tools take `site` (name or address) and, for a team's site, `owner` (the team handle).
 
 ## Publishing
 

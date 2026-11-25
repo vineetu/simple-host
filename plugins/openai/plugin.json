@@ -44,7 +44,7 @@
         ],
         "websiteURL": "https://simple-host.app",
         "supportURL": "https://simple-host.app/support",
-        "privacyPolicyURL": "https://simple-host.app/privacy.html",
+        "privacyPolicyURL": "https://simple-host.app/privacy",
         "termsOfServiceURL": "https://simple-host.app/terms",
         "defaultPrompt": [
           "Put the page we made online on Simple Host.",
@@ -75,7 +75,7 @@
               "description": "Create a team and invite one person to it.",
               "prompt": "Create a team called rise-bakery-crew so my staff can work on our sites, and invite sam@example.com to it.",
               "tools_triggered": "create_team, invite_to_team",
-              "expected_behavior": "Says the team name becomes its address and cannot be changed later, waits for a yes, then calls create_team once and invite_to_team with sam@example.com. Says that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted."
+              "expected_behavior": "Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted."
             },
             {
               "description": "Count RSVPs without identifying visitors.",
