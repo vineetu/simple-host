@@ -131,3 +131,16 @@ hand if needed), so keep the window short.
 the switch steps and the go-back script. `mcp.<app domain>` and `www.<app domain>` are answered by
 the main-address block with `Host` set to the app domain, because connected AI apps and directory
 checkers use `mcp.<app domain>/mcp`. Keep them when the configuration is regenerated.
+
+## Old callers (next/compat, temporary)
+
+Old tool names, old routes and the old skill are translated by `next/compat` until the cut-off
+(`SH_COMPAT_UNTIL`, default 2026-12-25). Every use is counted: `GET /v1/admin/compat` (operator).
+1. **Quiet** (`SH_COMPAT_NOTICE=off`, the default): translated silently; REST answers still carry
+   the machine-readable `Deprecation`/`Sunset`/`Link` headers.
+2. **Notice on** (`SH_COMPAT_NOTICE=on`, restart): an old tool list is told once per MCP session
+   (once an hour per account without a session id) to start a new chat or refresh the connection;
+   the old skill gets `X-Skill-Notice`/`_notice` to reinstall from `/skills.zip`. Both name the date.
+3. **Cut-off** (the day after `SH_COMPAT_UNTIL`): old calls are refused with a message that says the
+   old way is retired and how to move. Email the people still in `/v1/admin/compat` before this.
+4. **Delete the package** two weeks later (a test fails until then): steps in `next/compat/README.md`.

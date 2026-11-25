@@ -36,8 +36,6 @@ func Until() time.Time {
 
 func over() bool { return !time.Now().Before(Until()) }
 
-const skillNotice = "Your Simple Host skill is out of date. Reinstall it from https://simple-host.app/skills.zip, then restart your agent or start a new chat."
-
 type compat struct {
 	a    *app.App
 	next http.Handler
@@ -55,7 +53,18 @@ func Wrap(a *app.App, next http.Handler) http.Handler {
 	c := &compat{a: a, next: next, old: http.NewServeMux(), shaped: http.NewServeMux()}
 	c.routes()
 	a.Routes.Platform.Handle("GET /v1/admin/compat", web.Func(c.report))
+	// Old pages' web push (SH.push, or the routes written into a page):
+	// visitors' browsers call these, so a plain refusal and no notice headers.
+	for _, mux := range []*http.ServeMux{a.Routes.Platform, a.Routes.Site} {
+		mux.Handle("POST /v1/sites/{site}/push/subscribe", web.Func(c.pushGone))
+		mux.Handle("POST /v1/sites/{site}/push/unsubscribe", web.Func(c.pushGone))
+	}
 	return c
+}
+
+func (c *compat) pushGone(w http.ResponseWriter, r *http.Request) error {
+	count(c.a, r, "page "+r.Pattern)
+	return web.Refuse(http.StatusGone, "not_available", "Browser notifications from site pages are not available any more. The site's owner gets notifications in the Simple Host dashboard.")
 }
 
 func (c *compat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -88,11 +97,11 @@ func (c *compat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.Set("Deprecation", "true")
 	h.Set("Sunset", Until().UTC().Format(http.TimeFormat))
 	h.Set("Link", `</llms.txt>; rel="successor-version"`)
-	if !skill {
+	if !skill || !noticeOn() {
 		mux.ServeHTTP(w, r)
 		return
 	}
-	// The old skill's signal: X-Skill-Notice, and _notice in a JSON object.
+	// The old skill's signal (SH_COMPAT_NOTICE=on): X-Skill-Notice, and _notice in a JSON object.
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, r)
 	for k, v := range rec.Header() {
@@ -100,10 +109,10 @@ func (c *compat) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	body := rec.Body.Bytes()
 	if strings.HasPrefix(h.Get("Content-Type"), "application/json") {
-		h.Set("X-Skill-Notice", skillNotice)
+		h.Set("X-Skill-Notice", skillNotice())
 		var obj map[string]json.RawMessage
 		if json.Unmarshal(body, &obj) == nil && obj != nil {
-			obj["_notice"], _ = json.Marshal(skillNotice)
+			obj["_notice"], _ = json.Marshal(skillNotice())
 			body, _ = json.Marshal(obj)
 			h.Del("Content-Length")
 		}

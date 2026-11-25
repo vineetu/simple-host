@@ -9,10 +9,15 @@ Callers of Simple Host from before the rebuild keep working until the sunset dat
   `X-Skill-Version` header.
 - **Old tool names** (`tools.go`): AI apps that keep an old tool list. mcp asks `compat.Tool`
   for any name it does not have.
-- **The old skill** (`X-Skill-Version` on any request): `X-Skill-Notice` and `_notice` in
-  JSON objects, saying to reinstall from `/skills.zip`. `/v1/skills/...` serves the new skill.
-- **Notice**: every HTTP answer through compat has `Deprecation: true`, `Sunset: <date>`
-  and `Link: </llms.txt>; rel="successor-version"`; every tool answer says to reconnect.
+- **The old skill** (`X-Skill-Version` on any request): `/v1/skills/...` serves the new skill.
+- **Old photo picker**: `create_upload_link {site}` (no namespace, kind or archive) gets a
+  picker link for the namespace `photos` (made readable by anyone who can open the site).
+- **Old push**: `SH.push` in the page helper (`web/static/auth.js`) and the old
+  `/push/subscribe|unsubscribe` routes answer "not available"; remove both with the package.
+- **Notice** (`notice.go`, `SH_COMPAT_NOTICE`, see `next/RUNBOOK.md`): every HTTP answer through
+  compat has `Deprecation: true`, `Sunset: <date>` and `Link: </llms.txt>; rel="successor-version"`.
+  With `on`, the old skill also gets `X-Skill-Notice`/`_notice`, and an old tool list one
+  notice per MCP session.
 - **Count**: table `compat_calls` (day, who, name, calls). `GET /v1/admin/compat`
   (operator) lists who still uses what, to email them before the cut-off.
 
@@ -27,4 +32,5 @@ tool names the "tools changed" error. Two weeks after the date in the repository
 2. `cmd/simple-host-next/main.go`: `Handler: compat.Wrap(a, admin.Counted(a))` back to
    `Handler: admin.Counted(a)`, and drop the import.
 3. `mcp/mcp.go`: remove the block after "An old tool list" in `tools/call`, the `!compat.OldArgs(...)` condition above it, and the import.
-4. `DROP TABLE compat_calls;`
+4. `web/static/auth.js`: remove the `SH.push` stand-in.
+5. `DROP TABLE compat_calls;`

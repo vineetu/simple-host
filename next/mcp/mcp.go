@@ -151,7 +151,7 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 		if res, ok := compat.Tool(h.a, r, p.Name, p.Arguments, strings.Join(listed, "\n"), run); ok {
 			return res, nil
 		}
-		return nil, &rpcError{-32602, "No tool named " + p.Name + ". The tools changed: list them again (tools/list)."}
+		return nil, &rpcError{-32602, "No tool named " + p.Name + ". Old tool names are retired: start a new chat, or refresh the Simple Host connection, to get the current tools."}
 	case "resources/list":
 		list := []map[string]any{}
 		for _, s := range screens {

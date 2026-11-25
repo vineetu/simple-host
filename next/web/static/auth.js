@@ -470,6 +470,14 @@
     }
   };
 
+  // Temporary, goes with next/compat: the old helper's SH.push (browser
+  // notifications) is gone; this stand-in keeps old pages from throwing.
+  function pushGone() {
+    console.info("[SH] SH.push is not available any more; nothing was changed.");
+    return Promise.resolve({available: false, code: "not_available"});
+  }
+  SH.push = {subscribe: pushGone, unsubscribe: pushGone};
+
   SH.ready = SH.me().catch(function () { return {signed_in: false}; });
   if (!noBackend) {
     var onReady = function () {

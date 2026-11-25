@@ -19,6 +19,7 @@ import (
 	"simplehost/sites/manage"
 	"simplehost/sites/publish"
 	"simplehost/sites/serve"
+	"simplehost/sites/uploads"
 	"simplehost/web"
 )
 
@@ -27,7 +28,7 @@ const platform = "https://simple-host.app"
 // start is the service with compat in front, as main serves it, and a
 // client that reaches it at any address.
 func start(t *testing.T) (*testkit.Kit, *http.Client) {
-	k := testkit.Start(t, publish.Mount, manage.Mount, serve.Mount, values.Mount, datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, web.Mount)
+	k := testkit.Start(t, publish.Mount, manage.Mount, serve.Mount, values.Mount, datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, web.Mount, uploads.Mount)
 	srv := httptest.NewServer(compat.Wrap(k.App, k.App))
 	t.Cleanup(srv.Close)
 	return k, &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
@@ -74,8 +75,9 @@ func TestOldPublishIsTranslatedAndCounted(t *testing.T) {
 }
 
 // An installed old skill that reads itself again gets the new skill, and
-// learns it is out of date.
+// learns it is out of date once the notice is on.
 func TestOldSkillGetsTheNewSkill(t *testing.T) {
+	t.Setenv("SH_COMPAT_NOTICE", "on")
 	_, b := start(t)
 	r := testkit.Call(t, b, "GET", platform+"/v1/skills/website-deploy/SKILL.md", nil, "X-Skill-Version", "0.27.119")
 	if r.Status != 200 || !strings.Contains(r.Body, "name: simple-host") {
@@ -87,9 +89,10 @@ func TestOldSkillGetsTheNewSkill(t *testing.T) {
 	}
 }
 
-// An AI app holding the old tool list publishes with the old names, and
-// each answer says to reconnect.
+// An AI app holding the old tool list publishes with the old names; with
+// the notice on, only its first answer says to reconnect.
 func TestOldToolNamesStillWork(t *testing.T) {
+	t.Setenv("SH_COMPAT_NOTICE", "on")
 	k, _ := start(t)
 	nina := k.Person(t, "nina")
 	b := k.Browser()
@@ -99,10 +102,10 @@ func TestOldToolNamesStillWork(t *testing.T) {
 			"params": map[string]any{"name": name, "arguments": args}}, "X-API-Key", nina.Key)
 		return r.Body
 	}
-	if s := call("create_site", map[string]any{"site": "cafe", "files": map[string]any{"index.html": "menu"}}); !strings.Contains(s, "old tool list") || strings.Contains(s, `"isError":true`) {
+	if s := call("create_site", map[string]any{"site": "cafe", "files": map[string]any{"index.html": "menu"}}); !strings.Contains(s, "Simple Host has new tools") || strings.Contains(s, `"isError":true`) {
 		t.Fatalf("create_site: %s", s)
 	}
-	if s := call("run_tool", map[string]any{"name": "get_site", "arguments": map[string]any{"site": "cafe"}}); !strings.Contains(s, "cafe--nina") {
+	if s := call("run_tool", map[string]any{"name": "get_site", "arguments": map[string]any{"site": "cafe"}}); !strings.Contains(s, "cafe--nina") || strings.Contains(s, "new tools") {
 		t.Fatalf("run_tool: %s", s)
 	}
 	if s := call("rename_site", map[string]any{"site": "cafe"}); !strings.Contains(s, "was removed") {
@@ -135,13 +138,25 @@ func TestOldArgumentsTranslate(t *testing.T) {
 		{"get_page_recipe", map[string]any{"topic": "menu"}, "Public"},
 		{"storage_sql_query", map[string]any{"site": "shop", "name": "menu", "sql": "SELECT ?", "params": `[7]`}, `[[7]]`},
 		{"update_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "draft"}, "publish": false}, "Nothing was published"},
+		{"create_upload_link", map[string]any{"site": "shop"}, `"photos_url":"https://simple-host.app/upload/up_`},
 	} {
-		if s := call(c.name, c.args); !strings.Contains(s, c.want) || !strings.Contains(s, "old tool list") {
+		if s := call(c.name, c.args); !strings.Contains(s, c.want) || strings.Contains(s, "new tools") {
 			t.Fatalf("%s: want %s in %s", c.name, c.want, s)
 		}
 	}
 	if r := testkit.Call(t, b, "GET", platform+"/v1/sites/shop/files/index.html", nil, "X-API-Key", ann.Key); r.Body != "hi" {
 		t.Fatalf("draft went live: %s", r.Body)
+	}
+}
+
+// An old page's push call gets a plain refusal, not a 500 or a notice.
+func TestOldPagePushIsRefusedPlainly(t *testing.T) {
+	k, b := start(t)
+	ann := k.Person(t, "ann")
+	k.Publish(t, ann, "shop", map[string]string{"index.html": "hi"})
+	r := testkit.Call(t, b, "POST", "https://shop--ann.simple-host.site/v1/sites/shop/push/subscribe", map[string]any{"endpoint": "x"}, "X-SH-CSRF", "1")
+	if r.Status != 410 || !strings.Contains(r.Body, `"code":"not_available"`) || r.Header.Get("Deprecation") != "" {
+		t.Fatalf("push: %d %v %s", r.Status, r.Header, r.Body)
 	}
 }
 

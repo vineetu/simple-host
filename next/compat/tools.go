@@ -12,10 +12,8 @@ import (
 
 // Old tool names. AI apps that connected before the switch keep their old
 // tool list and do not list again, so each old name still works: it is
-// reshaped into calls of the current tools, and the answer says to
-// reconnect for the current list.
-
-const oldListNote = "This connection has an old tool list. Reconnect Simple Host or start a new chat to get the current tools."
+// reshaped into calls of the current tools. With SH_COMPAT_NOTICE=on the
+// answer also says to reconnect (notice.go).
 
 // Tool answers a tool name the current list does not have: an old name,
 // find_tools or run_tool. list is the current tools, one "name: about" a
@@ -27,6 +25,8 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 	}
 	var res map[string]any
 	switch name {
+	case "create_upload_link": // only the old shape gets here (OldArgs)
+		res = photoPicker(args(in), run)
 	case "find_tools":
 		res = map[string]any{"content": []any{text(list)}}
 	case "run_tool":
@@ -71,9 +71,53 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 		}
 	}
 	count(a, r, "tool "+name)
-	content, _ := res["content"].([]any)
-	res["content"] = append(content, text(oldListNote))
+	if toolNoticeDue(r) {
+		content, _ := res["content"].([]any)
+		res["content"] = append(content, text(toolNotice()))
+	}
 	return res, true
+}
+
+// photoPicker stands in for the old create_upload_link {site}: a photo
+// picker that saved into the site's images/. Photos now go to a namespace's
+// file store, so this uses the namespace "photos" (the upload link makes it)
+// and, when compat made it, lets anyone who can open the site see its files,
+// as they could see images/. Goes with this package.
+func photoPicker(a args, run func(string, map[string]any) (map[string]any, bool)) map[string]any {
+	site, _ := run("get_site", a.keep("site", "owner"))
+	if site["isError"] == true {
+		return site
+	}
+	sc, _ := site["structuredContent"].(map[string]any)
+	nss, _ := sc["namespaces"].([]any)
+	made := true
+	for _, n := range nss {
+		if m, _ := n.(map[string]any); m["name"] == "photos" {
+			made = false
+		}
+	}
+	res, _ := run("create_upload_link", a.keep("site", "owner").with("namespace", "photos").with("kind", "files"))
+	if res["isError"] == true {
+		return res
+	}
+	if made {
+		read := map[string]any{"_files": map[string]any{"version": 1, "policies": []any{map[string]any{"name": "read", "command": "read", "using": "true"}}}}
+		if rr, _ := run("set_data_rules", a.keep("site", "owner").with("namespace", "photos").with("rules", read)); rr["isError"] == true {
+			return rr
+		}
+	}
+	link, _ := res["structuredContent"].(map[string]any)
+	if link == nil {
+		link = map[string]any{}
+	}
+	link["photos_url"] = link["url"] // the old answer's name for it
+	res["structuredContent"] = link
+		content, _ := res["content"].([]any)
+	res["content"] = append(content, text("Give the person url: it is the photo picker (it shrinks photos on their device). "+
+		"Photos now go to this site's photos namespace, not images/. When they say done, list them with data GET storage/files/photos/objects, "+
+		"and show one on a page with <img src=\"/v1/sites/"+url.PathEscape(a.s("site"))+"/storage/files/photos/objects/<path>\"> (or SH.storage.files(\"photos\").url(path)). "+
+		"For a whole-site archive link instead, call create_upload_link with kind: \"archive\"."))
+	return res
 }
 
 func text(s string) map[string]any { return map[string]any{"type": "text", "text": s} }
@@ -249,6 +293,8 @@ func OldArgs(name string, in map[string]any) bool {
 	}
 	a := args(in)
 	switch name {
+	case "create_upload_link": // the old {site}: a photo picker, not an archive link
+		return a["archive"] != true && a.s("namespace") == "" && a.s("kind") == ""
 	case "set_site_access":
 		return a.s("access") == "anyone" || a.s("access") == "specific"
 	case "read_site_file":
