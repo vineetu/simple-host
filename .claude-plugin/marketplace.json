@@ -5,16 +5,16 @@
     "url": "https://github.com/vineetu/simple-host"
   },
   "metadata": {
-    "description": "Deploy websites to simple-host.app from your coding agent \u2014 static hosting with every site at its own address (<site>.<handle>.simple-host.app), a per-site backend (KV, SQLite and file resources, each with its own read/write policy; visitor sign-in on the site's own address, separate from the owner's account sign-in; agents write with an API key), connect your own domain (subdomain or apex), and built-in visitor analytics. Personal home choice, live showcase feed, bio, pins and order."
+    "description": "Put websites online at simple-host.app from your AI app or coding agent: every site at its own address, saved data with rules for who reads and writes, visitor sign-in, a passcode or named viewers, visit numbers, a short name or your own domain, and teams."
   },
   "plugins": [
     {
       "name": "simple-host",
       "displayName": "Simple Host",
       "source": "./plugins/simple-host",
-      "version": "0.27.119",
+      "version": "0.28.0",
       "homepage": "https://simple-host.app",
-      "description": "Describe a website and it goes online at its own address. Claude builds the site and publishes it to simple-host.app through the Simple Host connector: pages, a small per-site backend (KV, SQLite and files) with visitor sign-in for saves and sign-ups, visitor analytics, and your own domain when you want one. Choose a personal home and curate the showcase with bio, pins and order."
+      "description": "Describe a website and it goes online at its own address. Claude builds the site and publishes it to simple-host.app through the Simple Host connector: pages, saved data (tables, values and files) with visitor sign-in for bookings, forms and sign-ups, who may open the site (everyone, a passcode, named people), visit numbers, a short name or your own domain, and teams."
     }
   ]
 }

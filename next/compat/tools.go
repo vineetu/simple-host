@@ -1,19 +1,82 @@
-package mcp
+package compat
 
 import (
 	"net/http"
 	"net/url"
 	"strings"
 
+	"simplehost/app"
 	"simplehost/core/web"
 )
 
 // Old tool names. AI apps that connected before the switch keep their old
 // tool list and do not list again, so each old name still works: it is
-// reshaped into calls of the current tools (never listed in tools/list),
-// and the answer says to reconnect for the current list.
+// reshaped into calls of the current tools, and the answer says to
+// reconnect for the current list.
 
 const oldListNote = "This connection has an old tool list. Reconnect Simple Host or start a new chat to get the current tools."
+
+// Tool answers a tool name the current list does not have: an old name,
+// find_tools or run_tool. list is the current tools, one "name: about" a
+// line; run calls a current tool (false: no such tool). ok is false for a
+// name nobody ever had, and for every name after the sunset.
+func Tool(a *app.App, r *http.Request, name string, in map[string]any, list string, run func(tool string, args map[string]any) (map[string]any, bool)) (map[string]any, bool) {
+	if over() {
+		return nil, false
+	}
+	var res map[string]any
+	switch name {
+	case "find_tools":
+		res = map[string]any{"content": []any{text(list)}}
+	case "run_tool":
+		inner, _ := in["arguments"].(map[string]any)
+		if inner == nil {
+			inner = map[string]any{}
+		}
+		innerName := args(in).s("name")
+		var ok bool
+		if res, ok = run(innerName, inner); !ok {
+			if res, ok = Tool(a, r, innerName, inner, list, run); ok {
+				return res, true // counted and noted as the old name
+			}
+			res = refusal(web.Refuse(http.StatusNotFound, "no_tool", "No tool named "+innerName+". Reconnect Simple Host to get the current tools."))
+		}
+	default:
+		reshape, ok := oldTools[name]
+		if !ok {
+			return nil, false
+		}
+		steps, err := reshape(args(in))
+		if err != nil {
+			res = refusal(err)
+		}
+		for _, s := range steps {
+			var ok bool
+			if res, ok = run(s.tool, s.args); !ok {
+				res = refusal(web.Refuse(http.StatusInternalServerError, "server_error", "Something broke on our side. Try again in a minute."))
+			}
+			if res["isError"] == true {
+				break
+			}
+		}
+	}
+	count(a, r, "tool "+name)
+	content, _ := res["content"].([]any)
+	res["content"] = append(content, text(oldListNote))
+	return res, true
+}
+
+func text(s string) map[string]any { return map[string]any{"type": "text", "text": s} }
+
+// refusal is a refusal as a tool result, as the current tools give it.
+func refusal(err error) map[string]any {
+	ref, ok := err.(*web.Refusal)
+	if !ok {
+		ref = web.Refuse(http.StatusInternalServerError, "server_error", "Something broke on our side. Try again in a minute.")
+	}
+	return map[string]any{"isError": true, "content": []any{text(ref.Code + ": " + ref.Fix)},
+		"structuredContent": map[string]any{"code": ref.Code, "fix": ref.Fix}}
+}
 
 // step is one call of a current tool.
 type step struct {
@@ -45,16 +108,16 @@ var oldTools = map[string]func(a args) ([]step, error){
 	"storage_list_resources": siteOnly("get_site"),
 	"storage_get_usage":      siteOnly("get_site"),
 	"list_deleted_sites":     func(a args) ([]step, error) { return one("list_sites", args{"bin": true}) },
-	"rollback_site":          change("live_version", func(a args) any { return a["version"] }),
-	"restore_site":           change("restore", func(args) any { return true }),
-	"set_site_offline":       change("offline", func(a args) any { return a["offline"] }),
-	"set_visibility":         change("listed", func(a args) any { return a.s("visibility") == "public" }),
-	"grant_site_viewer":      access("viewers_add", func(a args) any { return a.list("emails") }),
-	"revoke_site_viewer":     access("viewers_remove", func(a args) any { return append(a.list("emails"), a.list("email")...) }),
-	"sign_out_site_visitors": access("sign_everyone_out", func(args) any { return true }),
+	"rollback_site":          changeStep("live_version", func(a args) any { return a["version"] }),
+	"restore_site":           changeStep("restore", func(args) any { return true }),
+	"set_site_offline":       changeStep("offline", func(a args) any { return a["offline"] }),
+	"set_visibility":         changeStep("listed", func(a args) any { return a.s("visibility") == "public" }),
+	"grant_site_viewer":      accessStep("viewers_add", func(a args) any { return a.list("emails") }),
+	"revoke_site_viewer":     accessStep("viewers_remove", func(a args) any { return append(a.list("emails"), a.list("email")...) }),
+	"sign_out_site_visitors": accessStep("sign_everyone_out", func(args) any { return true }),
 	// The passcode screen keeps the code out of the chat: without a code
 	// given, these open it.
-	"get_site_passcode": access("access", func(args) any { return "passcode" }),
+	"get_site_passcode": accessStep("access", func(args) any { return "passcode" }),
 	"set_site_passcode": func(a args) ([]step, error) {
 		return one("set_site_access", a.keep("site", "owner", "passcode").with("access", "passcode"))
 	},
@@ -94,23 +157,9 @@ var oldTools = map[string]func(a args) ([]step, error){
 	},
 	"storage_set_resource": func(a args) ([]step, error) {
 		body, _ := a["body"].(map[string]any)
-		b := args(body)
-		rules := map[string]any{}
-		switch b.s("kind") {
-		case "kv":
-			rules["_values"] = b["rules"]
-		case "files":
-			rules["_files"] = b["rules"]
-		default:
-			tables, _ := b["tables"].(map[string]any)
-			for t, v := range tables {
-				if m, ok := v.(map[string]any); ok {
-					rules[t] = m["rules"]
-				}
-			}
-			if len(rules) == 0 && b["rules"] != nil {
-				return nil, web.Refuse(http.StatusBadRequest, "rules_per_table", `SQLite rules are now set per table: send body.tables, like {"orders": {"rules": {...}}}.`)
-			}
+		rules, err := namespaceRules(body)
+		if err != nil {
+			return nil, err
 		}
 		return one("set_data_rules", a.keep("site", "owner").with("namespace", a.s("name")).with("rules", rules))
 	},
@@ -150,59 +199,6 @@ var oldTools = map[string]func(a args) ([]step, error){
 	"passcode_screen":            gone("The old passcode screen"),
 }
 
-// callOld answers a tool name that is not in the table: an old name,
-// find_tools or run_tool. ok is false for a name nobody ever had.
-func (h *server) callOld(r *http.Request, name string, a args) (map[string]any, bool) {
-	var res map[string]any
-	switch name {
-	case "find_tools":
-		lines := []string{}
-		for _, t := range tools {
-			if !t.appOnly {
-				lines = append(lines, t.name+": "+t.about)
-			}
-		}
-		res = map[string]any{"content": []any{map[string]any{"type": "text", "text": strings.Join(lines, "\n")}}}
-	case "run_tool":
-		inner, _ := a["arguments"].(map[string]any)
-		if inner == nil {
-			inner = map[string]any{}
-		}
-		if t, ok := findTool(a.s("name")); ok {
-			res = h.call(r, t, inner)
-		} else if res, ok = h.callOld(r, a.s("name"), inner); !ok {
-			res = refusal(web.Refuse(http.StatusNotFound, "no_tool", "No tool named "+a.s("name")+". Reconnect Simple Host to get the current tools."))
-		}
-	default:
-		reshape, ok := oldTools[name]
-		if !ok {
-			return nil, false
-		}
-		steps, err := reshape(a)
-		if err != nil {
-			res = refusal(err)
-		}
-		for _, s := range steps {
-			t, _ := findTool(s.tool)
-			if res = h.call(r, t, s.args); res["isError"] == true {
-				break
-			}
-		}
-	}
-	content, _ := res["content"].([]any)
-	res["content"] = append(content, map[string]any{"type": "text", "text": oldListNote})
-	return res, true
-}
-
-func findTool(name string) (tool, bool) {
-	for _, t := range tools {
-		if t.name == name {
-			return t, true
-		}
-	}
-	return tool{}, false
-}
-
 // args are a call's arguments.
 type args map[string]any
 
@@ -238,11 +234,11 @@ func siteOnly(tool string) func(args) ([]step, error) {
 	return func(a args) ([]step, error) { return one(tool, a.keep("site", "owner")) }
 }
 
-func change(field string, value func(args) any) func(args) ([]step, error) {
+func changeStep(field string, value func(args) any) func(args) ([]step, error) {
 	return func(a args) ([]step, error) { return one("change_site", a.keep("site", "owner").with(field, value(a))) }
 }
 
-func access(field string, value func(args) any) func(args) ([]step, error) {
+func accessStep(field string, value func(args) any) func(args) ([]step, error) {
 	return func(a args) ([]step, error) {
 		return one("set_site_access", a.keep("site", "owner").with(field, value(a)))
 	}

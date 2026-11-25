@@ -6,9 +6,9 @@ draft `app-6ab570c7e41c81918c88f0026f2e1895` cannot change its MCP server). Upda
 tools as they are, never from memory: see `plugins/ROUTINE.md`. It is not a record of a
 deployment, a reviewer run or a portal submission.
 
-Last updated from the tools: 2026-11-21. The json files next to it carry the same fields:
+Last updated from the tools: 2026-11-25 (the rewritten service, `next/mcp/tools.go`). The json files next to it carry the same fields:
 `plugin.json` (package manifest and review cases), `chatgpt-app-submission.json` (tool
-annotations and cases, checked against `tools/list` by `TestSubmissionToolsMatchChatGPTListing`)
+annotations and cases, checked against `tools/list` by `TestSubmissionToolsMatchListing` in `next/mcp`)
 and `mcp.json` (the server address). `scripts/build-openai-plugin.sh host` checks that the cases
 match in all three.
 
@@ -21,7 +21,7 @@ match in all three.
    `dist/simple-host-openai-skills.zip`, which holds only skill folders.
 3. Copy the listing fields below. Upload `plugins/openai/assets/logo.png` (512 by 512) and
    `plugins/openai/assets/icon.png` (256 by 256).
-4. Fill in the MCP tab as below, then **Scan Tools**. Expect 68 tools. Domain
+4. Fill in the MCP tab as below, then **Scan Tools**. Expect 25 tools (24 for the model and `passcode_screen`, which only the in-chat passcode screen calls). Domain
    verification: the portal shows a token; put it in `/etc/simple-host.env` as
    `OPENAI_APPS_CHALLENGE=<token>`, restart, check that
    `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token,
@@ -34,14 +34,14 @@ match in all three.
 7. Fill in the review information (cases, demo video), submit for review, and on approval choose
    when to publish.
 
-TODO-OWNER: confirm the version. `plugin.json` says 1.0.1. Keep it if nothing has been
-uploaded under `simple-host` yet; otherwise raise it before uploading.
+TODO-OWNER: confirm the version. `plugin.json` says 1.1.0 (the rewritten connector). If 1.1.0
+is already uploaded under `simple-host`, raise it before uploading.
 TODO-OWNER: approve the final listing copy below before submitting.
 
 ## Listing fields
 
 - **Package name:** simple-host
-- **Version:** 1.0.1
+- **Version:** 1.1.0
 - **Display name:** Simple Host
 - **Developer:** Vineet Sriram
 - **Category:** Productivity
@@ -58,13 +58,13 @@ TODO-OWNER: approve the final listing copy below before submitting.
 
 Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.
 
-Each site can save key-value data (KV), SQLite tables, and files. Access rules control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.
+Each site can save data: tables, values and files. Rules control who can read, add, change and delete it, and new data is private to you by default. Use an inbox for submissions only you read, bookings each signed-in visitor keeps their own, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password.
 
-Update site files, preview a saved version, or restore an earlier version. The four latest site versions are kept by default, and deleted sites can be restored for 7 days. Current storage stays until you delete it or its site; it does not have automatic 30-day change history.
+Choose who may open a site: anyone with the link, one passcode, or only people you name by email. Make an older version live again, take a site offline, and restore a deleted site for 7 days. Four recent versions are kept.
 
-Connect your own domain with HTTPS or choose a short name.simple-host.app address. Manage who can open a site, read visitor counts and top pages, and download a copy of your site.
+Connect your own domain with HTTPS or choose a short name.simple-host.app address. Read visit numbers and top pages, and download a copy of everything.
 
-Share sites with a team: every member publishes and changes the team's sites with their own sign-in. Or let one person edit a single site.
+Share sites with a team: every member publishes and changes the team's sites with their own sign-in.
 
 Connect your Simple Host account through the app's sign-in flow. You can revoke the connection from the Simple Host dashboard. Simple Host is open source, made and run by Vineet Sriram.
 
@@ -77,19 +77,19 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 ### Capabilities
 
 - Publish websites, each at its own public address
-- Edit, rename, preview, roll back, and delete your sites
+- Update, roll back, take offline and delete your sites
 - Save bookings, quote requests, waitlists, and orders
 - Choose who can read and add saved data, with simple rules
 - Let visitors sign in so each person sees only their own records
 - Lock a site with a passcode or open it only to named people
 - Connect your own domain or a short name.simple-host.app address
-- Share sites with a team, or let one person edit one site
+- Share sites with a team
 - See visitors, top pages, and where they came from
-- Download a copy of any site
+- Download a copy of everything
 
 ## Skills
 
-Three skills from `host/webassets/simple-host-website/skills` (skills version 0.27.118, from
+Three skills from `host/webassets/simple-host-website/skills` (skills version 0.28.0, from
 `host/webassets/simple-host-website/.claude-plugin/plugin.json`): `website-deploy` (the
 onboarding skill), `website-deploy-builder` and `connect-domain`. The build packages them as
 they are in that folder; there is no separate OpenAI copy.
@@ -99,22 +99,24 @@ they are in that folder; there is no separate OpenAI copy.
 - Server: `https://simple-host.app/mcp`, Streamable HTTP, as in `mcp.json`.
 - Authentication: OAuth with dynamic client registration (DCR), authorization code flow and
   PKCE (S256). Use the server's discovery metadata; do not paste an API key or a client secret.
-- Tool inventory: 68 tools, each listed on its own; neither `find_tools` nor
-  `run_tool` is listed to ChatGPT. Production has MCP Events on (`list_notifications`,
-  `remove_notification`) and Teams on (`create_team`, `list_teams`, `list_team_members`,
-  `add_team_member`, `cancel_team_invitation`, `answer_team_invitation`, `remove_team_member`,
-  `delete_team`, `list_site_editors`, `add_site_editor`, `remove_site_editor`). Site and storage
-  tools take an optional `owner` to act on a team's sites or a site the person edits.
-- Annotations: every tool sets readOnlyHint, destructiveHint and openWorldHint (and
-  idempotentHint) by the rule in `host/mcp/annotations_test.go`. The values are in
-  `chatgpt-app-submission.json`. OpenAI no longer requires justifications; the file keeps them.
+- Tool inventory: 25 tools, each listed on its own, with no `find_tools` or `run_tool`. Account:
+  `who_am_i`, `update_account`, `download_my_data`, `delete_account`. Teams: `create_team`,
+  `invite_to_team`, `accept_invite`, `remove_from_team`, `delete_team`. Sites: `list_sites`,
+  `get_site`, `publish_site`, `create_upload_link`, `read_site_file`, `change_site`, `delete_site`,
+  `set_site_access`, `set_site_address`, `site_stats`, `set_notifications`, `passcode_screen`
+  (called only by the passcode screen). Saved data: `data`, `run_sql`, `set_data_rules`,
+  `get_recipe`. Site
+  tools take an optional `owner` to act on a team's sites. Notifications are in the same server.
+- Annotations: every tool sets readOnlyHint, destructiveHint and openWorldHint. The server sets
+  readOnly on the read tools and destructive on the tools that delete or widen access (the ones
+  that ask first); openWorld is false for all. The values are in `chatgpt-app-submission.json`
+  and `TestSubmissionToolsMatchListing` fails when they differ.
 - Permissions: the consent screen covers publishing and managing sites, reading site files and
-  saved data including private entries, downloading copies, reading visitor counts, changing
+  saved data including private entries, downloading copies, reading visit numbers, changing
   access and addresses, and managing notifications.
-- Apps UI: MCP Apps screens are off by default (the `MCP_APP_*` settings) and are not shown to
-  reviewers. The server has optional screens for sites, analytics, photos and previews; the
-  submitted configuration uses tool text and structured results. Do not claim the server has no
-  UI implementation.
+- Apps UI: the server returns four in-chat screens (my sites, visit numbers, photo picker and
+  passcode) as MCP Apps and Apps SDK widgets. Reviewers see them in ChatGPT. The passcode screen
+  seals the passcode so it never enters the chat.
 
 ## Privacy and data handling
 
@@ -152,14 +154,17 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
 
 - 2026-10-28, production build b4c65325: `scripts/e2e/e2e-reviewer.py` signed in as the reviewer
   and ran the then P1 to P5 at the tool level; all 45 checks passed. That run predates Teams.
-- 2026-11-21: the kit was updated to 68 tools (Teams added) and P3 now covers
-  Teams. The MCPJam checks pass locally (`plugins/ROUTINE.md`, step 1). Not yet run in ChatGPT.
+- 2026-11-21: the kit was updated to the old service's 68 tools (Teams added).
+- 2026-11-25: the kit was rewritten for the new service's 25 tools (the two operator tools are left out; tool names, cases P1 to P5,
+  listing text, skills 0.28.0). Not yet run against the new service in ChatGPT or MCPJam. The
+  reviewer demo data (`scripts/seed-reviewer-demo.py`, `scripts/e2e/e2e-reviewer.py`) was written
+  for the old API and has not been checked against the new service.
 
 TODO-OWNER: run all eight cases in ChatGPT against production and record the results here.
-TODO-OWNER: record a new demo video (the current one predates Teams) and put its URL in
+TODO-OWNER: record a new demo video (the current one shows the old tools) and put its URL in
 `plugin.json` (`review.demo_recording_url`).
-TODO-OWNER: the listing screenshots in `listing-screenshots/` are for the website and video only
-(the portal refuses screenshots when the server returns no UI); retake them if you want Teams shown.
+TODO-OWNER: the listing screenshots in `listing-screenshots/` are for the website and video only;
+retake them if you want the new screens shown.
 
 ## Five positive test cases
 
@@ -169,9 +174,9 @@ TODO-OWNER: the listing screenshots in `listing-screenshots/` are for the websit
 
 **Prompt:** Put a one-page website online for my bakery, Rise and Shine, as a new site named rise-and-shine. It should list our opening hours: Monday to Friday 7 to 3, Saturday 8 to 1.
 
-**Expected tools:** create_site
+**Expected tools:** publish_site
 
-**Expected result:** Says the site name and address and that anyone with the link can open it, waits for a yes, then calls create_site once and returns the live https://rise-and-shine.<handle>.simple-host.app/ address. The page shows the bakery name and hours. No photo, notification, or identity calls, and no emails in the result.
+**Expected result:** Says the site name and that anyone with the link can open it, waits for a yes, then calls publish_site once and returns the live address exactly as the tool gave it (https://rise-and-shine--<handle>.simple-host.site/ or https://rise-and-shine.<handle>.simple-host.app/). The page shows the bakery name and hours. No photo, notification, or team calls, and no emails in the result.
 
 ### P2
 
@@ -179,9 +184,9 @@ TODO-OWNER: the listing screenshots in `listing-screenshots/` are for the websit
 
 **Prompt:** On feedback-survey, change the heading to "Tell us how we did". Then, in the same chat: Undo that change.
 
-**Expected tools:** get_site, read_site_file, update_site, list_versions, rollback_site
+**Expected tools:** get_site, read_site_file, publish_site, change_site
 
-**Expected result:** The survey shows the requested heading. After confirmation of the rollback, the previous version restores the original heading. No account or visitor emails are returned.
+**Expected result:** The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, change_site makes the previous version live and the original heading returns. No account or visitor emails are returned.
 
 ### P3
 
@@ -189,9 +194,9 @@ TODO-OWNER: the listing screenshots in `listing-screenshots/` are for the websit
 
 **Prompt:** Create a team called rise-bakery-crew so my staff can work on our sites, and invite sam@example.com to it.
 
-**Expected tools:** create_team, add_team_member
+**Expected tools:** create_team, invite_to_team
 
-**Expected result:** Says the team name becomes its address and cannot be changed later, waits for a yes, then calls create_team once and add_team_member with sam@example.com. Says that nothing is emailed to Sam, so the person should tell Sam to sign in with that email and accept. No site is created, changed or deleted.
+**Expected result:** Says the team name becomes its address and cannot be changed later, waits for a yes, then calls create_team once and invite_to_team with sam@example.com. Says that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted.
 
 ### P4
 
@@ -199,9 +204,9 @@ TODO-OWNER: the listing screenshots in `listing-screenshots/` are for the websit
 
 **Prompt:** How many RSVPs do I have on garden-party-rsvp?
 
-**Expected tools:** storage_sql_query
+**Expected tools:** run_sql
 
-**Expected result:** Returns COUNT(*) from the rsvps table in the rsvps resource, matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i or storage_visitor_emails.
+**Expected result:** Runs a COUNT(*) on the rsvps table of the site's rsvps namespace and returns the number matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i.
 
 ### P5
 
@@ -209,7 +214,7 @@ TODO-OWNER: the listing screenshots in `listing-screenshots/` are for the websit
 
 **Prompt:** How many people visited feedback-survey this week, and which pages did they read?
 
-**Expected tools:** site_analytics
+**Expected tools:** site_stats
 
 **Expected result:** Returns visit totals, daily counts, and top pages for feedback-survey. The result has no IP addresses, locations of individuals, emails, or visitor identifiers. Nothing is changed.
 

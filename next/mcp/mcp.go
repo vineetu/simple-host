@@ -26,6 +26,7 @@ import (
 	"unicode/utf8"
 
 	"simplehost/app"
+	"simplehost/compat"
 	"simplehost/core/limits"
 	"simplehost/core/web"
 )
@@ -106,6 +107,9 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 	case "tools/list":
 		list := []map[string]any{}
 		for _, t := range tools {
+			if t.operator && !isOperator(r) {
+				continue
+			}
 			x := map[string]any{"name": t.name, "description": t.about, "inputSchema": t.input,
 				"annotations": map[string]any{"readOnlyHint": t.readOnly, "destructiveHint": t.asks, "openWorldHint": false}}
 			switch {
@@ -127,10 +131,24 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 		if p.Arguments == nil {
 			p.Arguments = map[string]any{}
 		}
-		if t, ok := findTool(p.Name); ok {
+		if t, ok := findTool(p.Name); ok && (!t.operator || isOperator(r)) {
 			return h.call(r, t, p.Arguments), nil
 		}
-		if res, ok := h.callOld(r, p.Name, p.Arguments); ok { // an old tool list (old.go)
+		// An old tool list: next/compat answers the old names (goes with it).
+		listed := []string{}
+		for _, t := range tools {
+			if !t.appOnly {
+				listed = append(listed, t.name+": "+t.about)
+			}
+		}
+		run := func(name string, args map[string]any) (map[string]any, bool) {
+			t, ok := findTool(name)
+			if !ok {
+				return nil, false
+			}
+			return h.call(r, t, args), true
+		}
+		if res, ok := compat.Tool(h.a, r, p.Name, p.Arguments, strings.Join(listed, "\n"), run); ok {
 			return res, nil
 		}
 		return nil, &rpcError{-32602, "No tool named " + p.Name + ". The tools changed: list them again (tools/list)."}
@@ -290,6 +308,18 @@ func (h *server) call(r *http.Request, t tool, args map[string]any) map[string]a
 	}
 	go h.agentcat(web.CallerOf(r), t.name, args, res, time.Since(start))
 	return res
+}
+
+// isOperator is the platform's one check (web.Caller.Operator, as ops/admin uses).
+func isOperator(r *http.Request) bool { return r != nil && web.CallerOf(r).Operator }
+
+func findTool(name string) (tool, bool) {
+	for _, t := range tools {
+		if t.name == name {
+			return t, true
+		}
+	}
+	return tool{}, false
 }
 
 func refusal(err error) map[string]any {

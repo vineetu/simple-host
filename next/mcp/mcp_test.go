@@ -23,7 +23,6 @@ import (
 	datarules "simplehost/data/rules"
 	datasql "simplehost/data/sql"
 	"simplehost/mcp"
-	"simplehost/sites/publish"
 	"simplehost/sites/serve"
 )
 
@@ -76,8 +75,8 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		t.Fatalf("initialize: %v", v)
 	}
 	list := call("tools/list", nil)["tools"].([]any)
-	if len(list) != 27 { // 26 and the passcode screen's own
-		t.Fatalf("%d tools, want 27", len(list))
+	if len(list) != 25 { // the operator sees 27 (admin_overview, set_hold)
+		t.Fatalf("%d tools, want 25", len(list))
 	}
 	for _, x := range list {
 		if x := x.(map[string]any); x["name"] == "set_site_access" && !strings.Contains(text(x), "ui://simple-host/passcode") {
@@ -200,30 +199,28 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 	}
 }
 
-// An app still holding the old tool list publishes with the old names, and
-// each answer says to reconnect.
-func TestOldToolNamesStillWork(t *testing.T) {
-	k := testkit.Start(t, mcp.Mount, api.Mount, serve.Mount, publish.Mount)
-	nina := k.Person(t, "nina")
-	call := ai(t, k, nina.Key)
-	ok := func(res map[string]any) string {
-		t.Helper()
-		if s := text(res); res["isError"] == true || !strings.Contains(s, "old tool list") {
-			t.Fatalf("old name: %s", s)
+// The operator's tools are listed and answered for the operator only.
+func TestOperatorToolsAreForTheOperatorOnly(t *testing.T) {
+	k := testkit.Start(t, mcp.Mount, api.Mount)
+	user, op := k.Person(t, "plain"), k.Person(t, "boss")
+	k.Exec(t, `UPDATE people SET operator = true WHERE id = $1`, op.ID)
+	names := func(call func(string, any) map[string]any) string {
+		var out []string
+		for _, x := range call("tools/list", nil)["tools"].([]any) {
+			out = append(out, x.(map[string]any)["name"].(string))
 		}
-		return text(res)
+		return strings.Join(out, " ")
 	}
-	ok(tool(call, "create_site", map[string]any{"site": "cafe", "files": map[string]any{"index.html": "menu", "about.html": "us"}}))
-	ok(tool(call, "update_site", map[string]any{"site": "cafe", "keep_other_files": true, "files": map[string]any{"index.html": "new menu"}}))
-	for path, want := range map[string]string{"": "new menu", "about.html": "us"} {
-		if r := testkit.Call(t, k.Browser(), "GET", "https://cafe--nina.simple-host.site/"+path, nil); r.Status != 200 || !strings.Contains(r.Body, want) {
-			t.Fatalf("%s: %d %s", path, r.Status, r.Body)
-		}
+	u, o := names(ai(t, k, user.Key)), names(ai(t, k, op.Key))
+	if strings.Contains(u, "admin_overview") || strings.Contains(u, "set_hold") {
+		t.Fatalf("ordinary user's list has operator tools: %s", u)
 	}
-	if s := ok(tool(call, "run_tool", map[string]any{"name": "get_site", "arguments": map[string]any{"site": "cafe"}})); !strings.Contains(s, "cafe--nina") {
-		t.Fatalf("run_tool: %s", s)
+	if !strings.Contains(o, "admin_overview") || !strings.Contains(o, "set_hold") {
+		t.Fatalf("operator's list lacks them: %s", o)
 	}
-	if res := tool(call, "rename_site", map[string]any{"site": "cafe"}); res["isError"] != true || !strings.Contains(text(res), "was removed") {
-		t.Fatalf("dropped tool: %v", res)
+	r := testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "admin_overview", "arguments": map[string]any{}}}, "X-API-Key", user.Key)
+	if !strings.Contains(r.Body, "No tool named admin_overview") {
+		t.Fatalf("ordinary user's call: %s", r.Body)
 	}
 }
