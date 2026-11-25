@@ -23,6 +23,7 @@ import (
 	datarules "simplehost/data/rules"
 	datasql "simplehost/data/sql"
 	"simplehost/mcp"
+	"simplehost/sites/publish"
 	"simplehost/sites/serve"
 )
 
@@ -196,5 +197,33 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 	res := tool(ai(t, k, bob.Key), "get_site", map[string]any{"site": addr})
 	if s := text(res); !strings.Contains(s, addr) || strings.Contains(s, "viewers") {
 		t.Fatalf("get_site for bob: %s", s)
+	}
+}
+
+// An app still holding the old tool list publishes with the old names, and
+// each answer says to reconnect.
+func TestOldToolNamesStillWork(t *testing.T) {
+	k := testkit.Start(t, mcp.Mount, api.Mount, serve.Mount, publish.Mount)
+	nina := k.Person(t, "nina")
+	call := ai(t, k, nina.Key)
+	ok := func(res map[string]any) string {
+		t.Helper()
+		if s := text(res); res["isError"] == true || !strings.Contains(s, "old tool list") {
+			t.Fatalf("old name: %s", s)
+		}
+		return text(res)
+	}
+	ok(tool(call, "create_site", map[string]any{"site": "cafe", "files": map[string]any{"index.html": "menu", "about.html": "us"}}))
+	ok(tool(call, "update_site", map[string]any{"site": "cafe", "keep_other_files": true, "files": map[string]any{"index.html": "new menu"}}))
+	for path, want := range map[string]string{"": "new menu", "about.html": "us"} {
+		if r := testkit.Call(t, k.Browser(), "GET", "https://cafe--nina.simple-host.site/"+path, nil); r.Status != 200 || !strings.Contains(r.Body, want) {
+			t.Fatalf("%s: %d %s", path, r.Status, r.Body)
+		}
+	}
+	if s := ok(tool(call, "run_tool", map[string]any{"name": "get_site", "arguments": map[string]any{"site": "cafe"}})); !strings.Contains(s, "cafe--nina") {
+		t.Fatalf("run_tool: %s", s)
+	}
+	if res := tool(call, "rename_site", map[string]any{"site": "cafe"}); res["isError"] != true || !strings.Contains(text(res), "was removed") {
+		t.Fatalf("dropped tool: %v", res)
 	}
 }

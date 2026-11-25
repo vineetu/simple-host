@@ -124,14 +124,16 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 			Arguments map[string]any `json:"arguments"`
 		}
 		json.Unmarshal(req.Params, &p)
-		i := slices.IndexFunc(tools, func(t tool) bool { return t.name == p.Name })
-		if i < 0 {
-			return nil, &rpcError{-32602, "No tool named " + p.Name + ". The tools changed: list them again (tools/list)."}
-		}
 		if p.Arguments == nil {
 			p.Arguments = map[string]any{}
 		}
-		return h.call(r, tools[i], p.Arguments), nil
+		if t, ok := findTool(p.Name); ok {
+			return h.call(r, t, p.Arguments), nil
+		}
+		if res, ok := h.callOld(r, p.Name, p.Arguments); ok { // an old tool list (old.go)
+			return res, nil
+		}
+		return nil, &rpcError{-32602, "No tool named " + p.Name + ". The tools changed: list them again (tools/list)."}
 	case "resources/list":
 		list := []map[string]any{}
 		for _, s := range screens {
