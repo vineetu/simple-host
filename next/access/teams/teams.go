@@ -81,7 +81,7 @@ func (h *handler) create(w http.ResponseWriter, r *http.Request) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	h.a.Sites.Forget()
+	h.a.Sites.Forget("") // a new team: nothing was kept for it
 	web.JSON(w, http.StatusCreated, map[string]string{"id": id, "handle": handle})
 	return nil
 }
@@ -207,7 +207,7 @@ func (h *handler) delete(w http.ResponseWriter, r *http.Request) error {
 	if err := access.Remove(r.Context(), h.a.DB, t.ID); err != nil {
 		return err
 	}
-	h.a.Sites.Forget()
+	h.a.Sites.Forget(t.ID) // its public page
 	web.JSON(w, http.StatusOK, map[string]bool{"deleted": true})
 	return nil
 }

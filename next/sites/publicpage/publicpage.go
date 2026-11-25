@@ -40,12 +40,7 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 	}
 	if homeID.Valid {
 		if home, err := h.a.Sites.ByID(r.Context(), homeID.String); err == nil {
-			c, err := h.a.People.Caller(r, home.ID)
-			if err != nil {
-				return err
-			}
-			h.a.Routes.Site.ServeHTTP(w, web.WithCaller(sites.WithPlace(r, sites.Place{Site: home}), c))
-			return nil
+			return h.a.ServeSite(w, r, home)
 		}
 	}
 	if r.URL.Path != "/" || r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -67,7 +62,6 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 		items.WriteString("<li>Nothing here yet.</li>")
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
 	fmt.Fprintf(w, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>%s</title>
 <style>body{font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1a2233;background:#fff;max-width:640px;margin:0 auto;padding:10vh 20px}
 h1{font-size:28px;margin:0 0 16px}ul{list-style:none;padding:0}li{padding:10px 0;border-bottom:1px solid #e6e9ef}a{color:#1a4fd6;text-decoration:none}</style>

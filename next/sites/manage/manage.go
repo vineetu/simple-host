@@ -92,7 +92,7 @@ func (h *handler) remove(w http.ResponseWriter, r *http.Request) error {
 	if _, err := h.a.DB.ExecContext(r.Context(), `UPDATE sites SET deleted_at = now() WHERE id = $1`, site.ID); err != nil {
 		return err
 	}
-	h.a.Sites.Forget()
+	h.a.Sites.Forget(site.OwnerID, site.ID)
 	web.JSON(w, http.StatusOK, map[string]any{"deleted": site.Name, "restore_until": time.Now().Add(BinDays * 24 * time.Hour)})
 	return nil
 }
@@ -117,8 +117,12 @@ func Restore(r *http.Request, a *app.App, ownerID, name string) (*sites.Site, er
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil, web.Refuse(http.StatusNotFound, "not_in_bin", "No site called "+name+" is in the bin. Sites stay there 7 days.")
 	}
-	a.Sites.Forget()
-	return a.Sites.Get(r.Context(), ownerID, name)
+	a.Sites.Forget("")
+	site, err := a.Sites.Get(r.Context(), ownerID, name)
+	if err == nil {
+		a.Sites.Forget(ownerID, site.ID)
+	}
+	return site, err
 }
 
 // SetOffline takes a site offline (every address shows "offline", everything
@@ -155,7 +159,7 @@ func change(r *http.Request, a *app.App, site *sites.Site, query string, arg any
 	if n, _ := res.RowsAffected(); n == 0 {
 		return errNoRow
 	}
-	a.Sites.Forget()
+	a.Sites.Forget(site.OwnerID, site.ID)
 	return nil
 }
 

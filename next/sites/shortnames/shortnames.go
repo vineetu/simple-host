@@ -39,7 +39,7 @@ func Claim(r *http.Request, a *app.App, site *sites.Site, name string) (string, 
 	if err := tx.Commit(); err != nil {
 		return "", err
 	}
-	a.Sites.Forget()
+	a.Sites.Forget(site.OwnerID, site.ID)
 	return "https://" + name + "." + a.Config.AppDomain + "/", nil
 }
 
@@ -55,7 +55,7 @@ func Release(r *http.Request, a *app.App, site *sites.Site) error {
 	if err := access.RetireName(r.Context(), a.DB, old); err != nil {
 		return err
 	}
-	a.Sites.Forget()
+	a.Sites.Forget(site.OwnerID, site.ID)
 	return nil
 }
 

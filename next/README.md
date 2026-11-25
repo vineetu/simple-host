@@ -35,6 +35,10 @@ func (h *handler) makeKey(w http.ResponseWriter, r *http.Request) error { ... } 
 Before a route runs, the host's site or public page is found (unknown host: "not found"), the
 caller resolved, and the request counted against `limits.Requests`.
 
+Caching (one rule, `cacheRule` in `app`, applied to every answer on a site address or public page):
+a page or file of an open site, or a public page, gets `Cache-Control: public, max-age=60`, an hour at
+Cloudflare and `Cache-Tag: site:<id>` / `owner:<id>`; everything else gets `private, no-store`.
+
 Forged requests (one rule, `web.FromOwnPage`, applied in `access.Caller`): a browser cookie
 (dashboard or site visitor) counts on anything but GET/HEAD only with `X-SH-CSRF` or a same-origin
 `Origin`, and never with an `Origin`/`Sec-Fetch-Site` naming another address; `/mcp` never reads a cookie. Data routes that pages call
@@ -48,6 +52,7 @@ A feature calls only these (and its own code). Each is listed once.
 ```go
 a.Config; a.DB; a.People; a.Sites; a.Data; a.Mail; a.Routes  // the running service
 a.HTTP                            // outside calls; a.Guarded: addresses a browser gave (public IPs only)
+a.ServeSite(w, r, site)           // answer with a site's routes, as on its own address
 app.FromEnv(); app.New(ctx, cfg)  // config from the environment; the service on it
 ```
 
@@ -110,7 +115,8 @@ err = a.Sites.Manage(r, site)     // refuses unless owner, member of the owning 
 p := sites.PlaceOf(r)             // p.Site, or p.Owner on a public page; sites.WithPlace(r, p)
 a.Sites.Get(ctx, ownerID, name); a.Sites.ByID(ctx, id); a.Sites.Count(ctx, ownerID); a.Sites.Create(ctx, ownerID, name)
 a.Sites.Lookup(ctx, host); a.Sites.URL(site); sites.Partner(host) // www <-> bare
-a.Sites.Forget()                  // after changing sites, names, hostnames, owner_addresses, a suspension
+a.Sites.Forget(site.OwnerID, site.ID) // after committing a change to sites, names, hostnames, owner_addresses,
+                                  // a suspension; behind Cloudflare it purges them (no ids: all the owner's; "": none)
 d, err := a.Sites.Visit(r, site)  // Open, TakenDown, Offline, NeedCode, NeedSignIn, AskAccess
 if err != nil { return err }      // database down: an error, never the page
 if err := d.Err(); err != nil { return err } // data/API routes: the decision as a refusal (taken down: 410)
@@ -170,7 +176,7 @@ k.Exec(t, `UPDATE people SET operator = true WHERE id = $1`, bob.ID) // setup no
 k.SignIn(t, b, bob, siteURL)                      // a visitor session, for tests of features that need one
 ```
 Fakes: `k.Mail.To(email)`, `k.Push.URL`/`Sent()`, `k.DNS.Set(name, "TXT", v)`, `k.Google.Email`
-(then visit `a.Config.GoogleAuthURL`), `k.Turnstile` (the good token), Pebble at
+(then visit `a.Config.GoogleAuthURL`), `k.Turnstile` (the good token), `k.Cloudflare.Purges()` after `k.BehindCloudflare()`, Pebble at
 `a.Config.ACMEDirectories[0]`. Outside calls use `a.HTTP`; browser-given addresses `a.Guarded`.
 Postgres: `SH_TEST_POSTGRES` (admin URL), else docker container `sh-next-test` on
 127.0.0.1:54329 (in memory, left running). Tests are `package x_test`; only SPEC.md section 7 tests.

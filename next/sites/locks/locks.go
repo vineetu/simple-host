@@ -116,7 +116,7 @@ func SetPasscode(ctx context.Context, a *app.App, site *sites.Site, code string)
 		return err
 	}
 	_, err = a.DB.ExecContext(ctx, `UPDATE sites SET access = 'passcode', passcode_enc = $2, passcode_gen = passcode_gen + 1 WHERE id = $1`, site.ID, enc)
-	a.Sites.Forget()
+	a.Sites.Forget(site.OwnerID, site.ID)
 	return err
 }
 
@@ -143,7 +143,7 @@ func SignEveryoneOut(ctx context.Context, a *app.App, site *sites.Site) error {
 		return err
 	}
 	err = tx.Commit()
-	a.Sites.Forget()
+	a.Sites.Forget("") // a locked site: nothing was kept for it
 	return err
 }
 
@@ -151,7 +151,7 @@ func SignEveryoneOut(ctx context.Context, a *app.App, site *sites.Site) error {
 // for a later lock, but no longer apply.
 func Open(ctx context.Context, a *app.App, site *sites.Site) error {
 	_, err := a.DB.ExecContext(ctx, `UPDATE sites SET access = 'open' WHERE id = $1`, site.ID)
-	a.Sites.Forget()
+	a.Sites.Forget(site.OwnerID, site.ID)
 	return err
 }
 
@@ -183,7 +183,7 @@ func SetViewers(ctx context.Context, a *app.App, site *sites.Site, emails []stri
 		return err
 	}
 	err = tx.Commit()
-	a.Sites.Forget()
+	a.Sites.Forget(site.OwnerID, site.ID)
 	return err
 }
 

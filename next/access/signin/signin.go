@@ -143,7 +143,7 @@ func (h *handler) verify(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		who.Handle = strings.ToLower(strings.TrimSpace(in.Handle))
-		h.a.Sites.Forget()
+		h.a.Sites.Forget("") // a first handle: nothing was kept for it
 	}
 	if fresh {
 		res, err := h.a.DB.ExecContext(ctx, `UPDATE sign_in_codes SET used_at = now() WHERE id = $1 AND used_at IS NULL`, codeID)

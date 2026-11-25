@@ -27,25 +27,27 @@ import (
 
 	access "simplehost/access/core"
 	"simplehost/app"
+	sites "simplehost/sites/core"
 )
 
 // Kit is one started service and its fakes.
 type Kit struct {
-	App       *app.App
-	Mail      *Mail
-	Push      *Push
-	DNS       *DNS
-	Google    *Google
-	Turnstile string // the fake Turnstile passes exactly this token
-	server    *httptest.Server
-	fakes     http.RoundTripper
+	App        *app.App
+	Mail       *Mail
+	Push       *Push
+	DNS        *DNS
+	Google     *Google
+	Cloudflare *Cloudflare
+	Turnstile  string // the fake Turnstile passes exactly this token
+	server     *httptest.Server
+	fakes      http.RoundTripper
 }
 
 // Start runs the service on a fresh database, mounts the given features
 // (pass their Mount functions), and stops it all when the test ends.
 func Start(t *testing.T, mounts ...func(*app.App)) *Kit {
 	t.Helper()
-	k := &Kit{Mail: &Mail{}, Push: &Push{}, DNS: &DNS{records: map[string][]string{}}, Google: &Google{}, Turnstile: "pass"}
+	k := &Kit{Mail: &Mail{}, Push: &Push{}, DNS: &DNS{records: map[string][]string{}}, Google: &Google{}, Cloudflare: &Cloudflare{}, Turnstile: "pass"}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mail", k.Mail.serve)
 	mux.HandleFunc("/resolve", k.DNS.serve)
@@ -54,10 +56,12 @@ func Start(t *testing.T, mounts ...func(*app.App)) *Kit {
 		json.NewEncoder(w).Encode(map[string]bool{"success": r.FormValue("response") == k.Turnstile})
 	})
 	mux.HandleFunc("/push/", k.Push.serve)
+	mux.HandleFunc("/cloudflare/", k.Cloudflare.serve)
 	mux.HandleFunc("/", certificateAuthority()) // Pebble's own paths: /dir, /nonce-plz, ...
 	fakes := httptest.NewTLSServer(mux)
 	t.Cleanup(fakes.Close)
 	k.Push.URL = fakes.URL + "/push/"
+	k.Cloudflare.URL = fakes.URL + "/cloudflare"
 	key := make([]byte, 32)
 	rand.Read(key)
 	a, err := app.New(context.Background(), app.Config{
@@ -80,6 +84,12 @@ func Start(t *testing.T, mounts ...func(*app.App)) *Kit {
 	k.App, k.server = a, httptest.NewServer(a)
 	t.Cleanup(k.server.Close)
 	return k
+}
+
+// BehindCloudflare puts the fake Cloudflare in front, as CF_ZONE_ID and
+// CF_API_TOKEN do.
+func (k *Kit) BehindCloudflare() {
+	k.App.Sites.Cloudflare = &sites.Cloudflare{URL: k.Cloudflare.URL, Zone: "zone", Token: "token", Client: k.App.Guarded}
 }
 
 // Browser is a new browser with its own cookies. Every address, whatever
@@ -180,7 +190,7 @@ func (k *Kit) Exec(t *testing.T, query string, args ...any) {
 	if _, err := k.App.DB.Exec(query, args...); err != nil {
 		t.Fatal(err)
 	}
-	k.App.Sites.Forget()
+	k.App.Sites.Forget("")
 }
 
 // Publish puts files live as a new version of who's site, making the site

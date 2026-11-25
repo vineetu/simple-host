@@ -164,3 +164,33 @@ func certificateAuthority() http.HandlerFunc {
 		h.ServeHTTP(w, r)
 	}
 }
+
+// Cloudflare is the fake Cloudflare API: it records each purge's tags. With
+// Fail set it answers every call with an error. The service calls it only
+// after k.BehindCloudflare().
+type Cloudflare struct {
+	URL    string
+	mu     sync.Mutex
+	Fail   bool
+	purges [][]string
+}
+
+func (c *Cloudflare) serve(w http.ResponseWriter, r *http.Request) {
+	var in struct{ Tags []string }
+	json.NewDecoder(r.Body).Decode(&in)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.purges = append(c.purges, in.Tags)
+	if c.Fail || r.URL.Path != "/cloudflare/zones/zone/purge_cache" || r.Header.Get("Authorization") != "Bearer token" {
+		http.Error(w, `{"success":false}`, http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(`{"success":true}`))
+}
+
+// Purges is the tags of every purge call so far, oldest first.
+func (c *Cloudflare) Purges() [][]string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([][]string(nil), c.purges...)
+}

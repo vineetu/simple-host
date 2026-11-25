@@ -69,7 +69,9 @@ func erase(w http.ResponseWriter, r *http.Request, a *app.App) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	a.Sites.Forget()
+	for _, owner := range owners {
+		a.Sites.Forget(owner, siteIDs...)
+	}
 	for _, id := range siteIDs {
 		os.RemoveAll(filepath.Join(a.Config.DataDir, "sites", id))
 	}

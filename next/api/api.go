@@ -166,7 +166,7 @@ func (h *handler) owner(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	h.a.Sites.Forget()
+	h.a.Sites.Forget(o.ID)
 	if o, err = h.a.People.Get(ctx, o.ID); err != nil {
 		return err
 	}

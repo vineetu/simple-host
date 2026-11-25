@@ -61,7 +61,11 @@ func (h *handler) publish(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 	}
-	web.JSON(w, http.StatusOK, map[string]any{"url": h.a.Sites.URL(site), "version": n, "site": site.Name})
+	out := map[string]any{"url": h.a.Sites.URL(site), "version": n, "site": site.Name}
+	if h.a.Sites.Cloudflare != nil {
+		out["note"] = "Visitors may see the previous version for up to a minute."
+	}
+	web.JSON(w, http.StatusOK, out)
 	return nil
 }
 

@@ -154,7 +154,7 @@ func Remove(ctx context.Context, a *app.App, ownerID, host string) error {
 	if err != nil {
 		return err
 	}
-	a.Sites.Forget()
+	a.Sites.Forget(ownerID)
 	names := []string{host, sites.Partner(host)}
 	if kind == "shared" {
 		names, _ = filepath.Glob(filepath.Join(certDir(a), "*."+host))
@@ -270,7 +270,7 @@ func check(ctx context.Context, a *app.App, r row) (Domain, error) {
 		RETURNING error, (SELECT status FROM hostnames WHERE host = $1)`,
 		r.host, d.Status, d.Expires, proven).Scan(&errText, &was)
 	if err == nil && (proven && !r.proven || was != d.Status) {
-		a.Sites.Forget() // the address answers, or its main address redirects, differently now
+		a.Sites.Forget(r.ownerID) // the address answers, or its main address redirects, differently now
 	}
 	d.Error = errText
 	return d, err

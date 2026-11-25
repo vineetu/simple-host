@@ -59,6 +59,9 @@ type Config struct {
 	// CountryFile is the IP-to-country file (MaxMind .mmdb format, such as
 	// DB-IP's) for the admin page's world map; "" means no countries.
 	CountryFile string
+	// Cloudflare in front of the site addresses: purges after a change and
+	// the visitor's address from CF-Connecting-IP (off when either is empty).
+	CFZoneID, CFAPIToken, CFAPIURL string
 }
 
 // FromEnv reads the config from the environment, with production defaults.
@@ -97,6 +100,7 @@ func FromEnv() Config {
 		AgentCatURL: env("SH_AGENTCAT_URL", "https://api.agentcat.com/v1/public/events/"), AgentCatProject: env("AGENTCAT_PROJECT_ID", ""),
 		SelfHosted:  env("SH_SELF_HOSTED", "") == "1",
 		CountryFile: env("SH_COUNTRY_FILE", ""),
+		CFZoneID:    env("CF_ZONE_ID", ""), CFAPIToken: env("CF_API_TOKEN", ""), CFAPIURL: env("SH_CF_API_URL", "https://api.cloudflare.com/client/v4"),
 	}
 }
 
@@ -132,6 +136,9 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		conn.Close()
 		return nil, err
 	}
+	if cfg.CFZoneID != "" && cfg.CFAPIToken != "" {
+		a.Sites.Cloudflare = &sites.Cloudflare{URL: cfg.CFAPIURL, Zone: cfg.CFZoneID, Token: cfg.CFAPIToken, Client: a.Guarded}
+	}
 	a.Data = &data.Data{DB: conn, Dir: cfg.DataDir, TurnstileURL: cfg.TurnstileURL, TurnstileSecret: cfg.TurnstileSecret, Client: a.HTTP}
 	a.Routes.Platform.Handle("GET /health", web.Func(func(w http.ResponseWriter, r *http.Request) error {
 		if err := conn.PingContext(r.Context()); err != nil {
@@ -155,7 +162,17 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	} else {
+		if a.Sites.Cloudflare != nil && strings.HasSuffix(web.Host(r), "."+a.Config.SiteDomain) {
+			// Behind Cloudflare the visitor's address is CF-Connecting-IP. web.ClientIP
+			// reads X-Real-IP only from the web server on loopback.
+			if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); ip != "" {
+				r.Header.Set("X-Real-IP", ip)
+			}
+		}
+		k := &keeper{ResponseWriter: w, r: r}
+		w = k
 		p, err := a.Sites.Lookup(r.Context(), web.Host(r))
+		k.place = p
 		if err != nil {
 			web.Fail(w, r, err)
 			return
@@ -185,6 +202,77 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	mux.ServeHTTP(w, r)
+	if k, ok := w.(*keeper); ok && !k.done {
+		k.WriteHeader(http.StatusOK) // an empty answer gets the rule too
+	}
+}
+
+// ServeSite answers r with a site's routes, exactly as on its own address
+// (a public page whose owner chose a home site).
+func (a *App) ServeSite(w http.ResponseWriter, r *http.Request, site *sites.Site) error {
+	c, err := a.People.Caller(r, site.ID)
+	if err != nil {
+		return err
+	}
+	p := sites.Place{Site: site}
+	if k, ok := w.(*keeper); ok {
+		k.place = p
+	}
+	a.Routes.Site.ServeHTTP(w, web.WithCaller(sites.WithPlace(r, p), c))
+	return nil
+}
+
+// keeper applies the one cache rule to every answer from a site address or
+// public page as its status is written, whatever the route set.
+type keeper struct {
+	http.ResponseWriter
+	r     *http.Request
+	place sites.Place
+	done  bool
+}
+
+func (k *keeper) WriteHeader(status int) {
+	if !k.done {
+		k.done = true
+		cacheRule(k.Header(), k.r, k.place, status)
+	}
+	k.ResponseWriter.WriteHeader(status)
+}
+
+func (k *keeper) Write(b []byte) (int, error) {
+	if !k.done {
+		k.WriteHeader(http.StatusOK)
+	}
+	return k.ResponseWriter.Write(b)
+}
+
+func (k *keeper) Unwrap() http.ResponseWriter { return k.ResponseWriter }
+
+// cacheRule: a page or file of an open site, or a public page, is kept a
+// minute by browsers and an hour at the edge (purged on every change),
+// tagged by the site's or owner's id so every address shares one tag. Every
+// other answer (a gate, a locked, offline or taken-down site, a redirect to
+// another address, /v1/ and /_sh/, an error, one that sets a cookie) is
+// never kept.
+func cacheRule(h http.Header, r *http.Request, p sites.Place, status int) {
+	tag := ""
+	s, o := p.Site, p.Owner
+	switch {
+	case !pageView(r) || p.Redirect != "" || h.Get("Set-Cookie") != "" || status >= 400 && status != http.StatusNotFound:
+	case s != nil && s.Access == "open" && !s.Offline && !s.TakenDown && !s.OwnerSuspended:
+		tag = "site:" + s.ID
+	case s == nil && o != nil && !o.Suspended:
+		tag = "owner:" + o.ID
+	}
+	if tag == "" {
+		h.Set("Cache-Control", "private, no-store")
+		h.Del("Cloudflare-CDN-Cache-Control")
+		h.Del("Cache-Tag")
+		return
+	}
+	h.Set("Cache-Control", "public, max-age=60")
+	h.Set("Cloudflare-CDN-Cache-Control", "public, max-age=3600")
+	h.Set("Cache-Tag", tag)
 }
 
 // pageView is a visit to a page or file of a site or public page: a read

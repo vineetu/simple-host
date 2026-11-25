@@ -40,6 +40,7 @@ type Sites struct {
 	// AppDomain is the service's own host and the older address family
 	// (simple-host.app). SiteDomain is the flat family (simple-host.site).
 	AppDomain, SiteDomain string
+	Cloudflare            *Cloudflare // nil: no Cloudflare in front
 	keys                  passcodeKeys
 
 	mu    sync.Mutex
@@ -152,12 +153,18 @@ func (s *Sites) Lookup(ctx context.Context, host string) (Place, error) {
 
 // Forget drops every remembered lookup. Call it after changing anything a
 // site's address or visit depends on: sites, names, hostnames,
-// owner_addresses, or an account's suspension.
-func (s *Sites) Forget() {
+// owner_addresses, or an account's suspension, once the change is committed.
+// With Cloudflare in front it also purges what the edge keeps for the
+// owner's public page and the named sites (none named: all the owner's
+// sites); ownerID "" when no public visitor sees a difference.
+func (s *Sites) Forget(ownerID string, siteIDs ...string) {
 	s.mu.Lock()
 	s.cache = map[string]Place{}
 	s.gen++
 	s.mu.Unlock()
+	if s.Cloudflare != nil && ownerID != "" {
+		go s.purge(ownerID, siteIDs)
+	}
 }
 
 func (s *Sites) lookup(ctx context.Context, host string) (Place, error) {
@@ -372,7 +379,7 @@ func (s *Sites) Create(ctx context.Context, ownerID, name string) (*Site, error)
 	if err != nil {
 		return nil, err
 	}
-	s.Forget()
+	s.Forget("") // a new site: nothing was kept for it
 	return s.Get(ctx, ownerID, name)
 }
 
@@ -429,7 +436,7 @@ func (s *Sites) Commit(ctx context.Context, site *Site, dir, authorID string) (i
 		os.RemoveAll(final)
 		return 0, err
 	}
-	s.Forget()
+	s.Forget(site.OwnerID, site.ID)
 	rows, err := s.DB.QueryContext(ctx, `DELETE FROM versions WHERE site_id = $1 AND n <= $2 RETURNING n`, site.ID, n-int(limits.KeptVersions.N))
 	if err != nil {
 		return n, err

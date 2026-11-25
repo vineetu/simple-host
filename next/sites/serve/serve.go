@@ -38,11 +38,6 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 		sites.GatePage(w, r, d, 0, "")
 		return nil
 	}
-	if site.Access != "open" {
-		// A locked site's pages are never kept by a shared cache.
-		w.Header().Set("Cache-Control", "private, no-cache")
-		w.Header().Add("Vary", "Cookie")
-	}
 	root, err := os.OpenRoot(h.a.Sites.VersionDir(site.ID, site.LiveVersion))
 	if err != nil {
 		http.Error(w, "Not found.", http.StatusNotFound) // nothing published yet
@@ -53,7 +48,6 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 	switch kind {
 	case none:
 		if to, status, ok := redirect(root, site, r); ok {
-			revalidate(w)
 			http.Redirect(w, r, to, status)
 			return nil
 		}
@@ -67,7 +61,6 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 		if r.URL.RawQuery != "" {
 			to += "?" + r.URL.RawQuery
 		}
-		revalidate(w)
 		http.Redirect(w, r, to, http.StatusMovedPermanently)
 		return nil
 	}
@@ -187,13 +180,6 @@ func notFound(w http.ResponseWriter, r *http.Request, root *os.Root) {
 	w.WriteHeader(http.StatusNotFound)
 	if r.Method != http.MethodHead {
 		w.Write(b)
-	}
-}
-
-// revalidate lets the next publish change a redirect at once.
-func revalidate(w http.ResponseWriter) {
-	if w.Header().Get("Cache-Control") == "" {
-		w.Header().Set("Cache-Control", "public, max-age=0, must-revalidate")
 	}
 }
 

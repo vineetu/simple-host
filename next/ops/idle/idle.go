@@ -45,14 +45,18 @@ func Sweep(ctx context.Context, a *app.App) error {
 		WHERE idle_warned_at IS NOT NULL AND NOT (`+quiet+`s.idle_warned_at)`); err != nil {
 		return err
 	}
-	res, err := a.DB.ExecContext(ctx, `UPDATE sites s SET deleted_at = now() WHERE deleted_at IS NULL
-		AND idle_warned_at < now() - interval '`+Grace+`'`)
+	gone, err := a.DB.QueryContext(ctx, `UPDATE sites s SET deleted_at = now() WHERE deleted_at IS NULL
+		AND idle_warned_at < now() - interval '`+Grace+`' RETURNING s.owner_id, s.id`)
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n > 0 {
-		a.Sites.Forget()
+	for gone.Next() {
+		var owner, id string
+		if gone.Scan(&owner, &id) == nil {
+			a.Sites.Forget(owner, id)
+		}
 	}
+	gone.Close()
 	rows, err := a.DB.QueryContext(ctx, `UPDATE sites s SET idle_warned_at = now() WHERE deleted_at IS NULL AND idle_warned_at IS NULL
 		AND `+quiet+`now() - interval '`+Quiet+`' RETURNING s.name, s.owner_id`)
 	if err != nil {

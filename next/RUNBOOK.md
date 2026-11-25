@@ -23,6 +23,8 @@ It serves the platform (`SH_APP_DOMAIN`), every site address and the public page
 | `SH_VAPID_KEY` | base64url of a P-256 private key: browser push | (push off) |
 | `AGENTCAT_PROJECT_ID`, `SH_AGENTCAT_URL` | AgentCat receives every tool call | (off) / AgentCat's public events URL |
 | `SH_SELF_HOSTED` | `1`: first-run `/setup`, operator makes accounts | (hosted) |
+| `CF_ZONE_ID`, `CF_API_TOKEN` | Cloudflare in front of `*.SH_SITE_DOMAIN` (see Cloudflare below) | (off) |
+| `SH_CF_API_URL` | Cloudflare's API (a fake in tests) | `https://api.cloudflare.com/client/v4` |
 | `SH_COUNTRY_FILE` | IP-to-country file, MaxMind `.mmdb` (the box's DB-IP `dbip-city-lite.mmdb` works), for the admin world map | (no countries) |
 
 Fixed, not settings: the limits table (`core/limits`), Let's Encrypt → Google → ZeroSSL
@@ -47,6 +49,31 @@ Self-hosted: `web/selfhost/compose.yaml` and `.env.example`; `docker compose up 
 - Port 80: `/.well-known/acme-challenge/` to the service, everything else redirected to HTTPS.
 - `/mcp`: `proxy_buffering off` and a long read timeout (the event stream).
 - Uploads: `client_max_body_size` at least 150m (sites are capped at 100 MB, sent as base64 JSON).
+
+## Cloudflare (optional)
+
+Only `site--handle.SH_SITE_DOMAIN` and `handle.SH_SITE_DOMAIN` go through Cloudflare (proxied
+`*.SH_SITE_DOMAIN`); own domains, short names and `site.handle.SH_APP_DOMAIN` stay direct.
+Without the two settings the service purges nothing and ignores `CF-Connecting-IP`.
+
+- Settings: `CF_ZONE_ID` (the site domain's zone) and `CF_API_TOKEN`, a token with one
+  permission: Zone → Cache Purge, on that zone only.
+- Every change a public visitor would see (publish, rollback, delete, restore, offline, access,
+  take-down, short name, domain, handle) sends one `purge_cache` by tag in the background, tried
+  4 times. A final failure is one log line. Visitors may see the old version for up to a minute;
+  the edge keeps a page an hour at most, so a missed purge heals by itself.
+- Cache rules on the zone, in this order:
+  1. Bypass cache when the request has a `Cookie` or `Authorization` header, or its method is not
+     GET or HEAD.
+  2. GET and HEAD on `*.SH_SITE_DOMAIN`: eligible for cache, edge TTL "use cache-control header
+     from origin" (the service sends `Cloudflare-CDN-Cache-Control` and `Cache-Tag` itself).
+- Do not compress twice: leave compression to Cloudflare and keep nginx `gzip off` for these hosts
+  (or turn Cloudflare's off), so an already-compressed body is never compressed again.
+- The visitor's address comes from `CF-Connecting-IP`, trusted only on site-domain hosts from
+  nginx on loopback. nginx should accept `*.SH_SITE_DOMAIN` only from Cloudflare's addresses, or
+  anyone reaching the box directly could name their own address.
+- Cached page views never reach the service, so visit numbers for open sites must come from
+  Cloudflare's analytics (not built here).
 
 ## Copy tool (`cmd/sh-copy`)
 

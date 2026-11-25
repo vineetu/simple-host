@@ -44,7 +44,7 @@ func TakeDown(r *http.Request, a *app.App, site *sites.Site, on bool, reason str
 	if on {
 		a.DB.ExecContext(r.Context(), `UPDATE reports SET handled_at = now() WHERE site_id = $1 AND handled_at IS NULL`, site.ID)
 	}
-	a.Sites.Forget()
+	a.Sites.Forget(site.OwnerID, site.ID)
 	return nil
 }
 
@@ -72,7 +72,7 @@ func (h *handler) suspend(w http.ResponseWriter, r *http.Request) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return web.NotFound
 	}
-	h.a.Sites.Forget()
+	h.a.Sites.Forget(r.PathValue("id"))
 	web.JSON(w, http.StatusOK, map[string]any{"id": r.PathValue("id"), "suspended": in.Suspended})
 	return nil
 }
