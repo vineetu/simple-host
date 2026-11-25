@@ -95,6 +95,6 @@ For the whole picture use `run_sql`; `data` shows what a visitor would get.
 
 ## Photos
 
-The photo picker (`create_upload_link` with a `namespace`) shrinks photos on the person's device
-and stores them in that namespace's file store. A page shows them with
+The photo picker (`create_upload_link`, namespace `photos` unless you name another) shrinks photos on the person's device
+and stores them in that namespace's file store; a new `photos` namespace is readable by anyone who can open the site and written only by the owner. A page shows them with
 `SH.storage.files(ns).url(path)`; visitor uploads follow the `_files` rules.

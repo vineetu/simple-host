@@ -1,14 +1,16 @@
 # REST API without the connector
 
-Use this only when no Simple Host connector tools are available (a terminal agent, CI, a script).
+API key: use Simple Host without a connector. Use this only when no Simple Host connector tools
+are available (a terminal agent, CI).
 Everything else in this skill still applies: ask before the same steps, give the person the
 returned URLs, never put a key in a page.
 
 - Base URL: `https://simple-host.app/v1`
 - Every call: `X-API-Key: <key>`. The key acts as the person who made it.
-- The person makes a named key in the dashboard (https://simple-host.app/dashboard, shown once)
-  and puts it in the environment (`SIMPLE_HOST_KEY`). Never ask them to paste it into chat, and
-  never write it to a page, a log or a commit. Tools cannot make keys.
+- The person makes a named key on the website at https://simple-host.app/dashboard/account#keys
+  (shown once) and puts it in the environment (`SIMPLE_HOST_KEY`). Never ask them to paste it into
+  chat, and never write it to a page, a log or a commit. Tools cannot make keys. Signing in by
+  emailed code from an agent (`POST /v1/auth`) is retired: do not try it.
 - A site of a team: add `?owner=<team handle>`.
 
 ## Publish
@@ -35,7 +37,7 @@ replace the whole site. A new site name is made by the first publish.
 | Domain, short name | `PATCH /sites/{site}` `{"domain":"shop.example.com"}` `{"short_name":"bakery"}` |
 | Notifications | `PATCH /sites/{site}` `{"notifications":[...]}` |
 | Move to the bin | `DELETE /sites/{site}` |
-| Big archive, or photos | `POST /sites/{site}/upload-links` `{"kind":"archive"}` or `{"kind":"files","namespace":"photos"}`, then `PUT /uploads/{token}` |
+| Big archive, or photos | `POST /sites/{site}/upload-links` `{"kind":"archive"}` or `{"kind":"files","namespace":"photos","public":true}` (`public` makes a new namespace readable by anyone who can open the site; only the owner writes), then `PUT /uploads/{token}` |
 | Visit numbers | `GET /sites/{site}/stats?days=30` |
 | Owner SQL | `POST /sites/{site}/storage/sqlite/{ns}/query`, `/execute`, `/schema` with `{"sql":"...","params":[]}` |
 | Rules | `PUT /sites/{site}/storage/{ns}/rules` `{"rules":{...},"spam_check":false}` |

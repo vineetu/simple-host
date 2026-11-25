@@ -60,8 +60,8 @@ address) and, for a team's site, `owner` (the team handle).
    that anyone with the link can open it, wait for a yes, then `publish_site` with `files` (text)
    and `files_base64` (images, fonts and other binary). It makes the site if it is new.
 4. A site that comes from a build (React, Vue, Astro, Hugo...): publish only the output folder.
-   Many photos or a big build: `create_upload_link` without a namespace gives a one-time archive
-   link; run what it says.
+   Many photos or a big build: `create_upload_link` with `kind: "archive"` gives a one-time
+   archive link; run what it says.
 5. Give the person the returned `url`. If you can open it, check it renders. A bad publish is
    refused whole and the live site stays as it was; fix and publish again.
 
@@ -76,9 +76,10 @@ setup (`run_sql`, `set_data_rules`). Tell the person who can see what and how th
 ("ask me: show my bookings", which uses `run_sql` or `data`), and offer `set_notifications`.
 Never use `mailto:` for forms. Rules, SQL and the page helper: `references/storage.md`.
 
-Photos: when the page needs the person's own photos, call `create_upload_link` with a
-`namespace` once the page is live, unasked. It shows a photo picker in the chat (or returns a url
-to open). Never build an upload page for that.
+Photos: when the page needs the person's own photos, call `create_upload_link` once the page is
+live, unasked. The picker is the default: photos go to the namespace `photos`, which anyone who
+can open the site can read and only the owner writes. It shows in the chat (or returns a url to
+open). Pass `namespace` only for another store. Never build an upload page for that.
 
 ## Who may open a site
 
@@ -112,4 +113,6 @@ asked for go ahead.
   in the bin for 7 days.
 - A refusal is JSON `{"code": "...", "fix": "..."}`. Read `fix`, do it, tell the person in plain
   words. A limit refusal names the limit. Never retry the same call unchanged.
-- Without the connector (terminal agent, CI): `references/rest-api.md`, with an API key.
+- Without a connector: an API key (use Simple Host without a connector). The person creates it
+  at https://simple-host.app/dashboard/account#keys; see `references/rest-api.md`. Signing in by
+  emailed code from an agent is retired: connect through MCP, or have the person make a key.
