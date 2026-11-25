@@ -75,8 +75,8 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		t.Fatalf("initialize: %v", v)
 	}
 	list := call("tools/list", nil)["tools"].([]any)
-	if len(list) != 27 { // 26 and the passcode screen's own
-		t.Fatalf("%d tools, want 27", len(list))
+	if len(list) != 25 { // the operator sees 27 (admin_overview, set_hold)
+		t.Fatalf("%d tools, want 25", len(list))
 	}
 	for _, x := range list {
 		if x := x.(map[string]any); x["name"] == "set_site_access" && !strings.Contains(text(x), "ui://simple-host/passcode") {
@@ -196,5 +196,31 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 	res := tool(ai(t, k, bob.Key), "get_site", map[string]any{"site": addr})
 	if s := text(res); !strings.Contains(s, addr) || strings.Contains(s, "viewers") {
 		t.Fatalf("get_site for bob: %s", s)
+	}
+}
+
+// The operator's tools are listed and answered for the operator only.
+func TestOperatorToolsAreForTheOperatorOnly(t *testing.T) {
+	k := testkit.Start(t, mcp.Mount, api.Mount)
+	user, op := k.Person(t, "plain"), k.Person(t, "boss")
+	k.Exec(t, `UPDATE people SET operator = true WHERE id = $1`, op.ID)
+	names := func(call func(string, any) map[string]any) string {
+		var out []string
+		for _, x := range call("tools/list", nil)["tools"].([]any) {
+			out = append(out, x.(map[string]any)["name"].(string))
+		}
+		return strings.Join(out, " ")
+	}
+	u, o := names(ai(t, k, user.Key)), names(ai(t, k, op.Key))
+	if strings.Contains(u, "admin_overview") || strings.Contains(u, "set_hold") {
+		t.Fatalf("ordinary user's list has operator tools: %s", u)
+	}
+	if !strings.Contains(o, "admin_overview") || !strings.Contains(o, "set_hold") {
+		t.Fatalf("operator's list lacks them: %s", o)
+	}
+	r := testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "admin_overview", "arguments": map[string]any{}}}, "X-API-Key", user.Key)
+	if !strings.Contains(r.Body, "No tool named admin_overview") {
+		t.Fatalf("ordinary user's call: %s", r.Body)
 	}
 }

@@ -20,6 +20,7 @@ type tool struct {
 	asks        bool   // deletes or widens access: the app asks the person first
 	screen      string // the in-chat screen shown with the result (mcp.go)
 	appOnly     bool   // called by an in-chat screen, hidden from the model
+	operator    bool   // listed and answered for the operator only
 	route       func(c *call) (method, path string, body any, err error)
 }
 
@@ -211,11 +212,11 @@ var tools = []tool{
 			return "GET", "/v1/recipes/" + url.PathEscape(c.str("topic")) + "?" + url.Values{"site": {c.str("site")}}.Encode(), nil, nil
 		}},
 	// Operator
-	{name: "admin_overview", about: "Operator only: people, sites, sizes, sign-ups, reports, network use and API growth.", input: in("range", str("7d, 14d, 30d or 6m.")), readOnly: true,
+	{name: "admin_overview", operator: true, about: "Operator only: people, sites, sizes, sign-ups, reports, network use and API growth.", input: in("range", str("7d, 14d, 30d or 6m.")), readOnly: true,
 		route: func(c *call) (string, string, any, error) {
 			return "GET", "/v1/admin/overview?" + url.Values{"range": {c.str("range")}}.Encode(), nil, nil
 		}},
-	{name: "set_hold", about: "Operator only: take a site down or restore it (site, taken_down), or suspend or restore an account (person, suspended). Ask first.", asks: true,
+	{name: "set_hold", operator: true, about: "Operator only: take a site down or restore it (site, taken_down), or suspend or restore an account (person, suspended). Ask first.", asks: true,
 		input: in("site", str("A site's name or address."), "owner", str("Its owner's handle."), "taken_down", boolean("Take it down, or restore it."),
 			"person", str("An account's id."), "suspended", boolean("Suspend it, or restore it."), "reason", str("Shown to the owner.")),
 		route: func(c *call) (string, string, any, error) {

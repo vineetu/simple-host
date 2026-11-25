@@ -107,6 +107,9 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 	case "tools/list":
 		list := []map[string]any{}
 		for _, t := range tools {
+			if t.operator && !isOperator(r) {
+				continue
+			}
 			x := map[string]any{"name": t.name, "description": t.about, "inputSchema": t.input,
 				"annotations": map[string]any{"readOnlyHint": t.readOnly, "destructiveHint": t.asks, "openWorldHint": false}}
 			switch {
@@ -128,7 +131,7 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 		if p.Arguments == nil {
 			p.Arguments = map[string]any{}
 		}
-		if t, ok := findTool(p.Name); ok {
+		if t, ok := findTool(p.Name); ok && (!t.operator || isOperator(r)) {
 			return h.call(r, t, p.Arguments), nil
 		}
 		// An old tool list: next/compat answers the old names (goes with it).
@@ -306,6 +309,9 @@ func (h *server) call(r *http.Request, t tool, args map[string]any) map[string]a
 	go h.agentcat(web.CallerOf(r), t.name, args, res, time.Since(start))
 	return res
 }
+
+// isOperator is the platform's one check (web.Caller.Operator, as ops/admin uses).
+func isOperator(r *http.Request) bool { return r != nil && web.CallerOf(r).Operator }
 
 func findTool(name string) (tool, bool) {
 	for _, t := range tools {

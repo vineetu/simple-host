@@ -2,13 +2,17 @@ package mcp
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"testing"
+
+	"simplehost/core/web"
 )
 
-// listed is tools/list as an AI app sees it. It needs no database.
+// listed is tools/list as the operator's AI app sees it (all tools). It needs no database.
 func listed() []map[string]any {
-	res, _ := (&server{}).answer(nil, rpc{Method: "tools/list"})
+	r := web.WithCaller(httptest.NewRequest("POST", "/mcp", nil), web.Caller{Operator: true})
+	res, _ := (&server{}).answer(r, rpc{Method: "tools/list"})
 	return res.(map[string]any)["tools"].([]map[string]any)
 }
 
