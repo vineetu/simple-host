@@ -386,3 +386,93 @@ for (const width of [390, 1280]) {
     await ctx.close();
   });
 }
+
+for (const width of [390, 1280]) {
+  test(`the dashboard: list, a site's parts, the account @${width}`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    const ctx = await browser.newContext({ viewport: { width, height: 860 }, serviceWorkers: "block" });
+    await route(ctx);
+    await ctx.addCookies(
+      anaCookie.split("; ").map((c) => {
+        const i = c.indexOf("=");
+        return { name: c.slice(0, i), value: c.slice(i + 1), url: APP + "/" };
+      }),
+    );
+    const page = await ctx.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const toast = (text: string | RegExp) => expect(page.getByRole("status").filter({ hasText: text }).first()).toBeVisible();
+
+    // The list: search, filter, then a site's page.
+    await page.goto(APP + "/dashboard");
+    await expect(page.getByRole("heading", { name: "Your sites" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Manage bakery" }).filter({ visible: true })).toBeVisible();
+    await check(page, "dash-list", width);
+    await page.getByRole("searchbox").fill("bak");
+    await expect(page.getByRole("link", { name: "Manage recipes" }).filter({ visible: true })).toHaveCount(0);
+    await page.getByRole("searchbox").fill("");
+    await page.getByRole("button", { name: "Offline", exact: true }).click();
+    await expect(page.getByRole("link", { name: "Manage zine" }).filter({ visible: true })).toBeVisible();
+    await page.getByRole("button", { name: "All", exact: true }).click();
+    await page.getByRole("link", { name: "Manage recipes" }).filter({ visible: true }).click();
+    await expect(page.getByRole("heading", { name: "recipes", exact: true })).toBeVisible();
+    await expect(page.getByText("Page views", { exact: true })).toBeVisible();
+    await check(page, "site-visitors", width);
+
+    // Who can open: a passcode, then open again (asked first).
+    await page.getByRole("tab", { name: "Who can open" }).click();
+    await page.getByRole("radio", { name: "People with the passcode" }).click();
+    await page.getByLabel("Passcode", { exact: true }).fill("rye-" + width + "-bread");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await toast("Passcode can open recipes");
+    await page.getByRole("button", { name: "Show", exact: true }).click();
+    await expect(page.getByText("rye-" + width + "-bread", { exact: true })).toBeVisible();
+    await check(page, "site-access-passcode", width);
+    await page.getByRole("radio", { name: "Anyone with the link" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Open to anyone" }).click();
+    await toast("open to anyone");
+
+    // Files and versions, saved data, address, alerts.
+    await page.getByRole("tab", { name: "Files and versions" }).click();
+    await expect(page.getByText("Version 1", { exact: true })).toBeVisible();
+    await check(page, "site-files", width);
+    await page.getByRole("tab", { name: "Saved data" }).click();
+    await check(page, "site-data", width);
+    await page.getByRole("tab", { name: "Address" }).click();
+    await page.getByLabel("Short name").fill("anas-recipes-" + width);
+    await page.getByRole("button", { name: "Get it", exact: true }).click();
+    await toast("now also answers at anas-recipes-" + width);
+    await check(page, "site-address", width);
+    await page.getByRole("button", { name: "Let it go", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Let it go" }).click();
+    await toast("short address is gone");
+    await page.getByRole("tab", { name: "Alerts" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await toast("Saved");
+
+    // Settings: offline with Undo.
+    await page.getByRole("tab", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Take offline", exact: true }).click();
+    await toast("recipes is offline.");
+    await expect(page.getByRole("alert").filter({ hasText: "This site is offline" })).toBeVisible();
+    await check(page, "site-settings-offline", width);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await toast("recipes is back online.");
+
+    // The account: a key, shown once, then revoked.
+    await page.goto(APP + "/dashboard/account#keys");
+    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
+    await page.getByLabel("New key, for").fill("test " + width);
+    await page.getByRole("button", { name: "Make key", exact: true }).click();
+    await expect(page.getByText("Your new key. It is shown only this once.")).toBeVisible();
+    await check(page, "account-keys", width);
+    await page.getByRole("button", { name: "Revoke" }).last().click();
+    await page.getByRole("dialog").getByRole("button", { name: "Revoke" }).click();
+    await toast("Revoked test " + width);
+    await page.getByRole("tab", { name: "Profile" }).click();
+    await check(page, "account-profile", width);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+}

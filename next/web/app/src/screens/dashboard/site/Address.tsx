@@ -18,7 +18,7 @@ export function Address({ site }: { site: Site }) {
     <>
       <Part title="The site's own address" note="Every site has this one. It always works, whatever you add below.">
         <p className="flex flex-wrap items-center gap-2">
-          <a href={site.url} target="_blank" rel="noopener" className="break-all">
+          <a href={site.url} target="_blank" rel="noopener" className="inline-flex min-h-11 items-center break-all">
             {host(site.url)}
           </a>
           <CopyButton text={site.url} variant="ghost" className="px-3" />
@@ -41,7 +41,7 @@ function Short({ site }: { site: Site }) {
       {site.short_name ? (
         <>
           <p className="flex flex-wrap items-center gap-2">
-            <a href={url} target="_blank" rel="noopener" className="break-all font-semibold">
+            <a href={url} target="_blank" rel="noopener" className="inline-flex min-h-11 items-center font-semibold break-all">
               {host(url)}
             </a>
             <CopyButton text={url} variant="ghost" className="px-3" />

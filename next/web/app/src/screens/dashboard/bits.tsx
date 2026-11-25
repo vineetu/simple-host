@@ -27,7 +27,7 @@ export function Part({ title, note, children, className, danger }: { title: stri
   return (
     <section
       className={cn(
-        "mt-8 first:mt-2",
+        "mt-8 max-w-[720px] first:mt-2",
         danger && "rounded-field border-[1.5px] border-bad/60 px-4 pt-4 pb-5 md:px-5",
         className,
       )}
