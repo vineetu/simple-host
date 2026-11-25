@@ -1,22 +1,59 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="sh-host" data-theme="light">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy</title>
-<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/site.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Privacy · Simple Host</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/landing/site.css">
+  <link rel="stylesheet" href="/assets/landing/host-ink.css">
+  <style>
+    /* The old text-page layout. Tokens, type and the header/footer come from
+       the two landing stylesheets; this is only the page column. */
+    .container { max-width: 768px; margin: 0 auto; padding: 0 max(24px, env(safe-area-inset-right)) 0 max(24px, env(safe-area-inset-left)); }
+    main.container { padding-top: 48px; padding-bottom: 24px; }
+    .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
+    h1 { color: var(--text); margin: 0 0 8px; }
+    .updated { font-size: 13px; color: var(--text-secondary); margin: 0 0 32px; }
+    h2 { color: var(--text); margin: 28px 0 12px; padding-top: 28px; border-top: 1px solid var(--border); scroll-margin-top: 16px; }
+    h3 { color: var(--text); margin: 20px 0 8px; }
+    p, li { color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
+    p { margin: 0 0 14px; }
+    ul { margin: 0 0 14px; padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    strong { color: var(--text); font-weight: 600; }
+    a { color: var(--accent); text-underline-offset: 3px; overflow-wrap: anywhere; }
+    a:hover { color: var(--accent-hover); }
+    code { font-family: var(--mono); font-size: .9em; color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
+    .note { border: 1px solid var(--border-hi); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--surface); padding: 12px 16px; margin: 0 0 28px; }
+    .note p { color: var(--text); font-size: 15px; line-height: 1.5; }
+    .note p:last-child { margin-bottom: 0; }
+    @media (max-width: 640px) {
+      .container { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+      main.container { padding-top: 36px; }
+    }
+  </style>
 </head>
 <body>
-<header class="top"><div class="in">
-  <a class="brand" href="/"><span class="wa">simple</span><b>-</b><span class="wb">host</span></a>
-  <nav><a href="/install">Get started</a><a href="/docs">Docs</a><a href="/dashboard">Your sites</a></nav>
-</div></header>
-<main>
+<header class="sh-header">
+  <div class="sh-bar">
+    <a class="sh-logo" href="/"><span class="sh-logo-a">simple</span><b>-</b><span class="sh-logo-b">host</span></a>
+    <nav class="sh-nav" aria-label="Main">
+      <a class="sh-nav-home" href="/">Home</a>
+      <a href="/install">Get started</a>
+      <a href="/docs">Docs</a>
+    </nav>
+    <a class="sh-signin" id="dash-link" href="/dashboard">Your sites</a>
+  </div>
+</header>
+<main class="container">
   <section class="lead">
+    <p class="eyebrow">Privacy</p>
     <h1>Privacy</h1>
-    <p class="muted">Last updated 2026-11-24</p>
-    <p>We collect what we need to sign you in, host your sites and stop abuse. We do not sell your data, show ads or add tracking scripts to pages.</p>
+    <p class="updated">Last updated 2026-11-24</p>
+    <div class="note">
+      <p>We collect what we need to sign you in, host your sites and stop abuse. We do not sell your data, show ads or add tracking scripts to pages.</p>
+    </div>
     <p>Simple Host is run by Vineet Sriram, an individual. Questions: <a href="mailto:support@simple-host.app">support@simple-host.app</a>. The rules for using the service are in the <a href="/terms">Terms</a>.</p>
   </section>
 
@@ -98,8 +135,23 @@
     <p>In the dashboard under Your data you can download everything we hold for your account, and you can delete the account there too. A download comes as a link by email. For anything else, such as a correction, or a site that collected your details, email <a href="mailto:support@simple-host.app">support@simple-host.app</a>.</p>
   </section>
 </main>
-<footer class="foot"><div class="in">
-  <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/support">Support</a><span>Simple Host</span>
-</div></footer>
+<footer class="sh-footer">
+  <div class="sh-foot">
+    <nav class="sh-foot-links" aria-label="More">
+      <a href="/docs">Docs</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/support">Support</a>
+    </nav>
+    <p class="sh-credit" data-hosted>Simple Host is made and run by Vineet Sriram.</p>
+    <p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>
+  </div>
+</footer>
+<script>
+// What only simple-host.app can say is marked data-hosted and removed elsewhere.
+(function () {
+  if (location.hostname !== 'simple-host.app') document.querySelectorAll('[data-hosted]').forEach(function (el) { el.remove(); });
+})();
+</script>
 </body>
 </html>
