@@ -1,7 +1,7 @@
 # web: the service's own pages
 
-- `static/` plain pages served as they are (home, install, docs, terms, privacy, support, the dashboard for now, the upload picker).
-- `app/` the **owner app** source: React + TypeScript, Vite, Tailwind, Radix (shadcn-style components in `src/components/ui`), TanStack Query and Table, React Router, vite-plugin-pwa. Screens: `/signin`, `/admin`.
+- `static/` plain pages served as they are (home, install, docs, terms, privacy, support, the dashboard for now); photo-process.js is shared by the upload screen and the in-chat photo picker.
+- `app/` the **owner app** source: React + TypeScript, Vite, Tailwind, Radix (shadcn-style components in `src/components/ui`), TanStack Query and Table, React Router, vite-plugin-pwa. Screens: `/signin`, `/admin`, `/upload/<token>` (the page behind an upload link).
 - `dist/files/` the **committed build** of `app/` (Go embeds it; no Node needed to build the service), plus `pages.css`, the stylesheet of the gate, status and text pages, made from the same tokens.
 - `DESIGN.md` the rules every screen follows.
 

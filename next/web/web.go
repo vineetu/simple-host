@@ -89,6 +89,10 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 // appPage is the owner app's one page; it reads its screen from the address.
 // It is told whether this install offers Google sign-in.
 func (h *handler) appPage(w http.ResponseWriter, r *http.Request) error {
+	return h.app(w, r, "no-cache")
+}
+
+func (h *handler) app(w http.ResponseWriter, r *http.Request, cache string) error {
 	body, err := fs.ReadFile(dist.Files, "index.html")
 	if err != nil {
 		return err
@@ -98,7 +102,7 @@ func (h *handler) appPage(w http.ResponseWriter, r *http.Request) error {
 		google = "1"
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Cache-Control", cache)
 	w.Write(bytes.Replace(body, []byte("__SH_GOOGLE__"), []byte(google), 1))
 	return nil
 }
@@ -132,11 +136,12 @@ func (h *handler) asset(w http.ResponseWriter, r *http.Request) error {
 	return serve(w, r, "assets/"+r.PathValue("file"), "public, max-age=3600")
 }
 
-// picker is the photo and file picker behind a one-time upload link. The
-// page reads the token from its own address and sends to PUT /v1/uploads/{token}.
+// picker is the photo and file picker behind a one-time upload link: the
+// owner app's upload screen, which reads the token from its own address and
+// sends to PUT /v1/uploads/{token}. The token never leaves in a Referer.
 func (h *handler) picker(w http.ResponseWriter, r *http.Request) error {
 	w.Header().Set("Referrer-Policy", "no-referrer")
-	return serve(w, r, "upload.html", "no-store")
+	return h.app(w, r, "no-store")
 }
 
 // serve writes one embedded file. Anything missing is "not found".

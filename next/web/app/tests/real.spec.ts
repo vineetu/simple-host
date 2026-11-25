@@ -29,6 +29,7 @@ let server: ChildProcess;
 let mail: http.Server;
 let dir: string;
 const codes: Record<string, string> = {};
+let anaCookie = "";
 
 function psql(sql: string, db = "postgres") {
   return execFileSync("docker", ["exec", PG, "psql", "-U", "postgres", "-d", db, "-tAc", sql], { encoding: "utf8" });
@@ -157,7 +158,7 @@ test.beforeAll(async () => {
   // named-people, an offline and a taken-down site.
   await signInByScript("ops@example.com", "ops");
   psql(`UPDATE people SET operator = true WHERE email = 'ops@example.com'`, DB);
-  const ana = await signInByScript("ana@example.com", "ana");
+  const ana = (anaCookie = await signInByScript("ana@example.com", "ana"));
   for (const name of ["recipes", "bakery", "club", "zine", "gone"])
     expect((await call("PUT", "sh.test", `/v1/sites/${name}`, { files: { "index.html": `<h1>${name}</h1>` } }, ana)).status).toBe(200);
   await call("PATCH", "sh.test", "/v1/sites/bakery", { access: "passcode", passcode: "crumb42x" }, ana);
@@ -330,6 +331,42 @@ for (const width of [390, 1280]) {
     await check(page, "signin-continue", width);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(page.getByRole("heading", { name: "recipes" })).toBeVisible();
+    await ctx.close();
+  });
+}
+
+// A tiny real PNG (1 x 1), so the photo tools shrink it as they would a photo.
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+for (const width of [390, 1280]) {
+  test(`an upload link: add a photo @${width}`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const made = await call("POST", "sh.test", "/v1/sites/recipes/upload-links", { kind: "files", namespace: "photos" }, anaCookie);
+    expect(made.status).toBe(200);
+    const url = (made.body as { url: string }).url;
+    expect(url).toMatch(/^https:\/\/sh\.test\/upload\/up_/);
+    const ctx = await browser.newContext({ viewport: { width, height: 860 }, serviceWorkers: "block" });
+    await route(ctx);
+    const page = await ctx.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.goto(url);
+    await expect(page.getByRole("heading", { name: "Add photos and files" })).toBeVisible();
+    await check(page, "upload-files", width);
+    await page.locator("input[type=file]").setInputFiles({ name: "Kitchen Table.png", mimeType: "image/png", buffer: PNG });
+    await expect(page.getByLabel("Name")).toHaveValue("kitchen-table");
+    await expect(page.getByText("1 file ready", { exact: false })).toBeVisible();
+    await page.getByLabel("Name").fill("kitchen");
+    await check(page, "upload-chosen", width);
+    await page.getByRole("button", { name: "Save to site", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Saved to the site" })).toBeVisible();
+    await expect(page.getByText(/^I added kitchen\.(webp|jpg) to the site's photos files\.$/)).toBeVisible();
+    await check(page, "upload-done", width);
+    // The link works once.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "This link does not work" })).toBeVisible();
+    await expect(page.getByText("This upload link was used or has run out. Ask for a new one.")).toBeVisible();
+    expect(errors).toEqual([]);
     await ctx.close();
   });
 }
