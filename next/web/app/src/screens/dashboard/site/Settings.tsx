@@ -48,7 +48,7 @@ export function Settings({ site }: { site: Site }) {
         </Button>
       </Part>
 
-      <Part title="Download a copy" note="The download holds every site of yours with its files and saved data, and your account details, as one .zip. It comes as a link by email.">
+      <Part title="Download all your sites" note="There is no download of one site: the download holds every site of yours with its files and saved data, and your account details, as one .zip. It comes as a link by email.">
         <Button
           onClick={async () => {
             try {
@@ -59,7 +59,7 @@ export function Settings({ site }: { site: Site }) {
             }
           }}
         >
-          Email me a download
+          Email me a download of everything
         </Button>
       </Part>
 
