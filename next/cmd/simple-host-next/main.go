@@ -19,6 +19,7 @@ import (
 	"simplehost/access/visitors"
 	"simplehost/api"
 	"simplehost/app"
+	"simplehost/compat"
 	"simplehost/data/files"
 	"simplehost/data/recipes"
 	"simplehost/data/rows"
@@ -54,7 +55,7 @@ func main() {
 	defer a.Close()
 	mount(a)
 	work(ctx, a)
-	srv := &http.Server{Addr: cfg.Addr, Handler: admin.Counted(a), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Addr: cfg.Addr, Handler: compat.Wrap(a, admin.Counted(a)), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
