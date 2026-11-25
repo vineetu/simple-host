@@ -3,11 +3,11 @@
    pages (pages.css) both read these and nothing else. Light only.
    Every default Tailwind colour, font, size and shadow is cleared first, so a
    screen can only use what is named here. */
-/* The two hand fonts, cut down to Latin, at fixed addresses (public/app/fonts)
-   so the server-rendered pages can use them too. A gate page on a site address
-   adds its own inline copy of ShCaveat after this rule, which then wins. */
+/* The wordmark's hand font (Caveat, cut down to Latin) at a fixed address
+   (public/app/fonts) so the server-rendered pages can use it too. It is the
+   wordmark's only: every other word on every screen is the system font. A
+   gate page on a site address adds its own inline copy after this rule. */
 @font-face { font-family: ShCaveat; src: url("/app/fonts/caveat-bold-latin.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: ShKalam; src: url("/app/fonts/kalam-latin.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 
 @theme {
   --color-*: initial;
@@ -29,29 +29,36 @@
   --color-white: #ffffff;       /* the Google button only */
 
   --font-*: initial;
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-hand: ShCaveat, "Segoe Print", "Bradley Hand", cursive;  /* titles, main buttons */
-  --font-note: ShKalam, "Segoe Print", cursive;                    /* tabs, chips, small buttons */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-wordmark: ShCaveat, "Segoe Print", "Bradley Hand", cursive; /* the simple-host wordmark, nothing else */
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
+  /* The type scale (system font). Roles, used the same way on every screen
+     (app.css names them as type-* utilities; pages.css uses the same sizes):
+       4xl 34  title of a text page (privacy, terms)        bold
+       3xl 28  title of a card (sign-in, a gate page)       bold
+       2xl 24  page title in the app (Your sites, Admin)    bold
+       xl  20  a big number (stats)                         bold
+       lg  18  section heading                              semibold
+       base 16 body, buttons, inputs, tabs, table cells     regular / medium for controls
+       sm  14  labels, table heads, secondary lines         medium (labels) / regular
+       xs  13  badges, fine print                           medium (badges) / regular */
   --text-*: initial;
   --text-xs: 13px;
-  --text-xs--line-height: 1.45;
+  --text-xs--line-height: 1.4;
   --text-sm: 14px;
   --text-sm--line-height: 1.45;
   --text-base: 16px;
   --text-base--line-height: 1.5;
-  --text-note: 17px;
-  --text-note--line-height: 1.4;
-  --text-lg: 19px;
+  --text-lg: 18px;
   --text-lg--line-height: 1.35;
-  --text-xl: 23px;
-  --text-xl--line-height: 1.2;
-  --text-2xl: 28px;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.25;
+  --text-2xl: 24px;
   --text-2xl--line-height: 1.2;
-  --text-3xl: 32px;
-  --text-3xl--line-height: 1.15;
-  --text-4xl: 40px;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 1.2;
+  --text-4xl: 34px;
   --text-4xl--line-height: 1.15;
 
   --radius-*: initial;

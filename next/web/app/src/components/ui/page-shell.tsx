@@ -4,14 +4,14 @@ import { cn } from "@/lib/utils";
 /** Wordmark is "simple-host": coral simple, teal host, in the hand font. */
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("font-hand text-[29px] leading-tight font-bold text-wordmark", className)}>
+    <span className={cn("font-wordmark text-[29px] leading-tight font-bold text-wordmark", className)}>
       <span className="text-coral">simple</span>
       <span className="px-[.03em] text-ink-faint">-</span>host
     </span>
   );
 }
 
-const navLink = "inline-flex min-h-11 min-w-11 justify-center items-center px-1 font-note text-sm text-ink-soft no-underline hover:text-ink md:text-note";
+const navLink = "inline-flex min-h-11 min-w-11 justify-center items-center px-1 text-sm font-medium text-ink-soft no-underline hover:text-ink md:text-base";
 
 /**
  * PageShell is every owner-app page: the header (wordmark, Home, Get started,
@@ -53,7 +53,7 @@ export function PageShell({
           {right && (
             <a
               href={right.href}
-              className="inline-flex min-h-11 items-center rounded-wobble border-[1.5px] border-ink-soft px-3 font-note text-sm text-ink no-underline hover:text-accent md:text-note"
+              className="inline-flex min-h-11 items-center rounded-wobble border-[1.5px] border-ink-soft px-3 text-sm font-medium text-ink no-underline hover:text-accent md:text-base"
             >
               {right.label}
             </a>
@@ -92,7 +92,7 @@ export function PageShell({
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <div className="mt-8">
-      <h1 className="text-2xl font-bold">{children}</h1>
+      <h1 className="type-page">{children}</h1>
       {sub && <p className="mt-0.5 text-sm text-ink-soft">{sub}</p>}
     </div>
   );
@@ -117,9 +117,9 @@ export function Section({
 }) {
   return (
     <section className={cn("mt-7 first:mt-1", className)} aria-label={hideTitle ? title : undefined}>
-      {!hideTitle && <h2 className="mb-1 flex flex-wrap items-baseline gap-2 font-hand text-2xl font-bold">
+      {!hideTitle && <h2 className="mb-1 flex flex-wrap items-baseline gap-2 type-section">
         {title}
-        {count != null && <span className="font-note text-sm font-normal text-ink-soft">{count}</span>}
+        {count != null && <span className="text-sm font-normal text-ink-soft">{count}</span>}
       </h2>}
       {note && <p className="mt-1 mb-2.5 max-w-[80ch] text-sm text-ink-soft">{note}</p>}
       {children}

@@ -64,13 +64,13 @@ const columns: ColumnDef<Site>[] = [
   { id: "size", header: "Size", accessorKey: "bytes", cell: ({ getValue }) => bytes(getValue()), ...most, meta: { align: "right", sortNames: ["Largest first", "Smallest first"] } },
   {
     id: "updated",
-    header: "Last updated",
+    header: "Updated",
     accessorFn: (s) => t(s.changed_at),
     cell: ({ row }) => <When at={row.original.changed_at} />,
     ...most,
     meta: { phone: "hide", sortNames: ["Newest first", "Oldest first"] },
   },
-  { id: "views", header: "Views, 30 days", accessorKey: "views_30d", cell: ({ getValue }) => num(getValue()), ...most, meta: { align: "right", sortNames: ["Most first", "Fewest first"] } },
+  { id: "views", header: "Views", accessorKey: "views_30d", cell: ({ getValue }) => num(getValue()), ...most, meta: { align: "right", sortNames: ["Most first", "Fewest first"] } },
   { id: "people", header: "People", accessorKey: "people_30d", cell: ({ getValue }) => num(getValue()), ...most, meta: { align: "right", phone: "hide", sortNames: ["Most first", "Fewest first"] } },
   {
     id: "created",
@@ -100,7 +100,7 @@ const columns: ColumnDef<Site>[] = [
     ),
     meta: { phone: "end" },
   },
-  { id: "address", header: "Own address", enableSorting: false, cell: ({ row }) => <Address s={row.original} />, meta: { phone: "hide" } },
+  { id: "address", header: "Address", enableSorting: false, cell: ({ row }) => <Address s={row.original} />, meta: { phone: "hide" } },
   { id: "menu", header: () => <span className="sr-only">Actions</span>, enableSorting: false, cell: ({ row }) => <SiteMenu s={row.original} />, meta: { phone: "end" } },
 ];
 
@@ -109,7 +109,11 @@ export function SitesTab({ d, st, set }: { d: AdminData; st: SitesState; set: (s
     (s) => siteFilter(st.filter, s) && searchMatches(st.q, s.name + " " + (s.owner || "") + " " + (s.domain || "") + " " + (s.short_name || "")),
   );
   return (
-    <Section title="Sites" count={"(" + (rows.length !== d.sites.length ? rows.length + " of " : "") + d.sites.length + ")"}>
+    <Section
+      title="Sites"
+      count={"(" + (rows.length !== d.sites.length ? rows.length + " of " : "") + d.sites.length + ")"}
+      note="Views and people are for the last 30 days."
+    >
       <Input
         type="search"
         className="mt-2"

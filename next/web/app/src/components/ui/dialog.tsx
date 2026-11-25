@@ -28,7 +28,7 @@ export function Dialog({
             "rounded-wobble border-[1.5px] border-ink-soft bg-card px-6 pt-6 pb-5 text-ink shadow-pop",
           )}
         >
-          <D.Title className="mb-2 font-hand text-2xl font-bold">{title}</D.Title>
+          <D.Title className="mb-2 type-section text-xl">{title}</D.Title>
           {description ? (
             <D.Description className="mb-4 text-ink-soft">{description}</D.Description>
           ) : (

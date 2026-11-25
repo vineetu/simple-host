@@ -12,8 +12,8 @@ export function Stats({ children }: { children: ReactNode }) {
 export function Stat({ value, label }: { value: ReactNode; label: ReactNode }) {
   return (
     <div className="min-w-0 py-1.5">
-      <div className="text-2xl leading-tight font-bold tabular-nums">{value}</div>
-      <div className="font-note text-note text-ink-soft">{label}</div>
+      <div className="text-xl font-bold tabular-nums">{value}</div>
+      <div className="type-label text-ink-soft">{label}</div>
     </div>
   );
 }

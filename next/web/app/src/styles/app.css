@@ -22,3 +22,39 @@
     @apply text-accent underline underline-offset-2 hover:text-accent-hover;
   }
 }
+
+/* The type roles (sizes in tokens.css). Screens use these for headings and
+   labels, so every screen reads the same. */
+@utility type-page {
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl--line-height);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+@utility type-card {
+  font-size: var(--text-3xl);
+  line-height: var(--text-3xl--line-height);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+@utility type-section {
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+  font-weight: 600;
+}
+@utility type-label {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 500;
+}
+
+/* Room the app shell's bars take, for what floats over it (the toast). */
+html[data-shell="app"] {
+  --sh-bottom-bar: 57px;
+}
+@media (min-width: 700px) {
+  html[data-shell="app"] {
+    --sh-bottom-bar: 0px;
+    --sh-rail: 224px;
+  }
+}

@@ -126,22 +126,25 @@ function overview(o: Partial<Overview> = {}): Overview {
       { id: 1, url: "https://recipes.ana.simple-host.app/pie", reason: "Spam", created_at: daysAgo(6), owner: "ana", site: "recipes" },
     ],
     network: Array.from({ length: 30 }, (_, i) => ({ day: day(29 - i), bytes_in: 40_000_000 + i * 1_000_000, bytes_out: 900_000_000 + i * 20_000_000 })),
+    network_month: { month: "2026-11", bytes_in: 1_320_000_000, bytes_out: 31_400_000_000, since: "2026-11-01" },
+    disk: { bytes: 200 * 2 ** 30, free_bytes: 118 * 2 ** 30, used_bytes: 82 * 2 ** 30 },
     growth: growth(),
     ...o,
   };
 }
 
 /** Admin is the three admin answers for one state of the page. */
-export function admin(state: "full" | "empty" | "selfhosted" | "many") {
+export function admin(state: "full" | "empty" | "selfhosted" | "many" | "nearlyfull") {
   let people = PEOPLE;
   let sites = SITES;
   let ov = overview();
   if (state === "empty") {
     people = [PEOPLE[PEOPLE.length - 1]];
     sites = [];
-    ov = overview({ people: { total: 1, new_7d: 0, new_30d: 0 }, reports: [], network: [], growth: growth("30d", true) });
+    ov = overview({ people: { total: 1, new_7d: 0, new_30d: 0 }, reports: [], network: [], network_month: { month: "2026-11", bytes_in: 0, bytes_out: 0, since: null }, growth: growth("30d", true) });
   }
   if (state === "selfhosted") ov = overview({ self_hosted: true });
+  if (state === "nearlyfull") ov = overview({ disk: { bytes: 200 * 2 ** 30, free_bytes: 14 * 2 ** 30, used_bytes: 186 * 2 ** 30 } });
   if (state === "many") {
     sites = Array.from({ length: 120 }, (_, i) => site(i + 1, "site-" + String(i + 1).padStart(3, "0"), PEOPLE[i % 5].handle));
   }

@@ -3,19 +3,19 @@ import { Slot } from "radix-ui";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-// Buttons in the old hand-drawn style. Every size is at least 44 px tall.
+// Buttons with the old hand-drawn edge, in the system font. Every size is at least 44 px tall.
 const buttonVariants = cva(
   "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 text-center no-underline transition-colors disabled:cursor-default disabled:opacity-55",
   {
     variants: {
       variant: {
-        // The one filled button of a card or form: teal, hand-lettered.
+        // The one filled button of a screen, card or dialog: teal.
         primary:
-          "rounded-wobble bg-accent font-hand text-xl text-on-accent shadow-paper hover:bg-accent-hover hover:text-on-accent hover:shadow-paper-sm",
+          "rounded-wobble bg-accent text-base font-semibold text-on-accent shadow-paper hover:bg-accent-hover hover:text-on-accent hover:shadow-paper-sm",
         secondary:
-          "rounded-wobble border-[1.5px] border-ink-soft bg-card font-note text-note text-ink shadow-paper hover:bg-paper-lo hover:text-ink hover:shadow-paper-sm",
+          "rounded-wobble border-[1.5px] border-ink-soft bg-card text-base font-medium text-ink shadow-paper hover:bg-paper-lo hover:text-ink hover:shadow-paper-sm",
         danger:
-          "rounded-wobble border-[1.5px] border-bad bg-card font-note text-note text-bad shadow-paper hover:bg-paper-lo hover:text-bad",
+          "rounded-wobble border-[1.5px] border-bad bg-card text-base font-medium text-bad shadow-paper hover:bg-paper-lo hover:text-bad",
         // A word inside a sentence ("Change").
         link: "inline rounded-sm bg-transparent p-0 text-accent underline underline-offset-2 hover:text-accent-hover",
         // Google's own sign-in button look (their brand rules: white, grey edge).

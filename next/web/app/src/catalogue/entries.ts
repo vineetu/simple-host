@@ -101,6 +101,7 @@ export const entries: Entry[] = [
   { id: "admin-not-operator", title: "Admin: signed in, not the operator", url: "/admin", api: adminApi("full", { load: refuse(403, "operator_only", "Only the operator can see this."), me: { id: "p-ana", email: "ana@example.com", handle: "ana", operator: false } }) },
   { id: "admin-overview", title: "Admin: overview", url: "/admin", api: adminApi("full") },
   { id: "admin-overview-empty", title: "Admin: overview of a new install", url: "/admin", api: adminApi("empty") },
+  { id: "admin-overview-diskfull", title: "Admin: overview, the disk nearly full", url: "/admin", api: adminApi("nearlyfull") },
   { id: "admin-users", title: "Admin: users", url: "/admin#users", api: adminApi("full") },
   { id: "admin-users-open", title: "Admin: a user's details", url: "/admin#users", api: adminApi("full"), steps: [{ click: "[aria-label='Show details']@4" }] },
   {

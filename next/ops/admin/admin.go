@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"simplehost/app"
@@ -111,13 +112,16 @@ func (h *handler) overview(w http.ResponseWriter, r *http.Request) error {
 			LEFT JOIN sites s ON s.id = r.site_id LEFT JOIN names n ON n.person_id = s.owner_id AND n.kind = 'handle' AND n.retired_at IS NULL
 			WHERE r.handled_at IS NULL ORDER BY r.id DESC LIMIT 100`},
 		{"network", `SELECT to_char(day, 'YYYY-MM-DD') AS day, bytes_in, bytes_out FROM net_usage_daily WHERE day > current_date - 30 ORDER BY day`},
+		{"network_month", `SELECT to_char(date_trunc('month', current_date), 'YYYY-MM') AS month, COALESCE(sum(bytes_in), 0)::bigint AS bytes_in,
+			COALESCE(sum(bytes_out), 0)::bigint AS bytes_out, to_char(min(day), 'YYYY-MM-DD') AS since
+			FROM net_usage_daily WHERE day >= date_trunc('month', current_date)`},
 	}
 	for _, q := range queries {
 		list, err := rows(ctx, h.a.DB, q.q)
 		if err != nil {
 			return err
 		}
-		if q.key == "people" || q.key == "sites" {
+		if q.key == "people" || q.key == "sites" || q.key == "network_month" {
 			out[q.key] = list[0]
 		} else {
 			out[q.key] = list
@@ -130,6 +134,7 @@ func (h *handler) overview(w http.ResponseWriter, r *http.Request) error {
 			}
 		}
 	}
+	out["disk"] = disk(h.a.Config.DataDir)
 	g, err := growth(ctx, h.a.DB, r.URL.Query().Get("range"))
 	if err != nil {
 		return err
@@ -280,4 +285,16 @@ func flush(ctx context.Context, a *app.App) {
 			log.Printf("network counts: %v", err)
 		}
 	}
+}
+
+// disk is the size and free space of the filesystem holding the data
+// directory (sites, saved data, everything on that disk counts), or nil when
+// it cannot be read. Bavail, not Bfree: blocks kept for root are not ours.
+func disk(dir string) map[string]int64 {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(dir, &st); err != nil {
+		return nil
+	}
+	total, free := int64(st.Blocks)*int64(st.Bsize), int64(st.Bavail)*int64(st.Bsize)
+	return map[string]int64{"bytes": total, "free_bytes": free, "used_bytes": total - free}
 }

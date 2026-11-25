@@ -70,6 +70,10 @@ export type Overview = {
   people: { total: number; new_7d: number; new_30d: number };
   reports: Report[];
   network: { day: string; bytes_in: number; bytes_out: number }[];
+  /** This calendar month so far (UTC); since is the first day counted in it. */
+  network_month?: { month: string; bytes_in: number; bytes_out: number; since: string | null };
+  /** The disk that holds the data directory; null when it could not be read. */
+  disk?: { bytes: number; free_bytes: number; used_bytes: number } | null;
   growth: Growth;
 };
 

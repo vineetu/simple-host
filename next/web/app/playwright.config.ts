@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+// SH_CATALOGUE_PORT: another port for the catalogue server (two checkouts at once).
+const PORT = process.env.SH_CATALOGUE_PORT || "4319";
+
 // Two kinds of browser checks:
 //   catalogue  every catalogue entry at 390 and 1280: console errors, sideways
 //              scroll, clipped text, small tap targets, axe, and the baseline picture
@@ -18,12 +21,12 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: "catalogue", testMatch: "visual.spec.ts", use: { baseURL: "http://127.0.0.1:4319" } },
+    { name: "catalogue", testMatch: "visual.spec.ts", use: { baseURL: `http://127.0.0.1:${PORT}` } },
     { name: "real", testMatch: "real.spec.ts", workers: 1 },
   ],
   webServer: {
-    command: "npx vite preview --mode catalogue --port 4319 --strictPort --host 127.0.0.1",
-    url: "http://127.0.0.1:4319/catalogue.html",
+    command: `npx vite preview --mode catalogue --port ${PORT} --strictPort --host 127.0.0.1`,
+    url: `http://127.0.0.1:${PORT}/catalogue.html`,
     reuseExistingServer: false,
   },
 });

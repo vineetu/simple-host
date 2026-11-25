@@ -119,7 +119,7 @@ export function DataTable<T>({
       {/* The sort as a list too: a phone has no column heads to press. */}
       {sortCols.length > 0 && (
         <div className="mb-2 flex items-center gap-2 md:max-w-card">
-          <label htmlFor={sortId} className="font-note text-note text-ink-soft">
+          <label htmlFor={sortId} className="type-label text-ink-soft">
             Sort
           </label>
           <NativeSelect
@@ -164,7 +164,7 @@ export function DataTable<T>({
                       key={h.id}
                       aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}
                       className={cn(
-                        "border-b border-rule bg-paper-lo px-1.5 py-1 text-left font-note text-sm font-normal whitespace-nowrap text-ink-soft first:pl-3",
+                        "border-b border-rule bg-paper-lo px-1.5 py-1 text-left type-label whitespace-nowrap text-ink-soft first:pl-3",
                         meta?.align === "right" && "text-right",
                       )}
                     >

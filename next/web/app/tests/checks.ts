@@ -21,6 +21,8 @@ export async function layout(page: Page): Promise<Problem[]> {
     };
     for (const el of document.body.querySelectorAll("*")) {
       if (!shown(el) || el.closest("svg") || el.closest(".sr-only")) continue;
+      // Inside a row made to scroll sideways (chips), off to the right is fine.
+      if (el.parentElement?.closest("[data-scroll-x]")) continue;
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
       if (r.right > vw + 1 && cs.position !== "fixed") out.push(`off screen to the right: ${name(el)} ends at ${Math.round(r.right)}px`);

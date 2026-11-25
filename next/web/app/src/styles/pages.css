@@ -23,7 +23,7 @@
   :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
   /* The wordmark: coral "simple", teal "host". */
-  .sh-logo, .sh-mark { font: 700 29px/1.2 var(--font-hand); color: var(--color-wordmark); text-decoration: none; }
+  .sh-logo, .sh-mark { font: 700 29px/1.2 var(--font-wordmark); color: var(--color-wordmark); text-decoration: none; }
   .sh-logo .sh-logo-a, .sh-mark .a { color: var(--color-coral); }
   .sh-logo b, .sh-mark i { color: var(--color-ink-faint); font-style: normal; padding-inline: .03em; }
 
@@ -39,7 +39,7 @@
   }
   .sh-card.plain { background: none; border: 0; box-shadow: none; text-align: center; max-width: 560px; }
   .sh-eyebrow { font: 600 var(--text-xs)/1.4 var(--font-sans); letter-spacing: .04em; text-transform: uppercase; color: var(--color-ink-faint); margin: 0 0 6px; }
-  .sh-card h1 { font: 700 var(--text-4xl)/1.15 var(--font-hand); margin: 0 0 8px; }
+  .sh-card h1 { font: 700 var(--text-4xl)/1.15 var(--font-sans); margin: 0 0 8px; }
   .sh-lead { margin: 0 0 20px; color: var(--color-ink-soft); }
   .sh-card.plain .sh-lead { margin: 0; }
   .sh-card label { display: block; font-weight: 600; font-size: var(--text-sm); margin: 0 0 6px; }
@@ -52,7 +52,7 @@
   .sh-btn {
     display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; margin: 12px 0 0; padding: 0 16px;
     border: 0; border-radius: var(--radius-wobble); background: var(--color-accent); color: var(--color-on-accent);
-    font: 700 var(--text-xl)/1 var(--font-hand); text-decoration: none; cursor: pointer; box-shadow: var(--shadow-paper);
+    font: 700 var(--text-xl)/1 var(--font-sans); text-decoration: none; cursor: pointer; box-shadow: var(--shadow-paper);
   }
   .sh-btn:hover { background: var(--color-accent-hover); color: var(--color-on-accent); }
   .sh-msg { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; font-size: var(--text-sm); line-height: 1.45; }
@@ -77,7 +77,7 @@
   .sh-nav { display: flex; gap: 4px 16px; }
   .sh-nav a, .sh-signin {
     display: inline-flex; align-items: center; min-height: 44px; color: var(--color-ink-soft);
-    font: var(--text-note)/1.4 var(--font-note); text-decoration: none;
+    font: var(--text-base)/1.4 var(--font-sans); text-decoration: none;
   }
   .sh-nav a:hover { color: var(--color-ink); }
   .sh-signin { padding: 0 12px; border: 1.5px solid var(--color-ink-soft); border-radius: var(--radius-wobble); color: var(--color-ink); }
@@ -90,7 +90,7 @@
   main.container { max-width: var(--container-prose); margin: 0 auto; padding: 48px max(24px, env(safe-area-inset-right)) 24px max(24px, env(safe-area-inset-left)); }
   main.container.wide { max-width: 1080px; }
   .container .eyebrow { font-size: var(--text-xs); color: var(--color-ink-soft); margin: 0 0 10px; }
-  .container h1, .container h2, .container h3 { font-family: var(--font-hand); font-weight: 700; line-height: 1.15; color: var(--color-ink); }
+  .container h1, .container h2, .container h3 { font-family: var(--font-sans); font-weight: 700; line-height: 1.15; color: var(--color-ink); }
   .container h1 { font-size: clamp(36px, 7vw, 56px); margin: 0 0 8px; }
   .container h2 { font-size: var(--text-2xl); margin: 28px 0 12px; padding-top: 28px; border-top: 1px solid var(--color-rule); scroll-margin-top: 16px; }
   .container h3 { font-size: var(--text-xl); margin: 20px 0 8px; }
@@ -121,7 +121,7 @@
   .container .btn-primary {
     display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; cursor: pointer;
     border: 0; border-radius: var(--radius-wobble); background: var(--color-accent); color: var(--color-on-accent);
-    font: 700 var(--text-xl)/1 var(--font-hand); box-shadow: var(--shadow-paper);
+    font: 700 var(--text-xl)/1 var(--font-sans); box-shadow: var(--shadow-paper);
   }
   .container .btn-primary:disabled { opacity: .55; cursor: default; }
   .container .status { min-height: 1.6em; margin: 12px 0 0; color: var(--color-ink); }

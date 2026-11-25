@@ -1,7 +1,7 @@
 // The signed-in frame of every owner-app screen: a side rail on a wide
 // screen, a top bar and a bottom bar on a phone. It knows who is signed in
 // (GET /v1/me) to show Admin only to the operator, and signs out.
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "@/lib/api";
@@ -37,6 +37,11 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
       toast((e as Error).message, { bad: true });
     }
   };
+  // Tells what floats over the page (the toast) how much room the bars take.
+  useEffect(() => {
+    document.documentElement.dataset.shell = "app";
+    return () => void delete document.documentElement.dataset.shell;
+  }, []);
   const here = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   return (
@@ -54,7 +59,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
               href={it.href}
               aria-current={here(it.href) ? "page" : undefined}
               className={cn(
-                "flex min-h-11 items-center gap-3 rounded-tab px-3 font-note text-note text-ink-soft no-underline hover:bg-paper-lo hover:text-ink",
+                "flex min-h-11 items-center gap-3 rounded-tab px-3 text-base font-medium text-ink-soft no-underline hover:bg-paper-lo hover:text-ink",
                 here(it.href) && "bg-accent-soft text-ink",
               )}
             >
@@ -68,7 +73,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
           <button
             type="button"
             onClick={signOut}
-            className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-tab px-3 font-note text-note text-ink-soft hover:bg-paper-lo hover:text-ink"
+            className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-tab px-3 text-base font-medium text-ink-soft hover:bg-paper-lo hover:text-ink"
           >
             <SignOutIcon />
             Sign out

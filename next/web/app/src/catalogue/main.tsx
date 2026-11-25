@@ -105,7 +105,7 @@ function One({ e }: { e: Entry }) {
 function Index() {
   return (
     <main className="mx-auto max-w-page p-6">
-      <h1 className="font-hand text-4xl font-bold">Screen catalogue</h1>
+      <h1 className="type-page">Screen catalogue</h1>
       <p className="mb-6 text-ink-soft">
         {entries.length} entries, each shown at 390 and 1280 px. Open one to see it full size.
       </p>
