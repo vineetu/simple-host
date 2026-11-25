@@ -47,6 +47,16 @@ func Mount(a *app.App) {
 	a.Routes.Platform.Handle("GET /v1/auth/oauth/{provider}", web.Func(h.start))
 	a.Routes.Platform.Handle("GET /v1/auth/oauth/{provider}/callback", web.Func(h.finish))
 	a.Routes.Platform.Handle("POST /v1/auth/signout", web.Func(h.signOut))
+	a.Routes.Platform.Handle("POST /v1/auth", web.Func(h.agentCode))
+}
+
+// agentCode answers the old service's agent sign-in (POST /v1/auth, then a
+// key from /v1/auth/verify). It is retired: an agent connects through MCP,
+// or the person makes a key in the dashboard and gives it to the agent.
+func (h *handler) agentCode(w http.ResponseWriter, r *http.Request) error {
+	d := "https://" + h.a.Config.AppDomain
+	return web.Refuse(http.StatusGone, "agent_sign_in_retired", "Sign-in by code from an agent is retired. Connect Simple Host through MCP ("+d+
+		"/mcp), or create an API key at "+d+"/dashboard/account#keys and give it to your agent.")
 }
 
 func normalEmail(s string) (string, error) {

@@ -74,7 +74,7 @@ func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 	ctx := r.Context()
 	var id, via string
 	var err error
-	if key := strings.TrimSpace(r.Header.Get("X-API-Key")); key != "" { // the header scripts use today
+	if key := strings.TrimSpace(r.Header.Get("X-API-Key")); key != "" { // an API key
 		via = "key"
 		err = p.DB.QueryRowContext(ctx, `UPDATE keys SET last_used_at = now() WHERE hash = $1 RETURNING person_id`, Hash(key)).Scan(&id)
 		if err == sql.ErrNoRows {

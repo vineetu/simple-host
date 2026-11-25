@@ -1,4 +1,4 @@
-// Keys (for scripts; a new one is shown once) and the AI apps connected to
+// API keys (use Simple Host without a connector; a new one is shown once) and the AI apps connected to
 // the account. Revoking a key or disconnecting an app asks first: whatever
 // uses it stops at once and cannot be put back.
 import { useState } from "react";
@@ -57,7 +57,7 @@ export function KeysAndApps({ me }: { me: Me }) {
         )}
       </Part>
 
-      <Part title="Keys" note="For scripts and tools: send a key as X-API-Key: <key>. A key acts as you, so keep it like a password.">
+      <Part title="Keys" note="API key: use Simple Host without a connector. Send it as X-API-Key: <key>. A key acts as you, so keep it like a password.">
         {me.keys.length ? (
           <ul className="m-0 mb-4 list-none p-0">
             {me.keys.map((k) => (

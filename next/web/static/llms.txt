@@ -10,7 +10,8 @@ Pages run in the visitor's browser. The server holds files and data and calls no
 
 Connector address (MCP): https://simple-host.app/mcp
 The person signs in on simple-host.app and approves. The app then acts as that person.
-Never ask for, read or repeat sign-in codes, keys or passcodes in chat.
+No connector? The person creates an API key at https://simple-host.app/dashboard/account#keys and gives it to you; send it as X-API-Key. A key can do whatever the tools can. Sign-in by code from an agent is retired.
+Never ask for, read or repeat sign-in codes or passcodes in chat.
 Install steps: https://simple-host.app/install  Skill: https://simple-host.app/skills.zip
 API reference: https://simple-host.app/docs
 
@@ -112,8 +113,9 @@ POST       /v1/sites/{site}/storage/sqlite/{ns}/query and /execute   (owner only
 
 ## Keys
 
-A person makes a named key in the dashboard (shown once). Send: X-API-Key: <key>.
-A key acts as the person who made it. Keys are not made through tools.
+API key: use Simple Host without a connector. A person makes a named key in the dashboard
+(https://simple-host.app/dashboard/account#keys, shown once). Send: X-API-Key: <key>.
+A key acts as the person who made it, for anything they can do. Keys are not made through tools.
 
 ## Refusals
 

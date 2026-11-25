@@ -1,5 +1,6 @@
-// Package keys is keys for scripts (F4): one kind of key, made in the
-// dashboard and shown once. A key acts as the person who made it.
+// Package keys is API keys (F4): one kind of key, made in the dashboard and
+// shown once, to use Simple Host without a connector, for anything the
+// person can do. A key acts as the person who made it.
 package keys
 
 import (

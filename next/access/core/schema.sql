@@ -46,7 +46,7 @@ CREATE TABLE sign_in_codes (
 );
 CREATE INDEX sign_in_codes_email ON sign_in_codes (email, created_at);
 
--- Keys for scripts. hash is hex SHA-256 of the key, as the old service stored it.
+-- API keys: use Simple Host without a connector. hash is hex SHA-256 of the key, as the old service stored it.
 CREATE TABLE keys (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   hash         TEXT NOT NULL UNIQUE,

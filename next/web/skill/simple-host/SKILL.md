@@ -8,8 +8,9 @@ description: Use this when the person wants a website or page made, put online o
 Simple Host puts a site online at its own address and keeps its saved data (tables, values,
 files). You act as the signed-in person, with their rights. Connector address:
 `https://simple-host.app/mcp`. If the tools are missing or signed out, ask the person to
-connect Simple Host (https://simple-host.app/install). Never ask for, read or repeat
-sign-in codes, keys or passcodes in chat.
+connect Simple Host (https://simple-host.app/install), or to create an API key at
+https://simple-host.app/dashboard/account#keys and give it to you (send it as `X-API-Key`; it
+can do whatever the tools can). Never ask for, read or repeat sign-in codes or passcodes in chat.
 
 Only call tools for what the person asked. A planning question does not authorize publishing.
 
