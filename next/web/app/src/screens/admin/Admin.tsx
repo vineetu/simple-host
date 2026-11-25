@@ -6,7 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { ApiError, useApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageShell, PageTitle } from "@/components/ui/page-shell";
+import { PageTitle } from "@/components/ui/page-shell";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AppShell } from "@/app-shell/AppShell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdmin } from "./data";
 import { ActionsProvider } from "./actions";
@@ -29,12 +31,10 @@ const TABS = [
 export function Admin() {
   const q = useAdmin();
   return (
-    <PageShell title="Admin" right={{ href: "/dashboard", label: "Your sites" }}>
+    <AppShell title="Admin">
       <PageTitle>Admin</PageTitle>
       {q.isPending ? (
-        <p role="status" className="mt-4 text-ink-soft">
-          Loading…
-        </p>
+        <Loading />
       ) : q.isError ? (
         <Refused error={q.error as ApiError} retry={() => q.refetch()} />
       ) : (
@@ -42,7 +42,22 @@ export function Admin() {
           <Loaded />
         </ActionsProvider>
       )}
-    </PageShell>
+    </AppShell>
+  );
+}
+
+/** Loading is the page's shape while the lists come, so nothing moves when they arrive. */
+function Loading() {
+  return (
+    <div role="status" aria-label="Loading the admin page" className="mt-4">
+      <Skeleton className="h-12" />
+      <Skeleton className="mt-6 h-24" />
+      <div className="mt-8 grid gap-3">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-10" />
+        ))}
+      </div>
+    </div>
   );
 }
 

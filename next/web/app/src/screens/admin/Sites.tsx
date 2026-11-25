@@ -8,10 +8,11 @@ import { Section } from "@/components/ui/page-shell";
 import { bytes, num, searchMatches } from "@/lib/format";
 import { ACCESS, SITE_FILTERS, dashLink, ownerName, siteFilter, type AdminData, type Site, type SiteFilter } from "./data";
 import { useActions } from "./actions";
-import { SiteName, SiteStatus, When } from "./bits";
+import { Breakable, SiteName, SiteStatus, When } from "./bits";
 
 export type SitesState = { q: string; filter: SiteFilter; sorting: SortingState };
 export const sitesStart: SitesState = { q: "", filter: "all", sorting: [{ id: "updated", desc: true }] };
+
 
 function Address({ s }: { s: Site }) {
   if (!s.domain && !s.short_name) return <span className="text-ink-soft">-</span>;
@@ -19,7 +20,7 @@ function Address({ s }: { s: Site }) {
     <>
       {s.domain && (
         <div>
-          {s.domain}
+          <Breakable text={s.domain} />
           {s.domain_status && s.domain_status !== "live" && s.domain_status !== "active" && <span className="text-ink-soft"> · {s.domain_status}</span>}
         </div>
       )}
@@ -28,6 +29,15 @@ function Address({ s }: { s: Site }) {
           {s.short_name} <span className="text-ink-soft">· short name</span>
         </div>
       )}
+    </>
+  );
+}
+
+function Access({ s }: { s: Site }) {
+  return (
+    <>
+      {ACCESS[s.access] || s.access}
+      {!s.listed && " · not on profile"}
     </>
   );
 }
@@ -49,7 +59,7 @@ const most = { sortDescFirst: true } as const;
 
 const columns: ColumnDef<Site>[] = [
   { id: "name", header: "Site", accessorKey: "name", cell: ({ row }) => <SiteName s={row.original} />, meta: { phone: "title", wrap: true } },
-  { id: "owner", header: "Owner", accessorFn: (s) => (s.owner || "").toLowerCase(), cell: ({ row }) => ownerName(row.original), meta: { wrap: true } },
+  { id: "owner", header: "Owner", accessorFn: (s) => (s.owner || "").toLowerCase(), cell: ({ row }) => <Breakable text={ownerName(row.original)} />, meta: { wrap: true } },
   { id: "live", header: "Live", accessorKey: "live_bytes", cell: ({ getValue }) => bytes(getValue()), ...most, meta: { align: "right", phone: "hide", sortNames: ["Largest first", "Smallest first"] } },
   { id: "size", header: "Size", accessorKey: "bytes", cell: ({ getValue }) => bytes(getValue()), ...most, meta: { align: "right", sortNames: ["Largest first", "Smallest first"] } },
   {
@@ -73,15 +83,24 @@ const columns: ColumnDef<Site>[] = [
     id: "access",
     header: "Who can open",
     enableSorting: false,
+    cell: ({ row }) => <Access s={row.original} />,
+    meta: { wide: "hide" },
+  },
+  {
+    id: "status",
+    header: "Status",
+    enableSorting: false,
     cell: ({ row }) => (
       <>
-        {ACCESS[row.original.access] || row.original.access}
-        {!row.original.listed && <span className="text-ink-soft"> · not on profile</span>}
+        <SiteStatus s={row.original} />
+        <div className="hidden text-sm text-ink-soft md:block">
+          <Access s={row.original} />
+        </div>
       </>
     ),
+    meta: { phone: "end" },
   },
-  { id: "status", header: "Status", enableSorting: false, cell: ({ row }) => <SiteStatus s={row.original} />, meta: { phone: "end" } },
-  { id: "address", header: "Own address", enableSorting: false, cell: ({ row }) => <Address s={row.original} />, meta: { phone: "hide", wrap: true } },
+  { id: "address", header: "Own address", enableSorting: false, cell: ({ row }) => <Address s={row.original} />, meta: { phone: "hide" } },
   { id: "menu", header: () => <span className="sr-only">Actions</span>, enableSorting: false, cell: ({ row }) => <SiteMenu s={row.original} />, meta: { phone: "end" } },
 ];
 

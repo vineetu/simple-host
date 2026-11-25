@@ -25,6 +25,8 @@ export type ColumnLook = {
   align?: "right";
   phone?: "title" | "meta" | "end" | "foot" | "hide";
   wrap?: boolean;
+  /** Left out of the desktop table (shown in another column there). */
+  wide?: "hide";
   /** Not shown at all; the column is only there to sort by. */
   hidden?: boolean;
   /** For the phone's sort list: [first, second] direction names, e.g. ["Oldest first", "Newest first"]. */
@@ -154,7 +156,7 @@ export function DataTable<T>({
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {detail && <th className="w-11 bg-paper-lo" aria-label="Details" />}
-                {hg.headers.map((h) => {
+                {hg.headers.filter((h) => h.column.columnDef.meta?.wide !== "hide").map((h) => {
                   const meta = h.column.columnDef.meta;
                   const dir = h.column.getIsSorted();
                   return (
@@ -162,7 +164,7 @@ export function DataTable<T>({
                       key={h.id}
                       aria-sort={dir === "asc" ? "ascending" : dir === "desc" ? "descending" : undefined}
                       className={cn(
-                        "border-b border-rule bg-paper-lo px-2 py-1 text-left font-note text-sm font-normal whitespace-nowrap text-ink-soft first:pl-3",
+                        "border-b border-rule bg-paper-lo px-1.5 py-1 text-left font-note text-sm font-normal whitespace-nowrap text-ink-soft first:pl-3",
                         meta?.align === "right" && "text-right",
                       )}
                     >
@@ -198,15 +200,15 @@ export function DataTable<T>({
                       <DetailToggle open={!!open[row.id]} onClick={() => toggle(row.id)} />
                     </td>
                   )}
-                  {row.getVisibleCells().map((c) => {
+                  {row.getVisibleCells().filter((c) => c.column.columnDef.meta?.wide !== "hide").map((c) => {
                     const meta = c.column.columnDef.meta;
                     return (
                       <td
                         key={c.id}
                         className={cn(
-                          "border-b border-rule px-2 py-2 align-top first:pl-3",
+                          "border-b border-rule px-1.5 py-2 align-top first:pl-3",
                           meta?.align === "right" && "text-right",
-                          meta?.align === "right" ? "whitespace-nowrap" : meta?.wrap ? "max-w-64 min-w-28 [overflow-wrap:anywhere]" : "[overflow-wrap:normal]",
+                          meta?.align === "right" ? "whitespace-nowrap" : meta?.wrap ? "max-w-64 min-w-40 [overflow-wrap:break-word]" : "[overflow-wrap:normal]",
                         )}
                       >
                         {flexRender(c.column.columnDef.cell, c.getContext())}

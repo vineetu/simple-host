@@ -8,7 +8,7 @@ import { Section } from "@/components/ui/page-shell";
 import { bytes, dateOf, num, plural, searchMatches } from "@/lib/format";
 import { USER_FILTERS, userFilter, type AdminData, type Person, type UserFilter } from "./data";
 import { useActions } from "./actions";
-import { UserStatus, When } from "./bits";
+import { Breakable, UserStatus, When } from "./bits";
 
 export type UsersState = { q: string; filter: UserFilter; sorting: SortingState };
 export const usersStart: UsersState = { q: "", filter: "all", sorting: [{ id: "joined", desc: true }] };
@@ -21,10 +21,10 @@ const columns: ColumnDef<Person>[] = [
     id: "handle",
     header: "Handle",
     accessorFn: (u) => (u.handle || u.email).toLowerCase(),
-    cell: ({ row }) => row.original.handle || <span className="text-ink-soft">no handle</span>,
+    cell: ({ row }) => (row.original.handle ? <Breakable text={row.original.handle} /> : <span className="text-ink-soft">no handle</span>),
     meta: { phone: "title", wrap: true },
   },
-  { id: "email", header: "Email", accessorKey: "email", enableSorting: false, meta: { wrap: true } },
+  { id: "email", header: "Email", accessorKey: "email", enableSorting: false, cell: ({ getValue }) => <Breakable text={getValue() as string} />, meta: { wrap: true } },
   {
     id: "joined",
     header: "Joined",

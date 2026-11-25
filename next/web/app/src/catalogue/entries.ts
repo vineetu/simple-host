@@ -25,7 +25,7 @@ function adminApi(state: Parameters<typeof admin>[0], o: { load?: Answer; me?: A
   const a = admin(state);
   return (method, path) => {
     if (o.load !== undefined && path.startsWith("/v1/admin/")) return o.load;
-    if (path === "/v1/me") return o.me ?? { id: "p-ana" };
+    if (path === "/v1/me") return o.me ?? { id: "p-admin", email: "admin@example.com", handle: "admin", operator: true };
     if (path.startsWith("/v1/admin/overview?range=")) return a.growth(new URLSearchParams(path.split("?")[1]).get("range") || "30d");
     if (path === "/v1/admin/overview") return a.overview;
     if (path === "/v1/admin/people" && method === "GET") return a.people;
@@ -98,7 +98,7 @@ export const entries: Entry[] = [
   // ---- Admin
   { id: "admin-loading", title: "Admin: loading", url: "/admin", api: adminApi("full", { load: "pending" }) },
   { id: "admin-error", title: "Admin: could not load", url: "/admin", api: adminApi("full", { load: refuse(500, "server_error", "Something went wrong on our side. Try again in a minute.") }) },
-  { id: "admin-not-operator", title: "Admin: signed in, not the operator", url: "/admin", api: adminApi("full", { load: refuse(403, "operator_only", "Only the operator can see this.") }) },
+  { id: "admin-not-operator", title: "Admin: signed in, not the operator", url: "/admin", api: adminApi("full", { load: refuse(403, "operator_only", "Only the operator can see this."), me: { id: "p-ana", email: "ana@example.com", handle: "ana", operator: false } }) },
   { id: "admin-overview", title: "Admin: overview", url: "/admin", api: adminApi("full") },
   { id: "admin-overview-empty", title: "Admin: overview of a new install", url: "/admin", api: adminApi("empty") },
   { id: "admin-users", title: "Admin: users", url: "/admin#users", api: adminApi("full") },
@@ -128,5 +128,19 @@ export const entries: Entry[] = [
   { id: "admin-api-empty", title: "Admin: API growth with no calls yet", url: "/admin#api", api: adminApi("empty") },
   { id: "admin-moderation", title: "Admin: moderation", url: "/admin#moderation", api: adminApi("full") },
   { id: "admin-moderation-empty", title: "Admin: nothing to moderate", url: "/admin#moderation", api: adminApi("empty") },
+  {
+    id: "admin-moderation-undo",
+    title: "Admin: restored, with Undo",
+    url: "/admin#moderation",
+    api: adminApi("full"),
+    steps: [{ click: "text=Restore" }],
+  },
   { id: "admin-tools", title: "Admin: make an account (self-hosted)", url: "/admin#tools", api: adminApi("selfhosted") },
+  {
+    id: "admin-tools-bad",
+    title: "Admin: make an account, email not right",
+    url: "/admin#tools",
+    api: adminApi("selfhosted"),
+    steps: [{ fill: ["#make-email", "someone@"] }, { click: "text=Make account" }],
+  },
 ];

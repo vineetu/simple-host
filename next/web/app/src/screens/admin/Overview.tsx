@@ -5,7 +5,7 @@ import { Section } from "@/components/ui/page-shell";
 import { Stat, Stats } from "@/components/ui/stat";
 import { bytes, dateOf, num } from "@/lib/format";
 import { ownerName, siteLive, type AdminData, type Person, type Site } from "./data";
-import { SiteName, When } from "./bits";
+import { Breakable, SiteName, When } from "./bits";
 
 const rank = (_: unknown, i: number) => i + 1;
 
@@ -22,19 +22,19 @@ export function OverviewTab({ d, go }: { d: AdminData; go: (tab: "users" | "site
 
   const latestCols: ColumnDef<Person>[] = [
     { id: "joined", header: "Joined", cell: ({ row }) => <When at={row.original.created_at} />, meta: { phone: "meta" } },
-    { id: "handle", header: "Handle", cell: ({ row }) => row.original.handle || "-", meta: { phone: "title" } },
-    { id: "email", header: "Email", cell: ({ row }) => row.original.email, meta: { phone: "meta" } },
+    { id: "handle", header: "Handle", cell: ({ row }) => (row.original.handle ? <Breakable text={row.original.handle} /> : "-"), meta: { phone: "title" } },
+    { id: "email", header: "Email", cell: ({ row }) => <Breakable text={row.original.email} />, meta: { phone: "meta" } },
   ];
   const viewCols: ColumnDef<Site>[] = [
     { id: "rank", header: "#", accessorFn: rank, meta: { align: "right", phone: "hide" } },
     { id: "site", header: "Website", cell: ({ row }) => <SiteName s={row.original} />, meta: { phone: "title" } },
-    { id: "owner", header: "Owner", cell: ({ row }) => ownerName(row.original) },
+    { id: "owner", header: "Owner", cell: ({ row }) => <Breakable text={ownerName(row.original)} /> },
     { id: "views", header: "Views", cell: ({ row }) => num(row.original.views_30d), meta: { align: "right" } },
   ];
   const bigCols: ColumnDef<Site>[] = [
     { id: "rank", header: "#", accessorFn: rank, meta: { align: "right", phone: "hide" } },
     { id: "site", header: "Website", cell: ({ row }) => <SiteName s={row.original} />, meta: { phone: "title" } },
-    { id: "owner", header: "Owner", cell: ({ row }) => ownerName(row.original) },
+    { id: "owner", header: "Owner", cell: ({ row }) => <Breakable text={ownerName(row.original)} /> },
     { id: "live", header: "Live", cell: ({ row }) => bytes(row.original.live_bytes), meta: { align: "right" } },
     { id: "disk", header: "On disk", cell: ({ row }) => bytes(row.original.bytes), meta: { align: "right" } },
   ];

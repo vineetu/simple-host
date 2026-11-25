@@ -187,6 +187,20 @@ async function check(page: Page, name: string, width: number) {
   expect(problems, name).toEqual([]);
 }
 
+test("the installable app's files are served", async () => {
+  for (const [path, type] of [
+    ["/manifest.webmanifest", "application/manifest+json"],
+    ["/sw.js", "javascript"],
+    ["/pages.css", "text/css"],
+    ["/app/icon-192.png", "image/png"],
+  ]) {
+    const r = await new Promise<http.IncomingMessage>((ok) => http.get({ host: "127.0.0.1", port: PORT, path, headers: { host: "sh.test" } }, ok));
+    r.resume();
+    expect(r.statusCode, path).toBe(200);
+    expect(r.headers["content-type"], path).toContain(type);
+  }
+});
+
 for (const width of [390, 1280]) {
   test(`sign in and run the admin page @${width}`, async ({ browser }) => {
     test.setTimeout(90_000);

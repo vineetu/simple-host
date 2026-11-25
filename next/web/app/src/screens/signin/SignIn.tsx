@@ -29,6 +29,8 @@ export function SignIn() {
   const [ask, setAsk] = useState({ who: "", site: "" });
   const [say, setSay] = useState<Say>({ text: "" });
   const [busy, setBusy] = useState(false);
+  const [sentAt, setSentAt] = useState(0);
+  const [, tick] = useState(0);
   const emailRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
 
@@ -55,8 +57,27 @@ export function SignIn() {
   }, [hop]);
 
   useEffect(() => {
-    if (step === "code") codeRef.current?.focus();
+    if (step !== "code") return;
+    codeRef.current?.focus();
+    const t = setInterval(() => tick((n) => n + 1), 1000); // the "new code in 0:29" line
+    return () => clearInterval(t);
   }, [step]);
+  const wait = Math.max(0, Math.ceil((sentAt + 30_000 - Date.now()) / 1000));
+
+  const resend = async () => {
+    setBusy(true);
+    try {
+      await call("POST", "/v1/auth/code", { email: email.trim() });
+      setSentAt(Date.now());
+      setCode("");
+      setSay({ text: "We sent a new code. The old one no longer works." });
+      codeRef.current?.focus();
+    } catch (err) {
+      setSay({ text: (err as Error).message, bad: true });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -71,6 +92,7 @@ export function SignIn() {
         }
         setSay({ text: "Sending…" });
         await call("POST", "/v1/auth/code", { email: v });
+        setSentAt(Date.now());
         setStep("code");
         setSay({ text: "" });
         return;
@@ -202,6 +224,17 @@ export function SignIn() {
                 {step === "code" ? "Sign in" : "Continue"}
               </Button>
             </form>
+            {step === "code" && (
+              <p className="mt-3 text-sm text-ink-soft">
+                {wait > 0 ? (
+                  <>You can ask for a new code in 0:{String(wait).padStart(2, "0")}.</>
+                ) : (
+                  <Button variant="link" onClick={resend} disabled={busy}>
+                    Send a new code
+                  </Button>
+                )}
+              </p>
+            )}
             <Fine>
               {step === "code" ? (
                 "Not there? Check spam, or wait a minute."

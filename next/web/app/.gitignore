@@ -2,3 +2,4 @@ node_modules/
 .catalogue/
 test-results/
 playwright-report/
+.stale-check/

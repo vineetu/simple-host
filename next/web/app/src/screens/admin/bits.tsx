@@ -3,6 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { ago, dateOf } from "@/lib/format";
 import type { Person, Site } from "./data";
 
+/** Breakable is a long name or address with line-break chances after its
+ * dots, dashes and @, so it wraps between parts instead of mid-word. */
+export function Breakable({ text }: { text: string }) {
+  return <>{text.split(/(?<=[.\-@])/).flatMap((part, i) => (i ? [<wbr key={i} />, part] : [part]))}</>;
+}
+
 /** When is "25 Nov 2026 · today"; the "· today" part drops on narrow screens. */
 export function When({ at, never = "-" }: { at: string | null; never?: string }) {
   if (!at) return <span className="text-ink-soft">{never}</span>;
@@ -14,10 +20,10 @@ export function When({ at, never = "-" }: { at: string | null; never?: string })
 }
 
 export function SiteName({ s }: { s: Pick<Site, "name" | "url"> }) {
-  if (!s.url) return <>{s.name}</>;
+  if (!s.url) return <Breakable text={s.name} />;
   return (
     <a href={/^https?:\/\//i.test(s.url) ? s.url : "#"} target="_blank" rel="noopener">
-      {s.name}
+      <Breakable text={s.name} />
     </a>
   );
 }

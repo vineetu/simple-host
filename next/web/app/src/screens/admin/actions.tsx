@@ -28,11 +28,13 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   const [asking, setAsking] = useState<Asking>(null);
 
-  const run = async (method: string, path: string, body: unknown, done: string) => {
+  // run does one change, reloads the lists and says so; undo (when given) is
+  // offered in the note, so the safe direction never asks first.
+  const run = async (method: string, path: string, body: unknown, done: string, undo?: () => void) => {
     try {
       const b = await call<{ says?: string }>(method, path, body);
       await qc.invalidateQueries({ queryKey: ["admin"] });
-      toast(b.says || done);
+      toast(b.says || done, undo && { undo: { label: "Undo", run: undo } });
       return true;
     } catch (e) {
       toast((e as Error).message, { bad: true });
@@ -42,11 +44,23 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
   const sitePath = (s: Site) => "/v1/sites/" + encodeURIComponent(s.name) + "?owner=" + encodeURIComponent(s.owner);
   const who = (u: Person) => u.handle || u.email;
 
+  const personPath = (u: Person) => "/v1/admin/people/" + encodeURIComponent(u.id);
+  const takeDown = (s: Site, reason: string) =>
+    run("PATCH", sitePath(s), { taken_down: true, reason }, "Took down " + s.name + ".", () => void restore(s, reason));
+  const restore = (s: Site, reason: string) =>
+    run("PATCH", sitePath(s), { taken_down: false }, "Restored " + s.name + ".", () => void takeDown(s, reason));
+  const suspend = (u: Person, reason: string) =>
+    run("PATCH", personPath(u), { suspended: true, reason }, "Suspended " + who(u) + ".", () => void enable(u, reason));
+  const enable = (u: Person, reason: string) =>
+    run("PATCH", personPath(u), { suspended: false }, "Re-enabled " + who(u) + ".", () => void suspend(u, reason));
+
+  // Taking down and suspending ask first: they need a reason, and the owner
+  // sees it. Restoring and re-enabling just happen, with Undo.
   const actions: Actions = {
     takeDown: (site) => setAsking({ kind: "takedown", site }),
-    restore: (s) => void run("PATCH", sitePath(s), { taken_down: false }, "Restored " + s.name + "."),
+    restore: (s) => void restore(s, s.taken_down_reason || "Taken down again"),
     suspend: (user) => setAsking({ kind: "suspend", user }),
-    enable: (u) => void run("PATCH", "/v1/admin/people/" + encodeURIComponent(u.id), { suspended: false }, "Re-enabled " + who(u) + "."),
+    enable: (u) => void enable(u, u.suspended_reason || "Suspended again"),
     makeAccount: (email) => run("POST", "/v1/admin/people", { email }, "Account made. They sign in with that email."),
   };
 
@@ -62,8 +76,7 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
         confirmLabel="Take down"
         danger
         onConfirm={async (reason) => {
-          if (asking?.kind === "takedown")
-            await run("PATCH", sitePath(asking.site), { taken_down: true, reason }, "Took down " + asking.site.name + ".");
+          if (asking?.kind === "takedown") await takeDown(asking.site, reason);
         }}
       />
       <AskDialog
@@ -75,8 +88,7 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
         confirmLabel="Suspend"
         danger
         onConfirm={async (reason) => {
-          if (asking?.kind === "suspend")
-            await run("PATCH", "/v1/admin/people/" + encodeURIComponent(asking.user.id), { suspended: true, reason }, "Suspended " + who(asking.user) + ".");
+          if (asking?.kind === "suspend") await suspend(asking.user, reason);
         }}
       />
     </ActionsContext.Provider>

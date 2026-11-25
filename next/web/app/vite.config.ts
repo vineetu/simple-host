@@ -51,7 +51,8 @@ export default defineConfig(({ mode }) => {
     build: catalogue
       ? { outDir: ".catalogue", emptyOutDir: true, rollupOptions: { input: "catalogue.html" } }
       : {
-          outDir: "../dist/files",
+          // SH_WEB_OUT: build elsewhere (the stale-build check compares the two).
+          outDir: process.env.SH_WEB_OUT || "../dist/files",
           emptyOutDir: true,
           assetsDir: "app",
           reportCompressedSize: true,
