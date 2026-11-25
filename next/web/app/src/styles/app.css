@@ -1,0 +1,24 @@
+/* The owner app's stylesheet: Tailwind on the shared tokens. */
+@import "tailwindcss";
+@import "./tokens.css";
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  body {
+    @apply min-h-dvh bg-paper font-sans text-base text-ink;
+    overflow-wrap: anywhere;
+  }
+  #root {
+    @apply flex min-h-dvh flex-col;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  a {
+    @apply text-accent underline underline-offset-2 hover:text-accent-hover;
+  }
+}
