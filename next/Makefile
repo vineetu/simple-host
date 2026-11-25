@@ -4,7 +4,7 @@ APP := web/app
 NPM := cd $(APP) && npm
 STALE := $(APP)/.stale-check
 
-.PHONY: web web-deps web-stale web-check web-real web-accept
+.PHONY: web web-deps web-pages web-stale web-check web-real web-accept
 
 web-deps:
 	@[ -d $(APP)/node_modules ] || ($(NPM) ci --no-audit --no-fund)
@@ -12,6 +12,10 @@ web-deps:
 # Rebuild the owner app and pages.css into web/dist/files (commit the result).
 web: web-deps
 	$(NPM) run build
+
+# The gate and status pages as the Go server writes them, for the catalogue.
+web-pages:
+	SH_GATE_PAGES=$(CURDIR)/$(APP)/.catalogue-pages go test ./sites/core -run TestWriteGatePages -count=1
 
 # Fails when web/dist/files is not what the source builds to.
 web-stale: web-deps
@@ -21,7 +25,7 @@ web-stale: web-deps
 
 # Everything: types, lint, unit tests, the build, the stale check, and every
 # catalogue screen at 390 and 1280 against its baseline picture (with axe).
-web-check: web-deps
+web-check: web-deps web-pages
 	$(NPM) run typecheck
 	$(NPM) run lint
 	$(NPM) test
@@ -30,7 +34,7 @@ web-check: web-deps
 	$(NPM) run visual
 
 # Accept new baseline pictures after a deliberate change (look at them first).
-web-accept: web-deps
+web-accept: web-deps web-pages
 	$(NPM) run catalogue
 	$(NPM) run visual:accept
 

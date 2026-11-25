@@ -1,3 +1,4 @@
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
@@ -10,6 +11,7 @@ import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig(({ mode }) => {
   const catalogue = mode === "catalogue";
   const plugins: PluginOption[] = [react(), tailwindcss()];
+  if (catalogue) plugins.push(serverPages());
   if (!catalogue) {
     plugins.push(
       VitePWA({
@@ -49,7 +51,14 @@ export default defineConfig(({ mode }) => {
     plugins,
     resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
     build: catalogue
-      ? { outDir: ".catalogue", emptyOutDir: true, rollupOptions: { input: "catalogue.html" } }
+      ? {
+          outDir: ".catalogue",
+          emptyOutDir: true,
+          rollupOptions: {
+            input: { catalogue: "catalogue.html", pages: "src/styles/pages.css" } as Record<string, string>,
+            output: { assetFileNames: (a) => (a.names?.[0] === "pages.css" ? "pages.css" : "assets/[name]-[hash][extname]") },
+          },
+        }
       : {
           // SH_WEB_OUT: build elsewhere (the stale-build check compares the two).
           outDir: process.env.SH_WEB_OUT || "../dist/files",
@@ -65,3 +74,25 @@ export default defineConfig(({ mode }) => {
         },
   };
 });
+
+/**
+ * serverPages puts the pages the Go server writes into the catalogue build,
+ * under /catalogue-pages/: the four text pages as they are, and the gate pages
+ * that `make web-pages` rendered into .catalogue-pages (with a link to the
+ * pages.css built here instead of their inline copy).
+ */
+function serverPages(): PluginOption {
+  return {
+    name: "server-pages",
+    closeBundle() {
+      const out = ".catalogue/catalogue-pages";
+      mkdirSync(out, { recursive: true });
+      for (const p of ["privacy", "terms", "support", "docs"]) cpSync(`../static/${p}.html`, `${out}/${p}.html`);
+      mkdirSync(".catalogue/assets", { recursive: true });
+      cpSync("../static/assets/favicon.svg", ".catalogue/assets/favicon.svg");
+      cpSync("public/app/icon-192.png", ".catalogue/favicon.ico"); // what a browser asks a gate page's host for
+      if (existsSync(".catalogue-pages")) cpSync(".catalogue-pages", out, { recursive: true });
+      else console.warn("no gate pages in the catalogue: run make web-pages");
+    },
+  };
+}

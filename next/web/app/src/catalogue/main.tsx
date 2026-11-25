@@ -17,6 +17,7 @@ import { Upload } from "@/screens/upload/Upload";
 import { UploadDepsProvider, realDeps, type UploadDeps } from "@/screens/upload/data";
 // ---- end Upload
 import { entries, type Entry, type Step } from "./entries";
+import { pageEntries } from "./pages";
 
 let pending = 0;
 let started = false; // StrictMode runs effects twice in development
@@ -175,17 +176,17 @@ function Index() {
     <main className="mx-auto max-w-page p-6">
       <h1 className="type-page">Screen catalogue</h1>
       <p className="mb-6 text-ink-soft">
-        {entries.length} entries, each shown at 390 and 1280 px. Open one to see it full size.
+        {entries.length + pageEntries.length} entries, each shown at 390 and 1280 px. Open one to see it full size.
       </p>
-      {entries.map((e) => (
+      {[...entries, ...pageEntries].map((e) => (
         <section key={e.id} className="mb-10">
           <h2 className="mb-2 text-lg font-semibold">
-            <a href={"?id=" + e.id}>{e.title}</a> <span className="text-sm font-normal text-ink-soft">{e.id}</span>
+            <a href={"page" in e ? e.page : "?id=" + e.id}>{e.title}</a> <span className="text-sm font-normal text-ink-soft">{e.id}</span>
           </h2>
           <div className="flex items-start gap-4 overflow-x-auto">
-            <iframe title={e.id + " at 390"} src={"?id=" + e.id} width={390} height={760} className="flex-none border border-rule bg-paper" />
+            <iframe title={e.id + " at 390"} src={"page" in e ? e.page : "?id=" + e.id} width={390} height={760} className="flex-none border border-rule bg-paper" />
             <div className="h-[760px] w-[640px] flex-none overflow-hidden border border-rule">
-              <iframe title={e.id + " at 1280"} src={"?id=" + e.id} width={1280} height={1520} className="origin-top-left scale-50 bg-paper" />
+              <iframe title={e.id + " at 1280"} src={"page" in e ? e.page : "?id=" + e.id} width={1280} height={1520} className="origin-top-left scale-50 bg-paper" />
             </div>
           </div>
         </section>

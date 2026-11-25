@@ -8,6 +8,7 @@ package visitors
 import (
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	access "simplehost/access/core"
@@ -72,13 +73,19 @@ func (h *handler) finish(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// signOut is route 37: end this site's session in this browser.
+// signOut is route 37: end this site's session in this browser. A form
+// post (a gate page's button) goes back to its page; a script gets JSON.
 func (h *handler) signOut(w http.ResponseWriter, r *http.Request) error {
 	id := access.SiteSessionID(access.Cookie(r, "sh_vsess"))
 	if _, err := h.a.DB.ExecContext(r.Context(), `DELETE FROM visitor_sessions WHERE id = $1 AND site_id = $2`, id, sites.PlaceOf(r).Site.ID); err != nil {
 		return err
 	}
 	access.SetCookie(w, r, "sh_vsess", "", 0)
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded") {
+		// The Sign out button of a gate page (a plain form): back to the page.
+		http.Redirect(w, r, sites.Next(r), http.StatusSeeOther)
+		return nil
+	}
 	web.JSON(w, http.StatusOK, map[string]bool{"signed_in": false})
 	return nil
 }
