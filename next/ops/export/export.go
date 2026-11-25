@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	access "simplehost/access/core"
@@ -68,15 +69,15 @@ func Work(ctx context.Context, a *app.App) {
 		if made {
 			continue
 		}
-		rows, err := a.DB.QueryContext(ctx, `DELETE FROM exports WHERE expires_at < now() RETURNING id`)
-		for err == nil && rows.Next() {
-			var id string
-			if rows.Scan(&id) == nil {
-				os.Remove(file(a, id))
+		// A download that ran out goes, and so does a file whose row is gone
+		// (it went with its account).
+		a.DB.ExecContext(ctx, `DELETE FROM exports WHERE expires_at < now()`)
+		zips, _ := filepath.Glob(file(a, "*"))
+		for _, z := range zips {
+			var kept bool
+			if a.DB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM exports WHERE id::text = $1)`, strings.TrimSuffix(filepath.Base(z), ".zip")).Scan(&kept) == nil && !kept {
+				os.Remove(z)
 			}
-		}
-		if err == nil {
-			rows.Close()
 		}
 		select {
 		case <-ctx.Done():
@@ -102,7 +103,7 @@ func Next(ctx context.Context, a *app.App) (bool, error) {
 		err = write(ctx, a, who, file(a, id))
 	}
 	if err != nil {
-		a.DB.ExecContext(ctx, `UPDATE exports SET status = 'failed' WHERE id = $1`, id)
+		a.DB.ExecContext(ctx, `UPDATE exports SET status = 'failed', expires_at = now() WHERE id = $1`, id)
 		return true, err
 	}
 	token := access.NewSecret("ex_")

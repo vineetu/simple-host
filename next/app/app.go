@@ -222,20 +222,8 @@ func (a *App) changed(mux *http.ServeMux, r *http.Request) *web.Refusal {
 		}
 	}
 	d := "https://" + a.Config.AppDomain
-	routes := "Current routes: " + d + "/llms.txt."
-	ai := "Using an AI app? Reconnect Simple Host, or start a new chat so it lists the tools again."
-	skill := "Using the installed skill? Get the new one at " + d + "/skills.zip."
-	fix := []string{routes, ai, skill}
-	seg := strings.Split(strings.Trim(r.URL.Path, "/"), "/") // v1, sites, {s}, ...
-	switch {
-	case len(seg) >= 4 && seg[1] == "sites" && seg[3] == "files" && (r.Method == "POST" || r.Method == "PUT"):
-		fix = append([]string{"Publish with PUT /v1/sites/" + seg[2] + " and the same JSON body; send ?keep_other_files=true to keep files you do not send."}, fix...)
-	case len(seg) >= 2 && seg[1] == "skills":
-		fix = []string{skill, routes, ai}
-	case len(seg) == 5 && seg[1] == "sites" && seg[3] == "storage" && seg[4] == "people":
-		fix = append([]string{"The people list was removed."}, fix...)
-	}
-	ref := web.Refuse(status, "changed", strings.Join(fix, " "))
+	ref := web.Refuse(status, "changed", "Current routes: "+d+"/llms.txt. Using an AI app? Reconnect Simple Host, or start a new chat so it lists the tools again. "+
+		"Using the installed skill? Get the new one at "+d+"/skills.zip.")
 	ref.Message = "This address is not part of Simple Host any more. The service was rebuilt on 25 November 2026."
 	return ref
 }

@@ -18,7 +18,7 @@ func TestChangedAddresses(t *testing.T) {
 	}{
 		{"GET", "/v1/me/keys", 404, platform + "/llms.txt"},
 		{"POST", "/v1/me", 405, platform + "/skills.zip"},
-		{"POST", "/v1/sites/blog/files", 405, "Publish with PUT /v1/sites/blog"},
+		{"POST", "/v1/sites/blog", 405, platform + "/llms.txt"},
 	} {
 		r := testkit.Call(t, b, c.method, platform+c.path, map[string]any{})
 		if r.Status != c.status || !strings.Contains(r.Body, `"code":"changed"`) || !strings.Contains(r.Body, "rebuilt") || !strings.Contains(r.Body, c.has) {

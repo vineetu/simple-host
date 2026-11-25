@@ -19,7 +19,6 @@ type plannedPolicy struct {
 	command      Command
 	restrictive  bool
 	using, check *Expr
-	shapeUsing   *Expr // Before negation rewriting: the `for` check is structural.
 }
 
 func applies(command Command, op Op) bool {
@@ -71,23 +70,6 @@ func (p *Plan) ReferencesBinding(op Op, name string) bool {
 	}
 	return false
 }
-func (p *Plan) NeedsIdentity(op Op) bool { return len(p.names(op, false, true)) != 0 }
-func (p *Plan) ReferencesColumn(name string) bool {
-	found := false
-	for _, pol := range p.policies {
-		for _, x := range []*Expr{pol.using, pol.check} {
-			walk(x, func(x *Expr) {
-				if x.op == "column" && asciiLower(x.name) == asciiLower(name) {
-					found = true
-				}
-			})
-		}
-	}
-	return found
-}
-func (p *Plan) AuthorTracked() bool {
-	return p.ReferencesColumn("visitor_id") || p.Partial(OpAdd, Values{"auth.signed_in": Bool(true), "auth.role": Text("visitor"), "auth.ai": Bool(false), "auth.checked": Bool(true)}) != False
-}
 func (p *Plan) expression(op Op, check bool) (*Expr, error) {
 	if check && (op == OpAdd || op == OpEdit) {
 		return p.check[op], nil
@@ -130,33 +112,4 @@ func (p *Plan) validateValues(op Op, v Values) error {
 		}
 	}
 	return nil
-}
-
-// RequiredColumns derives schema safeguards from saved syntax, independently of
-// current column and product binding declarations. It is not an authorization
-// plan. Unknown bindings remain unknown when deciding whether a visitor may add.
-func RequiredColumns(set PolicySet, platform BindingSchema, lim Limits) (author, approval bool, err *RuleError) {
-	p := &Plan{schema: platform, lim: lim}
-	for _, pol := range set.Policies {
-		pp := plannedPolicy{command: pol.Command, restrictive: pol.Restrictive}
-		for _, clause := range []struct {
-			text string
-			dest **Expr
-		}{{pol.Using, &pp.using}, {pol.Check, &pp.check}} {
-			if clause.text == "" {
-				continue
-			}
-			x, e := Parse(clause.text, lim)
-			if e != nil {
-				return false, false, e
-			}
-			*clause.dest = normal(x, false)
-		}
-		if pp.check == nil && pol.Command == CmdAll {
-			pp.check = pp.using
-		}
-		p.policies = append(p.policies, pp)
-	}
-	p.check[OpAdd] = p.compose(OpAdd, true)
-	return p.AuthorTracked(), p.ReferencesColumn("approved_at"), nil
 }

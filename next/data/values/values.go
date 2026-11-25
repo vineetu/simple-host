@@ -124,9 +124,6 @@ func (h *handler) put(w http.ResponseWriter, r *http.Request) error {
 		op := rules.OpEdit
 		if have.Rows[0][0].(int64) == 0 {
 			op, action = rules.OpAdd, "add"
-			if _, _, err := q.Rule(ctx, table, op, true); err != nil {
-				return err
-			}
 			if _, err := q.Exec(ctx, `INSERT INTO _values (key, value, visitor_id) VALUES (?, ?, ?)`, key, value, author); err != nil {
 				return err
 			}

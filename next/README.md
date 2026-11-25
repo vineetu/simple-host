@@ -114,6 +114,7 @@ site, err := a.Sites.Of(r)        // site address: its site. Platform: {site} pa
                                   // owned by ?owner=<team handle> or else the caller.
 err = a.Sites.Manage(r, site)     // refuses unless owner, member of the owning team, or operator
 p := sites.PlaceOf(r)             // p.Site, or p.Owner on a public page; sites.WithPlace(r, p)
+a.Sites.OwnerOf(r)                // ?owner= (a team) or else the caller: whose sites a platform request means
 a.Sites.Get(ctx, ownerID, name); a.Sites.ByID(ctx, id); a.Sites.Count(ctx, ownerID); a.Sites.Create(ctx, ownerID, name)
 a.Sites.Lookup(ctx, host); a.Sites.URL(site); sites.Partner(host) // www <-> bare
 a.Sites.Forget(site.OwnerID, site.ID) // after committing a change to sites, names, hostnames, owner_addresses,

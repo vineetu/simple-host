@@ -33,7 +33,12 @@ func TestAbandonedSites(t *testing.T) {
 		return testkit.Call(t, k.Browser(), "GET", "https://"+site+"--nina.simple-host.site/", nil, "User-Agent", "Mozilla/5.0").Status
 	}
 
+	// The email cannot go: the site is not on the clock, the next sweep tries again.
+	mail := k.App.Mail.URL
+	k.App.Mail.URL = "http://127.0.0.1:1/"
 	quiet()
+	sweep(0)
+	k.App.Mail.URL = mail
 	sweep(1) // one email, for the quiet site only
 	sweep(1) // and only one
 	// A visit keeps it: the clock starts again.

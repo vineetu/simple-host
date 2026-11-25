@@ -34,7 +34,7 @@ func TestForgedRequests(t *testing.T) {
 		{"Content-Type", "text/plain", "Origin", "https://evil.simple-host.app", "X-SH-CSRF", "1"},
 		{"Content-Type", "text/plain", "Origin", "", "Sec-Fetch-Site", "same-site"},
 	} {
-		if r := testkit.Call(t, b, "POST", platform+"/v1/sites/blog", zb.Bytes(), h...); r.Status != 403 || !strings.Contains(r.Body, "csrf_header") {
+		if r := testkit.Call(t, b, "PUT", platform+"/v1/sites/blog", zb.Bytes(), h...); r.Status != 403 || !strings.Contains(r.Body, "csrf_header") {
 			t.Fatalf("forged publish %v: %d %s", h, r.Status, r.Body)
 		}
 	}

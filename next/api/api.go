@@ -324,15 +324,11 @@ func (h *handler) change(w http.ResponseWriter, r *http.Request) error {
 	}
 	ctx := r.Context()
 	if in.Restore {
-		owner := web.CallerOf(r).ID
-		if handle := r.URL.Query().Get("owner"); handle != "" {
-			o, err := h.a.People.ByHandle(ctx, handle)
-			if err != nil {
-				return err
-			}
-			owner = o.ID
+		owner, err := h.a.Sites.OwnerOf(r)
+		if err == nil {
+			_, err = manage.Restore(r, h.a, owner, r.PathValue("site"))
 		}
-		if _, err := manage.Restore(r, h.a, owner, r.PathValue("site")); err != nil {
+		if err != nil {
 			return err
 		}
 	}
@@ -433,22 +429,25 @@ func (h *handler) access(ctx context.Context, site *sites.Site, mode, code *stri
 }
 
 // domain connects the site's own domain ("" removes it). An earlier one is
-// removed first: a site has one own domain.
+// removed once the new one is connected: a site has one own domain.
 func (h *handler) domain(ctx context.Context, site *sites.Site, host string) error {
-	host = strings.ToLower(strings.TrimSpace(host))
+	var keep domains.Domain
+	if host = strings.TrimSpace(host); host != "" {
+		var err error
+		if keep, err = domains.Connect(ctx, h.a, site, host); err != nil {
+			return err
+		}
+	}
 	have, err := domains.OfSite(ctx, h.a, site)
 	if err != nil {
 		return err
 	}
 	for _, d := range have {
-		if d.Host != host {
+		if d.Host != keep.Host {
 			if err := domains.Remove(ctx, h.a, site.OwnerID, d.Host); err != nil {
 				return err
 			}
 		}
 	}
-	if host != "" {
-		_, err = domains.Connect(ctx, h.a, site, host)
-	}
-	return err
+	return nil
 }

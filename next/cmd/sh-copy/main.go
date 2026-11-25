@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/lib/pq"
@@ -39,7 +40,7 @@ type config struct {
 }
 
 func main() {
-	if len(os.Args) != 2 || !strings.Contains(" copy check report ", " "+os.Args[1]+" ") {
+	if len(os.Args) != 2 || !slices.Contains([]string{"copy", "check", "report"}, os.Args[1]) {
 		fmt.Fprintln(os.Stderr, "usage: sh-copy copy|check|report")
 		os.Exit(2)
 	}
@@ -89,7 +90,7 @@ func run(ctx context.Context, cfg config, cmd string, out io.Writer) (int, error
 		return 0, err
 	}
 	defer tx.Rollback()
-	newURL, err := withParams(cfg.New.DatabaseURL, "timezone", "UTC")
+	newURL, err := withParams(cfg.New.DatabaseURL)
 	if err != nil {
 		return 0, err
 	}

@@ -46,7 +46,7 @@ func Sweep(ctx context.Context, a *app.App) error {
 		return err
 	}
 	gone, err := a.DB.QueryContext(ctx, `UPDATE sites s SET deleted_at = now() WHERE deleted_at IS NULL
-		AND idle_warned_at < now() - interval '`+Grace+`' RETURNING s.owner_id, s.id`)
+		AND idle_warned_at < now() - interval '`+Grace+`' AND `+quiet+`s.idle_warned_at RETURNING s.owner_id, s.id`)
 	if err != nil {
 		return err
 	}
@@ -58,42 +58,56 @@ func Sweep(ctx context.Context, a *app.App) error {
 	}
 	gone.Close()
 	rows, err := a.DB.QueryContext(ctx, `UPDATE sites s SET idle_warned_at = now() WHERE deleted_at IS NULL AND idle_warned_at IS NULL
-		AND `+quiet+`now() - interval '`+Quiet+`' RETURNING s.name, s.owner_id`)
+		AND `+quiet+`now() - interval '`+Quiet+`' RETURNING s.id, s.name, s.owner_id`)
 	if err != nil {
 		return err
 	}
-	type warn struct{ site, owner string }
+	type warn struct{ id, site, owner string }
 	var warns []warn
 	for rows.Next() {
 		var w warn
-		if err := rows.Scan(&w.site, &w.owner); err != nil {
+		if err := rows.Scan(&w.id, &w.site, &w.owner); err != nil {
 			rows.Close()
 			return err
 		}
 		warns = append(warns, w)
 	}
 	rows.Close()
+	// A site whose owner got no email is not on the clock: it is tried again
+	// at the next sweep.
 	for _, w := range warns {
-		to, err := a.DB.QueryContext(ctx, `SELECT email FROM people WHERE id = $1 AND email IS NOT NULL
-			UNION SELECT p.email FROM team_members m JOIN people p ON p.id = m.person_id WHERE m.team_id = $1`, w.owner)
-		if err != nil {
-			return err
-		}
-		var emails []string
-		for to.Next() {
-			var e string
-			to.Scan(&e)
-			emails = append(emails, e)
-		}
-		to.Close()
-		for _, e := range emails {
-			if err := a.Mail.Send(ctx, e, "Your site "+w.site+" will be removed in 30 days",
-				"Your site "+w.site+" has had no visits and no changes for 3 months.\n\n"+
-					"To keep it, visit it or publish a change in the next 30 days. Otherwise it moves to the bin, where it stays 7 days before it is gone for good.\n\n"+
-					"This is the abandoned-site rule on our privacy page."); err != nil {
-				log.Printf("idle email for %s: %v", w.site, err)
-			}
+		if !tell(ctx, a, w.site, w.owner) {
+			a.DB.ExecContext(ctx, `UPDATE sites SET idle_warned_at = NULL WHERE id = $1`, w.id)
 		}
 	}
 	return nil
+}
+
+// tell emails the owner (a person, or each member of a team) about the quiet
+// site; sent: at least one email went.
+func tell(ctx context.Context, a *app.App, site, owner string) (sent bool) {
+	to, err := a.DB.QueryContext(ctx, `SELECT email FROM people WHERE id = $1 AND email IS NOT NULL
+		UNION SELECT p.email FROM team_members m JOIN people p ON p.id = m.person_id WHERE m.team_id = $1`, owner)
+	if err != nil {
+		log.Printf("idle email for %s: %v", site, err)
+		return false
+	}
+	var emails []string
+	for to.Next() {
+		var e string
+		to.Scan(&e)
+		emails = append(emails, e)
+	}
+	to.Close()
+	for _, e := range emails {
+		if err := a.Mail.Send(ctx, e, "Your site "+site+" will be removed in 30 days",
+			"Your site "+site+" has had no visits and no changes for 3 months.\n\n"+
+				"To keep it, visit it or publish a change in the next 30 days. Otherwise it moves to the bin, where it stays 7 days before it is gone for good.\n\n"+
+				"This is the abandoned-site rule on our privacy page."); err != nil {
+			log.Printf("idle email for %s: %v", site, err)
+		} else {
+			sent = true
+		}
+	}
+	return sent
 }

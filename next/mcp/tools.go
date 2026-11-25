@@ -192,7 +192,7 @@ var tools = []tool{
 	{name: "run_sql", about: "The owner's SQL on a namespace of their site: any statement (made if new). Without sql: the tables and space used. Values are in _values, stored files' records in _files.",
 		input: siteIn("namespace!", str("Like bookings."), "sql", str("One statement."), "params", list("Values for ? in order.", map[string]any{})),
 		route: func(c *call) (string, string, any, error) {
-			word, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(c.str("sql"))), " ")
+			word, _, _ := strings.Cut(strings.Join(strings.Fields(strings.ToLower(c.str("sql"))), " "), " ") // any space, a newline too
 			which := map[string]string{"": "schema", "select": "query", "with": "query", "pragma": "query", "explain": "query", "values": "query"}[word]
 			if which == "" {
 				which = "execute"

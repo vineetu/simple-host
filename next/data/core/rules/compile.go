@@ -28,7 +28,7 @@ func Compile(set PolicySet, t Table, b BindingSchema, lim Limits) (*Plan, []Rule
 			e.Table, e.Policy = t.Name, pol.Name
 			errs = append(errs, e)
 		}
-		pp := plannedPolicy{command: pol.Command, restrictive: pol.Restrictive, shapeUsing: using, using: normal(using, false), check: normal(check, false)}
+		pp := plannedPolicy{command: pol.Command, restrictive: pol.Restrictive, using: normal(using, false), check: normal(check, false)}
 		if pp.check == nil && (pol.Command == CmdEdit || pol.Command == CmdAll) {
 			pp.check = pp.using
 		}

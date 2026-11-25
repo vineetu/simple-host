@@ -2,22 +2,6 @@ package rules
 
 import "strings"
 
-// EvalUsing and EvalCheck are the Go oracle. They evaluate the normalized rule
-// tree directly, without inspecting SQL or its arguments.
-func (p *Plan) EvalUsing(op Op, v Values, row Row) (bool, error) {
-	return p.evaluate(op, false, v, row)
-}
-func (p *Plan) EvalCheck(op Op, v Values, row Row) (bool, error) { return p.evaluate(op, true, v, row) }
-func (p *Plan) evaluate(op Op, check bool, v Values, row Row) (bool, error) {
-	x, err := p.expression(op, check)
-	if err != nil {
-		return false, err
-	}
-	if err = p.validateValues(op, v); err != nil {
-		return false, err
-	}
-	return eval(x, v, row), nil
-}
 func operand(x *Expr, v Values, row Row) Value {
 	switch x.op {
 	case "literal":

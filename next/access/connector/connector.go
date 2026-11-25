@@ -7,7 +7,6 @@ package connector
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
@@ -63,13 +62,6 @@ func Mount(a *app.App) {
 	p.Handle("POST /oauth/token", web.Func(h.token))
 	p.Handle("GET /oauth/clients/meta-muse.json", web.Func(h.muse))
 	p.Handle("DELETE /v1/me/apps/{id}", web.Func(h.disconnect))
-}
-
-// randomToken is prefix plus n random bytes, base64url, as the old service made them.
-func randomToken(prefix string, n int) string {
-	b := make([]byte, n)
-	rand.Read(b)
-	return prefix + base64.RawURLEncoding.EncodeToString(b)
 }
 
 // oauthError answers in OAuth's own error form, which apps read.
@@ -148,13 +140,13 @@ func (h *handler) register(w http.ResponseWriter, r *http.Request) error {
 	if len(in.Name) > 100 {
 		in.Name = in.Name[:100]
 	}
-	id := randomToken("shc_", 16)
+	id := access.NewSecret("shc_")[:26] // 22 random characters, as the old service made client ids
 	out := map[string]any{"client_id": id, "client_id_issued_at": time.Now().Unix(), "client_name": in.Name,
 		"redirect_uris": in.Redirects, "token_endpoint_auth_method": in.Method,
 		"grant_types": []string{"authorization_code", "refresh_token"}, "response_types": []string{"code"}}
 	var secretHash any
 	if in.Method != "none" {
-		secret := randomToken("shcs_", 32)
+		secret := access.NewSecret("shcs_")
 		secretHash, out["client_secret"], out["client_secret_expires_at"] = access.Hash(secret), secret, 0
 	}
 	meta, _ := json.Marshal(map[string]string{"token_endpoint_auth_method": in.Method})
@@ -278,7 +270,7 @@ func (h *handler) approve(w http.ResponseWriter, r *http.Request) error {
 	if sc == "" {
 		sc = scope
 	}
-	code := randomToken("shac_", 32)
+	code := access.NewSecret("shac_")
 	if _, err := h.a.DB.ExecContext(r.Context(), `INSERT INTO oauth_codes (code_hash, client_id, person_id, redirect_uri, code_challenge, scope, expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`, access.Hash(code), q.Get("client_id"), who.ID, q.Get("redirect_uri"),
 		q.Get("code_challenge"), sc, time.Now().Add(codeLife)); err != nil {
@@ -361,7 +353,7 @@ func (h *handler) refresh(w http.ResponseWriter, r *http.Request, c client) erro
 }
 
 func (h *handler) issue(w http.ResponseWriter, r *http.Request, grant, personID, sc string) error {
-	at, rt := randomToken("shat_", 32), randomToken("shrt_", 32)
+	at, rt := access.NewSecret("shat_"), access.NewSecret("shrt_")
 	now := time.Now()
 	if _, err := h.a.DB.ExecContext(r.Context(), `INSERT INTO oauth_tokens (hash, kind, grant_id, person_id, expires_at)
 		VALUES ($1, 'access', $3, $4, $5), ($2, 'refresh', $3, $4, $6)`, access.Hash(at), access.Hash(rt), grant, personID,

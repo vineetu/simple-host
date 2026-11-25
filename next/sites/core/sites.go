@@ -273,18 +273,24 @@ func (s *Sites) Of(r *http.Request) (*Site, error) {
 	if p := PlaceOf(r); p.Site != nil {
 		return p.Site, nil
 	}
-	ownerID := web.CallerOf(r).ID
-	if h := r.URL.Query().Get("owner"); h != "" {
-		o, err := s.People.ByHandle(r.Context(), h)
-		if err != nil {
-			return nil, err
-		}
-		ownerID = o.ID
+	ownerID, err := s.OwnerOf(r)
+	if err != nil {
+		return nil, err
 	}
 	if ownerID == "" {
 		return nil, web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 	}
 	return s.Get(r.Context(), ownerID, r.PathValue("site"))
+}
+
+// OwnerOf is whose sites a platform request means: the ?owner= handle (a
+// team), or else the caller.
+func (s *Sites) OwnerOf(r *http.Request) (string, error) {
+	if h := r.URL.Query().Get("owner"); h != "" {
+		o, err := s.People.ByHandle(r.Context(), h)
+		return o.ID, err
+	}
+	return web.CallerOf(r).ID, nil
 }
 
 // Manage refuses unless the caller may manage the site: its owner, a member

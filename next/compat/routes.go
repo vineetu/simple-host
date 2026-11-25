@@ -28,6 +28,7 @@ func (c *compat) routes() {
 		c.old.Handle(pattern, web.Func(fn))
 	}
 	// Publishing.
+	o("POST /v1/sites/{site}", c.publish)
 	o("POST /v1/sites/{site}/files", c.publish)
 	o("PUT /v1/sites/{site}/files", c.publish)
 	o("POST /v1/sites/{site}/restore", c.restore)
@@ -71,7 +72,6 @@ func (c *compat) routes() {
 	// Still-current addresses, the old way: an old query (?create=1,
 	// ?keep=1, ...) or the old skill's header.
 	c.shaped.Handle("PUT /v1/sites/{site}", web.Func(c.publish))
-	c.shaped.Handle("POST /v1/sites/{site}", web.Func(c.publish))
 	c.shaped.Handle("GET /v1/sites", web.Func(c.list))
 	c.shaped.Handle("GET /v1/sites/{site}", web.Func(c.site))
 }

@@ -125,14 +125,6 @@ func strictJSON(raw []byte, out any) error {
 	return nil
 }
 
-func EncodeSet(set PolicySet) []byte {
-	if set.Version == 0 {
-		set.Version = 1
-	}
-	b, _ := json.Marshal(set)
-	return b
-}
-
 func duplicateNames(set PolicySet) []RuleError {
 	seen := map[string]bool{}
 	var errs []RuleError
@@ -161,10 +153,3 @@ type Predicate struct {
 	SQL  string
 	Args []Value
 }
-type Tri uint8
-
-const (
-	False Tri = iota
-	True
-	Unknown
-)

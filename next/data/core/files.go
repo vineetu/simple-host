@@ -116,14 +116,16 @@ func (d *Data) PutFile(r *http.Request, n *NS, name, contentType, authorID strin
 	if err := limits.Fits(r, limits.FilesBytes, used+size); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp.Name(), final); err != nil {
-		return err
-	}
 	var author any
 	if authorID != "" {
 		author = authorID
 	}
-	_, err = n.Exec(r.Context(), `INSERT INTO _files (name, size, type, visitor_id) VALUES (?, ?, ?, ?)
-		ON CONFLICT (name) DO UPDATE SET size = excluded.size, type = excluded.type, created_at = CURRENT_TIMESTAMP`, name, size, contentType, author)
-	return err
+	// The record first, the bytes last: either both change or neither does.
+	return n.Tx(r.Context(), func() error {
+		if _, err := n.Exec(r.Context(), `INSERT INTO _files (name, size, type, visitor_id) VALUES (?, ?, ?, ?)
+			ON CONFLICT (name) DO UPDATE SET size = excluded.size, type = excluded.type, created_at = CURRENT_TIMESTAMP`, name, size, contentType, author); err != nil {
+			return err
+		}
+		return os.Rename(tmp.Name(), final)
+	})
 }

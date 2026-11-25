@@ -7,16 +7,6 @@ import "strings"
 func (p *Plan) Using(op Op, v Values) (Predicate, error) { return p.forRequest(op, false, v) }
 func (p *Plan) Check(op Op, v Values) (Predicate, error) { return p.forRequest(op, true, v) }
 
-// WorstCase returns the compiled clause with maximal list bindings and without
-// folding away binding-dependent branches, for save-time statement size checks.
-func (p *Plan) WorstCase(op Op, check bool) (Predicate, error) {
-	x, err := p.expression(op, check)
-	if err != nil {
-		return Predicate{}, err
-	}
-	return p.predicate(x, nil, true)
-}
-
 func (p *Plan) forRequest(op Op, check bool, v Values) (Predicate, error) {
 	x, err := p.expression(op, check)
 	if err != nil {

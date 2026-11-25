@@ -27,11 +27,9 @@ import (
 
 type handler struct{ a *app.App }
 
-// Mount adds route 22. POST answers exactly as PUT does: scripts use both.
+// Mount adds route 22 (old scripts' POST is next/compat's).
 func Mount(a *app.App) {
-	h := &handler{a}
-	a.Routes.Platform.Handle("PUT /v1/sites/{site}", web.Func(h.publish))
-	a.Routes.Platform.Handle("POST /v1/sites/{site}", web.Func(h.publish))
+	a.Routes.Platform.Handle("PUT /v1/sites/{site}", web.Func((&handler{a}).publish))
 }
 
 // publish reads the body (JSON files, or a .tar.gz or .zip archive), makes
@@ -79,16 +77,11 @@ func (h *handler) target(r *http.Request) (*sites.Site, string, error) {
 	if !errors.Is(err, web.NotFound) {
 		return nil, "", err
 	}
-	c := web.CallerOf(r)
-	ownerID := c.ID
-	if handle := r.URL.Query().Get("owner"); handle != "" {
-		o, err := h.a.People.ByHandle(r.Context(), handle)
-		if err != nil {
-			return nil, "", err
-		}
-		ownerID = o.ID
+	ownerID, err := h.a.Sites.OwnerOf(r)
+	if err != nil {
+		return nil, "", err
 	}
-	if ok, err := h.a.People.ActsFor(r.Context(), c, ownerID); err != nil || !ok {
+	if ok, err := h.a.People.ActsFor(r.Context(), web.CallerOf(r), ownerID); err != nil || !ok {
 		if err == nil {
 			err = web.Refuse(http.StatusForbidden, "not_yours", "Only the team's members can publish its sites.")
 		}

@@ -2,7 +2,6 @@ package data
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -59,15 +58,9 @@ func (d *Data) Begin(r *http.Request, s *sites.Sites, write bool) (*Req, error) 
 	return q, nil
 }
 
-// IsOwner is whether the caller may manage the site (sites.Manage without
-// its refusal).
+// IsOwner is whether the caller may manage the site (what sites.Manage asks).
 func IsOwner(r *http.Request, s *sites.Sites, site *sites.Site) (bool, error) {
-	err := s.Manage(r, site)
-	var ref *web.Refusal
-	if errors.As(err, &ref) {
-		return false, nil
-	}
-	return err == nil, err
+	return s.People.ActsFor(r.Context(), web.CallerOf(r), site.OwnerID)
 }
 
 // Rule is the SQL condition, with its arguments, a row must meet for this
