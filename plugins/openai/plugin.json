@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "simple-host",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Host websites you or your AI have made, at their own addresses. Publish and update files through the Simple Host connector, manage saved data and access, connect domains, and read visitor counts.",
   "author": {
     "name": "Vineet Sriram",
@@ -27,20 +27,20 @@
       "interface": {
         "displayName": "Simple Host",
         "shortDescription": "Host and manage your websites",
-        "longDescription": "Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.\n\nEach site can save key-value data (KV), SQLite tables, and files. Access rules control who can read, add, edit, and delete data. New resources are private by default. Use an inbox for submissions only the owner reads, records for each signed-in visitor's entries with owner access, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password or sign-up form.\n\nUpdate site files, preview a saved version, or restore an earlier version. The four latest site versions are kept by default, and deleted sites can be restored for 7 days. Current storage stays until you delete it or its site; it does not have automatic 30-day change history.\n\nConnect your own domain with HTTPS or choose a short name.simple-host.app address. Manage who can open a site, read visitor counts and top pages, and download a copy of your site.\n\nShare sites with a team: every member publishes and changes the team's sites with their own sign-in. Or let one person edit a single site.\n\nConnect your Simple Host account through the app's sign-in flow. You can revoke the connection from the Simple Host dashboard. Simple Host is open source, made and run by Vineet Sriram.",
+        "longDescription": "Simple Host hosts websites you or your AI have made. Your AI puts the files online through the connector, at an address you can share, and Simple Host keeps them there. Publish a page you have made, update an existing site, or ask to see its saved entries.\n\nEach site can save data: tables, values and files. Rules control who can read, add, change and delete it, and new data is private to you by default. Use an inbox for submissions only you read, bookings each signed-in visitor keeps their own, or public data for content everyone may read. Visitors sign in with Google or an emailed code; no password.\n\nChoose who may open a site: anyone with the link, one passcode, or only people you name by email. Make an older version live again, take a site offline, and restore a deleted site for 7 days. Four recent versions are kept.\n\nConnect your own domain with HTTPS or choose a short name.simple-host.app address. Read visit numbers and top pages, and download a copy of everything.\n\nShare sites with a team: every member publishes and changes the team's sites with their own sign-in.\n\nConnect your Simple Host account through the app's sign-in flow. You can revoke the connection from the Simple Host dashboard. Simple Host is open source, made and run by Vineet Sriram.",
         "developerName": "Vineet Sriram",
         "category": "Productivity",
         "capabilities": [
           "Publish websites, each at its own public address",
-          "Edit, rename, preview, roll back, and delete your sites",
+          "Update, roll back, take offline and delete your sites",
           "Save bookings, quote requests, waitlists, and orders",
           "Choose who can read and add saved data, with simple rules",
           "Let visitors sign in so each person sees only their own records",
           "Lock a site with a passcode or open it only to named people",
           "Connect your own domain or a short name.simple-host.app address",
-          "Share sites with a team, or let one person edit one site",
+          "Share sites with a team",
           "See visitors, top pages, and where they came from",
-          "Download a copy of any site"
+          "Download a copy of everything"
         ],
         "websiteURL": "https://simple-host.app",
         "supportURL": "https://simple-host.app/support",
@@ -62,31 +62,31 @@
             {
               "description": "Put a one-page site online as a new site.",
               "prompt": "Put a one-page website online for my bakery, Rise and Shine, as a new site named rise-and-shine. It should list our opening hours: Monday to Friday 7 to 3, Saturday 8 to 1.",
-              "tools_triggered": "create_site",
-              "expected_behavior": "Says the site name and address and that anyone with the link can open it, waits for a yes, then calls create_site once and returns the live https://rise-and-shine.<handle>.simple-host.app/ address. The page shows the bakery name and hours. No photo, notification, or identity calls, and no emails in the result."
+              "tools_triggered": "publish_site",
+              "expected_behavior": "Says the site name and that anyone with the link can open it, waits for a yes, then calls publish_site once and returns the live address exactly as the tool gave it (https://rise-and-shine--<handle>.simple-host.site/ or https://rise-and-shine.<handle>.simple-host.app/). The page shows the bakery name and hours. No photo, notification, or team calls, and no emails in the result."
             },
             {
               "description": "Update the seeded feedback survey and undo the requested change.",
               "prompt": "On feedback-survey, change the heading to \"Tell us how we did\". Then, in the same chat: Undo that change.",
-              "tools_triggered": "get_site, read_site_file, update_site, list_versions, rollback_site",
-              "expected_behavior": "The survey shows the requested heading. After confirmation of the rollback, the previous version restores the original heading. No account or visitor emails are returned."
+              "tools_triggered": "get_site, read_site_file, publish_site, change_site",
+              "expected_behavior": "The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, change_site makes the previous version live and the original heading returns. No account or visitor emails are returned."
             },
             {
               "description": "Create a team and invite one person to it.",
               "prompt": "Create a team called rise-bakery-crew so my staff can work on our sites, and invite sam@example.com to it.",
-              "tools_triggered": "create_team, add_team_member",
-              "expected_behavior": "Says the team name becomes its address and cannot be changed later, waits for a yes, then calls create_team once and add_team_member with sam@example.com. Says that nothing is emailed to Sam, so the person should tell Sam to sign in with that email and accept. No site is created, changed or deleted."
+              "tools_triggered": "create_team, invite_to_team",
+              "expected_behavior": "Says the team name becomes its address and cannot be changed later, waits for a yes, then calls create_team once and invite_to_team with sam@example.com. Says that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted."
             },
             {
               "description": "Count RSVPs without identifying visitors.",
               "prompt": "How many RSVPs do I have on garden-party-rsvp?",
-              "tools_triggered": "storage_sql_query",
-              "expected_behavior": "Returns COUNT(*) from the rsvps table in the rsvps resource, matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i or storage_visitor_emails."
+              "tools_triggered": "run_sql",
+              "expected_behavior": "Runs a COUNT(*) on the rsvps table of the site's rsvps namespace and returns the number matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i."
             },
             {
               "description": "Visitor numbers without per-visitor detail.",
               "prompt": "How many people visited feedback-survey this week, and which pages did they read?",
-              "tools_triggered": "site_analytics",
+              "tools_triggered": "site_stats",
               "expected_behavior": "Returns visit totals, daily counts, and top pages for feedback-survey. The result has no IP addresses, locations of individuals, emails, or visitor identifiers. Nothing is changed."
             }
           ],
@@ -111,7 +111,7 @@
         "demo_recording_url": "https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-demo.mp4"
       },
       "publication": {
-        "release_notes": "First release of Simple Host as a new plugin, replacing the app-6ab570c7e41c81918c88f0026f2e1895 listing that the portal will not let gain an MCP server. Same connector, skills, and reviewer tests: publish and manage websites, with saved data, visitor sign-in, custom domains, and visitor counts."
+        "release_notes": "A rewritten Simple Host connector with 27 tools instead of 68 (one is only called by the passcode screen): publish, change, access, address and visit numbers on a site; saved data with rules and the owner's SQL; teams; in-chat screens for the passcode, the photo picker, my sites and visit numbers. Same account and sites."
       }
     }
   }

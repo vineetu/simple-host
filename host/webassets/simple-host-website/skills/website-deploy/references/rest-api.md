@@ -1,81 +1,51 @@
 # REST API without the connector
 
 Use this only when no Simple Host connector tools are available (a terminal agent, CI, a script).
-Everything else in these skills still applies: ask before the same steps, give the person the
+Everything else in this skill still applies: ask before the same steps, give the person the
 returned URLs, never put a key in a page.
 
 - Base URL: `https://simple-host.app/v1`
-- Every authenticated call: `X-API-Key: <key>`
-- Every call: `X-Skill-Version: 0.27.119` (without it the server keeps asking you to update)
-- Keep the key out of chat, logs, pages and commits. Store it in `~/.website-deploy/config.json`
-  (resolve `~` yourself) or the environment's secret store.
-
-## Get an API key
-
-The person signs in with their email; the code goes to their inbox (15-minute code).
-
-```
-curl -sS https://simple-host.app/v1/auth -H 'Content-Type: application/json' -d '{"email":"me@example.com"}'
-curl -sS https://simple-host.app/v1/auth/verify -H 'Content-Type: application/json' -d '{"email":"me@example.com","code":"123456"}'
-```
-
-The second call returns `api_key` (and `handle`). Have the person run it themselves, or create a
-key in the dashboard's Keys panel; never ask them to paste the code or key into chat. A new
-email creates the account.
+- Every call: `X-API-Key: <key>`. The key acts as the person who made it.
+- The person makes a named key in the dashboard (https://simple-host.app/dashboard, shown once)
+  and puts it in the environment (`SIMPLE_HOST_KEY`). Never ask them to paste it into chat, and
+  never write it to a page, a log or a commit. Tools cannot make keys.
+- A site of a team: add `?owner=<team handle>`.
 
 ## Publish
 
-Inline JSON, for sites you wrote (`index.html` required; binary files base64 in `files_base64`):
+```
+curl -sS -X PUT "https://simple-host.app/v1/sites/my-site?keep_other_files=true" \
+  -H "X-API-Key: $SIMPLE_HOST_KEY" -H 'Content-Type: application/json' \
+  -d '{"files":{"index.html":"<!doctype html>..."},"files_base64":{"logo.png":"iVBOR..."}}'
+```
 
-```
-curl -sS -X POST https://simple-host.app/v1/sites/my-site/files -H "X-API-Key: $KEY" -H 'X-Skill-Version: 0.27.119' -H 'Content-Type: application/json' -d '{"files":{"index.html":"<!doctype html>..."}}'
-```
+The answer has the live `url`: give it exactly as returned. Leave out `keep_other_files` to
+replace the whole site. A new site name is made by the first publish.
+
+## Other calls
 
 | Job | Call |
 |---|---|
-| New site, inline JSON | `POST /sites/{site}/files` `{"files":{...},"files_base64":{...}}`; add `"access":"specific","viewers":[...]` for a private site |
-| Replace an existing site | `PUT /sites/{site}/files` (same body) |
-| Change some files, keep the rest | `PUT /sites/{site}/files?keep=1` (`remove_files` drops named paths) |
-| Create or update in one call (CI) | `PUT /sites/{site}/files?create=1` |
-| Store a version without making it live | add `?publish=false`; the answer has `preview_url` |
-| Archive (`.tar.gz` or `.zip`, files at the root) | `POST /sites/{site}` new, `PUT /sites/{site}` existing, body `--data-binary @site.tar.gz` |
+| Me, teams, keys, use | `GET /me` |
+| My sites; search; the bin | `GET /sites?q=&bin=true` |
+| One site (address, versions, access, domain, data) | `GET /sites/{site}` |
+| Read a file | `GET /sites/{site}/files/{path}` |
+| Offline, listed, live version, restore | `PATCH /sites/{site}` `{"offline":true}` `{"listed":true}` `{"live_version":3}` `{"restore":true}` |
+| Access | `PATCH /sites/{site}` `{"access":"open"}`, `{"access":"viewers","viewers":["a@x.com"]}`, `{"access":"passcode","passcode":"..."}` (the person types it, not you) |
+| Domain, short name | `PATCH /sites/{site}` `{"domain":"shop.example.com"}` `{"short_name":"bakery"}` |
+| Notifications | `PATCH /sites/{site}` `{"notifications":[...]}` |
+| Move to the bin | `DELETE /sites/{site}` |
+| Big archive, or photos | `POST /sites/{site}/upload-links` `{"kind":"archive"}` or `{"kind":"files","namespace":"photos"}`, then `PUT /uploads/{token}` |
+| Visit numbers | `GET /sites/{site}/stats?days=30` |
+| Owner SQL | `POST /sites/{site}/storage/sqlite/{ns}/query`, `/execute`, `/schema` with `{"sql":"...","params":[]}` |
+| Rules | `PUT /sites/{site}/storage/{ns}/rules` `{"rules":{...},"spam_check":false}` |
+| Rows | `GET`/`POST /sites/{site}/storage/sqlite/{ns}/tables/{table}/rows`, `GET`/`PATCH`/`DELETE .../rows/{id}` |
+| Values | `GET`/`PUT`/`DELETE /sites/{site}/storage/kv/{ns}/keys/{key}` |
+| Files | `GET`/`PUT`/`DELETE /sites/{site}/storage/files/{ns}/objects/{path}` |
+| Recipes | `GET /recipes/{topic}?site=<site>` |
+| Teams | `POST /teams`, `POST /teams/{team}/invites`, `POST /invites/{id}/accept`, `DELETE /teams/{team}/members/{person}`, `DELETE /teams/{team}` |
+| Handle, name, home site | `PATCH /owners/me` (or a team handle) |
+| Download everything | `POST /me/export` (the link comes by email) |
 
-The API rejects archives over 100 MB. Every answer has `site_url`: give that to the person.
-
-## Sites and versions
-
-| Job | Call |
-|---|---|
-| Who am I, handle, usage | `GET /me` |
-| List sites | `GET /sites` |
-| Delete a site (restorable for 7 days) | `DELETE /sites/{site}`; undo with `POST /sites/{site}/restore` |
-| List versions | `GET /sites/{site}/versions` |
-| Roll back or make a stored version live | `PUT /sites/{site}/active-version` `{"version_number": 3}` |
-| Files of a version | `GET /sites/{site}/versions/{n}/files`, `.../files/{path}` |
-| List on my profile | `PUT /sites/{site}/visibility` `{"visibility":"public"}` or `"unlisted"` |
-| Named viewers | `POST /sites/{site}/viewers` `{"emails":[...]}`, `DELETE /sites/{site}/viewers/{email}` |
-| Own domain or short address | `POST /sites/{site}/domain` `{"domain":"rsvp.example.com"}`, `GET` to check, `DELETE` to remove |
-| Teams | `POST /teams` `{"name"}`, `GET /teams`, `GET`/`POST /teams/{team}/members` (`{"email"}` invites), `DELETE /teams/{team}/members/{handle}`, `POST /me/team-invitations/{id}` `{"answer":"accept"}`, `DELETE /teams/{team}` |
-| Site editors | `GET`/`POST /sites/{site}/editors` `{"person":"<handle>"}`, `DELETE /sites/{site}/editors/{handle}` |
-
-Add `?owner=<team or account>` to any `/sites` call to act on a team's sites, or on the one site you edit.
-
-## Storage
-
-Paths start `/sites/{site}/storage`. Rules and the full table: `references/storage.md`.
-
-| Job | Call |
-|---|---|
-| Create a resource with rules | `PUT /resources/{name}` `{"kind":"sqlite","rules":{...}}` (`kv`, `files` the same) |
-| List resources, usage | `GET /resources`, `GET /usage` |
-| KV put / get / delete | `PUT /kv/{name}/keys/{key}` `{"value": <JSON>}`, `GET`, `DELETE` the same path |
-| SQL schema / query / execute | `POST /sqlite/{name}/schema`, `/query`, `/execute` with `{"sql":"...","params":[...]}` |
-| Files put / get / list / delete | `PUT /files/{name}/objects/{path}` raw bytes with `Content-Type`; `GET`, `DELETE` the same path; `GET /files/{name}/objects` |
-
-```
-curl -sS -X PUT https://simple-host.app/v1/sites/my-site/storage/resources/menu -H "X-API-Key: $KEY" -H 'X-Skill-Version: 0.27.119' -H 'Content-Type: application/json' -d '{"kind":"kv","rules":{"version":1,"policies":[{"command":"read","using":"true"},{"command":"all","using":"auth.role == \"owner\""}]}}'
-```
-
-A request that names a page (`Origin`) must come from the site's own address; scripts send none.
-On `429` or `503`, wait for `Retry-After`. Create calls accept an `Idempotency-Key` header for
-safe retries.
+Every refusal is JSON `{"code": "...", "fix": "..."}`: read `fix`. Full reference:
+https://simple-host.app/docs.
