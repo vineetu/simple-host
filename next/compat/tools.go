@@ -23,12 +23,16 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 	if over() {
 		return nil, false
 	}
+	if current[name] && !oldArgs(name, in) { // a current call: the current answer, with the old fields added
+		res, _ := run(name, in)
+		return oldAnswer(name, args(in), res, run), true
+	}
 	var res map[string]any
 	switch name {
 	case "create_upload_link": // only the old shape gets here (OldArgs)
 		res = photoPicker(args(in), run)
 	case "find_tools":
-		res = map[string]any{"content": []any{text(list)}}
+		res = map[string]any{"content": []any{text(list)}, "structuredContent": findTools(list)}
 	case "run_tool":
 		inner, _ := in["arguments"].(map[string]any)
 		if inner == nil {
@@ -77,6 +81,9 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 		if len(steps) > 1 {
 			res["content"] = content
 		}
+	}
+	if name != "run_tool" && name != "find_tools" {
+		res = oldAnswer(name, args(in), res, run)
 	}
 	count(a, r, "tool "+name)
 	if toolNoticeDue(r) {
@@ -212,6 +219,7 @@ var oldTools = map[string]func(a args) ([]step, error){
 	},
 	"export_site":        func(a args) ([]step, error) { return one("download_my_data", args{}) },
 	"set_home_page":      func(a args) ([]step, error) { return one("update_account", args{"home_site": a.s("site")}) },
+	"create_team":        func(a args) ([]step, error) { return one("create_team", args{"handle": a.s("name")}) },
 	"list_teams":         func(a args) ([]step, error) { return one("who_am_i", args{}) },
 	"list_team_members":  func(a args) ([]step, error) { return one("who_am_i", args{}) },
 	"add_team_member":    func(a args) ([]step, error) { return one("invite_to_team", a.keep("team", "email")) },
@@ -268,18 +276,25 @@ var oldTools = map[string]func(a args) ([]step, error){
 	"storage_file_download_link": gone("Download links for stored files"),
 	"storage_delete_resource":    gone("Deleting a whole storage resource"),
 	"passcode_screen":            gone("The old passcode screen"),
+	"visitor_add_entry":          gone("Separate visitor tools"),
+	"visitor_change_entry":       gone("Separate visitor tools"),
 }
 
 // recipeTopics are the old recipe topics that have a current one.
 var recipeTopics = map[string]string{"contact": "inbox", "quote": "inbox", "waitlist": "inbox", "form": "inbox",
 	"menu": "public", "guestbook": "comments", "booking": "personal", "reservation": "personal", "appointment": "personal"}
 
-// OldArgs reports whether a call of a current tool name carries arguments
-// only the old tool of that name took; mcp then sends it to Tool.
+// OldArgs reports whether compat answers a call of a current tool name; mcp
+// then sends it to Tool. It does when the call carries arguments only the
+// old tool of that name took, and for every name the old list also had with
+// an outputSchema, so the answer carries the old fields as well (shapes.go).
 func OldArgs(name string, in map[string]any) bool {
-	if over() {
-		return false
-	}
+	return !over() && (current[name] || oldArgs(name, in))
+}
+
+// oldArgs reports whether a call carries arguments only the old tool of
+// that name took.
+func oldArgs(name string, in map[string]any) bool {
 	a := args(in)
 	switch name {
 	case "create_upload_link": // the old {site} (photo picker) or {site, archive: true}
@@ -289,7 +304,9 @@ func OldArgs(name string, in map[string]any) bool {
 	case "read_site_file":
 		return a["paths"] != nil || a["version"] != nil
 	case "list_sites":
-		return a["query"] != nil
+		return a["query"] != nil || a["limit"] != nil || a["offset"] != nil || a["order"] != nil
+	case "create_team":
+		return a["name"] != nil && a["handle"] == nil
 	}
 	return false
 }

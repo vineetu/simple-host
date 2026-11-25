@@ -9,6 +9,10 @@ Callers of Simple Host from before the rebuild keep working until the sunset dat
   `X-Skill-Version` header.
 - **Old tool names** (`tools.go`): AI apps that keep an old tool list. mcp asks `compat.Tool`
   for any name it does not have.
+  Apps that hold the old list also validate answers against the old output schemas, so each
+  old name's structuredContent has the old fields (`shapes.go`; the old list is
+  `testdata/old-tools.json`, checked by `TestOldToolAnswersMatchTheOldOutputSchemas`), and
+  refusals carry no structuredContent.
 - **The old skill** (`X-Skill-Version` on any request): `/v1/skills/...` serves the new skill.
 - **Old photo picker**: `create_upload_link {site}` (no namespace, kind or archive) gets the
   current picker (namespace `photos`) plus the old `photos_url` and a note on where photos land.
