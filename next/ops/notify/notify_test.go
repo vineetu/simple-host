@@ -26,7 +26,7 @@ func device(t *testing.T, k *testkit.Kit, who testkit.Who) {
 	rand.Read(secret)
 	b64 := base64.RawURLEncoding.EncodeToString
 	r := testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/me/push", map[string]any{"endpoint": k.Push.URL + who.Handle,
-		"name": "phone", "keys": map[string]string{"p256dh": b64(key.PublicKey().Bytes()), "auth": b64(secret)}}, "Authorization", "Bearer "+who.Key)
+		"name": "phone", "keys": map[string]string{"p256dh": b64(key.PublicKey().Bytes()), "auth": b64(secret)}}, "X-API-Key", who.Key)
 	if r.Status != 200 {
 		t.Fatalf("push device: %d %s", r.Status, r.Body)
 	}
@@ -39,7 +39,7 @@ func TestDataChangeTellsTheOwner(t *testing.T) {
 	nina, vera := k.Person(t, "nina"), k.Person(t, "vera")
 	k.Publish(t, nina, "cafe", map[string]string{"index.html": "cafe"})
 	owner := func(method, path string, body any) {
-		if r := testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/cafe"+path, body, "Authorization", "Bearer "+nina.Key); r.Status != 200 {
+		if r := testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/cafe"+path, body, "X-API-Key", nina.Key); r.Status != 200 {
 			t.Fatalf("%s %s: %d %s", method, path, r.Status, r.Body)
 		}
 	}
@@ -61,7 +61,7 @@ func TestDataChangeTellsTheOwner(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "GET", "https://simple-host.app/mcp", nil)
-	req.Header.Set("Authorization", "Bearer "+nina.Key)
+	req.Header.Set("X-API-Key", nina.Key)
 	req.Header.Set("Last-Event-ID", "0")
 	stream, err := k.Browser().Do(req)
 	if err != nil || stream.StatusCode != 200 {

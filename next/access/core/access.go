@@ -65,7 +65,7 @@ const (
 )
 
 // Caller resolves the request's credential to a person. On a site address
-// (siteID set) it reads a key or app token, or that site's visitor session;
+// (siteID set) it reads a key (X-API-Key) or app token (Bearer), or that site's visitor session;
 // on the platform it reads a key or app token, or the dashboard session. A
 // bad key is refused; a stale cookie is just nobody. A cookie counts only
 // under web.FromOwnPage, and never on a web.KeyOnly path. A suspended person
@@ -74,14 +74,15 @@ func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 	ctx := r.Context()
 	var id, via string
 	var err error
-	if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
-		h := Hash(strings.TrimSpace(tok))
+	if key := strings.TrimSpace(r.Header.Get("X-API-Key")); key != "" { // the header scripts use today
 		via = "key"
-		err = p.DB.QueryRowContext(ctx, `UPDATE keys SET last_used_at = now() WHERE hash = $1 RETURNING person_id`, h).Scan(&id)
+		err = p.DB.QueryRowContext(ctx, `UPDATE keys SET last_used_at = now() WHERE hash = $1 RETURNING person_id`, Hash(key)).Scan(&id)
 		if err == sql.ErrNoRows {
-			via = "app"
-			err = p.DB.QueryRowContext(ctx, `SELECT person_id FROM oauth_tokens WHERE hash = $1 AND kind = 'access' AND expires_at > now()`, h).Scan(&id)
+			return web.Caller{}, errBadCredential
 		}
+	} else if tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		via = "app"
+		err = p.DB.QueryRowContext(ctx, `SELECT person_id FROM oauth_tokens WHERE hash = $1 AND kind = 'access' AND expires_at > now()`, Hash(strings.TrimSpace(tok))).Scan(&id)
 		if err == sql.ErrNoRows {
 			return web.Caller{}, errBadCredential
 		}

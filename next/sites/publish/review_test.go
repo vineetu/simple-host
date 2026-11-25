@@ -21,7 +21,7 @@ func TestPublishesInFlightAreCapped(t *testing.T) {
 	k.Publish(t, eve, "evil", map[string]string{"index.html": "x"})
 	send := func(body io.Reader, length int64) int {
 		req, _ := http.NewRequest("POST", "https://simple-host.app/v1/sites/evil", body)
-		req.Header.Set("Authorization", "Bearer "+eve.Key)
+		req.Header.Set("X-API-Key", eve.Key)
 		req.Header.Set("Content-Type", "application/json")
 		req.ContentLength = length
 		res, err := k.Browser().Do(req)

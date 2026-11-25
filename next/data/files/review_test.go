@@ -21,7 +21,7 @@ func TestFileNameCheckedWhereUsed(t *testing.T) {
 	k.Publish(t, eve, "evil", map[string]string{"index.html": "x"})
 	victim := filepath.Join(k.App.Config.DataDir, "victim.txt")
 	os.WriteFile(victim, []byte("secret"), 0o644)
-	key := []string{"Authorization", "Bearer " + eve.Key}
+	key := []string{"X-API-Key", eve.Key}
 	base := "https://simple-host.app/v1/sites/evil/storage/"
 	testkit.Call(t, k.Browser(), "POST", base+"sqlite/ns/execute", map[string]any{"sql": "SELECT 1"}, key...)
 	if r := testkit.Call(t, k.Browser(), "POST", base+"sqlite/ns/execute",
@@ -48,7 +48,7 @@ func TestFileCapIsMeasuredOnDisk(t *testing.T) {
 	k := testkit.Start(t, files.Mount, datasql.Mount)
 	eve := k.Person(t, "eve")
 	k.Publish(t, eve, "evil", map[string]string{"index.html": "x"})
-	key := []string{"Authorization", "Bearer " + eve.Key}
+	key := []string{"X-API-Key", eve.Key}
 	base := "https://simple-host.app/v1/sites/evil/storage/"
 	for _, ns := range []string{"ns", "ns2"} {
 		testkit.Call(t, k.Browser(), "POST", base+"sqlite/"+ns+"/execute", map[string]any{"sql": "SELECT 1"}, key...)

@@ -172,7 +172,7 @@ k := testkit.Start(t, keys.Mount, publish.Mount) // throwaway database + every f
 bob := k.Person(t, "bob")                         // bob.ID, bob.Email, bob.Key
 k.Publish(t, bob, "blog", map[string]string{"index.html": "hi"})
 b := k.Browser()                                  // own cookie jar; any host reaches the service
-r := testkit.Call(t, b, "POST", "https://simple-host.app/v1/keys", body, "Authorization", "Bearer "+bob.Key)
+r := testkit.Call(t, b, "POST", "https://simple-host.app/v1/keys", body, "X-API-Key", bob.Key)
 k.Exec(t, `UPDATE people SET operator = true WHERE id = $1`, bob.ID) // setup no feature offers
 k.SignIn(t, b, bob, siteURL)                      // a visitor session, for tests of features that need one
 ```

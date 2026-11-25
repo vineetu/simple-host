@@ -51,7 +51,7 @@ func TestPasscode(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := func(method, path, body string) {
-		if r := testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/club/storage/"+path, body, "Authorization", "Bearer "+ann.Key); r.Status != 200 {
+		if r := testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/club/storage/"+path, body, "X-API-Key", ann.Key); r.Status != 200 {
 			t.Fatalf("%s %s: %d %s", method, path, r.Status, r.Body)
 		}
 	}

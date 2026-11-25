@@ -56,7 +56,7 @@ type rpcError struct {
 
 func (h *server) post(w http.ResponseWriter, r *http.Request) error {
 	if web.CallerOf(r).ID == "" {
-		w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="https://`+h.a.Config.AppDomain+`/.well-known/oauth-protected-resource"`)
+		w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="https://`+h.a.Config.AppDomain+`/.well-known/oauth-protected-resource/mcp"`)
 		return web.Refuse(http.StatusUnauthorized, "sign_in", "Connect the app to Simple Host first.")
 	}
 	var req rpc
@@ -114,7 +114,7 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 		json.Unmarshal(req.Params, &p)
 		i := slices.IndexFunc(tools, func(t tool) bool { return t.name == p.Name })
 		if i < 0 {
-			return nil, &rpcError{-32602, "No tool named " + p.Name + "."}
+			return nil, &rpcError{-32602, "No tool named " + p.Name + ". The tools changed: list them again (tools/list)."}
 		}
 		if p.Arguments == nil {
 			p.Arguments = map[string]any{}

@@ -50,7 +50,7 @@ func TestPurgeAfterChange(t *testing.T) {
 	k.BehindCloudflare()
 	b := k.Browser()
 	bob := k.Person(t, "bob")
-	auth := []string{"Authorization", "Bearer " + bob.Key, "Content-Type", "application/json"}
+	auth := []string{"X-API-Key", bob.Key, "Content-Type", "application/json"}
 	put := func() testkit.Res {
 		return testkit.Call(t, b, "PUT", "https://simple-host.app/v1/sites/blog", map[string]any{"files": map[string]string{"index.html": "hi"}}, auth...)
 	}
@@ -84,7 +84,7 @@ func TestNoCloudflare(t *testing.T) {
 	k := testkit.Start(t, publish.Mount, api.Mount)
 	b := k.Browser()
 	bob := k.Person(t, "bob")
-	auth := []string{"Authorization", "Bearer " + bob.Key, "Content-Type", "application/json"}
+	auth := []string{"X-API-Key", bob.Key, "Content-Type", "application/json"}
 	r := testkit.Call(t, b, "PUT", "https://simple-host.app/v1/sites/blog", map[string]any{"files": map[string]string{"index.html": "hi"}}, auth...)
 	if r.Status != 200 || strings.Contains(r.Body, "note") {
 		t.Fatalf("publish: %d %s", r.Status, r.Body)

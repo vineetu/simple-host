@@ -37,7 +37,7 @@ func Mount(a *app.App) {
 	a.Routes.Platform.Handle("PATCH /v1/sites/{site}", web.Func(h.change))
 }
 
-var errSignIn = web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as Authorization: Bearer <key>.")
+var errSignIn = web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 
 // me is route 6: me, my teams with their members, invitations, keys,
 // connected apps, push devices and use against the limits.

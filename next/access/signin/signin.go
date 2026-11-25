@@ -44,8 +44,8 @@ func Mount(a *app.App) {
 	h := &handler{a}
 	a.Routes.Platform.Handle("POST /v1/auth/code", web.Func(h.sendCode))
 	a.Routes.Platform.Handle("POST /v1/auth/verify", web.Func(h.verify))
-	a.Routes.Platform.Handle("GET /v1/auth/{provider}", web.Func(h.start))
-	a.Routes.Platform.Handle("GET /v1/auth/{provider}/callback", web.Func(h.finish))
+	a.Routes.Platform.Handle("GET /v1/auth/oauth/{provider}", web.Func(h.start))
+	a.Routes.Platform.Handle("GET /v1/auth/oauth/{provider}/callback", web.Func(h.finish))
 	a.Routes.Platform.Handle("POST /v1/auth/signout", web.Func(h.signOut))
 }
 
@@ -200,7 +200,7 @@ func (h *handler) provider(name string) (provider, bool) {
 }
 
 func (h *handler) callback(name string) string {
-	return "https://" + h.a.Config.AppDomain + "/v1/auth/" + name + "/callback"
+	return "https://" + h.a.Config.AppDomain + "/v1/auth/oauth/" + name + "/callback"
 }
 
 // start is route 3: send the browser to the provider. A hop from a site

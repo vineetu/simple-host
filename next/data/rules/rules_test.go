@@ -25,7 +25,7 @@ func setup(t *testing.T) fixture {
 	s, _ := k.App.Sites.Get(context.Background(), f.bob.ID, "wall")
 	f.addr = k.App.Sites.URL(s)
 	f.owner = func(method, path string, body any) testkit.Res {
-		return testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/wall/storage/"+path, body, "Authorization", "Bearer "+f.bob.Key)
+		return testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/wall/storage/"+path, body, "X-API-Key", f.bob.Key)
 	}
 	if r := f.owner("POST", "sqlite/posts/execute", map[string]any{"sql": "CREATE TABLE posts (id INTEGER PRIMARY KEY, text TEXT, visitor_id TEXT)"}); r.Status != 200 {
 		t.Fatal(r.Body)

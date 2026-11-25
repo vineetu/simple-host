@@ -69,7 +69,7 @@ func TestBinAndOffline(t *testing.T) {
 	ns.Exec(ctx, `INSERT INTO _values (key, value) VALUES ('total', '42')`)
 	ns.Close()
 
-	key := []string{"Authorization", "Bearer " + bob.Key}
+	key := []string{"X-API-Key", bob.Key}
 	if res := testkit.Call(t, b, "DELETE", "https://simple-host.app/v1/sites/shop", nil, key...); res.Status != 200 {
 		t.Fatalf("delete: %d %s", res.Status, res.Body)
 	}

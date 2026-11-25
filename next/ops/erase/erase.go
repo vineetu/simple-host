@@ -24,7 +24,7 @@ func Mount(a *app.App) {
 func erase(w http.ResponseWriter, r *http.Request, a *app.App) error {
 	c := web.CallerOf(r)
 	if c.ID == "" || c.Visitor() {
-		return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in to the dashboard, or send your key as Authorization: Bearer <key>.")
+		return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in to the dashboard, or send your key as X-API-Key: <key>.")
 	}
 	ctx := r.Context()
 	tx, err := a.DB.BeginTx(ctx, nil)

@@ -30,7 +30,7 @@ func Mount(a *app.App) {
 	a.Routes.Platform.Handle("POST /v1/me/export", web.Func(func(w http.ResponseWriter, r *http.Request) error {
 		c := web.CallerOf(r)
 		if c.ID == "" || c.Visitor() {
-			return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as Authorization: Bearer <key>.")
+			return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 		}
 		if _, err := a.DB.ExecContext(r.Context(), `INSERT INTO exports (person_id) SELECT $1
 			WHERE NOT EXISTS (SELECT 1 FROM exports WHERE person_id = $1 AND status = 'queued')`, c.ID); err != nil {

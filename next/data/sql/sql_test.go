@@ -21,7 +21,7 @@ func TestTheTwoGuards(t *testing.T) {
 	k.Publish(t, bob, "shop", map[string]string{"index.html": "shop"})
 	run := func(mode, sql string) testkit.Res {
 		return testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/shop/storage/sqlite/big/"+mode,
-			map[string]any{"sql": sql}, "Authorization", "Bearer "+bob.Key)
+			map[string]any{"sql": sql}, "X-API-Key", bob.Key)
 	}
 	if r := run("execute", "CREATE TABLE blobs (b BLOB)"); r.Status != 200 {
 		t.Fatalf("create: %d %s", r.Status, r.Body)

@@ -20,7 +20,7 @@
   </section>
   <section>
     <h2>Keys</h2>
-    <p>Make a key in the dashboard. Send it as <code>Authorization: Bearer &lt;key&gt;</code>. A key acts as the person who made it. Revoke it in the dashboard and it stops at once.</p>
+    <p>Make a key in the dashboard. Send it as <code>X-API-Key: &lt;key&gt;</code>. A key acts as the person who made it. Revoke it in the dashboard and it stops at once.</p>
     <h2>Refusals</h2>
     <p>Every refusal is JSON, <code>{"code": "...", "fix": "..."}</code>, with an HTTP status. <code>fix</code> says in plain words what to do. When a limit was hit, the refusal names that limit.</p>
     <h2>Addresses</h2>
@@ -33,8 +33,8 @@
       <tbody>
         <tr><td>POST</td><td><code>/v1/auth/code</code></td><td>Email a sign-in code.</td></tr>
         <tr><td>POST</td><td><code>/v1/auth/verify</code></td><td>Check the code and start a session. A new person picks a handle here.</td></tr>
-        <tr><td>GET</td><td><code>/v1/auth/{provider}</code></td><td>Start sign-in with Google (or another provider).</td></tr>
-        <tr><td>GET</td><td><code>/v1/auth/{provider}/callback</code></td><td>Finish provider sign-in. The verified email picks the person.</td></tr>
+        <tr><td>GET</td><td><code>/v1/auth/oauth/{provider}</code></td><td>Start sign-in with Google (or another provider).</td></tr>
+        <tr><td>GET</td><td><code>/v1/auth/oauth/{provider}/callback</code></td><td>Finish provider sign-in. The verified email picks the person.</td></tr>
         <tr><td>POST</td><td><code>/v1/auth/signout</code></td><td>End this session, or all of them with <code>everywhere</code>.</td></tr>
         <tr><td>GET</td><td><code>/v1/me</code></td><td>Me, teams, invitations, key names, connected apps, use against limits.</td></tr>
         <tr><td>PATCH</td><td><code>/v1/owners/{owner}</code></td><td>Change handle, display name, home site or domain for all sites (person or team).</td></tr>
@@ -106,7 +106,7 @@
         <tr><td>PUT</td><td><code>/v1/sites/{site}/storage/kv/{ns}/keys/{key}</code></td><td>Set a value.</td></tr>
         <tr><td>DELETE</td><td><code>/v1/sites/{site}/storage/kv/{ns}/keys/{key}</code></td><td>Delete a value.</td></tr>
         <tr><td>GET</td><td><code>/v1/sites/{site}/storage/files/{ns}/objects</code></td><td>List files.</td></tr>
-        <tr><td>POST</td><td><code>/v1/sites/{site}/storage/files/{ns}</code></td><td>Upload a file.</td></tr>
+        <tr><td>PUT</td><td><code>/v1/sites/{site}/storage/files/{ns}/objects/{path}</code></td><td>Upload a file.</td></tr>
         <tr><td>GET</td><td><code>/v1/sites/{site}/storage/files/{ns}/objects/{path}</code></td><td>Fetch a file.</td></tr>
         <tr><td>DELETE</td><td><code>/v1/sites/{site}/storage/files/{ns}/objects/{path}</code></td><td>Delete a file.</td></tr>
       </tbody>
@@ -128,7 +128,7 @@
       <thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead>
       <tbody>
         <tr><td>POST, GET</td><td><code>/mcp</code></td><td>Every tool, and MCP events.</td></tr>
-        <tr><td>GET</td><td><code>/.well-known/oauth-protected-resource</code></td><td>Tells apps where to sign in.</td></tr>
+        <tr><td>GET</td><td><code>/.well-known/oauth-protected-resource/mcp</code></td><td>Tells apps where to sign in.</td></tr>
         <tr><td>GET</td><td><code>/.well-known/oauth-authorization-server</code></td><td>Sign-in server details.</td></tr>
         <tr><td>POST</td><td><code>/oauth/register</code></td><td>An app registers itself.</td></tr>
         <tr><td>GET, POST</td><td><code>/oauth/authorize</code></td><td>Sign in and approve.</td></tr>

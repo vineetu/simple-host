@@ -66,7 +66,7 @@ func as(t *testing.T, k *testkit.Kit, who testkit.Who) *person {
 // api calls a platform route with the person's key; want is the status.
 func (p *person) api(method, path string, body any, want int) map[string]any {
 	p.t.Helper()
-	r := testkit.Call(p.t, p.b, method, platform+path, body, "Authorization", "Bearer "+p.who.Key, "Content-Type", "application/json")
+	r := testkit.Call(p.t, p.b, method, platform+path, body, "X-API-Key", p.who.Key, "Content-Type", "application/json")
 	if r.Status != want {
 		p.t.Fatalf("%s %s: %d %s, want %d", method, path, r.Status, r.Body, want)
 	}
@@ -79,7 +79,7 @@ func (p *person) api(method, path string, body any, want int) map[string]any {
 func (p *person) tool(name string, args map[string]any) map[string]any {
 	p.t.Helper()
 	r := testkit.Call(p.t, p.b, "POST", platform+"/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-		"params": map[string]any{"name": name, "arguments": args}}, "Authorization", "Bearer "+p.who.Key)
+		"params": map[string]any{"name": name, "arguments": args}}, "X-API-Key", p.who.Key)
 	var out struct{ Result map[string]any }
 	if json.Unmarshal([]byte(r.Body), &out); r.Status != 200 || out.Result == nil || out.Result["isError"] == true {
 		p.t.Fatalf("%s: %d %s", name, r.Status, r.Body)

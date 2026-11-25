@@ -19,7 +19,7 @@ func TestChangeHandle(t *testing.T) {
 	k.Publish(t, olga, "shop", map[string]string{"index.html": "olga's shop"})
 	b := k.Browser()
 	patch := func(who testkit.Who, owner string, body any) testkit.Res {
-		return testkit.Call(t, b, "PATCH", "https://simple-host.app/v1/owners/"+owner, body, "Authorization", "Bearer "+who.Key)
+		return testkit.Call(t, b, "PATCH", "https://simple-host.app/v1/owners/"+owner, body, "X-API-Key", who.Key)
 	}
 	get := func(url string) testkit.Res { return testkit.Call(t, b, "GET", url, nil) }
 

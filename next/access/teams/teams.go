@@ -29,7 +29,7 @@ func Mount(a *app.App) {
 	a.Routes.Platform.Handle("DELETE /v1/teams/{team}", web.Func(h.delete))
 }
 
-var errSignIn = web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as Authorization: Bearer <key>.")
+var errSignIn = web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 
 // team is the {team} the caller is a member of.
 func (h *handler) team(r *http.Request) (access.Person, error) {

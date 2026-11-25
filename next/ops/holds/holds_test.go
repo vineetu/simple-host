@@ -19,7 +19,7 @@ func TestTakeDownAndRestore(t *testing.T) {
 	k.Publish(t, nina, "blog", map[string]string{"index.html": "hello"})
 	b := k.Browser()
 	patch := func(who testkit.Who, body any) testkit.Res {
-		return testkit.Call(t, b, "PATCH", "https://simple-host.app/v1/sites/blog?owner=nina", body, "Authorization", "Bearer "+who.Key)
+		return testkit.Call(t, b, "PATCH", "https://simple-host.app/v1/sites/blog?owner=nina", body, "X-API-Key", who.Key)
 	}
 	if r := patch(nina, map[string]any{"short_name": "ninablog"}); r.Status != 200 {
 		t.Fatalf("short name: %d %s", r.Status, r.Body)

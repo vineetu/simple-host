@@ -18,7 +18,7 @@
   <section id="sign">
     <h1>Sign in</h1>
     <p class="muted" id="sub">No password. New here? This makes your account.</p>
-    <!--google--><p><a class="btn" id="google" href="/v1/auth/google">Continue with Google</a></p>
+    <!--google--><p><a class="btn" id="google" href="/v1/auth/oauth/google">Continue with Google</a></p>
     <p class="muted">Or get a code by email:</p><!--/google-->
     <form id="f" novalidate>
       <div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" required></div>
@@ -44,7 +44,7 @@
   function localPath(s) { return /^\/(?![\/\\])[^\\\s\u0000-\u001f\u007f-\u009f]*$/.test(s); }
   if (!localPath(next)) next = '/dashboard';
   var step = 'email';
-  if ($('google')) $('google').href = '/v1/auth/google' + (hop ? '?hop=' + encodeURIComponent(hop) : '');
+  if ($('google')) $('google').href = '/v1/auth/oauth/google' + (hop ? '?hop=' + encodeURIComponent(hop) : '');
   if (hop) $('sub').textContent = 'Sign in to continue to the site. No password.';
   function say(text, bad) { $('status').textContent = text; $('status').className = 'status' + (bad ? ' bad' : ''); }
   function post(path, body) {

@@ -15,7 +15,7 @@ import (
 
 func put(t *testing.T, k *testkit.Kit, key, address string, files map[string]string) testkit.Res {
 	t.Helper()
-	return testkit.Call(t, k.Browser(), "PUT", address, map[string]any{"files": files}, "Authorization", "Bearer "+key, "Content-Type", "application/json")
+	return testkit.Call(t, k.Browser(), "PUT", address, map[string]any{"files": files}, "X-API-Key", key, "Content-Type", "application/json")
 }
 
 func get(t *testing.T, k *testkit.Kit, address string) testkit.Res {
@@ -81,7 +81,7 @@ func TestOverLimitRefusedWhole(t *testing.T) {
 	tw.Write(make([]byte, 101<<20))
 	tw.Close()
 	gz.Close()
-	r := testkit.Call(t, k.Browser(), "PUT", "https://simple-host.app/v1/sites/big", archive.Bytes(), "Authorization", "Bearer "+bob.Key)
+	r := testkit.Call(t, k.Browser(), "PUT", "https://simple-host.app/v1/sites/big", archive.Bytes(), "X-API-Key", bob.Key)
 	if r.Status != 413 || !strings.Contains(r.Body, "limit_site_size") || !strings.Contains(r.Body, "100 MB") {
 		t.Fatalf("over the limit: %d %s", r.Status, r.Body)
 	}

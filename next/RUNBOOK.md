@@ -36,7 +36,7 @@ The operator is `people.operator` (carried by the copy tool; on a self-hosted in
 ```sh
 cd next && go build -o simple-host-next ./cmd/simple-host-next
 DATABASE_URL=postgres://… PASSCODE_ENC_KEY=… RESEND_API_KEY=… SH_COUNTRY_FILE=/srv/simple-host/geoip/dbip-city-lite.mmdb ./simple-host-next
-curl -s -H 'Host: simple-host.app' http://127.0.0.1:8095/health     # {"ok":true}
+curl -s -H 'Host: simple-host.app' http://127.0.0.1:8095/healthz     # {"ok":true}
 ```
 Tests: `go test ./...` (one throwaway Postgres in docker on 127.0.0.1:54329, or `SH_TEST_POSTGRES`).
 Self-hosted: `web/selfhost/compose.yaml` and `.env.example`; `docker compose up -d`, then open `https://DOMAIN/setup` and enter the setup code the service printed in its log (`docker compose logs`).

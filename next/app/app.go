@@ -140,7 +140,7 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		a.Sites.Cloudflare = &sites.Cloudflare{URL: cfg.CFAPIURL, Zone: cfg.CFZoneID, Token: cfg.CFAPIToken, Client: a.Guarded}
 	}
 	a.Data = &data.Data{DB: conn, Dir: cfg.DataDir, TurnstileURL: cfg.TurnstileURL, TurnstileSecret: cfg.TurnstileSecret, Client: a.HTTP}
-	a.Routes.Platform.Handle("GET /health", web.Func(func(w http.ResponseWriter, r *http.Request) error {
+	a.Routes.Platform.Handle("GET /healthz", web.Func(func(w http.ResponseWriter, r *http.Request) error {
 		if err := conn.PingContext(r.Context()); err != nil {
 			return err
 		}

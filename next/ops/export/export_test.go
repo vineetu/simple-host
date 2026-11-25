@@ -21,7 +21,7 @@ func TestDownloadMyData(t *testing.T) {
 	nina := k.Person(t, "nina")
 	k.Publish(t, nina, "blog", map[string]string{"index.html": "hello", "posts/one.html": "one"})
 	b := k.Browser()
-	auth := []string{"Authorization", "Bearer " + nina.Key}
+	auth := []string{"X-API-Key", nina.Key}
 	testkit.Call(t, b, "POST", "https://simple-host.app/v1/sites/blog/storage/sqlite/notes/execute", map[string]string{"sql": "CREATE TABLE notes (body TEXT)"}, auth...)
 
 	if r := testkit.Call(t, b, "POST", "https://simple-host.app/v1/me/export", map[string]any{}, auth...); r.Status != 202 {

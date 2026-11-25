@@ -1,6 +1,6 @@
 {
 	on_demand_tls {
-		ask http://{$DOMAIN}:8091/health
+		ask http://{$DOMAIN}:8091/healthz
 	}
 }
 

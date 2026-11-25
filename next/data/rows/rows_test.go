@@ -21,7 +21,7 @@ func TestPageAndOwnerShareTheData(t *testing.T) {
 	s, _ := k.App.Sites.Get(context.Background(), bob.ID, "shop")
 	site := k.App.Sites.URL(s) + "v1/sites/shop/storage/"
 	owner := func(method, path string, body any) testkit.Res {
-		return testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/shop/storage/"+path, body, "Authorization", "Bearer "+bob.Key)
+		return testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/shop/storage/"+path, body, "X-API-Key", bob.Key)
 	}
 	want := func(r testkit.Res, status int, has string) {
 		t.Helper()

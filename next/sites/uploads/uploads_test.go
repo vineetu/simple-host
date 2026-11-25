@@ -18,7 +18,7 @@ func TestUploadLinkIsCheckedOnOpen(t *testing.T) {
 	k := testkit.Start(t, uploads.Mount, publish.Mount)
 	bob := k.Person(t, "bob")
 	k.Publish(t, bob, "blog", map[string]string{"index.html": "one"})
-	r := testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/blog/upload-links", map[string]string{"kind": "archive"}, "Authorization", "Bearer "+bob.Key)
+	r := testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/blog/upload-links", map[string]string{"kind": "archive"}, "X-API-Key", bob.Key)
 	var link struct{ URL, Put string }
 	if json.Unmarshal([]byte(r.Body), &link); r.Status != 200 {
 		t.Fatalf("link: %d %s", r.Status, r.Body)

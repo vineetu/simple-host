@@ -282,7 +282,7 @@ func (s *Sites) Of(r *http.Request) (*Site, error) {
 		ownerID = o.ID
 	}
 	if ownerID == "" {
-		return nil, web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as Authorization: Bearer <key>.")
+		return nil, web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 	}
 	return s.Get(r.Context(), ownerID, r.PathValue("site"))
 }
@@ -295,7 +295,7 @@ func (s *Sites) Manage(r *http.Request, site *Site) error {
 		return err
 	}
 	if web.CallerOf(r).ID == "" {
-		return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as Authorization: Bearer <key>.")
+		return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 	}
 	return web.Refuse(http.StatusForbidden, "not_yours", "Only the site's owner or their team can do this.")
 }

@@ -25,7 +25,7 @@ func ai(t *testing.T, k *testkit.Kit, key string) func(method string, params any
 	return func(method string, params any) map[string]any {
 		t.Helper()
 		r := testkit.Call(t, b, "POST", "https://simple-host.app/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
-			"Authorization", "Bearer "+key)
+			"X-API-Key", key)
 		var out struct {
 			Result map[string]any
 			Error  map[string]any
@@ -123,7 +123,7 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 	alice, bob, carol := k.Person(t, "alice"), k.Person(t, "bob"), k.Person(t, "carol")
 	k.Publish(t, alice, "club", map[string]string{"index.html": "club"})
 	owner := func(method, path string, body any) {
-		if r := testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/club"+path, body, "Authorization", "Bearer "+alice.Key); r.Status != 200 {
+		if r := testkit.Call(t, k.Browser(), method, "https://simple-host.app/v1/sites/club"+path, body, "X-API-Key", alice.Key); r.Status != 200 {
 			t.Fatalf("%s %s: %d %s", method, path, r.Status, r.Body)
 		}
 	}

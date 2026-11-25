@@ -49,7 +49,7 @@ type Listed struct {
 func (h *handler) list(w http.ResponseWriter, r *http.Request) error {
 	c := web.CallerOf(r)
 	if c.ID == "" {
-		return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as Authorization: Bearer <key>.")
+		return web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 	}
 	rows, err := h.a.DB.QueryContext(r.Context(), `SELECT s.name, COALESCE(n.name, ''), COALESCE(a.app_shape, false), s.live_version, s.changed_at,
 		s.offline, s.listed, s.access, s.deleted_at

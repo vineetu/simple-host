@@ -106,13 +106,13 @@ GET/PATCH/DELETE  .../tables/{table}/rows/{id}
 GET        /v1/sites/{site}/storage/kv/{ns}/keys
 GET/PUT/DELETE  /v1/sites/{site}/storage/kv/{ns}/keys/{key}
 GET        /v1/sites/{site}/storage/files/{ns}/objects
-POST       /v1/sites/{site}/storage/files/{ns}
+PUT        /v1/sites/{site}/storage/files/{ns}/objects/{path}
 GET/DELETE /v1/sites/{site}/storage/files/{ns}/objects/{path}
 POST       /v1/sites/{site}/storage/sqlite/{ns}/query and /execute   (owner only)
 
 ## Keys
 
-A person makes a named key in the dashboard (shown once). Send: Authorization: Bearer <key>.
+A person makes a named key in the dashboard (shown once). Send: X-API-Key: <key>.
 A key acts as the person who made it. Keys are not made through tools.
 
 ## Refusals

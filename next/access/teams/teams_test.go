@@ -12,7 +12,7 @@ import (
 
 func call(t *testing.T, k *testkit.Kit, who testkit.Who, method, path string, body any) testkit.Res {
 	t.Helper()
-	return testkit.Call(t, k.Browser(), method, "https://simple-host.app"+path, body, "Authorization", "Bearer "+who.Key, "Content-Type", "application/json")
+	return testkit.Call(t, k.Browser(), method, "https://simple-host.app"+path, body, "X-API-Key", who.Key, "Content-Type", "application/json")
 }
 
 // page is a one-page site, as the publish route takes it.

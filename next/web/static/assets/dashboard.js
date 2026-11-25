@@ -541,7 +541,7 @@
       if (!(me.keys || []).length) list.appendChild(h('li', {}, h('span', { class: 'muted', text: 'No keys.' })));
     }
     drawKeys();
-    return panel('Keys', 'For scripts: send a key as Authorization: Bearer <key>. A key acts as you.', list, h('div', { class: 'row' }, name, b), shown, out);
+    return panel('Keys', 'For scripts: send a key as X-API-Key: <key>. A key acts as you.', list, h('div', { class: 'row' }, name, b), shown, out);
   }
   function appsPanel() {
     var out = status(), list = h('ul', { class: 'list' });

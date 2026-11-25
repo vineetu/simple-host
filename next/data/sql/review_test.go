@@ -34,7 +34,7 @@ func TestQueryFailsInsideItsSandbox(t *testing.T) {
 	k.Publish(t, bob, "shop", map[string]string{"index.html": "shop"})
 	run := func(who testkit.Who, sql string) testkit.Res {
 		return testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/shop/storage/sqlite/big/execute",
-			map[string]any{"sql": sql}, "Authorization", "Bearer "+who.Key)
+			map[string]any{"sql": sql}, "X-API-Key", who.Key)
 	}
 	run(ann, "SELECT 1")
 	run(bob, "SELECT 1")

@@ -53,9 +53,9 @@ func TestEachRecipeWorks(t *testing.T) {
 				var res testkit.Res
 				switch tool {
 				case "run_sql":
-					res = testkit.Call(t, k.Browser(), "POST", base+"sqlite/"+ns+"/execute", in, "Authorization", "Bearer "+owner.Key)
+					res = testkit.Call(t, k.Browser(), "POST", base+"sqlite/"+ns+"/execute", in, "X-API-Key", owner.Key)
 				case "set_data_rules":
-					res = testkit.Call(t, k.Browser(), "PUT", base+ns+"/rules", in, "Authorization", "Bearer "+owner.Key)
+					res = testkit.Call(t, k.Browser(), "PUT", base+ns+"/rules", in, "X-API-Key", owner.Key)
 				case "set_site_access": // the only recipe that uses it names viewers
 					var emails []string
 					for _, e := range in["viewers"].([]any) {

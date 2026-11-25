@@ -55,6 +55,11 @@ func TestConnectAnApp(t *testing.T) {
 		return testkit.Call(t, app, "GET", base+"/test/me", nil, "Authorization", "Bearer "+token)
 	}
 
+	// Where connected apps find the sign-in server: the live service's address.
+	if r := testkit.Call(t, app, "GET", base+"/.well-known/oauth-protected-resource/mcp", nil); r.Status != 200 || !strings.Contains(r.Body, `"resource":"`+base+`/mcp"`) {
+		t.Fatalf("resource metadata: %d %s", r.Status, r.Body)
+	}
+
 	r := testkit.Call(t, app, "POST", base+"/oauth/register", map[string]any{"client_name": "Claude",
 		"redirect_uris": []string{redirect}, "token_endpoint_auth_method": "none"})
 	var reg struct {

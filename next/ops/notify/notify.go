@@ -109,7 +109,7 @@ func Devices(ctx context.Context, a *app.App, personID string) ([]Device, error)
 func signedIn(r *http.Request) (web.Caller, error) {
 	c := web.CallerOf(r)
 	if c.ID == "" {
-		return c, web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as Authorization: Bearer <key>.")
+		return c, web.Refuse(http.StatusUnauthorized, "sign_in", "Sign in, or send your key as X-API-Key: <key>.")
 	}
 	return c, nil
 }
@@ -206,7 +206,7 @@ func Feed(ctx context.Context, a *app.App, personID string, after int64) ([]Even
 func (h *handler) stream(w http.ResponseWriter, r *http.Request) error {
 	c := web.CallerOf(r)
 	if c.ID == "" {
-		w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="https://`+h.a.Config.AppDomain+`/.well-known/oauth-protected-resource"`)
+		w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="https://`+h.a.Config.AppDomain+`/.well-known/oauth-protected-resource/mcp"`)
 		return web.Refuse(http.StatusUnauthorized, "sign_in", "Connect the app to Simple Host first.")
 	}
 	after, err := strconv.ParseInt(r.Header.Get("Last-Event-ID"), 10, 64)

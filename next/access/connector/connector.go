@@ -55,7 +55,7 @@ func Mount(a *app.App) {
 		log.Printf("connector: register Meta Muse: %v", err)
 	}
 	p := a.Routes.Platform
-	p.Handle("GET /.well-known/oauth-protected-resource", web.Func(h.resource))
+	p.Handle("GET /.well-known/oauth-protected-resource/mcp", web.Func(h.resource))
 	p.Handle("GET /.well-known/oauth-authorization-server", web.Func(h.server))
 	p.Handle("POST /oauth/register", web.Func(h.register))
 	p.Handle("GET /oauth/authorize", web.Func(h.authorize))

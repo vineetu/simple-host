@@ -19,7 +19,7 @@ func TestRedirectsAndCleanLinks(t *testing.T) {
 	bob := k.Person(t, "bob")
 	publish := func(files map[string]string) testkit.Res {
 		return testkit.Call(t, b, "PUT", "https://simple-host.app/v1/sites/blog", map[string]any{"files": files},
-			"Authorization", "Bearer "+bob.Key, "Content-Type", "application/json")
+			"X-API-Key", bob.Key, "Content-Type", "application/json")
 	}
 	if r := publish(map[string]string{"index.html": "home", "about.html": "about us", "new.html": "new",
 		"_redirects": "# moved\n/old /new 301\n/gone https://example.com/ 302\n"}); r.Status != 200 {
@@ -62,17 +62,17 @@ func TestVisitsCountOnce(t *testing.T) {
 	testkit.Call(t, b, "GET", site, nil, "User-Agent", browser)
 	testkit.Call(t, b, "GET", site+"style.css", nil, "User-Agent", browser)                       // not a page
 	testkit.Call(t, b, "GET", site, nil, "User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1)") // a bot
-	testkit.Call(t, b, "GET", site, nil, "User-Agent", browser, "Authorization", "Bearer "+bob.Key, "X-Real-IP", "10.0.0.9")
+	testkit.Call(t, b, "GET", site, nil, "User-Agent", browser, "X-API-Key", bob.Key, "X-Real-IP", "10.0.0.9")
 	serve.Flush(context.Background(), k.App)
 
-	r := testkit.Call(t, b, "GET", "https://simple-host.app/v1/sites/blog/stats", nil, "Authorization", "Bearer "+bob.Key)
+	r := testkit.Call(t, b, "GET", "https://simple-host.app/v1/sites/blog/stats", nil, "X-API-Key", bob.Key)
 	for _, want := range []string{`"views":2,"people":1,"bots":1`, `"pages":[{"key":"/","n":2}]`, `"referrers":[{"key":"news.example.org","n":1}]`} {
 		if r.Status != 200 || !strings.Contains(r.Body, want) {
 			t.Fatalf("stats: %d %s, want %s", r.Status, r.Body, want)
 		}
 	}
 	olga := k.Person(t, "olga")
-	if r := testkit.Call(t, b, "GET", "https://simple-host.app/v1/sites/blog/stats?owner=bob", nil, "Authorization", "Bearer "+olga.Key); r.Status != 403 {
+	if r := testkit.Call(t, b, "GET", "https://simple-host.app/v1/sites/blog/stats?owner=bob", nil, "X-API-Key", olga.Key); r.Status != 403 {
 		t.Fatalf("someone else's numbers: %d %s", r.Status, r.Body)
 	}
 }

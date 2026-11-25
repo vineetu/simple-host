@@ -20,7 +20,7 @@ func TestDeleteAccount(t *testing.T) {
 	nina, olga := k.Person(t, "nina"), k.Person(t, "olga")
 	k.Publish(t, nina, "blog", map[string]string{"index.html": "hi"})
 	b := k.Browser()
-	auth := []string{"Authorization", "Bearer " + nina.Key}
+	auth := []string{"X-API-Key", nina.Key}
 	testkit.Call(t, b, "POST", "https://simple-host.app/v1/sites/blog/storage/sqlite/notes/execute", map[string]string{"sql": "CREATE TABLE notes (body TEXT)"}, auth...)
 	k.Exec(t, `INSERT INTO oauth_clients (id, name) VALUES ('c1', 'Claude')`)
 	k.Exec(t, `INSERT INTO oauth_grants (person_id, client_id) VALUES ($1, 'c1')`, nina.ID)

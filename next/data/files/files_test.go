@@ -26,14 +26,14 @@ func TestOneFileStore(t *testing.T) {
 	s, _ := k.App.Sites.Get(ctx, bob.ID, "gallery")
 	r := testkit.Call(t, k.Browser(), "PUT", "https://simple-host.app/v1/sites/gallery/storage/photos/rules",
 		`{"rules": {"_files": {"policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "add", "command": "add", "check": "auth.signed_in"}]}}}`,
-		"Authorization", "Bearer "+bob.Key)
+		"X-API-Key", bob.Key)
 	if r.Status != 200 {
 		t.Fatal(r.Body)
 	}
 
 	// The owner's photo, through an upload link.
 	r = testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/gallery/upload-links", `{"kind": "files", "namespace": "photos"}`,
-		"Authorization", "Bearer "+bob.Key)
+		"X-API-Key", bob.Key)
 	var link struct{ Put string }
 	if json.Unmarshal([]byte(r.Body), &link); r.Status != 200 {
 		t.Fatalf("upload link: %d %s", r.Status, r.Body)

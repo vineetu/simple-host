@@ -13,7 +13,7 @@ import (
 func TestFloodIsSlowedButNotTheOperator(t *testing.T) {
 	k := testkit.Start(t)
 	b := k.Browser()
-	health := "https://simple-host.app/health"
+	health := "https://simple-host.app/healthz"
 	for i := int64(0); i < limits.Requests.N; i++ {
 		if r := testkit.Call(t, b, "GET", health, nil, "X-Real-IP", "203.0.113.7"); r.Status != 200 {
 			t.Fatalf("request %d: %d %s", i, r.Status, r.Body)
@@ -29,7 +29,7 @@ func TestFloodIsSlowedButNotTheOperator(t *testing.T) {
 	boss := k.Person(t, "boss")
 	k.Exec(t, `UPDATE people SET operator = true WHERE id = $1`, boss.ID)
 	for i := int64(0); i < limits.Requests.N+10; i++ {
-		r := testkit.Call(t, b, "GET", health, nil, "X-Real-IP", "203.0.113.7", "Authorization", "Bearer "+boss.Key)
+		r := testkit.Call(t, b, "GET", health, nil, "X-Real-IP", "203.0.113.7", "X-API-Key", boss.Key)
 		if r.Status != 200 {
 			t.Fatalf("operator request %d: %d %s", i, r.Status, r.Body)
 		}

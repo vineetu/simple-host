@@ -3,6 +3,7 @@ package signin_test
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -59,7 +60,11 @@ func TestSignUpWithCodeThenGoogle(t *testing.T) {
 
 	g := k.Browser()
 	k.Google.Email = "nina@example.com"
-	r = testkit.Call(t, g, "GET", "https://simple-host.app/v1/auth/google", nil)
+	r = testkit.Call(t, g, "GET", "https://simple-host.app/v1/auth/oauth/google", nil)
+	// The redirect address registered at Google: it must stay the live service's.
+	if want := url.QueryEscape("https://simple-host.app/v1/auth/oauth/google/callback"); !strings.Contains(r.Header.Get("Location"), "redirect_uri="+want) {
+		t.Fatalf("redirect_uri sent to Google: %s", r.Header.Get("Location"))
+	}
 	for i := 0; i < 2 && r.Status == http.StatusFound; i++ { // to Google, then back to the callback
 		r = testkit.Call(t, g, "GET", r.Header.Get("Location"), nil)
 	}
