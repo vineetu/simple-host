@@ -26,6 +26,7 @@ import (
 	"unicode/utf8"
 
 	"simplehost/app"
+	"simplehost/compat"
 	"simplehost/core/limits"
 	"simplehost/core/web"
 )
@@ -130,7 +131,21 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 		if t, ok := findTool(p.Name); ok {
 			return h.call(r, t, p.Arguments), nil
 		}
-		if res, ok := h.callOld(r, p.Name, p.Arguments); ok { // an old tool list (old.go)
+		// An old tool list: next/compat answers the old names (goes with it).
+		listed := []string{}
+		for _, t := range tools {
+			if !t.appOnly {
+				listed = append(listed, t.name+": "+t.about)
+			}
+		}
+		run := func(name string, args map[string]any) (map[string]any, bool) {
+			t, ok := findTool(name)
+			if !ok {
+				return nil, false
+			}
+			return h.call(r, t, args), true
+		}
+		if res, ok := compat.Tool(h.a, r, p.Name, p.Arguments, strings.Join(listed, "\n"), run); ok {
 			return res, nil
 		}
 		return nil, &rpcError{-32602, "No tool named " + p.Name + ". The tools changed: list them again (tools/list)."}
@@ -290,6 +305,15 @@ func (h *server) call(r *http.Request, t tool, args map[string]any) map[string]a
 	}
 	go h.agentcat(web.CallerOf(r), t.name, args, res, time.Since(start))
 	return res
+}
+
+func findTool(name string) (tool, bool) {
+	for _, t := range tools {
+		if t.name == name {
+			return t, true
+		}
+	}
+	return tool{}, false
 }
 
 func refusal(err error) map[string]any {
