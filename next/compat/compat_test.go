@@ -106,6 +106,9 @@ func TestOldToolNamesStillWork(t *testing.T) {
 	if s := call("create_site", map[string]any{"site": "cafe", "files": map[string]any{"index.html": "menu"}}); !strings.Contains(s, "Simple Host has new tools") || strings.Contains(s, `"isError":true`) {
 		t.Fatalf("create_site: %s", s)
 	}
+	if s := call("create_site", map[string]any{"site": "cafe", "files": map[string]any{"index.html": "menu"}}); !strings.Contains(s, "site_exists") {
+		t.Fatalf("create_site again: %s", s)
+	}
 	if s := call("run_tool", map[string]any{"name": "get_site", "arguments": map[string]any{"site": "cafe"}}); !strings.Contains(s, "cafe--nina") || strings.Contains(s, "new tools") {
 		t.Fatalf("run_tool: %s", s)
 	}

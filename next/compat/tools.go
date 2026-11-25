@@ -54,6 +54,14 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 		if err != nil {
 			res = refusal(err)
 		}
+		// The old create_site never overwrote: an existing site is refused,
+		// so a repeated call does not publish a second version.
+		if name == "create_site" && err == nil {
+			if got, ok := run("get_site", args(in).keep("site", "owner")); ok && got["isError"] != true {
+				res, steps = refusal(web.Refuse(http.StatusConflict, "site_exists", "This account already has a site named "+args(in).s("site")+
+					", and create_site never overwrites. To change it, use update_site; for a separate site, pick another name.")), nil
+			}
+		}
 		var content []any // every step's answer, in order
 		for _, s := range steps {
 			var ok bool
