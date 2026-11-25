@@ -205,16 +205,22 @@
   }
 
   // The few things this helper draws: a button, a signed-in chip, a box.
-  var FONT = "font:16px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;";
-  var SHADE = "position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px";
-  var PANEL = FONT + "background:#fff;color:#1c1d21;border-radius:var(--sh-radius,8px);padding:16px;max-width:360px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.2)";
+  var FONT = "font:16px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;";
+  var SHADE = "position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box";
+  var PANEL = FONT + "position:relative;box-sizing:border-box;background:#fff;color:#1a1a1a;border-radius:var(--sh-radius,14px);padding:24px 22px 18px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)";
   function button(label, primary) {
     var b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
-    b.style.cssText = FONT + "cursor:pointer;min-height:40px;padding:6px 14px;border-radius:var(--sh-radius,8px);" +
-      (primary ? "color:#fff;background:var(--sh-accent,#116b77);border:1px solid var(--sh-accent,#116b77)" : "color:inherit;background:transparent;border:1px solid #c6cad3");
+    b.style.cssText = FONT + "cursor:pointer;min-height:44px;padding:8px 16px;border-radius:var(--sh-radius,8px);" +
+      (primary ? "font-weight:600;color:#fff;background:var(--sh-accent,#5b5ef4);border:0" : "color:inherit;background:transparent;border:1px solid #c9c9d1");
     return b;
+  }
+  function text(tag, words, css) {
+    var el = document.createElement(tag);
+    el.textContent = words;
+    el.style.cssText = css;
+    return el;
   }
   var chip = null, CHIP_KEY = "sh:chip:" + location.host;
   function showChip(me) {
@@ -222,7 +228,7 @@
     if (!chip) {
       chip = document.createElement("div");
       chip.setAttribute("data-sh-signin", "");
-      chip.style.cssText = FONT + "position:fixed;right:12px;bottom:12px;z-index:2147483000;display:flex;gap:10px;align-items:center;padding:6px 6px 6px 12px;background:#fff;color:#1c1d21;border:1px solid #e3e5ea;border-radius:999px;box-shadow:0 2px 10px rgba(0,0,0,.12)";
+      chip.style.cssText = FONT + "font-size:14px;position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:2147483000;max-width:calc(100vw - 24px);box-sizing:border-box;display:flex;gap:10px;align-items:center;padding:6px 6px 6px 14px;background:#fff;color:#1a1a1a;border:1px solid rgba(128,128,128,.4);border-radius:999px;box-shadow:0 2px 10px rgba(0,0,0,.15)";
       document.body.appendChild(chip);
     }
     chip.textContent = "";
@@ -235,16 +241,23 @@
   }
   function signInBox() {
     return new Promise(function (resolve, reject) {
-      var wrap = document.createElement("div"), panel = document.createElement("div"), p = document.createElement("p");
+      var wrap = document.createElement("div"), panel = document.createElement("div");
       wrap.setAttribute("data-sh-signin", "");
       wrap.style.cssText = SHADE;
       panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true"); panel.setAttribute("aria-label", "Sign in");
       panel.style.cssText = PANEL;
-      p.textContent = "Sign in to continue. You can use Google or a code sent to your email. The site's owner sees the email you sign in with.";
-      p.style.margin = "0 0 12px";
-      var go = button("Sign in", true), no = button("Cancel");
-      no.style.marginLeft = "8px";
-      panel.appendChild(p); panel.appendChild(go); panel.appendChild(no); wrap.appendChild(panel);
+      var title = String(document.title || location.host).replace(/\s+/g, " ").trim().slice(0, 60);
+      var go = button("Sign in", true), no = button("\u00d7");
+      go.style.cssText += ";display:block;width:100%;margin-top:4px";
+      no.setAttribute("aria-label", "Close");
+      no.style.cssText = "position:absolute;top:4px;right:4px;width:44px;height:44px;border:0;background:transparent;color:#5d5d66;font:24px/1 system-ui,sans-serif;cursor:pointer";
+      panel.appendChild(no);
+      panel.appendChild(text("p", title, "font-size:13px;color:#5d5d66;margin:0 40px 4px 0;overflow-wrap:anywhere"));
+      panel.appendChild(text("h2", "Sign in to continue", "font:650 21px/1.25 system-ui,-apple-system,'Segoe UI',sans-serif;margin:0 0 6px;color:#1a1a1a"));
+      panel.appendChild(text("p", "No password and no account to make. The site owner sees the email you sign in with.", "margin:0 0 16px;font-size:15px;color:#5d5d66"));
+      panel.appendChild(go);
+      panel.appendChild(text("p", "Use Google or a 6-digit code we email you. Sign-in by Simple Host.", "margin:14px 0 0;font-size:13px;color:#5d5d66"));
+      wrap.appendChild(panel);
       function cancel() {
         wrap.remove();
         document.removeEventListener("keydown", onKey, true);
@@ -434,8 +447,9 @@
       function render() {
         return SH.me().then(function (me) {
           box.textContent = "";
+          box.style.cssText = "";
           if (me.signed_in) {
-            box.style.cssText = FONT + "display:flex;flex-wrap:wrap;align-items:center;gap:12px";
+            box.style.cssText = FONT + "font-size:15px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 14px;color:#1a1a1a;background:#fff;border-radius:var(--sh-radius,14px)";
             var who = document.createElement("span");
             who.textContent = me.email ? "Signed in as " + me.email : "Signed in";
             var out = button("Sign out");
