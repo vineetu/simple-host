@@ -1,5 +1,6 @@
 // Package admin is the operator's page data (route 65): people, sites,
 // sizes, new sign-ups, visitor reports, network use and the API growth tab;
+// every site and every person with what the page sorts and filters by (lists.go);
 // and, on a self-hosted install, making an account for someone. It counts
 // API calls and network bytes as requests pass (Counted), written once a
 // minute to api_daily and net_usage_daily.
@@ -25,6 +26,8 @@ func Mount(a *app.App) {
 	h := &handler{a}
 	a.Routes.Platform.Handle("GET /v1/admin/overview", web.Func(h.overview))
 	a.Routes.Platform.Handle("POST /v1/admin/people", web.Func(h.makeAccount))
+	a.Routes.Platform.Handle("GET /v1/admin/people", web.Func(h.peopleList))
+	a.Routes.Platform.Handle("GET /v1/admin/sites", web.Func(h.siteList))
 }
 
 var errOperator = web.Refuse(http.StatusForbidden, "operator_only", "Only the operator can see this.")

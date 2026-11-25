@@ -304,6 +304,26 @@ func TestOperatorJourney(t *testing.T) {
 	if reports := o["reports"].([]any); len(reports) != 1 || reports[0].(map[string]any)["site"] != "promo" || o["growth"] == nil {
 		t.Fatalf("overview: %v", o)
 	}
+	// The admin lists carry what the page sorts and filters by, every row at once.
+	nina.api("GET", "/v1/admin/sites", nil, 403)
+	var promo map[string]any
+	for _, s := range op.api("GET", "/v1/admin/sites", nil, 200)["sites"].([]any) {
+		if s := s.(map[string]any); s["name"] == "promo" {
+			promo = s
+		}
+	}
+	if promo == nil || promo["owner"] != "nina" || promo["url"] != url || promo["live_bytes"].(float64) <= 0 || promo["views_30d"] == nil || promo["changed_at"] == nil {
+		t.Fatalf("admin sites: %v", promo)
+	}
+	var person map[string]any
+	for _, p := range op.api("GET", "/v1/admin/people", nil, 200)["people"].([]any) {
+		if p := p.(map[string]any); p["handle"] == "nina" {
+			person = p
+		}
+	}
+	if person == nil || person["sites"].(float64) < 1 || person["bytes"].(float64) <= 0 || person["last_seen"] == nil {
+		t.Fatalf("admin people: %v", person)
+	}
 	// The operator opens the site's data through the ordinary routes.
 	op.api("GET", "/v1/sites/promo?owner=nina", nil, 200)
 	op.api("POST", "/v1/sites/promo/storage/sqlite/leads/query?owner=nina", map[string]any{"sql": "SELECT count(*) FROM leads"}, 200)
