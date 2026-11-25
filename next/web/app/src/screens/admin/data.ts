@@ -116,7 +116,7 @@ export function useGrowth(range: string) {
 
 export const siteLive = (s: Site) => s.live_version > 0 && !s.offline && !s.taken_down && !s.owner_suspended;
 export const ownerName = (s: Site) => s.owner || "(no handle)";
-export const dashLink = (s: Site) => "/dashboard#site/" + encodeURIComponent(s.owner) + "/" + encodeURIComponent(s.name);
+export const dashLink = (s: Site) => "/dashboard/sites/" + encodeURIComponent(s.owner) + "/" + encodeURIComponent(s.name);
 export const ACCESS: Record<string, string> = { open: "anyone", passcode: "passcode", viewers: "named people" };
 
 /** siteFilter is the Sites tab's chips. */

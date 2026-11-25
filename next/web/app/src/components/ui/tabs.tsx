@@ -20,7 +20,7 @@ export function TabsTrigger({ className, ...props }: ComponentProps<typeof T.Tri
   return (
     <T.Trigger
       className={cn(
-        "relative min-h-11 min-w-11 cursor-pointer rounded-tab px-2.5 text-base font-medium whitespace-nowrap text-ink-soft hover:text-ink md:px-3",
+        "relative min-h-11 min-w-11 flex-none cursor-pointer rounded-tab px-2.5 text-base font-medium whitespace-nowrap text-ink-soft hover:text-ink md:px-3",
         "data-[state=active]:text-ink data-[state=active]:after:absolute data-[state=active]:after:inset-x-2.5 data-[state=active]:after:bottom-1.5 data-[state=active]:after:h-[3px] data-[state=active]:after:rounded-tag data-[state=active]:after:bg-accent",
         className,
       )}

@@ -2,13 +2,13 @@
 // screen, a top bar and a bottom bar on a phone. It knows who is signed in
 // (GET /v1/me) to show Admin only to the operator, and signs out.
 import { useEffect, type ReactNode } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Wordmark } from "@/components/ui/page-shell";
 import { useToast } from "@/components/ui/toast";
-import { AdminIcon, DocsIcon, SignOutIcon, SitesIcon } from "./icons";
+import { AccountIcon, AdminIcon, DocsIcon, SignOutIcon, SitesIcon } from "./icons";
 
 export type Me = { id: string; email: string; handle: string; operator: boolean };
 
@@ -17,7 +17,7 @@ export function useMe() {
   return useQuery({ queryKey: ["me"], queryFn: () => call<Me>("GET", "/v1/me"), retry: false, staleTime: 60_000 });
 }
 
-type Item = { href: string; label: string; icon: ReactNode };
+type Item = { href: string; label: string; icon: ReactNode; on: (path: string) => boolean };
 
 export function AppShell({ title, children }: { title: string; children: ReactNode }) {
   const me = useMe().data;
@@ -25,9 +25,10 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
   const toast = useToast();
   const { pathname } = useLocation();
   const items: Item[] = [
-    { href: "/dashboard", label: "Sites", icon: <SitesIcon /> },
-    ...(me?.operator ? [{ href: "/admin", label: "Admin", icon: <AdminIcon /> }] : []),
-    { href: "/docs", label: "Docs", icon: <DocsIcon /> },
+    { href: "/dashboard", label: "Sites", icon: <SitesIcon />, on: (p) => p.startsWith("/dashboard") && !p.startsWith("/dashboard/account") },
+    { href: "/dashboard/account", label: "Account", icon: <AccountIcon />, on: (p) => p.startsWith("/dashboard/account") },
+    ...(me?.operator ? [{ href: "/admin", label: "Admin", icon: <AdminIcon />, on: (p: string) => p.startsWith("/admin") }] : []),
+    { href: "/docs", label: "Docs", icon: <DocsIcon />, on: () => false },
   ];
   const signOut = async () => {
     try {
@@ -42,7 +43,6 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
     document.documentElement.dataset.shell = "app";
     return () => void delete document.documentElement.dataset.shell;
   }, []);
-  const here = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[224px_minmax(0,1fr)]">
@@ -54,18 +54,19 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
         </a>
         <nav aria-label="Main" className="flex flex-col gap-1">
           {items.map((it) => (
-            <a
+            <Link
               key={it.href}
-              href={it.href}
-              aria-current={here(it.href) ? "page" : undefined}
+              to={it.href}
+              reloadDocument={it.href === "/docs"}
+              aria-current={it.on(pathname) ? "page" : undefined}
               className={cn(
                 "flex min-h-11 items-center gap-3 rounded-tab px-3 text-base font-medium text-ink-soft no-underline hover:bg-paper-lo hover:text-ink",
-                here(it.href) && "bg-accent-soft text-ink",
+                it.on(pathname) && "bg-accent-soft text-ink",
               )}
             >
               {it.icon}
               {it.label}
-            </a>
+            </Link>
           ))}
         </nav>
         <div className="mt-auto border-t border-rule pt-3">
@@ -105,29 +106,26 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
         </footer>
       </div>
 
-      {/* Phone: the bottom bar. */}
+      {/* Phone: the bottom bar (signing out is on the Account page). */}
       <nav
         aria-label="Main"
         className="fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t-[1.5px] border-ink-soft bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {items.map((it) => (
-          <a
+          <Link
             key={it.href}
-            href={it.href}
-            aria-current={here(it.href) ? "page" : undefined}
+            to={it.href}
+            reloadDocument={it.href === "/docs"}
+            aria-current={it.on(pathname) ? "page" : undefined}
             className={cn(
               "flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs text-ink-soft no-underline",
-              here(it.href) && "text-accent",
+              it.on(pathname) && "text-accent",
             )}
           >
             {it.icon}
             {it.label}
-          </a>
+          </Link>
         ))}
-        <button type="button" onClick={signOut} className="flex min-h-14 cursor-pointer flex-col items-center justify-center gap-0.5 text-xs text-ink-soft">
-          <SignOutIcon />
-          Sign out
-        </button>
       </nav>
     </div>
   );

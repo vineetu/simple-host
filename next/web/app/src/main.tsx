@@ -8,8 +8,9 @@ import { Providers } from "./App";
 // Each screen is its own file, fetched when it is opened: sign-in stays small.
 const SignIn = lazy(() => import("./screens/signin/SignIn").then((m) => ({ default: m.SignIn })));
 const Admin = lazy(() => import("./screens/admin/Admin").then((m) => ({ default: m.Admin })));
+const Dashboard = lazy(() => import("./screens/dashboard/Dashboard").then((m) => ({ default: m.Dashboard })));
 
-// The owner app: one bundle for the pages the server sends here (/signin, /admin).
+// The owner app: one bundle for the pages the server sends here (/signin, /admin, /dashboard).
 function NotHere() {
   window.location.replace("/");
   return null;
@@ -23,6 +24,7 @@ createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/dashboard/*" element={<Dashboard />} />
           <Route path="*" element={<NotHere />} />
         </Routes>
         </Suspense>

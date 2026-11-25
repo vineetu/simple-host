@@ -11,6 +11,7 @@ import { Providers } from "../App";
 import { ApiError, type Call } from "@/lib/api";
 import { SignIn } from "@/screens/signin/SignIn";
 import { Admin } from "@/screens/admin/Admin";
+import { Dashboard } from "@/screens/dashboard/Dashboard";
 import { entries, type Entry, type Step } from "./entries";
 
 let pending = 0;
@@ -96,6 +97,7 @@ function One({ e }: { e: Entry }) {
         <Routes>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/dashboard/*" element={<Dashboard />} />
         </Routes>
       </MemoryRouter>
     </Providers>

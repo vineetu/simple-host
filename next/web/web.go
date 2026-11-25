@@ -1,6 +1,6 @@
 // Package web serves the service's own pages (route 61): home, install,
-// docs, terms, privacy, support and dashboard as static files; sign-in and
-// admin from the owner app (web/app, built into web/dist); plus
+// docs, terms, privacy and support as static files; sign-in, the dashboard
+// and admin from the owner app (web/app, built into web/dist); plus
 // llms.txt, the one skill set, the page helper /auth.js (also on every site
 // address as /_sh/page.js), the photo picker behind an upload link, the
 // spam-check frame and the first-run setup of a self-hosted install.
@@ -41,6 +41,7 @@ func Mount(a *app.App) {
 	p := a.Routes.Platform
 	p.Handle("GET /{$}", cw.Func(h.page))
 	p.Handle("GET /{page}", cw.Func(h.page))
+	p.Handle("GET /dashboard/{rest...}", cw.Func(h.appPage)) // a site's page, the account, a new site
 	p.Handle("GET /assets/{file...}", cw.Func(h.asset))
 	p.Handle("GET /app/{file...}", cw.Func(h.appFile))
 	p.Handle("GET /index.html", cw.Func(h.appPage)) // the offline copy the app's service worker keeps
@@ -60,8 +61,8 @@ func Mount(a *app.App) {
 
 // pages are the static pages under /{page}; appPages are the owner app's.
 var pages = map[string]bool{"home": true, "install": true, "docs": true, "terms": true, "privacy": true,
-	"support": true, "dashboard": true}
-var appPages = map[string]bool{"signin": true, "admin": true}
+	"support": true}
+var appPages = map[string]bool{"signin": true, "admin": true, "dashboard": true}
 
 // page answers /{page}: a page's .html file, or a file at the root
 // (llms.txt, push-sw.js). The home page is home.html.

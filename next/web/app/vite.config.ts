@@ -32,12 +32,12 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          // The app shell is cached; signing in and the admin page open from it
-          // offline and say they cannot reach the service. Browser push comes from
+          // The app shell is cached; signing in, the dashboard and the admin
+          // page open from it offline and say they cannot reach the service. Browser push comes from
           // the existing push worker, so one worker covers the whole origin.
           globPatterns: ["index.html", "app/*.{js,css}", "app/fonts/*.woff2"],
           navigateFallback: "/index.html",
-          navigateFallbackAllowlist: [/^\/(signin|admin)(\/|$|\?)/],
+          navigateFallbackAllowlist: [/^\/(signin|admin|dashboard)(\/|$|\?)/],
           importScripts: ["/push-sw.js"],
           inlineWorkboxRuntime: true,
           cleanupOutdatedCaches: true,

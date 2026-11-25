@@ -4,6 +4,7 @@
 // The visual checks open each entry at 390 and 1280 px.
 import { ApiError } from "@/lib/api";
 import { admin } from "./fixtures";
+import { dashboardEntries } from "./dashboard";
 
 /** An answer: a value, a refusal, or "pending" (the request never ends). */
 export type Answer = unknown | ApiError | "pending";
@@ -144,4 +145,7 @@ export const entries: Entry[] = [
     api: adminApi("selfhosted"),
     steps: [{ fill: ["#make-email", "someone@"] }, { click: "text=Make account" }],
   },
+
+  // ---- Dashboard (catalogue/dashboard.ts)
+  ...dashboardEntries,
 ];
