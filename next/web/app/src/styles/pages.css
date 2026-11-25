@@ -33,7 +33,7 @@
     background: var(--color-card); border: 1.5px solid var(--color-ink-soft); border-radius: var(--radius-wobble); box-shadow: var(--shadow-paper);
   }
   .sh-card form { margin: 0; }
-  .sh-card label { display: block; font-weight: 600; font-size: var(--text-sm); line-height: 1.45; margin: 0 0 6px; }
+  .sh-card label { display: block; font-weight: 500; font-size: var(--text-sm); line-height: 1.45; color: var(--color-ink-soft); margin: 0 0 6px; }
   .sh-input {
     display: block; width: 100%; height: 48px; padding: 0 14px; margin: 0;
     background: var(--color-paper); color: var(--color-ink); border: 1.5px solid var(--color-ink-soft); border-radius: var(--radius-field);
@@ -45,7 +45,7 @@
   .sh-btn {
     display: flex; align-items: center; justify-content: center; width: 100%; min-height: 48px; margin: 16px 0 0; padding: 0 16px;
     border: 0; border-radius: var(--radius-wobble); background: var(--color-accent); color: var(--color-on-accent);
-    font: 600 var(--text-base)/1.2 var(--font-sans); text-decoration: none; cursor: pointer; box-shadow: var(--shadow-paper);
+    font: 500 var(--text-base)/1.2 var(--font-sans); text-decoration: none; cursor: pointer; box-shadow: var(--shadow-paper);
   }
   .sh-btn:hover { background: var(--color-accent-hover); color: var(--color-on-accent); box-shadow: var(--shadow-paper-sm); }
   .sh-btn.secondary { margin-top: 10px; background: var(--color-card); color: var(--color-ink); border: 1.5px solid var(--color-ink-soft); font-weight: 500; }
@@ -69,7 +69,7 @@
   .sh-gate-icon.quiet { background: var(--color-paper-lo); color: var(--color-ink-soft); }
   .sh-gate-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .sh-site { margin: 0 0 2px; font-size: var(--text-sm); font-weight: 500; line-height: 1.45; color: var(--color-ink-faint); }
-  .sh-card h1 { font: 700 var(--text-3xl)/1.2 var(--font-sans); letter-spacing: -0.01em; margin: 0 0 8px; }
+  .sh-card h1 { font: 600 var(--text-3xl)/1.2 var(--font-sans); letter-spacing: -0.015em; margin: 0 0 8px; }
   .sh-lead { margin: 0 0 20px; color: var(--color-ink-soft); }
   .sh-gate-card > .sh-lead:last-child, .sh-gate-card > .sh-msg:last-child { margin-bottom: 0; }
   .sh-who {
@@ -78,7 +78,7 @@
   }
   .sh-avatar {
     width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center;
-    background: var(--color-accent-soft); color: var(--color-accent); font-weight: 700; text-transform: uppercase;
+    background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600; text-transform: uppercase;
   }
   .sh-by { margin: 20px 0 0; font-size: var(--text-xs); color: var(--color-ink-faint); display: flex; align-items: center; gap: 6px; }
   .sh-by .sh-mark { font-size: 20px; }
@@ -107,12 +107,12 @@
   main.container { max-width: 720px; margin: 0 auto; padding: 40px max(20px, env(safe-area-inset-right)) 8px max(20px, env(safe-area-inset-left)); }
   main.container.wide { max-width: 1040px; }
   .container .page-head { margin: 0 0 8px; }
-  .container h1 { font: 700 var(--text-4xl)/1.15 var(--font-sans); letter-spacing: -0.015em; color: var(--color-ink); margin: 0 0 6px; }
+  .container h1 { font: 600 var(--text-4xl)/1.15 var(--font-sans); letter-spacing: -0.02em; color: var(--color-ink); margin: 0 0 6px; }
   .container h1 + p:not(.updated) { margin-top: 14px; }
   .container .updated { font-size: var(--text-sm); color: var(--color-ink-faint); margin: 0 0 24px; }
   .container .intro { font-size: var(--text-lg); line-height: 1.55; color: var(--color-ink); }
   .container h2 {
-    font: 600 var(--text-xl)/1.3 var(--font-sans); color: var(--color-ink);
+    font: 600 var(--text-lg)/1.3 var(--font-sans); color: var(--color-ink);
     margin: 36px 0 12px; padding-top: 28px; border-top: 1px solid var(--color-rule); scroll-margin-top: 16px;
   }
   .container h3 { font: 600 var(--text-base)/1.4 var(--font-sans); color: var(--color-ink); margin: 22px 0 6px; }
@@ -138,7 +138,7 @@
   .container td:first-child { font: 600 var(--text-xs)/1.6 var(--font-mono); color: var(--color-ink); white-space: nowrap; }
   .container .panel { border: 1.5px solid var(--color-ink-soft); border-radius: var(--radius-wobble); background: var(--color-card); padding: 20px; margin: 0 0 14px; box-shadow: var(--shadow-paper); }
   .container .field { margin: 0 0 14px; }
-  .container .field label { display: block; margin: 0 0 6px; font-weight: 600; font-size: var(--text-sm); color: var(--color-ink); }
+  .container .field label { display: block; margin: 0 0 6px; font-weight: 500; font-size: var(--text-sm); color: var(--color-ink-soft); }
   .container .field input, .container .field textarea {
     display: block; width: 100%; min-height: 48px; padding: 10px 12px; font: var(--text-base)/1.4 var(--font-sans); color: var(--color-ink);
     background: var(--color-paper); border: 1.5px solid var(--color-ink-soft); border-radius: var(--radius-field);
@@ -148,7 +148,7 @@
   .container .btn-primary {
     display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; cursor: pointer;
     border: 0; border-radius: var(--radius-wobble); background: var(--color-accent); color: var(--color-on-accent);
-    font: 600 var(--text-base)/1.2 var(--font-sans); box-shadow: var(--shadow-paper);
+    font: 500 var(--text-base)/1.2 var(--font-sans); box-shadow: var(--shadow-paper);
   }
   .container .btn-primary:hover { background: var(--color-accent-hover); }
   .container .btn-primary:disabled { opacity: .55; cursor: default; }

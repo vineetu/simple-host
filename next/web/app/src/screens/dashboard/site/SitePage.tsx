@@ -88,8 +88,8 @@ function Loaded({ site }: { site: Site }) {
         <div className="min-w-0 flex-[1_1_18rem]">
           <h1 className="type-page break-all">{site.name}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <a href={site.url} target="_blank" rel="noopener" className="inline-flex min-h-11 min-w-0 items-center break-all">
-              {host(site.url)}
+            <a href={site.url} target="_blank" rel="noopener" className="inline-flex min-h-11 min-w-0 max-w-full items-center" title={host(site.url)}>
+              <span className="truncate">{host(site.url)}</span>
             </a>
             <CopyButton text={site.url} label="Copy address" variant="ghost" className="min-h-11 px-3 text-sm" />
           </p>

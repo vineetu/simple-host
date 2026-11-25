@@ -206,8 +206,10 @@ function People({
                 </Button>
               }
             >
-              <span className="break-all">{v.email}</span>{" "}
-              {!v.draft && (v.signed_in ? <Badge tone="ok">has signed in</Badge> : <Badge>not signed in yet</Badge>)}
+              <span className="block truncate" title={v.email}>
+                {v.email}
+              </span>
+              {!v.draft && <div className="mt-1">{v.signed_in ? <Badge tone="ok">has signed in</Badge> : <Badge>not signed in yet</Badge>}</div>}
             </Row>
           ))}
         </ul>
@@ -224,7 +226,7 @@ function People({
           if (await onAdd(e)) setEmail("");
         }}
       >
-        <label htmlFor="viewer-email" className="mb-1.5 block text-sm font-semibold">
+        <label htmlFor="viewer-email" className="mb-1.5 block text-sm font-medium text-ink-soft">
           Add someone by email
         </label>
         <div className="flex flex-wrap gap-2">

@@ -14,7 +14,7 @@ export function FilePick({ files, onChange, error }: { files: File[]; onChange: 
     "inline-flex min-h-11 cursor-pointer items-center rounded-wobble border-[1.5px] border-ink-soft bg-card px-4 font-medium shadow-paper hover:bg-paper-lo has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent";
   return (
     <div className="mb-5">
-      <p className="mb-1.5 text-sm font-semibold" id={id + "-label"}>
+      <p className="mb-1.5 text-sm font-medium text-ink-soft" id={id + "-label"}>
         Files
       </p>
       <div

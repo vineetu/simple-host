@@ -6,7 +6,7 @@ import { expect, test } from "@playwright/test";
 import { entries } from "../src/catalogue/entries";
 import { NOW } from "../src/catalogue/fixtures";
 import { pageEntries } from "../src/catalogue/pages";
-import { axe, layout } from "./checks";
+import { axe, fitViewport, layout } from "./checks";
 
 for (const e of entries) {
   for (const width of [390, 1280]) {
@@ -20,7 +20,8 @@ for (const e of entries) {
       await page.waitForSelector("body[data-ready]");
       const problems = [...errors.map((x) => "console: " + x), ...(await layout(page)), ...(await axe(page))];
       expect(problems, e.title).toEqual([]);
-      await expect(page).toHaveScreenshot(`${e.id}-${width}.png`, { fullPage: true });
+      await fitViewport(page);
+      await expect(page).toHaveScreenshot(`${e.id}-${width}.png`);
     });
   }
 }
@@ -37,7 +38,8 @@ for (const e of pageEntries) {
       await page.evaluate(() => document.fonts.ready);
       const problems = [...errors.map((x) => "console: " + x), ...(await layout(page)), ...(await axe(page))];
       expect(problems, e.title).toEqual([]);
-      await expect(page).toHaveScreenshot(`${e.id}-${width}.png`, { fullPage: true });
+      await fitViewport(page);
+      await expect(page).toHaveScreenshot(`${e.id}-${width}.png`);
     });
   }
 }

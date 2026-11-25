@@ -4,7 +4,7 @@ Check every screen against this list. The catalogue and `make web-check` enforce
 
 **Look**
 - Light only. The system font for every word on every screen. The hand font (Caveat) is the simple-host wordmark's alone: never a heading, tab, chip, button, table head or label.
-- One type scale, set in `tokens.css` and named as roles in `app.css`: `type-page` (24 bold, a page's title), `type-card` (28 bold, a card's title), `type-section` (18 semibold, a section's heading), `type-label` (14 medium, labels, table heads, stat labels); body and controls 16, secondary lines 14, badges and fine print 13. Text pages use 34 for their title.
+- One type scale, set in `tokens.css` and named as roles in `app.css`: `type-page` (24 semibold, a page's title), `type-card` (28 semibold, a card's title), `type-section` (18 semibold, a section's heading), `type-label` (14 medium, labels, table heads, stat labels); body and controls 16, secondary lines 14, badges and fine print 13. Text pages use 34 for their title. Nothing is heavier than 600: hierarchy comes from size, spacing and colour. Titles are 600 with tight tracking; buttons 500; site names in lists 600; labels and table heads 500 in the muted colour; body 400; stat numbers 600. Only the wordmark is bold.
 - Colours, sizes, radii and shadows come only from `app/src/styles/tokens.css` (Tailwind's own palette is switched off). Teal is the one accent; coral appears only in the wordmark; red only for errors and destructive actions.
 - Paper cards with the hand-drawn edge (`Card`) for a single task (sign-in, a dialog, choosing a name); plain sections with a `type-section` heading for lists and numbers. Forms and their sections are at most 720 px wide.
 

@@ -4,7 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 
 export type Problem = string;
 
-/** layout finds sideways scroll, text cut off or pushed off screen, and tap targets under 44 px. */
+/** layout finds sideways scroll, text cut off or pushed off screen, and tap targets under 44 px. A deliberate ellipsis is fine when the full text is in a title. */
 export async function layout(page: Page): Promise<Problem[]> {
   return page.evaluate(() => {
     const out: string[] = [];
@@ -27,7 +27,7 @@ export async function layout(page: Page): Promise<Problem[]> {
       const r = el.getBoundingClientRect();
       if (r.right > vw + 1 && cs.position !== "fixed") out.push(`off screen to the right: ${name(el)} ends at ${Math.round(r.right)}px`);
       const clips = /(hidden|clip)/.test(cs.overflowX) || cs.textOverflow === "ellipsis";
-      if (clips && el.scrollWidth > el.clientWidth + 1 && el.textContent?.trim()) out.push(`text cut off: ${name(el)}`);
+      if (clips && el.scrollWidth > el.clientWidth + 1 && el.textContent?.trim() && !(cs.textOverflow === "ellipsis" && el.getAttribute("title"))) out.push(`text cut off: ${name(el)}`);
     }
     const tappable = "a[href], button, input:not([type=hidden]), select, textarea, [role=tab], [role=menuitem], [tabindex]:not([tabindex='-1'])";
     for (const el of document.body.querySelectorAll(tappable)) {
@@ -48,4 +48,15 @@ export async function layout(page: Page): Promise<Problem[]> {
 export async function axe(page: Page): Promise<Problem[]> {
   const res = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   return res.violations.flatMap((v) => v.nodes.map((n) => `axe ${v.id}: ${v.help} at ${n.target.join(" ")}`));
+}
+
+/** Sizes the viewport to the whole page, so a picture of it shows fixed bars
+ *  (the phone's bottom bar) where they really sit, at the very bottom. */
+export async function fitViewport(page: Page): Promise<void> {
+  const width = page.viewportSize()!.width;
+  for (let i = 0; i < 3; i++) {
+    const h = await page.evaluate(() => Math.ceil(document.documentElement.scrollHeight));
+    await page.setViewportSize({ width, height: Math.max(h, 300) });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+  }
 }

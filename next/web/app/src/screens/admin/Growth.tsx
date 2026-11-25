@@ -203,7 +203,7 @@ function SeriesCard({
   return (
     <div className={cn("min-w-0 rounded-tab border border-rule bg-card px-3.5 pt-3.5 pb-2.5", wide && "md:col-span-2")}>
       <h3 className="text-sm font-semibold text-ink-soft">{title}</h3>
-      <div className="mt-0.5 text-2xl font-bold tabular-nums">{num(s.total)}</div>
+      <div className="mt-0.5 text-2xl font-semibold tabular-nums">{num(s.total)}</div>
       <div className="mt-0.5 min-h-[18px] text-xs text-ink-soft">{changeText(g, s, noun === "calls" ? "calls" : noun)}</div>
       <div ref={ref} className="mt-2.5 w-full min-w-0 touch-pan-y">
         <svg

@@ -11,7 +11,7 @@ const buttonVariants = cva(
       variant: {
         // The one filled button of a screen, card or dialog: teal.
         primary:
-          "rounded-wobble bg-accent text-base font-semibold text-on-accent shadow-paper hover:bg-accent-hover hover:text-on-accent hover:shadow-paper-sm",
+          "rounded-wobble bg-accent text-base font-medium text-on-accent shadow-paper hover:bg-accent-hover hover:text-on-accent hover:shadow-paper-sm",
         secondary:
           "rounded-wobble border-[1.5px] border-ink-soft bg-card text-base font-medium text-ink shadow-paper hover:bg-paper-lo hover:text-ink hover:shadow-paper-sm",
         danger:

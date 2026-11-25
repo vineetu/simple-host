@@ -50,7 +50,7 @@ export function Field({ id, label, hint, error, children }: { id: string; label:
 }
 
 export function Label({ className, ...props }: ComponentProps<"label">) {
-  return <label className={cn("mb-1.5 block text-sm font-semibold text-ink", className)} {...props} />;
+  return <label className={cn("mb-1.5 block text-sm font-medium text-ink-soft", className)} {...props} />;
 }
 
 /** NativeSelect is the browser's own select, in the input style. */

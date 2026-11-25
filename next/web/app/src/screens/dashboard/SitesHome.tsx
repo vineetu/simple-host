@@ -169,7 +169,7 @@ function SiteList({ me, all }: { me: Me; all: SiteItem[] }) {
             {s.name}
           </Link>
           {s.owner !== me.handle && <span className="ml-2 text-sm font-normal text-ink-soft">team {s.owner}</span>}
-          <div className="text-sm font-normal break-all text-ink-soft">{host(s.url)}</div>
+          <div className="truncate text-sm font-normal text-ink-soft" title={host(s.url)}>{host(s.url)}</div>
           <div className="text-sm font-normal text-ink-soft md:hidden">
             Changed <Ago at={s.changed_at} />
             {s.access !== "open" && " · " + ACCESS_WORDS[s.access].toLowerCase()}
