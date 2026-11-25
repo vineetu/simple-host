@@ -420,8 +420,11 @@ func (s *Sites) Commit(ctx context.Context, site *Site, dir, authorID string) (i
 		return 0, err
 	}
 	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM sites WHERE id = $1 FOR UPDATE`, site.ID); err != nil { // lock first: the max below then sees a concurrent publish
+		return 0, err
+	}
 	var n int
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT max(n) FROM versions WHERE site_id = s.id), 0) + 1 FROM sites s WHERE s.id = $1 FOR UPDATE`, site.ID).Scan(&n); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(max(n), 0) + 1 FROM versions WHERE site_id = $1`, site.ID).Scan(&n); err != nil {
 		return 0, err
 	}
 	var author any
