@@ -11,6 +11,10 @@ import { Providers } from "../App";
 import { ApiError, type Call } from "@/lib/api";
 import { SignIn } from "@/screens/signin/SignIn";
 import { Admin } from "@/screens/admin/Admin";
+// ---- Upload
+import { Upload } from "@/screens/upload/Upload";
+import { UploadDepsProvider, realDeps, type UploadDeps } from "@/screens/upload/data";
+// ---- end Upload
 import { entries, type Entry, type Step } from "./entries";
 
 let pending = 0;
@@ -30,6 +34,56 @@ function fakeCall(e: Entry): Call {
     );
   };
 }
+
+// ---- Upload: the upload screen's sending and photo shrinking, against the entry's answers.
+// Each counts as a request in flight, so the steps wait for it.
+async function track<T>(p: Promise<T>): Promise<T> {
+  pending++;
+  try {
+    return await p;
+  } finally {
+    pending--;
+  }
+}
+const COLOURS = ["#c98b5f", "#6f9a8d", "#d9b86a", "#8e7cc3", "#b85c4f"];
+function fakeUpload(e: Entry): UploadDeps {
+  const answer = <T,>(method: string, path: string) =>
+    track(new Promise<T>((resolve, reject) => {
+      const a = e.api(method, path, null);
+      if (a === "pending") return;
+      setTimeout(() => (a instanceof ApiError ? reject(a) : resolve(structuredClone(a) as T)), 10);
+    }));
+  return {
+    ...realDeps,
+    filesLimit: e.filesLimit ?? realDeps.filesLimit,
+    check: (token) => answer("GET", "/v1/uploads/" + token),
+    send: <T,>(token: string, _b: Blob | FormData, _t: string | null, progress: (s: number, t: number) => void) => {
+      const a = e.api("PUT", "/v1/uploads/" + token, null) as { progress?: number };
+      if (a && typeof a === "object" && "progress" in a) {
+        progress(a.progress! * 1000, 1000);
+        return new Promise<T>(() => {});
+      }
+      progress(1000, 1000);
+      return answer<T>("PUT", "/v1/uploads/" + token);
+    },
+    // A picture of one colour, about a seventh of the photo's size, as a shrunk photo would be.
+    shrink: (file) => track(shrinkFake(file)),
+  };
+}
+async function shrinkFake(file: File) {
+  {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const g = c.getContext("2d")!;
+      g.fillStyle = COLOURS[file.name.length % COLOURS.length];
+      g.fillRect(0, 0, 64, 64);
+      g.fillStyle = "#fffdf5";
+      g.fillRect(14, 30, 36, 20);
+      const png = await new Promise<Blob>((ok) => c.toBlob((b) => ok(b!), "image/png"));
+      return { blob: new Blob([png, new Uint8Array(Math.max(0, Math.round(file.size / 7) - png.size))], { type: "image/webp" }), ext: ".webp" };
+  }
+}
+// ---- end Upload
 
 const visible = (el: Element) => (el as HTMLElement).getClientRects().length > 0;
 
@@ -67,6 +121,14 @@ async function run(steps: Step[]) {
       // Radix menus open on pointerdown; a plain click covers everything else.
       el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse" }));
       el.click();
+    } else if ("files" in s) {
+      // ---- Upload: files picked into a file input
+      const [sel, list] = s.files;
+      const input = (await waitFor(sel)) as HTMLInputElement;
+      const dt = new DataTransfer();
+      for (const f of list) dt.items.add(new File([new Uint8Array(f.size)], f.name, { type: f.type }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
     } else {
       const [sel, value] = "fill" in s ? s.fill : s.select;
       const el = (await waitFor(sel)) as HTMLInputElement | HTMLSelectElement;
@@ -81,6 +143,7 @@ async function run(steps: Step[]) {
 }
 
 function One({ e }: { e: Entry }) {
+  const [upload] = useState(() => fakeUpload(e)); // ---- Upload
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } }));
   useEffect(() => {
     if (started) return;
@@ -92,12 +155,15 @@ function One({ e }: { e: Entry }) {
   }, [e]);
   return (
     <Providers call={fakeCall(e)} client={client}>
+      <UploadDepsProvider value={upload}>
       <MemoryRouter initialEntries={[e.url]}>
         <Routes>
           <Route path="/signin" element={<SignIn />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/upload/:token" element={<Upload />} />
         </Routes>
       </MemoryRouter>
+      </UploadDepsProvider>
     </Providers>
   );
 }

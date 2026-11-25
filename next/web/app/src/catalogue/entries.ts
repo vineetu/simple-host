@@ -8,7 +8,9 @@ import { admin } from "./fixtures";
 /** An answer: a value, a refusal, or "pending" (the request never ends). */
 export type Answer = unknown | ApiError | "pending";
 export type Route = (method: string, path: string, body: unknown) => Answer;
-export type Step = { click: string } | { fill: [string, string] } | { select: [string, string] };
+// ---- Upload: { files } picks made-up files into a file input (name, type, size in bytes).
+export type FakeFile = { name: string; type: string; size: number };
+export type Step = { click: string } | { fill: [string, string] } | { select: [string, string] } | { files: [string, FakeFile[]] };
 
 export type Entry = {
   id: string;
@@ -17,6 +19,8 @@ export type Entry = {
   api: Route;
   steps?: Step[];
   google?: boolean;
+  // ---- Upload: the service's file-store limit, smaller to show "too big" without a huge file.
+  filesLimit?: number;
 };
 
 const refuse = (status: number, code: string, fix: string) => new ApiError(status, code, fix);
@@ -45,6 +49,26 @@ const signinApi =
     }
     return {};
   };
+
+// ---- Upload
+const uploadApi =
+  (o: { check?: Answer; send?: Answer } = {}): Route =>
+  (method, path) => {
+    if (path === "/v1/uploads/tok" && method === "GET") return o.check ?? { kind: "files", namespace: "photos" };
+    if (path === "/v1/uploads/tok" && method === "PUT") return o.send ?? { namespace: "photos", files: ["img-2041.webp", "front-door.webp", "menu-spring.pdf"] };
+    return {};
+  };
+const pickThree: Step = {
+  files: [
+    "input[type=file]",
+    [
+      { name: "IMG_2041.HEIC", type: "image/heic", size: 3_240_000 },
+      { name: "Front door.jpg", type: "image/jpeg", size: 2_610_000 },
+      { name: "Menu (spring).pdf", type: "application/pdf", size: 184_000 },
+    ],
+  ],
+};
+// ---- end Upload
 
 const toCode: Step[] = [{ fill: ["#email", "ana@example.com"] }, { click: "text=Continue" }];
 
@@ -143,5 +167,61 @@ export const entries: Entry[] = [
     url: "/admin#tools",
     api: adminApi("selfhosted"),
     steps: [{ fill: ["#make-email", "someone@"] }, { click: "text=Make account" }],
+  },
+
+  // ---- Upload
+  { id: "upload-loading", title: "Upload link: checking the link", url: "/upload/tok", api: uploadApi({ check: "pending" }) },
+  { id: "upload-files", title: "Upload link: photos and files, nothing chosen", url: "/upload/tok", api: uploadApi() },
+  { id: "upload-chosen", title: "Upload link: three files chosen, ready to save", url: "/upload/tok", api: uploadApi(), steps: [pickThree] },
+  {
+    id: "upload-sending",
+    title: "Upload link: sending, part way",
+    url: "/upload/tok",
+    api: uploadApi({ send: { progress: 0.62 } }),
+    steps: [pickThree, { click: "text=Save to site" }],
+  },
+  { id: "upload-done", title: "Upload link: saved, with the message for the chat", url: "/upload/tok", api: uploadApi(), steps: [pickThree, { click: "text=Save to site" }] },
+  {
+    id: "upload-sendfail",
+    title: "Upload link: the upload stopped",
+    url: "/upload/tok",
+    api: uploadApi({ send: refuse(0, "offline", "The upload stopped: Simple Host could not be reached. Check your connection and try again.") }),
+    steps: [pickThree, { click: "text=Save to site" }],
+  },
+  {
+    id: "upload-toomany",
+    title: "Upload link: more than 30 at once",
+    url: "/upload/tok",
+    api: uploadApi(),
+    steps: [{ files: ["input[type=file]", Array.from({ length: 31 }, (_, i) => ({ name: `IMG_${3000 + i}.jpg`, type: "image/jpeg", size: 240_000 }))] }],
+  },
+  {
+    id: "upload-toobig",
+    title: "Upload link: a file too big for the site, left out",
+    url: "/upload/tok",
+    api: uploadApi(),
+    filesLimit: 5_000_000,
+    steps: [{ files: ["input[type=file]", [{ name: "kitchen.jpg", type: "image/jpeg", size: 3_100_000 }, { name: "tour-video.mp4", type: "video/mp4", size: 6_200_000 }]] }],
+  },
+  {
+    id: "upload-used",
+    title: "Upload link: used already",
+    url: "/upload/tok",
+    api: uploadApi({ check: refuse(410, "link_used", "This upload link has been used or has run out. Ask your chat for a new one.") }),
+  },
+  { id: "upload-archive", title: "Upload link: publish a whole site", url: "/upload/tok", api: uploadApi({ check: { kind: "archive" } }) },
+  {
+    id: "upload-archive-chosen",
+    title: "Upload link: the site's archive chosen",
+    url: "/upload/tok",
+    api: uploadApi({ check: { kind: "archive" } }),
+    steps: [{ files: ["input[type=file]", [{ name: "bakery-site.zip", type: "application/zip", size: 1_840_000 }]] }],
+  },
+  {
+    id: "upload-archive-done",
+    title: "Upload link: the site published",
+    url: "/upload/tok",
+    api: uploadApi({ check: { kind: "archive" }, send: { version: 4, url: "https://bakery.ana.simple-host.app/" } }),
+    steps: [{ files: ["input[type=file]", [{ name: "bakery-site.zip", type: "application/zip", size: 1_840_000 }]] }, { click: "text=Publish" }],
   },
 ];
