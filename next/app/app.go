@@ -59,8 +59,8 @@ type Config struct {
 	// CountryFile is the IP-to-country file (MaxMind .mmdb format, such as
 	// DB-IP's) for the admin page's world map; "" means no countries.
 	CountryFile string
-	// Cloudflare in front of the site addresses: purges after a change and
-	// the visitor's address from CF-Connecting-IP (off when either is empty).
+	// Cloudflare in front of the site addresses: purges after a change
+	// (off when either is empty).
 	CFZoneID, CFAPIToken, CFAPIURL string
 }
 
@@ -162,13 +162,6 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	} else {
-		if a.Sites.Cloudflare != nil && strings.HasSuffix(web.Host(r), "."+a.Config.SiteDomain) {
-			// Behind Cloudflare the visitor's address is CF-Connecting-IP. web.ClientIP
-			// reads X-Real-IP only from the web server on loopback.
-			if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); ip != "" {
-				r.Header.Set("X-Real-IP", ip)
-			}
-		}
 		k := &keeper{ResponseWriter: w, r: r}
 		w = k
 		p, err := a.Sites.Lookup(r.Context(), web.Host(r))

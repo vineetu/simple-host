@@ -54,7 +54,7 @@ Self-hosted: `web/selfhost/compose.yaml` and `.env.example`; `docker compose up 
 
 Only `site--handle.SH_SITE_DOMAIN` and `handle.SH_SITE_DOMAIN` go through Cloudflare (proxied
 `*.SH_SITE_DOMAIN`); own domains, short names and `site.handle.SH_APP_DOMAIN` stay direct.
-Without the two settings the service purges nothing and ignores `CF-Connecting-IP`.
+Without the two settings the service purges nothing.
 
 - Settings: `CF_ZONE_ID` (the site domain's zone) and `CF_API_TOKEN`, a token with one
   permission: Zone → Cache Purge, on that zone only.
@@ -69,9 +69,11 @@ Without the two settings the service purges nothing and ignores `CF-Connecting-I
      from origin" (the service sends `Cloudflare-CDN-Cache-Control` and `Cache-Tag` itself).
 - Do not compress twice: leave compression to Cloudflare and keep nginx `gzip off` for these hosts
   (or turn Cloudflare's off), so an already-compressed body is never compressed again.
-- The visitor's address comes from `CF-Connecting-IP`, trusted only on site-domain hosts from
-  nginx on loopback. nginx should accept `*.SH_SITE_DOMAIN` only from Cloudflare's addresses, or
-  anyone reaching the box directly could name their own address.
+- The visitor's address is nginx's job; the service still trusts only `X-Real-IP` from loopback.
+  In nginx: `set_real_ip_from <range>;` for each range in https://www.cloudflare.com/ips-v4 and
+  https://www.cloudflare.com/ips-v6 (refreshed by hand when Cloudflare changes them),
+  `real_ip_header CF-Connecting-IP;` and `proxy_set_header X-Real-IP $remote_addr;`. A connection
+  that does not come from Cloudflare is still served and counted under its own address.
 - Cached page views never reach the service, so visit numbers for open sites must come from
   Cloudflare's analytics (not built here).
 
