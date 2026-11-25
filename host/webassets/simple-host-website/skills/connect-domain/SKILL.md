@@ -1,161 +1,57 @@
 ---
 name: connect-domain
-description: Give a Simple Host site a shorter or custom address, either a short <name>.simple-host.app (one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com via a CNAME record, or example.com via an A record) to a site they already have on Simple Host, using the connect_domain, domain_status and remove_domain tools. Use when the person wants their site on a nicer or shorter address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address where sign-in works. Gets the two DNS records (the address and a TXT ownership record), relays them with registrar-specific steps, and checks until the domain is live.
+description: Give a Simple Host site a shorter or custom address, either a free short name (<name>.simple-host.app, one call, no DNS) or the person's own domain or subdomain (for example rsvp.example.com or example.com), using set_site_address. Use when the person wants their site on a nicer address, or asks how to point a domain they bought (Vercel, GoDaddy, Porkbun, Namecheap, Cloudflare, Squarespace and others) at their site. Optional, since every site already has its own address.
 ---
 
-# Connect a custom domain
+# Own domain or short name
 
-A Simple Host site is already live at its own address, `https://<site>.<handle>.simple-host.app/`
-(newer accounts: `https://<site>--<handle>.simple-host.site/`),
-where visitor sign-in already works. This is optional and gives it a
-nicer or shorter address, served over HTTPS: a short `<name>.simple-host.app`, or the person's
-own domain. You do the Simple Host side with the
-tools; the person adds two DNS records where their domain is managed. The person's own explicit
-instructions take priority over this guidance.
+Every Simple Host site already has an address (the `url` tools return). This gives it a shorter or
+custom one over HTTPS. You do the Simple Host side with `set_site_address`; the person adds DNS
+records where their domain is managed. You are already signed in as the person: never ask for a
+Simple Host email, code or password, or for registrar credentials. If the tools are missing,
+ask them to connect Simple Host (https://simple-host.app/install).
 
-Call `connect_domain`, `domain_status`, or `remove_domain` directly, using its input schema. If
-your app does not list them, use `find_tools` and `run_tool`. If Simple Host is not connected,
-ask the person to connect it (https://simple-host.app/install.html); without a connector, the
-same calls are in the `website-deploy` skill's `references/rest-api.md`.
+**Ask first.** Name the site and the exact address and wait for a yes before connecting or
+removing one.
 
-You are already signed in as the person. Never ask for a Simple Host email, code or password.
-If a tool says the connection is no longer signed in, ask them to reconnect Simple Host in the
-app's settings.
+## Short name: `<name>.simple-host.app`
 
-**Ask first.** Connecting an address moves the site there. Before any `connect_domain` call,
-name the site and the exact address and wait for a yes. The same goes for `remove_domain`.
+`set_site_address` with `site` and `short_name: "bakery"`. It is live at once, no DNS. Lowercase
+letters, digits and single hyphens; names are first come, first served and a few are reserved: on
+a refusal read `fix` and suggest another. Give the person the address the tool returns.
+`short_name: ""` removes it.
 
-## The short address: `<name>.simple-host.app`
+## Own domain
 
-One call, no DNS step. Offer it first when the person wants a shorter address and has no
-domain of their own.
+1. Ask which domain. A **subdomain** (`rsvp.example.com`) is simplest and leaves the rest of
+   their domain alone. Use the bare domain (`example.com`) only if they want it; it moves
+   whatever the root points at.
+2. `set_site_address` with `site` and `domain` (no `https://`). The answer lists the DNS records
+   to add and which are still missing: an address record (a CNAME for a subdomain, an A record
+   for a bare domain) and a TXT record at `_simple-host.<domain>` that proves the domain is
+   theirs and stays in place. Relay exactly what it returns; never invent a target or value.
+3. Ask where the domain's DNS is managed (usually where they bought it) and give both records in
+   plain terms: type, name (just the part before their domain), value, lowest TTL. Leave other
+   records, especially email (MX), alone. Never ask them to change nameservers. Registrar
+   screens: `references/registrars.md`.
+4. Check with `get_site` after they say the records are saved, and again a few minutes later. The
+   domain reads `waiting` while records are missing (each record shows whether it was found),
+   `certificate` once DNS is right and HTTPS is being issued (usually minutes; their part is
+   done), and `live`. A record found but wrong usually means an old parking record or an `AAAA`
+   record pointing elsewhere: compare with what you gave them.
+5. When live, give `https://<their domain>/`.
 
-- `connect_domain` with `site` and `domain: "clay-studio.simple-host.app"`. It answers
-  `status: "active"` at once. Give the person `https://clay-studio.simple-host.app/`.
-- First come, first served. `domain_taken`: another site has it; suggest another name.
-  `name_reserved`: reserved names (`www`, `api`, `admin`, `mail` and others) are refused.
-  `invalid_name`: one label, lowercase letters, digits and hyphens.
-- It behaves exactly like a custom domain: everything below applies, and the site's
-  `<site>.<handle>.simple-host.app` address redirects there.
-- A site has one bound address. Claiming the short address replaces a custom domain at once;
-  a custom domain replaces the short address only once it is live, and until then the site
-  keeps serving at the short address. A short address the site lets go keeps redirecting to it.
+`domain: ""` removes it (ask first; links to it stop working, the site keeps its own address).
+A domain another account has already proven is refused: say so.
 
-## What a bound address changes
+## One domain for all sites
 
-- The site is served from the domain, on its own origin, over HTTPS (certificates are handled
-  by Simple Host; the person never uploads one).
-- Once active, the site lives only at the domain: its `<site>.<handle>.simple-host.app` address
-  (and any older link) redirects there, and pages save only on the domain. The tools keep
-  working as before.
-- Visitor sign-in carries over. Pages written with `SH.requireSignIn()`
-  before each save and `window.SH_CONFIG = { site: "<site>" }` before the script tag (see
-  `website-deploy`) work unchanged; on a custom domain `SH_CONFIG` is what tells the helper
-  which site it is.
+`update_account` with `domain: "trips.example.com"` makes every site of the account (a team's
+with `owner`) answer at `https://<site>.trips.example.com/`, new sites too. It needs a wildcard
+record (`*.trips`) plus the TXT record, which the answer lists; at Cloudflare keep the wildcard
+**DNS only**. Ask first: it applies to every site.
 
-## The flow (the person's own domain)
+## Sign-in on a domain
 
-1. **Pick the site and the domain.** `list_sites` for the exact site name. Ask which domain they
-   want. A **subdomain** (`rsvp.example.com`) is simplest and leaves the rest of their domain
-   alone; use the **apex** (`example.com`) only if they want the bare domain, which moves
-   whatever the root currently points at. One bound address per site (this replaces a short
-   `<name>.simple-host.app` if the site has one).
-2. **Bind it,** once they have confirmed the site and domain: `connect_domain` with `site` and `domain` (no `https://`). It returns two DNS
-   records: `dns_record` (a CNAME to `cname.simple-host.app` for a subdomain, or an A record
-   with an IP for an apex) and `ownership_record`, a TXT record at `_simple-host.<domain>`
-   holding this site's own value, which proves the domain is theirs. Nothing is verified or
-   certified without it, and it stays in place afterwards (removing it makes a live domain fail its
-   checks and, after three days, be disconnected). Relay whatever it returns; never
-   invent a target or value. A "domain taken" error means another site holds a verified (or
-   ownership-proven) binding for that domain; "domain releasing" means it was just
-   disconnected: try again in 10 minutes.
-   The binding is provisional until its ownership record is seen: another site can take it
-   over, and it expires after 24 hours unless the records are already seen. Bind and add the records in the
-   same sitting; binding again later is fine. If the site already had an address of its own,
-   `serving_at` shows it: the site stays there until the new domain is live.
-   For a bare domain or `www.<bare domain>` the answer also has `partner`: the other name
-   (`partner.domain`) and its record (`partner.dns_record`). With that record added too, the
-   other name forwards to the chosen one, so `example.com` and `www.example.com` both work; the
-   one ownership record covers both. `partner.status` is `pending`, `live`, or `not_set_up`
-   with `partner.note` saying why (not pointed here yet, or another site on this server answers
-   it); it is picked up automatically within a few hours once fixed.
-3. **Relay the records.** Ask where the domain's DNS is managed (usually where they bought it),
-   then give both records in plain terms:
-
-   > Add these two records where you manage your domain's DNS, then tell me when they are saved:
-   > 1. **Type:** CNAME · **Name / Host:** `rsvp` (just the part before your domain) ·
-   >    **Value / Target:** `cname.simple-host.app`
-   > 2. **Type:** TXT · **Name / Host:** `_simple-host.rsvp` · **Value:** the value from
-   >    `ownership_record` (it shows the domain is yours; keep it in place)
-   > - **TTL:** the lowest offered (60-600 seconds)
-   >
-   > Leave your other records, especially email (MX), as they are.
-
-   For an apex: Type `A`, Name `@` (or blank), Value = the IP returned, and the TXT record at
-   Name `_simple-host`. If an A, ALIAS or
-   forwarding record already exists at the root, it must be edited to the new IP, not
-   duplicated. Never ask them to change nameservers or delete unrelated records.
-   For step-by-step screens at **Vercel, GoDaddy, Porkbun, Cloudflare, Namecheap** and others,
-   load `references/registrars.md` and give them that section.
-4. **Check:** `domain_status`. A freshly bound domain reads `pending` until the first
-   background check (every couple of minutes), so check again after the person says the record
-   is saved, and a few minutes later if needed. `last_check` says what is missing:
-   - `add the ownership record ...` or `the TXT record ... does not hold this site's value`:
-     the TXT record is not saved yet or has a different value; nothing else is checked until it
-     matches.
-   - `domain does not resolve yet`: the record is not saved yet or is still propagating; have
-     them double-check it against the record from step 2, then wait a few minutes.
-   - `resolves to <ip>, not to this server`: the record points elsewhere (often an old parking
-     record); compare it with step 2 and fix it.
-   - `resolves to this server; its certificate is being issued` (`certificate: issuing`): DNS
-     is done and the certificate is issued automatically, usually within minutes. Tell the
-     person their part is finished and check again shortly.
-   - `certificate: failed`: `last_check` says why (usually an IPv6 `AAAA` record for the
-     domain pointing elsewhere, which they should remove); it is retried every few hours.
-     "already served here by another site" means the name belongs to another site on Simple
-     Host's server and cannot be connected. Each account gets at most 5 new domain certificates
-     a day; the next says so and follows the day after.
-   - `error` with e.g. `HTTPS returned 404`: the domain reaches Simple Host but the site serves
-     nothing; check the site has content.
-5. **Done** when the status is `active`. Give the person `https://<their domain>/` and remind
-   them the old address now redirects there.
-
-## Many sites under one name: `*.<domain>`
-
-An address family puts every site of the person's account under one domain of theirs:
-connect `*.trips.example.com` once and every site `X` answers at `https://X.trips.example.com/`,
-including sites made later.
-
-- **Ask first:** it applies to every site of their account. Name the domain and wait for a yes.
-- `connect_domain` with `domain: "*.trips.example.com"` and no `site`. Relay the two records
-  from the answer: the wildcard record `dns_record` (Type CNAME · Name `*.trips` · Value
-  `cname.simple-host.app`) and the TXT record `ownership_record` (Name `_simple-host.trips`,
-  kept in place). At Cloudflare the wildcard must be **DNS only**, not proxied. Remove any other
-  `*.trips` record first.
-- Every site answers there, or with a prefix only the sites whose name starts with it
-  (`voucher-` makes `meera.voucher.example.com` the site `voucher-meera`).
-- By default a family address becomes each site's main address, unless the site has its own
-  domain: its own address redirects there and visitors sign in and save there. The tools' `url`
-  is the address to give out.
-- In this release Simple Host's operator sets up the wildcard certificate: until then the
-  certificate reads `waiting_for_operator`; tell the person, and point them to
-  support@simple-host.app if it has been more than a day.
-- Check with `domain_status` and `domain: "*.trips.example.com"`: `pending` (records not seen
-  yet; `last_check` says which), `active`, or `failing`. Disconnect only after the person
-  confirms: `remove_domain` with `confirm_domain: "*.trips.example.com"`.
-
-## Registrar credentials
-
-Give the person the DNS records and the registrar dashboard steps; they add the records themselves. Do not ask for or use registrar credentials in chat.
-
-## Disconnecting
-
-`remove_domain` disconnects the site's domain or short address. Only after the person confirms,
-in this conversation, which address to remove; pass it as `confirm_domain`. The site is then
-served at its own address again (or, if the domain was still pending, at the address it was
-using). A removed short address keeps redirecting to the site; links to a removed custom domain
-stop working.
-
-If a live domain stops working (it lapsed, or its DNS moved): If it fails every check for a day,
-the owner is emailed. After three days the domain is disconnected and the site goes back to its
-own address; connecting it again needs the TXT ownership record again.
+Visitor sign-in belongs to the address the visitor is on. Pages that sign people in or save data
+set `window.SH_CONFIG = { site: "<site>" }` before the helper script (see `website-deploy`).
