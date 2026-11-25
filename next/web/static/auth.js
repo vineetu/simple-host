@@ -205,9 +205,11 @@
   }
 
   // The few things this helper draws: a button, a signed-in chip, a box.
+  // The sign-in box takes the owner app's tokens (web/app/src/styles/tokens.css:
+  // card #fffdf5, ink #103f49, ink-soft #45646a), written out: a site loads no platform CSS.
   var FONT = "font:16px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;";
   var SHADE = "position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box";
-  var PANEL = FONT + "position:relative;box-sizing:border-box;background:#fff;color:#1a1a1a;border-radius:var(--sh-radius,14px);padding:24px 22px 18px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)";
+  var PANEL = FONT + "position:relative;box-sizing:border-box;background:#fffdf5;color:#103f49;border:1.5px solid #45646a;border-radius:var(--sh-radius,14px);padding:24px 22px 18px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)";
   function button(label, primary) {
     var b = document.createElement("button");
     b.type = "button";
@@ -250,13 +252,13 @@
       var go = button("Sign in", true), no = button("\u00d7");
       go.style.cssText += ";display:block;width:100%;margin-top:4px";
       no.setAttribute("aria-label", "Close");
-      no.style.cssText = "position:absolute;top:4px;right:4px;width:44px;height:44px;border:0;background:transparent;color:#5d5d66;font:24px/1 system-ui,sans-serif;cursor:pointer";
+      no.style.cssText = "position:absolute;top:4px;right:4px;width:44px;height:44px;border:0;background:transparent;color:#45646a;font:24px/1 system-ui,sans-serif;cursor:pointer";
       panel.appendChild(no);
-      panel.appendChild(text("p", title, "font-size:13px;color:#5d5d66;margin:0 40px 4px 0;overflow-wrap:anywhere"));
-      panel.appendChild(text("h2", "Sign in to continue", "font:650 21px/1.25 system-ui,-apple-system,'Segoe UI',sans-serif;margin:0 0 6px;color:#1a1a1a"));
-      panel.appendChild(text("p", "No password and no account to make. The site owner sees the email you sign in with.", "margin:0 0 16px;font-size:15px;color:#5d5d66"));
+      panel.appendChild(text("p", title, "font-size:13px;color:#45646a;margin:0 40px 4px 0;overflow-wrap:anywhere"));
+      panel.appendChild(text("h2", "Sign in to continue", "font:650 21px/1.25 system-ui,-apple-system,'Segoe UI',sans-serif;margin:0 0 6px;color:#103f49"));
+      panel.appendChild(text("p", "No password and no account to make. The site owner sees the email you sign in with.", "margin:0 0 16px;font-size:15px;color:#45646a"));
       panel.appendChild(go);
-      panel.appendChild(text("p", "Use Google or a 6-digit code we email you. Sign-in by Simple Host.", "margin:14px 0 0;font-size:13px;color:#5d5d66"));
+      panel.appendChild(text("p", "Use Google or a 6-digit code we email you. Sign-in by Simple Host.", "margin:14px 0 0;font-size:13px;color:#45646a"));
       wrap.appendChild(panel);
       function cancel() {
         wrap.remove();
