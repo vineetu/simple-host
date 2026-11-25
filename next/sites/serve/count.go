@@ -22,8 +22,8 @@ import (
 // not counted (they still keep the site from looking abandoned); bots are
 // counted apart.
 type tally struct {
-	views, people, bots int
-	pages, referrers    map[string]int
+	views, people, bots         int
+	pages, referrers, countries map[string]int
 }
 
 var visits = struct {
@@ -53,7 +53,7 @@ func (h *handler) count(r *http.Request, site *sites.Site, page string) {
 	}
 	t := visits.tallies[[2]string{site.ID, day}]
 	if t == nil {
-		t = &tally{pages: map[string]int{}, referrers: map[string]int{}}
+		t = &tally{pages: map[string]int{}, referrers: map[string]int{}, countries: map[string]int{}}
 		visits.tallies[[2]string{site.ID, day}] = t
 	}
 	if isBot {
@@ -66,6 +66,9 @@ func (h *handler) count(r *http.Request, site *sites.Site, page string) {
 	if !visits.seen[who] {
 		visits.seen[who] = true
 		t.people++
+	}
+	if c := h.a.Countries.Of(web.ClientIP(r)); c != "" {
+		t.countries[c]++
 	}
 	if ref, err := url.Parse(r.Referer()); err == nil && ref.Host != "" && ref.Hostname() != web.Host(r) {
 		t.referrers[ref.Hostname()]++
@@ -82,7 +85,7 @@ func Flush(ctx context.Context, a *app.App) {
 		_, err := a.DB.ExecContext(ctx, `INSERT INTO stats_daily (site_id, day, views, people, bots) VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (site_id, day) DO UPDATE SET views = stats_daily.views + $3, people = stats_daily.people + $4, bots = stats_daily.bots + $5`,
 			key[0], key[1], t.views, t.people, t.bots)
-		for kind, m := range map[string]map[string]int{"page": t.pages, "referrer": t.referrers} {
+		for kind, m := range map[string]map[string]int{"page": t.pages, "referrer": t.referrers, "country": t.countries} {
 			for k, n := range m {
 				if err == nil {
 					_, err = a.DB.ExecContext(ctx, `INSERT INTO stats_keys (site_id, day, kind, key, n) VALUES ($1, $2, $3, $4, $5)

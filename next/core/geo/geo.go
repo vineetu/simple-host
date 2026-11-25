@@ -1,4 +1,6 @@
-package admin
+// Package geo finds an address's country, for the admin world map and each
+// site's visit numbers: one file, mapped once.
+package geo
 
 import (
 	"bytes"
@@ -11,31 +13,30 @@ import (
 	"syscall"
 )
 
-// countries finds an address's country for the API growth tab's world map,
-// from the IP-to-country file the hosted server already keeps (DB-IP's
-// country or city file in the MaxMind .mmdb format). The file is mapped
+// Countries finds an address's country from the IP-to-country file the
+// hosted server already keeps (DB-IP's country or city file in the MaxMind .mmdb format). The file is mapped
 // into memory once at start; a lookup walks its search tree bit by bit and
 // reads the record's country.iso_code. No file, no countries.
-type countries struct {
+type Countries struct {
 	b                    []byte
 	nodes, recordBits    uint
 	tree, ipv4Start, end int
 }
 
-// openCountries maps path; "" or an unreadable file gives nil (no countries).
-func openCountries(path string) *countries {
+// Open maps path; "" or an unreadable file gives nil (no countries).
+func Open(path string) *Countries {
 	if path == "" {
 		return nil
 	}
 	c, err := mapCountries(path)
 	if err != nil {
-		log.Printf("country file %s: %v (no countries on the API growth map)", path, err)
+		log.Printf("country file %s: %v (no countries)", path, err)
 		return nil
 	}
 	return c
 }
 
-func mapCountries(path string) (*countries, error) {
+func mapCountries(path string) (*Countries, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -53,7 +54,7 @@ func mapCountries(path string) (*countries, error) {
 	if at < 0 {
 		return nil, errors.New("not a MaxMind-format file")
 	}
-	c := &countries{b: b, end: len(b)}
+	c := &Countries{b: b, end: len(b)}
 	meta, _ := c.decode(at + 14)
 	m, _ := meta.(map[string]any)
 	nodes, _ := m["node_count"].(uint64)
@@ -73,7 +74,7 @@ func mapCountries(path string) (*countries, error) {
 }
 
 // Of is the ISO country code of ip ("" when unknown).
-func (c *countries) Of(ip string) string {
+func (c *Countries) Of(ip string) string {
 	addr, err := netip.ParseAddr(ip)
 	if c == nil || err != nil {
 		return ""
@@ -96,7 +97,7 @@ func (c *countries) Of(ip string) string {
 }
 
 // child is the left (0) or right (1) record of a search tree node.
-func (c *countries) child(node, side uint) uint {
+func (c *Countries) child(node, side uint) uint {
 	switch n := c.b[node*c.recordBits/4:]; c.recordBits {
 	case 24:
 		n = n[side*3:]
@@ -114,7 +115,7 @@ func (c *countries) child(node, side uint) uint {
 // decode reads one value of the data section at off (an absolute offset)
 // and returns it with the offset after it. Pointers count from the data
 // section's start.
-func (c *countries) decode(off int) (any, int) {
+func (c *Countries) decode(off int) (any, int) {
 	if off < 0 || off >= c.end {
 		return nil, c.end
 	}

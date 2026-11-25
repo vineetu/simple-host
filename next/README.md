@@ -53,6 +53,7 @@ A feature calls only these (and its own code). Each is listed once.
 ```go
 a.Config; a.DB; a.People; a.Sites; a.Data; a.Mail; a.Routes  // the running service
 a.HTTP                            // outside calls; a.Guarded: addresses a browser gave (public IPs only)
+a.Countries.Of(ip)                // ISO country code, "" when unknown (SH_COUNTRY_FILE): admin map and site visitors
 a.ServeSite(w, r, site)           // answer with a site's routes, as on its own address
 app.FromEnv(); app.New(ctx, cfg)  // config from the environment; the service on it
 ```

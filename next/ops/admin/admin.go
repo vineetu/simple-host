@@ -233,7 +233,6 @@ func (c *counter) Flush() {
 // and every API call (on the platform: /v1/ and /mcp) counts for the growth
 // tab, by the caller's country from the country file (empty when unknown).
 func Counted(a *app.App) http.Handler {
-	geo := openCountries(a.Config.CountryFile)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := &counter{ResponseWriter: w}
 		a.ServeHTTP(c, r)
@@ -241,7 +240,7 @@ func Counted(a *app.App) http.Handler {
 		api := web.Host(r) == a.Config.AppDomain && (strings.HasPrefix(r.URL.Path, "/v1/") || r.URL.Path == "/mcp")
 		country := ""
 		if api {
-			country = geo.Of(web.ClientIP(r))
+			country = a.Countries.Of(web.ClientIP(r))
 		}
 		counts.Lock()
 		counts.in[day] += max(r.ContentLength, 0)

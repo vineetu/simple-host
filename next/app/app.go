@@ -13,6 +13,7 @@ import (
 
 	access "simplehost/access/core"
 	"simplehost/core/db"
+	"simplehost/core/geo"
 	"simplehost/core/guard"
 	"simplehost/core/limits"
 	"simplehost/core/mail"
@@ -57,7 +58,8 @@ type Config struct {
 	// make accounts.
 	SelfHosted bool
 	// CountryFile is the IP-to-country file (MaxMind .mmdb format, such as
-	// DB-IP's) for the admin page's world map; "" means no countries.
+	// DB-IP's) for the admin page's world map and each site's visitors; ""
+	// means no countries.
 	CountryFile string
 	// Cloudflare in front of the site addresses: purges after a change
 	// (off when either is empty).
@@ -116,6 +118,8 @@ type App struct {
 	// HTTP is for the service's own outbound calls (DNS, Google, ACME,
 	// AgentCat). Guarded is for addresses a browser hands us (push).
 	HTTP, Guarded *http.Client
+	// Countries is the one country lookup (nil: no file, every address "").
+	Countries *geo.Countries
 }
 
 // New opens the database, creates the tables on an empty one, and builds
@@ -130,7 +134,8 @@ func New(ctx context.Context, cfg Config) (*App, error) {
 		return nil, err
 	}
 	a := &App{Config: cfg, DB: conn, Routes: web.NewRoutes(), People: &access.People{DB: conn},
-		HTTP: &http.Client{Timeout: 15 * time.Second}, Guarded: guard.Client(10*time.Second, cfg.LoopbackOutbound)}
+		HTTP: &http.Client{Timeout: 15 * time.Second}, Guarded: guard.Client(10*time.Second, cfg.LoopbackOutbound),
+		Countries: geo.Open(cfg.CountryFile)}
 	a.Mail = mail.Mail{URL: cfg.MailURL, Key: cfg.MailKey, From: cfg.MailFrom, Client: a.HTTP}
 	if a.Sites, err = sites.New(conn, a.People, cfg.DataDir, cfg.AppDomain, cfg.SiteDomain, cfg.PasscodeKey); err != nil {
 		conn.Close()
