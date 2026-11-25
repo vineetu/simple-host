@@ -1,38 +1,11 @@
 <!doctype html>
-<html lang="en" class="sh-host" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Privacy · Simple Host</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/landing/site.css">
-  <link rel="stylesheet" href="/assets/landing/host-ink.css">
-  <style>
-    /* The old text-page layout. Tokens, type and the header/footer come from
-       the two landing stylesheets; this is only the page column. */
-    .container { max-width: 768px; margin: 0 auto; padding: 0 max(24px, env(safe-area-inset-right)) 0 max(24px, env(safe-area-inset-left)); }
-    main.container { padding-top: 48px; padding-bottom: 24px; }
-    .eyebrow { font-size: 13px; color: var(--text-secondary); margin: 0 0 10px; }
-    h1 { color: var(--text); margin: 0 0 8px; }
-    .updated { font-size: 13px; color: var(--text-secondary); margin: 0 0 32px; }
-    h2 { color: var(--text); margin: 28px 0 12px; padding-top: 28px; border-top: 1px solid var(--border); scroll-margin-top: 16px; }
-    h3 { color: var(--text); margin: 20px 0 8px; }
-    p, li { color: var(--text-secondary); font-size: 16px; line-height: 1.6; }
-    p { margin: 0 0 14px; }
-    ul { margin: 0 0 14px; padding-left: 20px; }
-    li { margin-bottom: 8px; }
-    strong { color: var(--text); font-weight: 600; }
-    a { color: var(--accent); text-underline-offset: 3px; overflow-wrap: anywhere; }
-    a:hover { color: var(--accent-hover); }
-    code { font-family: var(--mono); font-size: .9em; color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 1px 5px; border-radius: 5px; overflow-wrap: anywhere; }
-    .note { border: 1px solid var(--border-hi); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--surface); padding: 12px 16px; margin: 0 0 28px; }
-    .note p { color: var(--text); font-size: 15px; line-height: 1.5; }
-    .note p:last-child { margin-bottom: 0; }
-    @media (max-width: 640px) {
-      .container { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
-      main.container { padding-top: 36px; }
-    }
-  </style>
+  <link rel="stylesheet" href="/pages.css">
 </head>
 <body>
 <header class="sh-header">
@@ -46,19 +19,32 @@
     <a class="sh-signin" id="dash-link" href="/dashboard">Your sites</a>
   </div>
 </header>
-<main class="container">
-  <section class="lead">
-    <p class="eyebrow">Privacy</p>
+<main class="container has-toc">
+  <nav class="toc" aria-label="On this page">
+    <p>On this page</p>
+    <ol>
+      <li><a href="#what-we-keep-about-you">What we keep about you</a></li>
+      <li><a href="#if-you-visit-a-site-hosted-here">If you visit a site hosted here</a></li>
+      <li><a href="#visit-counts">Visit counts</a></li>
+      <li><a href="#abandoned-sites">Abandoned sites</a></li>
+      <li><a href="#connected-ai-apps">Connected AI apps</a></li>
+      <li><a href="#who-else-handles-data">Who else handles data</a></li>
+      <li><a href="#how-long-we-keep-things">How long we keep things</a></li>
+      <li><a href="#your-rights">Your rights</a></li>
+    </ol>
+  </nav>
+  <section class="page-head">
     <h1>Privacy</h1>
     <p class="updated">Last updated 2026-11-24</p>
     <div class="note">
+      <p class="label">In short</p>
       <p>We collect what we need to sign you in, host your sites and stop abuse. We do not sell your data, show ads or add tracking scripts to pages.</p>
     </div>
     <p>Simple Host is run by Vineet Sriram, an individual. Questions: <a href="mailto:support@simple-host.app">support@simple-host.app</a>. The rules for using the service are in the <a href="/terms">Terms</a>.</p>
   </section>
 
   <section>
-    <h2>What we keep about you</h2>
+    <h2 id="what-we-keep-about-you">What we keep about you</h2>
     <ul>
       <li><strong>Your email.</strong> It is your account. We get it when you enter a code we emailed you, or when Google confirms it. If you use Google, we keep Google's ID for you and the verified email. We do not keep your Google name, picture or password.</li>
       <li><strong>Your handle and display name.</strong> A handle is part of your site addresses.</li>
@@ -70,7 +56,7 @@
   </section>
 
   <section>
-    <h2>If you visit a site hosted here</h2>
+    <h2 id="if-you-visit-a-site-hosted-here">If you visit a site hosted here</h2>
     <p>Each site's owner decides what it shows and what it asks of you. We only host it.</p>
     <ul>
       <li><strong>What you submit belongs to that site's owner.</strong> The owner can read it and is responsible for it. Ask the owner to change or delete it. Where a site's rules let anyone read entries, others can read yours.</li>
@@ -80,7 +66,7 @@
   </section>
 
   <section>
-    <h2>Visit counts</h2>
+    <h2 id="visit-counts">Visit counts</h2>
     <p>We count visits so a site's owner can see how many people read it. We do not add a script, cookie or fingerprint to your pages. The count comes from our web server's own log.</p>
     <ul>
       <li>The counts hold a hash of your IP address (made with a secret key), your country, the site, the page, the referring domain and the day. We do not keep your IP address or User-Agent in the counts.</li>
@@ -92,12 +78,12 @@
   </section>
 
   <section id="abandoned">
-    <h2>Abandoned sites</h2>
+    <h2 id="abandoned-sites">Abandoned sites</h2>
     <p>A site with no visits and no changes for 3 months gets one email to its owner. Visiting the site or changing it keeps it. If nothing happens, the site is removed.</p>
   </section>
 
   <section>
-    <h2>Connected AI apps</h2>
+    <h2 id="connected-ai-apps">Connected AI apps</h2>
     <p>When you connect an AI app, you sign in on simple-host.app and approve. The app gets an access token that lasts one hour and a refresh token that expires after 90 days without use. The app acts as you. It can do what you can do.</p>
     <ul>
       <li><strong>What we receive.</strong> Only what the app sends in a tool call, such as site names, files and data to save. Not your chat history.</li>
@@ -108,7 +94,7 @@
   </section>
 
   <section>
-    <h2>Who else handles data</h2>
+    <h2 id="who-else-handles-data">Who else handles data</h2>
     <p>The service makes only its own outbound calls:</p>
     <ul>
       <li>Certificate authorities (Let's Encrypt, Google, ZeroSSL) for HTTPS.</li>
@@ -121,7 +107,7 @@
   </section>
 
   <section>
-    <h2>How long we keep things</h2>
+    <h2 id="how-long-we-keep-things">How long we keep things</h2>
     <ul>
       <li>Your account, sites and data: until you delete them.</li>
       <li>A deleted site stays 7 days in a bin, then is gone for good.</li>
@@ -131,7 +117,7 @@
   </section>
 
   <section>
-    <h2>Your rights</h2>
+    <h2 id="your-rights">Your rights</h2>
     <p>In the dashboard under Your data you can download everything we hold for your account, and you can delete the account there too. A download comes as a link by email. For anything else, such as a correction, or a site that collected your details, email <a href="mailto:support@simple-host.app">support@simple-host.app</a>.</p>
   </section>
 </main>

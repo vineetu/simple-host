@@ -294,7 +294,7 @@ func Deliver(ctx context.Context, a *app.App) error {
 			owner, _ := a.People.Get(ctx, e.owner)
 			site := e.body["site"]
 			msg := map[string]string{"title": "Someone asked for access to " + site, "body": e.body["email"] + " wants to open the site.",
-				"url": "/dashboard#site/" + owner.Handle + "/" + site, "tag": "sh-" + strconv.FormatInt(e.id, 10)}
+				"url": "/dashboard/sites/" + owner.Handle + "/" + site, "tag": "sh-" + strconv.FormatInt(e.id, 10)}
 			if e.kind == "data" {
 				msg["title"], msg["body"] = "New "+e.body["action"]+" on "+site, "In "+e.body["namespace"]+" / "+e.body["target"]+"."
 			}

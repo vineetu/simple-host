@@ -1,0 +1,113 @@
+/* The design tokens: the old Simple Host look (paper, ink, teal, the coral and
+   teal wordmark), encoded once. The owner app (app.css) and the server-rendered
+   pages (pages.css) both read these and nothing else. Light only.
+   Every default Tailwind colour, font, size and shadow is cleared first, so a
+   screen can only use what is named here. */
+/* The wordmark's hand font (Caveat, cut down to Latin) at a fixed address
+   (public/app/fonts) so the server-rendered pages can use it too. It is the
+   wordmark's only: every other word on every screen is the system font. A
+   gate page on a site address adds its own inline copy after this rule. */
+@font-face { font-family: ShCaveat; src: url("/app/fonts/caveat-bold-latin.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+
+/* Weights are tokens. Wide screens: 500 for controls and labels, 600 for titles
+   and names. Phone widths (below the 700 px breakpoint): 400 everywhere, owner
+   rule, so hierarchy there comes from size, colour and spacing only. */
+:root { --w-medium: 500; --w-strong: 600; }
+@media (max-width: 699.98px) {
+  :root { --w-medium: 400; --w-strong: 400; }
+  b, strong, th, h1, h2, h3, h4, h5, h6 { font-weight: 400; }
+}
+
+@theme {
+  --font-weight-medium: var(--w-medium);
+  --font-weight-semibold: var(--w-strong);
+  --color-*: initial;
+  --color-paper: #f6f4e9;       /* page background */
+  --color-card: #fffdf5;        /* cards, inputs on cards, dialogs */
+  --color-paper-lo: #e5e4d5;    /* table heads, hover wash */
+  --color-rule: #c9d7cd;        /* hairlines and the paper shadow */
+  --color-ink: #103f49;         /* text */
+  --color-ink-soft: #45646a;    /* secondary text, outlines */
+  --color-ink-faint: #526c70;   /* fine print */
+  --color-accent: #116b77;      /* the one accent: teal */
+  --color-accent-hover: #0d525d;
+  --color-accent-soft: #dbe6de; /* teal washed into paper */
+  --color-on-accent: #fffdf5;
+  --color-coral: #ae4535;       /* wordmark "simple" */
+  --color-wordmark: #0e7490;    /* wordmark "host" */
+  --color-bad: #a33f31;
+  --color-good: #2f6b3b;
+  --color-white: #ffffff;       /* the Google button only */
+
+  --font-*: initial;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-wordmark: ShCaveat, "Segoe Print", "Bradley Hand", cursive; /* the simple-host wordmark, nothing else */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* The type scale (system font; weights below apply from 700 px, phones are 400). Roles, used the same way on every screen
+     (app.css names them as type-* utilities; pages.css uses the same sizes):
+       4xl 34  title of a text page (privacy, terms)        bold
+       3xl 28  title of a card (sign-in, a gate page)       bold
+       2xl 24  page title in the app (Your sites, Admin)    bold
+       xl  20  a big number (stats)                         bold
+       lg  18  section heading                              semibold
+       base 16 body, buttons, inputs, tabs, table cells     regular / medium for controls
+       sm  14  labels, table heads, secondary lines         medium (labels) / regular
+       xs  13  badges, fine print                           medium (badges) / regular */
+  --text-*: initial;
+  --text-xs: 13px;
+  --text-xs--line-height: 1.4;
+  --text-sm: 14px;
+  --text-sm--line-height: 1.45;
+  --text-base: 16px;
+  --text-base--line-height: 1.5;
+  --text-lg: 18px;
+  --text-lg--line-height: 1.35;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.25;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 1.2;
+  --text-4xl: 34px;
+  --text-4xl--line-height: 1.15;
+
+  --radius-*: initial;
+  --radius-wobble: 255px 18px 225px 18px / 18px 225px 18px 255px; /* the hand-drawn edge */
+  --radius-field: 10px;
+  --radius-tab: 12px 4px 14px 5px;
+  --radius-tag: 999px;
+  --radius-sm: 6px;
+
+  --shadow-*: initial;
+  --shadow-paper: 2px 3px 0 var(--color-rule);
+  --shadow-paper-sm: 1px 1px 0 var(--color-rule);
+  --shadow-pop: 0 18px 48px rgb(16 63 73 / 0.22), 0 2px 6px rgb(16 63 73 / 0.12);
+
+  --breakpoint-*: initial;
+  --breakpoint-md: 700px;  /* phone below, desktop from here */
+  --breakpoint-lg: 980px;
+
+  --container-*: initial;
+  --container-card: 420px;
+  --container-prose: 768px;
+  --container-page: 1200px;
+}
+
+/* Chart colours are set from script (inline styles), where Tailwind cannot see
+   them being used, so they are always emitted. */
+@theme static {
+  /* Charts (API growth): categorical, then the map's sequential ramp. */
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-chart-3: #1baf7a;
+  --color-chart-4: #eda100;
+  --color-chart-5: #e87ba4;
+  --color-chart-6: #008300;
+  --color-seq-0: #e9edf3;
+  --color-seq-1: #cde2fb;
+  --color-seq-2: #9ec5f4;
+  --color-seq-3: #5598e7;
+  --color-seq-4: #256abf;
+  --color-seq-5: #104281;
+}
