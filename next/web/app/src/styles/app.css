@@ -28,24 +28,24 @@
 @utility type-page {
   font-size: var(--text-2xl);
   line-height: var(--text-2xl--line-height);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   letter-spacing: -0.015em;
 }
 @utility type-card {
   font-size: var(--text-3xl);
   line-height: var(--text-3xl--line-height);
-  font-weight: 600;
+  font-weight: var(--w-strong);
   letter-spacing: -0.015em;
 }
 @utility type-section {
   font-size: var(--text-lg);
   line-height: var(--text-lg--line-height);
-  font-weight: 600;
+  font-weight: var(--w-strong);
 }
 @utility type-label {
   font-size: var(--text-sm);
   line-height: var(--text-sm--line-height);
-  font-weight: 500;
+  font-weight: var(--w-medium);
 }
 
 /* Room the app shell's bars take, for what floats over it (the toast). */

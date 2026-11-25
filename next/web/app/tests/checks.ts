@@ -29,6 +29,17 @@ export async function layout(page: Page): Promise<Problem[]> {
       const clips = /(hidden|clip)/.test(cs.overflowX) || cs.textOverflow === "ellipsis";
       if (clips && el.scrollWidth > el.clientWidth + 1 && el.textContent?.trim() && !(cs.textOverflow === "ellipsis" && el.getAttribute("title"))) out.push(`text cut off: ${name(el)}`);
     }
+    // Owner rule: no bold on a phone. Every visible word is weight 400 below the
+    // 700 px breakpoint (the wordmark, set in the hand font, is the one exception).
+    if (vw < 700) {
+      for (const el of document.body.querySelectorAll("*")) {
+        if (!shown(el) || el.closest("svg") || el.closest(".sr-only")) continue;
+        const cs = getComputedStyle(el);
+        if (/Caveat/i.test(cs.fontFamily)) continue;
+        const own = Array.from(el.childNodes).some((n) => n.nodeType === 3 && (n.textContent || "").trim());
+        if (own && Number(cs.fontWeight) > 400) out.push(`bold text (${cs.fontWeight}): ${name(el)}`);
+      }
+    }
     const tappable = "a[href], button, input:not([type=hidden]), select, textarea, [role=tab], [role=menuitem], [tabindex]:not([tabindex='-1'])";
     for (const el of document.body.querySelectorAll(tappable)) {
       if (!shown(el) || el.closest(".sr-only")) continue;

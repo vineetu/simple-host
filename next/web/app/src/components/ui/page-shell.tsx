@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 /** Wordmark is "simple-host": coral simple, teal host, in the hand font. */
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("font-wordmark text-[29px] leading-tight font-bold text-wordmark", className)}>
+    <span className={cn("font-wordmark text-[29px] leading-tight font-[700] text-wordmark", className)}>
       <span className="text-coral">simple</span>
       <span className="px-[.03em] text-ink-faint">-</span>host
     </span>

@@ -9,7 +9,18 @@
    gate page on a site address adds its own inline copy after this rule. */
 @font-face { font-family: ShCaveat; src: url("/app/fonts/caveat-bold-latin.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
 
+/* Weights are tokens. Wide screens: 500 for controls and labels, 600 for titles
+   and names. Phone widths (below the 700 px breakpoint): 400 everywhere, owner
+   rule, so hierarchy there comes from size, colour and spacing only. */
+:root { --w-medium: 500; --w-strong: 600; }
+@media (max-width: 699.98px) {
+  :root { --w-medium: 400; --w-strong: 400; }
+  b, strong, th, h1, h2, h3, h4, h5, h6 { font-weight: 400; }
+}
+
 @theme {
+  --font-weight-medium: var(--w-medium);
+  --font-weight-semibold: var(--w-strong);
   --color-*: initial;
   --color-paper: #f6f4e9;       /* page background */
   --color-card: #fffdf5;        /* cards, inputs on cards, dialogs */
@@ -33,7 +44,7 @@
   --font-wordmark: ShCaveat, "Segoe Print", "Bradley Hand", cursive; /* the simple-host wordmark, nothing else */
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* The type scale (system font). Roles, used the same way on every screen
+  /* The type scale (system font; weights below apply from 700 px, phones are 400). Roles, used the same way on every screen
      (app.css names them as type-* utilities; pages.css uses the same sizes):
        4xl 34  title of a text page (privacy, terms)        bold
        3xl 28  title of a card (sign-in, a gate page)       bold
