@@ -59,9 +59,13 @@ var (
 	errSuspended     = web.Refuse(http.StatusForbidden, "account_suspended", "This account is suspended. Write to support if you think this is a mistake.")
 )
 
+// A dashboard session ends after sessionIdle without use (each use moves
+// the end on), as the old service's dashboard key did; its cookie is kept
+// for sessionCookieLife, the longest a browser keeps one.
 const (
-	sessionLife     = 30 * 24 * time.Hour
-	siteSessionLife = 30 * 24 * time.Hour
+	sessionIdle       = 180 * 24 * time.Hour
+	sessionCookieLife = 400 * 24 * time.Hour
+	siteSessionLife   = 30 * 24 * time.Hour
 )
 
 // Caller resolves the request's credential to a person. On a site address
@@ -93,7 +97,7 @@ func (p *People) Caller(r *http.Request, siteID string) (web.Caller, error) {
 		return web.Caller{}, nil
 	} else {
 		via = "session"
-		err = p.DB.QueryRowContext(ctx, `UPDATE sessions SET last_seen_at = now() WHERE id_hash = $1 AND expires_at > now() RETURNING person_id`, Hash(Cookie(r, "sh_session"))).Scan(&id)
+		err = p.DB.QueryRowContext(ctx, `UPDATE sessions SET last_seen_at = now(), expires_at = $2 WHERE id_hash = $1 AND expires_at > now() RETURNING person_id`, Hash(Cookie(r, "sh_session")), time.Now().Add(sessionIdle)).Scan(&id)
 	}
 	if err == sql.ErrNoRows {
 		return web.Caller{}, nil
@@ -147,9 +151,9 @@ func SetCookie(w http.ResponseWriter, r *http.Request, name, value string, life 
 // StartSession signs personID in to the dashboard in this browser.
 func (p *People) StartSession(w http.ResponseWriter, r *http.Request, personID string) error {
 	secret := NewSecret("")
-	_, err := p.DB.ExecContext(r.Context(), `INSERT INTO sessions (id_hash, person_id, expires_at) VALUES ($1, $2, $3)`, Hash(secret), personID, time.Now().Add(sessionLife))
+	_, err := p.DB.ExecContext(r.Context(), `INSERT INTO sessions (id_hash, person_id, expires_at) VALUES ($1, $2, $3)`, Hash(secret), personID, time.Now().Add(sessionIdle))
 	if err == nil {
-		SetCookie(w, r, "sh_session", secret, sessionLife)
+		SetCookie(w, r, "sh_session", secret, sessionCookieLife)
 	}
 	return err
 }

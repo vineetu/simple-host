@@ -214,8 +214,8 @@ func (h *handler) callback(name string) string {
 	return "https://" + h.a.Config.AppDomain + "/v1/auth/oauth/" + name + "/callback"
 }
 
-// start is route 3: send the browser to the provider. A hop from a site
-// rides along in the state cookie.
+// start is route 3: send the browser to the provider. A hop from a site,
+// and next (where to land after, a path here), ride along in the state cookie.
 func (h *handler) start(w http.ResponseWriter, r *http.Request) error {
 	name := r.PathValue("provider")
 	p, ok := h.provider(name)
@@ -223,7 +223,11 @@ func (h *handler) start(w http.ResponseWriter, r *http.Request) error {
 		return web.NotFound
 	}
 	state := access.NewSecret("")
-	access.SetCookie(w, r, "sh_signin", state+"."+r.URL.Query().Get("hop"), stateLife)
+	keep := url.Values{"s": {state}, "h": {r.URL.Query().Get("hop")}}
+	if next := r.URL.Query().Get("next"); web.LocalPath(next) {
+		keep.Set("n", next)
+	}
+	access.SetCookie(w, r, "sh_signin", keep.Encode(), stateLife)
 	q := url.Values{"client_id": {p.id}, "redirect_uri": {h.callback(name)}, "response_type": {"code"},
 		"scope": {"openid email"}, "state": {state}}
 	http.Redirect(w, r, p.authURL+"?"+q.Encode(), http.StatusFound)
@@ -237,7 +241,8 @@ func (h *handler) finish(w http.ResponseWriter, r *http.Request) error {
 	if !ok {
 		return web.NotFound
 	}
-	state, hop, _ := strings.Cut(access.Cookie(r, "sh_signin"), ".")
+	kept, _ := url.ParseQuery(access.Cookie(r, "sh_signin"))
+	state, hop := kept.Get("s"), kept.Get("h")
 	access.SetCookie(w, r, "sh_signin", "", 0)
 	if state == "" || subtle.ConstantTimeCompare([]byte(state), []byte(r.URL.Query().Get("state"))) != 1 {
 		return errState
@@ -254,6 +259,9 @@ func (h *handler) finish(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	next := "/dashboard"
+	if n := kept.Get("n"); web.LocalPath(n) {
+		next = n
+	}
 	if hop != "" {
 		t, err := access.OpenHop(hop)
 		if err != nil {

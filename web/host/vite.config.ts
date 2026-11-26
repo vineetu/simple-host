@@ -38,12 +38,22 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          // The app shell is cached; signing in, the dashboard and the admin
-          // page open from it offline and say they cannot reach the service. Browser push comes from
-          // the existing push worker, so one worker covers the whole origin.
+          // The app shell is cached for offline only: signing in, the dashboard and the admin page
+          // always load from the service, and open from the cached shell when it cannot be reached
+          // (they then say so). Serving them from the cache first showed the build before the last
+          // deploy until every tab closed. A new worker takes over at once; it never reloads a page.
+          // Browser push comes from the existing push worker, so one worker covers the whole origin.
           globPatterns: ["index.html", "app/*.{js,css}", "app/fonts/*.woff2"],
-          navigateFallback: "/index.html",
-          navigateFallbackAllowlist: [/^\/(signin|admin|dashboard)(\/|$|\?)/],
+          navigateFallback: null,
+          runtimeCaching: [
+            {
+              urlPattern: ({ request, url }) => request.mode === "navigate" && /^\/(signin|admin|dashboard)(\/|$)/.test(url.pathname),
+              handler: "NetworkOnly",
+              options: { precacheFallback: { fallbackURL: "/index.html" } },
+            },
+          ],
+          skipWaiting: true,
+          clientsClaim: true,
           importScripts: ["/push-sw.js"],
           inlineWorkboxRuntime: true,
           cleanupOutdatedCaches: true,

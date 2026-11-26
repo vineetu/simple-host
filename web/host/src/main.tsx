@@ -1,7 +1,6 @@
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
-import { registerSW } from "virtual:pwa-register";
 import "./styles/app.css";
 import { Providers } from "./App";
 
@@ -35,4 +34,7 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 
-if (import.meta.env.PROD) registerSW({ immediate: true });
+// The offline worker (vite.config.ts). A page left open across a deploy asks for a
+// screen's file that is gone: load the page again, which brings the new build.
+if (import.meta.env.PROD && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
+window.addEventListener("vite:preloadError", () => window.location.reload());

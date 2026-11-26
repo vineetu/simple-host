@@ -193,7 +193,7 @@ export function SignIn() {
             {step === "email" && googleOn() && (
               <>
                 <Button asChild variant="google" size="lg">
-                  <a href={"/v1/auth/oauth/google" + (hop ? "?hop=" + encodeURIComponent(hop) : "")}>
+                  <a href={"/v1/auth/oauth/google?" + new URLSearchParams(hop ? { hop } : { next })}>
                     <GoogleMark />
                     <span>Continue with Google</span>
                   </a>

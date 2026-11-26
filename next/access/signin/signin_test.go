@@ -74,6 +74,17 @@ func TestSignUpWithCodeThenGoogle(t *testing.T) {
 	if got := testkit.Call(t, g, "GET", "https://simple-host.app/test/me", nil).Body; got != me.ID {
 		t.Fatalf("google reached %q, want the same person %q", got, me.ID)
 	}
+	// next, a path here, is where Google sign-in lands; anything else lands on the dashboard.
+	for next, want := range map[string]string{"/oauth/authorize?client_id=app": "/oauth/authorize?client_id=app", "//evil.example/": "/dashboard"} {
+		g := k.Browser()
+		r = testkit.Call(t, g, "GET", "https://simple-host.app/v1/auth/oauth/google?next="+url.QueryEscape(next), nil)
+		for i := 0; i < 2 && r.Status == http.StatusFound; i++ {
+			r = testkit.Call(t, g, "GET", r.Header.Get("Location"), nil)
+		}
+		if r.Status != http.StatusFound || r.Header.Get("Location") != want {
+			t.Fatalf("google with next=%s: %d %s, want %s", next, r.Status, r.Header.Get("Location"), want)
+		}
+	}
 }
 
 // SPEC test 2 (F1): sign out everywhere ends a browser session and an app token.
@@ -103,5 +114,25 @@ func TestSignOutEverywhere(t *testing.T) {
 	}
 	if r := testkit.Call(t, app, "GET", "https://simple-host.app/test/me", nil, "Authorization", "Bearer "+token); r.Status != 401 {
 		t.Fatalf("app token after sign out everywhere: %d %s", r.Status, r.Body)
+	}
+}
+
+// A dashboard session lasts while it is used: the cookie is kept for 400
+// days and each use moves the session's end 180 days on (the old service's
+// dashboard key lasted the same).
+func TestSessionLastsWhileUsed(t *testing.T) {
+	k := testkit.Start(t, signin.Mount, whoami)
+	b := k.Browser()
+	r := signIn(t, k, b, "nina@example.com", nil)
+	if c := r.Header.Get("Set-Cookie"); !strings.Contains(c, "Max-Age=34560000") {
+		t.Fatalf("session cookie: %s", c)
+	}
+	k.Exec(t, `UPDATE sessions SET expires_at = now() + interval '1 minute'`)
+	if got := testkit.Call(t, b, "GET", "https://simple-host.app/test/me", nil).Body; got == "" {
+		t.Fatal("signed out before the session's end")
+	}
+	var days float64
+	if err := k.App.DB.QueryRow(`SELECT extract(epoch FROM expires_at - now()) / 86400 FROM sessions`).Scan(&days); err != nil || days < 179 {
+		t.Fatalf("session end after a use: %.1f days (%v)", days, err)
 	}
 }
