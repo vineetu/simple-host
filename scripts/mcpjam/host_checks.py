@@ -2,8 +2,9 @@
 """The Simple Host connector check against the fixture from fixture.sh
 (PRODUCT=host, the rewritten service in next/): tools/list as an ordinary
 user's AI app sees it (51 tools, each with annotations and an outputSchema),
-one read call, one publish whose page is then served, and one old tool name
-answered through next/compat. Usage: host_checks.py <FIX dir> <port>"""
+one read call, one publish whose page is then served, one old tool name
+answered through next/compat, and every capability initialize declares
+answered (undeclared methods refused with -32601). Usage: host_checks.py <FIX dir> <port>"""
 import json, sys, urllib.request
 
 FIX, PORT = sys.argv[1], sys.argv[2]
@@ -70,8 +71,32 @@ def read():
     return "list_sites shows both sites"
 
 
+# The methods each declarable capability needs answered; ping always.
+NEEDS = {"tools": ["tools/list"], "resources": ["resources/list", "resources/templates/list"],
+         "prompts": ["prompts/list"], "logging": ["logging/setLevel"], "completions": ["completion/complete"]}
+PARAMS = {"logging/setLevel": {"level": "info"}}
+
+
+def capabilities():
+    declared = init["result"]["capabilities"]
+    unknown = set(declared) - set(NEEDS)
+    assert not unknown, f"declares capabilities this check does not know: {unknown}"
+    for cap, methods in NEEDS.items():
+        for m in methods + (["ping"] if cap == "tools" else []):
+            r = rpc(m, PARAMS.get(m))
+            if cap in declared or m == "ping":
+                assert "result" in r, f"{cap} declared but {m} answers {r.get('error')}"
+            else:
+                assert (r.get("error") or {}).get("code") == -32601, f"{cap} not declared but {m} answers {r}"
+    if "resources" in declared:
+        uri = rpc("resources/list")["result"]["resources"][0]["uri"]
+        assert "result" in rpc("resources/read", {"uri": uri}), f"resources/read {uri} fails"
+    return "declared " + ", ".join(sorted(declared)) + "; each answered, the rest -32601"
+
+
 init = rpc("initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "connector-check", "version": "1"}})
 print("server:", init["result"]["serverInfo"])
+check("capabilities", capabilities)
 check("tools/list", listing)
 check("publish", publish)
 check("old tool name through compat", old_name)

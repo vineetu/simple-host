@@ -100,7 +100,7 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 			version = p.ProtocolVersion
 		}
 		return map[string]any{"protocolVersion": version, "serverInfo": map[string]string{"name": "Simple Host", "version": "2"},
-			"capabilities": map[string]any{"tools": map[string]any{}, "resources": map[string]any{}, "logging": map[string]any{}},
+			"capabilities": map[string]any{"tools": map[string]any{}, "resources": map[string]any{}}, // no logging: it sends no log messages
 			"instructions": instructions}, nil
 	case "ping":
 		return map[string]any{}, nil
@@ -159,6 +159,8 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 			list = append(list, map[string]any{"uri": "ui://simple-host/" + s.name, "name": s.title, "mimeType": screenType, "_meta": h.screenMeta(s)})
 		}
 		return map[string]any{"resources": list}, nil
+	case "resources/templates/list": // part of the resources capability; the screens have fixed addresses
+		return map[string]any{"resourceTemplates": []any{}}, nil
 	case "resources/read":
 		var p struct{ URI string }
 		json.Unmarshal(req.Params, &p)
