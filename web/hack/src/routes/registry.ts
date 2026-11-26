@@ -1,8 +1,8 @@
 // Every rebuilt screen, gathered from the route families: each
 // screens/<area>/routes.ts exports `screens`, keyed by screen id (the ids
 // resolveScreen gives). This file never needs editing: a new family's
-// routes.ts is picked up by the glob. Whether a registered screen is served
-// to people is the family's live.json (see live.ts).
+// routes.ts is picked up by the glob. The server serves this app at every
+// address it registers (products/hack/pages/hack_ui.go).
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import type { Match } from "./resolve";
 

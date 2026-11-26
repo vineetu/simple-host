@@ -4,7 +4,7 @@
 import { refuse, type Entry } from "@kit/catalogue/harness";
 import { api, detail } from "@/catalogue/fixtures";
 import { entries as signin } from "./signin.catalogue";
-import { entries as directoryVote } from "./directory.catalogue";
+import { entries as vote } from "./vote.catalogue";
 
 const signedOut = () => localStorage.removeItem("apiKey");
 const offline = refuse(0, "offline", "Cannot reach the server.");
@@ -223,5 +223,5 @@ export const entries: Entry[] = [
   { id: "public-team-link.link-doesnt-work", title: "Team link: the link does not work", url: "/team/old", api: api({ "/v1/hack/team-links/old": refuse(404, "team_link_not_found", "not found") }), before: signedOut },
   { id: "public-team-link.offline", title: "Team link: the server cannot be reached", url: "/team/kopi-kode", api: api({ [TEAM]: offline }) },
   ...signin,
-  ...directoryVote,
+  ...vote,
 ];

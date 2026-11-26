@@ -180,9 +180,8 @@ async function person(browser: import("@playwright/test").Browser, who: string, 
 for (const width of [390, 1280]) {
   test(`your events and submissions, the new app @${width}`, async ({ browser }) => {
     const { ctx, page, errors } = await person(browser, "siti", width);
-    // Your events is the new app: the server says so, and it renders Siti's event.
+    // Your events: the app renders Siti's event.
     await page.goto(APP + "/events");
-    await expect(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /landing-your-events/);
     await expect(page.getByRole("heading", { name: "Your events", level: 1 })).toBeVisible();
     await expect(page.getByRole("link", { name: /Real Night/ }).last()).toBeVisible();
     await check(page, "your-events", width);
@@ -198,9 +197,9 @@ for (const width of [390, 1280]) {
     await expect(page.getByText("Your team")).toBeVisible();
     await check(page, "submissions", width);
 
-    // Every app address is the new app now: the server answers index.html, never the old app.html.
-    // The only addresses left to the old pages are the server-written ones: /directory (kept
-    // as its own indexed page on purpose), the home page and the public event page.
+    // Every app address is the app: the server answers index.html, and the old app is gone.
+    // The other pages are the server-written ones: /directory (kept as its own indexed page
+    // on purpose), the home page and the public event page.
     const areas: Record<string, string[]> = {
       manage: ["overview", "event-page", "announcements", "people", "teams", "team", "entries", "entry", "judging", "assignments", "results", "settings"],
       team: ["home", "schedule", "announcements", "team", "entry", "website", "results", "submissions"],
@@ -211,8 +210,8 @@ for (const width of [390, 1280]) {
     for (const a of addresses) {
       const html = String((await call("GET", a)).body.text);
       expect(html, a).toContain('<div id="root">');
-      expect(html, a).not.toContain('src="/hack/app.js"');
     }
+    expect((await call("GET", "/hack/app.js")).status).toBe(404);
     const directory = String((await call("GET", "/directory")).body.text);
     expect(directory).not.toContain('<div id="root">');
 

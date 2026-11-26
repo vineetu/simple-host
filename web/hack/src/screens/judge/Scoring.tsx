@@ -23,7 +23,6 @@ import type { ApiError } from "@kit/api/call";
 import { paths, useHack, type EventDetail } from "@/lib/client";
 import { safeHref } from "@/lib/labels";
 import { href } from "@/routes/resolve";
-import { liveScreens } from "@/routes/live";
 import { useEventDetail } from "@/app/data";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
@@ -51,7 +50,7 @@ import { scoringSteps, useTour } from "./tours";
 
 const teamURL = (slug: string, team: string) => href("judge", slug, "scoring") + "&team=" + encodeURIComponent(team);
 /** The catalogue and vite dev have no server: frames show a stand-in there, never a real site. */
-const serverMode = () => liveScreens() !== null;
+const serverMode = () => import.meta.env.MODE === "production";
 
 function MediaBar({ title, host, open }: { title: string; host: string; open?: { to: string; label: string } }) {
   return (

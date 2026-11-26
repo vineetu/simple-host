@@ -170,22 +170,18 @@ func (p *AssetPipeline) ChromeDataFor(r *http.Request, base string) ChromeData {
 	}
 }
 
-// RenderAppShell is static/hack/app.html (body) with its chrome applied:
-// Product=false, since the kit already carries Simple Hack's own look, and
-// the sign-in script tag only when signin is true (only /signin mounts
-// window.SHSignIn).
-func (p *AssetPipeline) RenderAppShell(r *http.Request, body []byte, signin bool) ([]byte, error) {
-	if !signin {
-		body = bytes.ReplaceAll(body, []byte(markerSignin), nil)
-	}
+// RenderAppShell is Simple Hack's app page (products/hack/web/dist's
+// index.html) with its chrome applied: Product=false, since the app carries
+// Simple Hack's own look.
+func (p *AssetPipeline) RenderAppShell(r *http.Request, body []byte) ([]byte, error) {
 	data := p.ChromeDataFor(r, "")
 	data.Product = false
 	page, err := withChrome(body, data)
 	if err != nil {
 		return nil, err
 	}
-	// app.html does not go through BuildChromePage, so it needs the
-	// self-hosted pass here (shell.js reads the contact from a data attribute).
+	// The app page does not go through BuildChromePage, so it needs the
+	// self-hosted pass here (the app reads the contact from a data attribute).
 	if p.HostedOwner() == "" {
 		page = p.selfHostedChromeRewrite(page)
 	}

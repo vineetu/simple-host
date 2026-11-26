@@ -3,8 +3,8 @@
 // route() does: signed out goes to sign-in; an event the person is not in
 // says so; someone on the wrong area's address is moved to their own; a
 // participant still waiting for approval (or turned down) sees only that.
-// A screen this app has not rebuilt (or that is not live yet) is the old
-// app's: the page is loaded again and the server serves it.
+// An address this app has no screen for is a page the server writes: the
+// page is loaded again and the server serves it.
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import { Section } from "@kit/components/ui/page-shell";
 import type { ApiError } from "@kit/api/call";
 import { useHack, type EventDetail, type Role } from "@/lib/client";
 import { apiKey, goSignIn, joinPath } from "@/lib/session";
-import { arrived, hop, liveScreens } from "@/routes/live";
+import { arrived, hop } from "@/routes/pages";
 import { registry } from "@/routes/registry";
 import { eventHome, href, resolveScreen, type Match } from "@/routes/resolve";
 import { useEventDetail } from "./data";
@@ -169,8 +169,7 @@ export function Screen() {
   const { pathname, search } = useLocation();
   const match = resolveScreen(pathname, search);
   const def = registry[match.id];
-  const live = liveScreens();
-  const here = !!def && (!live || live.has(match.id));
+  const here = !!def;
   const [stuck, setStuck] = useState(false);
   const needKey = !apiKey() && !joinPath(pathname) && def?.kind !== "public";
   useEffect(() => {

@@ -1,34 +1,33 @@
 package pages
 
 import (
+	"io/fs"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 
 	"github.com/vsriram/simple-host/products/hack/core"
+	"github.com/vsriram/simple-host/products/hack/web/dist"
 
 	"github.com/vsriram/simple-host/host/httpx"
 )
 
-// RegisterHackUI serves the signed-in simple-hack.app pages from one HTML shell
-// that routes on location.pathname: the new app's (web/hack) for the screens
-// it serves, the old static/hack/app.html for the rest (hack_ui_switch.go).
+// RegisterHackUI serves the signed-in and link pages of simple-hack.app: every
+// address below answers the app's index.html (web/hack, embedded from
+// products/hack/web/dist), which routes on location.pathname.
 func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 	assets := pages
-	serveNewAssets(mux)
+	serveAppAssets(mux)
 	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Robots-Tag", "noindex")
-		body, isNew, err := appPage(r, assets.StaticFS())
+		body, err := fs.ReadFile(dist.Files, "files/index.html")
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
-		// The sign-in script tag is only injected on /signin: every other route
-		// mounts the app without it, since nothing there needs window.SHSignIn.
-		// (The new app draws its own sign-in card, so it never needs it.)
-		body, err = assets.RenderAppShell(r, body, r.URL.Path == "/signin" && !isNew)
+		body, err = assets.RenderAppShell(r, body)
 		if err != nil {
 			http.Error(w, "Could not load app", http.StatusInternalServerError)
 			return
@@ -37,8 +36,6 @@ func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 		w.Write(httpx.StampNonce(r, body))
 	})
 	page := assets.AdminUICSP(announcementImages(app))
-	// People's choice: the new app's public-vote once live, the scripted static page until then.
-	mux.Handle("GET /e/{slug}/vote", switchable("public-vote", page, assets.AdminUICSP(assets.ServeStaticPage("hack-voting.html"))))
 	// The old voting settings page lives on in the Results section; an old bookmark lands there.
 	mux.HandleFunc("GET /e/{slug}/voting-settings", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/e/"+url.PathEscape(r.PathValue("slug"))+"/manage?s=results", http.StatusFound)
@@ -50,6 +47,7 @@ func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 		"GET /events/new",
 		"GET /e/{slug}/team",
 		"GET /e/{slug}/manage",
+		"GET /e/{slug}/vote",  // People's choice.
 		"GET /e/{slug}/apply", // public-apply (owner, 2026-10-31): served signed out, same as /join/{code}.
 		"GET /join/{code}",
 		"GET /judge/{code}",
@@ -59,8 +57,7 @@ func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 		mux.Handle(p, page)
 	}
 	// The judge's scoring screen embeds the entry's video and frames the
-	// team's site, so only this route widens frame-src (app.js reloads the
-	// page when it navigates here from a route served with the narrower one).
+	// team's site, so only this route widens frame-src.
 	mux.Handle("GET /e/{slug}/judge", hackAppCSP(assets, app, sitesBase))
 }
 
@@ -85,4 +82,19 @@ func announcementImages(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", strings.Replace(csp, "img-src 'self' data:", "img-src 'self' data: https://i.ytimg.com", 1))
 		next.ServeHTTP(w, r)
 	})
+}
+
+// serveAppAssets answers /hack/app/* from the app's build. Names carry a
+// content hash, so they are cached for good.
+func serveAppAssets(mux *http.ServeMux) {
+	sub, err := fs.Sub(dist.Files, "files")
+	if err != nil {
+		panic(err)
+	}
+	files := http.FileServerFS(sub)
+	mux.Handle("GET /hack/app/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		files.ServeHTTP(w, r)
+	}))
 }

@@ -178,7 +178,7 @@ func registerDashboard(mux *http.ServeMux, assets *web.AssetPipeline, ed *editio
 	// raw here matches what the file server would hand back at "/".
 	if ed.Routes().HostedEvents {
 		// The hackathon platform has no sites dashboard: a signed-in person's
-		// place is their events (RegisterHackUI's app shell, static/hack/app.html).
+		// place is their events (RegisterHackUI's app page).
 		mux.Handle("GET /dashboard", http.RedirectHandler("/events", http.StatusFound))
 	} else {
 		markdown := web.HomepageMarkdownHandler(assets, publicBaseURL, ed.Presentation().ProductAssets)

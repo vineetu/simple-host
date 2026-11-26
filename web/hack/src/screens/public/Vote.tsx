@@ -18,7 +18,7 @@ import { possessive, safeHref } from "@/lib/labels";
 import { apiKey } from "@/lib/session";
 import { zonedDate } from "@/lib/time";
 import type { ScreenProps } from "@/routes/registry";
-import { ineligible, intro } from "./directory";
+import { ineligible, intro } from "./vote";
 import { PublicFoot } from "./PublicFoot";
 
 export default function Vote({ match }: ScreenProps) {

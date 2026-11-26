@@ -1,4 +1,4 @@
-// The small print under the public pages (directory, vote), as the old pub-foot.
+// The small print under the public pages (the vote page), as the old pub-foot.
 export function PublicFoot({ find }: { find?: boolean }) {
   return (
     <nav aria-label="More" className="mt-12 flex flex-wrap items-center gap-x-5 border-t border-rule pt-4 text-sm text-ink-soft">
