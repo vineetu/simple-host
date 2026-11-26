@@ -338,3 +338,93 @@ test("judging: Overview, scoring a team, My teams", async ({ browser }) => {
     await ctx.close();
   }
 });
+
+// Team, Entry and Website (the participant's team family): Ayu starts a team
+// on an open event, sets it up, saves and submits an entry, and sends the
+// team site's zip; then each screen is checked at a phone's width.
+test("team, entry and website: start a team, fill the entry, send the site zip", async ({ browser }) => {
+  test.setTimeout(300_000);
+  // A loaded box answers slowly; these steps wait longer than the default 5 s.
+  const slow = expect.configure({ timeout: 20_000 });
+  const SL = "team-night";
+  const E = "/v1/hack/events/" + SL;
+  await signUp("ayu");
+  await ok("POST", "/v1/hack/events", { slug: SL, title: "Team Night", organiser_name: "Orga", contact_email: "orga@example.com", purpose: "Testing", time_zone: "UTC", expected_participants: 20, starts_at: "2027-01-10", ends_at: "2027-01-11" }, keys.orga);
+  await ok("POST", E + "/stage", { stage: "open" }, keys.orga);
+  const ev = await ok("GET", E, undefined, keys.orga);
+  const code = String((ev.organiser as Record<string, unknown>).join_url).split("/").pop()!;
+  await ok("POST", "/v1/hack/join/" + code, { accept_coc: true, display_name: "Ayu" }, keys.ayu);
+
+  const { ctx, page, errors } = await person(browser, "ayu", 1280);
+  await page.goto(APP + `/e/${SL}/team?s=team`);
+  await slow(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /participant-team/);
+  // The walkthrough opens by itself the first time; Skip ends it.
+  await slow(page.getByRole("dialog", { name: "Three ways onto a team" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip" }).click();
+  await slow(page.getByRole("heading", { name: "How do you want to team up?" })).toBeVisible();
+  await page.getByRole("radio", { name: "Start a new team" }).click();
+  await page.getByRole("button", { name: "Start team" }).click();
+  await slow(page.getByText("Enter a team name.")).toBeVisible();
+  await page.getByLabel("Team name").fill("Kopi Kode");
+  await page.getByRole("button", { name: "Start team" }).click();
+  await slow(page.getByRole("heading", { name: "Kopi Kode", level: 1 })).toBeVisible();
+  await slow(page.getByText("You started Kopi Kode. Copy its link to bring people in.")).toBeVisible();
+  await slow(page.getByRole("button", { name: "Copy link" })).toBeVisible();
+  await check(page, "team-members", 1280);
+
+  // Settings: what the team is looking for, saved; locking with an Undo.
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByLabel("Looking for").fill("A designer");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await slow(page.getByText("Saved").first()).toBeVisible();
+  slow(((await ok("GET", E, undefined, keys.ayu)).me as { team: { looking_for: string } }).team.looking_for).toBe("A designer");
+  await page.getByRole("button", { name: "Lock team", exact: true }).click();
+  await slow(page.getByText("Kopi Kode is locked.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await slow(page.getByText("Undone", { exact: true })).toBeVisible();
+  await slow(page.getByRole("button", { name: "Lock team", exact: true })).toBeVisible();
+  await slow.poll(async () => ((await ok("GET", E, undefined, keys.ayu)).me as { team: { locked: boolean } }).team.locked).toBe(false);
+  await check(page, "team-settings", 1280);
+
+  // Entry: a draft saved, then Submit names what is still missing.
+  await page.goto(APP + `/e/${SL}/team?s=entry`);
+  await slow(page.getByRole("heading", { name: "Entry", level: 1 })).toBeVisible();
+  await page.getByLabel("Project name").fill("Kopi Map");
+  await page.getByLabel("Problem, in one line").fill("Nobody knows which warung has coffee left.");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await slow(page.getByText("Saved").first()).toBeVisible();
+  slow(((await ok("GET", E + "/entry", undefined, keys.ayu)).entry as { title: string }).title).toBe("Kopi Map");
+  await slow(page.getByRole("article").getByRole("heading", { name: "Kopi Map" })).toBeVisible();
+  await page.getByRole("button", { name: "Submit entry" }).first().click();
+  const submitted = await call("GET", E + "/entry", undefined, keys.ayu);
+  if (submitted.body.status !== "submitted") await slow(page.getByRole("alert").first()).toBeVisible();
+  else await slow(page.getByText(/^Submitted/).first()).toBeVisible();
+  await check(page, "entry", 1280);
+
+  // Website: the guide, then a zip uploaded with the key and X-SH-CSRF.
+  await page.goto(APP + `/e/${SL}/team?s=website`);
+  await slow(page.getByRole("heading", { name: "Website", level: 1 })).toBeVisible();
+  await slow(page.getByText("Not connected yet")).toBeVisible();
+  await slow(page.getByRole("button", { name: "Copy prompt" })).toBeVisible();
+  const zipDir = mkdtempSync(join(tmpdir(), "hk-zip-"));
+  execFileSync("sh", ["-c", `cd ${zipDir} && printf '<!doctype html><title>Kopi</title><h1>Kopi Map</h1>' > index.html && zip -q site.zip index.html`]);
+  await page.getByLabel("Your site archive").setInputFiles(join(zipDir, "site.zip"));
+  await page.getByRole("button", { name: "Upload" }).click();
+  // The upload reaches the site route signed in (a refused key would sign out); this
+  // throwaway server has no certificate for team addresses, so it answers "not ready".
+  await slow(page.getByText("Your team's address is still being set up. Try again in a few minutes.")).toBeVisible();
+  rmSync(zipDir, { recursive: true, force: true });
+  await check(page, "website", 1280);
+  slow(errors).toEqual([]);
+  await ctx.close();
+
+  // The same three screens at a phone's width.
+  const phone = await person(browser, "ayu", 390);
+  for (const [s, h] of [["team", "Kopi Kode"], ["entry", "Entry"], ["website", "Website"]]) {
+    await phone.page.goto(APP + `/e/${SL}/team?s=${s}`);
+    await slow(phone.page.getByRole("heading", { name: h, level: 1 })).toBeVisible();
+    await check(phone.page, s, 390);
+  }
+  slow(phone.errors).toEqual([]);
+  await phone.ctx.close();
+});
