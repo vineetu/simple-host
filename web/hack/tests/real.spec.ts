@@ -10,10 +10,12 @@ import http from "node:http";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type BrowserContext, type Page } from "@playwright/test";
 import { axe, layout } from "../../kit/tests/checks";
 
-test.describe.configure({ mode: "serial" });
+test.describe.configure({ mode: "serial", timeout: 600_000 });
+// A busy box answers slowly: wait up to 30 s for what each step expects.
+const expect = baseExpect.configure({ timeout: 30_000 });
 
 const ROOT = join(import.meta.dirname, "../../..");
 const SHOTS = join(import.meta.dirname, "../test-results/real");
@@ -91,7 +93,7 @@ async function signUp(name: string) {
 }
 
 test.beforeAll(async () => {
-  test.setTimeout(240_000);
+  test.setTimeout(600_000);
   PORT = await freePort();
   dir = mkdtempSync(join(tmpdir(), "hk-fe-"));
   execFileSync("go", ["build", "-o", join(dir, "simple-hack"), "./cmd/simple-hack"], { cwd: ROOT, stdio: "inherit" });
@@ -112,7 +114,7 @@ test.beforeAll(async () => {
     },
     stdio: ["ignore", openSync(join(dir, "server.log"), "w"), openSync(join(dir, "server.log"), "a")],
   });
-  for (let i = 0; i < 200; i++) {
+  for (let i = 0; i < 1200; i++) { // up to 3 minutes: building the schema is slow on a busy box
     try {
       if ((await call("GET", "/events")).status === 200) break;
     } catch {
@@ -281,7 +283,7 @@ test("joining from a link, then the participant's Schedule and Account with the 
   await page.getByRole("button", { name: "Join event" }).click();
   await expect(page.getByText("Enter your name.").first()).toBeVisible();
   await page.getByLabel("Your name").fill("Joni");
-  await page.getByText("I agree to the code of conduct").click();
+  await page.getByRole("checkbox", { name: "I agree to the code of conduct" }).check();
   await page.getByRole("button", { name: "Join event" }).click();
   await page.waitForURL(/\/e\/join-night\/team/);
   expect((await call("GET", "/v1/hack/events/join-night", undefined, keys.joiner)).status).toBe(200);

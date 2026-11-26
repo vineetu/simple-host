@@ -1,6 +1,19 @@
 {
  "live": [
+  "account",
   "landing-your-events",
-  "participant-submissions"
+  "organiser-create-event",
+  "participant-announcements",
+  "participant-home",
+  "participant-results",
+  "participant-schedule",
+  "participant-submissions",
+  "public-apply",
+  "public-join",
+  "public-judge",
+  "public-organiser-invite",
+  "public-team-link",
+  "public-vote",
+  "signin"
  ]
 }
