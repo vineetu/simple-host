@@ -16,208 +16,182 @@
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "overview",
-        "module": "organiser-overview"
+        "section": "overview"
       },
       {
         "id": "organiser-event-page",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "event-page",
-        "module": "organiser-event-page"
+        "section": "event-page"
       },
       {
         "id": "organiser-announcements",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "announcements",
-        "module": "organiser-announcements"
+        "section": "announcements"
       },
       {
         "id": "organiser-people",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "people",
-        "module": "organiser-people"
+        "section": "people"
       },
       {
         "id": "organiser-teams",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "teams",
-        "module": "organiser-teams"
+        "section": "teams"
       },
       {
         "id": "organiser-team-detail",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "team",
-        "module": "organiser-team-detail"
+        "section": "team"
       },
       {
         "id": "organiser-entries",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "entries",
-        "module": "organiser-entries"
+        "section": "entries"
       },
       {
         "id": "organiser-entry-detail",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "entry",
-        "module": "organiser-entry-detail"
+        "section": "entry"
       },
       {
         "id": "organiser-judging",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "judging",
-        "module": "organiser-judging"
+        "section": "judging"
       },
       {
         "id": "organiser-judging-assignments",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "assignments",
-        "module": "organiser-judging-assignments"
+        "section": "assignments"
       },
       {
         "id": "organiser-results",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "results",
-        "module": "organiser-results"
+        "section": "results"
       },
       {
         "id": "organiser-settings",
         "role": "organiser",
         "ability": "manage",
         "path": "/e/{slug}/manage",
-        "section": "settings",
-        "module": "organiser-settings"
+        "section": "settings"
       },
       {
         "id": "organiser-create-event",
         "role": "organiser",
         "ability": "manage",
         "path": "/events/new",
-        "section": null,
-        "module": "organiser-create-event"
+        "section": null
       },
       {
         "id": "participant-home",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "home",
-        "module": "participant-home"
+        "section": "home"
       },
       {
         "id": "participant-schedule",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "schedule",
-        "module": "participant-schedule"
+        "section": "schedule"
       },
       {
         "id": "participant-announcements",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "announcements",
-        "module": "participant-announcements"
+        "section": "announcements"
       },
       {
         "id": "participant-team",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "team",
-        "module": "participant-team"
+        "section": "team"
       },
       {
         "id": "participant-entry",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "entry",
-        "module": "participant-entry"
+        "section": "entry"
       },
       {
         "id": "participant-website",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "website",
-        "module": "participant-website"
+        "section": "website"
       },
       {
         "id": "participant-results",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "results",
-        "module": "participant-results"
+        "section": "results"
       },
       {
         "id": "judge-home",
         "role": "judge",
         "ability": "judge",
         "path": "/e/{slug}/judge",
-        "section": "home",
-        "module": "judge-home"
+        "section": "home"
       },
       {
         "id": "judge-queue",
         "role": "judge",
         "ability": "judge",
         "path": "/e/{slug}/judge",
-        "section": "queue",
-        "module": "judge-queue"
+        "section": "queue"
       },
       {
         "id": "judge-scoring",
         "role": "judge",
         "ability": "judge",
         "path": "/e/{slug}/judge",
-        "section": null,
-        "module": "judge-scoring"
+        "section": null
       },
       {
         "id": "judge-rubric",
         "role": "judge",
         "ability": "judge",
         "path": "/e/{slug}/judge",
-        "section": "rubric",
-        "module": "judge-rubric"
+        "section": "rubric"
       },
       {
         "id": "landing-your-events",
         "role": "global",
         "ability": null,
         "path": "/events",
-        "section": null,
-        "module": "landing-your-events"
+        "section": null
       },
       {
         "id": "account",
         "role": "global",
         "ability": null,
         "path": "/account",
-        "section": null,
-        "module": "account"
+        "section": null
       },
       {
         "id": "public-event-page",
@@ -225,7 +199,6 @@
         "ability": null,
         "path": "{event_url}",
         "section": null,
-        "module": null,
         "renderer": "server"
       },
       {
@@ -233,32 +206,28 @@
         "role": "visitor",
         "ability": null,
         "path": "/join/{code}",
-        "section": null,
-        "module": "public-join"
+        "section": null
       },
       {
         "id": "public-apply",
         "role": "visitor",
         "ability": null,
         "path": "/e/{slug}/apply",
-        "section": null,
-        "module": "public-apply"
+        "section": null
       },
       {
         "id": "public-judge",
         "role": "visitor",
         "ability": null,
         "path": "/judge/{code}",
-        "section": null,
-        "module": "public-judge"
+        "section": null
       },
       {
         "id": "public-organiser-invite",
         "role": "visitor",
         "ability": null,
         "path": "/organiser/{code}",
-        "section": null,
-        "module": "public-organiser-invite"
+        "section": null
       },
       {
         "id": "public-vote",
@@ -266,7 +235,6 @@
         "ability": null,
         "path": "/e/{slug}/vote",
         "section": null,
-        "module": null,
         "renderer": "server"
       },
       {
@@ -275,7 +243,6 @@
         "ability": null,
         "path": "/directory",
         "section": null,
-        "module": null,
         "renderer": "server"
       },
       {
@@ -284,7 +251,6 @@
         "ability": null,
         "path": "/",
         "section": null,
-        "module": null,
         "renderer": "server"
       },
       {
@@ -292,16 +258,14 @@
         "role": "visitor",
         "ability": null,
         "path": "/team/{code}",
-        "section": null,
-        "module": "public-team-link"
+        "section": null
       },
       {
         "id": "participant-submissions",
         "role": "participant",
         "ability": "take_part",
         "path": "/e/{slug}/team",
-        "section": "submissions",
-        "module": "participant-submissions"
+        "section": "submissions"
       }
     ],
     "targets": [

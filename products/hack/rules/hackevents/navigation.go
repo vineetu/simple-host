@@ -17,7 +17,6 @@ type NavigationScreen struct {
 	Ability string `json:"ability"`
 	Path    string `json:"path"`
 	Section string `json:"section"`
-	Module  string `json:"module"`
 }
 type NavigationTarget struct {
 	ID            string  `json:"id"`
