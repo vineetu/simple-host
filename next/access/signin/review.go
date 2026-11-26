@@ -79,6 +79,13 @@ func (h reviewHash) matches(password string) bool {
 	return err == nil && subtle.ConstantTimeCompare(got, h.key) == 1
 }
 
+// ReviewOn is whether the reviewer sign-in is on: both settings there and
+// the hash well formed. The handler and the sign-in page both ask this.
+func ReviewOn(cfg app.Config) bool {
+	_, _, err := review(cfg)
+	return err == nil
+}
+
 func review(cfg app.Config) (string, reviewHash, error) {
 	email := strings.ToLower(strings.TrimSpace(cfg.ReviewEmail))
 	if email == "" || cfg.ReviewPasswordHash == "" {
@@ -87,6 +94,8 @@ func review(cfg app.Config) (string, reviewHash, error) {
 	h, err := parseReviewHash(cfg.ReviewPasswordHash)
 	return email, h, err
 }
+
+var errForged = web.Refuse(http.StatusForbidden, "csrf_header", "Send the header X-SH-CSRF: 1 with every change made from a page, and send it from a page on this same address.")
 
 var errReview = web.Refuse(http.StatusUnauthorized, "bad_password", "That email and password do not match the reviewer account.")
 
@@ -97,12 +106,17 @@ func (h *handler) reviewer(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return web.NotFound
 	}
-	// Per address, and for everyone together: a spread-out guessing run is
-	// as slow as one, and so is the CPU each derivation costs.
+	if !web.FromOwnPage(r) {
+		return errForged
+	}
+	// Per address (every try counts), and for everyone together (only wrong
+	// passwords count, so a stranger's guesses cannot lock the reviewer out):
+	// a spread-out guessing run is as slow as one, and so is the CPU each
+	// derivation costs.
 	if err := limits.Allow(r, limits.ReviewTries, "ip:"+limits.Address(r)); err != nil {
 		return err
 	}
-	if err := limits.Allow(r, limits.ReviewTries, "reviewer"); err != nil {
+	if err := limits.Full(r, limits.ReviewFails, "reviewer"); err != nil {
 		return err
 	}
 	var in struct{ Email, Password string }
@@ -113,6 +127,7 @@ func (h *handler) reviewer(w http.ResponseWriter, r *http.Request) error {
 	passOK := len(in.Password) <= 1024 && hash.matches(in.Password)
 	mailOK := subtle.ConstantTimeCompare([]byte(strings.ToLower(strings.TrimSpace(in.Email))), []byte(email)) == 1
 	if !passOK || !mailOK {
+		limits.Allow(r, limits.ReviewFails, "reviewer") // count it
 		return errReview
 	}
 	who, err := h.a.People.Ensure(r.Context(), email)

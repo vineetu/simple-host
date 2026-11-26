@@ -42,6 +42,9 @@ func TestReviewerPasswordSignIn(t *testing.T) {
 	if r := testkit.Call(t, b, "GET", "https://simple-host.app/v1/me", nil); r.Status != 200 {
 		t.Fatalf("signed in as the reviewer: %d %s", r.Status, r.Body)
 	}
+	if r := testkit.Call(t, k.Browser(), "POST", at, map[string]string{"email": email, "password": password}, "Origin", "https://evil.example"); r.Status != 403 {
+		t.Fatalf("a request from another page: %d %s", r.Status, r.Body)
+	}
 	k.App.Config.ReviewPasswordHash = "pbkdf2-sha256$1000$AAAAAAAAAAAAAAAAAAAAAA$AAAA"
 	if r := try(email, password); r.Status != 404 {
 		t.Fatalf("a malformed hash half-enabled it: %d %s", r.Status, r.Body)
@@ -60,5 +63,21 @@ func TestReviewerSignInIsLimited(t *testing.T) {
 	}
 	if last != 429 {
 		t.Fatalf("after 12 guesses: %d", last)
+	}
+}
+
+// Strangers' wrong tries do not lock the reviewer out.
+func TestReviewerNotLockedOutByOthers(t *testing.T) {
+	k := testkit.Start(t, signin.Mount, api.Mount)
+	const at = "https://simple-host.app/v1/auth/reviewer"
+	const email, password = "reviewer@example.com", "a-long-test-password-only"
+	hash, _ := signin.HashReviewPassword(password)
+	k.App.Config.ReviewEmail, k.App.Config.ReviewPasswordHash = email, hash
+	for i := 0; i < 10; i++ {
+		testkit.Call(t, k.Browser(), "POST", at, map[string]string{"email": email, "password": "wrong"}, "X-Real-IP", "10.9.9.9")
+	}
+	r := testkit.Call(t, k.Browser(), "POST", at, map[string]string{"email": email, "password": password}, "X-Real-IP", "10.8.8.8")
+	if r.Status != 200 {
+		t.Fatalf("the reviewer from another address: %d %s", r.Status, r.Body)
 	}
 }

@@ -23,10 +23,13 @@ type Limit struct {
 
 // The table. Change a number here and it changes for everyone.
 var (
-	Requests      = Limit{"requests", 600, time.Minute, "Too many requests from you. Wait a minute and try again."}
-	SignInCodes   = Limit{"sign_in_codes", 5, 15 * time.Minute, "Too many codes asked for this email. Wait 15 minutes."}
-	CodeMails     = Limit{"code_mails", 30, time.Hour, "Too many sign-in codes sent from your address. Wait an hour."}
-	ReviewTries   = Limit{"review_tries", 10, 15 * time.Minute, "Too many sign-in tries. Wait 15 minutes."}
+	Requests    = Limit{"requests", 600, time.Minute, "Too many requests from you. Wait a minute and try again."}
+	SignInCodes = Limit{"sign_in_codes", 5, 15 * time.Minute, "Too many codes asked for this email. Wait 15 minutes."}
+	CodeMails   = Limit{"code_mails", 30, time.Hour, "Too many sign-in codes sent from your address. Wait an hour."}
+	ReviewTries = Limit{"review_tries", 10, 15 * time.Minute, "Too many sign-in tries. Wait 15 minutes."}
+	// ReviewFails counts only wrong reviewer passwords, from everyone, so
+	// guessing from many addresses is slow without locking the reviewer out.
+	ReviewFails   = Limit{"review_fails", 50, 15 * time.Minute, "Too many sign-in tries. Wait 15 minutes."}
 	PasscodeTries = Limit{"passcode_tries", 5, 15 * time.Minute, "Too many wrong passcodes. Wait 15 minutes and try again."}
 	Reports       = Limit{"reports", 10, time.Hour, "You sent a few reports already. The operator will read them; wait an hour to send more."}
 	AccessAsks    = Limit{"access_asks", 3, time.Hour, "You asked for access a few times already. The owner has been told; wait for them."}
@@ -65,6 +68,20 @@ func Allow(r *http.Request, l Limit, key string) error {
 		}
 	}
 	wait := counters.take(l, key, time.Now())
+	if wait == 0 {
+		return nil
+	}
+	ref := web.Refuse(http.StatusTooManyRequests, "limit_"+l.Name, l.Fix)
+	ref.RetryAfter = int(wait/time.Second) + 1
+	return ref
+}
+
+// Full refuses like Allow when the window for key is full, but counts nothing.
+func Full(r *http.Request, l Limit, key string) error {
+	if web.CallerOf(r).Operator {
+		return nil
+	}
+	wait := counters.left(l, key, time.Now())
 	if wait == 0 {
 		return nil
 	}
@@ -163,4 +180,15 @@ func (t *table) take(l Limit, key string, now time.Time) time.Duration {
 	}
 	w.n++
 	return 0
+}
+
+// left is how long until a full window opens, or zero when there is room.
+func (t *table) left(l Limit, key string, now time.Time) time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	w := t.m[l.Name+"\x00"+key]
+	if w == nil || now.Sub(w.start) >= l.Per || w.n < l.N {
+		return 0
+	}
+	return w.start.Add(l.Per).Sub(now)
 }
