@@ -251,7 +251,9 @@ for (const width of [390, 1280]) {
     const { ctx, page, errors } = await person(browser, "", width);
     const styles: string[] = [];
     page.on("response", (r) => /\/hack-(event|pages)\.css/.test(r.url()) && r.status() === 200 && styles.push(new URL(r.url()).pathname));
-    // The event page: server-written, at the event's stage (judging), with its submission.
+    // The event page: server-written, at the event's stage (judging), with its submission
+    // (shown once the organiser makes submissions public; off by default).
+    await ok("PATCH", "/v1/hack/events/" + SLUG, { submissions_public: true }, keys.orga);
     await page.goto(APP + `/e/${SLUG}`);
     await expect(page.getByRole("heading", { name: "Real Night", level: 1 })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Submissions" })).toBeVisible();
@@ -364,7 +366,7 @@ test("judging: Overview, scoring a team, My teams", async ({ browser }) => {
       await slow(page.getByText("Scoring is open")).toBeVisible();
       await page.getByRole("link", { name: "Score next" }).click();
       await slow(page.getByRole("radiogroup", { name: "Idea" })).toBeVisible();
-      slow(await page.evaluate(() => (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).name)).toMatch(/\/judge\?s=scoring/);
+      slow(await page.evaluate(() => (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).name)).toMatch(/\/judge\?s=/); // loaded at a judge address (the area is a full page load), so its frame policy applies
       // The scoring walkthrough opens the first time; Escape ends it.
       await slow(page.getByRole("dialog", { name: "Start with the card" })).toBeVisible();
       await page.keyboard.press("Escape");
