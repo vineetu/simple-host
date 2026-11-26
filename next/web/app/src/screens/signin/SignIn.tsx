@@ -4,9 +4,12 @@
 //   ?hop=<token>  a visitor from a site: once the email is proved the answer
 //                 carries next (the site's finish address); a browser already
 //                 signed in here is asked once per site: "Continue as <email> to <site>?"
+// On the way to approving an AI app (next=/oauth/authorize...), when the
+// install has the plugin reviewer's account, "Other ways to sign in" holds
+// its email and password form (access/signin/review.go).
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
-import { ApiError, googleOn, useApi } from "@/lib/api";
+import { ApiError, googleOn, reviewOn, useApi } from "@/lib/api";
 import { localPath } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardLead, CardTitle, Fine } from "@/components/ui/card";
@@ -33,6 +36,10 @@ export function SignIn() {
   const [, tick] = useState(0);
   const emailRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
+  const [rvEmail, setRvEmail] = useState("");
+  const [rvPassword, setRvPassword] = useState("");
+  const [rvSay, setRvSay] = useState<Say>({ text: "" });
+  const showReview = !hop && reviewOn() && next.startsWith("/oauth/authorize");
 
   const after = (b: Verified) => {
     if (b.next) return window.location.replace(b.next);
@@ -103,6 +110,20 @@ export function SignIn() {
       after(await call<Verified>("POST", "/v1/auth/verify", body));
     } catch (err) {
       setSay({ text: (err as Error).message, bad: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reviewSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      setRvSay({ text: "Checking…" });
+      await call("POST", "/v1/auth/reviewer", { email: rvEmail.trim(), password: rvPassword });
+      window.location.replace(next);
+    } catch (err) {
+      setRvSay({ text: (err as Error).message, bad: true });
     } finally {
       setBusy(false);
     }
@@ -244,6 +265,31 @@ export function SignIn() {
                 <>We email you a 6-digit code. No password to remember. {terms}</>
               )}
             </Fine>
+            {step === "email" && showReview && (
+              <details className="mt-4 border-t border-rule pt-3 text-sm">
+                <summary className="cursor-pointer text-ink-soft">Other ways to sign in</summary>
+                <form onSubmit={reviewSubmit} noValidate className="mt-3">
+                  <p className="mb-2 text-ink-soft">For app-directory reviewers using the demo account.</p>
+                  <Label htmlFor="rv-email">Reviewer email</Label>
+                  <Input id="rv-email" type="email" autoComplete="username" value={rvEmail} onChange={(e) => setRvEmail(e.target.value)} />
+                  <Label htmlFor="rv-password">Password</Label>
+                  <Input
+                    id="rv-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={rvPassword}
+                    onChange={(e) => setRvPassword(e.target.value)}
+                    aria-describedby="rv-msg"
+                  />
+                  <FieldMessage id="rv-msg" tone={rvSay.bad ? "bad" : undefined}>
+                    {rvSay.text}
+                  </FieldMessage>
+                  <Button type="submit" size="lg" className="mt-3" disabled={busy}>
+                    Sign in
+                  </Button>
+                </form>
+              </details>
+            )}
           </Card>
         )}
       </div>

@@ -34,7 +34,7 @@ type runner func(tool string, args map[string]any) (map[string]any, bool)
 // oldShapes build an old tool's structuredContent from the current answer
 // (out, its structuredContent; res, the whole answer).
 var oldShapes = map[string]func(a args, out, res map[string]any, run runner) (map[string]any, error){
-	"list_sites":         listSites,
+	"list_sites": listSites,
 	"list_deleted_sites": func(a args, out, _ map[string]any, _ runner) (map[string]any, error) {
 		sites := []any{}
 		for _, s := range list(out["sites"]) {
@@ -47,12 +47,12 @@ var oldShapes = map[string]func(a args, out, res map[string]any, run runner) (ma
 		}
 		return map[string]any{"sites": sites, "count": len(sites)}, nil
 	},
-	"get_site":           func(a args, out, _ map[string]any, _ runner) (map[string]any, error) { return toolSite(out), nil },
-	"rollback_site":      func(a args, out, _ map[string]any, _ runner) (map[string]any, error) { return toolSite(out), nil },
-	"restore_site":       func(a args, out, _ map[string]any, _ runner) (map[string]any, error) { return toolSite(out), nil },
-	"create_site":        published,
-	"update_site":        published,
-	"read_site_file":     readFile,
+	"get_site":       func(a args, out, _ map[string]any, _ runner) (map[string]any, error) { return toolSite(out), nil },
+	"rollback_site":  func(a args, out, _ map[string]any, _ runner) (map[string]any, error) { return toolSite(out), nil },
+	"restore_site":   func(a args, out, _ map[string]any, _ runner) (map[string]any, error) { return toolSite(out), nil },
+	"create_site":    published,
+	"update_site":    published,
+	"read_site_file": readFile,
 	"list_versions": func(a args, out, _ map[string]any, _ runner) (map[string]any, error) {
 		live := num(out["live_version"])
 		versions := []any{}
@@ -115,7 +115,7 @@ var oldShapes = map[string]func(a args, out, res map[string]any, run runner) (ma
 		invitations := []any{}
 		for _, i := range list(out["invitations"]) {
 			i, _ := i.(map[string]any)
-			invitations = append(invitations, map[string]any{"id": str(i["id"]), "team": str(i["team"])})
+			invitations = append(invitations, map[string]any{"id": str(i["team"]), "team": str(i["team"])}) // answered by the team's handle
 		}
 		return map[string]any{"teams": teams, "invitations": invitations}, nil
 	},
@@ -123,9 +123,8 @@ var oldShapes = map[string]func(a args, out, res map[string]any, run runner) (ma
 		for _, t := range list(out["teams"]) {
 			if m, _ := t.(map[string]any); str(m["handle"]) == a.s("team") {
 				members := []any{}
-				for _, p := range list(m["members"]) {
-					p, _ := p.(map[string]any)
-					members = append(members, map[string]any{"id": str(p["id"])})
+				for _, e := range list(m["member_emails"]) { // remove_team_member takes the email
+					members = append(members, map[string]any{"id": str(e)})
 				}
 				return map[string]any{"team": oldTeam(t), "members": members}, nil
 			}
@@ -443,7 +442,11 @@ func storage(a args, out, _ map[string]any, _ runner) (map[string]any, error) {
 
 func oldTeam(t any) map[string]any {
 	m, _ := t.(map[string]any)
-	return map[string]any{"id": str(m["id"]), "handle": str(m["handle"]), "members": len(list(m["members"])), "created_at": ""}
+	n := len(list(m["members"]))
+	if c, ok := m["members"].(float64); ok { // who_am_i gives a count
+		n = int(c)
+	}
+	return map[string]any{"id": str(first(m["id"], m["handle"])), "handle": str(m["handle"]), "members": n, "created_at": ""}
 }
 
 // findTools is the old find_tools answer: the current tools, from list

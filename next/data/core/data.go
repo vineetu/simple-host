@@ -240,6 +240,20 @@ func (n *NS) Close() (err error) {
 	return n.db.Close()
 }
 
+// ReadsOnly reports whether query is one statement that changes nothing
+// (SQLite's own verdict, sqlite3_stmt_readonly).
+func (n *NS) ReadsOnly(query string) bool {
+	if n.spent {
+		return false
+	}
+	stmt, tail, err := n.raw.Prepare(query)
+	if err != nil || stmt == nil {
+		return false
+	}
+	defer stmt.Close()
+	return strings.TrimSpace(tail) == "" && stmt.ReadOnly()
+}
+
 // Exec runs one writing statement under the two guards.
 func (n *NS) Exec(ctx context.Context, query string, args ...any) (res sql.Result, err error) {
 	if n.spent {

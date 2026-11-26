@@ -24,9 +24,14 @@ const screenInfo = "simple-host passcode screen v1"
 
 var b64 = base64.RawURLEncoding
 
-// passcodeScreen is the passcode_screen row: begin (the site's state and
-// the service's key), show, set (a sealed passcode) or generate.
-func passcodeScreen(c *call) (string, string, any, error) {
+// passcodeStep is one of the screen's tools (tools.go): begin
+// (passcode_screen_open: the site's state and the service's key), show, set
+// (a sealed passcode) or generate.
+func passcodeStep(action string) func(c *call) (string, string, any, error) {
+	return func(c *call) (string, string, any, error) { return passcodeScreen(c, action) }
+}
+
+func passcodeScreen(c *call, action string) (string, string, any, error) {
 	p, err := c.site("", nil)
 	if err != nil {
 		return "", "", nil, err
@@ -41,7 +46,7 @@ func passcodeScreen(c *call) (string, string, any, error) {
 	}
 	out := map[string]any{"site": site["name"], "owner": site["owner"], "passcode_protected": site["access"] == "passcode",
 		"server_key": b64.EncodeToString(c.h.key.PublicKey().Bytes())}
-	action, name := c.str("action"), c.str("site")
+	name := c.str("site")
 	session := c.str("session")
 	if action == "begin" {
 		session = c.str("client_key")
@@ -74,7 +79,7 @@ func passcodeScreen(c *call) (string, string, any, error) {
 		n, _ := rand.Int(rand.Reader, big.NewInt(100000000))
 		code = fmt.Sprintf("%08d", n)
 	default:
-		return "", "", nil, web.Refuse(http.StatusBadRequest, "bad_action", `Set "action" to "begin", "show", "set" or "generate".`)
+		return "", "", nil, web.Refuse(http.StatusBadRequest, "bad_action", "No such passcode screen step.")
 	}
 	if action != "show" {
 		if _, _, err := c.h.do(c.r, http.MethodPatch, p, map[string]any{"passcode": code}); err != nil {

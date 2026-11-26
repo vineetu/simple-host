@@ -37,6 +37,11 @@ const ApiContext = createContext<Call>(fetchCall);
 export const ApiProvider = ApiContext.Provider;
 export const useApi = () => useContext(ApiContext);
 
+/** reviewOn is whether the plugin reviewer's password sign-in is set up (the server fills the meta tag). */
+export function reviewOn(): boolean {
+  return document.querySelector('meta[name="sh-review"]')?.getAttribute("content") === "1";
+}
+
 /** googleOn is whether this install offers Google sign-in (the server fills the meta tag). */
 export function googleOn(): boolean {
   return document.querySelector('meta[name="sh-google"]')?.getAttribute("content") === "1";

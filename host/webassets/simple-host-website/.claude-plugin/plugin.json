@@ -1,6 +1,6 @@
 {
   "name": "website-deploy",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Publish and manage websites on simple-host.app from your AI app or coding agent. Each site gets its own address (new accounts https://<site>--<handle>.simple-host.site/, older accounts https://<site>.<handle>.simple-host.app/; always give the url the tool returns) and can save data (tables, values, files) with rules for who reads and writes, visitor sign-in by Google or emailed code, a passcode or named viewers, visit numbers, a short name or your own domain, and teams. Bundles a builder skill (plan what to build) and a connect-domain skill.",
   "author": {
     "name": "Website Deploy"

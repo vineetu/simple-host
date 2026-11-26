@@ -48,6 +48,7 @@ func Mount(a *app.App) {
 	a.Routes.Platform.Handle("GET /v1/auth/oauth/{provider}/callback", web.Func(h.finish))
 	a.Routes.Platform.Handle("POST /v1/auth/signout", web.Func(h.signOut))
 	a.Routes.Platform.Handle("POST /v1/auth", web.Func(h.agentCode))
+	a.Routes.Platform.Handle("POST /v1/auth/reviewer", web.Func(h.reviewer)) // review.go
 }
 
 // agentCode answers the old service's agent sign-in (POST /v1/auth, then a

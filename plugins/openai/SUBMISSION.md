@@ -21,7 +21,7 @@ match in all three.
    `dist/simple-host-openai-skills.zip`, which holds only skill folders.
 3. Copy the listing fields below. Upload `plugins/openai/assets/logo.png` (512 by 512) and
    `plugins/openai/assets/icon.png` (256 by 256).
-4. Fill in the MCP tab as below, then **Scan Tools**. Expect 25 tools (24 for the model and `passcode_screen`, which only the in-chat passcode screen calls). Domain
+4. Fill in the MCP tab as below, then **Scan Tools**. Expect 41 tools (37 for the model and four `passcode_screen_*` tools, which only the in-chat passcode screen calls). Domain
    verification: the portal shows a token; put it in `/etc/simple-host.env` as
    `OPENAI_APPS_CHALLENGE=<token>`, restart, check that
    `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token,
@@ -89,7 +89,7 @@ Connect your Simple Host account through the app's sign-in flow. You can revoke 
 
 ## Skills
 
-Three skills from `host/webassets/simple-host-website/skills` (skills version 0.28.0, from
+Three skills from `host/webassets/simple-host-website/skills` (skills version 0.28.1, from
 `host/webassets/simple-host-website/.claude-plugin/plugin.json`): `website-deploy` (the
 onboarding skill), `website-deploy-builder` and `connect-domain`. The build packages them as
 they are in that folder; there is no separate OpenAI copy.
@@ -99,30 +99,40 @@ they are in that folder; there is no separate OpenAI copy.
 - Server: `https://simple-host.app/mcp`, Streamable HTTP, as in `mcp.json`.
 - Authentication: OAuth with dynamic client registration (DCR), authorization code flow and
   PKCE (S256). Use the server's discovery metadata; do not paste an API key or a client secret.
-- Tool inventory: 25 tools, each listed on its own, with no `find_tools` or `run_tool`. Account:
-  `who_am_i`, `update_account`, `download_my_data`, `delete_account`. Teams: `create_team`,
-  `invite_to_team`, `accept_invite`, `remove_from_team`, `delete_team`. Sites: `list_sites`,
-  `get_site`, `publish_site`, `create_upload_link`, `read_site_file`, `change_site`, `delete_site`,
-  `set_site_access`, `set_site_address`, `site_stats`, `set_notifications`, `passcode_screen`
-  (called only by the passcode screen). Saved data: `data`, `run_sql`, `set_data_rules`,
-  `get_recipe`. Site
+- Tool inventory: 41 tools, each one operation with its own schema, with no `find_tools`,
+  `run_tool` or generic executor. Account: `who_am_i`, `update_account`, `download_my_data`,
+  `delete_account`. Teams: `create_team`, `invite_to_team`, `accept_invite`, `remove_from_team`,
+  `delete_team`. Sites: `list_sites`, `get_site`, `publish_site`, `create_upload_link`,
+  `read_site_file`, `change_site`, `delete_site`, `set_site_access`, `set_site_address`,
+  `site_stats`, `set_notifications`. Passcode screen only (hidden from the model):
+  `passcode_screen_open`, `passcode_screen_show`, `passcode_screen_set`,
+  `passcode_screen_generate`. Saved data with the caller's rights: `list_rows`, `read_row`,
+  `add_row`, `change_row`, `delete_row`, `list_values`, `read_value`, `set_value`, `delete_value`,
+  `list_files`, `save_file`, `delete_file`. The owner's SQL: `list_tables`, `query_sql` (read
+  only), `run_sql` (changes). Also `set_data_rules`, `get_recipe`. Every tool declares an
+  `outputSchema` its answers match (`TestEveryToolsOutputAndHints`). Site
   tools take an optional `owner` to act on a team's sites. Notifications are in the same server.
-- Annotations: every tool sets readOnlyHint, destructiveHint and openWorldHint. The server sets
-  readOnly on the read tools and destructive on the tools that delete or widen access (the ones
-  that ask first); openWorld is false for all. The values are in `chatgpt-app-submission.json`
-  and `TestSubmissionToolsMatchListing` fails when they differ.
+- Annotations: every tool sets readOnlyHint, destructiveHint, openWorldHint and idempotentHint
+  and a title, by one rule written in `next/mcp/tools.go`: readOnly when it only reads;
+  destructive when it can delete, overwrite or replace, or end or narrow access (undo does not
+  count); openWorld when it emails an address the person names, connects an outside domain, or
+  can make content readable by anyone on the internet; idempotent when a repeat changes nothing
+  more. `TestEveryToolsOutputAndHints` derives each hint from the routes the tool really calls,
+  and `TestSubmissionToolsMatchListing` checks `chatgpt-app-submission.json` against the server.
 - Permissions: the consent screen covers publishing and managing sites, reading site files and
   saved data including private entries, downloading copies, reading visit numbers, changing
   access and addresses, and managing notifications.
 - Apps UI: the server returns four in-chat screens (my sites, visit numbers, photo picker and
-  passcode) as MCP Apps and Apps SDK widgets. Reviewers see them in ChatGPT. The passcode screen
+  passcode) as MCP Apps and Apps SDK widgets, each with `ui.domain` (and `openai/widgetDomain`)
+  `https://simple-host.app` and a CSP that allows nothing but the photo picker's scripts from
+  that origin. Reviewers see them in ChatGPT. The passcode screen
   seals the passcode so it never enters the chat.
 
 ## Privacy and data handling
 
 AgentCat (agentcat.com) processes connector usage analytics. For each tool call the new service
 (`next/mcp/mcp.go`, `agentcat`) sends the tool name, the arguments and the result, with only
-`passcode` fields and `_meta` taken out by us; file contents in `publish_site`, `data` and
+`passcode` fields and `_meta` taken out by us; file contents in `publish_site`, `save_file` and
 `read_site_file` are sent as they are. It also sends the account id as the actor id and a daily
 session hash. Email addresses and other identifiers are left to AgentCat's own redaction. It
 never receives the IP address a person connects from. A failed call sends only its short error
@@ -131,21 +141,23 @@ sign-in codes and passcodes are never sent, which matches.
 
 ## Reviewer sign-in
 
-The new service signs people in only with an emailed code or Google (`next/access/signin`).
-There is no password sign-in and no reviewer sign-in form, and OpenAI requires a test account
-that works "without MFA approval, email or SMS codes, magic links". The reviewer account
-`openai-review@simple-host.app` exists on the new service (not an operator, so it sees the 25
-tools, with the three demo sites) but a reviewer cannot sign in to it today.
+Start the Simple Host connection in ChatGPT. On the Simple Host sign-in page, open **Other ways
+to sign in**, enter the reviewer email **openai-review@simple-host.app** and the password from
+the portal, choose **Sign in**, then **Connect**. No email code or 2FA. The form shows only on the
+way to approving an app, and only when `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` are set on
+the server (`next/access/signin/review.go`); it opens only that one non-operator account (it sees
+the 37 tools and the three demo sites) and is limited like other sign-in.
 
-TODO-OWNER: decide how the reviewer signs in (a reviewer password sign-in on the new service, or
-a dedicated Google account with a password and no 2-step check), then put the credentials in the
-portal's Review details form.
+TODO-OWNER: copy `REVIEW_ACCOUNT_EMAIL` and `REVIEW_ACCOUNT_PASSWORD_HASH` from the old service's
+settings into `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` (same values), restart, and check
+that the password in the portal's Review details form signs in.
 
 ## Integration prerequisites
 
-None left from the old service. The pre-submission review of 2026-11-25 found server changes
-still needed before submitting (reviewer sign-in, personal details in `who_am_i`, output schemas,
-the screens' own domain, and several annotations); they are not in this kit.
+The server changes the pre-submission review of 2026-11-25 asked for (reviewer sign-in,
+`who_am_i` without emails or ids by default, output schemas, the screens' own domain, the
+annotations, and `data` and `passcode_screen` split into single-purpose tools) are in `next/`.
+They must be live before **Scan Tools**: the portal scans the live server.
 
 ## Demo fixtures and execution status
 
@@ -158,6 +170,8 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
 - 2026-10-28, production build b4c65325: `scripts/e2e/e2e-reviewer.py` signed in as the reviewer
   and ran the then P1 to P5 at the tool level; all 45 checks passed. That run predates Teams.
 - 2026-11-21: the kit was updated to the old service's 68 tools (Teams added).
+- 2026-11-26: the tools were split to 41 (37 for the model), with output schemas, titles and the
+  four hints; P4 uses `query_sql`; skills 0.28.1.
 - 2026-11-25: the kit was rewritten for the new service's 25 tools (the two operator tools are left out; tool names, cases P1 to P5,
   listing text, skills 0.28.0). Not yet run against the new service in ChatGPT or MCPJam. The
   reviewer demo data (`scripts/seed-reviewer-demo.py`, `scripts/e2e/e2e-reviewer.py`) was written
@@ -199,7 +213,7 @@ retake them if you want the new screens shown.
 
 **Expected tools:** create_team, invite_to_team
 
-**Expected result:** Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted.
+**Expected result:** Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com, which emails Sam an invitation. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted.
 
 ### P4
 
@@ -207,7 +221,7 @@ retake them if you want the new screens shown.
 
 **Prompt:** How many RSVPs do I have on garden-party-rsvp?
 
-**Expected tools:** run_sql
+**Expected tools:** query_sql
 
 **Expected result:** Runs a COUNT(*) on the rsvps table of the site's rsvps namespace and returns the number matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i.
 

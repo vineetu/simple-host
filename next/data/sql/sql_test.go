@@ -36,3 +36,27 @@ func TestTheTwoGuards(t *testing.T) {
 		t.Fatalf("after: %d %s", r.Status, r.Body)
 	}
 }
+
+// query only reads: a statement that would change anything is refused, so
+// the AI's query_sql is truly read-only.
+func TestQueryOnlyReads(t *testing.T) {
+	k := testkit.Start(t, datasql.Mount)
+	bob := k.Person(t, "bob")
+	k.Publish(t, bob, "shop", map[string]string{"index.html": "shop"})
+	run := func(mode, sql string) testkit.Res {
+		return testkit.Call(t, k.Browser(), "POST", "https://simple-host.app/v1/sites/shop/storage/sqlite/orders/"+mode,
+			map[string]any{"sql": sql}, "X-API-Key", bob.Key)
+	}
+	if r := run("schema", ""); r.Status == 200 {
+		t.Fatalf("the table list made a namespace: %d %s", r.Status, r.Body)
+	}
+	run("execute", "CREATE TABLE t (x INTEGER)")
+	for _, sql := range []string{"INSERT INTO t VALUES (1)", "DELETE FROM t RETURNING x", "WITH a AS (SELECT 1) DELETE FROM t", "DROP TABLE t", "SELECT 1; DELETE FROM t"} {
+		if r := run("query", sql); r.Status != 400 || !strings.Contains(r.Body, "not_a_read") {
+			t.Fatalf("%s: %d %s", sql, r.Status, r.Body)
+		}
+	}
+	if r := run("query", "WITH a AS (SELECT 2 AS y) SELECT y FROM a"); r.Status != 200 || !strings.Contains(r.Body, "[[2]]") {
+		t.Fatalf("a read: %d %s", r.Status, r.Body)
+	}
+}

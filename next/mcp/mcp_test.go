@@ -75,8 +75,8 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		t.Fatalf("initialize: %v", v)
 	}
 	list := call("tools/list", nil)["tools"].([]any)
-	if len(list) != 25 { // the operator sees 27 (admin_overview, set_hold)
-		t.Fatalf("%d tools, want 25", len(list))
+	if len(list) != 41 { // 37 for the model, 4 for the passcode screen; the operator sees 43 (admin_overview, set_hold)
+		t.Fatalf("%d tools, want 41", len(list))
 	}
 	for _, x := range list {
 		if x := x.(map[string]any); x["name"] == "set_site_access" && !strings.Contains(text(x), "ui://simple-host/passcode") {
@@ -98,7 +98,7 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 	// The screen sets it, sealed: no result carries the code.
 	private, _ := ecdh.P256().GenerateKey(rand.Reader)
 	session := base64.RawURLEncoding.EncodeToString(private.PublicKey().Bytes())
-	begin := tool(call, "passcode_screen", map[string]any{"site": "blog", "action": "begin", "client_key": session})["structuredContent"].(map[string]any)
+	begin := tool(call, "passcode_screen_open", map[string]any{"site": "blog", "client_key": session})["structuredContent"].(map[string]any)
 	serverKey, _ := base64.RawURLEncoding.DecodeString(begin["server_key"].(string))
 	public, _ := ecdh.P256().NewPublicKey(serverKey)
 	shared, _ := private.ECDH(public)
@@ -108,13 +108,13 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 	const code = "tulip-garden-7"
 	nonce := make([]byte, 12)
 	sealed := aead.Seal(nil, nonce, []byte(code), []byte("set|blog|"+session))
-	res := tool(call, "passcode_screen", map[string]any{"site": "blog", "action": "set", "session": session,
+	res := tool(call, "passcode_screen_set", map[string]any{"site": "blog", "session": session,
 		"nonce": base64.RawURLEncoding.EncodeToString(nonce), "ciphertext": base64.RawURLEncoding.EncodeToString(sealed)})
 	if res["isError"] == true || strings.Contains(text(res), code) || page() != 401 {
 		t.Fatalf("set from the screen: %v, page %d", res, page())
 	}
 	// Shown again only to the screen, sealed; get_site never carries it.
-	res = tool(call, "passcode_screen", map[string]any{"site": "blog", "action": "show", "session": session})
+	res = tool(call, "passcode_screen_show", map[string]any{"site": "blog", "session": session})
 	box := res["structuredContent"].(map[string]any)["sealed"].(map[string]any)
 	n, _ := base64.RawURLEncoding.DecodeString(box["nonce"].(string))
 	c, _ := base64.RawURLEncoding.DecodeString(box["ciphertext"].(string))
@@ -160,8 +160,12 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 
 	addr := "https://club--alice.simple-host.site/"
 	rowsPath := "storage/sqlite/club/tables/posts/rows"
-	data := func(key, method, path string, body any) map[string]any {
-		return tool(ai(t, k, key), "data", map[string]any{"site": addr, "method": method, "path": path, "body": body})
+	data := func(key, name string, args map[string]any) map[string]any {
+		a := map[string]any{"site": addr, "namespace": "club", "table": "posts"}
+		for k, v := range args {
+			a[k] = v
+		}
+		return tool(ai(t, k, key), name, a)
 	}
 	browser := func(who testkit.Who, method, path string, body any) testkit.Res {
 		b := k.Browser()
@@ -172,23 +176,24 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 		if res["isError"] != true {
 			t.Fatalf("not refused: %v", res)
 		}
-		return res["structuredContent"].(map[string]any)["code"].(string)
+		code, _, _ := strings.Cut(res["content"].([]any)[0].(map[string]any)["text"].(string), ": ")
+		return code
 	}
 
 	// Bob is named: his AI reads and adds, as himself.
-	if res := data(bob.Key, "POST", rowsPath, map[string]any{"body": "hi from bob's AI"}); res["isError"] == true {
+	if res := data(bob.Key, "add_row", map[string]any{"row": map[string]any{"body": "hi from bob's AI"}}); res["isError"] == true {
 		t.Fatalf("add: %v", res)
 	}
-	if res := data(bob.Key, "GET", rowsPath, nil); !strings.Contains(text(res), "hi from bob's AI") || !strings.Contains(text(res), bob.ID) {
+	if res := data(bob.Key, "list_rows", nil); !strings.Contains(text(res), "hi from bob's AI") || !strings.Contains(text(res), bob.ID) {
 		t.Fatalf("read: %v", res)
 	}
 	// The same refusals as his browser: no rule lets him delete.
-	code := refused(data(bob.Key, "DELETE", rowsPath+"/1", nil))
+	code := refused(data(bob.Key, "delete_row", map[string]any{"id": 1}))
 	if r := browser(bob, "DELETE", rowsPath+"/1", nil); r.Status != 403 || !strings.Contains(r.Body, `"`+code+`"`) {
 		t.Fatalf("browser delete: %d %s, AI got %s", r.Status, r.Body, code)
 	}
 	// Carol is not named: the same "ask for access" both ways.
-	code = refused(data(carol.Key, "GET", rowsPath, nil))
+	code = refused(data(carol.Key, "list_rows", nil))
 	if r := browser(carol, "GET", rowsPath, nil); code != "ask_access" || r.Status != 403 || !strings.Contains(r.Body, code) {
 		t.Fatalf("carol: AI %s, browser %d %s", code, r.Status, r.Body)
 	}

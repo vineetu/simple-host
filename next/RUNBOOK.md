@@ -26,6 +26,7 @@ It serves the platform (`SH_APP_DOMAIN`), every site address and the public page
 | `CF_ZONE_ID`, `CF_API_TOKEN` | Cloudflare in front of `*.SH_SITE_DOMAIN` (see Cloudflare below) | (off) |
 | `SH_CF_API_URL` | Cloudflare's API (a fake in tests) | `https://api.cloudflare.com/client/v4` |
 | `SH_COUNTRY_FILE` | IP-to-country file, MaxMind `.mmdb` (the box's DB-IP `dbip-city-lite.mmdb` works), for the admin world map | (no countries) |
+| `SH_REVIEW_EMAIL`, `SH_REVIEW_PASSWORD_HASH` | The plugin reviewer's password sign-in: one non-operator account, shown as "Other ways to sign in" on `/signin` only on the way to approving an AI app; 10 tries per 15 minutes per address and in all. Old `REVIEW_ACCOUNT_EMAIL` / `REVIEW_ACCOUNT_PASSWORD_HASH`, same values. New hash: `printf '%s\n' "$PW" \| simple-host-next review-hash` (16+ characters) | (off) |
 
 Fixed, not settings: the limits table (`core/limits`), Let's Encrypt → Google → ZeroSSL
 directories, Turnstile and dns.google addresses, the Meta Muse client.

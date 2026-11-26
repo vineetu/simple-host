@@ -157,7 +157,7 @@ func TestOwnerJourney(t *testing.T) {
 	if events, _ := notify.Feed(ctx, k.App, omar.who.ID, 0); len(events) != 1 || !strings.Contains(string(events[0].Body), "bookings") {
 		t.Fatalf("omar's events: %v", events)
 	}
-	rows := omar.tool("run_sql", map[string]any{"site": "salon", "namespace": "bookings", "sql": "SELECT name, day FROM bookings"})
+	rows := omar.tool("query_sql", map[string]any{"site": "salon", "namespace": "bookings", "sql": "SELECT name, day FROM bookings"})
 	if b, _ := json.Marshal(rows); !strings.Contains(string(b), "Vera") {
 		t.Fatalf("bookings: %s", b)
 	}
@@ -241,8 +241,8 @@ func TestVisitorJourney(t *testing.T) {
 		t.Fatalf("entry: %d %s", r.Status, r.Body)
 	}
 	// Vic's own AI app changes his entry, as him.
-	vic.tool("data", map[string]any{"site": url, "method": "PATCH", "path": "storage/sqlite/wall/tables/entries/rows/1", "body": map[string]string{"body": "hello, edited"}})
-	got := vic.tool("data", map[string]any{"site": url, "path": "storage/sqlite/wall/tables/entries/rows/1"})
+	vic.tool("change_row", map[string]any{"site": url, "namespace": "wall", "table": "entries", "id": 1, "row": map[string]string{"body": "hello, edited"}})
+	got := vic.tool("read_row", map[string]any{"site": url, "namespace": "wall", "table": "entries", "id": 1})
 	if b, _ := json.Marshal(got); !strings.Contains(string(b), "hello, edited") {
 		t.Fatalf("after the edit: %s", b)
 	}

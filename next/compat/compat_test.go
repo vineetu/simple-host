@@ -13,6 +13,7 @@ import (
 	"simplehost/core/testkit"
 	"simplehost/data/files"
 	"simplehost/data/recipes"
+	"simplehost/data/rows"
 	datarules "simplehost/data/rules"
 	datasql "simplehost/data/sql"
 	"simplehost/data/values"
@@ -29,7 +30,7 @@ const platform = "https://simple-host.app"
 // start is the service with compat in front, as main serves it, and a
 // client that reaches it at any address.
 func start(t *testing.T) (*testkit.Kit, *http.Client) {
-	k := testkit.Start(t, publish.Mount, manage.Mount, serve.Mount, values.Mount, datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, web.Mount, uploads.Mount, files.Mount)
+	k := testkit.Start(t, publish.Mount, manage.Mount, serve.Mount, rows.Mount, values.Mount, datasql.Mount, datarules.Mount, recipes.Mount, api.Mount, mcp.Mount, web.Mount, uploads.Mount, files.Mount)
 	srv := httptest.NewServer(compat.Wrap(k.App, k.App))
 	t.Cleanup(srv.Close)
 	return k, &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
@@ -187,5 +188,43 @@ func TestDeleteNextCompatTwoWeeksAfterSunset(t *testing.T) {
 	t.Setenv("SH_COMPAT_UNTIL", "")
 	if time.Now().After(compat.Until().Add(14 * 24 * time.Hour)) {
 		t.Fatal("delete next/compat: the sunset was " + compat.Until().Add(-24*time.Hour).Format(time.DateOnly) + " (see next/compat/README.md)")
+	}
+}
+
+// Yesterday's data (method + path) and passcode_screen (action) reach the
+// single-purpose tools they were split into.
+func TestSplitToolsKeepTheirOldNames(t *testing.T) {
+	k, _ := start(t)
+	ann := k.Person(t, "ann")
+	k.Publish(t, ann, "shop", map[string]string{"index.html": "hi"})
+	b := k.Browser()
+	call := func(name string, args map[string]any) string {
+		t.Helper()
+		r := testkit.Call(t, b, "POST", platform+"/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+			"params": map[string]any{"name": name, "arguments": args}}, "X-API-Key", ann.Key)
+		return r.Body
+	}
+	call("run_sql", map[string]any{"site": "shop", "namespace": "orders", "sql": "CREATE TABLE orders (id INTEGER PRIMARY KEY, item TEXT)"})
+	rows := "storage/sqlite/orders/tables/orders/rows"
+	if s := call("data", map[string]any{"site": "shop", "method": "POST", "path": rows, "body": map[string]any{"item": "tea"}}); !strings.Contains(s, `"last_insert_id":1`) {
+		t.Fatalf("data POST rows: %s", s)
+	}
+	if s := call("data", map[string]any{"site": "shop", "path": rows + "?where.item=tea"}); !strings.Contains(s, "tea") || strings.Contains(s, "isError") {
+		t.Fatalf("data GET rows: %s", s)
+	}
+	if s := call("data", map[string]any{"site": "shop", "method": "PUT", "path": "storage/kv/orders/keys/today", "body": map[string]any{"value": "soup"}}); !strings.Contains(s, `"value":"soup"`) {
+		t.Fatalf("data PUT value: %s", s)
+	}
+	if s := call("data", map[string]any{"site": "shop", "method": "PUT", "path": "storage/files/orders/objects/a.txt", "body_base64": "aGk=", "type": "text/plain"}); !strings.Contains(s, `"bytes":2`) {
+		t.Fatalf("data PUT file: %s", s)
+	}
+	if s := call("data", map[string]any{"site": "shop", "method": "DELETE", "path": rows + "/1"}); !strings.Contains(s, `"deleted":true`) {
+		t.Fatalf("data DELETE row: %s", s)
+	}
+	if s := call("data", map[string]any{"site": "shop", "path": "elsewhere/x"}); !strings.Contains(s, "bad_path") {
+		t.Fatalf("data elsewhere: %s", s)
+	}
+	if s := call("passcode_screen", map[string]any{"site": "shop", "action": "begin"}); !strings.Contains(s, "server_key") || !strings.Contains(s, `"passcode_protected":false`) {
+		t.Fatalf("passcode_screen begin: %s", s)
 	}
 }

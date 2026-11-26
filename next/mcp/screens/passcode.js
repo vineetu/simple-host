@@ -46,7 +46,7 @@
     if (typeof data.passcode_protected === 'boolean') { render(data); return; }
     // set_site_access opens this screen with only the site: ask for its state.
     if (typeof data.site !== 'string') return;
-    app.callTool('passcode_screen', { action: 'begin', site: data.site, owner: data.owner || '' })
+    app.callTool('passcode_screen_open', { site: data.site, owner: data.owner || '' })
       .then(render, error => { el('status').textContent = error.message || 'Could not load passcode settings.'; });
   });
 
@@ -54,7 +54,7 @@
   async function begin(name) {
     const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveBits']);
     const publicKey = await crypto.subtle.exportKey('raw', pair.publicKey);
-    const result = await app.callTool('passcode_screen', { action: 'begin', site: name, owner, client_key: encode(publicKey) });
+    const result = await app.callTool('passcode_screen_open', { site: name, owner, client_key: encode(publicKey) });
     const server = await crypto.subtle.importKey('raw', decode(result.server_key), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
     const shared = await crypto.subtle.deriveBits({ name: 'ECDH', public: server }, pair.privateKey, 256);
     const material = await crypto.subtle.importKey('raw', shared, 'HKDF', false, ['deriveKey']);
@@ -73,7 +73,7 @@
     try {
       const { session, key } = await begin(name);
       if (closed || attempt !== epoch) return;
-      const args = { action, site: name, owner, session };
+      const args = { site: name, owner, session };
       if (action === 'set') {
         const nonce = crypto.getRandomValues(new Uint8Array(12));
         const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce, additionalData: aad('set', name, session) }, key, encoder.encode(el('new-code').value));
@@ -81,7 +81,7 @@
         args.ciphertext = encode(ciphertext);
       }
       if (closed || attempt !== epoch) return;
-      const result = await app.callTool('passcode_screen', args);
+      const result = await app.callTool('passcode_screen_' + action, args);
       if (closed || attempt !== epoch) return;
       render(result);
       if (action !== 'show') {

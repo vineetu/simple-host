@@ -126,6 +126,11 @@ func (h *handler) app(w http.ResponseWriter, r *http.Request, cache string) erro
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", cache)
+	review := "" // the plugin reviewer's password form (access/signin/review.go)
+	if h.a.Config.ReviewEmail != "" && h.a.Config.ReviewPasswordHash != "" {
+		review = "1"
+	}
+	body = bytes.Replace(body, []byte("__SH_REVIEW__"), []byte(review), 1)
 	w.Write(bytes.Replace(body, []byte("__SH_GOOGLE__"), []byte(google), 1))
 	return nil
 }

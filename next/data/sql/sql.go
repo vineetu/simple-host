@@ -57,7 +57,7 @@ func (h *handler) open(r *http.Request, create, needSQL bool) (*data.NS, input, 
 			}
 		}
 	}
-	if create {
+	if create && in.SQL != "" { // the table list alone makes nothing
 		if err := h.a.Data.Create(r.Context(), site, r.PathValue("ns")); err != nil {
 			return nil, in, err
 		}
@@ -72,6 +72,9 @@ func (h *handler) query(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	defer ns.Close()
+	if !ns.ReadsOnly(in.SQL) {
+		return web.Refuse(http.StatusBadRequest, "not_a_read", "query runs one statement that only reads, like SELECT. To change data, use execute.")
+	}
 	res, err := ns.Query(r.Context(), in.SQL, in.Params...)
 	if err != nil {
 		return err
@@ -99,8 +102,9 @@ func (h *handler) execute(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// schema runs the statement when one is sent (CREATE, ALTER, DROP), then
-// answers with every table and the space the namespace and the site use.
+// schema runs the statement when one is sent (CREATE, ALTER, DROP; the
+// namespace is made first if new), then answers with every table and the
+// space the namespace and the site use.
 func (h *handler) schema(w http.ResponseWriter, r *http.Request) error {
 	ns, in, err := h.open(r, true, false)
 	if err != nil {

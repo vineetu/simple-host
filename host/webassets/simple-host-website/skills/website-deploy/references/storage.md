@@ -6,14 +6,15 @@ can run any SQL on it. Everyone else (pages, visitors, their AI apps) uses the r
 routes, under the rules. Create tables before publishing pages that use them. Pages never hold a
 key.
 
-## Owner SQL: `run_sql`
+## Owner SQL: `list_tables`, `query_sql`, `run_sql`
 
-`run_sql` with `site`, `namespace` and one `sql` statement (positional `?` with `params`). Without
-`sql` it lists the tables and the space used. `SELECT`, `WITH`, `PRAGMA`, `EXPLAIN` read; anything
-else (`CREATE TABLE`, `ALTER`, `INSERT`, `UPDATE`, `DELETE`) changes. Never build SQL from visitor
-text. Use `id INTEGER PRIMARY KEY`. The server adds `visitor_id` (who added the row, an opaque
+Each takes `site` and `namespace`. `list_tables` lists the tables and the space used. `query_sql`
+runs one statement that only reads (`SELECT`, `WITH ... SELECT`), with positional `?` and
+`params`; anything that would change data is refused. `run_sql` runs one statement that changes
+(`CREATE TABLE`, `ALTER`, `INSERT`, `UPDATE`, `DELETE`, `DROP`), making the namespace if new.
+Never build SQL from visitor text. Use `id INTEGER PRIMARY KEY`. The server adds `visitor_id` (who added the row, an opaque
 reference) and timestamps to a table, and ignores ones a page sends. To answer "show my bookings"
-run a `SELECT`. To fix a row run an `UPDATE`. Deleting rows or dropping a table is destructive:
+use `query_sql`. To fix a row use `run_sql` with an `UPDATE`. Deleting rows or dropping a table is destructive:
 ask first.
 
 ## Rules: `set_data_rules`
@@ -57,18 +58,19 @@ For `_files`, rules read over `path` and `visitor_id` (the uploader): read lists
 uploads a new path, edit replaces, delete removes. Always use `get_recipe` for the whole setup of
 a job: it carries tested rules, SQL and a working page.
 
-## Reading and fixing data from chat: `data`
+## Reading and fixing data from chat, with your rights
 
-`data` calls the same routes pages use, with your rights, on any site you may open. `path` starts
-with `storage/`:
+These call the same routes pages use, with your rights, on any site you may open. Each takes
+`site` and `namespace`:
 
-- `storage/sqlite/<ns>/tables/<table>/rows` (GET with `where.<col>=`, `order`, `limit`, `after`;
-  POST to add), `.../rows/<id>` (GET, PATCH, DELETE)
-- `storage/kv/<ns>/keys`, `storage/kv/<ns>/keys/<key>` (GET, PUT with `{"value": ...}`, DELETE)
-- `storage/files/<ns>/objects`, `.../objects/<path>` (GET, DELETE; PUT with `body_base64` and
-  `type`)
+- Rows (`table`): `list_rows` (`where` as column -> value, `order`, `desc`, `limit`, `after`),
+  `read_row`, `add_row` (`row`), `change_row` (`id`, `row`), `delete_row` (`id`).
+- Values: `list_values` (`prefix`), `read_value`, `set_value` (`key`, `value`), `delete_value`.
+- Stored files: `list_files` (`prefix`), `save_file` (`path`, `content_base64`, `content_type`),
+  `delete_file` (`path`). For the person's own photos use `create_upload_link` instead.
 
-For the whole picture use `run_sql`; `data` shows what a visitor would get.
+For the whole picture the owner uses `query_sql`; these show what a visitor would get.
+Deleting is final: ask first.
 
 ## In a page
 

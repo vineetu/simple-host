@@ -46,6 +46,9 @@ func TestSubmissionToolsMatchListing(t *testing.T) {
 			continue
 		}
 		for hint, want := range tool["annotations"].(map[string]any) {
+			if hint == "title" {
+				continue
+			}
 			if got, _ := sub.Annotations[hint].(bool); got != want.(bool) || sub.Annotations[hint] == nil {
 				t.Errorf("%s %s: kit says %v, server says %v", name, hint, sub.Annotations[hint], want)
 			}

@@ -1,14 +1,14 @@
 # Switch day: plugin, skills and listings
 
 Everything here was prepared on branch `next-publish` (based on `next`). Nothing has been
-published or pushed. Version everywhere: Claude plugin and skills **0.28.0**, ChatGPT plugin
+published or pushed. Version everywhere: Claude plugin and skills **0.28.1**, ChatGPT plugin
 **1.1.0**. Do these in order, and only after the new service is live: the portals scan the live
 server, and skills that name the new tools must not reach people while the old service answers.
 
 ## 0. Before you start
 
 - The new service is switched in (`next/RUNBOOK.md`, "Switch") and `POST https://simple-host.app/mcp`
-  `tools/list` returns 25 tools including `publish_site`.
+  `tools/list` returns 41 tools including `publish_site` and `list_rows`.
 - On this box: `git -C /home/ubuntu/workspace/wt-next-publish status` is clean on `next-publish`.
 
 ## 1. Put the commits on the branch the repository publishes from
@@ -39,7 +39,7 @@ first. Both read `host/webassets/simple-host-website/skills`.
 ```
 cd /home/ubuntu/workspace/simple-host
 DRY_RUN=1 bash scripts/publish-claude-plugin-repo.sh   # shows what changes in vineetu/simple-host-plugin
-bash scripts/publish-claude-plugin-repo.sh             # commits, tags v0.28.0, pushes main and the tag
+bash scripts/publish-claude-plugin-repo.sh             # commits, tags v0.28.1, pushes main and the tag
 ```
 
 It copies the skills, `.mcp.json`, `plugin.json` and the icon, and needs the `claude` CLI and push
@@ -59,15 +59,17 @@ TestSubmissionToolsMatchListing` checks the kit's tool list against the code.
 ## 4. By hand: Anthropic's listing portal
 
 Open the portal where the Simple Host connector or plugin was submitted. Keep the server address.
-Replace the listed tool names with the 24 the model sees (the 25th, `passcode_screen`, is hidden):
+Replace the listed tool names with the 37 the model sees (the four `passcode_screen_*` tools are hidden):
 
 `who_am_i`, `update_account`, `download_my_data`, `delete_account`, `create_team`,
 `invite_to_team`, `accept_invite`, `remove_from_team`, `delete_team`, `list_sites`, `get_site`,
 `publish_site`, `create_upload_link`, `read_site_file`, `change_site`, `delete_site`,
-`set_site_access`, `set_site_address`, `site_stats`, `set_notifications`, `data`, `run_sql`,
+`set_site_access`, `set_site_address`, `site_stats`, `set_notifications`, `list_rows`,
+`read_row`, `add_row`, `change_row`, `delete_row`, `list_values`, `read_value`, `set_value`,
+`delete_value`, `list_files`, `save_file`, `delete_file`, `list_tables`, `query_sql`, `run_sql`,
 `set_data_rules`, `get_recipe`.
 
-Set the plugin version to 0.28.0. Submit the change.
+Set the plugin version to 0.28.1. Submit the change.
 
 ## 5. By hand: OpenAI's portal
 
@@ -75,7 +77,7 @@ Set the plugin version to 0.28.0. Submit the change.
    1.1.0 exists yet; otherwise raise it in `plugins/openai/plugin.json` and rebuild).
 2. Upload `dist/simple-host-openai-plugin.zip`; the Skills tab takes
    `dist/simple-host-openai-skills.zip`.
-3. MCP tab: **Scan Tools**. Expect 25. Verify the domain if asked.
+3. MCP tab: **Scan Tools**. Expect 41. Verify the domain if asked.
 4. Enter the reviewer password in the private field. Do every `TODO-OWNER` line in
    `plugins/openai/SUBMISSION.md` (run the eight cases in ChatGPT, new demo video, reviewer
    sign-in check), then submit.
@@ -83,7 +85,7 @@ Set the plugin version to 0.28.0. Submit the change.
 ## 6. Check that each client picked it up
 
 - **Claude Code:** `/plugin marketplace update simple-host`, then `/plugin` and update
-  `simple-host`. It should show 0.28.0; ask "put a one-page site online" and see `publish_site`.
+  `simple-host`. It should show 0.28.1; ask "put a one-page site online" and see `publish_site`.
 - **claude.ai and the Claude apps:** Settings, Connectors, Simple Host: refresh (or disconnect and
   connect again). Ask "which Simple Host tools do you have". It should name `publish_site`, not
   `update_site`.

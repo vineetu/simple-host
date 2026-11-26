@@ -38,7 +38,6 @@
     site = name; owner = team; $('site').textContent = name + (namespace ? ' · ' + namespace : ''); lock();
   }
   const where = () => owner ? { site, owner } : { site };
-  const store = rest => 'storage/files/' + encodeURIComponent(namespace) + '/objects' + rest;
   function element(tag, text, parent, className) {
     const node = document.createElement(tag); node.textContent = text; if (className) node.className = className;
     parent.appendChild(node); return node;
@@ -166,7 +165,7 @@
     try {
       const files = [];
       for (let after = '', more = true; more;) {
-        const page = await app.callTool('data', { ...where(), path: store('?after=' + encodeURIComponent(after)) });
+        const page = await app.callTool('list_files', { ...where(), namespace, after });
         files.push(...(page.items || []).map(item => ({ path: item.path, size: item.bytes })));
         after = page.next_after || ''; more = !!after;
       }
@@ -186,7 +185,7 @@
       for (const photo of remaining) {
         photo.attempted = true; photo.label.textContent = 'Saving'; photo.progress.removeAttribute('value');
         try {
-          await app.callTool('data', { ...where(), method: 'PUT', path: store('/' + photo.path.split('/').map(encodeURIComponent).join('/')), body_base64: photo.base64, type: photo.blob.type || 'image/jpeg' });
+          await app.callTool('save_file', { ...where(), namespace, path: photo.path, content_base64: photo.base64, content_type: photo.blob.type || 'image/jpeg' });
           markSaved(photo);
         } catch (error) {
           photo.label.textContent = error.message; photo.progress.value = 0;

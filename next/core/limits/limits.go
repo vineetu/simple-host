@@ -26,6 +26,7 @@ var (
 	Requests      = Limit{"requests", 600, time.Minute, "Too many requests from you. Wait a minute and try again."}
 	SignInCodes   = Limit{"sign_in_codes", 5, 15 * time.Minute, "Too many codes asked for this email. Wait 15 minutes."}
 	CodeMails     = Limit{"code_mails", 30, time.Hour, "Too many sign-in codes sent from your address. Wait an hour."}
+	ReviewTries   = Limit{"review_tries", 10, 15 * time.Minute, "Too many sign-in tries. Wait 15 minutes."}
 	PasscodeTries = Limit{"passcode_tries", 5, 15 * time.Minute, "Too many wrong passcodes. Wait 15 minutes and try again."}
 	Reports       = Limit{"reports", 10, time.Hour, "You sent a few reports already. The operator will read them; wait an hour to send more."}
 	AccessAsks    = Limit{"access_asks", 3, time.Hour, "You asked for access a few times already. The owner has been told; wait for them."}

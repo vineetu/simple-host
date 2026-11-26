@@ -110,8 +110,9 @@ func (h *server) answer(r *http.Request, req rpc) (any, *rpcError) {
 			if t.operator && !isOperator(r) {
 				continue
 			}
-			x := map[string]any{"name": t.name, "description": t.about, "inputSchema": t.input,
-				"annotations": map[string]any{"readOnlyHint": t.readOnly, "destructiveHint": t.asks, "openWorldHint": false}}
+			x := map[string]any{"name": t.name, "title": t.title, "description": t.about, "inputSchema": t.input, "outputSchema": t.output,
+				"annotations": map[string]any{"title": t.title, "readOnlyHint": t.readOnly, "destructiveHint": t.destructive,
+					"openWorldHint": t.openWorld, "idempotentHint": t.idempotent}}
 			switch {
 			case t.appOnly: // called by a screen, never by the model
 				x["_meta"] = map[string]any{"ui": map[string]any{"visibility": []string{"app"}}}
@@ -205,19 +206,21 @@ func (h *server) screenPage(s screen) string {
 		"__ASSET_ORIGIN__", origin, "__PASSCODE_MIN__", "6").Replace(screenFile(s.page))
 }
 
-// screenMeta is what both chat apps read about a screen: its border, and
-// that it reaches nothing but the photo shrinker's scripts.
+// screenMeta is what both chat apps read about a screen: its own origin
+// (ui.domain, required for a plugin with screens), its border, and that it
+// reaches nothing but the photo shrinker's scripts.
 func (h *server) screenMeta(s screen) map[string]any {
 	resources := []string{}
 	if s.assets {
 		resources = append(resources, "https://"+h.a.Config.AppDomain)
 	}
-	ui := map[string]any{"prefersBorder": true,
+	origin := "https://" + h.a.Config.AppDomain
+	ui := map[string]any{"domain": origin, "prefersBorder": true,
 		"csp": map[string]any{"connectDomains": []string{}, "resourceDomains": resources, "frameDomains": []string{}, "baseUriDomains": []string{}}}
 	if s.name == "passcode" {
 		ui["permissions"] = map[string]any{"clipboardWrite": map[string]any{}}
 	}
-	return map[string]any{"ui": ui, "openai/widgetPrefersBorder": true,
+	return map[string]any{"ui": ui, "openai/widgetDomain": origin, "openai/widgetPrefersBorder": true,
 		"openai/widgetCSP": map[string]any{"connect_domains": []string{}, "resource_domains": resources}}
 }
 
@@ -327,8 +330,20 @@ func refusal(err error) map[string]any {
 	if !ok {
 		ref = web.Refuse(http.StatusInternalServerError, "server_error", "Something broke on our side. Try again in a minute.")
 	}
-	return map[string]any{"isError": true, "content": []any{map[string]any{"type": "text", "text": ref.Code + ": " + ref.Fix}},
-		"structuredContent": map[string]any{"code": ref.Code, "fix": ref.Fix}}
+	// No structuredContent: apps validate it against the tool's outputSchema.
+	return map[string]any{"isError": true, "content": []any{map[string]any{"type": "text", "text": ref.Code + ": " + ref.Fix}}}
+}
+
+// errorCode is a refusal's code, from its text ("code: fix").
+func errorCode(res map[string]any) string {
+	content, _ := res["content"].([]any)
+	if len(content) == 0 {
+		return ""
+	}
+	m, _ := content[0].(map[string]any)
+	text, _ := m["text"].(string)
+	code, _, _ := strings.Cut(text, ": ")
+	return code
 }
 
 // result is a route's JSON answer as a tool result. A passcode never goes in
@@ -342,6 +357,9 @@ func result(v any) map[string]any {
 	text, _ := json.Marshal(obj)
 	return map[string]any{"structuredContent": obj, "content": []any{map[string]any{"type": "text", "text": string(text)}}}
 }
+
+// observe, when set (tests only), sees every route a tool call replays.
+var observe func(method, pattern string, body any)
 
 // file is a route body sent as it is (a stored file), not as JSON.
 type file struct {
@@ -369,6 +387,10 @@ func (h *server) do(r *http.Request, method, path string, body any) (rec *httpte
 	req.RemoteAddr = r.RemoteAddr
 	req.Header.Set("X-Real-IP", r.Header.Get("X-Real-IP"))
 	rec = httptest.NewRecorder()
+	if observe != nil {
+		_, pattern := h.a.Routes.Platform.Handler(req)
+		observe(method, pattern, body)
+	}
 	h.a.Routes.Platform.ServeHTTP(rec, web.WithCaller(req, web.CallerOf(r)))
 	if !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") || json.Unmarshal(rec.Body.Bytes(), &v) != nil {
 		v = nil
@@ -394,7 +416,8 @@ func (h *server) replay(r *http.Request, method, path string, body any) map[stri
 	case v != nil:
 		return result(v)
 	case utf8.Valid(rec.Body.Bytes()):
-		return map[string]any{"content": []any{map[string]any{"type": "text", "text": rec.Body.String()}}}
+		return map[string]any{"structuredContent": map[string]any{"text": rec.Body.String()},
+			"content": []any{map[string]any{"type": "text", "text": rec.Body.String()}}}
 	}
 	return result(map[string]any{"type": rec.Header().Get("Content-Type"), "bytes": rec.Body.Len(), "says": "A binary file; open it at the site's address."})
 }
@@ -415,7 +438,7 @@ func (h *server) agentcat(c web.Caller, name string, args, res map[string]any, t
 		"identify_actor_given_id": c.ID, "client_name": c.Via, "server_name": "Simple Host", "server_version": "2", "sdk_language": "go",
 		"tags": map[string]string{"env": "prod"}}
 	if res["isError"] == true {
-		event["error"] = map[string]any{"message": res["structuredContent"].(map[string]any)["code"]}
+		event["error"] = map[string]any{"message": errorCode(res)}
 	}
 	b, _ := json.Marshal(event)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

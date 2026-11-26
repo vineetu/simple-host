@@ -75,12 +75,12 @@
               "description": "Create a team and invite one person to it.",
               "prompt": "Create a team called rise-bakery-crew so my staff can work on our sites, and invite sam@example.com to it.",
               "tools_triggered": "create_team, invite_to_team",
-              "expected_behavior": "Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted."
+              "expected_behavior": "Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com, which emails Sam an invitation. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted."
             },
             {
               "description": "Count RSVPs without identifying visitors.",
               "prompt": "How many RSVPs do I have on garden-party-rsvp?",
-              "tools_triggered": "run_sql",
+              "tools_triggered": "query_sql",
               "expected_behavior": "Runs a COUNT(*) on the rsvps table of the site's rsvps namespace and returns the number matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i."
             },
             {
@@ -111,7 +111,7 @@
         "demo_recording_url": "https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-demo.mp4"
       },
       "publication": {
-        "release_notes": "A rewritten Simple Host connector with 25 tools instead of 68 (one is only called by the passcode screen): publish, change, access, address and visit numbers on a site; saved data with rules and the owner's SQL; teams; in-chat screens for the passcode, the photo picker, my sites and visit numbers. Same account and sites."
+        "release_notes": "A rewritten Simple Host connector: 37 single-purpose tools instead of 68, plus four called only by the passcode screen: publish, change, access, address and visit numbers on a site; saved data with rules and the owner's SQL; teams; in-chat screens for the passcode, the photo picker, my sites and visit numbers. Same account and sites."
       }
     }
   }

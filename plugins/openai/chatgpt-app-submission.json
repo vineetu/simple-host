@@ -12,10 +12,11 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads the connected account: handle, teams, invitations, key names, connected apps and use against limits.",
+        "read_only_justification": "Reads the connected account: handle, teams with member counts, invitations, key and app names, use against limits. Emails only when include_email is true.",
         "open_world_justification": "Reads only the connected account.",
         "destructive_justification": "Changes nothing."
       }
@@ -23,20 +24,22 @@
     "update_account": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Changes the handle, display name, home site or domain for all sites of the person or a team.",
-        "open_world_justification": "Acts only on the person's own account or a team they belong to.",
-        "destructive_justification": "A handle change makes old links stop working and the old handle can never be used again; the app asks first."
+        "open_world_justification": "Can connect a domain the person names, outside Simple Host, for all of the owner's sites.",
+        "destructive_justification": "Replaces names and settings; a handle change makes old links stop working and the old handle can never be used again. The app asks first."
       }
     },
     "download_my_data": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Queues a download of the person's sites, files, saved data and account details; the link is emailed to them.",
@@ -48,7 +51,8 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": true
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Deletes the account, every site, its data, keys and app connections.",
@@ -60,7 +64,8 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Creates a team with its own handle.",
@@ -71,23 +76,25 @@
     "invite_to_team": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Records an invitation for an email address; nobody is a member until they accept.",
-        "open_world_justification": "Does not email or contact the person.",
-        "destructive_justification": "Adds an invitation; nothing is removed."
+        "read_only_justification": "Records an invitation and emails it to the address given; nobody is a member until they accept.",
+        "open_world_justification": "Sends an invitation email to any address the person names.",
+        "destructive_justification": "Adds an invitation; nothing is removed or replaced."
       }
     },
     "accept_invite": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Accepts an invitation addressed to the connected account.",
+        "read_only_justification": "Accepts the connected account's invitation to a team, named by the team's handle.",
         "open_world_justification": "Acts only on the connected account's invitations.",
         "destructive_justification": "Adds a membership; nothing is removed."
       }
@@ -96,19 +103,21 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": true
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Removes a member from a team, or leaves it.",
+        "read_only_justification": "Removes a member from a team by email, or leaves it.",
         "open_world_justification": "Acts only inside Simple Host teams.",
-        "destructive_justification": "Removes the member's access; the app asks first."
+        "destructive_justification": "Ends the member's access to the team's sites; the app asks first."
       }
     },
     "delete_team": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": true
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Deletes a team that has no sites.",
@@ -120,7 +129,8 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Lists the sites of the account and its teams, or the bin, without changing anything.",
@@ -132,7 +142,8 @@
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Reads one site's address, versions, access, domain status, saved data, rules and use.",
@@ -143,32 +154,35 @@
     "publish_site": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Publishes files to a site, making the site if it is new, and returns the live address.",
-        "open_world_justification": "Changes only the person's own site on Simple Host, which is public if the site is open.",
-        "destructive_justification": "Without keep_other_files the live files that are not sent are removed; earlier versions stay and can be made live again."
+        "open_world_justification": "Puts pages on the public internet: anyone with the address can open an open site.",
+        "destructive_justification": "Replaces the live files: those not sent are removed unless keep_other_files is true. Earlier versions can be made live again, which does not make it non-destructive."
       }
     },
     "create_upload_link": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": false
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false
       },
       "justifications": {
         "read_only_justification": "Shows the photo picker for a site's file store (namespace photos unless named), or with kind archive makes a one-time link for a big archive.",
-        "open_world_justification": "The link works only for that site and expires.",
-        "destructive_justification": "Adds files only through the link; nothing is removed."
+        "open_world_justification": "A new photos namespace can be read by anyone who can open the site, which may be public.",
+        "destructive_justification": "Adds files only through the picker or link; nothing is removed or replaced."
       }
     },
     "read_site_file": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Reads one published file of a site.",
@@ -179,20 +193,22 @@
     "change_site": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Takes a site offline or online, lists it on the public page, makes an older version live, or restores it from the bin.",
-        "open_world_justification": "Acts only on the person's own site.",
-        "destructive_justification": "Offline or an older version changes what visitors see; the app asks first and all versions and data are kept."
+        "open_world_justification": "Listing a site shows it on the owner's public page on the internet.",
+        "destructive_justification": "Offline or an older version replaces what visitors see; the app asks first."
       }
     },
     "delete_site": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": true
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Moves a site and its data to the bin.",
@@ -203,44 +219,87 @@
     "set_site_access": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Sets who may open a site: everyone, a passcode, or people named by email; or signs everyone out.",
-        "open_world_justification": "Acts only on the person's own site.",
-        "destructive_justification": "Changes who can open the site and ends sign-ins; the app asks first. A passcode is set in a screen and never enters the chat."
+        "open_world_justification": "Opening a site makes it readable by anyone on the internet.",
+        "destructive_justification": "Can end visitors' access and sign-ins; the app asks first. A passcode is set in a screen and never enters the chat."
       }
     },
-    "passcode_screen": {
+    "passcode_screen_open": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Called by the in-chat passcode screen: reads whether the site has a passcode and starts a sealed session.",
+        "open_world_justification": "Acts only on the person's own site.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "passcode_screen_show": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Called by the in-chat passcode screen: shows the passcode sealed for the screen alone, never in the chat.",
+        "open_world_justification": "Acts only on the person's own site.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "passcode_screen_set": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Called by the in-chat passcode screen to show and set a passcode, sealed so it never enters the chat.",
+        "read_only_justification": "Called by the in-chat passcode screen: sets the passcode the person typed, sent sealed.",
         "open_world_justification": "Acts only on the person's own site.",
-        "destructive_justification": "Not called by the model."
+        "destructive_justification": "Replaces the passcode: visitors need the new one."
+      }
+    },
+    "passcode_screen_generate": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Called by the in-chat passcode screen: makes a new random passcode and shows it sealed.",
+        "open_world_justification": "Acts only on the person's own site.",
+        "destructive_justification": "Replaces the passcode: visitors need the new one."
       }
     },
     "set_site_address": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Connects or removes a site's own domain or its free short name.",
-        "open_world_justification": "Reads DNS records for the domain; changes only the person's own site.",
-        "destructive_justification": "Changes the site's address, so old links to a removed address stop working; the app asks first."
+        "open_world_justification": "Connects any outside domain the person names.",
+        "destructive_justification": "Replaces the site's address, so links to a removed address stop working; the app asks first."
       }
     },
     "site_stats": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Reads visit numbers: visits per day, top pages, referrers and countries.",
@@ -252,55 +311,229 @@
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Sets what the owner is told about on a site: data changes or access requests.",
         "open_world_justification": "Notifies only the owner, in the app and by browser push.",
-        "destructive_justification": "Replaces the notification list; no site data changes."
+        "destructive_justification": "Replaces the notification list."
       }
     },
-    "data": {
+    "list_rows": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads rows of a table with the caller's rights, as the site's pages do.",
+        "open_world_justification": "Reads only sites the caller may open.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "read_row": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads one row by id with the caller's rights.",
+        "open_world_justification": "Reads only sites the caller may open.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "add_row": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Reads and changes rows, values and stored files of a site with the caller's rights (the routes pages use).",
+        "read_only_justification": "Adds one row with the caller's rights.",
         "open_world_justification": "Acts only on sites the caller may open.",
-        "destructive_justification": "Can add, change or delete a site's rows, values and files when the caller's rights allow."
+        "destructive_justification": "Adds a row; nothing is removed or replaced."
+      }
+    },
+    "change_row": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Changes columns of one row with the caller's rights.",
+        "open_world_justification": "Acts only on sites the caller may open.",
+        "destructive_justification": "Overwrites the row's old values."
+      }
+    },
+    "delete_row": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Deletes one row with the caller's rights.",
+        "open_world_justification": "Acts only on sites the caller may open.",
+        "destructive_justification": "Permanent; the app asks first."
+      }
+    },
+    "list_values": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads named values with the caller's rights.",
+        "open_world_justification": "Reads only sites the caller may open.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "read_value": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads one named value with the caller's rights.",
+        "open_world_justification": "Reads only sites the caller may open.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "set_value": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Sets one named value with the caller's rights.",
+        "open_world_justification": "Acts only on sites the caller may open.",
+        "destructive_justification": "Replaces the value the key had."
+      }
+    },
+    "delete_value": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Deletes one named value with the caller's rights.",
+        "open_world_justification": "Acts only on sites the caller may open.",
+        "destructive_justification": "Permanent; the app asks first."
+      }
+    },
+    "list_files": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Lists a namespace's stored files with the caller's rights.",
+        "open_world_justification": "Reads only sites the caller may open.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "save_file": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Stores one file in a namespace's file store with the caller's rights.",
+        "open_world_justification": "Acts only on sites the caller may open.",
+        "destructive_justification": "Replaces a file already at that path."
+      }
+    },
+    "delete_file": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Deletes one stored file with the caller's rights.",
+        "open_world_justification": "Acts only on sites the caller may open.",
+        "destructive_justification": "Permanent; the app asks first."
+      }
+    },
+    "list_tables": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Reads the tables of a namespace of the owner's site and the space used.",
+        "open_world_justification": "Reads only the person's own site data.",
+        "destructive_justification": "Changes nothing."
+      }
+    },
+    "query_sql": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Runs one read-only SQL statement on the owner's site data; statements that change anything are refused.",
+        "open_world_justification": "Reads only the person's own site data.",
+        "destructive_justification": "Changes nothing."
       }
     },
     "run_sql": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": true,
+        "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Runs the owner's SQL on a namespace of their site: reads, schema changes and row changes.",
+        "read_only_justification": "Runs one SQL statement that changes the owner's site data: schema or rows.",
         "open_world_justification": "Acts only on the person's own site data.",
-        "destructive_justification": "Can change or delete rows and tables; one statement per call."
+        "destructive_justification": "Can change or delete rows and tables; the app asks first before deleting."
       }
     },
     "set_data_rules": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
-        "destructiveHint": true
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Sets who may read, add, change and delete each table, value set and file store of a namespace.",
-        "open_world_justification": "Acts only on the person's own site.",
-        "destructive_justification": "Can widen who reads or writes the data, so the app asks first."
+        "open_world_justification": "Rules can let anyone on the internet read or write the data.",
+        "destructive_justification": "Replaces the namespace's rules and can narrow access; the app asks first when it widens access."
       }
     },
     "get_recipe": {
       "annotations": {
         "readOnlyHint": true,
         "openWorldHint": false,
-        "destructiveHint": false
+        "destructiveHint": false,
+        "idempotentHint": true
       },
       "justifications": {
         "read_only_justification": "Returns a page recipe: data setup, a working page and who can see what.",
@@ -326,12 +559,12 @@
       "description": "Create a team and invite one person to it.",
       "user_prompt": "Create a team called rise-bakery-crew so my staff can work on our sites, and invite sam@example.com to it.",
       "tools_triggered": "create_team, invite_to_team",
-      "expected_output": "Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted."
+      "expected_output": "Calls create_team once with the handle rise-bakery-crew, then invite_to_team with sam@example.com, which emails Sam an invitation. Says the handle is part of the team's site addresses and that nobody is a member until Sam signs in with that email and accepts. No site is created, changed or deleted."
     },
     {
       "description": "Count RSVPs without identifying visitors.",
       "user_prompt": "How many RSVPs do I have on garden-party-rsvp?",
-      "tools_triggered": "run_sql",
+      "tools_triggered": "query_sql",
       "expected_output": "Runs a COUNT(*) on the rsvps table of the site's rsvps namespace and returns the number matching the current fixture count. Returns no emails, names, or visitor references. Does not call who_am_i."
     },
     {

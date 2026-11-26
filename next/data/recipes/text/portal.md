@@ -102,6 +102,6 @@ other GET storage/sqlite/client/tables/messages/rows -> 403
 
 ## The owner's view
 
-run_sql {"site": "{site}", "namespace": "client", "sql": "SELECT id, author, body, created_at FROM messages ORDER BY id"}
+query_sql {"site": "{site}", "namespace": "client", "sql": "SELECT id, author, body, created_at FROM messages ORDER BY id"}
 
 Answer as the owner: run_sql {"site": "{site}", "namespace": "client", "sql": "INSERT INTO messages (author, body, created_at) VALUES ('Patel Dental', ?, CURRENT_TIMESTAMP)", "params": ["Your next visit is on 3 December."]}

@@ -111,7 +111,7 @@
       if (info.url) selected.url = info.url;
       const entries = [], sources = [], failed = [];
       for (const space of info.namespaces || []) {
-        const query = async sql => app.callTool('run_sql', {...which(site), namespace: space.name, sql, params: []});
+        const query = async sql => app.callTool('query_sql', {...which(site), namespace: space.name, sql, params: []});
         for (const name of space.tables || []) {
           if (current !== generation) return;
           if (name.startsWith('_') || !visitorsAdd(space.rules?.[name])) continue;

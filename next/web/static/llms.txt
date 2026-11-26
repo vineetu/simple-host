@@ -15,18 +15,18 @@ Never ask for, read or repeat sign-in codes or passcodes in chat.
 Install steps: https://simple-host.app/install  Skill: https://simple-host.app/skills.zip
 API reference: https://simple-host.app/docs
 
-## Tools (26)
+## Tools (39)
 
 Account
-- who_am_i: me, teams, invitations, key names, connected apps, use against limits.
+- who_am_i: me, teams, invitations, key names, connected apps, use against limits. Emails only with include_email.
 - update_account: handle, display name, home site, domain for all sites (me or a team). Asks first for a handle change.
 - download_my_data: queue the download. The link comes by email.
 - delete_account: delete everything. Asks first.
 Teams
 - create_team: make a team.
-- invite_to_team: invite by email.
-- accept_invite: accept one.
-- remove_from_team: remove a member, or leave. Asks first.
+- invite_to_team: invite by email (Simple Host emails them).
+- accept_invite: accept the invitation to a team, by its handle.
+- remove_from_team: remove a member by email, or leave (email "me"). Asks first.
 - delete_team: delete a team with no sites. Asks first.
 Sites
 - list_sites: my sites and my teams' sites, search, bin.
@@ -41,8 +41,14 @@ Sites
 - site_stats: visit numbers (an in-chat screen).
 - set_notifications: what the owner is told about on a site.
 Saved data
-- data: rows, values and file records: list, read, add, change, delete, under the caller's rights (the routes pages use). Works on any site the person may open.
-- run_sql: owner SQL on a namespace, including schema and space used.
+Rows, values and stored files, under the caller's rights (the routes pages use), on any site the person may open:
+- list_rows, read_row, add_row, change_row, delete_row: rows of a table.
+- list_values, read_value, set_value, delete_value: named values (_values).
+- list_files, save_file, delete_file: a namespace's file store.
+The owner's SQL on their own namespaces:
+- list_tables: tables and space used.
+- query_sql: one read-only statement (SELECT).
+- run_sql: one statement that changes data (CREATE, INSERT, UPDATE, DELETE...). Asks first before deleting.
 - set_data_rules: rules for a namespace. Asks first when it widens access.
 - get_recipe: a page recipe by topic.
 Operator (only for the operator)
@@ -73,7 +79,7 @@ A site with no visits and no changes for 3 months gets one email to its owner, t
 
 - A site has namespaces. Each namespace is one SQLite file with tables, named values and file records.
 - Files for a namespace live in its file store. One upload path serves owner and visitors.
-- The owner has full access and may run any SQL on their namespaces (run_sql).
+- The owner has full access and may run any SQL on their namespaces (query_sql reads, run_sql changes).
 - Everyone else (pages, visitors, their AI apps) uses the row, value and file routes.
 - Rules say, for each table, value set and file store, who may read, add, change and delete:
   anyone, signed-in people, the row's author, the owner. Anonymous visitors may post only

@@ -4,11 +4,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,6 +49,10 @@ import (
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "review-hash" {
+		reviewHash()
+		return
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	cfg := app.FromEnv()
@@ -109,4 +117,17 @@ func work(ctx context.Context, a *app.App) {
 	go export.Work(ctx, a)
 	go idle.Work(ctx, a)
 	go admin.Work(ctx, a)
+}
+
+// reviewHash reads a password (one line) and prints SH_REVIEW_PASSWORD_HASH:
+//
+//	read -rs PW && printf '%s\n' "$PW" | simple-host-next review-hash; unset PW
+func reviewHash() {
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	hash, err := signin.HashReviewPassword(strings.TrimRight(line, "\r\n"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	fmt.Println(hash)
 }

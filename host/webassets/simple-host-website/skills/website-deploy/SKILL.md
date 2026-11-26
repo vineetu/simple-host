@@ -28,7 +28,7 @@ the person's own domain.
 
 | Job | Tool |
 |---|---|
-| Who am I, handle, teams, invitations, use against limits | `who_am_i` |
+| Who am I, handle, teams, invitations, use against limits (emails only with `include_email`) | `who_am_i` |
 | My sites (search; the bin) | `list_sites` (shows the my-sites screen) |
 | Everything about one site: address, versions, access, domain, saved data, rules, use | `get_site` |
 | Put files online, new or changed | `publish_site` |
@@ -41,8 +41,10 @@ the person's own domain.
 | Visit numbers | `site_stats` (shows a dashboard) |
 | Tell the owner when entries arrive or someone asks for access | `set_notifications` |
 | A page recipe: data setup, working page, who sees what | `get_recipe` |
-| Read or fix rows, values, files with your rights | `data` |
-| The owner's SQL on a namespace | `run_sql` |
+| Rows of a table, with your rights | `list_rows`, `read_row`, `add_row`, `change_row`, `delete_row` |
+| Named values (`_values`), with your rights | `list_values`, `read_value`, `set_value`, `delete_value` |
+| A namespace's stored files, with your rights | `list_files`, `save_file`, `delete_file` |
+| The owner's SQL: tables, reads, changes | `list_tables`, `query_sql`, `run_sql` |
 | Who may read, add, change, delete | `set_data_rules` |
 | Handle, display name, home site, one domain for all sites | `update_account` |
 | Teams | `create_team`, `invite_to_team`, `accept_invite`, `remove_from_team`, `delete_team` |
@@ -72,7 +74,7 @@ Visitors sign in with Google or an emailed code, on the site's own address; this
 the owner's account. For a form, bookings, guestbook, portal or gallery call `get_recipe`
 (`inbox`, `public`, `personal`, `comments`, `portal`, `gallery`): publish its page, then run its
 setup (`run_sql`, `set_data_rules`). Tell the person who can see what and how they see entries
-("ask me: show my bookings", which uses `run_sql` or `data`), and offer `set_notifications`.
+("ask me: show my bookings", which uses `query_sql`), and offer `set_notifications`.
 Never use `mailto:` for forms. Rules, SQL and the page helper: `references/storage.md`.
 
 Photos: when the page needs the person's own photos, call `create_upload_link` once the page is
@@ -84,7 +86,7 @@ open). Pass `namespace` only for another store. Never build an upload page for t
 
 `set_site_access`: `open`, `passcode`, or `viewers` (emails the person gave you, nothing else;
 `viewers_add` and `viewers_remove` change the list). For a passcode call with `access:
-"passcode"` and no passcode: a screen in the chat sets or shows it, so it never enters the chat.
+"passcode"`: a screen in the chat sets or shows it, so it never enters the chat.
 Do not ask for or repeat one. A visitor who is not allowed can press "Ask for access", which
 `set_notifications` with `{"kind":"access"}` tells the owner about.
 
@@ -98,7 +100,8 @@ registrar screens: the `connect-domain` skill.
 ## Ask first
 
 Say exactly what changes, and wait for a yes, before: `delete_site`, `delete_account`,
-`delete_team`, `remove_from_team`, widening who can read or write (`set_data_rules`), changing a
+`delete_team`, `remove_from_team`, deleting saved data (`delete_row`, `delete_value`, `delete_file`,
+a `DELETE` or `DROP` with `run_sql`), widening who can read or write (`set_data_rules`), changing a
 passcode or viewers or signing everyone out, connecting or removing a domain or short name,
 taking a site offline or making an older version live (`change_site`), changing a handle
 (`update_account`: old links stop working and the handle is never reusable). Updates the person

@@ -110,7 +110,7 @@ func photoPicker(a args, run func(string, map[string]any) (map[string]any, bool)
 	link["photos_url"] = link["url"] // the old answer's name for it
 	content, _ := res["content"].([]any)
 	res["content"] = append(content, text("The photo picker is in the chat; url is the same picker as a page. "+
-		"Photos now go to this site's photos namespace, not images/. When they say done, list them with data GET storage/files/photos/objects, "+
+		"Photos now go to this site's photos namespace, not images/. When they say done, list them with list_files (namespace photos), "+
 		"and show one on a page with <img src=\"/v1/sites/"+url.PathEscape(a.s("site"))+"/storage/files/photos/objects/<path>\">. "+
 		"Anyone who can open the site sees them, as with images/; only the owner adds them."))
 	return res
@@ -217,18 +217,23 @@ var oldTools = map[string]func(a args) ([]step, error){
 		}
 		return one("set_site_address", a.keep("site", "owner").with("domain", ""))
 	},
-	"export_site":        func(a args) ([]step, error) { return one("download_my_data", args{}) },
-	"set_home_page":      func(a args) ([]step, error) { return one("update_account", args{"home_site": a.s("site")}) },
-	"create_team":        func(a args) ([]step, error) { return one("create_team", args{"handle": a.s("name")}) },
-	"list_teams":         func(a args) ([]step, error) { return one("who_am_i", args{}) },
-	"list_team_members":  func(a args) ([]step, error) { return one("who_am_i", args{}) },
-	"add_team_member":    func(a args) ([]step, error) { return one("invite_to_team", a.keep("team", "email")) },
-	"remove_team_member": func(a args) ([]step, error) { return one("remove_from_team", a.keep("team", "person")) },
+	"export_site":       func(a args) ([]step, error) { return one("download_my_data", args{}) },
+	"set_home_page":     func(a args) ([]step, error) { return one("update_account", args{"home_site": a.s("site")}) },
+	"create_team":       func(a args) ([]step, error) { return one("create_team", args{"handle": a.s("name")}) },
+	"list_teams":        func(a args) ([]step, error) { return one("who_am_i", args{}) },
+	"list_team_members": func(a args) ([]step, error) { return one("who_am_i", args{"include_email": true}) },
+	"add_team_member":   func(a args) ([]step, error) { return one("invite_to_team", a.keep("team", "email")) },
+	"remove_team_member": func(a args) ([]step, error) {
+		if p := a.s("person"); strings.Contains(p, "@") { // list_team_members gives emails now
+			return one("remove_from_team", args{"team": a.s("team"), "email": p})
+		}
+		return one("remove_from_team", a.keep("team", "person"))
+	},
 	"answer_team_invitation": func(a args) ([]step, error) {
 		if a.s("answer") != "accept" {
 			return nil, removed("Declining an invitation")
 		}
-		return one("accept_invite", args{"id": a.s("invitation")})
+		return one("accept_invite", args{"team": a.s("invitation")}) // list_teams gives the team's handle as the id
 	},
 	"storage_set_resource": func(a args) ([]step, error) {
 		body, _ := a["body"].(map[string]any)
@@ -242,21 +247,27 @@ var oldTools = map[string]func(a args) ([]step, error){
 		}
 		return one("set_data_rules", s)
 	},
-	"storage_put_kv":            kv("PUT", func(a args) any { return map[string]any{"value": a["value"]} }),
-	"storage_get_kv":            kv("GET", nil),
-	"storage_delete_kv":         kv("DELETE", nil),
-	"storage_list_kv_keys":      store("GET", "kv", "/keys"),
-	"storage_list_file_objects": store("GET", "files", "/objects"),
-	"storage_sql_query":         sql,
-	"storage_sql_execute":       sql,
-	"storage_sql_schema":        sql,
+	"storage_put_kv":            func(a args) ([]step, error) { return one("set_value", ns(a, "key").with("value", a["value"])) },
+	"storage_get_kv":            func(a args) ([]step, error) { return one("read_value", ns(a, "key")) },
+	"storage_delete_kv":         func(a args) ([]step, error) { return one("delete_value", ns(a, "key")) },
+	"storage_list_kv_keys":      func(a args) ([]step, error) { return one("list_values", ns(a, "prefix")) },
+	"storage_list_file_objects": func(a args) ([]step, error) { return one("list_files", ns(a, "prefix")) },
+	"storage_sql_query":         func(a args) ([]step, error) { return sql("query_sql", a) },
+	"storage_sql_execute":       func(a args) ([]step, error) { return sql("run_sql", a) },
+	"storage_sql_schema": func(a args) ([]step, error) {
+		if a.s("sql") == "" {
+			return one("list_tables", ns(a))
+		}
+		steps, err := sql("run_sql", a)
+		return append(steps, step{"list_tables", ns(a)}), err
+	},
 	"storage_put_file": func(a args) ([]step, error) {
-		return one("data", a.keep("site", "owner").with("method", "PUT").with("path", filePath(a)).
-			with("body_base64", a.s("content_base64")).with("type", a.s("content_type")))
+		return one("save_file", ns(a, "path", "content_base64", "content_type"))
 	},
-	"storage_delete_file": func(a args) ([]step, error) {
-		return one("data", a.keep("site", "owner").with("method", "DELETE").with("path", filePath(a)))
-	},
+	"storage_delete_file": func(a args) ([]step, error) { return one("delete_file", ns(a, "path")) },
+	// Yesterday's names (2026-11-25), split into single-purpose tools.
+	"data":                       data,
+	"passcode_screen":            passcodeScreen,
 	"preview_version":            gone("Drafts and previews"),
 	"discard_version":            gone("Drafts and previews"),
 	"keep_site":                  gone("Keeping an idle site"),
@@ -275,7 +286,6 @@ var oldTools = map[string]func(a args) ([]step, error){
 	"duplicate":                  gone("Duplicating a site"),
 	"storage_file_download_link": gone("Download links for stored files"),
 	"storage_delete_resource":    gone("Deleting a whole storage resource"),
-	"passcode_screen":            gone("The old passcode screen"),
 	"visitor_add_entry":          gone("Separate visitor tools"),
 	"visitor_change_entry":       gone("Separate visitor tools"),
 }
@@ -364,30 +374,14 @@ func removed(feature string) error {
 	return web.Refuse(http.StatusGone, "removed", feature+" was removed from Simple Host.")
 }
 
-// store is a data call on resource name's kind of store, with prefix kept.
-func store(method, kind, rest string) func(args) ([]step, error) {
-	return func(a args) ([]step, error) {
-		p := "storage/" + kind + "/" + url.PathEscape(a.s("name")) + rest
-		if prefix := a.s("prefix"); prefix != "" {
-			p += "?" + url.Values{"prefix": {prefix}}.Encode()
-		}
-		return one("data", a.keep("site", "owner").with("method", method).with("path", p))
-	}
+// ns is the old storage tools' arguments for a current data tool: the
+// resource name is the namespace.
+func ns(a args, keep ...string) args {
+	return a.keep(append([]string{"site", "owner"}, keep...)...).with("namespace", a.s("name"))
 }
 
-func kv(method string, body func(args) any) func(args) ([]step, error) {
-	return func(a args) ([]step, error) {
-		s := a.keep("site", "owner").with("method", method).
-			with("path", "storage/kv/"+url.PathEscape(a.s("name"))+"/keys/"+url.PathEscape(a.s("key")))
-		if body != nil {
-			s["body"] = body(a)
-		}
-		return one("data", s)
-	}
-}
-
-func sql(a args) ([]step, error) {
-	s := a.keep("site", "owner", "sql", "params").with("namespace", a.s("name"))
+func sql(tool string, a args) ([]step, error) {
+	s := ns(a, "sql", "params")
 	if p, ok := a["params"].(string); ok { // the old tools also took the list as JSON text
 		var list []any
 		if json.Unmarshal([]byte(p), &list) != nil {
@@ -395,13 +389,120 @@ func sql(a args) ([]step, error) {
 		}
 		s["params"] = list
 	}
-	return one("run_sql", s)
+	return one(tool, s)
 }
 
-func filePath(a args) string {
-	parts := strings.Split(strings.TrimPrefix(a.s("path"), "/"), "/")
-	for i := range parts {
-		parts[i] = url.PathEscape(parts[i])
+// data is yesterday's data {method, path, body, body_base64, type}: the
+// route under the site it named, as the one current tool for it.
+func data(a args) ([]step, error) {
+	rest, query, _ := strings.Cut(a.s("path"), "?")
+	q, _ := url.ParseQuery(query)
+	method := strings.ToUpper(a.s("method"))
+	if method == "" {
+		method = "GET"
+		if a.s("body_base64") != "" {
+			method = "PUT"
+		}
 	}
-	return "storage/files/" + url.PathEscape(a.s("name")) + "/objects/" + strings.Join(parts, "/")
+	parts := strings.Split(strings.Trim(rest, "/"), "/")
+	for i := range parts {
+		parts[i], _ = url.PathUnescape(parts[i])
+	}
+	bad := web.Refuse(http.StatusBadRequest, "bad_path", "data was split into single-purpose tools: list_rows, read_row, add_row, change_row, delete_row, "+
+		"list_values, read_value, set_value, delete_value, list_files, save_file and delete_file. Use those.")
+	if len(parts) < 4 || parts[0] != "storage" {
+		return nil, bad
+	}
+	base := a.keep("site", "owner").with("namespace", parts[2])
+	page := func(s args, keys ...string) args {
+		for _, k := range keys {
+			if v := q.Get(k); v != "" {
+				s[k] = v
+			}
+		}
+		return s
+	}
+	body, _ := a["body"].(map[string]any)
+	switch {
+	case parts[1] == "sqlite" && len(parts) >= 6 && parts[3] == "tables" && parts[5] == "rows":
+		base["table"] = parts[4]
+		if len(parts) == 6 {
+			switch method {
+			case "GET":
+				s := page(base, "order", "after", "limit")
+				where := map[string]any{}
+				for k, v := range q {
+					if col, ok := strings.CutPrefix(k, "where."); ok {
+						where[col] = v[0]
+					}
+				}
+				if len(where) > 0 {
+					s["where"] = where
+				}
+				if d := q.Get("desc"); d == "1" || d == "true" {
+					s["desc"] = true
+				}
+				return one("list_rows", s)
+			case "POST":
+				return one("add_row", base.with("row", body))
+			}
+		} else if len(parts) == 7 {
+			base["id"] = parts[6]
+			switch method {
+			case "GET":
+				return one("read_row", base)
+			case "PATCH":
+				return one("change_row", base.with("row", body))
+			case "DELETE":
+				return one("delete_row", base)
+			}
+		}
+	case parts[1] == "kv" && parts[3] == "keys":
+		if len(parts) == 4 && method == "GET" {
+			return one("list_values", page(base, "prefix", "after", "limit"))
+		}
+		if len(parts) == 5 {
+			base["key"] = parts[4]
+			switch method {
+			case "GET":
+				return one("read_value", base)
+			case "PUT":
+				return one("set_value", base.with("value", body["value"]))
+			case "DELETE":
+				return one("delete_value", base)
+			}
+		}
+	case parts[1] == "files" && parts[3] == "objects":
+		if len(parts) == 4 && method == "GET" {
+			return one("list_files", page(base, "prefix", "after", "limit"))
+		}
+		if len(parts) > 4 {
+			base["path"] = strings.Join(parts[4:], "/")
+			switch method {
+			case "PUT":
+				return one("save_file", base.with("content_base64", a.s("body_base64")).with("content_type", a.s("type")))
+			case "DELETE":
+				return one("delete_file", base)
+			case "GET":
+				return nil, web.Refuse(http.StatusBadRequest, "open_at_site", "Open a stored file at the site's address: /v1/sites/<site>/"+strings.Join(parts, "/")+".")
+			}
+		}
+	}
+	return nil, bad
+}
+
+// passcodeScreen is yesterday's passcode_screen {action, ...}: the screen
+// tool for that step.
+func passcodeScreen(a args) ([]step, error) {
+	tool := map[string]string{"begin": "passcode_screen_open", "show": "passcode_screen_show", "set": "passcode_screen_set", "generate": "passcode_screen_generate"}[a.s("action")]
+	if tool == "" {
+		return nil, web.Refuse(http.StatusBadRequest, "bad_action", `Set "action" to "begin", "show", "set" or "generate".`)
+	}
+	s := args{}
+	for k, v := range a {
+		if k != "action" {
+			s[k] = v
+		}
+	}
+	return one(tool, s)
 }

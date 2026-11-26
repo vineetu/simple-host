@@ -82,7 +82,7 @@ if err := limits.Allow(r, limits.SignInCodes, email); err != nil { return err } 
 if err := limits.Fits(r, limits.SiteBytes, total); err != nil { return err }    // size, total after change
 limits.KeptVersions.N, limits.QueryTime.Per                                     // plain numbers
 ```
-Rows: Requests, SignInCodes, CodeMails, PasscodeTries, Reports, AccessAsks, SiteBytes, DataBytes,
+Rows: Requests, SignInCodes, CodeMails, ReviewTries, PasscodeTries, Reports, AccessAsks, SiteBytes, DataBytes,
 FilesBytes, SandboxMemory, DatabaseMemory, Publishes, PushDevices, KeptVersions, QueryTime. `limits.Address(r)`: the IP
 as limits count it (an IPv6 address by its /64). A site's page and file views are not counted. The operator is never limited. Add a row there; never a setting.
 
@@ -140,6 +140,7 @@ defer ns.Close()
 rows, err := ns.Query(ctx, `SELECT * FROM b WHERE id = ?`, id) // rows.Columns, rows.Rows
 res, err := ns.Exec(ctx, `INSERT INTO b (name, visitor_id) VALUES (?, ?)`, n, c.ID)
 err = ns.Tx(ctx, func() error { ... })        // all or nothing
+ns.ReadsOnly(sql)                             // one statement that changes nothing
 plan, err := ns.Plan(ctx, "b")                // nil plan: no rules, owner only
 pred, err := plan.Using(rules.OpRead, data.Bindings(r, isOwner, checked)) // SQL predicate; data.RuleSchema(spam)
 q, err := a.Data.Begin(r, a.Sites, write)     // a data route's {ns}: visit decision, spam check

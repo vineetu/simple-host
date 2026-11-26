@@ -13,6 +13,9 @@ Callers of Simple Host from before the rebuild keep working until the sunset dat
   old name's structuredContent has the old fields (`shapes.go`; the old list is
   `testdata/old-tools.json`, checked by `TestOldToolAnswersMatchTheOldOutputSchemas`), and
   refusals carry no structuredContent.
+- **Split tools** (`tools.go`, `data`, `passcodeScreen`): `data` (method + path) and
+  `passcode_screen` (action), public for a day before the split, map to the single-purpose tools
+  (`list_rows` ... `delete_file`, `passcode_screen_open|show|set|generate`).
 - **The old skill** (`X-Skill-Version` on any request): `/v1/skills/...` serves the new skill.
 - **Old photo picker**: `create_upload_link {site}` (no namespace, kind or archive) gets the
   current picker (namespace `photos`) plus the old `photos_url` and a note on where photos land.

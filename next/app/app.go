@@ -64,6 +64,9 @@ type Config struct {
 	// Cloudflare in front of the site addresses: purges after a change
 	// (off when either is empty).
 	CFZoneID, CFAPIToken, CFAPIURL string
+	// The plugin reviewer's one password sign-in (access/signin/review.go):
+	// off unless both are set.
+	ReviewEmail, ReviewPasswordHash string
 }
 
 // FromEnv reads the config from the environment, with production defaults.
@@ -103,6 +106,7 @@ func FromEnv() Config {
 		SelfHosted:  env("SH_SELF_HOSTED", "") == "1",
 		CountryFile: env("SH_COUNTRY_FILE", ""),
 		CFZoneID:    env("CF_ZONE_ID", ""), CFAPIToken: env("CF_API_TOKEN", ""), CFAPIURL: env("SH_CF_API_URL", "https://api.cloudflare.com/client/v4"),
+		ReviewEmail: env("SH_REVIEW_EMAIL", ""), ReviewPasswordHash: env("SH_REVIEW_PASSWORD_HASH", ""),
 	}
 }
 

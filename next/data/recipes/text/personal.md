@@ -93,6 +93,6 @@ visitor DELETE storage/sqlite/bookings/tables/bookings/rows/1 -> 200
 
 ## The owner's view
 
-run_sql {"site": "{site}", "namespace": "bookings", "sql": "SELECT id, day, time, name, note, status FROM bookings ORDER BY day, time"}
+query_sql {"site": "{site}", "namespace": "bookings", "sql": "SELECT id, day, time, name, note, status FROM bookings ORDER BY day, time"}
 
 Confirm one after the owner says so: run_sql {"site": "{site}", "namespace": "bookings", "sql": "UPDATE bookings SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP WHERE id = ?", "params": [1]}. This is personal data: read it only when the owner asks, and never put it in a page. To be told when a booking arrives, use set_notifications on the bookings table.
