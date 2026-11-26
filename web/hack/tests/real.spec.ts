@@ -91,7 +91,7 @@ async function signUp(name: string) {
 }
 
 test.beforeAll(async () => {
-  test.setTimeout(240_000);
+  test.setTimeout(600_000);
   PORT = await freePort();
   dir = mkdtempSync(join(tmpdir(), "hk-fe-"));
   execFileSync("go", ["build", "-o", join(dir, "simple-hack"), "./cmd/simple-hack"], { cwd: ROOT, stdio: "inherit" });
@@ -112,7 +112,7 @@ test.beforeAll(async () => {
     },
     stdio: ["ignore", openSync(join(dir, "server.log"), "w"), openSync(join(dir, "server.log"), "a")],
   });
-  for (let i = 0; i < 200; i++) {
+  for (let i = 0; i < 1200; i++) {
     try {
       if ((await call("GET", "/events")).status === 200) break;
     } catch {
@@ -228,4 +228,89 @@ test("leaving an event from Your events (the only organiser deletes it), and sig
   await out.page.goto(APP + "/events");
   await out.page.waitForURL(/\/signin\?next=%2Fevents/);
   await out.ctx.close();
+});
+
+// The judge's area (phase C): a judge joins by the judge link, opens Overview
+// (its walkthrough opens once and is skipped), scores the one team through the
+// chips and a comment, and lands on My teams with it scored; the scores are on
+// the server. Coming into Scoring from a screen loaded elsewhere loads the page
+// again, so the judge address's frame policy applies.
+// A loaded box can take a few seconds per screen, so this walk waits longer than the default.
+const slow = expect.configure({ timeout: 30_000 });
+
+test("judging: Overview, scoring a team, My teams", async ({ browser }) => {
+  test.setTimeout(600_000);
+  await signUp("budi");
+  const E = "/v1/hack/events/" + SLUG;
+  const ev = await ok("GET", E, undefined, keys.orga);
+  const code = String((ev.organiser as Record<string, unknown>).judge_url).split("/").pop()!;
+  await ok("POST", "/v1/hack/judge/" + code, { accept_coc: true, display_name: "Budi" }, keys.budi);
+
+  for (const width of [390, 1280]) {
+    const { ctx, page, errors } = await person(browser, "budi", width);
+    await page.goto(APP + `/e/${SLUG}/judge?s=home`);
+    await slow(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /judge-home/);
+    await slow(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+    if (width === 390) {
+      // The walkthrough opens the first time only, and Skip records it on the server.
+      await slow(page.getByRole("dialog", { name: "Thank you for judging" })).toBeVisible();
+      await page.getByRole("button", { name: "Skip" }).click();
+      await expect.poll(async () => (await call("GET", "/v1/hack/preferences", undefined, keys.budi)).body.judge_walkthrough_done).toBe(true);
+    }
+    await slow(page.getByRole("dialog")).toHaveCount(0);
+    await slow(page.getByText("Your next step")).toBeVisible();
+    await check(page, "judge-home", width);
+
+    if (width === 1280) {
+      // Rubric & brief, read and acknowledged.
+      await page.goto(APP + `/e/${SLUG}/judge?s=rubric`);
+      await slow(page.getByRole("heading", { name: "Rubric & brief", level: 1 })).toBeVisible();
+      await slow(page.getByText("4 criteria · 20 points total")).toBeVisible();
+      await check(page, "judge-rubric", width);
+      await page.getByRole("button", { name: "I've read it" }).click();
+      await slow(page.getByText("Done", { exact: true })).toBeVisible();
+
+      // Teams I know: "I don't know any of these teams", said once.
+      await page.goto(APP + `/e/${SLUG}/judge?s=queue&tab=conflicts`);
+      await slow(page.getByRole("tab", { name: /Teams I know/ })).toHaveAttribute("data-state", "active");
+      await page.getByRole("button", { name: "I don't know any of these teams" }).click();
+      await slow(page.getByText("Saved: you don't know anyone on these teams.")).toBeVisible();
+
+      // From Your events (a page loaded elsewhere) into Scoring: the page loads again at the judge address.
+      await page.goto(APP + "/events");
+      await page.getByRole("link", { name: /Real Night/ }).last().click();
+      await slow(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+      await slow(page.getByText("Scoring is open")).toBeVisible();
+      await page.getByRole("link", { name: "Score next" }).click();
+      await slow(page.getByRole("radiogroup", { name: "Idea" })).toBeVisible();
+      slow(await page.evaluate(() => (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).name)).toMatch(/\/judge\?s=scoring/);
+      // The scoring walkthrough opens the first time; Escape ends it.
+      await slow(page.getByRole("dialog", { name: "Start with the card" })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await slow(page.getByRole("dialog")).toHaveCount(0);
+      await slow(page.getByRole("heading", { name: "Rice Ledger", level: 2 })).toBeVisible();
+      await check(page, "judge-scoring", width);
+
+      for (const [crit, n] of [["Idea", "4"], ["Execution", "3"], ["Design", "5"]] as const) await page.getByRole("radiogroup", { name: crit }).getByRole("radio", { name: n, exact: true }).click();
+      // Save & finish with Demo unscored: one line, and a second press moves on.
+      await page.getByRole("button", { name: "Save & finish" }).click();
+      await slow(page.getByText("Demo has no score yet. Press again to move on.")).toBeVisible();
+      await page.getByRole("radiogroup", { name: "Demo" }).getByRole("radio", { name: "2", exact: true }).click();
+      await slow(page.getByText("Score saved")).toBeVisible();
+      await page.getByLabel("Comment for the team").fill("Strong idea. Show the ledger on a phone.");
+      await page.getByRole("button", { name: "Save & finish" }).click();
+      await slow(page.getByRole("heading", { name: "My teams", level: 1 })).toBeVisible();
+      await slow(page.getByRole("tab", { name: /Scored 1/ })).toHaveAttribute("data-state", "active");
+      await slow(page.getByText("Scored 14/20")).toBeVisible();
+      await check(page, "judge-queue", width);
+
+      const team = ((await ok("GET", E + "/judge/queue", undefined, keys.budi)).queue as { team_id: string; done: boolean }[])[0];
+      slow(team.done).toBe(true);
+      const saved = await ok("GET", E + "/judge/scores/" + encodeURIComponent(team.team_id), undefined, keys.budi);
+      slow((saved.scores as { points: number }[]).map((s) => s.points).sort()).toEqual([2, 3, 4, 5]);
+      slow(saved.comment).toBe("Strong idea. Show the ledger on a phone.");
+    }
+    slow(errors).toEqual([]);
+    await ctx.close();
+  }
 });

@@ -1,5 +1,9 @@
 {
  "live": [
+  "judge-home",
+  "judge-queue",
+  "judge-rubric",
+  "judge-scoring",
   "landing-your-events",
   "participant-submissions"
  ]
