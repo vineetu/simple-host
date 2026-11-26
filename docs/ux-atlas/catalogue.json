@@ -1,0 +1,3207 @@
+{
+ "groups": [
+  {
+   "role": "organiser",
+   "label": "Organiser",
+   "screens": [
+    {
+     "id": "organiser-overview",
+     "title": "Home",
+     "states": [
+      {
+       "id": "organiser-overview.loading",
+       "title": "Home: loading",
+       "pic": "organiser-overview-loading"
+      },
+      {
+       "id": "organiser-overview.frame-error",
+       "title": "Home: the event did not load",
+       "pic": "organiser-overview-frame-error"
+      },
+      {
+       "id": "organiser-overview.entry-rules",
+       "title": "Home: choose what teams hand in (a new event)",
+       "pic": "organiser-overview-entry-rules"
+      },
+      {
+       "id": "organiser-overview.not-open-yet",
+       "title": "Home: not open yet",
+       "pic": "organiser-overview-not-open-yet"
+      },
+      {
+       "id": "organiser-overview.building",
+       "title": "Home: building, with this stage's checklist",
+       "pic": "organiser-overview-building"
+      },
+      {
+       "id": "organiser-overview.checklist-not-needed",
+       "title": "Home: a checklist row marked not needed (Undo)",
+       "pic": "organiser-overview-checklist-not-needed"
+      },
+      {
+       "id": "organiser-overview.deadline-passed",
+       "title": "Home: the entry deadline passed, still building",
+       "pic": "organiser-overview-deadline-passed"
+      },
+      {
+       "id": "organiser-overview.confirming",
+       "title": "Home: confirming the move (people not on a team)",
+       "pic": "organiser-overview-confirming"
+      },
+      {
+       "id": "organiser-overview.move-failed",
+       "title": "Home: the move failed",
+       "pic": "organiser-overview-move-failed"
+      },
+      {
+       "id": "organiser-overview.tell-participants",
+       "title": "Home: offering to tell participants",
+       "pic": "organiser-overview-tell-participants"
+      },
+      {
+       "id": "organiser-overview.closed",
+       "title": "Home: closed, ready to start judging",
+       "pic": "organiser-overview-closed"
+      },
+      {
+       "id": "organiser-overview.start-judging",
+       "title": "Home: confirming Start judging (pool and setup)",
+       "pic": "organiser-overview-start-judging"
+      },
+      {
+       "id": "organiser-overview.panel-no-track",
+       "title": "Home: panel mode, teams with no track",
+       "pic": "organiser-overview-panel-no-track"
+      },
+      {
+       "id": "organiser-overview.judging",
+       "title": "Home: judging",
+       "pic": "organiser-overview-judging"
+      },
+      {
+       "id": "organiser-overview.results-not-published",
+       "title": "Home: results, not published",
+       "pic": "organiser-overview-results-not-published"
+      },
+      {
+       "id": "organiser-overview.publish-ties",
+       "title": "Home: publish, with a tie to place",
+       "pic": "organiser-overview-publish-ties"
+      },
+      {
+       "id": "organiser-overview.results-published",
+       "title": "Home: results published, End is next",
+       "pic": "organiser-overview-results-published"
+      },
+      {
+       "id": "organiser-overview.scores-changed",
+       "title": "Home: published scores changed, Publish again",
+       "pic": "organiser-overview-scores-changed"
+      },
+      {
+       "id": "organiser-overview.end-confirm",
+       "title": "Home: End event asks first",
+       "pic": "organiser-overview-end-confirm"
+      },
+      {
+       "id": "organiser-overview.end-not-possible",
+       "title": "Home: End not possible, nobody joined",
+       "pic": "organiser-overview-end-not-possible"
+      },
+      {
+       "id": "organiser-overview.ended",
+       "title": "Home: ended",
+       "pic": "organiser-overview-ended"
+      },
+      {
+       "id": "organiser-overview.schedule-cue",
+       "title": "Home: a schedule row lines up with the next move",
+       "pic": "organiser-overview-schedule-cue"
+      },
+      {
+       "id": "organiser-overview.applications-waiting",
+       "title": "Home: applications waiting",
+       "pic": "organiser-overview-applications-waiting"
+      },
+      {
+       "id": "organiser-overview.change-stage",
+       "title": "Home: Change stage",
+       "pic": "organiser-overview-change-stage"
+      },
+      {
+       "id": "organiser-overview.change-stage-back",
+       "title": "Home: Change stage, moving back",
+       "pic": "organiser-overview-change-stage-back"
+      },
+      {
+       "id": "organiser-overview.change-stage-judging",
+       "title": "Home: Change stage to Judging, with the setup summary",
+       "pic": "organiser-overview-change-stage-judging"
+      },
+      {
+       "id": "organiser-overview.admin-view",
+       "title": "Home: viewing as platform admin",
+       "pic": "organiser-overview-admin-view"
+      },
+      {
+       "id": "organiser-overview.ask-not-set-up",
+       "title": "Ask: not set up (no Ask button)",
+       "pic": "organiser-overview-ask-not-set-up"
+      },
+      {
+       "id": "organiser-overview.ask-button",
+       "title": "Ask: the floating button",
+       "pic": "organiser-overview-ask-button"
+      },
+      {
+       "id": "organiser-overview.ask-empty",
+       "title": "Ask: empty thread with starters",
+       "pic": "organiser-overview-ask-empty"
+      },
+      {
+       "id": "organiser-overview.ask-streaming",
+       "title": "Ask: streaming a reply",
+       "pic": "organiser-overview-ask-streaming"
+      },
+      {
+       "id": "organiser-overview.ask-answered",
+       "title": "Ask: an answer, with Copy and Retry",
+       "pic": "organiser-overview-ask-answered"
+      },
+      {
+       "id": "organiser-overview.ask-limit",
+       "title": "Ask: daily or monthly limit reached",
+       "pic": "organiser-overview-ask-limit"
+      },
+      {
+       "id": "organiser-overview.ask-failed",
+       "title": "Ask: the answer failed, with Retry",
+       "pic": "organiser-overview-ask-failed"
+      },
+      {
+       "id": "organiser-overview.walkthrough-1",
+       "title": "Walkthrough: welcome",
+       "pic": "organiser-overview-walkthrough-1"
+      },
+      {
+       "id": "organiser-overview.walkthrough-2",
+       "title": "Walkthrough: stage and next deadline",
+       "pic": "organiser-overview-walkthrough-2"
+      },
+      {
+       "id": "organiser-overview.walkthrough-3",
+       "title": "Walkthrough: the next step",
+       "pic": "organiser-overview-walkthrough-3"
+      },
+      {
+       "id": "organiser-overview.walkthrough-rail",
+       "title": "Walkthrough: a rail link (More on a phone)",
+       "pic": "organiser-overview-walkthrough-rail"
+      }
+     ]
+    },
+    {
+     "id": "organiser-event-page",
+     "title": "Event page",
+     "states": [
+      {
+       "id": "organiser-event-page.loading",
+       "title": "Event page: loading",
+       "pic": "organiser-event-page-loading"
+      },
+      {
+       "id": "organiser-event-page.error",
+       "title": "Event page: the event did not load",
+       "pic": "organiser-event-page-error"
+      },
+      {
+       "id": "organiser-event-page.basics",
+       "title": "Basics: name, tagline, dates and zone",
+       "pic": "organiser-event-page-basics"
+      },
+      {
+       "id": "organiser-event-page.basics-dirty",
+       "title": "Basics: unsaved changes",
+       "pic": "organiser-event-page-basics-dirty"
+      },
+      {
+       "id": "organiser-event-page.basics-no-title",
+       "title": "Basics: the title is empty",
+       "pic": "organiser-event-page-basics-no-title"
+      },
+      {
+       "id": "organiser-event-page.basics-refused",
+       "title": "Basics: the server refused the save",
+       "pic": "organiser-event-page-basics-refused"
+      },
+      {
+       "id": "organiser-event-page.basics-leave-dirty",
+       "title": "Basics: switching tabs with unsaved changes",
+       "pic": "organiser-event-page-basics-leave-dirty"
+      },
+      {
+       "id": "organiser-event-page.basics-ended",
+       "title": "Basics: after the event ended, still editable",
+       "pic": "organiser-event-page-basics-ended"
+      },
+      {
+       "id": "organiser-event-page.basics-admin",
+       "title": "Basics: platform admin, read only",
+       "pic": "organiser-event-page-basics-admin"
+      },
+      {
+       "id": "organiser-event-page.basics-custom-site",
+       "title": "Basics: own website live",
+       "pic": "organiser-event-page-basics-custom-site"
+      },
+      {
+       "id": "organiser-event-page.about",
+       "title": "About: text, prizes, rules, code of conduct",
+       "pic": "organiser-event-page-about"
+      },
+      {
+       "id": "organiser-event-page.about-admin",
+       "title": "About: platform admin, read only",
+       "pic": "organiser-event-page-about-admin"
+      },
+      {
+       "id": "organiser-event-page.schedule",
+       "title": "Schedule: typed and fixed rows by day, Now and Next",
+       "pic": "organiser-event-page-schedule"
+      },
+      {
+       "id": "organiser-event-page.schedule-empty",
+       "title": "Schedule: nothing scheduled yet",
+       "pic": "organiser-event-page-schedule-empty"
+      },
+      {
+       "id": "organiser-event-page.schedule-add",
+       "title": "Schedule: Add time dialog",
+       "pic": "organiser-event-page-schedule-add"
+      },
+      {
+       "id": "organiser-event-page.schedule-add-check",
+       "title": "Schedule: Add time, ends before it starts",
+       "pic": "organiser-event-page-schedule-add-check"
+      },
+      {
+       "id": "organiser-event-page.schedule-edit",
+       "title": "Schedule: Edit time dialog",
+       "pic": "organiser-event-page-schedule-edit"
+      },
+      {
+       "id": "organiser-event-page.schedule-ended",
+       "title": "Schedule: after the event ended, read only",
+       "pic": "organiser-event-page-schedule-ended"
+      },
+      {
+       "id": "organiser-event-page.schedule-failed",
+       "title": "Schedule: content did not load",
+       "pic": "organiser-event-page-schedule-failed"
+      },
+      {
+       "id": "organiser-event-page.tracks",
+       "title": "Tracks: two tracks with team counts",
+       "pic": "organiser-event-page-tracks"
+      },
+      {
+       "id": "organiser-event-page.tracks-empty",
+       "title": "Tracks: no tracks yet",
+       "pic": "organiser-event-page-tracks-empty"
+      },
+      {
+       "id": "organiser-event-page.tracks-add",
+       "title": "Tracks: Add track dialog, name missing",
+       "pic": "organiser-event-page-tracks-add"
+      },
+      {
+       "id": "organiser-event-page.tracks-remove",
+       "title": "Tracks: remove asks first, naming the teams",
+       "pic": "organiser-event-page-tracks-remove"
+      },
+      {
+       "id": "organiser-event-page.tracks-ended",
+       "title": "Tracks: after the event ended, read only",
+       "pic": "organiser-event-page-tracks-ended"
+      },
+      {
+       "id": "organiser-event-page.sponsors",
+       "title": "Sponsors: in page order, with and without logo",
+       "pic": "organiser-event-page-sponsors"
+      },
+      {
+       "id": "organiser-event-page.sponsors-empty",
+       "title": "Sponsors: none yet",
+       "pic": "organiser-event-page-sponsors-empty"
+      },
+      {
+       "id": "organiser-event-page.sponsors-menu",
+       "title": "Sponsors: a row's menu",
+       "pic": "organiser-event-page-sponsors-menu"
+      },
+      {
+       "id": "organiser-event-page.sponsors-edit",
+       "title": "Sponsors: Edit sponsor dialog with logo",
+       "pic": "organiser-event-page-sponsors-edit"
+      },
+      {
+       "id": "organiser-event-page.sponsors-add-check",
+       "title": "Sponsors: Add sponsor, bad link",
+       "pic": "organiser-event-page-sponsors-add-check"
+      },
+      {
+       "id": "organiser-event-page.sponsors-admin",
+       "title": "Sponsors: platform admin, read only",
+       "pic": "organiser-event-page-sponsors-admin"
+      },
+      {
+       "id": "organiser-event-page.faq",
+       "title": "FAQ: questions in order",
+       "pic": "organiser-event-page-faq"
+      },
+      {
+       "id": "organiser-event-page.faq-empty",
+       "title": "FAQ: no questions yet",
+       "pic": "organiser-event-page-faq-empty"
+      },
+      {
+       "id": "organiser-event-page.faq-add-check",
+       "title": "FAQ: Add question, both missing",
+       "pic": "organiser-event-page-faq-add-check"
+      },
+      {
+       "id": "organiser-event-page.faq-ended",
+       "title": "FAQ: after the event ended, read only",
+       "pic": "organiser-event-page-faq-ended"
+      },
+      {
+       "id": "organiser-event-page.look",
+       "title": "Look: style, icon, colour and what shows",
+       "pic": "organiser-event-page-look"
+      },
+      {
+       "id": "organiser-event-page.look-icon",
+       "title": "Look: with an icon, a colour and a style",
+       "pic": "organiser-event-page-look-icon"
+      },
+      {
+       "id": "organiser-event-page.look-ended",
+       "title": "Look: after the event ended, icon locked",
+       "pic": "organiser-event-page-look-ended"
+      },
+      {
+       "id": "organiser-event-page.look-admin",
+       "title": "Look: platform admin, read only",
+       "pic": "organiser-event-page-look-admin"
+      },
+      {
+       "id": "organiser-event-page.website",
+       "title": "Website: built-in page, no uploads yet",
+       "pic": "organiser-event-page-website"
+      },
+      {
+       "id": "organiser-event-page.website-uploads",
+       "title": "Website: built-in page, uploads ready",
+       "pic": "organiser-event-page-website-uploads"
+      },
+      {
+       "id": "organiser-event-page.website-switch",
+       "title": "Website: switching to your own site asks first",
+       "pic": "organiser-event-page-website-switch"
+      },
+      {
+       "id": "organiser-event-page.website-custom",
+       "title": "Website: own website live",
+       "pic": "organiser-event-page-website-custom"
+      },
+      {
+       "id": "organiser-event-page.website-ended",
+       "title": "Website: after the event ended, read only",
+       "pic": "organiser-event-page-website-ended"
+      },
+      {
+       "id": "organiser-event-page.website-failed",
+       "title": "Website: settings did not load",
+       "pic": "organiser-event-page-website-failed"
+      },
+      {
+       "id": "organiser-event-page.hash-appearance",
+       "title": "Event page: an old #appearance link opens Look",
+       "pic": "organiser-event-page-hash-appearance"
+      }
+     ]
+    },
+    {
+     "id": "organiser-announcements",
+     "title": "Announcements",
+     "states": [
+      {
+       "id": "organiser-announcements.loading",
+       "title": "Announcements: loading",
+       "pic": "organiser-announcements-loading"
+      },
+      {
+       "id": "organiser-announcements.error",
+       "title": "Announcements: the list did not load",
+       "pic": "organiser-announcements-error"
+      },
+      {
+       "id": "organiser-announcements.empty",
+       "title": "Announcements: none yet",
+       "pic": "organiser-announcements-empty"
+      },
+      {
+       "id": "organiser-announcements.loaded",
+       "title": "Announcements: posted list",
+       "pic": "organiser-announcements-loaded"
+      },
+      {
+       "id": "organiser-announcements.email-ticked",
+       "title": "Announcements: email ticked, the button says how many",
+       "pic": "organiser-announcements-email-ticked"
+      },
+      {
+       "id": "organiser-announcements.required",
+       "title": "Announcements: Post with nothing typed",
+       "pic": "organiser-announcements-required"
+      },
+      {
+       "id": "organiser-announcements.title-typed",
+       "title": "Announcements: typing a title, the counter",
+       "pic": "organiser-announcements-title-typed"
+      },
+      {
+       "id": "organiser-announcements.add-link",
+       "title": "Announcements: Add link",
+       "pic": "organiser-announcements-add-link"
+      },
+      {
+       "id": "organiser-announcements.add-link-bad",
+       "title": "Announcements: Add link, not a web address",
+       "pic": "organiser-announcements-add-link-bad"
+      },
+      {
+       "id": "organiser-announcements.row-menu",
+       "title": "Announcements: a row's menu",
+       "pic": "organiser-announcements-row-menu"
+      },
+      {
+       "id": "organiser-announcements.edit",
+       "title": "Announcements: edit, with the preview",
+       "pic": "organiser-announcements-edit"
+      },
+      {
+       "id": "organiser-announcements.delete",
+       "title": "Announcements: delete asks first",
+       "pic": "organiser-announcements-delete"
+      },
+      {
+       "id": "organiser-announcements.no-one-to-email",
+       "title": "Announcements: no one to email",
+       "pic": "organiser-announcements-no-one-to-email"
+      },
+      {
+       "id": "organiser-announcements.ended",
+       "title": "Announcements: ended, read only",
+       "pic": "organiser-announcements-ended"
+      },
+      {
+       "id": "organiser-announcements.admin",
+       "title": "Announcements: platform admin, read only",
+       "pic": "organiser-announcements-admin"
+      },
+      {
+       "id": "organiser-announcements.post-refused",
+       "title": "Announcements: a post the server refuses, said under the form with the words kept",
+       "pic": "organiser-announcements-post-refused"
+      }
+     ]
+    },
+    {
+     "id": "organiser-people",
+     "title": "People",
+     "states": [
+      {
+       "id": "organiser-people.loading",
+       "title": "People: loading",
+       "pic": "organiser-people-loading"
+      },
+      {
+       "id": "organiser-people.error",
+       "title": "People: did not load",
+       "pic": "organiser-people-error"
+      },
+      {
+       "id": "organiser-people.loaded",
+       "title": "People: three applications waiting, then everyone",
+       "pic": "organiser-people-loaded"
+      },
+      {
+       "id": "organiser-people.no-pending",
+       "title": "People: nobody waiting (also how applications off, nothing waiting looks)",
+       "pic": "organiser-people-no-pending"
+      },
+      {
+       "id": "organiser-people.draft",
+       "title": "People: sign-up not open yet",
+       "pic": "organiser-people-draft"
+      },
+      {
+       "id": "organiser-people.filters-hide-everything",
+       "title": "People: filters hide everything waiting",
+       "pic": "organiser-people-filters-hide-everything"
+      },
+      {
+       "id": "organiser-people.judges",
+       "title": "People: Everyone filtered to judges (?role=judge)",
+       "pic": "organiser-people-judges"
+      },
+      {
+       "id": "organiser-people.reject",
+       "title": "People: reject asks first",
+       "pic": "organiser-people-reject"
+      },
+      {
+       "id": "organiser-people.row-menu",
+       "title": "People: a person's menu",
+       "pic": "organiser-people-row-menu"
+      },
+      {
+       "id": "organiser-people.remove",
+       "title": "People: remove a participant asks first",
+       "pic": "organiser-people-remove"
+      },
+      {
+       "id": "organiser-people.ended",
+       "title": "People: ended, nothing changes",
+       "pic": "organiser-people-ended"
+      },
+      {
+       "id": "organiser-people.admin",
+       "title": "People: platform admin, read only",
+       "pic": "organiser-people-admin"
+      }
+     ]
+    },
+    {
+     "id": "organiser-teams",
+     "title": "Teams",
+     "states": [
+      {
+       "id": "organiser-teams.loading",
+       "title": "Teams: loading",
+       "pic": "organiser-teams-loading"
+      },
+      {
+       "id": "organiser-teams.error",
+       "title": "Teams: the list did not load",
+       "pic": "organiser-teams-error"
+      },
+      {
+       "id": "organiser-teams.empty",
+       "title": "Teams: no teams yet",
+       "pic": "organiser-teams-empty"
+      },
+      {
+       "id": "organiser-teams.loaded",
+       "title": "Teams: three teams, one locked, one full",
+       "pic": "organiser-teams-loaded"
+      },
+      {
+       "id": "organiser-teams.message-selected",
+       "title": "Teams: two teams picked, Message selected",
+       "pic": "organiser-teams-message-selected"
+      },
+      {
+       "id": "organiser-teams.message-empty",
+       "title": "Teams: send with no message written",
+       "pic": "organiser-teams-message-empty"
+      },
+      {
+       "id": "organiser-teams.team-finding-off",
+       "title": "Teams: team finding is off",
+       "pic": "organiser-teams-team-finding-off"
+      },
+      {
+       "id": "organiser-teams.solo",
+       "title": "Not on a team: two people, one looking",
+       "pic": "organiser-teams-solo"
+      },
+      {
+       "id": "organiser-teams.everyone-placed",
+       "title": "Not on a team: everyone is placed",
+       "pic": "organiser-teams-everyone-placed"
+      },
+      {
+       "id": "organiser-teams.fill-teams-preview",
+       "title": "Fill teams: the preview",
+       "pic": "organiser-teams-fill-teams-preview"
+      },
+      {
+       "id": "organiser-teams.fill-teams-size",
+       "title": "Fill teams: a size out of range",
+       "pic": "organiser-teams-fill-teams-size"
+      },
+      {
+       "id": "organiser-teams.fill-teams-nobody",
+       "title": "Fill teams: nobody left to place",
+       "pic": "organiser-teams-fill-teams-nobody"
+      },
+      {
+       "id": "organiser-teams.place",
+       "title": "Not on a team: put one person on a team",
+       "pic": "organiser-teams-place"
+      },
+      {
+       "id": "organiser-teams.ended",
+       "title": "Teams: the event has ended",
+       "pic": "organiser-teams-ended"
+      },
+      {
+       "id": "organiser-teams.ended-solo",
+       "title": "Not on a team: the event has ended",
+       "pic": "organiser-teams-ended-solo"
+      },
+      {
+       "id": "organiser-teams.admin-view",
+       "title": "Teams: a platform admin's read-only look",
+       "pic": "organiser-teams-admin-view"
+      }
+     ]
+    },
+    {
+     "id": "organiser-team-detail",
+     "title": "Team: Kopi Kode",
+     "states": [
+      {
+       "id": "organiser-team-detail.loading",
+       "title": "Team detail: loading",
+       "pic": "organiser-team-detail-loading"
+      },
+      {
+       "id": "organiser-team-detail.error",
+       "title": "Team detail: did not load",
+       "pic": "organiser-team-detail-error"
+      },
+      {
+       "id": "organiser-team-detail.not-found",
+       "title": "Team detail: no such team",
+       "pic": "organiser-team-detail-not-found"
+      },
+      {
+       "id": "organiser-team-detail.loaded",
+       "title": "Team detail: a team with messages and an entry missing a field",
+       "pic": "organiser-team-detail-loaded"
+      },
+      {
+       "id": "organiser-team-detail.no-track",
+       "title": "Team detail: no track yet, the track picker",
+       "pic": "organiser-team-detail-no-track"
+      },
+      {
+       "id": "organiser-team-detail.locked",
+       "title": "Team detail: locked (and full)",
+       "pic": "organiser-team-detail-locked"
+      },
+      {
+       "id": "organiser-team-detail.kept",
+       "title": "Team detail: kept after everyone left",
+       "pic": "organiser-team-detail-kept"
+      },
+      {
+       "id": "organiser-team-detail.full",
+       "title": "Team detail: full, Add someone off",
+       "pic": "organiser-team-detail-full"
+      },
+      {
+       "id": "organiser-team-detail.everyone-placed",
+       "title": "Team detail: nobody left to add",
+       "pic": "organiser-team-detail-everyone-placed"
+      },
+      {
+       "id": "organiser-team-detail.ended",
+       "title": "Team detail: the event has ended",
+       "pic": "organiser-team-detail-ended"
+      },
+      {
+       "id": "organiser-team-detail.admin-view",
+       "title": "Team detail: a platform admin's read-only look",
+       "pic": "organiser-team-detail-admin-view"
+      },
+      {
+       "id": "organiser-team-detail.add",
+       "title": "Team detail: add someone",
+       "pic": "organiser-team-detail-add"
+      },
+      {
+       "id": "organiser-team-detail.row-menu",
+       "title": "Team detail: a member's menu",
+       "pic": "organiser-team-detail-row-menu"
+      },
+      {
+       "id": "organiser-team-detail.move",
+       "title": "Team detail: move to another team",
+       "pic": "organiser-team-detail-move"
+      },
+      {
+       "id": "organiser-team-detail.move-no-room",
+       "title": "Team detail: move, but no other team has room",
+       "pic": "organiser-team-detail-move-no-room"
+      },
+      {
+       "id": "organiser-team-detail.remove",
+       "title": "Team detail: take someone off, the confirm",
+       "pic": "organiser-team-detail-remove"
+      },
+      {
+       "id": "organiser-team-detail.made-admin",
+       "title": "Team detail: made admin, with Undo",
+       "pic": "organiser-team-detail-made-admin"
+      },
+      {
+       "id": "organiser-team-detail.rename-empty",
+       "title": "Team detail: rename with no name",
+       "pic": "organiser-team-detail-rename-empty"
+      },
+      {
+       "id": "organiser-team-detail.new-link",
+       "title": "Team detail: a new team link, the confirm",
+       "pic": "organiser-team-detail-new-link"
+      },
+      {
+       "id": "organiser-team-detail.delete",
+       "title": "Team detail: delete the team, the confirm",
+       "pic": "organiser-team-detail-delete"
+      },
+      {
+       "id": "organiser-team-detail.message",
+       "title": "Team detail: message the team",
+       "pic": "organiser-team-detail-message"
+      },
+      {
+       "id": "organiser-team-detail.message-empty",
+       "title": "Team detail: send with no message",
+       "pic": "organiser-team-detail-message-empty"
+      },
+      {
+       "id": "organiser-team-detail.message-refused",
+       "title": "Team detail: a message the server refuses keeps the dialog open with its words",
+       "pic": "organiser-team-detail-message-refused"
+      }
+     ]
+    },
+    {
+     "id": "organiser-entries",
+     "title": "Entries",
+     "states": [
+      {
+       "id": "organiser-entries.loading",
+       "title": "Entries: loading",
+       "pic": "organiser-entries-loading"
+      },
+      {
+       "id": "organiser-entries.error",
+       "title": "Entries: the list did not load",
+       "pic": "organiser-entries-error"
+      },
+      {
+       "id": "organiser-entries.before-any-entries",
+       "title": "Entries: before any entries (sign-up open)",
+       "pic": "organiser-entries-before-any-entries"
+      },
+      {
+       "id": "organiser-entries.loaded",
+       "title": "Entries: building, one team with more time",
+       "pic": "organiser-entries-loaded"
+      },
+      {
+       "id": "organiser-entries.deadline-passed",
+       "title": "Entries: deadline passed, incomplete entries to exclude or include",
+       "pic": "organiser-entries-deadline-passed"
+      },
+      {
+       "id": "organiser-entries.excluded-toast",
+       "title": "Entries: an entry just excluded, with Undo",
+       "pic": "organiser-entries-excluded-toast"
+      },
+      {
+       "id": "organiser-entries.give-more-time",
+       "title": "Entries: from an entry's Give more time (team picked)",
+       "pic": "organiser-entries-give-more-time"
+      },
+      {
+       "id": "organiser-entries.give-more-time-no-date",
+       "title": "Entries: Give more time with no date chosen",
+       "pic": "organiser-entries-give-more-time-no-date"
+      },
+      {
+       "id": "organiser-entries.clear-extension",
+       "title": "Entries: clear an extension, confirm",
+       "pic": "organiser-entries-clear-extension"
+      },
+      {
+       "id": "organiser-entries.no-deadline",
+       "title": "Entries: no event deadline yet",
+       "pic": "organiser-entries-no-deadline"
+      },
+      {
+       "id": "organiser-entries.entries-closed",
+       "title": "Entries: entries closed (judging)",
+       "pic": "organiser-entries-entries-closed"
+      },
+      {
+       "id": "organiser-entries.ended",
+       "title": "Entries: the event has ended",
+       "pic": "organiser-entries-ended"
+      },
+      {
+       "id": "organiser-entries.admin-view",
+       "title": "Entries: a platform admin's read-only look",
+       "pic": "organiser-entries-admin-view"
+      }
+     ]
+    },
+    {
+     "id": "organiser-entry-detail",
+     "title": "Entry: SheBuilds",
+     "states": [
+      {
+       "id": "organiser-entry-detail.loading",
+       "title": "Entry: loading",
+       "pic": "organiser-entry-detail-loading"
+      },
+      {
+       "id": "organiser-entry-detail.error",
+       "title": "Entry: did not load",
+       "pic": "organiser-entry-detail-error"
+      },
+      {
+       "id": "organiser-entry-detail.not-found",
+       "title": "Entry: no such team",
+       "pic": "organiser-entry-detail-not-found"
+      },
+      {
+       "id": "organiser-entry-detail.submitted",
+       "title": "Entry: submitted, site live",
+       "pic": "organiser-entry-detail-submitted"
+      },
+      {
+       "id": "organiser-entry-detail.submitted-rule-tightened",
+       "title": "Entry: submitted, then a rule asked for more (judging)",
+       "pic": "organiser-entry-detail-submitted-rule-tightened"
+      },
+      {
+       "id": "organiser-entry-detail.no-entry",
+       "title": "Entry: the team has not started one",
+       "pic": "organiser-entry-detail-no-entry"
+      },
+      {
+       "id": "organiser-entry-detail.draft-something-missing",
+       "title": "Entry: draft, something missing, with the team's extension",
+       "pic": "organiser-entry-detail-draft-something-missing"
+      },
+      {
+       "id": "organiser-entry-detail.not-submitted-after-deadline",
+       "title": "Entry: not complete after the deadline",
+       "pic": "organiser-entry-detail-not-submitted-after-deadline"
+      },
+      {
+       "id": "organiser-entry-detail.excluded",
+       "title": "Entry: excluded from judging",
+       "pic": "organiser-entry-detail-excluded"
+      },
+      {
+       "id": "organiser-entry-detail.taken-down-by-you",
+       "title": "Entry: site taken down by you",
+       "pic": "organiser-entry-detail-taken-down-by-you"
+      },
+      {
+       "id": "organiser-entry-detail.taken-down-by-the-platform",
+       "title": "Entry: site taken down by Simple Host (Put back refused)",
+       "pic": "organiser-entry-detail-taken-down-by-the-platform"
+      },
+      {
+       "id": "organiser-entry-detail.taken-down-toast",
+       "title": "Entry: site just taken down, with Undo",
+       "pic": "organiser-entry-detail-taken-down-toast"
+      },
+      {
+       "id": "organiser-entry-detail.ended",
+       "title": "Entry: the event has ended",
+       "pic": "organiser-entry-detail-ended"
+      },
+      {
+       "id": "organiser-entry-detail.admin-view",
+       "title": "Entry: a platform admin's read-only look",
+       "pic": "organiser-entry-detail-admin-view"
+      }
+     ]
+    },
+    {
+     "id": "organiser-judging",
+     "title": "Judging",
+     "states": [
+      {
+       "id": "organiser-judging.loading",
+       "title": "Judging: loading",
+       "pic": "organiser-judging-loading"
+      },
+      {
+       "id": "organiser-judging.error",
+       "title": "Judging: did not load",
+       "pic": "organiser-judging-error"
+      },
+      {
+       "id": "organiser-judging.setup",
+       "title": "Judging: setting up before judging (Manual)",
+       "pic": "organiser-judging-setup"
+      },
+      {
+       "id": "organiser-judging.empty",
+       "title": "Judging: no teams, judges or conflicts yet",
+       "pic": "organiser-judging-empty"
+      },
+      {
+       "id": "organiser-judging.automatic-not-generated",
+       "title": "Judging: Automatic, assignments not generated yet",
+       "pic": "organiser-judging-automatic-not-generated"
+      },
+      {
+       "id": "organiser-judging.judging",
+       "title": "Judging: judging open, the organiser judges too",
+       "pic": "organiser-judging-judging"
+      },
+      {
+       "id": "organiser-judging.panel-untracked",
+       "title": "Judging: Panel mode, a team with no track",
+       "pic": "organiser-judging-panel-untracked"
+      },
+      {
+       "id": "organiser-judging.former-judge",
+       "title": "Judging: a judge left the event",
+       "pic": "organiser-judging-former-judge"
+      },
+      {
+       "id": "organiser-judging.delete-scores",
+       "title": "Judging: deleting a former judge's scores asks for the address name",
+       "pic": "organiser-judging-delete-scores"
+      },
+      {
+       "id": "organiser-judging.locked",
+       "title": "Judging: locked at Results, publish from Home",
+       "pic": "organiser-judging-locked"
+      },
+      {
+       "id": "organiser-judging.add-refused",
+       "title": "Judging: adding a conflict that is refused",
+       "pic": "organiser-judging-add-refused"
+      },
+      {
+       "id": "organiser-judging.ended",
+       "title": "Judging: the event has ended",
+       "pic": "organiser-judging-ended"
+      },
+      {
+       "id": "organiser-judging.admin",
+       "title": "Judging: a platform admin inspecting",
+       "pic": "organiser-judging-admin"
+      }
+     ]
+    },
+    {
+     "id": "organiser-judging-assignments",
+     "title": "Assignment grid",
+     "states": [
+      {
+       "id": "organiser-judging-assignments.loading",
+       "title": "Assignment grid: loading",
+       "pic": "organiser-judging-assignments-loading"
+      },
+      {
+       "id": "organiser-judging-assignments.error",
+       "title": "Assignment grid: did not load",
+       "pic": "organiser-judging-assignments-error"
+      },
+      {
+       "id": "organiser-judging-assignments.manual",
+       "title": "Assignment grid: Manual, a conflicted pair dimmed",
+       "pic": "organiser-judging-assignments-manual"
+      },
+      {
+       "id": "organiser-judging-assignments.manual-dirty",
+       "title": "Assignment grid: Manual, a tick not saved yet",
+       "pic": "organiser-judging-assignments-manual-dirty"
+      },
+      {
+       "id": "organiser-judging-assignments.panel",
+       "title": "Assignment grid: Panel, conflicts not dimmed",
+       "pic": "organiser-judging-assignments-panel"
+      },
+      {
+       "id": "organiser-judging-assignments.wrong-mode",
+       "title": "Assignment grid: the Panel grid while the mode is Manual",
+       "pic": "organiser-judging-assignments-wrong-mode"
+      },
+      {
+       "id": "organiser-judging-assignments.empty",
+       "title": "Assignment grid: no teams or judges yet",
+       "pic": "organiser-judging-assignments-empty"
+      },
+      {
+       "id": "organiser-judging-assignments.started",
+       "title": "Assignment grid: judging has started",
+       "pic": "organiser-judging-assignments-started"
+      },
+      {
+       "id": "organiser-judging-assignments.save-refused",
+       "title": "Assignment grid: the save is refused",
+       "pic": "organiser-judging-assignments-save-refused"
+      }
+     ]
+    },
+    {
+     "id": "organiser-results",
+     "title": "Results",
+     "states": [
+      {
+       "id": "organiser-results.loading",
+       "title": "Results: loading",
+       "pic": "organiser-results-loading"
+      },
+      {
+       "id": "organiser-results.not-published",
+       "title": "Results: not published",
+       "pic": "organiser-results-not-published"
+      },
+      {
+       "id": "organiser-results.published",
+       "title": "Results: published",
+       "pic": "organiser-results-published"
+      },
+      {
+       "id": "organiser-results.scores-changed",
+       "title": "Results: published scores changed",
+       "pic": "organiser-results-scores-changed"
+      },
+      {
+       "id": "organiser-results.preview",
+       "title": "Results: the current standings opened",
+       "pic": "organiser-results-preview"
+      },
+      {
+       "id": "organiser-results.preview-failed",
+       "title": "Results: the standings did not load",
+       "pic": "organiser-results-preview-failed"
+      },
+      {
+       "id": "organiser-results.downloaded",
+       "title": "Results: a download saved (the toast)",
+       "pic": "organiser-results-downloaded"
+      }
+     ]
+    },
+    {
+     "id": "organiser-settings",
+     "title": "Settings",
+     "states": [
+      {
+       "id": "organiser-settings.loading",
+       "title": "Settings: a tab loading",
+       "pic": "organiser-settings-loading"
+      },
+      {
+       "id": "organiser-settings.error",
+       "title": "Settings: a tab that did not load",
+       "pic": "organiser-settings-error"
+      },
+      {
+       "id": "organiser-settings.signup",
+       "title": "Settings → Sign-up: questions, approval, applications, directory",
+       "pic": "organiser-settings-signup"
+      },
+      {
+       "id": "organiser-settings.signup-empty",
+       "title": "Settings → Sign-up: no questions, applications off, not listed",
+       "pic": "organiser-settings-signup-empty"
+      },
+      {
+       "id": "organiser-settings.signup-load-failed",
+       "title": "Settings → Sign-up: the questions did not load, saving is off",
+       "pic": "organiser-settings-signup-load-failed"
+      },
+      {
+       "id": "organiser-settings.signup-waiting",
+       "title": "Settings → Sign-up: turning approval off with people waiting",
+       "pic": "organiser-settings-signup-waiting"
+      },
+      {
+       "id": "organiser-settings.teams",
+       "title": "Settings → Teams",
+       "pic": "organiser-settings-teams"
+      },
+      {
+       "id": "organiser-settings.entries",
+       "title": "Settings → Entries: deadline and what teams hand in",
+       "pic": "organiser-settings-entries"
+      },
+      {
+       "id": "organiser-settings.entries-closed",
+       "title": "Settings → Entries: entries closed, rules can’t change",
+       "pic": "organiser-settings-entries-closed"
+      },
+      {
+       "id": "organiser-settings.entries-impact",
+       "title": "Settings → Entries: a rule change that affects entries already made",
+       "pic": "organiser-settings-entries-impact"
+      },
+      {
+       "id": "organiser-settings.reminders",
+       "title": "Settings → Reminders",
+       "pic": "organiser-settings-reminders"
+      },
+      {
+       "id": "organiser-settings.reminders-empty",
+       "title": "Settings → Reminders: none set",
+       "pic": "organiser-settings-reminders-empty"
+      },
+      {
+       "id": "organiser-settings.reminders-invalid",
+       "title": "Settings → Reminders: a reminder outside the limits",
+       "pic": "organiser-settings-reminders-invalid"
+      },
+      {
+       "id": "organiser-settings.judging",
+       "title": "Settings → Judging: rubric, tie-break, closes, assignment",
+       "pic": "organiser-settings-judging"
+      },
+      {
+       "id": "organiser-settings.judging-locked",
+       "title": "Settings → Judging: locked while judging",
+       "pic": "organiser-settings-judging-locked"
+      },
+      {
+       "id": "organiser-settings.judging-deletes-scores",
+       "title": "Settings → Judging: a rubric change that would delete scores",
+       "pic": "organiser-settings-judging-deletes-scores"
+      },
+      {
+       "id": "organiser-settings.judging-weights",
+       "title": "Settings → Judging: weights that don’t add up",
+       "pic": "organiser-settings-judging-weights"
+      },
+      {
+       "id": "organiser-settings.results",
+       "title": "Settings → Results: ranking, visibility, people’s choice",
+       "pic": "organiser-settings-results"
+      },
+      {
+       "id": "organiser-settings.results-remove-votes",
+       "title": "Settings → Results: narrowing who can vote removes votes",
+       "pic": "organiser-settings-results-remove-votes"
+      },
+      {
+       "id": "organiser-settings.details",
+       "title": "Settings → Organiser details",
+       "pic": "organiser-settings-details"
+      },
+      {
+       "id": "organiser-settings.details-invalid",
+       "title": "Settings → Organiser details: a field that is wrong",
+       "pic": "organiser-settings-details-invalid"
+      },
+      {
+       "id": "organiser-settings.organisers",
+       "title": "Settings → Organisers",
+       "pic": "organiser-settings-organisers"
+      },
+      {
+       "id": "organiser-settings.organisers-empty",
+       "title": "Settings → Organisers: no co-organisers",
+       "pic": "organiser-settings-organisers-empty"
+      },
+      {
+       "id": "organiser-settings.organisers-remove",
+       "title": "Settings → Organisers: removing a co-organiser",
+       "pic": "organiser-settings-organisers-remove"
+      },
+      {
+       "id": "organiser-settings.organisers-invited",
+       "title": "Settings → Organisers: an invitation just made",
+       "pic": "organiser-settings-organisers-invited"
+      },
+      {
+       "id": "organiser-settings.links",
+       "title": "Settings → Links",
+       "pic": "organiser-settings-links"
+      },
+      {
+       "id": "organiser-settings.links-new",
+       "title": "Settings → Links: making a new join link",
+       "pic": "organiser-settings-links-new"
+      },
+      {
+       "id": "organiser-settings.notifications-unavailable",
+       "title": "Settings → Notifications: the built-in page, so none yet",
+       "pic": "organiser-settings-notifications-unavailable"
+      },
+      {
+       "id": "organiser-settings.notifications",
+       "title": "Settings → Notifications: two webhooks",
+       "pic": "organiser-settings-notifications"
+      },
+      {
+       "id": "organiser-settings.notifications-empty",
+       "title": "Settings → Notifications: own website, none set up",
+       "pic": "organiser-settings-notifications-empty"
+      },
+      {
+       "id": "organiser-settings.notifications-add",
+       "title": "Settings → Notifications: adding one",
+       "pic": "organiser-settings-notifications-add"
+      },
+      {
+       "id": "organiser-settings.notifications-deliveries",
+       "title": "Settings → Notifications: a webhook’s deliveries",
+       "pic": "organiser-settings-notifications-deliveries"
+      },
+      {
+       "id": "organiser-settings.danger",
+       "title": "Settings → Leave or delete",
+       "pic": "organiser-settings-danger"
+      },
+      {
+       "id": "organiser-settings.danger-delete",
+       "title": "Settings → Leave or delete: delete asks for the name typed",
+       "pic": "organiser-settings-danger-delete"
+      },
+      {
+       "id": "organiser-settings.ended",
+       "title": "Settings: an ended event, settings read only",
+       "pic": "organiser-settings-ended"
+      },
+      {
+       "id": "organiser-settings.ended-danger",
+       "title": "Settings → Leave or delete: ended, delete still there",
+       "pic": "organiser-settings-ended-danger"
+      },
+      {
+       "id": "organiser-settings.admin",
+       "title": "Settings: a platform admin’s read-only inspection",
+       "pic": "organiser-settings-admin"
+      },
+      {
+       "id": "organiser-settings.old-anchor",
+       "title": "Settings: an old #tie-break link opens Judging",
+       "pic": "organiser-settings-old-anchor"
+      }
+     ]
+    },
+    {
+     "id": "organiser-create-event",
+     "title": "Create event",
+     "states": [
+      {
+       "id": "organiser-create-event.default",
+       "title": "Create event: empty form",
+       "pic": "organiser-create-event-default"
+      },
+      {
+       "id": "organiser-create-event.filled",
+       "title": "Create event: filled in, the address is free",
+       "pic": "organiser-create-event-filled"
+      },
+      {
+       "id": "organiser-create-event.slug-taken",
+       "title": "Create event: the address is taken",
+       "pic": "organiser-create-event-slug-taken"
+      },
+      {
+       "id": "organiser-create-event.invalid",
+       "title": "Create event: submitted empty, each field says what it needs",
+       "pic": "organiser-create-event-invalid"
+      },
+      {
+       "id": "organiser-create-event.limit",
+       "title": "Create event: refused, the person already runs the most events allowed",
+       "pic": "organiser-create-event-limit"
+      },
+      {
+       "id": "organiser-create-event.leave-unsaved",
+       "title": "Create event: leaving with edits asks first",
+       "pic": "organiser-create-event-leave-unsaved"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "role": "participant",
+   "label": "Participant",
+   "screens": [
+    {
+     "id": "participant-home",
+     "title": "Overview",
+     "states": [
+      {
+       "id": "participant-home.loading",
+       "title": "Overview: loading",
+       "pic": "participant-home-loading"
+      },
+      {
+       "id": "participant-home.no-team",
+       "title": "Overview: no team yet, the whole path shown",
+       "pic": "participant-home-no-team"
+      },
+      {
+       "id": "participant-home.invite",
+       "title": "Overview: no team, an invite waiting",
+       "pic": "participant-home-invite"
+      },
+      {
+       "id": "participant-home.summary-incomplete",
+       "title": "Overview: on a team, summary incomplete",
+       "pic": "participant-home-summary-incomplete"
+      },
+      {
+       "id": "participant-home.evidence",
+       "title": "Overview: summary done, work not shown yet",
+       "pic": "participant-home-evidence"
+      },
+      {
+       "id": "participant-home.ready",
+       "title": "Overview: ready, not submitted",
+       "pic": "participant-home-ready"
+      },
+      {
+       "id": "participant-home.submit-confirm",
+       "title": "Overview: Submit asks first",
+       "pic": "participant-home-submit-confirm"
+      },
+      {
+       "id": "participant-home.submitted",
+       "title": "Overview: submitted, can still change it",
+       "pic": "participant-home-submitted"
+      },
+      {
+       "id": "participant-home.under-an-hour",
+       "title": "Overview: under an hour left, not submitted",
+       "pic": "participant-home-under-an-hour"
+      },
+      {
+       "id": "participant-home.deadline-passed",
+       "title": "Overview: deadline passed, not complete",
+       "pic": "participant-home-deadline-passed"
+      },
+      {
+       "id": "participant-home.extension",
+       "title": "Overview: the team has more time",
+       "pic": "participant-home-extension"
+      },
+      {
+       "id": "participant-home.just-placed",
+       "title": "Overview: just placed on a team",
+       "pic": "participant-home-just-placed"
+      },
+      {
+       "id": "participant-home.removed",
+       "title": "Overview: taken off the team",
+       "pic": "participant-home-removed"
+      },
+      {
+       "id": "participant-home.all-set",
+       "title": "Overview: entries closed, site published",
+       "pic": "participant-home-all-set"
+      },
+      {
+       "id": "participant-home.judging",
+       "title": "Overview: judges are scoring",
+       "pic": "participant-home-judging"
+      },
+      {
+       "id": "participant-home.results",
+       "title": "Overview: results published",
+       "pic": "participant-home-results"
+      },
+      {
+       "id": "participant-home.ended",
+       "title": "Overview: event ended, leaving closed",
+       "pic": "participant-home-ended"
+      },
+      {
+       "id": "participant-home.join-requests",
+       "title": "Overview: team admin, people asked to join",
+       "pic": "participant-home-join-requests"
+      },
+      {
+       "id": "participant-home.schedule-soon",
+       "title": "Overview: a schedule row starts soon",
+       "pic": "participant-home-schedule-soon"
+      },
+      {
+       "id": "participant-home.needs-you",
+       "title": "Overview: something waits on you",
+       "pic": "participant-home-needs-you"
+      },
+      {
+       "id": "participant-home.leave-team",
+       "title": "Overview: leave, on a team with others",
+       "pic": "participant-home-leave-team"
+      },
+      {
+       "id": "participant-home.leave-only-member",
+       "title": "Overview: leave, the only member",
+       "pic": "participant-home-leave-only-member"
+      },
+      {
+       "id": "participant-home.leave-no-team",
+       "title": "Overview: leave, no team",
+       "pic": "participant-home-leave-no-team"
+      },
+      {
+       "id": "participant-home.leave-frozen",
+       "title": "Overview: leave, after the deadline",
+       "pic": "participant-home-leave-frozen"
+      },
+      {
+       "id": "participant-home.walkthrough",
+       "title": "Overview: the walkthrough opens itself once",
+       "pic": "participant-home-walkthrough"
+      },
+      {
+       "id": "participant-home.walkthrough-step",
+       "title": "Overview: the walkthrough, Your entry step",
+       "pic": "participant-home-walkthrough-step"
+      },
+      {
+       "id": "participant-home.frame-rejected",
+       "title": "Event frame: application not accepted",
+       "pic": "participant-home-frame-rejected"
+      }
+     ]
+    },
+    {
+     "id": "participant-schedule",
+     "title": "Schedule",
+     "states": [
+      {
+       "id": "participant-schedule.loading",
+       "title": "Schedule: loading",
+       "pic": "participant-schedule-loading"
+      },
+      {
+       "id": "participant-schedule.error",
+       "title": "Schedule: did not load",
+       "pic": "participant-schedule-error"
+      },
+      {
+       "id": "participant-schedule.empty",
+       "title": "Schedule: nothing yet",
+       "pic": "participant-schedule-empty"
+      },
+      {
+       "id": "participant-schedule.loaded",
+       "title": "Schedule: on now, next, and a row starting soon",
+       "pic": "participant-schedule-loaded"
+      },
+      {
+       "id": "participant-schedule.extension",
+       "title": "Schedule: the team's own deadline",
+       "pic": "participant-schedule-extension"
+      }
+     ]
+    },
+    {
+     "id": "participant-announcements",
+     "title": "Announcements",
+     "states": [
+      {
+       "id": "participant-announcements.loading",
+       "title": "Announcements: loading",
+       "pic": "participant-announcements-loading"
+      },
+      {
+       "id": "participant-announcements.error",
+       "title": "Announcements: did not load",
+       "pic": "participant-announcements-error"
+      },
+      {
+       "id": "participant-announcements.empty",
+       "title": "Announcements: none yet",
+       "pic": "participant-announcements-empty"
+      },
+      {
+       "id": "participant-announcements.loaded",
+       "title": "Announcements: pinned first, the unread badge cleared",
+       "pic": "participant-announcements-loaded"
+      }
+     ]
+    },
+    {
+     "id": "participant-team",
+     "title": "Team",
+     "states": [
+      {
+       "id": "participant-team.loading",
+       "title": "Team: loading",
+       "pic": "participant-team-loading"
+      },
+      {
+       "id": "participant-team.no-team-ask",
+       "title": "Team: no team, Ask to join (one request out, one team full)",
+       "pic": "participant-team-no-team-ask"
+      },
+      {
+       "id": "participant-team.invite-waiting",
+       "title": "Team: an invite waiting",
+       "pic": "participant-team-invite-waiting"
+      },
+      {
+       "id": "participant-team.join-code",
+       "title": "Team: no team, Join with a link or code",
+       "pic": "participant-team-join-code"
+      },
+      {
+       "id": "participant-team.join-code-refused",
+       "title": "Team: the code matches no team",
+       "pic": "participant-team-join-code-refused"
+      },
+      {
+       "id": "participant-team.start",
+       "title": "Team: no team, Start a new team",
+       "pic": "participant-team-start"
+      },
+      {
+       "id": "participant-team.start-empty",
+       "title": "Team: Start team with no name",
+       "pic": "participant-team-start-empty"
+      },
+      {
+       "id": "participant-team.finding-off",
+       "title": "Team: team finding off (two ways)",
+       "pic": "participant-team-finding-off"
+      },
+      {
+       "id": "participant-team.closed",
+       "title": "Team: teams closed, no team",
+       "pic": "participant-team-closed"
+      },
+      {
+       "id": "participant-team.removed",
+       "title": "Team: removed from a team",
+       "pic": "participant-team-removed"
+      },
+      {
+       "id": "participant-team.walkthrough",
+       "title": "Team: the walkthrough (from Help)",
+       "pic": "participant-team-walkthrough"
+      },
+      {
+       "id": "participant-team.walkthrough-last",
+       "title": "Team: the walkthrough's last step",
+       "pic": "participant-team-walkthrough-last"
+      },
+      {
+       "id": "participant-team.admin-members",
+       "title": "Team: on a team, admin, Members",
+       "pic": "participant-team-admin-members"
+      },
+      {
+       "id": "participant-team.member-menu",
+       "title": "Team: admin, a member's menu",
+       "pic": "participant-team-member-menu"
+      },
+      {
+       "id": "participant-team.remove-member",
+       "title": "Team: admin, remove a member",
+       "pic": "participant-team-remove-member"
+      },
+      {
+       "id": "participant-team.member",
+       "title": "Team: on a team, member",
+       "pic": "participant-team-member"
+      },
+      {
+       "id": "participant-team.just-joined",
+       "title": "Team: just joined",
+       "pic": "participant-team-just-joined"
+      },
+      {
+       "id": "participant-team.locked",
+       "title": "Team: locked",
+       "pic": "participant-team-locked"
+      },
+      {
+       "id": "participant-team.full",
+       "title": "Team: full",
+       "pic": "participant-team-full"
+      },
+      {
+       "id": "participant-team.frozen",
+       "title": "Team: frozen (entries closed)",
+       "pic": "participant-team-frozen"
+      },
+      {
+       "id": "participant-team.ended",
+       "title": "Team: event ended",
+       "pic": "participant-team-ended"
+      },
+      {
+       "id": "participant-team.message-dialog",
+       "title": "Team: message the organisers",
+       "pic": "participant-team-message-dialog"
+      },
+      {
+       "id": "participant-team.message-empty",
+       "title": "Team: message the organisers with nothing written",
+       "pic": "participant-team-message-empty"
+      },
+      {
+       "id": "participant-team.people",
+       "title": "Team: Find people",
+       "pic": "participant-team-people"
+      },
+      {
+       "id": "participant-team.people-empty",
+       "title": "Team: Find people, nobody looking",
+       "pic": "participant-team-people-empty"
+      },
+      {
+       "id": "participant-team.settings",
+       "title": "Team: Settings, admin",
+       "pic": "participant-team-settings"
+      },
+      {
+       "id": "participant-team.settings-dirty",
+       "title": "Team: Settings, a change not saved",
+       "pic": "participant-team-settings-dirty"
+      },
+      {
+       "id": "participant-team.settings-member",
+       "title": "Team: Settings, member",
+       "pic": "participant-team-settings-member"
+      },
+      {
+       "id": "participant-team.lock-dialog",
+       "title": "Team: lock with a request waiting",
+       "pic": "participant-team-lock-dialog"
+      },
+      {
+       "id": "participant-team.new-link",
+       "title": "Team: make a new link",
+       "pic": "participant-team-new-link"
+      },
+      {
+       "id": "participant-team.leave-only-admin",
+       "title": "Team: the only admin leaving",
+       "pic": "participant-team-leave-only-admin"
+      },
+      {
+       "id": "participant-team.leave-last",
+       "title": "Team: the last member leaving",
+       "pic": "participant-team-leave-last"
+      }
+     ]
+    },
+    {
+     "id": "participant-entry",
+     "title": "Entry",
+     "states": [
+      {
+       "id": "participant-entry.loading",
+       "title": "Entry: loading",
+       "pic": "participant-entry-loading"
+      },
+      {
+       "id": "participant-entry.no-team",
+       "title": "Entry: no team yet",
+       "pic": "participant-entry-no-team"
+      },
+      {
+       "id": "participant-entry.error",
+       "title": "Entry: did not load",
+       "pic": "participant-entry-error"
+      },
+      {
+       "id": "participant-entry.draft-missing",
+       "title": "Entry: draft with lines missing",
+       "pic": "participant-entry-draft-missing"
+      },
+      {
+       "id": "participant-entry.draft-ready",
+       "title": "Entry: draft, ready to submit (no rubric)",
+       "pic": "participant-entry-draft-ready"
+      },
+      {
+       "id": "participant-entry.submit-refused",
+       "title": "Entry: submit refused, what's missing",
+       "pic": "participant-entry-submit-refused"
+      },
+      {
+       "id": "participant-entry.save-refused",
+       "title": "Entry: a save refused on one line",
+       "pic": "participant-entry-save-refused"
+      },
+      {
+       "id": "participant-entry.tools",
+       "title": "Entry: tools typed and suggested",
+       "pic": "participant-entry-tools"
+      },
+      {
+       "id": "participant-entry.submitted",
+       "title": "Entry: submitted, still editable",
+       "pic": "participant-entry-submitted"
+      },
+      {
+       "id": "participant-entry.tightened",
+       "title": "Entry: submitted, the rules ask for more now",
+       "pic": "participant-entry-tightened"
+      },
+      {
+       "id": "participant-entry.unsubmit",
+       "title": "Entry: move back to draft",
+       "pic": "participant-entry-unsubmit"
+      },
+      {
+       "id": "participant-entry.remove-screenshot",
+       "title": "Entry: remove the screenshot",
+       "pic": "participant-entry-remove-screenshot"
+      },
+      {
+       "id": "participant-entry.conflict",
+       "title": "Entry: a teammate saved at the same time",
+       "pic": "participant-entry-conflict"
+      },
+      {
+       "id": "participant-entry.closed-submitted",
+       "title": "Entry: entries closed, submitted",
+       "pic": "participant-entry-closed-submitted"
+      },
+      {
+       "id": "participant-entry.closed-auto",
+       "title": "Entry: submitted automatically at the deadline",
+       "pic": "participant-entry-closed-auto"
+      },
+      {
+       "id": "participant-entry.closed-incomplete",
+       "title": "Entry: not submitted at the deadline, incomplete",
+       "pic": "participant-entry-closed-incomplete"
+      },
+      {
+       "id": "participant-entry.closed-settling",
+       "title": "Entry: deadline passed, not settled yet",
+       "pic": "participant-entry-closed-settling"
+      },
+      {
+       "id": "participant-entry.closed-nothing",
+       "title": "Entry: nothing entered by the deadline",
+       "pic": "participant-entry-closed-nothing"
+      }
+     ]
+    },
+    {
+     "id": "participant-website",
+     "title": "Website",
+     "states": [
+      {
+       "id": "participant-website.loading",
+       "title": "Website: loading",
+       "pic": "participant-website-loading"
+      },
+      {
+       "id": "participant-website.error",
+       "title": "Website: did not load",
+       "pic": "participant-website-error"
+      },
+      {
+       "id": "participant-website.no-team",
+       "title": "Website: no team yet",
+       "pic": "participant-website-no-team"
+      },
+      {
+       "id": "participant-website.unpublished",
+       "title": "Website: not connected, nothing published (Claude)",
+       "pic": "participant-website-unpublished"
+      },
+      {
+       "id": "participant-website.chatgpt",
+       "title": "Website: the ChatGPT steps",
+       "pic": "participant-website-chatgpt"
+      },
+      {
+       "id": "participant-website.other-apps",
+       "title": "Website: other AI apps",
+       "pic": "participant-website-other-apps"
+      },
+      {
+       "id": "participant-website.connected",
+       "title": "Website: connected, waiting for the first publish",
+       "pic": "participant-website-connected"
+      },
+      {
+       "id": "participant-website.setting-up",
+       "title": "Website: the address is being set up",
+       "pic": "participant-website-setting-up"
+      },
+      {
+       "id": "participant-website.zip-refused",
+       "title": "Website: Upload with no zip chosen",
+       "pic": "participant-website-zip-refused"
+      },
+      {
+       "id": "participant-website.advanced",
+       "title": "Website: command line",
+       "pic": "participant-website-advanced"
+      },
+      {
+       "id": "participant-website.published",
+       "title": "Website: published, connected in Claude",
+       "pic": "participant-website-published"
+      },
+      {
+       "id": "participant-website.publish-again",
+       "title": "Website: published, Publish again open",
+       "pic": "participant-website-publish-again"
+      },
+      {
+       "id": "participant-website.notifications",
+       "title": "Website: notifications",
+       "pic": "participant-website-notifications"
+      },
+      {
+       "id": "participant-website.deliveries",
+       "title": "Website: a notification's deliveries",
+       "pic": "participant-website-deliveries"
+      },
+      {
+       "id": "participant-website.secret",
+       "title": "Website: a notification added, its secret shown once",
+       "pic": "participant-website-secret"
+      },
+      {
+       "id": "participant-website.remove-hook",
+       "title": "Website: remove a notification",
+       "pic": "participant-website-remove-hook"
+      },
+      {
+       "id": "participant-website.rotate",
+       "title": "Website: rotate a signing secret",
+       "pic": "participant-website-rotate"
+      },
+      {
+       "id": "participant-website.taken-down",
+       "title": "Website: the site was taken down",
+       "pic": "participant-website-taken-down"
+      },
+      {
+       "id": "participant-website.closed-pinned",
+       "title": "Website: publishing closed, nothing live but a pinned version",
+       "pic": "participant-website-closed-pinned"
+      },
+      {
+       "id": "participant-website.closed-nothing",
+       "title": "Website: nothing published by the deadline",
+       "pic": "participant-website-closed-nothing"
+      },
+      {
+       "id": "participant-website.closed-live",
+       "title": "Website: closed, the site stays live as submitted",
+       "pic": "participant-website-closed-live"
+      }
+     ]
+    },
+    {
+     "id": "participant-results",
+     "title": "Results",
+     "states": [
+      {
+       "id": "participant-results.loading",
+       "title": "Results: loading",
+       "pic": "participant-results-loading"
+      },
+      {
+       "id": "participant-results.error",
+       "title": "Results: did not load",
+       "pic": "participant-results-error"
+      },
+      {
+       "id": "participant-results.no-team",
+       "title": "Results: not on a team",
+       "pic": "participant-results-no-team"
+      },
+      {
+       "id": "participant-results.not-published",
+       "title": "Results: not published yet",
+       "pic": "participant-results-not-published"
+      },
+      {
+       "id": "participant-results.loaded",
+       "title": "Results: place, comments, public card and standings",
+       "pic": "participant-results-loaded"
+      },
+      {
+       "id": "participant-results.winners-only",
+       "title": "Results: winners only, not a winner",
+       "pic": "participant-results-winners-only"
+      },
+      {
+       "id": "participant-results.track-winner",
+       "title": "Results: winners only, a track winner",
+       "pic": "participant-results-track-winner"
+      },
+      {
+       "id": "participant-results.not-public",
+       "title": "Results: not scored, entry not public",
+       "pic": "participant-results-not-public"
+      }
+     ]
+    },
+    {
+     "id": "participant-submissions",
+     "title": "Submissions",
+     "states": [
+      {
+       "id": "participant-submissions.loading",
+       "title": "Submissions: loading",
+       "pic": "participant-submissions-loading"
+      },
+      {
+       "id": "participant-submissions.not-open",
+       "title": "Submissions: before judging",
+       "pic": "participant-submissions-not-open"
+      },
+      {
+       "id": "participant-submissions.error",
+       "title": "Submissions: did not load",
+       "pic": "participant-submissions-error"
+      },
+      {
+       "id": "participant-submissions.empty",
+       "title": "Submissions: none yet",
+       "pic": "participant-submissions-empty"
+      },
+      {
+       "id": "participant-submissions.loaded",
+       "title": "Submissions: three teams, one yours",
+       "pic": "participant-submissions-loaded"
+      },
+      {
+       "id": "participant-submissions.frame-loading",
+       "title": "Event frame: the event is loading",
+       "pic": "participant-submissions-frame-loading"
+      },
+      {
+       "id": "participant-submissions.frame-pending",
+       "title": "Event frame: waiting for approval",
+       "pic": "participant-submissions-frame-pending"
+      },
+      {
+       "id": "participant-submissions.frame-not-in-event",
+       "title": "Event frame: not in this event",
+       "pic": "participant-submissions-frame-not-in-event"
+      },
+      {
+       "id": "participant-submissions.frame-not-found",
+       "title": "Event frame: no such event",
+       "pic": "participant-submissions-frame-not-found"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "role": "judge",
+   "label": "Judge",
+   "screens": [
+    {
+     "id": "judge-home",
+     "title": "Overview",
+     "states": [
+      {
+       "id": "judge-home.loading",
+       "title": "Judge Overview: loading",
+       "pic": "judge-home-loading"
+      },
+      {
+       "id": "judge-home.error",
+       "title": "Judge Overview: the queue did not load",
+       "pic": "judge-home-error"
+      },
+      {
+       "id": "judge-home.scoring-open",
+       "title": "Judge Overview: scoring open, 1 of 3 scored, with Needs you and a pinned announcement",
+       "pic": "judge-home-scoring-open"
+      },
+      {
+       "id": "judge-home.setup-step",
+       "title": "Judge Overview: read the rubric first",
+       "pic": "judge-home-setup-step"
+      },
+      {
+       "id": "judge-home.all-scored",
+       "title": "Judge Overview: all scored, still open",
+       "pic": "judge-home-all-scored"
+      },
+      {
+       "id": "judge-home.before-judging",
+       "title": "Judge Overview: scoring not open yet",
+       "pic": "judge-home-before-judging"
+      },
+      {
+       "id": "judge-home.locked-done",
+       "title": "Judge Overview: locked, fully done",
+       "pic": "judge-home-locked-done"
+      },
+      {
+       "id": "judge-home.locked-partial",
+       "title": "Judge Overview: locked before finishing",
+       "pic": "judge-home-locked-partial"
+      },
+      {
+       "id": "judge-home.results",
+       "title": "Judge Overview: results are out",
+       "pic": "judge-home-results"
+      },
+      {
+       "id": "judge-home.nothing-assigned",
+       "title": "Judge Overview: nothing assigned",
+       "pic": "judge-home-nothing-assigned"
+      },
+      {
+       "id": "judge-home.everything-conflicted",
+       "title": "Judge Overview: a conflict with every team",
+       "pic": "judge-home-everything-conflicted"
+      },
+      {
+       "id": "judge-home.event-ended",
+       "title": "Judge Overview: event ended, leaving is off",
+       "pic": "judge-home-event-ended"
+      },
+      {
+       "id": "judge-home.leave",
+       "title": "Judge Overview: leave this event",
+       "pic": "judge-home-leave"
+      },
+      {
+       "id": "judge-home.walkthrough",
+       "title": "Judge Overview: the walkthrough, first step",
+       "pic": "judge-home-walkthrough"
+      },
+      {
+       "id": "judge-home.walkthrough-next",
+       "title": "Judge Overview: the walkthrough, on Start here",
+       "pic": "judge-home-walkthrough-next"
+      }
+     ]
+    },
+    {
+     "id": "judge-queue",
+     "title": "Queue",
+     "states": [
+      {
+       "id": "judge-queue.loading",
+       "title": "My teams: loading",
+       "pic": "judge-queue-loading"
+      },
+      {
+       "id": "judge-queue.error",
+       "title": "My teams: did not load",
+       "pic": "judge-queue-error"
+      },
+      {
+       "id": "judge-queue.before-judging",
+       "title": "My teams: scoring not open",
+       "pic": "judge-queue-before-judging"
+      },
+      {
+       "id": "judge-queue.mixed",
+       "title": "My teams: some scored, some left",
+       "pic": "judge-queue-mixed"
+      },
+      {
+       "id": "judge-queue.scored",
+       "title": "My teams: the Scored tab",
+       "pic": "judge-queue-scored"
+      },
+      {
+       "id": "judge-queue.screenshot",
+       "title": "My teams: a screenshot open",
+       "pic": "judge-queue-screenshot"
+      },
+      {
+       "id": "judge-queue.conflicts",
+       "title": "My teams: Teams I know, one declared, not yet said none",
+       "pic": "judge-queue-conflicts"
+      },
+      {
+       "id": "judge-queue.locked",
+       "title": "My teams: locked, read-only",
+       "pic": "judge-queue-locked"
+      },
+      {
+       "id": "judge-queue.results",
+       "title": "My teams: results are out",
+       "pic": "judge-queue-results"
+      },
+      {
+       "id": "judge-queue.all-done",
+       "title": "My teams: everyone scored",
+       "pic": "judge-queue-all-done"
+      },
+      {
+       "id": "judge-queue.nothing-yet",
+       "title": "My teams: nothing to judge yet (assigned mode)",
+       "pic": "judge-queue-nothing-yet"
+      },
+      {
+       "id": "judge-queue.all-conflicted",
+       "title": "My teams: a conflict with everyone",
+       "pic": "judge-queue-all-conflicted"
+      }
+     ]
+    },
+    {
+     "id": "judge-scoring",
+     "title": "Score: CareCompass",
+     "states": [
+      {
+       "id": "judge-scoring.loading",
+       "title": "Scoring: loading",
+       "pic": "judge-scoring-loading"
+      },
+      {
+       "id": "judge-scoring.error",
+       "title": "Scoring: the queue did not load",
+       "pic": "judge-scoring-error"
+      },
+      {
+       "id": "judge-scoring.nothing",
+       "title": "Scoring: nothing assigned",
+       "pic": "judge-scoring-nothing"
+      },
+      {
+       "id": "judge-scoring.no-rubric",
+       "title": "Scoring: no rubric yet",
+       "pic": "judge-scoring-no-rubric"
+      },
+      {
+       "id": "judge-scoring.before-judging",
+       "title": "Scoring: not open yet",
+       "pic": "judge-scoring-before-judging"
+      },
+      {
+       "id": "judge-scoring.default",
+       "title": "Scoring: video plays here, site framed",
+       "pic": "judge-scoring-default"
+      },
+      {
+       "id": "judge-scoring.playing",
+       "title": "Scoring: the video, after Play",
+       "pic": "judge-scoring-playing"
+      },
+      {
+       "id": "judge-scoring.elsewhere",
+       "title": "Scoring: video elsewhere, site behind a passcode; already scored",
+       "pic": "judge-scoring-elsewhere"
+      },
+      {
+       "id": "judge-scoring.website-first",
+       "title": "Scoring: website first, then code, then video",
+       "pic": "judge-scoring-website-first"
+      },
+      {
+       "id": "judge-scoring.no-media",
+       "title": "Scoring: no video, no site, incomplete; the last team",
+       "pic": "judge-scoring-no-media"
+      },
+      {
+       "id": "judge-scoring.unscored-guard",
+       "title": "Scoring: Save & next with criteria left",
+       "pic": "judge-scoring-unscored-guard"
+      },
+      {
+       "id": "judge-scoring.score-saved",
+       "title": "Scoring: a score tapped and saved",
+       "pic": "judge-scoring-score-saved"
+      },
+      {
+       "id": "judge-scoring.locked",
+       "title": "Scoring: locked, read-only",
+       "pic": "judge-scoring-locked"
+      },
+      {
+       "id": "judge-scoring.walkthrough",
+       "title": "Scoring: the walkthrough, first step",
+       "pic": "judge-scoring-walkthrough"
+      }
+     ]
+    },
+    {
+     "id": "judge-rubric",
+     "title": "Rubric & brief",
+     "states": [
+      {
+       "id": "judge-rubric.loading",
+       "title": "Rubric: loading",
+       "pic": "judge-rubric-loading"
+      },
+      {
+       "id": "judge-rubric.error",
+       "title": "Rubric: did not load",
+       "pic": "judge-rubric-error"
+      },
+      {
+       "id": "judge-rubric.no-rubric",
+       "title": "Rubric: none yet",
+       "pic": "judge-rubric-no-rubric"
+      },
+      {
+       "id": "judge-rubric.default",
+       "title": "Rubric: saved, not read yet",
+       "pic": "judge-rubric-default"
+      },
+      {
+       "id": "judge-rubric.read",
+       "title": "Rubric: already read",
+       "pic": "judge-rubric-read"
+      },
+      {
+       "id": "judge-rubric.acknowledged",
+       "title": "Rubric: I've read it, pressed",
+       "pic": "judge-rubric-acknowledged"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "role": "shared",
+   "label": "Everyone",
+   "screens": [
+    {
+     "id": "account",
+     "title": "Account",
+     "states": [
+      {
+       "id": "account.loading",
+       "title": "Account: loading",
+       "pic": "account-loading"
+      },
+      {
+       "id": "account.error",
+       "title": "Account: did not load",
+       "pic": "account-error"
+      },
+      {
+       "id": "account.not-a-person",
+       "title": "Account: a team key or the platform admin",
+       "pic": "account-not-a-person"
+      },
+      {
+       "id": "account.leave-unsaved",
+       "title": "Account: leaving with an unsaved name asks first",
+       "pic": "account-leave-unsaved"
+      },
+      {
+       "id": "account.loaded",
+       "title": "Account: profile (name, email, password, delete)",
+       "pic": "account-loaded"
+      },
+      {
+       "id": "account.key-only",
+       "title": "Account: a key-only account, no email address",
+       "pic": "account-key-only"
+      },
+      {
+       "id": "account.name-refused",
+       "title": "Account: the name is refused, said under it",
+       "pic": "account-name-refused"
+      },
+      {
+       "id": "account.email-change",
+       "title": "Account: change email, the new address",
+       "pic": "account-email-change"
+      },
+      {
+       "id": "account.email-codes",
+       "title": "Account: change email, the two codes",
+       "pic": "account-email-codes"
+      },
+      {
+       "id": "account.email-codes-missing",
+       "title": "Account: change email, codes not filled in",
+       "pic": "account-email-codes-missing"
+      },
+      {
+       "id": "account.password-mismatch",
+       "title": "Account: password, the new ones do not match",
+       "pic": "account-password-mismatch"
+      },
+      {
+       "id": "account.delete",
+       "title": "Account: delete, type to confirm",
+       "pic": "account-delete"
+      },
+      {
+       "id": "account.delete-blocked",
+       "title": "Account: delete refused while organising",
+       "pic": "account-delete-blocked"
+      },
+      {
+       "id": "account.deleted",
+       "title": "Account: deleted",
+       "pic": "account-deleted"
+      },
+      {
+       "id": "account.sign-in",
+       "title": "Account: sign-in, Google linked",
+       "pic": "account-sign-in"
+      },
+      {
+       "id": "account.sign-in-none",
+       "title": "Account: sign-in, nothing linked, Link Google",
+       "pic": "account-sign-in-none"
+      },
+      {
+       "id": "account.sign-in-loading",
+       "title": "Account: sign-in, linked sign-ins loading",
+       "pic": "account-sign-in-loading"
+      },
+      {
+       "id": "account.sign-in-error",
+       "title": "Account: sign-in, linked sign-ins did not load",
+       "pic": "account-sign-in-error"
+      },
+      {
+       "id": "account.link-google",
+       "title": "Account: link Google, asked first",
+       "pic": "account-link-google"
+      },
+      {
+       "id": "account.unlink",
+       "title": "Account: unlink Google, asked first",
+       "pic": "account-unlink"
+      },
+      {
+       "id": "account.new-key",
+       "title": "Account: make a new key, asked first",
+       "pic": "account-new-key"
+      },
+      {
+       "id": "account.new-key-shown",
+       "title": "Account: the new key, shown once",
+       "pic": "account-new-key-shown"
+      },
+      {
+       "id": "account.sign-out-everywhere",
+       "title": "Account: sign out everywhere, asked first",
+       "pic": "account-sign-out-everywhere"
+      },
+      {
+       "id": "account.apps-loading",
+       "title": "Account: AI apps loading",
+       "pic": "account-apps-loading"
+      },
+      {
+       "id": "account.apps-none",
+       "title": "Account: no AI apps, the steps open",
+       "pic": "account-apps-none"
+      },
+      {
+       "id": "account.apps-connected",
+       "title": "Account: connected AI apps",
+       "pic": "account-apps-connected"
+      },
+      {
+       "id": "account.apps-error",
+       "title": "Account: AI apps did not load",
+       "pic": "account-apps-error"
+      },
+      {
+       "id": "account.apps-other",
+       "title": "Account: connect steps, other AI apps",
+       "pic": "account-apps-other"
+      },
+      {
+       "id": "account.apps-disconnect",
+       "title": "Account: disconnect an app, asked first",
+       "pic": "account-apps-disconnect"
+      },
+      {
+       "id": "account.emails-on",
+       "title": "Account: email preferences on",
+       "pic": "account-emails-on"
+      },
+      {
+       "id": "account.emails-off",
+       "title": "Account: email preferences off",
+       "pic": "account-emails-off"
+      },
+      {
+       "id": "account.emails-key-only",
+       "title": "Account: email preferences, no address",
+       "pic": "account-emails-key-only"
+      },
+      {
+       "id": "account.emails-saved",
+       "title": "Account: a preference saved, with Undo",
+       "pic": "account-emails-saved"
+      }
+     ]
+    },
+    {
+     "id": "landing-your-events",
+     "title": "Your events",
+     "states": [
+      {
+       "id": "landing-your-events.loading",
+       "title": "Your events: loading",
+       "pic": "landing-your-events-loading"
+      },
+      {
+       "id": "landing-your-events.empty",
+       "title": "Your events: not in any event yet",
+       "pic": "landing-your-events-empty"
+      },
+      {
+       "id": "landing-your-events.error",
+       "title": "Your events: the list did not load",
+       "pic": "landing-your-events-error"
+      },
+      {
+       "id": "landing-your-events.loaded",
+       "title": "Your events: current, past and what needs you",
+       "pic": "landing-your-events-loaded"
+      },
+      {
+       "id": "landing-your-events.only-past",
+       "title": "Your events: nothing on now, past shown open",
+       "pic": "landing-your-events-only-past"
+      },
+      {
+       "id": "landing-your-events.row-menu",
+       "title": "Your events: a row's menu",
+       "pic": "landing-your-events-row-menu"
+      },
+      {
+       "id": "landing-your-events.leave",
+       "title": "Your events: leave, a participant on a team",
+       "pic": "landing-your-events-leave"
+      },
+      {
+       "id": "landing-your-events.leave-last-organiser",
+       "title": "Your events: leave, the only organiser chooses end or delete",
+       "pic": "landing-your-events-leave-last-organiser"
+      },
+      {
+       "id": "landing-your-events.left",
+       "title": "Your events: after leaving, the toast",
+       "pic": "landing-your-events-left"
+      }
+     ]
+    },
+    {
+     "id": "signin",
+     "title": "Sign in",
+     "states": [
+      {
+       "id": "signin.loading",
+       "title": "Sign in: finding the ways in",
+       "pic": "signin-loading"
+      },
+      {
+       "id": "signin.email",
+       "title": "Sign in: the emailed code",
+       "pic": "signin-email"
+      },
+      {
+       "id": "signin.google",
+       "title": "Sign in: Google or the emailed code",
+       "pic": "signin-google"
+      },
+      {
+       "id": "signin.everything",
+       "title": "Sign in: Google, company account, password and code",
+       "pic": "signin-everything"
+      },
+      {
+       "id": "signin.company",
+       "title": "Sign in: a company install, no email codes",
+       "pic": "signin-company"
+      },
+      {
+       "id": "signin.password-only",
+       "title": "Sign in: password only",
+       "pic": "signin-password-only"
+      },
+      {
+       "id": "signin.password-signup",
+       "title": "Sign in: creating an account with a password",
+       "pic": "signin-password-signup"
+      },
+      {
+       "id": "signin.password-wrong",
+       "title": "Sign in: wrong password",
+       "pic": "signin-password-wrong"
+      },
+      {
+       "id": "signin.password-change",
+       "title": "Sign in: a new password is needed first",
+       "pic": "signin-password-change"
+      },
+      {
+       "id": "signin.none",
+       "title": "Sign in: nothing turned on",
+       "pic": "signin-none"
+      },
+      {
+       "id": "signin.bad-email",
+       "title": "Sign in: the email does not look right",
+       "pic": "signin-bad-email"
+      },
+      {
+       "id": "signin.send-failed",
+       "title": "Sign in: the code could not be sent",
+       "pic": "signin-send-failed"
+      },
+      {
+       "id": "signin.code",
+       "title": "Sign in: check your email",
+       "pic": "signin-code"
+      },
+      {
+       "id": "signin.code-wrong",
+       "title": "Sign in: the code is not right",
+       "pic": "signin-code-wrong"
+      },
+      {
+       "id": "signin.code-used-up",
+       "title": "Sign in: too many wrong tries",
+       "pic": "signin-code-used-up"
+      },
+      {
+       "id": "signin.link-elsewhere",
+       "title": "Sign in: a link opened in another browser",
+       "pic": "signin-link-elsewhere"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "role": "visitor",
+   "label": "Visitors and link pages",
+   "screens": [
+    {
+     "id": "public-event-page",
+     "title": "Generation Girl Online Hack 2026",
+     "states": [
+      {
+       "id": "event-classic-open",
+       "title": "Event page, Classic Look: sign-up open",
+       "pic": "event-classic-open"
+      },
+      {
+       "id": "event-classic-results",
+       "title": "Event page, Classic Look: results",
+       "pic": "event-classic-results"
+      },
+      {
+       "id": "event-poster-open",
+       "title": "Event page, Poster Look: sign-up open",
+       "pic": "event-poster-open"
+      },
+      {
+       "id": "event-poster-results",
+       "title": "Event page, Poster Look: results",
+       "pic": "event-poster-results"
+      },
+      {
+       "id": "event-confetti-open",
+       "title": "Event page, Confetti Look: sign-up open",
+       "pic": "event-confetti-open"
+      },
+      {
+       "id": "event-confetti-results",
+       "title": "Event page, Confetti Look: results",
+       "pic": "event-confetti-results"
+      },
+      {
+       "id": "event-boardroom-open",
+       "title": "Event page, Boardroom Look: sign-up open",
+       "pic": "event-boardroom-open"
+      },
+      {
+       "id": "event-boardroom-results",
+       "title": "Event page, Boardroom Look: results",
+       "pic": "event-boardroom-results"
+      },
+      {
+       "id": "event-garden-open",
+       "title": "Event page, Garden Look: sign-up open",
+       "pic": "event-garden-open"
+      },
+      {
+       "id": "event-garden-results",
+       "title": "Event page, Garden Look: results",
+       "pic": "event-garden-results"
+      },
+      {
+       "id": "event-terminal-open",
+       "title": "Event page, Terminal Look: sign-up open",
+       "pic": "event-terminal-open"
+      },
+      {
+       "id": "event-terminal-results",
+       "title": "Event page, Terminal Look: results",
+       "pic": "event-terminal-results"
+      },
+      {
+       "id": "event-classic-draft",
+       "title": "Event page: draft (organisers' preview)",
+       "pic": "event-classic-draft"
+      },
+      {
+       "id": "event-classic-building",
+       "title": "Event page: building, with the countdown",
+       "pic": "event-classic-building"
+      },
+      {
+       "id": "event-classic-judging",
+       "title": "Event page: judging, with submissions",
+       "pic": "event-classic-judging"
+      },
+      {
+       "id": "event-classic-winners",
+       "title": "Event page: winners only",
+       "pic": "event-classic-winners"
+      },
+      {
+       "id": "event-classic-bare",
+       "title": "Event page: nothing filled in yet",
+       "pic": "event-classic-bare"
+      },
+      {
+       "id": "event-takendown",
+       "title": "Event page: taken down",
+       "pic": "event-takendown"
+      },
+      {
+       "id": "event-notfound",
+       "title": "Event page: no such event",
+       "pic": "event-notfound"
+      }
+     ]
+    },
+    {
+     "id": "public-join",
+     "title": "Join Generation Girl Online Hack 2026",
+     "states": [
+      {
+       "id": "public-join.loading",
+       "title": "Join link: loading",
+       "pic": "public-join-loading"
+      },
+      {
+       "id": "public-join.signed-out",
+       "title": "Join link: signed out, what joining asks",
+       "pic": "public-join-signed-out"
+      },
+      {
+       "id": "public-join.signed-out-no-questions",
+       "title": "Join link: signed out, no questions",
+       "pic": "public-join-signed-out-no-questions"
+      },
+      {
+       "id": "public-join.form",
+       "title": "Join link: signed in, the form",
+       "pic": "public-join-form"
+      },
+      {
+       "id": "public-join.form-no-name",
+       "title": "Join link: the account has no name yet",
+       "pic": "public-join-form-no-name"
+      },
+      {
+       "id": "public-join.form-approval",
+       "title": "Join link: the organisers approve each person",
+       "pic": "public-join-form-approval"
+      },
+      {
+       "id": "public-join.form-errors",
+       "title": "Join link: sent with nothing filled in",
+       "pic": "public-join-form-errors"
+      },
+      {
+       "id": "public-join.too-many-tries",
+       "title": "Join link: too many tries",
+       "pic": "public-join-too-many-tries"
+      },
+      {
+       "id": "public-join.already-in",
+       "title": "Join link: already in the event",
+       "pic": "public-join-already-in"
+      },
+      {
+       "id": "public-join.pending",
+       "title": "Join link: application waiting",
+       "pic": "public-join-pending"
+      },
+      {
+       "id": "public-join.rejected",
+       "title": "Join link: application not accepted",
+       "pic": "public-join-rejected"
+      },
+      {
+       "id": "public-join.closed",
+       "title": "Join link: sign-up has closed",
+       "pic": "public-join-closed"
+      },
+      {
+       "id": "public-join.not-open",
+       "title": "Join link: the event is not open yet",
+       "pic": "public-join-not-open"
+      },
+      {
+       "id": "public-join.over",
+       "title": "Join link: the event is over",
+       "pic": "public-join-over"
+      },
+      {
+       "id": "public-join.invalid",
+       "title": "Join link: the link does not work",
+       "pic": "public-join-invalid"
+      },
+      {
+       "id": "public-join.offline",
+       "title": "Join link: the server cannot be reached",
+       "pic": "public-join-offline"
+      }
+     ]
+    },
+    {
+     "id": "public-apply",
+     "title": "Apply to Generation Girl Online Hack 2026",
+     "states": [
+      {
+       "id": "public-apply.loading",
+       "title": "Apply: loading",
+       "pic": "public-apply-loading"
+      },
+      {
+       "id": "public-apply.signed-out",
+       "title": "Apply: signed out",
+       "pic": "public-apply-signed-out"
+      },
+      {
+       "id": "public-apply.form",
+       "title": "Apply: the form",
+       "pic": "public-apply-form"
+      },
+      {
+       "id": "public-apply.form-no-name",
+       "title": "Apply: the account has no name yet",
+       "pic": "public-apply-form-no-name"
+      },
+      {
+       "id": "public-apply.under-18",
+       "title": "Apply: under 18 chosen, the guardian note",
+       "pic": "public-apply-under-18"
+      },
+      {
+       "id": "public-apply.form-errors",
+       "title": "Apply: sent with nothing filled in",
+       "pic": "public-apply-form-errors"
+      },
+      {
+       "id": "public-apply.server-field-error",
+       "title": "Apply: the server refuses the country",
+       "pic": "public-apply-server-field-error"
+      },
+      {
+       "id": "public-apply.too-many-tries",
+       "title": "Apply: too many tries",
+       "pic": "public-apply-too-many-tries"
+      },
+      {
+       "id": "public-apply.sent",
+       "title": "Apply: sent, waiting for the organisers",
+       "pic": "public-apply-sent"
+      },
+      {
+       "id": "public-apply.accepted",
+       "title": "Apply: accepted, already in",
+       "pic": "public-apply-accepted"
+      },
+      {
+       "id": "public-apply.not-accepted",
+       "title": "Apply: not accepted",
+       "pic": "public-apply-not-accepted"
+      },
+      {
+       "id": "public-apply.other-role",
+       "title": "Apply: already a judge here",
+       "pic": "public-apply-other-role"
+      },
+      {
+       "id": "public-apply.applications-off",
+       "title": "Apply: the event takes no applications",
+       "pic": "public-apply-applications-off"
+      },
+      {
+       "id": "public-apply.sign-up-over",
+       "title": "Apply: sign-up has closed",
+       "pic": "public-apply-sign-up-over"
+      },
+      {
+       "id": "public-apply.not-found",
+       "title": "Apply: not open yet, or no such event",
+       "pic": "public-apply-not-found"
+      },
+      {
+       "id": "public-apply.offline",
+       "title": "Apply: the server cannot be reached",
+       "pic": "public-apply-offline"
+      }
+     ]
+    },
+    {
+     "id": "public-judge",
+     "title": "Judge Generation Girl Online Hack 2026",
+     "states": [
+      {
+       "id": "public-judge.loading",
+       "title": "Judge invite: loading",
+       "pic": "public-judge-loading"
+      },
+      {
+       "id": "public-judge.signed-out",
+       "title": "Judge invite: signed out",
+       "pic": "public-judge-signed-out"
+      },
+      {
+       "id": "public-judge.form",
+       "title": "Judge invite: accept",
+       "pic": "public-judge-form"
+      },
+      {
+       "id": "public-judge.form-no-name",
+       "title": "Judge invite: the account has no name yet",
+       "pic": "public-judge-form-no-name"
+      },
+      {
+       "id": "public-judge.form-errors",
+       "title": "Judge invite: sent without agreeing",
+       "pic": "public-judge-form-errors"
+      },
+      {
+       "id": "public-judge.just-joined-already",
+       "title": "Judge invite: accepting finds them already in",
+       "pic": "public-judge-just-joined-already"
+      },
+      {
+       "id": "public-judge.already-in",
+       "title": "Judge invite: already in the event",
+       "pic": "public-judge-already-in"
+      },
+      {
+       "id": "public-judge.invite-no-longer-valid",
+       "title": "Judge invite: no longer open",
+       "pic": "public-judge-invite-no-longer-valid"
+      },
+      {
+       "id": "public-judge.not-open",
+       "title": "Judge invite: the event is not open yet",
+       "pic": "public-judge-not-open"
+      },
+      {
+       "id": "public-judge.bad-link",
+       "title": "Judge invite: the link does not work",
+       "pic": "public-judge-bad-link"
+      },
+      {
+       "id": "public-judge.offline",
+       "title": "Judge invite: the server cannot be reached",
+       "pic": "public-judge-offline"
+      }
+     ]
+    },
+    {
+     "id": "public-organiser-invite",
+     "title": "Co-organise Generation Girl Online Hack 2026",
+     "states": [
+      {
+       "id": "public-organiser-invite.loading",
+       "title": "Co-organiser invite: loading",
+       "pic": "public-organiser-invite-loading"
+      },
+      {
+       "id": "public-organiser-invite.signed-out",
+       "title": "Co-organiser invite: signed out",
+       "pic": "public-organiser-invite-signed-out"
+      },
+      {
+       "id": "public-organiser-invite.form",
+       "title": "Co-organiser invite: accept",
+       "pic": "public-organiser-invite-form"
+      },
+      {
+       "id": "public-organiser-invite.form-no-name",
+       "title": "Co-organiser invite: the account has no name yet",
+       "pic": "public-organiser-invite-form-no-name"
+      },
+      {
+       "id": "public-organiser-invite.form-errors",
+       "title": "Co-organiser invite: sent without agreeing",
+       "pic": "public-organiser-invite-form-errors"
+      },
+      {
+       "id": "public-organiser-invite.already-member",
+       "title": "Co-organiser invite: already in the event",
+       "pic": "public-organiser-invite-already-member"
+      },
+      {
+       "id": "public-organiser-invite.invite-no-longer-valid",
+       "title": "Co-organiser invite: no longer open",
+       "pic": "public-organiser-invite-invite-no-longer-valid"
+      },
+      {
+       "id": "public-organiser-invite.closed",
+       "title": "Co-organiser invite: the event can't take organisers",
+       "pic": "public-organiser-invite-closed"
+      },
+      {
+       "id": "public-organiser-invite.offline",
+       "title": "Co-organiser invite: the server cannot be reached",
+       "pic": "public-organiser-invite-offline"
+      }
+     ]
+    },
+    {
+     "id": "public-vote",
+     "title": "People's choice",
+     "states": [
+      {
+       "id": "public-vote.loading",
+       "title": "People's choice: loading",
+       "pic": "public-vote-loading"
+      },
+      {
+       "id": "public-vote.signed-out",
+       "title": "People's choice: open, signed out",
+       "pic": "public-vote-signed-out"
+      },
+      {
+       "id": "public-vote.open",
+       "title": "People's choice: open, one vote cast, own team marked",
+       "pic": "public-vote-open"
+      },
+      {
+       "id": "public-vote.ineligible",
+       "title": "People's choice: open, this person may not vote",
+       "pic": "public-vote-ineligible"
+      },
+      {
+       "id": "public-vote.check-failed",
+       "title": "People's choice: could not check the vote",
+       "pic": "public-vote-check-failed"
+      },
+      {
+       "id": "public-vote.no-teams",
+       "title": "People's choice: open, no team sites yet",
+       "pic": "public-vote-no-teams"
+      },
+      {
+       "id": "public-vote.upcoming",
+       "title": "People's choice: opens soon",
+       "pic": "public-vote-upcoming"
+      },
+      {
+       "id": "public-vote.closed",
+       "title": "People's choice: closed, the final votes",
+       "pic": "public-vote-closed"
+      },
+      {
+       "id": "public-vote.off",
+       "title": "People's choice: not on for this event",
+       "pic": "public-vote-off"
+      },
+      {
+       "id": "public-vote.error",
+       "title": "People's choice: unavailable",
+       "pic": "public-vote-error"
+      },
+      {
+       "id": "public-vote.voted",
+       "title": "People's choice: after voting, the toast",
+       "pic": "public-vote-voted"
+      }
+     ]
+    },
+    {
+     "id": "public-home",
+     "title": "Simple Hack",
+     "states": [
+      {
+       "id": "home",
+       "title": "Home",
+       "pic": "home"
+      }
+     ]
+    },
+    {
+     "id": "public-team-link",
+     "title": "Join Kopi Kode",
+     "states": [
+      {
+       "id": "public-team-link.loading",
+       "title": "Team link: loading",
+       "pic": "public-team-link-loading"
+      },
+      {
+       "id": "public-team-link.signed-out",
+       "title": "Team link: signed out",
+       "pic": "public-team-link-signed-out"
+      },
+      {
+       "id": "public-team-link.ready",
+       "title": "Team link: ready to join",
+       "pic": "public-team-link-ready"
+      },
+      {
+       "id": "public-team-link.join-refused",
+       "title": "Team link: joining is refused",
+       "pic": "public-team-link-join-refused"
+      },
+      {
+       "id": "public-team-link.already-on-this-team",
+       "title": "Team link: already on this team",
+       "pic": "public-team-link-already-on-this-team"
+      },
+      {
+       "id": "public-team-link.on-another-team",
+       "title": "Team link: on another team",
+       "pic": "public-team-link-on-another-team"
+      },
+      {
+       "id": "public-team-link.locked",
+       "title": "Team link: the team is locked",
+       "pic": "public-team-link-locked"
+      },
+      {
+       "id": "public-team-link.full",
+       "title": "Team link: the team is full",
+       "pic": "public-team-link-full"
+      },
+      {
+       "id": "public-team-link.not-in-the-event",
+       "title": "Team link: not in the event, it takes applications",
+       "pic": "public-team-link-not-in-the-event"
+      },
+      {
+       "id": "public-team-link.not-in-the-event-closed",
+       "title": "Team link: not in the event, no applications",
+       "pic": "public-team-link-not-in-the-event-closed"
+      },
+      {
+       "id": "public-team-link.waiting-for-approval",
+       "title": "Team link: waiting for approval",
+       "pic": "public-team-link-waiting-for-approval"
+      },
+      {
+       "id": "public-team-link.rejected",
+       "title": "Team link: not accepted into the event",
+       "pic": "public-team-link-rejected"
+      },
+      {
+       "id": "public-team-link.judge-or-organiser",
+       "title": "Team link: a judge or organiser",
+       "pic": "public-team-link-judge-or-organiser"
+      },
+      {
+       "id": "public-team-link.teams-closed",
+       "title": "Team link: teams can't change now",
+       "pic": "public-team-link-teams-closed"
+      },
+      {
+       "id": "public-team-link.link-doesnt-work",
+       "title": "Team link: the link does not work",
+       "pic": "public-team-link-link-doesnt-work"
+      },
+      {
+       "id": "public-team-link.offline",
+       "title": "Team link: the server cannot be reached",
+       "pic": "public-team-link-offline"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "role": "site",
+   "label": "Marketing and status pages",
+   "screens": [
+    {
+     "id": "site-pages",
+     "title": "Marketing and status pages",
+     "states": [
+      {
+       "id": "hackathons",
+       "title": "Hackathons",
+       "pic": "hackathons"
+      },
+      {
+       "id": "get-started",
+       "title": "Get started",
+       "pic": "get-started"
+      },
+      {
+       "id": "companies",
+       "title": "For companies",
+       "pic": "companies"
+      },
+      {
+       "id": "watch",
+       "title": "Watch how it works",
+       "pic": "watch"
+      },
+      {
+       "id": "features",
+       "title": "Features",
+       "pic": "features"
+      },
+      {
+       "id": "setup",
+       "title": "Self-host setup",
+       "pic": "setup"
+      },
+      {
+       "id": "notfound",
+       "title": "Not found (404)",
+       "pic": "notfound"
+      },
+      {
+       "id": "status-takendown",
+       "title": "Status: taken down",
+       "pic": "status-takendown"
+      },
+      {
+       "id": "status-offline",
+       "title": "Status: offline",
+       "pic": "status-offline"
+      },
+      {
+       "id": "status-message",
+       "title": "Status: one message (a used link)",
+       "pic": "status-message"
+      },
+      {
+       "id": "status-error",
+       "title": "Status: service error",
+       "pic": "status-error"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

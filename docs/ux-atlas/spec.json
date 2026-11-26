@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated": "2026-11-09",
+  "updated": "2026-11-26",
   "universal_properties": [
     "A form with unsaved edits asks Leave without saving? (Stay / Leave) before navigation or Back, and uses the browser prompt when closing or reloading the tab; a clean or just-saved form never asks.",
     "Every checklist item is actionable: a not-done action reaches the enabled control that fixes it, or performs it; informational rows have no button.",
@@ -1028,106 +1028,6 @@
         "override-rank-on-publish",
         "team-writes-organisers"
       ],
-      "prototype_states": [
-        {
-          "slug": "building",
-          "name": "Building: Close entries",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "applications-waiting",
-          "name": "Applications waiting",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "entry-rules",
-          "name": "New event: Choose what teams hand in (SIM-382)",
-          "stage": "draft",
-          "next": "Not open yet"
-        },
-        {
-          "slug": "draft",
-          "name": "Not open yet: Open sign-up",
-          "stage": "draft",
-          "next": "Not open yet"
-        },
-        {
-          "slug": "confirm",
-          "name": "Close entries, confirm",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "deadline-passed",
-          "name": "Deadline passed, still Building",
-          "stage": "building",
-          "next": "Entries closed Sun 6:00 pm"
-        },
-        {
-          "slug": "closed",
-          "name": "Entries closed: Start judging, panel mode with untracked teams (audit item 2, 2026-11-02)",
-          "stage": "closed",
-          "next": "Entries closed"
-        },
-        {
-          "slug": "judging",
-          "name": "Judging: Finish judging",
-          "stage": "judging",
-          "next": "Judging"
-        },
-        {
-          "slug": "results",
-          "name": "Results: Publish results",
-          "stage": "results",
-          "next": "Results"
-        },
-        {
-          "slug": "published",
-          "name": "Published: End event",
-          "stage": "results",
-          "next": "Results are out"
-        },
-        {
-          "slug": "ended",
-          "name": "Ended",
-          "stage": "archived",
-          "next": "Ended"
-        },
-        {
-          "slug": "admin-view",
-          "name": "Viewed by platform admin",
-          "stage": "judging",
-          "next": "Read only"
-        },
-        {
-          "slug": "walkthrough",
-          "name": "Guided walkthrough, the next-step step",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "schedule-cue",
-          "name": "Kickoff is now. Open sign-up?",
-          "stage": "draft",
-          "next": "Not open yet"
-        },
-        {
-          "slug": "announce",
-          "name": "Announce"
-        },
-        {
-          "slug": "open",
-          "name": "Open"
-        },
-        {
-          "slug": "publish",
-          "name": "Publish preview and tie order",
-          "stage": "results",
-          "next": "Publish results from Home"
-        }
-      ],
       "next_step_map": [
         {
           "when": "Required actionable todo",
@@ -1736,90 +1636,6 @@
         "remove-track",
         "organiser-assistant",
         "public-submissions"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Basics",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "about",
-          "name": "About, unsaved changes",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "schedule",
-          "name": "Schedule",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "schedule-add",
-          "name": "Add time dialog",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "schedule-empty",
-          "name": "Schedule, empty (Draft)",
-          "stage": "draft",
-          "next": "Not open yet · set up sign-up to continue"
-        },
-        {
-          "slug": "sponsors",
-          "name": "Sponsors",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "sponsor-edit",
-          "name": "Edit sponsor dialog, link error",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "faq",
-          "name": "FAQ",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "look",
-          "name": "Look",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "website",
-          "name": "Website, built-in page showing",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "website-custom",
-          "name": "Website, own website live",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "ended",
-          "name": "Ended, read only",
-          "stage": "ended",
-          "next": "Ended 2 Nov · the public page stays up as a record"
-        },
-        {
-          "slug": "sidebar-collapsed",
-          "name": "Sidebar collapsed (desktop)",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "tracks",
-          "name": "Tracks"
-        }
       ]
     },
     {
@@ -1944,26 +1760,6 @@
         "delete-announcement",
         "email-participants-toggle",
         "organiser-assistant"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Posted list",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "empty",
-          "name": "None yet",
-          "stage": "open",
-          "next": "12 people signed up · building starts Fri 30 Oct"
-        },
-        {
-          "slug": "delete-confirm",
-          "name": "Delete confirm",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        }
       ]
     },
     {
@@ -2117,21 +1913,6 @@
         "view-applicant-details",
         "filter-applications",
         "organiser-assistant"
-      ],
-      "prototype_states": [
-        {
-          "slug": "empty",
-          "name": "Nothing waiting",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "pending",
-          "name": "4 applications pending",
-          "stage": "open",
-          "next": "4 applications waiting on you",
-          "note": "Filter row, three applied and one join-link card with location, age range and gender."
-        }
       ]
     },
     {
@@ -2233,44 +2014,6 @@
         "move-member-to-team",
         "message-team",
         "organiser-assistant"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Teams",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "solo",
-          "name": "Not on a team",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "fill",
-          "name": "Fill teams preview",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "none-solo",
-          "name": "Everyone placed",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "tracks",
-          "name": "Tracks",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "settings",
-          "name": "Settings",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        }
       ],
       "decisions": [
         {
@@ -2501,38 +2244,6 @@
         "view-team-messages",
         "organiser-assistant",
         "team-writes-organisers"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Team detail",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "add",
-          "name": "Add someone",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "locked",
-          "name": "Locked team",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "kept",
-          "name": "Kept after everyone left",
-          "stage": "judging",
-          "next": "Judging"
-        },
-        {
-          "slug": "message",
-          "name": "Message team",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        }
       ]
     },
     {
@@ -2696,26 +2407,6 @@
         "view-storage-usage",
         "organiser-assistant"
       ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Deadline approaching",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        },
-        {
-          "slug": "empty",
-          "name": "Before any entries",
-          "stage": "open",
-          "next": "Teams are still forming"
-        },
-        {
-          "slug": "confirm",
-          "name": "Making Code link required",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        }
-      ],
       "phone": "Single column. Tiles two by two. Each rule row puts the segmented control on its own full-width line under the label, 40px tall."
     },
     {
@@ -2791,20 +2482,6 @@
         "restore-team-site",
         "view-entries-progress",
         "organiser-assistant"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Draft with lines missing",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        },
-        {
-          "slug": "taken-down",
-          "name": "Submitted, site taken down",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        }
       ],
       "decisions": [
         {
@@ -2963,38 +2640,6 @@
         "organiser-judge-access",
         "organiser-assistant"
       ],
-      "prototype_states": [
-        {
-          "slug": "judging",
-          "name": "Judging open",
-          "stage": "judging",
-          "next": "Scoring is open · finish judging from Home"
-        },
-        {
-          "slug": "setup",
-          "name": "Rubric setup, weeks early",
-          "stage": "draft",
-          "next": "Not open yet · 29 days to go"
-        },
-        {
-          "slug": "locked",
-          "name": "Judging locked",
-          "stage": "results",
-          "next": "Locked · publish from Home"
-        },
-        {
-          "slug": "former-judge",
-          "name": "A judge left the event",
-          "stage": "judging",
-          "next": "Scoring is open · finish judging from Home"
-        },
-        {
-          "slug": "panel-untracked",
-          "name": "Panel mode, teams with no track (audit item 2, 2026-11-02)",
-          "stage": "judging",
-          "next": "Scoring is open · finish judging from Home"
-        }
-      ],
       "phone": "Single column, same content, full width."
     },
     {
@@ -3070,20 +2715,6 @@
         "manual-assignment-grid",
         "panel-assignment-grid",
         "organiser-assistant"
-      ],
-      "prototype_states": [
-        {
-          "slug": "manual",
-          "name": "Manual mode",
-          "stage": "closed",
-          "next": "Entries closed · assign judges before judging opens"
-        },
-        {
-          "slug": "panel",
-          "name": "Panel mode",
-          "stage": "closed",
-          "next": "Entries closed · assign judges before judging opens"
-        }
       ]
     },
     {
@@ -3179,20 +2810,6 @@
         "download-teams-csv",
         "export-applicant-fields",
         "organiser-assistant"
-      ],
-      "prototype_states": [
-        {
-          "slug": "published",
-          "name": "Results published",
-          "stage": "results",
-          "next": "Results are live · published 09:40"
-        },
-        {
-          "slug": "not-published",
-          "name": "Locked, not yet published",
-          "stage": "results",
-          "next": "Locked · publish from Home"
-        }
       ],
       "phone": "Single column, same content, full width."
     },
@@ -3422,84 +3039,6 @@
         "acknowledge-checklist-item",
         "organiser-assistant"
       ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Mid-event settings",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "leave-co-organiser",
-          "name": "Co-organiser leaves",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "handover",
-          "name": "Creator hands over and leaves",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "last-organiser",
-          "name": "Only organiser: end and leave",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "last-organiser-delete",
-          "name": "Only organiser: delete and leave",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        },
-        {
-          "slug": "ended",
-          "name": "Ended: leave disabled",
-          "stage": "ended",
-          "next": "This event has ended"
-        },
-        {
-          "slug": "judging",
-          "name": "Judging"
-        },
-        {
-          "slug": "entries",
-          "name": "Entries"
-        },
-        {
-          "slug": "danger",
-          "name": "Danger"
-        },
-        {
-          "slug": "details",
-          "name": "Details"
-        },
-        {
-          "slug": "links",
-          "name": "Links"
-        },
-        {
-          "slug": "notifications",
-          "name": "Notifications"
-        },
-        {
-          "slug": "organisers",
-          "name": "Organisers"
-        },
-        {
-          "slug": "reminders",
-          "name": "Reminders"
-        },
-        {
-          "slug": "results",
-          "name": "Results"
-        },
-        {
-          "slug": "teams",
-          "name": "Teams"
-        }
-      ],
       "phone": "Labelled native Settings section select, one section at a time.",
       "sub_pages": [
         {
@@ -3649,14 +3188,6 @@
       "features": [
         "create-event",
         "check-event-address"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Filling the form",
-          "stage": "draft",
-          "next": null
-        }
       ],
       "decisions": [
         {
@@ -3946,86 +3477,6 @@
         "see-team-deadline-countdown",
         "remind-unsubmitted-team"
       ],
-      "prototype_states": [
-        {
-          "slug": "no-team",
-          "name": "No team yet",
-          "stage": "open",
-          "next": "Teams are forming · join one"
-        },
-        {
-          "slug": "building",
-          "name": "On a team, work not shown yet",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        },
-        {
-          "slug": "submitted",
-          "name": "Entry submitted, still editable",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        },
-        {
-          "slug": "last-hour",
-          "name": "Under an hour left, not submitted",
-          "stage": "building",
-          "next": "Entries close in 42 minutes"
-        },
-        {
-          "slug": "pending",
-          "name": "Approval pending",
-          "stage": "open",
-          "next": "Waiting for an organiser to approve you"
-        },
-        {
-          "slug": "all-set",
-          "name": "Entry done, waiting on judging",
-          "stage": "judging",
-          "next": "Judging is under way"
-        },
-        {
-          "slug": "leave-confirm",
-          "name": "Leave, on a team with others",
-          "stage": "building",
-          "next": "Entries close in 2 days"
-        },
-        {
-          "slug": "leave-lone",
-          "name": "Leave, only member of the team",
-          "stage": "building",
-          "next": "Entries close in 2 days"
-        },
-        {
-          "slug": "leave-frozen",
-          "name": "Leave, frozen after the deadline",
-          "stage": "closed",
-          "next": "Judging starts soon"
-        },
-        {
-          "slug": "withdraw-confirm",
-          "name": "Withdraw a pending application",
-          "stage": "open",
-          "next": "Waiting for an organiser to approve you"
-        },
-        {
-          "slug": "requests",
-          "name": "Team admin with join requests",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "starting-soon",
-          "name": "Building, Demos starts in 12 minutes",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "needs-you",
-          "name": "Something waits on you",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        }
-      ],
       "decisions": [
         {
           "q": "Does Home need its own guided walkthrough?",
@@ -4181,14 +3632,6 @@
         "schedule-fixed-rows",
         "schedule-nudge"
       ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Mid-event",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        }
-      ],
       "decisions": [
         {
           "q": "Do participants see the real deadlines in the schedule? (owner, 2026-11-02)",
@@ -4238,14 +3681,6 @@
       "features": [
         "read-schedule-and-announcements",
         "announcements-unread-badge"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "One announcement",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 18:00 WIB"
-        }
       ],
       "decisions": [],
       "phone": "Single column, same content, full width."
@@ -4687,98 +4122,6 @@
         "view-messages-from-organisers",
         "team-writes-organisers"
       ],
-      "prototype_states": [
-        {
-          "slug": "no-team",
-          "name": "No team: Ask to join",
-          "stage": "open",
-          "next": "Teams are forming"
-        },
-        {
-          "slug": "removed",
-          "name": "Removed from a team",
-          "stage": "open",
-          "next": "Teams are forming"
-        },
-        {
-          "slug": "join-code",
-          "name": "No team: Join with a link or code",
-          "stage": "open",
-          "next": "Teams are forming"
-        },
-        {
-          "slug": "start",
-          "name": "No team: Start a new team",
-          "stage": "open",
-          "next": "Teams are forming"
-        },
-        {
-          "slug": "finding-off",
-          "name": "No team, team finding off",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "closed",
-          "name": "No team, teams closed",
-          "stage": "closed",
-          "next": "Entries closed"
-        },
-        {
-          "slug": "with-team",
-          "name": "On a team, admin: Members",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "member-menu",
-          "name": "Admin: a member's menu",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "member",
-          "name": "On a team, member: Members",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "people",
-          "name": "Find people",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "settings",
-          "name": "Settings, admin",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "settings-member",
-          "name": "Settings, member",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "locked",
-          "name": "Locked team",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "just-filled",
-          "name": "Just joined",
-          "stage": "building",
-          "next": "Entries close in 2 days · Sun 6:00 pm"
-        },
-        {
-          "slug": "frozen",
-          "name": "Entries closed, read-only",
-          "stage": "closed",
-          "next": "Entries closed"
-        }
-      ],
       "sub_pages": [
         {
           "tab": "members",
@@ -5019,38 +4362,6 @@
         "remove-entry-screenshot",
         "view-entry-read-only",
         "view-rubric-participant"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Draft with lines missing",
-          "stage": "building",
-          "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
-        },
-        {
-          "slug": "missing",
-          "name": "Submit refused: what's missing",
-          "stage": "building",
-          "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
-        },
-        {
-          "slug": "submitted",
-          "name": "Submitted, still editable",
-          "stage": "building",
-          "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
-        },
-        {
-          "slug": "conflict",
-          "name": "Teammate edited at the same time",
-          "stage": "building",
-          "next": "Entries close in 1 day 4 h · Sun 18:00 WIB"
-        },
-        {
-          "slug": "closed",
-          "name": "Entries closed, read-only",
-          "stage": "judging",
-          "next": "Judging is under way"
-        }
       ],
       "decisions": [
         {
@@ -5300,26 +4611,6 @@
         "team-site-notifications",
         "download-own-team-archive"
       ],
-      "prototype_states": [
-        {
-          "slug": "published",
-          "name": "Connected in Claude, site published",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        },
-        {
-          "slug": "unpublished",
-          "name": "Not connected, nothing published",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        },
-        {
-          "slug": "connected",
-          "name": "Connected in ChatGPT, waiting for the first publish",
-          "stage": "building",
-          "next": "Entries close in 1 day · Sun 18:00 WIB"
-        }
-      ],
       "phone": "Single column. The strip stacks AI app over Website. App tabs wrap; the prompt box wraps; Copy prompt sits under it."
     },
     {
@@ -5359,14 +4650,6 @@
       "phone": "Same content, your row pinned to the top with a small 'Your team' label regardless of rank.",
       "features": [
         "view-own-team-result"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Results out",
-          "stage": "results",
-          "next": "Results are live"
-        }
       ],
       "decisions": [
         {
@@ -5578,48 +4861,6 @@
         "judging-reminder-email",
         "judge-stage-checklist"
       ],
-      "prototype_states": [
-        {
-          "slug": "open",
-          "name": "Scoring open, mid-way",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        },
-        {
-          "slug": "before-open",
-          "name": "Before judging opens",
-          "stage": "building",
-          "next": "Scoring opens when the organiser starts judging"
-        },
-        {
-          "slug": "locked-partial",
-          "name": "Locked before finishing",
-          "stage": "judging",
-          "next": "Locked · 2 left unscored"
-        },
-        {
-          "slug": "all-done",
-          "name": "All scored, scoring still open",
-          "stage": "judging",
-          "next": "Scoring is open · 6 of 6 done"
-        },
-        {
-          "slug": "walkthrough",
-          "name": "Guided walkthrough, step 3 of 9",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        },
-        {
-          "slug": "leave-confirm",
-          "name": "Leave, scores kept",
-          "stage": "judging",
-          "next": "Scoring is open · 4 of 6 done"
-        },
-        {
-          "slug": "organiser",
-          "name": "Organiser in judge area"
-        }
-      ],
       "phone": "Single column, same content, full width."
     },
     {
@@ -5718,32 +4959,6 @@
         "remove-own-conflict",
         "view-own-conflicts",
         "acknowledge-checklist-item"
-      ],
-      "prototype_states": [
-        {
-          "slug": "mixed",
-          "name": "Some scored, some left",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        },
-        {
-          "slug": "locked",
-          "name": "Locked",
-          "stage": "judging",
-          "next": "Locked · scores can't change"
-        },
-        {
-          "slug": "all-conflicted",
-          "name": "Everything conflicted",
-          "stage": "judging",
-          "next": "Scoring is open · nothing left for you"
-        },
-        {
-          "slug": "remove-conflict",
-          "name": "Undoing 'I know this team'",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        }
       ],
       "decisions": [
         {
@@ -6001,50 +5216,6 @@
         "guard-unscored-on-next",
         "declare-own-conflict",
         "replay-scoring-walkthrough"
-      ],
-      "prototype_states": [
-        {
-          "slug": "scoring",
-          "name": "Card, video and site on one screen",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        },
-        {
-          "slug": "links",
-          "name": "Video elsewhere, site can't be framed",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        },
-        {
-          "slug": "site-first",
-          "name": "Video, website and code link event: website first",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        },
-        {
-          "slug": "unscored",
-          "name": "Save and next with a criterion unscored",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        },
-        {
-          "slug": "last",
-          "name": "Last entry in the queue",
-          "stage": "judging",
-          "next": "Scoring is open · last one"
-        },
-        {
-          "slug": "locked",
-          "name": "Locked, read-only",
-          "stage": "judging",
-          "next": "Locked · scores can't change"
-        },
-        {
-          "slug": "conflict-confirm",
-          "name": "Declaring 'I know this team'",
-          "stage": "judging",
-          "next": "Scoring is open · 3 of 6 done"
-        }
       ]
     },
     {
@@ -6108,14 +5279,6 @@
       "features": [
         "define-rubric",
         "acknowledge-checklist-item"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Rubric saved",
-          "stage": "building",
-          "next": "Scoring opens when the organiser starts judging"
-        }
       ],
       "phone": "Single column, same content, full width."
     },
@@ -6316,14 +5479,6 @@
         "email-when-waiting",
         "connect-ai-app-account"
       ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Default",
-          "stage": null,
-          "next": null
-        }
-      ],
       "phone": "Single column, same content, full width."
     },
     {
@@ -6431,42 +5586,6 @@
         "persistent-event-navigation",
         "role-aware-signin-landing"
       ],
-      "prototype_states": [
-        {
-          "slug": "with-events",
-          "name": "Four events, three roles",
-          "stage": null,
-          "next": null
-        },
-        {
-          "slug": "needs-you",
-          "name": "Something waits on you, across events",
-          "stage": null,
-          "next": null
-        },
-        {
-          "slug": "empty",
-          "name": "Brand-new account",
-          "stage": null,
-          "next": null
-        },
-        {
-          "slug": "row-menu",
-          "name": "Row menu open",
-          "stage": null,
-          "next": null
-        },
-        {
-          "slug": "left",
-          "name": "After leaving an event",
-          "stage": null,
-          "next": null
-        },
-        {
-          "slug": "past",
-          "name": "Past events open"
-        }
-      ],
       "decisions": [
         {
           "q": "Where does Home sit relative to the event switcher?",
@@ -6527,7 +5646,6 @@
       "features": [
         "browse-submissions"
       ],
-      "prototype_states": [],
       "decisions": [
         "Visible from judging, results and ended; no team required."
       ]
@@ -7423,99 +6541,6 @@
         "Draft: keep showing the organiser's full content (it is their only preview, and noindex) with a 'Not open yet' card, or hide everything but the title?",
         "Plain wording for the score method line: what should 'raw' and 'normalised' say to a parent? Proposed: 'Scores are the judges' average' and 'Scores are adjusted so strict and generous judges count the same'.",
         "Should the team and participant counts show during Open? They are reassuring for a big event and off-putting for a new one with 3 sign-ups."
-      ],
-      "prototype_states": [
-        {
-          "slug": "draft",
-          "name": "Not open yet",
-          "stage": "draft",
-          "next": null,
-          "note": "No counts, 'Not open yet' card with Find another hackathon, content below."
-        },
-        {
-          "slug": "gallery",
-          "name": "Building, gallery and voting on",
-          "stage": "building",
-          "next": null,
-          "note": "Deadline with time left, People's choice card with Vote as the main button, Announcements and Schedule with Now/Next, then Team sites grid (compact rows on phone)."
-        },
-        {
-          "slug": "judging",
-          "name": "Judging",
-          "stage": "judging",
-          "next": null,
-          "note": "Stage card 'The judges are scoring every entry', See what teams built, Team sites above Announcements."
-        },
-        {
-          "slug": "results",
-          "name": "Results, winners only",
-          "stage": "results",
-          "next": null,
-          "note": "Winners as result cards: summary card, website and video buttons with the host. Team sites cards add tools tags."
-        },
-        {
-          "slug": "results-full",
-          "name": "Results, full ranking",
-          "stage": "results",
-          "next": null,
-          "note": "Full ranking: winners open as result cards, other teams fold into rows that open to the card."
-        },
-        {
-          "slug": "taken-down",
-          "name": "Taken down",
-          "stage": "taken down",
-          "next": null,
-          "note": "Title, 'This event has been taken down.', the reason, Find another hackathon. No colour, no icon."
-        },
-        {
-          "slug": "open",
-          "name": "Sign-up open",
-          "stage": "open",
-          "next": null,
-          "note": "Base file. Stage card 'Apply to join' with a primary Apply, deadline with 9 days left, prospect order (About, Tracks, Prizes, Schedule, FAQ ...)."
-        },
-        {
-          "slug": "applications-off",
-          "name": "Sign-up open, applications off",
-          "stage": "open",
-          "next": null,
-          "note": "Today's card: 'Join with the link from the organisers', no Apply."
-        },
-        {
-          "slug": "theme-poster",
-          "name": "Page style: Poster",
-          "stage": "building",
-          "next": null,
-          "note": "SIM-353. Same content as 'Building, gallery and voting on'. Bold uppercase headings, hard ink borders and shadows on the hero, cards and buttons, square chips and icon."
-        },
-        {
-          "slug": "theme-confetti",
-          "name": "Page style: Confetti",
-          "stage": "building",
-          "next": null,
-          "note": "SIM-353. Same content as 'Building, gallery and voting on'. Rounded headings, a centred hero with a large icon, a soft dot pattern, pill cards and buttons, the Now schedule row filled, separate rounded FAQ tiles."
-        },
-        {
-          "slug": "theme-boardroom",
-          "name": "Page style: Boardroom",
-          "stage": "building",
-          "next": null,
-          "note": "SIM-353. Same content as 'Building, gallery and voting on'. A white hero with a bottom rule in the event colour, 4px-radius cards, tabular schedule times, sponsors as a bordered 2-column grid."
-        },
-        {
-          "slug": "theme-garden",
-          "name": "Page style: Garden",
-          "stage": "building",
-          "next": null,
-          "note": "SIM-353. Same content as 'Building, gallery and voting on'. Serif headings, a centred hero, soft rounded cards and pill buttons."
-        },
-        {
-          "slug": "theme-terminal",
-          "name": "Page style: Terminal",
-          "stage": "building",
-          "next": null,
-          "note": "SIM-353. Same content as 'Building, gallery and voting on'. Monospace headings, schedule times and chips, a faint grid background, square 2px outlined buttons with a '> ' prefix on primary, '// ' before section labels."
-        }
       ]
     },
     {
@@ -7585,33 +6610,6 @@
       "features": [
         "preview-join-link",
         "join-event"
-      ],
-      "prototype_states": [
-        {
-          "slug": "open",
-          "name": "Not yet applied",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "pending",
-          "name": "Pending approval",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "rejected",
-          "name": "Rejected",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "no-name",
-          "name": "No account name yet",
-          "stage": "open",
-          "next": null,
-          "note": "The signed-in account has no name yet, so the form asks for one (saved as the account's name) instead of showing a 'You'll appear as' line."
-        }
       ],
       "decisions": [
         {
@@ -7757,53 +6755,6 @@
         "apply-to-event",
         "password-accounts"
       ],
-      "prototype_states": [
-        {
-          "slug": "signed-out",
-          "name": "Signed out",
-          "stage": "open",
-          "next": null,
-          "note": "Base file. What you'll be asked, Sign in to apply."
-        },
-        {
-          "slug": "form",
-          "name": "Form",
-          "stage": "open",
-          "next": null,
-          "note": "Signed in. Under 18 picked, so the guardian note shows."
-        },
-        {
-          "slug": "sent",
-          "name": "Sent, waiting",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "rejected",
-          "name": "Not accepted",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "closed",
-          "name": "Applications off",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "password",
-          "name": "Password sign-in on own install",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "no-name",
-          "name": "Form, no account name yet",
-          "stage": "open",
-          "next": null,
-          "note": "Same as Form, but the account has no name yet: a required Your name input replaces the 'You'll appear as' line."
-        }
-      ],
       "phone": "Single column, 16px gutter. City and Country stack. Age range is a 2x2 grid of radio cards, each at least 44px tall. Send application is full width. The privacy line sits directly above it so it is read at the moment of sending.",
       "decisions": [
         {
@@ -7906,21 +6857,6 @@
         "preview-judge-link",
         "join-as-judge"
       ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Before accepting",
-          "stage": "open",
-          "next": null
-        },
-        {
-          "slug": "no-name",
-          "name": "Before accepting, no account name yet",
-          "stage": "open",
-          "next": null,
-          "note": "The signed-in account has no name yet, so Accept invitation asks for one instead of showing a 'You'll appear as' line."
-        }
-      ],
       "decisions": [
         {
           "q": "Does accepting a judge invite ask for a name every time?",
@@ -7982,21 +6918,6 @@
       "features": [
         "preview-organiser-invite",
         "accept-organiser-invite"
-      ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Before accepting",
-          "stage": "building",
-          "next": null
-        },
-        {
-          "slug": "no-name",
-          "name": "Before accepting, no account name yet",
-          "stage": "building",
-          "next": null,
-          "note": "The signed-in account has no name yet, so Accept invitation asks for one instead of showing a 'You'll appear as' line."
-        }
       ],
       "decisions": [
         {
@@ -8061,26 +6982,6 @@
         "cast-or-change-vote",
         "view-final-vote-ranking",
         "view-own-vote"
-      ],
-      "prototype_states": [
-        {
-          "slug": "open-signed-in",
-          "name": "Open, signed in",
-          "stage": "judging",
-          "next": null
-        },
-        {
-          "slug": "open-signed-out",
-          "name": "Open, signed out",
-          "stage": "judging",
-          "next": null
-        },
-        {
-          "slug": "closed",
-          "name": "Voting closed",
-          "stage": "results",
-          "next": null
-        }
       ],
       "decisions": [],
       "phone": "Single column, same content, full width."
@@ -8166,15 +7067,6 @@
         "browse-public-directory",
         "apply-to-event"
       ],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Default",
-          "stage": null,
-          "next": null,
-          "note": "Two happening-now rows, one with Apply; an upcoming row with Apply; Past without."
-        }
-      ],
       "phone": "Single column, same content, full width."
     },
     {
@@ -8206,14 +7098,6 @@
       "states": [],
       "fixes": [],
       "features": [],
-      "prototype_states": [
-        {
-          "slug": "default",
-          "name": "Default",
-          "stage": null,
-          "next": null
-        }
-      ],
       "decisions": [],
       "phone": "Single column, same content, full width."
     },
@@ -8306,44 +7190,6 @@
       ],
       "features": [
         "team-join-link"
-      ],
-      "prototype_states": [
-        {
-          "slug": "ready",
-          "name": "Ready to join",
-          "stage": "building",
-          "next": null
-        },
-        {
-          "slug": "signed-out",
-          "name": "Signed out",
-          "stage": "building",
-          "next": null
-        },
-        {
-          "slug": "other-team",
-          "name": "On another team",
-          "stage": "building",
-          "next": null
-        },
-        {
-          "slug": "locked",
-          "name": "Team locked",
-          "stage": "building",
-          "next": null
-        },
-        {
-          "slug": "not-in-event",
-          "name": "Not in the event",
-          "stage": "building",
-          "next": null
-        },
-        {
-          "slug": "invalid",
-          "name": "Link doesn't work",
-          "stage": "building",
-          "next": null
-        }
       ],
       "decisions": [
         {

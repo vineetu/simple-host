@@ -201,8 +201,8 @@ Never report branch work as fixed; only what a client can see is shipped.
   default (`theme_test.go` fails on them). INTENT 2026-09-28. The one exception is the Simple
   Hack landings (`hack-home.html` and `hack-companies.html`), which stay light through CSS alone (INTENT 2026-10-09, 2026-10-13 and 2026-10-16).
 - **Simple Hack UI changes start in the UX atlas** (`docs/ux-atlas/`, see its README). A new
-  hack feature gets a row in `features.json` and a home on a screen in `spec.json` and the
-  prototype before the real page is built; the atlas is published after each change.
+  hack feature gets a row in `features.json` and a home on a screen in `spec.json` before the
+  screen is built in `web/hack` (see its README); the atlas pictures are the catalogue's.
 - One `http.ServeMux`, no router library. New endpoint = a `mux.Handle` line in a handler's
   `Register` (grep `mux.Handle` to find any route).
 - `site_view_daily` and `site_visitor_daily` are never written and must never be dropped.

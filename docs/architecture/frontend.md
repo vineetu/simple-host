@@ -78,10 +78,9 @@ Go owners name the registration or rendering function.
 | Hack `/` | `hack-home.html` on every install (the film and the hosted-only links sit in `<!--sh:hosted-->` blocks) | `pages/hack_home.go:RegisterHackHome` |
 | Hack `/directory`, `/get-started` | `hack-directory.html`, `hack-get-started.html` | `RegisterHackHome`, `hack_get_started.go:RegisterHackGetStarted` |
 | Hack public event | `hack-event.html`, rendered with event data | `public/hack_eventpage.go:assembleHackEventPage`; `public/hack_public.go:RegisterHackPublic` |
-| Hack `/signin`, `/events`, `/events/new`, `/account` | `hack/app.html` → `hack/app.js` → sign-in, `landing-your-events`, `organiser-create-event`, `account` | `pages/hack_ui.go:RegisterHackUI` |
-| Hack `/e/{slug}/manage`, `/team`, `/judge` | Same shell; `?s=` selects role screens | `RegisterHackUI`; `hack/nav.js:resolveRoute` |
-| Hack `/join/{code}`, `/judge/{code}`, `/organiser/{code}`, `/team/{code}`, `/e/{slug}/apply` | Same shell; standalone `public-*` modules | `RegisterHackUI`; `hack/nav.js:resolveRoute` |
-| Hack `/e/{slug}/vote` (and `/voting-settings`, which redirects to the app's Results section) | `hack-voting.html`, separate from the module app | `RegisterHackUI` |
+| Hack `/signin`, `/events`, `/events/new`, `/account` | The web app (`web/hack`, embedded from `products/hack/web/dist`): its `index.html` | `pages/hack_ui.go:RegisterHackUI` |
+| Hack `/e/{slug}/manage`, `/team`, `/judge` | Same page; `?s=` selects role screens | `RegisterHackUI`; `web/hack/src/routes/resolve.ts` |
+| Hack `/join/{code}`, `/judge/{code}`, `/organiser/{code}`, `/team/{code}`, `/e/{slug}/apply`, `/e/{slug}/vote` | Same page; standalone public screens (`/voting-settings` redirects to the app's Results section) | `RegisterHackUI`; `resolve.ts` |
 
 Public shells do not establish API authority. For example, `/admin` paints
 its data only after the gated admin API answers (`ui.go:RegisterUIRoutes`).
@@ -97,13 +96,13 @@ assembly near `values.yaml`). See [advanced settings](../advanced/README.md).
 
 Shared page chrome uses `site.css` tokens and the shared theme switch;
 `host/handler/theme_test.go` guards the conventions in CLAUDE.md.
-The Hack module app uses its own light kit.
+The Hack web app uses the shared kit with Hack's own tokens, light only.
 
 | Presentation asset | Serving relationship |
 |---|---|
 | `static/film/` | `handler/film.go:serveFilm` serves embedded video/poster files at `/film/{file}`, with Range support and ETags; registered by `ui.go:RegisterUIRoutes` |
 | `static/film/` (Hack) | `products/hack/pages/hack_film.go:RegisterHackFilm` serves Hack's film files from its own embed at one exact `/film/<file>` route each, with the same type, caching, ETag and Range answers |
-| `host-ink.css` / `hack-ink.css` | `chrome.go:addHostInk` supplies Host's local-font presentation; `addHackInk` supplies Hack's separate ink styling, never loaded by Host |
+| `host-ink.css` | `chrome.go:addHostInk` supplies Host's local-font presentation |
 | `host-status.css` | `chrome.go:hostedStatusPage` embeds the stylesheet and its data font in bare Host status pages; `passcode.go:hostPasscodeGateCSP` permits its style hash and `font-src data:` |
 | First-boot setup styles/fonts | `setup.go:SetupHandler.Register` explicitly serves `/host-ink.css` and `/fonts/{file...}` alongside the setup page |
 
@@ -126,108 +125,35 @@ expectations before using it to verify the current page.
 
 ## Hack screen conventions
 
-`hack/app.html` loads `hack/app.js` as a module. `hack/nav.js:resolveRoute`
-selects a screen ID, role, event slug and section. The app dynamically imports
-`screens/<id>.js`, then calls optional `title(ctx)` and `render(ctx)`.
-`hack/shell.js:mount` supplies the sidebar, event switcher and main container.
-
-| Browser route | Main modules |
-|---|---|
-| `/events` | `landing-your-events.js` |
-| `/events/new` | `organiser-create-event.js` |
-| `/e/{slug}/manage?s=overview\|people\|teams\|entries\|judging\|results\|settings\|event-page\|announcements` | Matching `organiser-*.js` |
-| Manage detail sections `team`, `entry`, `assignments` | `organiser-team-detail.js`, `organiser-entry-detail.js`, `organiser-judging-assignments.js` |
-| `/e/{slug}/team?s=home\|schedule\|announcements\|team\|entry\|website\|results` | Matching `participant-*.js` |
-| `/e/{slug}/judge?s=home\|queue\|rubric\|scoring` | Matching `judge-*.js` |
-| Invite/application links | `public-join.js`, `public-judge.js`, `public-organiser-invite.js`, `public-team-link.js`, `public-apply.js` |
-
-The area in the URL selects the navigation role when the membership has its required
-`can` ability. An organiser can also enter the judge area; event.role stays the membership role. Unknown sections fall back to the role's first section. Keep these
-rules in `nav.js:resolveRoute` and `app.js:route`, not in copied screen routers.
-
-A browser `ctx` contains `main`, `api`, `ui`, `me`, `events`, `event`, `role`,
-`params`, `go`, `refresh` and `alive`. `app.js:route` increments a generation
-on navigation; `ctx.alive()` compares against that generation. After an
-asynchronous read, check lifetime before painting or modifying shared caches.
-This suppresses stale results; it does not cancel the underlying fetch.
-`api.js:api` has no route-wide AbortSignal.
-
-The initial `/v1/me` and `/v1/hack/events` promise is cached for the browser
-session. `ctx.refresh()` clears it and routes again; `api.js:onEventsChanged`
-also invalidates it after membership and stage changes. Window focus refreshes the list and screen.
-The event itself is fetched again on event-backed navigation
-(`app.js:route`, `api.js:MEMBERSHIP_MUTATIONS`).
-
-Screens can own narrower caches. Event page tabs preserve drafts locally,
-but a fresh entry to the screen reloads content and website data. Its
-`cacheStale(ctx, ev)` checks both generation and slug before writing a cache
-following an await (`screens/organiser-event-page.js:cacheStale`). Do not
-turn that cache into a second authority for current server state.
-
-Use `ctx.go`/`nav.js:href` for app navigation and `ctx.refresh` after mutations
-that need fresh shell data. `app.js:go` performs a full navigation to sign-in;
-entering the judge route from a narrower CSP reloads the document so the
-server can allow video/team-site frames (`hack_ui.go:hackAppCSP`).
-
-Shared helpers are ordinary source modules:
-
-- `hack/api.js`: JSON/byte requests, sign-out, membership invalidation and
-  authenticated downloads. A 401 calls the shared signed-out handler.
-- `hack/ui.js`: escaping, link validation, date/stage formatting, errors,
-  dialogs, toasts and the unsaved-edit guard.
-- `hack/schedule.js`, `needs.js`, `leave.js`: shared schedule, next-action
-  and leave flows; `_orgA-util.js`, `_orgB-util.js`, `_judge-util.js` and
-  other screen utilities hold role-specific helpers.
-- `screens/judge-scoring.js`: owns an AbortController for its keyboard
-  listener, aborting the previous binding and checking its root is connected.
-  That controller is not a global screen/fetch lifecycle manager.
-
-`ui.js:confirmDiscardForLeave` is also called on browser Back/Forward;
-`app.js:route` ends any tour before mounting a new screen. Preserve these
-behaviours when introducing another navigation path.
-
-## Sign-in is part of the module app
-
-The classic `static/hack-app.html` is gone. Hack `/signin` is implemented
-by `hack/app.js:routeSignIn`, using `hack/app.html` and `window.SHSignIn`.
-`hack_ui.go:RegisterHackUI` requests the sign-in script only for `/signin`;
-`handler/chrome.go` supplies the shared sign-in widget through its pipeline.
-The other app routes do not need that widget loaded.
-
-The app validates same-origin return paths, retains invite destinations,
-and consumes email/OAuth browser nonces before completing sign-in.
-`hack_home.go:RegisterHackHome` forwards old landing-page email returns to
-`/signin`. Host sign-in continues to use `index.html`; deleting the classic
-Hack shell did not remove the shared sign-in component.
+The signed-in and link pages are one React app in `web/hack` on the shared
+kit (`web/kit`); `web/hack/README.md` is how a screen is written, registered,
+put in the catalogue and checked. The server answers every app route with
+the app's `index.html` and serves its hashed files at `/hack/app/`
+(`pages/hack_ui.go`). Pages the server writes (home, `/directory`, the public
+event page, marketing) are reached with a full page load.
 
 ## Browser and MCP App platforms
 
-`products/hack/mcp/apps/entry/{judge,organiser}.js` import selected real screens.
+`products/hack/mcp/apps/entry/{judge,organiser}.js` import selected screens of
+the old website, kept for these frames in `products/hack/mcp/apps/legacy`
+(the website itself now runs on `web/hack`).
 `hack-judge-view.js` and `hack-organiser-view.js` construct their contexts and
 map screen API calls to tools through the MCP bridge. These are embedded
 frames, not deployments of the full browser app. Resource assembly lives in
 `products/hack/mcp/hack_apps.go:readHackApp`; the tool server's own screens
 are in `host/mcp/apps.go`.
 
-`apps/bundlegen/bundle.go:framePlugin` substitutes exactly three modules:
-`hack/nav.js`, `hack/tour.js` and `hack/platform.js`. Other screen imports
-are bundled normally. There are no generation-time text patches to screens.
-
-| Concern | Browser source | MCP frame source |
-|---|---|---|
-| Navigation / hrefs | `hack/nav.js`, app history/location | `apps/frame/{judge,organiser}-nav.js`, frame router |
-| Scoring URL update | `platform.js:replaceUrl`, history | Best-effort history update in isolated frame |
-| Judge invite code / accepted state | Read `/judge/{code}`, navigate to judge page | `window.__hackJudgeCode`, `window.__hackJudgeJoined` |
-| Form action binding | `platform.js:onSubmit`, native submit listener | `apps/frame/platform.js:onSubmit`, button click; sandbox lacks allow-forms |
-| Open Sign-up section | Real URL hash | Frame's transient `__hackOrgSignupOpen` flag |
-| Guided tours | `hack/tour.js` | No-op `apps/frame/tour.js` |
+`apps/bundlegen/bundle.go:framePlugin` resolves the legacy screens' three
+`./nav.js`, `./tour.js` and `./platform.js` imports to `apps/frame/`
+(`{judge,organiser}-nav.js`, a no-op `tour.js`, and `platform.js`, whose
+`onSubmit` binds a button click because the sandbox lacks allow-forms). Other
+imports are bundled normally; `go generate ./products/hack/mcp/...` rebuilds
+the bundles.
 
 The organiser frame supplies `alive` and `refresh` using its own render
 generation (`hack-organiser-view.js:ctxFor`). The judge frame has a narrower
 context, including `noFrames: true`; its current `ctxFor` does not supply
-`alive`/`refresh`. Its bundled queue/scoring/rubric/invite screens use that
-context, while browser-only `judge-home.js` uses `ctx.alive()`. Do not assume
-that every browser screen can be added to either frame unchanged.
+`alive`/`refresh`.
 
 ## Reproducible generated files
 
@@ -262,18 +188,15 @@ Both `/openapi.json` and `/openapi.yaml` retain their existing JSON responses
 rewriting/filtering happens on served bytes, not by editing generated files
 per instance.
 
-## UX atlas: design, prototype and runtime
+## UX atlas: design and pictures
 
 [The atlas README](../ux-atlas/README.md) defines the design workflow:
-change `features.json`, place features on screens in `spec.json`, update
-prototype views and `changelog.json`, then implement the real screens.
-`hack/kit.css` is the stylesheet source copied into the prototype.
-
-`python3 docs/ux-atlas/build.py --check` is offline and read-only. It checks
-feature anchors, screen coverage, prototype existence and committed
-`prototype/nav.js`/`prototype/files.json` freshness. A normal
-`python3 docs/ux-atlas/build.py` regenerates those files, copies the kit and
-builds `dist/`; `--publish` additionally publishes the atlas.
+change `features.json`, place features on screens in `spec.json`, add a line
+to `changelog.json`, then build the screen in `web/hack` with its catalogue
+states. `python3 docs/ux-atlas/build.py` regenerates `catalogue.json` (every
+screen and state, grouped by role) from the catalogue and builds `dist/` with
+each state's 390 and 1280 picture; `--check` is offline and read-only;
+`--publish` additionally publishes the atlas.
 
 The atlas specifies intended UX and supplies examples. It is not loaded by
 the running app, and its sample state is not server policy. Runtime truth is
@@ -284,7 +207,7 @@ The reviewed Hack skill source is `products/hack/webassets/hack-toolkit/skills`.
 The GitHub install address on `/get-started` points at its parent folder; there is no
 second copy.
 
-The shared destination map lives in `products/hack/rules/hackevents/navigation.json`. Run `python3 scripts/build-hack-navigation.py` for `hack/navigation-data.js`; docs-sync checks it. Atlas build.py projects the same role navigation. Settings editors live in focused `_settings-*` modules, Tracks in `_event-tracks.js`; activity screens retain operations and exports.
+The shared destination map lives in `products/hack/rules/hackevents/navigation.json`. Run `python3 scripts/build-hack-navigation.py` for the web app's `web/hack/src/navigation.gen.ts` and the MCP Apps' `legacy/navigation-data.js`; it also holds each help record's labels (`navigation-help.json`) to the app files that show them, and `make hack-web-check` runs it with `--check`.
 
 ## Reference composition
 
