@@ -4,6 +4,8 @@
   { "url": "/events/new", "id": "organiser-create-event" },
   { "url": "/account", "id": "account" },
   { "url": "/signin", "id": "signin" },
+  { "url": "/directory", "id": "public-directory" },
+  { "url": "/e/hack-night/vote", "id": "public-vote" },
   { "url": "/join/abc", "id": "public-join" },
   { "url": "/judge/abc", "id": "public-judge" },
   { "url": "/organiser/abc", "id": "public-organiser-invite" },

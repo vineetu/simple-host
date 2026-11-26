@@ -1,11 +1,13 @@
 {
  "live": [
+  "account",
   "judge-home",
   "judge-queue",
   "judge-rubric",
   "judge-scoring",
   "landing-your-events",
   "organiser-announcements",
+  "organiser-create-event",
   "organiser-entries",
   "organiser-entry-detail",
   "organiser-event-page",
@@ -17,9 +19,20 @@
   "organiser-settings",
   "organiser-team-detail",
   "organiser-teams",
+  "participant-announcements",
   "participant-entry",
+  "participant-home",
+  "participant-results",
+  "participant-schedule",
   "participant-submissions",
   "participant-team",
-  "participant-website"
+  "participant-website",
+  "public-apply",
+  "public-join",
+  "public-judge",
+  "public-organiser-invite",
+  "public-team-link",
+  "public-vote",
+  "signin"
  ]
 }

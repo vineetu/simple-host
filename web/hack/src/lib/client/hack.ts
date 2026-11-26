@@ -40,3 +40,45 @@ export const preferences = (call: Call) => call<Untyped>("GET", "/v1/hack/prefer
 export const setPreferences = (call: Call, body: Untyped) => call<Untyped>("PATCH", "/v1/hack/preferences", body);
 export const directory = (call: Call) => call<Untyped>("GET", "/v1/hack/directory");
 export const myTeams = (call: Call) => call<Untyped>("GET", "/v1/hack/my-teams");
+
+/** One public event in GET /v1/hack/directory (now, upcoming, past). */
+export type DirectoryRow = {
+  slug?: string;
+  title: string;
+  url: string;
+  tagline?: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  time_zone?: string;
+  color?: string;
+  icon_url?: string;
+  applications_open?: boolean;
+  apply_url?: string;
+};
+export type Directory = { now?: DirectoryRow[]; upcoming?: DirectoryRow[]; past?: DirectoryRow[] };
+export const directoryGroups = (call: Call) => call<Directory>("GET", "/v1/hack/directory");
+
+// Account and Create event (screens/account).
+/** GET/PATCH /v1/hack/preferences: the "email me when something waits on me" switch. */
+export type Preferences = { email_updates?: boolean; email_possible?: boolean } & Untyped;
+export const emailPreferences = (call: Call) => call<Preferences>("GET", "/v1/hack/preferences");
+export const setEmailUpdates = (call: Call, on: boolean) => call<Preferences>("PATCH", "/v1/hack/preferences", { email_updates: on });
+/** GET /v1/hack/names/{slug}: whether an event address is free. */
+export const nameFree = (call: Call, slug: string) => call<{ available?: boolean; code?: string; error?: string }>("GET", "/v1/hack/names/" + seg(slug));
+export type CreateEvent = {
+  slug: string;
+  title: string;
+  organiser_name: string;
+  organisation: string;
+  contact_email: string;
+  purpose: string;
+  expected_participants: number;
+  starts_at: string;
+  ends_at?: string;
+  time_zone: string;
+};
+export const createEvent = (call: Call, body: CreateEvent) => call<{ event?: { slug?: string } }>("POST", "/v1/hack/events", body);
+/** The per-app connect steps (a static file shared with /get-started; read like a call so the catalogue can answer it). */
+export type ConnectStep = { html: string; after?: string; address?: boolean; command?: string; copy?: { id: string; value: string; label: string } };
+export type ConnectApp = { id: string; label: string; tab?: boolean; connect?: ConnectStep[]; connect_hosted?: ConnectStep[]; fallback?: string };
+export const connectSteps = (call: Call) => call<{ apps?: ConnectApp[]; mcp_path?: string }>("GET", "/hack-connect-steps.json");

@@ -60,6 +60,7 @@ var (
 	invitePath = regexp.MustCompile(`^/(join|judge|organiser|team)/[^/]+$`)
 	applyPath  = regexp.MustCompile(`^/e/[^/]+/apply$`)
 	areaPath   = regexp.MustCompile(`^/e/[^/]+/(manage|team|judge)$`)
+	votePath   = regexp.MustCompile(`^/e/[^/]+/vote$`)
 )
 
 var (
@@ -87,7 +88,11 @@ func ScreenFor(u *url.URL) string {
 	path := strings.TrimRight(u.Path, "/")
 	switch {
 	case path == "/signin":
-		return "signin" // the old app's own sign-in page, never a rebuilt screen
+		return "signin"
+	case path == "/directory":
+		return "public-directory"
+	case votePath.MatchString(path):
+		return "public-vote"
 	case path == "/events/new":
 		return "organiser-create-event"
 	case path == "/account":
@@ -116,6 +121,18 @@ func ScreenFor(u *url.URL) string {
 		return alias
 	}
 	return id
+}
+
+// switchable serves the new app for screen id when it is live, else old (a
+// page outside the old app, such as the people's choice vote page).
+func switchable(id string, app, old http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if set, _ := live(); set[id] {
+			app.ServeHTTP(w, r)
+			return
+		}
+		old.ServeHTTP(w, r)
+	})
 }
 
 // appPage is the page to serve for an app address: the new app's index.html

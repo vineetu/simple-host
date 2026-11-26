@@ -27,7 +27,7 @@ func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 		}
 		// The sign-in script tag is only injected on /signin: every other route
 		// mounts the app without it, since nothing there needs window.SHSignIn.
-		// (/signin is always the old app's.)
+		// (The new app draws its own sign-in card, so it never needs it.)
 		body, err = assets.RenderAppShell(r, body, r.URL.Path == "/signin" && !isNew)
 		if err != nil {
 			http.Error(w, "Could not load app", http.StatusInternalServerError)
@@ -37,7 +37,8 @@ func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 		w.Write(httpx.StampNonce(r, body))
 	})
 	page := assets.AdminUICSP(announcementImages(app))
-	mux.Handle("GET /e/{slug}/vote", assets.AdminUICSP(assets.ServeStaticPage("hack-voting.html")))
+	// People's choice: the new app's public-vote once live, the scripted static page until then.
+	mux.Handle("GET /e/{slug}/vote", switchable("public-vote", page, assets.AdminUICSP(assets.ServeStaticPage("hack-voting.html"))))
 	// The old voting settings page lives on in the Results section; an old bookmark lands there.
 	mux.HandleFunc("GET /e/{slug}/voting-settings", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/e/"+url.PathEscape(r.PathValue("slug"))+"/manage?s=results", http.StatusFound)

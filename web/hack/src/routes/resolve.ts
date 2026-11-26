@@ -25,7 +25,10 @@ export function sections(role: Role): string[] {
 
 export function resolveScreen(pathname: string, search = ""): Match {
   const path = pathname.replace(/\/+$/, "");
-  if (path === "/signin") return { id: "signin" }; // the old app's sign-in page
+  if (path === "/signin") return { id: "signin" };
+  if (path === "/directory") return { id: "public-directory" };
+  const vote = path.match(/^\/e\/([^/]+)\/vote$/);
+  if (vote) return { id: "public-vote", slug: decodeURIComponent(vote[1]) };
   if (path === "/events/new") return { id: "organiser-create-event" };
   if (path === "/account") return { id: "account" };
   const invite = path.match(/^\/(join|judge|organiser|team)\/([^/]+)$/);

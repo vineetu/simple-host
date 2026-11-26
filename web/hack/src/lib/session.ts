@@ -1,8 +1,8 @@
 // Signing in, exactly as the old app does it (products/hack/webassets/static/hack/app.js):
 // the account's API key lives in this browser's localStorage ("apiKey") and goes
 // out as X-API-Key; POST /v1/sso/session binds the browser's SSO cookie to it so
-// team and event sites sign the person in too. The sign-in screen itself is
-// still the old app's (/signin); this app sends people there and back with ?next.
+// team and event sites sign the person in too. Sign-in is its own screen
+// (/signin, screens/public/SignIn.tsx); this app sends people there and back with ?next.
 
 const KEY = "apiKey";
 const NEXT_KEY = "sh-hack-next";

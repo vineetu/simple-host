@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { expect as baseExpect, test, type BrowserContext, type Page } from "@playwright/test";
 import { axe, layout } from "../../kit/tests/checks";
 
-test.describe.configure({ mode: "serial" });
+test.describe.configure({ mode: "serial", timeout: 600_000 });
 // The box running this may be busy: give each screen longer than the default 5 s to appear.
 const expect = baseExpect.configure({ timeout: 30_000 });
 
@@ -194,14 +194,24 @@ for (const width of [390, 1280]) {
     await expect(page.getByText("Your team")).toBeVisible();
     await check(page, "submissions", width);
 
-    // A screen not rebuilt yet is the old app's: a full page load, which the server answers with app.html.
-    await page.goto(APP + `/e/${SLUG}/team?s=schedule`);
-    await expect(page.locator('script[src="/hack/app.js"]')).toHaveCount(1);
-    await expect(page.locator("main h1")).toBeVisible();
+    // Every app address is the new app now: the server answers index.html, never the old app.html.
+    // The only addresses left to the old pages are the server-written ones: /directory (kept
+    // as its own indexed page on purpose), the home page and the public event page.
+    const areas: Record<string, string[]> = {
+      manage: ["overview", "event-page", "announcements", "people", "teams", "team", "entries", "entry", "judging", "assignments", "results", "settings"],
+      team: ["home", "schedule", "announcements", "team", "entry", "website", "results", "submissions"],
+      judge: ["home", "queue", "scoring", "rubric"],
+    };
+    const addresses = ["/events", "/events/new", "/account", "/signin", `/e/${SLUG}/apply`, `/e/${SLUG}/vote`, "/join/x", "/judge/x", "/organiser/x", "/team/x"];
+    for (const [area, ss] of Object.entries(areas)) for (const s of ss) addresses.push(`/e/${SLUG}/${area}?s=${s}`);
+    for (const a of addresses) {
+      const html = await (await page.request.get(APP + a)).text();
+      expect(html, a).toContain('<div id="root">');
+      expect(html, a).not.toContain('src="/hack/app.js"');
+    }
+    const directory = await (await page.request.get(APP + "/directory")).text();
+    expect(directory).not.toContain('<div id="root">');
 
-    // From the old app, Submissions is reached through the server again: the new app.
-    await page.goto(APP + `/e/${SLUG}/team?s=submissions`);
-    await expect(page.locator("#root")).toHaveCount(1);
     expect(errors).toEqual([]);
     await ctx.close();
   });
@@ -518,3 +528,83 @@ for (const width of [390, 1280]) {
   });
 }
 
+
+
+for (const width of [390, 1280]) {
+  test(`sign in with a password, back to where the person was going @${width}`, async ({ browser }) => {
+    const { ctx, page, errors } = await person(browser, "", width);
+    // Signed out on an event screen: sent to the new sign-in page with next.
+    await page.goto(APP + `/e/${SLUG}/team?s=submissions`);
+    await page.waitForURL(/\/signin\?next=/);
+    await expect(page.locator("#root")).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "Sign in", level: 1 })).toBeVisible();
+    await check(page, "signin", width);
+
+    // A wrong password is said in plain words, and nothing is stored.
+    await page.getByLabel("Email or username").fill("siti");
+    await page.getByLabel("Password", { exact: true }).fill("not-the-password");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.getByText("Wrong username or password.")).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("apiKey"))).toBeNull();
+
+    // The right one: the key is kept in this browser, the SSO cookie is set, and the page goes on to next.
+    await page.getByLabel("Password", { exact: true }).fill("correct-horse-siti");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.waitForURL(new RegExp(`/e/${SLUG}/team\\?s=submissions$`));
+    await expect(page.getByRole("heading", { name: "Submissions", level: 1 })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("apiKey"))).toMatch(/.{20,}/);
+    const cookies = await ctx.cookies(APP);
+    expect(cookies.some((c) => c.name.includes("sso")), "SSO cookie set: " + cookies.map((c) => c.name).join(",")).toBe(true);
+
+    // Signed in already: /signin goes straight on, to Siti's one current event.
+    await page.goto(APP + "/signin");
+    await page.waitForURL(new RegExp(`/e/${SLUG}/team`));
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+}
+
+test("joining from a link, then the participant's Schedule and Account with the leave guard", async ({ browser }) => {
+  // A fresh event that is open for sign-up, and a new person with no name yet.
+  await ok("POST", "/v1/hack/events", { slug: "join-night", title: "Join Night", organiser_name: "Orga", contact_email: "orga@example.com", purpose: "Testing", time_zone: "UTC", expected_participants: 20, starts_at: "2027-02-10", ends_at: "2027-02-11" }, keys.orga);
+  await ok("POST", "/v1/hack/events/join-night/stage", { stage: "open" }, keys.orga);
+  const ev = await ok("GET", "/v1/hack/events/join-night", undefined, keys.orga);
+  const code = String((ev.organiser as Record<string, unknown>).join_url).split("/").pop()!;
+  await signUp("joiner");
+  const { ctx, page, errors } = await person(browser, "joiner", 390);
+
+  await page.goto(APP + "/join/" + code);
+  await expect(page.locator("#root")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: /Join Night/, level: 1 })).toBeVisible();
+  await check(page, "join", 390);
+  await page.getByRole("button", { name: "Join event" }).click();
+  await expect(page.getByText("Enter your name.").first()).toBeVisible();
+  await page.getByLabel("Your name").fill("Joni");
+  await page.getByRole("checkbox", { name: "I agree to the code of conduct" }).check();
+  await page.getByRole("button", { name: "Join event" }).click();
+  await page.waitForURL(/\/e\/join-night\/team/);
+  expect((await call("GET", "/v1/hack/events/join-night", undefined, keys.joiner)).status).toBe(200);
+
+  // The participant's Schedule is the new app.
+  await page.goto(APP + "/e/join-night/team?s=schedule");
+  await expect(page.locator("#root")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Schedule", level: 1 })).toBeVisible();
+  await check(page, "schedule", 390);
+
+  // Account: the name is the one given when joining; an unsaved edit asks before leaving.
+  await page.goto(APP + "/account");
+  await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeVisible();
+  await expect(page.locator("#acct-name")).toHaveValue("Joni");
+  await check(page, "account", 390);
+  await page.locator("#acct-name").fill("Joni Mitchell");
+  await page.getByRole("link", { name: "Your events" }).first().click();
+  await expect(page.getByRole("dialog", { name: "Leave without saving?" })).toBeVisible();
+  await page.getByRole("button", { name: "Stay" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved").first()).toBeVisible();
+  expect((await call("GET", "/v1/me", undefined, keys.joiner)).body.display_name).toBe("Joni Mitchell");
+  await page.getByRole("link", { name: "Your events" }).first().click();
+  await expect(page.getByRole("heading", { name: "Your events", level: 1 })).toBeVisible();
+  expect(errors).toEqual([]);
+  await ctx.close();
+});
