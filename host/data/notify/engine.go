@@ -102,7 +102,7 @@ func (e *Engine) releaseOwner(owner string) {
 	}
 }
 
-// signal wakes one delivery worker.
+// signal wakes one delivery worker (a no-op when every worker already has a wake waiting).
 func (e *Engine) signal() {
 	select {
 	case e.wake <- struct{}{}:
@@ -168,27 +168,43 @@ func (e *Engine) Start(ctx context.Context, env func() Env) {
 			return
 		case <-ctx.Done():
 		}
-		for i := 0; i < e.limits.NotifyWorkers; i++ {
-			e.runner.Go(ctx, func(ctx context.Context) { e.deliverLoop(ctx, env) })
-		}
+		e.runDelivery(ctx, e.limits.NotifyWorkers, time.Second, func(ctx context.Context) bool { return e.Deliver(ctx, env()) })
 		e.runner.Go(ctx, func(ctx context.Context) { e.sweepLoop(ctx, env) })
 	})
 }
 
-// deliverLoop drains the queue each second and whenever an event arrives.
-func (e *Engine) deliverLoop(ctx context.Context, env func() Env) {
-	tick := time.NewTicker(time.Second)
-	defer tick.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.C:
-		case <-e.wake:
-		}
-		for ctx.Err() == nil && e.Deliver(ctx, env()) {
-		}
+// runDelivery runs n delivery workers, each draining the queue when woken,
+// and one ticker that wakes one worker every tick so retries that come due
+// are sent. A new event wakes a worker too, and a worker that sends one
+// wakes another, so a backlog fans out to every worker while an idle queue
+// costs one poll a tick, not n.
+func (e *Engine) runDelivery(ctx context.Context, n int, every time.Duration, deliver func(context.Context) bool) {
+	for i := 0; i < n; i++ {
+		e.runner.Go(ctx, func(ctx context.Context) {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-e.wake:
+				}
+				for ctx.Err() == nil && deliver(ctx) {
+					e.signal()
+				}
+			}
+		})
 	}
+	e.runner.Go(ctx, func(ctx context.Context) {
+		tick := time.NewTicker(every)
+		defer tick.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				e.signal()
+			}
+		}
+	})
 }
 
 // sweepLoop prunes history and idle budgets hourly.
