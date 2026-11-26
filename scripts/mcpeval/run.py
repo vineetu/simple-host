@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Eval the MCP server with real models: each scenario in <product>.yaml is
+"""Eval Simple Hack's MCP server with real models: each scenario in hack.yaml is
 typed, as a person would, into the `claude` CLI (headless, only the local
 fixture's server loaded), then checked against the server afterwards.
 
-  python3 scripts/mcpeval/run.py host|hack [--models small,mid] [--only id,id]
+  python3 scripts/mcpeval/run.py hack [--models small,mid] [--only id,id]
          [--jobs 4] [--max-turns 15] [--repeat 1] [--save-baseline] [--size-only]
 
 Every scenario gets a fresh fixture (scripts/mcpjam/fixture.sh): a copy of one seeded server.
 Postgres: EVAL_PG_URL (a bare server URL, no path), else a throwaway Docker
 container. Results land in scripts/mcpeval/out/ (gitignored; EVAL_OUT moves it); the summary is
-compared with baseline-<product>.json, which --save-baseline rewrites."""
+compared with baseline-hack.json, which --save-baseline rewrites. (Simple Host,
+the rewritten service in next/, is checked by scripts/mcpjam/host_checks.py.)"""
 import argparse, concurrent.futures as cf, json, os, re, secrets, shutil, signal, socket, subprocess, sys, time, urllib.request, uuid
 import yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.environ.get("EVAL_OUT") or os.path.join(HERE, "out")
-SERVER = {"host": "simplehost", "hack": "simplehack"}
+SERVER = {"hack": "simplehack"}
 # As on simple-host.app: every site at its own address, and a visitor sign-in
 # provider so named viewers work (nobody signs in, so Google is never called).
 FIXTURE_ENV = {"PERSON_HOSTS": "serve", "SITE_HOSTS": "serve", "GOOGLE_OAUTH_CLIENT_ID": "mcpeval", "GOOGLE_OAUTH_CLIENT_SECRET": "mcpeval"}
@@ -75,8 +76,6 @@ class Fixture:
         env = dict(os.environ, **FIXTURE_ENV, PRODUCT=product, BIN=binary, FIX=self.dir, PORT=str(self.port), TLS_PORT=str(free_port()),
                    DB_DSN=pg.create(self.db, golden and golden.db))
         sh(["bash", os.path.join(ROOT, "scripts/mcpjam/fixture.sh")], env=env)
-        if product == "host" and not golden:
-            sh(["python3", os.path.join(ROOT, "scripts/mcpjam/seed.py"), "host", self.dir], env=dict(env, FIXTURE_PORT=str(self.port)))
         self.url = f"http://127.0.0.1:{self.port}/mcp"
 
     def key(self, role):
@@ -319,7 +318,7 @@ def load_baseline(product):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("product", choices=["host", "hack"])
+    ap.add_argument("product", choices=["hack"])
     ap.add_argument("--models", default="small,mid")
     ap.add_argument("--only", default="")
     ap.add_argument("--jobs", type=int, default=4)
@@ -344,8 +343,6 @@ def main():
         shutil.rmtree(golden_dir, ignore_errors=True)
         golden = Fixture(args.product, binary, pg, golden_dir)
         golden.stop()
-        if args.product == "host":  # the admin route makes holding accounts, which get no notifications; a person's account does
-            sh(["psql", f"{pg.url}/{golden.db}", "-XAtc", "UPDATE users SET event_account = FALSE"])
         size = listing_cost(args.product, binary, pg, golden, models[0], not args.size_only)
         if args.size_only:
             base = load_baseline(args.product)

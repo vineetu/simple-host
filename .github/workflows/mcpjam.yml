@@ -1,10 +1,13 @@
 name: mcpjam
 
-# The connector check of both programs' MCP servers (Simple Host and Simple
-# Hack, one job each) against a throwaway local instance, on every push and
-# pull request and weekly: MCPJam protocol, OAuth, host compatibility and MCP
-# Apps conformance, the tool annotation tests, the kit's tool list and package,
-# and the tool listing's size against scripts/mcpeval/baseline-*.json. The
+# The connector check of both programs' MCP servers (one job each) against a
+# throwaway local instance, on every push and pull request and weekly
+# (scripts/mcpeval/check.sh). Simple Host is the rewritten service
+# (next/cmd/simple-host-next): tools/list, a read, a publish and an old name
+# through compat, next/mcp's tool tests and the kit package. Simple Hack
+# (cmd/simple-hack): MCPJam protocol, OAuth, host compatibility and MCP Apps
+# conformance, the tool annotation tests, the kit's tool list and package, and
+# the tool listing's size against scripts/mcpeval/baseline-hack.json. The
 # model evals need the claude CLI and run locally (plugins/ROUTINE.md).
 
 on:
@@ -51,6 +54,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: |
+            go.sum
+            next/go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

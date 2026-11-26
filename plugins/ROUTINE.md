@@ -8,22 +8,27 @@ The kit is the source of truth; update it from the tools, never from memory. Hos
     make connector-check PRODUCT=host
     make connector-check PRODUCT=hack
 
-`scripts/mcpeval/check.sh` runs, in order: build; the local fixture (`scripts/mcpjam/fixture.sh`);
-MCPJam protocol, OAuth, host-compatibility and Apps conformance; the tool annotation tests; the
-kit's tool list (`Test*SubmissionToolsMatchChatGPTListing`) and package (`build-openai-plugin.sh`);
-then the eval scenarios (`scripts/mcpeval/run.py`). It prints one PASS/FAIL table, the eval pass
-rate per model, and the change against `scripts/mcpeval/baseline-<product>.json` (pass rate,
-tool count, tools/list tokens and bytes). Needs Docker or `DB_DSN` (an empty database), node and
-network for `npx @mcpjam/cli`. GitHub runs all of it but the evals weekly and on every push.
+`scripts/mcpeval/check.sh` builds the program and starts a local fixture (`scripts/mcpjam/fixture.sh`).
+For Simple Host (the rewritten service, `next/cmd/simple-host-next`) it then runs
+`scripts/mcpjam/host_checks.py` against `/mcp` (51 tools, each with annotations and an outputSchema;
+a read, a publish, and an old tool name through `next/compat`), next/mcp's tool tests
+(`TestEveryToolsOutputAndHints`, `TestSubmissionToolsMatchListing`) and the kit package
+(`build-openai-plugin.sh`). For Simple Hack it runs MCPJam protocol, OAuth, host-compatibility and
+Apps conformance; the tool annotation tests; the kit's tool list
+(`TestHackSubmissionToolsMatchChatGPTListing`) and package; then the eval scenarios
+(`scripts/mcpeval/run.py`), with the change against `scripts/mcpeval/baseline-hack.json` (pass
+rate, tool count, tools/list tokens and bytes). It prints one PASS/FAIL table. Needs Docker or
+`DB_DSN` (an empty database); Hack also needs node and network for `npx @mcpjam/cli`. GitHub runs
+all of it but the evals weekly and on every push.
 
-The evals type each scenario of `scripts/mcpeval/<product>.yaml` (a request as a person would
+The evals (Simple Hack only) type each scenario of `scripts/mcpeval/hack.yaml` (a request as a person would
 write it) into the `claude` CLI, headless with only the fixture's server, on a small and a mid
 model, then check the result on the server. `NO_EVALS=1`, or no `claude`, skips them. Details,
 traces and the report are written to `scripts/mcpeval/out/` (gitignored). One scenario:
 `python3 scripts/mcpeval/run.py hack --only judge_scores --models small`.
 
 Every check must pass. A drop in pass rate or a bigger listing needs a reason before it is merged.
-After an intended change, rerun with `python3 scripts/mcpeval/run.py <product> --save-baseline`
+After an intended change, rerun with `python3 scripts/mcpeval/run.py hack --save-baseline`
 and commit the baseline file.
 
 ## 2. Update the kit from the tools

@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# Start a throwaway server for the MCPJam checks: the server on
-# 127.0.0.1:18190 and a TLS front on https://localhost:18443 by default (MCP OAuth needs
-# https resource URLs). Writes $FIX/user.key (a test account's API key),
-# $FIX/friend.key (a second account, handle mcpjam-friend) and $FIX/cert.pem.
-# Needs DB_DSN (an empty database).
+# Start a throwaway server for the connector checks. Needs DB_DSN (an empty
+# database). PRODUCT selects the program; BIN is its binary (without BIN it is
+# built into $FIX). PORT selects the port, for parallel worktrees.
 #
-# PRODUCT selects the program: host (Simple Host, the default) or hack
-# (Simple Hack). BIN is its binary; without BIN it is built into $FIX.
-# For hack, user.key is the organiser of one seeded event, and seed.py also
+# host (Simple Host, the default): the rewritten service (next/cmd/simple-host-next)
+# on http://localhost:$PORT, the platform at localhost and sites at
+# <site>--<handle>.site.localhost. It has no sign-in by code and keys are made in
+# the dashboard, so the account (handle mcpjam-ci) and its key are written
+# straight into the test database, as next's testkit.Person does. Writes
+# $FIX/user.key.
+#
+# hack (Simple Hack, cmd/simple-hack): the server on 127.0.0.1:18190 and a TLS
+# front on https://localhost:18443 by default (MCP OAuth needs https resource
+# URLs; TLS_PORT moves it). Writes $FIX/user.key (the organiser of one seeded
+# event), $FIX/friend.key (handle mcpjam-friend) and $FIX/cert.pem; seed.py also
 # writes participant.key (a participant with a team), judge.key, newcomer.key
 # (in no event yet), event.slug and join.code.
-# PORT and TLS_PORT select independent ports for parallel worktrees.
 set -euo pipefail
 : "${DB_DSN:?}"
 PRODUCT=${PRODUCT:-host}
@@ -20,19 +25,46 @@ FIXTURE_PORT=${FIXTURE_PORT:-${PORT:-18190}}
 TLS_PORT=${TLS_PORT:-18443}
 here=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$FIX/data"
+echo "$PRODUCT" >"$FIX/product"
+
+if [ "$PRODUCT" = host ]; then
+  if [ -z "${BIN:-}" ]; then
+    BIN="$FIX/simple-host"
+    (cd "$here/../../next" && CGO_ENABLED=0 go build -o "$BIN" ./cmd/simple-host-next)
+  fi
+  DATABASE_URL="$DB_DSN" SH_ADDR="127.0.0.1:$FIXTURE_PORT" SH_DATA_DIR="$FIX/data" SH_APP_DOMAIN=localhost SH_SITE_DOMAIN=site.localhost \
+    PASSCODE_ENC_KEY=$(openssl rand -base64 32) nohup "$BIN" >"$FIX/server.log" 2>&1 </dev/null &
+  echo $! >"$FIX/server.pid"
+  for _ in $(seq 60); do
+    curl -sf -o /dev/null -H 'Host: localhost' "http://127.0.0.1:$FIXTURE_PORT/healthz" && break
+    sleep 1
+  done
+  curl -sf -o /dev/null -H 'Host: localhost' "http://127.0.0.1:$FIXTURE_PORT/healthz" || { tail -20 "$FIX/server.log"; exit 1; }
+  if [ ! -s "$FIX/user.key" ]; then
+    key=sh_$(openssl rand 32 | basenc --base64url | tr -d '=\n')
+    psql "$DB_DSN" -XAtq -v ON_ERROR_STOP=1 -v key="$key" -v hash="$(printf %s "$key" | sha256sum | cut -d' ' -f1)" >/dev/null <<'SQL'
+WITH p AS (INSERT INTO people (email) VALUES ('mcpjam-ci@example.com') RETURNING id),
+     n AS (INSERT INTO names (name, kind, person_id) SELECT 'mcpjam-ci', 'handle', id FROM p)
+INSERT INTO keys (hash, person_id, name, last4) SELECT :'hash', id, 'connector check', right(:'key', 4) FROM p;
+SQL
+    printf %s "$key" >"$FIX/user.key"
+    chmod 600 "$FIX/user.key"
+  fi
+  echo "fixture up (host): http://localhost:$FIXTURE_PORT/mcp"
+  exit 0
+fi
+
 if [ -z "${BIN:-}" ]; then
   BIN="$FIX/simple-$PRODUCT"
   (cd "$here/../.." && CGO_ENABLED=0 go build -o "$BIN" "./cmd/simple-$PRODUCT")
 fi
-echo "$PRODUCT" >"$FIX/product"
 "$BIN" migrate -init >"$FIX/migrate.log" 2>&1
 openssl req -x509 -newkey rsa:2048 -nodes -keyout "$FIX/key.pem" -out "$FIX/cert.pem" -days 2 \
   -subj /CN=localhost -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" 2>/dev/null
 admin=$(openssl rand -hex 32)
 # Team sites live at their own addresses, as on simple-hack.app; without a
 # certificate directory every event's addresses count as ready.
-hosts=off
-[ "$PRODUCT" = hack ] && hosts=serve
+hosts=serve
 # Each OAuth run registers a client or three; the default allows 10 per 6m.
 # Every MCP Apps screen is on, so MCP Apps conformance has them to check.
 # Turnstile's always-pass test keys turn on the spam check, as on simple-host.app.
@@ -59,11 +91,9 @@ account() { # account <email> <key file>
 if [ ! -s "$FIX/user.key" ]; then
   account mcpjam-ci@example.com "$FIX/user.key"
   account mcpjam-friend@example.com "$FIX/friend.key"
-  if [ "$PRODUCT" = hack ]; then
-    account mcpjam-participant@example.com "$FIX/participant.key"
-    account mcpjam-judge@example.com "$FIX/judge.key"
-    account mcpjam-newcomer@example.com "$FIX/newcomer.key"
-    FIXTURE_PORT="$FIXTURE_PORT" python3 "$here/seed.py" hack "$FIX"
-  fi
+  account mcpjam-participant@example.com "$FIX/participant.key"
+  account mcpjam-judge@example.com "$FIX/judge.key"
+  account mcpjam-newcomer@example.com "$FIX/newcomer.key"
+  FIXTURE_PORT="$FIXTURE_PORT" python3 "$here/seed.py" hack "$FIX"
 fi
-echo "fixture up ($PRODUCT): https://localhost:$TLS_PORT/mcp"
+echo "fixture up (hack): https://localhost:$TLS_PORT/mcp"

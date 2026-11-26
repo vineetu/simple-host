@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Seed the MCPJam fixture (scripts/mcpjam/fixture.sh). Usage: seed.py <host|hack> <FIX dir>
+"""Seed the Simple Hack fixture (scripts/mcpjam/fixture.sh). Usage: seed.py hack <FIX dir>
 
-host: for the eval suite, site eval-cafe with a public kv resource `menu`, a
-sqlite resource `bookings` and a files resource `photos`, in user.key's account.
-
-hack: run by fixture.sh itself. user.key organises event `mcpjam-hack`, open to
+Run by fixture.sh itself. user.key organises event `mcpjam-hack`, open to
 join; participant.key joins it and creates team `Byte Club`; judge.key joins as
 its judge; newcomer.key stays out for the participant eval to join with
 join.code. A second event, `mcpjam-judging`, is in judging with team `Pixel
@@ -29,15 +26,7 @@ def call(who, name, args):
     return result.get("structuredContent") or {}
 
 
-if PRODUCT == "host":
-    call("user.key", "create_site", {"site": "eval-cafe", "files": {"index.html": "<!DOCTYPE html><title>Corner Cafe</title><h1>Corner Cafe</h1><p>Open 8am to 6pm.</p>"}})
-    call("user.key", "storage_set_resource", {"site": "eval-cafe", "name": "menu", "body": {"kind": "kv", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}})
-    call("user.key", "storage_put_kv", {"site": "eval-cafe", "name": "menu", "key": "today", "value": {"special": "Tomato soup"}})
-    call("user.key", "storage_set_resource", {"site": "eval-cafe", "name": "bookings", "body": {"kind": "sqlite", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "visitor_id == auth.id"}, {"name": "add", "command": "add", "check": "auth.signed_in"}, {"name": "owner", "command": "all", "using": "auth.role == \"owner\""}]}}})
-    call("user.key", "storage_sql_schema", {"site": "eval-cafe", "name": "bookings", "sql": "CREATE TABLE IF NOT EXISTS bookings (id INTEGER PRIMARY KEY, visitor_id TEXT, guest TEXT, party_size INTEGER, created_at TEXT)"})
-    call("user.key", "storage_set_resource", {"site": "eval-cafe", "name": "photos", "body": {"kind": "files", "rules": {"version": 1, "policies": [{"name": "read", "command": "read", "using": "true"}]}}})
-    print("seeded eval-cafe")
-elif PRODUCT == "hack":
+if PRODUCT == "hack":
     slug = "mcpjam-hack"
     event = call("user.key", "hack_create_event", {
         "slug": slug, "title": "MCPJam Hack", "organiser_name": "MCPJam CI", "contact_email": "mcpjam-ci@example.com",
@@ -72,4 +61,4 @@ elif PRODUCT == "hack":
         call("user.key", "hack_set_event_stage", {"slug": done, "stage": stage})
     print(f"seeded {slug}: participant in team Byte Club, one judge; {done}: in judging, one submitted entry")
 else:
-    sys.exit("usage: seed.py <host|hack> <FIX dir>")
+    sys.exit("usage: seed.py hack <FIX dir>")

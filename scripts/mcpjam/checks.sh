@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
 # MCPJam protocol conformance, OAuth conformance, host compatibility and MCP
-# Apps conformance, against the fixture from fixture.sh. Free: no MCPJam
-# account and no eval credits. PRODUCT (host or hack) defaults to the one
-# the fixture was started for.
+# Apps conformance, against the Simple Hack fixture from fixture.sh
+# (PRODUCT=hack). Free: no MCPJam account and no eval credits. Simple Host is
+# checked by host_checks.py instead.
 set -uo pipefail
 FIX=${FIX:-/tmp/mcpjam-fixture}
-PRODUCT=${PRODUCT:-$(cat "$FIX/product" 2>/dev/null || echo host)}
-case "$PRODUCT" in
-  host) fixture_tools=(--fixture-tool who_am_i --fixture-tool list_sites) ;;
-  hack) fixture_tools=(--fixture-tool who_am_i --fixture-tool hack_list_events) ;;
-  *) echo "PRODUCT must be host or hack" >&2; exit 1 ;;
-esac
+fixture_tools=(--fixture-tool who_am_i --fixture-tool hack_list_events)
 CLI=${MCPJAM_CLI:-@mcpjam/cli@6.0.0}
 here=$(cd "$(dirname "$0")" && pwd)
 BASE=${BASE:-https://localhost:${TLS_PORT:-18443}}
@@ -74,13 +69,12 @@ run "oauth negative checks" python3 "$here/oauth_consent.py" npx -y "$CLI" --no-
 
 compat() {
   jam --format json compat --offline --url "$URL" --header "X-API-Key: $SH_TEST_KEY" >"$FIX/compat.json" || return 1
-  python3 - "$FIX/compat.json" "$PRODUCT" <<'PY'
+  python3 - "$FIX/compat.json" <<'PY'
 import json, sys
 hosts = json.load(open(sys.argv[1]))["hosts"]
-# Screens that ask for clipboard permission, per product. Hack's organiser
-# view copies join, judge and co-organiser links the same way.
-clipboard = {"host": {"get_site", "get_site_passcode", "set_site_passcode"},
-             "hack": {"hack_show_organiser"}}[sys.argv[2]]
+# Screens that ask for clipboard permission: the organiser view copies join,
+# judge and co-organiser links.
+clipboard = {"hack_show_organiser"}
 # Apps are optional: these hosts retain the unchanged tool text.
 # The picker hides itself when the host does not advertise serverTools.
 # Site preview needs nested frames and selects the link text when clipboard
@@ -119,4 +113,4 @@ if [ ${#failed[@]} -gt 0 ]; then
   printf 'failed: %s\n' "${failed[@]}"
   exit 1
 fi
-echo "all MCPJam checks passed ($PRODUCT)"
+echo "all MCPJam checks passed (hack)"
