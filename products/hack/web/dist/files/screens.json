@@ -1,6 +1,9 @@
 {
  "live": [
   "landing-your-events",
-  "participant-submissions"
+  "participant-entry",
+  "participant-submissions",
+  "participant-team",
+  "participant-website"
  ]
 }
