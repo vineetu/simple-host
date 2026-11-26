@@ -10,10 +10,13 @@ import http from "node:http";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type BrowserContext, type Page } from "@playwright/test";
 import { axe, layout } from "../../kit/tests/checks";
 
 test.describe.configure({ mode: "serial" });
+
+// The binary answers slowly on a busy box (GET E took 6 s under load), so waits are long.
+const expect = baseExpect.configure({ timeout: 30_000 });
 
 const ROOT = join(import.meta.dirname, "../../..");
 const SHOTS = join(import.meta.dirname, "../test-results/real");
@@ -112,7 +115,7 @@ test.beforeAll(async () => {
     },
     stdio: ["ignore", openSync(join(dir, "server.log"), "w"), openSync(join(dir, "server.log"), "a")],
   });
-  for (let i = 0; i < 200; i++) {
+  for (let i = 0; i < 800; i++) {
     try {
       if ((await call("GET", "/events")).status === 200) break;
     } catch {
@@ -229,3 +232,46 @@ test("leaving an event from Your events (the only organiser deletes it), and sig
   await out.page.waitForURL(/\/signin\?next=%2Fevents/);
   await out.ctx.close();
 });
+
+for (const width of [390, 1280]) {
+  test(`the organiser runs the event: Home, Teams, Entries and Results, the new app @${width}`, async ({ browser }) => {
+    test.setTimeout(300_000);
+    const E = "/v1/hack/events/" + SLUG;
+    // The walkthrough is seen already (it would open by itself the first time).
+    await ok("PATCH", "/v1/hack/preferences", { organiser_walkthrough_done: true }, keys.orga);
+    const { ctx, page, errors } = await person(browser, "orga", width);
+    await page.goto(APP + `/e/${SLUG}/manage?s=overview`);
+    await expect(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /organiser-overview/);
+    await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
+    await check(page, "organiser-home", width);
+
+    // Teams and Entries list Lumbung, with its submitted entry.
+    await page.goto(APP + `/e/${SLUG}/manage?s=teams`);
+    await expect(page.getByRole("heading", { name: "Teams", level: 1 })).toBeVisible();
+    await expect(page.getByText("Lumbung").filter({ visible: true }).first()).toBeVisible();
+    await check(page, "organiser-teams", width);
+    await page.goto(APP + `/e/${SLUG}/manage?s=entries`);
+    await expect(page.getByRole("heading", { name: "Entries", level: 1 })).toBeVisible();
+    await expect(page.getByText("Submitted", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+    await check(page, "organiser-entries", width);
+
+    if (width === 1280) {
+      // Change stage to Results (the next step at Judging may be a checklist link), told to nobody.
+      await page.goto(APP + `/e/${SLUG}/manage?s=overview`);
+      await page.locator("[data-tour='change-stage']").click();
+      await page.getByRole("dialog", { name: "Change stage" }).getByLabel("New stage").selectOption("results");
+      await page.getByRole("dialog", { name: "Change stage" }).getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("dialog", { name: "Tell participants?" }).getByRole("button", { name: "Don’t post" }).click();
+      await expect.poll(async () => ((await call("GET", E, undefined, keys.orga)).body.event as Record<string, unknown>).stage).toBe("results");
+      await page.locator("[data-tour='next-move']").filter({ hasText: "Publish results" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Publish results" }).click();
+      await page.getByRole("dialog", { name: "Tell participants?" }).getByRole("button", { name: "Post", exact: true }).click();
+      await expect.poll(async () => JSON.stringify((await call("GET", E + "/announcements", undefined, keys.orga)).body)).toContain("Results are out");
+      await page.goto(APP + `/e/${SLUG}/manage?s=results`);
+      await expect(page.getByText(/^Published/).first()).toBeVisible();
+      await check(page, "organiser-results", width);
+    }
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+}

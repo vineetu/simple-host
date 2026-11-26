@@ -1,6 +1,14 @@
 {
  "live": [
   "landing-your-events",
+  "organiser-announcements",
+  "organiser-entries",
+  "organiser-entry-detail",
+  "organiser-overview",
+  "organiser-people",
+  "organiser-results",
+  "organiser-team-detail",
+  "organiser-teams",
   "participant-submissions"
  ]
 }
