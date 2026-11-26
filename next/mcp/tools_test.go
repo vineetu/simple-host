@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -43,6 +44,9 @@ import (
 	"simplehost/sites/uploads"
 )
 
+// uuid is an internal id (people, teams, invitations).
+var uuid = regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
+
 // seen is one route a tool call replayed.
 type seen struct {
 	method, pattern string
@@ -54,9 +58,19 @@ func reads(s seen) bool {
 	return s.method == "GET" || s.method == "POST" && (strings.HasSuffix(s.pattern, "/query") || strings.HasSuffix(s.pattern, "/schema"))
 }
 func destroys(s seen) bool {
-	return s.method == "PUT" || s.method == "PATCH" || s.method == "DELETE" || s.method == "POST" && strings.HasSuffix(s.pattern, "/execute")
+	return s.method == "PUT" || archiveLink(s) || s.method == "PATCH" && !bringsBack(s) || s.method == "DELETE" || s.method == "POST" && strings.HasSuffix(s.pattern, "/execute")
 }
-func adds(s seen) bool      { return !reads(s) && !destroys(s) } // a POST that makes something new
+
+// bringsBack: a PATCH that only brings a site back, out of the bin or online.
+func bringsBack(s seen) bool {
+	return s.pattern == "PATCH /v1/sites/{site}" && (s.body == `{"restore":true}` || s.body == `{"offline":false}`)
+}
+
+// archiveLink: a link whose upload publishes a whole site, replacing the live files.
+func archiveLink(s seen) bool {
+	return s.pattern == "POST /v1/sites/{site}/upload-links" && strings.Contains(s.body, `"kind":"archive"`)
+}
+func adds(s seen) bool      { return s.method == "POST" && !reads(s) && !destroys(s) } // a POST that makes something new
 func publishes(s seen) bool { return s.method == "PUT" && s.pattern == "PUT /v1/sites/{site}" }
 func reachesOut(s seen) bool {
 	var body map[string]any
@@ -70,11 +84,11 @@ func reachesOut(s seen) bool {
 	case publishes(s), strings.HasSuffix(s.pattern, "/rules"): // public pages, public data
 		return true
 	case s.pattern == "POST /v1/sites/{site}/upload-links":
-		return body["public"] == true
+		return body["public"] == true || archiveLink(s)
 	case s.pattern == "PATCH /v1/owners/{owner}":
 		return domain
 	case s.pattern == "PATCH /v1/sites/{site}":
-		return domain || short || listed || body["access"] == "open"
+		return domain || short || listed || body["access"] == "open" || bringsBack(s)
 	}
 	return false
 }
@@ -103,7 +117,10 @@ func TestEveryToolsOutputAndHints(t *testing.T) {
 		res, _ := call(key, "tools/list", nil)
 		for _, x := range res["tools"].([]any) {
 			x := x.(map[string]any)
-			listed[x["name"].(string)] = x
+			if _, ok := listed[x["name"].(string)]; !ok {
+				x["_operator"] = key == op.Key
+				listed[x["name"].(string)] = x
+			}
 		}
 	}
 
@@ -145,27 +162,37 @@ func TestEveryToolsOutputAndHints(t *testing.T) {
 		{ann.Key, "delete_team", map[string]any{"team": "crew"}},
 		{ann.Key, "list_sites", nil},
 		{ann.Key, "get_site", shop()},
+		{ann.Key, "get_site", shop("include_emails", true)},
 		{ann.Key, "publish_site", shop("files", map[string]any{"index.html": "<h1>Shop 2</h1>"})},
 		{ann.Key, "create_upload_link", shop()},
+		{ann.Key, "create_site_upload_link", shop()},
 		{ann.Key, "read_site_file", shop("path", "index.html")},
-		{ann.Key, "change_site", shop("offline", false)},
-		{ann.Key, "change_site", shop("listed", true)},
-		{ann.Key, "set_site_access", shop("access", "viewers", "viewers", []any{ben.Email})},
-		{ann.Key, "set_site_access", shop("access", "open")},
-		{ann.Key, "set_site_access", shop("access", "passcode")},
+		{ann.Key, "take_site_offline", shop()},
+		{ann.Key, "put_site_online", shop()},
+		{ann.Key, "set_site_listed", shop("listed", true)},
+		{ann.Key, "rollback_site", shop("version", 1)},
+		{ann.Key, "allow_only_named_people", shop("emails", []any{ben.Email})},
+		{ann.Key, "add_site_viewers", shop("emails", []any{zed.Email})},
+		{ann.Key, "remove_site_viewers", shop("emails", []any{zed.Email})},
+		{ann.Key, "sign_out_site_visitors", shop()},
+		{ann.Key, "open_site_to_anyone", shop()},
+		{ann.Key, "require_passcode", shop()},
 		{ann.Key, "passcode_screen_open", shop()},
 		{ann.Key, "passcode_screen_set", shop("session", session, "nonce", base64.RawURLEncoding.EncodeToString(nonce), "ciphertext", base64.RawURLEncoding.EncodeToString(sealed))},
 		{ann.Key, "passcode_screen_show", shop("session", session)},
 		{ann.Key, "passcode_screen_generate", shop("session", session)},
+		{ann.Key, "open_site_to_anyone", shop()},
+		{ann.Key, "require_passcode", shop()}, // it has a passcode now: turned back on
 		{ann.Key, "set_site_address", shop("short_name", "shopx")},
 		{ann.Key, "set_site_address", shop("short_name", "")},
 		{ann.Key, "site_stats", shop()},
 		{ann.Key, "set_notifications", shop("notifications", []any{})},
-		{ann.Key, "run_sql", orders("sql", "CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, item TEXT)")},
+		{ann.Key, "run_sql", orders("sql", "CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, item TEXT, visitor_id TEXT)")},
 		{ann.Key, "list_tables", orders()},
 		{ann.Key, "add_row", orders("table", "orders", "row", map[string]any{"item": "tea"})},
 		{ann.Key, "query_sql", orders("sql", "SELECT * FROM orders WHERE item = ?", "params", []any{"tea"})},
 		{ann.Key, "list_rows", orders("table", "orders", "where", map[string]any{"item": "tea"})},
+		{ann.Key, "query_sql", orders("sql", "SELECT visitor_id FROM orders")},
 		{ann.Key, "read_row", orders("table", "orders", "id", 1)},
 		{ann.Key, "change_row", orders("table", "orders", "id", 1, "row", map[string]any{"item": "coffee"})},
 		{ann.Key, "delete_row", orders("table", "orders", "id", 1)},
@@ -181,6 +208,8 @@ func TestEveryToolsOutputAndHints(t *testing.T) {
 		{ann.Key, "download_my_data", nil},
 		{op.Key, "admin_overview", nil},
 		{op.Key, "set_hold", map[string]any{"site": "spare", "owner": "zed", "taken_down": false}},
+		{ann.Key, "delete_site", shop()},
+		{ann.Key, "restore_site", shop()},
 		{ann.Key, "delete_site", shop()},
 		{zed.Key, "delete_account", nil},
 	}
@@ -212,6 +241,10 @@ func TestEveryToolsOutputAndHints(t *testing.T) {
 			if !ok {
 				t.Errorf("%s %v: no structuredContent", tc.name, tc.args)
 				continue
+			}
+			// No internal id of a person, team or invitation reaches the model.
+			if b, _ := json.Marshal(res); !listed[tc.name]["_operator"].(bool) && uuid.Match(b) {
+				t.Errorf("%s %v: an internal id in the answer: %s", tc.name, tc.args, b)
 			}
 			if errs := testkit.Validate(schema, sc, "structuredContent"); len(errs) > 0 {
 				b, _ := json.Marshal(sc)

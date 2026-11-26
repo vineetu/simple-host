@@ -9,9 +9,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -75,12 +77,12 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		t.Fatalf("initialize: %v", v)
 	}
 	list := call("tools/list", nil)["tools"].([]any)
-	if len(list) != 41 { // 37 for the model, 4 for the passcode screen; the operator sees 43 (admin_overview, set_hold)
-		t.Fatalf("%d tools, want 41", len(list))
+	if len(list) != 51 { // 47 for the model, 4 for the passcode screen; the operator sees 53 (admin_overview, set_hold)
+		t.Fatalf("%d tools, want 51", len(list))
 	}
 	for _, x := range list {
-		if x := x.(map[string]any); x["name"] == "set_site_access" && !strings.Contains(text(x), "ui://simple-host/passcode") {
-			t.Fatalf("set_site_access names no passcode screen: %v", x)
+		if x := x.(map[string]any); x["name"] == "require_passcode" && !strings.Contains(text(x), "ui://simple-host/passcode") {
+			t.Fatalf("require_passcode names no passcode screen: %v", x)
 		}
 	}
 	if n := len(call("resources/list", nil)["resources"].([]any)); n != 4 {
@@ -92,7 +94,7 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 	}
 
 	// The AI asks for a passcode: the screen opens, nothing is locked yet.
-	if res := tool(call, "set_site_access", map[string]any{"site": "blog", "access": "passcode"}); res["isError"] == true || page() != 200 {
+	if res := tool(call, "require_passcode", map[string]any{"site": "blog"}); res["isError"] == true || page() != 200 {
 		t.Fatalf("asking for the screen: %v, page %d", res, page())
 	}
 	// The screen sets it, sealed: no result carries the code.
@@ -131,7 +133,7 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		n := len(sent)
 		mu.Unlock()
 		if n >= 3 {
-			if strings.Contains(all, code) || !strings.Contains(all, `"resource_name":"set_site_access"`) {
+			if strings.Contains(all, code) || !strings.Contains(all, `"resource_name":"require_passcode"`) {
 				t.Fatalf("AgentCat got: %s", all)
 			}
 			break
@@ -184,7 +186,8 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 	if res := data(bob.Key, "add_row", map[string]any{"row": map[string]any{"body": "hi from bob's AI"}}); res["isError"] == true {
 		t.Fatalf("add: %v", res)
 	}
-	if res := data(bob.Key, "list_rows", nil); !strings.Contains(text(res), "hi from bob's AI") || !strings.Contains(text(res), bob.ID) {
+	if res := data(bob.Key, "list_rows", nil); !strings.Contains(text(res), "hi from bob's AI") ||
+		strings.Contains(text(res), bob.ID) || !strings.Contains(text(res), `"you"`) || !strings.Contains(text(res), `"mine":[true]`) {
 		t.Fatalf("read: %v", res)
 	}
 	// The same refusals as his browser: no rule lets him delete.
@@ -227,5 +230,114 @@ func TestOperatorToolsAreForTheOperatorOnly(t *testing.T) {
 		"params": map[string]any{"name": "admin_overview", "arguments": map[string]any{}}}, "X-API-Key", user.Key)
 	if !strings.Contains(r.Body, "No tool named admin_overview") {
 		t.Fatalf("ordinary user's call: %s", r.Body)
+	}
+}
+
+// A person in stored data shows by one label on the site, wherever the id
+// lands in an answer, and the label works as the id in a call.
+func TestVisitorLabels(t *testing.T) {
+	k := testkit.Start(t, mcp.Mount, api.Mount, rows.Mount, datasql.Mount)
+	alice, bob, cara := k.Person(t, "alice"), k.Person(t, "bob"), k.Person(t, "cara")
+	k.Publish(t, alice, "party", map[string]string{"index.html": "party"})
+	call := ai(t, k, alice.Key)
+	run := func(name string, args map[string]any) map[string]any {
+		a := map[string]any{"site": "party", "namespace": "party"}
+		for k, v := range args {
+			a[k] = v
+		}
+		res := tool(call, name, a)
+		if res["isError"] == true || uuid.MatchString(strings.ToLower(text(res))) {
+			t.Fatalf("%s %v: %s", name, args, text(res))
+		}
+		sc, _ := res["structuredContent"].(map[string]any)
+		return sc
+	}
+	for _, sql := range []string{"CREATE TABLE bookings (id INTEGER PRIMARY KEY, name TEXT, visitor_id TEXT)", "CREATE TABLE guests (id INTEGER PRIMARY KEY, visitor_id TEXT)"} {
+		run("run_sql", map[string]any{"sql": sql})
+	}
+	for _, p := range [][]any{{"Bob", bob.ID}, {"Cara", cara.ID}, {"Bob", bob.ID}, {"Ann", alice.ID}} {
+		run("run_sql", map[string]any{"sql": "INSERT INTO bookings (name, visitor_id) VALUES (?, ?)", "params": p})
+		run("run_sql", map[string]any{"sql": "INSERT INTO guests (visitor_id) VALUES (?)", "params": p[1:]})
+	}
+	cells := func(sql string, params ...any) []any {
+		var out []any
+		for _, r := range run("query_sql", map[string]any{"sql": sql, "params": params})["rows"].([]any) {
+			out = append(out, r.([]any)...)
+		}
+		return out
+	}
+	label := regexp.MustCompile(`^visitor-[0-9a-f]{8}$`)
+	bobs, caras := cells("SELECT visitor_id AS who FROM bookings WHERE name = 'Bob' LIMIT 1")[0], cells("SELECT visitor_id FROM bookings WHERE name = 'Cara'")[0]
+	if !label.MatchString(fmt.Sprint(bobs)) || bobs == caras {
+		t.Fatalf("bob %v, cara %v", bobs, caras)
+	}
+	for _, c := range []struct {
+		sql  string
+		want []any
+	}{
+		{"SELECT b.visitor_id, g.visitor_id FROM bookings b JOIN guests g ON g.visitor_id = b.visitor_id WHERE b.id = 2 AND g.id = 2", []any{caras, caras}},
+		{"SELECT * FROM bookings b JOIN guests g ON g.visitor_id = b.visitor_id WHERE b.id = 1 AND g.id = 1", []any{1.0, "Bob", bobs, 1.0, bobs}},
+		{"SELECT upper(visitor_id), visitor_id || '' FROM bookings WHERE name = 'Bob' LIMIT 1", []any{bobs, bobs}},
+		{"SELECT group_concat(visitor_id) FROM (SELECT visitor_id FROM bookings ORDER BY id)", []any{fmt.Sprintf("%s,%s,%s,you", bobs, caras, bobs)}},
+		{"SELECT json_object('v', visitor_id) FROM bookings WHERE id = 4", []any{`{"v":"you"}`}},
+		{"SELECT name FROM bookings WHERE visitor_id = '" + fmt.Sprint(caras) + "'", []any{"Cara"}},
+		{"SELECT name FROM bookings WHERE visitor_id = 'you'", []any{"Ann"}},
+		{"SELECT name FROM bookings WHERE visitor_id = 'visitor-00000000'", nil},
+	} {
+		if got := cells(c.sql); fmt.Sprint(got) != fmt.Sprint(c.want) {
+			t.Errorf("%s: got %v, want %v", c.sql, got, c.want)
+		}
+	}
+	if got := cells("SELECT count(*) FROM bookings WHERE visitor_id = ?", bobs); fmt.Sprint(got) != "[2]" {
+		t.Errorf("params by label: %v", got)
+	}
+	// Pages of list_rows: the same person has the same label on every page.
+	var who []any
+	after := ""
+	for range 4 {
+		page := run("list_rows", map[string]any{"table": "bookings", "limit": 1, "after": after})
+		who = append(who, page["rows"].([]any)[0].([]any)[2])
+		after, _ = page["next_after"].(string)
+	}
+	if fmt.Sprint(who) != fmt.Sprint([]any{bobs, caras, bobs, "you"}) {
+		t.Errorf("pages: %v", who)
+	}
+	if got := run("list_rows", map[string]any{"table": "bookings", "where": map[string]any{"visitor_id": caras}})["rows"].([]any); len(got) != 1 || got[0].([]any)[1] != "Cara" {
+		t.Errorf("where by label: %v", got)
+	}
+}
+
+// A UUID that is not a person's id (an order number, a key) is the owner's
+// own data: the owner reads it as stored and can filter by it. A visitor
+// still sees every id-shaped value as a label.
+func TestOwnUUIDsStayAsStored(t *testing.T) {
+	k := testkit.Start(t, mcp.Mount, api.Mount, rows.Mount, datasql.Mount)
+	alice, bob := k.Person(t, "alice"), k.Person(t, "bob")
+	k.Publish(t, alice, "shop", map[string]string{"index.html": "shop"})
+	call := ai(t, k, alice.Key)
+	run := func(name string, args map[string]any) map[string]any {
+		a := map[string]any{"site": "shop", "namespace": "shop"}
+		for k, v := range args {
+			a[k] = v
+		}
+		res := tool(call, name, a)
+		if res["isError"] == true {
+			t.Fatalf("%s %v: %s", name, args, text(res))
+		}
+		sc, _ := res["structuredContent"].(map[string]any)
+		return sc
+	}
+	ref := "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+	run("run_sql", map[string]any{"sql": "CREATE TABLE orders (ref TEXT PRIMARY KEY, item TEXT, visitor_id TEXT)"})
+	run("run_sql", map[string]any{"sql": "INSERT INTO orders (ref, item, visitor_id) VALUES (?, 'jam', ?)", "params": []any{ref, bob.ID}})
+	got := run("query_sql", map[string]any{"sql": "SELECT ref, visitor_id FROM orders WHERE ref = ?", "params": []any{ref}})["rows"].([]any)
+	if len(got) != 1 || got[0].([]any)[0] != ref || !regexp.MustCompile(`^visitor-[0-9a-f]{8}$`).MatchString(fmt.Sprint(got[0].([]any)[1])) {
+		t.Fatalf("order ref and buyer: %v", got)
+	}
+	if rows := run("list_rows", map[string]any{"table": "orders", "where": map[string]any{"ref": ref}})["rows"].([]any); len(rows) != 1 || rows[0].([]any)[0] != ref {
+		t.Fatalf("list_rows by ref: %v", rows)
+	}
+	if strings.Contains(text(tool(call, "query_sql", map[string]any{"site": "shop", "namespace": "shop", "sql": "SELECT visitor_id FROM orders"})), bob.ID) {
+		t.Fatal("bob's id reached the owner")
 	}
 }

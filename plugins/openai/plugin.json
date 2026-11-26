@@ -68,8 +68,8 @@
             {
               "description": "Update the seeded feedback survey and undo the requested change.",
               "prompt": "On feedback-survey, change the heading to \"Tell us how we did\". Then, in the same chat: Undo that change.",
-              "tools_triggered": "get_site, read_site_file, publish_site, change_site",
-              "expected_behavior": "The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, change_site makes the previous version live and the original heading returns. No account or visitor emails are returned."
+              "tools_triggered": "get_site, read_site_file, publish_site, rollback_site",
+              "expected_behavior": "The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, rollback_site makes the previous version live and the original heading returns. No account or visitor emails are returned."
             },
             {
               "description": "Create a team and invite one person to it.",
@@ -111,7 +111,7 @@
         "demo_recording_url": "https://website-deploy-toolkit.vineetu.simple-host.app/downloads/simple-host-demo.mp4"
       },
       "publication": {
-        "release_notes": "A rewritten Simple Host connector: 37 single-purpose tools instead of 68, plus four called only by the passcode screen: publish, change, access, address and visit numbers on a site; saved data with rules and the owner's SQL; teams; in-chat screens for the passcode, the photo picker, my sites and visit numbers. Same account and sites."
+        "release_notes": "A rewritten Simple Host connector: 47 single-purpose tools instead of 68, plus four called only by the passcode screen: publish, change, access, address and visit numbers on a site; saved data with rules and the owner's SQL; teams; in-chat screens for the passcode, the photo picker, my sites and visit numbers. Same account and sites."
       }
     }
   }

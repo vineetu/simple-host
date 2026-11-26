@@ -172,7 +172,8 @@ func TestOldToolAnswersMatchTheOldOutputSchemas(t *testing.T) {
 	// with ten fields its old schema did not list). Only the old fields'
 	// presence and types are checked for them.
 	shared := map[string]bool{"who_am_i": true, "list_sites": true, "get_site": true, "read_site_file": true,
-		"create_upload_link": true, "delete_site": true, "set_site_access": true, "create_team": true, "delete_team": true}
+		"create_upload_link": true, "delete_site": true, "create_team": true, "delete_team": true,
+		"rollback_site": true, "restore_site": true, "sign_out_site_visitors": true}
 	covered := map[string]bool{}
 	for _, tc := range cases {
 		schema, ok := schemas[tc.name]

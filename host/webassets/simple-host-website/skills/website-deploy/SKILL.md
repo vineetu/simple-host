@@ -33,10 +33,17 @@ the person's own domain.
 | Everything about one site: address, versions, access, domain, saved data, rules, use | `get_site` |
 | Put files online, new or changed | `publish_site` |
 | Read one published file | `read_site_file` |
-| Photos or files from the person; a big site as one archive | `create_upload_link` |
-| Offline or back, list on the public page, older version live, restore from bin | `change_site` |
+| Photos or files from the person (the photo picker) | `create_upload_link` |
+| A big site as one archive (replaces the live files; ask first) | `create_site_upload_link` |
+| Offline, or back online | `take_site_offline`, `put_site_online` |
+| Show on the owner's public page, or not | `set_site_listed` |
+| Make an older version live | `rollback_site` |
+| Bring a site back from the bin | `restore_site` |
 | Move a site to the bin (kept 7 days) | `delete_site` |
-| Open, passcode or named viewers; sign everyone out | `set_site_access` |
+| Open to anyone | `open_site_to_anyone` |
+| Passcode (set in a screen in the chat) | `require_passcode` |
+| Only named people; add or remove them | `allow_only_named_people`, `add_site_viewers`, `remove_site_viewers` |
+| Sign everyone out | `sign_out_site_visitors` |
 | Own domain or short name | `set_site_address` |
 | Visit numbers | `site_stats` (shows a dashboard) |
 | Tell the owner when entries arrive or someone asks for access | `set_notifications` |
@@ -61,8 +68,8 @@ Site tools take `site` (name or address) and, for a team's site, `owner` (the te
    that anyone with the link can open it, wait for a yes, then `publish_site` with `files` (text)
    and `files_base64` (images, fonts and other binary). It makes the site if it is new.
 4. A site that comes from a build (React, Vue, Astro, Hugo...): publish only the output folder.
-   Many photos or a big build: `create_upload_link` with `kind: "archive"` gives a one-time
-   archive link; run what it says.
+   Many photos or a big build: `create_site_upload_link` gives a one-time archive link that
+   replaces the live files; ask first, then run what it says.
 5. Give the person the returned `url`. If you can open it, check it renders. A bad publish is
    refused whole and the live site stays as it was; fix and publish again.
 
@@ -84,9 +91,11 @@ open). Pass `namespace` only for another store. Never build an upload page for t
 
 ## Who may open a site
 
-`set_site_access`: `open`, `passcode`, or `viewers` (emails the person gave you, nothing else;
-`viewers_add` and `viewers_remove` change the list). For a passcode call with `access:
-"passcode"`: a screen in the chat sets or shows it, so it never enters the chat.
+`open_site_to_anyone`, `require_passcode`, or named people: `allow_only_named_people` (replaces
+the list), `add_site_viewers`, `remove_site_viewers` (emails the person gave you, nothing else).
+`require_passcode` opens a screen in the chat that sets or shows the passcode, so it never enters
+the chat. `get_site` counts the named people; pass `include_emails: true` only when the person
+asks who exactly.
 Do not ask for or repeat one. A visitor who is not allowed can press "Ask for access", which
 `set_notifications` with `{"kind":"access"}` tells the owner about.
 
@@ -103,7 +112,7 @@ Say exactly what changes, and wait for a yes, before: `delete_site`, `delete_acc
 `delete_team`, `remove_from_team`, deleting saved data (`delete_row`, `delete_value`, `delete_file`,
 a `DELETE` or `DROP` with `run_sql`), widening who can read or write (`set_data_rules`), changing a
 passcode or viewers or signing everyone out, connecting or removing a domain or short name,
-taking a site offline or making an older version live (`change_site`), changing a handle
+taking a site offline (`take_site_offline`) or making an older version live (`rollback_site`), changing a handle
 (`update_account`: old links stop working and the handle is never reusable). Updates the person
 asked for go ahead.
 

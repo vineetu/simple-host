@@ -4,7 +4,8 @@
 
 `publish_site` takes `files` (path to text) and `files_base64` (path to base64, for images,
 fonts, media, `.wasm`). `index.html` goes at the root. Every file of a build goes in one call, or
-the site goes up as an archive through `create_upload_link` with `kind: "archive"`. With
+the site goes up as an archive through `create_site_upload_link`, which replaces the live files
+like a publish (ask first). With
 `keep_other_files: true` the live files you do not send stay; without it they are removed.
 
 Simple Host serves static files only. A project with a build step is built first, where you can
@@ -24,9 +25,8 @@ number and nothing is published.
 ## Versions
 
 Every publish is a numbered version. A few recent ones are kept (four). `get_site` lists them;
-`change_site` with `live_version` makes one live again (ask first). A deleted site stays in the
-bin for 7 days with its data (`list_sites` with `bin: true`, then `change_site` with
-`restore: true`). Saved data and stored files survive publishes and version changes.
+`rollback_site` with `version` makes one live again (ask first). A deleted site stays in the
+bin for 7 days with its data (`list_sites` with `bin: true`, then `restore_site`). Saved data and stored files survive publishes and version changes.
 
 ## Limits
 

@@ -98,8 +98,8 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 // the namespace photos; this adds the old answer's photos_url and says where
 // photos now land. Goes with this package.
 func photoPicker(a args, run func(string, map[string]any) (map[string]any, bool)) map[string]any {
-	if a["archive"] == true {
-		res, _ := run("create_upload_link", a.keep("site", "owner").with("kind", "archive"))
+	if a["archive"] == true || a.s("kind") == "archive" { // the archive link is its own tool now
+		res, _ := run("create_site_upload_link", a.keep("site", "owner"))
 		return res
 	}
 	res, _ := run("create_upload_link", a.keep("site", "owner"))
@@ -140,7 +140,7 @@ var oldTools = map[string]func(a args) ([]step, error){
 	"create_site": func(a args) ([]step, error) {
 		steps := []step{{"publish_site", a.keep("site", "owner", "files", "files_base64")}}
 		if a.s("access") == "specific" {
-			steps = append(steps, step{"set_site_access", a.keep("site", "owner").with("viewers", a.list("viewers"))})
+			steps = append(steps, step{"allow_only_named_people", a.keep("site", "owner").with("emails", a.list("viewers"))})
 		}
 		return steps, nil
 	},
@@ -161,13 +161,14 @@ var oldTools = map[string]func(a args) ([]step, error){
 		}
 		return one("get_recipe", s)
 	},
-	// Old arguments of tools whose names stayed (see OldArgs).
-	"set_site_access": func(a args) ([]step, error) {
-		return one("set_site_access", a.keep("site", "owner").with("access", map[string]string{"anyone": "open", "specific": "viewers"}[a.s("access")]))
-	},
+	// The old set_site_access {access: anyone|specific} and yesterday's
+	// (2026-11-25) {access, viewers, viewers_add, viewers_remove,
+	// sign_everyone_out}, split into single-purpose tools.
+	"set_site_access": setSiteAccess,
+	"change_site":     changeSite,
 	"read_site_file": func(a args) ([]step, error) {
 		if a["version"] != nil {
-			return nil, web.Refuse(http.StatusGone, "removed", "Reading a file of an older version was removed: read the live one (no version), or make the older version live with change_site live_version.")
+			return nil, web.Refuse(http.StatusGone, "removed", "Reading a file of an older version was removed: read the live one (no version), or make the older version live with rollback_site.")
 		}
 		steps := []step{}
 		for _, p := range append(a.list("path"), a.list("paths")...) {
@@ -182,24 +183,32 @@ var oldTools = map[string]func(a args) ([]step, error){
 	"storage_list_resources": siteOnly("get_site"),
 	"storage_get_usage":      siteOnly("get_site"),
 	"list_deleted_sites":     func(a args) ([]step, error) { return one("list_sites", args{"bin": true}) },
-	"rollback_site":          changeStep("live_version", func(a args) any { return a["version"] }),
-	"restore_site":           changeStep("restore", func(args) any { return true }),
-	"set_site_offline":       changeStep("offline", func(a args) any { return a["offline"] }),
-	"set_visibility":         changeStep("listed", func(a args) any { return a.s("visibility") == "public" }),
-	"grant_site_viewer":      accessStep("viewers_add", func(a args) any { return a.list("emails") }),
-	"revoke_site_viewer":     accessStep("viewers_remove", func(a args) any { return append(a.list("emails"), a.list("email")...) }),
-	"sign_out_site_visitors": accessStep("sign_everyone_out", func(args) any { return true }),
-	// The passcode screen keeps the code out of the chat: without a code
-	// given, these open it.
-	"get_site_passcode": accessStep("access", func(args) any { return "passcode" }),
-	"set_site_passcode": func(a args) ([]step, error) {
-		return one("set_site_access", a.keep("site", "owner", "passcode").with("access", "passcode"))
+	// rollback_site, restore_site and sign_out_site_visitors are current
+	// names again, with the old arguments (shapes.go current).
+	"set_site_offline": func(a args) ([]step, error) {
+		if a["offline"] == true {
+			return siteOnly("take_site_offline")(a)
+		}
+		return siteOnly("put_site_online")(a)
 	},
+	"set_visibility": func(a args) ([]step, error) {
+		return one("set_site_listed", a.keep("site", "owner").with("listed", a.s("visibility") == "public"))
+	},
+	"grant_site_viewer": func(a args) ([]step, error) {
+		return one("add_site_viewers", a.keep("site", "owner").with("emails", a.list("emails")))
+	},
+	"revoke_site_viewer": func(a args) ([]step, error) {
+		return one("remove_site_viewers", a.keep("site", "owner").with("emails", append(a.list("emails"), a.list("email")...)))
+	},
+	// A passcode never passes through the chat: the passcode screen sets
+	// and shows it, so a passcode an old call sends is not used.
+	"get_site_passcode": siteOnly("passcode_screen_open"),
+	"set_site_passcode": siteOnly("require_passcode"),
 	"remove_site_passcode": func(a args) ([]step, error) {
 		if a["confirm"] != true {
 			return nil, web.Refuse(http.StatusBadRequest, "ask_first", "Tell the person anyone with the link will be able to open the site, then call again with confirm: true once they agree.")
 		}
-		return one("set_site_access", a.keep("site", "owner").with("access", "open"))
+		return siteOnly("open_site_to_anyone")(a)
 	},
 	"connect_domain": func(a args) ([]step, error) {
 		d := strings.ToLower(a.s("domain"))
@@ -307,10 +316,8 @@ func OldArgs(name string, in map[string]any) bool {
 func oldArgs(name string, in map[string]any) bool {
 	a := args(in)
 	switch name {
-	case "create_upload_link": // the old {site} (photo picker) or {site, archive: true}
-		return a.s("namespace") == "" && a.s("kind") == ""
-	case "set_site_access":
-		return a.s("access") == "anyone" || a.s("access") == "specific"
+	case "create_upload_link": // the old {site} (photo picker), {site, archive: true} or {site, kind: "archive"}
+		return a.s("namespace") == "" && a.s("kind") == "" || a["archive"] == true || a.s("kind") == "archive"
 	case "read_site_file":
 		return a["paths"] != nil || a["version"] != nil
 	case "list_sites":
@@ -356,14 +363,66 @@ func siteOnly(tool string) func(args) ([]step, error) {
 	return func(a args) ([]step, error) { return one(tool, a.keep("site", "owner")) }
 }
 
-func changeStep(field string, value func(args) any) func(args) ([]step, error) {
-	return func(a args) ([]step, error) { return one("change_site", a.keep("site", "owner").with(field, value(a))) }
+// setSiteAccess is the old and yesterday's set_site_access: the access
+// tool for each part, in the order the route ran them.
+func setSiteAccess(a args) ([]step, error) {
+	site, steps := func() args { return a.keep("site", "owner") }, []step{}
+	switch a.s("access") {
+	case "open", "anyone":
+		steps = append(steps, step{"open_site_to_anyone", site()})
+	case "passcode":
+		steps = append(steps, step{"require_passcode", site()})
+	case "viewers", "specific":
+		s := site()
+		if a["viewers"] != nil {
+			s["emails"] = a.list("viewers")
+		}
+		steps = append(steps, step{"allow_only_named_people", s})
+	case "":
+		if a["viewers"] != nil {
+			steps = append(steps, step{"allow_only_named_people", site().with("emails", a.list("viewers"))})
+		}
+	default:
+		return nil, web.Refuse(http.StatusBadRequest, "bad_access", "set_site_access was split: use open_site_to_anyone, require_passcode or allow_only_named_people.")
+	}
+	if add := a.list("viewers_add"); len(add) > 0 {
+		steps = append(steps, step{"add_site_viewers", site().with("emails", add)})
+	}
+	if remove := a.list("viewers_remove"); len(remove) > 0 {
+		steps = append(steps, step{"remove_site_viewers", site().with("emails", remove)})
+	}
+	if a["sign_everyone_out"] == true {
+		steps = append(steps, step{"sign_out_site_visitors", site()})
+	}
+	if len(steps) == 0 {
+		return siteOnly("get_site")(a)
+	}
+	return steps, nil
 }
 
-func accessStep(field string, value func(args) any) func(args) ([]step, error) {
-	return func(a args) ([]step, error) {
-		return one("set_site_access", a.keep("site", "owner").with(field, value(a)))
+// changeSite is yesterday's change_site {restore, offline, listed,
+// live_version}: the tool for each part, in the order the route ran them.
+func changeSite(a args) ([]step, error) {
+	site, steps := func() args { return a.keep("site", "owner") }, []step{}
+	if a["restore"] == true {
+		steps = append(steps, step{"restore_site", site()})
 	}
+	switch a["offline"] {
+	case true:
+		steps = append(steps, step{"take_site_offline", site()})
+	case false:
+		steps = append(steps, step{"put_site_online", site()})
+	}
+	if l, ok := a["listed"].(bool); ok {
+		steps = append(steps, step{"set_site_listed", site().with("listed", l)})
+	}
+	if a["live_version"] != nil {
+		steps = append(steps, step{"rollback_site", site().with("version", a["live_version"])})
+	}
+	if len(steps) == 0 {
+		return siteOnly("get_site")(a)
+	}
+	return steps, nil
 }
 
 func gone(feature string) func(args) ([]step, error) {

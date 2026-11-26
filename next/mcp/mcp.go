@@ -299,6 +299,12 @@ func (c *call) site(rest string, query url.Values) (string, error) {
 // the caller. The answer becomes the tool result; AgentCat gets a copy.
 func (h *server) call(r *http.Request, t tool, args map[string]any) map[string]any {
 	start := time.Now()
+	asked := args
+	var names *visitorNames // stored data names people by label, not id (views.go)
+	if _, ok := t.input["properties"].(map[string]any)["namespace"]; ok {
+		names = newVisitorNames(&call{h, r, args})
+		args = names.reveal(&call{h, r, args})
+	}
 	method, path, body, err := t.route(&call{h, r, args})
 	var res map[string]any
 	switch {
@@ -309,7 +315,16 @@ func (h *server) call(r *http.Request, t tool, args map[string]any) map[string]a
 	default:
 		res = h.replay(r, method, path, body)
 	}
-	go h.agentcat(web.CallerOf(r), t.name, args, res, time.Since(start))
+	if obj, ok := res["structuredContent"].(map[string]any); ok && t.view != nil && res["isError"] != true {
+		res = result(t.view(&call{h, r, args}, obj))
+	}
+	if fix, ok := t.fixes[errorCode(res)]; ok && res["isError"] == true {
+		res = refusal(web.Refuse(http.StatusBadRequest, errorCode(res), fix))
+	}
+	if names != nil {
+		res = names.hide(res).(map[string]any)
+	}
+	go h.agentcat(web.CallerOf(r), t.name, asked, res, time.Since(start))
 	return res
 }
 

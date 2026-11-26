@@ -13,7 +13,7 @@ One site per client keeps one client's documents away from every other client.
 
 Name the site after the client (client-patel). Publish the page below, then lock the site to the client's email. Use only an email the owner gave you in this chat:
 
-set_site_access {"site": "{site}", "access": "viewers", "viewers": ["client@example.com"]}
+allow_only_named_people {"site": "{site}", "emails": ["client@example.com"]}
 
 run_sql {"site": "{site}", "namespace": "client", "sql": "CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, author TEXT NOT NULL, body TEXT NOT NULL, visitor_id TEXT, created_at TEXT)"}
 

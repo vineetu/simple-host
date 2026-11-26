@@ -146,7 +146,7 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads one site's address, versions, access, domain status, saved data, rules and use.",
+        "read_only_justification": "Reads one site's address, versions, access, domain status, saved data, rules and use; named people's emails only when include_emails is true.",
         "open_world_justification": "Reads only a site the caller may open.",
         "destructive_justification": "Changes nothing."
       }
@@ -172,9 +172,22 @@
         "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Shows the photo picker for a site's file store (namespace photos unless named), or with kind archive makes a one-time link for a big archive.",
+        "read_only_justification": "Shows the photo picker for a site's file store (namespace photos unless named); the person adds photos to it.",
         "open_world_justification": "A new photos namespace can be read by anyone who can open the site, which may be public.",
-        "destructive_justification": "Adds files only through the picker or link; nothing is removed or replaced."
+        "destructive_justification": "Adds files only through the picker; nothing is removed or replaced."
+      }
+    },
+    "create_site_upload_link": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Makes a one-time link where the person uploads a whole site as one archive.",
+        "open_world_justification": "An upload through the link publishes the site, which anyone allowed to open it can read; it may be public.",
+        "destructive_justification": "An upload through the link replaces the site's live files with the archive's (older versions are kept), unless the upload keeps the other files."
       }
     },
     "read_site_file": {
@@ -190,7 +203,33 @@
         "destructive_justification": "Changes nothing."
       }
     },
-    "change_site": {
+    "take_site_offline": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Takes a site offline: its address shows a plain offline page.",
+        "open_world_justification": "Changes one setting of the person's own site; nothing reaches outside Simple Host.",
+        "destructive_justification": "Visitors lose the site until it is put back online; the app asks first. Files and data are kept."
+      }
+    },
+    "put_site_online": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Puts an offline site back online.",
+        "open_world_justification": "The site is readable again by whoever may open it, which may be anyone on the internet.",
+        "destructive_justification": "Brings back what was there; nothing is removed, replaced or narrowed."
+      }
+    },
+    "set_site_listed": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
@@ -198,9 +237,35 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Takes a site offline or online, lists it on the public page, makes an older version live, or restores it from the bin.",
-        "open_world_justification": "Listing a site shows it on the owner's public page on the internet.",
-        "destructive_justification": "Offline or an older version replaces what visitors see; the app asks first."
+        "read_only_justification": "Shows a site on the owner's public page, or takes it off.",
+        "open_world_justification": "Listing shows the site on the owner's public page on the internet.",
+        "destructive_justification": "Replaces the listing setting."
+      }
+    },
+    "rollback_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Makes a kept older version of a site live.",
+        "open_world_justification": "Changes only which kept version of the person's own site is live.",
+        "destructive_justification": "Replaces what visitors see now; the app asks first. The current version stays kept."
+      }
+    },
+    "restore_site": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Brings a deleted site back from the bin with its files and data.",
+        "open_world_justification": "The site is live again at its address, which may be open to anyone on the internet.",
+        "destructive_justification": "Brings back a deleted site; nothing is removed or replaced."
       }
     },
     "delete_site": {
@@ -216,7 +281,7 @@
         "destructive_justification": "The site goes offline and can be restored for 7 days; the app asks first."
       }
     },
-    "set_site_access": {
+    "open_site_to_anyone": {
       "annotations": {
         "readOnlyHint": false,
         "openWorldHint": true,
@@ -224,9 +289,74 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Sets who may open a site: everyone, a passcode, or people named by email; or signs everyone out.",
-        "open_world_justification": "Opening a site makes it readable by anyone on the internet.",
-        "destructive_justification": "Can end visitors' access and sign-ins; the app asks first. A passcode is set in a screen and never enters the chat."
+        "read_only_justification": "Lets anyone with the address open a site: no passcode, no named people.",
+        "open_world_justification": "Makes the site readable by anyone on the internet.",
+        "destructive_justification": "Removes the passcode or named-people lock; the app asks first."
+      }
+    },
+    "require_passcode": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Makes visitors need a passcode, and opens the passcode screen where the person sets or sees it.",
+        "open_world_justification": "Changes only the person's own site; the passcode never enters the chat.",
+        "destructive_justification": "Visitors without the passcode lose access; the app asks first."
+      }
+    },
+    "allow_only_named_people": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Opens a site only to the people named by email, replacing the list.",
+        "open_world_justification": "Changes only who may open the person's own site; no email is sent.",
+        "destructive_justification": "Anyone left off the list loses access at once; the app asks first."
+      }
+    },
+    "add_site_viewers": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Adds people by email to those who may open a site.",
+        "open_world_justification": "Changes only who may open the person's own site; no email is sent.",
+        "destructive_justification": "A site open to anyone, or behind a passcode, becomes open only to the named people; the app asks first."
+      }
+    },
+    "remove_site_viewers": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Removes people by email from those who may open a site.",
+        "open_world_justification": "Changes only who may open the person's own site.",
+        "destructive_justification": "Those removed lose access at once; the app asks first."
+      }
+    },
+    "sign_out_site_visitors": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Ends every passcode unlock and visitor sign-in on a site.",
+        "open_world_justification": "Changes only the person's own site.",
+        "destructive_justification": "Every visitor must enter the passcode or sign in again; the app asks first."
       }
     },
     "passcode_screen_open": {
@@ -393,7 +523,7 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads named values with the caller's rights.",
+        "read_only_justification": "Reads named values with the caller's rights; each says whether it is the caller's, not who saved it.",
         "open_world_justification": "Reads only sites the caller may open.",
         "destructive_justification": "Changes nothing."
       }
@@ -406,7 +536,7 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Reads one named value with the caller's rights.",
+        "read_only_justification": "Reads one named value with the caller's rights; it says whether it is the caller's, not who saved it.",
         "open_world_justification": "Reads only sites the caller may open.",
         "destructive_justification": "Changes nothing."
       }
@@ -445,7 +575,7 @@
         "idempotentHint": true
       },
       "justifications": {
-        "read_only_justification": "Lists a namespace's stored files with the caller's rights.",
+        "read_only_justification": "Lists a namespace's stored files with the caller's rights; each says whether it is the caller's, not who stored it.",
         "open_world_justification": "Reads only sites the caller may open.",
         "destructive_justification": "Changes nothing."
       }
@@ -552,8 +682,8 @@
     {
       "description": "Update the seeded feedback survey and undo the requested change.",
       "user_prompt": "On feedback-survey, change the heading to \"Tell us how we did\". Then, in the same chat: Undo that change.",
-      "tools_triggered": "get_site, read_site_file, publish_site, change_site",
-      "expected_output": "The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, change_site makes the previous version live and the original heading returns. No account or visitor emails are returned."
+      "tools_triggered": "get_site, read_site_file, publish_site, rollback_site",
+      "expected_output": "The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, rollback_site makes the previous version live and the original heading returns. No account or visitor emails are returned."
     },
     {
       "description": "Create a team and invite one person to it.",
