@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initials, joinNames, markInk, possessive, safeHref, stageLabel } from "./labels";
+import { initials, joinNames, markInk, possessive, safeHref, safeLink, stageLabel } from "./labels";
 
 describe("labels", () => {
   it("takes initials from words with letters", () => {
@@ -31,5 +31,13 @@ describe("markColours", () => {
     const m = markColours("#2a78d6");
     expect(m.ink).toBe("#fff");
     expect(m.bg).not.toBe("#2a78d6");
+  });
+  it("keeps only http(s) links or a path on this site", () => {
+    expect(safeLink("/e/x/apply")).toBe("/e/x/apply");
+    expect(safeLink("https://x.simple-hack.app/")).toBe("https://x.simple-hack.app/");
+    expect(safeLink("//evil.example/")).toBe("");
+    expect(safeLink("/\\evil.example/")).toBe("");
+    expect(safeLink("javascript:alert(1)")).toBe("");
+    expect(safeLink(undefined)).toBe("");
   });
 });

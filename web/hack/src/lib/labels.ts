@@ -53,6 +53,11 @@ export function markColours(color: string): { bg: string; ink: string } {
 
 /** safeHref is the link if it is http(s), else "" (javascript: and data: never pass). */
 export const safeHref = (url?: string) => (/^https?:\/\//i.test(String(url || "").trim()) ? String(url).trim() : "");
+/** safeLink is safeHref that also keeps a path on this site ("/e/x/apply"), never "//host" or a script URL. */
+export const safeLink = (url?: string) => {
+  const u = String(url || "").trim();
+  return /^\/(?![/\\])/.test(u) ? u : safeHref(u);
+};
 
 /** possessive: "Ayu's", "Chris'". */
 export const possessive = (name: string) => (name ? name + (/s$/i.test(name) ? "’" : "’s") : "");

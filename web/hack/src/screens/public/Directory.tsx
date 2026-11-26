@@ -6,6 +6,7 @@ import { Button } from "@kit/components/ui/button";
 import { PageTitle, Section } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
 import { useHack } from "@/lib/client";
+import { safeLink } from "@/lib/labels";
 import type { DirectoryRow } from "@/lib/client/hack";
 import { apiKey } from "@/lib/session";
 import { EventMark } from "@/app/marks";
@@ -14,17 +15,21 @@ import { dateRange } from "./directory";
 import { PublicFoot } from "./PublicFoot";
 
 function Row({ e }: { e: DirectoryRow }) {
+  // Server values, but only http(s) or a path on this site ever become a link or an image.
+  const url = safeLink(e.url);
+  const apply = safeLink(e.apply_url);
+  const icon = safeLink(e.icon_url);
   const sub = [e.tagline, dateRange(e.starts_at, e.ends_at, e.time_zone)].filter(Boolean).join(" · ");
   return (
     <li className="flex min-h-14 items-center gap-3 border-b border-rule px-1 py-2 last:border-b-0">
-      {e.icon_url ? <img src={e.icon_url} alt="" className="size-8 flex-none rounded-sm object-cover" /> : <EventMark title={e.title} color={e.color} />}
-      <a href={e.url} className="flex min-h-11 min-w-0 flex-1 flex-col justify-center no-underline">
+      {icon ? <img src={icon} alt="" className="size-8 flex-none rounded-sm object-cover" /> : <EventMark title={e.title} color={e.color} />}
+      <a href={url || undefined} className="flex min-h-11 min-w-0 flex-1 flex-col justify-center no-underline">
         <span className="font-semibold text-ink">{e.title}</span>
         {sub && <span className="text-sm text-ink-soft">{sub}</span>}
       </a>
-      {e.applications_open && e.apply_url && (
+      {e.applications_open && apply && (
         <Button asChild>
-          <a href={e.apply_url} aria-label={"Apply to " + e.title}>
+          <a href={apply} aria-label={"Apply to " + e.title}>
             Apply
           </a>
         </Button>
