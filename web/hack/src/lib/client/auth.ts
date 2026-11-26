@@ -1,4 +1,4 @@
-// Auth / session: sign-in (the old /signin page drives these today), the SSO cookie, signing out.
+// Auth / session: sign-in (screens/public/SignIn.tsx), the SSO cookie, signing out.
 import type { Call } from "@kit/api/call";
 import type { Untyped } from "./_e";
 

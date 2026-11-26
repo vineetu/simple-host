@@ -40,3 +40,20 @@ export const preferences = (call: Call) => call<Untyped>("GET", "/v1/hack/prefer
 export const setPreferences = (call: Call, body: Untyped) => call<Untyped>("PATCH", "/v1/hack/preferences", body);
 export const directory = (call: Call) => call<Untyped>("GET", "/v1/hack/directory");
 export const myTeams = (call: Call) => call<Untyped>("GET", "/v1/hack/my-teams");
+
+/** One public event in GET /v1/hack/directory (now, upcoming, past). */
+export type DirectoryRow = {
+  slug?: string;
+  title: string;
+  url: string;
+  tagline?: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  time_zone?: string;
+  color?: string;
+  icon_url?: string;
+  applications_open?: boolean;
+  apply_url?: string;
+};
+export type Directory = { now?: DirectoryRow[]; upcoming?: DirectoryRow[]; past?: DirectoryRow[] };
+export const directoryGroups = (call: Call) => call<Directory>("GET", "/v1/hack/directory");
