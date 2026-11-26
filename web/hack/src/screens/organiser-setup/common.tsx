@@ -278,9 +278,9 @@ export function DateTimePair({
       <Label id={id + "-l"} htmlFor={id}>
         {label}
       </Label>
-      <div className="flex gap-2">
-        <Input id={id} type="date" aria-label={label + " date"} value={date} disabled={disabled} onChange={(e) => onDate(e.target.value)} className="min-w-0 flex-[3]" aria-invalid={!!error} />
-        <Input type="time" aria-label={label + " time"} value={time} disabled={disabled} onChange={(e) => onTime(e.target.value)} className="min-w-0 flex-[2]" />
+      <div className="flex flex-wrap gap-2">
+        <Input id={id} type="date" aria-label={label + " date"} value={date} disabled={disabled} onChange={(e) => onDate(e.target.value)} className="min-w-[10rem] flex-[3]" aria-invalid={!!error} />
+        <Input type="time" aria-label={label + " time"} value={time} disabled={disabled} onChange={(e) => onTime(e.target.value)} className="min-w-[9rem] flex-[2]" />
       </div>
       {error && <FieldMessage tone="bad">{error}</FieldMessage>}
     </div>

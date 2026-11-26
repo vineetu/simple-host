@@ -20,3 +20,19 @@ export const removeFormerJudge = (call: Call, slug: string, user: string) => cal
 export const queue = (call: Call, slug: string) => call<Untyped>("GET", E(slug, "judge", "queue"));
 export const scores = (call: Call, slug: string, team: string) => call<Untyped>("GET", E(slug, "judge", "scores", seg(team)));
 export const score = (call: Call, slug: string, team: string, body: Untyped) => call<Untyped>("PUT", E(slug, "judge", "scores", seg(team)), body);
+
+// Organiser setup (Judging, Assignment grid): the shapes they read, and the two
+// calls that carry more than the plain routes above.
+export type JudgeRow = { user_id: string; name?: string; email?: string };
+export type JudgingSettings = { assignment_mode?: "open" | "automatic" | "manual" | "panel"; judges_per_team?: number; judges?: JudgeRow[] } & Untyped;
+export type Conflict = { team_id: string; judge_id: string; team_name?: string; judge_name?: string };
+export type Dashboard = {
+  teams?: { team_id?: string; team_name?: string; judges_scored: number; judges_eligible: number }[];
+  judges?: { judge_id?: string; judge_name?: string; done_count: number; assigned_count: number }[];
+  former_judges?: { user_id: string; display_name?: string; counted_teams: number; assigned_count: number }[];
+};
+/** An organiser removes one judge's conflict with a team. */
+export const removeJudgeConflict = (call: Call, slug: string, team: string, judge: string) =>
+  call<Untyped>("DELETE", E(slug, "conflicts", seg(team)) + "?judge_user_id=" + seg(judge));
+/** Deleting a former judge's scores repeats the event's address name, as the server requires. */
+export const deleteFormerJudgeScores = (call: Call, slug: string, user: string) => call<Untyped>("DELETE", E(slug, "judging", "former-judges", seg(user)), { confirm: slug });

@@ -1,6 +1,10 @@
 {
  "live": [
   "landing-your-events",
+  "organiser-event-page",
+  "organiser-judging",
+  "organiser-judging-assignments",
+  "organiser-settings",
   "participant-submissions"
  ]
 }
