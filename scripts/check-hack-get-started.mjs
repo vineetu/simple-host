@@ -12,11 +12,8 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 // SIM-218: neither the website nor an AI app is the lead way in -- every
 // role's path works fully both ways (INTENT 2026-10-27). These are the real
 // phrases this page must use for each role's two paths, taken from the web
-// app's own screens (nav.js, participant-team.js, participant-website.js,
-// participant-entry.js, public-join.js, public-judge.js, judge-queue.js,
-// judge-scoring.js, organiser-create-event.js, organiser-overview.js,
-// organiser-teams.js) so a check here fails if the copy drifts from what
-// those screens actually say, not just from each other.
+// app's own screens (web/hack/src/screens) so a check here fails if the copy
+// drifts from what those screens say, not just from each other.
 const ROLES = [
   {
     id: 'organiser', heading: 'Organiser', promptId: 'prompt-organiser',
