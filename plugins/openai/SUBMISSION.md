@@ -6,7 +6,7 @@ draft `app-6ab570c7e41c81918c88f0026f2e1895` cannot change its MCP server). Upda
 tools as they are, never from memory: see `plugins/ROUTINE.md`. It is not a record of a
 deployment, a reviewer run or a portal submission.
 
-Last updated from the tools: 2026-11-25 (the rewritten service, `next/mcp/tools.go`). The json files next to it carry the same fields:
+Last updated from the tools: 2026-11-26 (the rewritten service, `next/mcp/tools.go`). The json files next to it carry the same fields:
 `plugin.json` (package manifest and review cases), `chatgpt-app-submission.json` (tool
 annotations and cases, checked against `tools/list` by `TestSubmissionToolsMatchListing` in `next/mcp`)
 and `mcp.json` (the server address). `scripts/build-openai-plugin.sh host` checks that the cases
@@ -191,6 +191,11 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
   in place of who saved them, and no result carries an internal id
   (`TestEveryToolsOutputAndHints` checks every answer). P2 uses `rollback_site`. Not yet run in
   ChatGPT.
+- 2026-11-26, third review, local run of `next` at 149c50894 (not production): the reviewer's
+  tools/list equals an ordinary account's (50 tools, 46 for the model), and P1 to P5 ran at the
+  tool level with the expected results on locally seeded demo sites. Open: `query_sql` still
+  shows visitor ids in a `SELECT *` join, an alias or an expression of `visitor_id`
+  (OPENAI-REVIEW-3 A1). Not yet run in ChatGPT.
 
 TODO-OWNER: run all eight cases in ChatGPT against production and record the results here.
 TODO-OWNER: record a new demo video (the current one shows the old tools) and put its URL in
