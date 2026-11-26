@@ -196,9 +196,11 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
   tool level with the expected results on locally seeded demo sites. Open: `query_sql` still
   shows visitor ids in a `SELECT *` join, an alias or an expression of `visitor_id`
   (OPENAI-REVIEW-3 A1). Not yet run in ChatGPT.
-- 2026-11-26, after the third review: every id in a saved-data answer (any column, alias,
-  expression or text) shows as `you` or `visitor-<8 hex>`, one label per person on the site,
-  and a label in `where`, `params` or the SQL means that person (A1). `create_upload_link` is the
+- 2026-11-26, after the third review: every person's id in a saved-data answer (any column,
+  alias, expression or text) shows as `you` or `visitor-<8 hex>`, one label per person on the
+  site, and a label in `where`, `params` or the SQL means that person (A1). For the site's
+  managers a UUID that is not a person's (an order number, a key) stays as stored; visitors see
+  every id-shaped value as a label. Checked in a local run at 66c817acc. `create_upload_link` is the
   photo picker only; `create_site_upload_link` gives the whole-site archive link, destructive
   (A2). 51 tools, 47 for the model. Not yet run in ChatGPT.
 
