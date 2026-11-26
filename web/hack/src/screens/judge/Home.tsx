@@ -3,67 +3,26 @@
 // (or the stage's line in its place), the checklist, then Leave this event.
 // The walkthrough opens itself the first time (judge_walkthrough_done).
 import { useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@kit/components/ui/button";
 import { PageTitle, Section } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
-import { useToast } from "@kit/components/ui/toast";
-import type { ApiError } from "@kit/api/call";
-import { useHack, type EventDetail, type Need } from "@/lib/client";
-import { href, needHref } from "@/routes/resolve";
+import { useHack, type EventDetail } from "@/lib/client";
+import { href } from "@/routes/resolve";
 import { useEventDetail } from "@/app/data";
 import { useLeave } from "@/app/Leave";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import type { ScreenProps } from "@/routes/registry";
-import { homeTop, leaveLine, setupStep, splitNeed, teamWord, type HomeTop } from "./data";
+import { homeTop, leaveLine, setupStep, teamWord, type HomeTop } from "./data";
+import { NeedsYou } from "@/shared/NeedsYou";
 import { JudgeChecklist } from "./Checklist";
-import { Box, NotOpen, Progress } from "./parts";
+import { Box } from "@/shared/Box";
+import { NotOpen, Progress } from "./parts";
 import { useJudgeChecklist, useMyConflicts, useQueue } from "./queries";
 import { homeSteps, useTour } from "./tours";
 
 const scoreHref = (slug: string, team: string) => href("judge", slug, "scoring") + "&team=" + encodeURIComponent(team);
-
-function NeedsYou({ d }: { d: EventDetail }) {
-  const api = useHack();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const items = d.needs_you || [];
-  if (!items.length) return null;
-  const dismiss = async (n: Need) => {
-    try {
-      await api.event.noticesSeen(d.event.slug, [n.id!]);
-      await qc.invalidateQueries({ queryKey: ["event", d.event.slug] });
-    } catch (e) {
-      if ((e as ApiError).status !== 401) toast((e as Error).message || "Could not dismiss that. Try again.", { bad: true });
-    }
-  };
-  return (
-    <Section title="Needs you" className="rounded-wobble border border-rule bg-card px-4 py-3">
-      <ul className="m-0 list-none p-0">
-        {items.map((n, i) => {
-          const [title, sub] = splitNeed(n);
-          const link = (
-            <AppLink to={needHref("judge", d.event.slug, n)} className="flex min-h-11 min-w-0 flex-1 flex-col justify-center no-underline">
-              <span className="text-ink">{title}</span>
-              {sub && <span className="text-sm text-ink-soft">{sub}</span>}
-            </AppLink>
-          );
-          return (
-            <li key={n.id || i} className="flex items-center gap-3 border-b border-rule py-1.5 last:border-b-0">
-              {link}
-              {n.dismissable && n.id && (
-                <Button aria-label={"Dismiss: " + title} onClick={() => dismiss(n)}>
-                  Dismiss
-                </Button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </Section>
-  );
-}
 
 function Pinned({ slug }: { slug: string }) {
   const api = useHack();
@@ -218,14 +177,14 @@ export default function Home({ match }: ScreenProps) {
     return (
       <>
         {title}
-        <NeedsYou d={d} />
+        <NeedsYou role="judge" slug={d.event.slug} items={d.needs_you || []} />
         <Failed error={queue.error || conflicts.error} retry={() => (queue.refetch(), conflicts.refetch())} />
       </>
     );
   return (
     <>
       {title}
-      <NeedsYou d={d} />
+      <NeedsYou role="judge" slug={d.event.slug} items={d.needs_you || []} />
       <Pinned slug={slug} />
       <Hero top={top!} slug={slug} step={step} />
       {checklist.data && <JudgeChecklist list={checklist.data} primary={top!.kind !== "next" && top!.kind !== "done"} />}

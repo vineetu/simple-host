@@ -5,8 +5,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@kit/components/ui/button";
-import { CopyButton } from "@kit/components/ui/copy";
-import { FieldMessage, Input } from "@kit/components/ui/input";
+import { FieldMessage } from "@kit/components/ui/input";
 import { Section } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kit/components/ui/tabs";
@@ -14,15 +13,7 @@ import { useHack } from "@/lib/client";
 import type { ConnectApp, ConnectStep } from "@/lib/client/hack";
 import { accountErr, connectionRows, site, stepsFor, type Words } from "./data";
 import type { Ask } from "./Ask";
-
-function CopyRow({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="mt-2 flex gap-2">
-      <Input readOnly value={value} aria-label={label} className="h-11 font-mono text-sm" />
-      <CopyButton text={value} />
-    </div>
-  );
-}
+import { CopyRow } from "@/shared/CopyRow";
 
 function Step({ s, address }: { s: ConnectStep & { fallback?: string }; address: string }) {
   return (

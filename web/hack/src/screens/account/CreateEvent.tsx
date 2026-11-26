@@ -7,10 +7,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@kit/components/ui/button";
 import { Field, FieldMessage, Input, NativeSelect, Textarea } from "@kit/components/ui/input";
 import { PageTitle } from "@kit/components/ui/page-shell";
-import { clearDirty, LeaveGuard, useDirty } from "./leave-guard";
+import { clearUnsaved, useUnsaved } from "@kit/guard/unsaved";
 import { useHack } from "@/lib/client";
 import { useGo } from "@/app/nav";
-import { browserZone, createErrors, errText, NAME_CODES, site, slugify, zoneOptions, type CreateForm } from "./data";
+import { createErrors, errText, NAME_CODES, site, slugify, type CreateForm } from "./data";
+import { browserZone, zoneOptions } from "@/lib/time";
 
 type Check = { text: string; tone?: "bad" | "good" };
 
@@ -26,7 +27,7 @@ export default function CreateEvent() {
   const [busy, setBusy] = useState(false);
   const touched = useRef(false);
   const [initial] = useState(f);
-  useDirty((Object.keys(f) as (keyof CreateForm)[]).some((k) => f[k] !== initial[k]));
+  useUnsaved((Object.keys(f) as (keyof CreateForm)[]).some((k) => f[k] !== initial[k]));
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -91,7 +92,7 @@ export default function CreateEvent() {
         ...(f.end ? { ends_at: f.end } : {}),
       });
       const slug = r?.event?.slug || f.slug.trim().toLowerCase();
-      clearDirty();
+      clearUnsaved();
       go("/e/" + encodeURIComponent(slug) + "/manage");
     } catch (e) {
       const code = (e as { code?: string }).code || "";
@@ -170,7 +171,6 @@ export default function CreateEvent() {
           Create event
         </Button>
       </form>
-      <LeaveGuard />
     </>
   );
 }

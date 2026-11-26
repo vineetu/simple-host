@@ -7,12 +7,12 @@ import { Dialog, DialogActions } from "@kit/components/ui/dialog";
 import { FieldMessage, Input, Label } from "@kit/components/ui/input";
 import { Skeleton } from "@kit/components/ui/skeleton";
 import type { EventDetail } from "@/lib/client";
-import { lockReason } from "./common";
+import { writeLock } from "@/shared/locks";
 
 /** Locks is what can still change on Settings: most of it stops when the event ends; details and the directory listing do not. */
 export function locks(d: EventDetail) {
   const admin = d.admin_view ? "Viewing as platform admin. Everything here is read only." : d.event.taken_down ? "This event has been taken down. Nothing on this page can be changed." : "";
-  return { settings: lockReason(d, { settings: true }), admin, ended: d.event.stage === "archived" };
+  return { settings: writeLock(d, { settings: true }), admin, ended: d.event.stage === "archived" };
 }
 
 /** SaveRow is one section's save: its error under the fields, then the button (filled only when it is the tab's one form). */

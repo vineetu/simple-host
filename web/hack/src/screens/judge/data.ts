@@ -139,16 +139,6 @@ export function leaveLine(p: { blocked?: { code?: string; message?: string } | n
   return { disabled: false, text: n > 0 ? `You'll lose access to judging. Your scores for ${n} team${n === 1 ? "" : "s"} stay and still count in the results.` : "You'll lose access to judging." };
 }
 
-/** splitNeed is a Needs you line's title and the short line under it (needs.js). */
-export function splitNeed(item: { kind: string; text: string; section?: string }): [string, string] {
-  const OPEN: Record<string, string> = { team: "Open Team", website: "Open Website", entry: "Open Entry", people: "Review applications", home: "", queue: "Open My teams" };
-  const text = String(item.text || "");
-  if (item.kind === "team_message") return [text, OPEN[item.section || ""] || ""];
-  const i = text.indexOf(". ");
-  if (i > 0) return [text.slice(0, i + 1), text.slice(i + 2)];
-  return [text, OPEN[item.section || ""] || ""];
-}
-
 // ---- My teams ----
 
 /** hostLabel is a link's host name ("youtu.be"), or "". */

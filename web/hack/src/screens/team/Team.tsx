@@ -5,7 +5,7 @@
 // link, requests, the members and their menus, the thread with the
 // organisers), Find people (team finding on) and Settings (name, looking
 // for, track, lock, new link, leave). Team admins get the admin functions.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@kit/components/ui/badge";
@@ -20,7 +20,6 @@ import { Notice } from "@kit/components/ui/notice";
 import { PageTitle, Section } from "@kit/components/ui/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kit/components/ui/tabs";
 import { useToast } from "@kit/components/ui/toast";
-import { cn } from "@kit/lib/utils";
 import { useHack } from "@/lib/client";
 import { possessive } from "@/lib/labels";
 import { useEventDetail } from "@/app/data";
@@ -49,27 +48,18 @@ import {
   type Way,
 } from "./data";
 import { Thread } from "./Thread";
-import { Walkthrough, markSeen, seenKey, wasSeen, type Step } from "./Walkthrough";
+import { useUnsaved } from "@kit/guard/unsaved";
+import { Walkthrough, markSeenHere, seenHere, type WalkStep } from "@kit/walkthrough/walkthrough";
 import { blocked, say, signedOut } from "./words";
+import { Box } from "@/shared/Box";
 
-const TOUR: Step[] = [
+const TOUR: WalkStep[] = [
   { target: '[data-tour="team-ways"]', title: "Three ways onto a team", body: "Ask a team that’s looking, join with a link or code a teammate sent you, or start your own." },
   { target: '[data-tour="open-teams"]', title: "Ask to join", body: "Teams looking for people. Ask one, or several. Their admins say yes or no." },
   { target: '[data-tour="be-found"]', title: "Let teams find you", body: "List yourself with a one-line intro. Teams can invite you, and you choose." },
 ];
 const TOUR_KEY = "sh-participant-team-tour-done";
 let autoTourTried = false; // once per page load, as the old screen
-
-/** Card is a titled box on this screen. */
-export function Box({ title, sub, children, className, ...rest }: { title?: string; sub?: ReactNode; children?: ReactNode; className?: string } & Record<`data-${string}`, string>) {
-  return (
-    <section className={cn("mt-5 rounded-wobble border border-rule bg-card px-4 py-4 md:px-5", className)} {...rest}>
-      {title && <h2 className="type-section">{title}</h2>}
-      {sub && <p className="mt-0.5 text-sm text-ink-soft">{sub}</p>}
-      {children}
-    </section>
-  );
-}
 
 /** Row is one line of a list: a name, a line under it, and its actions. */
 export function Row({ name, sub, children }: { name: ReactNode; sub?: ReactNode; children?: ReactNode }) {
@@ -163,7 +153,7 @@ export default function Team({ match }: ScreenProps) {
 
   // The walkthrough: from Help (?walkthrough=1), or once for someone with no team while teams are open.
   const [tour, setTour] = useState(false);
-  const key = seenKey(TOUR_KEY, uid);
+  const key = TOUR_KEY + "-" + (uid || "anon");
   useEffect(() => {
     if (!f || noWay) return;
     if (params.get("walkthrough") === "1") {
@@ -173,16 +163,11 @@ export default function Team({ match }: ScreenProps) {
       setTour(true);
     } else if (!team && r.teamsOpen && !autoTourTried) {
       autoTourTried = true;
-      if (!wasSeen(key)) setTour(true);
+      if (!seenHere(key)) setTour(true);
     }
   }, [f, noWay, params, setParams, team, r.teamsOpen, key]);
-  const endTour = useMemo(
-    () => () => {
-      setTour(false);
-      markSeen(key);
-    },
-    [key],
-  );
+  const seeTour = useCallback(() => markSeenHere(key), [key]);
+  const endTour = useCallback(() => setTour(false), []);
 
   if (!f) return <Loading />;
   const removal = !team && typeof d.me?.team_removal_notice === "string" && d.me.team_removal_notice ? (
@@ -199,7 +184,7 @@ export default function Team({ match }: ScreenProps) {
   return (
     <>
       {team ? <OnTeam slug={slug} team={team} r={r} f={f} messages={thread.data || []} uid={uid} /> : <NoTeam slug={slug} r={r} f={f} removal={removal} />}
-      <Walkthrough steps={TOUR} open={tour} onDone={endTour} />
+      <Walkthrough steps={TOUR} open={tour} onFinish={seeTour} onClose={endTour} />
     </>
   );
 }
@@ -630,6 +615,7 @@ function Settings({ slug, team, r }: { slug: string; team: MyTeam; r: Rules }) {
   const [busy, setBusy] = useState("");
   const [ask, setAsk] = useState<"" | "lock" | "link" | "leave">("");
   const dirty = name !== team.name || looking !== (team.looking_for || "");
+  useUnsaved(dirty);
   const members = team.members || [];
   const admins = members.filter((m) => m.admin).map((m) => m.display_name || "Someone");
   const pending = team.pending_requests || 0;

@@ -1,11 +1,12 @@
 // Simple Hack's screen catalogue (catalogue.html; the machinery is the kit's).
 // Each route family adds its own screens/<area>/catalogue.ts, picked up here
 // by the glob: this file never needs editing.
-import { MemoryRouter, Route, Routes } from "react-router";
+import { useState } from "react";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import "../styles/app.css";
 import { mountCatalogue, track, type Entry } from "@kit/catalogue/harness";
 import { Providers } from "@/app/Providers";
-import { Screen } from "@/app/Screen";
+import { routes } from "@/app/routes";
 import { registry } from "@/routes/registry";
 
 const families = import.meta.glob<{ entries: Entry[] }>("../screens/*/catalogue.ts", { eager: true });
@@ -31,6 +32,11 @@ const bytes = (path: string) =>
     }),
   );
 
+function At({ url }: { url: string }) {
+  const [router] = useState(() => createMemoryRouter(routes, { initialEntries: [url] }));
+  return <RouterProvider router={router} />;
+}
+
 // Every entry is signed in unless it clears the key in before().
 try {
   localStorage.setItem("apiKey", "catalogue");
@@ -41,11 +47,7 @@ try {
 void Promise.all(Object.values(registry).map((d) => d.load())).then(() =>
   mountCatalogue(entries, (e, call, client) => (
   <Providers call={call} bytes={bytes} client={client}>
-    <MemoryRouter initialEntries={[e.url]}>
-      <Routes>
-        <Route path="*" element={<Screen />} />
-      </Routes>
-    </MemoryRouter>
+    <At url={e.url} />
   </Providers>
   )),
 );

@@ -13,11 +13,11 @@ import {
   pickTeam,
   setupStep,
   siteHref,
-  splitNeed,
   walkOrder,
   weightPct,
   type QueueRow,
 } from "./data";
+import { splitNeed } from "@/shared/NeedsYou";
 
 const ev = (o: Partial<EventDetail["event"]> = {}) => ({ slug: "x", title: "X", stage: "judging", scoring_open: true, ...o }) as EventDetail["event"];
 const row = (id: string, o: Partial<QueueRow> = {}) => ({ team_id: id, team: { slug: id, name: id.toUpperCase() }, ...o }) as QueueRow;

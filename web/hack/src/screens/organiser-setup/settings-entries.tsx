@@ -14,7 +14,7 @@ import { href } from "@/routes/resolve";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import type { TabProps } from "./Settings";
-import { errorText, localInput, lockReason, LockNote, Panel, SaveFoot, useRefreshEvent, useUnsavedGuard } from "./common";
+import { errorText, localInput, Panel, SaveFoot, useRefreshEvent } from "./common";
 import {
   addReminder,
   impactLines,
@@ -32,6 +32,8 @@ import {
   type ReminderLimits,
 } from "./settings";
 import { SaveRow, submit, TabLoading, useAnchor } from "./settings-ui";
+import { useUnsaved } from "@kit/guard/unsaved";
+import { LockNote, writeLock } from "@/shared/locks";
 
 type Rules = { preset?: string; fields?: Fields; judge_first?: "video" | "site"; editable?: boolean; has_tracks?: boolean; summary?: string };
 
@@ -41,13 +43,13 @@ function Deadline({ d }: TabProps) {
   const slug = d.event.slug;
   const ev = d.event;
   const refresh = useRefreshEvent(slug);
-  const lock = lockReason(d);
+  const lock = writeLock(d);
   const saved = localInput(ev.submission_deadline, ev.time_zone);
   const [value, setValue] = useState(saved);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => setValue(saved), [saved]);
-  useUnsavedGuard(value !== saved);
+  useUnsaved(value !== saved);
   const put = async (v: string) => {
     await api.event.update(slug, { submission_deadline: v });
     await refresh();
@@ -128,11 +130,11 @@ function HandIn({ d }: TabProps) {
     if (q.data.preset && q.data.preset !== "custom") setLastChosen(q.data.preset);
   }, [q.data]);
   const dirty = !!rules && !!q.data && JSON.stringify(rules) !== JSON.stringify(q.data);
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   if (q.isPending) return <TabLoading />;
   if (q.isError) return <Failed error={q.error} retry={() => q.refetch()} />;
   if (!rules) return null;
-  const lock = lockReason(d) || (rules.editable === false ? "Entries are closed, so these can’t change. To reopen, move the event back to Building on Home." : "");
+  const lock = writeLock(d) || (rules.editable === false ? "Entries are closed, so these can’t change. To reopen, move the event back to Building on Home." : "");
   const mode = (f: string) => (rules.fields?.[f] || "optional") as FieldMode;
   const tracks = ((d.event.tracks as unknown[]) || []).length;
 
@@ -249,7 +251,7 @@ export function EntriesTab({ d }: TabProps) {
   useAnchor(true);
   return (
     <>
-      <LockNote text={lockReason(d)} />
+      <LockNote reason={writeLock(d)} />
       <Deadline d={d} />
       <HandIn d={d} />
     </>
@@ -263,7 +265,7 @@ export function RemindersTab({ d }: TabProps) {
   const qc = useQueryClient();
   const toast = useToast();
   const slug = d.event.slug;
-  const lock = lockReason(d);
+  const lock = writeLock(d);
   const q = useQuery({ queryKey: ["reminders", slug], queryFn: () => api.event.reminders(slug) as Promise<Reminders> });
   const saved = q.data?.offsets_minutes || [];
   const [draft, setDraft] = useState<number[]>([]);
@@ -274,7 +276,7 @@ export function RemindersTab({ d }: TabProps) {
   const [busy, setBusy] = useState(false);
   useEffect(() => setDraft(q.data?.offsets_minutes || []), [q.data]);
   const dirty = !sameOffsets(draft, saved);
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   useAnchor(!q.isPending);
   if (q.isPending) return <TabLoading />;
   if (q.isError) return <Failed error={q.error} retry={() => q.refetch()} />;
@@ -302,7 +304,7 @@ export function RemindersTab({ d }: TabProps) {
   };
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Panel id="reminders" title="Reminder times" sub="Teams without a submitted entry are emailed this long before their deadline. Judges with teams left to score are reminded this long before judging closes.">
         <form onSubmit={submit(save)} noValidate>
           {draft.length ? (

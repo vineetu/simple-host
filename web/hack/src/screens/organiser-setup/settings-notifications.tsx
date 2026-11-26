@@ -19,9 +19,10 @@ import { href } from "@/routes/resolve";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import type { TabProps } from "./Settings";
-import { errorText, LockNote, Panel } from "./common";
+import { errorText, Panel } from "./common";
 import { eventName, NOTIFY_DELIVERY_STATES, NOTIFY_EVENTS, NOTIFY_RESULTS, NOTIFY_STATES, receiverName, testLine, type Hook } from "./settings";
 import { locks, TabLoading } from "./settings-ui";
+import { LockNote } from "@/shared/locks";
 
 type List = { notifications?: Hook[]; limits?: { can_create?: boolean; can_manage?: boolean; history_days?: number } };
 type Delivery = { id?: string; name: string; state?: string; result?: string; last_http?: number; created_at?: string };
@@ -162,7 +163,7 @@ export function NotificationsTab({ d }: TabProps) {
   );
   const panel = (body: ReactNode, action?: ReactNode) => (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Panel title="Notifications" sub="Get a message when a visitor saves something or uploads a file on your own event website." action={action}>
         {body}
       </Panel>

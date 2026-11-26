@@ -25,22 +25,6 @@ export function Progress({ done, total, label, tour }: { done: number; total: nu
   );
 }
 
-/** Box is a plain card on the page. */
-export function Box({ children, className, tone, ...rest }: { children: ReactNode; className?: string; tone?: "warn" | "ok" | "accent" } & Record<`data-${string}`, string | undefined>) {
-  return (
-    <section
-      {...rest}
-      className={cn(
-        "mt-5 rounded-wobble border bg-card px-4 py-4 md:px-5",
-        tone === "warn" ? "border-ink-soft" : tone === "ok" ? "border-good" : tone === "accent" ? "border-accent border-[1.5px]" : "border-rule",
-        className,
-      )}
-    >
-      {children}
-    </section>
-  );
-}
-
 /** NotOpen is "Scoring not open", said once, with the way back. */
 export function NotOpen({ slug, back }: { slug: string; back?: "home" | "queue" }) {
   return (

@@ -24,7 +24,7 @@ import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import { href } from "@/routes/resolve";
 import type { ScreenProps } from "@/routes/registry";
-import { errText, LockNote, RunFrame, useRefreshEvent, writeLock } from "./common";
+import { errText, useRefreshEvent } from "./common";
 import {
   adminsLine,
   fillLabel,
@@ -42,6 +42,7 @@ import {
   type TeamList,
 } from "./data-teams";
 import { TeamMessageDialog } from "./TeamMessage";
+import { LockNote, writeLock } from "@/shared/locks";
 
 const TABS = ["teams", "solo"] as const;
 type Tab = (typeof TABS)[number];
@@ -276,21 +277,21 @@ export default function Teams({ match }: ScreenProps) {
   const head = (sub?: string) => <PageTitle sub={sub}>Teams</PageTitle>;
   if (q.isPending)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         {head()}
         <div className="mt-7" role="status" aria-busy="true" aria-label="Loading teams">
           <Skeleton className="h-11 w-64" />
           <Skeleton className="mt-4 h-16 w-full" />
           <Skeleton className="mt-2 h-16 w-full" />
         </div>
-      </RunFrame>
+      </>
     );
   if (q.isError)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         {head()}
         <Failed error={q.error} retry={() => q.refetch()} />
-      </RunFrame>
+      </>
     );
 
   const teams = q.data.teams || [];
@@ -416,7 +417,7 @@ export default function Teams({ match }: ScreenProps) {
   ];
 
   return (
-    <RunFrame slug={slug} screen={match.id}>
+    <>
       {head(teamsSubtitle(teams.length, solo.length))}
       <LockNote reason={lock} />
       <Tabs
@@ -496,6 +497,6 @@ export default function Teams({ match }: ScreenProps) {
       />
       {fill && <FillDialog slug={slug} max={max} initial={fill} open onOpenChange={(o) => !o && setFill(null)} onApply={applyFill} />}
       <PlaceDialog person={placing} choices={roomFor(teams, max)} onClose={() => setPlacing(null)} onPlace={place} />
-    </RunFrame>
+    </>
   );
 }

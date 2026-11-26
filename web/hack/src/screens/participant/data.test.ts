@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { countdownText, entrySection, headline, hero, label, merge, nudgeLine, scoreText, splitNeed, type HomeDetail, type Progress } from "./data";
+import { countdownText, entrySection, headline, hero, label, merge, nudgeLine, scoreText, type HomeDetail, type Progress } from "./data";
+import { splitNeed } from "@/shared/NeedsYou";
 
 const ev = (o: Partial<HomeDetail["event"]> = {}) => ({ slug: "x", title: "X", stage: "building", time_zone: "UTC", ...o }) as HomeDetail["event"];
 const d = (o: Omit<Partial<HomeDetail>, "event"> & { event?: Partial<HomeDetail["event"]> } = {}): HomeDetail =>

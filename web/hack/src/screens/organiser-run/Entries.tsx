@@ -22,7 +22,7 @@ import { useEventDetail } from "@/app/data";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import type { ScreenProps } from "@/routes/registry";
-import { errText, LockNote, RunFrame, useDownload, useRefreshEvent, writeLock } from "./common";
+import { errText, useDownload, useRefreshEvent } from "./common";
 import {
   detailHref,
   entryRulesHref,
@@ -39,15 +39,16 @@ import {
   type TeamsList,
   type Usage,
 } from "./data-entries";
+import { LockNote, writeLock } from "@/shared/locks";
 
 const Title = () => <PageTitle sub="Review entries and give teams more time.">Entries</PageTitle>;
 
 export default function Entries({ match }: ScreenProps) {
   const slug = match.slug!;
   return (
-    <RunFrame slug={slug} screen="organiser-entries">
+    <>
       <Body slug={slug} />
-    </RunFrame>
+    </>
   );
 }
 

@@ -13,7 +13,9 @@ import { Dialog, DialogActions } from "@kit/components/ui/dialog";
 import { Field, FieldMessage, Input, NativeSelect, Textarea } from "@kit/components/ui/input";
 import { Notice } from "@kit/components/ui/notice";
 import type { ApiError } from "@kit/api/call";
+import { clearUnsaved, confirmLeave, useUnsaved } from "@kit/guard/unsaved";
 import { useHack } from "@/lib/client";
+import { zoneAbbr } from "@/lib/time";
 import { forget } from "@/lib/session";
 import type { ScreenProps } from "@/routes/registry";
 import {
@@ -30,7 +32,6 @@ import {
   isGone,
   isOffline,
   unanswered,
-  zoneAbbr,
   type ApplyInfo,
 } from "./data";
 import { Actions, Coc, LinkButton, LinkLoading, Page, Problem, SignInStep, eventPage, useAccount, useLink, NameLine } from "./parts";
@@ -51,6 +52,8 @@ function Form({ slug, info, name, email }: { slug: string; info: ApplyInfo; name
   const [busy, setBusy] = useState(false);
   const [warnOut, setWarnOut] = useState(false);
   const set = (k: keyof typeof v) => (x: string) => setV({ ...v, [k]: x });
+  // Signing out (or going) with a half-filled form asks first.
+  useUnsaved(coc || Object.values(v).some((x) => x.trim()) || Object.values(answers).some((x) => x.trim()));
 
   const signOut = async () => {
     let failed = false;
@@ -79,6 +82,7 @@ function Form({ slug, info, name, email }: { slug: string; info: ApplyInfo; name
     setBusy(true);
     try {
       await api.people.apply(slug, body);
+      clearUnsaved();
       location.assign(location.pathname);
     } catch (err) {
       setBusy(false);
@@ -94,7 +98,7 @@ function Form({ slug, info, name, email }: { slug: string; info: ApplyInfo; name
         <h2 className="type-section">Your application</h2>
         <p className="mb-4 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
           Signed in as {email}
-          <Button variant="link" onClick={signOut} className="min-h-11">
+          <Button variant="link" onClick={() => confirmLeave(() => void signOut())} className="min-h-11">
             Not you? Sign out
           </Button>
         </p>

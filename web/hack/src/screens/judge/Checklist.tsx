@@ -12,6 +12,7 @@ import { navigation } from "@/navigation.gen";
 import { AppLink } from "@/app/nav";
 import { actionLabel, stepDetail, type Checklist, type ChecklistItem } from "./data";
 import { useJudgeChecklist, useRefreshJudging } from "./queries";
+import { writeLock } from "@/shared/locks";
 
 const targets = navigation.targets as readonly { id: string; action_label?: string | null }[];
 
@@ -87,14 +88,6 @@ export function JudgeChecklist({ list, primary }: { list: Checklist; primary: bo
       {parts}
     </Section>
   );
-}
-
-/** writeLock is why nothing on this page can change, or "" (ui.js writeLockReason). */
-export function writeLock(d: EventDetail): string {
-  if (d.admin_view) return "You are viewing as a platform admin. Nothing on this page can be changed.";
-  if (d.event.taken_down) return "This event has been taken down. Nothing on this page can be changed.";
-  if (d.event.stage === "archived") return "This event has ended. Nothing on this page changes any more.";
-  return "";
 }
 
 /**

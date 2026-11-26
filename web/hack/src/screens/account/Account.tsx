@@ -16,7 +16,7 @@ import { PageTitle, Section } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kit/components/ui/tabs";
 import { useToast } from "@kit/components/ui/toast";
-import { LeaveGuard, useDirty } from "./leave-guard";
+import { useUnsaved } from "@kit/guard/unsaved";
 import { paths, useHack } from "@/lib/client";
 import type { Account as Me } from "@/lib/client/me";
 import { dateTime } from "@/lib/time";
@@ -69,7 +69,7 @@ function NamePart({ me, w }: { me: Me; w: Words }) {
   const [name, setName] = useState(me.display_name || "");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  useDirty(name.trim() !== (me.display_name || "").trim());
+  useUnsaved(name.trim() !== (me.display_name || "").trim());
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr("");
@@ -118,7 +118,7 @@ function EmailPart({ w, onChanged }: { w: Words; onChanged: (next: string) => vo
   const [current, setCurrent] = useState("");
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  useDirty((step === "email" && !!(email || current)) || (step === "code" && !!code));
+  useUnsaved((step === "email" && !!(email || current)) || (step === "code" && !!code));
   const show = (s: typeof step) => {
     setStep(s);
     setErrs({});
@@ -233,7 +233,7 @@ function PasswordPart({ w }: { w: Words }) {
   const [f, setF] = useState({ current: "", next: "", confirm: "" });
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  useDirty(!!(f.current || f.next || f.confirm));
+  useUnsaved(!!(f.current || f.next || f.confirm));
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   return (
     <Section title="Password">
@@ -612,7 +612,6 @@ function Body({ me }: { me: Me }) {
         </TabsContent>
       </Tabs>
       {askDialog}
-      <LeaveGuard />
     </>
   );
 }

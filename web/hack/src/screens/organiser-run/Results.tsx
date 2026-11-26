@@ -9,13 +9,13 @@ import { PageTitle, Section } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
 import { paths, useHack } from "@/lib/client";
 import type { CsvExport } from "@/lib/client/exports";
-import { dateTime } from "@/lib/time";
+import { zonedDate } from "@/lib/time";
 import { href } from "@/routes/resolve";
 import { useEventDetail } from "@/app/data";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import type { ScreenProps } from "@/routes/registry";
-import { RunFrame, errText, useDownload } from "./common";
+import { errText, useDownload } from "./common";
 import { publishedRows, rankText, scoreText, scoresChangedSincePublish, type Standing } from "./data-overview";
 
 const DOWNLOADS: [CsvExport | "sites", string, string][] = [
@@ -26,19 +26,6 @@ const DOWNLOADS: [CsvExport | "sites", string, string][] = [
   ["participants", "People (CSV)", "-participants.csv"],
   ["sites", "All team sites (.tar.gz)", "-sites.tar.gz"],
 ];
-
-/** zoned is the time with the event's zone name ("Fri 20 Nov, 6:00 pm WIB"). */
-function zoned(iso: string | undefined, tz?: string): string {
-  const base = dateTime(iso, { time_zone: tz });
-  if (!base || !iso) return base;
-  let name = "";
-  try {
-    name = new Intl.DateTimeFormat("en-US", { timeZone: tz || "UTC", timeZoneName: "short" }).formatToParts(new Date(iso)).find((p) => p.type === "timeZoneName")?.value || "";
-  } catch {
-    /* unknown zone: no label */
-  }
-  return name ? base + " " + name : base;
-}
 
 function StandingsTable({ rows }: { rows: Standing[] }) {
   if (!rows.length) return <p className="text-ink-soft">No team has a score yet.</p>;
@@ -104,31 +91,31 @@ export default function Results({ match }: ScreenProps) {
   const title = <PageTitle sub="Preview and share your standings.">Results</PageTitle>;
   if (q.isPending)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         {title}
         <div role="status" aria-busy="true" aria-label="Loading results" className="mt-6">
           <Skeleton className="h-16 w-full" />
           <Skeleton className="mt-4 h-12 w-full" />
           <Skeleton className="mt-4 h-28 w-full" />
         </div>
-      </RunFrame>
+      </>
     );
   if (q.isError)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         {title}
         <Failed error={q.error} retry={() => q.refetch()} />
-      </RunFrame>
+      </>
     );
   const { results, preview, previewOk } = q.data;
   const published = !!results?.length;
   const stale = scoresChangedSincePublish(results, preview, previewOk);
-  const when = published ? zoned(ev.results_published_at as string | undefined, ev.time_zone) : "";
+  const when = published ? zonedDate(ev.results_published_at as string | undefined, ev.time_zone) : "";
   const secondary = "Publishing takes a snapshot. Publish again if scores change.";
   const home = href("organiser", slug, "overview");
 
   return (
-    <RunFrame slug={slug} screen={match.id}>
+    <>
       {title}
       {published ? (
         <Notice title={when ? "Published " + when : "Published"}>{secondary}</Notice>
@@ -170,6 +157,6 @@ export default function Results({ match }: ScreenProps) {
           Results settings
         </AppLink>
       </p>
-    </RunFrame>
+    </>
   );
 }

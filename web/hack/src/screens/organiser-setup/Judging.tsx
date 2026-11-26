@@ -22,9 +22,10 @@ import type { ScreenProps } from "@/routes/registry";
 import { useEventDetail } from "@/app/data";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
-import { errorText, lockReason, LockNote } from "./common";
+import { errorText } from "./common";
 import { formerMeta, noTrackNote, teamProgress, type TeamRow } from "./judging-data";
 import { TypedConfirm } from "./settings-ui";
+import { LockNote, writeLock } from "@/shared/locks";
 
 type Former = NonNullable<Dashboard["former_judges"]>[number];
 type JudgeProgress = NonNullable<Dashboard["judges"]>[number];
@@ -283,7 +284,7 @@ export default function Judging({ match }: ScreenProps) {
   const d = useEventDetail(slug).data!;
   const ev = d.event;
   const q = useJudgingData(slug);
-  const lock = lockReason(d);
+  const lock = writeLock(d);
   const frozen = !!ev.judging_locked_at;
   const ended = ev.stage === "archived";
   const canJudge = !!d.can?.judge && ["judging", "results", "archived"].includes(ev.stage);
@@ -322,7 +323,7 @@ export default function Judging({ match }: ScreenProps) {
   return (
     <>
       {head}
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <p className="mt-4 flex flex-wrap items-center gap-x-2">
         <AppLink to={href("organiser", slug, "settings") + "&tab=judging"} className="inline-flex min-h-11 items-center">
           Judging settings

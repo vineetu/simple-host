@@ -20,8 +20,9 @@ import { useHack } from "@/lib/client";
 import { dateTime } from "@/lib/time";
 import { useEventDetail } from "@/app/data";
 import type { ScreenProps } from "@/routes/registry";
-import { errText, RunFrame, useRefreshEvent } from "./common";
+import { errText, useRefreshEvent } from "./common";
 import { linkFor, postedText, summary, type Announcement, type Posted } from "./data-announcements";
+import { useUnsaved } from "@kit/guard/unsaved";
 
 type Draft = { title: string; body: string };
 
@@ -161,12 +162,8 @@ function NewAnnouncement({ slug, emailable, onPosted }: { slug: string; emailabl
   const [errors, setErrors] = useState<Partial<Draft>>({});
   const [busy, setBusy] = useState(false);
   const dirty = !!(draft.title || draft.body);
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  // Leaving with unsaved lines asks first.
+  useUnsaved(dirty);
   return (
     <form
       aria-labelledby="ann-h"
@@ -365,7 +362,7 @@ export default function Announcements({ match }: ScreenProps) {
   }
 
   return (
-    <RunFrame slug={slug} screen={match.id}>
+    <>
       <div className="md:max-w-prose">
         {title}
         {body}
@@ -389,6 +386,6 @@ export default function Announcements({ match }: ScreenProps) {
           toast("Deleted");
         }}
       />
-    </RunFrame>
+    </>
   );
 }

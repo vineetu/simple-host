@@ -303,16 +303,6 @@ export function entrySection(d: HomeDetail): EntrySection | null {
 /** needsFor is the Needs you list without what the next-step card already leads with. */
 export const needsFor = (needs: Need[] | undefined, heroKind?: string) => (needs || []).filter((n) => n.kind !== heroKind);
 
-const OPEN: Record<string, string> = { team: "Open Team", website: "Open Website", entry: "Open Entry", people: "Review applications", home: "", queue: "Open My teams" };
-/** splitNeed: the server's first sentence as the row's title, the rest (or where it goes) under it. */
-export function splitNeed(item: Need): [string, string] {
-  const text = String(item.text || "");
-  if (item.kind === "team_message") return [text, OPEN[item.section || ""] || ""];
-  const i = text.indexOf(". ");
-  if (i > 0) return [text.slice(0, i + 1), text.slice(i + 2)];
-  return [text, OPEN[item.section || ""] || ""];
-}
-
 /** justPlaced: on a team now, after this browser last saw this person with none (shared with Team's own note). */
 export function justPlaced(uid: string, slug: string, teamSlug: string): boolean {
   const key = "sh-team-baseline-" + uid + "-" + slug;

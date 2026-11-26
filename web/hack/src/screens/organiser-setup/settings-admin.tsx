@@ -14,8 +14,10 @@ import { dateTime } from "@/lib/time";
 import { useMe } from "@/app/data";
 import { Failed } from "@/app/states";
 import type { TabProps } from "./Settings";
-import { errorText, LockNote, Panel, SaveFoot, useRefreshEvent, useUnsavedGuard } from "./common";
+import { errorText, Panel, SaveFoot, useRefreshEvent } from "./common";
 import { locks, TabLoading, useAnchor } from "./settings-ui";
+import { useUnsaved } from "@kit/guard/unsaved";
+import { LockNote } from "@/shared/locks";
 
 type Org = {
   organiser_name?: string;
@@ -45,7 +47,7 @@ export function DetailsTab({ d }: TabProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => setF(saved), [key]);
   const dirty = JSON.stringify(f) !== key;
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   const save = async () => {
     const e: Record<string, string> = {};
     if (!/^[1-9]\d*$/.test(f.n.trim()) || Number(f.n) > 100000) e.n = "Expected participants must be between 1 and 100000.";
@@ -66,7 +68,7 @@ export function DetailsTab({ d }: TabProps) {
   };
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Panel title="Organiser details">
         <form
           noValidate
@@ -139,7 +141,7 @@ export function OrganisersTab({ d }: TabProps) {
   };
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Panel id="coorg" title="Organisers" sub="A co-organiser can do everything you can on this event, including Delete this event. Only the creator can’t be removed.">
         <ul className="m-0 list-none rounded-field border border-rule px-3 py-1" aria-label="Organisers">
           {organisers.map((p) => (
@@ -235,7 +237,7 @@ export function LinksTab({ d }: TabProps) {
   );
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       {row("join", "Join link", o.join_url)}
       {row("judge", "Judge link", o.judge_url)}
       <AskDialog

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accountErr, ago, canOpen, connectionRows, createErrors, identityLine, nonceHash, slugify, stepsFor, words, zoneAbbr, zoneOptions } from "./data";
+import { accountErr, ago, canOpen, connectionRows, createErrors, identityLine, nonceHash, slugify, stepsFor, words } from "./data";
+import { zoneAbbr, zoneOptions } from "@/lib/time";
 import { ApiError } from "@kit/api/call";
 
 const form = { title: "T", slug: "t-1", start: "2027-01-10", end: "", tz: "UTC", organiser: "A", org: "", email: "a@example.com", purpose: "p", n: "60" };

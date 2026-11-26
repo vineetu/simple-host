@@ -1,13 +1,14 @@
 // Basics and About: the two form tabs, each one Save with Discard and an
 // unsaved-changes line. Both stay editable after the event ends (PATCH on
 // the event is not blocked then); only an admin inspection is read-only.
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Field, Input, Label, Textarea } from "@kit/components/ui/input";
 import { useToast } from "@kit/components/ui/toast";
 import { useHack } from "@/lib/client";
 import { dateTime, isLocalMidnight } from "@/lib/time";
-import { boundaryInput, boundaryValue, Counter, DateTimePair, errorText, SaveFoot, useRefreshEvent, useUnsavedGuard, ZoneSelect, type Ev } from "./common";
+import { boundaryInput, boundaryValue, Counter, DateTimePair, errorText, SaveFoot, useRefreshEvent, ZoneSelect, type Ev } from "./common";
 import { CustomSiteNote, EndedEditable, TabHead, type TabProps } from "./eventpage-ui";
+import { useUnsaved } from "@kit/guard/unsaved";
 
 const boundaryDate = (iso: string | null | undefined, ev: Ev) => (iso ? dateTime(iso, ev, { dateOnly: isLocalMidnight(iso, ev) }) : "—");
 
@@ -37,7 +38,7 @@ function basicsOf(ev: Ev): BasicsForm {
 }
 const same = <T extends object>(a: T, b: T) => (Object.keys(a) as (keyof T)[]).every((k) => a[k] === b[k]);
 
-export function Basics({ slug, ev, admin, ended, website, setDirty }: TabProps) {
+export function Basics({ slug, ev, admin, ended, website }: TabProps) {
   const api = useHack();
   const toast = useToast();
   const refresh = useRefreshEvent(slug);
@@ -47,8 +48,7 @@ export function Basics({ slug, ev, admin, ended, website, setDirty }: TabProps) 
   const [error, setError] = useState("");
   const [titleErr, setTitleErr] = useState("");
   const dirty = !same(f, saved);
-  useEffect(() => setDirty(dirty), [dirty, setDirty]);
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   const head = <TabHead title="Basics" sub="The name, tagline and dates at the top of your page." />;
   // The zone list is long (every zone, each with its name and offset): built again only when the zone changes.
   const zone = useMemo(() => <ZoneSelect id="f-tz" value={f.tz} onChange={(z) => setF((o) => ({ ...o, tz: z }))} />, [f.tz]);
@@ -135,7 +135,7 @@ function aboutOf(ev: Ev): AboutForm {
   return { about: String(ev.about || ""), prizes: String(ev.prizes || ""), p1: op[0] || "", p2: op[1] || "", p3: op[2] || "", rules: String(ev.rules || ""), coc: String(ev.coc_text || "") };
 }
 
-export function About({ slug, ev, admin, ended, website, setDirty }: TabProps) {
+export function About({ slug, ev, admin, ended, website }: TabProps) {
   const api = useHack();
   const toast = useToast();
   const refresh = useRefreshEvent(slug);
@@ -144,8 +144,7 @@ export function About({ slug, ev, admin, ended, website, setDirty }: TabProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dirty = !same(f, saved);
-  useEffect(() => setDirty(dirty), [dirty, setDirty]);
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   const head = <TabHead title="About" sub="The longer text on your page. A blank line starts a new paragraph." />;
 
   if (admin)

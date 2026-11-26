@@ -7,31 +7,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@kit/api/call";
 import { Button } from "@kit/components/ui/button";
 import { FieldMessage, Input, Label, NativeSelect } from "@kit/components/ui/input";
-import { Notice } from "@kit/components/ui/notice";
 import { cn } from "@kit/lib/utils";
 import type { EventDetail } from "@/lib/client";
 import { apiKey, signedOut } from "@/lib/session";
-import { isLocalMidnight, zonedParts } from "@/lib/time";
+import { isLocalMidnight, zoneOptions, zonedParts } from "@/lib/time";
 
 export type Ev = EventDetail["event"] & Record<string, unknown>;
-
-/**
- * lockReason is why nothing here can change ('' when it can): a platform
- * admin's inspection, a taken-down event, or an ended one (ui.writeLockReason;
- * settings: the configuration screens' wording).
- */
-export function lockReason(d: EventDetail, opts: { settings?: boolean } = {}): string {
-  if (d.admin_view) return "Viewing as platform admin. Everything here is read only.";
-  if (d.event.taken_down) return "This event has been taken down. Nothing on this page can be changed.";
-  if (d.event.stage === "archived") return opts.settings ? "This event has ended. Settings can’t change any more." : "This event has ended. Nothing on this page changes any more.";
-  return "";
-}
-
-/** LockNote is the one line saying why the screen is read-only. */
-export function LockNote({ text }: { text: string }) {
-  if (!text) return null;
-  return <Notice tone="bad" title={text} />;
-}
 
 /** errorText is the line for a refusal: a code's own copy when given, else the server's sentence. */
 export function errorText(err: unknown, codes: Record<string, string> = {}): string {
@@ -80,16 +61,6 @@ export function useTab<T extends string>(tabs: readonly T[], fromHash: Record<st
     navigate(pathname + "?" + p.toString());
   };
   return [tab, set];
-}
-
-/** useUnsavedGuard asks the browser to warn before the page goes while a form has unsaved changes. */
-export function useUnsavedGuard(dirty: boolean) {
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    addEventListener("beforeunload", warn);
-    return () => removeEventListener("beforeunload", warn);
-  }, [dirty]);
 }
 
 /**
@@ -198,47 +169,6 @@ export function boundaryInput(iso: string | null | undefined, zone?: string): { 
 
 /** boundaryValue is what Basics sends for a date and time pair (an empty time is local midnight). */
 export const boundaryValue = (date: string, time: string) => (date ? date + "T" + (time || "00:00") : "");
-
-function zoneOffsetLabel(zone: string, date: Date): string {
-  try {
-    const raw = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts(date).find((p) => p.type === "timeZoneName")?.value || "";
-    const m = raw.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/);
-    if (!m) return raw === "GMT" ? "UTC" : "";
-    return "UTC" + m[1] + (m[2] ? ":" + m[2] : "");
-  } catch {
-    return "";
-  }
-}
-
-/** zoneAbbr is a zone's short letter name where it has one (WIB, CET, EST), else ''. */
-export function zoneAbbr(zone: string, date = new Date()): string {
-  const named: Record<string, string> = { "Asia/Jakarta": "WIB", "Asia/Pontianak": "WIB", "Asia/Makassar": "WITA", "Asia/Jayapura": "WIT", "Asia/Singapore": "SGT", "Asia/Kolkata": "IST", "Asia/Tokyo": "JST", "Asia/Seoul": "KST" };
-  try {
-    const raw = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" }).formatToParts(date).find((p) => p.type === "timeZoneName")?.value?.trim() || "";
-    if (raw && !/^(GMT|UTC)?[+-]\d/.test(raw)) return raw;
-  } catch {
-    return "";
-  }
-  return named[zone] || "";
-}
-
-/** zoneOptions is every zone the browser knows, each "Asia/Jakarta · WIB, UTC+7", with current kept. */
-export function zoneOptions(current?: string): { zone: string; label: string }[] {
-  let zones: string[] = [];
-  try {
-    zones = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") || [];
-  } catch {
-    zones = [];
-  }
-  if (!zones.length)
-    zones = ["UTC", "Asia/Jakarta", "Asia/Makassar", "Asia/Jayapura", "Asia/Tokyo", "Asia/Seoul", "Asia/Singapore", "Asia/Kolkata", "Europe/London", "Europe/Paris", "Europe/Berlin", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Australia/Sydney"];
-  if (current && !zones.includes(current)) zones = [current, ...zones];
-  const now = new Date();
-  return [...zones].sort().map((z) => {
-    const extra = [zoneAbbr(z, now), zoneOffsetLabel(z, now)].filter(Boolean).join(", ");
-    return { zone: z, label: z + (extra ? " · " + extra : "") };
-  });
-}
 
 /** ZoneSelect is the one time-zone select. */
 export function ZoneSelect({ id, value, onChange, disabled }: { id: string; value: string; onChange: (z: string) => void; disabled?: boolean }) {

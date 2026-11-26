@@ -15,8 +15,10 @@ import { href } from "@/routes/resolve";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import type { TabProps } from "./Settings";
-import { errorText, localInput, LockNote, Panel, useUnsavedGuard } from "./common";
+import { errorText, localInput, Panel } from "./common";
 import { locks, SaveRow, submit, TabLoading, useAnchor } from "./settings-ui";
+import { useUnsaved } from "@kit/guard/unsaved";
+import { LockNote } from "@/shared/locks";
 
 type Scoring = { score_mode?: string; public_scores?: boolean; public_ranks?: boolean };
 type Voting = { enabled?: boolean; opens_at?: string | null; closes_at?: string | null; eligibility?: string; status?: string; directory_listed?: boolean };
@@ -70,7 +72,7 @@ export function ResultsTab({ d }: TabProps) {
     window: !!v && (win.enabled !== !!v.enabled || win.opens !== localInput(v.opens_at, ev.time_zone) || win.closes !== localInput(v.closes_at, ev.time_zone)),
     eligibility: !!v && elig !== (v.eligibility || "all_signed_in"),
   };
-  useUnsavedGuard(Object.values(dirty).some(Boolean));
+  useUnsaved(Object.values(dirty).some(Boolean));
   const ready = !scoring.isPending && !results.isPending && !voting.isPending;
   useAnchor(ready);
   if (!ready) return <TabLoading />;
@@ -131,7 +133,7 @@ export function ResultsTab({ d }: TabProps) {
 
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Panel id="ranking" title="How teams are ranked">
         <form onSubmit={submit(() => void run("ranking", () => saveScoring({ score_mode: scoreMode })))}>
           <Label htmlFor="res-score-mode">Score used for ranking</Label>

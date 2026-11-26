@@ -54,6 +54,7 @@ import {
   type EntryData,
   type Values,
 } from "./data";
+import { useUnsaved } from "@kit/guard/unsaved";
 
 const TOOL_SUGGESTIONS = ["Canva", "Google Sheets", "Figma", "Supabase", "Python", "Airtable"];
 const AI = AI_TOOLS.map((t) => t.toLowerCase());
@@ -168,13 +169,8 @@ function Editor({
   const body = diff(entry, v, { track: m("track") !== "off" });
   const dirty = Object.keys(body).length > 0;
 
-  // Leaving the page with unsaved lines asks first (the browser's own question).
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    addEventListener("beforeunload", warn);
-    return () => removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  // Leaving with unsaved lines asks first.
+  useUnsaved(dirty);
   // A refused submit moves focus to the first line it names.
   useEffect(() => {
     if (!refused) return;

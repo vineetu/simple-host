@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Walkthrough, type TourStep } from "./Walkthrough";
+import { Walkthrough, markSeenHere, seenHere, type WalkStep as TourStep } from "@kit/walkthrough/walkthrough";
 import { useHack, type EventDetail } from "@/lib/client";
 import { useMe } from "@/app/data";
 
@@ -88,13 +88,7 @@ export function useTour(kind: "judge" | "judgeScoring", steps: TourStep[], ready
     } else {
       if (!uid) return;
       tried[kind] = true;
-      let seen = false;
-      try {
-        seen = localStorage.getItem(localKey) === "1";
-      } catch {
-        /* storage blocked */
-      }
-      if (!seen) setOpen(true);
+      if (!seenHere(localKey)) setOpen(true);
     }
   }, [ready, open, forced, auto, kind, prefs.isSuccess, prefs.data, uid, localKey, search, pathname, navigate]);
 
@@ -105,13 +99,9 @@ export function useTour(kind: "judge" | "judgeScoring", steps: TourStep[], ready
         () => qc.setQueryData(["preferences"], (p: Record<string, unknown> | undefined) => ({ ...p, judge_walkthrough_done: true })),
         () => {},
       );
-    } else
-      try {
-        localStorage.setItem(localKey, "1");
-      } catch {
-        /* storage blocked */
-      }
+    } else markSeenHere(localKey);
   }, [api, qc, kind, localKey]);
+  const close = useCallback(() => setOpen(false), []);
 
-  return <Walkthrough steps={steps} open={open} onDone={done} />;
+  return <Walkthrough steps={steps} open={open} onFinish={done} onClose={close} />;
 }

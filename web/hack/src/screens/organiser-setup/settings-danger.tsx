@@ -10,8 +10,9 @@ import { flash } from "@/lib/session";
 import { useLeave } from "@/app/Leave";
 import { useGo } from "@/app/nav";
 import type { TabProps } from "./Settings";
-import { errorText, LockNote, Panel } from "./common";
+import { errorText, Panel } from "./common";
 import { locks, TypedConfirm, useAnchor } from "./settings-ui";
+import { LockNote } from "@/shared/locks";
 
 function Row({ id, title, text, children }: { id: string; title: string; text: string; children: ReactNode }) {
   return (
@@ -51,7 +52,7 @@ export function DangerTab({ d }: TabProps) {
   else leaveText = "You’ll lose access to managing this event. The other organisers keep running it.";
   return (
     <>
-      <LockNote text={admin} />
+      <LockNote reason={admin} />
       <Panel title="Leave or delete" danger>
         {/* No Leave row when its preview could not be read: never offer a Leave we can't vouch for. */}
         {p && (

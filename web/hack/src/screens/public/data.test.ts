@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@kit/api/call";
-import { APPLY_ERRORS, COUNTRY_COUNT, accountName, applyDates, applyField, checkJoin, closedLine, errText, joinBody, memberLine, teamLinkCase, unanswered, zoneAbbr } from "./data";
+import { APPLY_ERRORS, COUNTRY_COUNT, accountName, applyDates, applyField, checkJoin, closedLine, errText, joinBody, memberLine, teamLinkCase, unanswered } from "./data";
+import { zoneAbbr } from "@/lib/time";
 
 describe("link pages", () => {
   it("say a refusal in this page's words, else the server's", () => {

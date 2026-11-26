@@ -21,7 +21,7 @@ import { useEventDetail } from "@/app/data";
 import { AppLink } from "@/app/nav";
 import { Loading } from "@/app/states";
 import type { ScreenProps } from "@/routes/registry";
-import { RunFrame, errText, useRefreshEvent } from "./common";
+import { errText, useRefreshEvent } from "./common";
 import {
   CHECKLIST_GROUPS,
   cardContent,
@@ -201,10 +201,10 @@ export default function Overview({ match }: ScreenProps) {
   const moves = useMoves(d);
   if (extras.isPending)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         <PageTitle>Home</PageTitle>
         <Loading />
-      </RunFrame>
+      </>
     );
   const x = extras.data!;
   const step = chooseStep(d, x.republish);
@@ -234,7 +234,7 @@ export default function Overview({ match }: ScreenProps) {
   };
 
   return (
-    <RunFrame slug={slug} screen={match.id}>
+    <>
       <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="mr-auto type-page">Home</h1>
         <Button data-tour="change-stage" disabled={archived || locked} onClick={moves.picker}>
@@ -341,6 +341,6 @@ export default function Overview({ match }: ScreenProps) {
       )}
       {moves.dialog}
       <OrganiserWalkthrough slug={slug} force={force} ready />
-    </RunFrame>
+    </>
   );
 }

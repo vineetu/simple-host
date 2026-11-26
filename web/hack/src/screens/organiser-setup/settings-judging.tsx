@@ -18,9 +18,11 @@ import { href } from "@/routes/resolve";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import type { TabProps } from "./Settings";
-import { errorText, localInput, lockReason, LockNote, Panel, useRefreshEvent, useUnsavedGuard } from "./common";
+import { errorText, localInput, Panel, useRefreshEvent } from "./common";
 import { weightTotal, type Criterion } from "./settings";
 import { SaveRow, submit, TabLoading, useAnchor } from "./settings-ui";
+import { useUnsaved } from "@kit/guard/unsaved";
+import { LockNote, writeLock } from "@/shared/locks";
 
 type JudgingSettings = { assignment_mode?: string; judges_per_team?: number; tie_criterion_id?: string | null; organiser_judges?: string[] | null };
 type Person = { user_id: string; display_name?: string; email?: string; role?: string };
@@ -45,7 +47,7 @@ function Rubric({ slug, saved, off }: { slug: string; saved: Criterion[]; off: b
   const [deletes, setDeletes] = useState("");
   useEffect(() => setDraft(saved), [saved]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   const total = weightTotal(draft);
   const set = (i: number, c: Partial<Criterion>) => setDraft(draft.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const move = (i: number, dir: number) => {
@@ -139,13 +141,13 @@ function Closes({ d }: TabProps) {
   const ev = d.event;
   const slug = ev.slug;
   const refresh = useRefreshEvent(slug);
-  const off = !!lockReason(d);
+  const off = !!writeLock(d);
   const saved = localInput(ev.judging_ends_at, ev.time_zone);
   const [value, setValue] = useState(saved);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => setValue(saved), [saved]);
-  useUnsavedGuard(value !== saved);
+  useUnsaved(value !== saved);
   if (ev.stage === "archived")
     return (
       <Panel id="closes" title="Judging closes">
@@ -207,7 +209,7 @@ export function JudgingTab({ d }: TabProps) {
   const toast = useToast();
   const ev = d.event;
   const slug = ev.slug;
-  const lock = lockReason(d);
+  const lock = writeLock(d);
   const setupLocked = !!ev.judging_locked_at || ["judging", "results", "archived"].includes(ev.stage);
   const off = setupLocked || !!lock;
   const rubric = useQuery({ queryKey: ["rubric", slug], queryFn: () => api.judging.rubric(slug) as Promise<{ criteria?: Criterion[] }> });
@@ -229,7 +231,7 @@ export function JudgingTab({ d }: TabProps) {
     setOrgJudges(s.organiser_judges || []);
   }, [s]);
   const modeDirty = !!s && (mode !== (s.assignment_mode || "open") || Number(perTeam) !== (s.judges_per_team || 2) || JSON.stringify([...orgJudges].sort()) !== JSON.stringify([...(s.organiser_judges || [])].sort()));
-  useUnsavedGuard(modeDirty || (!!s && tie !== (s.tie_criterion_id || "")));
+  useUnsaved(modeDirty || (!!s && tie !== (s.tie_criterion_id || "")));
   const ready = !rubric.isPending && !settings.isPending && !people.isPending;
   useAnchor(ready);
   if (!ready) return <TabLoading />;
@@ -257,7 +259,7 @@ export function JudgingTab({ d }: TabProps) {
   const judgeLink = (d.organiser as { judge_url?: string } | undefined)?.judge_url || "";
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       {ev.stage === "judging" && !lock && <Notice title="Locked while judging.">Move the event back to Entries closed to change the rubric, tie-break and how judges are assigned.</Notice>}
       <Rubric slug={slug} saved={criteria} off={off} />
       <Panel id="tie-break" title="Tie-break" sub={off ? undefined : "You can change this until judging starts."}>

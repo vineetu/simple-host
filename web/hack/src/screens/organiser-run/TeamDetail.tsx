@@ -25,9 +25,10 @@ import { AppLink, useGo } from "@/app/nav";
 import { Failed } from "@/app/states";
 import { href } from "@/routes/resolve";
 import type { ScreenProps } from "@/routes/registry";
-import { errText, LockNote, RunFrame, useRefreshEvent, writeLock } from "./common";
+import { errText, useRefreshEvent } from "./common";
 import { entryPill, joinAnd, linkText, personName, roomFor, sitePill, teamLinkUrl, type Entries, type Member, type Message, type Solo, type Team, type TeamList } from "./data-teams";
 import { MessageRows, TeamMessageDialog } from "./TeamMessage";
+import { LockNote, writeLock } from "@/shared/locks";
 
 type Track = { slug: string; name: string };
 type People = { user_id: string; email?: string }[];
@@ -206,27 +207,27 @@ export default function TeamDetail({ match }: ScreenProps) {
   );
   if (teamsQ.isPending)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         {crumbs()}
         <div role="status" aria-busy="true" aria-label="Loading the team">
           <Skeleton className="h-8 w-56" />
           <Skeleton className="mt-6 h-32 w-full" />
           <Skeleton className="mt-3 h-24 w-full" />
         </div>
-      </RunFrame>
+      </>
     );
   if (teamsQ.isError)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         {crumbs()}
         <Failed error={teamsQ.error} retry={() => teamsQ.refetch()} />
-      </RunFrame>
+      </>
     );
   const teams = teamsQ.data.teams || [];
   const team = teams.find((t) => t.slug === teamSlug);
   if (!team)
     return (
-      <RunFrame slug={slug} screen={match.id}>
+      <>
         {crumbs()}
         <EmptyState
           title="Team not found"
@@ -238,7 +239,7 @@ export default function TeamDetail({ match }: ScreenProps) {
         >
           It may have been deleted, or the link is wrong.
         </EmptyState>
-      </RunFrame>
+      </>
     );
 
   const lock = writeLock(d);
@@ -301,7 +302,7 @@ export default function TeamDetail({ match }: ScreenProps) {
 
   const names = joinAnd(members.map((m) => m.display_name || "Someone"));
   return (
-    <RunFrame slug={slug} screen={match.id}>
+    <>
       {crumbs(team.name)}
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1 [&>div]:mt-0">
@@ -523,6 +524,6 @@ export default function TeamDetail({ match }: ScreenProps) {
           void msgQ.refetch();
         }}
       />
-    </RunFrame>
+    </>
   );
 }

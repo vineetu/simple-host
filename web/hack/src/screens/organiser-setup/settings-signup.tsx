@@ -13,9 +13,11 @@ import { useToast } from "@kit/components/ui/toast";
 import { useHack } from "@/lib/client";
 import { Failed } from "@/app/states";
 import type { TabProps } from "./Settings";
-import { errorText, LockNote, Panel, SaveFoot, useRefreshEvent, useUnsavedGuard } from "./common";
+import { errorText, Panel, SaveFoot, useRefreshEvent } from "./common";
 import { withIds, type Question } from "./settings";
 import { locks, SaveRow, submit, TabLoading, useAnchor } from "./settings-ui";
+import { useUnsaved } from "@kit/guard/unsaved";
+import { LockNote } from "@/shared/locks";
 
 type Registration = { questions?: Question[]; approval_required?: boolean; applications_open?: boolean };
 type Application = { user_id: string; status?: string; joined_via?: string };
@@ -63,7 +65,7 @@ function Questions({ slug, reg, failed, locked, applicationsOpen }: { slug: stri
     setApproval(!!reg?.approval_required);
   }, [reg]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   const off = locked || failed;
   const set = (i: number, q: Partial<Question>) => setDraft(draft.map((x, j) => (j === i ? { ...x, ...q } : x)));
 
@@ -209,7 +211,7 @@ export function SignupTab({ d }: TabProps) {
   const applicationsOpen = ev.applications_open !== false;
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Questions slug={slug} reg={reg.data} failed={reg.isError} locked={!!lock} applicationsOpen={applicationsOpen} />
       <Panel id="applications" title="Applications">
         <Check checked={applicationsOpen} disabled={!!lock} onChange={(on) => void saveSwitch("applications_open", on, setAppsErr)} hint="When your event is listed in Find a hackathon, an Apply button shows there and on your event page while sign-up is open and during Building. Every application waits for you in People → Applications.">
@@ -258,7 +260,7 @@ export function TeamsTab({ d }: TabProps) {
   const [busy, setBusy] = useState(false);
   useEffect(() => setSize(savedSize), [savedSize]);
   const dirty = size !== savedSize;
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
   const save = async () => {
     const n = Number(size);
     if (!Number.isInteger(n) || n < 1 || n > 50) return setSizeErr("Most people per team must be between 1 and 50.");
@@ -276,7 +278,7 @@ export function TeamsTab({ d }: TabProps) {
   };
   return (
     <>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Panel title="Team finding" sub="How teams form in this event.">
         <Check checked={!!ev.team_finding} disabled={!!lock} onChange={(on) => void saveSwitch("team_finding", on, setErr)} hint="Participants can browse teams, ask to join and invite people looking for a team. Team links and codes work either way.">
           Team finding

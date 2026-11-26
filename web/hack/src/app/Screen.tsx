@@ -5,7 +5,7 @@
 // participant still waiting for approval (or turned down) sees only that.
 // A screen this app has not rebuilt (or that is not live yet) is the old
 // app's: the page is loaded again and the server serves it.
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@kit/components/ui/button";
@@ -23,6 +23,9 @@ import { useLeave } from "./Leave";
 import { Wordmark } from "./marks";
 import { inApp } from "./nav";
 import { Failed, Loading } from "./states";
+
+// The organiser's Ask panel sits beside every organiser screen, mounted once here (so it stays open across screens).
+const Assistant = lazy(() => import("@/screens/organiser-run/Assistant").then((m) => ({ default: m.Assistant })));
 
 const ABILITY: Record<Role, string> = { organiser: "manage", judge: "judge", participant: "take_part" };
 
@@ -133,6 +136,11 @@ function EventScreen({ match }: { match: Match }) {
   return (
     <HackShell title={def.title} where={{ screen: match.id, event: view, section: match.section, params: new URLSearchParams(search) }}>
       {locked ? <Locked d={d} /> : <Body id={match.id} match={match} />}
+      {match.role === "organiser" && (
+        <Suspense fallback={null}>
+          <Assistant slug={d.event.slug} screen={match.id} />
+        </Suspense>
+      )}
     </HackShell>
   );
 }

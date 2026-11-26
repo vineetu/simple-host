@@ -16,7 +16,7 @@ import type { ApiError } from "@kit/api/call";
 import { useHack } from "@/lib/client";
 import { possessive, safeHref } from "@/lib/labels";
 import { apiKey } from "@/lib/session";
-import { dateTime } from "@/lib/time";
+import { zonedDate } from "@/lib/time";
 import type { ScreenProps } from "@/routes/registry";
 import { ineligible, intro } from "./directory";
 import { PublicFoot } from "./PublicFoot";
@@ -98,7 +98,7 @@ export default function Vote({ match }: ScreenProps) {
       <PageTitle sub={intro(status)}>{"People’s choice · " + d.title}</PageTitle>
       {d.opens_at && d.closes_at && (
         <p className="mt-3 text-ink-soft">
-          Open {dateTime(d.opens_at, zone)} to {dateTime(d.closes_at, zone)}
+          Open {zonedDate(d.opens_at, zone)} to {zonedDate(d.closes_at, zone)}
         </p>
       )}
       {status === "open" && !signedIn && (

@@ -25,8 +25,10 @@ import type { ScreenProps } from "@/routes/registry";
 import { useEventDetail } from "@/app/data";
 import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
-import { errorText, lockReason, LockNote, useUnsavedGuard } from "./common";
+import { errorText } from "./common";
 import { conflicted, gridOf, key, payload, sameTicks, ticked, type Grid, type TeamRow } from "./judging-data";
+import { useUnsaved } from "@kit/guard/unsaved";
+import { LockNote, writeLock } from "@/shared/locks";
 
 type Row = { judge_id: string; team_id?: string; track_id?: string };
 type Subject = { id: string; name: string };
@@ -152,7 +154,7 @@ export default function Assignments({ match }: ScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedKey]);
   const dirty = !!(ticks && saved && !sameTicks(ticks, saved));
-  useUnsavedGuard(dirty);
+  useUnsaved(dirty);
 
   const back = (
     <nav aria-label="Breadcrumb" className="mt-5 text-sm text-ink-soft">
@@ -195,7 +197,7 @@ export default function Assignments({ match }: ScreenProps) {
   const judges: Judge[] = (settings.data!.judges || []).map((j) => ({ id: j.user_id, name: j.name || j.email || "Someone" }));
   const tracks = (ev.tracks as { id: string; name: string }[] | undefined) || [];
   const subjects: Subject[] = grid === "manual" ? teams.data!.map((t) => ({ id: t.id, name: t.name || t.slug || "A team" })) : tracks.map((t) => ({ id: t.id, name: t.name }));
-  const lock = lockReason(d);
+  const lock = writeLock(d);
   const wrongMode = (grid === "manual" && mode !== "manual") || (grid === "panel" && mode !== "panel");
   const started = !!ev.judging_locked_at || ev.stage === "judging";
   const nothing = !subjects.length || !judges.length;
@@ -231,7 +233,7 @@ export default function Assignments({ match }: ScreenProps) {
         </Button>,
       )}
       <FieldMessage tone="bad">{error}</FieldMessage>
-      <LockNote text={lock} />
+      <LockNote reason={lock} />
       <Chips<Grid>
         label="Grid"
         value={grid}

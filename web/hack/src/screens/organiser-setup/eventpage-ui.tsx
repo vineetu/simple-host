@@ -21,8 +21,6 @@ export type TabProps = {
   ended: boolean;
   content: UseQueryResult<ContentAnswer>;
   website: UseQueryResult<Website>;
-  /** A form tab tells the page whether it has unsaved changes (switching tabs asks first). */
-  setDirty: (dirty: boolean) => void;
 };
 
 export const useContent = (slug: string) => {

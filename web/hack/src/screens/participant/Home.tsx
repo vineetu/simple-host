@@ -9,17 +9,18 @@ import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@kit/components/ui/button";
 import { AskDialog } from "@kit/components/ui/dialog";
 import { Notice } from "@kit/components/ui/notice";
-import { PageTitle, Section } from "@kit/components/ui/page-shell";
+import { PageTitle } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
 import { useToast } from "@kit/components/ui/toast";
 import { cn } from "@kit/lib/utils";
 import type { ApiError } from "@kit/api/call";
-import { useHack, type LeavePreview, type Need } from "@/lib/client";
+import { useHack, type LeavePreview } from "@/lib/client";
 import { dateTime } from "@/lib/time";
-import { href, needHref } from "@/routes/resolve";
+import { href } from "@/routes/resolve";
 import { useEventDetail, useMe } from "@/app/data";
 import { participantWarning, useLeave } from "@/app/Leave";
 import { AppLink } from "@/app/nav";
+import { NeedsYou } from "@/shared/NeedsYou";
 import type { ScreenProps } from "@/routes/registry";
 import {
   entrySection,
@@ -27,7 +28,6 @@ import {
   justPlaced,
   merge,
   needsFor,
-  splitNeed,
   type Announcement,
   type Content,
   type EntryRow,
@@ -53,47 +53,6 @@ function Go({ to, external, primary, children }: { to: string; external?: boolea
         <AppLink to={to}>{children}</AppLink>
       )}
     </Button>
-  );
-}
-
-function NeedsYou({ slug, items }: { slug: string; items: Need[] }) {
-  const api = useHack();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [busy, setBusy] = useState("");
-  if (!items.length) return null;
-  const dismiss = async (id: string) => {
-    setBusy(id);
-    try {
-      await api.event.noticesSeen(slug, [id]);
-      await qc.invalidateQueries({ queryKey: ["event", slug] });
-    } catch (e) {
-      if ((e as ApiError).status !== 401) toast((e as Error).message || "Could not dismiss that. Try again.", { bad: true });
-    } finally {
-      setBusy("");
-    }
-  };
-  return (
-    <Section title="Needs you">
-      <ul aria-label="Needs you" className="m-0 list-none rounded-wobble border border-rule bg-card px-3 py-1">
-        {items.map((item, i) => {
-          const [title, sub] = splitNeed(item);
-          return (
-            <li key={item.id || i} className="flex min-h-14 items-center gap-2 border-b border-rule last:border-b-0">
-              <AppLink to={needHref("participant", slug, item)} className="flex min-h-11 min-w-0 flex-1 flex-col justify-center px-1 py-2 no-underline">
-                <span className="font-semibold text-ink">{title}</span>
-                {sub && <span className="text-sm text-ink-soft">{sub}</span>}
-              </AppLink>
-              {item.dismissable && item.id && (
-                <Button aria-label={"Dismiss: " + title} disabled={busy === item.id} onClick={() => dismiss(item.id!)}>
-                  Dismiss
-                </Button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </Section>
   );
 }
 
@@ -275,7 +234,7 @@ export default function Home({ match }: ScreenProps) {
   return (
     <>
       {title}
-      <NeedsYou slug={slug} items={needsFor(d.needs_you, h.kind)} />
+      <NeedsYou role="participant" slug={slug} items={needsFor(d.needs_you, h.kind)} />
       {live && <Nudge rows={rows} ev={ev} scheduleHref={href("participant", slug, "schedule")} />}
       {placed.get(uid) && team && (
         <Notice title={`You are on ${team.name} now.`} action={<Go to={href("participant", slug, "team")}>Meet your team</Go>} />

@@ -12,7 +12,7 @@ import { Badge } from "@kit/components/ui/badge";
 import { Button } from "@kit/components/ui/button";
 import { CopyButton } from "@kit/components/ui/copy";
 import { EmptyState } from "@kit/components/ui/empty-state";
-import { FieldMessage, Input } from "@kit/components/ui/input";
+import { FieldMessage } from "@kit/components/ui/input";
 import { Notice } from "@kit/components/ui/notice";
 import { PageTitle } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
@@ -33,6 +33,8 @@ import { say, signedOut } from "../team/words";
 import { POLL_LIMIT_MS, POLL_MS, archiveError, connectedTo, fill, hostOnly, joinedApps, prompt, siteLine, strip, type Cell, type SiteStatus, type Steps } from "./data";
 import { Hooks } from "./Hooks";
 import { putBytes, save } from "./upload";
+import { CopyRow } from "@/shared/CopyRow";
+import { Box } from "@/shared/Box";
 
 const STEPS = connectSteps as Steps;
 const DEFAULT_APP = "claude";
@@ -229,25 +231,6 @@ function StripCell({ k, c, extra }: { k: string; c: Cell; extra?: ReactNode }) {
         </p>
       )}
       {extra}
-    </div>
-  );
-}
-
-export function Box({ title, sub, children }: { title: string; sub?: ReactNode; children?: ReactNode }) {
-  return (
-    <section className="mt-5 rounded-wobble border border-rule bg-card px-4 py-4 md:px-5">
-      <h2 className="type-section">{title}</h2>
-      {sub && <p className="mt-0.5 text-sm text-ink-soft">{sub}</p>}
-      {children}
-    </section>
-  );
-}
-
-function CopyRow({ value, label, button = "Copy" }: { value: string; label: string; button?: string }) {
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-2">
-      <Input readOnly value={value} aria-label={label} className="min-w-0 flex-[1_1_14rem] font-mono text-sm" onFocus={(e) => e.target.select()} />
-      <CopyButton text={value} label={button} />
     </div>
   );
 }

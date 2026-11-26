@@ -25,15 +25,16 @@ import { Failed } from "@/app/states";
 import type { ScreenProps } from "@/routes/registry";
 import { EntryCard } from "@/shared/EntryCard";
 import { Screenshot } from "@/shared/Screenshot";
-import { errText, LockNote, RunFrame, useRefreshEvent, writeLock } from "./common";
+import { errText, useRefreshEvent } from "./common";
 import { entriesHref, joinAnd, labelList, type EntriesList, type EntryItem, type EntryRules, type RunTeam, type TeamsList } from "./data-entries";
+import { LockNote, writeLock } from "@/shared/locks";
 
 export default function EntryDetail({ match }: ScreenProps) {
   const slug = match.slug!;
   return (
-    <RunFrame slug={slug} screen="organiser-entry-detail">
+    <>
       <Body slug={slug} />
-    </RunFrame>
+    </>
   );
 }
 

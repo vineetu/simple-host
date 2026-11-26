@@ -1,9 +1,9 @@
 // The link pages' plain logic (join, apply, judge, organiser and team links):
 // the refusal words they show, the dates in their headers and the answers
 // their forms send. Ported from the old screens/public-*.js and the ui.js
-// helpers they used (ERROR_MESSAGES, errText, zoneAbbr, countryName).
+// helpers they used (ERROR_MESSAGES, errText, countryName; zone labels are lib/time's).
 import type { ApiError } from "@kit/api/call";
-import { dateTime, isLocalMidnight, zonedParts } from "@/lib/time";
+import { dateTime, isLocalMidnight, zonedDate, zonedParts } from "@/lib/time";
 
 /** The shared refusal words (ui.js ERROR_MESSAGES) the link pages can meet. */
 export const ERRORS: Record<string, string> = {
@@ -94,86 +94,13 @@ export function memberLine(approval: string | undefined, title: string): { text:
   return { text: `You're already in ${title}.`, tone: "info", open: "team" };
 }
 
-// Zone labels (ui.js zoneAbbr, owner decision 2026-10-30): a short familiar
-// name where one exists, else "GMT+N", the same as the public event page.
-const ZONE_ABBR: Record<string, string> = {
-  "Asia/Jakarta": "WIB",
-  "Asia/Pontianak": "WIB",
-  "Asia/Makassar": "WITA",
-  "Asia/Jayapura": "WIT",
-  "Asia/Tokyo": "JST",
-  "Asia/Seoul": "KST",
-  "Asia/Singapore": "SGT",
-  "Asia/Kolkata": "IST",
-  "Asia/Calcutta": "IST",
-};
-const AU_ZONES: Record<string, string[]> = {
-  "Australia/Sydney": ["AEST", "AEDT"],
-  "Australia/Melbourne": ["AEST", "AEDT"],
-  "Australia/Hobart": ["AEST", "AEDT"],
-  "Australia/Canberra": ["AEST", "AEDT"],
-  "Australia/Brisbane": ["AEST"],
-  "Australia/Adelaide": ["ACST", "ACDT"],
-  "Australia/Darwin": ["ACST"],
-  "Australia/Perth": ["AWST"],
-};
-const CET_ZONES = [
-  "Europe/Paris", "Europe/Berlin", "Europe/Madrid", "Europe/Rome", "Europe/Amsterdam", "Europe/Brussels", "Europe/Vienna",
-  "Europe/Prague", "Europe/Warsaw", "Europe/Zurich", "Europe/Stockholm", "Europe/Copenhagen", "Europe/Budapest", "Europe/Luxembourg",
-];
-
-function offset(zone: string, date: Date): number | null {
-  try {
-    const raw = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts(date).find((p) => p.type === "timeZoneName")?.value || "";
-    const m = raw.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/);
-    if (!m) return raw === "GMT" ? 0 : null;
-    const sign = m[1].startsWith("-") ? -1 : 1;
-    return sign * (Math.abs(Number(m[1])) * 60 + Number(m[2] || 0));
-  } catch {
-    return null;
-  }
-}
-
-export function zoneAbbr(zone: string | undefined, date = new Date()): string {
-  if (!zone) return "";
-  let raw = "";
-  try {
-    raw = (new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" }).formatToParts(date).find((p) => p.type === "timeZoneName")?.value || "").trim();
-    if (raw && !/^(GMT|UTC)?[+-]\d/.test(raw)) return raw;
-  } catch {
-    return "";
-  }
-  if (ZONE_ABBR[zone]) return ZONE_ABBR[zone];
-  const jan = offset(zone, new Date(date.getFullYear(), 0, 1, 12));
-  const jul = offset(zone, new Date(date.getFullYear(), 6, 1, 12));
-  const cur = offset(zone, date);
-  const daylight = jan != null && cur != null && cur !== jan;
-  if (zone === "Europe/London" || zone === "Europe/Dublin") return daylight ? (zone === "Europe/Dublin" ? "IST" : "BST") : "GMT";
-  if (CET_ZONES.includes(zone)) return daylight ? "CEST" : "CET";
-  if (AU_ZONES[zone]) {
-    const [std, dst] = AU_ZONES[zone];
-    return dst && jan != null && jul != null && cur != null && cur > Math.min(jan, jul) ? dst : std;
-  }
-  if (cur == null) return raw;
-  if (cur === 0) return "GMT";
-  const abs = Math.abs(cur);
-  return "GMT" + (cur < 0 ? "-" : "+") + Math.floor(abs / 60) + (abs % 60 ? ":" + String(abs % 60).padStart(2, "0") : "");
-}
-
-/** zonedDate is dateTime with the zone label after a time of day ("Fri 6 Nov, 5:00 am WIB"). */
-export function zonedDate(value: string, zone?: string): string {
-  const dateOnly = isLocalMidnight(value, zone) || /^\d{4}-\d{2}-\d{2}$/.test(value);
-  const base = dateTime(value, zone, { dateOnly });
-  if (dateOnly) return base;
-  const label = zoneAbbr(zone, new Date(value));
-  return label ? base + " " + label : base;
-}
 
 /** judgeDates is the judge invite's "start – end" (public-judge.js dateRange). */
 export function judgeDates(info: { starts_at?: string | null; ends_at?: string | null; time_zone?: string }): string {
   if (!info.starts_at) return "";
-  const start = zonedDate(info.starts_at, info.time_zone);
-  return info.ends_at ? `${start} – ${zonedDate(info.ends_at, info.time_zone)}` : start;
+  const at = (v: string) => zonedDate(v, info.time_zone, { dateOnly: isLocalMidnight(v, info.time_zone) });
+  const start = at(info.starts_at);
+  return info.ends_at ? `${start} – ${at(info.ends_at)}` : start;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

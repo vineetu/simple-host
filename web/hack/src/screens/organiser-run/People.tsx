@@ -21,7 +21,7 @@ import { AppLink } from "@/app/nav";
 import { Failed } from "@/app/states";
 import { href } from "@/routes/resolve";
 import type { ScreenProps } from "@/routes/registry";
-import { errText, LockNote, RunFrame, useRefreshEvent, writeLock } from "./common";
+import { errText, useRefreshEvent } from "./common";
 import {
   AGE_RANGE_LABELS,
   countryName,
@@ -39,6 +39,7 @@ import {
   type Person,
   type RoleFilter,
 } from "./data-people";
+import { LockNote, writeLock } from "@/shared/locks";
 
 const box = "rounded-wobble border border-rule bg-card px-4 py-4 md:px-5";
 
@@ -273,7 +274,7 @@ export default function People({ match }: ScreenProps) {
   })();
 
   return (
-    <RunFrame slug={slug} screen={match.id}>
+    <>
       {body}
       <AskDialog
         open={!!reject}
@@ -312,6 +313,6 @@ export default function People({ match }: ScreenProps) {
           toast("Removed");
         }}
       />
-    </RunFrame>
+    </>
   );
 }
