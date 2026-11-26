@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"io/fs"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -13,20 +12,23 @@ import (
 )
 
 // RegisterHackUI serves the signed-in simple-hack.app pages from one HTML shell
-// (static/hack/app.html) that routes on location.pathname.
+// that routes on location.pathname: the new app's (web/hack) for the screens
+// it serves, the old static/hack/app.html for the rest (hack_ui_switch.go).
 func RegisterHackUI(mux *http.ServeMux, pages Pages, sitesBase string) {
 	assets := pages
+	serveNewAssets(mux)
 	app := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Robots-Tag", "noindex")
-		body, err := fs.ReadFile(assets.StaticFS(), "static/hack/app.html")
+		body, isNew, err := appPage(r, assets.StaticFS())
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
 		// The sign-in script tag is only injected on /signin: every other route
 		// mounts the app without it, since nothing there needs window.SHSignIn.
-		body, err = assets.RenderAppShell(r, body, r.URL.Path == "/signin")
+		// (/signin is always the old app's.)
+		body, err = assets.RenderAppShell(r, body, r.URL.Path == "/signin" && !isNew)
 		if err != nil {
 			http.Error(w, "Could not load app", http.StatusInternalServerError)
 			return

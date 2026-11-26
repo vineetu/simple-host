@@ -372,6 +372,24 @@ const setLive = msg => ui.toast(msg)
   }
 
 
+// Old and new side by side (HK1): the server lists the screens the new app
+// (web/hack) serves in <meta name="hack-live">; arriving at one of those from
+// here is a full page load, which the server answers with the new app. The
+// guard is web/hack/src/routes/live.ts hop()'s: the same hop twice in 5 s stops.
+const LIVE = new Set((document.querySelector('meta[name="hack-live"]')?.getAttribute('content') || '').split(/\s+/).filter(Boolean))
+const HOP = 'hack-hop'
+function hopToNew() {
+  if (!LIVE.size || location.pathname === '/signin' || !LIVE.has(resolveRoute(location).id)) return false
+  try {
+    const last = JSON.parse(sessionStorage.getItem(HOP) || 'null')
+    if (last && last.to === location.href && Date.now() - last.at < 5000) { sessionStorage.removeItem(HOP); return false }
+    sessionStorage.setItem(HOP, JSON.stringify({ to: location.href, at: Date.now() }))
+  } catch (e) {}
+  location.reload()
+  return true
+}
+try { const last = JSON.parse(sessionStorage.getItem(HOP) || 'null'); if (last && last.to === location.href) sessionStorage.removeItem(HOP) } catch (e) {}
+
 let initialData, activeContext, generation = 0
 // Only the judge route is served with the CSP that may frame a team's site
 // and the four video players (hackAppCSP, hack_ui.go). A page first loaded
@@ -409,6 +427,7 @@ async function route() {
   // whatever tour is open first.
   endTour()
   if (!framesAllowed && FRAMES_PATH.test(location.pathname)) { location.reload(); return }
+  if (hopToNew()) return
   const turn = ++generation
   const path = location.pathname.replace(/\/+$/, '') || '/'
   if (path === '/signin') {

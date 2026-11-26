@@ -4,8 +4,9 @@
 /* The shared primitives live outside this app's folder: scan the parts of
    web/kit this app uses (add a line when it starts using another). */
 @source "../../../kit/components/ui";
-@source "../../../kit/lib";
-@source "../../../kit/tests";
+@source "../../../kit/lib/format.ts";
+@source "../../../kit/lib/utils.ts";
+@source "../../../kit/tests/checks.ts";
 
 @layer base {
   html {

@@ -1,0 +1,103 @@
+/* Simple Hack's design tokens: the same names as the owner app's
+   (web/host/src/styles/tokens.css, checked by src/tokens.test.ts), with Simple
+   Hack's own values taken from its current look (products/hack/webassets/
+   static/hack/kit.css): warm paper, dark ink, the brick-red accent, straight
+   calm edges. Light only. Every default Tailwind colour, font, size and
+   shadow is cleared first, so a screen can only use what is named here. */
+/* The wordmark's hand font (Caveat, cut down to Latin). It is the wordmark's
+   only: every other word on every screen is the system font. */
+@font-face { font-family: HackCaveat; src: url("/hack/app/fonts/caveat-bold-latin.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+
+/* Weights are tokens. Wide screens: 500 for controls and labels, 600 for titles
+   and names. Phone widths (below the 700 px breakpoint): 400 everywhere, owner
+   rule, so hierarchy there comes from size, colour and spacing only. */
+:root { --w-medium: 500; --w-strong: 600; --page-size: var(--text-2xl); --page-leading: var(--text-2xl--line-height); }
+@media (max-width: 699.98px) {
+  :root { --w-medium: 400; --w-strong: 400; --page-size: var(--text-3xl); --page-leading: var(--text-3xl--line-height); }
+  b, strong, th, h1, h2, h3, h4, h5, h6 { font-weight: 400; }
+}
+
+@theme {
+  --font-weight-medium: var(--w-medium);
+  --font-weight-semibold: var(--w-strong);
+  --color-*: initial;
+  --color-paper: #f4efdf;       /* page background */
+  --color-card: #fffdf7;        /* cards, inputs, dialogs */
+  --color-paper-lo: #e9e1cd;    /* table heads, hover wash, the rail */
+  --color-rule: #e2d9c6;        /* hairlines */
+  --color-ink: #2b2925;         /* text */
+  --color-ink-soft: #615b51;    /* secondary text, outlines */
+  --color-ink-faint: #6f685c;   /* fine print (kit.css's #857d70, darkened to pass WCAG AA) */
+  --color-accent: #a33f31;      /* Simple Hack's one accent: brick red */
+  --color-accent-hover: #823024;
+  --color-accent-soft: #f6e3dc; /* red washed into paper */
+  --color-on-accent: #fffdf7;
+  --color-coral: #216c6a;       /* wordmark "simple" (the kit's name for the wordmark's first colour) */
+  --color-wordmark: #a33f31;    /* wordmark "·hack" */
+  --color-bad: #a33f31;
+  --color-good: #2f6b3a;
+  --color-white: #ffffff;
+
+  --font-*: initial;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-wordmark: HackCaveat, "Segoe Print", "Bradley Hand", cursive; /* the simple·hack wordmark, nothing else */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* The type scale: the kit's (see the owner app's tokens.css for the roles). */
+  --text-*: initial;
+  --text-xs: 13px;
+  --text-xs--line-height: 1.4;
+  --text-sm: 14px;
+  --text-sm--line-height: 1.45;
+  --text-base: 16px;
+  --text-base--line-height: 1.5;
+  --text-lg: 18px;
+  --text-lg--line-height: 1.35;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.25;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 1.2;
+  --text-4xl: 34px;
+  --text-4xl--line-height: 1.15;
+
+  /* Simple Hack's edges are straight: cards 10, fields 8, tabs and small things 6. */
+  --radius-*: initial;
+  --radius-wobble: 10px;
+  --radius-field: 8px;
+  --radius-tab: 6px;
+  --radius-tag: 999px;
+  --radius-sm: 6px;
+
+  /* Flat paper: no drawn shadow under cards and buttons; one soft shadow for what floats. */
+  --shadow-*: initial;
+  --shadow-paper: 0 0 0 transparent;
+  --shadow-paper-sm: 0 0 0 transparent;
+  --shadow-pop: 0 10px 30px rgb(43 41 37 / 0.14), 0 2px 6px rgb(43 41 37 / 0.1);
+
+  --breakpoint-*: initial;
+  --breakpoint-md: 700px;  /* phone below, desktop from here */
+  --breakpoint-lg: 980px;
+
+  --container-*: initial;
+  --container-card: 420px;
+  --container-prose: 768px;
+  --container-page: 1200px;
+}
+
+/* The owner app's chart colours, kept so the token names match. */
+@theme static {
+  --color-chart-1: #2a78d6;
+  --color-chart-2: #eb6834;
+  --color-chart-3: #1baf7a;
+  --color-chart-4: #eda100;
+  --color-chart-5: #e87ba4;
+  --color-chart-6: #008300;
+  --color-seq-0: #e9edf3;
+  --color-seq-1: #cde2fb;
+  --color-seq-2: #9ec5f4;
+  --color-seq-3: #5598e7;
+  --color-seq-4: #256abf;
+  --color-seq-5: #104281;
+}

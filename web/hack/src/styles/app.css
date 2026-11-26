@@ -1,0 +1,38 @@
+/* Simple Hack's stylesheet: Tailwind on its tokens, with the kit's type roles. */
+@import "tailwindcss";
+@import "./tokens.css";
+@import "../../../kit/styles/roles.css";
+/* The shared kit lives outside this app's folder. */
+@source "../../../kit";
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  body {
+    @apply min-h-dvh bg-paper font-sans text-base text-ink;
+    overflow-wrap: anywhere;
+  }
+  #root {
+    @apply flex min-h-dvh flex-col;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  a {
+    @apply text-accent underline underline-offset-2 hover:text-accent-hover;
+  }
+}
+
+/* Room the app shell's bars take, for what floats over it (the toast). */
+html[data-shell="app"] {
+  --sh-bottom-bar: 57px;
+}
+@media (min-width: 700px) {
+  html[data-shell="app"] {
+    --sh-bottom-bar: 0px;
+    --sh-rail: 248px;
+  }
+}

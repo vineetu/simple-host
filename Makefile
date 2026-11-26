@@ -134,3 +134,47 @@ check-boundaries:
 boundary-report:
 	bash scripts/split/namescan.sh
 	bash scripts/check-public-text.sh
+
+# Simple Hack's new web app (web/hack, on the kit in web/kit). The Go build
+# needs none of this: it embeds the committed build in products/hack/web/dist/files.
+HACK_WEB := web
+HACK_NPM := cd $(HACK_WEB) && npm
+HACK_STALE := $(HACK_WEB)/hack/.stale-check
+HACK_DIST := products/hack/web/dist/files
+
+.PHONY: hack-web hack-web-deps hack-web-stale hack-web-check hack-web-accept hack-web-real
+
+hack-web-deps:
+	@[ -d $(HACK_WEB)/node_modules ] || ($(HACK_NPM) ci --no-audit --no-fund)
+
+# Rebuild the app into products/hack/web/dist/files (commit the result).
+hack-web: hack-web-deps
+	$(HACK_NPM) run hack:build
+
+# Fails when products/hack/web/dist/files is not what the source builds to.
+hack-web-stale: hack-web-deps
+	cd $(HACK_WEB) && SH_WEB_OUT=.stale-check npx vite build -c hack/vite.config.ts --logLevel error
+	@diff -r $(HACK_STALE) $(HACK_DIST) >/dev/null || (echo "$(HACK_DIST) is stale: run make hack-web and commit it"; exit 1)
+	@echo "$(HACK_DIST) is up to date"
+
+# Everything: types, lint, unit tests (with the navigation map in step), the
+# stale check, and every catalogue entry at 390 and 1280 against its baseline (with axe).
+hack-web-check: hack-web-deps
+	python3 scripts/build-hack-navigation.py --check
+	$(HACK_NPM) run hack:typecheck
+	$(HACK_NPM) run lint
+	$(HACK_NPM) run hack:test
+	$(MAKE) hack-web-stale
+	$(HACK_NPM) run hack:catalogue
+	$(HACK_NPM) run hack:visual
+
+# Accept new baseline pictures after a deliberate change (look at them first).
+hack-web-accept: hack-web-deps
+	$(HACK_NPM) run hack:catalogue
+	$(HACK_NPM) run hack:visual:accept
+
+# The real simple-hack binary on a throwaway database (in the test Postgres
+# the web-real check uses, 127.0.0.1:54329), signed in and clicked through the
+# rebuilt screens at both widths. Pictures land in web/hack/test-results/real.
+hack-web-real: hack-web-deps
+	$(HACK_NPM) run hack:real

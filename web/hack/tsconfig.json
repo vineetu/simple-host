@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node"],
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"], "@kit/*": ["../kit/*"] }
+  },
+  "include": ["src", "tests", "*.ts", "../kit"]
+}

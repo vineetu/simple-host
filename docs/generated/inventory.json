@@ -1018,6 +1018,14 @@
     },
     {
       "method": "GET",
+      "path": "/hack/app/",
+      "feature_id": "hack-voting",
+      "source": "products/hack/pages/hack_ui_switch.go",
+      "package": "products/hack/pages",
+      "dynamic": false
+    },
+    {
+      "method": "GET",
       "path": "/hack/assistant.js",
       "feature_id": "hack-voting",
       "source": "products/hack/asset_files.go",

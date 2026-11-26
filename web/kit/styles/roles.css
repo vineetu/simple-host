@@ -1,0 +1,26 @@
+/* The kit's type roles (sizes and weights are each app's tokens). Screens use
+   these for headings and labels, so every screen reads the same.
+   (The owner app still declares the same four in web/host/src/styles/app.css,
+   which keeps its built output byte-identical; it imports this when it next changes.) */
+@utility type-page {
+  font-size: var(--page-size);
+  line-height: var(--page-leading);
+  font-weight: var(--w-strong);
+  letter-spacing: -0.015em;
+}
+@utility type-card {
+  font-size: var(--text-3xl);
+  line-height: var(--text-3xl--line-height);
+  font-weight: var(--w-strong);
+  letter-spacing: -0.015em;
+}
+@utility type-section {
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+  font-weight: var(--w-strong);
+}
+@utility type-label {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: var(--w-medium);
+}
