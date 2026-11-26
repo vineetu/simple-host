@@ -174,8 +174,13 @@ fi
 # needs one of those or "fallback", "briefly", "brand-new", "new account",
 # "until" or "pending". run-hackathon is exempt — event instances keep the path
 # model on sites.<their-domain>/<handle>/<project>/.
+# The Simple Host skills (simple-host-website/skills) and next/web describe the
+# rewritten service (next/), where new accounts get <site>--<handle>.simple-host.site
+# and existing ones keep <site>.<handle>.simple-host.app (next/web/static/llms.txt
+# "Addresses"); they say to give the url a tool returns, so they are held only to
+# the old-form ban, not to naming the <site>.<handle> form.
 echo "== docs use the site address =="
-canon_docs=(host/webassets/simple-host-website/skills "$LLMS" "$OPENAPI" host/webassets/static/*.html host/mcp/instructions.go host/mcp/outputs.go host/mcp/tools.go )
+canon_docs=(host/webassets/simple-host-website/skills next/web/skill next/web/static/llms.txt "$LLMS" "$OPENAPI" host/webassets/static/*.html host/mcp/instructions.go host/mcp/outputs.go host/mcp/tools.go )
 old_addr='sites\.(simple-host\.app|<[^>/]+>|\{[^}/]+\}|&lt;[^/]+&gt;)/(<|\{|&lt;)'
 offending=$(grep -rnE "$old_addr" "${canon_docs[@]}" 2>/dev/null \
   | grep -v '^host/webassets/simple-host-website/skills/run-hackathon/' \
@@ -193,7 +198,7 @@ if [ -n "$offending_pp" ]; then
   fail=1
 fi
 missing_site=""
-for doc in "$LLMS" "$OPENAPI" "$SKILL_DEPLOY" "$SKILL_BUILD" host/webassets/simple-host-website/skills/connect-domain/SKILL.md host/mcp/instructions.go; do
+for doc in "$LLMS" "$OPENAPI" host/mcp/instructions.go; do
   grep -qE '<(site|sitename|name)>\.<handle>\.simple-host\.(app|site)' "$doc" || missing_site="$missing_site $doc"
 done
 if [ -n "$missing_site" ]; then
