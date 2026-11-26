@@ -146,7 +146,7 @@ to sign in**, enter the reviewer email **openai-review@simple-host.app** and the
 the portal, choose **Sign in**, then **Connect**. No email code or 2FA. The form shows only on the
 way to approving an app, and only when `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` are set on
 the server (`next/access/signin/review.go`); it opens only that one non-operator account (it sees
-the 37 tools and the three demo sites) and is limited like other sign-in.
+41 tools, 37 of them for the model, and the three demo sites) and is limited like other sign-in.
 
 TODO-OWNER: copy `REVIEW_ACCOUNT_EMAIL` and `REVIEW_ACCOUNT_PASSWORD_HASH` from the old service's
 settings into `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` (same values), restart, and check
@@ -170,12 +170,16 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
 - 2026-10-28, production build b4c65325: `scripts/e2e/e2e-reviewer.py` signed in as the reviewer
   and ran the then P1 to P5 at the tool level; all 45 checks passed. That run predates Teams.
 - 2026-11-21: the kit was updated to the old service's 68 tools (Teams added).
+- 2026-11-25: the kit was rewritten for the new service's 25 tools (the two operator tools are left out; tool names, cases P1 to P5,
+  listing text, skills 0.28.0). The reviewer demo data (`scripts/seed-reviewer-demo.py`,
+  `scripts/e2e/e2e-reviewer.py`) was written for the old API and has not been checked against the
+  new service.
 - 2026-11-26: the tools were split to 41 (37 for the model), with output schemas, titles and the
   four hints; P4 uses `query_sql`; skills 0.28.1.
-- 2026-11-25: the kit was rewritten for the new service's 25 tools (the two operator tools are left out; tool names, cases P1 to P5,
-  listing text, skills 0.28.0). Not yet run against the new service in ChatGPT or MCPJam. The
-  reviewer demo data (`scripts/seed-reviewer-demo.py`, `scripts/e2e/e2e-reviewer.py`) was written
-  for the old API and has not been checked against the new service.
+- 2026-11-26, local run of `next` at 992900e0e (not production): the reviewer signed in through the
+  real sign-in page in a headless browser (Other ways to sign in, password, Connect), the code
+  was exchanged for a token, and tools/list matched an ordinary account's 41 tools. P1 to P5 ran
+  at the tool level with the expected results. Not yet run in ChatGPT or MCPJam.
 
 TODO-OWNER: run all eight cases in ChatGPT against production and record the results here.
 TODO-OWNER: record a new demo video (the current one shows the old tools) and put its URL in
