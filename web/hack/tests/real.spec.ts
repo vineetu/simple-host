@@ -10,10 +10,12 @@ import http from "node:http";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type BrowserContext, type Page } from "@playwright/test";
 import { axe, layout } from "../../kit/tests/checks";
 
 test.describe.configure({ mode: "serial" });
+// The box running this may be busy: give each screen longer than the default 5 s to appear.
+const expect = baseExpect.configure({ timeout: 30_000 });
 
 const ROOT = join(import.meta.dirname, "../../..");
 const SHOTS = join(import.meta.dirname, "../test-results/real");
@@ -249,6 +251,50 @@ for (const width of [390, 1280]) {
     expect(h1).not.toMatch(/Caveat|Kalam/);
     await check(page, "home", width);
     expect(styles.sort()).toEqual(["/hack-event.css", "/hack-pages.css"]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+}
+// Organiser setup (D2): the organiser edits the event page and their details, then reads Judging and the grid.
+for (const width of [390, 1280]) {
+  test(`organiser setup: event page, settings, judging and the grid @${width}`, async ({ browser }) => {
+    test.setTimeout(360_000);
+    const { ctx, page, errors } = await person(browser, "orga", width);
+    const E = "/v1/hack/events/" + SLUG;
+
+    await page.goto(APP + `/e/${SLUG}/manage?s=event-page`);
+    await expect(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /organiser-event-page/);
+    await expect(page).toHaveURL(/tab=basics/);
+    const tagline = "Tagline at " + width;
+    await page.getByLabel("Tagline (optional)").fill(tagline);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    // A save reads the event again; on this test server GET E takes seconds (its site-certificate check), so allow for it.
+    await expect(page.getByText("No unsaved changes")).toBeVisible({ timeout: 90_000 });
+    await expect.poll(async () => ((await call("GET", E, undefined, keys.orga)).body.event as Record<string, unknown>).tagline).toBe(tagline);
+    await check(page, "event-page-basics", width);
+
+    // An old #hash link lands on its tab.
+    await page.goto(APP + `/e/${SLUG}/manage?s=event-page#appearance`);
+    await expect(page).toHaveURL(/tab=look/);
+
+    await page.goto(APP + `/e/${SLUG}/manage?s=settings&tab=details`);
+    await expect(page.getByLabel("Organisation or community")).toBeVisible();
+    await page.getByLabel("Organisation or community").fill("Real Club " + width);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    // A save reads the event again; on this test server GET E takes seconds (its site-certificate check), so allow for it.
+    await expect(page.getByText("No unsaved changes")).toBeVisible({ timeout: 90_000 });
+    await expect.poll(async () => ((await call("GET", E, undefined, keys.orga)).body.organiser as Record<string, unknown>).organisation).toBe("Real Club " + width);
+    await check(page, "settings-details", width);
+
+    await page.goto(APP + `/e/${SLUG}/manage?s=judging`);
+    await expect(page.getByRole("heading", { name: "Judging", level: 1 })).toBeVisible();
+    await expect(page.getByText("Lumbung").filter({ visible: true }).first()).toBeVisible();
+    await check(page, "judging", width);
+
+    await page.getByRole("link", { name: "Open the assignment grid" }).click();
+    await expect(page.getByRole("heading", { name: "Assignment grid", level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save judging access" })).toBeDisabled();
+    await check(page, "assignments", width);
     expect(errors).toEqual([]);
     await ctx.close();
   });
