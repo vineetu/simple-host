@@ -172,9 +172,22 @@
         "idempotentHint": false
       },
       "justifications": {
-        "read_only_justification": "Shows the photo picker for a site's file store (namespace photos unless named), or with kind archive makes a one-time link for a big archive.",
+        "read_only_justification": "Shows the photo picker for a site's file store (namespace photos unless named); the person adds photos to it.",
         "open_world_justification": "A new photos namespace can be read by anyone who can open the site, which may be public.",
-        "destructive_justification": "Adds files only through the picker or link; nothing is removed or replaced."
+        "destructive_justification": "Adds files only through the picker; nothing is removed or replaced."
+      }
+    },
+    "create_site_upload_link": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": true,
+        "idempotentHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Makes a one-time link where the person uploads a whole site as one archive.",
+        "open_world_justification": "An upload through the link publishes the site, which anyone allowed to open it can read; it may be public.",
+        "destructive_justification": "An upload through the link replaces the site's live files with the archive's (older versions are kept), unless the upload keeps the other files."
       }
     },
     "read_site_file": {

@@ -58,12 +58,17 @@ func reads(s seen) bool {
 	return s.method == "GET" || s.method == "POST" && (strings.HasSuffix(s.pattern, "/query") || strings.HasSuffix(s.pattern, "/schema"))
 }
 func destroys(s seen) bool {
-	return s.method == "PUT" || s.method == "PATCH" && !bringsBack(s) || s.method == "DELETE" || s.method == "POST" && strings.HasSuffix(s.pattern, "/execute")
+	return s.method == "PUT" || archiveLink(s) || s.method == "PATCH" && !bringsBack(s) || s.method == "DELETE" || s.method == "POST" && strings.HasSuffix(s.pattern, "/execute")
 }
 
 // bringsBack: a PATCH that only brings a site back, out of the bin or online.
 func bringsBack(s seen) bool {
 	return s.pattern == "PATCH /v1/sites/{site}" && (s.body == `{"restore":true}` || s.body == `{"offline":false}`)
+}
+
+// archiveLink: a link whose upload publishes a whole site, replacing the live files.
+func archiveLink(s seen) bool {
+	return s.pattern == "POST /v1/sites/{site}/upload-links" && strings.Contains(s.body, `"kind":"archive"`)
 }
 func adds(s seen) bool      { return s.method == "POST" && !reads(s) && !destroys(s) } // a POST that makes something new
 func publishes(s seen) bool { return s.method == "PUT" && s.pattern == "PUT /v1/sites/{site}" }
@@ -79,7 +84,7 @@ func reachesOut(s seen) bool {
 	case publishes(s), strings.HasSuffix(s.pattern, "/rules"): // public pages, public data
 		return true
 	case s.pattern == "POST /v1/sites/{site}/upload-links":
-		return body["public"] == true
+		return body["public"] == true || archiveLink(s)
 	case s.pattern == "PATCH /v1/owners/{owner}":
 		return domain
 	case s.pattern == "PATCH /v1/sites/{site}":
@@ -160,6 +165,7 @@ func TestEveryToolsOutputAndHints(t *testing.T) {
 		{ann.Key, "get_site", shop("include_emails", true)},
 		{ann.Key, "publish_site", shop("files", map[string]any{"index.html": "<h1>Shop 2</h1>"})},
 		{ann.Key, "create_upload_link", shop()},
+		{ann.Key, "create_site_upload_link", shop()},
 		{ann.Key, "read_site_file", shop("path", "index.html")},
 		{ann.Key, "take_site_offline", shop()},
 		{ann.Key, "put_site_online", shop()},

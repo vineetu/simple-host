@@ -25,6 +25,7 @@ Callers of Simple Host from before the rebuild keep working until the sunset dat
 - **The old skill** (`X-Skill-Version` on any request): `/v1/skills/...` serves the new skill.
 - **Old photo picker**: `create_upload_link {site}` (no namespace, kind or archive) gets the
   current picker (namespace `photos`) plus the old `photos_url` and a note on where photos land.
+  `create_upload_link` with `archive: true` or `kind: "archive"` gets `create_site_upload_link`.
 - **Old push**: `SH.push` in the page helper (`web/static/auth.js`) and the old
   `/push/subscribe|unsubscribe` routes answer "not available"; remove both with the package.
 - **Notice** (`notice.go`, `SH_COMPAT_NOTICE`, see `next/RUNBOOK.md`): every HTTP answer through

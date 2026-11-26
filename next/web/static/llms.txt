@@ -32,7 +32,8 @@ Sites
 - list_sites: my sites and my teams' sites, search, bin.
 - get_site: everything about one site, by name or address (any site the person may open).
 - publish_site: files in, address out. keep_other_files keeps the rest of the live site.
-- create_upload_link: the photo/file picker (an in-chat screen; namespace photos unless named), or with kind archive a big archive.
+- create_upload_link: the photo/file picker (an in-chat screen; namespace photos unless named).
+- create_site_upload_link: a one-time link to upload a big site as one archive; the upload replaces the live files. Asks first.
 - read_site_file: one file of any site the person may open.
 - take_site_offline, put_site_online: offline page, or back. Taking offline asks first.
 - set_site_listed: show it on the owner's public page, or not.
@@ -52,6 +53,7 @@ Rows, values and stored files, under the caller's rights (the routes pages use),
 The owner's SQL on their own namespaces:
 - list_tables: tables and space used.
 - query_sql: one read-only statement (SELECT).
+People in saved data show as you or visitor-<8 hex>, one label per person on the site; a label in where, params or SQL means that person.
 - run_sql: one statement that changes data (CREATE, INSERT, UPDATE, DELETE...). Asks first before deleting.
 - set_data_rules: rules for a namespace. Asks first when it widens access.
 - get_recipe: a page recipe by topic.

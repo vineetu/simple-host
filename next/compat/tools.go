@@ -98,8 +98,8 @@ func Tool(a *app.App, r *http.Request, name string, in map[string]any, list stri
 // the namespace photos; this adds the old answer's photos_url and says where
 // photos now land. Goes with this package.
 func photoPicker(a args, run func(string, map[string]any) (map[string]any, bool)) map[string]any {
-	if a["archive"] == true {
-		res, _ := run("create_upload_link", a.keep("site", "owner").with("kind", "archive"))
+	if a["archive"] == true || a.s("kind") == "archive" { // the archive link is its own tool now
+		res, _ := run("create_site_upload_link", a.keep("site", "owner"))
 		return res
 	}
 	res, _ := run("create_upload_link", a.keep("site", "owner"))
@@ -316,8 +316,8 @@ func OldArgs(name string, in map[string]any) bool {
 func oldArgs(name string, in map[string]any) bool {
 	a := args(in)
 	switch name {
-	case "create_upload_link": // the old {site} (photo picker) or {site, archive: true}
-		return a.s("namespace") == "" && a.s("kind") == ""
+	case "create_upload_link": // the old {site} (photo picker), {site, archive: true} or {site, kind: "archive"}
+		return a.s("namespace") == "" && a.s("kind") == "" || a["archive"] == true || a.s("kind") == "archive"
 	case "read_site_file":
 		return a["paths"] != nil || a["version"] != nil
 	case "list_sites":

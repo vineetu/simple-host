@@ -24,8 +24,8 @@ Only call tools for what the person asked. A planning question does not authoriz
 3. **New site.** Name it with lowercase letters, numbers and hyphens (no `--`). Say the name
    and that anyone with the link can open it, then `publish_site`. Give the person the
    address the tool returns, exactly as returned.
-4. **Big site** (many photos, a build). Call `create_upload_link` with `kind: "archive"` and
-   run the command it returns.
+4. **Big site** (many photos, a build). Ask first, then call `create_site_upload_link` and
+   run the command it returns. The upload replaces the live files.
 5. **Forms and saved entries.** Call `get_recipe` with the topic that fits: inbox
    (contact, quote, sign-up), public (menu, prices), personal (bookings), comments,
    portal, gallery. Publish its page first, then run its setup (`run_sql`, `set_data_rules`). Tell the

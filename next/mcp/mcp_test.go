@@ -9,9 +9,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -75,8 +77,8 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		t.Fatalf("initialize: %v", v)
 	}
 	list := call("tools/list", nil)["tools"].([]any)
-	if len(list) != 50 { // 46 for the model, 4 for the passcode screen; the operator sees 52 (admin_overview, set_hold)
-		t.Fatalf("%d tools, want 50", len(list))
+	if len(list) != 51 { // 47 for the model, 4 for the passcode screen; the operator sees 53 (admin_overview, set_hold)
+		t.Fatalf("%d tools, want 51", len(list))
 	}
 	for _, x := range list {
 		if x := x.(map[string]any); x["name"] == "require_passcode" && !strings.Contains(text(x), "ui://simple-host/passcode") {
@@ -228,5 +230,79 @@ func TestOperatorToolsAreForTheOperatorOnly(t *testing.T) {
 		"params": map[string]any{"name": "admin_overview", "arguments": map[string]any{}}}, "X-API-Key", user.Key)
 	if !strings.Contains(r.Body, "No tool named admin_overview") {
 		t.Fatalf("ordinary user's call: %s", r.Body)
+	}
+}
+
+// A person in stored data shows by one label on the site, wherever the id
+// lands in an answer, and the label works as the id in a call.
+func TestVisitorLabels(t *testing.T) {
+	k := testkit.Start(t, mcp.Mount, api.Mount, rows.Mount, datasql.Mount)
+	alice, bob, cara := k.Person(t, "alice"), k.Person(t, "bob"), k.Person(t, "cara")
+	k.Publish(t, alice, "party", map[string]string{"index.html": "party"})
+	call := ai(t, k, alice.Key)
+	run := func(name string, args map[string]any) map[string]any {
+		a := map[string]any{"site": "party", "namespace": "party"}
+		for k, v := range args {
+			a[k] = v
+		}
+		res := tool(call, name, a)
+		if res["isError"] == true || uuid.MatchString(strings.ToLower(text(res))) {
+			t.Fatalf("%s %v: %s", name, args, text(res))
+		}
+		sc, _ := res["structuredContent"].(map[string]any)
+		return sc
+	}
+	for _, sql := range []string{"CREATE TABLE bookings (id INTEGER PRIMARY KEY, name TEXT, visitor_id TEXT)", "CREATE TABLE guests (id INTEGER PRIMARY KEY, visitor_id TEXT)"} {
+		run("run_sql", map[string]any{"sql": sql})
+	}
+	for _, p := range [][]any{{"Bob", bob.ID}, {"Cara", cara.ID}, {"Bob", bob.ID}, {"Ann", alice.ID}} {
+		run("run_sql", map[string]any{"sql": "INSERT INTO bookings (name, visitor_id) VALUES (?, ?)", "params": p})
+		run("run_sql", map[string]any{"sql": "INSERT INTO guests (visitor_id) VALUES (?)", "params": p[1:]})
+	}
+	cells := func(sql string, params ...any) []any {
+		var out []any
+		for _, r := range run("query_sql", map[string]any{"sql": sql, "params": params})["rows"].([]any) {
+			out = append(out, r.([]any)...)
+		}
+		return out
+	}
+	label := regexp.MustCompile(`^visitor-[0-9a-f]{8}$`)
+	bobs, caras := cells("SELECT visitor_id AS who FROM bookings WHERE name = 'Bob' LIMIT 1")[0], cells("SELECT visitor_id FROM bookings WHERE name = 'Cara'")[0]
+	if !label.MatchString(fmt.Sprint(bobs)) || bobs == caras {
+		t.Fatalf("bob %v, cara %v", bobs, caras)
+	}
+	for _, c := range []struct {
+		sql  string
+		want []any
+	}{
+		{"SELECT b.visitor_id, g.visitor_id FROM bookings b JOIN guests g ON g.visitor_id = b.visitor_id WHERE b.id = 2 AND g.id = 2", []any{caras, caras}},
+		{"SELECT * FROM bookings b JOIN guests g ON g.visitor_id = b.visitor_id WHERE b.id = 1 AND g.id = 1", []any{1.0, "Bob", bobs, 1.0, bobs}},
+		{"SELECT upper(visitor_id), visitor_id || '' FROM bookings WHERE name = 'Bob' LIMIT 1", []any{bobs, bobs}},
+		{"SELECT group_concat(visitor_id) FROM (SELECT visitor_id FROM bookings ORDER BY id)", []any{fmt.Sprintf("%s,%s,%s,you", bobs, caras, bobs)}},
+		{"SELECT json_object('v', visitor_id) FROM bookings WHERE id = 4", []any{`{"v":"you"}`}},
+		{"SELECT name FROM bookings WHERE visitor_id = '" + fmt.Sprint(caras) + "'", []any{"Cara"}},
+		{"SELECT name FROM bookings WHERE visitor_id = 'you'", []any{"Ann"}},
+		{"SELECT name FROM bookings WHERE visitor_id = 'visitor-00000000'", nil},
+	} {
+		if got := cells(c.sql); fmt.Sprint(got) != fmt.Sprint(c.want) {
+			t.Errorf("%s: got %v, want %v", c.sql, got, c.want)
+		}
+	}
+	if got := cells("SELECT count(*) FROM bookings WHERE visitor_id = ?", bobs); fmt.Sprint(got) != "[2]" {
+		t.Errorf("params by label: %v", got)
+	}
+	// Pages of list_rows: the same person has the same label on every page.
+	var who []any
+	after := ""
+	for range 4 {
+		page := run("list_rows", map[string]any{"table": "bookings", "limit": 1, "after": after})
+		who = append(who, page["rows"].([]any)[0].([]any)[2])
+		after, _ = page["next_after"].(string)
+	}
+	if fmt.Sprint(who) != fmt.Sprint([]any{bobs, caras, bobs, "you"}) {
+		t.Errorf("pages: %v", who)
+	}
+	if got := run("list_rows", map[string]any{"table": "bookings", "where": map[string]any{"visitor_id": caras}})["rows"].([]any); len(got) != 1 || got[0].([]any)[1] != "Cara" {
+		t.Errorf("where by label: %v", got)
 	}
 }

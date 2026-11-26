@@ -21,6 +21,7 @@ import (
 //     only reads: an SQL query, the table list).
 //   - destructive: it can delete, overwrite or replace what exists, or end or
 //     narrow someone's access (any PUT, PATCH or DELETE, or an SQL statement).
+//     A link whose use does that counts too (the whole-site upload link).
 //     Being undoable (the bin, older versions) does not make it false. The
 //     one exception is a PATCH that only brings a site back (out of the bin,
 //     or online again): nothing is replaced and nobody loses access.
@@ -209,17 +210,21 @@ var tools = []tool{
 		}},
 	{name: "create_upload_link", title: "Add photos",
 		about: "The photo picker, shown in the chat, where the person adds photos (shrunk on their device) straight to a namespace's file store: photos unless namespace says otherwise. " +
-			"A new photos namespace can be read by anyone who can open the site, and written only by the owner. The answer's url is the same picker as a page, for apps without screens. " +
-			"With kind archive: a one-time link to upload a big site as one archive.",
-		input:  siteIn("namespace", str("Where photos and files go; photos when left out."), "kind", enum(`"files" (the default) or "archive".`, "files", "archive")),
-		output: out("url!", oStr, "kind!", oStr, "namespace!", oStr, "expires_at!", oStr), openWorld: true, screen: "photo-picker",
+			"A new photos namespace can be read by anyone who can open the site, and written only by the owner. The answer's url is the same picker as a page, for apps without screens.",
+		input:  siteIn("namespace", str("Where photos and files go; photos when left out.")),
+		output: out("url!", oStr, "namespace!", oStr, "expires_at!", oStr), openWorld: true, screen: "photo-picker",
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("/upload-links", nil)
-			kind, ns := c.or("kind", "files"), c.or("namespace", "photos")
-			if kind == "archive" {
-				ns = ""
-			}
-			return "POST", p, map[string]any{"kind": kind, "namespace": ns, "public": c.str("namespace") == "" && kind == "files"}, err
+			return "POST", p, map[string]any{"kind": "files", "namespace": c.or("namespace", "photos"), "public": c.str("namespace") == ""}, err
+		}},
+	{name: "create_site_upload_link", title: "Upload a whole site",
+		about: "A one-time link, good for a day, where the person uploads a big site (many photos, a build) as one archive. " +
+			"Using it publishes the archive as a new version: it replaces the site's live files, unless the upload keeps the other files. Ask first.",
+		input:  siteIn(),
+		output: out("url!", oStr, "expires_at!", oStr), destructive: true, openWorld: true,
+		route: func(c *call) (string, string, any, error) {
+			p, err := c.site("/upload-links", nil)
+			return "POST", p, map[string]any{"kind": "archive"}, err
 		}},
 	{name: "read_site_file", title: "Read a site file",
 		about:    "Read one published file of any site you may open, like index.html, before changing it.",
@@ -345,7 +350,8 @@ var tools = []tool{
 	// Saved data: rows, values and stored files, with the caller's own rights
 	// (the routes pages use), on any site they may open.
 	{name: "list_rows", title: "List rows",
-		about: "Read rows of a table in a site's namespace, with your rights (as the site's pages do). Filter by column values; page with after.",
+		about: "Read rows of a table in a site's namespace, with your rights (as the site's pages do). Filter by column values; page with after. " +
+			"People show as you or visitor-<8 hex>, one label per person on the site; filter by a label in where.",
 		input: tableIn("where", object(`Column -> value: only rows where each column equals it, like {"status": "new"}.`), "order", str("A column to order by (default: oldest first)."),
 			"desc", boolean("Newest or largest first."), "after", str("next_after from the previous page."), "limit", integer("Rows per page, 1 to 500 (100).")),
 		output: outRows, readOnly: true, idempotent: true, view: rowsView,
@@ -467,7 +473,8 @@ var tools = []tool{
 			return "POST", p, map[string]any{}, err
 		}},
 	{name: "query_sql", title: "Query with SQL",
-		about:  "The owner's read-only SQL on a namespace of their site: one SELECT (or WITH ... SELECT). Values are in the table _values, stored files' records in _files. Statements that change anything are refused.",
+		about: "The owner's read-only SQL on a namespace of their site: one SELECT (or WITH ... SELECT). Values are in the table _values, stored files' records in _files. Statements that change anything are refused. " +
+			"People show as you or visitor-<8 hex>, one label per person on the site; a label in the SQL or params means that person.",
 		input:  nsIn("sql!", str("One SELECT statement."), "params", list("Values for ? in order.", map[string]any{})),
 		output: out("columns!", oList(oStr), "rows!", oList(oList(oAny))), readOnly: true, idempotent: true, view: rowsView,
 		fixes: map[string]string{"not_a_read": "query_sql runs one statement that only reads, like SELECT. To change data, call run_sql."},

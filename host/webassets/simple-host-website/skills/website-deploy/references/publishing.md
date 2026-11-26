@@ -4,7 +4,8 @@
 
 `publish_site` takes `files` (path to text) and `files_base64` (path to base64, for images,
 fonts, media, `.wasm`). `index.html` goes at the root. Every file of a build goes in one call, or
-the site goes up as an archive through `create_upload_link` with `kind: "archive"`. With
+the site goes up as an archive through `create_site_upload_link`, which replaces the live files
+like a publish (ask first). With
 `keep_other_files: true` the live files you do not send stay; without it they are removed.
 
 Simple Host serves static files only. A project with a build step is built first, where you can

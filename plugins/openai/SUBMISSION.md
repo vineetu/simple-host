@@ -21,7 +21,7 @@ match in all three.
    `dist/simple-host-openai-skills.zip`, which holds only skill folders.
 3. Copy the listing fields below. Upload `plugins/openai/assets/logo.png` (512 by 512) and
    `plugins/openai/assets/icon.png` (256 by 256).
-4. Fill in the MCP tab as below, then **Scan Tools**. Expect 50 tools (46 for the model and four `passcode_screen_*` tools, which only the in-chat passcode screen calls). Domain
+4. Fill in the MCP tab as below, then **Scan Tools**. Expect 51 tools (47 for the model and four `passcode_screen_*` tools, which only the in-chat passcode screen calls). Domain
    verification: the portal shows a token; put it in `/etc/simple-host.env` as
    `OPENAI_APPS_CHALLENGE=<token>`, restart, check that
    `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token,
@@ -99,11 +99,11 @@ they are in that folder; there is no separate OpenAI copy.
 - Server: `https://simple-host.app/mcp`, Streamable HTTP, as in `mcp.json`.
 - Authentication: OAuth with dynamic client registration (DCR), authorization code flow and
   PKCE (S256). Use the server's discovery metadata; do not paste an API key or a client secret.
-- Tool inventory: 50 tools, each one operation with its own schema, with no `find_tools`,
+- Tool inventory: 51 tools, each one operation with its own schema, with no `find_tools`,
   `run_tool` or generic executor. Account: `who_am_i`, `update_account`, `download_my_data`,
   `delete_account`. Teams: `create_team`, `invite_to_team`, `accept_invite`, `remove_from_team`,
-  `delete_team`. Sites: `list_sites`, `get_site`, `publish_site`, `create_upload_link`,
-  `read_site_file`, `take_site_offline`, `put_site_online`, `set_site_listed`, `rollback_site`,
+  `delete_team`. Sites: `list_sites`, `get_site`, `publish_site`, `create_upload_link` (the photo picker),
+  `create_site_upload_link` (a whole site as one archive), `read_site_file`, `take_site_offline`, `put_site_online`, `set_site_listed`, `rollback_site`,
   `restore_site`, `delete_site`, `set_site_address`, `site_stats`, `set_notifications`. Who may
   open a site: `open_site_to_anyone`, `require_passcode` (opens the passcode screen; the passcode
   never enters the chat), `allow_only_named_people`, `add_site_viewers`, `remove_site_viewers`,
@@ -149,7 +149,7 @@ to sign in**, enter the reviewer email **openai-review@simple-host.app** and the
 the portal, choose **Sign in**, then **Connect**. No email code or 2FA. The form shows only on the
 way to approving an app, and only when `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` are set on
 the server (`next/access/signin/review.go`); it opens only that one non-operator account (it sees
-50 tools, 46 of them for the model, and the three demo sites) and is limited like other sign-in.
+51 tools, 47 of them for the model, and the three demo sites) and is limited like other sign-in.
 
 TODO-OWNER: copy `REVIEW_ACCOUNT_EMAIL` and `REVIEW_ACCOUNT_PASSWORD_HASH` from the old service's
 settings into `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` (same values), restart, and check
@@ -196,6 +196,11 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
   tool level with the expected results on locally seeded demo sites. Open: `query_sql` still
   shows visitor ids in a `SELECT *` join, an alias or an expression of `visitor_id`
   (OPENAI-REVIEW-3 A1). Not yet run in ChatGPT.
+- 2026-11-26, after the third review: every id in a saved-data answer (any column, alias,
+  expression or text) shows as `you` or `visitor-<8 hex>`, one label per person on the site,
+  and a label in `where`, `params` or the SQL means that person (A1). `create_upload_link` is the
+  photo picker only; `create_site_upload_link` gives the whole-site archive link, destructive
+  (A2). 51 tools, 47 for the model. Not yet run in ChatGPT.
 
 TODO-OWNER: run all eight cases in ChatGPT against production and record the results here.
 TODO-OWNER: record a new demo video (the current one shows the old tools) and put its URL in

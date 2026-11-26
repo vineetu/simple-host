@@ -33,7 +33,8 @@ the person's own domain.
 | Everything about one site: address, versions, access, domain, saved data, rules, use | `get_site` |
 | Put files online, new or changed | `publish_site` |
 | Read one published file | `read_site_file` |
-| Photos or files from the person; a big site as one archive | `create_upload_link` |
+| Photos or files from the person (the photo picker) | `create_upload_link` |
+| A big site as one archive (replaces the live files; ask first) | `create_site_upload_link` |
 | Offline, or back online | `take_site_offline`, `put_site_online` |
 | Show on the owner's public page, or not | `set_site_listed` |
 | Make an older version live | `rollback_site` |
@@ -67,8 +68,8 @@ Site tools take `site` (name or address) and, for a team's site, `owner` (the te
    that anyone with the link can open it, wait for a yes, then `publish_site` with `files` (text)
    and `files_base64` (images, fonts and other binary). It makes the site if it is new.
 4. A site that comes from a build (React, Vue, Astro, Hugo...): publish only the output folder.
-   Many photos or a big build: `create_upload_link` with `kind: "archive"` gives a one-time
-   archive link; run what it says.
+   Many photos or a big build: `create_site_upload_link` gives a one-time archive link that
+   replaces the live files; ask first, then run what it says.
 5. Give the person the returned `url`. If you can open it, check it renders. A bad publish is
    refused whole and the live site stays as it was; fix and publish again.
 

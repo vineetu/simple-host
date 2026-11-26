@@ -144,6 +144,8 @@ func TestOldArgumentsTranslate(t *testing.T) {
 		{"storage_sql_query", map[string]any{"site": "shop", "name": "menu", "sql": "SELECT ?", "params": `[7]`}, `[[7]]`},
 		{"update_site", map[string]any{"site": "shop", "files": map[string]any{"index.html": "draft"}, "publish": false}, "Nothing was published"},
 		{"create_upload_link", map[string]any{"site": "shop"}, `"photos_url":"https://simple-host.app/upload/up_`},
+		{"create_upload_link", map[string]any{"site": "shop", "kind": "archive"}, `"kind":"archive"`},
+		{"create_upload_link", map[string]any{"site": "shop", "archive": true}, `"kind":"archive"`},
 	} {
 		if s := call(c.name, c.args); !strings.Contains(s, c.want) || strings.Contains(s, "new tools") {
 			t.Fatalf("%s: want %s in %s", c.name, c.want, s)
