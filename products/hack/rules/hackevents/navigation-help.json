@@ -6,9 +6,7 @@
       "target": "o.home",
       "label": "Home",
       "sources": [
-        "screens/organiser-overview.js",
-        "navigation-data.js",
-        "tour.js"
+        "screens/organiser-run/Moves.tsx"
       ],
       "explains": "Follow the next step, review setup and attention items, and share joining links. Each team that wrote to you gets a line here; Read and reply opens that team’s thread, and opening it clears the line.",
       "when": "Check what needs attention during the event.",
@@ -20,10 +18,6 @@
         "links.join",
         "links.judge"
       ],
-      "controls": [
-        "button:Skip",
-        "button:Next"
-      ],
       "effects": [
         "In the walkthrough, Next and Back move between steps; Skip or Done finishes it."
       ]
@@ -33,8 +27,7 @@
       "target": "o.home",
       "label": "Your next step",
       "sources": [
-        "screens/organiser-overview.js",
-        "checklist.js"
+        "screens/organiser-run/Overview.tsx"
       ],
       "explains": "Stage-based guidance and optional checklist acknowledgements; marking an item not needed neither changes its setting nor enforces a prerequisite.",
       "keywords": [
@@ -48,11 +41,6 @@
         "rubric",
         "publish"
       ],
-      "controls": [
-        "button:Use this item",
-        "button:Not needed",
-        "button:text:label"
-      ],
       "effects": [
         "Not needed dismisses an optional item; Use this item restores it. Neither changes the underlying setting.",
         "After Entries closed, Home offers Start judging when required work is done. There is no organiser rubric confirmation. A judge’s Read the rubric is personal guidance, never a scoring or stage prerequisite, and is done once they have scored all their teams."
@@ -63,7 +51,7 @@
       "target": "o.home",
       "label": "Snapshot",
       "sources": [
-        "screens/organiser-overview.js"
+        "screens/organiser-run/Overview.tsx"
       ],
       "explains": "Counts participants, teams, judges and people without teams, distinguishing organiser judges from dedicated judges.",
       "keywords": [
@@ -80,8 +68,7 @@
       "target": "o.event-page",
       "label": "Event page",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js"
+        "screens/organiser-run/Walkthrough.tsx"
       ],
       "explains": "Edit the built-in public event page and manage a custom website.",
       "when": "Prepare or update your public page.",
@@ -101,14 +88,10 @@
       "target": "o.settings",
       "label": "Settings",
       "sources": [
-        "screens/organiser-settings.js",
-        "navigation-data.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Configure joining, teams, entries, judging, results and administration.",
       "when": "Set up or revise your event.",
-      "controls": [
-        "settings-section"
-      ],
       "related": [
         "signup",
         "team.finding",
@@ -122,15 +105,11 @@
       "target": "o.stage",
       "label": "Change stage",
       "sources": [
-        "screens/organiser-overview.js",
-        "screens/_orgA-util.js",
-        "ui.js"
+        "lib/labels.ts",
+        "screens/organiser-run/Moves.tsx"
       ],
       "explains": "Move stages from Home only, including backwards before Ended. Dates and prompts never move stages automatically. Start building and Close entries need no deadline.",
       "when": "Open joining, start work, close entries or correct a premature stage change.",
-      "controls": [
-        "stage-pick"
-      ],
       "options": [
         {
           "label": "Not open yet",
@@ -183,8 +162,7 @@
       "target": "o.end",
       "label": "End event",
       "sources": [
-        "screens/organiser-overview.js",
-        "ui.js"
+        "screens/organiser-run/Moves.tsx"
       ],
       "explains": "Permanently end the event. It cannot be reopened.",
       "when": "Finish an event people have joined.",
@@ -211,15 +189,10 @@
       "target": "o.basics",
       "label": "Basics",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js"
+        "screens/organiser-setup/EventPage.tsx"
       ],
       "explains": "Set the public title and tagline. The tagline is also used in link previews.",
       "when": "Name your event or correct its details.",
-      "controls": [
-        "f-title",
-        "f-tag"
-      ],
       "limits": [
         "Title: 1–120 characters. Tagline: up to 160."
       ],
@@ -233,16 +206,10 @@
       "target": "o.times",
       "label": "Starts",
       "sources": [
-        "screens/organiser-event-page.js",
-        "screens/organiser-create-event.js"
+        "screens/organiser-setup/eventpage-data.ts"
       ],
       "explains": "Set event start and optional end dates and times. End cannot precede start.",
       "when": "Set or correct the advertised dates.",
-      "controls": [
-        "new-start",
-        "new-end",
-        "${prefix}-time"
-      ],
       "effects": [
         "Dates supply schedule rows and prompts, not automatic stage changes. A date-only end includes the whole day in the event time zone."
       ],
@@ -257,15 +224,10 @@
       "target": "o.basics",
       "label": "Time zone",
       "sources": [
-        "screens/organiser-event-page.js",
-        "screens/organiser-create-event.js"
+        "screens/organiser-setup/eventpage-forms.tsx"
       ],
       "explains": "Choose the zone used to enter and display event dates, deadlines and schedule times.",
       "when": "Match your event’s local time.",
-      "controls": [
-        "f-tz",
-        "new-tz"
-      ],
       "effects": [
         "Changing the zone keeps deadline instants. Existing event start and end times keep their local calendar date and wall-clock time in the new zone."
       ],
@@ -282,14 +244,10 @@
       "target": "o.about",
       "label": "About",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js"
+        "screens/organiser-setup/EventPage.tsx"
       ],
       "explains": "Describe the event on its public page. Blank lines separate paragraphs.",
       "when": "Explain the event to visitors.",
-      "controls": [
-        "f-about"
-      ],
       "limits": [
         "Up to 10,000 characters."
       ],
@@ -304,16 +262,10 @@
       "target": "o.prizes",
       "label": "Prizes",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-forms.tsx"
       ],
       "explains": "Describe prizes on the public page. In Event page → About → Prizes, set Prize for 1st / 2nd / 3rd to show place and prize on winner cards; a place with a prize appears in winners-only results even when ranks are hidden.",
       "when": "Tell teams what they can win.",
-      "controls": [
-        "f-prizes",
-        "f-prize-1",
-        "f-prize-2",
-        "f-prize-3"
-      ],
       "limits": [
         "Free-text Prizes: up to 5,000 characters. Each of the three optional rank prizes: one line, up to 60 characters."
       ]
@@ -323,13 +275,10 @@
       "target": "o.rules",
       "label": "Rules",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Publish event-specific rules.",
       "when": "Tell teams how your competition works.",
-      "controls": [
-        "f-rules"
-      ],
       "limits": [
         "Up to 10,000 characters."
       ],
@@ -342,13 +291,10 @@
       "target": "o.coc",
       "label": "Code of conduct",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-forms.tsx"
       ],
       "explains": "Your additions appear after the standard code when people join. They supplement the standard code.",
       "when": "Set conduct expectations for joining.",
-      "controls": [
-        "f-coc"
-      ],
       "limits": [
         "Your additions: up to 10,000 characters."
       ],
@@ -363,18 +309,11 @@
       "target": "o.schedule",
       "label": "Schedule",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js",
-        "schedule.js"
+        "screens/organiser-run/data-overview.ts",
+        "screens/organiser-setup/eventpage-data.ts"
       ],
       "explains": "Add, edit or remove public schedule items. Fixed event dates and deadlines come from their settings and must be changed there.",
       "when": "Plan or revise sessions before End.",
-      "controls": [
-        "d-title",
-        "d-desc",
-        "d-prompt",
-        "button:Add time"
-      ],
       "options": [
         {
           "label": "Nothing",
@@ -423,17 +362,10 @@
       "target": "o.tracks",
       "label": "Tracks",
       "sources": [
-        "screens/_event-tracks.js",
-        "navigation-data.js"
+        "screens/organiser-setup/Assignments.tsx"
       ],
       "explains": "Optional challenges with a Track name, Challenge and Prize. Each team chooses one track; without tracks everyone competes together.",
       "when": "Offer separate challenges before End.",
-      "controls": [
-        "trk-name",
-        "trk-challenge",
-        "trk-prize",
-        "button:Add track"
-      ],
       "effects": [
         "Removing a track clears its teams’ selections. Changes stop after End. All tracks use the same event-wide rubric; Panel changes judge access, not criteria."
       ],
@@ -458,18 +390,10 @@
       "target": "o.sponsors",
       "label": "Sponsors",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js"
+        "screens/organiser-setup/EventPage.tsx"
       ],
       "explains": "Add sponsor Logo, Name, Tier and Link; drag or use Move up/down to order them publicly.",
       "when": "Credit event supporters before End.",
-      "controls": [
-        "d-logo-file",
-        "d-name",
-        "d-tier",
-        "d-link",
-        "button:Add sponsor"
-      ],
       "effects": [
         "Remove deletes the sponsor from the list. List editing stops after End."
       ],
@@ -488,16 +412,10 @@
       "target": "o.faq",
       "label": "FAQ",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js"
+        "screens/organiser-run/Walkthrough.tsx"
       ],
       "explains": "Add public Questions and Answers. Answers start folded; drag or use the menu to reorder.",
       "when": "Answer common visitor questions before End.",
-      "controls": [
-        "d-q",
-        "d-a",
-        "button:Add question"
-      ],
       "effects": [
         "Remove deletes that question. List editing stops after End."
       ],
@@ -514,8 +432,7 @@
       "target": "o.look",
       "label": "Look",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js"
+        "screens/organiser-run/Teams.tsx"
       ],
       "explains": "Choose the built-in public page appearance. Style and colour changes save immediately.",
       "when": "Match the page to your event.",
@@ -531,7 +448,8 @@
       "target": "o.look",
       "label": "Page style",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-data.ts",
+        "screens/organiser-setup/eventpage-look.tsx"
       ],
       "explains": "Choose the visual style of the built-in event page. Your colour still drives buttons and links in every style, and content is kept when switching.",
       "when": "Match the look to your audience.",
@@ -565,9 +483,6 @@
         "theme",
         "design"
       ],
-      "controls": [
-        "button:Try another"
-      ],
       "effects": [
         "Try another picks another page style. Changes save immediately."
       ]
@@ -577,7 +492,8 @@
       "target": "o.look",
       "label": "Colour",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-data.ts",
+        "screens/organiser-setup/eventpage-look.tsx"
       ],
       "explains": "Choose the event accent colour. Automatic uses a stable colour based on the event address.",
       "when": "Use your event’s colours.",
@@ -621,13 +537,10 @@
       "target": "o.look",
       "label": "Event icon",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-look.tsx"
       ],
       "explains": "Upload, replace or remove the event icon. Without an uploaded icon the event has a generated fallback.",
       "when": "Add your event image before End.",
-      "controls": [
-        "icon-file"
-      ],
       "effects": [
         "Icon changes stop after End."
       ],
@@ -640,13 +553,10 @@
       "target": "o.gallery",
       "label": "Show entries on the event page",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-look.tsx"
       ],
       "explains": "Control whether visitors can browse the public entry gallery.",
       "when": "Share entries, including after End.",
-      "controls": [
-        "gallery-toggle"
-      ],
       "effects": [
         "People’s choice requires the gallery to be open. This does not exclude entries from judging.",
         "The public gallery lists live team websites. The switch stays editable after End."
@@ -661,15 +571,10 @@
       "target": "o.website",
       "label": "Website",
       "sources": [
-        "screens/organiser-event-page.js",
-        "navigation-data.js",
-        "screens/account.js"
+        "screens/organiser-setup/eventpage-website.tsx"
       ],
       "explains": "Choose what appears at the event website address. The address cannot be renamed here.",
       "when": "Choose your public website before End.",
-      "controls": [
-        "site-zip"
-      ],
       "options": [
         {
           "label": "Built-in event page",
@@ -702,14 +607,10 @@
       "target": "o.signup",
       "label": "Sign-up",
       "sources": [
-        "screens/_settings-people.js",
-        "navigation-data.js"
+        "screens/organiser-run/People.tsx"
       ],
       "explains": "Control approval for people joining with the shared join link. Public applications always require review.",
       "when": "Decide how to admit new people.",
-      "controls": [
-        "signup-approval"
-      ],
       "effects": [
         "Turning link approval off offers a choice to leave pending link sign-ups waiting or approve them now. It does not automatically approve public applicants."
       ],
@@ -724,14 +625,10 @@
       "target": "o.signup",
       "label": "Question",
       "sources": [
-        "screens/_settings-people.js"
+        "screens/organiser-run/Assistant.tsx"
       ],
       "explains": "Ask Required or optional registration questions; required answers must be supplied to register.",
       "when": "Collect details from new sign-ups.",
-      "controls": [
-        "button:Save questions",
-        "button:Add question"
-      ],
       "effects": [
         "Save questions applies the edited list. Location, age range and gender are separate optional profile fields."
       ],
@@ -751,14 +648,10 @@
       "target": "o.applications-setting",
       "label": "Let people apply without your join link",
       "sources": [
-        "screens/_settings-people.js",
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-signup.tsx"
       ],
       "explains": "Enable public applications separately from shared-link joining.",
       "when": "Accept people who lack your join link.",
-      "controls": [
-        "apps-toggle"
-      ],
       "effects": [
         "An Apply button requires public applications on, directory listing on, and stage Sign-up open or Building. Turning applications off stops new applications; pending applications remain."
       ],
@@ -773,15 +666,10 @@
       "target": "o.directory",
       "label": "List this event on Find a hackathon",
       "sources": [
-        "screens/_settings-people.js",
-        "screens/_settings-results.js",
-        "navigation-data.js"
+        "screens/organiser-setup/settings-signup.tsx"
       ],
       "explains": "Control public directory listing independently of joining and voting.",
       "when": "Help people find your event or hide its listing.",
-      "controls": [
-        "res-directory-listed"
-      ],
       "related": [
         "applications.setting",
         "voting"
@@ -792,13 +680,10 @@
       "target": "o.team-rules",
       "label": "Team finding",
       "sources": [
-        "screens/_settings-teams.js"
+        "screens/organiser-run/Teams.tsx"
       ],
       "explains": "Allow participants to browse teams, request to join and invite others.",
       "when": "Help participants find teammates.",
-      "controls": [
-        "tf-on"
-      ],
       "effects": [
         "Team links and codes work with Team finding off. Participant team operations require Sign-up open or Building."
       ],
@@ -813,13 +698,10 @@
       "target": "o.team-rules",
       "label": "Most people per team",
       "sources": [
-        "screens/_settings-teams.js"
+        "screens/organiser-setup/settings-signup.tsx"
       ],
       "explains": "Set the team capacity.",
       "when": "Set or revise team capacity.",
-      "controls": [
-        "ts-size"
-      ],
       "effects": [
         "Reducing capacity does not remove existing members. The editor disables this after End."
       ],
@@ -836,15 +718,10 @@
       "target": "o.deadline",
       "label": "Deadline",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-run/EntryDetail.tsx"
       ],
       "explains": "Set when entries and team website changes close in the event time zone.",
       "when": "Choose when teams must finish.",
-      "controls": [
-        "deadline-input",
-        "button:Save deadline",
-        "button:Clear deadline"
-      ],
       "effects": [
         "At the effective deadline, complete drafts auto-submit. Incomplete entries become available for judging once entries close or their deadline passes, unless excluded.",
         "Clearing or moving the general deadline into the future cannot reopen Entries closed, Judging or Results. Return to Building, or grant an individual extension where applicable. Ended blocks deadline changes.",
@@ -866,7 +743,8 @@
       "target": "o.entry-rules",
       "label": "What teams hand in",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings-entries.tsx",
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "Choose a preset and adjust summary and evidence requirements in Not open yet, Sign-up open or Building.",
       "when": "Set hand-in rules in Draft, Open or Building.",
@@ -903,7 +781,7 @@
       "target": "o.entry-rules",
       "label": "Summary card",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/entry/data.ts"
       ],
       "explains": "Judges see this card first. Project name is always required. Other summary rows can be Required, Optional or Off.",
       "when": "Set summary requirements before entries close.",
@@ -946,7 +824,7 @@
       "target": "o.entry-rules",
       "label": "Project name",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings-entries.tsx"
       ],
       "explains": "The entry's name, the first row of the summary card. It is always Required: it cannot be made Optional or Off.",
       "keywords": [
@@ -963,7 +841,7 @@
       "target": "o.entry-rules",
       "label": "Problem, in one line",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "The problem the project addresses.",
       "when": "Ask about the need before entries close.",
@@ -997,7 +875,7 @@
       "target": "o.entry-rules",
       "label": "Solution, in one line",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "A short explanation of the solution, also used on the team sites list.",
       "when": "Ask about the solution before entries close.",
@@ -1031,7 +909,7 @@
       "target": "o.entry-rules",
       "label": "Who it's for",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/entry/data.ts"
       ],
       "explains": "The people the project aims to help.",
       "when": "Ask who benefits before entries close.",
@@ -1065,7 +943,7 @@
       "target": "o.entry-rules",
       "label": "Track",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "The team’s challenge; required only when tracks exist and the rule requires it.",
       "when": "Require track selection before entries close.",
@@ -1099,7 +977,7 @@
       "target": "o.entry-rules",
       "label": "Tools and AI",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "Tags naming the tools used.",
       "when": "Ask about tools before entries close.",
@@ -1133,8 +1011,8 @@
       "target": "o.entry-rules",
       "label": "What works today",
       "sources": [
-        "screens/_settings-entries.js",
-        "ui.js"
+        "lib/labels.ts",
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "Describe how much of the project works.",
       "when": "Ask what works before entries close.",
@@ -1161,7 +1039,8 @@
       "target": "o.entry-rules",
       "label": "Show your work",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings-entries.tsx",
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "Set requirements for video, team website, code and screenshot.",
       "when": "Set evidence requirements before entries close.",
@@ -1204,7 +1083,7 @@
       "target": "o.entry-rules",
       "label": "Video link",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "Demo video link; supported players embed, other links open externally.",
       "when": "Request a demo before entries close.",
@@ -1238,7 +1117,7 @@
       "target": "o.entry-rules",
       "label": "Website",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "The team’s published site, rather than a URL entered in the form.",
       "when": "Request a site before entries close.",
@@ -1272,7 +1151,7 @@
       "target": "o.entry-rules",
       "label": "Code link",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "A link to source code, such as a repository.",
       "when": "Request code before entries close.",
@@ -1306,7 +1185,7 @@
       "target": "o.entry-rules",
       "label": "Screenshot",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "An image of the project, provided by the team.",
       "when": "Request an image before entries close.",
@@ -1340,7 +1219,7 @@
       "target": "o.entry-rules",
       "label": "After the card, first",
       "sources": [
-        "screens/_settings-entries.js"
+        "screens/organiser-setup/settings-entries.tsx"
       ],
       "explains": "Choose which evidence view opens after the summary card. The summary always comes first.",
       "when": "Set the opening view before entries close.",
@@ -1364,15 +1243,10 @@
       "target": "o.reminders",
       "label": "Reminder times",
       "sources": [
-        "screens/_settings-entries.js",
-        "navigation-data.js"
+        "screens/organiser-setup/settings-entries.tsx"
       ],
       "explains": "Email teams without submitted entries before their deadline, and judges with work left before Judging closes.",
       "when": "Arrange deadline nudges before End.",
-      "controls": [
-        "rem-n",
-        "rem-unit"
-      ],
       "options": [
         {
           "label": "days before",
@@ -1408,13 +1282,10 @@
       "target": "o.judging-closes",
       "label": "Judging closes",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-run/data-overview.ts"
       ],
       "explains": "Set the reminder time and fixed schedule row for judging.",
       "when": "Time your judge reminders.",
-      "controls": [
-        "jg-closes-input"
-      ],
       "effects": [
         "This time does not stop scoring or lock judging. Clear it to stop judge reminders tied to that time. Judging opens scoring; Results stops scoring and locks judging.",
         "Judge reminders require Judging, unlocked judging, a future close and dedicated judges with work left; organiser judges are excluded."
@@ -1429,14 +1300,10 @@
       "target": "o.rubric",
       "label": "Rubric",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/Judging.tsx"
       ],
       "explains": "Set event-wide criteria, readable by approved participants; tracks share the rubric.",
       "when": "Set or revise criteria before Judging starts.",
-      "controls": [
-        "button:Add a criterion",
-        "button:Save rubric"
-      ],
       "effects": [
         "Criteria have Name, Description, Weight % and Max points. Defaults: Idea, Execution, Design, Demo, each 25% and 5 points. Move back to Entries closed to edit; keep the fixed tie criterion."
       ],
@@ -1464,7 +1331,7 @@
       "target": "o.rubric",
       "label": "Save rubric",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "Keep criterion identities to preserve compatible scores across renaming, reordering and reweighting.",
       "when": "Save changes before Judging starts.",
@@ -1487,13 +1354,10 @@
       "target": "o.tie-break",
       "label": "First tie criterion",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "Choose an existing rubric criterion to break equal totals. Pick a criterion leaves no first criterion.",
       "when": "Choose the first tie rule before the Judging stage.",
-      "controls": [
-        "jg-tie"
-      ],
       "effects": [
         "While the current stage is Judging, Results or Ended, the tie criterion cannot change or leave the rubric. Returning to Entries closed or Building permits changes. Equal totals use the optional criterion, then judges’ pairwise preferences; organisers order remaining ties at publication."
       ],
@@ -1517,17 +1381,10 @@
       "target": "o.judging-mode",
       "label": "How judges are assigned",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "Control which teams judges can score. Conflicts apply in every mode.",
       "when": "Allocate judging work before Judging starts.",
-      "controls": [
-        "jg-mode-open",
-        "jg-mode-automatic",
-        "jg-mode-manual",
-        "jg-mode-panel",
-        "jg-per"
-      ],
       "options": [
         {
           "label": "Open",
@@ -1567,7 +1424,7 @@
       "target": "o.mode",
       "label": "How judges are assigned",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "Choose judge access; see How judges are assigned.",
       "when": "Allocate judging work before Judging starts.",
@@ -1585,13 +1442,10 @@
       "target": "o.result-rules",
       "label": "How teams are ranked",
       "sources": [
-        "screens/_settings-results.js"
+        "screens/organiser-setup/settings-results.tsx"
       ],
       "explains": "Choose the average used to rank teams. Raw criterion marks are retained.",
       "when": "Choose how to compare scores before End.",
-      "controls": [
-        "res-score-mode"
-      ],
       "options": [
         {
           "label": "Average, adjusted for strict and generous judges",
@@ -1622,15 +1476,10 @@
       "target": "o.result-rules",
       "label": "Show on the public page",
       "sources": [
-        "screens/_settings-results.js"
+        "screens/organiser-setup/settings-results.tsx"
       ],
       "explains": "Control public result visibility separately from ranking calculations.",
       "when": "Set public result details before End.",
-      "controls": [
-        "res-visibility",
-        "res-public-scores",
-        "res-public-ranks"
-      ],
       "options": [
         {
           "label": "Full ranking",
@@ -1655,18 +1504,10 @@
       "target": "o.voting",
       "label": "People’s choice",
       "sources": [
-        "screens/_settings-results.js",
-        "navigation-data.js"
+        "screens/organiser-setup/settings-results.tsx"
       ],
       "explains": "Let signed-in visitors vote during a chosen window. Starts and Ends use the event time zone.",
       "when": "Arrange a public vote before End.",
-      "controls": [
-        "res-vote-enabled",
-        "res-vote-opens",
-        "res-vote-closes",
-        "res-vote-eligibility",
-        "button:Save voting window"
-      ],
       "options": [
         {
           "label": "Anyone signed in",
@@ -1703,18 +1544,10 @@
       "target": "o.details",
       "label": "Organiser details",
       "sources": [
-        "screens/_settings-admin.js",
-        "navigation-data.js"
+        "screens/organiser-run/Walkthrough.tsx"
       ],
       "explains": "Edit organiser identity, contact and planning details.",
       "when": "Set or correct organiser details.",
-      "controls": [
-        "set-name",
-        "set-org",
-        "set-email",
-        "set-purpose",
-        "set-n"
-      ],
       "keywords": [
         "purpose",
         "expected participants",
@@ -1735,18 +1568,10 @@
       "target": "o.organisers",
       "label": "Organisers",
       "sources": [
-        "screens/_settings-people.js",
-        "navigation-data.js"
+        "screens/organiser-run/People.tsx"
       ],
       "explains": "Create invitation makes a link you can send to any number of co-organisers; anyone with it can accept until you revoke it or it expires in 7 days. Co-organisers have full event control, including deletion. The creator cannot be removed.",
       "when": "Add or remove organising help before End.",
-      "controls": [
-        "coorg-url",
-        "button:Create invitation",
-        "button:Copy invitation",
-        "button:Revoke invitation",
-        "button:Remove co-organiser"
-      ],
       "effects": [
         "An invitation link works for 7 days for anyone who opens it and accepts. There is one link at a time: creating a new one replaces the old link. Revoke invitation stops it working; people who already accepted stay organisers. Removing a co-organiser also revokes the link. Existing event members cannot use it to switch roles. Creator departure requires handover.",
         "Remove co-organiser permanently deletes that organiser’s scores. Voluntary leaving instead preserves scores that remain eligible."
@@ -1767,7 +1592,7 @@
       "target": "o.links",
       "label": "Links",
       "sources": [
-        "navigation-data.js"
+        "screens/organiser-run/Walkthrough.tsx"
       ],
       "explains": "Manage shared participant and judge invitations. Team links are separate.",
       "when": "Invite people before joining closes.",
@@ -1782,15 +1607,10 @@
       "target": "o.links",
       "label": "Join link",
       "sources": [
-        "screens/_settings-links.js",
-        "screens/organiser-overview.js"
+        "screens/organiser-run/Overview.tsx"
       ],
       "explains": "Copy the participant joining link or make a New link.",
       "when": "Invite people or replace a link before End.",
-      "controls": [
-        "ov-join-url",
-        "button:New link"
-      ],
       "effects": [
         "New link invalidates the old invitation; existing members stay. Joining needs Sign-up open or Building. No rotation after End."
       ],
@@ -1808,14 +1628,10 @@
       "target": "o.links",
       "label": "Judge link",
       "sources": [
-        "screens/_settings-links.js",
-        "screens/organiser-overview.js"
+        "screens/organiser-run/Overview.tsx"
       ],
       "explains": "Copy the judge invitation or make a New link.",
       "when": "Invite judges or replace a link before End.",
-      "controls": [
-        "ov-judge-url"
-      ],
       "effects": [
         "New link invalidates the old invitation; existing judges stay. No joining in Results or Ended, role switching, or rotation after End."
       ],
@@ -1829,24 +1645,10 @@
       "target": "o.notifications",
       "label": "Notifications",
       "sources": [
-        "screens/_settings-admin.js",
-        "navigation-data.js"
+        "screens/organiser-setup/settings.ts"
       ],
       "explains": "Notify a webhook about event website data and uploads; participant emails and reminders are separate.",
       "when": "Pass website activity to another service.",
-      "controls": [
-        "notify-url",
-        "notify-label",
-        "notify-storage",
-        "notify-header-name",
-        "notify-header-value",
-        "notify-ev-${i}",
-        "notify-secret-${ui.esc(s.forId)}",
-        "button:Add notification",
-        "button:Send test",
-        "button:Rotate secret",
-        "button:Dismiss"
-      ],
       "options": [
         {
           "label": "A visitor saves something",
@@ -1882,8 +1684,7 @@
       "target": "o.leave",
       "label": "Leave event",
       "sources": [
-        "screens/_settings-admin.js",
-        "leave.js"
+        "screens/organiser-setup/settings-danger.tsx"
       ],
       "explains": "Leave organiser membership and lose management access. Other organisers can continue.",
       "when": "Step away from organising before End.",
@@ -1898,10 +1699,6 @@
         "handover",
         "end",
         "delete"
-      ],
-      "controls": [
-        "button:End event and leave",
-        "button:Delete event and leave"
       ]
     },
     {
@@ -1909,7 +1706,7 @@
       "target": "o.handover",
       "label": "Hand over and leave",
       "sources": [
-        "leave.js"
+        "app/Leave.tsx"
       ],
       "explains": "Choose another organiser as successor when the creator leaves. Handover transfers creator responsibility.",
       "when": "Pass ownership on when leaving before End.",
@@ -1927,15 +1724,10 @@
       "target": "o.delete",
       "label": "Delete event",
       "sources": [
-        "screens/_settings-admin.js",
-        "leave.js"
+        "screens/organiser-setup/settings-danger.tsx"
       ],
       "explains": "Any organiser, including a co-organiser, can permanently delete the event and its public page. There is no undo.",
       "when": "Erase an unused or unwanted event.",
-      "controls": [
-        "delete-confirm",
-        "lv-confirm-slug"
-      ],
       "effects": [
         "Removes memberships, team sites, entries, scores, votes and results. Available after End too. Type the event address name to confirm when ended or participants or judges exist."
       ],
@@ -1953,14 +1745,10 @@
       "target": "o.people",
       "label": "People",
       "sources": [
-        "screens/organiser-people.js",
-        "navigation-data.js"
+        "screens/organiser-run/data-people.ts"
       ],
       "explains": "Review event membership and pending applications. Show filters the membership list.",
       "when": "Check membership and waiting applicants.",
-      "controls": [
-        "role-filter"
-      ],
       "options": [
         {
           "label": "Everyone",
@@ -1993,20 +1781,10 @@
       "target": "o.applications",
       "label": "Applications",
       "sources": [
-        "screens/organiser-people.js",
-        "navigation-data.js"
+        "screens/organiser-run/People.tsx"
       ],
       "explains": "Approve or reject pending applications. Only pending decisions can be changed.",
       "when": "Review pending applicants before End.",
-      "controls": [
-        "app-filter-from",
-        "app-filter-age",
-        "app-filter-country",
-        "app-filter-sort",
-        "button:Approve",
-        "button:Reject",
-        "button:Clear filters"
-      ],
       "options": [
         {
           "label": "Everyone waiting (${pending.length})",
@@ -2053,8 +1831,8 @@
       "target": "o.applications",
       "label": "Age range",
       "sources": [
-        "screens/organiser-people.js",
-        "ui.js"
+        "screens/organiser-run/data-people.ts",
+        "screens/organiser-run/People.tsx"
       ],
       "explains": "Filter pending applications by their optional reported age range.",
       "when": "Find applicants in an age range.",
@@ -2085,7 +1863,7 @@
       "target": "o.people",
       "label": "Remove from event",
       "sources": [
-        "screens/organiser-people.js"
+        "screens/organiser-run/People.tsx"
       ],
       "explains": "Remove a participant or judge; manage organisers in Organisers settings.",
       "when": "Remove someone’s access before End.",
@@ -2108,9 +1886,7 @@
       "target": "o.judges",
       "label": "Judges",
       "sources": [
-        "screens/organiser-people.js",
-        "ui.js",
-        "navigation-data.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Judges are people who joined as judges plus organisers ticked under Organisers who also judge in Settings → Judging. Unticked organisers do not judge. This one list supplies counts, assignments and scoring access; Score as a judge opens from Judging.",
       "when": "Recruit people to assess entries.",
@@ -2128,8 +1904,7 @@
       "target": "o.teams",
       "label": "Teams",
       "sources": [
-        "screens/organiser-teams.js",
-        "navigation-data.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Browse teams, sizes, tracks and admission status. Open one for its membership, entry, joining and management controls.",
       "when": "Check team membership and progress.",
@@ -2146,16 +1921,10 @@
       "target": "o.solo",
       "label": "Not on a team",
       "sources": [
-        "screens/organiser-teams.js",
-        "navigation-data.js"
+        "screens/organiser-run/Overview.tsx"
       ],
       "explains": "Approved participants without a team can be placed individually or using Fill teams.",
       "when": "Fill teams in Open or Building.",
-      "controls": [
-        "fill-size",
-        "place-pick",
-        "button:Fill teams"
-      ],
       "effects": [
         "Fill teams works with Team finding off, in Sign-up open or Building. It skips locked teams and previews existing and new team placements before applying."
       ],
@@ -2178,14 +1947,10 @@
       "target": "o.teams",
       "label": "Team",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Open a team to inspect Members, Messages, Joining, Entry & site and the Danger zone.",
       "when": "Inspect or manage one team.",
-      "controls": [
-        "rename-name",
-        "button:Delete team"
-      ],
       "effects": [
         "Team name can be changed separately from membership and entry."
       ],
@@ -2205,16 +1970,10 @@
       "target": "o.teams",
       "label": "Members",
       "sources": [
-        "screens/organiser-team-detail.js",
-        "screens/organiser-teams.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Add someone, move a participant, take them off the team or choose team admins.",
       "when": "Adjust membership or admins before End.",
-      "controls": [
-        "move-target",
-        "add-pick",
-        "button:Add someone"
-      ],
       "effects": [
         "Placement needs approval and capacity. Organisers can bypass ordinary admission locks, but cannot refill kept empty teams.",
         "Organiser changes stop after End; participant stage and deadline limits are separate.",
@@ -2238,13 +1997,10 @@
       "target": "o.teams",
       "label": "Lock team",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Stop admission through team links, codes, requests and invitations.",
       "when": "Close or reopen team admission before End.",
-      "controls": [
-        "team-lock-toggle"
-      ],
       "effects": [
         "Clears outstanding requests and invitations; Fill teams skips the team. Organiser placement can override an ordinary lock subject to capacity.",
         "This is separate from the entry deadline and does not itself freeze submission. Kept empty teams cannot be unlocked or refilled."
@@ -2263,7 +2019,7 @@
       "target": "o.teams",
       "label": "Team link",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Members of the event can join directly through a team link when eligible.",
       "when": "Share or replace team access before End.",
@@ -2273,9 +2029,6 @@
       "related": [
         "team.lock",
         "links"
-      ],
-      "controls": [
-        "button:New link"
       ]
     },
     {
@@ -2283,7 +2036,7 @@
       "target": "o.teams",
       "label": "Delete this team",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Permanently remove the team, its entry and its site. Members remain in the event without a team.",
       "when": "Erase a team and its work before End.",
@@ -2302,16 +2055,10 @@
       "target": "o.teams",
       "label": "Message team",
       "sources": [
-        "screens/organiser-team-detail.js",
-        "screens/organiser-teams.js",
-        "screens/_team-message-dialog.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Send a private message to one team or Message selected teams, and read what a team wrote in the same thread on that team's page. Teams that wrote to you show on Home, each with Read and reply; opening the thread clears that line. This is separate from a public announcement.",
       "when": "Contact teams privately before End.",
-      "controls": [
-        "tm-text",
-        "button:Message selected"
-      ],
       "effects": [
         "Shows on the team's Overview. Teammates with email updates on also get an email.",
         "Messages clear from the team’s Overview when the stage changes; organiser message history stays. No sends after End.",
@@ -2336,14 +2083,10 @@
       "target": "o.entries",
       "label": "Entries",
       "sources": [
-        "screens/organiser-entries.js",
-        "navigation-data.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Review hand-ins and missing fields; submitted entries, and incomplete entries once entries close or their deadline passes, are available for judging unless excluded.",
       "when": "Check hand-ins and missing items.",
-      "controls": [
-        "button:Download entries (CSV)"
-      ],
       "keywords": [
         "incomplete",
         "not submitted",
@@ -2362,8 +2105,7 @@
       "target": "o.entries",
       "label": "Entry & site",
       "sources": [
-        "screens/organiser-team-detail.js",
-        "screens/organiser-entry-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Inspect summary, evidence, missing items and site; missing items do not exclude entries once entries close or their deadline passes.",
       "when": "Inspect one team’s work.",
@@ -2379,16 +2121,10 @@
       "target": "o.entries",
       "label": "Exclude from judging",
       "sources": [
-        "screens/organiser-entry-detail.js",
-        "screens/organiser-entries.js"
+        "screens/organiser-run/EntryDetail.tsx"
       ],
       "explains": "Exclude an entry without deleting it or taking its website down. Include in judging reverses this.",
       "when": "Disqualify an entry or restore its eligibility.",
-      "controls": [
-        "button:Include",
-        "button:Exclude",
-        "button:Include in judging"
-      ],
       "effects": [
         "Entry and scores remain stored; exclusion removes judging eligibility. Restoring inclusion restores eligibility subject to the other rules.",
         "The server allows exclusion and restoration after End; republish to update the published snapshot."
@@ -2408,16 +2144,10 @@
       "target": "o.entries",
       "label": "More time until",
       "sources": [
-        "screens/organiser-entries.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Give one team more time, or clear its extension.",
       "when": "Give a team extra time or clear an unused extension.",
-      "controls": [
-        "ext-team",
-        "ext-input",
-        "button:Give this team more time",
-        "button:Clear this team’s extension"
-      ],
       "effects": [
         "An extension extends an existing general deadline; it does not shorten it or create a standalone deadline. Clearing it restores the general deadline, which may have passed.",
         "Judging, Results and Ended stop entry edits even with a future extension. An unsubmitted draft reopened after entries closed or its deadline passed can be checked again at its later deadline.",
@@ -2441,14 +2171,10 @@
       "target": "o.entries",
       "label": "Take this site down",
       "sources": [
-        "screens/organiser-entry-detail.js"
+        "screens/organiser-run/EntryDetail.tsx"
       ],
       "explains": "Replace the team website with a notice. Optionally give a reason shown to the team.",
       "when": "Remove an unsuitable site from public view.",
-      "controls": [
-        "takedown-reason",
-        "button:Put back"
-      ],
       "effects": [
         "Put back reverses an organiser takedown. An organiser cannot restore a platform takedown. This is separate from excluding an entry from judging.",
         "Taking down a site also blocks the team’s entry edits and publishing and removes it from gallery and voting choices. Taking down or putting back is unavailable after End."
@@ -2469,32 +2195,10 @@
       "target": "o.announcements",
       "label": "Announcements",
       "sources": [
-        "screens/organiser-announcements.js",
-        "navigation-data.js",
-        "screens/_stage-announce-dialog.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "Post Title and Message publicly and in participants’ app; optionally email them on creation.",
       "when": "Share event news publicly before End.",
-      "controls": [
-        "ann-title",
-        "ann-body",
-        "ann-email",
-        "ea-title",
-        "ea-body",
-        "sa-title",
-        "sa-body",
-        "sa-email",
-        "button:Post",
-        "button:Add link",
-        "al-label",
-        "al-address",
-        "ann-link",
-        "ann-preview",
-        "ea-link",
-        "ea-preview",
-        "button:Pin to top",
-        "button:Unpin"
-      ],
       "effects": [
         "Deleting removes the announcement. No posting, editing or deletion after End.",
         "Editing it later never sends another email.",
@@ -2535,8 +2239,7 @@
       "target": "o.announcement",
       "label": "Message",
       "sources": [
-        "screens/_stage-announce-dialog.js",
-        "screens/organiser-announcements.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "After a forward stage change or publishing results, the Tell participants? dialog offers an optional announcement saying what changed. Don’t send is the primary and initially focused button; Send is secondary. The suggested title and message are editable. Moving back does not offer an announcement.",
       "when": "Explain a stage change before End.",
@@ -2554,8 +2257,7 @@
       "target": "o.judging",
       "label": "Judging",
       "sources": [
-        "screens/organiser-judging.js",
-        "navigation-data.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Manage assignments, progress, conflicts and former judges. Finish judging from Home to stop scoring.",
       "when": "Check judging work and progress.",
@@ -2572,14 +2274,10 @@
       "target": "o.assignments",
       "label": "Assignments",
       "sources": [
-        "screens/organiser-judging.js",
-        "screens/organiser-judging-assignments.js"
+        "screens/organiser-run/routes.ts"
       ],
       "explains": "Assign the shared judge list to teams in Manual mode. Automatic coverage accounts for conflicts. Panel mode assigns judges by track; teams need a track.",
       "when": "Set up during Entries closed; locked during Judging.",
-      "controls": [
-        "button:Save judging access"
-      ],
       "effects": [
         "Automatic mode generates assignments at the move to Judging (joined judges plus organisers ticked under Organisers who also judge). It replaces assignments, never deletes scores and respects conflicts.",
         "In Automatic and Manual, a current judge’s scores for a team stop counting when their assignment is removed. Reassigning restores otherwise eligible scores; published snapshots need republishing.",
@@ -2600,7 +2298,7 @@
       "target": "o.scores",
       "label": "Progress",
       "sources": [
-        "screens/organiser-judging.js"
+        "screens/organiser-run/Entries.tsx"
       ],
       "explains": "Review team and judge scoring coverage and work remaining. Only teams with a judgeable entry enter the judging pool. In Automatic, Manual and Panel modes, teams below the judges-per-team target show N of M judges. Home at Judging shows an optional count linking here; it never blocks Finish judging.",
       "when": "Check score coverage before publication.",
@@ -2620,7 +2318,7 @@
       "target": "o.conflicts",
       "label": "Judges who know a team",
       "sources": [
-        "screens/organiser-judging.js"
+        "screens/organiser-setup/Assignments.tsx"
       ],
       "explains": "Record a judge/team conflict to prevent that judge scoring that team in every assignment mode.",
       "when": "Prevent biased scores before Results.",
@@ -2641,13 +2339,10 @@
       "target": "o.former-judges",
       "label": "Former judges",
       "sources": [
-        "screens/organiser-judging.js"
+        "screens/organiser-setup/Judging.tsx"
       ],
       "explains": "Scores from judges who leave keep counting when otherwise eligible. Delete scores is an explicit removal.",
       "when": "Review or delete departed judges’ scores before End.",
-      "controls": [
-        "button:Delete scores"
-      ],
       "effects": [
         "Move the event back to Judging before deleting. Deletion is permanent and requires confirmation. Published snapshots change only after republishing."
       ],
@@ -2664,8 +2359,7 @@
       "target": "o.results",
       "label": "Results",
       "sources": [
-        "screens/organiser-results.js",
-        "navigation-data.js"
+        "screens/organiser-run/Moves.tsx"
       ],
       "explains": "Preview current standings and download results. Resolve tied places and publish from Home. The preview can differ from the last published snapshot.",
       "when": "Prepare or update results publication.",
@@ -2681,8 +2375,7 @@
       "target": "o.ties",
       "label": "Some teams tie. Give each one a final place:",
       "sources": [
-        "screens/organiser-overview.js",
-        "screens/_publish-results.js"
+        "screens/organiser-run/Moves.tsx"
       ],
       "explains": "Resolve tied places by giving a complete order for each tied group, then publish that order.",
       "when": "Set the final order when teams share a place.",
@@ -2697,9 +2390,6 @@
       "related": [
         "tie",
         "publish"
-      ],
-      "controls": [
-        "button:Publish results"
       ]
     },
     {
@@ -2707,8 +2397,7 @@
       "target": "o.publish",
       "label": "Publish results",
       "sources": [
-        "screens/organiser-overview.js",
-        "screens/_publish-results.js"
+        "screens/organiser-run/Moves.tsx"
       ],
       "explains": "Publish a results snapshot, replacing any previous one. There is no unpublish action.",
       "when": "Release or update official standings.",
@@ -2726,9 +2415,6 @@
         "ties",
         "result.visibility",
         "end"
-      ],
-      "controls": [
-        "button:Publish results"
       ]
     },
     {
@@ -2736,18 +2422,10 @@
       "target": "o.downloads",
       "label": "Downloads",
       "sources": [
-        "screens/organiser-results.js"
+        "screens/organiser-run/Results.tsx"
       ],
       "explains": "Download event records and team websites.",
       "when": "Keep records or sites, including after End.",
-      "controls": [
-        "button:Results (CSV)",
-        "button:Scores (CSV)",
-        "button:Entries (CSV)",
-        "button:Teams (CSV)",
-        "button:People (CSV)",
-        "button:All team sites (.tar.gz)"
-      ],
       "effects": [
         "Results CSV uses the published tie-resolved snapshot when available, otherwise current preview. Scores, Entries, Teams and People CSV provide their respective records. All team sites downloads an archive."
       ],
@@ -2766,19 +2444,10 @@
       "target": "o.home",
       "label": "Create event",
       "sources": [
-        "screens/organiser-create-event.js"
+        "lib/client/hack.ts"
       ],
       "explains": "Create an event at Not open yet with Title, Address, Starts, Ends (optional), Time zone and organiser details.",
       "when": "Start planning a new event.",
-      "controls": [
-        "new-slug",
-        "new-organiser",
-        "new-org",
-        "new-email",
-        "new-purpose",
-        "new-n",
-        "new-title"
-      ],
       "effects": [
         "Address is chosen at creation, not renamed through Website. Organiser details can be edited later."
       ],
@@ -2804,8 +2473,7 @@
       "target": "o.people",
       "label": "Actions",
       "sources": [
-        "screens/_orgA-util.js",
-        "screens/organiser-people.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "Open the row menu for available actions. Permissions and state determine its options.",
       "when": "Manage someone from their row.",
@@ -2824,7 +2492,7 @@
       "target": "o.entry-rules",
       "label": "Description",
       "sources": [
-        "screens/participant-entry.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "Legacy long description: optional in current presets, with no organiser rule row.",
       "limits": [
@@ -2843,7 +2511,7 @@
       "target": "o.signup",
       "label": "Approve people who join with your link before they can join a team or publish",
       "sources": [
-        "screens/_settings-people.js"
+        "screens/organiser-setup/settings-signup.tsx"
       ],
       "explains": "Require approval of link sign-ups before team joining and publishing.",
       "when": "Review sign-ups before granting team access.",
@@ -2871,7 +2539,7 @@
       "target": "o.signup",
       "label": "Required",
       "sources": [
-        "screens/_settings-people.js"
+        "screens/organiser-setup/settings-entries.tsx"
       ],
       "explains": "A required registration question must be answered before the person can register.",
       "keywords": [
@@ -2887,7 +2555,7 @@
       "target": "o.teams",
       "label": "Make admin",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Give a team member admin authority. Remove as admin takes that authority away if another admin remains.",
       "when": "Share or change team admin duties before End.",
@@ -2908,7 +2576,7 @@
       "target": "o.teams",
       "label": "Move to another team…",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Move one approved participant to another team using its chooser.",
       "when": "Rebalance teams or correct a placement before End.",
@@ -2926,7 +2594,7 @@
       "target": "o.teams",
       "label": "Take off team",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Remove someone from this team while keeping their event membership.",
       "when": "Let someone change teams before End.",
@@ -2943,7 +2611,7 @@
       "target": "o.solo",
       "label": "Put on a team…",
       "sources": [
-        "screens/organiser-teams.js"
+        "screens/organiser-run/Teams.tsx"
       ],
       "explains": "Choose a destination for a participant without a team.",
       "when": "Place a participant without a team before End.",
@@ -2957,7 +2625,7 @@
       "target": "o.times",
       "label": "Ends",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-data.ts"
       ],
       "explains": "Optional event end date and time. It does not end the event automatically.",
       "limits": [
@@ -2973,7 +2641,7 @@
       "target": "o.tracks",
       "label": "Track name",
       "sources": [
-        "screens/_event-tracks.js"
+        "screens/organiser-setup/eventpage-tracks.tsx"
       ],
       "explains": "Name a challenge teams can choose.",
       "limits": [
@@ -2988,7 +2656,7 @@
       "target": "o.tracks",
       "label": "Challenge",
       "sources": [
-        "screens/_event-tracks.js"
+        "screens/organiser-setup/eventpage-tracks.tsx"
       ],
       "explains": "Describe the task for this track.",
       "limits": [
@@ -3003,7 +2671,7 @@
       "target": "o.tracks",
       "label": "Prize",
       "sources": [
-        "screens/_event-tracks.js"
+        "screens/organiser-setup/eventpage-forms.tsx"
       ],
       "explains": "Describe this track’s prize.",
       "limits": [
@@ -3018,7 +2686,7 @@
       "target": "o.sponsors",
       "label": "Logo",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-data.ts"
       ],
       "explains": "Upload or replace a sponsor logo; Remove clears it from the edited sponsor.",
       "limits": [
@@ -3034,7 +2702,7 @@
       "target": "o.sponsors",
       "label": "Name",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "The sponsor’s public name.",
       "limits": [
@@ -3049,7 +2717,7 @@
       "target": "o.sponsors",
       "label": "Tier",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-setup/eventpage-data.ts"
       ],
       "explains": "An optional sponsor tier such as Gold.",
       "limits": [
@@ -3064,7 +2732,7 @@
       "target": "o.sponsors",
       "label": "Link",
       "sources": [
-        "screens/organiser-event-page.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "Optional sponsor website link.",
       "limits": [
@@ -3079,7 +2747,7 @@
       "target": "o.rubric",
       "label": "Name",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "The name judges see for a scoring criterion.",
       "limits": [
@@ -3095,7 +2763,7 @@
       "target": "o.rubric",
       "label": "Description (optional)",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "Explain how judges should interpret a criterion.",
       "limits": [
@@ -3111,7 +2779,7 @@
       "target": "o.rubric",
       "label": "Weight %",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "The criterion’s share of the weighted total.",
       "limits": [
@@ -3127,7 +2795,7 @@
       "target": "o.rubric",
       "label": "Max points",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "The highest mark a judge can award for this criterion.",
       "limits": [
@@ -3143,7 +2811,7 @@
       "target": "o.judging-mode",
       "label": "Judges per team",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-run/data-overview.ts"
       ],
       "explains": "Target number of judges for allocation.",
       "limits": [
@@ -3159,7 +2827,7 @@
       "target": "o.details",
       "label": "Your name",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-admin.tsx"
       ],
       "explains": "Name identifying the organiser on the public page.",
       "limits": [
@@ -3174,7 +2842,7 @@
       "target": "o.details",
       "label": "Organisation or community",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-admin.tsx"
       ],
       "explains": "Optional public organiser organisation.",
       "limits": [
@@ -3189,7 +2857,7 @@
       "target": "o.details",
       "label": "Contact email",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-admin.tsx"
       ],
       "explains": "A valid contact address for event administration.",
       "limits": [
@@ -3204,7 +2872,7 @@
       "target": "o.details",
       "label": "What the event is for",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-admin.tsx"
       ],
       "explains": "Purpose information private to organisers and Simple Hack.",
       "limits": [
@@ -3219,7 +2887,7 @@
       "target": "o.details",
       "label": "Expected participants",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-admin.tsx"
       ],
       "explains": "An estimate of event attendance.",
       "limits": [
@@ -3234,7 +2902,7 @@
       "target": "o.notifications",
       "label": "URL",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-run/Assistant.tsx"
       ],
       "explains": "The webhook receiver address.",
       "limits": [
@@ -3249,7 +2917,7 @@
       "target": "o.notifications",
       "label": "Label (optional)",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-notifications.tsx"
       ],
       "explains": "A name to identify this notification.",
       "limits": [
@@ -3264,7 +2932,7 @@
       "target": "o.notifications",
       "label": "Storage (optional)",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-notifications.tsx"
       ],
       "explains": "Filter the notification to a storage name; leave blank for all.",
       "limits": [
@@ -3279,7 +2947,7 @@
       "target": "o.notifications",
       "label": "Header name (optional)",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-notifications.tsx"
       ],
       "explains": "Optional receiver authentication header name.",
       "limits": [
@@ -3294,7 +2962,7 @@
       "target": "o.notifications",
       "label": "Header value",
       "sources": [
-        "screens/_settings-admin.js"
+        "screens/organiser-setup/settings-notifications.tsx"
       ],
       "explains": "The value sent in the optional receiver authentication header.",
       "limits": [
@@ -3310,7 +2978,7 @@
       "target": "o.entries",
       "label": "Reason shown to the team (optional)",
       "sources": [
-        "screens/organiser-entry-detail.js"
+        "screens/organiser-run/EntryDetail.tsx"
       ],
       "explains": "Explain why the organiser has taken a team website down.",
       "limits": [
@@ -3325,7 +2993,7 @@
       "target": "o.home",
       "label": "Address",
       "sources": [
-        "screens/organiser-create-event.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "Choose the event’s permanent address name when creating it.",
       "limits": [
@@ -3340,8 +3008,7 @@
       "target": "o.announcements",
       "label": "Email ${emailableCount} participants",
       "sources": [
-        "screens/organiser-announcements.js",
-        "screens/_stage-announce-dialog.js"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "Optionally email participants when creating an announcement. Editing later does not send another email.",
       "when": "Email event news when posting before End.",
@@ -3354,8 +3021,7 @@
       "target": "o.leave",
       "label": "Leave or delete",
       "sources": [
-        "screens/organiser-settings.js",
-        "navigation-data.js"
+        "screens/organiser-setup/settings-danger.tsx"
       ],
       "explains": "Choose between leaving your organiser role and permanently deleting the event.",
       "when": "Leave organising or erase the event.",
@@ -3371,14 +3037,7 @@
       "target": "o.home",
       "label": "Ask",
       "sources": [
-        "assistant.js"
-      ],
-      "controls": [
-        "textarea:data-assistant-input",
-        "button:New chat",
-        "button:Stop",
-        "button:Retry",
-        "button:Send"
+        "screens/organiser-run/Announcements.tsx"
       ],
       "explains": "Ask answers questions about this event with links to where to act. It never changes anything.",
       "when": "Get help with this event.",
@@ -3396,13 +3055,10 @@
       "target": "o.organiser-judges",
       "label": "Organisers who also judge",
       "sources": [
-        "screens/_settings-judging.js"
+        "screens/organiser-setup/settings-judging.tsx"
       ],
       "explains": "Judges are people who joined as judges plus ticked organisers. Unticked organisers do not judge. Existing organisers with scores start ticked. Save with the mode settings; selection locks when Judging starts.",
       "when": "Choose organisers before starting Judging.",
-      "controls": [
-        "button:Copy judge link"
-      ],
       "related": [
         "links.judge"
       ]
@@ -3412,14 +3068,10 @@
       "target": "o.panel-assignments",
       "label": "Assignments",
       "sources": [
-        "screens/organiser-judging.js",
-        "screens/organiser-judging-assignments.js"
+        "screens/organiser-run/routes.ts"
       ],
       "explains": "Panel mode assigns judges by track; teams need a track. Judging, Results and End make the grid read-only.",
       "when": "Set up during Entries closed; locked during Judging.",
-      "controls": [
-        "button:Save judging access"
-      ],
       "keywords": [
         "assignment grid",
         "generate assignments",
@@ -3435,13 +3087,10 @@
       "target": "o.teams",
       "label": "Track",
       "sources": [
-        "screens/organiser-team-detail.js"
+        "screens/organiser-run/TeamDetail.tsx"
       ],
       "explains": "Choose the team track before Judging starts. Panel mode uses its track to choose its judges.",
       "when": "A panel team has no track.",
-      "controls": [
-        "button:Save"
-      ],
       "options": [
         {
           "label": "No track",
@@ -3454,7 +3103,7 @@
       "target": "o.lock",
       "label": "Finish judging when every judge is done",
       "sources": [
-        "screens/organiser-overview.js"
+        "screens/organiser-run/data-overview.ts"
       ],
       "explains": "Finish judging from Home moves to Results and stops scoring. There is no separate judging lock button. Moving back to Judging reopens scoring.",
       "when": "Every judge is done.",
@@ -3467,13 +3116,9 @@
       "target": "o.look",
       "label": "Show submissions on the event page",
       "sources": [
-        "screens/organiser-event-page.js",
-        "screens/participant-submissions.js"
+        "screens/organiser-setup/eventpage-look.tsx"
       ],
-      "explains": "Off by default. From Judging, participants see other teams' submitted entries in Submissions; on, visitors do too.",
-      "controls": [
-        "submissions-public-toggle"
-      ]
+      "explains": "Off by default. From Judging, participants see other teams' submitted entries in Submissions; on, visitors do too."
     }
   ]
 }

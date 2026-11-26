@@ -1,5 +1,5 @@
-export { resolve } from '../../../webassets/static/hack/navigation.js'
-// Frame stand-in for products/hack/webassets/static/hack/nav.js, swapped in by
+export { resolve } from '../legacy/navigation.js'
+// Frame stand-in for the legacy screens' ./nav.js import (the old website's), swapped in by
 // the esbuild OnResolve plugin in products/hack/mcp/apps/bundlegen for the
 // judge app only: there is no sidebar or browser address bar here, just
 // this frame's own four views, switched by hack-judge-view.js's own click

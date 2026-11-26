@@ -28,11 +28,11 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FIXED_GETS = fixedGetRoutes(JSON.parse(readFileSync(path.join(REPO_ROOT, 'docs/generated/inventory.json'))));
 for (const route of ['/setup/setup.js', '/setup/simple-hack.json']) FIXED_GETS.add(route);
 // D3-S2a: one of each kind of Hack static file that left the platform's embed
-// (stylesheet, image, icon, script, audio, text, page, data). Before the move
+// (stylesheet, image, icon, audio, text, page, data). Before the move
 // Host's file server answered all of these but /hack-llms.txt with 200; now
 // Host answers 404 and Hack is unchanged.
-for (const route of ['/hack-ink.css', '/og-hack.png', '/favicon-hack.svg', '/hack/app.js', '/hack/kit.css',
-  '/hack-watch-judge.mp3', '/hack-llms.txt', '/hack-directory.html', '/hack-voting.html',
+for (const route of ['/hack-pages.css', '/og-hack.png', '/favicon-hack.svg', '/hack/kit.css',
+  '/hack-watch-judge.mp3', '/hack-llms.txt', '/hack-directory.html',
   '/hack-connect-steps.json', '/hack-get-started-preview.png']) FIXED_GETS.add(route);
 const SCENARIOS = {
  'rules-on': { env: { host: {}, hack: {} }, host: seedAndCallRulesOn, hack: seedAndCallRulesOn },

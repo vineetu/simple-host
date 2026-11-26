@@ -5,8 +5,17 @@
 // pure helpers in ui.js and schedule.js directly -- no DOM, no server.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import * as ui from '../../products/hack/webassets/static/hack/ui.js'
-import { merge } from '../../products/hack/webassets/static/hack/schedule.js'
+import { readFile } from 'node:fs/promises'
+import * as ui from '../../products/hack/mcp/apps/legacy/ui.js'
+
+// schedule.js is the MCP Apps' copy (products/hack/mcp/apps/legacy); its ./nav.js
+// import is the organiser frame's, as the bundle resolves it.
+const legacy = new URL('../../products/hack/mcp/apps/legacy/', import.meta.url)
+const scheduleSource = (await readFile(new URL('schedule.js', legacy), 'utf8'))
+  .replace("from './nav.js'", `from '${new URL('../frame/organiser-nav.js', legacy).href}'`)
+  .replace("from './ui.js'", `from '${new URL('ui.js', legacy).href}'`)
+globalThis.window ??= {} // the frame's nav.js keeps its origin on window
+const { merge } = await import('data:text/javascript;base64,' + Buffer.from(scheduleSource).toString('base64'))
 
 const ev = {time_zone:'Asia/Kolkata'}
 // hack_create_event: "A date (2026-10-01) means midnight in time_zone" --
@@ -36,7 +45,7 @@ test('set times round-trip in the event zone, including across UTC dates and DST
 test('status header and schedule rows show times only for non-midnight boundaries', () => {
   for (const [end, time, timed] of [[false,'00:00',false],[false,'18:30',true],[true,'00:00',false],[true,'23:59',true],[true,'20:15',true]]) {
     const value = '2099-03-12T'+time+':00+05:30'
-    const next = ui.nextDeadline({...ev,[end?'ends_at':'starts_at']:value})
+    const next = ui.nextDeadline({...ev,stage:'open',[end?'ends_at':'starts_at']:value})
     assert.equal(next[2], !timed)
     assert.equal(/\d:\d{2} [ap]m/.test(ui.dateTime(next[1], ev, {dateOnly:next[2]})), timed)
     const row = merge([], [{key:end?'event_end':'event_start',start_at:value,all_day:!timed}], ev)[0]

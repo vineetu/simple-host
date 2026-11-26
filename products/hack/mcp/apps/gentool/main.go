@@ -1,5 +1,6 @@
 // Command gentool regenerates the judge and organiser MCP Apps' bundled scripts
-// and stylesheets from products/hack/webassets/static/hack. Run it with
+// and stylesheets from products/hack/mcp/apps/legacy (and the directory page's
+// static/hack/kit.css). Run it with
 // `go generate ./products/hack/mcp/...` after editing a screen or kit.css; the
 // TestHack*BundleFresh tests fail if someone forgets.
 package main

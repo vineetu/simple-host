@@ -6,8 +6,8 @@
 // backward target the stage picker can land on.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { offerStageAnnouncement } from '../../products/hack/webassets/static/hack/screens/_stage-announce-dialog.js'
-import { suggestedAnnouncement } from '../../products/hack/webassets/static/hack/stage-announce.js'
+import { offerStageAnnouncement } from '../../products/hack/mcp/apps/legacy/screens/_stage-announce-dialog.js'
+import { suggestedAnnouncement } from '../../products/hack/mcp/apps/legacy/stage-announce.js'
 
 // The announcements endpoint's real limits -- products/hack/content/
 // hack_content.go postAnnouncement: checkHackLine(req.Title, "title", 1,

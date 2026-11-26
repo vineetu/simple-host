@@ -1,4 +1,4 @@
-// Frame implementation of products/hack/webassets/static/hack/platform.js -- the
+// Frame implementation of the legacy screens' ./platform.js import -- the
 // MCP App's own answers for the same adapter calls, swapped in by the
 // esbuild OnResolve plugin in products/hack/mcp/apps/bundlegen for exactly the
 // reasons the old bundlegen/patches.go used to patch these call sites by

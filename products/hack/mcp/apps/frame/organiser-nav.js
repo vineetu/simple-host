@@ -1,5 +1,5 @@
-import { resolve as resolveTarget } from '../../../webassets/static/hack/navigation.js'
-// Frame stand-in for products/hack/webassets/static/hack/nav.js, swapped in by
+import { resolve as resolveTarget } from '../legacy/navigation.js'
+// Frame stand-in for the legacy screens' ./nav.js import (the old website's), swapped in by
 // the esbuild OnResolve plugin in products/hack/mcp/apps/bundlegen for the
 // organiser app only: this frame renders three sections in-frame
 // (overview, people, judging -- hack-organiser-view.js's own click

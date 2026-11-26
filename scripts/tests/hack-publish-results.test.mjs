@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-const source = (await readFile(new URL('../../products/hack/webassets/static/hack/screens/_publish-results.js', import.meta.url), 'utf8'))
+const source = (await readFile(new URL('../../products/hack/mcp/apps/legacy/screens/_publish-results.js', import.meta.url), 'utf8'))
   .replace("import { offerStageAnnouncement } from './_stage-announce-dialog.js'", 'const offerStageAnnouncement = async ctx => { ctx.announcements++ }')
 const { scoresChangedSincePublish, publishResults } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'))
 
@@ -80,14 +80,4 @@ test('failed preview and cancel never publish', async () => {
     assert.equal(f.ctx.refreshed, 0)
     assert.equal(f.button.disabled, false)
   }
-})
-
-test('judge tour recognizes reopened scoring despite an earlier published snapshot', async () => {
-  const source = await readFile(new URL('../../products/hack/webassets/static/hack/tours.js', import.meta.url), 'utf8')
-  const { tours } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'))
-  const step = tours.judge.steps.find(s => s.title === 'Is scoring open?')
-  const event = { scoring_open: true, results_published: true, judging_locked_at: null }
-  assert.equal(step.when({ event: { event } }), true)
-  event.judging_locked_at = '2026-11-09T00:00:00Z'
-  assert.equal(step.when({ event: { event } }), false)
 })

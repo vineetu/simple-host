@@ -24,7 +24,6 @@ type HelpRecord struct {
 	Target   string       `json:"target"`
 	Label    string       `json:"label"`
 	Sources  []string     `json:"sources"`
-	Controls []string     `json:"controls,omitempty"`
 	Explains string       `json:"explains"`
 	When     string       `json:"when,omitempty"`
 	Options  []HelpOption `json:"options,omitempty"`

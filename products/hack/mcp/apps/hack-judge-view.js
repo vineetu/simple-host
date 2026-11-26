@@ -407,8 +407,8 @@
     main.insertBefore(back, main.firstChild);
   }
   // Called by public-judge.js's accept-invite handler through the
-  // platform adapter (products/hack/webassets/static/hack/platform.js's
-  // judgeJoined, products/hack/mcp/apps/frame/platform.js's frame version):
+  // platform adapter (products/hack/mcp/apps/frame/platform.js's
+  // judgeJoined):
   // the website's own success path is
   // `location.assign('/e/<slug>/judge')`, a real page navigation this
   // sandboxed frame cannot make (no allow-top-navigation) and should not

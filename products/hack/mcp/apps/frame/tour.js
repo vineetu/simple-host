@@ -1,4 +1,4 @@
-// Frame stand-in for products/hack/webassets/static/hack/tour.js, swapped in by
+// Frame stand-in for the legacy screens' ./tour.js import (the old website's), swapped in by
 // the esbuild OnResolve plugin in products/hack/mcp/apps/bundlegen for both the
 // judge and organiser frame: the guided walkthrough (judge-scoring.js and
 // organiser-overview.js's own first-visit tour) is a full-page feature
