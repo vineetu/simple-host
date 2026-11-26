@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@kit/components/ui/button";
 import { Field, FieldMessage, Input, NativeSelect, Textarea } from "@kit/components/ui/input";
 import { PageTitle } from "@kit/components/ui/page-shell";
-import { clearDirty, LeaveGuard, useDirty } from "@kit/lib/leave-guard";
+import { clearDirty, LeaveGuard, useDirty } from "./leave-guard";
 import { useHack } from "@/lib/client";
 import { useGo } from "@/app/nav";
 import { browserZone, createErrors, errText, NAME_CODES, site, slugify, zoneOptions, type CreateForm } from "./data";

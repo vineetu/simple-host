@@ -16,7 +16,7 @@ import { PageTitle, Section } from "@kit/components/ui/page-shell";
 import { Skeleton } from "@kit/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kit/components/ui/tabs";
 import { useToast } from "@kit/components/ui/toast";
-import { LeaveGuard, useDirty } from "@kit/lib/leave-guard";
+import { LeaveGuard, useDirty } from "./leave-guard";
 import { paths, useHack } from "@/lib/client";
 import type { Account as Me } from "@/lib/client/me";
 import { dateTime } from "@/lib/time";

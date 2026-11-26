@@ -4,7 +4,7 @@
 // browser per person, as before: the preferences API has no participant field.
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Tour, firstShowable, type TourStep } from "@kit/components/ui/tour";
+import { Tour, firstShowable, type TourStep } from "./tour";
 
 // The shell's parts (app/HackShell.tsx): the rail's links on a wide screen,
 // the bottom bar (or its More button) on a phone.

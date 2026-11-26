@@ -1,6 +1,7 @@
+// Lives in Simple Hack until it is shared: a kit file feeds the owner app's Tailwind scan and changes its build.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Popover as P } from "radix-ui";
-import { Button } from "./button";
+import { Button } from "@kit/components/ui/button";
 
 /**
  * A guided walkthrough: a small card beside each step's real target, one step

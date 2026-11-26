@@ -1,3 +1,4 @@
+// Lives in Simple Hack until it is shared: a kit file feeds the owner app's Tailwind scan and changes its build.
 // "Leave without saving?": a form with edits asks before the person goes
 // (Simple Hack's old ui.js trackForm / confirmFormLeave). A part of a screen
 // says it has edits with useDirty(true); the screen renders <LeaveGuard />
@@ -8,8 +9,8 @@
 // (Back and Forward are not guarded: the router has already moved by the time
 // the browser says so; the old app's restore needs a data router.)
 import { useEffect, useState } from "react";
-import { Button } from "../components/ui/button";
-import { Dialog, DialogActions } from "../components/ui/dialog";
+import { Button } from "@kit/components/ui/button";
+import { Dialog, DialogActions } from "@kit/components/ui/dialog";
 
 const dirty = new Set<object>();
 let replaying = false;
