@@ -44,7 +44,7 @@
     if (result.isError) { el('status').textContent = result.content?.find(c => c.type === 'text')?.text || 'Could not load passcode settings.'; return; }
     const data = result.structuredContent || {};
     if (typeof data.passcode_protected === 'boolean') { render(data); return; }
-    // set_site_access opens this screen with only the site: ask for its state.
+    // require_passcode opens this screen with only the site: ask for its state.
     if (typeof data.site !== 'string') return;
     app.callTool('passcode_screen_open', { site: data.site, owner: data.owner || '' })
       .then(render, error => { el('status').textContent = error.message || 'Could not load passcode settings.'; });

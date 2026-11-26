@@ -75,12 +75,12 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		t.Fatalf("initialize: %v", v)
 	}
 	list := call("tools/list", nil)["tools"].([]any)
-	if len(list) != 41 { // 37 for the model, 4 for the passcode screen; the operator sees 43 (admin_overview, set_hold)
-		t.Fatalf("%d tools, want 41", len(list))
+	if len(list) != 50 { // 46 for the model, 4 for the passcode screen; the operator sees 52 (admin_overview, set_hold)
+		t.Fatalf("%d tools, want 50", len(list))
 	}
 	for _, x := range list {
-		if x := x.(map[string]any); x["name"] == "set_site_access" && !strings.Contains(text(x), "ui://simple-host/passcode") {
-			t.Fatalf("set_site_access names no passcode screen: %v", x)
+		if x := x.(map[string]any); x["name"] == "require_passcode" && !strings.Contains(text(x), "ui://simple-host/passcode") {
+			t.Fatalf("require_passcode names no passcode screen: %v", x)
 		}
 	}
 	if n := len(call("resources/list", nil)["resources"].([]any)); n != 4 {
@@ -92,7 +92,7 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 	}
 
 	// The AI asks for a passcode: the screen opens, nothing is locked yet.
-	if res := tool(call, "set_site_access", map[string]any{"site": "blog", "access": "passcode"}); res["isError"] == true || page() != 200 {
+	if res := tool(call, "require_passcode", map[string]any{"site": "blog"}); res["isError"] == true || page() != 200 {
 		t.Fatalf("asking for the screen: %v, page %d", res, page())
 	}
 	// The screen sets it, sealed: no result carries the code.
@@ -131,7 +131,7 @@ func TestPasscodeScreenKeepsTheCodeOutOfTheChat(t *testing.T) {
 		n := len(sent)
 		mu.Unlock()
 		if n >= 3 {
-			if strings.Contains(all, code) || !strings.Contains(all, `"resource_name":"set_site_access"`) {
+			if strings.Contains(all, code) || !strings.Contains(all, `"resource_name":"require_passcode"`) {
 				t.Fatalf("AgentCat got: %s", all)
 			}
 			break
@@ -184,7 +184,8 @@ func TestMyAIUsesASiteSharedWithMe(t *testing.T) {
 	if res := data(bob.Key, "add_row", map[string]any{"row": map[string]any{"body": "hi from bob's AI"}}); res["isError"] == true {
 		t.Fatalf("add: %v", res)
 	}
-	if res := data(bob.Key, "list_rows", nil); !strings.Contains(text(res), "hi from bob's AI") || !strings.Contains(text(res), bob.ID) {
+	if res := data(bob.Key, "list_rows", nil); !strings.Contains(text(res), "hi from bob's AI") ||
+		strings.Contains(text(res), bob.ID) || !strings.Contains(text(res), `"you"`) || !strings.Contains(text(res), `"mine":[true]`) {
 		t.Fatalf("read: %v", res)
 	}
 	// The same refusals as his browser: no rule lets him delete.

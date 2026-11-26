@@ -56,9 +56,9 @@ func TestEachRecipeWorks(t *testing.T) {
 					res = testkit.Call(t, k.Browser(), "POST", base+"sqlite/"+ns+"/execute", in, "X-API-Key", owner.Key)
 				case "set_data_rules":
 					res = testkit.Call(t, k.Browser(), "PUT", base+ns+"/rules", in, "X-API-Key", owner.Key)
-				case "set_site_access": // the only recipe that uses it names viewers
+				case "allow_only_named_people": // the only recipe that uses it names viewers
 					var emails []string
-					for _, e := range in["viewers"].([]any) {
+					for _, e := range in["emails"].([]any) {
 						emails = append(emails, e.(string))
 					}
 					if err := locks.SetViewers(context.Background(), k.App, s, emails); err != nil {

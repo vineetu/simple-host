@@ -8,7 +8,7 @@ server, and skills that name the new tools must not reach people while the old s
 ## 0. Before you start
 
 - The new service is switched in (`next/RUNBOOK.md`, "Switch") and `POST https://simple-host.app/mcp`
-  `tools/list` returns 41 tools including `publish_site` and `list_rows`.
+  `tools/list` returns 50 tools including `publish_site` and `list_rows`.
 - On this box: `git -C /home/ubuntu/workspace/wt-next-publish status` is clean on `next-publish`.
 
 ## 1. Put the commits on the branch the repository publishes from
@@ -59,12 +59,14 @@ TestSubmissionToolsMatchListing` checks the kit's tool list against the code.
 ## 4. By hand: Anthropic's listing portal
 
 Open the portal where the Simple Host connector or plugin was submitted. Keep the server address.
-Replace the listed tool names with the 37 the model sees (the four `passcode_screen_*` tools are hidden):
+Replace the listed tool names with the 46 the model sees (the four `passcode_screen_*` tools are hidden):
 
 `who_am_i`, `update_account`, `download_my_data`, `delete_account`, `create_team`,
 `invite_to_team`, `accept_invite`, `remove_from_team`, `delete_team`, `list_sites`, `get_site`,
-`publish_site`, `create_upload_link`, `read_site_file`, `change_site`, `delete_site`,
-`set_site_access`, `set_site_address`, `site_stats`, `set_notifications`, `list_rows`,
+`publish_site`, `create_upload_link`, `read_site_file`, `take_site_offline`, `put_site_online`,
+`set_site_listed`, `rollback_site`, `restore_site`, `delete_site`, `open_site_to_anyone`,
+`require_passcode`, `allow_only_named_people`, `add_site_viewers`, `remove_site_viewers`,
+`sign_out_site_visitors`, `set_site_address`, `site_stats`, `set_notifications`, `list_rows`,
 `read_row`, `add_row`, `change_row`, `delete_row`, `list_values`, `read_value`, `set_value`,
 `delete_value`, `list_files`, `save_file`, `delete_file`, `list_tables`, `query_sql`, `run_sql`,
 `set_data_rules`, `get_recipe`.
@@ -77,7 +79,7 @@ Set the plugin version to 0.28.1. Submit the change.
    1.1.0 exists yet; otherwise raise it in `plugins/openai/plugin.json` and rebuild).
 2. Upload `dist/simple-host-openai-plugin.zip`; the Skills tab takes
    `dist/simple-host-openai-skills.zip`.
-3. MCP tab: **Scan Tools**. Expect 41. Verify the domain if asked.
+3. MCP tab: **Scan Tools**. Expect 50. Verify the domain if asked.
 4. Enter the reviewer password in the private field. Do every `TODO-OWNER` line in
    `plugins/openai/SUBMISSION.md` (run the eight cases in ChatGPT, new demo video, reviewer
    sign-in check), then submit.

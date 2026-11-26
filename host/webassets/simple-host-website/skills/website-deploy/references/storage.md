@@ -13,7 +13,9 @@ runs one statement that only reads (`SELECT`, `WITH ... SELECT`), with positiona
 `params`; anything that would change data is refused. `run_sql` runs one statement that changes
 (`CREATE TABLE`, `ALTER`, `INSERT`, `UPDATE`, `DELETE`, `DROP`), making the namespace if new.
 Never build SQL from visitor text. Use `id INTEGER PRIMARY KEY`. The server adds `visitor_id` (who added the row, an opaque
-reference) and timestamps to a table, and ignores ones a page sends. To answer "show my bookings"
+reference) and timestamps to a table, and ignores ones a page sends. In tool answers it shows as
+`you` or `visitor 1`, `visitor 2` (numbered within one answer), and rows, values and stored files
+say `mine` when they are the caller's. To answer "show my bookings"
 use `query_sql`. To fix a row use `run_sql` with an `UPDATE`. Deleting rows or dropping a table is destructive:
 ask first.
 

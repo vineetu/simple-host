@@ -34,9 +34,13 @@ Sites
 - publish_site: files in, address out. keep_other_files keeps the rest of the live site.
 - create_upload_link: the photo/file picker (an in-chat screen; namespace photos unless named), or with kind archive a big archive.
 - read_site_file: one file of any site the person may open.
-- change_site: offline or online, listed, roll back to a version, restore from the bin. Asks first.
+- take_site_offline, put_site_online: offline page, or back. Taking offline asks first.
+- set_site_listed: show it on the owner's public page, or not.
+- rollback_site: make a kept version live. Asks first.
+- restore_site: bring it back from the bin.
 - delete_site: move to the bin. Asks first.
-- set_site_access: open, passcode (set in an in-chat screen), named viewers, sign everyone out. Asks first.
+- open_site_to_anyone, require_passcode (set in an in-chat screen; never in the chat), allow_only_named_people, add_site_viewers, remove_site_viewers: who may open it. Asks first.
+- sign_out_site_visitors: everyone unlocks or signs in again. Asks first.
 - set_site_address: own domain, short name, or remove one. Returns the DNS records. Asks first.
 - site_stats: visit numbers (an in-chat screen).
 - set_notifications: what the owner is told about on a site.

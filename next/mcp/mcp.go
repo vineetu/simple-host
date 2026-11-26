@@ -309,6 +309,12 @@ func (h *server) call(r *http.Request, t tool, args map[string]any) map[string]a
 	default:
 		res = h.replay(r, method, path, body)
 	}
+	if obj, ok := res["structuredContent"].(map[string]any); ok && t.view != nil && res["isError"] != true {
+		res = result(t.view(&call{h, r, args}, obj))
+	}
+	if fix, ok := t.fixes[errorCode(res)]; ok && res["isError"] == true {
+		res = refusal(web.Refuse(http.StatusBadRequest, errorCode(res), fix))
+	}
 	go h.agentcat(web.CallerOf(r), t.name, args, res, time.Since(start))
 	return res
 }

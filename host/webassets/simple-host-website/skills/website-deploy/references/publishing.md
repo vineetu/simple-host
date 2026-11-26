@@ -24,9 +24,8 @@ number and nothing is published.
 ## Versions
 
 Every publish is a numbered version. A few recent ones are kept (four). `get_site` lists them;
-`change_site` with `live_version` makes one live again (ask first). A deleted site stays in the
-bin for 7 days with its data (`list_sites` with `bin: true`, then `change_site` with
-`restore: true`). Saved data and stored files survive publishes and version changes.
+`rollback_site` with `version` makes one live again (ask first). A deleted site stays in the
+bin for 7 days with its data (`list_sites` with `bin: true`, then `restore_site`). Saved data and stored files survive publishes and version changes.
 
 ## Limits
 

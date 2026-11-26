@@ -27,7 +27,8 @@ import (
 // current are the current tool names the old list also had, with an old
 // outputSchema: compat answers them too (OldArgs).
 var current = map[string]bool{"who_am_i": true, "list_sites": true, "get_site": true, "read_site_file": true,
-	"create_upload_link": true, "delete_site": true, "set_site_access": true, "create_team": true, "delete_team": true}
+	"create_upload_link": true, "delete_site": true, "create_team": true, "delete_team": true,
+	"rollback_site": true, "restore_site": true, "sign_out_site_visitors": true}
 
 type runner func(tool string, args map[string]any) (map[string]any, bool)
 
@@ -378,7 +379,13 @@ func site(a args, out map[string]any, run runner) map[string]any {
 }
 
 func access(a args, out, _ map[string]any, run runner) (map[string]any, error) {
-	s := site(a, out, run)
+	s := out
+	if _, ok := s["viewers"]; !ok { // the current answers count the people named; the old ones listed them
+		s = map[string]any{}
+		if got, ok := run("get_site", a.keep("site", "owner").with("include_emails", true)); ok && got["isError"] != true {
+			s, _ = got["structuredContent"].(map[string]any)
+		}
+	}
 	word := "anyone"
 	if s["access"] == "viewers" {
 		word = "specific"

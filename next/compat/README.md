@@ -15,7 +15,13 @@ Callers of Simple Host from before the rebuild keep working until the sunset dat
   refusals carry no structuredContent.
 - **Split tools** (`tools.go`, `data`, `passcodeScreen`): `data` (method + path) and
   `passcode_screen` (action), public for a day before the split, map to the single-purpose tools
-  (`list_rows` ... `delete_file`, `passcode_screen_open|show|set|generate`).
+  (`list_rows` ... `delete_file`, `passcode_screen_open|show|set|generate`). `set_site_access`
+  and `change_site` (`setSiteAccess`, `changeSite`), public for a day after that, map to the
+  access tools (`open_site_to_anyone`, `require_passcode`, `allow_only_named_people`,
+  `add_site_viewers`, `remove_site_viewers`, `sign_out_site_visitors`) and the site tools
+  (`take_site_offline`, `put_site_online`, `set_site_listed`, `rollback_site`, `restore_site`).
+  `rollback_site`, `restore_site` and `sign_out_site_visitors` are current names again, with the
+  old arguments. A passcode an old call sends is not used: `require_passcode` opens the screen.
 - **The old skill** (`X-Skill-Version` on any request): `/v1/skills/...` serves the new skill.
 - **Old photo picker**: `create_upload_link {site}` (no namespace, kind or archive) gets the
   current picker (namespace `photos`) plus the old `photos_url` and a note on where photos land.

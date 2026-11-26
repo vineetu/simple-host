@@ -21,7 +21,7 @@ match in all three.
    `dist/simple-host-openai-skills.zip`, which holds only skill folders.
 3. Copy the listing fields below. Upload `plugins/openai/assets/logo.png` (512 by 512) and
    `plugins/openai/assets/icon.png` (256 by 256).
-4. Fill in the MCP tab as below, then **Scan Tools**. Expect 41 tools (37 for the model and four `passcode_screen_*` tools, which only the in-chat passcode screen calls). Domain
+4. Fill in the MCP tab as below, then **Scan Tools**. Expect 50 tools (46 for the model and four `passcode_screen_*` tools, which only the in-chat passcode screen calls). Domain
    verification: the portal shows a token; put it in `/etc/simple-host.env` as
    `OPENAI_APPS_CHALLENGE=<token>`, restart, check that
    `curl -s https://simple-host.app/.well-known/openai-apps-challenge` prints exactly the token,
@@ -99,12 +99,15 @@ they are in that folder; there is no separate OpenAI copy.
 - Server: `https://simple-host.app/mcp`, Streamable HTTP, as in `mcp.json`.
 - Authentication: OAuth with dynamic client registration (DCR), authorization code flow and
   PKCE (S256). Use the server's discovery metadata; do not paste an API key or a client secret.
-- Tool inventory: 41 tools, each one operation with its own schema, with no `find_tools`,
+- Tool inventory: 50 tools, each one operation with its own schema, with no `find_tools`,
   `run_tool` or generic executor. Account: `who_am_i`, `update_account`, `download_my_data`,
   `delete_account`. Teams: `create_team`, `invite_to_team`, `accept_invite`, `remove_from_team`,
   `delete_team`. Sites: `list_sites`, `get_site`, `publish_site`, `create_upload_link`,
-  `read_site_file`, `change_site`, `delete_site`, `set_site_access`, `set_site_address`,
-  `site_stats`, `set_notifications`. Passcode screen only (hidden from the model):
+  `read_site_file`, `take_site_offline`, `put_site_online`, `set_site_listed`, `rollback_site`,
+  `restore_site`, `delete_site`, `set_site_address`, `site_stats`, `set_notifications`. Who may
+  open a site: `open_site_to_anyone`, `require_passcode` (opens the passcode screen; the passcode
+  never enters the chat), `allow_only_named_people`, `add_site_viewers`, `remove_site_viewers`,
+  `sign_out_site_visitors`. Passcode screen only (hidden from the model):
   `passcode_screen_open`, `passcode_screen_show`, `passcode_screen_set`,
   `passcode_screen_generate`. Saved data with the caller's rights: `list_rows`, `read_row`,
   `add_row`, `change_row`, `delete_row`, `list_values`, `read_value`, `set_value`, `delete_value`,
@@ -146,7 +149,7 @@ to sign in**, enter the reviewer email **openai-review@simple-host.app** and the
 the portal, choose **Sign in**, then **Connect**. No email code or 2FA. The form shows only on the
 way to approving an app, and only when `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` are set on
 the server (`next/access/signin/review.go`); it opens only that one non-operator account (it sees
-41 tools, 37 of them for the model, and the three demo sites) and is limited like other sign-in.
+50 tools, 46 of them for the model, and the three demo sites) and is limited like other sign-in.
 
 TODO-OWNER: copy `REVIEW_ACCOUNT_EMAIL` and `REVIEW_ACCOUNT_PASSWORD_HASH` from the old service's
 settings into `SH_REVIEW_EMAIL` and `SH_REVIEW_PASSWORD_HASH` (same values), restart, and check
@@ -156,7 +159,10 @@ that the password in the portal's Review details form signs in.
 
 The server changes the pre-submission review of 2026-11-25 asked for (reviewer sign-in,
 `who_am_i` without emails or ids by default, output schemas, the screens' own domain, the
-annotations, and `data` and `passcode_screen` split into single-purpose tools) are in `next/`.
+annotations, and `data` and `passcode_screen` split into single-purpose tools), and those of the
+second review (`set_site_access` and `change_site` split into single-purpose tools; no internal
+ids of people, teams or invitations in any result; `get_site` gives named people's emails only
+with `include_emails`) are in `next/`.
 They must be live before **Scan Tools**: the portal scans the live server.
 
 ## Demo fixtures and execution status
@@ -180,6 +186,11 @@ account; a team name is never given out again once used, so a rerun of P3 needs 
   real sign-in page in a headless browser (Other ways to sign in, password, Connect), the code
   was exchanged for a token, and tools/list matched an ordinary account's 41 tools. P1 to P5 ran
   at the tool level with the expected results. Not yet run in ChatGPT or MCPJam.
+- 2026-11-26, after the second review: `set_site_access` and `change_site` were split into 11
+  single-purpose tools (50 in all, 46 for the model); values, stored files and rows say `mine`
+  in place of who saved them, and no result carries an internal id
+  (`TestEveryToolsOutputAndHints` checks every answer). P2 uses `rollback_site`. Not yet run in
+  ChatGPT.
 
 TODO-OWNER: run all eight cases in ChatGPT against production and record the results here.
 TODO-OWNER: record a new demo video (the current one shows the old tools) and put its URL in
@@ -205,9 +216,9 @@ retake them if you want the new screens shown.
 
 **Prompt:** On feedback-survey, change the heading to "Tell us how we did". Then, in the same chat: Undo that change.
 
-**Expected tools:** get_site, read_site_file, publish_site, change_site
+**Expected tools:** get_site, read_site_file, publish_site, rollback_site
 
-**Expected result:** The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, change_site makes the previous version live and the original heading returns. No account or visitor emails are returned.
+**Expected result:** The survey shows the requested heading, published with keep_other_files so the other files stay. After confirmation, rollback_site makes the previous version live and the original heading returns. No account or visitor emails are returned.
 
 ### P3
 

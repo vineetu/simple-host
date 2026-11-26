@@ -227,4 +227,23 @@ func TestSplitToolsKeepTheirOldNames(t *testing.T) {
 	if s := call("passcode_screen", map[string]any{"site": "shop", "action": "begin"}); !strings.Contains(s, "server_key") || !strings.Contains(s, `"passcode_protected":false`) {
 		t.Fatalf("passcode_screen begin: %s", s)
 	}
+	// Yesterday's set_site_access and change_site reach the access and site tools.
+	if s := call("set_site_access", map[string]any{"site": "shop", "access": "viewers", "viewers": []any{"viv@example.com"}, "sign_everyone_out": true}); !strings.Contains(s, `\"access\":\"viewers\"`) || strings.Contains(s, "isError") {
+		t.Fatalf("set_site_access viewers: %s", s)
+	}
+	if s := call("set_site_access", map[string]any{"site": "shop", "viewers_remove": []any{"viv@example.com"}}); !strings.Contains(s, `\"viewer_count\":0`) {
+		t.Fatalf("set_site_access viewers_remove: %s", s)
+	}
+	if s := call("set_site_access", map[string]any{"site": "shop", "access": "passcode", "passcode": "in-the-chat-1"}); !strings.Contains(s, "passcode screen") || strings.Contains(s, "in-the-chat-1") {
+		t.Fatalf("set_site_access passcode: %s", s)
+	}
+	if s := call("set_site_access", map[string]any{"site": "shop", "access": "open"}); !strings.Contains(s, `\"access\":\"open\"`) {
+		t.Fatalf("set_site_access open: %s", s)
+	}
+	if s := call("change_site", map[string]any{"site": "shop", "offline": true, "listed": true}); !strings.Contains(s, `\"offline\":true`) || !strings.Contains(s, `\"listed\":true`) {
+		t.Fatalf("change_site offline listed: %s", s)
+	}
+	if s := call("change_site", map[string]any{"site": "shop", "offline": false, "live_version": 1}); !strings.Contains(s, `\"offline\":false`) || strings.Contains(s, "isError") {
+		t.Fatalf("change_site online rollback: %s", s)
+	}
 }

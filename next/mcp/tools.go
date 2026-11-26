@@ -21,11 +21,14 @@ import (
 //     only reads: an SQL query, the table list).
 //   - destructive: it can delete, overwrite or replace what exists, or end or
 //     narrow someone's access (any PUT, PATCH or DELETE, or an SQL statement).
-//     Being undoable (the bin, older versions) does not make it false.
+//     Being undoable (the bin, older versions) does not make it false. The
+//     one exception is a PATCH that only brings a site back (out of the bin,
+//     or online again): nothing is replaced and nobody loses access.
 //   - openWorld: it reaches past the person's own account: it emails an
 //     address they name, connects an outside domain, or can make content
 //     readable by anyone on the internet (publishing, listing, opening a
-//     site, rules, a public file store).
+//     site, bringing one back online or out of the bin, rules, a public file
+//     store).
 //   - idempotent: calling it again with the same arguments changes nothing
 //     more (reads, and PUT/PATCH/DELETE that set a given state; never a POST
 //     that adds, a publish, which makes a new version, or a generated code).
@@ -40,6 +43,11 @@ type tool struct {
 	appOnly            bool   // called by an in-chat screen, hidden from the model
 	operator           bool   // listed and answered for the operator only
 	route              func(c *call) (method, path string, body any, err error)
+	// view, when set, reshapes the route's answer for the AI app (views.go):
+	// no internal ids of people, teams or invitations reach the model.
+	view func(c *call, v map[string]any) map[string]any
+	// fixes rewords a route's refusal (code -> fix) in the tools' terms.
+	fixes map[string]string
 }
 
 // Input schema helpers.
@@ -47,6 +55,9 @@ func str(d string) map[string]any     { return map[string]any{"type": "string", 
 func boolean(d string) map[string]any { return map[string]any{"type": "boolean", "description": d} }
 func integer(d string) map[string]any { return map[string]any{"type": "integer", "description": d} }
 func object(d string) map[string]any  { return map[string]any{"type": "object", "description": d} }
+func enum(d string, values ...string) map[string]any {
+	return map[string]any{"type": "string", "description": d, "enum": values}
+}
 func list(d string, item map[string]any) map[string]any {
 	return map[string]any{"type": "array", "description": d, "items": item}
 }
@@ -99,7 +110,7 @@ func oNull(t string) map[string]any            { return map[string]any{"type": [
 func out(pairs ...any) map[string]any { return in(pairs...) }
 
 var (
-	outRows  = out("columns!", oList(oStr), "rows!", oList(oList(oAny)), "next_after!", oStr, "mine", oList(oBool))
+	outRows  = out("columns!", oList(oStr), "rows!", oList(oList(oAny)), "next_after!", oStr, "mine!", oList(oBool))
 	outItems = func(item map[string]any) map[string]any { return out("items!", oList(item), "next_after!", oStr) }
 	outDone  = out("deleted!", oBool)
 	outSQL   = out("changes!", oInt, "last_insert_id!", oInt)
@@ -122,7 +133,7 @@ var tools = []tool{
 			"Ask first before changing a handle: old links stop working and the old handle can never be used again.",
 		input: in("owner", str(`"me" (default) or a team handle.`), "handle", str("New handle."), "display_name", str("Display name."),
 			"home_site", str(`One of the owner's sites, or "" for the list of listed sites.`), "domain", str(`A domain for all sites, like example.com; "" removes it.`)),
-		output: out("handle", oStr, "display_name", oStr), destructive: true, openWorld: true, idempotent: true,
+		output: out("handle", oStr, "display_name", oStr), destructive: true, openWorld: true, idempotent: true, view: without("id"),
 		route: func(c *call) (string, string, any, error) {
 			return "PATCH", "/v1/owners/" + url.PathEscape(c.or("owner", "me")), c.pick("handle", "display_name", "home_site", "domain"), nil
 		}},
@@ -137,19 +148,25 @@ var tools = []tool{
 	// Teams
 	{name: "create_team", title: "Create a team",
 		about: "Make a team, with me as its first member. It has its own handle, so its sites have their own addresses.",
-		input: in("handle!", str("The team's handle."), "display_name", str("Its display name.")), output: out("handle!", oStr),
+		input: in("handle!", str("The team's handle."), "display_name", str("Its display name.")), output: out("handle!", oStr), view: without("id"),
 		route: func(c *call) (string, string, any, error) {
 			return "POST", "/v1/teams", c.pick("handle", "display_name"), nil
 		}},
 	{name: "invite_to_team", title: "Invite to a team",
 		about: "Invite someone to a team: Simple Host sends an invitation email to the address given. They become a member only when they accept.",
-		input: in("team!", str("The team's handle."), "email!", str("Their email.")), output: out("id!", oStr), openWorld: true,
+		input: in("team!", str("The team's handle."), "email!", str("Their email.")), output: out("team!", oStr, "invited!", oBool), openWorld: true,
+		view: func(c *call, _ map[string]any) map[string]any {
+			return map[string]any{"team": c.str("team"), "invited": true}
+		},
 		route: func(c *call) (string, string, any, error) {
 			return "POST", "/v1/teams/" + url.PathEscape(c.str("team")) + "/invites", c.pick("email"), nil
 		}},
 	{name: "accept_invite", title: "Accept a team invitation",
 		about: "Accept an invitation to a team (who_am_i lists the invitations waiting) and become a member.",
-		input: in("team!", str("The team's handle, as who_am_i lists the invitation.")), output: out("team_id!", oStr),
+		input: in("team!", str("The team's handle, as who_am_i lists the invitation.")), output: out("team!", oStr, "joined!", oBool),
+		view: func(c *call, _ map[string]any) map[string]any {
+			return map[string]any{"team": c.str("team"), "joined": true}
+		},
 		route: acceptInvite},
 	{name: "remove_from_team", title: "Remove from a team",
 		about: "Remove a member from a team by their email, or leave it (email \"me\"). They lose access to the team's sites. Ask first.",
@@ -175,8 +192,10 @@ var tools = []tool{
 			return "GET", "/v1/sites?" + q.Encode(), nil, nil
 		}},
 	{name: "get_site", title: "Get a site",
-		about: "Everything about one site: address, versions, who can open it, domain status, saved data (namespaces and tables), rules, notifications and use.",
-		input: siteIn(), output: outSite, readOnly: true, idempotent: true,
+		about: "Everything about one site: address, versions, who can open it, domain status, saved data (namespaces and tables), rules, notifications and use. " +
+			"Gives how many people are named to open it; their emails only when include_emails is true.",
+		input:  siteIn("include_emails", boolean("True only when the person asks who exactly may open the site.")),
+		output: outSite, readOnly: true, idempotent: true, view: siteView,
 		route: func(c *call) (string, string, any, error) { p, err := c.site("", nil); return "GET", p, nil, err }},
 	{name: "publish_site", title: "Publish a site",
 		about: "Publish files and get the live address back; anyone with the address can open a new site. Makes the site if it is new. " +
@@ -192,7 +211,7 @@ var tools = []tool{
 		about: "The photo picker, shown in the chat, where the person adds photos (shrunk on their device) straight to a namespace's file store: photos unless namespace says otherwise. " +
 			"A new photos namespace can be read by anyone who can open the site, and written only by the owner. The answer's url is the same picker as a page, for apps without screens. " +
 			"With kind archive: a one-time link to upload a big site as one archive.",
-		input:  siteIn("namespace", str("Where photos and files go; photos when left out."), "kind", str(`"files" (the default) or "archive".`)),
+		input:  siteIn("namespace", str("Where photos and files go; photos when left out."), "kind", enum(`"files" (the default) or "archive".`, "files", "archive")),
 		output: out("url!", oStr, "kind!", oStr, "namespace!", oStr, "expires_at!", oStr), openWorld: true, screen: "photo-picker",
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("/upload-links", nil)
@@ -215,34 +234,71 @@ var tools = []tool{
 			p, err := c.site("/files/"+strings.Join(parts, "/"), nil)
 			return "GET", p, nil, err
 		}},
-	{name: "change_site", title: "Change a site",
-		about: "Take a site offline or back online, list it on the owner's public page, make an older version live, or restore it from the bin. Ask first.",
-		input: siteIn("offline", boolean("Offline shows a plain offline page; everything is kept."), "listed", boolean("Show it on the owner's public page."),
-			"live_version", integer("A kept version to make live."), "restore", boolean("Bring it back from the bin.")),
-		output: outSite, destructive: true, openWorld: true, idempotent: true,
+	{name: "take_site_offline", title: "Take a site offline",
+		about: "Take a site offline: every address shows a plain offline page until it is put back online. Files and saved data are kept. Ask first.",
+		input: siteIn(), output: outSite, view: siteView, destructive: true, idempotent: true, route: patchSite(map[string]any{"offline": true})},
+	{name: "put_site_online", title: "Put a site back online",
+		about: "Put an offline site back online, so its address shows the site again to whoever may open it.",
+		input: siteIn(), output: outSite, view: siteView, openWorld: true, idempotent: true, route: patchSite(map[string]any{"offline": false})},
+	{name: "set_site_listed", title: "List a site on my page",
+		about:  "Show the site on the owner's public page (listed true), or take it off that page (false). It does not change who can open the site.",
+		input:  siteIn("listed!", boolean("True to show it on the owner's public page, false to take it off.")),
+		output: outSite, view: siteView, destructive: true, openWorld: true, idempotent: true,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("", nil)
-			return "PATCH", p, c.pick("offline", "listed", "live_version", "restore"), err
+			return "PATCH", p, map[string]any{"listed": c.args["listed"] == true}, err
 		}},
+	{name: "rollback_site", title: "Make an older version live",
+		about: "Make a kept version of the site live again (get_site lists the versions). It replaces what visitors see now; the current version stays kept. Ask first.",
+		input: siteIn("version!", integer("The kept version to make live.")), output: outSite, view: siteView, destructive: true, idempotent: true,
+		route: func(c *call) (string, string, any, error) {
+			p, err := c.site("", nil)
+			return "PATCH", p, map[string]any{"live_version": c.args["version"]}, err
+		}},
+	{name: "restore_site", title: "Restore a deleted site",
+		about: "Bring a site back from the bin (deleted in the last 7 days; list_sites with bin true lists them), with its files and saved data, live again at its address.",
+		input: siteIn(), output: outSite, view: siteView, openWorld: true, idempotent: true, route: patchSite(map[string]any{"restore": true})},
 	{name: "delete_site", title: "Delete a site",
 		about: "Move a site to the bin, with its saved data. It can be restored for 7 days. Ask first.", input: siteIn(),
 		output: out("deleted!", oStr, "restore_until!", oStr), destructive: true, idempotent: true,
 		route: func(c *call) (string, string, any, error) { p, err := c.site("", nil); return "DELETE", p, nil, err }},
-	{name: "set_site_access", title: "Set who can open a site",
-		about: "Who may open the site: anyone (open), a passcode, or people named by email; or sign everyone out. " +
-			"For a passcode, call with access \"passcode\": the person sets or sees it in the screen shown, so it never enters the chat. Ask first.",
-		input: siteIn("access", str(`"open", "passcode" or "viewers".`), "viewers", emails,
-			"viewers_add", emails, "viewers_remove", emails, "sign_everyone_out", boolean("End every unlock and visitor sign-in.")),
-		output: out("site", oStr), destructive: true, openWorld: true, idempotent: true, screen: "passcode",
+	{name: "open_site_to_anyone", title: "Open a site to anyone",
+		about: "Let anyone with the address open the site: no passcode and no named people. Ask first.",
+		input: siteIn(), output: outSite, view: siteView, destructive: true, openWorld: true, idempotent: true, route: patchSite(map[string]any{"access": "open"})},
+	{name: "require_passcode", title: "Require a passcode",
+		about: "Visitors need a passcode to open the site. Opens the passcode screen in the chat, where the person sets or sees the passcode, so it never enters the chat. " +
+			"A site that had a passcode asks for it again at once. Ask first.",
+		input: siteIn(), output: out("site!", oStr, "owner", oStr, "says!", oStr), destructive: true, idempotent: true, screen: "passcode",
+		route: requirePasscode},
+	{name: "allow_only_named_people", title: "Allow only named people",
+		about:  "Only the people named by email (and the owner and their team) may open the site; they sign in on it with their email. Replaces the list: anyone left off loses access at once. Ask first.",
+		input:  siteIn("emails", list("The people who may open it. Left out: the people already named.", str("An email address."))),
+		output: outSite, view: siteView, destructive: true, idempotent: true,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("", nil)
-			if c.str("access") == "passcode" && c.str("passcode") == "" && err == nil {
-				return "", "", map[string]any{"site": c.str("site"), "owner": c.str("owner"),
-					"says": "The passcode screen is open in the chat. The person sets the passcode there; it never enters the chat."}, nil
+			body := map[string]any{"access": "viewers"}
+			if v, ok := c.args["emails"]; ok {
+				body["viewers"] = v
 			}
-			// passcode: only the old tools' callers send it (next/compat).
-			return "PATCH", p, c.pick("access", "passcode", "viewers", "viewers_add", "viewers_remove", "sign_everyone_out"), err
+			return "PATCH", p, body, err
 		}},
+	{name: "add_site_viewers", title: "Add people who may open a site",
+		about: "Add people by email to those who may open the site. A site open to anyone, or behind a passcode, becomes open only to the named people. Ask first.",
+		input: siteIn("emails!", emails), output: outSite, view: siteView, destructive: true, idempotent: true,
+		route: func(c *call) (string, string, any, error) {
+			p, err := c.site("", nil)
+			return "PATCH", p, map[string]any{"viewers_add": c.args["emails"]}, err
+		}},
+	{name: "remove_site_viewers", title: "Remove people who may open a site",
+		about: "Remove people by email from those who may open the site. They lose access at once. Ask first.",
+		input: siteIn("emails!", emails), output: outSite, view: siteView, destructive: true, idempotent: true,
+		route: func(c *call) (string, string, any, error) {
+			p, err := c.site("", nil)
+			return "PATCH", p, map[string]any{"viewers_remove": c.args["emails"]}, err
+		}},
+	{name: "sign_out_site_visitors", title: "Sign out every visitor",
+		about: "End every passcode unlock and visitor sign-in on the site: everyone must enter the passcode or sign in again. Ask first.",
+		input: siteIn(), output: outSite, view: siteView, destructive: true, idempotent: true, route: patchSite(map[string]any{"sign_everyone_out": true})},
 	// The passcode screen's own calls (passcode.go): hidden from the model.
 	{name: "passcode_screen_open", title: "Passcode screen: open", appOnly: true,
 		about:    "The passcode screen's first call: the site's passcode state and, with client_key, a sealed session.",
@@ -265,7 +321,7 @@ var tools = []tool{
 	{name: "set_site_address", title: "Set a site's address",
 		about:  "Connect the site's own domain (answers with the DNS records to add and what is missing), or give it a free short name (<name>.simple-host.app, live at once). \"\" removes either. Ask first.",
 		input:  siteIn("domain", str("Like shop.example.com."), "short_name", str("Like bakery.")),
-		output: outSite, destructive: true, openWorld: true, idempotent: true,
+		output: outSite, view: siteView, destructive: true, openWorld: true, idempotent: true,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("", nil)
 			return "PATCH", p, c.pick("domain", "short_name"), err
@@ -281,7 +337,7 @@ var tools = []tool{
 	{name: "set_notifications", title: "Set notifications",
 		about:  "What the owner is told about on this site, in the AI app and by browser push: data changes in a table, _values or _files, or someone asking for access. Replaces the list; an empty list turns them off.",
 		input:  siteIn("notifications!", list(`Like {"kind": "data", "namespace": "bookings", "target": "bookings"} or {"kind": "access"}.`, object("One notification."))),
-		output: outSite, destructive: true, idempotent: true,
+		output: outSite, view: siteView, destructive: true, idempotent: true,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.site("", nil)
 			return "PATCH", p, c.pick("notifications"), err
@@ -292,7 +348,7 @@ var tools = []tool{
 		about: "Read rows of a table in a site's namespace, with your rights (as the site's pages do). Filter by column values; page with after.",
 		input: tableIn("where", object(`Column -> value: only rows where each column equals it, like {"status": "new"}.`), "order", str("A column to order by (default: oldest first)."),
 			"desc", boolean("Newest or largest first."), "after", str("next_after from the previous page."), "limit", integer("Rows per page, 1 to 500 (100).")),
-		output: outRows, readOnly: true, idempotent: true,
+		output: outRows, readOnly: true, idempotent: true, view: rowsView,
 		route: func(c *call) (string, string, any, error) {
 			q := url.Values{"order": {c.str("order")}, "after": {c.str("after")}, "limit": {c.str("limit")}}
 			if c.args["desc"] == true {
@@ -309,7 +365,7 @@ var tools = []tool{
 	{name: "read_row", title: "Read a row",
 		about:  "Read one row of a table by its id, with your rights.",
 		input:  tableIn("id!", integer("The row's id.")),
-		output: out("columns!", oList(oStr), "row!", oList(oAny), "mine", oBool), readOnly: true, idempotent: true,
+		output: out("columns!", oList(oStr), "row!", oList(oAny), "mine!", oBool), readOnly: true, idempotent: true, view: rowsView,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.rows("/"+url.PathEscape(c.str("id")), nil)
 			return "GET", p, nil, err
@@ -341,7 +397,7 @@ var tools = []tool{
 	{name: "list_values", title: "List values",
 		about:  "Read the values (key -> JSON value, a namespace's _values) of a site, with your rights, like a menu or today's prices. Filter by key prefix; page with after.",
 		input:  nsIn("prefix", str("Only keys that start with this."), "after", str("next_after from the previous page."), "limit", integer("Values per page, 1 to 500 (100).")),
-		output: outItems(out("key!", oStr, "value!", oAny)), readOnly: true, idempotent: true,
+		output: outItems(out("key!", oStr, "value!", oAny, "mine!", oBool)), readOnly: true, idempotent: true, view: mineView,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.values("", url.Values{"prefix": {c.str("prefix")}, "after": {c.str("after")}, "limit": {c.str("limit")}})
 			return "GET", p, nil, err
@@ -349,7 +405,7 @@ var tools = []tool{
 	{name: "read_value", title: "Read a value",
 		about:  "Read one value by its key, with your rights.",
 		input:  nsIn("key!", str("The key, like today.")),
-		output: out("key!", oStr, "value!", oAny), readOnly: true, idempotent: true,
+		output: out("key!", oStr, "value!", oAny, "mine!", oBool), readOnly: true, idempotent: true, view: mineView,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.values("/"+url.PathEscape(c.str("key")), nil)
 			return "GET", p, nil, err
@@ -373,7 +429,7 @@ var tools = []tool{
 	{name: "list_files", title: "List stored files",
 		about:  "List the files stored in a namespace's file store (photos, visitors' uploads), with your rights. Filter by path prefix; page with after.",
 		input:  nsIn("prefix", str("Only paths that start with this."), "after", str("next_after from the previous page."), "limit", integer("Files per page, 1 to 500 (100).")),
-		output: outItems(out("path!", oStr, "bytes!", oInt, "content_type!", oStr)), readOnly: true, idempotent: true,
+		output: outItems(out("path!", oStr, "bytes!", oInt, "content_type!", oStr, "mine!", oBool)), readOnly: true, idempotent: true, view: mineView,
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.files("", url.Values{"prefix": {c.str("prefix")}, "after": {c.str("after")}, "limit": {c.str("limit")}})
 			return "GET", p, nil, err
@@ -413,7 +469,8 @@ var tools = []tool{
 	{name: "query_sql", title: "Query with SQL",
 		about:  "The owner's read-only SQL on a namespace of their site: one SELECT (or WITH ... SELECT). Values are in the table _values, stored files' records in _files. Statements that change anything are refused.",
 		input:  nsIn("sql!", str("One SELECT statement."), "params", list("Values for ? in order.", map[string]any{})),
-		output: out("columns!", oList(oStr), "rows!", oList(oList(oAny))), readOnly: true, idempotent: true,
+		output: out("columns!", oList(oStr), "rows!", oList(oList(oAny))), readOnly: true, idempotent: true, view: rowsView,
+		fixes: map[string]string{"not_a_read": "query_sql runs one statement that only reads, like SELECT. To change data, call run_sql."},
 		route: func(c *call) (string, string, any, error) {
 			p, err := c.sql("query")
 			return "POST", p, c.pick("sql", "params"), err
@@ -442,7 +499,7 @@ var tools = []tool{
 	{name: "get_recipe", title: "Get a page recipe",
 		about: "A page recipe: the data setup, a working page, and who can see what. Use it before building a form or a page that saves entries. " +
 			"Topics: inbox (contact, quote, sign-up forms), public (menu, prices), personal (bookings), comments (guestbook), portal (per-client pages), gallery (visitors' photos).",
-		input:  in("topic!", str("inbox, public, personal, comments, portal or gallery."), "site", str("The site's name, filled into the recipe.")),
+		input:  in("topic!", enum("The recipe.", "inbox", "public", "personal", "comments", "portal", "gallery"), "site", str("The site's name, filled into the recipe.")),
 		output: out("topic!", oStr, "text!", oStr), readOnly: true, idempotent: true,
 		route: func(c *call) (string, string, any, error) {
 			return "GET", "/v1/recipes/" + url.PathEscape(c.str("topic")) + "?" + url.Values{"site": {c.str("site")}}.Encode(), nil, nil
@@ -466,6 +523,38 @@ var tools = []tool{
 			p, err := c.site("", nil)
 			return "PATCH", p, c.pick("taken_down", "reason"), err
 		}},
+}
+
+// patchSite is a PATCH of the call's site with a fixed body.
+func patchSite(body map[string]any) func(*call) (string, string, any, error) {
+	return func(c *call) (string, string, any, error) { p, err := c.site("", nil); return "PATCH", p, body, err }
+}
+
+// requirePasscode turns a site's passcode back on when it has one, and
+// opens the passcode screen, where the person sets or sees it.
+func requirePasscode(c *call) (string, string, any, error) {
+	p, err := c.site("", nil)
+	if err != nil {
+		return "", "", nil, err
+	}
+	_, v, err := c.h.do(c.r, http.MethodGet, p, nil)
+	if err != nil {
+		return "", "", nil, err
+	}
+	site, _ := v.(map[string]any)
+	if _, ok := site["access"]; !ok { // only the owner's view carries access
+		return "", "", nil, web.Refuse(http.StatusForbidden, "not_yours", "Only the site's owner or their team can set its passcode.")
+	}
+	says := "The passcode screen is open in the chat. The person sets the passcode there; it never enters the chat. Visitors need it once it is set."
+	if code, _ := site["passcode"].(string); site["access"] == "passcode" {
+		says = "The site already needs its passcode. The passcode screen is open in the chat to see or change it; it never enters the chat."
+	} else if code != "" { // a PATCH when it is on already would sign everyone out
+		if _, _, err := c.h.do(c.r, http.MethodPatch, p, map[string]any{"access": "passcode"}); err != nil {
+			return "", "", nil, err
+		}
+		says = "Visitors need the site's passcode again. The passcode screen is open in the chat to see or change it; it never enters the chat."
+	}
+	return "", "", map[string]any{"site": site["name"], "owner": site["owner"], "says": says}, nil
 }
 
 func fixed(method, path string) func(*call) (string, string, any, error) {

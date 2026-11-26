@@ -161,8 +161,8 @@ func TestOwnerJourney(t *testing.T) {
 	if b, _ := json.Marshal(rows); !strings.Contains(string(b), "Vera") {
 		t.Fatalf("bookings: %s", b)
 	}
-	// Locks the site with a passcode (the in-chat screen's call).
-	omar.tool("set_site_access", map[string]any{"site": "salon", "access": "passcode", "passcode": "salon-door-42"})
+	// Locks the site with a passcode (the in-chat screen's call: the passcode never enters the chat).
+	omar.api("PATCH", "/v1/sites/salon", map[string]any{"passcode": "salon-door-42"}, 200)
 	page(t, k.Browser(), url, 401, "passcode")
 	// Connects a domain: the records to add, then live once DNS is right.
 	k.DNS.Set("simple-host.app", "A", "203.0.113.7")
