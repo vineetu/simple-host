@@ -229,3 +229,37 @@ test("leaving an event from Your events (the only organiser deletes it), and sig
   await out.page.waitForURL(/\/signin\?next=%2Fevents/);
   await out.ctx.close();
 });
+
+for (const width of [390, 1280]) {
+  test(`sign in with a password, back to where the person was going @${width}`, async ({ browser }) => {
+    const { ctx, page, errors } = await person(browser, "", width);
+    // Signed out on an event screen: sent to the new sign-in page with next.
+    await page.goto(APP + `/e/${SLUG}/team?s=submissions`);
+    await page.waitForURL(/\/signin\?next=/);
+    await expect(page.locator("#root")).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "Sign in", level: 1 })).toBeVisible();
+    await check(page, "signin", width);
+
+    // A wrong password is said in plain words, and nothing is stored.
+    await page.getByLabel("Email or username").fill("siti");
+    await page.getByLabel("Password", { exact: true }).fill("not-the-password");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page.getByText("Wrong username or password.")).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("apiKey"))).toBeNull();
+
+    // The right one: the key is kept in this browser, the SSO cookie is set, and the page goes on to next.
+    await page.getByLabel("Password", { exact: true }).fill("correct-horse-siti");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.waitForURL(new RegExp(`/e/${SLUG}/team\\?s=submissions$`));
+    await expect(page.getByRole("heading", { name: "Submissions", level: 1 })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("apiKey"))).toMatch(/.{20,}/);
+    const cookies = await ctx.cookies(APP);
+    expect(cookies.some((c) => c.name.includes("sso")), "SSO cookie set: " + cookies.map((c) => c.name).join(",")).toBe(true);
+
+    // Signed in already: /signin goes straight on, to Siti's one current event.
+    await page.goto(APP + "/signin");
+    await page.waitForURL(new RegExp(`/e/${SLUG}/team`));
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+}

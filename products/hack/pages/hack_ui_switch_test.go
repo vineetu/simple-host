@@ -44,7 +44,7 @@ func TestAppPageSwitchesOnTheLiveList(t *testing.T) {
 		new  bool
 	}{
 		{"/events", set["landing-your-events"]},
-		{"/signin", false},
+		{"/signin", set["signin"]},
 		{"/e/x/manage?s=settings", set["organiser-settings"]},
 	} {
 		body, isNew, err := appPage(httptest.NewRequest("GET", c.path, nil), static)
