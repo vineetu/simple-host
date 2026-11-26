@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"simplehost/core/web"
+	sites "simplehost/sites/core"
 )
 
 // Views reshape a route's answer for the AI app (a tool's view, tools.go).
@@ -107,9 +108,16 @@ func rowsView(c *call, v map[string]any) map[string]any {
 // The labels in a call's values (where, row, params, quoted in SQL) are
 // mapped back to the ids first, so filtering, joining and writing by label
 // work; a label of nobody in the namespace stays as typed.
+//
+// For whoever manages the site (owner SQL rights), only the ids of people
+// are labels: an order number or a key that happens to be a UUID is the
+// owner's own data and stays as stored. For anyone else every id-shaped
+// value is labelled, so nobody else's id can reach them.
 type visitorNames struct {
-	key []byte
-	me  string
+	key    []byte
+	me     string
+	people func(id string) bool // nil: every id-shaped value is a person's
+	seen   map[string]bool
 }
 
 var (
@@ -122,8 +130,35 @@ var (
 // passcode key (PASSCODE_ENC_KEY).
 func newVisitorNames(c *call) *visitorNames {
 	m := hmac.New(sha256.New, []byte(c.h.a.Config.PasscodeKey))
-	m.Write([]byte("visitor label v1|" + c.siteID()))
-	return &visitorNames{key: m.Sum(nil), me: strings.ToLower(web.CallerOf(c.r).ID)}
+	site, manages := c.siteOf()
+	id := ""
+	if site != nil {
+		id = site.ID
+	}
+	m.Write([]byte("visitor label v1|" + id))
+	n := &visitorNames{key: m.Sum(nil), me: strings.ToLower(web.CallerOf(c.r).ID), seen: map[string]bool{}}
+	if manages {
+		n.people = func(id string) bool {
+			_, err := c.h.a.People.Get(c.r.Context(), id)
+			return err == nil
+		}
+	}
+	return n
+}
+
+// person reports whether an id-shaped value is a person's id (looked up
+// once per answer).
+func (n *visitorNames) person(id string) bool {
+	id = strings.ToLower(id)
+	if id == n.me || n.people == nil {
+		return true
+	}
+	is, ok := n.seen[id]
+	if !ok {
+		is = n.people(id)
+		n.seen[id] = is
+	}
+	return is
 }
 
 func (n *visitorNames) label(id string) string {
@@ -140,7 +175,12 @@ func (n *visitorNames) label(id string) string {
 func (n *visitorNames) hide(v any) any {
 	switch x := v.(type) {
 	case string:
-		return idShape.ReplaceAllStringFunc(x, n.label)
+		return idShape.ReplaceAllStringFunc(x, func(id string) string {
+			if !n.person(id) {
+				return id
+			}
+			return n.label(id)
+		})
 	case map[string]any:
 		for k, val := range x {
 			x[k] = n.hide(val)
@@ -244,15 +284,16 @@ func (c *call) namespacePeople() []string {
 	return ids
 }
 
-// siteID is the id of the call's site ("" when there is none).
-func (c *call) siteID() string {
+// siteOf is the call's site (nil when there is none), and whether the
+// caller manages it: the owner, a member of the owning team or the operator.
+func (c *call) siteOf() (*sites.Site, bool) {
 	p, err := c.site("", nil)
 	if err != nil {
-		return ""
+		return nil, false
 	}
 	u, err := url.Parse(p)
 	if err != nil {
-		return ""
+		return nil, false
 	}
 	name, _ := url.PathUnescape(strings.TrimPrefix(u.Path, "/v1/sites/"))
 	req := c.r.Clone(c.r.Context())
@@ -260,7 +301,7 @@ func (c *call) siteID() string {
 	req.SetPathValue("site", name)
 	s, err := c.h.a.Sites.Of(req)
 	if err != nil {
-		return ""
+		return nil, false
 	}
-	return s.ID
+	return s, c.h.a.Sites.Manage(req, s) == nil
 }

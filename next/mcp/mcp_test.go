@@ -306,3 +306,38 @@ func TestVisitorLabels(t *testing.T) {
 		t.Errorf("where by label: %v", got)
 	}
 }
+
+// A UUID that is not a person's id (an order number, a key) is the owner's
+// own data: the owner reads it as stored and can filter by it. A visitor
+// still sees every id-shaped value as a label.
+func TestOwnUUIDsStayAsStored(t *testing.T) {
+	k := testkit.Start(t, mcp.Mount, api.Mount, rows.Mount, datasql.Mount)
+	alice, bob := k.Person(t, "alice"), k.Person(t, "bob")
+	k.Publish(t, alice, "shop", map[string]string{"index.html": "shop"})
+	call := ai(t, k, alice.Key)
+	run := func(name string, args map[string]any) map[string]any {
+		a := map[string]any{"site": "shop", "namespace": "shop"}
+		for k, v := range args {
+			a[k] = v
+		}
+		res := tool(call, name, a)
+		if res["isError"] == true {
+			t.Fatalf("%s %v: %s", name, args, text(res))
+		}
+		sc, _ := res["structuredContent"].(map[string]any)
+		return sc
+	}
+	ref := "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+	run("run_sql", map[string]any{"sql": "CREATE TABLE orders (ref TEXT PRIMARY KEY, item TEXT, visitor_id TEXT)"})
+	run("run_sql", map[string]any{"sql": "INSERT INTO orders (ref, item, visitor_id) VALUES (?, 'jam', ?)", "params": []any{ref, bob.ID}})
+	got := run("query_sql", map[string]any{"sql": "SELECT ref, visitor_id FROM orders WHERE ref = ?", "params": []any{ref}})["rows"].([]any)
+	if len(got) != 1 || got[0].([]any)[0] != ref || !regexp.MustCompile(`^visitor-[0-9a-f]{8}$`).MatchString(fmt.Sprint(got[0].([]any)[1])) {
+		t.Fatalf("order ref and buyer: %v", got)
+	}
+	if rows := run("list_rows", map[string]any{"table": "orders", "where": map[string]any{"ref": ref}})["rows"].([]any); len(rows) != 1 || rows[0].([]any)[0] != ref {
+		t.Fatalf("list_rows by ref: %v", rows)
+	}
+	if strings.Contains(text(tool(call, "query_sql", map[string]any{"site": "shop", "namespace": "shop", "sql": "SELECT visitor_id FROM orders"})), bob.ID) {
+		t.Fatal("bob's id reached the owner")
+	}
+}
