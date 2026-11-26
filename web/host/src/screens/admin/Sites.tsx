@@ -1,0 +1,139 @@
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { Chips } from "@kit/components/ui/badge";
+import { DataTable } from "@kit/components/ui/data-table";
+import { EmptyState } from "@kit/components/ui/empty-state";
+import { Input } from "@kit/components/ui/input";
+import { Menu, type MenuItem } from "@kit/components/ui/menu";
+import { Section } from "@kit/components/ui/page-shell";
+import { bytes, num, searchMatches } from "@kit/lib/format";
+import { ACCESS, SITE_FILTERS, dashLink, ownerName, siteFilter, type AdminData, type Site, type SiteFilter } from "./data";
+import { useActions } from "./actions";
+import { Breakable, SiteName, SiteStatus, When } from "./bits";
+
+export type SitesState = { q: string; filter: SiteFilter; sorting: SortingState };
+export const sitesStart: SitesState = { q: "", filter: "all", sorting: [{ id: "updated", desc: true }] };
+
+
+function Address({ s }: { s: Site }) {
+  if (!s.domain && !s.short_name) return <span className="text-ink-soft">-</span>;
+  return (
+    <>
+      {s.domain && (
+        <div>
+          <Breakable text={s.domain} />
+          {s.domain_status && s.domain_status !== "live" && s.domain_status !== "active" && <span className="text-ink-soft"> · {s.domain_status}</span>}
+        </div>
+      )}
+      {s.short_name && (
+        <div>
+          {s.short_name} <span className="text-ink-soft">· short name</span>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Access({ s }: { s: Site }) {
+  return (
+    <>
+      {ACCESS[s.access] || s.access}
+      {!s.listed && " · not on profile"}
+    </>
+  );
+}
+
+function SiteMenu({ s }: { s: Site }) {
+  const act = useActions();
+  const items: MenuItem[] = [];
+  if (s.url) items.push({ label: "Open site", href: s.url, external: true });
+  if (s.owner) items.push({ label: "Versions, data and settings", href: dashLink(s) });
+  items.push({ separator: true });
+  if (s.owner_suspended) items.push({ label: "Down with the account (re-enable it in Users)", disabled: true });
+  else if (s.taken_down) items.push({ label: "Restore", onSelect: () => act.restore(s) });
+  else items.push({ label: "Take down", onSelect: () => act.takeDown(s), danger: true });
+  return <Menu label={"Actions for " + s.name} items={items} />;
+}
+
+const t = (s: string) => Date.parse(s) || 0;
+const most = { sortDescFirst: true } as const;
+
+const columns: ColumnDef<Site>[] = [
+  { id: "name", header: "Site", accessorKey: "name", cell: ({ row }) => <SiteName s={row.original} />, meta: { phone: "title", wrap: true } },
+  { id: "owner", header: "Owner", accessorFn: (s) => (s.owner || "").toLowerCase(), cell: ({ row }) => <Breakable text={ownerName(row.original)} />, meta: { wrap: true } },
+  { id: "live", header: "Live", accessorKey: "live_bytes", cell: ({ getValue }) => bytes(getValue()), ...most, meta: { align: "right", phone: "hide", sortNames: ["Largest first", "Smallest first"] } },
+  { id: "size", header: "Size", accessorKey: "bytes", cell: ({ getValue }) => bytes(getValue()), ...most, meta: { align: "right", sortNames: ["Largest first", "Smallest first"] } },
+  {
+    id: "updated",
+    header: "Updated",
+    accessorFn: (s) => t(s.changed_at),
+    cell: ({ row }) => <When at={row.original.changed_at} />,
+    ...most,
+    meta: { phone: "hide", sortNames: ["Newest first", "Oldest first"] },
+  },
+  { id: "views", header: "Views", accessorKey: "views_30d", cell: ({ getValue }) => num(getValue()), ...most, meta: { align: "right", sortNames: ["Most first", "Fewest first"] } },
+  { id: "people", header: "People", accessorKey: "people_30d", cell: ({ getValue }) => num(getValue()), ...most, meta: { align: "right", phone: "hide", sortNames: ["Most first", "Fewest first"] } },
+  {
+    id: "created",
+    header: "Created",
+    accessorFn: (s) => t(s.created_at),
+    ...most,
+    meta: { hidden: true, sortNames: ["Newest first", "Oldest first"] },
+  },
+  {
+    id: "access",
+    header: "Who can open",
+    enableSorting: false,
+    cell: ({ row }) => <Access s={row.original} />,
+    meta: { wide: "hide" },
+  },
+  {
+    id: "status",
+    header: "Status",
+    enableSorting: false,
+    cell: ({ row }) => (
+      <>
+        <SiteStatus s={row.original} />
+        <div className="hidden text-sm text-ink-soft md:block">
+          <Access s={row.original} />
+        </div>
+      </>
+    ),
+    meta: { phone: "end" },
+  },
+  { id: "address", header: "Address", enableSorting: false, cell: ({ row }) => <Address s={row.original} />, meta: { phone: "hide" } },
+  { id: "menu", header: () => <span className="sr-only">Actions</span>, enableSorting: false, cell: ({ row }) => <SiteMenu s={row.original} />, meta: { phone: "end" } },
+];
+
+export function SitesTab({ d, st, set }: { d: AdminData; st: SitesState; set: (s: SitesState) => void }) {
+  const rows = d.sites.filter(
+    (s) => siteFilter(st.filter, s) && searchMatches(st.q, s.name + " " + (s.owner || "") + " " + (s.domain || "") + " " + (s.short_name || "")),
+  );
+  return (
+    <Section
+      title="Sites"
+      count={"(" + (rows.length !== d.sites.length ? rows.length + " of " : "") + d.sites.length + ")"}
+      note="Views and people are for the last 30 days."
+    >
+      <Input
+        type="search"
+        className="mt-2"
+        value={st.q}
+        onChange={(e) => set({ ...st, q: e.target.value })}
+        placeholder="Site, owner or domain (-word hides)"
+        aria-label="Search sites; start a word with a minus sign to hide matches"
+        autoComplete="off"
+        spellCheck={false}
+      />
+      <Chips label="Filter sites" options={SITE_FILTERS} value={st.filter} onChange={(filter) => set({ ...st, filter })} />
+      <DataTable
+        label="Sites"
+        data={rows}
+        columns={columns}
+        getRowId={(s) => s.id}
+        sorting={st.sorting}
+        onSortingChange={(sorting) => set({ ...st, sorting })}
+        empty={<EmptyState title="No site matches">Try fewer words, or the All filter.</EmptyState>}
+      />
+    </Section>
+  );
+}

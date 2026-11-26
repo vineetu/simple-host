@@ -11,7 +11,7 @@ import (
 )
 
 // gateCSS is the shared page stylesheet (built from the same design tokens as
-// the owner app, see web/app) plus the hand font, inline: a site address
+// the owner app, see ../web/host) plus the hand font, inline: a site address
 // loads nothing from the platform. The inline font face comes last, so it
 // wins over the stylesheet's own (platform) address for it.
 var gateCSS = dist.PagesCSS + `@font-face{font-family:ShCaveat;src:url(data:font/woff2;base64,` +

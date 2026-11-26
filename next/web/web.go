@@ -1,6 +1,6 @@
 // Package web serves the service's own pages (route 61): home, install,
 // docs, terms, privacy and support as static files; sign-in, the dashboard
-// and admin from the owner app (web/app, built into web/dist); plus
+// and admin from the owner app (../web/host, built into web/dist); plus
 // llms.txt, the one skill set, the page helper /auth.js (also on every site
 // address as /_sh/page.js), the photo picker behind an upload link, the
 // spam-check frame and the first-run setup of a self-hosted install.

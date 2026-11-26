@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client", "vite-plugin-pwa/client", "node"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"], "@kit/*": ["../kit/*"] }
+  },
+  "include": ["src", "tests", "*.ts", "../kit"]
+}

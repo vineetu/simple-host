@@ -170,7 +170,7 @@ func KeyOnly(r *http.Request) bool { return r.URL.Path == "/mcp" }
 // return, next or hop's path): a path on this same host. One leading slash,
 // never "//", and no backslash, space or control character anywhere (a
 // browser drops or turns those into a slash, which would name another host).
-// web/app/src/lib/format.ts (localPath) keeps the same rule for sign-in's next.
+// web/kit/lib/format.ts (localPath) keeps the same rule for sign-in's next.
 func LocalPath(s string) bool {
 	if !strings.HasPrefix(s, "/") || strings.HasPrefix(s, "//") {
 		return false

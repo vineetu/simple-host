@@ -1,4 +1,4 @@
-// Package dist is the built owner app (web/app, built by `make web`) and the
+// Package dist is the built owner app (../web/host at the repo root, built by `make web`) and the
 // shared stylesheet for the pages the server writes itself. The files are
 // committed, so the service builds without Node. Do not edit files/ by hand.
 package dist
