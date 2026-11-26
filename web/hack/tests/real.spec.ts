@@ -209,11 +209,11 @@ for (const width of [390, 1280]) {
     const addresses = ["/events", "/events/new", "/account", "/signin", `/e/${SLUG}/apply`, `/e/${SLUG}/vote`, "/join/x", "/judge/x", "/organiser/x", "/team/x"];
     for (const [area, ss] of Object.entries(areas)) for (const s of ss) addresses.push(`/e/${SLUG}/${area}?s=${s}`);
     for (const a of addresses) {
-      const html = await (await page.request.get(APP + a)).text();
+      const html = String((await call("GET", a)).body.text);
       expect(html, a).toContain('<div id="root">');
       expect(html, a).not.toContain('src="/hack/app.js"');
     }
-    const directory = await (await page.request.get(APP + "/directory")).text();
+    const directory = String((await call("GET", "/directory")).body.text);
     expect(directory).not.toContain('<div id="root">');
 
     expect(errors).toEqual([]);
