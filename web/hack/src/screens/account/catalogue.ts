@@ -50,10 +50,24 @@ const base = {
 };
 const acct = (o: Record<string, unknown> = {}) => api({ ...base, ...o });
 
+// The harness fills a field through the input element's value setter; this
+// lets the same step fill a textarea (Purpose), so the form gets past its own check.
+function textareaFill() {
+  const input = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!;
+  const area = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!;
+  Object.defineProperty(HTMLInputElement.prototype, "value", {
+    ...input,
+    set(this: HTMLElement, v: string) {
+      return this instanceof HTMLTextAreaElement ? area.set!.call(this, v) : input.set!.call(this, v);
+    },
+  });
+}
+
 export const entries: Entry[] = [
   { id: "account.loading", title: "Account: loading", url: "/account", api: acct({ "/v1/me": "pending" }) },
   { id: "account.error", title: "Account: did not load", url: "/account", api: acct({ "/v1/me": refuse(500, "error", "Something went wrong. Try again.") }) },
   { id: "account.not-a-person", title: "Account: a team key or the platform admin", url: "/account", api: acct({ "/v1/me": { username: "admin" } }) },
+  { id: "account.leave-unsaved", title: "Account: leaving with an unsaved name asks first", url: "/account", api: acct(), steps: [{ fill: ["#acct-name", "Siti R."] }, { click: "text=Your events" }] },
   { id: "account.loaded", title: "Account: profile (name, email, password, delete)", url: "/account", api: acct() },
   { id: "account.key-only", title: "Account: a key-only account, no email address", url: "/account", api: acct({ "/v1/me": KEY_ONLY }) },
   {
@@ -171,5 +185,31 @@ export const entries: Entry[] = [
     ],
   },
   { id: "organiser-create-event.invalid", title: "Create event: submitted empty, each field says what it needs", url: "/events/new", api: api(), steps: [{ fill: ["#new-n", "0"] }, { click: "text=Create event@1" }] },
-  // (A refused create is not pictured: the catalogue cannot fill the Purpose box, a textarea, so the form never gets past its own check.)
+  {
+    id: "organiser-create-event.limit",
+    title: "Create event: refused, the person already runs the most events allowed",
+    url: "/events/new",
+    api: api({
+      "/v1/hack/names/kopi-fest": { available: true },
+      "POST /v1/hack/events": refuse(409, "too_many_active_events", "You already have 3 events, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings."),
+    }),
+    before: textareaFill,
+    steps: [
+      { fill: ["#new-title", "Kopi Fest"] },
+      { fill: ["#new-start", "2026-12-05"] },
+      { fill: ["#new-organiser", "Amara Wijaya"] },
+      { fill: ["#new-org", "Generation Girl"] },
+      { fill: ["#new-email", "team@generationgirl.org"] },
+      { fill: ["#new-purpose", "A weekend for coffee farmers' tools."] },
+      { fill: ["#new-n", "80"] },
+      { click: "text=Create event@1" },
+    ],
+  },
+  {
+    id: "organiser-create-event.leave-unsaved",
+    title: "Create event: leaving with edits asks first",
+    url: "/events/new",
+    api: api(),
+    steps: [{ fill: ["#new-title", "Kopi Fest"] }, { click: "text=Your events" }],
+  },
 ];
