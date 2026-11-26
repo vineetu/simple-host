@@ -9,7 +9,9 @@
    still uses it for buttons, links, the icon fallback and its own
    highlights.
 
-   Light only. System font stacks only (no @font-face, no web fonts). */
+   Light only. System font stacks only (no @font-face, no web fonts).
+   A Look's heavier heading and button weights apply from 700 px up: below
+   that every word is weight 400 (owner rule, HK1 2026-11-26). */
 
 /* ---------- shared scaffold: every theme sets these vars ---------- */
 .pub-event[data-theme]{background:var(--paper);color:var(--line)}
@@ -100,7 +102,13 @@
 .pub-event[data-theme=poster] h2,
 .pub-event[data-theme=poster] .section-title,
 .pub-event[data-theme=poster].preview-head h3{
-  font-weight:900;text-transform:uppercase;letter-spacing:-.01em;
+  text-transform:uppercase;letter-spacing:-.01em;
+}
+@media (min-width:700px){
+  .pub-event[data-theme=poster] h1,
+  .pub-event[data-theme=poster] h2,
+  .pub-event[data-theme=poster] .section-title,
+  .pub-event[data-theme=poster].preview-head h3{font-weight:900}
 }
 .pub-event[data-theme=poster] .ev-header,
 .pub-event[data-theme=poster].preview-head{
@@ -112,8 +120,9 @@
   border:3px solid #1c1a17;box-shadow:4px 4px 0 #1c1a17;
 }
 .pub-event[data-theme=poster] .btn:not(.quiet){
-  border:2px solid #1c1a17;box-shadow:3px 3px 0 #1c1a17;font-weight:800;
+  border:2px solid #1c1a17;box-shadow:3px 3px 0 #1c1a17;
 }
+@media (min-width:700px){.pub-event[data-theme=poster] .btn:not(.quiet){font-weight:800}}
 .pub-event[data-theme=poster] .chip{
   background:#fff;border:2px solid #1c1a17;color:#1c1a17;
 }
@@ -141,7 +150,12 @@
 .pub-event[data-theme=confetti] h1,
 .pub-event[data-theme=confetti] h2,
 .pub-event[data-theme=confetti] h3{
-  font-family:ui-rounded,'SF Pro Rounded','Arial Rounded MT Bold',system-ui;font-weight:800;
+  font-family:ui-rounded,'SF Pro Rounded','Arial Rounded MT Bold',system-ui;
+}
+@media (min-width:700px){
+  .pub-event[data-theme=confetti] h1,
+  .pub-event[data-theme=confetti] h2,
+  .pub-event[data-theme=confetti] h3{font-weight:800}
 }
 .pub-event[data-theme=confetti] .ev-header .ev-head-top{
   flex-direction:column;align-items:center;text-align:center;
@@ -184,7 +198,12 @@
 .pub-event[data-theme=boardroom] h1,
 .pub-event[data-theme=boardroom] h2,
 .pub-event[data-theme=boardroom] h3{
-  font-weight:650;letter-spacing:-.015em;
+  letter-spacing:-.015em;
+}
+@media (min-width:700px){
+  .pub-event[data-theme=boardroom] h1,
+  .pub-event[data-theme=boardroom] h2,
+  .pub-event[data-theme=boardroom] h3{font-weight:650}
 }
 .pub-event[data-theme=boardroom] .ev-header,
 .pub-event[data-theme=boardroom].preview-head{
@@ -221,7 +240,12 @@
 .pub-event[data-theme=garden] h1,
 .pub-event[data-theme=garden] h2,
 .pub-event[data-theme=garden] h3{
-  font-family:ui-serif,Georgia,Cambria,'Times New Roman',serif;font-weight:600;
+  font-family:ui-serif,Georgia,Cambria,'Times New Roman',serif;
+}
+@media (min-width:700px){
+  .pub-event[data-theme=garden] h1,
+  .pub-event[data-theme=garden] h2,
+  .pub-event[data-theme=garden] h3{font-weight:600}
 }
 .pub-event[data-theme=garden] #faq summary{
   font-family:ui-serif,Georgia,Cambria,'Times New Roman',serif;

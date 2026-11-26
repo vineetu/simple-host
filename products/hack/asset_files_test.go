@@ -69,7 +69,7 @@ func TestAssetTablesNameTheRightFiles(t *testing.T) {
 		if file != "static/"+name {
 			t.Errorf("Own %s points at %s", name, file)
 		}
-		if _, err := fs.Stat(hackassets.Static, file); err != nil {
+		if _, err := fs.Stat(productFiles{}, file); err != nil {
 			t.Errorf("Own %s: %v", name, err)
 		}
 		if _, err := fs.Stat(webassets.Static, "static/"+name); err == nil {
@@ -152,7 +152,7 @@ func TestOwnFilesAreServedByTheFileRoute(t *testing.T) {
 		}
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
-		info, err := fs.Stat(hackassets.Static, file)
+		info, err := fs.Stat(productFiles{}, file)
 		if err != nil {
 			t.Fatal(err)
 		}

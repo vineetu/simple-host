@@ -1,0 +1,135 @@
+/* Simple Hack's look for the pages the Go server writes with the platform
+   chrome (site.css plus the header and footer partials): the marketing pages
+   (home, hackathons, get-started, companies, watch, features, setup, 404) and
+   the status and message pages. The chrome links it after each page's own
+   styles (host/web/chrome.go addProductInk; products/hack/edition StylePath)
+   and marks <html class="sh-hack">. Built by Tailwind from Simple Hack's
+   tokens, so the pages and the app always agree.
+     - Light only: the theme menu is hidden and dark never applies.
+     - System fonts for every word; the hand font only in the wordmark and in
+       the drawings of the film pages (home, companies, watch: html.hack-story),
+       whose own palette and artwork stay as they are.
+     - Weight 400 below 700 px (owner rule): hierarchy there is size and colour.
+   No script anywhere. */
+@layer theme, base;
+@import "tailwindcss/theme.css" layer(theme);
+@import "./tokens.css";
+
+/* The palette every page and the chrome read, in the names site.css and the
+   pages use. Applied to the header and footer too, which keep their own copy. */
+html.sh-hack:not(.hack-story), html.sh-hack[data-theme]:not(.hack-story),
+html.sh-hack .sh-header, html.sh-hack[data-theme] .sh-header,
+html.sh-hack .sh-footer, html.sh-hack[data-theme] .sh-footer {
+  color-scheme: light;
+  --paper: var(--color-paper); --paper-hi: var(--color-card); --paper-lo: var(--color-paper-lo); --paper-ink: var(--color-rule);
+  --line: var(--color-ink); --line-soft: var(--color-ink-soft); --line-faint: var(--color-ink-faint);
+  --brand: var(--color-accent); --brand-2: var(--color-coral);
+  --accent: var(--color-accent); --accent-hover: var(--color-accent-hover); --on-accent: var(--color-on-accent);
+  --accent-2: var(--color-coral); --accent-soft: var(--color-accent-soft);
+  --error: var(--color-bad); --success: var(--color-good);
+  --bg: var(--color-paper); --surface: var(--color-card); --grid: var(--color-paper-lo);
+  --text: var(--color-ink); --text-secondary: var(--color-ink-soft); --dim: var(--color-ink-faint);
+  --border: var(--color-rule); --border-hi: var(--color-ink-soft);
+  --row-hi: rgb(43 41 37 / 0.04);
+  --header-bg: var(--color-paper); --event-page: var(--color-paper); --event-wash: var(--color-accent-soft);
+  --radius: var(--radius-wobble); --wobble: var(--radius-wobble);
+  --font: var(--font-sans); --mono: var(--font-mono);
+  --hand: var(--font-sans); --note: var(--font-sans);
+  --shadow: none;
+}
+
+/* The film pages keep their drawings' hand font and paper palette; their
+   words are the system font. */
+html.sh-hack.hack-story {
+  --hand: var(--font-sans); --note: var(--font-sans); --body: var(--font-sans); --mono: var(--font-mono);
+  --wobble: var(--radius-wobble);
+  color-scheme: light;
+}
+html.sh-hack.hack-story :is(svg text, .ink text) { font-family: var(--font-wordmark); }
+
+html.sh-hack:not(.hack-story) body { background: var(--color-paper); color: var(--color-ink); font: var(--text-base) / 1.6 var(--font-sans); }
+html.sh-hack :is(a, input, button, select, textarea, summary):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+html.sh-hack:not(.hack-story) :is(h1, h2, h3, h4, legend) { font-family: var(--font-sans); letter-spacing: -0.01em; line-height: 1.2; overflow-wrap: anywhere; }
+
+/* Controls: the token radius and 44 px targets, flat (no drawn shadow). */
+html.sh-hack:not(.hack-story) :is(.btn, button.btn, a.btn, .sh-btn, .sh-dlg-btn) {
+  min-height: 44px; border-radius: var(--radius-wobble); box-shadow: none; white-space: normal; text-align: center;
+}
+html.sh-hack:not(.hack-story) :is(input:not([type=checkbox]):not([type=radio]), select, textarea) {
+  font: var(--text-base) / 1.5 var(--font-sans); min-height: 44px; max-width: 100%; min-width: 0; color: var(--color-ink);
+}
+html.sh-hack:not(.hack-story) :is(.card, .box, .option, .skill) { border-radius: var(--radius-wobble); box-shadow: none; }
+html.sh-hack:not(.hack-story) :is(table, .stat .n, input[type=number]) { font-variant-numeric: tabular-nums; }
+
+/* ---- The chrome: one wordmark, quiet links, no theme menu ---- */
+html.sh-hack .sh-header { background: var(--color-paper); border-bottom: 1px solid var(--color-rule); }
+html.sh-hack .sh-footer { border-top: 1px solid var(--color-rule); }
+html.sh-hack :is(.sh-header, .sh-footer) { font-family: var(--font-sans); }
+html.sh-hack .sh-header .sh-logo {
+  display: inline-flex; align-items: center; min-height: 44px;
+  font: 700 29px/1.2 var(--font-wordmark); letter-spacing: 0; color: var(--color-coral); text-decoration: none; background: none;
+}
+html.sh-hack .sh-header .sh-logo b { color: var(--color-wordmark); font-weight: 700; padding-inline: .03em; }
+html.sh-hack .sh-header .sh-themes { display: none; }
+html.sh-hack .sh-header :is(.sh-signin, .sh-signout, .sh-acct-btn) {
+  align-items: center; min-height: 44px; font: var(--w-medium) var(--text-base) / 1.2 var(--font-sans);
+  border-radius: var(--radius-wobble); background: none;
+}
+html.sh-hack .sh-header .sh-bar > a.sh-signin:not(.sh-acct-link), html.sh-hack .sh-header.sh-authed :is(.sh-acct-link, .sh-signout) { display: inline-flex; }
+html.sh-hack .sh-header .sh-signin { border: 1px solid var(--color-ink-soft); color: var(--color-ink); padding: 0 14px; }
+html.sh-hack .sh-header .sh-signin:hover { border-color: var(--color-accent); color: var(--color-accent); }
+html.sh-hack .sh-header:not(.sh-authed) .sh-acct-link { display: none; }
+html.sh-hack .sh-header .sh-acct-link { border-color: transparent; padding-inline: 6px; color: var(--color-ink-soft); }
+html.sh-hack .sh-header .sh-acct-link:hover { color: var(--color-ink); }
+html.sh-hack .sh-header :is(.sh-signin, .sh-signout)[aria-current]:not([aria-current="false"]) {
+  color: var(--color-ink); text-decoration: underline; text-decoration-color: var(--color-accent); text-decoration-thickness: 2px; text-underline-offset: 6px;
+}
+html.sh-hack .sh-header :is(.sh-acct-menu, .sh-theme-menu) { background: var(--color-card); border-radius: var(--radius-wobble); box-shadow: 0 10px 30px rgb(43 41 37 / 0.14), 0 2px 6px rgb(43 41 37 / 0.1); }
+html.sh-hack .sh-header .sh-acct-menu :is(a, button) { min-height: 44px; }
+@media (max-width: 640px) {
+  html.sh-hack .sh-header.sh-authed :is(#dash-link, .sh-signout, .sh-acct-link) { display: none; }
+}
+html.sh-hack .sh-footer .sh-foot-links a {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; text-underline-offset: 5px; color: var(--color-ink-soft);
+}
+html.sh-hack .sh-footer .sh-credit { color: var(--color-ink-soft); opacity: 1; }
+
+/* ---- What the pages' own styles leave short of the rules ---- */
+/* The film's play button: its second line at full strength, for contrast. */
+html.sh-hack .bigplay small { opacity: 1; }
+/* A link standing alone on its line is a 44 px target. */
+html.sh-hack a.guide { display: inline-flex; align-items: center; min-height: 44px; }
+/* Radio buttons and tick boxes (setup): drawn at the usual size inside a
+   44 px target, the negative margin keeping the layout as it was. */
+html.sh-hack:not(.hack-story) input:is([type=radio], [type=checkbox]) {
+  appearance: none; -webkit-appearance: none; flex: none; width: 44px; height: 44px; margin: -13px -10px -13px -13px;
+  cursor: pointer; border: 0; border-radius: 0; background: center / 18px 18px no-repeat;
+}
+html.sh-hack:not(.hack-story) input[type=radio] { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Ccircle cx='9' cy='9' r='8' fill='%23fffdf7' stroke='%23615b51' stroke-width='1.5'/%3E%3C/svg%3E"); }
+html.sh-hack:not(.hack-story) input[type=radio]:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Ccircle cx='9' cy='9' r='8' fill='%23fffdf7' stroke='%23a33f31' stroke-width='1.5'/%3E%3Ccircle cx='9' cy='9' r='4.5' fill='%23a33f31'/%3E%3C/svg%3E"); }
+html.sh-hack:not(.hack-story) input[type=checkbox] { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect x='1' y='1' width='16' height='16' rx='4' fill='%23fffdf7' stroke='%23615b51' stroke-width='1.5'/%3E%3C/svg%3E"); }
+html.sh-hack:not(.hack-story) input[type=checkbox]:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect x='1' y='1' width='16' height='16' rx='4' fill='%23a33f31' stroke='%23a33f31' stroke-width='1.5'/%3E%3Cpath d='M5 9.5l2.6 2.6L13 6.5' fill='none' stroke='%23fffdf7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+html.sh-hack:not(.hack-story) input:is([type=radio], [type=checkbox]):disabled { cursor: default; opacity: .6; }
+html.sh-hack:not(.hack-story) input:is([type=radio], [type=checkbox]):focus-visible { outline: 2px solid var(--color-accent); outline-offset: -10px; }
+/* The features page's "Back to the map" links. */
+html.sh-hack a.up { display: inline-flex; align-items: center; min-height: 44px; }
+@media (max-width: 700px) {
+  html.sh-hack :is(.sh-bar, .sh-foot) { flex-wrap: wrap; }
+}
+
+/* ---- Status and message pages: one card in the middle, as Simple Host's
+   pages.css draws them, under the Hack header. ---- */
+html.sh-hack body.sh-status { padding: 0; text-align: left; }
+html.sh-hack body.sh-status main {
+  max-width: 560px; margin: 12vh auto; padding: 28px 24px 24px; text-align: center;
+  background: var(--color-card); border: 1px solid var(--color-rule); border-radius: var(--radius-wobble);
+  width: calc(100% - 32px);
+}
+html.sh-hack body.sh-status main h1 { font-size: var(--text-2xl); line-height: 1.2; margin: 0 0 8px; font-weight: var(--w-strong); }
+html.sh-hack body.sh-status main p { color: var(--color-ink-soft); }
+html.sh-hack body.sh-status main a:not([class]) { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* ---- Phone: no bold anywhere, whatever a page's own styles say. ---- */
+@media (max-width: 699.98px) {
+  html.sh-hack body :not(svg, svg *, .sh-logo, .sh-logo *) { font-weight: 400 !important; }
+}

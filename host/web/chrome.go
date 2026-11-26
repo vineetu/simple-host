@@ -278,7 +278,7 @@ func (p *AssetPipeline) HostedStatusPage(page string) []byte {
 	if p.ChromeProduct {
 		d := ChromeData{Product: true, ProductStyleVersion: p.Product.StyleVersion, ProductStylePath: p.Pres.StylePath, ProductStyleClass: p.Pres.StyleClass, Base: p.InkBaseURL(), CSSVersion: SiteCSSVersion, SigninVersion: SigninJSVersion()}
 		if !strings.Contains(page, "<head>") && !strings.Contains(page, "<head ") {
-			page = "<!doctype html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
+			page = "<!doctype html><html lang=\"en\"><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\">" + markerHead + "</head><body>" + page + "</body></html>"
 		} else {
 			if !strings.Contains(page, `name="viewport"`) {
 				page = strings.Replace(page, "</head>", `<meta name="viewport" content="width=device-width, initial-scale=1"></head>`, 1)

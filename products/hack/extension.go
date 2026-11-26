@@ -75,7 +75,7 @@ func Extension() *extension.Extension {
 		Assets: func(site *siteshttp.SiteHandler) extension.Assets {
 			assets := pages.NewAssets(site.AssetServices(), site.Pages().InkBaseURL())
 			productAssets = assets
-			return extension.Assets{Replace: assetReplacements(), Own: ownAssetFiles(), Files: hackassets.Static, Skills: hackassets.HackSkills, Hooks: assets.Hooks(), Rewrite: assets.Rewrite,
+			return extension.Assets{Replace: assetReplacements(), Own: ownAssetFiles(), Files: productFiles{}, Skills: hackassets.HackSkills, Hooks: assets.Hooks(), Rewrite: assets.Rewrite,
 				Routes: func(mux *http.ServeMux, services web.AssetServices) {
 					mux.HandleFunc("GET /skills.zip", assets.ServeHackSkillsZip())
 					mux.HandleFunc("GET /skills/version", func(w http.ResponseWriter, r *http.Request) {
