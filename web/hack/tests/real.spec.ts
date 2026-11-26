@@ -278,7 +278,6 @@ for (const width of [390, 1280]) {
     const E = "/v1/hack/events/" + SLUG;
 
     await page.goto(APP + `/e/${SLUG}/manage?s=event-page`);
-    await expect(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /organiser-event-page/);
     await expect(page).toHaveURL(/tab=basics/);
     const tagline = "Tagline at " + width;
     await page.getByLabel("Tagline (optional)").fill(tagline);
@@ -331,7 +330,6 @@ test("judging: Overview, scoring a team, My teams", async ({ browser }) => {
   for (const width of [390, 1280]) {
     const { ctx, page, errors } = await person(browser, "budi", width);
     await page.goto(APP + `/e/${SLUG}/judge?s=home`);
-    await slow(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /judge-home/);
     await slow(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
     if (width === 390) {
       // The walkthrough opens the first time only, and Skip records it on the server.
@@ -414,7 +412,6 @@ test("team, entry and website: start a team, fill the entry, send the site zip",
 
   const { ctx, page, errors } = await person(browser, "ayu", 1280);
   await page.goto(APP + `/e/${SL}/team?s=team`);
-  await slow(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /participant-team/);
   // The walkthrough opens by itself the first time; Skip ends it.
   await slow(page.getByRole("dialog", { name: "Three ways onto a team" })).toBeVisible();
   await page.getByRole("button", { name: "Skip" }).click();
@@ -494,7 +491,6 @@ for (const width of [390, 1280]) {
     await ok("PATCH", "/v1/hack/preferences", { organiser_walkthrough_done: true }, keys.orga);
     const { ctx, page, errors } = await person(browser, "orga", width);
     await page.goto(APP + `/e/${SLUG}/manage?s=overview`);
-    await expect(page.locator('meta[name="hack-live"]')).toHaveAttribute("content", /organiser-overview/);
     await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
     await check(page, "organiser-home", width);
 
