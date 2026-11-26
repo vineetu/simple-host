@@ -20,3 +20,6 @@ export const removeFormerJudge = (call: Call, slug: string, user: string) => cal
 export const queue = (call: Call, slug: string) => call<Untyped>("GET", E(slug, "judge", "queue"));
 export const scores = (call: Call, slug: string, team: string) => call<Untyped>("GET", E(slug, "judge", "scores", seg(team)));
 export const score = (call: Call, slug: string, team: string, body: Untyped) => call<Untyped>("PUT", E(slug, "judge", "scores", seg(team)), body);
+/** The judge's own acknowledgements (rubric read, no known teams): the rubric's carries the version shown. */
+export const acknowledge = (call: Call, slug: string, id: string, version?: string) =>
+  call<Untyped>("POST", E(slug, "checklist", "acknowledgements", seg(id)), version ? { version } : {});
