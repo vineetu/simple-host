@@ -15,37 +15,8 @@
 <meta name="twitter:card" content="summary">
 {{end}}
 <link rel="icon" href="{{if and .IconURL (not .TakenDown)}}{{.IconURL}}{{else}}{{.AppURL}}/favicon.svg?v=c{{end}}">
-<link rel="stylesheet" href="{{.AppURL}}/hack/kit.css">
-<link rel="stylesheet" href="{{.AppURL}}/hack/public.css">{{if and .Theme (not .TakenDown)}}
-<link rel="stylesheet" href="{{.AppURL}}/hack/themes.css">{{end}}
-<style>
-  /* A few rules the kit does not carry, kept to a minimum
-     (tech_notes: "the app kit ... plus a few page rules inline"). */
-  .site-frame{aspect-ratio:16/10;overflow:hidden}
-  .site-frame img{width:100%;height:100%;object-fit:cover;display:block}
-  .ev-icon img{width:100%;height:100%;object-fit:cover}
-  .clock{font-weight:600;color:var(--line)}
-  /* Multi-line organiser text keeps its line breaks (fixes: FAQ answers and
-     announcement bodies were losing them; schedule descriptions already get
-     this from kit.css's .sched .what>span). */
-  #faq details p{white-space:pre-wrap}
-  #announcements .ann-body{margin-top:8px}
-
-  /* Result cards (build-plan §4.6): kit.css's .result-entry/.re-head/
-     .re-body/.ec-links already exist for this (moved over with slice 1's
-     kit-next.css merge, unused until now); these few rules are the page-
-     local bits that only this template needs, kept here rather than in the
-     shared kit so this slice touches kit.css not at all. */
-  .results .winner-thumb{width:48px;height:30px;flex:none;font-size:12px}
-  .result-entry{scroll-margin-top:12px}
-  .result-entry .re-head .sub{display:block;margin-top:2px}
-  .result-entry .ec-links{padding:0 16px 14px}
-  details.result-entry>summary{cursor:pointer;list-style:none}
-  details.result-entry>summary::-webkit-details-marker{display:none}
-  details.result-entry>summary::after{content:none}
-  details.result-entry>summary .chev{width:9px;height:9px;border-right:2px solid var(--line-faint);border-bottom:2px solid var(--line-faint);transform:rotate(45deg);transition:transform .15s}
-  details.result-entry[open]>summary .chev{transform:rotate(-135deg)}
-</style>
+<link rel="stylesheet" href="{{.AppURL}}/hack-event.css?v={{cssVersion}}">{{if and .Theme (not .TakenDown)}}
+<link rel="stylesheet" href="{{.AppURL}}/hack/themes.css?v={{themesVersion}}">{{end}}
 </head>
 <body>
 {{if .NotFound}}
@@ -536,11 +507,13 @@
          results are out) a "See result" link outside the site link
          entirely. Both halves open the same site, so the whole visible area
          still reads as one clickable card even though it is two anchors
-         under the hood. (Checker note: this comment reads as plain text to
+         under the hood. The picture's anchor is left out of the tab order
+         and hidden from screen readers: it repeats the title's, and a
+         picture with no words gave it no name. (Checker note: this comment reads as plain text to
          scripts/check-html.sh, so it never spells out a real tag name in
          angle brackets.) */}}
     <div class="site-card">
-      <a class="site-link" href="{{.URL}}"><span class="site-frame{{if not .Shot}} letter{{end}}">{{if .Shot}}<img src="{{.Shot}}" alt="" width="320" height="200" loading="lazy">{{else}}{{.Initial}}{{end}}</span></a>
+      <a class="site-link" href="{{.URL}}" tabindex="-1" aria-hidden="true"><span class="site-frame{{if not .Shot}} letter{{end}}">{{if .Shot}}<img src="{{.Shot}}" alt="" width="320" height="200" loading="lazy">{{else}}{{.Initial}}{{end}}</span></a>
       <div class="site-text">
         <a class="site-link" href="{{.URL}}"><b>{{.Title}}</b>{{if .Tagline}}<span class="site-tagline">{{.Tagline}}</span>{{end}}{{if .Team}}<span class="site-team">by {{.Team}}</span>{{end}}</a>
         {{if .Tools}}<ul class="tags">{{range .Tools}}<li class="tag">{{.}}</li>{{end}}</ul>{{end}}

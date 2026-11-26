@@ -142,7 +142,15 @@ HACK_NPM := cd $(HACK_WEB) && npm
 HACK_STALE := $(HACK_WEB)/hack/.stale-check
 HACK_DIST := products/hack/web/dist/files
 
-.PHONY: hack-web hack-web-deps hack-web-stale hack-web-check hack-web-accept hack-web-real
+.PHONY: hack-web hack-web-deps hack-web-pages hack-web-stale hack-web-check hack-web-accept hack-web-real
+
+# The pages the Go server writes (event page, marketing, status), rendered
+# with every file they load into web/hack/.catalogue-pages for the catalogue.
+HACK_PAGES := $(abspath $(HACK_WEB)/hack/.catalogue-pages)
+hack-web-pages:
+	rm -rf $(HACK_PAGES)
+	SH_HACK_PAGES=$(HACK_PAGES) go test ./products/hack/public -run TestWriteEventPages -count=1
+	SH_HACK_PAGES=$(HACK_PAGES) go test ./products/hack -run TestWriteCataloguePages -count=1
 
 hack-web-deps:
 	@[ -d $(HACK_WEB)/node_modules ] || ($(HACK_NPM) ci --no-audit --no-fund)
@@ -159,7 +167,7 @@ hack-web-stale: hack-web-deps
 
 # Everything: types, lint, unit tests (with the navigation map in step), the
 # stale check, and every catalogue entry at 390 and 1280 against its baseline (with axe).
-hack-web-check: hack-web-deps
+hack-web-check: hack-web-deps hack-web-pages
 	python3 scripts/build-hack-navigation.py --check
 	$(HACK_NPM) run hack:typecheck
 	$(HACK_NPM) run lint
@@ -169,7 +177,7 @@ hack-web-check: hack-web-deps
 	$(HACK_NPM) run hack:visual
 
 # Accept new baseline pictures after a deliberate change (look at them first).
-hack-web-accept: hack-web-deps
+hack-web-accept: hack-web-deps hack-web-pages
 	$(HACK_NPM) run hack:catalogue
 	$(HACK_NPM) run hack:visual:accept
 

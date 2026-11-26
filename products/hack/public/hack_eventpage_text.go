@@ -127,7 +127,7 @@ func hackDateRange(a, b time.Time) string {
 func hackScheduleViews(items []events.ScheduleItem, fixed []core.FixedRow, loc *time.Location, zoneFallback string) []hackScheduleView {
 	rows := core.TimedRows(items, fixed, loc)
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].SortAt.Before(rows[j].SortAt) })
-	ongoing, next := hackScheduleMarks(rows, time.Now())
+	ongoing, next := hackScheduleMarks(rows, pageNow())
 	var out []hackScheduleView
 	for i, r := range rows {
 		status := ""

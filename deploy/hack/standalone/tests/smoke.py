@@ -83,7 +83,7 @@ if mode=='presentation':
         assert 'fonts.googleapis.com' not in text
         assert text.count('class="sh-header sh-hack"')==1
         assert text.count('class="sh-footer"')==1
-        assert '/hack-ink.css?v=' in text
+        assert '/hack-pages.css?v=' in text
     for control in ['film','replayBtn','playBtn','scrub','soundBtn','clipSlot']:
         assert 'id="'+control+'"' in home
     assert home.count('class="cap" data-i=')==8

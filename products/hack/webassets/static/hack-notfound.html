@@ -7,17 +7,17 @@
 <title>__SH_MESSAGE__ · Simple Hack</title>
 <link rel="icon" href="__SH_BASE__/favicon.svg?v=c" type="image/svg+xml">
 <link rel="icon" href="__SH_BASE__/favicon.ico?v=c" sizes="any">
-<link rel="stylesheet" href="__SH_BASE__/hack/kit.css">
-<link rel="stylesheet" href="__SH_BASE__/hack/public.css">
+<link rel="stylesheet" href="__SH_BASE__/hack-event.css">
 <style>
   /* Simple Hack's own message page (platform notfound.html, replaced): no
-     Simple Host header, no theme menu, no link to another service. */
+     Simple Host header, no theme menu, no link to another service. The frame
+     is the public event page's (hack-event.css). */
   .nf{padding:56px 0 40px;text-align:center}
-  .nf-code{font-size:40px;font-weight:700;color:var(--line-faint);margin:0 0 10px;font-variant-numeric:tabular-nums}
-  .nf h1{font-size:26px;margin:0 0 8px}
+  .nf-code{font-size:40px;font-weight:var(--w-strong);color:var(--line-faint);margin:0 0 10px;font-variant-numeric:tabular-nums}
+  .nf h1{font-size:26px;margin:0 0 8px;font-weight:var(--w-strong)}
   .nf p{font-size:16px;color:var(--line-soft);margin:0 0 24px}
-  .btn-primary{display:inline-flex;align-items:center;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:var(--r-sm);padding:9px 16px;font-weight:600;text-decoration:none}
-  .btn-primary:hover{background:var(--accent-hover)}
+  .btn-primary{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:var(--r-sm);padding:9px 16px;font:inherit;font-weight:var(--w-medium);text-decoration:none;cursor:pointer}
+  .btn-primary:hover{background:var(--accent-hover);color:#fff}
   .nf form{display:inline-flex;gap:8px;flex-wrap:wrap;justify-content:center}
 </style>
 </head>

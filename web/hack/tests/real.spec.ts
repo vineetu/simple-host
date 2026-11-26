@@ -229,3 +229,27 @@ test("leaving an event from Your events (the only organiser deletes it), and sig
   await out.page.waitForURL(/\/signin\?next=%2Fevents/);
   await out.ctx.close();
 });
+
+for (const width of [390, 1280]) {
+  test(`the public event page and the home page, on the stylesheets built from the tokens @${width}`, async ({ browser }) => {
+    const { ctx, page, errors } = await person(browser, "", width);
+    const styles: string[] = [];
+    page.on("response", (r) => /\/hack-(event|pages)\.css/.test(r.url()) && r.status() === 200 && styles.push(new URL(r.url()).pathname));
+    // The event page: server-written, at the event's stage (judging), with its submission.
+    await page.goto(APP + `/e/${SLUG}`);
+    await expect(page.getByRole("heading", { name: "Real Night", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Submissions" })).toBeVisible();
+    await expect(page.getByText("Rice Ledger").first()).toBeVisible();
+    await expect(page.locator('link[href*="/hack/kit.css"]')).toHaveCount(0);
+    await check(page, "event-page", width);
+    // Home: the chrome's stylesheet is Hack's, built from the tokens; no hand font in the words.
+    await page.goto(APP + "/");
+    await expect(page.locator("html")).toHaveClass(/sh-hack/);
+    const h1 = await page.locator("h1").first().evaluate((el) => getComputedStyle(el).fontFamily);
+    expect(h1).not.toMatch(/Caveat|Kalam/);
+    await check(page, "home", width);
+    expect(styles.sort()).toEqual(["/hack-event.css", "/hack-pages.css"]);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+}

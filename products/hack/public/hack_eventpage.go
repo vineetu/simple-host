@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -18,6 +20,7 @@ import (
 	"github.com/vsriram/simple-host/host/httpx"
 	"github.com/vsriram/simple-host/products/hack/app/events"
 	"github.com/vsriram/simple-host/products/hack/model"
+	"github.com/vsriram/simple-host/products/hack/web/dist"
 )
 
 // hackEventPage is the public event page at <event>.simple-hack.app/.
@@ -112,6 +115,9 @@ type hackResultCard struct {
 // hackMaturityLabel is the plain word for what works today; keep in step with ui.js's MATURITY table (this server-rendered page has no script to share it).
 func hackMaturityLabel(m string) string { return hackMaturityLabels[m] }
 
+// pageNow is the page's clock (the catalogue's page writer freezes it).
+var pageNow = time.Now
+
 var hackMaturityLabels = map[string]string{"working": "Demo-ready", "partial": "Partly working", "concept": "Concept"}
 
 // hackResultsView is nil when nothing is published yet.
@@ -146,9 +152,22 @@ func NewHackEventPages(fsys fs.FS) *HackEventPages {
 
 func (p *HackEventPages) template() (*template.Template, error) {
 	p.once.Do(func() {
-		p.tmpl, p.err = template.New("hack-event.html").ParseFS(p.fsys, "static/hack-event.html")
+		p.tmpl, p.err = template.New("hack-event.html").Funcs(template.FuncMap{
+			"cssVersion":    func() string { return fileVersion(dist.Files, "files/hack-event.css") },
+			"themesVersion": func() string { return fileVersion(p.fsys, "static/hack/themes.css") },
+		}).ParseFS(p.fsys, "static/hack-event.html")
 	})
 	return p.tmpl, p.err
+}
+
+// fileVersion is the cache-busting ?v= of a stylesheet the page links.
+func fileVersion(fsys fs.FS, name string) string {
+	b, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])[:10]
 }
 
 // hackCTA is one button or text link: Strong renders it as the kit's
@@ -356,7 +375,7 @@ var hackSectionPresent = map[string]func(v *hackEventView) bool{
 // assembleHackEventPage renders the whole public event page: the view is
 // decided first, then each present section renders in the stage's order.
 func assembleHackEventPage(p hackEventPage, pages *HackEventPages) ([]byte, error) {
-	v := hackEventPageView(p, time.Now())
+	v := hackEventPageView(p, pageNow())
 	if v.Results != nil {
 		v.Chips = append(v.Chips, hackChip{ID: "results", Label: v.Results.Heading})
 	}

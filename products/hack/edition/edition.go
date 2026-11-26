@@ -37,7 +37,7 @@ func routesFor(k Kind) RoutePolicy {
 
 func presentationFor(k Kind) PresentationPolicy {
 	if k == Hack {
-		return PresentationPolicy{ProductName: "Simple Hack", ProductAssets: true, CanonicalBaseURL: "https://simple-hack.app", HostedHostPrefix: "simple-hack.", StylePath: "hack-ink.css", StyleClass: "sh-hack", PluginVersion: "0.27.20", ServerCardName: "app.simple-hack/mcp", ServerCardDescription: "Run events, join teams, publish team websites, and judge entries through the signed-in connector.", SitemapPaths: "/ /get-started /companies /directory /watch /terms /privacy.html"}
+		return PresentationPolicy{ProductName: "Simple Hack", ProductAssets: true, CanonicalBaseURL: "https://simple-hack.app", HostedHostPrefix: "simple-hack.", StylePath: "hack-pages.css", StyleClass: "sh-hack", PluginVersion: "0.27.20", ServerCardName: "app.simple-hack/mcp", ServerCardDescription: "Run events, join teams, publish team websites, and judge entries through the signed-in connector.", SitemapPaths: "/ /get-started /companies /directory /watch /terms /privacy.html"}
 	}
 	return PresentationPolicy{ProductName: "Simple Host"}
 }
