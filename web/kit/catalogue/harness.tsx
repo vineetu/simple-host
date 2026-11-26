@@ -4,7 +4,9 @@
 //   catalogue.html?id=<id>    one entry on its own page (what the visual checks open);
 //                             <body data-ready> is set once its steps have run.
 // An entry is a URL inside the app, the API's answers for it (fixtures) and
-// optional steps (click, fill, select) to reach a dialog or a later step.
+// optional steps (click, fill, select) to reach a dialog or a later step:
+// fill types into an input or a textarea, so a state that needs words typed
+// (a message the server refuses) is one fill and one click.
 // (Simple Host's owner app keeps its own copy in web/host/src/catalogue/main.tsx for now.)
 import { StrictMode, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
@@ -96,8 +98,9 @@ async function run(steps: Step[]) {
       el.click();
     } else {
       const [sel, value] = "fill" in s ? s.fill : s.select;
-      const el = (await waitFor(sel)) as HTMLInputElement | HTMLSelectElement;
-      const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+      // An input, a textarea or a select: through its own value setter, so React sees the change.
+      const el = (await waitFor(sel)) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+      const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, value);
       el.dispatchEvent(new Event("fill" in s ? "input" : "change", { bubbles: true }));
     }

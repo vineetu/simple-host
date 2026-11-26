@@ -45,4 +45,11 @@ export const entries: Entry[] = [
   { id: "organiser-announcements.no-one-to-email", title: "Announcements: no one to email", url: u, api: orgApi(A, noEmail) },
   { id: "organiser-announcements.ended", title: "Announcements: ended, read only", url: u, api: orgApi(A, org({}, { stage: "archived" })) },
   { id: "organiser-announcements.admin", title: "Announcements: platform admin, read only", url: u, api: orgApi(A, org({ admin_view: true })) },
+  {
+    id: "organiser-announcements.post-refused",
+    title: "Announcements: a post the server refuses, said under the form with the words kept",
+    url: u,
+    api: orgApi({ ...A, ["POST " + E("announcements")]: refuse(409, "event_closed", "This event has ended, so nothing new can be posted.") }),
+    steps: [{ fill: ["input[maxlength='120']", "Pizza at six"] }, { fill: ["textarea", "Pizza is in the courtyard at six. Bring your team."] }, { click: "button[type=submit]" }],
+  },
 ];

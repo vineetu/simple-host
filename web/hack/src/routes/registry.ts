@@ -13,6 +13,8 @@ export type ScreenDef = {
   kind: ScreenKind;
   /** The browser tab's title before " · Simple Hack". */
   title: string;
+  /** A title that follows the tab or the event (the old screen's title(ctx)), in place of title. */
+  tabTitle?: (params: URLSearchParams, event: { title: string }) => string;
   load: () => Promise<{ default: ComponentType<ScreenProps> }>;
 };
 

@@ -13,9 +13,9 @@ import { join } from "node:path";
 import { expect as baseExpect, test, type BrowserContext, type Page } from "@playwright/test";
 import { axe, layout } from "../../kit/tests/checks";
 
-test.describe.configure({ mode: "serial", timeout: 600_000 });
-// The box running this may be busy: give each screen longer than the default 5 s to appear.
-const expect = baseExpect.configure({ timeout: 30_000 });
+test.describe.configure({ mode: "serial", timeout: 180_000 });
+// A shared, CPU-capped box: a little longer than the default 5 s for each screen to appear.
+const expect = baseExpect.configure({ timeout: 15_000 });
 
 const ROOT = join(import.meta.dirname, "../../..");
 const SHOTS = join(import.meta.dirname, "../test-results/real");
@@ -93,7 +93,7 @@ async function signUp(name: string) {
 }
 
 test.beforeAll(async () => {
-  test.setTimeout(600_000);
+  test.setTimeout(300_000); // the go build and the schema
   PORT = await freePort();
   dir = mkdtempSync(join(tmpdir(), "hk-fe-"));
   execFileSync("go", ["build", "-o", join(dir, "simple-hack"), "./cmd/simple-hack"], { cwd: ROOT, stdio: "inherit" });
@@ -111,6 +111,10 @@ test.beforeAll(async () => {
       ADMIN_API_KEY: "real-test-admin-key-0123456789abcdef",
       PASSCODE_ENC_KEY: Buffer.alloc(32, 7).toString("base64"),
       RESEND_API_KEY: "",
+      // One notification worker, not the default 20: twenty idle workers polling the
+      // delivery queue every second kept the test database busy (several hundred
+      // queries a second), which made every request take seconds (GET E 3-10 s).
+      NOTIFY_WORKERS: "1",
     },
     stdio: ["ignore", openSync(join(dir, "server.log"), "w"), openSync(join(dir, "server.log"), "a")],
   });
@@ -268,7 +272,7 @@ for (const width of [390, 1280]) {
 // Organiser setup (D2): the organiser edits the event page and their details, then reads Judging and the grid.
 for (const width of [390, 1280]) {
   test(`organiser setup: event page, settings, judging and the grid @${width}`, async ({ browser }) => {
-    test.setTimeout(360_000);
+    test.setTimeout(180_000);
     const { ctx, page, errors } = await person(browser, "orga", width);
     const E = "/v1/hack/events/" + SLUG;
 
@@ -278,8 +282,7 @@ for (const width of [390, 1280]) {
     const tagline = "Tagline at " + width;
     await page.getByLabel("Tagline (optional)").fill(tagline);
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    // A save reads the event again; on this test server GET E takes seconds (its site-certificate check), so allow for it.
-    await expect(page.getByText("No unsaved changes")).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText("No unsaved changes")).toBeVisible();
     await expect.poll(async () => ((await call("GET", E, undefined, keys.orga)).body.event as Record<string, unknown>).tagline).toBe(tagline);
     await check(page, "event-page-basics", width);
 
@@ -291,8 +294,7 @@ for (const width of [390, 1280]) {
     await expect(page.getByLabel("Organisation or community")).toBeVisible();
     await page.getByLabel("Organisation or community").fill("Real Club " + width);
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    // A save reads the event again; on this test server GET E takes seconds (its site-certificate check), so allow for it.
-    await expect(page.getByText("No unsaved changes")).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText("No unsaved changes")).toBeVisible();
     await expect.poll(async () => ((await call("GET", E, undefined, keys.orga)).body.organiser as Record<string, unknown>).organisation).toBe("Real Club " + width);
     await check(page, "settings-details", width);
 
@@ -315,11 +317,10 @@ for (const width of [390, 1280]) {
 // chips and a comment, and lands on My teams with it scored; the scores are on
 // the server. Coming into Scoring from a screen loaded elsewhere loads the page
 // again, so the judge address's frame policy applies.
-// A loaded box can take a few seconds per screen, so this walk waits longer than the default.
-const slow = expect.configure({ timeout: 30_000 });
+const slow = expect;
 
 test("judging: Overview, scoring a team, My teams", async ({ browser }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(180_000);
   await signUp("budi");
   const E = "/v1/hack/events/" + SLUG;
   const ev = await ok("GET", E, undefined, keys.orga);
@@ -399,9 +400,8 @@ test("judging: Overview, scoring a team, My teams", async ({ browser }) => {
 // on an open event, sets it up, saves and submits an entry, and sends the
 // team site's zip; then each screen is checked at a phone's width.
 test("team, entry and website: start a team, fill the entry, send the site zip", async ({ browser }) => {
-  test.setTimeout(300_000);
-  // A loaded box answers slowly; these steps wait longer than the default 5 s.
-  const slow = expect.configure({ timeout: 20_000 });
+  test.setTimeout(180_000);
+  const slow = expect;
   const SL = "team-night";
   const E = "/v1/hack/events/" + SL;
   await signUp("ayu");
@@ -487,7 +487,7 @@ test("team, entry and website: start a team, fill the entry, send the site zip",
 
 for (const width of [390, 1280]) {
   test(`the organiser runs the event: Home, Teams, Entries and Results, the new app @${width}`, async ({ browser }) => {
-    test.setTimeout(300_000);
+    test.setTimeout(180_000);
     const E = "/v1/hack/events/" + SLUG;
     // The walkthrough is seen already (it would open by itself the first time).
     await ok("PATCH", "/v1/hack/preferences", { organiser_walkthrough_done: true }, keys.orga);

@@ -50,19 +50,6 @@ const base = {
 };
 const acct = (o: Record<string, unknown> = {}) => api({ ...base, ...o });
 
-// The harness fills a field through the input element's value setter; this
-// lets the same step fill a textarea (Purpose), so the form gets past its own check.
-function textareaFill() {
-  const input = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!;
-  const area = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!;
-  Object.defineProperty(HTMLInputElement.prototype, "value", {
-    ...input,
-    set(this: HTMLElement, v: string) {
-      return this instanceof HTMLTextAreaElement ? area.set!.call(this, v) : input.set!.call(this, v);
-    },
-  });
-}
-
 export const entries: Entry[] = [
   { id: "account.loading", title: "Account: loading", url: "/account", api: acct({ "/v1/me": "pending" }) },
   { id: "account.error", title: "Account: did not load", url: "/account", api: acct({ "/v1/me": refuse(500, "error", "Something went wrong. Try again.") }) },
@@ -193,7 +180,6 @@ export const entries: Entry[] = [
       "/v1/hack/names/kopi-fest": { available: true },
       "POST /v1/hack/events": refuse(409, "too_many_active_events", "You already have 3 events, the most this site allows. Events count until they're ended: end one from its Home, or delete it in Settings."),
     }),
-    before: textareaFill,
     steps: [
       { fill: ["#new-title", "Kopi Fest"] },
       { fill: ["#new-start", "2026-12-05"] },

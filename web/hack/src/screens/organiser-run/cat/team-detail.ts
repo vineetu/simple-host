@@ -73,4 +73,11 @@ export const entries: Entry[] = [
   { id: "organiser-team-detail.delete", title: "Team detail: delete the team, the confirm", url: lumbung, api: ok(), steps: [{ click: "text=Delete team" }] },
   { id: "organiser-team-detail.message", title: "Team detail: message the team", url: lumbung, api: ok(), steps: [{ click: "text=Message team" }] },
   { id: "organiser-team-detail.message-empty", title: "Team detail: send with no message", url: lumbung, api: ok(), steps: [{ click: "text=Message team" }, { click: "text=Send" }] },
+  {
+    id: "organiser-team-detail.message-refused",
+    title: "Team detail: a message the server refuses keeps the dialog open with its words",
+    url: lumbung,
+    api: ok({ ["POST " + E("team-messages")]: refuse(429, "rate_limited", "You've sent a lot of messages in the last hour. Wait a few minutes and try again.") }),
+    steps: [{ click: "text=Message team" }, { fill: ["#tm-text", "Your demo slot moved to 2 pm."] }, { click: "text=Send" }],
+  },
 ];

@@ -2,7 +2,9 @@
 // Each control saves on change with a "Saved" tick beside it. Colour, style
 // and the two switches keep working after End; the icon does not (the
 // server refuses PUT/DELETE E/icon once archived). An inspection is read-only.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+// The public page's own Look stylesheet (every rule is scoped under .pub-event[data-theme], so it touches nothing else).
+import themesCss from "../../../../../products/hack/webassets/static/hack/themes.css?inline";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@kit/components/ui/button";
 import { Check, RadioCards } from "@kit/components/ui/choice";
@@ -57,7 +59,19 @@ function Swatches({ value, auto, onChange, disabled }: { value: string; auto: st
   );
 }
 
+/** useThemes puts the Looks' stylesheet on the page once, so the preview shows the chosen Look as the public page does. */
+function useThemes() {
+  useEffect(() => {
+    if (document.getElementById("hack-themes")) return;
+    const el = document.createElement("style");
+    el.id = "hack-themes";
+    el.textContent = themesCss;
+    document.head.appendChild(el);
+  }, []);
+}
+
 export function Look(p: TabProps) {
+  useThemes();
   const { slug, ev, admin, ended } = p;
   const api = useHack();
   const qc = useQueryClient();
@@ -158,15 +172,28 @@ export function Look(p: TabProps) {
       {ended && !admin && <EndedEditable />}
       <section aria-label="Preview" className={box}>
         <h3 className="type-label text-ink-soft">Preview</h3>
-        <div className="mt-2 flex items-center gap-3 rounded-field px-4 py-4" style={{ background: bg, color: ink }}>
-          <span className="grid size-13 flex-none place-items-center overflow-hidden rounded-tag border-2 bg-card" style={{ borderColor: ink }}>
-            {hasIcon && <img src={String(ev.icon_url)} alt="" width={52} height={52} className="size-full object-cover" />}
-          </span>
-          <span className="min-w-0">
-            <span className="block text-lg font-semibold">{ev.title}</span>
-            {ev.tagline ? <span className="block text-sm">{String(ev.tagline)}</span> : null}
-          </span>
-        </div>
+        {theme ? (
+          // The chosen Look itself (themes.css): its background, type and shapes, with the event's colour.
+          <div className="pub-event preview-head mt-2 flex items-center gap-3" data-theme={theme} style={{ "--ev": hex, "--accent": hex } as React.CSSProperties}>
+            <span className="ev-icon grid size-13 flex-none place-items-center overflow-hidden rounded-tag border-2 bg-card" style={{ borderColor: hex }}>
+              {hasIcon && <img src={String(ev.icon_url)} alt="" width={52} height={52} className="size-full object-cover" />}
+            </span>
+            <span className="min-w-0">
+              <h3 className="m-0 text-lg">{ev.title}</h3>
+              {ev.tagline ? <p className="m-0 text-sm">{String(ev.tagline)}</p> : null}
+            </span>
+          </div>
+        ) : (
+          <div className="mt-2 flex items-center gap-3 rounded-field px-4 py-4" style={{ background: bg, color: ink }}>
+            <span className="grid size-13 flex-none place-items-center overflow-hidden rounded-tag border-2 bg-card" style={{ borderColor: ink }}>
+              {hasIcon && <img src={String(ev.icon_url)} alt="" width={52} height={52} className="size-full object-cover" />}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-lg font-semibold">{ev.title}</span>
+              {ev.tagline ? <span className="block text-sm">{String(ev.tagline)}</span> : null}
+            </span>
+          </div>
+        )}
         <p className="mt-2 text-sm text-ink-soft">Page style: {themeName}</p>
       </section>
 

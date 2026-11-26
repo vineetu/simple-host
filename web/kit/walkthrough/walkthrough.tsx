@@ -71,7 +71,13 @@ export function Walkthrough({ steps, open, onFinish, onClose }: { steps: WalkSte
   const [index, setIndex] = useState(-1);
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [, redraw] = useState(0);
-  const card = useRef<HTMLDivElement>(null);
+  const card = useRef<HTMLDivElement | null>(null);
+  // The card as state too: it mounts a render after the step (through the portal).
+  const [cardEl, setCardEl] = useState<HTMLDivElement | null>(null);
+  const cardRef = useCallback((el: HTMLDivElement | null) => {
+    card.current = el;
+    setCardEl(el);
+  }, []);
   const before = useRef<Element | null>(null);
 
   // Opening: after the frame (the screen under it has drawn), the first step that can show.
@@ -116,7 +122,7 @@ export function Walkthrough({ steps, open, onFinish, onClose }: { steps: WalkSte
 
   // Room below the page's last section while a docked card is up, so it covers nothing.
   useLayoutEffect(() => {
-    const el = card.current;
+    const el = cardEl;
     if (!open || !docked || !el || typeof ResizeObserver === "undefined") return;
     const body = document.body;
     const was = body.style.paddingBottom;
@@ -128,7 +134,7 @@ export function Walkthrough({ steps, open, onFinish, onClose }: { steps: WalkSte
       ro.disconnect();
       body.style.paddingBottom = was;
     };
-  }, [open, docked, index]);
+  }, [open, docked, cardEl]);
 
   const finish = useCallback(() => {
     onFinish();
@@ -203,7 +209,7 @@ export function Walkthrough({ steps, open, onFinish, onClose }: { steps: WalkSte
       <P.Anchor virtualRef={anchor} />
       <P.Portal>
         <P.Content
-          ref={card}
+          ref={cardRef}
           key={index}
           role="dialog"
           aria-modal="false"

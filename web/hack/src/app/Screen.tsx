@@ -134,7 +134,7 @@ function EventScreen({ match }: { match: Match }) {
   // The frame shows the area of the address (an organiser who also judges sees the judge area on /judge).
   const view: EventDetail = { ...d, role: match.role! };
   return (
-    <HackShell title={def.title} where={{ screen: match.id, event: view, section: match.section, params: new URLSearchParams(search) }}>
+    <HackShell title={def.tabTitle ? def.tabTitle(new URLSearchParams(search), d.event) : def.title} where={{ screen: match.id, event: view, section: match.section, params: new URLSearchParams(search) }}>
       {locked ? <Locked d={d} /> : <Body id={match.id} match={match} />}
       {match.role === "organiser" && (
         <Suspense fallback={null}>

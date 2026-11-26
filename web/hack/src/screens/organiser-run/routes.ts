@@ -6,7 +6,7 @@ import type { ScreenDef } from "@/routes/registry";
 export const screens: Record<string, ScreenDef> = {
   "organiser-overview": { kind: "event", title: "Home", load: () => import("./Overview") },
   "organiser-people": { kind: "event", title: "People", load: () => import("./People") },
-  "organiser-teams": { kind: "event", title: "Teams", load: () => import("./Teams") },
+  "organiser-teams": { kind: "event", title: "Teams", tabTitle: (q) => (q.get("tab") === "solo" ? "Not on a team" : "Teams") + " · Teams", load: () => import("./Teams") },
   "organiser-team-detail": { kind: "event", title: "Team", load: () => import("./TeamDetail") },
   "organiser-entries": { kind: "event", title: "Entries", load: () => import("./Entries") },
   "organiser-entry-detail": { kind: "event", title: "Entry", load: () => import("./EntryDetail") },
