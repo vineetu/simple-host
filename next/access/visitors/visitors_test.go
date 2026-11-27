@@ -107,7 +107,13 @@ func TestVisitorSignInIsPerSite(t *testing.T) {
 	if in, _ := me(t, v, siteB); in {
 		t.Fatal("site B after signing out: still signed in")
 	}
-	if next, _ := verify(t, v, map[string]any{"hop": hop(t, v, siteB)}); next == "" {
-		t.Fatal("B asked to confirm a second time")
+	// After signing out of B, signing in there asks who again (so another
+	// email can be used); it does not sign the same person straight back in.
+	if next, confirm := verify(t, v, map[string]any{"hop": hop(t, v, siteB)}); next != "" || confirm == "" {
+		t.Fatalf("B after signing out: next %q, confirm %q", next, confirm)
+	}
+	// Site A was not signed out of: it still only continues.
+	if next, _ := verify(t, v, map[string]any{"hop": hop(t, v, siteA)}); next == "" {
+		t.Fatal("A asked to confirm a second time")
 	}
 }

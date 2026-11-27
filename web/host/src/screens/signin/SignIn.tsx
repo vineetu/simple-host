@@ -160,7 +160,18 @@ export function SignIn() {
             <Button variant="primary" size="lg" className="mt-3" onClick={confirm} disabled={busy}>
               Continue
             </Button>
-            <Button asChild size="lg" className="mt-2.5">
+            <Button
+              size="lg"
+              className="mt-2.5"
+              onClick={() => {
+                setStep("email");
+                setSay({ text: "" });
+                setTimeout(() => emailRef.current?.focus());
+              }}
+            >
+              Use another email
+            </Button>
+            <Button asChild variant="link" className="mt-2.5">
               <a href="/">Cancel</a>
             </Button>
             <FieldMessage tone={say.bad ? "bad" : undefined}>{say.text}</FieldMessage>

@@ -77,7 +77,16 @@ func (h *handler) finish(w http.ResponseWriter, r *http.Request) error {
 // post (a gate page's button) goes back to its page; a script gets JSON.
 func (h *handler) signOut(w http.ResponseWriter, r *http.Request) error {
 	id := access.SiteSessionID(access.Cookie(r, "sh_vsess"))
-	if _, err := h.a.DB.ExecContext(r.Context(), `DELETE FROM visitor_sessions WHERE id = $1 AND site_id = $2`, id, sites.PlaceOf(r).Site.ID); err != nil {
+	site := sites.PlaceOf(r).Site.ID
+	// Signing out here also forgets "continue as me" for this site: the next
+	// sign-in asks who, so the person can pick another email. Without it the
+	// platform's own session signed them straight back in.
+	if c := web.CallerOf(r); c.ID != "" {
+		if _, err := h.a.DB.ExecContext(r.Context(), `UPDATE visitor_signins SET confirmed = false WHERE site_id = $1 AND person_id = $2`, site, c.ID); err != nil {
+			return err
+		}
+	}
+	if _, err := h.a.DB.ExecContext(r.Context(), `DELETE FROM visitor_sessions WHERE id = $1 AND site_id = $2`, id, site); err != nil {
 		return err
 	}
 	access.SetCookie(w, r, "sh_vsess", "", 0)
