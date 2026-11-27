@@ -26,15 +26,18 @@ for (const e of entries) {
   }
 }
 
-// The pages the server writes: opened as they are, with no fixtures.
+// The pages the server writes: opened as they are. The text pages ask who is
+// looking; here someone signed in is, the fuller header.
 for (const e of pageEntries) {
   for (const width of [390, 1280]) {
     test(`${e.id} @${width}`, async ({ page }) => {
       const errors: string[] = [];
       page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
       page.on("pageerror", (err) => errors.push(err.message));
+      await page.route("**/v1/me", (r) => r.fulfill({ json: { email: "ana@example.com" } }));
       await page.setViewportSize({ width, height: 800 });
       await page.goto(e.page, { waitUntil: "load" });
+      if (e.id.startsWith("text-")) await expect(page.getByRole("link", { name: "Sign out", exact: true })).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       const problems = [...errors.map((x) => "console: " + x), ...(await layout(page)), ...(await axe(page))];
       expect(problems, e.title).toEqual([]);

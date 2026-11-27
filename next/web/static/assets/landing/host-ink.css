@@ -152,7 +152,7 @@ html.sh-host .sh-header :is(a,button) {
   box-sizing:border-box; min-height:44px; min-width:44px;
 }
 html.sh-host .sh-header :is(.sh-logo,.sh-nav a),
-html.sh-host .sh-header:not(.sh-authed) #dash-link { display:inline-flex; align-items:center; }
+html.sh-host .sh-header .sh-signin { display:inline-flex; align-items:center; }
 html.sh-host .sh-header .sh-theme { width:44px; height:44px; }
 @media(max-width:420px) {
   html.sh-host .sh-header .sh-bar { flex-wrap:nowrap; padding:12px 10px; gap:6px; }
@@ -239,5 +239,7 @@ html.sh-host .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]
 html.sh-host #mg-tabs .tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:10px; right:10px; bottom:4px; }
 html.sh-host .owner-tab:is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:-2px; right:-2px; bottom:4px; }
 html.sh-host :is(.range-opt,[data-os],.chip):is([aria-pressed="true"],[aria-selected="true"],[aria-current]:not([aria-current="false"]),.active,.on,.selected,.current)::after { left:9px; right:9px; bottom:2px; height:6px; }
+/* Who sees what: header.js sets data-account on <html>; until it has, neither. */
+html:not([data-account="in"]) [data-when="signed-in"], html:not([data-account="out"]) [data-when="signed-out"] { display: none !important; }
 /* Signed in on a phone: Your sites, Account and Sign out take the room of the public links. */
-@media(max-width:699px){html.sh-host .sh-header .sh-signed .sh-nav[aria-label="Main"]{display:none}html.sh-host .sh-header .sh-signed .sh-nav{gap:14px;margin-left:6px}}
+@media(max-width:699px){html.sh-host[data-account="in"] .sh-header .sh-nav[aria-label="Main"]{display:none}html.sh-host[data-account="in"] .sh-header .sh-nav{gap:14px;margin-left:6px}}

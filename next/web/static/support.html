@@ -16,7 +16,9 @@
       <a href="/install">Get started</a>
       <a href="/docs">Docs</a>
     </nav>
-    <a class="sh-signin" id="dash-link" href="/dashboard">Your sites</a>
+    <a class="sh-signin" href="/signin" data-when="signed-out">Sign in</a>
+    <a class="sh-signin" href="/dashboard" data-when="signed-in">Your sites</a>
+    <nav class="sh-nav" aria-label="Your account" data-when="signed-in"><a href="/dashboard/account">Account</a><a href="/" data-sign-out>Sign out</a></nav>
   </div>
 </header>
 <main class="container">

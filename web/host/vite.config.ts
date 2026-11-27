@@ -107,6 +107,7 @@ function serverPages(): PluginOption {
       const statics = at("../../next/web/static");
       mkdirSync(out, { recursive: true });
       for (const p of ["privacy", "terms", "support", "docs"]) cpSync(`${statics}/${p}.html`, `${out}/${p}.html`);
+      cpSync(`${statics}/header.js`, at(".catalogue/header.js")); // the text pages' account corner
       mkdirSync(at(".catalogue/assets"), { recursive: true });
       cpSync(`${statics}/assets/favicon.svg`, at(".catalogue/assets/favicon.svg"));
       cpSync(at("public/app/icon-192.png"), at(".catalogue/favicon.ico")); // what a browser asks a gate page's host for

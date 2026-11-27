@@ -2,6 +2,7 @@
 // everywhere, and, set apart, deleting the account (typed email to confirm).
 import { useState } from "react";
 import { useApi } from "@/lib/api";
+import { useSignOut } from "@/lib/signout";
 import { Button } from "@kit/components/ui/button";
 import { AskDialog, Dialog, DialogActions } from "@kit/components/ui/dialog";
 import { Field, Input } from "@kit/components/ui/input";
@@ -14,14 +15,7 @@ export function YourData({ me }: { me: Me }) {
   const toast = useToast();
   const [everywhere, setEverywhere] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const signOut = async (all: boolean) => {
-    try {
-      await call("POST", "/v1/auth/signout", all ? { everywhere: true } : {});
-      window.location.replace("/");
-    } catch (e) {
-      toast((e as Error).message, { bad: true });
-    }
-  };
+  const signOut = useSignOut();
   return (
     <>
       <Part

@@ -279,6 +279,71 @@ for (const width of [390, 1280]) {
     await ctx.close();
   });
 
+  test(`signing in and out, from the public pages and the app @${width}`, async ({ browser }) => {
+    test.setTimeout(90_000);
+    const email = `inout${width}@example.com`;
+    await signInByScript(email, "inout" + width); // the account exists; the browser starts signed out
+    const ctx = await browser.newContext({ viewport: { width, height: 860 }, serviceWorkers: "block" });
+    await route(ctx);
+    const page = await ctx.newPage();
+    const bar = page.getByRole("banner");
+    const signedOut = async () => {
+      await expect(bar.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
+      for (const name of ["Your sites", "Account", "Sign out"]) await expect(bar.getByRole("link", { name, exact: true })).toBeHidden();
+    };
+    const signedIn = async () => {
+      for (const name of ["Your sites", "Account", "Sign out"]) await expect(bar.getByRole("link", { name, exact: true })).toBeVisible();
+      await expect(bar.getByRole("link", { name: "Sign in", exact: true })).toBeHidden();
+    };
+    const signIn = async () => {
+      await page.getByLabel("Email").fill(email);
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await page.getByLabel("Code").fill(await code(email));
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Your sites" })).toBeVisible();
+    };
+
+    // Signed out: every public page offers Sign in, and nothing of an account.
+    for (const path of ["/", "/docs", "/install", "/support", "/terms", "/privacy"]) {
+      await page.goto(APP + path);
+      await signedOut();
+    }
+    await page.goto(APP + "/");
+    await signedOut();
+    await page.screenshot({ path: `${SHOTS}/home-signed-out-${width}.png` });
+    await bar.getByRole("link", { name: "Sign in", exact: true }).click();
+    await signIn();
+
+    // Signed in: the same pages show Your sites, Account and Sign out.
+    for (const path of ["/docs", "/install", "/support", "/terms", "/privacy", "/"]) {
+      await page.goto(APP + path);
+      await signedIn();
+    }
+    await page.screenshot({ path: `${SHOTS}/home-signed-in-${width}.png` });
+    await page.goto(APP + "/docs");
+    await signedIn();
+    await check(page, "docs-signed-in", width);
+    await page.goto(APP + "/");
+    await bar.getByRole("link", { name: "Account", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
+
+    // Sign out from a public page; the dashboard then asks to sign in.
+    await page.goto(APP + "/docs");
+    await bar.getByRole("link", { name: "Sign out", exact: true }).click();
+    await signedOut();
+    expect(new URL(page.url()).pathname).toBe("/");
+    await page.goto(APP + "/dashboard");
+    await expect(page.getByLabel("Email")).toBeVisible();
+
+    // Sign in again and sign out from inside the app.
+    await signIn();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signedOut();
+    await page.goto(APP + "/dashboard");
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await ctx.close();
+  });
+
   test(`gate pages and the visitor's sign-in @${width}`, async ({ browser }) => {
     test.setTimeout(60_000);
     const ctx = await browser.newContext({ viewport: { width, height: 860 }, serviceWorkers: "block" });

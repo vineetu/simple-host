@@ -5,9 +5,9 @@ import { useEffect, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useApi } from "@/lib/api";
+import { useSignOut } from "@/lib/signout";
 import { cn } from "@kit/lib/utils";
 import { Wordmark } from "@kit/components/ui/page-shell";
-import { useToast } from "@kit/components/ui/toast";
 import { AccountIcon, AdminIcon, DocsIcon, SignOutIcon, SitesIcon } from "./icons";
 
 export type Me = { id: string; email: string; handle: string; operator: boolean };
@@ -21,8 +21,6 @@ type Item = { href: string; label: string; icon: ReactNode; on: (path: string) =
 
 export function AppShell({ title, children }: { title: string; children: ReactNode }) {
   const me = useMe().data;
-  const call = useApi();
-  const toast = useToast();
   const { pathname } = useLocation();
   const items: Item[] = [
     { href: "/dashboard", label: "Sites", icon: <SitesIcon />, on: (p) => p.startsWith("/dashboard") && !p.startsWith("/dashboard/account") },
@@ -30,14 +28,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
     ...(me?.operator ? [{ href: "/admin", label: "Admin", icon: <AdminIcon />, on: (p: string) => p.startsWith("/admin") }] : []),
     { href: "/docs", label: "Docs", icon: <DocsIcon />, on: () => false },
   ];
-  const signOut = async () => {
-    try {
-      await call("POST", "/v1/auth/signout", {});
-      window.location.assign("/");
-    } catch (e) {
-      toast((e as Error).message, { bad: true });
-    }
-  };
+  const signOut = useSignOut();
   // Tells what floats over the page (the toast) how much room the bars take.
   useEffect(() => {
     document.documentElement.dataset.shell = "app";
@@ -73,7 +64,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
           {me && <p className="mb-1 px-3 text-sm text-ink-soft [overflow-wrap:anywhere]">{me.email}</p>}
           <button
             type="button"
-            onClick={signOut}
+            onClick={() => signOut()}
             className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-tab px-3 text-base font-medium text-ink-soft hover:bg-paper-lo hover:text-ink"
           >
             <SignOutIcon />
@@ -88,7 +79,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
           <Wordmark className="text-2xl" />
         </a>
         {me && (
-          <button type="button" onClick={signOut} className="inline-flex min-h-11 cursor-pointer items-center gap-2 px-1 text-sm text-ink-soft hover:text-ink">
+          <button type="button" onClick={() => signOut()} className="inline-flex min-h-11 cursor-pointer items-center gap-2 px-1 text-sm text-ink-soft hover:text-ink">
             <SignOutIcon />
             Sign out
           </button>

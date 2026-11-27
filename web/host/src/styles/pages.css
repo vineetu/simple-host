@@ -96,6 +96,8 @@
   .sh-nav a:hover { color: var(--color-ink); }
   .sh-nav a[aria-current] { color: var(--color-ink); text-decoration: underline; text-decoration-color: var(--color-accent); text-decoration-thickness: 3px; text-underline-offset: 8px; }
   .sh-signin { padding: 0 14px; border: 1.5px solid var(--color-ink-soft); border-radius: var(--radius-wobble); color: var(--color-ink); background: var(--color-card); }
+  /* Who sees what: header.js sets data-account on <html>; until it has, neither. */
+  html:not([data-account="in"]) [data-when="signed-in"], html:not([data-account="out"]) [data-when="signed-out"] { display: none !important; }
   .sh-signin:hover { background: var(--color-paper-lo); color: var(--color-ink); }
   .sh-footer { border-top: 1.5px dashed var(--color-ink-soft); margin-top: 56px; }
   .sh-foot { max-width: var(--container-page); margin: 0 auto; padding: 16px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left)); }
@@ -179,7 +181,7 @@
     .sh-nav { gap: 4px 10px; }
     .sh-nav .sh-nav-home { display: none; }
     /* Signed in on a phone: Your sites, Account and Sign out take the room of the public links. */
-    .sh-signed .sh-nav[aria-label="Main"] { display: none; }
+    html[data-account="in"] .sh-nav[aria-label="Main"] { display: none; }
     .sh-nav a, .sh-signin { font-size: var(--text-sm); }
     .container h1 { font-size: var(--text-3xl); }
     .container .intro { font-size: var(--text-base); }

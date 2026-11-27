@@ -1,27 +1,18 @@
-// The public pages' header for someone signed in: Account and Sign out next
-// to "Your sites". Signed out, the header stays as the page wrote it.
+// Who is looking at a public page. It sets data-account="in" or "out" on
+// <html>; the page's own markup says what each sees (data-when="signed-in" or
+// "signed-out", shown by the style sheet), and a link marked data-sign-out
+// signs the person out.
 (function () {
-  var link = document.getElementById("dash-link");
-  if (!link) return;
-  fetch("/v1/me", { credentials: "same-origin" }).then(function (r) {
-    if (!r.ok) return;
-    var nav = document.createElement("nav");
-    nav.className = "sh-nav";
-    nav.setAttribute("aria-label", "Your account");
-    var account = document.createElement("a");
-    account.href = "/dashboard/account";
-    account.textContent = "Account";
-    var out = document.createElement("a");
-    out.href = "/";
-    out.textContent = "Sign out";
-    out.addEventListener("click", function (e) {
-      e.preventDefault();
-      fetch("/v1/auth/signout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-SH-CSRF": "1" }, body: "{}" })
-        .then(function () { location.assign("/"); });
-    });
-    nav.appendChild(account);
-    nav.appendChild(out);
-    link.after(nav);
-    link.closest(".sh-bar").classList.add("sh-signed");
-  }).catch(function () {});
+  var root = document.documentElement;
+  function set(state) { root.dataset.account = state; }
+  fetch("/v1/me", { credentials: "same-origin" })
+    .then(function (r) { set(r.ok ? "in" : "out"); })
+    .catch(function () { set("out"); });
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("[data-sign-out]");
+    if (!a) return;
+    e.preventDefault();
+    fetch("/v1/auth/signout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-SH-CSRF": "1" }, body: "{}" })
+      .then(function (r) { if (r.ok) location.assign("/"); });
+  });
 })();
