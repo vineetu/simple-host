@@ -10,7 +10,9 @@ package web
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"io/fs"
 	"net/http"
@@ -151,14 +153,13 @@ func (h *handler) appFile(w http.ResponseWriter, r *http.Request) error {
 	if hashed.MatchString(name) {
 		cache = "public, max-age=31536000, immutable"
 	}
-	if name == "sw.js" {
+	if name == "sw.js" || code(name) {
 		cache = "no-cache"
 	}
 	if strings.HasSuffix(name, ".webmanifest") {
 		w.Header().Set("Content-Type", "application/manifest+json")
 	}
-	w.Header().Set("Cache-Control", cache)
-	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
+	write(w, r, name, cache, body)
 	return nil
 }
 
@@ -183,9 +184,29 @@ func serve(w http.ResponseWriter, r *http.Request, name, cache string) error {
 	if err != nil {
 		return cw.NotFound
 	}
-	w.Header().Set("Cache-Control", cache)
-	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
+	if code(name) {
+		cache = "no-cache"
+	}
+	write(w, r, name, cache, body)
 	return nil
+}
+
+// code says a file is a style sheet or script under a name that does not
+// change with its content. A page is written against one exact copy of each,
+// so the browser asks every time whether its copy is still the one (an ETag
+// makes the answer "yes" cost nothing): a page never meets an older sheet.
+func code(name string) bool {
+	return !hashed.MatchString(name) && (strings.HasSuffix(name, ".css") || strings.HasSuffix(name, ".js"))
+}
+
+// write sends a file with its cache rule; pages and code carry an ETag.
+func write(w http.ResponseWriter, r *http.Request, name, cache string, body []byte) {
+	w.Header().Set("Cache-Control", cache)
+	if cache == "no-cache" {
+		sum := sha256.Sum256(body)
+		w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:8])+`"`)
+	}
+	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(body))
 }
 
 // helper is the page helper with this service's own address filled in, so
