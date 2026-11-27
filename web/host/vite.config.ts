@@ -45,6 +45,9 @@ export default defineConfig(({ mode }) => {
           // Browser push comes from the existing push worker, so one worker covers the whole origin.
           globPatterns: ["index.html", "app/*.{js,css}", "app/fonts/*.woff2"],
           navigateFallback: null,
+          // Only the exact files are answered from the cache. Without this, a visit to "/" was
+          // answered with the cached app shell (as "/index.html"), which sent the browser to "/" again, for ever.
+          directoryIndex: null,
           runtimeCaching: [
             {
               urlPattern: ({ request, url }) => request.mode === "navigate" && /^\/(signin|admin|dashboard)(\/|$)/.test(url.pathname),
