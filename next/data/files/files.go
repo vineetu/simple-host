@@ -195,6 +195,11 @@ func (h *handler) remove(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		if q.Owner {
+			// The owner's delete of a file that is not there is done already.
+			web.JSON(w, http.StatusOK, map[string]any{"deleted": true})
+			return nil
+		}
 		return web.NotFound
 	}
 	os.Remove(file)

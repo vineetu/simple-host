@@ -204,7 +204,9 @@ func (h *handler) get(w http.ResponseWriter, r *http.Request) error {
 
 // values reads the row's columns from the body, refusing unknown ones, and
 // stamps who added it and when: a caller who is not the owner cannot set
-// visitor_id, created_at or updated_at.
+// visitor_id, created_at, updated_at or written_by. Those server columns are
+// dropped, not refused, where the table has none: pages send them (the old
+// service took such rows too).
 func (t *table) values(r *http.Request, add bool) (map[string]any, error) {
 	var in map[string]any
 	if err := decode(io.LimitReader(r.Body, 1<<20), &in); err != nil {
@@ -212,10 +214,14 @@ func (t *table) values(r *http.Request, add bool) (map[string]any, error) {
 	}
 	vals := map[string]any{}
 	for col, v := range in {
+		server := col == "visitor_id" || col == "created_at" || col == "updated_at" || col == "written_by"
 		if !t.cols[col] {
+			if server {
+				continue
+			}
 			return nil, web.Refuse(http.StatusBadRequest, "bad_column", "The table has no column "+col+".")
 		}
-		if t.Owner || col != "visitor_id" && col != "created_at" && col != "updated_at" {
+		if t.Owner || !server {
 			vals[col] = arg(v)
 		}
 	}

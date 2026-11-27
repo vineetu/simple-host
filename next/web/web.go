@@ -50,6 +50,9 @@ func Mount(a *app.App) {
 	p.Handle("GET /manifest.webmanifest", cw.Func(h.appFile))
 	p.Handle("GET /pages.css", cw.Func(h.appFile))
 	p.Handle("GET /auth.js", cw.Func(h.helper))
+	// The old service's docs were many pages under /docs/; old skills and
+	// search results still link there. They are one page now.
+	p.Handle("GET /docs/{rest...}", http.RedirectHandler("/docs", http.StatusMovedPermanently))
 	p.Handle("GET /skills.zip", cw.Func(h.skillSet))
 	p.Handle("GET /upload/{token}", cw.Func(h.picker))
 	p.Handle("GET /setup", cw.Func(h.setupPage))

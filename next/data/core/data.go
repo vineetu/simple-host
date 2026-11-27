@@ -344,7 +344,10 @@ func guard(err error) error {
 		return web.Refuse(http.StatusRequestEntityTooLarge, "limit_"+limits.DataBytes.Name, limits.DataBytes.Fix)
 	case errors.Is(err, sqlite3.TOOBIG):
 		return errSandboxFull
-	case errors.Is(err, sqlite3.ERROR) || errors.Is(err, sqlite3.CONSTRAINT) || errors.Is(err, sqlite3.AUTH) || errors.Is(err, sqlite3.MISMATCH) || errors.Is(err, sqlite3.RANGE):
+	case errors.Is(err, sqlite3.CONSTRAINT):
+		// A UNIQUE, NOT NULL or CHECK the row breaks: pages tell "already taken" by this 409.
+		return web.Refuse(http.StatusConflict, "row_conflict", err.Error())
+	case errors.Is(err, sqlite3.ERROR) || errors.Is(err, sqlite3.AUTH) || errors.Is(err, sqlite3.MISMATCH) || errors.Is(err, sqlite3.RANGE):
 		return web.Refuse(http.StatusBadRequest, "sql_error", err.Error())
 	}
 	return err

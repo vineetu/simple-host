@@ -163,13 +163,13 @@ func (q *Req) Author(v any) (any, bool) {
 	return nil, false
 }
 
-// Limit is the page size a list asks for: ?limit= from 1 to 500, else 100.
+// Limit is the page size a list asks for: ?limit= from 1 (more than 500 is 500), else 100.
 func Limit(r *http.Request) int {
 	n, err := strconv.Atoi(r.URL.Query().Get("limit"))
-	if err != nil || n < 1 || n > 500 {
+	if err != nil || n < 1 {
 		return 100
 	}
-	return n
+	return min(n, 500) // more than 500 asked: 500, as pages always got
 }
 
 // Visible is the condition for rows the caller may both read and do op

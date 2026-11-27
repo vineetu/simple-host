@@ -99,6 +99,12 @@ func (h *handler) me(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 	out := map[string]any{"signed_in": true, "id": c.ID, "email": c.Email}
+	// expires_at: until when this site's sign-in lasts (pages show it).
+	var until time.Time
+	if h.a.DB.QueryRowContext(r.Context(), `SELECT expires_at FROM visitor_sessions WHERE id = $1`,
+		access.SiteSessionID(access.Cookie(r, "sh_vsess"))).Scan(&until) == nil {
+		out["expires_at"] = until.UTC().Format(time.RFC3339)
+	}
 	// site_owner: the signed-in person owns this site (or acts for its team). Pages built on the
 	// page helper read it to show the owner's own view (SH.me().site_owner).
 	if owner, _ := h.a.People.ActsFor(r.Context(), c, sites.PlaceOf(r).Site.OwnerID); owner {

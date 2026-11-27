@@ -471,12 +471,18 @@
   };
 
   // Temporary, goes with next/compat: the old helper's SH.push (browser
-  // notifications) is gone; this stand-in keeps old pages from throwing.
+  // notifications) is gone; these stand-ins keep old pages from throwing.
   function pushGone() {
     console.info("[SH] SH.push is not available any more; nothing was changed.");
     return Promise.resolve({available: false, code: "not_available"});
   }
-  SH.push = {subscribe: pushGone, unsubscribe: pushGone};
+  SH.push = {subscribe: pushGone, unsubscribe: pushGone, mute: pushGone};
+  // The same for the old owner's pick list SH.storage.people (dropped): an
+  // empty list, so a page that waits for it still loads the rest.
+  SH.storage.people = function () {
+    console.info("[SH] SH.storage.people is not available any more.");
+    return Promise.resolve({people: [], available: false, code: "not_available"});
+  };
 
   SH.ready = SH.me().catch(function () { return {signed_in: false}; });
   if (!noBackend) {

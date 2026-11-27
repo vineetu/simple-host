@@ -55,7 +55,9 @@ func Mount(a *app.App) {
 	}
 	p := a.Routes.Platform
 	p.Handle("GET /.well-known/oauth-protected-resource/mcp", web.Func(h.resource))
+	p.Handle("GET /.well-known/oauth-protected-resource", web.Func(h.resource)) // apps that read the root one
 	p.Handle("GET /.well-known/oauth-authorization-server", web.Func(h.server))
+	p.Handle("GET /.well-known/oauth-authorization-server/mcp", web.Func(h.server)) // apps that add the /mcp path
 	p.Handle("POST /oauth/register", web.Func(h.register))
 	p.Handle("GET /oauth/authorize", web.Func(h.authorize))
 	p.Handle("POST /oauth/authorize", web.Func(h.approve))
@@ -71,10 +73,17 @@ func oauthError(w http.ResponseWriter, status int, code, desc string) error {
 	return nil
 }
 
-// resource is route 55: where apps sign in for /mcp.
+// resource is route 55: where apps sign in for /mcp. The root document
+// names the whole service (its tokens also work on /v1), as RFC 9728 has
+// the resource match the address it was read from.
 func (h *handler) resource(w http.ResponseWriter, r *http.Request) error {
-	web.JSON(w, http.StatusOK, map[string]any{"resource": h.issuer + "/mcp", "authorization_servers": []string{h.issuer},
-		"bearer_methods_supported": []string{"header"}, "scopes_supported": []string{scope}})
+	res := h.issuer + "/mcp"
+	if r.URL.Path == "/.well-known/oauth-protected-resource" {
+		res = h.issuer
+	}
+	web.JSON(w, http.StatusOK, map[string]any{"resource": res, "authorization_servers": []string{h.issuer},
+		"bearer_methods_supported": []string{"header"}, "scopes_supported": []string{scope},
+		"resource_name": "Simple Host", "resource_documentation": h.issuer + "/llms.txt"})
 	return nil
 }
 
@@ -86,6 +95,10 @@ func (h *handler) server(w http.ResponseWriter, r *http.Request) error {
 		"response_types_supported": []string{"code"}, "grant_types_supported": []string{"authorization_code", "refresh_token"},
 		"code_challenge_methods_supported":      []string{"S256"},
 		"token_endpoint_auth_methods_supported": []string{"none", "client_secret_basic", "client_secret_post"},
+		"response_modes_supported":              []string{"query"},
+		"service_documentation":                 h.issuer + "/llms.txt",
+		// authorize sends iss with the code (RFC 9207)
+		"authorization_response_iss_parameter_supported": true,
 	})
 	return nil
 }
@@ -143,7 +156,7 @@ func (h *handler) register(w http.ResponseWriter, r *http.Request) error {
 	id := access.NewSecret("shc_")[:26] // 22 random characters, as the old service made client ids
 	out := map[string]any{"client_id": id, "client_id_issued_at": time.Now().Unix(), "client_name": in.Name,
 		"redirect_uris": in.Redirects, "token_endpoint_auth_method": in.Method,
-		"grant_types": []string{"authorization_code", "refresh_token"}, "response_types": []string{"code"}}
+		"grant_types": []string{"authorization_code", "refresh_token"}, "response_types": []string{"code"}, "scope": scope}
 	var secretHash any
 	if in.Method != "none" {
 		secret := access.NewSecret("shcs_")

@@ -128,15 +128,23 @@ func (h *handler) put(w http.ResponseWriter, r *http.Request) error {
 				return err
 			}
 		} else {
+			changed := int64(0)
 			cond, args, err := q.Visible(ctx, table, op)
-			if err != nil {
-				return err
+			if err == nil {
+				res, err := q.Exec(ctx, `UPDATE _values SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ? AND `+cond, append([]any{value, key}, args...)...)
+				if err != nil {
+					return err
+				}
+				changed, _ = res.RowsAffected()
 			}
-			res, err := q.Exec(ctx, `UPDATE _values SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ? AND `+cond, append([]any{value, key}, args...)...)
-			if err != nil {
-				return err
-			}
-			if n, _ := res.RowsAffected(); n == 0 {
+			if changed == 0 {
+				if _, _, aerr := q.Rule(ctx, table, rules.OpAdd, true); aerr == nil {
+					// Someone who may add, but not change this key: it is taken.
+					return web.Refuse(http.StatusConflict, "key_exists", "This key is taken. Use another key.")
+				}
+				if err != nil {
+					return err
+				}
 				return q.Refused(ctx, table, op)
 			}
 		}
@@ -175,6 +183,11 @@ func (h *handler) remove(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		if q.Owner {
+			// The owner's delete of a key that is not there is done already.
+			web.JSON(w, http.StatusOK, map[string]any{"deleted": true})
+			return nil
+		}
 		return web.NotFound
 	}
 	if err := h.a.Data.Changed(r.Context(), q.Site, q.Name, table, "delete"); err != nil {
