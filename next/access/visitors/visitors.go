@@ -98,6 +98,12 @@ func (h *handler) me(w http.ResponseWriter, r *http.Request) error {
 		web.JSON(w, http.StatusOK, map[string]any{"signed_in": false})
 		return nil
 	}
-	web.JSON(w, http.StatusOK, map[string]any{"signed_in": true, "id": c.ID, "email": c.Email})
+	out := map[string]any{"signed_in": true, "id": c.ID, "email": c.Email}
+	// site_owner: the signed-in person owns this site (or acts for its team). Pages built on the
+	// page helper read it to show the owner's own view (SH.me().site_owner).
+	if owner, _ := h.a.People.ActsFor(r.Context(), c, sites.PlaceOf(r).Site.OwnerID); owner {
+		out["site_owner"] = true
+	}
+	web.JSON(w, http.StatusOK, out)
 	return nil
 }
