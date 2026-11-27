@@ -405,6 +405,10 @@ for (const width of [390, 1280]) {
     // Signing out of the site (a plain form) goes back to the private page.
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "This site is private" })).toBeVisible();
+    // Signing in there again asks who (it does not walk straight back in), and offers another email.
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Continue as" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Use another email", exact: true })).toBeVisible();
 
     // Signed in on the platform already: a second site only asks to continue.
     // (a redirect answered by the test's router: wait for the first answer only)
