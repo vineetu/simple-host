@@ -80,7 +80,7 @@ func (h *handler) page(w http.ResponseWriter, r *http.Request) error {
 	case "robots.txt", "sitemap.xml":
 		return h.seo(w, name)
 	}
-	if name == "llms.txt" || name == "push-sw.js" {
+	if name == "llms.txt" || name == "push-sw.js" || name == "header.js" {
 		return serve(w, r, name, "public, max-age=300")
 	}
 	if appPages[name] {

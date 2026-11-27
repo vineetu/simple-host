@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex"><meta name="theme-color" content="#f6f4e9"><title>Enter the passcode</title>
+<link rel="stylesheet" href="/pages.css"></head><body class="sh-gate">
+<main class="sh-card sh-gate-card">
+<div class="sh-gate-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3M12 14.5v2.5"/></svg></div>
+<p class="sh-site">club--ana.simple-host.site</p>
+<h1>Enter the passcode</h1>
+
+<p class="sh-lead">This site is locked. Type the passcode its owner gave you to open it.</p>
+<form method="post" action="/_sh/passcode"><input type="hidden" name="next" value="/menu">
+<label for="sh-pass">Passcode</label>
+<input id="sh-pass" name="passcode" type="password" autocomplete="current-password" required autofocus class="sh-input bad" aria-invalid="true" aria-describedby="sh-msg">
+<p class="sh-msg bad" id="sh-msg" role="alert"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 4.2v4.6M8 10.9v.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>That passcode is not right. Check it and try again.</span></p>
+<button class="sh-btn" type="submit">Open site</button></form>
+<p class="sh-fine">No passcode? Ask the person who sent you the link.</p>
+
+</main>
+<p class="sh-by">Hosted on <span class="sh-mark"><span class="a">simple</span><i>-</i>host</span></p>
+</body></html>

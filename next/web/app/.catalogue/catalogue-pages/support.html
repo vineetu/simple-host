@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Support · Simple Host</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/pages.css">
+</head>
+<body>
+<header class="sh-header">
+  <div class="sh-bar">
+    <a class="sh-logo" href="/"><span class="sh-logo-a">simple</span><b>-</b><span class="sh-logo-b">host</span></a>
+    <nav class="sh-nav" aria-label="Main">
+      <a class="sh-nav-home" href="/">Home</a>
+      <a href="/install">Get started</a>
+      <a href="/docs">Docs</a>
+    </nav>
+    <a class="sh-signin" id="dash-link" href="/dashboard">Your sites</a>
+  </div>
+</header>
+<main class="container">
+  <section class="page-head">
+    <h1>Support</h1>
+    <p class="intro">Write to <a href="mailto:support@simple-host.app">support@simple-host.app</a>. It helps to include:</p>
+    <ul>
+      <li>the email you sign in with</li>
+      <li>the address of the site</li>
+      <li>what you expected, what happened, and any error message</li>
+    </ul>
+    <p>Your AI app can help too: it can do anything you can do in <a href="/dashboard">Your sites</a>.</p>
+  </section>
+
+  <section>
+    <h2 id="common-questions">Common questions</h2>
+    <h3>My AI app says Simple Host is not connected.</h3>
+    <p>Reconnect Simple Host in the app's connector settings. You sign in once more.</p>
+    <h3>I want to disconnect an app.</h3>
+    <p>Open <a href="/dashboard">Your sites</a> and remove it under Connected apps.</p>
+    <h3>I deleted a site by mistake.</h3>
+    <p>Deleted sites stay in a bin for 7 days. Restore one, with its saved data, from <a href="/dashboard">Your sites</a>.</p>
+    <h3>I want a copy of my data, or to delete my account.</h3>
+    <p>Both are in <a href="/dashboard">Your sites</a>, under Your data. A download comes as a link by email. Deleting an account removes everything at once.</p>
+  </section>
+
+  <section>
+    <h2 id="report-a-page">Report a page</h2>
+    <p>If a page here is illegal, abusive or a scam, tell us. We read every report.</p>
+    <form id="report" class="panel">
+      <div class="field">
+        <label for="url">Page address</label>
+        <input id="url" name="url" type="url" required placeholder="https://">
+      </div>
+      <div class="field">
+        <label for="reason">What is wrong</label>
+        <textarea id="reason" name="reason" required></textarea>
+      </div>
+      <button class="btn btn-primary" type="submit">Send report</button>
+      <p class="status" role="status" id="msg"></p>
+    </form>
+  </section>
+<script>
+(function () {
+  var form = document.getElementById("report");
+  var msg = document.getElementById("msg");
+  var url = document.getElementById("url");
+  var q = new URLSearchParams(location.search).get("url");
+  if (q) url.value = q;
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var btn = form.querySelector("button");
+    btn.disabled = true;
+    msg.className = "status";
+    msg.textContent = "";
+    fetch("/v1/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-SH-CSRF": "1" },
+      body: JSON.stringify({ url: url.value, reason: document.getElementById("reason").value })
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, body: b }; });
+    }).then(function (res) {
+      if (res.ok) {
+        msg.textContent = "Thanks. We will look at it.";
+        form.reset();
+      } else {
+        msg.className = "status bad";
+        msg.textContent = res.body.fix || "Something went wrong. Please try again.";
+      }
+    }).catch(function () {
+      msg.className = "status bad";
+      msg.textContent = "Could not reach the service. Please try again.";
+    }).then(function () { btn.disabled = false; });
+  });
+})();
+</script>
+</main>
+<footer class="sh-footer">
+  <div class="sh-foot">
+    <nav class="sh-foot-links" aria-label="More">
+      <a href="/docs">Docs</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/support">Support</a>
+    </nav>
+    <p class="sh-credit" data-hosted>Simple Host is made and run by Vineet Sriram.</p>
+    <p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>
+  </div>
+</footer>
+<script>
+// What only simple-host.app can say is marked data-hosted and removed elsewhere.
+(function () {
+  if (location.hostname !== 'simple-host.app') document.querySelectorAll('[data-hosted]').forEach(function (el) { el.remove(); });
+})();
+</script>
+</body>
+</html>
