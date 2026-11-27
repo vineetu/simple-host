@@ -178,6 +178,8 @@
     .sh-bar .sh-logo { font-size: 24px; }
     .sh-nav { gap: 4px 10px; }
     .sh-nav .sh-nav-home { display: none; }
+    /* Signed in on a phone: Your sites, Account and Sign out take the room of the public links. */
+    .sh-signed .sh-nav[aria-label="Main"] { display: none; }
     .sh-nav a, .sh-signin { font-size: var(--text-sm); }
     .container h1 { font-size: var(--text-3xl); }
     .container .intro { font-size: var(--text-base); }
