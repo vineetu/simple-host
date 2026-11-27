@@ -67,7 +67,7 @@ func Mount(a *app.App) {
 
 // pages are the static pages under /{page}; appPages are the owner app's.
 var pages = map[string]bool{"home": true, "install": true, "docs": true, "terms": true, "privacy": true,
-	"support": true}
+	"support": true, "features": true}
 var appPages = map[string]bool{"signin": true, "admin": true, "dashboard": true}
 
 // page answers /{page}: a page's .html file, or a file at the root
@@ -106,7 +106,7 @@ func (h *handler) seo(w http.ResponseWriter, name string) error {
 	}
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-	for _, p := range []string{"/", "/install", "/docs", "/terms", "/privacy", "/support"} {
+	for _, p := range []string{"/", "/install", "/docs", "/features", "/terms", "/privacy", "/support"} {
 		b.WriteString("  <url><loc>" + base + p + "</loc></url>\n")
 	}
 	b.WriteString("</urlset>\n")

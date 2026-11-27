@@ -95,7 +95,7 @@ export default defineConfig(({ mode }) => {
 
 /**
  * serverPages puts the pages the Go server writes into the catalogue build,
- * under /catalogue-pages/: the four text pages as they are, and the gate pages
+ * under /catalogue-pages/: the public text pages as they are, and the gate pages
  * that `make web-pages` rendered into .catalogue-pages (with a link to the
  * pages.css built here instead of their inline copy).
  */
@@ -106,7 +106,7 @@ function serverPages(): PluginOption {
       const out = at(".catalogue/catalogue-pages");
       const statics = at("../../next/web/static");
       mkdirSync(out, { recursive: true });
-      for (const p of ["privacy", "terms", "support", "docs"]) cpSync(`${statics}/${p}.html`, `${out}/${p}.html`);
+      for (const p of ["privacy", "terms", "support", "docs", "features"]) cpSync(`${statics}/${p}.html`, `${out}/${p}.html`);
       cpSync(`${statics}/header.js`, at(".catalogue/header.js")); // the text pages' account corner
       mkdirSync(at(".catalogue/assets"), { recursive: true });
       cpSync(`${statics}/assets/favicon.svg`, at(".catalogue/assets/favicon.svg"));

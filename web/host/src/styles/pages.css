@@ -158,6 +158,60 @@
   .container .status.bad { color: var(--color-bad); }
   .container .status:empty { min-height: 0; margin: 0; }
 
+  /* The feature tree. Each line connects to a heading or a disclosure in the
+     document, so an open branch grows along with its contents. */
+  .feature-map .page-head { text-align: center; }
+  .feature-map .intro { max-width: 55ch; margin-inline: auto; }
+  .map-root {
+    position: relative; width: fit-content; margin: 32px auto 28px; padding: 12px 24px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: var(--text-2xl); font-weight: var(--w-strong); color: var(--color-ink);
+    background: var(--color-accent-soft); border: 1.5px solid var(--color-ink-soft);
+    border-radius: var(--radius-wobble); box-shadow: var(--shadow-paper);
+  }
+  .map-root::after, .map-branch::before, .map-branch h2::before, .map-branch li::before {
+    content: ""; position: absolute; border: 0 solid var(--color-ink-soft);
+  }
+  .map-root::after { top: 100%; left: 50%; height: 30px; border-left-width: 1px; }
+  .map-branches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .map-branch { position: relative; padding: 22px 12px 0; }
+  .map-branch::before { top: 0; left: 0; right: 0; border-top-width: 1px; }
+  .map-branch:first-child::before { left: 50%; }
+  .map-branch:last-child::before { right: 50%; }
+  .map-branch h2 {
+    position: relative; margin: 0; padding: 12px 10px; text-align: center;
+    border: 1px solid var(--color-ink-soft); border-radius: var(--radius-tab); background: var(--color-card);
+  }
+  .map-branch h2::before { bottom: 100%; left: 50%; height: 23px; border-left-width: 1px; }
+  .map-branch > p { margin: 12px 8px; font-size: var(--text-sm); }
+  .map-branch ul { list-style: none; margin: 0 4px 0 12px; padding: 0; }
+  .map-branch li { position: relative; margin: 0; padding-left: 18px; border-left: 1px solid var(--color-rule); }
+  .map-branch li:last-child { border-left-color: transparent; }
+  .map-branch li::before { top: 0; left: -1px; width: 14px; height: 23px; border-width: 0 0 1px 1px; border-color: var(--color-rule); border-bottom-left-radius: var(--radius-sm); }
+  .map-branch summary, .map-branch a { min-height: 44px; display: flex; align-items: center; }
+  .map-branch summary { gap: 12px; justify-content: space-between; color: var(--color-accent); cursor: pointer; }
+  .map-branch summary:hover { text-decoration: underline; }
+  .map-branch summary::-webkit-details-marker { display: none; }
+  .map-branch summary::after { content: ""; width: 8px; height: 8px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); flex: none; margin-right: 6px; }
+  .map-branch details[open] > summary::after { transform: rotate(225deg); }
+  .map-branch details { border-bottom: 1px solid var(--color-rule); }
+  .map-branch details p, .map-branch details a { font-size: var(--text-sm); margin: 4px 0 8px; }
+  @media (max-width: 699px) {
+    body:has(.feature-map) .sh-logo { font-weight: 400; }
+    .feature-map .page-head { text-align: left; }
+    .feature-map .intro { margin-inline: 0; }
+    .map-root { margin: 24px 0 16px; }
+    .map-root::after { left: 14px; height: 18px; }
+    .map-branches { display: block; margin-left: 15px; }
+    .map-branch { border-left: 1px solid var(--color-ink-soft); padding: 0 0 24px 22px; }
+    .map-branch:last-child { border-left-color: transparent; padding-bottom: 0; }
+    .map-branch::before, .map-branch:first-child::before, .map-branch:last-child::before {
+      left: -1px; top: 0; width: 22px; height: 24px; border-width: 0 0 1px 1px; border-bottom-left-radius: var(--radius-sm);
+    }
+    .map-branch h2 { text-align: left; padding-inline: 14px; }
+    .map-branch h2::before { content: none; }
+  }
+
   /* The page's sections, beside the reading column on a wide screen. */
   .toc { display: none; }
   .toc p { margin: 0 0 4px; font-size: var(--text-xs); font-weight: var(--w-strong); letter-spacing: .04em; text-transform: uppercase; color: var(--color-ink-faint); }

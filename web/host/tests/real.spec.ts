@@ -304,7 +304,7 @@ for (const width of [390, 1280]) {
     };
 
     // Signed out: every public page offers Sign in, and nothing of an account.
-    for (const path of ["/", "/docs", "/install", "/support", "/terms", "/privacy"]) {
+    for (const path of ["/", "/docs", "/install", "/support", "/features", "/terms", "/privacy"]) {
       await page.goto(APP + path);
       await signedOut();
     }
@@ -315,7 +315,7 @@ for (const width of [390, 1280]) {
     await signIn();
 
     // Signed in: the same pages show Your sites, Account and Sign out.
-    for (const path of ["/docs", "/install", "/support", "/terms", "/privacy", "/"]) {
+    for (const path of ["/docs", "/install", "/support", "/features", "/terms", "/privacy", "/"]) {
       await page.goto(APP + path);
       await signedIn();
     }
@@ -377,6 +377,7 @@ for (const width of [390, 1280]) {
       ["/terms", "Terms"],
       ["/support", "Support"],
       ["/docs", "API reference"],
+      ["/features", "How Simple Host fits together"],
     ]) {
       await page.goto(APP + path);
       await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();

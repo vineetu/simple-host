@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Features · Simple Host</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/pages.css?v=20261127">
+</head>
+<body>
+<header class="sh-header">
+  <div class="sh-bar">
+    <a class="sh-logo" href="/"><span class="sh-logo-a">simple</span><b>-</b><span class="sh-logo-b">host</span></a>
+    <nav class="sh-nav" aria-label="Main">
+      <a class="sh-nav-home" href="/">Home</a>
+      <a href="/install">Get started</a>
+      <a href="/docs">Docs</a>
+    </nav>
+    <a class="sh-signin" href="/signin" data-when="signed-out">Sign in</a>
+    <a class="sh-signin" href="/dashboard" data-when="signed-in">Your sites</a>
+    <nav class="sh-nav" aria-label="Your account" data-when="signed-in"><a href="/dashboard/account">Account</a><a href="/" data-sign-out>Sign out</a></nav>
+  </div>
+</header>
+<main class="container wide feature-map">
+  <section class="page-head">
+    <h1>How Simple Host fits together</h1>
+    <p class="intro">Publish a website from your files or your AI app. Choose who can open it and what it can save.</p>
+  </section>
+
+  <div class="map-root">
+    <svg viewBox="0 0 44 36" width="44" height="36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M5 3.5 38 3q3 0 3 3l-.5 23q0 3-3 3L5 33q-3 0-3-3l.5-23q0-3 2.5-3.5Z M3 11l38-.5"/>
+      <path d="M7 7.5h1m3.5 0h1M10 18h10m-10 5h7m9-4 3 3 5-6"/>
+    </svg>
+    Your site
+  </div>
+
+  <div class="map-branches">
+    <section class="map-branch">
+      <h2>Publish and update</h2>
+      <p>Give your pages an address and keep earlier versions.</p>
+      <ul>
+        <li><details>
+          <summary>Files and versions</summary>
+          <p>Send a folder as an archive, upload files, or ask your connected AI app to publish them. Each update goes live at the same address. You can switch back to a version you published earlier.</p>
+          <a href="/install#connect">Connect your AI app</a>
+        </details></li>
+        <li><details>
+          <summary>Site addresses</summary>
+          <p>Every site gets its own address. Give it a short name, connect a domain you own, or use one domain for all your sites.</p>
+          <p>Your public page can list the sites you choose or open one of them as your home page.</p>
+          <a href="/docs#addresses">See the address formats</a>
+        </details></li>
+        <li><details>
+          <summary>Your dashboard</summary>
+          <p>Find a site, take it offline, or put it back online. If you delete a site by mistake, you can restore it from the bin.</p>
+          <p>If you run your own copy, the admin page also shows reports, network use and new accounts.</p>
+          <a href="/dashboard">Open your dashboard</a>
+          <a href="/install#self-host">Run your own copy</a>
+        </details></li>
+      </ul>
+    </section>
+
+    <section class="map-branch">
+      <h2>Choose who has access</h2>
+      <p>Decide who can run your site and who can visit.</p>
+      <ul>
+        <li><details>
+          <summary>Accounts and teams</summary>
+          <p>Sign in with a code sent to your email. Keep your own sites in your account. To manage sites together, make a team and invite people by email.</p>
+          <p>From your account you can request a download of your data. The download link comes by email.</p>
+          <a href="/docs#teams">Read about teams</a>
+        </details></li>
+        <li><details>
+          <summary>Apps and keys</summary>
+          <p>Approve an AI app to let it act with your permissions. You can also create an API key. Disconnect the app or revoke the key in your account.</p>
+          <a href="/docs#keys">Read about API keys</a>
+        </details></li>
+        <li><details>
+          <summary>Visitors and passcodes</summary>
+          <p>Let anyone open the site, protect it with a passcode, or invite specific email addresses. On an invite-only site, someone outside the list can ask you for access.</p>
+          <a href="/docs#every-site-address-pages-and-saved-data">See how visitors sign in</a>
+        </details></li>
+      </ul>
+    </section>
+
+    <section class="map-branch">
+      <h2>Keep data and count visits</h2>
+      <p>Save what visitors send and see which pages they read.</p>
+      <ul>
+        <li><details>
+          <summary>Tables, values and files</summary>
+          <p>A guestbook can keep each message in a table. A menu can save its opening hours as a named value. A form can accept a file.</p>
+          <p>Only the owner has access by default. Set rules to let visitors read or write. For example, a guest can edit just their own message.</p>
+          <a href="/docs#the-page-helper">Use saved data on a page</a>
+        </details></li>
+        <li><details>
+          <summary>Owner alerts</summary>
+          <p>Get a message in your AI app or a push notification in your browser when selected data changes or someone asks for access.</p>
+        </details></li>
+        <li><details>
+          <summary>Visit numbers</summary>
+          <p>See daily visits, popular pages, countries and where readers came from. Your own visits are left out. Bots are counted separately.</p>
+          <a href="/docs#sites">Find the site stats route</a>
+        </details></li>
+      </ul>
+    </section>
+  </div>
+</main>
+<footer class="sh-footer">
+  <div class="sh-foot">
+    <nav class="sh-foot-links" aria-label="More">
+      <a href="/features">Features</a>
+      <a href="/docs">Docs</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="/support">Support</a>
+    </nav>
+    <p class="sh-credit" data-hosted>Simple Host is made and run by Vineet Sriram.</p>
+    <p class="sh-credit">With thanks to Jacob Cole and Tejas D Channappa.</p>
+  </div>
+</footer>
+<script>
+// What only simple-host.app can say is marked data-hosted and removed elsewhere.
+(function () {
+  if (location.hostname !== 'simple-host.app') document.querySelectorAll('[data-hosted]').forEach(function (el) { el.remove(); });
+})();
+</script>
+<script src="/header.js?v=20261127" defer></script>
+</body>
+</html>

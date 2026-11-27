@@ -1,5 +1,5 @@
 // The pages the Go server writes itself (no React): every gate and status
-// page on a site address, and the four text pages. The catalogue build copies
+// page on a site address, and the public text pages. The catalogue build copies
 // them to /catalogue-pages/ (vite.config.ts; the gate pages come from
 // `make web-pages`), and the visual checks open them as they are.
 export type PageEntry = { id: string; title: string; page: string };
@@ -18,5 +18,6 @@ export const pageEntries: PageEntry[] = [
   { id: "text-privacy", title: "Text page: privacy", page: "/catalogue-pages/privacy.html" },
   { id: "text-terms", title: "Text page: terms", page: "/catalogue-pages/terms.html" },
   { id: "text-support", title: "Text page: support", page: "/catalogue-pages/support.html" },
+  { id: "text-features", title: "Text page: features", page: "/catalogue-pages/features.html" },
   { id: "text-docs", title: "Text page: API docs", page: "/catalogue-pages/docs.html" },
 ];
