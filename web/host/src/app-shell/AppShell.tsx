@@ -83,10 +83,16 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
       </aside>
 
       {/* Phone: a top bar with the wordmark. */}
-      <header className="flex items-center border-b-[1.5px] border-dashed border-ink-soft px-4 py-1.5 md:hidden">
+      <header className="flex items-center justify-between border-b-[1.5px] border-dashed border-ink-soft px-4 py-1.5 md:hidden">
         <a href="/" className="inline-flex min-h-11 items-center no-underline" aria-label="simple-host home">
           <Wordmark className="text-2xl" />
         </a>
+        {me && (
+          <button type="button" onClick={signOut} className="inline-flex min-h-11 cursor-pointer items-center gap-2 px-1 text-sm text-ink-soft hover:text-ink">
+            <SignOutIcon />
+            Sign out
+          </button>
+        )}
       </header>
 
       <div className="flex min-w-0 flex-col">
@@ -106,7 +112,7 @@ export function AppShell({ title, children }: { title: string; children: ReactNo
         </footer>
       </div>
 
-      {/* Phone: the bottom bar (signing out is on the Account page). */}
+      {/* Phone: the bottom bar (signing out is in the top bar). */}
       <nav
         aria-label="Main"
         className="fixed inset-x-0 bottom-0 z-30 grid auto-cols-fr grid-flow-col border-t-[1.5px] border-ink-soft bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
