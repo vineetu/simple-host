@@ -1,5 +1,9 @@
 [
   {
+    "date": "2026-11-28",
+    "what": "The public Features page maps the hackathon from opening sign-up to publishing results. Each topic opens in place."
+  },
+  {
     "date": "2026-11-26",
     "what": "The atlas now shows the rebuilt app: every screen and state from the web/hack catalogue, grouped by role, with its 390 and 1280 picture. The clickable prototype pages are gone; the catalogue replaces them. Find a hackathon stays the server's /directory page, so it has no picture."
   },

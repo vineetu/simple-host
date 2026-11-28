@@ -174,11 +174,10 @@ def feature_data():
 
 
 def generated():
-    base, product, options = feature_data()
+    base, product, _ = feature_data()
     return {
         Path(OUT): render(base),
         PRODUCT / "static/features.json": json.dumps(product, indent=1, ensure_ascii=True) + "\n",
-        PRODUCT / "static/features.html": render(product, options, PRODUCT / "features-page.tmpl.html"),
     }
 
 

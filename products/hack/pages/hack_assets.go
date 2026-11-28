@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -293,21 +292,7 @@ func (p *Assets) personalPresentationHTML(name string, body []byte) []byte {
 	if name == "enterprise.html" {
 		return bytes.ReplaceAll(body, []byte(`href="https://simple-hack.app/hackathons"`), []byte(`href="`+p.inkBaseURL()+`/hackathons"`))
 	}
-	return hackPersonalPresentationHTML(name, body)
-}
-
-func hackPersonalPresentationHTML(name string, body []byte) []byte {
-	switch name {
-	case "features.html":
-		body = regexp.MustCompile(`<a data-host-only [^>]*>[^<]*</a>`).ReplaceAll(body, nil)
-		start := bytes.Index(body, []byte(`<details class="feat" id="your-home-page">`))
-		if start >= 0 {
-			end := bytes.Index(body[start:], []byte("</details>"))
-			if end >= 0 {
-				return append(append([]byte{}, body[:start]...), body[start+end+len("</details>"):]...)
-			}
-		}
-	case "architecture.html":
+	if name == "architecture.html" {
 		return bytes.ReplaceAll(body, []byte("showcase or selected home, with a live feed, bio, pins and order"), []byte("showcase"))
 	}
 	return body

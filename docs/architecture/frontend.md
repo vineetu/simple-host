@@ -228,6 +228,7 @@ check resolves references transitively in both contracts and public files.
 
 The platform feature catalogue is authored in `static/features.json`.
 `products/hack/webassets/features.part.json` carries explicit JSON Pointer
-sets, insertions and removals, plus the product's rendering metadata. The product
-owns its feature-page template; generated product JSON and HTML replace the
-platform files through the same asset precedence used by other product pages.
+sets, insertions and removals, plus the product's rendering metadata.
+The generated product JSON and the separately authored hackathon map in
+`products/hack/webassets/static/features.html` replace the platform files
+through the usual product asset precedence.

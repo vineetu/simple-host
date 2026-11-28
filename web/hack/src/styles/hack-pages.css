@@ -111,8 +111,63 @@ html.sh-hack:not(.hack-story) input[type=checkbox] { background-image: url("data
 html.sh-hack:not(.hack-story) input[type=checkbox]:checked { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Crect x='1' y='1' width='16' height='16' rx='4' fill='%23a33f31' stroke='%23a33f31' stroke-width='1.5'/%3E%3Cpath d='M5 9.5l2.6 2.6L13 6.5' fill='none' stroke='%23fffdf7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 html.sh-hack:not(.hack-story) input:is([type=radio], [type=checkbox]):disabled { cursor: default; opacity: .6; }
 html.sh-hack:not(.hack-story) input:is([type=radio], [type=checkbox]):focus-visible { outline: 2px solid var(--color-accent); outline-offset: -10px; }
-/* The features page's "Back to the map" links. */
-html.sh-hack a.up { display: inline-flex; align-items: center; min-height: 44px; }
+/* The event map. Branch lines follow their topics as disclosures open. */
+html.hack-features { color-scheme: light !important; }
+.feature-map {
+  box-sizing: border-box; width: min(100%, 1056px); margin: 0 auto;
+  padding: clamp(24px, 5vw, 64px) 16px;
+}
+.feature-map h1, .feature-map h2 {
+  position: relative; box-sizing: border-box; color: var(--color-ink);
+  border: 1px solid var(--color-ink-soft); border-radius: var(--radius-wobble);
+}
+.feature-map h1 {
+  width: fit-content; margin: 0 auto 28px; padding: 14px 26px;
+  background: var(--color-accent-soft); font-size: var(--text-4xl); font-weight: var(--w-strong);
+}
+.map-branches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.map-branches section { position: relative; padding: 22px 12px 0; }
+.feature-map h1::after, .map-branches section::before, .map-branches h2::before, .map-branches li::before {
+  content: ""; position: absolute; border: 0 solid var(--color-ink-soft);
+}
+.feature-map h1::after { top: 100%; left: 50%; height: 29px; border-left-width: 1px; }
+.map-branches section::before { top: 0; inset-inline: 0; border-top-width: 1px; }
+.map-branches section:first-child::before { left: 50%; }
+.map-branches section:last-child::before { right: 50%; }
+.map-branches h2 {
+  margin: 0; padding: 12px; background: var(--color-card); text-align: center;
+  font-size: var(--text-xl); font-weight: var(--w-strong);
+}
+.map-branches h2::before { bottom: 100%; left: 50%; height: 23px; border-left-width: 1px; }
+.map-branches ul { list-style: none; margin: 0 2px 0 14px; padding: 0; }
+.map-branches li { position: relative; margin: 0; padding-left: 18px; border-left: 1px solid var(--color-ink-soft); }
+.map-branches li:last-child { border-color: transparent; }
+.map-branches li::before { top: 0; left: -1px; width: 13px; height: 24px; border-width: 0 0 1px 1px; border-bottom-left-radius: 4px; }
+.map-branches details { border-bottom: 1px solid var(--color-rule); }
+.map-branches summary, .map-branches a { display: flex; align-items: center; min-height: 46px; color: var(--color-accent); }
+.map-branches summary { justify-content: space-between; gap: 12px; cursor: pointer; font-weight: var(--w-medium); }
+.map-branches summary:hover { text-decoration: underline; }
+.map-branches summary::-webkit-details-marker { display: none; }
+.map-branches summary::after {
+  content: ""; flex: none; width: 7px; height: 7px; margin-right: 6px;
+  border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
+}
+.map-branches details[open] summary::after { transform: rotate(225deg); }
+.map-branches details p { margin: 0; }
+.map-branches details a { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 699.98px) {
+  html.hack-features.sh-hack .sh-header :is(.sh-logo, .sh-logo b) { font-weight: 400; }
+  .feature-map h1 { margin: 0 0 16px; padding: 10px 16px; font-size: var(--text-3xl); }
+  .feature-map h1::after { left: 14px; height: 17px; }
+  .map-branches { display: block; margin-left: 15px; }
+  .map-branches section { padding: 0 0 20px 18px; border-left: 1px solid var(--color-ink-soft); }
+  .map-branches section:last-child { padding-bottom: 0; border-left-color: transparent; }
+  .map-branches section::before, .map-branches section:first-child::before, .map-branches section:last-child::before {
+    top: 0; left: -1px; width: 18px; height: 24px; border-width: 0 0 1px 1px; border-bottom-left-radius: 4px;
+  }
+  .map-branches h2 { text-align: left; }
+  .map-branches h2::before { content: none; }
+}
 @media (max-width: 700px) {
   html.sh-hack :is(.sh-bar, .sh-foot) { flex-wrap: wrap; }
 }

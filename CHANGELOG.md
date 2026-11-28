@@ -1,5 +1,6 @@
 # Changelog
 
+2026-11-28: Simple Hack’s Features page maps how organisers open an event, teams submit projects and judges score entries.
 2026-11-23: Simple Hack old-design leftovers removed: organiser help says Home and judge help says My teams, unused style rules and the old kit-next.css are gone, and the old voting settings page now redirects to Results.
 2026-11-23: The browser session check every app page makes (`POST /v1/sso/session`) has its own per-IP rate limit, ten times roomier, so many people at one venue address no longer use up the sign-in routes' shared limit and get 429s on page loads. Sign-in routes keep their limit; the check stays limited per key too.
 2026-11-23: Simple Hack judge and public screens tidied. A wrong address on simple-hack.app (or a self-hosted copy) shows Simple Hack's own not-found page with a link home, and a site page that doesn't exist shows that page instead of bare text. A broken judge link says why and offers a way on. Judge Overview shows one next step at a time, stops asking for setup once scoring is closed, and Needs you only shows while there's a team left to score. Comments can be typed before scoring. The public stage pill uses the app's stage words, result scores say they are out of 100, and Find a hackathon groups events by stage. Your events puts Create event at the bottom; the phone menu is full screen.

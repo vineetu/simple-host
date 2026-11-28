@@ -4,6 +4,7 @@ export function PublicFoot({ find }: { find?: boolean }) {
     <nav aria-label="More" className="mt-12 flex flex-wrap items-center gap-x-5 border-t border-rule pt-4 text-sm text-ink-soft">
       <span>Made with Simple Hack</span>
       {[
+        ["/features", "Features"],
         ["/privacy.html", "Privacy"],
         ["/terms", "Terms"],
         ["/report", "Report a page"],

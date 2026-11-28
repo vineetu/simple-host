@@ -20,6 +20,30 @@ import (
 	hackassets "github.com/vsriram/simple-host/products/hack/webassets"
 )
 
+func hackPageRoutes() (*siteshttp.SiteHandler, *http.ServeMux) {
+	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", nil, nil)
+	assets := Extension().Assets(sh)
+	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
+	mux := http.NewServeMux()
+	assets.Routes(mux, sh.AssetServices())
+	pages.RegisterHackHome(mux, sh.Pages(), pages.NewAssets(sh.AssetServices(), sh.Pages().InkBaseURL()))
+	siteshttp.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
+	return sh, mux
+}
+
+func TestFeaturesPageRoutes(t *testing.T) {
+	_, mux := hackPageRoutes()
+	for _, path := range []string{"/features", "/features.html"} {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest("GET", "https://simple-hack.app"+path, nil))
+		body := w.Body.String()
+		if w.Code != http.StatusOK || !strings.Contains(body, "<title>Features · Simple Hack</title>") ||
+			strings.Contains(body, "Simple Host") || strings.Contains(body, "simple-host.app") {
+			t.Errorf("%s returned status %d or the wrong product page", path, w.Code)
+		}
+	}
+}
+
 // TestWriteCataloguePages is not a check: with SH_HACK_PAGES set to a folder
 // it writes Simple Hack's server-written pages there for the web app's
 // catalogue (make hack-web-pages): the marketing pages and the status pages,
@@ -32,13 +56,7 @@ func TestWriteCataloguePages(t *testing.T) {
 	if dir == "" {
 		t.Skip("SH_HACK_PAGES not set")
 	}
-	sh, _, _ := handler.NewSiteHandlers(productedition.ForKind(productedition.Hack), "", nil, nil, nil, "simple-hack.app", "sites.simple-hack.app", "", "", "", "", nil, 0, "", nil, nil)
-	assets := Extension().Assets(sh)
-	sh.SetProductAssets(assets.Replace, assets.Own, assets.Files, assets.Skills, assets.Hooks, assets.Rewrite)
-	mux := http.NewServeMux()
-	assets.Routes(mux, sh.AssetServices())
-	pages.RegisterHackHome(mux, sh.Pages(), pages.NewAssets(sh.AssetServices(), sh.Pages().InkBaseURL()))
-	siteshttp.RegisterUIRoutes(mux, "https://simple-hack.app", sh)
+	sh, mux := hackPageRoutes()
 	get := func(p string) (w *httptest.ResponseRecorder) {
 		w = httptest.NewRecorder()
 		// A page address that needs the database (a person's showcase) is not a file.
@@ -63,7 +81,7 @@ func TestWriteCataloguePages(t *testing.T) {
 	}
 	for name, p := range map[string]string{
 		"home": "/", "hackathons": "/hackathons", "get-started": "/get-started", "companies": "/companies",
-		"watch": "/watch", "features": "/features.html", "setup": "/setup", "notfound": "/no-such-page.html",
+		"watch": "/watch", "features": "/features", "setup": "/setup", "notfound": "/no-such-page.html",
 	} {
 		w := get(p)
 		if w.Code != http.StatusOK && name != "notfound" {
